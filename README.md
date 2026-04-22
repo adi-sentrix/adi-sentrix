@@ -1,42 +1,16 @@
-# ADI Sentric — MVP local
+## Hi there 👋
 
-Proyecto Vite + React listo para correr el dashboard `ADISentric`.
+<!--
+**adi-sentrix/adi-sentrix** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
-## Requisitos
+Here are some ideas to get you started:
 
-- Node.js 18+ (verifica con `node -v`)
-- npm 9+ (incluido con Node)
-
-## Pasos para arrancarlo (Windows / PowerShell)
-
-1. Abre PowerShell en esta carpeta:
-   ```powershell
-   cd "C:\ruta\a\adi-sentric-app"
-   ```
-2. Instala dependencias (la primera vez tarda 1–2 minutos):
-   ```powershell
-   npm install
-   ```
-3. Arranca el servidor de desarrollo:
-   ```powershell
-   npm run dev
-   ```
-4. Vite abrirá automáticamente `http://localhost:5173` en tu navegador.
-
-## Estructura
-
-```
-adi-sentric-app/
-├── index.html
-├── package.json
-├── vite.config.js
-└── src/
-    ├── main.jsx          ← punto de entrada
-    └── ADISentric.jsx    ← tu componente (el JSX original)
-```
-
-## Comandos útiles
-
-- `npm run dev`     — modo desarrollo con hot-reload
-- `npm run build`   — genera la versión de producción en `dist/`
-- `npm run preview` — sirve la versión `build` localmente
+- 🔭 I’m currently working on ...
+- 🌱 I’m currently learning ...
+- 👯 I’m looking to collaborate on ...
+- 🤔 I’m looking for help with ...
+- 💬 Ask me about ...
+- 📫 How to reach me: ...
+- 😄 Pronouns: ...
+- ⚡ Fun fact: ...
+-->
