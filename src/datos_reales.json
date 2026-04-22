@@ -1,0 +1,96 @@
+{
+  "ventasMensuales": [
+    {
+      "mes": "Ene",
+      "actual": 55478793,
+      "anterior": 51595277,
+      "presupuesto": 53814429
+    }
+  ],
+  "datosClientes": [
+    {
+      "cliente": "CEMAX",
+      "ventas": 20383771
+    },
+    {
+      "cliente": "GLC COMERCIAL",
+      "ventas": 13345498
+    },
+    {
+      "cliente": "CL MERC LIBRE",
+      "ventas": 11443071
+    },
+    {
+      "cliente": "FALABELLA",
+      "ventas": 10306453
+    }
+  ],
+  "datosProductos": [
+    {
+      "nombre": "ASP. THOMAS ANTIALLERGY",
+      "ventas": 4930451
+    },
+    {
+      "nombre": "MICROONDA THOMAS TH-25DM",
+      "ventas": 4454203
+    },
+    {
+      "nombre": "PLANCHA THOMAS TH-7300",
+      "ventas": 1936665
+    },
+    {
+      "nombre": "ASPIRADORA THOMAS TH-2206BL",
+      "ventas": 1914962
+    },
+    {
+      "nombre": "EXTRACTOR DE JUGO THOMAS TH-2540I",
+      "ventas": 1366964
+    },
+    {
+      "nombre": "HORNO THOMAS TH-100I",
+      "ventas": 1354555
+    },
+    {
+      "nombre": "ASP. THOMAS 1220 AQUAFILTER",
+      "ventas": 1352430
+    },
+    {
+      "nombre": "JUGUERA THOMAS TH-501V",
+      "ventas": 1334571
+    },
+    {
+      "nombre": "BATIDORA THOMAS TH-910PN",
+      "ventas": 1309950
+    },
+    {
+      "nombre": "CEPILLO ONDULADOR MULTISTYLER SIEGEN SG-B2810",
+      "ventas": 1302014
+    },
+    {
+      "nombre": "ASPIRADORA THOMAS TH-2230",
+      "ventas": 1239856
+    },
+    {
+      "nombre": "SECADOR PELO SIEGEN SG-3035",
+      "ventas": 1235937
+    },
+    {
+      "nombre": "PICADORA THOMAS TH-9010V",
+      "ventas": 1223218
+    },
+    {
+      "nombre": "HORNO THOMAS TH-62I",
+      "ventas": 1190431
+    },
+    {
+      "nombre": "ASPIRADORA THOMAS TH-1415",
+      "ventas": 1132389
+    }
+  ],
+  "resumen": {
+    "ventas_totales": 55478793,
+    "costos_totales": 33117947,
+    "margen_total": 22360846,
+    "margen_pct": 40.3
+  }
+}
