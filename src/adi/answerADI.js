@@ -19,6 +19,7 @@ import { composeClientComparison, composeBrandComparison } from "./composers/com
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from "./composers/qiRetrieval.js";
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
 import { composeClientMetricFollowUp } from "./composers/followups.js";
+import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } from "./deepThreading.js";
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -36,7 +37,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -105,7 +106,7 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
   // tengan qué leer en el turno siguiente. Single-turn (47): sin memoria previa, los detectores
   // devuelven null → cero efecto. Solo escribe campos con valor nuevo (no sobrescribe con null).
   if (ADI_CTX_THREADING_ENABLED) {
-    _threadContext(nextCtx, intent, resp);
+    _threadContext(nextCtx, intent, resp, route);
   }
   return {
     text,
@@ -121,7 +122,7 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
 // Replica el subset del FINALIZE del piso (L38521-38556) que alimenta los detectores de follow-up.
 // derivedClient = intent.clientName (client_dive) | intent.clientB (comparación · último pasa a ser B).
 // Listas desde sentrixAction.payload (clientes/skus). Freshness por turnCount (lastXTurn).
-function _threadContext(nextCtx, intent, resp) {
+function _threadContext(nextCtx, intent, resp, route) {
   if (intent) {
     const _dClient = intent.clientName || intent.clientB || null;
     if (_dClient) { nextCtx.lastClientMentioned = _dClient; nextCtx.lastClientMentionedTurn = nextCtx.turnCount; }
@@ -139,6 +140,74 @@ function _threadContext(nextCtx, intent, resp) {
   if (resp && Array.isArray(resp.entities) && resp.entities.length >= 2) {
     if (resp.entityDim === "cliente") { nextCtx.lastClientList = resp.entities; nextCtx.lastModuleAsked = "margenes"; }
     else if (resp.entityDim === "sku" || resp.entityDim === "producto") { nextCtx.lastSkuList = resp.entities; nextCtx.lastModuleAsked = "inventario"; }
+  }
+
+  // ── FASE R · CAPA PROFUNDA · A→B→C en ESTE updater (replica FINALIZE piso L38588-38710) ──
+  // Trampa #1: A (applyInvestigationContext) ANTES de B (R1) sobre el MISMO nextCtx · R1 lee
+  // nextCtx.investigationDomain/Metric que A acaba de poblar. NO separar, NO clonar nextCtx entre medio.
+  // Derivación per-ruta de _lcr (verificada contra _deep_trace.json): LOCKED (lcr=null) en client/QI/sku_operational.
+  if (VOICE_ACTIVE_RESULT_ENABLED) {
+    try {
+      const _locked = route === "client_dive" || route === "qi_retrieval" || route === "sku_operational";
+      const _lcr = _locked ? null : (resp || null);
+      const _dit = route === "qi_retrieval" ? "query_interpreter"
+                 : route === "sku_operational" ? "global_honest_fallback"
+                 : ((intent && intent.type) || route || null);
+      const _isQi = route === "qi_retrieval" && resp;
+      const _dInvEnts = _isQi && Array.isArray(resp.entities) ? resp.entities : null;
+      const _dInvEntDim = _isQi ? (resp.entityDim || null) : null;
+      const _dInvMetrics = _isQi ? (resp.materialMetrics != null ? resp.materialMetrics : null) : null;
+      const _dClient = (intent && (intent.clientName || intent.clientB)) || null;  // clientB · comparación: último pasa a ser B (piso L37388)
+      const _dSku = (intent && intent.skuName) || null;
+      // ── A · applyInvestigationContext (con _lcrForInvestigation synthetic · piso L38594) ──
+      const _lcrForInv = _lcr || ((Array.isArray(_dInvEnts) && _dInvEnts.length)
+        ? { entities: _dInvEnts, entityDim: _dInvEntDim, materialMetrics: _dInvMetrics } : null);
+      applyInvestigationContext(nextCtx, _dit, _lcrForInv, null);
+      // ── B · R1 activeResult writer (cascada verbatim piso L38643-38690) ──
+      const _lcrR1 = _lcr || {};
+      const _pay = (_lcrR1.sentrixAction && _lcrR1.sentrixAction.payload) || {};
+      const _evEnts = _lcrR1.evidence && (_lcrR1.evidence.ranking_entities || _lcrR1.evidence.cross_metric_set);
+      const _typeMap = { client: "cliente", cliente: "cliente", sku: "sku", familia: "familia", marca: "marca" };
+      let _ents = null, _etype = (intent && _typeMap[intent.entityType]) || null;
+      if (_lcrR1.clientList && _lcrR1.clientList.length) { _ents = _lcrR1.clientList; _etype = _etype || "cliente"; }
+      else if (_lcrR1.skuList && _lcrR1.skuList.length) { _ents = _lcrR1.skuList; _etype = _etype || "sku"; }
+      else if (_pay.clientes && _pay.clientes.length) { _ents = _pay.clientes; _etype = _etype || "cliente"; }
+      else if (_pay.skus && _pay.skus.length) { _ents = _pay.skus; _etype = _etype || "sku"; }
+      else if (_dInvEnts && _dInvEnts.length) { _ents = _dInvEnts; _etype = _typeMap[_dInvEntDim] || _etype; }
+      else if (Array.isArray(_evEnts) && _evEnts.length) { _ents = _evEnts; }
+      else if (_dClient) { _ents = [_dClient]; _etype = _etype || "cliente"; }
+      else if (_dSku) { _ents = [_dSku]; _etype = _etype || "sku"; }
+      if (_ents && _ents.length) {
+        let _names = _ents
+          .map(e => typeof e === "string" ? e : (e && (e.nombre || e.name || e.cliente || e.sku || e.label)) || null)
+          .filter(Boolean);
+        if (VOICE_D1F_ENTITY_SANITIZE_ENABLED) {
+          try { _names = _names.map(_d1fResolveEntityName); } catch (e) { /* defensivo */ }
+        }
+        if (_names.length) {
+          nextCtx.activeResult = {
+            entities: _names,
+            entityType: _etype,
+            domain: nextCtx.investigationDomain || null,
+            metric: nextCtx.investigationMetric || null,
+            cardinality: _names.length === 1 ? "single" : "list",
+            turn: nextCtx.turnCount,
+            finding: {
+              reasoningPattern: _lcrR1.reasoningPattern || null,
+              thesis: _lcrR1.focus || null,
+              cause: (typeof VOICE_D1_CAUSE_ENABLED !== "undefined" && VOICE_D1_CAUSE_ENABLED)
+                ? _d1ExtractCause(_lcrR1) : null,
+            },
+          };
+          // ── C · DEUDA J · hilo de evidencia compartido (piso L38699-38706) ──
+          if (VOICE_DEUDA_J_ENABLED && (!nextCtx.investigationEntidades || !nextCtx.investigationEntidades.length) && _names.length) {
+            nextCtx.investigationEntidades = _names;
+            nextCtx.investigationDerivable = { ...nextCtx.investigationDerivable, entidades: true };
+            if (!nextCtx.investigationEntityDim && _etype) nextCtx.investigationEntityDim = _etype;
+          }
+        }
+      }
+    } catch (e) { /* defensivo · R1 inerte si falla */ }
   }
 }
 
