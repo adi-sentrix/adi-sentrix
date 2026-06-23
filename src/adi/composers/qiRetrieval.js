@@ -4,6 +4,7 @@
 import { sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
+import { applyFiltros } from "../../engine/metrics.js";  // Piece 3 · motor de filtros (sin tocar)
 import { FEATURE_FAMILY_AS_ENTITY } from "../../config/features.js";
 import { filterTextualSuggestions, normalizeText } from "../helpers.js";
 // ── ADI Core Fase 1+2 · Piece 2 · extractor de filtro (reusa detectores endurecidos · strict) ──
@@ -249,6 +250,24 @@ const _DIM_MARKER_TOKENS = {
   cliente: ["cliente", "clientes", "cuenta", "cuentas"],
 };
 
+// Stopwords para el "nombrado-no-resuelto": un valor capturado tras un marcador ("de marca X")
+// que sea conector/dimensión/métrica NO es un nombre de filtro real (ej "de clientes POR contribución"
+// captura "por" → no es un cliente). Evita falsos AVISAR sobre frases de dimensión del corpus.
+const _FILTER_VALUE_STOP = new Set([
+  "por", "y", "en", "con", "de", "del", "la", "el", "los", "las", "un", "una", "para",
+  "cliente", "clientes", "cuenta", "cuentas", "sku", "skus", "producto", "productos",
+  "familia", "familias", "categoria", "categorias", "marca", "marcas",
+  "sucursal", "sucursales", "bodega", "bodegas", "canal", "canales", "tier",
+  "ventas", "venta", "margen", "margenes", "contribucion", "contribuciones",
+  "rotacion", "cobertura", "doh", "carga", "stock", "rentabilidad", "participacion", "aporte",
+  "ranking", "rankeado", "top", "primeros", "primero", "mejores", "peores",
+]);
+function _plausibleFilterValue(raw) {
+  if (!raw) return false;
+  const w = String(raw).trim().split(/\s+/)[0];
+  return w.length >= 3 && !_FILTER_VALUE_STOP.has(w);
+}
+
 // Un token de dimensión queda "consumido por filtro" si aparece como MARCADOR de filtro
 // ("de/del/en (la) familia/marca/cliente …") y NO como group-by ("por (la) …"). Así
 // "por cliente de la familia X" → cliente=dim, familia=filtro (NO cuenta como 2da dim).
@@ -306,11 +325,11 @@ export function extractFilterPredicate(text) {
   }
   // 3b · marcador explícito con valor desconocido ("de marca Acme", "de la familia Zzz", "de cliente Xyz")
   const _mMarca = norm.match(/\b(?:de|del)\s+marcas?\s+([a-z0-9][a-z0-9-]*)/);
-  if (_mMarca && !marcas.length && !unresolvedFilters.some(u => u.axis === "marca")) unresolvedFilters.push({ axis: "marca", raw: _mMarca[1] });
+  if (_mMarca && !marcas.length && _plausibleFilterValue(_mMarca[1]) && !unresolvedFilters.some(u => u.axis === "marca")) unresolvedFilters.push({ axis: "marca", raw: _mMarca[1] });
   const _mFam = norm.match(/\b(?:de|del|en)\s+(?:la\s+)?(?:familia|categoria)s?\s+([a-z][a-z\s]*?)(?:\s+(?:por|en|con|y)\b|$)/);
-  if (_mFam && !sfamilias.length && !unresolvedFilters.some(u => u.axis === "sfamilia")) unresolvedFilters.push({ axis: "sfamilia", raw: _mFam[1].trim() });
+  if (_mFam && !sfamilias.length && _plausibleFilterValue(_mFam[1]) && !unresolvedFilters.some(u => u.axis === "sfamilia")) unresolvedFilters.push({ axis: "sfamilia", raw: _mFam[1].trim() });
   const _mCli = norm.match(/\b(?:de|del)\s+(?:cliente|cuenta)s?\s+([a-z][a-z\s]*?)(?:\s+(?:por|en|con|y)\b|$)/);
-  if (_mCli && !clientes.length && !unresolvedFilters.some(u => u.axis === "cliente")) unresolvedFilters.push({ axis: "cliente", raw: _mCli[1].trim() });
+  if (_mCli && !clientes.length && _plausibleFilterValue(_mCli[1]) && !unresolvedFilters.some(u => u.axis === "cliente")) unresolvedFilters.push({ axis: "cliente", raw: _mCli[1].trim() });
   // 4 · stock ambiguo → Piece 3 ACLARAR (nunca remapear en silencio a unidades)
   const ambiguousStock = /\bstock\b/.test(norm);
   return { filtros, filterPhrasesRaw, unresolvedFilters, unsupportedSignals, ambiguousStock };
@@ -669,6 +688,31 @@ function retrievalIntelligenceLayer(qi, scenario, sortedRows, metricMap, sortFie
   }
 }
 
+// ── ADI Core Fase 1+2 · Piece 3 · escudo de filtro (helpers) ──────────────────
+const _AXIS_SINGULAR = { marcas: "marca", sfamilias: "sfamilia", clientes: "cliente", skus: "sku" };
+const _AXIS_LABEL    = { marca: "marca", sfamilia: "familia", cliente: "cliente", sku: "SKU" };
+function _axisLabel(a) { return _AXIS_LABEL[a] || a; }
+function _dimLabelEs(d) { return d === "cliente" ? "cliente" : (d === "sku" || d === "producto") ? "SKU" : d === "familia" ? "familia" : d === "marca" ? "marca" : d; }
+
+// APLICABILIDAD (semántica · NO confía en applyFiltros) · campo REAL por-fila en la fuente:
+// marca/sfamilia = atributo → aplican sobre fuentes row-level (cliente, sku) y marca-pre-group.
+// marca×familia = DECORATIVO (sfamiliasMargen.marca = marca dominante) → INAPLICABLE.
+// cliente/sku = entidad → solo sobre su propia dim (mismo grano).
+function _filterApplicable(axis, dim) {
+  if (axis === "marca")    return dim === "cliente" || dim === "sku" || dim === "producto" || dim === "marca";
+  if (axis === "sfamilia") return dim === "cliente" || dim === "sku" || dim === "producto" || dim === "marca" || dim === "familia";
+  if (axis === "cliente")  return dim === "cliente";
+  if (axis === "sku")      return dim === "sku" || dim === "producto";
+  return false;
+}
+function _filterValuesStr(filtros) {
+  return [...(filtros.marcas || []), ...(filtros.sfamilias || []), ...(filtros.clientes || []), ...(filtros.skus || [])].join(", ");
+}
+// verdicto de filtro (AVISAR/ACLARAR) · answerADI lo rutea vía _plainWrap (limpio · sin suffix)
+function _qiVerdict(verdict, kind, opener) {
+  return { _verdict: verdict, _avisarKind: kind, opener, suggestions: [], sentrixAction: null, derivedIntentType: "query_interpreter_" + verdict, reasoningPattern: "qi_" + verdict + "_" + kind };
+}
+
 export function composeRetrieval(qi, scenario) {
   // Sanity check
   if (!qi || !qi.isRetrieval || !Array.isArray(qi.metrics) || !Array.isArray(qi.dimensions)) {
@@ -676,8 +720,32 @@ export function composeRetrieval(qi, scenario) {
   }
   if (qi.metrics.length === 0 || qi.dimensions.length === 0) return null;
 
-  // V1 single dimension (multi-dimension diferido)
-  const dim = qi.dimensions[0];
+  // ── Piece 3 · contexto de filtro (solo flag ON · qi trae los campos de Piece 2) ──
+  const _filterOn = ADI_QI_FILTER_ENABLED && qi.filtros && typeof qi.filtros === "object";
+  const _hasUnresolved = _filterOn && Array.isArray(qi.unresolvedFilters) && qi.unresolvedFilters.length > 0;
+  const _resolvedAxes = _filterOn ? ["marcas", "sfamilias", "clientes", "skus"].filter(k => Array.isArray(qi.filtros[k]) && qi.filtros[k].length) : [];
+  const _hasFilter = _resolvedAxes.length > 0;
+
+  // dimensión efectiva (sustracción de Piece 2 · corrige #5) · sin filtro = dimensions[0] (byte-idéntico)
+  const dim = (_filterOn && Array.isArray(qi.dimsEffective) && qi.dimsEffective.length) ? qi.dimsEffective[0] : qi.dimensions[0];
+
+  // ── VERDICTO de filtro · intercepta SOLO cuando hay señal de filtro (no toca queries sin filtro) ──
+  if (_filterOn && (_hasFilter || _hasUnresolved)) {
+    // a · NOMBRADO-PERO-NO-RESUELTO → AVISAR "no reconozco X" (NUNCA tabla sin filtro)
+    if (_hasUnresolved) {
+      const u = qi.unresolvedFilters[0];
+      return _qiVerdict("avisar", "unrecognized", `No reconozco "${u.raw}" como ${_axisLabel(u.axis)} para filtrar. ¿Lo reformulás con el nombre exacto?`);
+    }
+    // b · APLICABILIDAD (cross-grano / decorativo) → AVISAR (antes de tocar el dataset)
+    for (const k of _resolvedAxes) {
+      const ax = _AXIS_SINGULAR[k];
+      if (!_filterApplicable(ax, dim)) {
+        return _qiVerdict("avisar", "inapplicable", `No llego a filtrar por ${_axisLabel(ax)} en una vista por ${_dimLabelEs(dim)}.`);
+      }
+    }
+  }
+  // sin filtro → undefined (NO {}) · applyFiltros(rows, undefined) devuelve rows intactos → byte-idéntico
+  const _filtrosArg = (_filterOn && _hasFilter) ? qi.filtros : undefined;
 
   // Resolver dataset según dimension
   let rows = null;
@@ -685,21 +753,23 @@ export function composeRetrieval(qi, scenario) {
   let nameField = "nombre";
   try {
     if (dim === "cliente") {
-      rows = applyScenarioToClientesMargen(scenario);
+      // Piece 3 · filtrar la fuente (campo real: marca/sfamilia/nombre+tipo) · undefined = intacto
+      rows = applyFiltros(applyScenarioToClientesMargen(scenario), _filtrosArg);
       dimLabel = "Cliente";
     } else if (dim === "sku" || dim === "producto") {
-      rows = skusMargen;
+      rows = applyFiltros(skusMargen, _filtrosArg);
       dimLabel = "SKU";
     } else if (dim === "familia") {
       // CORTE 1 · R2 · fuente canónica scenario-aware (idéntica al dashboard).
       // Con flag OFF se preserva el estático (comportamiento del piso). Con flag ON
       // ningún path conversacional emite la cifra estática (mundo-marca).
-      rows = FEATURE_FAMILY_AS_ENTITY ? applyScenarioToSfamiliasMargen(scenario) : sfamiliasMargen;
+      rows = applyFiltros(FEATURE_FAMILY_AS_ENTITY ? applyScenarioToSfamiliasMargen(scenario) : sfamiliasMargen, _filtrosArg);
       dimLabel = "Familia";
     } else if (dim === "marca") {
       // Marca · agrupación dinámica desde clientesMargen
+      // Piece 3 · FILTRAR clientesMargen ANTES de agrupar (campo real) · NUNCA el agregado
       const grouped = {};
-      const baseRows = applyScenarioToClientesMargen(scenario);
+      const baseRows = applyFiltros(applyScenarioToClientesMargen(scenario), _filtrosArg);
       for (const r of baseRows) {
         const m = r.marca || "Otros";
         if (!grouped[m]) {
@@ -725,7 +795,12 @@ export function composeRetrieval(qi, scenario) {
     return null;
   }
 
-  if (!Array.isArray(rows) || rows.length === 0) return null;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    // Piece 3 · 0 filas con aplicabilidad ya validada (campo real presente) → AVISAR terminal.
+    // Distingue "no hay datos de X" (Makita en clientes) de "el filtro no mordió". Sin filtro: legacy.
+    if (_filterOn && _hasFilter) return _qiVerdict("avisar", "absent", `No hay datos de ${_filterValuesStr(qi.filtros)} en la vista por ${_dimLabelEs(dim)}.`);
+    return null;
+  }
 
   // Resolver metrics (fields del row)
   const metricMap = {
@@ -778,13 +853,15 @@ export function composeRetrieval(qi, scenario) {
   if (scenario === "tension") scenarioLabel = "Tensión";
   else if (scenario === "crisis") scenarioLabel = "Crisis";
 
+  // Piece 3 · tag de filtro VISIBLE · si la extracción se equivocó, se ve en el header
+  const _filterTag = (_filterOn && _hasFilter) ? ` · filtrado por: ${_filterValuesStr(qi.filtros)}` : "";
   let header;
   if (qi.queryType === "ranked") {
-    header = `Top ${qi.limit} ${dimLabel === "Cliente" ? "clientes" : dimLabel === "SKU" ? "SKUs" : dimLabel === "Familia" ? "familias" : "marcas"} por ${metricLabels[0]} · escenario ${scenarioLabel}.`;
+    header = `Top ${qi.limit} ${dimLabel === "Cliente" ? "clientes" : dimLabel === "SKU" ? "SKUs" : dimLabel === "Familia" ? "familias" : "marcas"} por ${metricLabels[0]} · escenario ${scenarioLabel}${_filterTag}.`;
   } else if (qi.queryType === "multi") {
-    header = `${metricLabels.join(" y ")} por ${dimLabel} · escenario ${scenarioLabel}.`;
+    header = `${metricLabels.join(" y ")} por ${dimLabel} · escenario ${scenarioLabel}${_filterTag}.`;
   } else {
-    header = `${metricLabels[0]} por ${dimLabel} · escenario ${scenarioLabel}.`;
+    header = `${metricLabels[0]} por ${dimLabel} · escenario ${scenarioLabel}${_filterTag}.`;
   }
 
   // Build tabla

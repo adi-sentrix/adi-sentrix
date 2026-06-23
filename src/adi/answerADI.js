@@ -438,6 +438,10 @@ export function answerADI(question, context = {}, state = {}) {
       const _qiParse = queryInterpreter(trimmed, scenario, intent && intent._semantic_meta);
       if (_qiParse && _qiParse.isRetrieval) {
         const _qiComposed = composeRetrieval(_qiParse, scenario);
+        // Piece 3 · verdicto de filtro (AVISAR/ACLARAR) → _plainWrap (limpio · sin suffix/threading)
+        if (_qiComposed && _qiComposed._verdict) {
+          return _plainWrap(_qiComposed, "qi_retrieval_" + _qiComposed._verdict, ctx);
+        }
         if (_qiComposed && typeof _qiComposed.opener === "string" && _qiComposed.opener.length > 0) {
           return _finalize(_qiComposed, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
         }
