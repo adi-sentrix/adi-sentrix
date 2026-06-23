@@ -1,0 +1,14 @@
+# Dependencias
+node_modules/
+
+# Bundles generados por esbuild (regenerables desde la fuente)
+_oracle_bundle.mjs
+_app_bundle.mjs
+_ui_bundle.mjs
+_oracle/_mono_*
+_oracle/*_bundle.mjs
+_oracle/_*_entry.jsx
+
+# Resultados de batería (regenerados en cada corrida)
+_parity_results.json
+dev.log

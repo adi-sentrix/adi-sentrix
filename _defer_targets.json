@@ -1,0 +1,162 @@
+[
+  {
+    "i": 12,
+    "family": "margen-qi",
+    "q": "clientes menos rentables",
+    "moduleKey": "margenes",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 425,
+    "text": "No tengo evidencia determinística para responder eso · pero puedo ayudarte con caminos cercanos.Tres ángulos que sí puedo cubrir:\n· Clientes con erosión de margen\n· Cómo está el negocio en márgenes\n· Top entidades del módulo activoDecime cuál te interesa · o reformulalo y vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 15,
+    "family": "margen-qi",
+    "q": "qué cliente concentra la pérdida",
+    "moduleKey": "margenes",
+    "intentType": "cross_domain_query",
+    "archetype": "mechanism_dependency_risk",
+    "len": 930,
+    "text": "El riesgo de dependencia se concentra en Falabella, Jumbo y Lider. Los tres concentran 54.6% de las ventas y $12.26M de contribución.Cuando pocas cuentas concentran buena parte de la cartera, perder cualquiera golpea fuerte y reemplazarla cuesta.Las tres comparten el mismo perfil: pesan mucho, rinden por debajo del promedio y sostienen carga comercial alta. Reemplazarlas exige reconstruir simultáneamente volumen, margen y mecanismo comercial.El movimiento prioritario es diversificación proactiva de Tier 2 mientras los Tier 1 siguen activos. El objetivo no es reemplazar volumen, es construir capacidad comercial alternativa con perfil de margen sano antes de que la salida sea forzada.Confianza alta · la cuantificación de exposición es determinística sobre el escenario activo.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 19,
+    "family": "ventas-qi",
+    "q": "dónde estoy creciendo o cayendo",
+    "moduleKey": "ventas",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 443,
+    "text": "No tengo evidencia determinística para responder eso · pero puedo ayudarte con caminos cercanos.Tres ángulos que sí puedo cubrir:\n· Top clientes por contribución del escenario actual\n· Cómo está el negocio en ventas\n· Top entidades del módulo activoDecime cuál te interesa · o reformulalo y vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 20,
+    "family": "ventas-qi",
+    "q": "qué clientes están en caída",
+    "moduleKey": "ventas",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 443,
+    "text": "No tengo evidencia determinística para responder eso · pero puedo ayudarte con caminos cercanos.Tres ángulos que sí puedo cubrir:\n· Top clientes por contribución del escenario actual\n· Cómo está el negocio en ventas\n· Top entidades del módulo activoDecime cuál te interesa · o reformulalo y vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 22,
+    "family": "ventas-qi",
+    "q": "qué pasa si pierdo a Falabella",
+    "moduleKey": "ventas",
+    "intentType": "simulation",
+    "archetype": null,
+    "len": 423,
+    "text": "Perder Falabella te costaría aproximadamente $4271K de contribución — tu dependencia bajaría (del 55% al 35% en las mayores, ahora Jumbo y Lider), el riesgo se reparte.Tu lectura del negocio se movería: el problema central pasaría de la concentración en pocos clientes a la erosión de margen.Lo siguiente que miraría: qué cuentas de la cartera podrían absorber ese volumen y en cuánto tiempo se recuperaría la contribución."
+  },
+  {
+    "i": 23,
+    "family": "ventas-qi",
+    "q": "cuál es el riesgo de mi cartera",
+    "moduleKey": "ventas",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 443,
+    "text": "No tengo evidencia determinística para responder eso · pero puedo ayudarte con caminos cercanos.Tres ángulos que sí puedo cubrir:\n· Top clientes por contribución del escenario actual\n· Cómo está el negocio en ventas\n· Top entidades del módulo activoDecime cuál te interesa · o reformulalo y vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 35,
+    "family": "dive-bodega",
+    "q": "cómo está Santiago",
+    "moduleKey": "inventario",
+    "intentType": "warehouse_dive",
+    "archetype": null,
+    "len": 1198,
+    "text": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital inmovilizado $12.8K (SKUs críticos o rotación muy baja) · DOH promedio 29 días.Composición por familia:\nElectrodomésticos                  → Stock $31.4K · DOH 38d · 49% de la bodega\nLínea Blanca                       → Stock $21K · DOH 27d · 33% de la bodega\nCuidado Personal                   → Stock $11.4K · DOH 15d · 18% de la bodegaTop 3 SKUs por capital:\nSAM-REF500L    → Stock $18.6K · DOH 17d · Rotación 9.8x · 0d sin venta\nLG-WASH11KG    → Stock $15.2K · DOH 21d · Rotación 8.6x · 0d sin venta\nSAM-TV55       → Stock $12.8K · DOH 58d · Rotación 3.6x · 12d sin ventaElectrodomésticos concentra 49% del capital de Santiago. SAM-REF500L es el SKU más pesado ($18.6K, DOH 17d). La cobertura está por debajo del promedio cartera (29d vs 62d).Estructura sana: Santiago opera con SKUs rotacionales healthy (PHI-SHAVER9 11.2x) · la disponibilidad operativa está dentro del rango natural.Confianza alta · cifras determinísticas del inventario actual.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 36,
+    "family": "ranking",
+    "q": "mejores clientes",
+    "moduleKey": "ventas",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 443,
+    "text": "No tengo evidencia determinística para responder eso · pero puedo ayudarte con caminos cercanos.Tres ángulos que sí puedo cubrir:\n· Top clientes por contribución del escenario actual\n· Cómo está el negocio en ventas\n· Top entidades del módulo activoDecime cuál te interesa · o reformulalo y vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 37,
+    "family": "ranking",
+    "q": "top 5 clientes",
+    "moduleKey": "ventas",
+    "intentType": "cross_domain_query",
+    "archetype": "mechanism_dependency_risk",
+    "len": 930,
+    "text": "El riesgo de dependencia se concentra en Falabella, Jumbo y Lider. Los tres concentran 54.6% de las ventas y $12.26M de contribución.Cuando pocas cuentas concentran buena parte de la cartera, perder cualquiera golpea fuerte y reemplazarla cuesta.Las tres comparten el mismo perfil: pesan mucho, rinden por debajo del promedio y sostienen carga comercial alta. Reemplazarlas exige reconstruir simultáneamente volumen, margen y mecanismo comercial.El movimiento prioritario es diversificación proactiva de Tier 2 mientras los Tier 1 siguen activos. El objetivo no es reemplazar volumen, es construir capacidad comercial alternativa con perfil de margen sano antes de que la salida sea forzada.Confianza alta · la cuantificación de exposición es determinística sobre el escenario activo.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 39,
+    "family": "ranking",
+    "q": "ranking de clientes por contribución",
+    "moduleKey": "margenes",
+    "intentType": "cross_domain_query",
+    "archetype": "mechanism_ranking",
+    "len": 1008,
+    "text": "Contribución por Cliente · escenario Bonanza.Cliente               Contribución\n──────────────────────────────────\nFalabella                    $4.3M\nJumbo                        $4.2M\nLider                        $3.8M\nSodimac                      $1.9M\nTottus                       $1.9M\nParis                        $1.7M\nMercado Libre                $1.6M\nRipley                       $1.2M\nEasy                         $1.1M\nLa Polar                       $1M\nHites                        $0.9M\nABC                          $0.8M\nUnimarc                      $0.8MLectura · Top 3 concentra 49% del total · dependencia operacional sobre Falabella, Jumbo y Lider.Foco · Falabella concentra el mayor Contribución ($4.3M). Próximo ángulo: validar rotación y disponibilidad operativa del líder.Cifras runtime del escenario Bonanza. 13 cliente(s) en la respuesta.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 40,
+    "family": "comparación",
+    "q": "Falabella vs Lider",
+    "moduleKey": "ventas",
+    "intentType": "client_comparison",
+    "archetype": null,
+    "len": 890,
+    "text": "Falabella vs Lider · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el mismo orden de magnitud.Volumen: Falabella factura $19.4M (19.4% cartera) · Lider $17.8M (17.9%). Escala equivalente.Margen: Falabella 22% · Lider 21.5% · ambos bajo benchmark (30.1%). Brecha de 0.5pp · despreciable.Carga comercial: Falabella 4.5% · Lider 4.2%. Carga prácticamente idéntica · la diferencia de margen NO viene de rebates.Contribución absoluta: Falabella aporta $4.27M (17.1% cartera) · Lider $3.84M (15.3%).Lectura: ambas operan bajo benchmark con margen muy similar · la palanca opera sobre ambas por igual · la brecha entre las cuentas es marginal frente al gap vs benchmark.Confianza alta · cifras runtime sobre escenario bonanza.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 41,
+    "family": "comparación",
+    "q": "Samsung vs LG",
+    "moduleKey": "ventas",
+    "intentType": "brand_comparison",
+    "archetype": null,
+    "len": 375,
+    "text": "Samsung vs LG (vista de marca) · Samsung gana escala, margen parejo.Venta: $31.6K vs $24.6K (Samsung 1.3× · Δ +$7.0K). Contribución: $7.64K vs $5.91K. Margen: 24.2% vs 24.0% (parejo).Veredicto: Samsung pesa más; márgenes parejos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 43,
+    "family": "operación",
+    "q": "qué pasa con las ventas si crece 10%",
+    "moduleKey": "ventas",
+    "intentType": "module",
+    "archetype": null,
+    "len": 60,
+    "text": "¿De qué cliente o familia? (p. ej. Falabella · Línea Blanca)"
+  },
+  {
+    "i": 44,
+    "family": "operación",
+    "q": "qué pasa con el precio si subo 5%",
+    "moduleKey": "margenes",
+    "intentType": "simulation",
+    "archetype": null,
+    "len": 79,
+    "text": "¿De qué SKU, cliente o familia? (p. ej. SAM-REF500L · Falabella · Línea Blanca)"
+  },
+  {
+    "i": 45,
+    "family": "cross",
+    "q": "qué clientes crecen vs año anterior",
+    "moduleKey": "ventas",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 443,
+    "text": "No tengo evidencia determinística para responder eso · pero puedo ayudarte con caminos cercanos.Tres ángulos que sí puedo cubrir:\n· Top clientes por contribución del escenario actual\n· Cómo está el negocio en ventas\n· Top entidades del módulo activoDecime cuál te interesa · o reformulalo y vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  },
+  {
+    "i": 46,
+    "family": "greeting",
+    "q": "hola",
+    "moduleKey": "ventas",
+    "intentType": "generic",
+    "archetype": null,
+    "len": 386,
+    "text": "Hola. Soy ADI · tu asesor para mirar el negocio con cifras y postura.Algunos caminos para empezar:\n· Panorama del negocio\n· Quién es tu peor cliente por margen\n· Qué harías este mes como gerente comercialO preguntame lo que quieras · vemos.Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% con una de las cargas más bajas de la cartera (1.8%) — y casi nadie la mira."
+  }
+]

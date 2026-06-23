@@ -1,0 +1,821 @@
+/* === adi/composers/qiRetrieval.js ===
+ * Query Intelligence · retrieval-table subsystem extraído de 41cc33d8 · verbatim · solo imports agregados.
+ * Exporta: executiveLanguageDetector, queryInterpreter, composeRetrieval. */
+import { sfamiliasMargen } from "../../data/demoData.js";
+import { skusMargen } from "../../data/skusMargen.js";
+import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
+import { FEATURE_FAMILY_AS_ENTITY } from "../../config/features.js";
+import { filterTextualSuggestions } from "../helpers.js";
+
+const EXECUTIVE_KEYWORDS_RAW = [
+  "problema", "foco", "causa", "por que", "porque", "que pasa", "riesgo",
+  "presion", "erosion", "comprimido", "comprimida", "atrapado", "atrapada",
+  "dependencia", "amenaza", "donde esta", "me cuesta", "comen", "comiendo",
+  "esta cayendo", "pierdo", "perdemos", "pagando", "renegociar",
+  "bajo carga", "sobre el margen", "crece tanto", "erosionado", "erosionada",
+  "presionado", "presionada", "destruyen", "diluyen", "asfixia",
+];
+const EXECUTIVE_CONCEPTS_RAW = [
+  "loss_explicit", "mechanism_entity_erosion", "mechanism_entity_dependency",
+  "mechanism_entity_quality", "domain_concentration", "profitability_negative",
+];
+
+export function executiveLanguageDetector(text, concepts) {
+  if (!text || typeof text !== "string") {
+    return { isExecutive: false, marker: null };
+  }
+  // Normalizar (lowercase + remove accents)
+  const norm = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  // Excepción D1 · top N + por + dimension + metric: NO bloquear como executive
+  // (es retrieval ranked puro · F6 "concentration" debe ceder a QI)
+  const hasTopN = /\btop\s+\d+\b/.test(norm) || /\bprimeros?\s+\d+\b/.test(norm);
+  const hasPorConector = /\bpor\b/.test(norm);
+  const METRIC_TOKENS_QUICK = [
+    "ventas", "venta", "margen", "margenes", "contribucion", "contribuciones",
+    "rotacion", "cobertura", "doh", "carga", "stock", "rentabilidad",
+    "participacion", "aporte",
+  ];
+  const DIMENSION_TOKENS_QUICK = [
+    "cliente", "clientes", "cuenta", "cuentas", "sku", "skus",
+    "producto", "productos", "familia", "familias", "marca", "marcas",
+    "sucursal", "sucursales", "bodega", "bodegas", "canal", "canales",
+    "tier",
+  ];
+  const hasMetric = METRIC_TOKENS_QUICK.some(m => new RegExp("\\b" + m + "\\b").test(norm));
+  const hasDimension = DIMENSION_TOKENS_QUICK.some(d => new RegExp("\\b" + d + "\\b").test(norm));
+  const isTopNRanked = hasTopN && hasPorConector && hasMetric && hasDimension;
+
+  // Keywords ejecutivos
+  for (const kw of EXECUTIVE_KEYWORDS_RAW) {
+    if (norm.includes(kw)) {
+      // Verificar excepción top N antes de bloquear
+      if (isTopNRanked) {
+        // top N override: ignorar keyword executive (caso D1)
+        // Salvo keywords MUY fuertes que claramente son ejecutivos
+        const HARD_KEYWORDS = ["problema", "foco", "causa", "riesgo", "amenaza", "me cuesta"];
+        if (!HARD_KEYWORDS.includes(kw)) continue;
+      }
+      return { isExecutive: true, marker: "keyword:" + kw };
+    }
+  }
+
+  // Concepts ejecutivos (desde semantic pipeline)
+  const conceptsList = Array.isArray(concepts) ? concepts : [];
+  for (const c of EXECUTIVE_CONCEPTS_RAW) {
+    if (conceptsList.includes(c)) {
+      // Excepción D1: domain_concentration con estructura top N + por + metric
+      if (c === "domain_concentration" && isTopNRanked) {
+        continue;
+      }
+      return { isExecutive: true, marker: "concept:" + c };
+    }
+  }
+
+  return { isExecutive: false, marker: null };
+}
+
+// ── PIEZA 1 · queryInterpreter ──────────────────────────────────────────────
+// Función pura · toma (text, scenario, semanticContext) y retorna shape de
+// retrieval paramétrico:
+//   { isRetrieval, queryType, metrics, dimensions, format, limit }
+//
+// queryType V1 (Decisión 2 · retrieval_filtered diferido a #7-bis):
+//   "simple"  · 1 metric + 1 dimension
+//   "multi"   · 2+ metrics + 1 dimension
+//   "ranked"  · 1 metric + 1 dimension + top N
+//
+// METRICS singular Y plural (Decisión 3).
+const QI_METRIC_VOCAB = {
+  ventas:        ["ventas", "venta"],
+  margen:        ["margen", "margenes", "márgenes"],
+  contribucion:  ["contribucion", "contribuciones", "contribución"],
+  rotacion:      ["rotacion", "rotación"],
+  cobertura:     ["cobertura", "doh"],
+  carga:         ["carga", "carga comercial"],
+  stock:         ["stock"],
+  rentabilidad:  ["rentabilidad"],
+  participacion: ["participacion", "participación"],
+  aporte:        ["aporte"],
+};
+const QI_DIMENSION_VOCAB = {
+  cliente:   ["cliente", "clientes", "cuenta", "cuentas"],
+  sku:       ["sku", "skus"],
+  producto:  ["producto", "productos"],
+  familia:   ["familia", "familias", "categoria", "categorias", "categoría", "categorías"],
+  marca:     ["marca", "marcas"],
+  sucursal:  ["sucursal", "sucursales", "bodega", "bodegas"],
+  canal:     ["canal", "canales"],
+  tier:      ["tier"],
+};
+const QI_FORMAT_KEYWORDS = {
+  tabla:   ["en tabla", "tabular", "como tabla"],
+  ranking: ["rankeado", "ranking", "ordenado"],
+  lista:   ["en lista", "como lista"],
+};
+const QI_IMPERATIVE_PREFIX = [
+  "dame", "muestrame", "muéstrame", "listame", "lístame",
+  "lista de", "lista", "ranking de", "dame ranking de",
+];
+
+export function queryInterpreter(text, scenario, semanticContext) {
+  const empty = {
+    isRetrieval: false,
+    queryType: null,
+    metrics: [],
+    dimensions: [],
+    format: null,
+    limit: null,
+  };
+  if (!text || typeof text !== "string") return empty;
+
+  // Normalizar (lowercase + remove accents)
+  const norm = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[¿?¡!]/g, "")
+    .trim();
+
+  // 1. Detectar metrics (canonical key · puede haber múltiples)
+  const detectedMetrics = [];
+  for (const [canonical, vocab] of Object.entries(QI_METRIC_VOCAB)) {
+    for (const term of vocab) {
+      if (new RegExp("\\b" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(norm)) {
+        if (!detectedMetrics.includes(canonical)) detectedMetrics.push(canonical);
+        break;
+      }
+    }
+  }
+
+  // 2. Detectar dimensions (canonical key)
+  const detectedDimensions = [];
+  for (const [canonical, vocab] of Object.entries(QI_DIMENSION_VOCAB)) {
+    for (const term of vocab) {
+      if (new RegExp("\\b" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(norm)) {
+        if (!detectedDimensions.includes(canonical)) detectedDimensions.push(canonical);
+        break;
+      }
+    }
+  }
+
+  // 3. Detectar conector "por" (requerido para retrieval)
+  const hasPor = /\bpor\b/.test(norm);
+
+  // 4. Sin metrics o sin dimensions o sin "por" · NO es retrieval V1
+  if (detectedMetrics.length === 0 || detectedDimensions.length === 0 || !hasPor) {
+    return empty;
+  }
+
+  // 5. Detectar top N (ranked)
+  let topN = null;
+  const topMatch = norm.match(/\btop\s+(\d+)\b/) || norm.match(/\bprimeros?\s+(\d+)\b/);
+  if (topMatch) {
+    topN = parseInt(topMatch[1], 10);
+    if (Number.isNaN(topN) || topN < 1 || topN > 50) topN = null;
+  }
+
+  // 6. Detectar format keyword
+  let detectedFormat = null;
+  for (const [fmtKey, kws] of Object.entries(QI_FORMAT_KEYWORDS)) {
+    for (const kw of kws) {
+      if (norm.includes(kw)) { detectedFormat = fmtKey; break; }
+    }
+    if (detectedFormat) break;
+  }
+
+  // 7. Detectar imperativo (informativo · no requerido)
+  const hasImperative = QI_IMPERATIVE_PREFIX.some(p =>
+    norm === p || norm.startsWith(p + " ")
+  );
+
+  // 8. Determinar queryType
+  let queryType;
+  if (topN !== null) {
+    queryType = "ranked";
+  } else if (detectedMetrics.length >= 2) {
+    queryType = "multi";
+  } else {
+    queryType = "simple";
+  }
+
+  // 9. Default format
+  let finalFormat = detectedFormat;
+  if (!finalFormat) {
+    if (queryType === "ranked") finalFormat = "ranking";
+    else if (queryType === "multi") finalFormat = "tabla";
+    else finalFormat = "tabla";
+  }
+
+  return {
+    isRetrieval: true,
+    queryType,
+    metrics: detectedMetrics,
+    dimensions: detectedDimensions,
+    format: finalFormat,
+    limit: topN,
+  };
+}
+
+// ── PIEZA 3 · composeRetrieval ──────────────────────────────────────────────
+// Composer ligero · genera output paramétrico estructurado.
+// Estructura canónica preliminar: Header + Cuerpo tabular (NBSP padding) +
+// Foco breve + Confianza. SIN recomendación full. SIN sentrixAction V1.
+//
+// Lee datasets canónicos:
+//   · clientesMargen (via applyScenarioToClientesMargen) · cliente dim
+//   · skusMargen · sku/producto dim
+//   · sfamiliasMargen · familia/categoria dim
+//   · clientesVentas / sfamiliasVentas para metric "ventas" cuando aplica
+//
+// Si una metric/dimension no se puede resolver con datasets disponibles,
+// retorna null · QI fallback a path legacy.
+
+// ════════════════════════════════════════════════════════════════════════════
+// BRIEF #9 (post-46-bis) · RETRIEVAL INTELLIGENCE LAYER · PIEZAS 1-3
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Capa de razonamiento mínimo sobre QueryInterpreter retrieval.
+// Agrega Lectura ejecutiva (1-2 frases) + Próximo ángulo dentro del Foco.
+//
+// REGLA NUCLEAR · IDENTIDAD COGNITIVA RETRIEVAL:
+//   RIL describe patrones · NUNCA explica causas.
+//   No inventa. No interpreta más allá de lo objetivo.
+//   Fallback silencioso si datos no soportan lectura no-trivial.
+//
+// Decisiones founder integradas FASE 2:
+//   D1 · Signature variables runtime directas (no qiOutput parsing)
+//   D2 · Calidad cruzada · cruce confirmado AMBOS sentidos (estricto)
+//   D3 · Riesgo umbral · top3_share ∈ (0.40, 0.95)
+//   D4 · Brecha umbral · gap_pct ≥ 15% (wording natural)
+//   D5 · Brecha scope · solo queryType === "ranked"
+//   D6 · Próximo ángulo · mapeo rentabilidad→margen, aporte→contribucion,
+//        participacion→ventas
+//   D7 · Datos no-monetary · CONCENTRACIÓN/RIESGO flexibles · CALIDAD
+//        CRUZADA y BRECHA strict
+//
+// GUARDRAILS LOCKED:
+//   1. NO inventar causas
+//   2. NO convertir retrieval en Ferrari (≤ 2 frases Lectura)
+//   3. NO tocar Ferrari composers / handleUserSubmit
+//   4. Próximo ángulo SIEMPRE dentro de Foco · NUNCA en suggestions
+//   5. try-catch defensivo · passthrough si falla
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── PIEZA 3.1 · rilIsMonetaryOrPct ──────────────────────────────────────────
+// Identifica si una metric es monetary o porcentual (para D7 · BRECHA/CALIDAD
+// requieren tipo conocido; CONCENTRACIÓN acepta cualquier sumable).
+function rilIsMonetaryOrPct(metricKey) {
+  // Monetary
+  if (metricKey === "ventas" || metricKey === "venta") return "monetary";
+  if (metricKey === "contribucion" || metricKey === "contribuciones") return "monetary";
+  if (metricKey === "aporte") return "monetary";
+  // Porcentual
+  if (metricKey === "margen" || metricKey === "margenes") return "pct";
+  if (metricKey === "rentabilidad") return "pct";
+  if (metricKey === "carga") return "pct";
+  if (metricKey === "participacion") return "pct";
+  // Sumable numérico (unidades stock)
+  if (metricKey === "stock") return "count";
+  return null;
+}
+
+// ── PIEZA 3.2 · rilComputeConcentracion ─────────────────────────────────────
+// Compute concentración stats sobre sortedRows (ya ordenado desc).
+// Retorna métricas: top3Share, leaderShare, plus nombres.
+function rilComputeConcentracion(sortedRows, sortField) {
+  if (!Array.isArray(sortedRows) || sortedRows.length === 0) return null;
+  let total = 0;
+  for (const r of sortedRows) total += (r[sortField] || 0);
+  if (total <= 0) return null;
+  const top1Val = sortedRows[0][sortField] || 0;
+  const top2Val = sortedRows.length > 1 ? (sortedRows[1][sortField] || 0) : 0;
+  const top3Val = sortedRows.length > 2 ? (sortedRows[2][sortField] || 0) : 0;
+  const top3Sum = top1Val + top2Val + top3Val;
+  return {
+    total: total,
+    top1Val: top1Val,
+    top2Val: top2Val,
+    top3Val: top3Val,
+    top1Name: sortedRows[0].nombre || "—",
+    top2Name: sortedRows.length > 1 ? (sortedRows[1].nombre || "—") : null,
+    top3Name: sortedRows.length > 2 ? (sortedRows[2].nombre || "—") : null,
+    leaderShare: top1Val / total,
+    top3Share: top3Sum / total,
+    // Para CONCENTRACIÓN: porcentaje del siguiente (top2) sobre total
+    nextShare: top2Val / total,
+  };
+}
+
+// ── PIEZA 3.3 · rilComputeBrecha ────────────────────────────────────────────
+// Compute brecha top1 vs top2 · solo si datos suficientes y monetary/pct.
+function rilComputeBrecha(sortedRows, sortField) {
+  if (!Array.isArray(sortedRows) || sortedRows.length < 2) return null;
+  const top1Val = sortedRows[0][sortField] || 0;
+  const top2Val = sortedRows[1][sortField] || 0;
+  if (top2Val <= 0) return null;
+  const gap = top1Val - top2Val;
+  const gapPct = gap / top2Val;
+  return {
+    top1Val: top1Val,
+    top2Val: top2Val,
+    top1Name: sortedRows[0].nombre || "—",
+    top2Name: sortedRows[1].nombre || "—",
+    gap: gap,
+    gapPct: gapPct, // ratio (0.17 = 17%)
+  };
+}
+
+// ── PIEZA 3.4 · rilDetectCalidadCruzada ─────────────────────────────────────
+// Detecta disonancia multi-metric: top1 de metric[0] tiene metric[1] bajo avg
+// PORTAFOLIO Y best metric[1] tiene metric[0] bajo avg PORTAFOLIO.
+// Cruce confirmado en AMBOS sentidos (D2 estricto). Si solo uno → null.
+//
+// Solo aplica para metric[1] de tipo "pct" o "monetary" (D7 strict para
+// CALIDAD CRUZADA · comparable contra avg portfolio).
+function rilDetectCalidadCruzada(sortedRows, metricMap, metrics) {
+  if (!Array.isArray(metrics) || metrics.length < 2) return null;
+  if (!Array.isArray(sortedRows) || sortedRows.length < 4) return null;
+
+  const m0Key = metrics[0];
+  const m1Key = metrics[1];
+  const m0Field = metricMap[m0Key]?.field;
+  const m1Field = metricMap[m1Key]?.field;
+  if (!m0Field || !m1Field) return null;
+
+  const m1Type = rilIsMonetaryOrPct(m1Key);
+  const m0Type = rilIsMonetaryOrPct(m0Key);
+  if (!m1Type || !m0Type) return null;
+  // D7 strict: ambos comparables
+  if (m1Type === "count" || m0Type === "count") return null;
+
+  // Calcular promedios del portfolio (todos los rows)
+  let sumM0 = 0, sumM1 = 0, count = 0;
+  for (const r of sortedRows) {
+    if (typeof r[m0Field] === "number" && typeof r[m1Field] === "number") {
+      sumM0 += r[m0Field];
+      sumM1 += r[m1Field];
+      count++;
+    }
+  }
+  if (count === 0) return null;
+  const avgM0 = sumM0 / count;
+  const avgM1 = sumM1 / count;
+  if (avgM0 <= 0 || avgM1 <= 0) return null;
+
+  // Top1 por metric[0] = sortedRows[0]
+  const top1 = sortedRows[0];
+  const top1M0 = top1[m0Field];
+  const top1M1 = top1[m1Field];
+  if (typeof top1M0 !== "number" || typeof top1M1 !== "number") return null;
+
+  // Best row por metric[1] (orden descendente m1Field)
+  let bestM1Row = null;
+  let bestM1Val = -Infinity;
+  for (const r of sortedRows) {
+    const v = r[m1Field];
+    if (typeof v === "number" && v > bestM1Val) {
+      bestM1Val = v;
+      bestM1Row = r;
+    }
+  }
+  if (!bestM1Row || bestM1Row === top1) return null;
+  const bestM1M0 = bestM1Row[m0Field];
+  if (typeof bestM1M0 !== "number") return null;
+
+  // Cruce AMBOS sentidos · D2 estricto:
+  //   · top1 metric[0] tiene metric[1] BAJO avg portfolio
+  //   · best metric[1] tiene metric[0] BAJO avg portfolio
+  const top1HasLowM1 = top1M1 < avgM1;
+  const bestHasLowM0 = bestM1M0 < avgM0;
+  if (!top1HasLowM1 || !bestHasLowM0) return null;
+
+  // Adicionalmente: para evitar disonancias triviales, exigir margen
+  // significativo (≥ 10% de gap relativo en cualquier dirección).
+  const m1GapPct = Math.abs(top1M1 - avgM1) / avgM1;
+  const m0GapPct = Math.abs(bestM1M0 - avgM0) / avgM0;
+  if (m1GapPct < 0.10 && m0GapPct < 0.10) return null;
+
+  return {
+    top1Name: top1.nombre || "—",
+    top1M0Val: top1M0,
+    top1M1Val: top1M1,
+    bestM1Name: bestM1Row.nombre || "—",
+    bestM1Val: bestM1Val,
+    bestM1M0Val: bestM1M0,
+    avgM0: avgM0,
+    avgM1: avgM1,
+    m0Type: m0Type,
+    m1Type: m1Type,
+  };
+}
+
+// ── PIEZA 3.5 · rilPickNextAngle ────────────────────────────────────────────
+// Determinístico · retorna frase de próximo ángulo según queryType + primary
+// metric (con mapeo D6) + dim.
+function rilPickNextAngle(queryType, primaryMetric, dim) {
+  // D6 · mapeo de metrics derivadas a base
+  const metricMap = {
+    rentabilidad: "margen",
+    aporte: "contribucion",
+    participacion: "ventas",
+  };
+  const m = metricMap[primaryMetric] || primaryMetric;
+  const dimLow = (dim === "cliente" || dim === "sku" || dim === "familia" || dim === "marca")
+                 ? dim : "item";
+
+  if (queryType === "multi") {
+    return "evaluar carga comercial por " + dimLow + " para identificar palancas de margen";
+  }
+  if (queryType === "ranked") {
+    if (m === "ventas") return "validar margen del líder";
+    if (m === "margen") return "validar volumen del líder vs lastres";
+    if (m === "contribucion") return "validar rotación y disponibilidad operativa del líder";
+    return "profundizar en el líder o validar lastres del portafolio";
+  }
+  // simple
+  if (m === "ventas")       return "cruzar con margen y carga comercial para validar si esa concentración es sana";
+  if (m === "margen")       return "cruzar con ventas para identificar palancas de margen";
+  if (m === "contribucion") return "validar rotación y disponibilidad operativa del líder";
+  if (m === "carga")        return "comparar contra benchmark interno (3.5%)";
+  if (m === "stock")        return "cruzar con rotación por " + dimLow;
+  return "profundizar en el líder o validar lastres del portafolio";
+}
+
+// ── PIEZA 1 · retrievalIntelligenceLayer ────────────────────────────────────
+// Dispatcher principal · aplica prioridad LOCKED 5 dimensiones.
+// Variables runtime directas (D1) · no parsing del opener.
+//
+// Retorna:
+//   {
+//     readingLine: string | null,   // Lectura 1-2 frases (null = fallback)
+//     nextAngleLine: string,        // Próximo ángulo · siempre presente
+//     enrichedFoco: string,         // Foco original + próximo ángulo
+//   }
+//
+// Si datos no soportan lectura no-trivial · readingLine=null (fallback
+// silencioso · respeta D3 del BRIEF #8).
+function retrievalIntelligenceLayer(qi, scenario, sortedRows, metricMap, sortField, originalFoco, dim) {
+  // Sanity checks
+  if (!qi || !Array.isArray(sortedRows) || sortedRows.length === 0) {
+    return { readingLine: null, nextAngleLine: "", enrichedFoco: originalFoco || "" };
+  }
+
+  const primaryMetric = qi.metrics?.[0];
+  const queryType = qi.queryType;
+  if (!primaryMetric || !queryType) {
+    return { readingLine: null, nextAngleLine: "", enrichedFoco: originalFoco || "" };
+  }
+
+  // Próximo ángulo siempre se computa (Prioridad 5)
+  const nextAngle = rilPickNextAngle(queryType, primaryMetric, dim);
+  // Enriquecer Foco: " · Próximo ángulo: <angle>."
+  let enrichedFoco = originalFoco || "";
+  if (enrichedFoco && nextAngle) {
+    // Remover punto final si lo tiene · agregar próximo ángulo
+    const trimmedFoco = enrichedFoco.replace(/\.\s*$/, "");
+    enrichedFoco = trimmedFoco + ". Próximo ángulo: " + nextAngle + ".";
+  }
+
+  // Fallback inmediato si sortedRows < 4 · disciplina edge cases
+  if (sortedRows.length < 4) {
+    return { readingLine: null, nextAngleLine: nextAngle, enrichedFoco };
+  }
+
+  let readingLine = null;
+
+  try {
+    // ── PRIORIDAD 1 · CALIDAD CRUZADA (solo multi-metric) ───────────────
+    if (qi.metrics.length >= 2) {
+      const cal = rilDetectCalidadCruzada(sortedRows, metricMap, qi.metrics);
+      if (cal) {
+        const m0Label = metricMap[qi.metrics[0]]?.label || qi.metrics[0];
+        const m1Label = metricMap[qi.metrics[1]]?.label || qi.metrics[1];
+        const fmtM0 = metricMap[qi.metrics[0]]?.formatter || ((v) => String(v));
+        const fmtM1 = metricMap[qi.metrics[1]]?.formatter || ((v) => String(v));
+        const avgM1Formatted = cal.m1Type === "pct"
+          ? cal.avgM1.toFixed(1) + "%"
+          : fmtM1(cal.avgM1);
+        readingLine = "Lectura · " + cal.top1Name + " lidera " + m0Label
+                    + " (" + fmtM0(cal.top1M0Val) + ") pero opera con "
+                    + m1Label + " " + fmtM1(cal.top1M1Val)
+                    + ", bajo el portafolio promedio (" + avgM1Formatted + "). "
+                    + cal.bestM1Name + " cruza la lectura: "
+                    + m1Label + " " + fmtM1(cal.bestM1Val)
+                    + " con apenas " + fmtM0(cal.bestM1M0Val) + " en " + m0Label + ".";
+        return { readingLine, nextAngleLine: nextAngle, enrichedFoco };
+      }
+      // Calidad no detectada · fallback a CONCENTRACIÓN/RIESGO de metric[0]
+    }
+
+    // ── PRIORIDAD 2/3 · RIESGO / CONCENTRACIÓN (single-metric o fallback) ─
+    const conc = rilComputeConcentracion(sortedRows, sortField);
+    if (!conc) {
+      return { readingLine: null, nextAngleLine: nextAngle, enrichedFoco };
+    }
+
+    // PRIORIDAD 4 (en ranked) · BRECHA · puede combinarse con concentración
+    // D5 · solo aplica ranked · D4 umbral 15%
+    let brechaLine = null;
+    if (queryType === "ranked") {
+      const metricType = rilIsMonetaryOrPct(primaryMetric);
+      // D7 · BRECHA solo monetary o pct
+      if (metricType === "monetary" || metricType === "pct") {
+        const brecha = rilComputeBrecha(sortedRows, sortField);
+        if (brecha && brecha.gapPct >= 0.15) {
+          const fmt = metricMap[primaryMetric]?.formatter || ((v) => String(v));
+          const gapPctRounded = Math.round(brecha.gapPct * 100);
+          brechaLine = "Lectura · " + brecha.top1Name + " lidera con "
+                     + fmt(brecha.top1Val) + ", " + gapPctRounded + "% sobre "
+                     + brecha.top2Name + " (" + fmt(brecha.top2Val) + ").";
+        }
+      }
+    }
+
+    if (brechaLine) {
+      readingLine = brechaLine;
+      return { readingLine, nextAngleLine: nextAngle, enrichedFoco };
+    }
+
+    // PRIORIDAD 2 · RIESGO (top3 ∈ (0.40, 0.95))
+    // Solo aplica en queryType "simple" · en ranked, top3 es mecánicamente
+    // alto por construcción del filtro (top N usuario) · "dependencia
+    // operacional sobre top3" sería engañoso en top5/top10.
+    if (queryType === "simple" && qi.metrics.length === 1
+        && conc.top3Share > 0.40 && conc.top3Share < 0.95) {
+      const pct = Math.round(conc.top3Share * 100);
+      // Nombres con coma + "y"
+      const t1 = conc.top1Name || "";
+      const t2 = conc.top2Name || "";
+      const t3 = conc.top3Name || "";
+      readingLine = "Lectura · Top 3 concentra " + pct + "% del total · dependencia operacional sobre "
+                  + t1 + ", " + t2 + " y " + t3 + ".";
+      return { readingLine, nextAngleLine: nextAngle, enrichedFoco };
+    }
+
+    // PRIORIDAD 3 · CONCENTRACIÓN (default · leader > 15%)
+    if (conc.leaderShare > 0.15 && sortedRows.length >= 4) {
+      const leaderPct = Math.round(conc.leaderShare * 100);
+      const nextPct = Math.round(conc.nextShare * 100);
+      readingLine = "Lectura · " + conc.top1Name + " concentra " + leaderPct
+                  + "% del total · resto fragmentado bajo " + nextPct + "% individual.";
+      return { readingLine, nextAngleLine: nextAngle, enrichedFoco };
+    }
+
+    // Fallback silencioso · datos no soportan lectura no-trivial (D3 del #8)
+    return { readingLine: null, nextAngleLine: nextAngle, enrichedFoco };
+  } catch (e) {
+    // try-catch defensivo · fallback completo
+    return { readingLine: null, nextAngleLine: nextAngle, enrichedFoco };
+  }
+}
+
+export function composeRetrieval(qi, scenario) {
+  // Sanity check
+  if (!qi || !qi.isRetrieval || !Array.isArray(qi.metrics) || !Array.isArray(qi.dimensions)) {
+    return null;
+  }
+  if (qi.metrics.length === 0 || qi.dimensions.length === 0) return null;
+
+  // V1 single dimension (multi-dimension diferido)
+  const dim = qi.dimensions[0];
+
+  // Resolver dataset según dimension
+  let rows = null;
+  let dimLabel = "";
+  let nameField = "nombre";
+  try {
+    if (dim === "cliente") {
+      rows = applyScenarioToClientesMargen(scenario);
+      dimLabel = "Cliente";
+    } else if (dim === "sku" || dim === "producto") {
+      rows = skusMargen;
+      dimLabel = "SKU";
+    } else if (dim === "familia") {
+      // CORTE 1 · R2 · fuente canónica scenario-aware (idéntica al dashboard).
+      // Con flag OFF se preserva el estático (comportamiento del piso). Con flag ON
+      // ningún path conversacional emite la cifra estática (mundo-marca).
+      rows = FEATURE_FAMILY_AS_ENTITY ? applyScenarioToSfamiliasMargen(scenario) : sfamiliasMargen;
+      dimLabel = "Familia";
+    } else if (dim === "marca") {
+      // Marca · agrupación dinámica desde clientesMargen
+      const grouped = {};
+      const baseRows = applyScenarioToClientesMargen(scenario);
+      for (const r of baseRows) {
+        const m = r.marca || "Otros";
+        if (!grouped[m]) {
+          grouped[m] = { nombre: m, venta: 0, contribucion: 0, margen: 0, count: 0, pctRebate: 0 };
+        }
+        grouped[m].venta        += r.venta;
+        grouped[m].contribucion += r.contribucion;
+        grouped[m].margen       += r.margen;
+        grouped[m].pctRebate    += r.pctRebate;
+        grouped[m].count        += 1;
+      }
+      rows = Object.values(grouped).map(g => ({
+        ...g,
+        margen:    +(g.margen / g.count).toFixed(1),
+        pctRebate: +(g.pctRebate / g.count).toFixed(1),
+      }));
+      dimLabel = "Marca";
+    } else {
+      // Dimensions no soportadas V1 (sucursal/canal/tier): fail to legacy
+      return null;
+    }
+  } catch (e) {
+    return null;
+  }
+
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+
+  // Resolver metrics (fields del row)
+  const metricMap = {
+    ventas:        { field: "venta",         label: "Ventas",        formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
+    margen:        { field: "margen",        label: "Margen",        formatter: (v) => v.toFixed(1) + "%" },
+    contribucion:  { field: "contribucion",  label: "Contribución",  formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
+    carga:         { field: "pctRebate",     label: "Carga Comercial", formatter: (v) => v.toFixed(1) + "%" },
+    aporte:        { field: "contribucion",  label: "Aporte",        formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
+    rentabilidad:  { field: "margen",        label: "Rentabilidad",  formatter: (v) => v.toFixed(1) + "%" },
+    stock:         { field: "unidades",      label: "Unidades",      formatter: (v) => String(v) },
+    participacion: { field: "venta",         label: "Participación", formatter: (v, total) => total ? ((v / total) * 100).toFixed(1) + "%" : "—" },
+    cobertura:     null,
+    rotacion:      null,
+  };
+
+  // Validar que todas las metrics solicitadas se pueden resolver con este dataset
+  for (const m of qi.metrics) {
+    const map = metricMap[m];
+    if (!map) return null;
+    if (!(map.field in rows[0])) return null;
+  }
+
+  // Sort + limit (ranked usa primera metric)
+  let sortedRows = [...rows];
+  const sortField = metricMap[qi.metrics[0]].field;
+  sortedRows.sort((a, b) => (b[sortField] || 0) - (a[sortField] || 0));
+  if (qi.limit !== null && qi.limit > 0) {
+    sortedRows = sortedRows.slice(0, qi.limit);
+  }
+
+  // Total para participación (si aplica)
+  const totalVenta = rows.reduce((s, r) => s + (r.venta || 0), 0);
+
+  // Build cuerpo tabular con NBSP padding
+  const NBSP = "\u00A0";
+  function padRight(s, width) {
+    s = String(s);
+    if (s.length >= width) return s.substring(0, width);
+    return s + NBSP.repeat(width - s.length);
+  }
+  function padLeft(s, width) {
+    s = String(s);
+    if (s.length >= width) return s.substring(s.length - width);
+    return NBSP.repeat(width - s.length) + s;
+  }
+
+  // Header dinámico
+  const metricLabels = qi.metrics.map(m => metricMap[m].label);
+  let scenarioLabel = "Bonanza";
+  if (scenario === "tension") scenarioLabel = "Tensión";
+  else if (scenario === "crisis") scenarioLabel = "Crisis";
+
+  let header;
+  if (qi.queryType === "ranked") {
+    header = `Top ${qi.limit} ${dimLabel === "Cliente" ? "clientes" : dimLabel === "SKU" ? "SKUs" : dimLabel === "Familia" ? "familias" : "marcas"} por ${metricLabels[0]} · escenario ${scenarioLabel}.`;
+  } else if (qi.queryType === "multi") {
+    header = `${metricLabels.join(" y ")} por ${dimLabel} · escenario ${scenarioLabel}.`;
+  } else {
+    header = `${metricLabels[0]} por ${dimLabel} · escenario ${scenarioLabel}.`;
+  }
+
+  // Build tabla
+  // Columna 0: nombre (max 22 char)
+  // Columna 1..N: metrics formatted
+  const NAME_W = 22;
+  const METRIC_W = 12;
+  let table = "";
+  // Header row
+  table += padRight(dimLabel, NAME_W);
+  for (const lbl of metricLabels) table += padLeft(lbl, METRIC_W);
+  table += "\n";
+  // Separator
+  table += "─".repeat(NAME_W + METRIC_W * metricLabels.length) + "\n";
+  // Data rows
+  for (const r of sortedRows) {
+    const name = r[nameField] || r.nombre || "—";
+    table += padRight(name, NAME_W);
+    for (const m of qi.metrics) {
+      const map = metricMap[m];
+      const val = r[map.field];
+      if (typeof val !== "number") {
+        table += padLeft("—", METRIC_W);
+      } else {
+        table += padLeft(map.formatter(val, totalVenta), METRIC_W);
+      }
+    }
+    table += "\n";
+  }
+
+  // Foco · breve insight ejecutivo del top1
+  const top1 = sortedRows[0];
+  const top1Name = top1?.[nameField] || top1?.nombre || "—";
+  const top1Val = top1 ? top1[sortField] : null;
+  const top1Formatted = top1Val !== null && top1Val !== undefined
+    ? metricMap[qi.metrics[0]].formatter(top1Val, totalVenta)
+    : "—";
+
+  let foco;
+  if (qi.queryType === "ranked") {
+    foco = `Foco · ${top1Name} encabeza el ranking con ${top1Formatted} en ${metricLabels[0]}.`;
+  } else {
+    foco = `Foco · ${top1Name} concentra el mayor ${metricLabels[0]} (${top1Formatted}).`;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // BRIEF #9 · PIEZA 2 · RIL INTEGRATION
+  //
+  // Llamar al Retrieval Intelligence Layer con variables runtime directas.
+  // try-catch defensivo · si RIL falla · passthrough opener actual sin Lectura.
+  // Variables ril_* prefijadas · scoped al try-catch.
+  // RIL NO toca foco original directamente · retorna enrichedFoco para
+  // reemplazo controlado.
+  // ════════════════════════════════════════════════════════════════════════
+  let ril_readingLine = null;
+  let ril_enrichedFoco = foco;
+  try {
+    const ril_result = retrievalIntelligenceLayer(
+      qi, scenario, sortedRows, metricMap, sortField, foco, dim
+    );
+    if (ril_result && typeof ril_result === "object") {
+      if (typeof ril_result.readingLine === "string" && ril_result.readingLine.length > 0) {
+        ril_readingLine = ril_result.readingLine;
+      }
+      if (typeof ril_result.enrichedFoco === "string" && ril_result.enrichedFoco.length > 0) {
+        ril_enrichedFoco = ril_result.enrichedFoco;
+      }
+    }
+  } catch (ril_err) {
+    // eslint-disable-next-line no-console
+    console.warn("BRIEF #9 RIL error:", ril_err);
+    // FAIL-SAFE: opener actual sin Lectura · foco original intacto
+    ril_readingLine = null;
+    ril_enrichedFoco = foco;
+  }
+
+  // Confianza · referencia escenario + dataset
+  const confianza = `Cifras runtime del escenario ${scenarioLabel}. ${sortedRows.length} ${dimLabel.toLowerCase()}(s) en la respuesta.`;
+
+  // Build opener · Lectura insertada entre tabla y Foco si presente
+  let opener;
+  if (ril_readingLine) {
+    opener = `${header}\n\n${table}\n${ril_readingLine}\n\n${ril_enrichedFoco}\n\n${confianza}`;
+  } else {
+    opener = `${header}\n\n${table}\n${ril_enrichedFoco}\n\n${confianza}`;
+  }
+
+  // Suggestions contextuales · 3 invitaciones a profundizar
+  const suggestions = [];
+  if (qi.queryType !== "ranked") {
+    suggestions.push(`Top 5 ${dimLabel.toLowerCase()}s por ${metricLabels[0]}`);
+  }
+  if (qi.metrics.length === 1 && qi.metrics[0] !== "margen") {
+    suggestions.push(`${metricLabels[0]} y margen por ${dimLabel.toLowerCase()}`);
+  } else if (qi.metrics.length === 1 && qi.metrics[0] === "margen") {
+    suggestions.push(`Ventas y margen por ${dimLabel.toLowerCase()}`);
+  }
+  if (suggestions.length < 3) suggestions.push(`¿Cómo está el ${dimLabel === "Cliente" ? "negocio por cliente" : dimLabel === "SKU" ? "portafolio de productos" : "mix por familia"}?`);
+  while (suggestions.length < 3) suggestions.push("¿Qué más querés explorar?");
+
+  return {
+    opener,
+    // BRIEF N-bis · Tipo A puro · suggestions filtradas
+    suggestions: filterTextualSuggestions(suggestions.slice(0, 3)),
+    sentrixAction: null,
+    derivedIntentType: "query_interpreter",
+    // FIX FOUNDATION-REASONER · campos aditivos · backward compat estricta
+    // Permite QI Guard poblar lastClientList/lastSkuList sin recomputar.
+    // sortedRows ya está ordenado+sliced por composeRetrieval · single source
+    // of truth. nameField default "nombre" para cliente/familia/marca · para
+    // sku/producto la key real es "sku" pero el filtro tolera ambos (fallback
+    // r.nombre captura familia/marca · primer hit gana).
+    entities: sortedRows
+      .map(r => r[nameField] || r.nombre || r.sku)
+      .filter(n => typeof n === "string" && n.length > 0),
+    entityDim: dim,
+    // RETRIEVALFIX→CONTRATO (ARCO B) · exponer las CIFRAS del ranking — las MISMAS
+    // de la tabla (sortField + formatter primario del metricMap) — alineadas 1:1
+    // con `entities` (mismo orden de sortedRows · misma resolución de nombre).
+    // CERO recompute · CERO formato nuevo · si un row no trae número → se omite
+    // (honesto · el cruce nombre↔cifra servirá ese nombre sin cifra, no inventa).
+    materialMetrics: sortedRows.map(r => {
+      const _name = r[nameField] || r.nombre || r.sku;
+      if (typeof _name !== "string" || !_name.length) return null;
+      const _raw = r[sortField];
+      if (typeof _raw !== "number") return null;
+      return { entity: _name, metric: metricLabels[0] || "Valor", value: metricMap[qi.metrics[0]].formatter(_raw, totalVenta) };
+    }).filter(Boolean),
+  };
+}
