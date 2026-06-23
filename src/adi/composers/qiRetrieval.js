@@ -5,7 +5,11 @@ import { sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
 import { FEATURE_FAMILY_AS_ENTITY } from "../../config/features.js";
-import { filterTextualSuggestions } from "../helpers.js";
+import { filterTextualSuggestions, normalizeText } from "../helpers.js";
+// ── ADI Core Fase 1+2 · Piece 2 · extractor de filtro (reusa detectores endurecidos · strict) ──
+import { detectAllBrandsInText, detectAllFamiliesInText, detectAllClientsInText, detectAllWarehousesInText } from "../router.js";
+import { detectSkuInText } from "../detectors.js";
+import { ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
 
 const EXECUTIVE_KEYWORDS_RAW = [
   "problema", "foco", "causa", "por que", "porque", "que pasa", "riesgo",
@@ -210,7 +214,7 @@ export function queryInterpreter(text, scenario, semanticContext) {
     else finalFormat = "tabla";
   }
 
-  return {
+  const _qi = {
     isRetrieval: true,
     queryType,
     metrics: detectedMetrics,
@@ -218,6 +222,98 @@ export function queryInterpreter(text, scenario, semanticContext) {
     format: finalFormat,
     limit: topN,
   };
+  // ── Piece 2 (aditivo · inerte hasta Piece 3) · adjunta filtros + dim por sustracción ──
+  // Solo con el flag maestro ON. composeRetrieval IGNORA estos campos hasta Piece 3 → byte-idéntico.
+  if (ADI_QI_FILTER_ENABLED) {
+    const _fp = extractFilterPredicate(text);
+    const _dimsEff = computeEffectiveDims(detectedDimensions, norm);
+    _qi.filtros = _fp.filtros;
+    _qi.filterPhrasesRaw = _fp.filterPhrasesRaw;
+    _qi.unresolvedFilters = _fp.unresolvedFilters;
+    _qi.unsupportedSignals = _fp.unsupportedSignals;
+    _qi.ambiguousStock = _fp.ambiguousStock;
+    _qi.dimsEffective = _dimsEff;
+    _qi.dimCount = _dimsEff.length;
+  }
+  return _qi;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ADI Core Fase 1+2 · Piece 2 · extracción de predicado de filtro + dim por sustracción
+// (aditivo · queryInterpreter los adjunta solo con ADI_QI_FILTER_ENABLED · inerte hasta Piece 3)
+// ════════════════════════════════════════════════════════════════════════════
+
+const _DIM_MARKER_TOKENS = {
+  familia: ["familia", "familias", "categoria", "categorias"],
+  marca:   ["marca", "marcas"],
+  cliente: ["cliente", "clientes", "cuenta", "cuentas"],
+};
+
+// Un token de dimensión queda "consumido por filtro" si aparece como MARCADOR de filtro
+// ("de/del/en (la) familia/marca/cliente …") y NO como group-by ("por (la) …"). Así
+// "por cliente de la familia X" → cliente=dim, familia=filtro (NO cuenta como 2da dim).
+function _filterConsumedDim(dim, norm) {
+  const toks = _DIM_MARKER_TOKENS[dim];
+  if (!toks) return false;
+  for (const t of toks) {
+    const inFilter   = new RegExp(`\\b(?:de|del|en)\\s+(?:la\\s+|las\\s+|los\\s+)?${t}\\b`).test(norm);
+    const inDeictic  = new RegExp(`\\b(?:estos|esos|estas|esas)\\s+\\d*\\s*${t}\\b`).test(norm);  // "estos 3 clientes"
+    const inGroupBy  = new RegExp(`\\bpor\\s+(?:la\\s+)?${t}\\b`).test(norm);
+    if ((inFilter || inDeictic) && !inGroupBy) return true;
+  }
+  return false;
+}
+
+// dimensión por SUSTRACCIÓN · lo nombrado como filtro NO cuenta como dimensión group-by.
+export function computeEffectiveDims(dimensions, norm) {
+  if (!Array.isArray(dimensions)) return [];
+  return dimensions.filter(d => !_filterConsumedDim(d, norm));
+}
+
+// ¿el token aparece tras un conector de filtro (de/del/en …)? (núcleo del "nombrado-no-resuelto")
+function _afterFilterConnector(norm, tok) {
+  const t = normalizeText(String(tok)).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!t) return false;
+  return new RegExp(`\\b(?:de|del|en)\\b(?:\\s+(?:la|el|las|los|familias?|marcas?|categorias?|cliente|cuenta))*\\s+${t}\\b`).test(norm);
+}
+
+// extractFilterPredicate · wrapper sobre los detectores YA endurecidos (strict:true) → canónicas.
+// Separa: filtros resueltos · frases crudas nombradas · señales no-soportadas · NOMBRADO-NO-RESUELTO.
+export function extractFilterPredicate(text) {
+  const norm = normalizeText(text || "");
+  // 1 · RESUELTOS (canónicos · strict)
+  const marcas    = detectAllBrandsInText(text) || [];               // marcas ya usan \b (strict≈loose)
+  const sfamilias = detectAllFamiliesInText(text, { strict: true });
+  const clientes  = detectAllClientsInText(text, { strict: true });
+  const _sku      = detectSkuInText(text);
+  const skus      = _sku ? [_sku] : [];
+  const filtros = { marcas, sfamilias, clientes, skus };
+  const filterPhrasesRaw = [...marcas, ...sfamilias, ...clientes, ...skus];
+  // 2 · NO-SOPORTADOS nombrados (canal/bodega/tier · deíctico) → unsupportedSignals (Piece 3 → AVISAR)
+  const unsupportedSignals = [];
+  for (const w of (detectAllWarehousesInText(text) || [])) if (w && w !== "Todas") unsupportedSignals.push({ kind: "bodega", raw: w });
+  if (/\bcanal(?:es)?\b/.test(norm) || /\b(?:retail|e-?commerce)\b/.test(norm)) unsupportedSignals.push({ kind: "canal", raw: "canal" });
+  if (/\btier\b/.test(norm)) unsupportedSignals.push({ kind: "tier", raw: "tier" });
+  if (/\b(?:estos|esos|estas|esas)\s+\d*\s*(?:clientes|cuentas|skus|productos)\b/.test(norm) && !clientes.length && !skus.length)
+    unsupportedSignals.push({ kind: "deictico", raw: "estos/esos" });
+  // 3 · NOMBRADO-PERO-NO-RESUELTO · señal explícita → Piece 3 AVISAR "no reconozco X" (NUNCA "sin filtro")
+  const unresolvedFilters = [];
+  // 3a · familia: loose la reconoce vía conector pero strict la rechaza (ej "de materiales" genérico)
+  const _looseTrig = [];
+  detectAllFamiliesInText(text, { triggers: _looseTrig });           // loose (substring) · captura token disparador
+  for (const { name, token } of _looseTrig) {
+    if (!sfamilias.includes(name) && _afterFilterConnector(norm, token)) unresolvedFilters.push({ axis: "sfamilia", raw: token });
+  }
+  // 3b · marcador explícito con valor desconocido ("de marca Acme", "de la familia Zzz", "de cliente Xyz")
+  const _mMarca = norm.match(/\b(?:de|del)\s+marcas?\s+([a-z0-9][a-z0-9-]*)/);
+  if (_mMarca && !marcas.length && !unresolvedFilters.some(u => u.axis === "marca")) unresolvedFilters.push({ axis: "marca", raw: _mMarca[1] });
+  const _mFam = norm.match(/\b(?:de|del|en)\s+(?:la\s+)?(?:familia|categoria)s?\s+([a-z][a-z\s]*?)(?:\s+(?:por|en|con|y)\b|$)/);
+  if (_mFam && !sfamilias.length && !unresolvedFilters.some(u => u.axis === "sfamilia")) unresolvedFilters.push({ axis: "sfamilia", raw: _mFam[1].trim() });
+  const _mCli = norm.match(/\b(?:de|del)\s+(?:cliente|cuenta)s?\s+([a-z][a-z\s]*?)(?:\s+(?:por|en|con|y)\b|$)/);
+  if (_mCli && !clientes.length && !unresolvedFilters.some(u => u.axis === "cliente")) unresolvedFilters.push({ axis: "cliente", raw: _mCli[1].trim() });
+  // 4 · stock ambiguo → Piece 3 ACLARAR (nunca remapear en silencio a unidades)
+  const ambiguousStock = /\bstock\b/.test(norm);
+  return { filtros, filterPhrasesRaw, unresolvedFilters, unsupportedSignals, ambiguousStock };
 }
 
 // ── PIEZA 3 · composeRetrieval ──────────────────────────────────────────────
