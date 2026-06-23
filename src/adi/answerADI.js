@@ -342,7 +342,28 @@ export function answerADI(question, context = {}, state = {}) {
     return { text: null, route: "not_yet_extracted", intent: (intent && intent.type) || null, suggestions: null, sentrixAction: null, context: ctx };
   }
 
-  // ── LATE LAYER v1 · módulo desnudo / ambigüedad ──
+  // ── CASCADA D0 · type "generic" · ANTES de la capa tardía (fix de orden · replica piso L38093-38131) ──
+  // El piso corre D0.a → D0.b → D0.c → (resolveIntentLayer || fallback): D0 va ANTES de resolveIntentLayer.
+  // El modular antes corría la capa tardía primero, desviando queries que D0 debía capturar (ej.
+  // "me preocupa el negocio" → late_layer en vez de d0a→dependency_risk). Ahora D0 corre primero.
+  // Léxicos cerrados disjuntos · responses (dive/mecanismo/overview) van por _finalize (intent=null · sin ETLG).
+  if (intent && intent.type === "generic") {
+    const _mod = ctx.activeModule || null;
+    if (ADI_D0A_ANOMALY_ROUTER_ENABLED) {
+      const _d0a = detectAnomalyIntent(trimmed, ctx, scenario, _mod);
+      if (_d0a && _d0a.response && _d0a.response.opener) return _finalize(_d0a.response, "d0a_anomaly", "d0a_anomaly", ctx, scenario, null);
+    }
+    if (ADI_D0B_OPPORTUNITY_ROUTER_ENABLED) {
+      const _d0b = detectOpportunityIntent(trimmed, ctx, scenario, _mod);
+      if (_d0b && _d0b.response && _d0b.response.opener) return _finalize(_d0b.response, "d0b_opportunity", "d0b_opportunity", ctx, scenario, null);
+    }
+    if (ADI_D0C_EXPLORATION_ROUTER_ENABLED) {
+      const _d0c = detectExplorationIntent(trimmed, ctx, scenario, _mod);
+      if (_d0c && _d0c.response && _d0c.response.opener) return _finalize(_d0c.response, "d0c_exploration", "d0c_exploration", ctx, scenario, null);
+    }
+  }
+
+  // ── LATE LAYER v1 · módulo desnudo / ambigüedad (= resolveIntentLayer del piso · _ilResult2 para generic) ──
   const late = FEATURE_INTENT_LAYER ? resolveIntentLayer(trimmed, scenario, ctx) : null;
   if (late) {
     return _finalize(late, "late_layer", late.intent || "module_overview", ctx, scenario, _overviewLeadIntent(trimmed));
@@ -361,29 +382,12 @@ export function answerADI(question, context = {}, state = {}) {
     if (fb && fb.opener) return _fallbackWrap(fb, "global_honest_fallback", "global_honest_fallback", ctx, scenario);
   }
 
-  // ── CASCADA D0 · rama DEFAULT type "generic" (replica PanelADI L37988-38141) ──
-  // Orden: D0.a anomalía → D0.b oportunidad → D0.c exploración → honest fallback.
-  // Léxicos cerrados disjuntos · cada detector retorna {route, response} | null.
+  // ── HONEST FALLBACK · type "generic" · cierre de la cascada DEFAULT (replica PanelADI L38125) ──
+  // D0.a/b/c ya corrieron ARRIBA (antes de la capa tardía) · resolveIntentLayer también (null acá).
+  // Espeja `_ilResult2 || composeGlobalHonestFallback`: la capa tardía fue null → cae el fallback final.
   // disambiguation + ECL-CONT (anteriores en el piso) son multi-turno → inertes single-turn (deuda conocida).
-  // resolveIntentLayer ya corrió arriba (capa tardía · null para generic) · el piso la pone DESPUÉS de D0
-  // (`_ilResult2 || fallback`) — para el corpus el orden no afecta (todos null hasta el fallback).
   if (intent && intent.type === "generic") {
-    const _mod = ctx.activeModule || null;
-    // D0.a/b/c · responses (dive/mecanismo/overview) van por _finalize · NO corpus-verificadas (inertes para los 7).
-    if (ADI_D0A_ANOMALY_ROUTER_ENABLED) {
-      const _d0a = detectAnomalyIntent(trimmed, ctx, scenario, _mod);
-      if (_d0a && _d0a.response && _d0a.response.opener) return _finalize(_d0a.response, "d0a_anomaly", "d0a_anomaly", ctx, scenario, null);
-    }
-    if (ADI_D0B_OPPORTUNITY_ROUTER_ENABLED) {
-      const _d0b = detectOpportunityIntent(trimmed, ctx, scenario, _mod);
-      if (_d0b && _d0b.response && _d0b.response.opener) return _finalize(_d0b.response, "d0b_opportunity", "d0b_opportunity", ctx, scenario, null);
-    }
-    if (ADI_D0C_EXPLORATION_ROUTER_ENABLED) {
-      const _d0c = detectExplorationIntent(trimmed, ctx, scenario, _mod);
-      if (_d0c && _d0c.response && _d0c.response.opener) return _finalize(_d0c.response, "d0c_exploration", "d0c_exploration", ctx, scenario, null);
-    }
-    // else → honest fallback (replica L38125 · resolveIntentLayer ya fue null arriba)
-    const _fb = composeGlobalHonestFallback(trimmed, ctx, _mod, scenario);
+    const _fb = composeGlobalHonestFallback(trimmed, ctx, ctx.activeModule || null, scenario);
     if (_fb && _fb.opener) return _fallbackWrap(_fb, "global_honest_fallback", "global_honest_fallback", ctx, scenario);
   }
 
