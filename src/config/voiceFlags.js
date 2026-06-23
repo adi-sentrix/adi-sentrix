@@ -121,6 +121,7 @@ export const ADI_ECL_VOICE_POLISH_ENABLED = true;
 // ── Multi-turno (Fase 0+1) · threading de contexto + follow-ups · validados flag-por-flag contra 47 ──
 export const ADI_CTX_THREADING_ENABLED = true;          // Fase 0 · raíz: hila lastClientMentioned/lastSkuList/lastClientList
 export const ADI_FOLLOWUP_CLIENT_METRIC_ENABLED = true; // Fase 1a · dispatch client_metric_followup ("y su margen?")
+export const ADI_ECL_CONT_FOLLOWUP_ENABLED = true;      // Fase profunda [5] · ECL-CONT R4 sku-dev ("profundizá en ese")
 
 export const MECHANISM_LINK_ENABLED = true;
 

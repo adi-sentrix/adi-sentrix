@@ -20,6 +20,8 @@ import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from ".
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
 import { composeClientMetricFollowUp } from "./composers/followups.js";
 import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } from "./deepThreading.js";
+import { eclContIsPureContinuation, composeSkuDevelopment } from "./eclCont.js";
+import { composeModuleOverview } from "./composers/overview.js";
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -37,7 +39,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -449,6 +451,37 @@ export function answerADI(question, context = {}, state = {}) {
   // ── GUARD DE NÚMERO · operaciones cuya ruta (growth/price/inverse) aún NO está extraída ──
   if (/\d/.test(normalizeText(trimmed))) {
     return { text: null, route: "not_yet_extracted", intent: (intent && intent.type) || null, suggestions: null, sentrixAction: null, context: ctx };
+  }
+
+  // ── ECL-CONT continuation · [5] R4 sku-dev (replica PanelADI L38007-38092 · corre ANTES de D0) ──
+  // Dispara cuando NO hay intent nuevo Y hay foco activo (activeResult/investigation · poblado por la raíz).
+  // En sesión fresca (los 47 · sin foco) el gate devuelve false → NO toca el single-turn. Opción A:
+  // solo R4 sku-dev + MODO 1/2 (extraídos) · MODO 3 (_freshSku/descenso) y R3 (cliente) = deuda ECL-CONT.
+  if (ADI_ECL_CONT_FOLLOWUP_ENABLED && intent
+      && eclContIsPureContinuation({ derivedClient: null, derivedSku: null, derivedModule: null, derivedMetric: null, conversationContext: ctx })) {
+    const _inv = ctx;
+    let _contResp = null;
+    const _freshSku = !!_inv.lastSkuMentioned && _inv.lastSkuMentionedTurn === _inv.turnCount;
+    const _clientCentric = ["client_dive", "client_followup", "client", "profitability_gap"].includes(_inv.investigationLastIntent)
+      || (!!_inv.lastClientMentioned && _inv.lastClientMentionedTurn === _inv.turnCount && !_inv.investigationDomain);
+    if (_freshSku) { /* MODO 3-2 · composeSkuDeepDive · DEUDA ECL-CONT → no manejar (cae al flujo normal) */ }
+    else if (_clientCentric && _inv.lastClientMentioned) {
+      // MODO 1 · deepen del cliente vigente (getClientDeepDive ya extraído)
+      const _dc = getResponseContext({ activeModule: ctx.activeModule, lastClientMentioned: _inv.lastClientMentioned, lastModuleConsulted: _inv.lastModuleAsked, turnCount: _inv.turnCount, userInputText: trimmed });
+      _contResp = getClientDeepDive(_inv.lastClientMentioned, scenario, _dc);
+    }
+    else if (_inv.activeResult && _inv.activeResult.entityType === "cliente" && Array.isArray(_inv.activeResult.entities) && _inv.activeResult.entities.length > 0) {
+      /* R3 account-dev · composeAccountDevelopment entra con [8] · DEUDA → no manejar (cae al flujo normal) */
+    }
+    else if (VOICE_R4_SKU_DEV_ENABLED && _inv.activeResult && _inv.activeResult.entityType === "sku" && Array.isArray(_inv.activeResult.entities) && _inv.activeResult.entities.length > 0) {
+      // R4 · sku-dev ([5] "profundizá en ese") · composeSkuDevelopment lee activeResult (set estable)
+      _contResp = composeSkuDevelopment(_inv.activeResult, scenario);
+    }
+    else {
+      // MODO 2 · re-entrar el dominio vigente (composeModuleOverview ya extraído)
+      _contResp = composeModuleOverview(scenario, _inv.investigationDomain || ctx.activeModule);
+    }
+    if (_contResp && _contResp.opener) return _finalize(_contResp, "ecl_cont_continuation", "ecl_cont_continuation", ctx, scenario, null);
   }
 
   // ── CASCADA D0 · type "generic" · ANTES de la capa tardía (fix de orden · replica piso L38093-38131) ──
