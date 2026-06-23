@@ -7,15 +7,30 @@ import { CLIENTES_STRATEGIC_PROFILE, skuInventario } from "../data/demoData.js";
 import { applyScenarioToClientesVentas } from "../engine/scenarios.js";
 import { normalizeText } from "./helpers.js";
 
-export function detectClientInText(text) {
+// \u2500\u2500 Piece 1 (hardening \u00b7 paso bloqueante) \u00b7 endurecimiento de keywords cortas/ambiguas \u2500\u2500
+// Las keywords "abc/easy/paris" son palabras comunes en espa\u00f1ol/ingl\u00e9s \u2192 falso positivo de
+// filtro-cliente ("el abc del margen" \u2260 cliente ABC). En modo strict (solo lo usa el extractor
+// de filtros \u00b7 Fase 2) exigen un conector de cliente antes ("de/del/cliente/cuenta/para ABC").
+// SIN strict el regex es id\u00e9ntico al original (\bkey\b) \u2192 comportamiento del piso byte-exacto.
+export const _AMBIGUOUS_CLIENT_KW = new Set(["abc", "easy", "paris"]);
+const _CLIENT_FILTER_CONNECTOR = "(?:de|del|cliente|cuenta|para)";
+export function _clientKwRegex(key, strict) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (strict && _AMBIGUOUS_CLIENT_KW.has(key)) {
+    return new RegExp(`\\b${_CLIENT_FILTER_CONNECTOR}\\s+${escaped}\\b`, "i");
+  }
+  return new RegExp(`\\b${escaped}\\b`, "i");
+}
+
+export function detectClientInText(text, opts) {
+  const strict = !!(opts && opts.strict);
   const normalized = text
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
   for (const key of CLIENT_KEYWORDS) {
-    // Word boundary para no matchear "easy" dentro de "easyfit"
-    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`\\b${escaped}\\b`, "i").test(normalized)) {
+    // Word boundary para no matchear "easy" dentro de "easyfit" (+ conector si strict \u00b7 ambiguas)
+    if (_clientKwRegex(key, strict).test(normalized)) {
       return CLIENT_NAME_MAP[key] || key;
     }
   }

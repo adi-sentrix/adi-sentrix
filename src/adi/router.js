@@ -8,7 +8,7 @@ import { AFFIRMATIVE_REPLIES, CLIENT_NAMES, CROSS_DOMAIN_EXECUTIVE_EXPRESSIONS, 
 import { ADI_DRILL_ELIPTICO_SKU_ENABLED, ADI_IDLEAK_RESOLVE_ORDINAL_ENABLED, ADI_PANORAMA_SYNONYMS_ENABLED, ADI_VENTAS_TOTAL_LEXICO_ENABLED, VOICE_D30BIS_MEASURES_ENABLED, VOICE_DEICTIC_PLURAL_ENABLED, VOICE_ENTITY_REGISTRY_ENABLED, VOICE_EXECUTIVE_INTELLIGENCE_ENABLED, VOICE_EXECUTIVE_REPORT_COMPOSER_ENABLED, VOICE_NARRATIVE_V2_ENABLED, VOICE_SEMANTIC_INTENT_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { MARCAS_ALL, SUCURSALES, SUPERFAMILIAS } from "../data/catalogs.js";
 import { clientesMargen, marcasMargen } from "../data/demoData.js";
-import { CLIENT_KEYWORDS, CLIENT_NAME_MAP, detectBrandInText, detectClientInText, detectSkuInText } from "./detectors.js";
+import { CLIENT_KEYWORDS, CLIENT_NAME_MAP, detectBrandInText, detectClientInText, detectSkuInText, _clientKwRegex } from "./detectors.js";
 import { normalizeText } from "./helpers.js";
 
 export function semanticNormalize(normalizedText) {
@@ -972,16 +972,17 @@ export function detectIntent(userText, context = {}) {
   return { type: "generic" };
 }
 
-export function detectAllClientsInText(text) {
+export function detectAllClientsInText(text, opts) {
   if (!text || typeof text !== "string") return [];
+  const strict = !!(opts && opts.strict);
   const normalized = text
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
   const matches = [];
   for (const key of CLIENT_KEYWORDS) {
-    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`\\b${escaped}\\b`, "i");
+    // strict (solo extractor de filtros \u00b7 Fase 2): keywords ambiguas exigen conector. Sin strict: \bkey\b (piso).
+    const re = _clientKwRegex(key, strict);
     const m = normalized.match(re);
     if (m) {
       matches.push({ name: CLIENT_NAME_MAP[key] || key, index: m.index });
@@ -1305,16 +1306,42 @@ export function detectFamilyInventoryQuery(text, context) {
   return { type: "family_inventory", familyName: familyName || null, bodega: bodega || null, ranking: esRanking, inmovilizado };
 }
 
-export function detectAllFamiliesInText(text) {
+// ── Piece 1 (hardening · paso bloqueante) · tokens estrictos por familia ──
+// Modo strict (solo extractor de filtros · Fase 2): match por boundary real (no substring) y
+// SOLO nombre completo / bigrama. Mata el over-match de "materiales" suelto (genérico) que con
+// indexOf disparaba "Materiales de Construcción" en cualquier frase. "electro" se conserva (es
+// inequívoco). SIN strict el path es idéntico al piso (indexOf + _famAliases) → byte-exacto.
+const _STRICT_FAM_TOKENS = {
+  "Electrodomésticos":          ["electrodomesticos", "electro"],
+  "Línea Blanca":               ["linea blanca"],
+  "Cuidado Personal":           ["cuidado personal"],
+  "Materiales de Construcción": ["materiales de construccion"],
+};
+export function detectAllFamiliesInText(text, opts) {
   if (!text || typeof text !== "string") return [];
   const norm = normalizeText(text);
+  const strict = !!(opts && opts.strict);
+  const triggers = opts && opts.triggers;   // opcional · loggea el token disparador (header "filtrado por")
   const _famAliases = { "Electrodomésticos": ["electro"], "Materiales de Construcción": ["construccion", "materiales"] };
   const matches = [];
   for (const fam of SUPERFAMILIAS.slice(1)) {
-    const tokens = [normalizeText(fam), ...(_famAliases[fam] || [])];
-    let best = -1;
-    for (const t of tokens) { if (!t) continue; const i = norm.indexOf(t); if (i >= 0 && (best < 0 || i < best)) best = i; }
-    if (best >= 0) matches.push({ name: fam, index: best });
+    const tokens = strict
+      ? (_STRICT_FAM_TOKENS[fam] || [normalizeText(fam)])
+      : [normalizeText(fam), ...(_famAliases[fam] || [])];
+    let best = -1, bestTok = null;
+    for (const t of tokens) {
+      if (!t) continue;
+      let i;
+      if (strict) {
+        const re = new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+        const m = norm.match(re);
+        i = m ? m.index : -1;
+      } else {
+        i = norm.indexOf(t);
+      }
+      if (i >= 0 && (best < 0 || i < best)) { best = i; bestTok = t; }
+    }
+    if (best >= 0) { matches.push({ name: fam, index: best }); if (triggers) triggers.push({ name: fam, token: bestTok }); }
   }
   matches.sort((a, b) => a.index - b.index);
   return [...new Set(matches.map(m => m.name))];
