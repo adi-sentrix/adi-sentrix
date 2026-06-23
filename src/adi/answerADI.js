@@ -122,16 +122,23 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
 // derivedClient = intent.clientName (client_dive) | intent.clientB (comparación · último pasa a ser B).
 // Listas desde sentrixAction.payload (clientes/skus). Freshness por turnCount (lastXTurn).
 function _threadContext(nextCtx, intent, resp) {
-  if (!intent) return;
-  const _dClient = intent.clientName || intent.clientB || null;
-  if (_dClient) { nextCtx.lastClientMentioned = _dClient; nextCtx.lastClientMentionedTurn = nextCtx.turnCount; }
-  const _dSku = intent.skuName || null;
-  if (_dSku) { nextCtx.lastSkuMentioned = _dSku; nextCtx.lastSkuMentionedTurn = nextCtx.turnCount; }
-  if (intent.modulo) nextCtx.lastModuleAsked = intent.modulo;
+  if (intent) {
+    const _dClient = intent.clientName || intent.clientB || null;
+    if (_dClient) { nextCtx.lastClientMentioned = _dClient; nextCtx.lastClientMentionedTurn = nextCtx.turnCount; }
+    const _dSku = intent.skuName || null;
+    if (_dSku) { nextCtx.lastSkuMentioned = _dSku; nextCtx.lastSkuMentionedTurn = nextCtx.turnCount; }
+    if (intent.modulo) nextCtx.lastModuleAsked = intent.modulo;
+  }
   const _payload = resp && resp.sentrixAction && resp.sentrixAction.payload;
   if (_payload) {
     if (Array.isArray(_payload.clientes) && _payload.clientes.length > 0) nextCtx.lastClientList = _payload.clientes;
     if (Array.isArray(_payload.skus) && _payload.skus.length > 0) nextCtx.lastSkuList = _payload.skus;
+  }
+  // QI populates context (replica piso L37302-37314) · entities/entityDim de composeRetrieval ·
+  // override de módulo (cliente→margenes · sku→inventario) para el deepContext del dive deíctico.
+  if (resp && Array.isArray(resp.entities) && resp.entities.length >= 2) {
+    if (resp.entityDim === "cliente") { nextCtx.lastClientList = resp.entities; nextCtx.lastModuleAsked = "margenes"; }
+    else if (resp.entityDim === "sku" || resp.entityDim === "producto") { nextCtx.lastSkuList = resp.entities; nextCtx.lastModuleAsked = "inventario"; }
   }
 }
 
