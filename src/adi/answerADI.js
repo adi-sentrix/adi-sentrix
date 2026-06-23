@@ -18,6 +18,7 @@ import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composer
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from "./composers/qiRetrieval.js";
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
+import { composeClientMetricFollowUp } from "./composers/followups.js";
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -35,7 +36,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -99,6 +100,13 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
     const sfx = virtuousExceptionSuffix(scenario);
     if (sfx) { text = text + "\n\n" + sfx; nextCtx.observationEmittedScenario = scenario; }
   }
+  // ── Fase 0 · THREADING de contexto conversacional (replica FINALIZE piso L38517-38556) ──
+  // Persiste memoria de entidad/módulo para que los detectores de follow-up (ya en router.js)
+  // tengan qué leer en el turno siguiente. Single-turn (47): sin memoria previa, los detectores
+  // devuelven null → cero efecto. Solo escribe campos con valor nuevo (no sobrescribe con null).
+  if (ADI_CTX_THREADING_ENABLED) {
+    _threadContext(nextCtx, intent, resp);
+  }
   return {
     text,
     suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
@@ -107,6 +115,24 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
     route,
     context: nextCtx,
   };
+}
+
+// ── _threadContext · escribe memoria de entidad/módulo/lista en nextCtx (Fase 0 · raíz multi-turno) ──
+// Replica el subset del FINALIZE del piso (L38521-38556) que alimenta los detectores de follow-up.
+// derivedClient = intent.clientName (client_dive) | intent.clientB (comparación · último pasa a ser B).
+// Listas desde sentrixAction.payload (clientes/skus). Freshness por turnCount (lastXTurn).
+function _threadContext(nextCtx, intent, resp) {
+  if (!intent) return;
+  const _dClient = intent.clientName || intent.clientB || null;
+  if (_dClient) { nextCtx.lastClientMentioned = _dClient; nextCtx.lastClientMentionedTurn = nextCtx.turnCount; }
+  const _dSku = intent.skuName || null;
+  if (_dSku) { nextCtx.lastSkuMentioned = _dSku; nextCtx.lastSkuMentionedTurn = nextCtx.turnCount; }
+  if (intent.modulo) nextCtx.lastModuleAsked = intent.modulo;
+  const _payload = resp && resp.sentrixAction && resp.sentrixAction.payload;
+  if (_payload) {
+    if (Array.isArray(_payload.clientes) && _payload.clientes.length > 0) nextCtx.lastClientList = _payload.clientes;
+    if (Array.isArray(_payload.skus) && _payload.skus.length > 0) nextCtx.lastSkuList = _payload.skus;
+  }
 }
 
 // wrap plano · sin ECL/suffix (rutas que en el piso corren ANTES del punto de suffix · ej. inversa)
@@ -142,6 +168,13 @@ const _fallbackWrap = (resp, route, intentLabel, ctx, scenario) => {
 // Dispatch de la cascada de PanelADI · intent.type → composer (rama por rama). Todas con _finalize.
 function dispatchIntent(intent, trimmed, scenario, ctx) {
   if (!intent) return null;
+  // client metric follow-up ("y su margen?" · resuelto desde lastClientMentioned) — replica PanelADI L37356.
+  // detectClientMetricFollowUp (router.js · ya en resolveSemanticIntent) requiere lastClientMentioned →
+  // null en sesión fresca (los 47 single-turn no lo disparan). Fase 1a.
+  if (ADI_FOLLOWUP_CLIENT_METRIC_ENABLED && intent.type === "client_metric_followup") {
+    const resp = composeClientMetricFollowUp(intent.clientName, intent.metricKey, scenario, ctx.activeModule || null);
+    if (resp && resp.opener) return _finalize(resp, "client_metric_followup", "client_metric_followup", ctx, scenario, intent);
+  }
   // brand dive (Makita) — replica PanelADI L37922
   if (FEATURE_BRAND_AS_ENTITY && intent.type === "brand_dive") {
     return _finalize(composeBrandDive(intent.brand, scenario, { subFocus: intent.subFocus || null }), "brand_dive", "brand_dive", ctx, scenario, intent);
