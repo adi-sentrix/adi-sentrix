@@ -747,6 +747,29 @@ export function composeRetrieval(qi, scenario) {
   // sin filtro → undefined (NO {}) · applyFiltros(rows, undefined) devuelve rows intactos → byte-idéntico
   const _filtrosArg = (_filterOn && _hasFilter) ? qi.filtros : undefined;
 
+  // ── Piece 4 · verdictos de retrieval no-servible (gated · SOLO dentro del path QI · corpus-safe) ──
+  // CORPUS-SAFE: solo intercepta queries que HOY composeRetrieval tampoco servía (caía a null→legacy
+  // o remapeo silencioso). El corpus verde CON flag ON es la prueba de que no ensombrece composers.
+  if (_filterOn) {
+    // G3 · multi-dimensión real (2+ dims efectivas · no las consumidas por filtro)
+    if (Array.isArray(qi.dimsEffective) && qi.dimCount >= 2) {
+      return _qiVerdict("avisar", "multidim", `No cruzo dos dimensiones en una sola tabla (${qi.dimsEffective.join(" y ")}). Pedímelas de a una y las cruzamos a mano.`);
+    }
+    // G2 · dimensión no soportada (canal/sucursal/tier) · hoy → null → legacy
+    if (dim === "canal" || dim === "sucursal" || dim === "tier") {
+      const _d = dim === "sucursal" ? "sucursal/bodega" : dim;
+      return _qiVerdict("avisar", "dim", `No tengo "${_d}" como dimensión consultable en esta vista todavía.`);
+    }
+    // G4 · deíctico irresoluble ("estos N clientes" sin lista) → AVISAR (NO responder sin filtro = adyacente)
+    if (Array.isArray(qi.unsupportedSignals) && qi.unsupportedSignals.some(s => s.kind === "deictico")) {
+      return _qiVerdict("avisar", "deictic", `Me estás hablando de entidades específicas ("estos…") que no puedo resolver sin la lista. ¿Cuáles son?`);
+    }
+    // G5 · "stock" ambiguo → ACLARAR (decisión: nunca remapear en silencio a unidades)
+    if (qi.ambiguousStock) {
+      return _qiVerdict("aclarar", "stock", `¿Te referís a unidades vendidas o a capital en inventario? "Stock" puede ser las dos cosas — decime cuál y te lo armo.`);
+    }
+  }
+
   // Resolver dataset según dimension
   let rows = null;
   let dimLabel = "";
@@ -819,7 +842,13 @@ export function composeRetrieval(qi, scenario) {
   // Validar que todas las metrics solicitadas se pueden resolver con este dataset
   for (const m of qi.metrics) {
     const map = metricMap[m];
-    if (!map) return null;
+    if (!map) {
+      // G1 · métrica de inventario (rotación/cobertura·DOH) no vive en datasets de margen → AVISAR (Fase 2.5)
+      if (_filterOn && (m === "rotacion" || m === "cobertura")) {
+        return _qiVerdict("avisar", "metric", `${m === "cobertura" ? "DOH/cobertura" : "Rotación"} vive en el inventario, fuera de esta vista de ventas/márgenes. (Fase 2.5)`);
+      }
+      return null;
+    }
     if (!(map.field in rows[0])) return null;
   }
 
