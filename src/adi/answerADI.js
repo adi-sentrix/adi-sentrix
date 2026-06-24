@@ -99,8 +99,12 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
     }
   }
   // Capa 3 · observación aditiva (suffix) · gate de sesión (calla si ya se observó este escenario)
+  // ADI Core · Fix B · OMITIR el suffix cuando la respuesta está FILTRADA (resp._filtered): lee el
+  // portafolio GLOBAL (ej "Mercado Libre", fuera del filtro Samsung) y no puede probar que respeta el
+  // filtro → principio: capa de contexto global se omite si la respuesta está scopeada. NO consume el
+  // gate de sesión (no setea observationEmittedScenario) → un turno NO-filtrado posterior sí lo emite.
   const nextCtx = { ...ctx, turnCount: (ctx.turnCount || 0) + 1 };
-  if (text && ctx.observationEmittedScenario !== scenario) {
+  if (text && ctx.observationEmittedScenario !== scenario && !(resp && resp._filtered)) {
     const sfx = virtuousExceptionSuffix(scenario);
     if (sfx) { text = text + "\n\n" + sfx; nextCtx.observationEmittedScenario = scenario; }
   }

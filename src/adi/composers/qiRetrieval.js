@@ -997,6 +997,9 @@ export function composeRetrieval(qi, scenario) {
     suggestions: filterTextualSuggestions(suggestions.slice(0, 3)),
     sentrixAction: null,
     derivedIntentType: "query_interpreter",
+    // ADI Core · Fix B · señal de SCOPE · si la respuesta está filtrada, _finalize omite la narrativa
+    // GLOBAL (suffix proactivo) que no puede probar que respeta el filtro. Sin filtro → false → suffix normal.
+    _filtered: _hasFilter,
     // FIX FOUNDATION-REASONER · campos aditivos · backward compat estricta
     // Permite QI Guard poblar lastClientList/lastSkuList sin recomputar.
     // sortedRows ya está ordenado+sliced por composeRetrieval · single source
