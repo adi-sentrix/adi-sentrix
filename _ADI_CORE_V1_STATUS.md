@@ -1,8 +1,7 @@
 # ADI Core Fase 1+2 v1 — Estado y runbook de la prueba acotada del owner
 
-**Estado:** `ADI_QI_FILTER_ENABLED = true` (encendido para la **prueba acotada del owner** · **NO producción general**).
-**Commit del encendido:** ver `git log` (mensaje "ENCENDIDO prueba acotada del owner").
-**Alcance v1:** las 24 queries con "por" — filtro marca/familia/cliente/SKU × las 8 métricas QI, sobre datasets de ventas/márgenes.
+**Estado:** `ADI_QI_FILTER_ENABLED = false` (**default OFF · reversible**). Incluye v1 + **Fix A** (Escape rotación/filtro) + **Fix B** (narrativa global fuera del filtro). El encendido para re-test del owner es **decisión del owner** (poner el flag en `true`).
+**Alcance v1:** las 24 queries con "por" — filtro marca/familia/cliente/SKU × las 8 métricas QI, sobre datasets de ventas/márgenes. **+ Fix A:** "qué SKU de {marca} rota peor" (rotación/inventario CON filtro, sin "por") → AVISA conservando el filtro, nunca un SKU global. **+ Fix B:** la narrativa proactiva global (suffix "un punto que…") se omite cuando la respuesta está filtrada.
 **Criterio de cierre:** ADI puede decir "no llego a eso" pero **nunca** responde otra pregunta como si fuera la original.
 
 ---
@@ -44,6 +43,9 @@ Todos verdes con el flag **ON**, validados antes del encendido:
 | **Multi-turno post-AVISAR** (limpio · no contamina) | **7/7** | `node _piece4_multiturn.mjs` |
 | Controles #26-28 byte vs piso | **3/3** | `node _piece3_controls.mjs` |
 | Extracción de filtro (las "por" + no-resuelto) | **21/21** | `node _piece2_extract.mjs` |
+| **Fix A** · Escape rotación/filtro (AVISAR · sin SKU global · ranking global intacto) | **8/8** | `node _fixA_rotation.mjs` |
+| **Fix B** · Escape narrativa (scope sobre texto completo · 4 listas · suffix preservado sin filtro) | **12/12** | `node _fixB_scope.mjs` |
+| Reproducción de los 2 escapes (diagnóstico en vivo) | — | `node _diag_escape.mjs` |
 | Endurecimiento de extractores | **19/19** | `node _piece1_harden.mjs` |
 | **Rollback** (flag OFF → baseline) | **PARITY 47** byte-exacto | poner flag `false` + `node _parity_battery.mjs` |
 
