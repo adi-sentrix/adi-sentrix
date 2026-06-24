@@ -12,7 +12,8 @@
  */
 import { resolveIntentLayerEarly, resolveIntentLayer } from "./intentLayer.js";
 import { normalizeText } from "./helpers.js";
-import { detectIntent } from "./router.js";
+import { detectIntent, detectAllFamiliesInText } from "./router.js";
+import { detectBrandInText } from "./detectors.js";  // ADI Core · Escape 1 · filtro marca/familia en ranking de inventario
 import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
@@ -39,7 +40,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -425,6 +426,32 @@ export function answerADI(question, context = {}, state = {}) {
     const _re = detectRankingExtremesIntent(trimmed, ctx);
     if (_re) intent = _re;
   }
+
+  // ── ADI Core · Escape 1 · ranking de INVENTARIO con FILTRO de marca/familia → AVISAR (conserva el filtro) ──
+  // "qué SKU de Samsung rota peor" (sin "por") cae a ranking_extremes, que sirve el peor SKU GLOBAL e IGNORA
+  // la marca → devolvía MAK-COMP-AIR (Makita) como si fuera Samsung. Interceptamos ANTES del dispatch SOLO si:
+  // (métrica de inventario: rotacion/doh/cobertura/stockUSD) Y (filtro de marca/familia detectado como TAL,
+  // con conector "de", vía detector STRICT de Piece 1). El filtro es el discriminador → sin filtro NO se
+  // intercepta y composeRankingExtremes global queda INTACTO (corpus-safe · no ensombrece el ranking sellado).
+  if (ADI_QI_FILTER_ENABLED && intent && intent.type === "ranking_extremes"
+      && intent.metric && RANKING_EXTREMES_METRICS[intent.metric]
+      && RANKING_EXTREMES_METRICS[intent.metric].domain === "inventario") {
+    const _normT = normalizeText(trimmed);
+    const _afterDe = (name) => new RegExp(`\\bde(?:l)?\\s+(?:la\\s+|las\\s+|los\\s+|marca\\s+|familia\\s+|categoria\\s+)*${normalizeText(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(_normT);
+    const _brand = detectBrandInText(trimmed);                       // strict \b · FEATURE_BRAND_AS_ENTITY
+    const _fams = detectAllFamiliesInText(trimmed, { strict: true }); // strict · boundaries + nombre completo (Piece 1)
+    const _filterName = (_brand && _afterDe(_brand)) ? _brand
+                      : (_fams.length && _afterDe(_fams[0])) ? _fams[0] : null;
+    if (_filterName) {
+      const _metricLabel = intent.metric === "rotacion" ? "La rotación"
+                         : intent.metric === "doh" ? "El DOH"
+                         : intent.metric === "cobertura" ? "La cobertura"
+                         : "El capital en inventario";                // stockUSD
+      const _msg = `${_metricLabel} vive en el inventario y todavía no puedo aplicar el filtro de ${_filterName} sobre inventario en esta vista (Fase 2.5). Lo que sí puedo darte con el filtro de ${_filterName} es ventas o margen por SKU. No voy a devolverte un SKU global como si fuera ${_filterName}.`;
+      return _plainWrap({ opener: _msg }, "qi_inventory_filter_avisar", ctx);
+    }
+  }
+
   // ── QI RETRIEVAL · tabla paramétrica (replica PanelADI FASE 3 · L37159-37182) ──
   // Corre DESPUÉS de detectIntent + re-detección de ranking, ANTES del dispatch de cascada
   // (intercepta antes de cross_domain · por eso [39] da tabla, no mechanism_ranking).
