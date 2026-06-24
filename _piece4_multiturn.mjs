@@ -5,7 +5,7 @@ let pass = 0, fail = 0;
 const check = (label, cond, detail) => { if (cond) { pass++; console.log(`✓ ${label}`); } else { fail++; console.log(`✗ ${label}  ${detail || ""}`); } };
 
 // 1 · El AVISAR es LIMPIO (sin suffix proactivo · sin foco/tabla · solo el mensaje)
-const avisar = answerADI("rotación por marca", { ...M }, S);
+const avisar = answerADI("contribución por canal", { ...M }, S);
 check("AVISAR limpio · ruta qi_retrieval_avisar", avisar.route === "qi_retrieval_avisar", `route=${avisar.route}`);
 check("AVISAR sin suffix proactivo (texto corto · solo el mensaje)", avisar.text.length < 160 && !/punto que no saliste|Un punto que|Confianza/i.test(avisar.text), `len=${avisar.text.length} «${avisar.text}»`);
 check("AVISAR no thread-ea entities (context sin activeResult/lastClientList nuevos)",
@@ -27,7 +27,7 @@ check("N+1 tras ACLARAR byte-idéntico a fresco", fresh.text === afterAclarar.te
 // 4 · AISLAR el efecto del AVISAR: T1(APLICAR)→AVISAR→T3 debe == T1(APLICAR)→T3 (sin AVISAR).
 // (T1 hila contexto legítimamente · multi-turno existente; lo que probamos es que el AVISAR es TRANSPARENTE)
 const t1 = answerADI("ventas por cliente de Samsung", { ...M }, S);     // APLICAR (hila contexto)
-const conAvisar = answerADI("margen por marca", answerADI("rotación por marca", t1.context, S).context, S);
+const conAvisar = answerADI("margen por marca", answerADI("contribución por canal", t1.context, S).context, S);
 const sinAvisar = answerADI("margen por marca", t1.context, S);
 check("AVISAR transparente en la cadena (T1→AVISAR→T3 == T1→T3)", conAvisar.text === sinAvisar.text, `con ${conAvisar.text.length} / sin ${sinAvisar.text.length}`);
 

@@ -1,6 +1,6 @@
 # ADI Core Fase 1+2 v1 — Estado y runbook de la prueba acotada del owner
 
-**Estado:** `ADI_QI_FILTER_ENABLED = false` (**default OFF · reversible**). Incluye v1 + **Fix A** (Escape rotación/filtro) + **Fix B** (narrativa global fuera del filtro). El encendido para re-test del owner es **decisión del owner** (poner el flag en `true`).
+**Estado:** `ADI_QI_FILTER_ENABLED = false` (**default OFF · reversible**). Incluye v1 + **Fix A** (Escape rotación/filtro) + **Fix B** (narrativa global fuera del filtro) + **Fix C** (MURO de inventario: toda pregunta de inventario/capital por el chat → AVISAR Fase 2.5, una sola voz). El encendido para re-test del owner es **decisión del owner** (poner el flag en `true`).
 **Alcance v1:** las 24 queries con "por" — filtro marca/familia/cliente/SKU × las 8 métricas QI, sobre datasets de ventas/márgenes. **+ Fix A:** "qué SKU de {marca} rota peor" (rotación/inventario CON filtro, sin "por") → AVISA conservando el filtro, nunca un SKU global. **+ Fix B:** la narrativa proactiva global (suffix "un punto que…") se omite cuando la respuesta está filtrada.
 **Criterio de cierre:** ADI puede decir "no llego a eso" pero **nunca** responde otra pregunta como si fuera la original.
 
@@ -45,7 +45,11 @@ Todos verdes con el flag **ON**, validados antes del encendido:
 | Extracción de filtro (las "por" + no-resuelto) | **21/21** | `node _piece2_extract.mjs` |
 | **Fix A** · Escape rotación/filtro (AVISAR · sin SKU global · ranking global intacto) | **8/8** | `node _fixA_rotation.mjs` |
 | **Fix B** · Escape narrativa (scope sobre texto completo · 4 listas · suffix preservado sin filtro) | **12/12** | `node _fixB_scope.mjs` |
-| Reproducción de los 2 escapes (diagnóstico en vivo) | — | `node _diag_escape.mjs` |
+| **Fix C** · MURO de inventario (barrido AVISAR + Fix A intacto + preservados márgenes/comercial) | **28/0** | `node _fixC_inventory.mjs` |
+| **Fix C** · re-baseline documentado (12 queries inventario del corpus → AVISAR · 1 voz) | **12/12** | `node _fixC_rebaseline.mjs` |
+| Reproducción escapes + mapa de puertas de inventario (diagnóstico) | — | `node _diag_escape.mjs` · `node _diag_inventory.mjs` |
+
+**RE-BASELINE (Fix C · cambio intencional de contrato):** con flag ON, las **12 queries de inventario del corpus** divergen del piso a **AVISAR** (route `qi_inventory_avisar`): el 47 da **PARITY 36 · MISMATCH 11** (los 11 son inventario), la canónica **8/10 básicos + 4/6 anclas** (los 4 inventario). El **no-inventario sigue byte-verde**. Con flag OFF todo revierte al piso (47 PARITY 47 · canónica 10/10+6/6). Lista completa en `_fixC_rebaseline.mjs`.
 | Endurecimiento de extractores | **19/19** | `node _piece1_harden.mjs` |
 | **Rollback** (flag OFF → baseline) | **PARITY 47** byte-exacto | poner flag `false` + `node _parity_battery.mjs` |
 

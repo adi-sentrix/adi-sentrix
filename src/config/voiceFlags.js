@@ -124,7 +124,7 @@ export const ADI_FOLLOWUP_CLIENT_METRIC_ENABLED = true; // Fase 1a · dispatch c
 export const ADI_ECL_CONT_FOLLOWUP_ENABLED = true;      // Fase profunda [5] · ECL-CONT R4 sku-dev ("profundizá en ese")
 
 // ── ADI Core · Fase 1+2 · puente QI↔applyFiltros (las 24 con "por") · flag maestro · default OFF ──
-export const ADI_QI_FILTER_ENABLED = false;             // ADI Core Fase 1+2 (+ Fix A/B) · master · default OFF · reversible · encendido = decisión del owner (ver _ADI_CORE_V1_STATUS.md)
+export const ADI_QI_FILTER_ENABLED = false;             // ADI Core Fase 1+2 (+ Fix A/B/C muro inventario) · master · default OFF · reversible · encendido = decisión del owner
 
 export const MECHANISM_LINK_ENABLED = true;
 

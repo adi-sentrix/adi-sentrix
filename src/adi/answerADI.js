@@ -12,7 +12,7 @@
  */
 import { resolveIntentLayerEarly, resolveIntentLayer } from "./intentLayer.js";
 import { normalizeText } from "./helpers.js";
-import { detectIntent, detectAllFamiliesInText } from "./router.js";
+import { detectIntent, detectAllFamiliesInText, detectAllWarehousesInText } from "./router.js";
 import { detectBrandInText } from "./detectors.js";  // ADI Core · Escape 1 · filtro marca/familia en ranking de inventario
 import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
@@ -228,6 +228,33 @@ const _plainWrap = (resp, route, ctx) => ({
   context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1 },
 });
 
+// ── ADI Core · MURO DE INVENTARIO · toda pregunta de inventario/capital por el chat → AVISAR Fase 2.5 ──
+// Detecta inventario por 3 vías SIN aflojar los discriminadores:
+//  (A) intent de composer de inventario puro (sku_operational / warehouse_dive).
+//  (B) ranking_extremes SOLO con métrica domain==="inventario" (rotacion/doh/cobertura/stockUSD) · NUNCA el
+//      composer entero → los rankings de margen/ventas ("top 3 SKU por margen", "cliente con peor margen") intactos.
+//  (C) concepto TEXTUAL de inventario (rotación/DOH/cobertura/capital-inmovilizado/stock detenido/días sin
+//      venta/bodega). Esto ancla cross_domain a "disparado por keyword de inventario" (la pieza comercial pura
+//      —carga/margen, sin estos términos— NO se intercepta) y unifica la voz con los honest_fallback de inventario.
+const _INV_STATES = "inmoviliz|atrap|detenid|amarrad|estancad|varad|parad|comprometid|frenad|muert";
+function _esPreguntaInventarioChat(intent, trimmed) {
+  if (intent && (intent.type === "sku_operational" || intent.type === "warehouse_dive")) return true;
+  if (intent && intent.type === "ranking_extremes" && intent.metric
+      && RANKING_EXTREMES_METRICS[intent.metric] && RANKING_EXTREMES_METRICS[intent.metric].domain === "inventario") return true;
+  const n = normalizeText(trimmed);
+  if (/\brotaci[oó]n\b|\brotan\b|no\s+rota|\bdoh\b|sobre[\s-]?cobertura|\bcobertura\b|\binventario\b|\bbodegas?\b|\bsucursal(?:es)?\b|\bquiebre\b|\bliquidar\b/.test(n)) return true;
+  if (new RegExp(`\\b(capital|stock|sku|skus|producto|productos|inventario)\\b[\\s\\w]{0,25}\\b(${_INV_STATES})|\\b(${_INV_STATES})[\\s\\w]{0,25}\\b(capital|stock)\\b`).test(n)) return true;
+  if (/sobre[\s-]?stock|stock\s*usd|d[ií]as\s+sin\s+vent|sin\s+venderse|d[ií]as\s+detenid/.test(n)) return true;
+  const _wh = detectAllWarehousesInText(trimmed) || [];
+  if (_wh.some(w => w && w !== "Todas")) return true;
+  return false;
+}
+// mensaje ÚNICO, terminal · conserva filtro si lo hay · NO ofrece números alternativos · NO agrega adyacente
+function _inventarioAvisarMsg(filterName) {
+  const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, igual te aviso en vez de darte un número que parezca firme.` : "";
+  return `Eso vive en inventario y todavía no está habilitado en esta fase (Fase 2.5). No voy a responder con datos parciales o globales.${_filt} Lo que sí tengo hoy es ventas y márgenes.`;
+}
+
 // wrap fallback · opener (con applyVoiceCalibration interno) + SOLO suffix.
 // El honest fallback SKIP-ea FASE 5 narrativa/ETLG/ECL (composer emite narrativa propia · L11981)
 // pero SÍ recibe la observación aditiva. Replica el gate de sesión de _finalize.
@@ -420,6 +447,12 @@ export function answerADI(question, context = {}, state = {}) {
   // ── EARLY GATE v2 · si _earlyOv gana, opener + return ──
   const early = FEATURE_INTENT_LAYER_EARLY ? resolveIntentLayerEarly(trimmed, scenario, ctx) : null;
   if (early) {
+    // ADI Core · MURO DE INVENTARIO (pre-early-gate) · un OVERVIEW de inventario ("cómo está el inventario")
+    // también AVISA · el early gate corre ANTES del muro principal y daría capital/rotación si no se intercepta.
+    if (ADI_QI_FILTER_ENABLED && _esPreguntaInventarioChat(null, trimmed)) {
+      const _ef = detectBrandInText(trimmed) || (detectAllFamiliesInText(trimmed, { strict: true })[0] || null);
+      return _plainWrap({ opener: _inventarioAvisarMsg(_ef) }, "qi_inventory_avisar", ctx);
+    }
     return _finalize(early, "early_gate", early.intent || "module_overview", ctx, scenario, _overviewLeadIntent(trimmed));
   }
 
@@ -454,6 +487,17 @@ export function answerADI(question, context = {}, state = {}) {
       const _msg = `${_metricLabel} vive en el inventario y todavía no puedo aplicar el filtro de ${_filterName} sobre inventario en esta vista (Fase 2.5). Lo que sí puedo darte con el filtro de ${_filterName} es ventas o margen por SKU. No voy a devolverte un SKU global como si fuera ${_filterName}.`;
       return _plainWrap({ opener: _msg }, "qi_inventory_filter_avisar", ctx);
     }
+  }
+
+  // ── ADI Core · MURO DE INVENTARIO · intercepta TODA pregunta de inventario/capital ANTES del dispatch ──
+  // Un solo gate (mismo lugar que Fix A · gated por el master). AVISAR único terminal vía _plainWrap (sin
+  // suffix · no contamina N+1). Conserva el filtro nombrado si lo hay. Corre DESPUÉS de Fix A (que mantiene
+  // su mensaje para el ranking filtrado) y ANTES del puente QI y el dispatch → captura las 4 puertas.
+  if (ADI_QI_FILTER_ENABLED && _esPreguntaInventarioChat(intent, trimmed)) {
+    const _b = detectBrandInText(trimmed);
+    const _f = detectAllFamiliesInText(trimmed, { strict: true });
+    const _filterName = _b || (_f.length ? _f[0] : null);
+    return _plainWrap({ opener: _inventarioAvisarMsg(_filterName) }, "qi_inventory_avisar", ctx);
   }
 
   // ── QI RETRIEVAL · tabla paramétrica (replica PanelADI FASE 3 · L37159-37182) ──
