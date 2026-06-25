@@ -104,7 +104,10 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
   // filtro → principio: capa de contexto global se omite si la respuesta está scopeada. NO consume el
   // gate de sesión (no setea observationEmittedScenario) → un turno NO-filtrado posterior sí lo emite.
   const nextCtx = { ...ctx, turnCount: (ctx.turnCount || 0) + 1 };
-  if (text && ctx.observationEmittedScenario !== scenario && !(resp && resp._filtered)) {
+  // ADI Core · Cabo 1 · suffix proactivo "un punto que no saliste a buscar" APAGADO con flag ON (sobrio ·
+  // no menciona un cliente global fuera del análisis pedido). NO consume el gate de sesión → consistente
+  // (un turno posterior tampoco lo emite). Flag OFF → comportamiento del piso byte-exacto (suffix presente).
+  if (!ADI_QI_FILTER_ENABLED && text && ctx.observationEmittedScenario !== scenario && !(resp && resp._filtered)) {
     const sfx = virtuousExceptionSuffix(scenario);
     if (sfx) { text = text + "\n\n" + sfx; nextCtx.observationEmittedScenario = scenario; }
   }
@@ -118,7 +121,7 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
   return {
     text,
     suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
-    sentrixAction: resp.sentrixAction || null,
+    sentrixAction: _gateInvCTA(resp.sentrixAction),
     intent: intentLabel,
     route,
     context: nextCtx,
@@ -222,7 +225,7 @@ function _threadContext(nextCtx, intent, resp, route) {
 const _plainWrap = (resp, route, ctx) => ({
   text: resp.opener,
   suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
-  sentrixAction: resp.sentrixAction || null,
+  sentrixAction: _gateInvCTA(resp.sentrixAction),   // Cabo 2 · 3er punto de salida (hoy null/comercial · futuro-seguro)
   intent: route,
   route,
   context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1 },
@@ -249,6 +252,12 @@ function _esPreguntaInventarioChat(intent, trimmed) {
   if (_wh.some(w => w && w !== "Todas")) return true;
   return false;
 }
+// ADI Core · Cabo 2 · capability-gate de CTA · con flag ON dropea cualquier sentrixAction de inventario
+// (moduleChip "Inventario" / payload.modulo "inventario"). Verificado: ningún CTA comercial usa ese chip.
+function _gateInvCTA(sa) {
+  if (ADI_QI_FILTER_ENABLED && sa && (sa.moduleChip === "Inventario" || (sa.payload && sa.payload.modulo === "inventario"))) return null;
+  return sa || null;
+}
 // mensaje ÚNICO, terminal · conserva filtro si lo hay · NO ofrece números alternativos · NO agrega adyacente
 function _inventarioAvisarMsg(filterName) {
   const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, igual te aviso en vez de darte un número que parezca firme.` : "";
@@ -261,14 +270,15 @@ function _inventarioAvisarMsg(filterName) {
 const _fallbackWrap = (resp, route, intentLabel, ctx, scenario) => {
   let text = resp.opener;
   const nextCtx = { ...ctx, turnCount: (ctx.turnCount || 0) + 1 };
-  if (text && ctx.observationEmittedScenario !== scenario) {
+  // ADI Core · Cabo 1 · suffix proactivo APAGADO con flag ON (gemelo del gate de _finalize · honest_fallback).
+  if (!ADI_QI_FILTER_ENABLED && text && ctx.observationEmittedScenario !== scenario) {
     const sfx = virtuousExceptionSuffix(scenario);
     if (sfx) { text = text + "\n\n" + sfx; nextCtx.observationEmittedScenario = scenario; }
   }
   return {
     text,
     suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
-    sentrixAction: resp.sentrixAction || null,
+    sentrixAction: _gateInvCTA(resp.sentrixAction),
     intent: intentLabel,
     route,
     context: nextCtx,

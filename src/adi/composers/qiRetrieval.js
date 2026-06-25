@@ -545,18 +545,20 @@ function rilPickNextAngle(queryType, primaryMetric, dim) {
   if (queryType === "multi") {
     return "evaluar carga comercial por " + dimLow + " para identificar palancas de margen";
   }
+  // ADI Core · Cabo 2 · con flag ON, el "próximo ángulo" NO ofrece rotación/inventario (bloqueado).
+  // Reemplazo comercial (composición de la contribución / margen), no silencia el ángulo.
   if (queryType === "ranked") {
     if (m === "ventas") return "validar margen del líder";
     if (m === "margen") return "validar volumen del líder vs lastres";
-    if (m === "contribucion") return "validar rotación y disponibilidad operativa del líder";
+    if (m === "contribucion") return ADI_QI_FILTER_ENABLED ? "validar la composición de la contribución del líder" : "validar rotación y disponibilidad operativa del líder";
     return "profundizar en el líder o validar lastres del portafolio";
   }
   // simple
   if (m === "ventas")       return "cruzar con margen y carga comercial para validar si esa concentración es sana";
   if (m === "margen")       return "cruzar con ventas para identificar palancas de margen";
-  if (m === "contribucion") return "validar rotación y disponibilidad operativa del líder";
+  if (m === "contribucion") return ADI_QI_FILTER_ENABLED ? "validar la composición de la contribución del líder" : "validar rotación y disponibilidad operativa del líder";
   if (m === "carga")        return "comparar contra benchmark interno (3.5%)";
-  if (m === "stock")        return "cruzar con rotación por " + dimLow;
+  if (m === "stock")        return ADI_QI_FILTER_ENABLED ? "cruzar con margen por " + dimLow : "cruzar con rotación por " + dimLow;
   return "profundizar en el líder o validar lastres del portafolio";
 }
 

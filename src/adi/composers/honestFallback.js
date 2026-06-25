@@ -7,6 +7,7 @@
  * _maybeEmitSentrixAction (L8492), detectGreeting/GREETING_RESPONSE (L8557),
  * selectOODResponse/isObviouslyOutOfDomain (L8590). */
 import { applyVoiceCalibration } from "../narrativeLayer.js";
+import { ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";  // Cabo 2 · capability-gate de inventario
 
 // Flag local · en el piso es `const VOICE_GREETING_LAYER_ENABLED = true;` (L8554).
 const VOICE_GREETING_LAYER_ENABLED = true;
@@ -55,6 +56,19 @@ function _generateContextualAlternatives(ctx, modulo, scenario) {
   while (alternatives.length < 3 && uIdx < universal.length) {
     const next = universal[uIdx++];
     if (next && !alternatives.includes(next)) alternatives.push(next);
+  }
+
+  // ── ADI Core · Cabo 2 · con flag ON, NO ofrecer ángulos de inventario (bloqueado Fase 2.5).
+  // Filtra los que OFRECEN inventario (rotación/capital/DOH/stock/cobertura/inventario/bodega), NO
+  // los que solo nombran "SKU" en un sentido comercial. Rellena con alternativas comerciales.
+  if (ADI_QI_FILTER_ENABLED) {
+    const _inv = /rotaci|inventario|\bdoh\b|stock|capital|cobertura|inmovilizad|atrapad|sobre[\s-]?cobertura|bodega|sucursal|liquidar|quiebre/i;
+    let _filt = alternatives.filter(a => !_inv.test(a));
+    for (const _c of [`Cómo está el negocio en márgenes`, `Clientes con erosión de margen`, `Top clientes por contribución del escenario actual`]) {
+      if (_filt.length >= 3) break;
+      if (!_filt.includes(_c)) _filt.push(_c);
+    }
+    return _filt.slice(0, 3);
   }
 
   return alternatives.slice(0, 3);

@@ -19,17 +19,12 @@ for (const [q, filt] of [
 }
 
 console.log("\n════ GATE 2 · NO-regresión: sin filtro NO se intercepta (composer de siempre intacto) ════");
-// la query estrella del founder: ranking global intacto (MAK-COMP-AIR sigue saliendo)
-{
-  const r = run("cuál es el SKU con peor rotación");
-  ck(`«cuál es el SKU con peor rotación» → ranking_extremes + MAK-COMP-AIR (global intacto)`,
-    r.route === "ranking_extremes" && (r.text || "").includes("MAK-COMP-AIR"), `route=${r.route}`);
-  console.log(`   ${(r.text || "").replace(/\s+/g, " ").slice(0, 120)}`);
-}
-// el resto: lo único que importa es que mi fix NO los intercepta (van a su composer de siempre)
-for (const q of ["peor rotación", "cuál es el SKU con mejor rotación", "el SKU con más DOH"]) {
+// CONTRATO ACTUALIZADO (Fix C): la decisión del owner hizo que rotación SIN filtro YA NO se preserve
+// (ya no da MAK-COMP-AIR) — el muro de inventario la AVISA como todo lo de inventario. Fix A sigue
+// sirviendo el caso FILTRADO con su propio mensaje (gate 1). Sin filtro → muro (qi_inventory_avisar).
+for (const q of ["cuál es el SKU con peor rotación", "peor rotación", "cuál es el SKU con mejor rotación", "el SKU con más DOH"]) {
   const r = run(q);
-  ck(`«${q}» NO interceptado → ${r.route}`, r.route !== "qi_inventory_filter_avisar", `route=${r.route}`);
+  ck(`«${q}» → muro inventario (AVISA · sin MAK-COMP-AIR)`, r.route === "qi_inventory_avisar" && !(r.text || "").includes("MAK-COMP-AIR"), `route=${r.route}`);
 }
 console.log(`\n── Fix A: ${pass} ok / ${fail} fail ──`);
 process.exit(fail ? 1 : 0);

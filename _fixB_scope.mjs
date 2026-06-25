@@ -55,14 +55,16 @@ for (const [n, q, f] of CASES) {
   console.log(`${ok ? "✓" : "✗ FAIL"} #${n} «${q}»`);
   console.log(`   fuera del filtro en el texto: ${leaked.length ? "✗ " + leaked.join(", ") : "ninguna ✓"} · suffix global: ${noSuffix ? "omitido ✓" : "✗ PRESENTE"}`);
 }
-console.log("\n════ GATE 4 · suffix PRESERVADO sin filtro (paridad intacta) ════");
+console.log("\n════ GATE 4 · CONTRATO ACTUAL (Cabo 1): suffix APAGADO del todo con flag ON (ni filtrado ni sin filtro) ════");
+// NOTA: Cabo 1 superseó el mecanismo _filtered de Fix B — ahora el suffix proactivo NO se emite en
+// NINGUNA respuesta con flag ON (sobrio). El scope-check de Fix B (gate 3) sigue siendo el test vivo.
 for (const q of ["ventas por cliente", "margen por marca", "ventas y margen por cliente"]) {
   const r = run(q);
   const t = r.text || "";
   const hasSuffix = /Un punto que no saliste/.test(t);
-  const ok = hasSuffix;  // sin filtro → el suffix DEBE seguir (corpus byte-idéntico)
+  const ok = !hasSuffix;  // flag ON → suffix apagado en TODO (Cabo 1)
   if (ok) pass++; else fail++;
-  console.log(`${ok ? "✓" : "✗ FAIL"} «${q}» (sin filtro) · suffix presente: ${hasSuffix ? "sí ✓" : "✗ NO"}`);
+  console.log(`${ok ? "✓" : "✗ FAIL"} «${q}» (sin filtro) · suffix apagado: ${!hasSuffix ? "sí ✓" : "✗ SIGUE"}`);
 }
 console.log(`\n── Fix B: ${pass} ok / ${fail} fail ──`);
 process.exit(fail ? 1 : 0);

@@ -1,8 +1,8 @@
 # ADI Core Fase 1+2 v1 — Estado y runbook de la prueba acotada del owner
 
-**Estado:** `ADI_QI_FILTER_ENABLED = false` (**default OFF · reversible**). Incluye v1 + **Fix A** (Escape rotación/filtro) + **Fix B** (narrativa global fuera del filtro) + **Fix C** (MURO de inventario: toda pregunta de inventario/capital por el chat → AVISAR Fase 2.5, una sola voz). El encendido para re-test del owner es **decisión del owner** (poner el flag en `true`).
-**Alcance v1:** las 24 queries con "por" — filtro marca/familia/cliente/SKU × las 8 métricas QI, sobre datasets de ventas/márgenes. **+ Fix A:** "qué SKU de {marca} rota peor" (rotación/inventario CON filtro, sin "por") → AVISA conservando el filtro, nunca un SKU global. **+ Fix B:** la narrativa proactiva global (suffix "un punto que…") se omite cuando la respuesta está filtrada.
-**Criterio de cierre:** ADI puede decir "no llego a eso" pero **nunca** responde otra pregunta como si fuera la original.
+**Estado:** `ADI_QI_FILTER_ENABLED = false` (**default OFF · reversible**). Incluye v1 + **Fix A** (Escape rotación/filtro) + **Fix B** (narrativa global fuera del filtro) + **Fix C** (MURO de inventario: toda pregunta de inventario/capital por el chat → AVISAR Fase 2.5, una sola voz) + **Cabo 1** (suffix proactivo "un punto que no saliste…" APAGADO del todo con flag ON · Postura A) + **Cabo 2** (capability-gate de inventario en TODA sugerencia/ángulo/CTA: nada ofrece rotación/DOH/stock/cobertura/capital/bodega). El encendido para re-test del owner es **decisión del owner** (poner el flag en `true`).
+**Alcance v1:** las 24 queries con "por" — filtro marca/familia/cliente/SKU × las 8 métricas QI, sobre datasets de ventas/márgenes. **+ Fix A:** "qué SKU de {marca} rota peor" (rotación/inventario CON filtro, sin "por") → AVISA conservando el filtro, nunca un SKU global. **+ Fix B:** la narrativa proactiva global se omite cuando la respuesta está filtrada (superseado por Cabo 1: ahora se omite SIEMPRE con flag ON). **+ Cabo 1:** el suffix proactivo no se emite en NINGUNA respuesta con flag ON (sobrio). **+ Cabo 2:** el honest_fallback no ofrece ángulos de inventario, ningún CTA usa `moduleChip:"Inventario"`, y el "próximo ángulo" RIL de contribución reemplaza "validar rotación…" por "validar la composición de la contribución…" (comercial).
+**Criterio de cierre:** ADI puede decir "no llego a eso" pero **nunca** responde otra pregunta como si fuera la original. **Y no menciona ni ofrece lo que no puede entregar.**
 
 ---
 
@@ -35,21 +35,28 @@ Todos verdes con el flag **ON**, validados antes del encendido:
 
 | Gate | Resultado | Harness (re-correr si hace falta) |
 |---|---|---|
-| Corpus 47 (modular vs piso) | **PARITY 47** | `node _parity_battery.mjs` |
-| Extendida (D0 + combos) | **PARITY 19** | `node _parity_extended.mjs` |
-| Canónica (10 básicos + 6 anclas) | **10/10 + 6/6** | `node _bateria_canonica.mjs` |
+| **Blindada Cabo 1+2 (66 = 47 + extendida · byte-exacta)** · modular-ON === piso − {suffix + sustitución RIL documentada}, cero diff escondido | **VERDE** · 50 suffix-off · 2 suffix+RIL · 5 sin-cambio · 11 inventario · **0 fallas** | `node _cabo1_armor.mjs` |
+| **Cabo 2** · ninguna respuesta ofrece inventario (ángulo/sugerencia/CTA) + comercial intacto | **12/0** | `node _cabo2_inventory.mjs` |
+| Corpus 47 OFF (modular vs piso · rollback) | **PARITY 47** | `node _parity_battery.mjs` |
+| Extendida OFF (D0 + combos · rollback) | **PARITY 19** | `node _parity_extended.mjs` |
+| Canónica OFF (10 básicos + 6 anclas · rollback) | **10/10 + 6/6** | `node _bateria_canonica.mjs` |
+| Corpus 47 ON (norm) · suffix-off → CORE_OK, no MISMATCH oculto | **36 PARITY/CORE · 11 inv re-baseline** | (usar la blindada, no substring) |
 | **Oráculo 30** (cada query → su rama) | **30/30** | `node _piece4_oracle30.mjs` |
 | **Mordida** (cada APLICAR filtra de verdad) | **13/13** | `node _piece3_mordida.mjs` |
 | **Multi-turno post-AVISAR** (limpio · no contamina) | **7/7** | `node _piece4_multiturn.mjs` |
 | Controles #26-28 byte vs piso | **3/3** | `node _piece3_controls.mjs` |
 | Extracción de filtro (las "por" + no-resuelto) | **21/21** | `node _piece2_extract.mjs` |
-| **Fix A** · Escape rotación/filtro (AVISAR · sin SKU global · ranking global intacto) | **8/8** | `node _fixA_rotation.mjs` |
-| **Fix B** · Escape narrativa (scope sobre texto completo · 4 listas · suffix preservado sin filtro) | **12/12** | `node _fixB_scope.mjs` |
+| **Fix A** · Escape rotación/filtro (AVISAR · sin SKU global) · contrato ACTUAL: rotación SIN filtro → muro (Fix C), ya no se preserva el ranking global | **8/8** | `node _fixA_rotation.mjs` |
+| **Fix B** · Escape narrativa (scope sobre texto completo · 4 listas) · contrato ACTUAL: suffix APAGADO del todo con flag ON (Cabo 1 superseó el mecanismo _filtered) | **12/12** | `node _fixB_scope.mjs` |
 | **Fix C** · MURO de inventario (barrido AVISAR + Fix A intacto + preservados márgenes/comercial) | **28/0** | `node _fixC_inventory.mjs` |
 | **Fix C** · re-baseline documentado (12 queries inventario del corpus → AVISAR · 1 voz) | **12/12** | `node _fixC_rebaseline.mjs` |
 | Reproducción escapes + mapa de puertas de inventario (diagnóstico) | — | `node _diag_escape.mjs` · `node _diag_inventory.mjs` |
 
-**RE-BASELINE (Fix C · cambio intencional de contrato):** con flag ON, las **12 queries de inventario del corpus** divergen del piso a **AVISAR** (route `qi_inventory_avisar`): el 47 da **PARITY 36 · MISMATCH 11** (los 11 son inventario), la canónica **8/10 básicos + 4/6 anclas** (los 4 inventario). El **no-inventario sigue byte-verde**. Con flag OFF todo revierte al piso (47 PARITY 47 · canónica 10/10+6/6). Lista completa en `_fixC_rebaseline.mjs`.
+**RE-BASELINE (cambio intencional de contrato con flag ON · todo revierte byte-exacto con flag OFF):**
+- **Fix C · inventario:** las **11 queries de inventario del corpus** divergen del piso a **AVISAR** (route `qi_inventory_avisar`): el 47 da **MISMATCH 11** (los 11 son inventario), la canónica **8/10 + 4/6** (los inventario). Lista completa en `_fixC_rebaseline.mjs`.
+- **Cabo 1 · suffix:** las **50 respuestas turn-0** que el piso remataba con el suffix proactivo "Un punto que no saliste a buscar: Mercado Libre…" (146 chars) quedan SIN esa cola. La blindada prueba **byte-exacto** que el único cambio es la remoción de esa cola (NO substring): `modular-ON === piso − cola_exacta`.
+- **Cabo 2 · sustitución RIL:** **2 queries** de contribución ("ranking de clientes por contribución", "contribución por familia") cambian el "próximo ángulo" de "validar rotación y disponibilidad operativa del líder" → "validar la composición de la contribución del líder" (comercial). La blindada lo verifica como diff EXACTO documentado (cero cambio escondido alrededor).
+- **No-inventario:** fuera de esas dos transformaciones, sigue **byte-idéntico** al piso (las 5 sin-suffix quedan byte-iguales). Con flag OFF: 47 PARITY 47 · extendida 19 · canónica 10/10+6/6.
 | Endurecimiento de extractores | **19/19** | `node _piece1_harden.mjs` |
 | **Rollback** (flag OFF → baseline) | **PARITY 47** byte-exacto | poner flag `false` + `node _parity_battery.mjs` |
 
@@ -81,3 +88,5 @@ No empeoraron con el flag ON (no son retrieval con "por" → caen a su composer 
 - **Fase 2.5** (inventario): rotación/DOH/capital/bodega como consulta directa.
 
 La fase NO se considera cerrada hasta que Fase 2.1 cierre esos 6.
+
+**Fragilidad residual declarada (Cabo 2):** el capability-gate de inventario es por **fuente** (gatea en el productor) y por **concepto** (rotación/DOH/stock/cobertura/capital/bodega/sucursal/liquidar/quiebre), no borra palabras a ciegas. Un **productor de sugerencia/CTA NUEVO** que ofrezca inventario y no pase por `_gateInvCTA` / `_generateContextualAlternatives` / `rilPickNextAngle` podría fugar — al agregar composers, respetar la regla "no ofrecer lo bloqueado". El `b5` ejecutivo y el opener de mechanism con "inventario" hoy son inalcanzables (sus triggers caen al muro); si Fase 2.1 cambia ese ruteo, revisar que no reaparezcan. Cuando Fase 2.5 habilite inventario, **revertir Cabo 1 + Cabo 2** (el suffix y los ángulos de inventario vuelven a ser legítimos).
