@@ -9,7 +9,7 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -112,6 +112,14 @@ function _afterConnector(norm, name) {
   const n = _norm(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp("\\b" + _CONN + n + "\\b").test(norm);
 }
+// 2.1b-2 · métricas-eje OFRECIBLES en la pregunta ACLARAR: las que el Semantic Layer marca axis,
+// tienen path QI, y cuyo dominio está DISPONIBLE (Availability Map) → ventas/margen/contribución.
+// NUNCA inventario (bloqueado) → cero Cabo-2 leak. Orden natural fijo.
+function _clarifyMetrics() {
+  return ["ventas", "margen", "contribucion"]
+    .filter(k => METRIC_REGISTRY[k] && METRIC_REGISTRY[k].axis && METRIC_REGISTRY[k].qiKey && isAvailable(METRIC_REGISTRY[k].domain))
+    .map(k => METRIC_REGISTRY[k].label.toLowerCase());
+}
 
 export function resolveFilteredRetrieval(text, scenario) {
   if (!ADI_CORE_SPINE_ENABLED || !ADI_SPINE_FILTER_ENABLED) return null;   // flag OFF → inerte
@@ -135,21 +143,6 @@ export function resolveFilteredRetrieval(text, scenario) {
       opener: `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?` };
   }
 
-  // métrica
-  let metricKey = null;
-  for (const [key, def] of Object.entries(METRIC_REGISTRY)) {
-    if ((def.vocabulary || []).some(t => _has(norm, t))) { metricKey = key; break; }
-  }
-  if (!metricKey) return null;                                 // sin métrica explícita → no es 2.1b
-  const metric = METRIC_REGISTRY[metricKey];
-
-  // VALIDATION · dominio disponible (inventario bajo filtro → AVISA vía Availability Map)
-  if (!isAvailable(metric.domain)) {
-    if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
-    return { _spine: true, route: "spine_filter_unavailable", suggestions: null, opener: unavailableMessage(metric.domain, { filterName: filterValue }) };
-  }
-  if (!metric.qiKey) return null;
-
   // dimensión: explícita (cliente/sku/marca/familia genérico) o inferida = sku (el grano del producto)
   let dimKey = null;
   for (const [key, def] of Object.entries(DIMENSION_REGISTRY)) {
@@ -162,6 +155,36 @@ export function resolveFilteredRetrieval(text, scenario) {
   let direction = null;
   for (const w of _SUPERLATIVE_BOTTOM) if (_has(norm, w)) { direction = "bottom"; break; }
   if (!direction) for (const w of _SUPERLATIVE_TOP) if (_has(norm, w)) { direction = "top"; break; }
+
+  // métrica
+  let metricKey = null;
+  for (const [key, def] of Object.entries(METRIC_REGISTRY)) {
+    if ((def.vocabulary || []).some(t => _has(norm, t))) { metricKey = key; break; }
+  }
+  // ── Fase 2.1b-2 · filtro + superlativo SIN métrica explícita → ACLARAR (regla madre · no adivina la métrica) ──
+  // La rama vive DENTRO de !metricKey → si hay métrica, ni se evalúa (imposible robar un caso que RESPONDE).
+  if (!metricKey) {
+    if (ADI_SPINE_FILTER_CLARIFY_ENABLED && direction) {
+      const _ms = _clarifyMetrics();                           // métricas-eje DISPONIBLES del Semantic Layer (NUNCA inventario)
+      const _dimW = (DIMENSION_REGISTRY[dimKey] && DIMENSION_REGISTRY[dimKey].label) || "ítem";
+      const _art = (dimKey === "sku" || dimKey === "cliente") ? "el" : "la";
+      const _dir = direction === "bottom" ? "peor" : "mejor";
+      const _cap = _art.charAt(0).toUpperCase() + _art.slice(1);
+      const _list = _ms.join(", ").replace(/, ([^,]+)$/, " o $1");
+      return { _spine: true, route: "spine_filter_clarify",
+        opener: `¿${_cap} ${_dir} ${_dimW} de ${filterValue} en qué: ${_list}?`,
+        suggestions: _ms.map(m => `${_cap} ${_dir} ${_dimW} de ${filterValue} en ${m}`) };
+    }
+    return null;                                               // sin métrica (+ sin superlativo, o flag off) → cae al viejo
+  }
+  const metric = METRIC_REGISTRY[metricKey];
+
+  // VALIDATION · dominio disponible (inventario bajo filtro → AVISA vía Availability Map)
+  if (!isAvailable(metric.domain)) {
+    if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
+    return { _spine: true, route: "spine_filter_unavailable", suggestions: null, opener: unavailableMessage(metric.domain, { filterName: filterValue }) };
+  }
+  if (!metric.qiKey) return null;
 
   // mismatch: exigir superlativo O dimensión explícita (sin eso, "el margen de Bosch" → brand_dive del viejo)
   if (!direction && !hadExplicitDim) return null;

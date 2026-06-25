@@ -10,9 +10,9 @@ const _vocab = (qiKey, extra = []) => [...new Set([...(QI_METRIC_VOCAB[qiKey] ||
 
 export const METRIC_REGISTRY = {
   // ── dominio comercial (disponible) ──
-  contribucion: { label: "Contribución",     domain: "margenes", unit: "$", qiKey: "contribucion", formula: "venta − costo − rebates",            vocabulary: _vocab("contribucion", ["aporte", "aporta", "aportan", "aporten"]) },
-  margen:       { label: "Margen",           domain: "margenes", unit: "%", qiKey: "margen",       formula: "(venta − costo − rebates) / venta",  vocabulary: _vocab("margen", ["rentabilidad"]) },
-  ventas:       { label: "Ventas",           domain: "ventas",   unit: "$", qiKey: "ventas",       formula: "Σ venta",                            vocabulary: _vocab("ventas", ["vende", "venden"]) },
+  contribucion: { label: "Contribución",     domain: "margenes", unit: "$", qiKey: "contribucion", axis: true, formula: "venta − costo − rebates",            vocabulary: _vocab("contribucion", ["aporte", "aporta", "aportan", "aporten"]) },
+  margen:       { label: "Margen",           domain: "margenes", unit: "%", qiKey: "margen",       axis: true, formula: "(venta − costo − rebates) / venta",  vocabulary: _vocab("margen", ["rentabilidad"]) },
+  ventas:       { label: "Ventas",           domain: "ventas",   unit: "$", qiKey: "ventas",       axis: true, formula: "Σ venta",                            vocabulary: _vocab("ventas", ["vende", "venden"]) },
   carga:        { label: "Carga Comercial",  domain: "margenes", unit: "%", qiKey: "carga",        formula: "rebates / venta",                    vocabulary: _vocab("carga", ["rebate", "rebates"]) },
   // ── dominio inventario (bloqueado hasta Fase 2.5 · el spine AVISA vía Availability Map, NO computa) ──
   rotacion:     { label: "Rotación",         domain: "inventario", unit: "x", qiKey: null,         formula: "COGS / stock promedio",              vocabulary: ["rotacion", "rotación", "rota", "rotan"] },
