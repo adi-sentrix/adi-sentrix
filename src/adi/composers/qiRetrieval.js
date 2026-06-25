@@ -94,7 +94,7 @@ export function executiveLanguageDetector(text, concepts) {
 //   "ranked"  · 1 metric + 1 dimension + top N
 //
 // METRICS singular Y plural (Decisión 3).
-const QI_METRIC_VOCAB = {
+export const QI_METRIC_VOCAB = {
   ventas:        ["ventas", "venta"],
   margen:        ["margen", "margenes", "márgenes"],
   contribucion:  ["contribucion", "contribuciones", "contribución"],
@@ -106,7 +106,7 @@ const QI_METRIC_VOCAB = {
   participacion: ["participacion", "participación"],
   aporte:        ["aporte"],
 };
-const QI_DIMENSION_VOCAB = {
+export const QI_DIMENSION_VOCAB = {
   cliente:   ["cliente", "clientes", "cuenta", "cuentas"],
   sku:       ["sku", "skus"],
   producto:  ["producto", "productos"],

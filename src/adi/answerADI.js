@@ -18,6 +18,7 @@ import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from "./composers/qiRetrieval.js";
+import { resolveDimensionalSuperlative } from "./core/spine.js";  // ADI Core · Fase 2.1a · spine (superlativo por dimensión)
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
 import { composeClientMetricFollowUp } from "./composers/followups.js";
 import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } from "./deepThreading.js";
@@ -396,6 +397,17 @@ export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   const trimmed = (question || "").trim();
   const ctx = context || {};
+
+  // ── ADI Core · Fase 2.1a · SPINE · superlativo por dimensión (marca/familia) SIN filtro ──
+  // Corre PRIMERO (antes de simulación/early-gate/dispatch) para OWNAR su firma angosta: la capa de
+  // simulación mal-clasifica "mejor/peor margen" + marca/familia como simulación. El spine reclama SOLO
+  // esa firma (marca/familia que ranking_extremes no alcanza = guard de mismatch); todo lo demás cae al
+  // flujo viejo intacto. Resuelve vía Semantic Layer, valida vía Availability Map, reusa el cómputo QI.
+  // Flag OFF → null → cero cambio. (El shadow-diff prueba que solo la firma cambia.)
+  {
+    const _sp = resolveDimensionalSuperlative(trimmed, scenario);
+    if (_sp && _sp.opener) return _plainWrap({ opener: _sp.opener }, _sp.route, ctx);
+  }
 
   // ── SIMULACIÓN B2a · cadena pre-detectIntent (replica PanelADI L35500-35733) ──
   // Orden-sensible: margen → pérdida → inverse → growth → price. Cada extractor gateado.

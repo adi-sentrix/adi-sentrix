@@ -126,6 +126,10 @@ export const ADI_ECL_CONT_FOLLOWUP_ENABLED = true;      // Fase profunda [5] · 
 // ── ADI Core · Fase 1+2 · puente QI↔applyFiltros (las 24 con "por") · flag maestro · default OFF ──
 export const ADI_QI_FILTER_ENABLED = false;             // ADI Core Fase 1+2 (+ Fix A/B/C muro · Cabo 1 suffix off · Cabo 2 capability-gate inventario) · default OFF · reversible · encender = poner true
 
+// ── ADI Core · Fase 2.1 · spine (Semantic Layer + Availability Map + Intent Resolver → Validation → Planner) · default OFF ──
+export const ADI_CORE_SPINE_ENABLED = false;            // paraguas de TODA la Fase 2.1 · reversible · encender = poner true
+export const ADI_SPINE_DIM_SUPERLATIVE_ENABLED = false; // 2.1a · superlativo por dimensión (marca/familia) SIN filtro · requiere el paraguas ON
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;
