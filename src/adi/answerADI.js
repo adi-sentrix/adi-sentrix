@@ -227,6 +227,7 @@ const _plainWrap = (resp, route, ctx) => ({
   text: resp.opener,
   suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
   sentrixAction: _gateInvCTA(resp.sentrixAction),   // Cabo 2 · 3er punto de salida (hoy null/comercial · futuro-seguro)
+  evidence: resp.evidence || null,                  // ADI Core · Fase 2.1d · payload hermano (null si no lo trae · NUNCA toca text)
   intent: route,
   route,
   context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1 },
@@ -406,14 +407,14 @@ export function answerADI(question, context = {}, state = {}) {
   // Flag OFF → null → cero cambio. (El shadow-diff prueba que solo la firma cambia.)
   {
     const _sp = resolveDimensionalSuperlative(trimmed, scenario);
-    if (_sp && _sp.opener) return _plainWrap({ opener: _sp.opener }, _sp.route, ctx);
+    if (_sp && _sp.opener) return _plainWrap({ opener: _sp.opener, evidence: _sp.evidence }, _sp.route, ctx);
   }
   // ── ADI Core · Fase 2.1b · SPINE FILTRO · métrica + filtro marca/familia nombrado SIN "por" ──
   // Corre DESPUÉS de 2.1a (precedencia disjunta: 2.1a=dimensión genérica sin entidad; 2.1b=entidad nombrada).
   // Reusa el escudo QI (opts.spineFilter). Flag OFF → null → cae al viejo. El shadow-diff prueba cero overshadow.
   {
     const _fr = resolveFilteredRetrieval(trimmed, scenario);
-    if (_fr && _fr.opener) return _plainWrap({ opener: _fr.opener, suggestions: _fr.suggestions || null }, _fr.route, ctx);
+    if (_fr && _fr.opener) return _plainWrap({ opener: _fr.opener, suggestions: _fr.suggestions || null, evidence: _fr.evidence }, _fr.route, ctx);
   }
 
   // ── SIMULACIÓN B2a · cadena pre-detectIntent (replica PanelADI L35500-35733) ──

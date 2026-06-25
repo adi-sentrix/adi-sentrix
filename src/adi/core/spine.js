@@ -9,7 +9,7 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -23,6 +23,26 @@ const _has = (norm, term) => new RegExp("\\b" + _norm(term).replace(/[.*+?^${}()
 // marcadores de superlativo (dirección) · top = mayor/mejor · bottom = menor/peor
 const _SUPERLATIVE_BOTTOM = ["peor", "menor", "mas bajo", "mas baja", "minimo", "minima", "que menos", "mas chico", "mas chica", "menos", "mas debil", "mas debiles", "debil"];
 const _SUPERLATIVE_TOP    = ["mejor", "mayor", "mas alto", "mas alta", "maximo", "maxima", "que mas", "mas grande", "mas"];
+
+// ── Fase 2.1d · evidence payload ─────────────────────────────────────────────────────────────────
+// Construye los 10 campos del NORTE del MISMO _plan que produjo la respuesta (single source · cero recálculo).
+// Campo HERMANO del retorno · NUNCA toca el .text. Flag-gated → undefined si OFF (no se emite).
+const _DIM_SOURCE = { cliente: "clientesMargen", marca: "clientesMargen", sku: "skusMargen", producto: "skusMargen", familia: "sfamiliasMargen" };
+function _evidence(scenario, { metricKey = null, dimKey = null, filtros = {}, operacion = null, formula = null, rowsUsed = null, unsupported = [], invMetric = false } = {}) {
+  if (!ADI_SPINE_EVIDENCE_ENABLED) return undefined;
+  return {
+    query_plan: { metrica: metricKey, dimension: dimKey, filtros, operacion },
+    metrica: metricKey,
+    dimension: dimKey,
+    filtros,
+    periodo: scenario || "bonanza",
+    formula,
+    fuente: invMetric ? "skuInventario" : (_DIM_SOURCE[dimKey] || null),
+    filas_usadas: rowsUsed,
+    confianza: "determinística",
+    unsupported_clauses: unsupported,
+  };
+}
 
 // firma del slice: superlativo + dimensión marca/familia + métrica + SIN "por" + SIN filtro nombrado
 function _resolveFirma(text) {
@@ -70,7 +90,8 @@ export function resolveDimensionalSuperlative(text, scenario) {
   // VALIDATION · ¿el dominio de la métrica está disponible? (Availability Map generaliza el muro)
   if (!isAvailable(metric.domain)) {
     if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
-    return { _spine: true, route: "spine_dim_unavailable", opener: unavailableMessage(metric.domain) };
+    return { _spine: true, route: "spine_dim_unavailable", opener: unavailableMessage(metric.domain),
+      evidence: _evidence(scenario, { metricKey, dimKey, operacion: "avisar", formula: metric.formula, invMetric: true, unsupported: [{ kind: "domain_unavailable", raw: metric.domain, phase: "2.5" }] }) };
   }
 
   // PLANNER + QUERY ENGINE · reuso del cómputo QI ("{qiKey} por {dimKey}") · cero recálculo
@@ -96,8 +117,8 @@ export function resolveDimensionalSuperlative(text, scenario) {
     _spine: true,
     route: "spine_dim_superlative",
     opener,
-    // objeto-plan evidence-ready (NO se emite hasta 2.1d · acá solo nace)
     _plan: { metric: metricKey, dimension: dimKey, direction, domain: metric.domain, formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
+    evidence: _evidence(scenario, { metricKey, dimKey, operacion: direction === "bottom" ? "rank_bottom" : "rank_top", formula: metric.formula, rowsUsed: mm.length, unsupported: [] }),
   };
 }
 
@@ -135,12 +156,14 @@ export function resolveFilteredRetrieval(text, scenario) {
   if (brand) { filterValue = brand; filterAxis = "marca"; }
   else if (fams.length) { filterValue = fams[0]; filterAxis = "familia"; }
   if (!filterValue) return null;                               // sin marca/familia nombrada → no es 2.1b
+  const _filtros = { [filterAxis === "marca" ? "marcas" : "sfamilias"]: [filterValue] };   // 2.1d · filtros del payload
 
   // COMBINADO marca/familia + cliente específico (tras conector) → 2.1c · AVISA (no inventa el cruce)
   const specificClient = (detectAllClientsInText(text, { strict: true }) || []).find(c => _afterConnector(norm, c));
   if (specificClient) {
     return { _spine: true, route: "spine_filter_combinado_avisar", suggestions: null,
-      opener: `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?` };
+      opener: `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?`,
+      evidence: _evidence(scenario, { filtros: _filtros, operacion: "avisar", unsupported: [{ kind: "cross_dimension", raw: `${filterValue}×${specificClient}` }] }) };
   }
 
   // dimensión: explícita (cliente/sku/marca/familia genérico) o inferida = sku (el grano del producto)
@@ -173,7 +196,8 @@ export function resolveFilteredRetrieval(text, scenario) {
       const _list = _ms.join(", ").replace(/, ([^,]+)$/, " o $1");
       return { _spine: true, route: "spine_filter_clarify",
         opener: `¿${_cap} ${_dir} ${_dimW} de ${filterValue} en qué: ${_list}?`,
-        suggestions: _ms.map(m => `${_cap} ${_dir} ${_dimW} de ${filterValue} en ${m}`) };
+        suggestions: _ms.map(m => `${_cap} ${_dir} ${_dimW} de ${filterValue} en ${m}`),
+        evidence: _evidence(scenario, { dimKey, filtros: _filtros, operacion: "clarify", unsupported: [{ kind: "metric_missing", options: _ms }] }) };
     }
     return null;                                               // sin métrica (+ sin superlativo, o flag off) → cae al viejo
   }
@@ -182,7 +206,8 @@ export function resolveFilteredRetrieval(text, scenario) {
   // VALIDATION · dominio disponible (inventario bajo filtro → AVISA vía Availability Map)
   if (!isAvailable(metric.domain)) {
     if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
-    return { _spine: true, route: "spine_filter_unavailable", suggestions: null, opener: unavailableMessage(metric.domain, { filterName: filterValue }) };
+    return { _spine: true, route: "spine_filter_unavailable", suggestions: null, opener: unavailableMessage(metric.domain, { filterName: filterValue }),
+      evidence: _evidence(scenario, { metricKey, dimKey, filtros: _filtros, operacion: "avisar", formula: metric.formula, invMetric: true, unsupported: [{ kind: "domain_unavailable", raw: metric.domain, phase: "2.5" }] }) };
   }
   if (!metric.qiKey) return null;
 
@@ -195,7 +220,8 @@ export function resolveFilteredRetrieval(text, scenario) {
   const resp = composeRetrieval(qi, scenario, { spineFilter: true });
   if (!resp) return null;
   // el escudo habló (no-reconocido / inaplicable / 0-filas / multidim / métrica inventario) → AVISA/ACLARA
-  if (resp._verdict) return { _spine: true, route: "spine_filter_" + resp._verdict, opener: resp.opener, suggestions: resp.suggestions || null };
+  if (resp._verdict) return { _spine: true, route: "spine_filter_" + resp._verdict, opener: resp.opener, suggestions: resp.suggestions || null,
+    evidence: _evidence(scenario, { metricKey, dimKey, filtros: _filtros, operacion: resp._verdict, formula: metric.formula, unsupported: [{ kind: resp._avisarKind || "shield", raw: resp._verdict }] }) };
 
   const _planBase = { metric: metricKey, dimension: dimKey, filtros: { [filterAxis === "marca" ? "marcas" : "sfamilias"]: [filterValue] }, domain: metric.domain, formula: metric.formula };
 
@@ -208,9 +234,11 @@ export function resolveFilteredRetrieval(text, scenario) {
     const dirWord = direction === "bottom" ? "menor" : "mayor";
     const ml = (pick.metric || metric.label).toLowerCase();
     const opener = `${pick.entity} es ${_art} ${dimWord} de ${filterValue} con ${dirWord} ${ml} · ${pick.value}.`;
-    return { _spine: true, route: "spine_filter_superlative", opener, suggestions: null, _plan: { ..._planBase, direction, rows_used: mm.length } };
+    return { _spine: true, route: "spine_filter_superlative", opener, suggestions: null, _plan: { ..._planBase, direction, rows_used: mm.length },
+      evidence: _evidence(scenario, { metricKey, dimKey, filtros: _filtros, operacion: direction === "bottom" ? "rank_bottom" : "rank_top", formula: metric.formula, rowsUsed: mm.length, unsupported: [] }) };
   }
 
   // sin superlativo → la tabla filtrada (render de composeRetrieval · con tag "filtrado por: X")
-  return { _spine: true, route: "spine_filter_table", opener: resp.opener, suggestions: resp.suggestions || null, _plan: _planBase };
+  return { _spine: true, route: "spine_filter_table", opener: resp.opener, suggestions: resp.suggestions || null, _plan: _planBase,
+    evidence: _evidence(scenario, { metricKey, dimKey, filtros: _filtros, operacion: "retrieve", formula: metric.formula, rowsUsed: Array.isArray(resp.materialMetrics) ? resp.materialMetrics.length : null, unsupported: [] }) };
 }
