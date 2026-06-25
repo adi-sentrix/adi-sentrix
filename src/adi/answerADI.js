@@ -18,7 +18,7 @@ import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from "./composers/qiRetrieval.js";
-import { resolveDimensionalSuperlative } from "./core/spine.js";  // ADI Core · Fase 2.1a · spine (superlativo por dimensión)
+import { resolveDimensionalSuperlative, resolveFilteredRetrieval } from "./core/spine.js";  // ADI Core · Fase 2.1a/b · spine
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
 import { composeClientMetricFollowUp } from "./composers/followups.js";
 import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } from "./deepThreading.js";
@@ -407,6 +407,13 @@ export function answerADI(question, context = {}, state = {}) {
   {
     const _sp = resolveDimensionalSuperlative(trimmed, scenario);
     if (_sp && _sp.opener) return _plainWrap({ opener: _sp.opener }, _sp.route, ctx);
+  }
+  // ── ADI Core · Fase 2.1b · SPINE FILTRO · métrica + filtro marca/familia nombrado SIN "por" ──
+  // Corre DESPUÉS de 2.1a (precedencia disjunta: 2.1a=dimensión genérica sin entidad; 2.1b=entidad nombrada).
+  // Reusa el escudo QI (opts.spineFilter). Flag OFF → null → cae al viejo. El shadow-diff prueba cero overshadow.
+  {
+    const _fr = resolveFilteredRetrieval(trimmed, scenario);
+    if (_fr && _fr.opener) return _plainWrap({ opener: _fr.opener, suggestions: _fr.suggestions || null }, _fr.route, ctx);
   }
 
   // ── SIMULACIÓN B2a · cadena pre-detectIntent (replica PanelADI L35500-35733) ──

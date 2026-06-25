@@ -4,7 +4,7 @@
 import fs from "fs";
 const ON = JSON.parse(fs.readFileSync("_spine_ON.json", "utf8"));
 const OFF = JSON.parse(fs.readFileSync("_spine_OFF.json", "utf8"));
-const SPINE_ROUTES = new Set(["spine_dim_superlative", "spine_dim_unavailable"]);
+const _isSpine = (r) => typeof r === "string" && r.startsWith("spine_");  // 2.1a (spine_dim_*) + 2.1b (spine_filter_*)
 let changed = [], hidden = [];
 for (const q of Object.keys(OFF)) {
   const a = OFF[q], b = ON[q];
@@ -12,7 +12,7 @@ for (const q of Object.keys(OFF)) {
   const diff = a.text !== b.text || a.route !== b.route;
   if (!diff) continue;
   // un cambio es LEGÍTIMO solo si la versión ON es una ruta del spine
-  if (SPINE_ROUTES.has(b.route)) changed.push({ q, off: a.route, on: b.route });
+  if (_isSpine(b.route)) changed.push({ q, off: a.route, on: b.route });
   else hidden.push({ q, off: a.route, on: b.route });
 }
 console.log("════ SHADOW-DIFF · flag ON vs OFF ════");

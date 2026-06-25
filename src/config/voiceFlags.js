@@ -129,6 +129,7 @@ export const ADI_QI_FILTER_ENABLED = false;             // ADI Core Fase 1+2 (+ 
 // ── ADI Core · Fase 2.1 · spine (Semantic Layer + Availability Map + Intent Resolver → Validation → Planner) · default OFF ──
 export const ADI_CORE_SPINE_ENABLED = false;            // paraguas de TODA la Fase 2.1 · reversible · encender = poner true
 export const ADI_SPINE_DIM_SUPERLATIVE_ENABLED = false; // 2.1a · superlativo por dimensión (marca/familia) SIN filtro · requiere el paraguas ON
+export const ADI_SPINE_FILTER_ENABLED = false;          // 2.1b · filtro simple nombrado (marca/familia) SIN "por" · requiere el paraguas ON
 
 export const MECHANISM_LINK_ENABLED = true;
 

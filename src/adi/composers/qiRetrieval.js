@@ -126,7 +126,7 @@ const QI_IMPERATIVE_PREFIX = [
   "lista de", "lista", "ranking de", "dame ranking de",
 ];
 
-export function queryInterpreter(text, scenario, semanticContext) {
+export function queryInterpreter(text, scenario, semanticContext, opts) {
   const empty = {
     isRetrieval: false,
     queryType: null,
@@ -224,8 +224,9 @@ export function queryInterpreter(text, scenario, semanticContext) {
     limit: topN,
   };
   // ── Piece 2 (aditivo · inerte hasta Piece 3) · adjunta filtros + dim por sustracción ──
-  // Solo con el flag maestro ON. composeRetrieval IGNORA estos campos hasta Piece 3 → byte-idéntico.
-  if (ADI_QI_FILTER_ENABLED) {
+  // Solo con el flag maestro ON, O con opts.spineFilter (Fase 2.1b · el spine reusa el escudo sin
+  // encender ADI_QI_FILTER_ENABLED). composeRetrieval IGNORA estos campos hasta Piece 3 → byte-idéntico.
+  if (ADI_QI_FILTER_ENABLED || (opts && opts.spineFilter)) {
     const _fp = extractFilterPredicate(text);
     const _dimsEff = computeEffectiveDims(detectedDimensions, norm);
     _qi.filtros = _fp.filtros;
@@ -531,7 +532,7 @@ function rilDetectCalidadCruzada(sortedRows, metricMap, metrics) {
 // ── PIEZA 3.5 · rilPickNextAngle ────────────────────────────────────────────
 // Determinístico · retorna frase de próximo ángulo según queryType + primary
 // metric (con mapeo D6) + dim.
-function rilPickNextAngle(queryType, primaryMetric, dim) {
+function rilPickNextAngle(queryType, primaryMetric, dim, opts) {
   // D6 · mapeo de metrics derivadas a base
   const metricMap = {
     rentabilidad: "margen",
@@ -547,18 +548,19 @@ function rilPickNextAngle(queryType, primaryMetric, dim) {
   }
   // ADI Core · Cabo 2 · con flag ON, el "próximo ángulo" NO ofrece rotación/inventario (bloqueado).
   // Reemplazo comercial (composición de la contribución / margen), no silencia el ángulo.
+  const _filterCabo2 = ADI_QI_FILTER_ENABLED || (opts && opts.spineFilter);   // Cabo 2 · wording comercial bajo filtro (flag o spine)
   if (queryType === "ranked") {
     if (m === "ventas") return "validar margen del líder";
     if (m === "margen") return "validar volumen del líder vs lastres";
-    if (m === "contribucion") return ADI_QI_FILTER_ENABLED ? "validar la composición de la contribución del líder" : "validar rotación y disponibilidad operativa del líder";
+    if (m === "contribucion") return _filterCabo2 ? "validar la composición de la contribución del líder" : "validar rotación y disponibilidad operativa del líder";
     return "profundizar en el líder o validar lastres del portafolio";
   }
   // simple
   if (m === "ventas")       return "cruzar con margen y carga comercial para validar si esa concentración es sana";
   if (m === "margen")       return "cruzar con ventas para identificar palancas de margen";
-  if (m === "contribucion") return ADI_QI_FILTER_ENABLED ? "validar la composición de la contribución del líder" : "validar rotación y disponibilidad operativa del líder";
+  if (m === "contribucion") return _filterCabo2 ? "validar la composición de la contribución del líder" : "validar rotación y disponibilidad operativa del líder";
   if (m === "carga")        return "comparar contra benchmark interno (3.5%)";
-  if (m === "stock")        return ADI_QI_FILTER_ENABLED ? "cruzar con margen por " + dimLow : "cruzar con rotación por " + dimLow;
+  if (m === "stock")        return _filterCabo2 ? "cruzar con margen por " + dimLow : "cruzar con rotación por " + dimLow;
   return "profundizar en el líder o validar lastres del portafolio";
 }
 
@@ -575,7 +577,7 @@ function rilPickNextAngle(queryType, primaryMetric, dim) {
 //
 // Si datos no soportan lectura no-trivial · readingLine=null (fallback
 // silencioso · respeta D3 del BRIEF #8).
-function retrievalIntelligenceLayer(qi, scenario, sortedRows, metricMap, sortField, originalFoco, dim) {
+function retrievalIntelligenceLayer(qi, scenario, sortedRows, metricMap, sortField, originalFoco, dim, opts) {
   // Sanity checks
   if (!qi || !Array.isArray(sortedRows) || sortedRows.length === 0) {
     return { readingLine: null, nextAngleLine: "", enrichedFoco: originalFoco || "" };
@@ -588,7 +590,7 @@ function retrievalIntelligenceLayer(qi, scenario, sortedRows, metricMap, sortFie
   }
 
   // Próximo ángulo siempre se computa (Prioridad 5)
-  const nextAngle = rilPickNextAngle(queryType, primaryMetric, dim);
+  const nextAngle = rilPickNextAngle(queryType, primaryMetric, dim, opts);
   // Enriquecer Foco: " · Próximo ángulo: <angle>."
   let enrichedFoco = originalFoco || "";
   if (enrichedFoco && nextAngle) {
@@ -715,7 +717,7 @@ function _qiVerdict(verdict, kind, opener) {
   return { _verdict: verdict, _avisarKind: kind, opener, suggestions: [], sentrixAction: null, derivedIntentType: "query_interpreter_" + verdict, reasoningPattern: "qi_" + verdict + "_" + kind };
 }
 
-export function composeRetrieval(qi, scenario) {
+export function composeRetrieval(qi, scenario, opts) {
   // Sanity check
   if (!qi || !qi.isRetrieval || !Array.isArray(qi.metrics) || !Array.isArray(qi.dimensions)) {
     return null;
@@ -723,7 +725,7 @@ export function composeRetrieval(qi, scenario) {
   if (qi.metrics.length === 0 || qi.dimensions.length === 0) return null;
 
   // ── Piece 3 · contexto de filtro (solo flag ON · qi trae los campos de Piece 2) ──
-  const _filterOn = ADI_QI_FILTER_ENABLED && qi.filtros && typeof qi.filtros === "object";
+  const _filterOn = (ADI_QI_FILTER_ENABLED || (opts && opts.spineFilter)) && qi.filtros && typeof qi.filtros === "object";
   const _hasUnresolved = _filterOn && Array.isArray(qi.unresolvedFilters) && qi.unresolvedFilters.length > 0;
   const _resolvedAxes = _filterOn ? ["marcas", "sfamilias", "clientes", "skus"].filter(k => Array.isArray(qi.filtros[k]) && qi.filtros[k].length) : [];
   const _hasFilter = _resolvedAxes.length > 0;
@@ -951,7 +953,7 @@ export function composeRetrieval(qi, scenario) {
   let ril_enrichedFoco = foco;
   try {
     const ril_result = retrievalIntelligenceLayer(
-      qi, scenario, sortedRows, metricMap, sortField, foco, dim
+      qi, scenario, sortedRows, metricMap, sortField, foco, dim, opts
     );
     if (ril_result && typeof ril_result === "object") {
       if (typeof ril_result.readingLine === "string" && ril_result.readingLine.length > 0) {

@@ -9,7 +9,7 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -21,8 +21,8 @@ const _norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g
 const _has = (norm, term) => new RegExp("\\b" + _norm(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(norm);
 
 // marcadores de superlativo (dirección) · top = mayor/mejor · bottom = menor/peor
-const _SUPERLATIVE_BOTTOM = ["peor", "menor", "mas bajo", "mas baja", "minimo", "minima", "que menos", "mas chico", "mas chica", "menos"];
-const _SUPERLATIVE_TOP    = ["mejor", "mayor", "mas alto", "mas alta", "maximo", "maxima", "que mas", "mas grande"];
+const _SUPERLATIVE_BOTTOM = ["peor", "menor", "mas bajo", "mas baja", "minimo", "minima", "que menos", "mas chico", "mas chica", "menos", "mas debil", "mas debiles", "debil"];
+const _SUPERLATIVE_TOP    = ["mejor", "mayor", "mas alto", "mas alta", "maximo", "maxima", "que mas", "mas grande", "mas"];
 
 // firma del slice: superlativo + dimensión marca/familia + métrica + SIN "por" + SIN filtro nombrado
 function _resolveFirma(text) {
@@ -69,6 +69,7 @@ export function resolveDimensionalSuperlative(text, scenario) {
 
   // VALIDATION · ¿el dominio de la métrica está disponible? (Availability Map generaliza el muro)
   if (!isAvailable(metric.domain)) {
+    if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
     return { _spine: true, route: "spine_dim_unavailable", opener: unavailableMessage(metric.domain) };
   }
 
@@ -98,4 +99,95 @@ export function resolveDimensionalSuperlative(text, scenario) {
     // objeto-plan evidence-ready (NO se emite hasta 2.1d · acá solo nace)
     _plan: { metric: metricKey, dimension: dimKey, direction, domain: metric.domain, formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
   };
+}
+
+// ── Fase 2.1b · filtro simple NOMBRADO (marca/familia) sin "por" ──────────────────────────────────
+// Firma: métrica + filtro marca/familia ESPECÍFICO + (superlativo O dimensión explícita) + SIN "por"/"vs".
+// Disjunta de 2.1a (que exige NO entidad nombrada). Las marcas/familias se detectan confiables sin conector
+// (detectBrandInText es word-boundary robusto); el conector "de/en" se usa para el caso COMBINADO cliente
+// (donde el detector strict de cliente falla) → marca+cliente específico = 2.1c → AVISA (el dato no tiene el cruce).
+// Cero recálculo: arma "{métrica} por {dim} de {filtro}" y reusa el escudo QI vía opts.spineFilter.
+const _CONN = "(?:de|del|en)\\s+(?:la\\s+|las\\s+|los\\s+|el\\s+|marca\\s+|familia\\s+|categoria\\s+)*";
+function _afterConnector(norm, name) {
+  const n = _norm(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("\\b" + _CONN + n + "\\b").test(norm);
+}
+
+export function resolveFilteredRetrieval(text, scenario) {
+  if (!ADI_CORE_SPINE_ENABLED || !ADI_SPINE_FILTER_ENABLED) return null;   // flag OFF → inerte
+  if (!text || typeof text !== "string") return null;
+  const norm = _norm(text);
+  if (/\bpor\b/.test(norm)) return null;                       // "por" → QI
+  if (/\bvs\b|\bversus\b/.test(norm)) return null;             // "vs" → comparación
+
+  // filtro NOMBRADO marca/familia (detección confiable sin conector · cliente-como-filtro NO es 2.1b)
+  const brand = detectBrandInText(text);
+  const fams = detectAllFamiliesInText(text, { strict: true }) || [];
+  let filterValue = null, filterAxis = null;
+  if (brand) { filterValue = brand; filterAxis = "marca"; }
+  else if (fams.length) { filterValue = fams[0]; filterAxis = "familia"; }
+  if (!filterValue) return null;                               // sin marca/familia nombrada → no es 2.1b
+
+  // COMBINADO marca/familia + cliente específico (tras conector) → 2.1c · AVISA (no inventa el cruce)
+  const specificClient = (detectAllClientsInText(text, { strict: true }) || []).find(c => _afterConnector(norm, c));
+  if (specificClient) {
+    return { _spine: true, route: "spine_filter_combinado_avisar", suggestions: null,
+      opener: `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?` };
+  }
+
+  // métrica
+  let metricKey = null;
+  for (const [key, def] of Object.entries(METRIC_REGISTRY)) {
+    if ((def.vocabulary || []).some(t => _has(norm, t))) { metricKey = key; break; }
+  }
+  if (!metricKey) return null;                                 // sin métrica explícita → no es 2.1b
+  const metric = METRIC_REGISTRY[metricKey];
+
+  // VALIDATION · dominio disponible (inventario bajo filtro → AVISA vía Availability Map)
+  if (!isAvailable(metric.domain)) {
+    if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
+    return { _spine: true, route: "spine_filter_unavailable", suggestions: null, opener: unavailableMessage(metric.domain, { filterName: filterValue }) };
+  }
+  if (!metric.qiKey) return null;
+
+  // dimensión: explícita (cliente/sku/marca/familia genérico) o inferida = sku (el grano del producto)
+  let dimKey = null;
+  for (const [key, def] of Object.entries(DIMENSION_REGISTRY)) {
+    if ((def.vocabulary || []).some(t => _has(norm, t))) { dimKey = key; break; }
+  }
+  const hadExplicitDim = !!dimKey;
+  if (!dimKey) dimKey = "sku";
+
+  // superlativo (opcional)
+  let direction = null;
+  for (const w of _SUPERLATIVE_BOTTOM) if (_has(norm, w)) { direction = "bottom"; break; }
+  if (!direction) for (const w of _SUPERLATIVE_TOP) if (_has(norm, w)) { direction = "top"; break; }
+
+  // mismatch: exigir superlativo O dimensión explícita (sin eso, "el margen de Bosch" → brand_dive del viejo)
+  if (!direction && !hadExplicitDim) return null;
+
+  // PLANNER + QUERY ENGINE · reuso del escudo QI ("{métrica} por {dim} de {filtro}") con opts.spineFilter
+  const qi = queryInterpreter(`${metric.qiKey} por ${dimKey} de ${filterValue}`, scenario, null, { spineFilter: true });
+  if (!qi || !qi.isRetrieval) return null;
+  const resp = composeRetrieval(qi, scenario, { spineFilter: true });
+  if (!resp) return null;
+  // el escudo habló (no-reconocido / inaplicable / 0-filas / multidim / métrica inventario) → AVISA/ACLARA
+  if (resp._verdict) return { _spine: true, route: "spine_filter_" + resp._verdict, opener: resp.opener, suggestions: resp.suggestions || null };
+
+  const _planBase = { metric: metricKey, dimension: dimKey, filtros: { [filterAxis === "marca" ? "marcas" : "sfamilias"]: [filterValue] }, domain: metric.domain, formula: metric.formula };
+
+  if (direction) {
+    if (!Array.isArray(resp.materialMetrics) || resp.materialMetrics.length === 0) return null;
+    const mm = resp.materialMetrics;
+    const pick = direction === "bottom" ? mm[mm.length - 1] : mm[0];
+    const dimWord = DIMENSION_REGISTRY[dimKey].label;
+    const _art = (dimKey === "sku" || dimKey === "cliente") ? "el" : "la";
+    const dirWord = direction === "bottom" ? "menor" : "mayor";
+    const ml = (pick.metric || metric.label).toLowerCase();
+    const opener = `${pick.entity} es ${_art} ${dimWord} de ${filterValue} con ${dirWord} ${ml} · ${pick.value}.`;
+    return { _spine: true, route: "spine_filter_superlative", opener, suggestions: null, _plan: { ..._planBase, direction, rows_used: mm.length } };
+  }
+
+  // sin superlativo → la tabla filtrada (render de composeRetrieval · con tag "filtrado por: X")
+  return { _spine: true, route: "spine_filter_table", opener: resp.opener, suggestions: resp.suggestions || null, _plan: _planBase };
 }
