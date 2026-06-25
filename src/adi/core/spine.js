@@ -9,7 +9,7 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -129,9 +129,10 @@ export function resolveDimensionalSuperlative(text, scenario) {
 // (donde el detector strict de cliente falla) → marca+cliente específico = 2.1c → AVISA (el dato no tiene el cruce).
 // Cero recálculo: arma "{métrica} por {dim} de {filtro}" y reusa el escudo QI vía opts.spineFilter.
 const _CONN = "(?:de|del|en)\\s+(?:la\\s+|las\\s+|los\\s+|el\\s+|marca\\s+|familia\\s+|categoria\\s+)*";
-function _afterConnector(norm, name) {
+const _CONN_WIDE = "(?:de|del|en|para|con)\\s+(?:la\\s+|las\\s+|los\\s+|el\\s+|marca\\s+|familia\\s+|categoria\\s+|cliente\\s+|cuenta\\s+)*";  // 2.1c · incluye para/con
+function _afterConnector(norm, name, conn) {
   const n = _norm(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp("\\b" + _CONN + n + "\\b").test(norm);
+  return new RegExp("\\b" + (conn || _CONN) + n + "\\b").test(norm);
 }
 // 2.1b-2 · métricas-eje OFRECIBLES en la pregunta ACLARAR: las que el Semantic Layer marca axis,
 // tienen path QI, y cuyo dominio está DISPONIBLE (Availability Map) → ventas/margen/contribución.
@@ -158,11 +159,18 @@ export function resolveFilteredRetrieval(text, scenario) {
   if (!filterValue) return null;                               // sin marca/familia nombrada → no es 2.1b
   const _filtros = { [filterAxis === "marca" ? "marcas" : "sfamilias"]: [filterValue] };   // 2.1d · filtros del payload
 
-  // COMBINADO marca/familia + cliente específico (tras conector) → 2.1c · AVISA (no inventa el cruce)
-  const specificClient = (detectAllClientsInText(text, { strict: true }) || []).find(c => _afterConnector(norm, c));
+  // COMBINADO marca/familia + cliente ESPECÍFICO (nombre real, tras conector) → AVISA (no inventa el cruce).
+  // 2.1c (ADI_SPINE_COMBINED_ENABLED): conector ampliado (para/con) + mensaje connector-agnóstico.
+  // Flag OFF → exactamente la rama 2.1b (conector de/del/en, mensaje viejo). El cliente debe ser un NOMBRE
+  // (detectAllClientsInText strict), NO el genérico "cliente/clientes" → no pisa los filtros simples.
+  const _combConn = ADI_SPINE_COMBINED_ENABLED ? _CONN_WIDE : _CONN;
+  const specificClient = (detectAllClientsInText(text, { strict: true }) || []).find(c => _afterConnector(norm, c, _combConn));
   if (specificClient) {
+    const _opener = ADI_SPINE_COMBINED_ENABLED
+      ? `Cruzar ${filterValue} (${filterAxis}) con ${specificClient} (cliente) no lo tengo: el dato guarda una ${filterAxis} dominante por cliente, no el detalle por ${filterAxis} dentro del cliente. Te puedo dar ${filterValue} sola, o el detalle de ${specificClient}. ¿Cuál?`
+      : `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?`;
     return { _spine: true, route: "spine_filter_combinado_avisar", suggestions: null,
-      opener: `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?`,
+      opener: _opener,
       evidence: _evidence(scenario, { filtros: _filtros, operacion: "avisar", unsupported: [{ kind: "cross_dimension", raw: `${filterValue}×${specificClient}` }] }) };
   }
 

@@ -132,6 +132,7 @@ export const ADI_SPINE_DIM_SUPERLATIVE_ENABLED = false; // 2.1a · superlativo p
 export const ADI_SPINE_FILTER_ENABLED = false;          // 2.1b · filtro simple nombrado (marca/familia) SIN "por" · requiere el paraguas ON
 export const ADI_SPINE_FILTER_CLARIFY_ENABLED = false;  // 2.1b-2 · filtro + superlativo SIN métrica → ACLARAR · requiere ADI_SPINE_FILTER_ENABLED ON
 export const ADI_SPINE_EVIDENCE_ENABLED = false;        // 2.1d · cada respuesta del spine emite su evidence payload (campo hermano · texto byte-idéntico) · default OFF
+export const ADI_SPINE_COMBINED_ENABLED = false;        // 2.1c · combinado marca+cliente → AVISAR consistente (conector ampliado para/con) · requiere ADI_SPINE_FILTER_ENABLED · flag-off = 2.1b exacto
 
 export const MECHANISM_LINK_ENABLED = true;
 
