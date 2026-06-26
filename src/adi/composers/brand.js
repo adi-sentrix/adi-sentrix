@@ -2,6 +2,8 @@
  * ROUTER del ADI extraído de 41cc33d8 · verbatim · solo imports agregados.
  * Importa motor + datos/config + el resto del adi. Cero cambio de ruteo. */
 import { FEATURE_BRAND_AS_ENTITY } from "../../config/features.js";
+import { ADI_MT_BRAND_INV_COVERAGE_ENABLED } from "../../config/voiceFlags.js";  // 2.2c-2 · cierre de fuga de inventario en brand_dive
+import { isAvailable, unavailableMessage } from "../core/availabilityMap.js";    // Availability Map (Fase 2.5)
 import { skuInventario } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
@@ -35,6 +37,10 @@ export function composeBrandDive(marca, scenarioId, opts = {}) {
   }
   // ── subFocus inventario ──
   if (subFocus === "inventario") {
+    // ADI Core · 2.2c-2 (cierre de fuga) · "qué inventario tiene {marca}" con inventario bloqueado (Fase 2.5)
+    // → AVISA (no surfacea el número). flag OFF → detalle del piso byte-exacto.
+    if (ADI_MT_BRAND_INV_COVERAGE_ENABLED && !isAvailable("inventario"))
+      return { opener: unavailableMessage("inventario"), suggestions: filterTextualSuggestions([`Qué vende ${marca}`, `Qué margen tiene ${marca}`]), brandResolved: marca, derivedModule: "inventario" };
     const op = `Inventario de ${marca}: ${_bFmt1(invAgg.total)} (${joinEs(invAgg.skus)}) en ${joinEs(invAgg.bodegas)}.`;
     return { opener: op, suggestions: filterTextualSuggestions([`Qué vende ${marca}`, `Qué margen tiene ${marca}`]), brandResolved: marca, derivedModule: "inventario" };
   }
@@ -44,7 +50,12 @@ export function composeBrandDive(marca, scenarioId, opts = {}) {
     return { opener: op, suggestions: filterTextualSuggestions([`Qué inventario tiene ${marca}`, `Qué margen tiene ${marca}`]), brandResolved: marca, derivedModule: "ventas" };
   }
   // ── Dive completo ──
-  let opener = `${marca} (marca): vende ${_bFmt1(r.venta)} con ${_bFmt2(r.contribucion)} de contribución (margen ${r.margen.toFixed(1)}%). ${skusDir.length} ${skusDir.length === 1 ? "SKU" : "SKUs"}: ${joinEs(skusDir)}. Inventario físico ${_bFmt1(invAgg.total)} en ${joinEs(invAgg.bodegas)}.`;
+  let opener = `${marca} (marca): vende ${_bFmt1(r.venta)} con ${_bFmt2(r.contribucion)} de contribución (margen ${r.margen.toFixed(1)}%). ${skusDir.length} ${skusDir.length === 1 ? "SKU" : "SKUs"}: ${joinEs(skusDir)}.`;
+  // ADI Core · 2.2c-2 (cierre de fuga) · la línea "Inventario físico $X en {bodegas}" solo aparece cuando
+  // inventario está DISPONIBLE (Availability Map · Fase 2.5). flag OFF → se appendea (brand_dive del piso
+  // byte-exacto); flag ON + inventario bloqueado → se omite (cero número de inventario · el resto idéntico).
+  if (!(ADI_MT_BRAND_INV_COVERAGE_ENABLED && !isAvailable("inventario")))
+    opener += ` Inventario físico ${_bFmt1(invAgg.total)} en ${joinEs(invAgg.bodegas)}.`;
   // Declaración de linaje (§3/§4).
   if (sinCliente) {
     opener += ` Nota: ${marca} está completa en la vista de marca, pero no tiene cobertura comercial por cliente en este dataset — por eso aparece en mundo-marca pero no en mundo-cliente.`;

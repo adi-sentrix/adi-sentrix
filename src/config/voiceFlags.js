@@ -147,6 +147,7 @@ export const ADI_MT_SPINE_FOLLOWUP_ENABLED = false;     // 2.2b · el spine escr
 // ── ADI Core · Fase 2.2c · refinamientos deícticos (refina la vista anterior) · default OFF ──
 export const ADI_MT_REFINE_METRIC_ENABLED = false;      // 2.2c-1 · composeRetrieval guarda lastRetrievalContext {metric,dimension,filtro,domain}; "y por margen" (elíptico · solo métrica, SIN dimensión nueva) refina manteniendo filtro+dim · prioridad: pending del spine (2.2b) gana · compone con ADI_QI_FILTER_ENABLED
 export const ADI_MT_REFINE_FILTER_ENABLED = false;      // 2.2c-2 · "solo Bosch"/"y Bosch" (elíptico · marca/familia, SIN dimensión/métrica nueva) re-filtra la vista del lastRetrievalContext manteniendo métrica+dim · el QI filter decide la aplicabilidad · reusa el mecanismo de 2.2c-1
+export const ADI_MT_BRAND_INV_COVERAGE_ENABLED = false; // 2.2c-2 (cierre de fuga) · composeBrandDive omite la línea "Inventario físico $X" (L47) y AVISA el subFocus inventario cuando el Availability Map bloquea inventario · NO requiere QI_FILTER (el número de inventario es incorrecto en cualquier régimen hasta Fase 2.5) · flag-off = brand_dive del piso byte-exacto
 
 export const MECHANISM_LINK_ENABLED = true;
 
