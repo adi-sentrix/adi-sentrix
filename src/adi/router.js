@@ -5,7 +5,7 @@ import { FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_FAMILY_AS_E
 import { INTENTS_REGISTRY } from "../config/intentsRegistry.js";
 import { CONCEPT_ONTOLOGY, SEMANTIC_FAMILIES } from "../config/ontology.js";
 import { AFFIRMATIVE_REPLIES, CLIENT_NAMES, CROSS_DOMAIN_EXECUTIVE_EXPRESSIONS, DOMAIN_KEYWORDS, EXECUTIVE_INTENT_PATTERNS, EXECUTIVE_REPORT_PATTERNS, EntityRegistry, KEYWORDS_DICTIONARY, RANKING_INTENT_PATTERNS, SEMANTIC_ENTITIES, SEMANTIC_INTENTS, SEMANTIC_METRICS, SEMANTIC_QUALIFIERS, _D30BIS_MEASURES_PATTERNS, _DEICTIC_CLIENT_HINT, _DEICTIC_PLURAL_DEMONSTRATIVE, _DEICTIC_QUANTIFIED, _DEICTIC_SKU_HINT, _VENTAS_TOTAL_GLOBAL_PHRASES } from "../config/routerData.js";
-import { ADI_DRILL_ELIPTICO_SKU_ENABLED, ADI_IDLEAK_RESOLVE_ORDINAL_ENABLED, ADI_PANORAMA_SYNONYMS_ENABLED, ADI_VENTAS_TOTAL_LEXICO_ENABLED, VOICE_D30BIS_MEASURES_ENABLED, VOICE_DEICTIC_PLURAL_ENABLED, VOICE_ENTITY_REGISTRY_ENABLED, VOICE_EXECUTIVE_INTELLIGENCE_ENABLED, VOICE_EXECUTIVE_REPORT_COMPOSER_ENABLED, VOICE_NARRATIVE_V2_ENABLED, VOICE_SEMANTIC_INTENT_LAYER_ENABLED } from "../config/voiceFlags.js";
+import { ADI_DRILL_ELIPTICO_SKU_ENABLED, ADI_IDLEAK_RESOLVE_ORDINAL_ENABLED, ADI_PANORAMA_SYNONYMS_ENABLED, ADI_VENTAS_TOTAL_LEXICO_ENABLED, VOICE_D30BIS_MEASURES_ENABLED, VOICE_DEICTIC_PLURAL_ENABLED, VOICE_ENTITY_REGISTRY_ENABLED, VOICE_EXECUTIVE_INTELLIGENCE_ENABLED, VOICE_EXECUTIVE_REPORT_COMPOSER_ENABLED, VOICE_NARRATIVE_V2_ENABLED, VOICE_SEMANTIC_INTENT_LAYER_ENABLED, ADI_MT_SAFETY_ENABLED } from "../config/voiceFlags.js";
 import { MARCAS_ALL, SUCURSALES, SUPERFAMILIAS } from "../data/catalogs.js";
 import { clientesMargen, marcasMargen } from "../data/demoData.js";
 import { CLIENT_KEYWORDS, CLIENT_NAME_MAP, detectBrandInText, detectClientInText, detectSkuInText, _clientKwRegex } from "./detectors.js";
@@ -1109,8 +1109,26 @@ export function resolvePluralDeictic(lower, context) {
   return null;
 }
 
+// ── ADI Core · 2.2a · ANTI-CONTAMINACIÓN · age-check de listas plurales ──
+// Las listas (lastClientList/lastSkuList) NO tenían age-check (solo las single-entities · answerADI L573).
+// Un deíctico ("los tres peores") en N+10 resucitaba una lista de hace 10 turnos. Freshening: una lista es
+// del HILO ACTIVO solo si su age-stamp == turnCount actual (el turno inmediato anterior · espejo del criterio
+// single-entity). Una lista que el hilo no refrescó queda stale → no se reusa (cleanup implícito · sin
+// política de borrado explícita). Clon superficial · NO muta el contexto real. Cubre las tres sub-rutas
+// deícticas (plural/ordinal/anafórico) en un solo punto. Flag OFF → detectDeicticReference intacto (piso).
+function _freshenDeicticContext(ctx) {
+  const _tc = ctx.turnCount;
+  const _fresh = (list, listTurn) => (Array.isArray(list) && list.length > 0 && listTurn === _tc) ? list : undefined;
+  return {
+    ...ctx,
+    lastClientList: _fresh(ctx.lastClientList, ctx.lastClientListTurn),
+    lastSkuList: _fresh(ctx.lastSkuList, ctx.lastSkuListTurn),
+  };
+}
+
 export function detectDeicticReference(text, context) {
   if (!text || !context) return { resolved: false };
+  if (ADI_MT_SAFETY_ENABLED) context = _freshenDeicticContext(context);  // 2.2a · age-check: solo listas del hilo activo
   const lower = text.toLowerCase().trim();
 
   // BRIEF G · Rama plural bajo flag · evaluada PRIMERO porque cubre patrones

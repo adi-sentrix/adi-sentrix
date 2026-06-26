@@ -4,7 +4,8 @@
  * classifySkuOperationalProfile (L11476) copiado local (no exportado en el modular). Opción A:
  * solo R4 · MODO 3/R3 quedan como deuda ECL-CONT (composeClientToSku/SkuDeepDive/AccountDevelopment). */
 import { skuInventario } from "../data/demoData.js";
-import { ECL_CONT_ENABLED, ADI_ACTIVE_RESULT_CONTINUITY_ENABLED } from "../config/voiceFlags.js";
+import { ECL_CONT_ENABLED, ADI_ACTIVE_RESULT_CONTINUITY_ENABLED, ADI_MT_SAFETY_ENABLED } from "../config/voiceFlags.js";
+import { isAvailable, unavailableMessage } from "./core/availabilityMap.js";  // ADI Core · 2.2a · anti-fuga · el muro multi-turno = el mismo Availability Map del single-turn
 
 // ── classifySkuOperationalProfile (L11476) · módulo-local verbatim ──
 function classifySkuOperationalProfile(sku) {
@@ -37,6 +38,13 @@ export function composeSkuDevelopment(activeResult, scenarioId) {
   const reanchor = (m) => ({ opener: m, suggestions: [], sentrixAction: null, reasoningPattern: "sku_dev_honest_reanchor", _r4: "honest_reanchor" });
   if (!activeResult || !Array.isArray(activeResult.entities) || activeResult.entities.length === 0)
     return reanchor("No tengo un análisis de SKU activo para profundizar.");
+  // ── ADI Core · 2.2a · ANTI-FUGA (capa robusta · protege a cualquier caller) ──
+  // El sku-dev es un drilldown de inventario inherente (lee skuInventario: stockUSD/doh/rotación). Si el
+  // Availability Map tiene inventario bloqueado, AVISA en vez de surfacear el dato — el muro multi-turno
+  // es el mismo del single-turn. Flag OFF → el [5] corre byte-exacto (piso). Habilitar inventario (Fase 2.5)
+  // reabre el drilldown solo.
+  if (ADI_MT_SAFETY_ENABLED && !isAvailable("inventario"))
+    return reanchor(unavailableMessage("inventario"));
   // set estable · busca por sku en skuInventario · NO recomputa por escenario
   const found = activeResult.entities.map(n => skuInventario.find(s => s.sku === n)).filter(Boolean);
   if (found.length !== activeResult.entities.length)

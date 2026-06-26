@@ -134,6 +134,9 @@ export const ADI_SPINE_FILTER_CLARIFY_ENABLED = false;  // 2.1b-2 · filtro + su
 export const ADI_SPINE_EVIDENCE_ENABLED = false;        // 2.1d · cada respuesta del spine emite su evidence payload (campo hermano · texto byte-idéntico) · default OFF
 export const ADI_SPINE_COMBINED_ENABLED = false;        // 2.1c · combinado marca+cliente → AVISAR consistente (conector ampliado para/con) · requiere ADI_SPINE_FILTER_ENABLED · flag-off = 2.1b exacto
 
+// ── ADI Core · Fase 2.2a · red de seguridad multi-turno (anti-fuga ECL-CONT + anti-contaminación) · default OFF ──
+export const ADI_MT_SAFETY_ENABLED = false;             // 2.2a · la continuación respeta el Availability Map (no fuga inventario) + age-check de listas plurales (no resucita contexto stale) · flag-off = piso multi-turno byte-exacto
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

@@ -19,6 +19,7 @@ import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composer
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from "./composers/qiRetrieval.js";
 import { resolveDimensionalSuperlative, resolveFilteredRetrieval } from "./core/spine.js";  // ADI Core · Fase 2.1a/b · spine
+import { isAvailable, unavailableMessage } from "./core/availabilityMap.js";  // ADI Core · Fase 2.2a · anti-fuga · guardrail de continuación (R4 + MODE 2)
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
 import { composeClientMetricFollowUp } from "./composers/followups.js";
 import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } from "./deepThreading.js";
@@ -41,7 +42,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -143,14 +144,14 @@ function _threadContext(nextCtx, intent, resp, route) {
   }
   const _payload = resp && resp.sentrixAction && resp.sentrixAction.payload;
   if (_payload) {
-    if (Array.isArray(_payload.clientes) && _payload.clientes.length > 0) nextCtx.lastClientList = _payload.clientes;
-    if (Array.isArray(_payload.skus) && _payload.skus.length > 0) nextCtx.lastSkuList = _payload.skus;
+    if (Array.isArray(_payload.clientes) && _payload.clientes.length > 0) { nextCtx.lastClientList = _payload.clientes; if (ADI_MT_SAFETY_ENABLED) nextCtx.lastClientListTurn = nextCtx.turnCount; }
+    if (Array.isArray(_payload.skus) && _payload.skus.length > 0) { nextCtx.lastSkuList = _payload.skus; if (ADI_MT_SAFETY_ENABLED) nextCtx.lastSkuListTurn = nextCtx.turnCount; }
   }
   // QI populates context (replica piso L37302-37314) · entities/entityDim de composeRetrieval ·
   // override de módulo (cliente→margenes · sku→inventario) para el deepContext del dive deíctico.
   if (resp && Array.isArray(resp.entities) && resp.entities.length >= 2) {
-    if (resp.entityDim === "cliente") { nextCtx.lastClientList = resp.entities; nextCtx.lastModuleAsked = "margenes"; }
-    else if (resp.entityDim === "sku" || resp.entityDim === "producto") { nextCtx.lastSkuList = resp.entities; nextCtx.lastModuleAsked = "inventario"; }
+    if (resp.entityDim === "cliente") { nextCtx.lastClientList = resp.entities; nextCtx.lastModuleAsked = "margenes"; if (ADI_MT_SAFETY_ENABLED) nextCtx.lastClientListTurn = nextCtx.turnCount; }
+    else if (resp.entityDim === "sku" || resp.entityDim === "producto") { nextCtx.lastSkuList = resp.entities; nextCtx.lastModuleAsked = "inventario"; if (ADI_MT_SAFETY_ENABLED) nextCtx.lastSkuListTurn = nextCtx.turnCount; }
   }
 
   // ── FASE R · CAPA PROFUNDA · A→B→C en ESTE updater (replica FINALIZE piso L38588-38710) ──
@@ -583,12 +584,20 @@ export function answerADI(question, context = {}, state = {}) {
       /* R3 account-dev · composeAccountDevelopment entra con [8] · DEUDA → no manejar (cae al flujo normal) */
     }
     else if (VOICE_R4_SKU_DEV_ENABLED && _inv.activeResult && _inv.activeResult.entityType === "sku" && Array.isArray(_inv.activeResult.entities) && _inv.activeResult.entities.length > 0) {
+      // ADI Core · 2.2a · ANTI-FUGA (guardrail · R4): el sku-dev es inventario · si el muro lo bloquea,
+      // AVISA igual que el single-turn (mismo _plainWrap · mensaje byte-idéntico) en vez de surfacear capital/rotación.
+      if (ADI_MT_SAFETY_ENABLED && !isAvailable("inventario"))
+        return _plainWrap({ opener: unavailableMessage("inventario") }, "mt_safety_inventory_avisar", ctx);
       // R4 · sku-dev ([5] "profundizá en ese") · composeSkuDevelopment lee activeResult (set estable)
       _contResp = composeSkuDevelopment(_inv.activeResult, scenario);
     }
     else {
       // MODO 2 · re-entrar el dominio vigente (composeModuleOverview ya extraído)
-      _contResp = composeModuleOverview(scenario, _inv.investigationDomain || ctx.activeModule);
+      const _md = _inv.investigationDomain || ctx.activeModule;
+      // ADI Core · 2.2a · ANTI-FUGA (guardrail · MODE 2): si la continuación re-entra inventario y el muro lo bloquea, AVISA.
+      if (ADI_MT_SAFETY_ENABLED && _md === "inventario" && !isAvailable("inventario"))
+        return _plainWrap({ opener: unavailableMessage("inventario") }, "mt_safety_inventory_avisar", ctx);
+      _contResp = composeModuleOverview(scenario, _md);
     }
     if (_contResp && _contResp.opener) return _finalize(_contResp, "ecl_cont_continuation", "ecl_cont_continuation", ctx, scenario, null);
   }
