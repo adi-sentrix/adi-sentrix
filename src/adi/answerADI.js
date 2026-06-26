@@ -42,7 +42,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -231,7 +231,11 @@ const _plainWrap = (resp, route, ctx) => ({
   evidence: resp.evidence || null,                  // ADI Core · Fase 2.1d · payload hermano (null si no lo trae · NUNCA toca text)
   intent: route,
   route,
-  context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1 },
+  // ADI Core · 2.2b · escribe el contexto pendiente del spine (estampado con turn para el freshness de N+1).
+  // SIEMPRE setea el campo (null si no hay _pending) → un wrap posterior sin pendiente lo LIMPIA: vive un solo
+  // turno por construcción. Flag OFF → no toca el contexto (byte-exacto).
+  context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1,
+    ...(ADI_MT_SPINE_FOLLOWUP_ENABLED ? { pendingSpineDecision: resp._pending ? { ...resp._pending, turn: (ctx.turnCount || 0) + 1 } : null } : {}) },
 });
 
 // ── ADI Core · MURO DE INVENTARIO · toda pregunta de inventario/capital por el chat → AVISAR Fase 2.5 ──
@@ -409,10 +413,51 @@ function _detectTopicChange(text, ctx) {
   return true;
 }
 
+// ── ADI Core · 2.2b · resolver el contexto pendiente del spine (ACLARAR/AVISAR) ──
+// Consume SOLO un pendiente FRESCO (turno inmediato anterior) que NO sea topic-change, y SOLO si la respuesta
+// es suelta (una métrica-eje sola para clarify). Sin pendiente fresco → null (la respuesta suelta es pregunta
+// nueva). Reusa el spine (cero recálculo nuevo).
+function _isLooseMetric(n, m) {
+  const _s = n.replace(/\b(el|la|lo|los|las|por|en|de|del|dame|quiero|es|son|seria)\b/g, " ").replace(/\s+/g, " ").trim();
+  return _s === m;                                            // tras quitar filler queda EXACTAMENTE la métrica
+}
+function _resolvePending(text, ctx, scenario) {
+  const p = ctx && ctx.pendingSpineDecision;
+  if (!p || p.turn !== ctx.turnCount) return null;           // candado 1 · freshness (turno inmediato anterior)
+  if (_detectTopicChange(text, ctx)) return null;            // candado 2 · topic-change descarta (no fuerza)
+  const n = normalizeText(text || "");
+  if (p.kind === "clarify") {
+    if (detectBrandInText(text) || detectClientInText(text)) return null;  // nombra otra entidad → pregunta nueva
+    const pm = (p.pendingMetrics || []).find(m => _isLooseMetric(n, normalizeText(m)));
+    if (!pm) return null;                                     // candado 3 · respuesta suelta = métrica-eje sola
+    return resolveFilteredRetrieval(`el ${p.dir} ${p.dimW} de ${p.filterValue} en ${pm}`, scenario);  // recompone + reusa el spine
+  }
+  if (p.kind === "combined") {
+    // candado 3 (combined) · la elección debe ser UNÍVOCA: detalle del cliente XOR la marca sola.
+    const _mClient = normalizeText(p.specificClient || ""), _mBrand = normalizeText(p.filterValue || "");
+    const _wantsClient = (_mClient && n.includes(_mClient)) || /\bdetalle\b|\bcliente\b|\bcuenta\b/.test(n);
+    const _wantsBrand = (_mBrand && n.includes(_mBrand)) || /\b(sola|solo|unica|sóla)\b|\bmarca\b/.test(n);
+    if (_wantsClient && !_wantsBrand) return { _rewrite: `cómo está ${p.specificClient}` };          // opción 2 · client_dive
+    if (_wantsBrand && !_wantsClient) return { _rewrite: `${p.metric || "ventas"} de ${p.filterValue}` };  // opción 1 · marca sola COMERCIAL (no brand_dive)
+    return null;                                              // ambiguo / ninguno → pregunta nueva (no fuerza)
+  }
+  return null;
+}
+
 export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
-  const trimmed = (question || "").trim();
+  let trimmed = (question || "").trim();
   let ctx = context || {};
+  // ── ADI Core · 2.2b · resolver el contexto pendiente del spine (ANTES de re-detectar y del topic-change) ──
+  // El turno N+1 lee el pendiente al TOPE. clarify → respuesta sellada del spine (return). combined → reescribe
+  // la query ("el detalle de Falabella" → "cómo está Falabella") y sigue el flujo normal (client_dive). Si NO
+  // se consume (stale/topic-change/pregunta nueva) → descarta el pendiente y sigue. El pendiente vive un turno.
+  if (ADI_MT_SPINE_FOLLOWUP_ENABLED && ctx.pendingSpineDecision) {
+    const _rp = _resolvePending(trimmed, ctx, scenario);
+    ctx = { ...ctx, pendingSpineDecision: null };            // consumido o no → el pendiente se descarta
+    if (_rp && _rp.opener) return _plainWrap(_rp, _rp.route, ctx);   // clarify → respuesta sellada
+    if (_rp && _rp._rewrite) trimmed = _rp._rewrite;                 // combined → reescribe y sigue el flujo
+  }
   // ── ADI Core · 2.2a-2 parte A · TOPIC-CHANGE cleanup (en el ORIGEN · cierra las 2 puertas) ──
   // Una pregunta de alcance global limpia el foco de cliente ANTES de detectIntent (puerta 1: follow-up
   // greedy detectClientMetricFollowUp) y del bloque ECL-CONT (puerta 2: MODO1 getClientDeepDive). Reasigna
@@ -437,7 +482,7 @@ export function answerADI(question, context = {}, state = {}) {
   // Reusa el escudo QI (opts.spineFilter). Flag OFF → null → cae al viejo. El shadow-diff prueba cero overshadow.
   {
     const _fr = resolveFilteredRetrieval(trimmed, scenario);
-    if (_fr && _fr.opener) return _plainWrap({ opener: _fr.opener, suggestions: _fr.suggestions || null, evidence: _fr.evidence }, _fr.route, ctx);
+    if (_fr && _fr.opener) return _plainWrap({ opener: _fr.opener, suggestions: _fr.suggestions || null, evidence: _fr.evidence, _pending: _fr._pending }, _fr.route, ctx);
   }
 
   // ── SIMULACIÓN B2a · cadena pre-detectIntent (replica PanelADI L35500-35733) ──

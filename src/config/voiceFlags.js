@@ -141,6 +141,9 @@ export const ADI_MT_SAFETY_ENABLED = false;             // 2.2a · la continuaci
 export const ADI_MT_INV_COVERAGE_ENABLED = false;       // 2.2a-2 parte B · cierre SEMÁNTICO del "stock" elíptico: composeModuleOverview de inventario AVISA (no surfacea) cuando el muro está activo · compone con ADI_QI_FILTER_ENABLED
 export const ADI_MT_TOPIC_CLEAN_ENABLED = false;        // 2.2a-2 parte A · una pregunta de alcance global limpia el foco de cliente en el ORIGEN (antes de detectIntent) → cierra las 2 puertas (follow-up greedy + ECL-CONT MODO1) · preserva el follow-up anafórico
 
+// ── ADI Core · Fase 2.2b · follow-ups del spine (resolver ACLARAR + elección tras AVISAR combinado) · default OFF ──
+export const ADI_MT_SPINE_FOLLOWUP_ENABLED = false;     // 2.2b · el spine escribe pendingSpineDecision al ACLARAR/AVISAR; el turno N+1 lo lee al tope (freshness + descarte por topic-change) y resuelve la respuesta suelta · compone con los flags spine
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

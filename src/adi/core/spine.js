@@ -166,11 +166,20 @@ export function resolveFilteredRetrieval(text, scenario) {
   const _combConn = ADI_SPINE_COMBINED_ENABLED ? _CONN_WIDE : _CONN;
   const specificClient = (detectAllClientsInText(text, { strict: true }) || []).find(c => _afterConnector(norm, c, _combConn));
   if (specificClient) {
+    // 2.2b · métrica-eje del combinado (para resolver "marca sola" COMERCIALMENTE vía spine filter · NUNCA
+    // brand_dive, que surfacea inventario). Default ventas si la query no la nombra. NUNCA inventario.
+    let _combMetric = null;
+    for (const [k, def] of Object.entries(METRIC_REGISTRY)) {
+      if (def.axis && def.qiKey && isAvailable(def.domain) && (def.vocabulary || []).some(t => _has(norm, t))) { _combMetric = METRIC_REGISTRY[k].label.toLowerCase(); break; }
+    }
     const _opener = ADI_SPINE_COMBINED_ENABLED
       ? `Cruzar ${filterValue} (${filterAxis}) con ${specificClient} (cliente) no lo tengo: el dato guarda una ${filterAxis} dominante por cliente, no el detalle por ${filterAxis} dentro del cliente. Te puedo dar ${filterValue} sola, o el detalle de ${specificClient}. ¿Cuál?`
       : `"${filterValue} en ${specificClient}" cruza marca y cliente, y ese cruce no vive en los datos como dato firme (cada cliente tiene su marca dominante, no el detalle por marca dentro del cliente). Te puedo dar ${filterValue} por separado, o el detalle de ${specificClient}. ¿Cuál?`;
     return { _spine: true, route: "spine_filter_combinado_avisar", suggestions: null,
       opener: _opener,
+      // ADI Core · 2.2b · contexto pendiente · el turno N+1 ("el detalle de Falabella" → client_dive ·
+      // "{filtro} sola" → "{métrica} de {filtro}" comercial). _plainWrap lo estampa con turn.
+      _pending: { kind: "combined", filterValue, filterAxis, specificClient, metric: _combMetric || "ventas" },
       evidence: _evidence(scenario, { filtros: _filtros, operacion: "avisar", unsupported: [{ kind: "cross_dimension", raw: `${filterValue}×${specificClient}` }] }) };
   }
 
@@ -205,6 +214,9 @@ export function resolveFilteredRetrieval(text, scenario) {
       return { _spine: true, route: "spine_filter_clarify",
         opener: `¿${_cap} ${_dir} ${_dimW} de ${filterValue} en qué: ${_list}?`,
         suggestions: _ms.map(m => `${_cap} ${_dir} ${_dimW} de ${filterValue} en ${m}`),
+        // ADI Core · 2.2b · contexto pendiente · el turno N+1 ("margen" suelto) recompone "{dir} {dimW} de
+        // {filterValue} en {métrica}" y reusa el spine. _plainWrap lo estampa con turn (inerte si el flag 2.2b OFF).
+        _pending: { kind: "clarify", filterValue, dir: _dir, dimW: _dimW, pendingMetrics: _ms },
         evidence: _evidence(scenario, { dimKey, filtros: _filtros, operacion: "clarify", unsupported: [{ kind: "metric_missing", options: _ms }] }) };
     }
     return null;                                               // sin métrica (+ sin superlativo, o flag off) → cae al viejo
