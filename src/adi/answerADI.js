@@ -42,7 +42,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -224,7 +224,7 @@ function _threadContext(nextCtx, intent, resp, route) {
   // ── ADI Core · 2.2c-1 · lastRetrievalContext · gemelo de pendingSpineDecision (2.2b) · spec del retrieval
   // para refinar. SIEMPRE setea el campo (null si la respuesta no es un QI retrieval) → vive un turno por
   // construcción (un turno no-QI lo limpia). Estampado con turn (freshness de 2.2a). Flag OFF → no toca.
-  if (ADI_MT_REFINE_METRIC_ENABLED) nextCtx.lastRetrievalContext = (resp && resp._qiContext) ? { ...resp._qiContext, turn: nextCtx.turnCount } : null;
+  if (ADI_MT_REFINE_METRIC_ENABLED || ADI_MT_REFINE_FILTER_ENABLED) nextCtx.lastRetrievalContext = (resp && resp._qiContext) ? { ...resp._qiContext, turn: nextCtx.turnCount } : null;
 }
 
 // wrap plano · sin ECL/suffix (rutas que en el piso corren ANTES del punto de suffix · ej. inversa)
@@ -476,6 +476,36 @@ function _detectMetricRefinement(text, ctx, scenario) {
   return (_composed && typeof _composed.opener === "string" && _composed.opener.length) ? _composed : null;
 }
 
+// ── ADI Core · 2.2c-2 · REFINAMIENTO de FILTRO ("solo Bosch") · gemelo de _detectMetricRefinement ──
+// "solo Bosch"/"y Bosch" (elíptico · marca/familia, SIN dimensión/métrica nueva) re-filtra la vista del
+// lastRetrievalContext: cambia el FILTRO, mantiene métrica+dimensión. ANTI-FUGA: si la vista previa era
+// inventario → AVISA (no refina hacia inventario · compone con el Availability Map). Reusa el pipeline QI.
+function _detectFilterRefinement(text, ctx, scenario) {
+  const lrc = ctx && ctx.lastRetrievalContext;
+  if (!lrc || lrc.turn !== ctx.turnCount) return null;                 // candado · freshness
+  const n = normalizeText(text || "");
+  // (1) ¿señal ELÍPTICA de filtro? "solo"/"solamente"/"y" al inicio (un "Bosch" a secas NO es refinamiento)
+  if (!/^(solo|solamente|unicamente|y)\b/.test(n)) return null;
+  // (2) ¿nombra una DIMENSIÓN o una MÉTRICA-eje nueva? → AUTÓNOMA (no es refinamiento de filtro)
+  for (const vocab of Object.values(QI_DIMENSION_VOCAB))
+    if (vocab.some(w => _wordIn(n, normalizeText(w)))) return null;
+  for (const mk of ["ventas", "margen", "contribucion"])
+    if (QI_METRIC_VOCAB[mk].some(w => _wordIn(n, normalizeText(w)))) return null;   // métrica → es c-1, no c-2
+  // (3) detecta la nueva marca/familia (el filtro · strict · gemelo del spine)
+  const _fams = detectAllFamiliesInText(text, { strict: true }) || [];
+  const newFilter = detectBrandInText(text) || (_fams.length ? _fams[0] : null);
+  if (!newFilter) return null;
+  // (4) ANTI-FUGA · si la vista previa era inventario (bloqueado) → AVISA (no surfacea rotación/capital)
+  if (lrc.domain === "inventario" && !isAvailable("inventario")) return { _avisa: true, opener: unavailableMessage("inventario") };
+  // (5) recompone con el FILTRO nuevo (mantiene métrica+dim) · reusa el pipeline QI · el QI filter decide
+  // la aplicabilidad (responde el cruce válido · AVISA/ACLARA el decorativo marca×cliente, reusa 2.1c).
+  const _parse = queryInterpreter(`${lrc.metric} por ${lrc.dimension} de ${newFilter}`, scenario);
+  if (!_parse || !_parse.isRetrieval) return null;
+  const _composed = composeRetrieval(_parse, scenario);
+  if (_composed && _composed._verdict) return _composed;               // AVISAR/ACLARAR (cruce decorativo) → _plainWrap en el wire
+  return (_composed && typeof _composed.opener === "string" && _composed.opener.length) ? _composed : null;
+}
+
 export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   let trimmed = (question || "").trim();
@@ -499,13 +529,23 @@ export function answerADI(question, context = {}, state = {}) {
             activeResult: (ctx.activeResult && ctx.activeResult.entityType === "cliente") ? null : ctx.activeResult,
             lastRetrievalContext: null };   // 2.2c · el cambio de tema también descarta el refinamiento pendiente
   }
-  // ── ADI Core · 2.2c-1 · REFINAMIENTO de MÉTRICA (elíptico) · corre tras 2.2b (prioridad del pending) y el
-  // topic-change cleanup, ANTES del spine/detectIntent. "y por margen" recompone "{métrica} por {dim} de
-  // {filtro}" del lastRetrievalContext fresco y reusa el pipeline QI (byte-idéntico a tipear la query completa).
-  if (ADI_MT_REFINE_METRIC_ENABLED && ctx.lastRetrievalContext) {
-    const _ref = _detectMetricRefinement(trimmed, ctx, scenario);
-    if (_ref && _ref.opener) return _finalize(_ref, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
-    ctx = { ...ctx, lastRetrievalContext: null };   // no se refinó (autónoma/stale) → descartar (no fuerza)
+  // ── ADI Core · 2.2c · REFINAMIENTOS deícticos (métrica c-1 · filtro c-2) · corren tras 2.2b (prioridad del
+  // pending) y el topic-change cleanup, ANTES del spine/detectIntent. Reusan el lastRetrievalContext fresco y
+  // recomponen "{métrica} por {dim} de {filtro}" reusando el pipeline QI (byte-idéntico a tipear la query
+  // completa). La limpieza va al FINAL (tras ambos detectores) para que c-2 no quede sin contexto si c-1 no
+  // refinó. Disjuntos: c-1 detecta una MÉTRICA, c-2 una MARCA/FAMILIA → no se pisan.
+  if ((ADI_MT_REFINE_METRIC_ENABLED || ADI_MT_REFINE_FILTER_ENABLED) && ctx.lastRetrievalContext) {
+    if (ADI_MT_REFINE_METRIC_ENABLED) {
+      const _rm = _detectMetricRefinement(trimmed, ctx, scenario);                          // c-1 · cambia la métrica
+      if (_rm && _rm.opener) return _finalize(_rm, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+    }
+    if (ADI_MT_REFINE_FILTER_ENABLED) {
+      const _rf = _detectFilterRefinement(trimmed, ctx, scenario);                          // c-2 · cambia el filtro
+      if (_rf && _rf._avisa) return _plainWrap({ opener: _rf.opener }, "qi_inventory_avisar", ctx);   // anti-fuga inventario
+      if (_rf && _rf._verdict) return _plainWrap(_rf, "qi_retrieval_" + _rf._verdict, ctx);            // cruce decorativo → AVISA/ACLARA
+      if (_rf && _rf.opener) return _finalize(_rf, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+    }
+    ctx = { ...ctx, lastRetrievalContext: null };   // ningún refinamiento (autónoma/stale) → descartar (no fuerza)
   }
 
   // ── ADI Core · Fase 2.1a · SPINE · superlativo por dimensión (marca/familia) SIN filtro ──
