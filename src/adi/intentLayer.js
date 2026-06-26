@@ -57,7 +57,11 @@ export function resolveIntentLayerEarly(text, scenario, context) {
   // Las 4 condiciones se cumplen → overview (regla de oro · entity=cartera). NUNCA calcula.
   const intent = { module, action: "overview", entity_type: "cartera", entity_name: null,
     metric: metric || null, confidence: 0.95, route_reason };
-  return _routeIntentToComposer(intent, scenario);
+  const _res = _routeIntentToComposer(intent, scenario);
+  // ADI Core · 2.2a-2 parte B · expone el MÓDULO resuelto (metadata interna · invisible al texto y al
+  // contexto de salida) para que el muro del early-gate (answerADI) cace el "stock" elíptico por semántica.
+  if (_res) _res._module = module;
+  return _res;
 }
 
 export function resolveIntentLayer(text, scenario, context) {

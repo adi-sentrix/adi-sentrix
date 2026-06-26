@@ -137,6 +137,10 @@ export const ADI_SPINE_COMBINED_ENABLED = false;        // 2.1c · combinado mar
 // ── ADI Core · Fase 2.2a · red de seguridad multi-turno (anti-fuga ECL-CONT + anti-contaminación) · default OFF ──
 export const ADI_MT_SAFETY_ENABLED = false;             // 2.2a · la continuación respeta el Availability Map (no fuga inventario) + age-check de listas plurales (no resucita contexto stale) · flag-off = piso multi-turno byte-exacto
 
+// ── ADI Core · Fase 2.2a-2 · limpieza de foco (topic-change) + cobertura de inventario en conversación · default OFF ──
+export const ADI_MT_INV_COVERAGE_ENABLED = false;       // 2.2a-2 parte B · cierre SEMÁNTICO del "stock" elíptico: composeModuleOverview de inventario AVISA (no surfacea) cuando el muro está activo · compone con ADI_QI_FILTER_ENABLED
+export const ADI_MT_TOPIC_CLEAN_ENABLED = false;        // 2.2a-2 parte A · una pregunta de alcance global limpia el foco de cliente en el ORIGEN (antes de detectIntent) → cierra las 2 puertas (follow-up greedy + ECL-CONT MODO1) · preserva el follow-up anafórico
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

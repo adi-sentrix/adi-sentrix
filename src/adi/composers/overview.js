@@ -1,13 +1,23 @@
 /* === adi/composers/overview.js ===
  * ADI conversacional extraído de 41cc33d8 · verbatim · solo imports agregados.
  * Importa motor (engine/) + datos/config sellados. Cero cambio de cálculo. */
-import { ADI_MARGIN_BENCHMARK_GAP_FIX_ENABLED, VOICE_C32_EVIDENCE_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_MARGIN_BENCHMARK_GAP_FIX_ENABLED, VOICE_C32_EVIDENCE_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
+import { isAvailable, unavailableMessage } from "../core/availabilityMap.js";  // ADI Core · 2.2a-2 parte B · cierre semántico del overview de inventario
 import { clientesMargen } from "../../data/demoData.js";
 import { getInvKPI, getMargenKPI, getVentasKPI } from "../../engine/metrics.js";
 import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { filterTextualSuggestions } from "../helpers.js";
 
 export function composeModuleOverview(scenarioId, moduloId) {
+  // ── ADI Core · 2.2a-2 parte B · CIERRE SEMÁNTICO del overview de inventario ──
+  // composeModuleOverview es EL overview de un módulo. Si lo llaman con moduloId="inventario" mientras el
+  // Availability Map lo bloquea (Fase 2.5), AVISA en vez de surfacear capital/rotación. Esto cierra el "stock"
+  // elíptico que esquiva el muro de TEXTO (regex) y resuelve a módulo inventario por early_gate/late_layer/D0
+  // — un solo punto, por SEMÁNTICA (sin tocar el regex, sin over-trigger del "stock disponible" comercial).
+  // Gateado por QI_FILTER (régimen del muro): con QI off el piso responde byte-exacto; con QI on el muro de
+  // texto ya AVISA lo explícito, este guard caza lo elíptico. Mensaje byte-idéntico al muro.
+  if (ADI_MT_INV_COVERAGE_ENABLED && ADI_QI_FILTER_ENABLED && moduloId === "inventario" && !isAvailable("inventario"))
+    return { opener: unavailableMessage("inventario"), suggestions: [], sentrixAction: null, reasoningPattern: "mt_inv_coverage_block" };
   // ════════════════════════════════════════════════════════════════════════
   // BRIEF #15 · Executive V1 dispatch · Oleada 1
   // Flag rollback: cambiar a false → composer legacy se ejecuta bitwise.

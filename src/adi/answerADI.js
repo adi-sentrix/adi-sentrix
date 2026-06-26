@@ -13,7 +13,7 @@
 import { resolveIntentLayerEarly, resolveIntentLayer } from "./intentLayer.js";
 import { normalizeText } from "./helpers.js";
 import { detectIntent, detectAllFamiliesInText, detectAllWarehousesInText } from "./router.js";
-import { detectBrandInText } from "./detectors.js";  // ADI Core · Escape 1 · filtro marca/familia en ranking de inventario
+import { detectBrandInText, detectClientInText } from "./detectors.js";  // ADI Core · Escape 1 · filtro marca/familia + 2.2a-2 cliente nombrado
 import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
@@ -42,7 +42,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -395,10 +395,32 @@ function _overviewLeadIntent(trimmed) {
   return null;
 }
 
+// ── ADI Core · 2.2a-2 parte A · detector de TOPIC-CHANGE (pregunta nueva limpia el foco) ──
+// Dispara SOLO con señal DOBLE: alcance global explícito + métrica, Y ausencia de anáfora ("su/sus") o
+// cliente nombrado. Requiere un foco de cliente vigente para limpiar. CONSERVADOR: por defecto NO limpia
+// → preserva el follow-up legítimo ("y su margen") y el ambiguo ("cuál es el margen", sin "global"/"su").
+function _detectTopicChange(text, ctx) {
+  if (!ctx || !ctx.lastClientMentioned) return false;                 // nada que limpiar
+  const n = normalizeText(text || "");
+  if (!/\bglobal(es)?\b|\bgeneral(es)?\b|de (toda )?la cartera\b|del portafolio\b|del negocio\b|\bpromedio\b/.test(n)) return false;  // alcance global
+  if (!/\bmargen(es)?\b|\bcarga\b|\bcontribuci[oó]n\b|\bventas?\b|\brotaci[oó]n\b|\brentabilidad\b/.test(n)) return false;            // + métrica
+  if (/\bsus?\b/.test(n)) return false;                               // anáfora "su"/"sus" → follow-up legítimo
+  if (detectClientInText(text)) return false;                         // cliente nombrado → no es topic-change vago
+  return true;
+}
+
 export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   const trimmed = (question || "").trim();
-  const ctx = context || {};
+  let ctx = context || {};
+  // ── ADI Core · 2.2a-2 parte A · TOPIC-CHANGE cleanup (en el ORIGEN · cierra las 2 puertas) ──
+  // Una pregunta de alcance global limpia el foco de cliente ANTES de detectIntent (puerta 1: follow-up
+  // greedy detectClientMetricFollowUp) y del bloque ECL-CONT (puerta 2: MODO1 getClientDeepDive). Reasigna
+  // ctx (NO muta el input). Limpia adelante también (la pregunta nueva olvida el cliente). Flag OFF → no toca.
+  if (ADI_MT_TOPIC_CLEAN_ENABLED && _detectTopicChange(trimmed, ctx)) {
+    ctx = { ...ctx, lastClientMentioned: null, lastClientMentionedTurn: null,
+            activeResult: (ctx.activeResult && ctx.activeResult.entityType === "cliente") ? null : ctx.activeResult };
+  }
 
   // ── ADI Core · Fase 2.1a · SPINE · superlativo por dimensión (marca/familia) SIN filtro ──
   // Corre PRIMERO (antes de simulación/early-gate/dispatch) para OWNAR su firma angosta: la capa de
@@ -480,7 +502,11 @@ export function answerADI(question, context = {}, state = {}) {
   if (early) {
     // ADI Core · MURO DE INVENTARIO (pre-early-gate) · un OVERVIEW de inventario ("cómo está el inventario")
     // también AVISA · el early gate corre ANTES del muro principal y daría capital/rotación si no se intercepta.
-    if (ADI_QI_FILTER_ENABLED && _esPreguntaInventarioChat(null, trimmed)) {
+    // 2.2a-2 parte B · cierre SEMÁNTICO: si el early resolvió a MÓDULO inventario (early._module · ej. "ese
+    // stock" que el regex de texto no caza), AVISA por _plainWrap ANTES de _finalize (que le prepende un
+    // preámbulo narrativo de inventario). Cierra el "stock" elíptico sin tocar el regex (cero over-trigger).
+    if (ADI_QI_FILTER_ENABLED && (_esPreguntaInventarioChat(null, trimmed)
+        || (ADI_MT_INV_COVERAGE_ENABLED && early._module === "inventario" && !isAvailable("inventario")))) {
       const _ef = detectBrandInText(trimmed) || (detectAllFamiliesInText(trimmed, { strict: true })[0] || null);
       return _plainWrap({ opener: _inventarioAvisarMsg(_ef) }, "qi_inventory_avisar", ctx);
     }
