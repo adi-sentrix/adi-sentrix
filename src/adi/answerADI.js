@@ -17,7 +17,7 @@ import { detectBrandInText, detectClientInText } from "./detectors.js";  // ADI 
 import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
-import { executiveLanguageDetector, queryInterpreter, composeRetrieval } from "./composers/qiRetrieval.js";
+import { executiveLanguageDetector, queryInterpreter, composeRetrieval, QI_METRIC_VOCAB, QI_DIMENSION_VOCAB } from "./composers/qiRetrieval.js";
 import { resolveDimensionalSuperlative, resolveFilteredRetrieval } from "./core/spine.js";  // ADI Core · Fase 2.1a/b · spine
 import { isAvailable, unavailableMessage } from "./core/availabilityMap.js";  // ADI Core · Fase 2.2a · anti-fuga · guardrail de continuación (R4 + MODE 2)
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
@@ -42,7 +42,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -221,6 +221,10 @@ function _threadContext(nextCtx, intent, resp, route) {
       }
     } catch (e) { /* defensivo · R1 inerte si falla */ }
   }
+  // ── ADI Core · 2.2c-1 · lastRetrievalContext · gemelo de pendingSpineDecision (2.2b) · spec del retrieval
+  // para refinar. SIEMPRE setea el campo (null si la respuesta no es un QI retrieval) → vive un turno por
+  // construcción (un turno no-QI lo limpia). Estampado con turn (freshness de 2.2a). Flag OFF → no toca.
+  if (ADI_MT_REFINE_METRIC_ENABLED) nextCtx.lastRetrievalContext = (resp && resp._qiContext) ? { ...resp._qiContext, turn: nextCtx.turnCount } : null;
 }
 
 // wrap plano · sin ECL/suffix (rutas que en el piso corren ANTES del punto de suffix · ej. inversa)
@@ -444,6 +448,34 @@ function _resolvePending(text, ctx, scenario) {
   return null;
 }
 
+// ── ADI Core · 2.2c-1 · REFINAMIENTO de MÉTRICA (elíptico vs autónomo · EL DISCRIMINADOR) ──
+// "y por margen" tras "ventas por cliente de Samsung" → refina (cambia métrica, MANTIENE filtro+dim).
+// La regla (línea clara, no corazonada): NOMBRA UNA DIMENSIÓN (cliente/familia/marca/sku…) → pregunta nueva
+// (autónoma). SOLO una métrica-eje elíptica (sin dimensión) → refinamiento. Métricas-eje = comercial
+// (ventas/margen/contribución · NUNCA inventario → cero fuga). Reusa el pipeline QI (cero recálculo nuevo).
+const _wordIn = (n, w) => new RegExp("(^|[^a-z0-9])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z0-9]|$)").test(n);
+function _detectMetricRefinement(text, ctx, scenario) {
+  const lrc = ctx && ctx.lastRetrievalContext;
+  if (!lrc || lrc.turn !== ctx.turnCount) return null;                 // candado · freshness (turno inmediato anterior)
+  const n = normalizeText(text || "");
+  // (1) ¿nombra una DIMENSIÓN? → AUTÓNOMA (pregunta nueva), aunque parezca elíptica
+  for (const vocab of Object.values(QI_DIMENSION_VOCAB))
+    if (vocab.some(w => _wordIn(n, normalizeText(w)))) return null;
+  // (2) ¿referencia una métrica-EJE (comercial · NUNCA inventario)? + ¿cuál?
+  let newMetric = null;
+  for (const mk of ["ventas", "margen", "contribucion"])
+    if (QI_METRIC_VOCAB[mk].some(w => _wordIn(n, normalizeText(w)))) { newMetric = mk; break; }
+  if (!newMetric) return null;
+  // (3) ¿ELÍPTICO? (arranca con "y", o es una métrica suelta corta · un intent autónomo largo NO es refinamiento)
+  if (!(/^y\b/.test(n) || n.split(/\s+/).filter(Boolean).length <= 3)) return null;
+  // recompone "{métrica} por {dim} de {filtro}" y reusa el pipeline QI (byte-idéntico a tipear la query completa)
+  const _q = `${newMetric} por ${lrc.dimension}${lrc.filterValue ? " de " + lrc.filterValue : ""}`;
+  const _parse = queryInterpreter(_q, scenario);
+  if (!_parse || !_parse.isRetrieval) return null;
+  const _composed = composeRetrieval(_parse, scenario);
+  return (_composed && typeof _composed.opener === "string" && _composed.opener.length) ? _composed : null;
+}
+
 export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   let trimmed = (question || "").trim();
@@ -464,7 +496,16 @@ export function answerADI(question, context = {}, state = {}) {
   // ctx (NO muta el input). Limpia adelante también (la pregunta nueva olvida el cliente). Flag OFF → no toca.
   if (ADI_MT_TOPIC_CLEAN_ENABLED && _detectTopicChange(trimmed, ctx)) {
     ctx = { ...ctx, lastClientMentioned: null, lastClientMentionedTurn: null,
-            activeResult: (ctx.activeResult && ctx.activeResult.entityType === "cliente") ? null : ctx.activeResult };
+            activeResult: (ctx.activeResult && ctx.activeResult.entityType === "cliente") ? null : ctx.activeResult,
+            lastRetrievalContext: null };   // 2.2c · el cambio de tema también descarta el refinamiento pendiente
+  }
+  // ── ADI Core · 2.2c-1 · REFINAMIENTO de MÉTRICA (elíptico) · corre tras 2.2b (prioridad del pending) y el
+  // topic-change cleanup, ANTES del spine/detectIntent. "y por margen" recompone "{métrica} por {dim} de
+  // {filtro}" del lastRetrievalContext fresco y reusa el pipeline QI (byte-idéntico a tipear la query completa).
+  if (ADI_MT_REFINE_METRIC_ENABLED && ctx.lastRetrievalContext) {
+    const _ref = _detectMetricRefinement(trimmed, ctx, scenario);
+    if (_ref && _ref.opener) return _finalize(_ref, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+    ctx = { ...ctx, lastRetrievalContext: null };   // no se refinó (autónoma/stale) → descartar (no fuerza)
   }
 
   // ── ADI Core · Fase 2.1a · SPINE · superlativo por dimensión (marca/familia) SIN filtro ──

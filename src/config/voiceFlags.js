@@ -144,6 +144,9 @@ export const ADI_MT_TOPIC_CLEAN_ENABLED = false;        // 2.2a-2 parte A · una
 // ── ADI Core · Fase 2.2b · follow-ups del spine (resolver ACLARAR + elección tras AVISAR combinado) · default OFF ──
 export const ADI_MT_SPINE_FOLLOWUP_ENABLED = false;     // 2.2b · el spine escribe pendingSpineDecision al ACLARAR/AVISAR; el turno N+1 lo lee al tope (freshness + descarte por topic-change) y resuelve la respuesta suelta · compone con los flags spine
 
+// ── ADI Core · Fase 2.2c · refinamientos deícticos (refina la vista anterior) · default OFF ──
+export const ADI_MT_REFINE_METRIC_ENABLED = false;      // 2.2c-1 · composeRetrieval guarda lastRetrievalContext {metric,dimension,filtro,domain}; "y por margen" (elíptico · solo métrica, SIN dimensión nueva) refina manteniendo filtro+dim · prioridad: pending del spine (2.2b) gana · compone con ADI_QI_FILTER_ENABLED
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

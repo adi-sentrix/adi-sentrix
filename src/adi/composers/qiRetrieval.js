@@ -1026,5 +1026,16 @@ export function composeRetrieval(qi, scenario, opts) {
       if (typeof _raw !== "number") return null;
       return { entity: _name, metric: metricLabels[0] || "Valor", value: metricMap[qi.metrics[0]].formatter(_raw, totalVenta) };
     }).filter(Boolean),
+    // ── ADI Core · 2.2c-1 · lastRetrievalContext · spec recuperable para refinar la vista (metadata · cero
+    // formato nuevo · invisible al texto). filterValue = primer filtro nombrado (caso simple marca/familia).
+    // domain del Semantic Layer (para el anti-fuga de 2.2c-3). El turno N+1 lo lee, modifica y reusa el pipeline.
+    _qiContext: {
+      metric: qi.metrics[0],
+      dimension: dim,
+      filterValue: _filtrosArg ? (Object.values(_filtrosArg).flat().filter(Boolean)[0] || null) : null,
+      domain: qi.metrics[0] === "ventas" ? "ventas"
+            : ["margen", "contribucion", "carga"].includes(qi.metrics[0]) ? "margenes"
+            : ["rotacion", "doh", "cobertura", "stockUSD"].includes(qi.metrics[0]) ? "inventario" : null,
+    },
   };
 }
