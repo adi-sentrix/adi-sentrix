@@ -9,7 +9,7 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED, ADI_INV_INMOVILIZADO_ENABLED } from "../../config/voiceFlags.js";
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -199,6 +199,14 @@ export function resolveInventoryRetrieval(text, scenario) {
   // (5) PLANNER + QUERY ENGINE · recompone reusando composeRetrieval. Las métricas EN el QI_VOCAB (rotación→rotacion,
   // DOH→cobertura) recomponen directo; las que NO (capital · a propósito, para no tocar el "stock" comercial) usan un
   // placeholder de inventario (rotacion) + swap de qi.metrics → composeRetrieval resuelve el campo vía metricMap[capital].
+  // 2.5c-2 · el anchor "inmovilizado/detenido/atrapado" del CAPITAL refina al subconjunto Def2 (flag-gated · requiere
+  // capital ON). "capital" a secas NO → vista amplia. Pasa invInmovilizado a composeRetrieval (filtra Def2).
+  const _inmovilizado = ADI_INV_INMOVILIZADO_ENABLED && metricKey === "capital" && /\binmoviliz|\bdetenid|\batrapad/.test(norm);
+  // el evidence refleja el subconjunto: la "boleta" dice que es el Def2, no todos.
+  const _evFiltros = { ...(_filtro ? { marca_o_familia: _filtro } : {}), ...(_inmovilizado ? { subconjunto: "inmovilizado (Def2: alerta crit/warn O rotación<2)" } : {}) };
+  const _evFormula = _inmovilizado ? metric.formula + " · subconjunto Def2 (alerta crit/warn O rotación<2)" : metric.formula;
+  const _mlSuffix = _inmovilizado ? " inmovilizado" : "";
+
   const _gloss = `por sku${_filtro ? " de " + _filtro : ""}`;
   let qi = queryInterpreter(`${metricKey} ${_gloss}`, scenario);
   if (!qi || !qi.isRetrieval) {
@@ -206,7 +214,7 @@ export function resolveInventoryRetrieval(text, scenario) {
     if (qi && qi.isRetrieval) qi.metrics = [metricKey];
   }
   if (!qi || !qi.isRetrieval) return null;
-  const resp = composeRetrieval(qi, scenario, { spineFilter: true });
+  const resp = composeRetrieval(qi, scenario, { spineFilter: true, invInmovilizado: _inmovilizado });
   if (!resp || !Array.isArray(resp.materialMetrics) || resp.materialMetrics.length === 0) return null;
   const mm = resp.materialMetrics;
   const _filGloss = _filtro ? " de " + _filtro : "";
@@ -217,19 +225,19 @@ export function resolveInventoryRetrieval(text, scenario) {
     // a wantHigh vía la polaridad (peor DOH = alto · peor rotación = bajo). _dirWord es la palabra natural del pedido.
     const pick = wantHigh ? mm[0] : mm[mm.length - 1];
     const opp  = wantHigh ? mm[mm.length - 1] : mm[0];
-    const ml = (pick.metric || metric.label).toLowerCase();
+    const ml = (pick.metric || metric.label).toLowerCase() + _mlSuffix;
     let opener = `${pick.entity} es el SKU con ${_dirWord} ${ml}${_filGloss} · ${pick.value}.`;
     if (opp && opp.entity !== pick.entity) opener += ` El de ${_oppWord} es ${opp.entity} · ${opp.value}.`;
     return {
       _spine: true, route: "spine_inv_superlative", opener,
-      _plan: { metric: metricKey, dimension: "sku", direction: wantHigh ? "high" : "low", domain: "inventario", formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
-      evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _filtro ? { marca_o_familia: _filtro } : {}, operacion: wantHigh ? "rank_top" : "rank_bottom", formula: metric.formula, rowsUsed: mm.length, invMetric: true }),
+      _plan: { metric: metricKey, dimension: "sku", direction: wantHigh ? "high" : "low", domain: "inventario", inmovilizado: _inmovilizado, formula: _evFormula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
+      evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _evFiltros, operacion: (wantHigh ? "rank_top" : "rank_bottom") + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
     };
   }
   // sin dirección → tabla (reusa la respuesta de composeRetrieval · route + evidence de inventario)
   return {
     _spine: true, route: "spine_inv_retrieval", opener: resp.opener, suggestions: resp.suggestions || null,
-    evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _filtro ? { marca_o_familia: _filtro } : {}, operacion: "rank", formula: metric.formula, rowsUsed: mm.length, invMetric: true }),
+    evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _evFiltros, operacion: "rank" + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
   };
 }
 

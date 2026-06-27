@@ -156,6 +156,7 @@ export const ADI_MT_REFINE_CUT_ENABLED = false;         // 2.2c-3 (último de la
 export const ADI_INV_ROTACION_ENABLED = false;          // 2.5a · rotación (skuInventario · dim SKU · filtro marca/familia) RESPONDE con payload vía resolveInventoryRetrieval (spine, antes del muro) · gate principal: régimen muro ON + este OFF → AVISA byte-exacto · guard de atomicidad (mezcla con métrica no modelada → AVISA) · bundles gated
 export const ADI_INV_DOH_ENABLED = false;               // 2.5b · DOH/cobertura (UNA métrica, dos nombres · campo doh · polaridad higherIsWorse: más días = peor) RESPONDE vía el resolver · reusa el andamio de 2.5a · capital/bodega siguen AVISANDO (disolución métrica por métrica)
 export const ADI_INV_CAPITAL_ENABLED = false;           // 2.5c-1 · capital/stock en valor (campo stockUSD · key NUEVO `capital`, SIN pisar el "stock=unidades" comercial · polaridad higherIsWorse · anchor "detenido"/"inmovilizado" = vista amplia, todos los SKUs) RESPONDE vía el resolver · el inmovilizado Def2 fino es 2.5c-2 · bodega sigue AVISANDO
+export const ADI_INV_INMOVILIZADO_ENABLED = false;      // 2.5c-2 · refina el anchor "inmovilizado/detenido/atrapado" del capital de la VISTA AMPLIA al subconjunto Def2 (alerta crit/warn O rotación<2 · def canónica _capitalInmovilizado) · "capital" a secas sigue dando la vista amplia · requiere ADI_INV_CAPITAL_ENABLED ON · el evidence refleja el subconjunto
 
 export const MECHANISM_LINK_ENABLED = true;
 

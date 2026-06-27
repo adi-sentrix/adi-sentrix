@@ -3,6 +3,7 @@
 // ($K · más/menos · anchor "detenido" vista amplia · filtro · evidence) · 🚨 RED no-leak + atomicidad · bodega
 // AVISA · rotación/DOH responden · 🛡️ comercial-stock intacto. Dump → argv (para shadow + GATE COMERCIAL-STOCK).
 import { JSDOM } from "jsdom"; import esbuild from "esbuild"; import { fileURLToPath, pathToFileURL } from "url"; import path from "path"; import fs from "fs";
+import { ADI_INV_INMOVILIZADO_ENABLED } from "./src/config/voiceFlags.js";   // 2.5c-2 · "detenido" pasa de vista amplia (SAM-REF) a Def2 (LG-DRYER) → control flag-aware
 const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></html>`, { url: "http://localhost/", pretendToBeVisual: true });
 const W = dom.window; globalThis.window = W; globalThis.document = W.document;
 try { Object.defineProperty(globalThis, "navigator", { value: W.navigator, configurable: true }); } catch {}
@@ -23,8 +24,8 @@ const CASES = [
     check: (r) => r.route === "spine_inv_superlative" && /SAM-REF500L/.test(r.text) && /\$18\.6K/.test(r.text) && r.ev && r.ev.metrica === "capital" && r.ev.fuente === "skuInventario" },
   { name: "CAPITAL-de-LG (filtro)", q: "capital de LG", mk: "inventario",
     check: (r) => r.route === "spine_inv_retrieval" && /LG-/.test(r.text) && /LG/.test(r.text) && r.ev && r.ev.metrica === "capital" },
-  { name: "CAPITAL-detenido (anchor · vista amplia)", q: "dónde tengo capital detenido", mk: "inventario",
-    check: (r) => r.route === "spine_inv_superlative" && /SAM-REF500L/.test(r.text) && /\$18\.6K/.test(r.text) },
+  { name: "CAPITAL-detenido (amplia 2.5c-1 / Def2 2.5c-2)", q: "dónde tengo capital detenido", mk: "inventario",
+    check: (r) => r.route === "spine_inv_superlative" && (ADI_INV_INMOVILIZADO_ENABLED ? (/LG-DRYER8KG/.test(r.text) && !/SAM-REF500L/.test(r.text)) : (/SAM-REF500L/.test(r.text) && /\$18\.6K/.test(r.text))) },
   { name: "stock-en-valor → capital", q: "stock en valor de Samsung", mk: "inventario",
     check: (r) => (r.route === "spine_inv_retrieval" || r.route === "spine_inv_superlative") && r.ev && r.ev.metrica === "capital" },
   { name: "🚨RED-no-leak", q: "qué SKU tiene más capital", mk: "inventario",

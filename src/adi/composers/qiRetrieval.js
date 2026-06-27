@@ -793,7 +793,12 @@ export function composeRetrieval(qi, scenario, opts) {
       // Fase 2.5 · métrica de inventario disponible → skuInventario scenario-aware; si no → skusMargen comercial (intacto).
       rows = _invAvail ? applyFiltros(applyScenarioToSkuInventario(scenario), _filtrosArg)
                        : applyFiltros(skusMargen, _filtrosArg);
-      if (_invAvail) nameField = "sku";   // skuInventario usa `sku` como nombre (no `nombre`) · render de tabla
+      if (_invAvail) {
+        nameField = "sku";   // skuInventario usa `sku` como nombre (no `nombre`) · render de tabla
+        // Fase 2.5c-2 · INMOVILIZADO Def2 · solo el anchor "inmovilizado/detenido" del capital filtra al subconjunto
+        // detenido (alerta crit/warn O rotación<2 · def canónica de _capitalInmovilizado · warehouse.js:45,355,366).
+        if (opts && opts.invInmovilizado) rows = rows.filter(r => r.alerta === "crit" || r.alerta === "warn" || r.rotacion < 2);
+      }
       dimLabel = "SKU";
     } else if (dim === "familia") {
       // CORTE 1 · R2 · fuente canónica scenario-aware (idéntica al dashboard).
