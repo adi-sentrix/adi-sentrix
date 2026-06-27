@@ -2,7 +2,7 @@
 //   flag ON (3 spine flags) → asserts del oráculo + dump _spine_ON.json
 //   flag OFF → dump _spine_OFF.json (para el shadow-diff)
 import { answerADI } from "./src/adi/answerADI.js";
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_INV_ROTACION_ENABLED } from "./src/config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_INV_ROTACION_ENABLED, ADI_INV_DOH_ENABLED } from "./src/config/voiceFlags.js";
 import fs from "fs";
 
 const ON = ADI_CORE_SPINE_ENABLED && ADI_SPINE_FILTER_ENABLED;
@@ -32,7 +32,10 @@ if (ON) {
   else  // OFF · AVISA · la ruta depende del régimen (spine_filter_unavailable en spine-solo · qi_inventory_filter_avisar con el muro/QI_FILTER ON)
     ck(`«qué SKU de Bosch rota peor» → AVISA Fase 2.5, cero dato (route=${ri.route})`, (ri.route === "spine_filter_unavailable" || ri.route === "qi_inventory_filter_avisar") && /Fase 2\.5/.test(ri.text) && !/[\d.]+x\b|rotacion\s+[\d.]/i.test(ri.text), `route=${ri.route} | ${ri.text}`);
   const rd = run("qué SKU de Bosch tiene peor DOH");
-  ck(`«qué SKU de Bosch tiene peor DOH» → AVISA (DOH NO modelada)`, /Fase 2\.5|no puedo aplicar el filtro/.test(rd.text) && !/[\d.]+x\b/.test(rd.text), `route=${rd.route}`);
+  if (ADI_INV_DOH_ENABLED)  // 2.5b · DOH modelada → RESPONDE filtrado por Bosch (días · sin rotación ni capital)
+    ck(`«qué SKU de Bosch tiene peor DOH» → RESPONDE DOH de Bosch`, (rd.route === "spine_inv_superlative" || rd.route === "spine_inv_retrieval") && /BOS-/.test(rd.text) && /\d+d\b/.test(rd.text) && !/[\d.]+x\b|\$/.test(rd.text), `route=${rd.route} | ${rd.text}`);
+  else
+    ck(`«qué SKU de Bosch tiene peor DOH» → AVISA (DOH NO modelada)`, /Fase 2\.5|no puedo aplicar el filtro/.test(rd.text) && !/[\d.]+x\b/.test(rd.text), `route=${rd.route}`);
 
   console.log("\n— AVISA (combinado marca+cliente · el dato no tiene el cruce → 2.1c) —");
   for (const q of ["ventas de Samsung en Falabella", "ventas de LG en Falabella"]) {

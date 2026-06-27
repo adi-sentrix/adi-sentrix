@@ -2,13 +2,14 @@
 // ADI Core Fase 2.5a: ROTACIÓN modelada → RESPONDE (flag ON) / AVISA (flag OFF · disolución métrica por métrica).
 // DOH NO modelada → AVISA siempre (rotación ON NO la habilita). Flag-aware: pasa en ambos regímenes.
 import { answerADI } from "./src/adi/answerADI.js";
-import { ADI_INV_ROTACION_ENABLED } from "./src/config/voiceFlags.js";
+import { ADI_INV_ROTACION_ENABLED, ADI_INV_DOH_ENABLED } from "./src/config/voiceFlags.js";
 const run = (q) => answerADI(q, { activeModule: "inventario" }, { scenario: "bonanza" });
 let pass = 0, fail = 0;
 const ck = (label, cond, detail) => { if (cond) { pass++; console.log(`✓ ${label}`); } else { fail++; console.log(`✗ FAIL ${label}  ${detail || ""}`); } };
-const ROT = ADI_INV_ROTACION_ENABLED;
+const ROT = ADI_INV_ROTACION_ENABLED, DOH = ADI_INV_DOH_ENABLED;
 const isInvResp = (r) => r.route === "spine_inv_superlative" || r.route === "spine_inv_retrieval";
-const FOREIGN = /\$\s?\d|\bUSD\b|\d+\s*d[ií]as|\bdoh\b|inmoviliz|capital\s+(atrap|deten)|stock\s*usd|d[ií]as\s+(de\s+)?cobertura/i;
+const FOREIGN = /\$\s?\d|\bUSD\b|\d+\s*d[ií]as|\bdoh\b|inmoviliz|capital\s+(atrap|deten)|stock\s*usd|d[ií]as\s+(de\s+)?cobertura/i; // ajeno a rotación
+const FOREIGN_DOH = /\$\s?\d|\bUSD\b|inmoviliz|capital\s+(atrap|deten)|stock\s*usd|\d+\.\dx/i; // ajeno a DOH (días es su unidad)
 
 console.log(`════ ROTACIÓN FILTRADA (marca/familia) · ${ROT ? "RESPONDE (2.5a · modelada · cero fuga ajena)" : "AVISA (pre-2.5a)"} ════`);
 for (const [q, filt] of [
@@ -24,10 +25,13 @@ for (const [q, filt] of [
   console.log(`   ${t.slice(0, 110)}`);
 }
 
-console.log(`\n════ DOH FILTRADO · NO modelada → AVISA SIEMPRE (rotación disponible NO la habilita) ════`);
+console.log(`\n════ DOH FILTRADO · ${DOH ? "RESPONDE (2.5b · modelada)" : "AVISA (pre-2.5b)"} ════`);
 {
   const r = run("qué SKU de Bosch tiene peor DOH"); const t = r.text || "";
-  ck("«qué SKU de Bosch tiene peor DOH» → AVISA", r.route === "qi_inventory_filter_avisar" && t.includes("Bosch") && !t.includes("MAK-COMP-AIR"), `route=${r.route}`);
+  const ok = DOH
+    ? (isInvResp(r) && /\d+d\b/.test(t) && t.includes("Bosch") && !FOREIGN_DOH.test(t))   // RESPONDE DOH (días) · filtro · sin capital
+    : (r.route === "qi_inventory_filter_avisar" && t.includes("Bosch") && !t.includes("MAK-COMP-AIR"));
+  ck(`«qué SKU de Bosch tiene peor DOH» → ${r.route}`, ok, `route=${r.route}`);
 }
 
 console.log(`\n════ ROTACIÓN SIN FILTRO · ${ROT ? "RESPONDE" : "AVISA"} ════`);
@@ -36,10 +40,11 @@ for (const q of ["cuál es el SKU con peor rotación", "peor rotación", "cuál 
   const ok = ROT ? (isInvResp(r) && /\d\.\dx/.test(t) && !FOREIGN.test(t)) : (r.route === "qi_inventory_avisar" && !t.includes("MAK-COMP-AIR"));
   ck(`«${q}» → ${r.route}`, ok, `route=${r.route}`);
 }
-console.log(`\n════ DOH SIN FILTRO · NO modelada → AVISA ════`);
+console.log(`\n════ DOH SIN FILTRO · ${DOH ? "RESPONDE (más DOH = más días)" : "AVISA"} ════`);
 {
-  const r = run("el SKU con más DOH");
-  ck("«el SKU con más DOH» → AVISA", r.route === "qi_inventory_avisar" && !(r.text || "").includes("MAK-COMP-AIR"), `route=${r.route}`);
+  const r = run("el SKU con más DOH"); const t = r.text || "";
+  const ok = DOH ? (isInvResp(r) && /\d+d\b/.test(t) && /MAK-COMP-AIR/.test(t) && !FOREIGN_DOH.test(t)) : (r.route === "qi_inventory_avisar" && !t.includes("MAK-COMP-AIR"));
+  ck(`«el SKU con más DOH» → ${r.route}`, ok, `route=${r.route}`);
 }
 console.log(`\n── Fix A: ${pass} ok / ${fail} fail ── (rotación ${ROT ? "RESPONDE" : "AVISA"} · DOH AVISA)`);
 process.exit(fail ? 1 : 0);

@@ -16,6 +16,6 @@ export const METRIC_REGISTRY = {
   carga:        { label: "Carga Comercial",  domain: "margenes", unit: "%", qiKey: "carga",        formula: "rebates / venta",                    vocabulary: _vocab("carga", ["rebate", "rebates"]) },
   // ── dominio inventario (bloqueado hasta Fase 2.5 · el spine AVISA vía Availability Map, NO computa) ──
   rotacion:     { label: "Rotación",         domain: "inventario", unit: "x", qiKey: null,         formula: "COGS / stock promedio",              vocabulary: ["rotacion", "rotación", "rota", "rotan"] },
-  doh:          { label: "DOH",              domain: "inventario", unit: "d", qiKey: null,         formula: "stock / venta diaria",               vocabulary: ["doh", "cobertura", "dias de cobertura"] },
+  doh:          { label: "DOH",              domain: "inventario", unit: "d", qiKey: null, higherIsWorse: true, formula: "stock / venta diaria", vocabulary: ["doh", "cobertura", "dias de cobertura"] },
   stock:        { label: "Stock",            domain: "inventario", unit: "$", qiKey: null,         formula: "Σ stockUSD",                         vocabulary: ["stock", "capital inmovilizado", "capital detenido"] },
 };

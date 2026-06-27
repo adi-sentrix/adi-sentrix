@@ -24,8 +24,14 @@ const _has = (norm, term) => new RegExp("\\b" + _norm(term).replace(/[.*+?^${}()
 const _SUPERLATIVE_BOTTOM = ["peor", "menor", "mas bajo", "mas baja", "minimo", "minima", "que menos", "mas chico", "mas chica", "menos", "mas debil", "mas debiles", "debil"];
 const _SUPERLATIVE_TOP    = ["mejor", "mayor", "mas alto", "mas alta", "maximo", "maxima", "que mas", "mas grande", "mas"];
 
-// ── Fase 2.5a · lexicones del resolver de inventario ──
-const _INV_OTHER_METRIC = /\bcapital\b|\bdoh\b|\bcobertura\b|inmoviliz|d[ií]as\s+sin\s+vent|stock\s*usd/; // métricas de inventario NO modeladas en 2.5a (atomicidad)
+// ── Fase 2.5a/b · lexicones del resolver de inventario ──
+// Atomicidad future-proof: cada concepto de inventario mapea a su métrica · el guard AVISA si la query nombra
+// OTRO concepto (≠ el detectado) cuya métrica NO está disponible. Se "apaga" solo a medida que se modela (isAvailable).
+const _INV_CONCEPTS = [
+  { re: /\brotaci/,                                              m: "rotacion" },   // 2.5a
+  { re: /\bdoh\b|\bcobertura\b/,                                 m: "doh" },        // 2.5b
+  { re: /\bcapital\b|inmoviliz|stock\s*usd|d[ií]as\s+sin\s+vent/, m: "capital" },   // 2.5c (no modelada aún)
+];
 const _COMM_METRIC = /\bventas?\b|\bmargen|\bcontribuci|\brentabilidad\b|\bcarga\b|\baporte/;              // nombra comercial → no es inventario puro → defiere
 const _NONSKU_DIM = /\bpor\s+(bodegas?|sucursal(?:es)?|clientes?|canal|familias?|marcas?)\b/;             // otra dimensión nombrada → 2.5d → defiere
 const _ANAPHORIC = /^(y\s+)?(su|sus|ese|esa|esos|esas|este|esta|estos|el\s+(primero|segundo|tercero|cuarto|ultimo|mismo))\b/; // follow-up deíctico → no es query fresca → defiere
@@ -166,16 +172,21 @@ export function resolveInventoryRetrieval(text, scenario) {
   // no per-entidad contextual (eso cae al multi-turno / muro · evita la fuga de la tabla global por una anáfora).
   if (_ANAPHORIC.test(norm)) return null;
 
-  // (3c) ancla concreta requerida: dirección (superlativo) · filtro marca/familia · o SKU explícito. Sin ancla
-  // (mención suelta de rotación sin objeto) → defiere (conservador · no inventa un ranking global).
-  let direction = null;
-  for (const w of _SUPERLATIVE_BOTTOM) if (_has(norm, w)) { direction = "bottom"; break; }
-  if (!direction) for (const w of _SUPERLATIVE_TOP) if (_has(norm, w)) { direction = "top"; break; }
+  // (3c) ancla concreta requerida: dirección (CALIDAD peor/mejor O VALOR más/menos) · filtro · o SKU explícito.
+  // Calidad usa la POLARIDAD (peor DOH = alto · peor rotación = bajo); valor es directo (más = alto, menos = bajo).
+  // wantHigh = ¿queremos el de mayor valor? · _dirWord/_oppWord = la palabra natural para el opener.
+  let wantHigh = null, _dirWord = null, _oppWord = null;
+  if (/\bpeor(es)?\b|mas\s+debil|\bdebil(es)?\b/.test(norm))      { wantHigh = !!metric.higherIsWorse; _dirWord = "peor";  _oppWord = "mejor"; }
+  else if (/\bmejor(es)?\b/.test(norm))                          { wantHigh = !metric.higherIsWorse;  _dirWord = "mejor"; _oppWord = "peor"; }
+  else if (/mas\s+(baja|bajo|chica|chico)|\bmenor(es)?\b|\bminim|que\s+menos|\bmenos\b/.test(norm)) { wantHigh = false; _dirWord = "menos"; _oppWord = "más"; }
+  else if (/mas\s+(alta|alto|grande|elevad)|\bmayor(es)?\b|\bmaxim|que\s+mas|\bmas\b/.test(norm))   { wantHigh = true;  _dirWord = "más";   _oppWord = "menos"; }
+  const _hasDir = wantHigh !== null;
   const _filtro = detectBrandInText(text) || (detectAllFamiliesInText(text, { strict: true }) || [])[0] || null;
-  if (!direction && !_filtro && !_hasSkuWord) return null;
+  if (!_hasDir && !_filtro && !_hasSkuWord) return null;
 
-  // (4) ATOMICIDAD · nombra OTRA métrica de inventario NO modelada (capital/DOH/cobertura...) → AVISA (no mezcla)
-  if (_INV_OTHER_METRIC.test(norm)) {
+  // (4) ATOMICIDAD · nombra OTRA métrica de inventario (≠ la detectada) que NO está disponible → AVISA (no mezcla
+  // modelada+no-modelada). Mezclar dos MODELADAS (ej. rotación+DOH) NO avisa (la primera detectada responde).
+  if (_INV_CONCEPTS.some(c => c.m !== metricKey && c.re.test(norm) && !isAvailable("inventario", c.m))) {
     return { _spine: true, route: "spine_inv_atomicity_avisar", opener: unavailableMessage("inventario"),
       evidence: _evidence(scenario, { metricKey, dimKey: "sku", operacion: "avisar", formula: metric.formula, invMetric: true,
         unsupported: [{ kind: "mixed_metric_status", raw: "inventario_no_modelado", phase: "2.5" }] }) };
@@ -190,17 +201,18 @@ export function resolveInventoryRetrieval(text, scenario) {
   const _filGloss = _filtro ? " de " + _filtro : "";
 
   // (6) dirección → extremo (one-liner con evidence) · sin dirección → la tabla de composeRetrieval
-
-  if (direction) {
-    const pick = direction === "bottom" ? mm[mm.length - 1] : mm[0];   // mm DESC: bottom=peor, top=mejor
-    const opp  = direction === "bottom" ? mm[0] : mm[mm.length - 1];
+  if (_hasDir) {
+    // mm viene DESC. wantHigh → mm[0] (valor más alto) · !wantHigh → mm[last] (más bajo). La calidad ya se resolvió
+    // a wantHigh vía la polaridad (peor DOH = alto · peor rotación = bajo). _dirWord es la palabra natural del pedido.
+    const pick = wantHigh ? mm[0] : mm[mm.length - 1];
+    const opp  = wantHigh ? mm[mm.length - 1] : mm[0];
     const ml = (pick.metric || metric.label).toLowerCase();
-    let opener = `${pick.entity} es el SKU con ${direction === "bottom" ? "peor" : "mejor"} ${ml}${_filGloss} · ${pick.value}.`;
-    if (opp && opp.entity !== pick.entity) opener += ` El de ${direction === "bottom" ? "mejor" : "peor"} es ${opp.entity} · ${opp.value}.`;
+    let opener = `${pick.entity} es el SKU con ${_dirWord} ${ml}${_filGloss} · ${pick.value}.`;
+    if (opp && opp.entity !== pick.entity) opener += ` El de ${_oppWord} es ${opp.entity} · ${opp.value}.`;
     return {
       _spine: true, route: "spine_inv_superlative", opener,
-      _plan: { metric: metricKey, dimension: "sku", direction, domain: "inventario", formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
-      evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _filtro ? { marca_o_familia: _filtro } : {}, operacion: direction === "bottom" ? "rank_bottom" : "rank_top", formula: metric.formula, rowsUsed: mm.length, invMetric: true }),
+      _plan: { metric: metricKey, dimension: "sku", direction: wantHigh ? "high" : "low", domain: "inventario", formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
+      evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _filtro ? { marca_o_familia: _filtro } : {}, operacion: wantHigh ? "rank_top" : "rank_bottom", formula: metric.formula, rowsUsed: mm.length, invMetric: true }),
     };
   }
   // sin dirección → tabla (reusa la respuesta de composeRetrieval · route + evidence de inventario)

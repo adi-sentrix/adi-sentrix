@@ -154,6 +154,7 @@ export const ADI_MT_REFINE_CUT_ENABLED = false;         // 2.2c-3 (último de la
 // El flag ES la disponibilidad: isAvailable("inventario", metric) consulta el flag de esa métrica. De a una, validada cada una;
 // el muro se disuelve métrica por métrica. Camino MODELADO (spine + QI + evidence), NO los bundles operacionales.
 export const ADI_INV_ROTACION_ENABLED = false;          // 2.5a · rotación (skuInventario · dim SKU · filtro marca/familia) RESPONDE con payload vía resolveInventoryRetrieval (spine, antes del muro) · gate principal: régimen muro ON + este OFF → AVISA byte-exacto · guard de atomicidad (mezcla con métrica no modelada → AVISA) · bundles gated
+export const ADI_INV_DOH_ENABLED = false;               // 2.5b · DOH/cobertura (UNA métrica, dos nombres · campo doh · polaridad higherIsWorse: más días = peor) RESPONDE vía el resolver · reusa el andamio de 2.5a · capital/bodega siguen AVISANDO (disolución métrica por métrica)
 
 export const MECHANISM_LINK_ENABLED = true;
 

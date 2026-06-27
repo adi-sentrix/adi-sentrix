@@ -5,7 +5,7 @@
  * El muro existente (_esPreguntaInventarioChat en answerADI) queda intacto (coexistencia);
  * este mapa es el primer consumidor centralizado, usado por el spine. */
 import { DOMAIN_REGISTRY } from "../../config/semantic/domainRegistry.js";
-import { ADI_INV_ROTACION_ENABLED } from "../../config/voiceFlags.js";   // Fase 2.5 · el flag ES la disponibilidad per-métrica
+import { ADI_INV_ROTACION_ENABLED, ADI_INV_DOH_ENABLED } from "../../config/voiceFlags.js";   // Fase 2.5 · el flag ES la disponibilidad per-métrica
 
 export const AVAILABILITY = {
   ventas:     { status: "available" },
@@ -18,6 +18,8 @@ export const AVAILABILITY = {
 // cobertura/doh comparten estado (≡ misma métrica · se modela en 2.5b); capital (stockUSD) entra en 2.5c.
 const _INV_METRIC_AVAILABLE = {
   rotacion: () => ADI_INV_ROTACION_ENABLED,            // 2.5a
+  doh:       () => ADI_INV_DOH_ENABLED,                // 2.5b · DOH/cobertura = una métrica, dos nombres → el mismo flag
+  cobertura: () => ADI_INV_DOH_ENABLED,                // 2.5b · (cobertura es el key del QI_VOCAB · doh el del registro)
 };
 
 // isAvailable(domain) → nivel dominio (como hasta 2.2 · fallback byte-exacto).

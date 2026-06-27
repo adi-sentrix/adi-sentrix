@@ -848,7 +848,10 @@ export function composeRetrieval(qi, scenario, opts) {
     rentabilidad:  { field: "margen",        label: "Rentabilidad",  formatter: (v) => v.toFixed(1) + "%" },
     stock:         { field: "unidades",      label: "Unidades",      formatter: (v) => String(v) },
     participacion: { field: "venta",         label: "Participación", formatter: (v, total) => total ? ((v / total) * 100).toFixed(1) + "%" : "—" },
-    cobertura:     null,
+    // Fase 2.5b · DOH/cobertura MODELADA · el key del QI_VOCAB es "cobertura" (cubre doh) · campo `doh` (canónico ·
+    // single source; el campo cobertura es un duplicado redondeado). Con el flag OFF, rows=skusMargen (sin campo doh)
+    // → el field-check da null → legacy byte-exacto.
+    cobertura:     { field: "doh",           label: "DOH",           formatter: (v) => Math.round(v) + "d" },
     // Fase 2.5a · rotación MODELADA · se resuelve contra skuInventario (vía _invAvail arriba). Con el flag OFF,
     // rows=skusMargen (sin campo "rotacion") → el field-check de abajo da null → legacy byte-exacto.
     rotacion:      { field: "rotacion",      label: "Rotación",      formatter: (v) => v.toFixed(1) + "x" },
