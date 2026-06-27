@@ -3,6 +3,7 @@
 // (capital amplio SAM-REF vs inmovilizado Def2 LG-DRYER) · 🚨 RED (SAM-REF NO aparece en inmovilizado · filtro
 // mordió) · evidence refleja Def2 · capital amplio/comercial intactos · bodega AVISA. Dump → argv (shadow).
 import { JSDOM } from "jsdom"; import esbuild from "esbuild"; import { fileURLToPath, pathToFileURL } from "url"; import path from "path"; import fs from "fs";
+import { ADI_INV_BODEGA_ENABLED } from "./src/config/voiceFlags.js";   // 2.5d · bodega modelable → su control flag-aware (la atomicidad inerte / "complicada" responde)
 const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></html>`, { url: "http://localhost/", pretendToBeVisual: true });
 const W = dom.window; globalThis.window = W; globalThis.document = W.document;
 try { Object.defineProperty(globalThis, "navigator", { value: W.navigator, configurable: true }); } catch {}
@@ -38,8 +39,8 @@ const CASES = [
     check: (r) => r.route === "spine_inv_superlative" && /MAK-COMP-AIR/.test(r.text) && /0\.8x/.test(r.text) },
   { name: "CTRL-DOH", q: "qué SKU tiene peor DOH", mk: "inventario",
     check: (r) => r.route === "spine_inv_superlative" && /190d/.test(r.text) },
-  { name: "CTRL-bodega-AVISA", q: "qué bodega está más complicada", mk: "inventario",
-    check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" },
+  { name: "CTRL-bodega (OFF→AVISA / ON→responde · 2.5d)", q: "qué bodega está más complicada", mk: "inventario",
+    check: (r) => ADI_INV_BODEGA_ENABLED ? (r.route === "spine_inv_superlative") : (r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval") },
   { name: "CTRL-comercial-intacto", q: "el peor cliente por margen", mk: "margenes",
     check: (r) => r.route === "ranking_extremes" && /Lider/.test(r.text) },
 ];

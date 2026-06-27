@@ -11,4 +11,6 @@ export const DIMENSION_REGISTRY = {
   sku:      { label: "SKU",     labelPlural: "SKUs",     qiKey: "sku",     reachableByLegacy: true,  vocabulary: [...QI_DIMENSION_VOCAB.sku, ...QI_DIMENSION_VOCAB.producto] },
   familia:  { label: "familia", labelPlural: "familias", qiKey: "familia", reachableByLegacy: false, vocabulary: QI_DIMENSION_VOCAB.familia },
   marca:    { label: "marca",   labelPlural: "marcas",   qiKey: "marca",   reachableByLegacy: false, vocabulary: QI_DIMENSION_VOCAB.marca },
+  // 2.5d · bodega/sucursal · eje de inventario (group-by) · reachableByLegacy:false (el camino viejo no la alcanza modelada)
+  sucursal: { label: "bodega",  labelPlural: "bodegas",  qiKey: "sucursal", reachableByLegacy: false, vocabulary: QI_DIMENSION_VOCAB.sucursal },
 };

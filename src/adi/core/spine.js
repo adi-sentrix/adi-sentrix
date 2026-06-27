@@ -15,7 +15,7 @@ import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
 import { queryInterpreter, composeRetrieval } from "../composers/qiRetrieval.js";
 import { detectBrandInText } from "../detectors.js";
-import { detectAllClientsInText, detectAllFamiliesInText } from "../router.js";
+import { detectAllClientsInText, detectAllFamiliesInText, detectAllWarehousesInText } from "../router.js";
 
 const _norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[¿?¡!]/g, "").trim();
 const _has = (norm, term) => new RegExp("\\b" + _norm(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(norm);
@@ -144,6 +144,10 @@ export function resolveDimensionalSuperlative(text, scenario) {
 export function resolveInventoryRetrieval(text, scenario) {
   if (!text || typeof text !== "string") return null;
   const norm = _norm(text);
+  const _bodegaAvail = isAvailable("inventario", "bodega");
+
+  // 2.5d · "qué bodega está complicada" → especial: capital INMOVILIZADO por bodega (vista sin métrica explícita).
+  const _complicada = _bodegaAvail && /\bcomplicad|\bproblematic|peor\s+bodega/.test(norm);
 
   // (1) ¿nombra una métrica de inventario? (la primera que matchee su vocabulario)
   let metricKey = null;
@@ -151,42 +155,47 @@ export function resolveInventoryRetrieval(text, scenario) {
     if (def.domain !== "inventario") continue;
     if ((def.vocabulary || []).some(t => _has(norm, t))) { metricKey = key; break; }
   }
+  if (!metricKey && _complicada) metricKey = "capital";          // "complicada" sin métrica → capital (inmovilizado)
   if (!metricKey) return null;                                   // sin métrica de inventario → no es nuestro
   const metric = METRIC_REGISTRY[metricKey];
 
   // (2) VALIDATION · disponibilidad per-flag · NO disponible → null (cae al muro, que AVISA) · gate del flag → inerte OFF
   if (!isAvailable("inventario", metricKey)) return null;
 
-  // (3) query comercial/cruzada o dimensión no-SKU (vía "por X") → defiere (2.5a es inventario puro por SKU)
-  if (_COMM_METRIC.test(norm)) return null;
-  if (_NONSKU_DIM.test(norm)) return null;
+  // 2.5d · bodega como DIMENSIÓN (group-by) cuando la query nombra bodega/sucursal Y bodega está modelada.
+  // Es un EJE válido (no una métrica) → NO defiere por los guards de dim-no-SKU. La regla madre: si bodega NO está
+  // modelada, "por bodega" cae a los defers de abajo (→ muro AVISA · cruce no soportado).
+  const _bodegaDim = _bodegaAvail && (_complicada || /\bbodegas?\b|\bsucursal/.test(norm));
 
-  // (3a) dimensión no-SKU nombrada como TARGET ("qué marca/familia/bodega tiene peor rotación") → defiere · 2.5a
-  // modela rotación por SKU, NO por marca/familia/bodega (eso es 2.1a / 2.5d). PERO "de la familia X" / "de Bosch"
-  // es un FILTRO (no target) → sí responde. SKU explícito siempre gana (es el target válido).
+  // (3) query comercial/cruzada → defiere · dimensión no-SKU (vía "por X") → defiere SALVO bodega modelada
+  if (_COMM_METRIC.test(norm)) return null;
+  if (_NONSKU_DIM.test(norm) && !_bodegaDim) return null;
+
+  // (3a) dimensión no-SKU como TARGET ("qué marca tiene peor rotación") → defiere · EXCEPTO bodega modelada (eje válido).
+  // "de la familia X"/"de Bosch" es FILTRO (no target). SKU explícito siempre gana.
   const _hasSkuWord = /\bskus?\b|\bproductos?\b/.test(norm);
   const _hasNonSkuDimWord = /\b(marcas?|familias?|bodegas?|sucursal(?:es)?|clientes?|canal(?:es)?)\b/.test(norm);
   const _dimWordAsFilter = /\bde\s+(la\s+|el\s+|las\s+|los\s+)?(marca|familia|bodega|sucursal|cliente|canal)/.test(norm);
-  if (_hasNonSkuDimWord && !_hasSkuWord && !_dimWordAsFilter) return null;
+  if (_hasNonSkuDimWord && !_hasSkuWord && !_dimWordAsFilter && !_bodegaDim) return null;
 
-  // (3b) follow-up deíctico ("y su rotación", "el segundo rota cuánto") → defiere · 2.5a resuelve queries FRESCAS,
-  // no per-entidad contextual (eso cae al multi-turno / muro · evita la fuga de la tabla global por una anáfora).
+  // (3b) follow-up deíctico ("y su rotación", "el segundo rota cuánto") → defiere · resolvemos queries FRESCAS.
   if (_ANAPHORIC.test(norm)) return null;
 
-  // (3c) ancla concreta requerida: dirección (CALIDAD peor/mejor O VALOR más/menos) · filtro · o SKU explícito.
-  // Calidad usa la POLARIDAD (peor DOH = alto · peor rotación = bajo); valor es directo (más = alto, menos = bajo).
-  // wantHigh = ¿queremos el de mayor valor? · _dirWord/_oppWord = la palabra natural para el opener.
+  // (3c) dirección: CALIDAD (peor/mejor · polaridad) O VALOR (más/menos · directo). wantHigh = ¿el de mayor valor?
   let wantHigh = null, _dirWord = null, _oppWord = null;
   if (/\bpeor(es)?\b|mas\s+debil|\bdebil(es)?\b/.test(norm))      { wantHigh = !!metric.higherIsWorse; _dirWord = "peor";  _oppWord = "mejor"; }
   else if (/\bmejor(es)?\b/.test(norm))                          { wantHigh = !metric.higherIsWorse;  _dirWord = "mejor"; _oppWord = "peor"; }
   else if (/mas\s+(baja|bajo|chica|chico)|\bmenor(es)?\b|\bminim|que\s+menos|\bmenos\b/.test(norm)) { wantHigh = false; _dirWord = "menos"; _oppWord = "más"; }
   else if (/mas\s+(alta|alto|grande|elevad)|\bmayor(es)?\b|\bmaxim|que\s+mas|\bmas\b/.test(norm))   { wantHigh = true;  _dirWord = "más";   _oppWord = "menos"; }
-  // 2.5c-1 · anchor "estado-malo" (inmovilizado/detenido/atrapado) · SIN "más"/"peor" implica el extremo PEOR
-  // (para higherIsWorse → el más alto) y cuenta como ancla. Así "dónde tengo capital detenido" responde.
+  // 2.5c-1 · anchor "estado-malo" (inmovilizado/detenido/atrapado) · SIN "más"/"peor" implica el extremo PEOR.
   else if (/\binmoviliz|\bdetenid|\batrapad|\bestancad/.test(norm))                                { wantHigh = !!metric.higherIsWorse; _dirWord = "más"; _oppWord = "menos"; }
+  // 2.5d · "complicada" sin dirección explícita → la PEOR bodega (más capital inmovilizado).
+  if (_complicada && wantHigh === null) { wantHigh = true; _dirWord = "más"; _oppWord = "menos"; }
   const _hasDir = wantHigh !== null;
   const _filtro = detectBrandInText(text) || (detectAllFamiliesInText(text, { strict: true }) || [])[0] || null;
-  if (!_hasDir && !_filtro && !_hasSkuWord) return null;
+  // 2.5d · bodega VALUE como FILTRO ("capital de Antofagasta") · solo si NO es dim=bodega.
+  const _bodegaFiltro = (_bodegaAvail && !_bodegaDim) ? ((detectAllWarehousesInText(text) || []).find(w => w && w !== "Todas") || null) : null;
+  if (!_hasDir && !_filtro && !_hasSkuWord && !_bodegaDim && !_bodegaFiltro) return null;
 
   // (4) ATOMICIDAD · nombra OTRA métrica de inventario (≠ la detectada) que NO está disponible → AVISA (no mezcla
   // modelada+no-modelada). Mezclar dos MODELADAS (ej. rotación+DOH) NO avisa (la primera detectada responde).
@@ -201,23 +210,26 @@ export function resolveInventoryRetrieval(text, scenario) {
   // placeholder de inventario (rotacion) + swap de qi.metrics → composeRetrieval resuelve el campo vía metricMap[capital].
   // 2.5c-2 · el anchor "inmovilizado/detenido/atrapado" del CAPITAL refina al subconjunto Def2 (flag-gated · requiere
   // capital ON). "capital" a secas NO → vista amplia. Pasa invInmovilizado a composeRetrieval (filtra Def2).
-  const _inmovilizado = ADI_INV_INMOVILIZADO_ENABLED && metricKey === "capital" && /\binmoviliz|\bdetenid|\batrapad/.test(norm);
-  // el evidence refleja el subconjunto: la "boleta" dice que es el Def2, no todos.
-  const _evFiltros = { ...(_filtro ? { marca_o_familia: _filtro } : {}), ...(_inmovilizado ? { subconjunto: "inmovilizado (Def2: alerta crit/warn O rotación<2)" } : {}) };
+  // 2.5c-2 · el anchor inmovilizado/detenido del capital filtra Def2 (flag) · 2.5d · "complicada" lo fuerza (es su def).
+  const _inmovilizado = (ADI_INV_INMOVILIZADO_ENABLED && metricKey === "capital" && /\binmoviliz|\bdetenid|\batrapad/.test(norm)) || _complicada;
+  const _dim = _bodegaDim ? "sucursal" : "sku";                  // 2.5d · bodega como dimensión
+  // el evidence refleja el subconjunto/eje: la "boleta" dice que es el Def2 (si aplica) y la dimensión real.
+  const _evFiltros = { ...(_filtro ? { marca_o_familia: _filtro } : {}), ...(_bodegaFiltro ? { bodega: _bodegaFiltro } : {}), ...(_inmovilizado ? { subconjunto: "inmovilizado (Def2: alerta crit/warn O rotación<2)" } : {}) };
   const _evFormula = _inmovilizado ? metric.formula + " · subconjunto Def2 (alerta crit/warn O rotación<2)" : metric.formula;
   const _mlSuffix = _inmovilizado ? " inmovilizado" : "";
 
-  const _gloss = `por sku${_filtro ? " de " + _filtro : ""}`;
+  const _gloss = `por ${_dim}${(!_bodegaDim && _filtro) ? " de " + _filtro : ""}`;
   let qi = queryInterpreter(`${metricKey} ${_gloss}`, scenario);
   if (!qi || !qi.isRetrieval) {
     qi = queryInterpreter(`rotacion ${_gloss}`, scenario);
     if (qi && qi.isRetrieval) qi.metrics = [metricKey];
   }
   if (!qi || !qi.isRetrieval) return null;
-  const resp = composeRetrieval(qi, scenario, { spineFilter: true, invInmovilizado: _inmovilizado });
+  const resp = composeRetrieval(qi, scenario, { spineFilter: true, invInmovilizado: _inmovilizado, invBodega: _bodegaFiltro });
   if (!resp || !Array.isArray(resp.materialMetrics) || resp.materialMetrics.length === 0) return null;
   const mm = resp.materialMetrics;
-  const _filGloss = _filtro ? " de " + _filtro : "";
+  const _dimNoun = _bodegaDim ? "la bodega" : "el SKU";
+  const _filGloss = _filtro ? " de " + _filtro : (_bodegaFiltro ? " de " + _bodegaFiltro : "");
 
   // (6) dirección → extremo (one-liner con evidence) · sin dirección → la tabla de composeRetrieval
   if (_hasDir) {
@@ -226,18 +238,18 @@ export function resolveInventoryRetrieval(text, scenario) {
     const pick = wantHigh ? mm[0] : mm[mm.length - 1];
     const opp  = wantHigh ? mm[mm.length - 1] : mm[0];
     const ml = (pick.metric || metric.label).toLowerCase() + _mlSuffix;
-    let opener = `${pick.entity} es el SKU con ${_dirWord} ${ml}${_filGloss} · ${pick.value}.`;
-    if (opp && opp.entity !== pick.entity) opener += ` El de ${_oppWord} es ${opp.entity} · ${opp.value}.`;
+    let opener = `${pick.entity} es ${_dimNoun} con ${_dirWord} ${ml}${_filGloss} · ${pick.value}.`;
+    if (opp && opp.entity !== pick.entity) opener += ` ${_bodegaDim ? "La" : "El"} de ${_oppWord} es ${opp.entity} · ${opp.value}.`;
     return {
       _spine: true, route: "spine_inv_superlative", opener,
-      _plan: { metric: metricKey, dimension: "sku", direction: wantHigh ? "high" : "low", domain: "inventario", inmovilizado: _inmovilizado, formula: _evFormula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
-      evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _evFiltros, operacion: (wantHigh ? "rank_top" : "rank_bottom") + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
+      _plan: { metric: metricKey, dimension: _dim, direction: wantHigh ? "high" : "low", domain: "inventario", inmovilizado: _inmovilizado, formula: _evFormula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
+      evidence: _evidence(scenario, { metricKey, dimKey: _dim, filtros: _evFiltros, operacion: (wantHigh ? "rank_top" : "rank_bottom") + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
     };
   }
   // sin dirección → tabla (reusa la respuesta de composeRetrieval · route + evidence de inventario)
   return {
     _spine: true, route: "spine_inv_retrieval", opener: resp.opener, suggestions: resp.suggestions || null,
-    evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _evFiltros, operacion: "rank" + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
+    evidence: _evidence(scenario, { metricKey, dimKey: _dim, filtros: _evFiltros, operacion: "rank" + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
   };
 }
 

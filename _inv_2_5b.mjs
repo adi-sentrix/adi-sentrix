@@ -3,7 +3,7 @@
 // (peor=más alto por polaridad / mejor=más bajo / filtro / cobertura sinónimo) + evidence · 🚨 RED no-leak +
 // atomicidad · capital/bodega AVISAN · rotación sigue respondiendo · comercial intacto. Dump → argv.
 import { JSDOM } from "jsdom"; import esbuild from "esbuild"; import { fileURLToPath, pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-import { ADI_INV_CAPITAL_ENABLED } from "./src/config/voiceFlags.js";   // 2.5c · capital modelable → su control flag-aware; la atomicidad mezcla con bodega
+import { ADI_INV_CAPITAL_ENABLED, ADI_INV_BODEGA_ENABLED } from "./src/config/voiceFlags.js";   // 2.5c/d · capital/bodega modelables → controles flag-aware; en 2.5d bodega se modela → la atomicidad queda inerte
 const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></html>`, { url: "http://localhost/", pretendToBeVisual: true });
 const W = dom.window; globalThis.window = W; globalThis.document = W.document;
 try { Object.defineProperty(globalThis, "navigator", { value: W.navigator, configurable: true }); } catch {}
@@ -30,14 +30,14 @@ const CASES = [
     check: (r) => (r.route === "spine_inv_retrieval" || r.route === "spine_inv_superlative") && /BOS-/.test(r.text) && r.ev && r.ev.metrica === "doh" },
   { name: "🚨RED-no-leak", q: "qué SKU tiene peor DOH", mk: "inventario",
     check: (r) => r.route === "spine_inv_superlative" && !FOREIGN.test(r.text) },                  // cero capital/rotación
-  { name: "🚨RED-atomicidad (DOH y bodega)", q: "DOH y bodega por SKU", mk: "inventario",
-    check: (r) => /habilitado en esta fase/.test(r.text) && !/\d+d\b/.test(r.text) && !FOREIGN.test(r.text) },  // bodega NO modelada → AVISA, cero DOH
+  { name: "atomicidad/transición (OFF→AVISA · ON→inerte responde · 2.5d)", q: "DOH y bodega por SKU", mk: "inventario",
+    check: (r) => ADI_INV_BODEGA_ENABLED ? (r.route === "spine_inv_superlative" || r.route === "spine_inv_retrieval") : (/habilitado en esta fase/.test(r.text) && !/\d+d\b/.test(r.text) && !FOREIGN.test(r.text)) },
   { name: "CTRL-capital (OFF→AVISA / ON→responde · 2.5c)", q: "dónde tengo capital detenido", mk: "inventario",
     check: (r) => ADI_INV_CAPITAL_ENABLED ? (r.route === "spine_inv_superlative") : (/habilitado en esta fase/.test(r.text) && r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval") },
   { name: "CTRL-familia-DOH-AVISA", q: "qué familia tiene peor doh", mk: "inventario",
     check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" && !/\d+d\b/.test(r.text) },  // familia no-SKU → AVISA
-  { name: "CTRL-bodega-AVISA", q: "qué bodega está más complicada", mk: "inventario",
-    check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" },
+  { name: "CTRL-bodega (OFF→AVISA / ON→responde · 2.5d)", q: "qué bodega está más complicada", mk: "inventario",
+    check: (r) => ADI_INV_BODEGA_ENABLED ? (r.route === "spine_inv_superlative") : (r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval") },
   { name: "CTRL-rotación-responde", q: "el peor SKU por rotación", mk: "inventario",
     check: (r) => r.route === "spine_inv_superlative" && /MAK-COMP-AIR/.test(r.text) && /0\.8x/.test(r.text) },
   { name: "CTRL-comercial-intacto", q: "el peor cliente por margen", mk: "margenes",

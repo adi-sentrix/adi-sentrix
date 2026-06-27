@@ -734,6 +734,12 @@ export function composeRetrieval(qi, scenario, opts) {
   // dimensión efectiva (sustracción de Piece 2 · corrige #5) · sin filtro = dimensions[0] (byte-idéntico)
   const dim = (_filterOn && Array.isArray(qi.dimsEffective) && qi.dimsEffective.length) ? qi.dimsEffective[0] : qi.dimensions[0];
 
+  // ── Fase 2.5 · ¿la métrica es de inventario Y está modelada+disponible (per-flag)? → leer skuInventario.
+  // Con el flag OFF → false → lee skusMargen (que NO tiene el campo, ej. rotacion) → null → legacy byte-exacto.
+  // (Declarado acá arriba porque el G2 lo usa para eximir dim=sucursal cuando bodega está modelada · 2.5d.)
+  const _INV_METRICS = ["rotacion", "doh", "cobertura", "stockUSD", "capital"];
+  const _invAvail = _INV_METRICS.includes(qi.metrics[0]) && isAvailable("inventario", qi.metrics[0]);
+
   // ── VERDICTO de filtro · intercepta SOLO cuando hay señal de filtro (no toca queries sin filtro) ──
   if (_filterOn && (_hasFilter || _hasUnresolved)) {
     // a · NOMBRADO-PERO-NO-RESUELTO → AVISAR "no reconozco X" (NUNCA tabla sin filtro)
@@ -760,8 +766,9 @@ export function composeRetrieval(qi, scenario, opts) {
     if (Array.isArray(qi.dimsEffective) && qi.dimCount >= 2) {
       return _qiVerdict("avisar", "multidim", `No cruzo dos dimensiones en una sola tabla (${qi.dimsEffective.join(" y ")}). Pedímelas de a una y las cruzamos a mano.`);
     }
-    // G2 · dimensión no soportada (canal/sucursal/tier) · hoy → null → legacy
-    if (dim === "canal" || dim === "sucursal" || dim === "tier") {
+    // G2 · dimensión no soportada (canal/tier · y sucursal salvo bodega modelada + métrica de inventario · 2.5d).
+    // "ventas por bodega" (comercial) o sucursal con bodega OFF → siguen AVISANDO (regla madre · cruce no soportado).
+    if (dim === "canal" || dim === "tier" || (dim === "sucursal" && !(_invAvail && isAvailable("inventario", "bodega")))) {
       const _d = dim === "sucursal" ? "sucursal/bodega" : dim;
       return _qiVerdict("avisar", "dim", `No tengo "${_d}" como dimensión consultable en esta vista todavía.`);
     }
@@ -774,11 +781,6 @@ export function composeRetrieval(qi, scenario, opts) {
       return _qiVerdict("aclarar", "stock", `¿Te referís a unidades vendidas o a capital en inventario? "Stock" puede ser las dos cosas — decime cuál y te lo armo.`);
     }
   }
-
-  // ── Fase 2.5 · ¿la métrica es de inventario Y está modelada+disponible (per-flag)? → leer skuInventario.
-  // Con el flag OFF → false → lee skusMargen (que NO tiene el campo, ej. rotacion) → L856 null → legacy byte-exacto.
-  const _INV_METRICS = ["rotacion", "doh", "cobertura", "stockUSD", "capital"];
-  const _invAvail = _INV_METRICS.includes(qi.metrics[0]) && isAvailable("inventario", qi.metrics[0]);
 
   // Resolver dataset según dimension
   let rows = null;
@@ -795,6 +797,8 @@ export function composeRetrieval(qi, scenario, opts) {
                        : applyFiltros(skusMargen, _filtrosArg);
       if (_invAvail) {
         nameField = "sku";   // skuInventario usa `sku` como nombre (no `nombre`) · render de tabla
+        // Fase 2.5d · filtro por BODEGA ("capital de Antofagasta") · los SKUs de esa bodega.
+        if (opts && opts.invBodega) rows = rows.filter(r => r.bodega === opts.invBodega);
         // Fase 2.5c-2 · INMOVILIZADO Def2 · solo el anchor "inmovilizado/detenido" del capital filtra al subconjunto
         // detenido (alerta crit/warn O rotación<2 · def canónica de _capitalInmovilizado · warehouse.js:45,355,366).
         if (opts && opts.invInmovilizado) rows = rows.filter(r => r.alerta === "crit" || r.alerta === "warn" || r.rotacion < 2);
@@ -828,8 +832,22 @@ export function composeRetrieval(qi, scenario, opts) {
         pctRebate: +(g.pctRebate / g.count).toFixed(1),
       }));
       dimLabel = "Marca";
+    } else if (dim === "sucursal" && _invAvail && isAvailable("inventario", "bodega")) {
+      // 2.5d · bodega como DIMENSIÓN · group-by skuInventario por bodega · agregación: stockUSD SUMA · rotacion/doh/
+      // cobertura PROMEDIO (espejo del branch marca). invInmovilizado compone: filtra al Def2 antes de agrupar →
+      // "qué bodega está complicada" = capital inmovilizado por bodega. (Reusa la def de _aggregateBySucursal.)
+      let _inv = applyFiltros(applyScenarioToSkuInventario(scenario), _filtrosArg);
+      if (opts && opts.invInmovilizado) _inv = _inv.filter(r => r.alerta === "crit" || r.alerta === "warn" || r.rotacion < 2);
+      const groupedB = {};
+      for (const s of _inv) {
+        const b = s.bodega || "Otras";
+        if (!groupedB[b]) groupedB[b] = { nombre: b, stockUSD: 0, _r: 0, _d: 0, _c: 0, n: 0 };
+        const g = groupedB[b]; g.stockUSD += s.stockUSD; g._r += s.rotacion; g._d += s.doh; g._c += s.cobertura; g.n += 1;
+      }
+      rows = Object.values(groupedB).map(g => ({ nombre: g.nombre, stockUSD: g.stockUSD, rotacion: +(g._r / g.n).toFixed(1), doh: Math.round(g._d / g.n), cobertura: Math.round(g._c / g.n) }));
+      dimLabel = "Bodega";
     } else {
-      // Dimensions no soportadas V1 (sucursal/canal/tier): fail to legacy
+      // Dimensions no soportadas V1 (canal/tier · y sucursal sin bodega modelada): fail to legacy
       return null;
     }
   } catch (e) {
