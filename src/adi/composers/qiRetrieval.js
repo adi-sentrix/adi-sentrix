@@ -995,6 +995,16 @@ export function composeRetrieval(qi, scenario, opts) {
   if (suggestions.length < 3) suggestions.push(`¿Cómo está el ${dimLabel === "Cliente" ? "negocio por cliente" : dimLabel === "SKU" ? "portafolio de productos" : "mix por familia"}?`);
   while (suggestions.length < 3) suggestions.push("¿Qué más querés explorar?");
 
+  // ADI Core · 2.2c · ranking ordenado {entity, value} (DESC) · single source para materialMetrics y el
+  // _qiContext.ranking que usa el corte (2.2c-3 · slice top/bottom N · cero recálculo). Cero formato nuevo.
+  const _materialMetrics = sortedRows.map(r => {
+    const _name = r[nameField] || r.nombre || r.sku;
+    if (typeof _name !== "string" || !_name.length) return null;
+    const _raw = r[sortField];
+    if (typeof _raw !== "number") return null;
+    return { entity: _name, metric: metricLabels[0] || "Valor", value: metricMap[qi.metrics[0]].formatter(_raw, totalVenta) };
+  }).filter(Boolean);
+
   return {
     opener,
     // BRIEF N-bis · Tipo A puro · suggestions filtradas
@@ -1019,23 +1029,20 @@ export function composeRetrieval(qi, scenario, opts) {
     // con `entities` (mismo orden de sortedRows · misma resolución de nombre).
     // CERO recompute · CERO formato nuevo · si un row no trae número → se omite
     // (honesto · el cruce nombre↔cifra servirá ese nombre sin cifra, no inventa).
-    materialMetrics: sortedRows.map(r => {
-      const _name = r[nameField] || r.nombre || r.sku;
-      if (typeof _name !== "string" || !_name.length) return null;
-      const _raw = r[sortField];
-      if (typeof _raw !== "number") return null;
-      return { entity: _name, metric: metricLabels[0] || "Valor", value: metricMap[qi.metrics[0]].formatter(_raw, totalVenta) };
-    }).filter(Boolean),
+    materialMetrics: _materialMetrics,
     // ── ADI Core · 2.2c-1 · lastRetrievalContext · spec recuperable para refinar la vista (metadata · cero
     // formato nuevo · invisible al texto). filterValue = primer filtro nombrado (caso simple marca/familia).
-    // domain del Semantic Layer (para el anti-fuga de 2.2c-3). El turno N+1 lo lee, modifica y reusa el pipeline.
+    // domain del Semantic Layer (para el anti-fuga). ranking = el resultado ordenado (para el corte de 2.2c-3).
+    // El turno N+1 lo lee, modifica y reusa el pipeline.
     _qiContext: {
       metric: qi.metrics[0],
+      metricLabel: metricLabels[0] || null,
       dimension: dim,
       filterValue: _filtrosArg ? (Object.values(_filtrosArg).flat().filter(Boolean)[0] || null) : null,
       domain: qi.metrics[0] === "ventas" ? "ventas"
             : ["margen", "contribucion", "carga"].includes(qi.metrics[0]) ? "margenes"
             : ["rotacion", "doh", "cobertura", "stockUSD"].includes(qi.metrics[0]) ? "inventario" : null,
+      ranking: _materialMetrics,
     },
   };
 }

@@ -42,7 +42,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -224,7 +224,7 @@ function _threadContext(nextCtx, intent, resp, route) {
   // ── ADI Core · 2.2c-1 · lastRetrievalContext · gemelo de pendingSpineDecision (2.2b) · spec del retrieval
   // para refinar. SIEMPRE setea el campo (null si la respuesta no es un QI retrieval) → vive un turno por
   // construcción (un turno no-QI lo limpia). Estampado con turn (freshness de 2.2a). Flag OFF → no toca.
-  if (ADI_MT_REFINE_METRIC_ENABLED || ADI_MT_REFINE_FILTER_ENABLED) nextCtx.lastRetrievalContext = (resp && resp._qiContext) ? { ...resp._qiContext, turn: nextCtx.turnCount } : null;
+  if (ADI_MT_REFINE_METRIC_ENABLED || ADI_MT_REFINE_FILTER_ENABLED || ADI_MT_REFINE_CUT_ENABLED) nextCtx.lastRetrievalContext = (resp && resp._qiContext) ? { ...resp._qiContext, turn: nextCtx.turnCount } : null;
 }
 
 // wrap plano · sin ECL/suffix (rutas que en el piso corren ANTES del punto de suffix · ej. inversa)
@@ -506,6 +506,46 @@ function _detectFilterRefinement(text, ctx, scenario) {
   return (_composed && typeof _composed.opener === "string" && _composed.opener.length) ? _composed : null;
 }
 
+// ── ADI Core · 2.2c-3 · REFINAMIENTO de CORTE ("los tres peores"/"el top 3") · gemelo de los anteriores ──
+// Un cuantificador de corte ELÍPTICO (N + dirección, SIN dimensión/métrica/marca nueva) rebana el ranking
+// guardado del lastRetrievalContext (top N / bottom N) → one-liner. ANTI-FUGA: las vistas de inventario
+// rutean a sku_operational (NO escriben lastRetrievalContext) → "los tres peores" cae a la continuación de
+// 2.2a → AVISA; + domain-check belt-and-suspenders. El corte es INHERENTEMENTE comercial.
+const _NUMWORDS = { un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+function _parseCutQuantifier(n) {
+  const direction = /\bpeor(es)?\b/.test(n) ? "bottom" : (/\bmejor(es)?\b|\btop\b/.test(n) ? "top" : null);
+  if (!direction) return null;                               // sin dirección explícita → no es un corte
+  let N = null;
+  const dM = n.match(/\b(\d+)\b/);
+  if (dM) N = parseInt(dM[1], 10);
+  else { for (const [w, v] of Object.entries(_NUMWORDS)) if (_wordIn(n, w)) { N = v; break; } }
+  if (!N || N < 1 || N > 50) return null;                    // sin N explícito ("dame menos") → no adivina el delta
+  return { N, direction };
+}
+function _detectCutRefinement(text, ctx) {
+  const lrc = ctx && ctx.lastRetrievalContext;
+  if (!lrc || lrc.turn !== ctx.turnCount) return null;                 // candado · freshness
+  const n = normalizeText(text || "");
+  // (1) ¿nombra DIMENSIÓN / MÉTRICA-eje / MARCA nueva? → AUTÓNOMA (pregunta nueva)
+  for (const vocab of Object.values(QI_DIMENSION_VOCAB)) if (vocab.some(w => _wordIn(n, normalizeText(w)))) return null;
+  for (const mk of ["ventas", "margen", "contribucion"]) if (QI_METRIC_VOCAB[mk].some(w => _wordIn(n, normalizeText(w)))) return null;
+  if (detectBrandInText(text) || (detectAllFamiliesInText(text, { strict: true }) || []).length) return null;
+  // (2) cuantificador de corte (N + dirección explícitos · si no, no corta)
+  const q = _parseCutQuantifier(n);
+  if (!q) return null;
+  // (3) ANTI-FUGA belt-and-suspenders (la base inventario ya cae a 2.2a · esto es la red extra)
+  if (lrc.domain === "inventario" && !isAvailable("inventario")) return { _avisa: true, opener: unavailableMessage("inventario") };
+  // (4) rebana el ranking guardado (DESC) + one-liner · cero recálculo (reusa los valores ya formateados)
+  const ranking = Array.isArray(lrc.ranking) ? lrc.ranking : [];
+  if (!ranking.length) return null;
+  const slice = q.direction === "top" ? ranking.slice(0, q.N) : ranking.slice(-q.N).reverse();   // peores → el peor primero
+  if (!slice.length) return null;
+  const _dirW = q.direction === "top" ? (q.N === 1 ? "mejor" : "mejores") : (q.N === 1 ? "peor" : "peores");
+  const _met = (lrc.metricLabel || lrc.metric || "valor").toLowerCase();
+  const _filt = lrc.filterValue ? ` de ${lrc.filterValue}` : "";
+  return { opener: `${q.N === 1 ? "El" : "Los"} ${q.N} ${_dirW} en ${_met}${_filt}: ${slice.map(x => `${x.entity} ${x.value}`).join(", ")}.` };
+}
+
 export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   let trimmed = (question || "").trim();
@@ -529,12 +569,11 @@ export function answerADI(question, context = {}, state = {}) {
             activeResult: (ctx.activeResult && ctx.activeResult.entityType === "cliente") ? null : ctx.activeResult,
             lastRetrievalContext: null };   // 2.2c · el cambio de tema también descarta el refinamiento pendiente
   }
-  // ── ADI Core · 2.2c · REFINAMIENTOS deícticos (métrica c-1 · filtro c-2) · corren tras 2.2b (prioridad del
-  // pending) y el topic-change cleanup, ANTES del spine/detectIntent. Reusan el lastRetrievalContext fresco y
-  // recomponen "{métrica} por {dim} de {filtro}" reusando el pipeline QI (byte-idéntico a tipear la query
-  // completa). La limpieza va al FINAL (tras ambos detectores) para que c-2 no quede sin contexto si c-1 no
-  // refinó. Disjuntos: c-1 detecta una MÉTRICA, c-2 una MARCA/FAMILIA → no se pisan.
-  if ((ADI_MT_REFINE_METRIC_ENABLED || ADI_MT_REFINE_FILTER_ENABLED) && ctx.lastRetrievalContext) {
+  // ── ADI Core · 2.2c · REFINAMIENTOS deícticos (métrica c-1 · filtro c-2 · corte c-3) · corren tras 2.2b
+  // (prioridad del pending) y el topic-change cleanup, ANTES del spine/detectIntent. Reusan el lastRetrievalContext
+  // fresco. La limpieza va al FINAL (tras los tres detectores) para que ninguno quede sin contexto si el anterior
+  // no refinó. Disjuntos: c-1 detecta una MÉTRICA, c-2 una MARCA/FAMILIA, c-3 un CUANTIFICADOR → no se pisan.
+  if ((ADI_MT_REFINE_METRIC_ENABLED || ADI_MT_REFINE_FILTER_ENABLED || ADI_MT_REFINE_CUT_ENABLED) && ctx.lastRetrievalContext) {
     if (ADI_MT_REFINE_METRIC_ENABLED) {
       const _rm = _detectMetricRefinement(trimmed, ctx, scenario);                          // c-1 · cambia la métrica
       if (_rm && _rm.opener) return _finalize(_rm, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
@@ -544,6 +583,11 @@ export function answerADI(question, context = {}, state = {}) {
       if (_rf && _rf._avisa) return _plainWrap({ opener: _rf.opener }, "qi_inventory_avisar", ctx);   // anti-fuga inventario
       if (_rf && _rf._verdict) return _plainWrap(_rf, "qi_retrieval_" + _rf._verdict, ctx);            // cruce decorativo → AVISA/ACLARA
       if (_rf && _rf.opener) return _finalize(_rf, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+    }
+    if (ADI_MT_REFINE_CUT_ENABLED) {
+      const _rc = _detectCutRefinement(trimmed, ctx);                                       // c-3 · acota (top/bottom N)
+      if (_rc && _rc._avisa) return _plainWrap({ opener: _rc.opener }, "qi_inventory_avisar", { ...ctx, lastRetrievalContext: null });  // anti-fuga
+      if (_rc && _rc.opener) return _plainWrap({ opener: _rc.opener }, "qi_retrieval_cut", { ...ctx, lastRetrievalContext: null });      // corte (one-liner · terminal)
     }
     ctx = { ...ctx, lastRetrievalContext: null };   // ningún refinamiento (autónoma/stale) → descartar (no fuerza)
   }
