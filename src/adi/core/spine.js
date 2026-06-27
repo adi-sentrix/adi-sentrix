@@ -30,7 +30,8 @@ const _SUPERLATIVE_TOP    = ["mejor", "mayor", "mas alto", "mas alta", "maximo",
 const _INV_CONCEPTS = [
   { re: /\brotaci/,                                              m: "rotacion" },   // 2.5a
   { re: /\bdoh\b|\bcobertura\b/,                                 m: "doh" },        // 2.5b
-  { re: /\bcapital\b|inmoviliz|stock\s*usd|d[ií]as\s+sin\s+vent/, m: "capital" },   // 2.5c (no modelada aún)
+  { re: /\bcapital\b|inmoviliz|detenid|atrapad|stock\s*usd|d[ií]as\s+sin\s+vent/, m: "capital" }, // 2.5c-1
+  { re: /\bbodegas?\b|\bsucursal(?:es)?\b/,                      m: "bodega" },     // 2.5d (no modelada aún)
 ];
 const _COMM_METRIC = /\bventas?\b|\bmargen|\bcontribuci|\brentabilidad\b|\bcarga\b|\baporte/;              // nombra comercial → no es inventario puro → defiere
 const _NONSKU_DIM = /\bpor\s+(bodegas?|sucursal(?:es)?|clientes?|canal|familias?|marcas?)\b/;             // otra dimensión nombrada → 2.5d → defiere
@@ -180,6 +181,9 @@ export function resolveInventoryRetrieval(text, scenario) {
   else if (/\bmejor(es)?\b/.test(norm))                          { wantHigh = !metric.higherIsWorse;  _dirWord = "mejor"; _oppWord = "peor"; }
   else if (/mas\s+(baja|bajo|chica|chico)|\bmenor(es)?\b|\bminim|que\s+menos|\bmenos\b/.test(norm)) { wantHigh = false; _dirWord = "menos"; _oppWord = "más"; }
   else if (/mas\s+(alta|alto|grande|elevad)|\bmayor(es)?\b|\bmaxim|que\s+mas|\bmas\b/.test(norm))   { wantHigh = true;  _dirWord = "más";   _oppWord = "menos"; }
+  // 2.5c-1 · anchor "estado-malo" (inmovilizado/detenido/atrapado) · SIN "más"/"peor" implica el extremo PEOR
+  // (para higherIsWorse → el más alto) y cuenta como ancla. Así "dónde tengo capital detenido" responde.
+  else if (/\binmoviliz|\bdetenid|\batrapad|\bestancad/.test(norm))                                { wantHigh = !!metric.higherIsWorse; _dirWord = "más"; _oppWord = "menos"; }
   const _hasDir = wantHigh !== null;
   const _filtro = detectBrandInText(text) || (detectAllFamiliesInText(text, { strict: true }) || [])[0] || null;
   if (!_hasDir && !_filtro && !_hasSkuWord) return null;
@@ -192,8 +196,15 @@ export function resolveInventoryRetrieval(text, scenario) {
         unsupported: [{ kind: "mixed_metric_status", raw: "inventario_no_modelado", phase: "2.5" }] }) };
   }
 
-  // (5) PLANNER + QUERY ENGINE · recompone "{metric} por sku [de filtro]" · composeRetrieval lee skuInventario
-  const qi = queryInterpreter(`${metricKey} por sku${_filtro ? " de " + _filtro : ""}`, scenario);
+  // (5) PLANNER + QUERY ENGINE · recompone reusando composeRetrieval. Las métricas EN el QI_VOCAB (rotación→rotacion,
+  // DOH→cobertura) recomponen directo; las que NO (capital · a propósito, para no tocar el "stock" comercial) usan un
+  // placeholder de inventario (rotacion) + swap de qi.metrics → composeRetrieval resuelve el campo vía metricMap[capital].
+  const _gloss = `por sku${_filtro ? " de " + _filtro : ""}`;
+  let qi = queryInterpreter(`${metricKey} ${_gloss}`, scenario);
+  if (!qi || !qi.isRetrieval) {
+    qi = queryInterpreter(`rotacion ${_gloss}`, scenario);
+    if (qi && qi.isRetrieval) qi.metrics = [metricKey];
+  }
   if (!qi || !qi.isRetrieval) return null;
   const resp = composeRetrieval(qi, scenario, { spineFilter: true });
   if (!resp || !Array.isArray(resp.materialMetrics) || resp.materialMetrics.length === 0) return null;

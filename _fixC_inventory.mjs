@@ -2,19 +2,18 @@
 // ADI Core Fase 2.5a: ROTACIÓN modelada → RESPONDE (flag ON) / AVISA (flag OFF). El resto del muro intacto
 // (disolución métrica por métrica: rotación disponible NO habilita capital/DOH/cobertura). Flag-aware.
 import { answerADI } from "./src/adi/answerADI.js";
-import { ADI_INV_ROTACION_ENABLED, ADI_INV_DOH_ENABLED } from "./src/config/voiceFlags.js";
+import { ADI_INV_ROTACION_ENABLED, ADI_INV_DOH_ENABLED, ADI_INV_CAPITAL_ENABLED } from "./src/config/voiceFlags.js";
 const run = (q, mod) => answerADI(q, { activeModule: mod || "inventario" }, { scenario: "bonanza" });
 const isData = (t) => /\$\d+[.,]?\d*K|MAK-COMP-AIR|\d+\.\dx|concentran|capital comprometido|DOH promedio/.test(t);
 let pass = 0, fail = 0;
 const ck = (lbl, cond, det) => { if (cond) pass++; else fail++; console.log(`${cond ? "✓" : "✗ FAIL"} ${lbl}${cond ? "" : "  " + (det || "")}`); };
-const ROT = ADI_INV_ROTACION_ENABLED, DOH = ADI_INV_DOH_ENABLED;
+const ROT = ADI_INV_ROTACION_ENABLED, DOH = ADI_INV_DOH_ENABLED, CAP = ADI_INV_CAPITAL_ENABLED;
 const isInvResp = (r) => r.route === "spine_inv_superlative" || r.route === "spine_inv_retrieval";
 
 console.log("════ GATE 1 · BARRIDO · capital/DOH/cobertura/stock/bodega → AVISAR único, sin dato (NO modeladas) ════");
 const BARRIDO = {
-  "capital": ["cuánto capital inmovilizado tengo", "dónde está concentrado mi capital detenido", "capital inmovilizado por marca", "qué SKUs atrapan más capital", "qué SKUs están atrapando más capital"],
-  "agregada/por-marca (sin ancla SKU)": ["cuál es la rotación promedio del portafolio", "rotación por marca", "DOH por marca"],
-  "stock/días/quiebre/liquidar": ["cuánto stock detenido tengo", "cuántos días sin venta tengo", "dónde tengo riesgo de quiebre", "qué productos debo liquidar"],
+  "agregada/por-marca (sin ancla SKU)": ["cuál es la rotación promedio del portafolio", "rotación por marca", "DOH por marca", "capital inmovilizado por marca"],
+  "días/quiebre/liquidar": ["cuántos días sin venta tengo", "dónde tengo riesgo de quiebre", "qué productos debo liquidar"],
   "bodega/inventario": ["cómo está el inventario", "cómo está Santiago", "Santiago vs Valparaíso"],
 };
 for (const [cat, qs] of Object.entries(BARRIDO)) {
@@ -38,6 +37,13 @@ console.log(`\n════ DOH/COBERTURA MODELADA (2.5b) · ${DOH ? "RESPONDE c
 for (const q of ["qué SKU tiene más DOH", "qué productos tienen sobre-cobertura"]) {
   const r = run(q); const t = r.text || "";
   const ok = DOH ? (isInvResp(r) && /\d+d\b/.test(t)) : ((r.route === "qi_inventory_avisar" || r.route === "qi_inventory_filter_avisar") && !isData(t));
+  ck(`«${q}» → ${r.route}`, ok, `route=${r.route}`);
+}
+
+console.log(`\n════ CAPITAL MODELADA (2.5c-1 · vista amplia) · ${CAP ? "RESPONDE con $ + evidence" : "AVISA (pre-2.5c)"} ════`);
+for (const q of ["cuánto capital inmovilizado tengo", "dónde está concentrado mi capital detenido", "qué SKUs atrapan más capital", "qué SKUs están atrapando más capital", "cuánto stock detenido tengo"]) {
+  const r = run(q); const t = r.text || "";
+  const ok = CAP ? (isInvResp(r) && /\$\d+\.\dK/.test(t)) : ((r.route === "qi_inventory_avisar" || r.route === "qi_inventory_filter_avisar") && !isData(t));
   ck(`«${q}» → ${r.route}`, ok, `route=${r.route}`);
 }
 

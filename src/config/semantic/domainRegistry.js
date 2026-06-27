@@ -4,5 +4,5 @@
 export const DOMAIN_REGISTRY = {
   ventas:     { label: "ventas",     exposes: ["ventas"] },
   margenes:   { label: "márgenes",   exposes: ["contribucion", "margen", "carga"] },
-  inventario: { label: "inventario", exposes: ["rotacion", "doh", "stock", "cobertura"] },
+  inventario: { label: "inventario", exposes: ["rotacion", "doh", "capital", "cobertura"] },
 };

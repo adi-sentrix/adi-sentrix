@@ -3,7 +3,7 @@
 // con payload (peor/mejor/filtro) + evidence (fuente skuInventario, fórmula, operación) · 🚨 RED: no-leak +
 // atomicidad · las otras métricas (capital/DOH) AVISAN · comercial intacto. Dump → argv para shadow-diff.
 import { JSDOM } from "jsdom"; import esbuild from "esbuild"; import { fileURLToPath, pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-import { ADI_INV_DOH_ENABLED } from "./src/config/voiceFlags.js";   // 2.5b · DOH/cobertura ahora modelable → los controles de DOH son flag-aware
+import { ADI_INV_DOH_ENABLED, ADI_INV_CAPITAL_ENABLED } from "./src/config/voiceFlags.js";   // 2.5b/c · DOH y capital modelables → sus controles son flag-aware; la atomicidad mezcla con bodega (la no-modelada)
 const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></html>`, { url: "http://localhost/", pretendToBeVisual: true });
 const W = dom.window; globalThis.window = W; globalThis.document = W.document;
 try { Object.defineProperty(globalThis, "navigator", { value: W.navigator, configurable: true }); } catch {}
@@ -28,10 +28,10 @@ const CASES = [
     check: (r) => r.route === "spine_inv_retrieval" && /BOS-/.test(r.text) && /Bosch/.test(r.text) && r.ev && r.ev.fuente === "skuInventario" },
   { name: "🚨RED-no-leak", q: "el peor SKU por rotación", mk: "inventario",
     check: (r) => r.route === "spine_inv_superlative" && !FOREIGN.test(r.text) },                  // cero número ajeno
-  { name: "🚨RED-atomicidad", q: "rotación y capital por SKU", mk: "inventario",
-    check: (r) => /habilitado en esta fase/.test(r.text) && !/\d\.\dx/.test(r.text) && !FOREIGN.test(r.text) },  // AVISA, cero rotación Y cero capital
-  { name: "CTRL-capital-AVISA", q: "dónde tengo capital detenido", mk: "inventario",
-    check: (r) => /habilitado en esta fase/.test(r.text) && r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" },
+  { name: "🚨RED-atomicidad (rotación y bodega)", q: "rotación y bodega por SKU", mk: "inventario",
+    check: (r) => /habilitado en esta fase/.test(r.text) && !/\d\.\dx/.test(r.text) && !FOREIGN.test(r.text) },  // bodega NO modelada → AVISA, cero rotación
+  { name: "CTRL-capital (OFF→AVISA / ON→responde · 2.5c)", q: "dónde tengo capital detenido", mk: "inventario",
+    check: (r) => ADI_INV_CAPITAL_ENABLED ? (r.route === "spine_inv_superlative") : (/habilitado en esta fase/.test(r.text) && r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval") },
   { name: "CTRL-DOH (OFF→AVISA / ON→responde · 2.5b)", q: "el peor SKU por DOH", mk: "inventario",
     check: (r) => ADI_INV_DOH_ENABLED ? (r.route === "spine_inv_superlative") : (/habilitado en esta fase|inventario/.test(r.text) && r.route !== "spine_inv_superlative") },
   { name: "CTRL-cobertura (OFF→AVISA / ON→responde · 2.5b)", q: "qué SKU tiene peor cobertura", mk: "inventario",

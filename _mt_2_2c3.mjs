@@ -26,9 +26,9 @@ const CHAINS = [
     check: (s) => { const t = s[1]; return t.route === "qi_retrieval_cut" && /3 mejores en ventas de samsung/i.test(t.text); } },
   { name: "CADENA-c1-c3", mk: "ventas", turns: ["ventas por cliente de Samsung", "y por margen", "los tres peores"],
     check: (s) => { const t = s[2]; return t.route === "qi_retrieval_cut" && /3 peores en margen de samsung/i.test(t.text); } },
-  // 🚨 AMBOS turnos cero número de inventario. T1 usa CAPITAL (métrica BLOQUEADA hasta 2.5c · rotación+DOH ya se
-  // modelaron y responden — la anti-fuga del corte se prueba con una métrica aún no modelada, que sigue avisando).
-  { name: "RED-anti-fuga", mk: "inventario", turns: ["qué SKUs atrapan más capital", "los tres peores"],
+  // 🚨 AMBOS turnos cero número de inventario. T1 usa BODEGA (la ÚLTIMA métrica BLOQUEADA · rotación+DOH+capital ya
+  // se modelaron y responden — la anti-fuga del corte se prueba con la única no-modelada que queda, que sigue avisando).
+  { name: "RED-anti-fuga", mk: "inventario", turns: ["qué bodega está más complicada", "los tres peores"],
     check: (s) => !INV.test(s[0].text || "") && !INV.test(s[1].text || "") },
   { name: "CTRL-pregunta-nueva", mk: "ventas", turns: ["ventas por cliente de Samsung", "los tres peores SKU de Bosch"],
     check: (s) => s[1].route !== "qi_retrieval_cut" },                          // nombra dim+filtro → autónoma

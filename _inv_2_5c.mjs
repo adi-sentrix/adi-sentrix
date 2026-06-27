@@ -1,9 +1,8 @@
-// === FASE 2.5b · DOH/cobertura (2ª métrica modelada) ===
-// Asume flags seteados afuera (DOH + rotación + QI + spine + evidence). Gates: DOH RESPONDE con payload
-// (peor=más alto por polaridad / mejor=más bajo / filtro / cobertura sinónimo) + evidence · 🚨 RED no-leak +
-// atomicidad · capital/bodega AVISAN · rotación sigue respondiendo · comercial intacto. Dump → argv.
+// === FASE 2.5c-1 · capital (stock en valor) + desambiguación de "stock" ===
+// Asume flags afuera (capital + rotación + DOH + QI + spine + evidence). Gates: capital RESPONDE con payload
+// ($K · más/menos · anchor "detenido" vista amplia · filtro · evidence) · 🚨 RED no-leak + atomicidad · bodega
+// AVISA · rotación/DOH responden · 🛡️ comercial-stock intacto. Dump → argv (para shadow + GATE COMERCIAL-STOCK).
 import { JSDOM } from "jsdom"; import esbuild from "esbuild"; import { fileURLToPath, pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-import { ADI_INV_CAPITAL_ENABLED } from "./src/config/voiceFlags.js";   // 2.5c · capital modelable → su control flag-aware; la atomicidad mezcla con bodega
 const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></html>`, { url: "http://localhost/", pretendToBeVisual: true });
 const W = dom.window; globalThis.window = W; globalThis.document = W.document;
 try { Object.defineProperty(globalThis, "navigator", { value: W.navigator, configurable: true }); } catch {}
@@ -16,32 +15,36 @@ const mod = await import(pathToFileURL(bundlePath).href);
 const React = (await import("react")).default; const { renderToStaticMarkup } = await import("react-dom/server");
 const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
 function modR(text) { if (text == null) return null; const t = document.createElement("div"); t.innerHTML = renderToStaticMarkup(React.createElement(mod.AdiMessageBody, { text })); return t.textContent; }
-// AJENO a DOH (días): capital $/USD/inmovilizado/stockUSD, rotación "Nx". (DOH = "Nd" → permitido)
-const FOREIGN = /\$\s?\d|\bUSD\b|inmoviliz|capital\s+(atrap|deten)|stock\s*usd|\d+\.\dx/i;
+// AJENO a capital ($): rotación "Nx", DOH/días "Nd". (capital = "$N.NK" → permitido)
+const FOREIGN = /\d+\.\dx|\b\d+\s*d\b|\d+\s*d[ií]as|\bdoh\b|rotaci[oó]n\s+[\d.]/i;
 
 const CASES = [
-  { name: "DOH-peor (polaridad: más alto)", q: "qué SKU tiene peor DOH", mk: "inventario",
-    check: (r) => r.route === "spine_inv_superlative" && /MAK-COMP-AIR/.test(r.text) && /190d/.test(r.text) && r.ev && r.ev.metrica === "doh" && r.ev.fuente === "skuInventario" },
-  { name: "DOH-mejor (más bajo)", q: "qué SKU tiene mejor DOH", mk: "inventario",
-    check: (r) => r.route === "spine_inv_superlative" && /PHI-SHAVER9/.test(r.text) && /15d/.test(r.text) },
-  { name: "DOH-filtro-Bosch", q: "qué SKU de Bosch tiene peor DOH", mk: "inventario",
-    check: (r) => r.route === "spine_inv_superlative" && /BOS-SANDER/.test(r.text) && /115d/.test(r.text) && /Bosch/.test(r.text) },
-  { name: "cobertura-sinónimo", q: "cuántos días de cobertura tiene Bosch", mk: "inventario",
-    check: (r) => (r.route === "spine_inv_retrieval" || r.route === "spine_inv_superlative") && /BOS-/.test(r.text) && r.ev && r.ev.metrica === "doh" },
-  { name: "🚨RED-no-leak", q: "qué SKU tiene peor DOH", mk: "inventario",
-    check: (r) => r.route === "spine_inv_superlative" && !FOREIGN.test(r.text) },                  // cero capital/rotación
-  { name: "🚨RED-atomicidad (DOH y bodega)", q: "DOH y bodega por SKU", mk: "inventario",
-    check: (r) => /habilitado en esta fase/.test(r.text) && !/\d+d\b/.test(r.text) && !FOREIGN.test(r.text) },  // bodega NO modelada → AVISA, cero DOH
-  { name: "CTRL-capital (OFF→AVISA / ON→responde · 2.5c)", q: "dónde tengo capital detenido", mk: "inventario",
-    check: (r) => ADI_INV_CAPITAL_ENABLED ? (r.route === "spine_inv_superlative") : (/habilitado en esta fase/.test(r.text) && r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval") },
-  { name: "CTRL-familia-DOH-AVISA", q: "qué familia tiene peor doh", mk: "inventario",
-    check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" && !/\d+d\b/.test(r.text) },  // familia no-SKU → AVISA
+  { name: "CAPITAL-más", q: "qué SKU tiene más capital", mk: "inventario",
+    check: (r) => r.route === "spine_inv_superlative" && /SAM-REF500L/.test(r.text) && /\$18\.6K/.test(r.text) && r.ev && r.ev.metrica === "capital" && r.ev.fuente === "skuInventario" },
+  { name: "CAPITAL-de-LG (filtro)", q: "capital de LG", mk: "inventario",
+    check: (r) => r.route === "spine_inv_retrieval" && /LG-/.test(r.text) && /LG/.test(r.text) && r.ev && r.ev.metrica === "capital" },
+  { name: "CAPITAL-detenido (anchor · vista amplia)", q: "dónde tengo capital detenido", mk: "inventario",
+    check: (r) => r.route === "spine_inv_superlative" && /SAM-REF500L/.test(r.text) && /\$18\.6K/.test(r.text) },
+  { name: "stock-en-valor → capital", q: "stock en valor de Samsung", mk: "inventario",
+    check: (r) => (r.route === "spine_inv_retrieval" || r.route === "spine_inv_superlative") && r.ev && r.ev.metrica === "capital" },
+  { name: "🚨RED-no-leak", q: "qué SKU tiene más capital", mk: "inventario",
+    check: (r) => r.route === "spine_inv_superlative" && !FOREIGN.test(r.text) },                  // cero rotación/DOH ajeno
+  { name: "🚨RED-atomicidad (capital y bodega)", q: "capital y bodega por SKU", mk: "inventario",
+    check: (r) => /habilitado en esta fase/.test(r.text) && !/\$\d/.test(r.text) && !FOREIGN.test(r.text) },  // AVISA, cero capital y cero bodega
   { name: "CTRL-bodega-AVISA", q: "qué bodega está más complicada", mk: "inventario",
     check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" },
   { name: "CTRL-rotación-responde", q: "el peor SKU por rotación", mk: "inventario",
     check: (r) => r.route === "spine_inv_superlative" && /MAK-COMP-AIR/.test(r.text) && /0\.8x/.test(r.text) },
+  { name: "CTRL-DOH-responde", q: "qué SKU tiene peor DOH", mk: "inventario",
+    check: (r) => r.route === "spine_inv_superlative" && /190d/.test(r.text) },
   { name: "CTRL-comercial-intacto", q: "el peor cliente por margen", mk: "margenes",
     check: (r) => r.route === "ranking_extremes" && /Lider/.test(r.text) },
+  // 🛡️ COMERCIAL-STOCK · el "stock" comercial NO debe rutear a una respuesta de CAPITAL (spine_inv) · el byte-exacto
+  // ON vs OFF vs HEAD se prueba con el diff de los dumps (el camino comercial es idéntico por construcción).
+  { name: "COMM-stock-pelado (no es capital)", q: "stock", mk: "ventas",
+    check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" },
+  { name: "COMM-unidades-de-stock (no es capital)", q: "cuántas unidades de stock", mk: "ventas",
+    check: (r) => r.route !== "spine_inv_superlative" && r.route !== "spine_inv_retrieval" },
 ];
 
 const out = {}; const rows = [];
@@ -51,12 +54,12 @@ for (const c of CASES) {
   out[c.name] = r;
   rows.push({ name: c.name, route: r.route, pass: c.check(r), text: r.text, ev: r.ev });
 }
-fs.writeFileSync(path.join(root, process.argv[2] || "_inv25b_dump.json"), JSON.stringify(out, null, 2));
-console.log("█".repeat(72)); console.log("FASE 2.5b · DOH/cobertura"); console.log("█".repeat(72));
+fs.writeFileSync(path.join(root, process.argv[2] || "_inv25c_dump.json"), JSON.stringify(out, null, 2));
+console.log("█".repeat(72)); console.log("FASE 2.5c-1 · capital + desambiguación"); console.log("█".repeat(72));
 for (const r of rows) {
   console.log(`\n${r.pass ? "✅" : "🚨 FALLA"} ${r.name}  → ${r.route}`);
   console.log(`   ${norm(r.text || "(null)").slice(0, 100)}`);
-  if (r.ev) console.log(`   evidence: metrica=${r.ev.metrica} fuente=${r.ev.fuente} op=${r.ev.query_plan && r.ev.query_plan.operacion} formula="${r.ev.formula}"`);
+  if (r.ev && r.ev.metrica) console.log(`   evidence: metrica=${r.ev.metrica} fuente=${r.ev.fuente} op=${r.ev.query_plan && r.ev.query_plan.operacion}`);
 }
 const fails = rows.filter(r => !r.pass);
 console.log("\n" + "═".repeat(72));

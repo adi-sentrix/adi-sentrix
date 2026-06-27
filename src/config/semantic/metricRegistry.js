@@ -17,5 +17,7 @@ export const METRIC_REGISTRY = {
   // ── dominio inventario (bloqueado hasta Fase 2.5 · el spine AVISA vía Availability Map, NO computa) ──
   rotacion:     { label: "Rotación",         domain: "inventario", unit: "x", qiKey: null,         formula: "COGS / stock promedio",              vocabulary: ["rotacion", "rotación", "rota", "rotan"] },
   doh:          { label: "DOH",              domain: "inventario", unit: "d", qiKey: null, higherIsWorse: true, formula: "stock / venta diaria", vocabulary: ["doh", "cobertura", "dias de cobertura"] },
-  stock:        { label: "Stock",            domain: "inventario", unit: "$", qiKey: null,         formula: "Σ stockUSD",                         vocabulary: ["stock", "capital inmovilizado", "capital detenido"] },
+  // 2.5c-1 · CAPITAL (stock en valor) · campo stockUSD · key propio (NO "stock" pelado · ese es comercial=unidades).
+  // higherIsWorse: más capital detenido = peor. "inmovilizado"/"detenido" = vista amplia en 2.5c-1; el Def2 fino es 2.5c-2.
+  capital:      { label: "Capital",          domain: "inventario", unit: "$", qiKey: null, higherIsWorse: true, formula: "Σ stockUSD", vocabulary: ["capital", "capital inmovilizado", "capital detenido", "capital atrapado", "inmovilizado", "detenido", "atrapado", "en valor"] },
 };
