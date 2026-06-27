@@ -3,7 +3,7 @@
  * Exporta: executiveLanguageDetector, queryInterpreter, composeRetrieval. */
 import { sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
-import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
+import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { applyFiltros } from "../../engine/metrics.js";  // Piece 3 · motor de filtros (sin tocar)
 import { FEATURE_FAMILY_AS_ENTITY } from "../../config/features.js";
 import { filterTextualSuggestions, normalizeText } from "../helpers.js";
@@ -11,6 +11,7 @@ import { filterTextualSuggestions, normalizeText } from "../helpers.js";
 import { detectAllBrandsInText, detectAllFamiliesInText, detectAllClientsInText, detectAllWarehousesInText } from "../router.js";
 import { detectSkuInText } from "../detectors.js";
 import { ADI_QI_FILTER_ENABLED } from "../../config/voiceFlags.js";
+import { isAvailable } from "../core/availabilityMap.js";   // Fase 2.5 · disponibilidad per-métrica de inventario
 
 const EXECUTIVE_KEYWORDS_RAW = [
   "problema", "foco", "causa", "por que", "porque", "que pasa", "riesgo",
@@ -774,6 +775,11 @@ export function composeRetrieval(qi, scenario, opts) {
     }
   }
 
+  // ── Fase 2.5 · ¿la métrica es de inventario Y está modelada+disponible (per-flag)? → leer skuInventario.
+  // Con el flag OFF → false → lee skusMargen (que NO tiene el campo, ej. rotacion) → L856 null → legacy byte-exacto.
+  const _INV_METRICS = ["rotacion", "doh", "cobertura", "stockUSD"];
+  const _invAvail = _INV_METRICS.includes(qi.metrics[0]) && isAvailable("inventario", qi.metrics[0]);
+
   // Resolver dataset según dimension
   let rows = null;
   let dimLabel = "";
@@ -784,7 +790,10 @@ export function composeRetrieval(qi, scenario, opts) {
       rows = applyFiltros(applyScenarioToClientesMargen(scenario), _filtrosArg);
       dimLabel = "Cliente";
     } else if (dim === "sku" || dim === "producto") {
-      rows = applyFiltros(skusMargen, _filtrosArg);
+      // Fase 2.5 · métrica de inventario disponible → skuInventario scenario-aware; si no → skusMargen comercial (intacto).
+      rows = _invAvail ? applyFiltros(applyScenarioToSkuInventario(scenario), _filtrosArg)
+                       : applyFiltros(skusMargen, _filtrosArg);
+      if (_invAvail) nameField = "sku";   // skuInventario usa `sku` como nombre (no `nombre`) · render de tabla
       dimLabel = "SKU";
     } else if (dim === "familia") {
       // CORTE 1 · R2 · fuente canónica scenario-aware (idéntica al dashboard).
@@ -840,16 +849,19 @@ export function composeRetrieval(qi, scenario, opts) {
     stock:         { field: "unidades",      label: "Unidades",      formatter: (v) => String(v) },
     participacion: { field: "venta",         label: "Participación", formatter: (v, total) => total ? ((v / total) * 100).toFixed(1) + "%" : "—" },
     cobertura:     null,
-    rotacion:      null,
+    // Fase 2.5a · rotación MODELADA · se resuelve contra skuInventario (vía _invAvail arriba). Con el flag OFF,
+    // rows=skusMargen (sin campo "rotacion") → el field-check de abajo da null → legacy byte-exacto.
+    rotacion:      { field: "rotacion",      label: "Rotación",      formatter: (v) => v.toFixed(1) + "x" },
   };
 
   // Validar que todas las metrics solicitadas se pueden resolver con este dataset
   for (const m of qi.metrics) {
     const map = metricMap[m];
     if (!map) {
-      // G1 · métrica de inventario (rotación/cobertura·DOH) no vive en datasets de margen → AVISAR (Fase 2.5)
-      if (_filterOn && (m === "rotacion" || m === "cobertura")) {
-        return _qiVerdict("avisar", "metric", `${m === "cobertura" ? "DOH/cobertura" : "Rotación"} vive en el inventario, fuera de esta vista de ventas/márgenes. (Fase 2.5)`);
+      // G1 · métrica de inventario NO disponible (Fase 2.5 · per-métrica) → AVISAR. La modelada (rotación) tiene
+      // entry arriba; cobertura/DOH (2.5b) siguen null → AVISAN hasta que su flag las habilite.
+      if (_filterOn && (m === "rotacion" || m === "cobertura" || m === "doh") && !isAvailable("inventario", m)) {
+        return _qiVerdict("avisar", "metric", `${(m === "cobertura" || m === "doh") ? "DOH/cobertura" : "Rotación"} vive en el inventario, fuera de esta vista de ventas/márgenes. (Fase 2.5)`);
       }
       return null;
     }

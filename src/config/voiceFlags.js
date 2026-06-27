@@ -150,6 +150,11 @@ export const ADI_MT_REFINE_FILTER_ENABLED = false;      // 2.2c-2 · "solo Bosch
 export const ADI_MT_BRAND_INV_COVERAGE_ENABLED = false; // 2.2c-2 (cierre de fuga) · composeBrandDive omite la línea "Inventario físico $X" (L47) y AVISA el subFocus inventario cuando el Availability Map bloquea inventario · NO requiere QI_FILTER (el número de inventario es incorrecto en cualquier régimen hasta Fase 2.5) · flag-off = brand_dive del piso byte-exacto
 export const ADI_MT_REFINE_CUT_ENABLED = false;         // 2.2c-3 (último de la Etapa 2) · "los tres peores"/"el top 3" (cuantificador elíptico N+dirección, SIN dimensión/métrica/marca nueva) acota la vista: rebana el lastRetrievalContext.ranking (top N / bottom N) → one-liner · anti-fuga: inventario → AVISA vía 2.2a (no escribe lastRetrieval) + domain-check · reusa el mecanismo de 2.2c-1
 
+// ── ADI Core · Etapa 3 · Fase 2.5 · inventario disponible (modelado + validado + con evidence) · un flag POR MÉTRICA · default OFF ──
+// El flag ES la disponibilidad: isAvailable("inventario", metric) consulta el flag de esa métrica. De a una, validada cada una;
+// el muro se disuelve métrica por métrica. Camino MODELADO (spine + QI + evidence), NO los bundles operacionales.
+export const ADI_INV_ROTACION_ENABLED = false;          // 2.5a · rotación (skuInventario · dim SKU · filtro marca/familia) RESPONDE con payload vía resolveInventoryRetrieval (spine, antes del muro) · gate principal: régimen muro ON + este OFF → AVISA byte-exacto · guard de atomicidad (mezcla con métrica no modelada → AVISA) · bundles gated
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

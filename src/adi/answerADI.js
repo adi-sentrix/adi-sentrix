@@ -18,7 +18,7 @@ import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval, QI_METRIC_VOCAB, QI_DIMENSION_VOCAB } from "./composers/qiRetrieval.js";
-import { resolveDimensionalSuperlative, resolveFilteredRetrieval } from "./core/spine.js";  // ADI Core · Fase 2.1a/b · spine
+import { resolveDimensionalSuperlative, resolveFilteredRetrieval, resolveInventoryRetrieval } from "./core/spine.js";  // ADI Core · Fase 2.1a/b · spine · 2.5a inventario
 import { isAvailable, unavailableMessage } from "./core/availabilityMap.js";  // ADI Core · Fase 2.2a · anti-fuga · guardrail de continuación (R4 + MODE 2)
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
 import { composeClientMetricFollowUp } from "./composers/followups.js";
@@ -608,6 +608,14 @@ export function answerADI(question, context = {}, state = {}) {
   {
     const _fr = resolveFilteredRetrieval(trimmed, scenario);
     if (_fr && _fr.opener) return _plainWrap({ opener: _fr.opener, suggestions: _fr.suggestions || null, evidence: _fr.evidence, _pending: _fr._pending }, _fr.route, ctx);
+  }
+  // ── ADI Core · Fase 2.5a · SPINE INVENTARIO · métrica MODELADA (rotación) por SKU · RESPONDE con evidence ──
+  // Corre ANTES del muro. Reclama SOLO métricas de inventario DISPONIBLES (per-flag · rotación en 2.5a); las no
+  // modeladas → null → el muro AVISA (disolución métrica por métrica). Atomicidad: mezcla con no-modelada → AVISA.
+  // Flag OFF → isAvailable false → resolver inerte → byte-exacto (el muro AVISA como en la Etapa 2).
+  {
+    const _ir = resolveInventoryRetrieval(trimmed, scenario);
+    if (_ir && _ir.opener) return _plainWrap({ opener: _ir.opener, suggestions: _ir.suggestions || null, evidence: _ir.evidence }, _ir.route, ctx);
   }
 
   // ── SIMULACIÓN B2a · cadena pre-detectIntent (replica PanelADI L35500-35733) ──

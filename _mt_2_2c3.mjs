@@ -26,8 +26,10 @@ const CHAINS = [
     check: (s) => { const t = s[1]; return t.route === "qi_retrieval_cut" && /3 mejores en ventas de samsung/i.test(t.text); } },
   { name: "CADENA-c1-c3", mk: "ventas", turns: ["ventas por cliente de Samsung", "y por margen", "los tres peores"],
     check: (s) => { const t = s[2]; return t.route === "qi_retrieval_cut" && /3 peores en margen de samsung/i.test(t.text); } },
-  { name: "RED-anti-fuga", mk: "inventario", turns: ["SKUs por rotación", "los tres peores"],
-    check: (s) => !INV.test(s[0].text || "") && !INV.test(s[1].text || "") },   // 🚨 AMBOS turnos cero número de inventario
+  // 🚨 AMBOS turnos cero número de inventario. T1 usa DOH (métrica BLOQUEADA en 2.5a · rotación ya se modeló y
+  // responde — la anti-fuga del corte se prueba con una métrica aún no modelada, que sigue avisando).
+  { name: "RED-anti-fuga", mk: "inventario", turns: ["SKUs por DOH", "los tres peores"],
+    check: (s) => !INV.test(s[0].text || "") && !INV.test(s[1].text || "") },
   { name: "CTRL-pregunta-nueva", mk: "ventas", turns: ["ventas por cliente de Samsung", "los tres peores SKU de Bosch"],
     check: (s) => s[1].route !== "qi_retrieval_cut" },                          // nombra dim+filtro → autónoma
   { name: "CTRL-vago-dame-menos", mk: "ventas", turns: ["ventas por cliente de Samsung", "dame menos"],

@@ -24,6 +24,12 @@ const _has = (norm, term) => new RegExp("\\b" + _norm(term).replace(/[.*+?^${}()
 const _SUPERLATIVE_BOTTOM = ["peor", "menor", "mas bajo", "mas baja", "minimo", "minima", "que menos", "mas chico", "mas chica", "menos", "mas debil", "mas debiles", "debil"];
 const _SUPERLATIVE_TOP    = ["mejor", "mayor", "mas alto", "mas alta", "maximo", "maxima", "que mas", "mas grande", "mas"];
 
+// ── Fase 2.5a · lexicones del resolver de inventario ──
+const _INV_OTHER_METRIC = /\bcapital\b|\bdoh\b|\bcobertura\b|inmoviliz|d[ií]as\s+sin\s+vent|stock\s*usd/; // métricas de inventario NO modeladas en 2.5a (atomicidad)
+const _COMM_METRIC = /\bventas?\b|\bmargen|\bcontribuci|\brentabilidad\b|\bcarga\b|\baporte/;              // nombra comercial → no es inventario puro → defiere
+const _NONSKU_DIM = /\bpor\s+(bodegas?|sucursal(?:es)?|clientes?|canal|familias?|marcas?)\b/;             // otra dimensión nombrada → 2.5d → defiere
+const _ANAPHORIC = /^(y\s+)?(su|sus|ese|esa|esos|esas|este|esta|estos|el\s+(primero|segundo|tercero|cuarto|ultimo|mismo))\b/; // follow-up deíctico → no es query fresca → defiere
+
 // ── Fase 2.1d · evidence payload ─────────────────────────────────────────────────────────────────
 // Construye los 10 campos del NORTE del MISMO _plan que produjo la respuesta (single source · cero recálculo).
 // Campo HERMANO del retorno · NUNCA toca el .text. Flag-gated → undefined si OFF (no se emite).
@@ -88,7 +94,7 @@ export function resolveDimensionalSuperlative(text, scenario) {
   const metric = METRIC_REGISTRY[metricKey];
 
   // VALIDATION · ¿el dominio de la métrica está disponible? (Availability Map generaliza el muro)
-  if (!isAvailable(metric.domain)) {
+  if (!isAvailable(metric.domain, metricKey)) {   // Fase 2.5 · per-métrica · rotación disponible → salta el AVISA (qiKey null → cae al resolver de inventario)
     if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
     return { _spine: true, route: "spine_dim_unavailable", opener: unavailableMessage(metric.domain),
       evidence: _evidence(scenario, { metricKey, dimKey, operacion: "avisar", formula: metric.formula, invMetric: true, unsupported: [{ kind: "domain_unavailable", raw: metric.domain, phase: "2.5" }] }) };
@@ -119,6 +125,88 @@ export function resolveDimensionalSuperlative(text, scenario) {
     opener,
     _plan: { metric: metricKey, dimension: dimKey, direction, domain: metric.domain, formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
     evidence: _evidence(scenario, { metricKey, dimKey, operacion: direction === "bottom" ? "rank_bottom" : "rank_top", formula: metric.formula, rowsUsed: mm.length, unsupported: [] }),
+  };
+}
+
+// ── Fase 2.5a · resolver de INVENTARIO (métrica MODELADA por SKU · rotación) ───────────────────────
+// Camino MODELADO con evidence (NO ranking_extremes/bundles): detecta una métrica de inventario DISPONIBLE
+// (per-flag) por SKU, recompone "{metric} por sku [de filtro]" → composeRetrieval (lee skuInventario vía
+// _invAvail) → extremo (si hay dirección) o tabla → evidence (fórmula + fuente:skuInventario + operación).
+// Corre ANTES del muro. Atomicidad: si nombra OTRA métrica de inventario NO modelada → AVISA (no mezcla).
+// Defiere (null): métrica no disponible (→ muro AVISA), dimensión no-SKU (→ 2.5d), o query comercial/cruzada.
+export function resolveInventoryRetrieval(text, scenario) {
+  if (!text || typeof text !== "string") return null;
+  const norm = _norm(text);
+
+  // (1) ¿nombra una métrica de inventario? (la primera que matchee su vocabulario)
+  let metricKey = null;
+  for (const [key, def] of Object.entries(METRIC_REGISTRY)) {
+    if (def.domain !== "inventario") continue;
+    if ((def.vocabulary || []).some(t => _has(norm, t))) { metricKey = key; break; }
+  }
+  if (!metricKey) return null;                                   // sin métrica de inventario → no es nuestro
+  const metric = METRIC_REGISTRY[metricKey];
+
+  // (2) VALIDATION · disponibilidad per-flag · NO disponible → null (cae al muro, que AVISA) · gate del flag → inerte OFF
+  if (!isAvailable("inventario", metricKey)) return null;
+
+  // (3) query comercial/cruzada o dimensión no-SKU (vía "por X") → defiere (2.5a es inventario puro por SKU)
+  if (_COMM_METRIC.test(norm)) return null;
+  if (_NONSKU_DIM.test(norm)) return null;
+
+  // (3a) dimensión no-SKU nombrada como TARGET ("qué marca/familia/bodega tiene peor rotación") → defiere · 2.5a
+  // modela rotación por SKU, NO por marca/familia/bodega (eso es 2.1a / 2.5d). PERO "de la familia X" / "de Bosch"
+  // es un FILTRO (no target) → sí responde. SKU explícito siempre gana (es el target válido).
+  const _hasSkuWord = /\bskus?\b|\bproductos?\b/.test(norm);
+  const _hasNonSkuDimWord = /\b(marcas?|familias?|bodegas?|sucursal(?:es)?|clientes?|canal(?:es)?)\b/.test(norm);
+  const _dimWordAsFilter = /\bde\s+(la\s+|el\s+|las\s+|los\s+)?(marca|familia|bodega|sucursal|cliente|canal)/.test(norm);
+  if (_hasNonSkuDimWord && !_hasSkuWord && !_dimWordAsFilter) return null;
+
+  // (3b) follow-up deíctico ("y su rotación", "el segundo rota cuánto") → defiere · 2.5a resuelve queries FRESCAS,
+  // no per-entidad contextual (eso cae al multi-turno / muro · evita la fuga de la tabla global por una anáfora).
+  if (_ANAPHORIC.test(norm)) return null;
+
+  // (3c) ancla concreta requerida: dirección (superlativo) · filtro marca/familia · o SKU explícito. Sin ancla
+  // (mención suelta de rotación sin objeto) → defiere (conservador · no inventa un ranking global).
+  let direction = null;
+  for (const w of _SUPERLATIVE_BOTTOM) if (_has(norm, w)) { direction = "bottom"; break; }
+  if (!direction) for (const w of _SUPERLATIVE_TOP) if (_has(norm, w)) { direction = "top"; break; }
+  const _filtro = detectBrandInText(text) || (detectAllFamiliesInText(text, { strict: true }) || [])[0] || null;
+  if (!direction && !_filtro && !_hasSkuWord) return null;
+
+  // (4) ATOMICIDAD · nombra OTRA métrica de inventario NO modelada (capital/DOH/cobertura...) → AVISA (no mezcla)
+  if (_INV_OTHER_METRIC.test(norm)) {
+    return { _spine: true, route: "spine_inv_atomicity_avisar", opener: unavailableMessage("inventario"),
+      evidence: _evidence(scenario, { metricKey, dimKey: "sku", operacion: "avisar", formula: metric.formula, invMetric: true,
+        unsupported: [{ kind: "mixed_metric_status", raw: "inventario_no_modelado", phase: "2.5" }] }) };
+  }
+
+  // (5) PLANNER + QUERY ENGINE · recompone "{metric} por sku [de filtro]" · composeRetrieval lee skuInventario
+  const qi = queryInterpreter(`${metricKey} por sku${_filtro ? " de " + _filtro : ""}`, scenario);
+  if (!qi || !qi.isRetrieval) return null;
+  const resp = composeRetrieval(qi, scenario, { spineFilter: true });
+  if (!resp || !Array.isArray(resp.materialMetrics) || resp.materialMetrics.length === 0) return null;
+  const mm = resp.materialMetrics;
+  const _filGloss = _filtro ? " de " + _filtro : "";
+
+  // (6) dirección → extremo (one-liner con evidence) · sin dirección → la tabla de composeRetrieval
+
+  if (direction) {
+    const pick = direction === "bottom" ? mm[mm.length - 1] : mm[0];   // mm DESC: bottom=peor, top=mejor
+    const opp  = direction === "bottom" ? mm[0] : mm[mm.length - 1];
+    const ml = (pick.metric || metric.label).toLowerCase();
+    let opener = `${pick.entity} es el SKU con ${direction === "bottom" ? "peor" : "mejor"} ${ml}${_filGloss} · ${pick.value}.`;
+    if (opp && opp.entity !== pick.entity) opener += ` El de ${direction === "bottom" ? "mejor" : "peor"} es ${opp.entity} · ${opp.value}.`;
+    return {
+      _spine: true, route: "spine_inv_superlative", opener,
+      _plan: { metric: metricKey, dimension: "sku", direction, domain: "inventario", formula: metric.formula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
+      evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _filtro ? { marca_o_familia: _filtro } : {}, operacion: direction === "bottom" ? "rank_bottom" : "rank_top", formula: metric.formula, rowsUsed: mm.length, invMetric: true }),
+    };
+  }
+  // sin dirección → tabla (reusa la respuesta de composeRetrieval · route + evidence de inventario)
+  return {
+    _spine: true, route: "spine_inv_retrieval", opener: resp.opener, suggestions: resp.suggestions || null,
+    evidence: _evidence(scenario, { metricKey, dimKey: "sku", filtros: _filtro ? { marca_o_familia: _filtro } : {}, operacion: "rank", formula: metric.formula, rowsUsed: mm.length, invMetric: true }),
   };
 }
 
@@ -224,7 +312,7 @@ export function resolveFilteredRetrieval(text, scenario) {
   const metric = METRIC_REGISTRY[metricKey];
 
   // VALIDATION · dominio disponible (inventario bajo filtro → AVISA vía Availability Map)
-  if (!isAvailable(metric.domain)) {
+  if (!isAvailable(metric.domain, metricKey)) {   // Fase 2.5 · per-métrica · rotación disponible → salta el AVISA (qiKey null → cae al resolver de inventario)
     if (ADI_QI_FILTER_ENABLED) return null;   // coexistencia: el muro/Fix A (activo) maneja inventario con su mensaje específico
     return { _spine: true, route: "spine_filter_unavailable", suggestions: null, opener: unavailableMessage(metric.domain, { filterName: filterValue }),
       evidence: _evidence(scenario, { metricKey, dimKey, filtros: _filtros, operacion: "avisar", formula: metric.formula, invMetric: true, unsupported: [{ kind: "domain_unavailable", raw: metric.domain, phase: "2.5" }] }) };

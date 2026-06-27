@@ -1,6 +1,6 @@
 // FASE 2.1d · evidence payload. Dual-state (evidence ON/OFF · spine RESPONDE flags siempre ON acá).
 import { answerADI } from "./src/adi/answerADI.js";
-import { ADI_SPINE_EVIDENCE_ENABLED } from "./src/config/voiceFlags.js";
+import { ADI_SPINE_EVIDENCE_ENABLED, ADI_INV_ROTACION_ENABLED } from "./src/config/voiceFlags.js";
 import fs from "fs";
 const EV = ADI_SPINE_EVIDENCE_ENABLED;
 const run = (q) => answerADI(q, {}, { scenario: "bonanza" });
@@ -37,8 +37,13 @@ if (EV) {
   console.log("\n══ ACLARAR (2.1b-2) ══");
   checkEv("el mejor SKU de Bosch", { dimension: "sku", "filtros.marcas": ["Bosch"], "query_plan.operacion": "clarify", "unsupported_clauses.0.kind": "metric_missing", metrica: null });
 
-  console.log("\n══ AVISAR inventario ══");
-  checkEv("qué SKU de Bosch rota peor", { metrica: "rotacion", dimension: "sku", fuente: "skuInventario", "query_plan.operacion": "avisar", "unsupported_clauses.0.kind": "domain_unavailable", "unsupported_clauses.0.raw": "inventario" });
+  // ADI Core 2.5a · rotación MODELADA → el evidence pasa de "avisar" (domain_unavailable) a "rank_bottom"
+  // (fuente skuInventario · supersesión). DOH/capital siguen AVISANDO su evidence. Flag-aware.
+  console.log(`\n══ inventario · rotación ${ADI_INV_ROTACION_ENABLED ? "RESPONDE evidence (2.5a)" : "AVISAR evidence"} ══`);
+  if (ADI_INV_ROTACION_ENABLED)
+    checkEv("qué SKU de Bosch rota peor", { metrica: "rotacion", dimension: "sku", fuente: "skuInventario", "query_plan.operacion": "rank_bottom", "filtros.marca_o_familia": "Bosch", formula: f => /stock/.test(f || "") });
+  else
+    checkEv("qué SKU de Bosch rota peor", { metrica: "rotacion", dimension: "sku", fuente: "skuInventario", "query_plan.operacion": "avisar", "unsupported_clauses.0.kind": "domain_unavailable", "unsupported_clauses.0.raw": "inventario" });
 
   console.log("\n══ AVISAR combinado ══");
   checkEv("ventas de Samsung en Falabella", { "query_plan.operacion": "avisar", "unsupported_clauses.0.kind": "cross_dimension" });

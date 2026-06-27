@@ -2,7 +2,7 @@
 //   flag ON  → asserts del oráculo + dump _spine_ON.json
 //   flag OFF → dump _spine_OFF.json (para el shadow-diff)
 import { answerADI } from "./src/adi/answerADI.js";
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED } from "./src/config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_INV_ROTACION_ENABLED } from "./src/config/voiceFlags.js";
 import { METRIC_REGISTRY } from "./src/config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "./src/config/semantic/dimensionRegistry.js";
 import { isAvailable } from "./src/adi/core/availabilityMap.js";
@@ -48,17 +48,26 @@ if (ON) {
   const r3 = run("qué familia aporta menos");
   ck(`«qué familia aporta menos» → spine (familia + aporte)`, r3.route === "spine_dim_superlative", `route=${r3.route} | ${r3.text}`);
 
-  console.log("\n— oráculo · AVISA (inventario · vía Availability Map, sin fuga) —");
+  console.log("\n— oráculo · AVISA (inventario NO modelado · vía Availability Map/muro, sin fuga) —");
+  // marca/familia-rotación y DOH NO se modelan en 2.5a → AVISAN. La ruta del AVISA depende de qué gate lo caza
+  // (spine_dim_unavailable en spine-solo · el muro qi_inventory_avisar con QI_FILTER ON) — el intent es "AVISA cero dato".
   for (const q of ["qué marca tiene peor rotación", "qué familia tiene peor doh"]) {
     const r = run(q);
     const fuga = /rotacion\s+[\d.]|doh\s+[\d.]|\$\d+K?\s+(?:inmoviliz|stock)|[\d.]+x\b/i.test(r.text);
-    ck(`«${q}» → AVISA, cero dato`, r.route === "spine_dim_unavailable" && /Fase 2\.5/.test(r.text) && !fuga, `route=${r.route} | ${r.text}`);
+    const avisa = (r.route === "spine_dim_unavailable" || r.route === "qi_inventory_avisar" || r.route === "qi_inventory_filter_avisar");
+    ck(`«${q}» → AVISA, cero dato (route=${r.route})`, avisa && /Fase 2\.5/.test(r.text) && !fuga, `route=${r.route} | ${r.text}`);
   }
 
-  console.log("\n— oráculo · NO ROMPE (cae al viejo · NO es spine) —");
+  console.log("\n— oráculo · NO ROMPE (2.1a NO reclama · cae al viejo o a OTRO resolver legítimo) —");
   for (const q of ["el cliente con peor margen", "cuál es el SKU con peor rotación", "contribución por marca", "los 3 peores clientes por margen", "qué cliente Samsung vende más", "el peor margen de Bosch"]) {
     const r = run(q);
-    ck(`«${q}» → NO spine (route=${r.route})`, !String(r.route || "").startsWith("spine_"), r.text);
+    // ADI Core 2.5a · "cuál es el SKU con peor rotación" la modela 2.5a (spine_inv) cuando rotación está ON
+    // (supersesión: rotación responde por SKU). 2.1a NO la reclama de todos modos. Flag-aware.
+    if (q === "cuál es el SKU con peor rotación" && ADI_INV_ROTACION_ENABLED) {
+      ck(`«${q}» → spine_inv (2.5a · rotación modelada · 2.1a no la reclama)`, r.route === "spine_inv_superlative", r.text);
+      continue;
+    }
+    ck(`«${q}» → 2.1a NO reclama (route=${r.route})`, r.route !== "spine_dim_superlative", r.text);
   }
 }
 
