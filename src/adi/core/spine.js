@@ -9,7 +9,7 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED, ADI_INV_INMOVILIZADO_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED, ADI_INV_INMOVILIZADO_ENABLED, ADI_INV_NL_VOCAB_ENABLED } from "../../config/voiceFlags.js";
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -147,7 +147,8 @@ export function resolveInventoryRetrieval(text, scenario) {
   const _bodegaAvail = isAvailable("inventario", "bodega");
 
   // 2.5d · "qué bodega está complicada" → especial: capital INMOVILIZADO por bodega (vista sin métrica explícita).
-  const _complicada = _bodegaAvail && /\bcomplicad|\bproblematic|peor\s+bodega/.test(norm);
+  const _complicada = _bodegaAvail && (/\bcomplicad|\bproblematic|peor\s+bodega/.test(norm)
+    || (ADI_INV_NL_VOCAB_ENABLED && /\bbodega[\s\w]{0,14}\b(peor|mal|jodid|complicad)/.test(norm)));   // tanda 2b · "qué bodega está peor/mal"
 
   // (1) ¿nombra una métrica de inventario? (la primera que matchee su vocabulario)
   let metricKey = null;
@@ -156,6 +157,13 @@ export function resolveInventoryRetrieval(text, scenario) {
     if ((def.vocabulary || []).some(t => _has(norm, t))) { metricKey = key; break; }
   }
   if (!metricKey && _complicada) metricKey = "capital";          // "complicada" sin métrica → capital (inmovilizado)
+  // tanda 2b · reconocimiento NL (flag ON · ADITIVO: solo si el registro no detectó métrica) · sinónimos del dueño →
+  // métrica de inventario. "parado/stock muerto/plata dormida" → capital INMOVILIZADO · "no se mueve/vende/rota" → rotación.
+  let _nlInmov = false, _nlWorst = false;
+  if (!metricKey && ADI_INV_NL_VOCAB_ENABLED) {
+    if (/\bparad[oa]s?\b|\bvarad|\bfrenad|\bestancad|\bmuert|stock\s+muerto|plata\s+dormida|\bdormid/.test(norm)) { metricKey = "capital"; _nlInmov = true; _nlWorst = true; }
+    else if (/no\s+se\s+(mueve|mueven|vende|venden)|no\s+rota[ns]?|no\s+gira[ns]?|casi\s+no\s+(se\s+)?vend/.test(norm)) { metricKey = "rotacion"; _nlWorst = true; }
+  }
   if (!metricKey) return null;                                   // sin métrica de inventario → no es nuestro
   const metric = METRIC_REGISTRY[metricKey];
 
@@ -191,6 +199,8 @@ export function resolveInventoryRetrieval(text, scenario) {
   else if (/\binmoviliz|\bdetenid|\batrapad|\bestancad/.test(norm))                                { wantHigh = !!metric.higherIsWorse; _dirWord = "más"; _oppWord = "menos"; }
   // 2.5d · "complicada" sin dirección explícita → la PEOR bodega (más capital inmovilizado).
   if (_complicada && wantHigh === null) { wantHigh = true; _dirWord = "más"; _oppWord = "menos"; }
+  // tanda 2b · "parado/no se mueve/stock muerto" implican el extremo PEOR (capital: el más inmovilizado · rotación: el más bajo).
+  if (_nlWorst && wantHigh === null) { wantHigh = !!metric.higherIsWorse; _dirWord = metric.higherIsWorse ? "más" : "menos"; _oppWord = metric.higherIsWorse ? "menos" : "más"; }
   const _hasDir = wantHigh !== null;
   const _filtro = detectBrandInText(text) || (detectAllFamiliesInText(text, { strict: true }) || [])[0] || null;
   // 2.5d · bodega VALUE como FILTRO ("capital de Antofagasta") · solo si NO es dim=bodega.
@@ -211,7 +221,7 @@ export function resolveInventoryRetrieval(text, scenario) {
   // 2.5c-2 · el anchor "inmovilizado/detenido/atrapado" del CAPITAL refina al subconjunto Def2 (flag-gated · requiere
   // capital ON). "capital" a secas NO → vista amplia. Pasa invInmovilizado a composeRetrieval (filtra Def2).
   // 2.5c-2 · el anchor inmovilizado/detenido del capital filtra Def2 (flag) · 2.5d · "complicada" lo fuerza (es su def).
-  const _inmovilizado = (ADI_INV_INMOVILIZADO_ENABLED && metricKey === "capital" && /\binmoviliz|\bdetenid|\batrapad/.test(norm)) || _complicada;
+  const _inmovilizado = (ADI_INV_INMOVILIZADO_ENABLED && metricKey === "capital" && /\binmoviliz|\bdetenid|\batrapad/.test(norm)) || _complicada || _nlInmov;
   const _dim = _bodegaDim ? "sucursal" : "sku";                  // 2.5d · bodega como dimensión
   // el evidence refleja el subconjunto/eje: la "boleta" dice que es el Def2 (si aplica) y la dimensión real.
   const _evFiltros = { ...(_filtro ? { marca_o_familia: _filtro } : {}), ...(_bodegaFiltro ? { bodega: _bodegaFiltro } : {}), ...(_inmovilizado ? { subconjunto: "inmovilizado (Def2: alerta crit/warn O rotación<2)" } : {}) };

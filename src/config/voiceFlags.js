@@ -166,6 +166,7 @@ export const ADI_RANKING_NL_DIRECTION_ENABLED = false;  // Capa 2 · extiende el
 export const ADI_CLASSIFY_SKU_COMMERCIAL_ENABLED = false; // Capa 1 (endurecimiento de raíz) · guard en resolveSemanticIntent: "sku/producto + métrica comercial (margen/contribución/ventas) y SIN señal de inventario" NO se clasifica como inventario → cae al flujo comercial · NO toca el inventario legítimo (con señal de inventario el guard no dispara) · protege también los cruces producto+comercial de la Etapa 4
 // ── Smart-fallback · "ADI se adueña de la conversación" (principio premium del owner) · default OFF ──
 export const ADI_SMART_GUIDE_ENABLED = false;            // tanda 2 · cuando ADI cae al dead-end (muro de inventario / global_honest_fallback), en vez de un "no llego" seco (que filtraba "Fase 2.5"), detecta los términos del texto (cliente/margen/SKU/bodega/rotación) y GUÍA hacia lo disponible (composeSmartGuide) · NUNCA ofrece lo no-modelado ni inventa número (regla madre) · reemplaza el mensaje, conserva la ruta (qi_inventory_avisar / global_honest_fallback)
+export const ADI_INV_NL_VOCAB_ENABLED = false;          // tanda 2b · reconocimiento NL de inventario en el spine: "parado/stock muerto/plata dormida"→capital inmovilizado, "no se mueve/vende/rota"→rotación baja, "bodega peor/mal"→complicada → RESPONDEN directo (en vez de que el smart-guide ofrezca) · bloque ADITIVO (solo dispara si el registro no detectó métrica) → cero impacto en lo existente
 
 export const MECHANISM_LINK_ENABLED = true;
 
