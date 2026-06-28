@@ -159,6 +159,12 @@ export const ADI_INV_CAPITAL_ENABLED = false;           // 2.5c-1 · capital/sto
 export const ADI_INV_INMOVILIZADO_ENABLED = false;      // 2.5c-2 · refina el anchor "inmovilizado/detenido/atrapado" del capital de la VISTA AMPLIA al subconjunto Def2 (alerta crit/warn O rotación<2 · def canónica _capitalInmovilizado) · "capital" a secas sigue dando la vista amplia · requiere ADI_INV_CAPITAL_ENABLED ON · el evidence refleja el subconjunto
 export const ADI_INV_BODEGA_ENABLED = false;            // 2.5d (último · cierra Etapa 3) · bodega como DIMENSIÓN (group-by skuInventario · "capital por bodega"/"rotación por bodega" · agregación por unidad: $ suma, x/d promedio) + filtro ("capital de Antofagasta") · "qué bodega está complicada" = más capital inmovilizado (Def2) · con esto TODO inventario disponible: la atomicidad queda inerte (red dormida para futuros dominios), la regla madre se transforma (avisa cruces NO soportados por el dato)
 
+// ── ADI Core · Fix sobre-ruteo margen/SKU (hallado en prueba en vivo del owner · pre-Etapa 4) · default OFF ──
+// Raíz: "SKU/productos" se clasificaba como inventario (Capa 1) y el vocab de superlativo comercial solo conocía
+// "peor/más bajo", no las palabras naturales del dueño "menor/menos/bajo/mayor/alto" (Capa 2). Un flag por capa.
+export const ADI_RANKING_NL_DIRECTION_ENABLED = false;  // Capa 2 · extiende el vocab de dirección de detectRankingExtremesIntent con sinónimos naturales (worst += menor(es)/menos/bajo(s)/baja(s) · best += mayor(es)/alto(s)/alta(s)) → "los SKU con menor margen"/"mayor margen" RESPONDEN el ranking (igual que "peor"); la re-detección sobre-escribe la mala clasificación de módulo y esquiva el muro · inventario "menor rotación" lo reclama antes el spine (no se cruza)
+export const ADI_CLASSIFY_SKU_COMMERCIAL_ENABLED = false; // Capa 1 (endurecimiento de raíz) · guard en resolveSemanticIntent: "sku/producto + métrica comercial (margen/contribución/ventas) y SIN señal de inventario" NO se clasifica como inventario → cae al flujo comercial · NO toca el inventario legítimo (con señal de inventario el guard no dispara) · protege también los cruces producto+comercial de la Etapa 4
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

@@ -1,7 +1,7 @@
 /* === adi/composers/ranking.js ===
  * Composer de ancla extraído de 41cc33d8 · verbatim · solo imports agregados. */
 import { RANKING_EXTREMES_METRICS } from "../../config/rankingData.js";
-import { ADI_RANKING_WITH_METRICS_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED, VOICE_RANKING_EXTREMES_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_RANKING_NL_DIRECTION_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED, VOICE_RANKING_EXTREMES_ENABLED } from "../../config/voiceFlags.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { buildReframe, buildSuggestedAction, calculateRecoverable, classifySeverity, detectInternalDriver } from "../../engine/signals.js";
@@ -204,8 +204,16 @@ export function detectRankingExtremesIntent(text, ctx) {
   // consciente: el caso "el cliente con menor margen" queda delegado a QI
   // (deuda #D-MENOR-MAYOR-DELEGADOS-A-QI-INTERPRETA-COMO-BEST).
   // Cubre masculino y femenino: bajo/baja/bajos/bajas · alto/alta/altos/altas
-  const worstPatterns = /\b(peor|peores|mas\s+baj[oa]s?|minimo|ultimo|ultimos)\b/;
-  const bestPatterns  = /\b(mejor|mejores|mas\s+alt[oa]s?|maximo|primero|primeros)\b/;
+  // Capa 2 (fix sobre-ruteo · flag ON) · suma los sinónimos NATURALES del dueño que la deuda #D-MENOR-MAYOR había
+  // delegado a QI (que nunca los toma · exige "por"): worst += menor(es)/menos/bajo(s)/baja(s) · best += mayor(es)/
+  // alto(s)/alta(s). La re-detección de ranking corre DESPUÉS del clasificador y lo sobre-escribe → "los SKU con menor
+  // margen" responde el ranking (esquiva el muro). Inventario "menor rotación" lo reclama ANTES el spine (no se cruza).
+  const worstPatterns = ADI_RANKING_NL_DIRECTION_ENABLED
+    ? /\b(peor|peores|mas\s+baj[oa]s?|menor|menores|menos|baj[oa]s?|minimo|ultimo|ultimos)\b/
+    : /\b(peor|peores|mas\s+baj[oa]s?|minimo|ultimo|ultimos)\b/;
+  const bestPatterns  = ADI_RANKING_NL_DIRECTION_ENABLED
+    ? /\b(mejor|mejores|mas\s+alt[oa]s?|mayor|mayores|alt[oa]s?|maximo|primero|primeros)\b/
+    : /\b(mejor|mejores|mas\s+alt[oa]s?|maximo|primero|primeros)\b/;
   const isWorst = worstPatterns.test(normalized);
   const isBest  = bestPatterns.test(normalized);
   if (!isWorst && !isBest) return null;
@@ -231,6 +239,16 @@ export function detectRankingExtremesIntent(text, ctx) {
   // Validar que el metric pertenece al entityType correcto
   const spec = RANKING_EXTREMES_METRICS[metric];
   if (!spec || spec.entityType !== entityType) return null;
+
+  // Capa 2 guard (anti-overshadow) · contribución por CLIENTE tiene ruta dedicada más rica (client_contribution_ranking ·
+  // vista de concentración de cartera). Si la dirección viene SOLO del vocab NUEVO (mayor/menor/bajo/alto · no peor/mejor/
+  // mas-bajo/mas-alto), NO le robamos la query a la dedicada → preserva baseline ("los clientes con mayor contribución" →
+  // client_contribution_ranking). El vocab VIEJO ("peor cliente por contribución") sigue cayendo acá → ranking_extremes.
+  if (ADI_RANKING_NL_DIRECTION_ENABLED && entityType === "client" && metric === "contribucion") {
+    const _oldWorst = /\b(peor|peores|mas\s+baj[oa]s?|minimo|ultimo|ultimos)\b/.test(normalized);
+    const _oldBest  = /\b(mejor|mejores|mas\s+alt[oa]s?|maximo|primero|primeros)\b/.test(normalized);
+    if (!_oldWorst && !_oldBest) return null;
+  }
 
   // Detectar cross-metric primero (patrón "del top X tiene peor Y")
   const cross = _detectCrossMetricInText(normalized, entityType);
