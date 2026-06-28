@@ -16,7 +16,9 @@ const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
 function modR(text) { if (text == null) return null; const t = document.createElement("div"); t.innerHTML = renderToStaticMarkup(React.createElement(mod.AdiMessageBody, { text })); return t.textContent; }
 const RANK = (r) => r.route === "ranking_extremes";
 const SPINE = (r) => r.route === "spine_inv_superlative" || r.route === "spine_inv_retrieval";
-const AVISA = (r) => /habilitado en esta fase|vive en inventario/i.test(r.text || "");
+// regla madre message-agnostic: NO responde el cruce con inventario/ranking ni inventa número (vale para el mensaje
+// viejo "Fase 2.5" Y para el smart-guide "por canal no tengo, de rotación sí por SKU…").
+const AVISA = (r) => !SPINE(r) && r.route !== "ranking_extremes" && !/\d+(?:\.\d+)?x|inmoviliz|\bdoh\b|\d+\s*d[ií]as/i.test(r.text || "");
 const peorSKU = (r) => RANK(r) && /MAK-COMP-AIR/.test(r.text) && /7\.9%/.test(r.text);
 
 const CASES = [

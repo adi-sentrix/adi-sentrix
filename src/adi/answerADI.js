@@ -25,6 +25,7 @@ import { composeClientMetricFollowUp } from "./composers/followups.js";
 import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } from "./deepThreading.js";
 import { eclContIsPureContinuation, composeSkuDevelopment } from "./eclCont.js";
 import { composeModuleOverview } from "./composers/overview.js";
+import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-readiness · "se adueña de la conversación"
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -42,7 +43,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -686,7 +687,7 @@ export function answerADI(question, context = {}, state = {}) {
     if (ADI_QI_FILTER_ENABLED && (_esPreguntaInventarioChat(null, trimmed)
         || (ADI_MT_INV_COVERAGE_ENABLED && early._module === "inventario" && !isAvailable("inventario")))) {
       const _ef = detectBrandInText(trimmed) || (detectAllFamiliesInText(trimmed, { strict: true })[0] || null);
-      return _plainWrap({ opener: _inventarioAvisarMsg(_ef) }, "qi_inventory_avisar", ctx);
+      return _plainWrap({ opener: ADI_SMART_GUIDE_ENABLED ? composeSmartGuide(trimmed) : _inventarioAvisarMsg(_ef) }, "qi_inventory_avisar", ctx);
     }
     return _finalize(early, "early_gate", early.intent || "module_overview", ctx, scenario, _overviewLeadIntent(trimmed));
   }
@@ -732,7 +733,7 @@ export function answerADI(question, context = {}, state = {}) {
     const _b = detectBrandInText(trimmed);
     const _f = detectAllFamiliesInText(trimmed, { strict: true });
     const _filterName = _b || (_f.length ? _f[0] : null);
-    return _plainWrap({ opener: _inventarioAvisarMsg(_filterName) }, "qi_inventory_avisar", ctx);
+    return _plainWrap({ opener: ADI_SMART_GUIDE_ENABLED ? composeSmartGuide(trimmed) : _inventarioAvisarMsg(_filterName) }, "qi_inventory_avisar", ctx);
   }
 
   // ── QI RETRIEVAL · tabla paramétrica (replica PanelADI FASE 3 · L37159-37182) ──
@@ -843,7 +844,7 @@ export function answerADI(question, context = {}, state = {}) {
       && !(ADI_BARE_MODULE_OVERVIEW_ENABLED && _isBareModuleWord(trimmed))
       && !(intent._ventasTotalGlobal)) {
     const fb = composeGlobalHonestFallback(trimmed, ctx, ctx.activeModule || intent.modulo || null, scenario);
-    if (fb && fb.opener) return _fallbackWrap(fb, "global_honest_fallback", "global_honest_fallback", ctx, scenario);
+    if (fb && fb.opener) return _fallbackWrap(ADI_SMART_GUIDE_ENABLED ? { ...fb, opener: composeSmartGuide(trimmed) } : fb, "global_honest_fallback", "global_honest_fallback", ctx, scenario);
   }
 
   // ── HONEST FALLBACK · type "generic" · cierre de la cascada DEFAULT (replica PanelADI L38125) ──
@@ -852,7 +853,7 @@ export function answerADI(question, context = {}, state = {}) {
   // disambiguation + ECL-CONT (anteriores en el piso) son multi-turno → inertes single-turn (deuda conocida).
   if (intent && intent.type === "generic") {
     const _fb = composeGlobalHonestFallback(trimmed, ctx, ctx.activeModule || null, scenario);
-    if (_fb && _fb.opener) return _fallbackWrap(_fb, "global_honest_fallback", "global_honest_fallback", ctx, scenario);
+    if (_fb && _fb.opener) return _fallbackWrap(ADI_SMART_GUIDE_ENABLED ? { ..._fb, opener: composeSmartGuide(trimmed) } : _fb, "global_honest_fallback", "global_honest_fallback", ctx, scenario);
   }
 
   // ── ramas aún no extraídas ──

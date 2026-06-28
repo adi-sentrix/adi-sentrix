@@ -55,7 +55,8 @@ if (ON) {
     const r = run(q);
     const fuga = /rotacion\s+[\d.]|doh\s+[\d.]|\$\d+K?\s+(?:inmoviliz|stock)|[\d.]+x\b/i.test(r.text);
     const avisa = (r.route === "spine_dim_unavailable" || r.route === "qi_inventory_avisar" || r.route === "qi_inventory_filter_avisar");
-    ck(`«${q}» → AVISA, cero dato (route=${r.route})`, avisa && /Fase 2\.5/.test(r.text) && !fuga, `route=${r.route} | ${r.text}`);
+    // message-agnostic: el marcador del AVISA es la RUTA + cero fuga de dato (con smart-guide el texto ya no dice "Fase 2.5").
+    ck(`«${q}» → AVISA, cero dato (route=${r.route})`, avisa && !fuga, `route=${r.route} | ${r.text}`);
   }
 
   console.log("\n— oráculo · NO ROMPE (2.1a NO reclama · cae al viejo o a OTRO resolver legítimo) —");

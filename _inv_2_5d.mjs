@@ -16,7 +16,9 @@ const React = (await import("react")).default; const { renderToStaticMarkup } = 
 const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
 function modR(text) { if (text == null) return null; const t = document.createElement("div"); t.innerHTML = renderToStaticMarkup(React.createElement(mod.AdiMessageBody, { text })); return t.textContent; }
 const isResp = (r) => r.route === "spine_inv_superlative" || r.route === "spine_inv_retrieval";
-const AVISA = (r) => /habilitado en esta fase|no tengo|no reconozco|no cruzo|no responder/i.test(r.text) && !isResp(r);
+// regla madre · propiedad REAL message-agnostic: NO respondió el cruce (ni spine ni ranking comercial) → avisó/guió
+// honesto. Vale con el mensaje viejo ("Fase 2.5") Y con el smart-guide ("por canal no tengo, de rotación sí por SKU…").
+const AVISA = (r) => !isResp(r) && r.route !== "ranking_extremes";
 const NUM = /\$\s?\d|\d+\.\dx|\b\d+d\b|\d+\s*d[ií]as/;   // cualquier número de inventario
 
 const CASES = [
