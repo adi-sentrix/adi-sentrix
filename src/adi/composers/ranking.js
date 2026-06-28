@@ -209,10 +209,10 @@ export function detectRankingExtremesIntent(text, ctx) {
   // alto(s)/alta(s). La re-detección de ranking corre DESPUÉS del clasificador y lo sobre-escribe → "los SKU con menor
   // margen" responde el ranking (esquiva el muro). Inventario "menor rotación" lo reclama ANTES el spine (no se cruza).
   const worstPatterns = ADI_RANKING_NL_DIRECTION_ENABLED
-    ? /\b(peor|peores|mas\s+baj[oa]s?|menor|menores|menos|baj[oa]s?|minimo|ultimo|ultimos)\b/
+    ? /\b(peor|peores|mas\s+baj[oa]s?|menor|menores|menos|baj[oa]s?|floj[oa]s?|minimo|ultimo|ultimos)\b/
     : /\b(peor|peores|mas\s+baj[oa]s?|minimo|ultimo|ultimos)\b/;
   const bestPatterns  = ADI_RANKING_NL_DIRECTION_ENABLED
-    ? /\b(mejor|mejores|mas\s+alt[oa]s?|mayor|mayores|alt[oa]s?|maximo|primero|primeros)\b/
+    ? /\b(mejor|mejores|mas|mayor|mayores|alt[oa]s?|maximo|primero|primeros)\b/
     : /\b(mejor|mejores|mas\s+alt[oa]s?|maximo|primero|primeros)\b/;
   const isWorst = worstPatterns.test(normalized);
   const isBest  = bestPatterns.test(normalized);

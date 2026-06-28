@@ -5,7 +5,7 @@ import { FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_FAMILY_AS_E
 import { INTENTS_REGISTRY } from "../config/intentsRegistry.js";
 import { CONCEPT_ONTOLOGY, SEMANTIC_FAMILIES } from "../config/ontology.js";
 import { AFFIRMATIVE_REPLIES, CLIENT_NAMES, CROSS_DOMAIN_EXECUTIVE_EXPRESSIONS, DOMAIN_KEYWORDS, EXECUTIVE_INTENT_PATTERNS, EXECUTIVE_REPORT_PATTERNS, EntityRegistry, KEYWORDS_DICTIONARY, RANKING_INTENT_PATTERNS, SEMANTIC_ENTITIES, SEMANTIC_INTENTS, SEMANTIC_METRICS, SEMANTIC_QUALIFIERS, _D30BIS_MEASURES_PATTERNS, _DEICTIC_CLIENT_HINT, _DEICTIC_PLURAL_DEMONSTRATIVE, _DEICTIC_QUANTIFIED, _DEICTIC_SKU_HINT, _VENTAS_TOTAL_GLOBAL_PHRASES } from "../config/routerData.js";
-import { ADI_DRILL_ELIPTICO_SKU_ENABLED, ADI_IDLEAK_RESOLVE_ORDINAL_ENABLED, ADI_PANORAMA_SYNONYMS_ENABLED, ADI_VENTAS_TOTAL_LEXICO_ENABLED, VOICE_D30BIS_MEASURES_ENABLED, VOICE_DEICTIC_PLURAL_ENABLED, VOICE_ENTITY_REGISTRY_ENABLED, VOICE_EXECUTIVE_INTELLIGENCE_ENABLED, VOICE_EXECUTIVE_REPORT_COMPOSER_ENABLED, VOICE_NARRATIVE_V2_ENABLED, VOICE_SEMANTIC_INTENT_LAYER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_CLASSIFY_SKU_COMMERCIAL_ENABLED } from "../config/voiceFlags.js";
+import { ADI_DRILL_ELIPTICO_SKU_ENABLED, ADI_IDLEAK_RESOLVE_ORDINAL_ENABLED, ADI_PANORAMA_SYNONYMS_ENABLED, ADI_VENTAS_TOTAL_LEXICO_ENABLED, VOICE_D30BIS_MEASURES_ENABLED, VOICE_DEICTIC_PLURAL_ENABLED, VOICE_ENTITY_REGISTRY_ENABLED, VOICE_EXECUTIVE_INTELLIGENCE_ENABLED, VOICE_EXECUTIVE_REPORT_COMPOSER_ENABLED, VOICE_NARRATIVE_V2_ENABLED, VOICE_SEMANTIC_INTENT_LAYER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_CLASSIFY_SKU_COMMERCIAL_ENABLED, ADI_RANKING_NL_DIRECTION_ENABLED } from "../config/voiceFlags.js";
 import { MARCAS_ALL, SUCURSALES, SUPERFAMILIAS } from "../data/catalogs.js";
 import { clientesMargen, marcasMargen } from "../data/demoData.js";
 import { CLIENT_KEYWORDS, CLIENT_NAME_MAP, detectBrandInText, detectClientInText, detectSkuInText, _clientKwRegex } from "./detectors.js";
@@ -903,7 +903,7 @@ export function detectIntent(userText, context = {}) {
     const _skuCommMisroute = ADI_CLASSIFY_SKU_COMMERCIAL_ENABLED
       && semanticResolution.type === "module" && semanticResolution.modulo === "inventario"
       && /\b(sku|skus|producto|productos)\b/.test(normalized)
-      && /\b(margen|margenes|contribucion|rentabilidad|ventas|venta|facturacion)\b/.test(normalized)
+      && /\b(margen|margenes|contribucion|rentabilidad|rentable|ventas|venta|facturacion)\b/.test(normalized)
       && !/\b(rotacion|rotan|doh|cobertura|stock|stocks|inventario|inventarios|bodegas?|sucursal(?:es)?|capital|inmoviliz\w*|detenid\w*|atrapad\w*|estancad\w*|varad\w*|quiebre|liquidar)\b/.test(normalized);
     if (!_skuCommMisroute) {
       return semanticResolution;
@@ -2000,7 +2000,12 @@ export function _detectMetricInText(normalizedText, entityTypeHint) {
   if (/\b(stock\s*usd|stock|capital\s+inmovilizado|capital\s+atrapado)\b/.test(n)) return "stockUSD";
   if (/\b(carga|rebate|carga\s+comercial)\b/.test(n))          return "carga";
   // Ambigüedad margen/contribucion · resolver por entityTypeHint
-  if (/\b(margen|rentabilidad|margen\s+unitario)\b/.test(n)) {
+  // Capa 2 v2 (fix sobre-ruteo · flag ON) · suma sinónimos naturales de margen que el dueño usa: plural "márgenes",
+  // adjetivo "rentable", y el idiom "dejar plata" (me dejan menos plata = baja rentabilidad). Flag OFF = base byte-exacta.
+  const _margenRe = ADI_RANKING_NL_DIRECTION_ENABLED
+    ? /\b(margen|margenes|rentabilidad|rentable|margen\s+unitario)\b|\bdej\w*\b[\s\w]{0,20}\bplata\b/
+    : /\b(margen|rentabilidad|margen\s+unitario)\b/;
+  if (_margenRe.test(n)) {
     return entityTypeHint === "sku" ? "sku_margen" : "margen";
   }
   if (/\b(contribuci[oó]n|aporte|aportan|aporta)\b/.test(n)) {

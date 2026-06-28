@@ -29,6 +29,13 @@ const CASES = [
   { name: "sim mayor margen (SKU)", q: "los SKU con mayor margen", mk: "margenes", check: (r) => RANK(r) && /MAK-SAW18V/.test(r.text) && /34/.test(r.text) },
   { name: "sim cliente menor margen", q: "el cliente con menor margen", mk: "margenes", check: (r) => RANK(r) && /Lider/.test(r.text) },
   { name: "sim SKU bajo margen (alto/bajo)", q: "los SKU con bajo margen", mk: "margenes", check: peorSKU },
+  // tanda 1 · vocab comercial v2 (rentable · plural márgenes · flojo · idiom "dejar plata" · bare "más")
+  { name: "t1 dejar plata", q: "qué productos me dejan menos plata", mk: "margenes", check: peorSKU },
+  { name: "t1 menos rentable", q: "el producto menos rentable", mk: "margenes", check: peorSKU },
+  { name: "t1 más rentable (best)", q: "cuál es mi producto más rentable", mk: "margenes", check: (r) => RANK(r) && /MAK-SAW18V/.test(r.text) && /34/.test(r.text) },
+  { name: "t1 márgenes plural", q: "los SKU con los márgenes más bajos", mk: "margenes", check: peorSKU },
+  { name: "t1 flojos de margen", q: "qué productos están flojos de margen", mk: "margenes", check: peorSKU },
+  { name: "t1 más margen (bare más)", q: "el SKU con más margen", mk: "margenes", check: (r) => RANK(r) && /MAK-SAW18V/.test(r.text) },
   // 🚨 inventario REAL sigue AVISANDO (regla madre · el endurecimiento NO hace responder lo que no debe)
   { name: "🚨REGLA rotación por canal", q: "rotación por canal", mk: "inventario", check: (r) => AVISA(r) && !SPINE(r) },
   { name: "🚨REGLA rotación por marca", q: "rotación por marca", mk: "inventario", check: (r) => AVISA(r) && !SPINE(r) },
