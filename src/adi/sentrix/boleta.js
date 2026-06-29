@@ -2,7 +2,8 @@
  * Normaliza la evidencia de CUALQUIER ruta (comercial ranking_*, spine inv, etc.) a UN contrato uniforme
  * que el motor de Sentrix consume: entidad/entityType/métrica + el bloque availability (qué puede mostrar el
  * motor con ESTE dato y ESTA respuesta). Conserva lo que el composer ya trajo (spread), no recalcula nada. */
-import { datasetCapability } from "./capability.js";
+import { datasetCapability, entityExplorable } from "./capability.js";
+import { ADI_SENTRIX_EXPLORE_ENABLED } from "../../config/voiceFlags.js";
 
 export function buildSentrixBoleta(resp, intent, route, scenario) {
   const ev = (resp && resp.evidence) || {};
@@ -32,6 +33,15 @@ export function buildSentrixBoleta(resp, intent, route, scenario) {
     confianza: ev.confianza || (resp && resp.confidence) || "alta",
     // bloque AVAILABILITY · lo que el motor puede mostrar con este dato (data-driven · future-proof).
     availability: { history: cap.history, crosses: cap.crosses },
+    // bloque EXPLORABLE · §7 · qué se puede explorar desde esta entidad (comparar/cambiar métrica) + bloqueos
+    // honestos · data-driven · base de la mesa interactiva (paso 3) · gated · OFF = sin campo (byte-exacto).
+    // El spine (bodega) no setea entidad/entityType a nivel boleta → fallback al foco de la lectura.
+    ...(() => {
+      if (!ADI_SENTRIX_EXPLORE_ENABLED) return {};
+      const exType = entityType || (ev.reading && ev.reading.focusType) || null;
+      const exEnt = entidad || (ev.reading && ev.reading.focus) || null;
+      return exType && exEnt ? { explorable: entityExplorable(exType, exEnt) } : {};
+    })(),
     _sentrix: true,
   };
 }

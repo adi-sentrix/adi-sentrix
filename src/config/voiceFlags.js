@@ -172,6 +172,7 @@ export const ADI_SIM_SCOPE_FOLLOWUP_ENABLED = false;   // sub-fix "todas" · el 
 // ── ADI Core · Etapa 5 · Sentrix · S1 · boleta de evidencia UNIVERSAL + availability-driven · default OFF ──
 export const ADI_SENTRIX_BOLETA_ENABLED = false;       // S1 · _finalize surfacea una boleta UNIFORME (normalizada vía buildSentrixBoleta) en TODA respuesta comercial (hoy ranking_extremes/client_* devuelven evidence:null) · entidad/entityType/métrica + bloque availability (datasetCapability data-driven: history{global/perEntity/scenario}, crosses{atomic}) · OFF = _finalize sin campo evidence (byte-exacto) · es la columna vertebral que consume Sentrix
 export const ADI_SENTRIX_READING_ENABLED = false;      // S2a · LECTURA EJECUTIVA · "capital inmovilizado por bodega" (el foco) → ADI dice el porqué (reframe concentrado+lento + drivers DOH/rotación/concentración + recomendación + SKU sensible · todo derivado del dato vía buildCapitalReading) en vez de la línea fina · el boleta carga reading{} → Sentrix lo demuestra campo por campo · OFF = one-liner del spine byte-exacto
+export const ADI_SENTRIX_EXPLORE_ENABLED = false;     // Paso 3a · ESTADO DE ANÁLISIS · la boleta declara el bloque `explorable` (data-driven · §7): con qué pares comparar, qué métricas tiene la entidad, y qué vistas se BLOQUEAN honesto (cruce a entidad relacionada sin granularidad atómica · Ejemplo 5 Situación B) · base de la mesa interactiva (comparar/cambiar/desglosar · v2 LLM por voz) · OFF = boleta sin campo explorable (byte-exacto)
 
 export const MECHANISM_LINK_ENABLED = true;
 
