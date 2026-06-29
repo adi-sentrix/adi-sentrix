@@ -40,8 +40,7 @@ export default function App({ animate = true }) {
     <div style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* ── HEADER ── */}
-      <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(0,176,212,0.025) 0%, transparent 80%)", flexShrink:0 }}>
-        <div style={{ position:"absolute", left:0, right:0, bottom:-1, height:1, background:"linear-gradient(90deg, transparent 5%, rgba(0,176,212,0.5) 50%, transparent 95%)", pointerEvents:"none", animation:"auroraBreathe 6s ease-in-out infinite" }}/>
+      <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
           <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"linear-gradient(135deg, rgba(0,176,212,0.08), rgba(14,127,168,0.04))", border:"1px solid rgba(0,176,212,0.18)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(0,176,212,0.06), 0 4px 12px -3px rgba(0,176,212,0.2)" }}>
             <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#00b0d4" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -71,9 +70,7 @@ export default function App({ animate = true }) {
       </header>
 
       {/* ── MAIN · ADI centro con atmósfera ── */}
-      <main style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", position:"relative", background:"linear-gradient(180deg, #090909 0%, #070707 100%)", boxShadow:"inset 0 0 60px rgba(0,0,0,0.4)", overflow:"hidden" }}>
-        <div style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px)", backgroundSize:"32px 32px", backgroundPosition:"-1px -1px", maskImage:"radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%)", WebkitMaskImage:"radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%)" }}/>
-        <div style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse 55% 45% at 50% 30%, rgba(0,176,212,0.05) 0%, rgba(0,176,212,0.02) 35%, transparent 70%)", animation:"adiAurora 18s ease-in-out infinite", transformOrigin:"50% 30%" }}/>
+      <main style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", position:"relative", background:C.bg, overflow:"hidden" }}>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate}

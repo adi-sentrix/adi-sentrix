@@ -2,10 +2,13 @@
  * Tokens visuales + estilos del highlighter financiero · extraídos de 41cc33d8 · verbatim.
  * Presentación pura · cero cálculo. La única diferencia con el monolito es DÓNDE vive el estilo. */
 
+// Paleta SOBRIA + CÁLIDA (Etapa 5 · look de Code · owner 2026-06-29): charcoal cálido (sutil, no sepia),
+// texto off-white cálido, cero brillo de ambiente. Cyan SOLO como acento funcional frío (cifras/logo/activo ·
+// identidad de ADI) → contraste premium frío-sobre-cálido. Bordes con una pizca de calidez.
 export const C = {
-  bg: "#050507", surface: "#0c0d10", surfaceAlt: "#14161a", surfaceHover: "#1a1d23",
-  border: "rgba(255,255,255,0.05)", borderLight: "rgba(255,255,255,0.08)",
-  text: "#FFFFFF", textSub: "#d4d4d4", textMuted: "#9a9a9a",
+  bg: "#0e0d0c", surface: "#181715", surfaceAlt: "#221f1d", surfaceHover: "#292623",
+  border: "rgba(255,251,245,0.06)", borderLight: "rgba(255,251,245,0.09)",
+  text: "#ecebe8", textSub: "#bcbab5", textMuted: "#8d8a84",
   blue: "#00b0d4", indigo: "#0e7fa8", green: "#10b981",
   red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
 };
