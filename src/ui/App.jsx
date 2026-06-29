@@ -71,6 +71,8 @@ export default function App({ animate = true }) {
 
       {/* ── MAIN · ADI centro con atmósfera ── */}
       <main style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", position:"relative", background:C.bg, overflow:"hidden" }}>
+        {/* glow sutil ESTÁTICO (sin animación) · da vida a la esquina del chat · efecto tipo panel lateral de Code */}
+        <div style={{ position:"absolute", left:0, bottom:0, width:"58%", height:"62%", zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse 75% 75% at 0% 100%, rgba(0,176,212,0.07), transparent 70%)" }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate}

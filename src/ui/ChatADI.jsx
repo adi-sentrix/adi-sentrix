@@ -292,19 +292,19 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       </div>
 
       {/* ── INPUT (sticky abajo) · verbatim del piso ── */}
-      <div style={{ padding:"16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.surface, display:"flex", flexDirection:"column", gap:8 }}>
+      <div style={{ padding:"16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", gap:8 }}>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <input
             ref={inputRef}
             value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
             placeholder="Pregunta a ADI..."
-            style={{ flex:1, background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, color:C.text, outline:"none", caretColor:C.blue, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.025), inset 0 1px 3px rgba(0,0,0,0.3)" }}
-            onFocus={e=>{ e.target.style.borderColor=C.blue; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="inset 0 1px 0 rgba(255,255,255,0.03), 0 0 0 3px rgba(0,176,212,0.1)"; }}
-            onBlur={e=>{ e.target.style.borderColor=C.border; e.target.style.background=C.surface; e.target.style.boxShadow="inset 0 1px 0 rgba(255,255,255,0.025), inset 0 1px 3px rgba(0,0,0,0.3)"; }}
+            style={{ flex:1, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:10, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, color:C.text, outline:"none", caretColor:C.blue, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            onFocus={e=>{ e.target.style.borderColor=C.blue; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(0,176,212,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
+            onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
           />
           <button onClick={()=>submit(input)} disabled={!input.trim()}
-            style={{ width:38, height:36, borderRadius:8, border:"none", background:input.trim()?"linear-gradient(180deg,#00b0d4,#0e7fa8)":"transparent", color:input.trim()?"#fff":C.textMuted, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 12px -4px rgba(0,176,212,0.55)":"none" }}>
+            style={{ width:38, height:38, borderRadius:"50%", border:"none", background:input.trim()?"linear-gradient(180deg,#00b0d4,#0e7fa8)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(0,176,212,0.6)":"0 1px 4px rgba(0,0,0,0.35)" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"/>
               <polyline points="13 6 19 12 13 18"/>
