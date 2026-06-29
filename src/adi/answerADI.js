@@ -43,7 +43,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -446,6 +446,14 @@ function _resolvePending(text, ctx, scenario) {
     if (_wantsBrand && !_wantsClient) return { _rewrite: `${p.metric || "ventas"} de ${p.filterValue}` };  // opción 1 · marca sola COMERCIAL (no brand_dive)
     return null;                                              // ambiguo / ninguno → pregunta nueva (no fuerza)
   }
+  if (p.kind === "sim_scope") {
+    // sub-fix "todas" · resuelve el alcance del clarify de contribución/margen, DETERMINÍSTICO (no smart-guide).
+    const cli = (typeof detectClientInText === "function") ? detectClientInText(text) : null;
+    if (cli) return { _rewrite: `cómo está ${cli}` };                         // cuenta nombrada (ej. Lider) → client_dive
+    if (/\btodas?\b|\btodos\b|el\s+total|la\s+cartera|portafolio|portfolio|todas\s+las\s+cuentas|el\s+grupo|erosionad|las\s+cuentas\b/.test(n))
+      return { _rewrite: "los clientes con mayor contribución" };             // todas / grupo erosionado → vista de cartera (concentración + márgenes + mecanismos)
+    return null;                                                              // ambiguo → pregunta nueva (no fuerza)
+  }
   return null;
 }
 
@@ -657,7 +665,10 @@ export function answerADI(question, context = {}, state = {}) {
         const _q = _simOv.question || "¿En qué cuentas querés simular el cambio de margen?";
         const _opts = _simOv.options || [];
         const _optTxt = _opts.length ? ` (${_opts.join(" · ")})` : "";
-        return _plainWrap({ opener: _q + _optTxt }, "simulation_needs_precision", ctx);
+        // sub-fix "todas" · persiste un pendiente de ALCANCE (solo el clarify de cuentas · no el de pp/% ni el de magnitud)
+        // para que el turno N+1 resuelva "todas"/"el grupo erosionado"/un cliente. Gated · espeja pendingSpineDecision (2.2b).
+        const _isScope = ADI_SIM_SCOPE_FOLLOWUP_ENABLED && Array.isArray(_simOv.options) && _simOv.options.some(o => /cuenta|todas|erosionad/i.test(o));
+        return _plainWrap({ opener: _q + _optTxt, ...(_isScope ? { _pending: { kind: "sim_scope" } } : {}) }, "simulation_needs_precision", ctx);
       }
     }
   }
