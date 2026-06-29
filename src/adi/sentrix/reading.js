@@ -40,6 +40,7 @@ function _readClientLoad(signals) {
   const recK = a.recoverable_K || 0, recBPK = a.bestPractice_recoverable_K || 0;
   const bpCarga = a.bestPractice_carga || 3.0;
   return {
+    kind: "internal_commercial_load",        // → el panel resuelve el pack por kind (espejo del renderer)
     domain: "margenes", metric: "margen", focusType: "client", focus: w.entity,
     monto: w.value, montoFmt: w.value + "%", pct: w.value,
     reframe: "antes de mirar al cliente, el margen se decide en la carga comercial",
@@ -64,6 +65,7 @@ function _readCostStructure(signals) {
             : driver === "carga comercial" ? "revisaría el rebate de este SKU"
             : "revisaría el precio de lista";
   return {
+    kind: "cost_structure",
     domain: "margenes", metric: "margen", focusType: "sku", focus: w.entity,
     monto: w.value, montoFmt: w.value + "%", pct: w.value, benchmark: d.benchmark, gap: d.gap,
     reframe: `el ${driver} se lleva el margen, no la venta`,
@@ -89,6 +91,7 @@ function _readCapital(signals) {
     ? "antes de comprar más, revisaría salida comercial y transferencia de stock"
     : "revisaría la salida comercial de los SKUs frenados";
   return {
+    kind: "capital_concentration",
     domain: "inventario", metric: "capital", subset: "inmovilizado (Def2)", focusType: "bodega",
     focus: w.entity, monto: w.value, montoFmt: _fmtMoney(w.value),
     pct: d.pct, totalInmov: im.totalInmov, totalInmovFmt: _fmtMoney(im.totalInmov),
