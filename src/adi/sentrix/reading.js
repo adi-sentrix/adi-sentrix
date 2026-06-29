@@ -13,6 +13,7 @@
  * Presentación nula · cero React. */
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
+import { clientesMargen } from "../../data/demoData.js";
 import { invKPI } from "../../data/baseKpis.js";
 
 // inmovilizado Def2 canónica (igual que el spine/warehouse): alerta crit/warn O rotación < 2.
@@ -159,4 +160,47 @@ export function buildCapitalSignals(scenario) {
            driver: { mechanism: "capital_concentration", dohAvg: focus.dohAvg, rotAvg: focus.rotAvg, dohBench, pct, lento } },
     implication: { ranking, totalInmov, sensitive: sensitive.sku, sensitiveDoh: sensitive.doh },
   };
+}
+
+// ══════════════════════════ OPERACIÓN · COMPARAR (paso 3b · estado de análisis §3) ══════════════════════════
+// Compara DOS entidades del mismo tipo en su métrica, con campos DIRECTOS del dato (exacto · sin recompute
+// dependiente de scope) → consistente con la lectura primaria. El porqué de la brecha lo deriva del driver real
+// (SKU: costo del precio · cliente: carga comercial). kind "comparison" → el panel lo resuelve con su pack.
+function _comp(metric, domain, driverKey, a, b) {
+  const gap = +(a.value - b.value).toFixed(1);
+  const better = gap >= 0 ? a.entity : b.entity;
+  const worse = gap >= 0 ? b.entity : a.entity;
+  const dDelta = Math.abs(+(a.driverVal - b.driverVal).toFixed(1));
+  return {
+    kind: "comparison", domain, metric, focusType: "comparison",
+    focus: `${a.entity} vs ${b.entity}`,
+    a, b, gap: Math.abs(gap), better, worse,
+    reframe: `${better} tiene mejor ${metric} que ${worse}: ${Math.abs(gap)}pp de diferencia`,
+    drivers: [
+      { v: a.valueFmt, label: `${metric} de ${a.entity}` },
+      { v: b.valueFmt, label: `${metric} de ${b.entity}` },
+      { v: `${dDelta}pp`, label: `diferencia en ${driverKey}` },
+    ],
+    recommendation: `el ${driverKey} explica la brecha — revisaría el de ${worse}`,
+    sensitive: worse,
+  };
+}
+
+export function buildComparisonReading(entityType, entA, entB) {
+  if (!entA || !entB || entA === entB) return null;
+  if (entityType === "sku") {
+    const sA = buildSkuMarginSignals(entA), sB = buildSkuMarginSignals(entB);
+    if (!sA || !sB) return null;
+    const mk = (s) => ({ entity: s.what.entity, value: s.what.value, valueFmt: s.what.value + "%",
+                         driverVal: s.why.driver.costShare, sub: `costo ${s.why.driver.costShare}% del precio` });
+    return _comp("margen", "margenes", "costo", mk(sA), mk(sB));
+  }
+  if (entityType === "client") {
+    const ca = clientesMargen.find((x) => x.nombre === entA), cb = clientesMargen.find((x) => x.nombre === entB);
+    if (!ca || !cb) return null;
+    const mk = (c) => ({ entity: c.nombre, value: c.margen, valueFmt: c.margen + "%",
+                         driverVal: c.pctRebate, sub: `carga ${c.pctRebate}%` });
+    return _comp("margen", "margenes", "carga", mk(ca), mk(cb));
+  }
+  return null;   // tipo aún sin comparación (bodega/otros) → el panel no ofrece comparar
 }
