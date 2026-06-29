@@ -169,6 +169,9 @@ export const ADI_SMART_GUIDE_ENABLED = false;            // tanda 2 · cuando AD
 export const ADI_INV_NL_VOCAB_ENABLED = false;          // tanda 2b · reconocimiento NL de inventario en el spine: "parado/stock muerto/plata dormida"→capital inmovilizado, "no se mueve/vende/rota"→rotación baja, "bodega peor/mal"→complicada → RESPONDEN directo (en vez de que el smart-guide ofrezca) · bloque ADITIVO (solo dispara si el registro no detectó métrica) → cero impacto en lo existente
 export const ADI_SIM_SCOPE_FOLLOWUP_ENABLED = false;   // sub-fix "todas" · el clarify de alcance de simulación ("¿En qué cuentas? Lider · el grupo erosionado · todas") persiste un pendiente (kind sim_scope · espeja 2.2b) y el turno N+1 lo resuelve determinístico: cliente nombrado → client_dive · "todas"/"el grupo erosionado"/"la cartera" → vista de cartera (client_contribution_ranking) · requiere ADI_MT_SPINE_FOLLOWUP_ENABLED (el escritor del pendiente)
 
+// ── ADI Core · Etapa 5 · Sentrix · S1 · boleta de evidencia UNIVERSAL + availability-driven · default OFF ──
+export const ADI_SENTRIX_BOLETA_ENABLED = false;       // S1 · _finalize surfacea una boleta UNIFORME (normalizada vía buildSentrixBoleta) en TODA respuesta comercial (hoy ranking_extremes/client_* devuelven evidence:null) · entidad/entityType/métrica + bloque availability (datasetCapability data-driven: history{global/perEntity/scenario}, crosses{atomic}) · OFF = _finalize sin campo evidence (byte-exacto) · es la columna vertebral que consume Sentrix
+
 export const MECHANISM_LINK_ENABLED = true;
 
 export const VOICE_EXECUTIVE_REPORT_ENGINE_ENABLED = true;

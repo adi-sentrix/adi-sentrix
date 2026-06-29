@@ -1,6 +1,6 @@
 // FASE 2.1d · evidence payload. Dual-state (evidence ON/OFF · spine RESPONDE flags siempre ON acá).
 import { answerADI } from "./src/adi/answerADI.js";
-import { ADI_SPINE_EVIDENCE_ENABLED, ADI_INV_ROTACION_ENABLED } from "./src/config/voiceFlags.js";
+import { ADI_SPINE_EVIDENCE_ENABLED, ADI_INV_ROTACION_ENABLED, ADI_SENTRIX_BOLETA_ENABLED } from "./src/config/voiceFlags.js";
 import fs from "fs";
 const EV = ADI_SPINE_EVIDENCE_ENABLED;
 const run = (q) => answerADI(q, {}, { scenario: "bonanza" });
@@ -50,7 +50,11 @@ if (EV) {
 
   console.log("\n══ Camino viejo (non-spine) → evidence null ══");
   for (const q of ["el cliente con peor margen", "cómo está Samsung", "Falabella vs Lider"]) {
-    const r = run(q); ck(`«${q}» → evidence null (route=${r.route})`, (r.evidence == null), `evidence=${JSON.stringify(r.evidence)}`);
+    const r = run(q);
+    // Etapa 5 · Sentrix S1 SUPERSEDE el "non-spine → null": las comerciales ahora traen la boleta UNIFORME.
+    // OFF → null (invariante 2.1d original) · ON → boleta Sentrix (_sentrix) o null si no es respuesta-resultado.
+    if (ADI_SENTRIX_BOLETA_ENABLED) ck(`«${q}» → boleta Sentrix uniforme o null (S1)`, (r.evidence == null || r.evidence._sentrix === true), `evidence=${JSON.stringify(r.evidence)}`);
+    else ck(`«${q}» → evidence null (route=${r.route})`, (r.evidence == null), `evidence=${JSON.stringify(r.evidence)}`);
   }
 }
 
