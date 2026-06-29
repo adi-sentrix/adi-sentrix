@@ -10,7 +10,7 @@
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
 import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED, ADI_INV_INMOVILIZADO_ENABLED, ADI_INV_NL_VOCAB_ENABLED, ADI_SENTRIX_READING_ENABLED } from "../../config/voiceFlags.js";
-import { buildCapitalReading } from "../sentrix/reading.js";   // Etapa 5 · Sentrix · lectura ejecutiva (el porqué)
+import { buildReadingFromSignals, buildCapitalSignals } from "../sentrix/reading.js";   // Etapa 5 · Sentrix · pipeline único de lectura
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -256,7 +256,7 @@ export function resolveInventoryRetrieval(text, scenario) {
     // carga la lectura estructurada para que Sentrix la demuestre. Gated · OFF = one-liner byte-exacto.
     let _reading = null;
     if (ADI_SENTRIX_READING_ENABLED && metricKey === "capital" && _bodegaDim && _inmovilizado && wantHigh) {
-      const _r = buildCapitalReading(scenario);
+      const _r = buildReadingFromSignals(buildCapitalSignals(scenario));
       if (_r && _r.focus === pick.entity) { _reading = _r; opener = _r.sentence; }
     }
     const _ev = _evidence(scenario, { metricKey, dimKey: _dim, filtros: _evFiltros, operacion: (wantHigh ? "rank_top" : "rank_bottom") + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true });

@@ -27,7 +27,7 @@ import { eclContIsPureContinuation, composeSkuDevelopment } from "./eclCont.js";
 import { composeModuleOverview } from "./composers/overview.js";
 import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-readiness · "se adueña de la conversación"
 import { buildSentrixBoleta } from "./sentrix/boleta.js";        // Etapa 5 · Sentrix S1 · boleta universal availability-driven
-import { buildSkuMarginReading, buildClientMarginReading } from "./sentrix/reading.js";    // Etapa 5 · Sentrix S2b/S2c · lectura ejecutiva de margen (SKU · cliente)
+import { buildReadingFromSignals, buildSkuMarginSignals } from "./sentrix/reading.js";    // Etapa 5 · Sentrix · pipeline único de lectura ejecutiva
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -362,7 +362,7 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
           response.evidence.ranking_topN === 1 &&     // foco singular · "los 3 peores" queda como lista
           /marg/i.test(String(response.evidence.ranking_metric || ""))) {
         const _ent = response.evidence.ranking_entities && response.evidence.ranking_entities[0];
-        const _rd = _ent ? buildSkuMarginReading(_ent) : null;
+        const _rd = _ent ? buildReadingFromSignals(buildSkuMarginSignals(_ent)) : null;
         if (_rd) {
           response.opener = _rd.sentence;          // ADI dice la lectura ejecutiva (el porqué)
           response.narrative_signals = null;       // la frase ejecutiva ES la narrativa → no dejar que la capa narrativa la pise
@@ -376,7 +376,7 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
       if (ADI_SENTRIX_READING_ENABLED && response.evidence && response.narrative_signals &&
           response.evidence.ranking_entityType === "client" && response.evidence.ranking_direction === "worst" &&
           response.evidence.ranking_topN === 1 && /marg/i.test(String(response.evidence.ranking_metric || ""))) {
-        const _crd = buildClientMarginReading(response.narrative_signals);
+        const _crd = buildReadingFromSignals(response.narrative_signals);
         if (_crd) response.evidence.reading = _crd;   // solo el panel · texto narrativo intacto
       }
       return _finalize(response, "ranking_extremes", "ranking_extremes", ctx, scenario, intent);
