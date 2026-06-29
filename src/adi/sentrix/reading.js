@@ -42,7 +42,7 @@ function _readMarginCompression(signals) {
   const recK = a.recoverable_K || 0;
   return {
     kind: "margin_compression",
-    domain: "margenes", metric: "contribucion", focusType: "client", focus: w.entity,
+    domain: "margenes", metric: "contribucion", focusType: w.entityType || "client", focus: w.entity,
     monto: w.value, montoFmt: w.value + "%", pct: w.value, benchmark, gap,
     reframe: "el margen unitario bajo el benchmark comprime la contribución",
     recoverableK: recK, targetMargen: benchmark,
@@ -200,6 +200,21 @@ export function buildClientContribSignals(clientName) {
            driver: { mechanism: "internal_margin_compression", factor: "margen_unitario", value: c.margen, vs_benchmark: gap, unit: "pp" } },
     implication: { action: { verb: "recuperar_margen_unitario", recoverable_K: Math.round(c.venta * (gap / 100)),
                              expected_impact: { metric: "margen", from: c.margen, to: c.benchmark } }, reframe: null },
+  };
+}
+
+// SKU/contribución → signals(internal_margin_compression): mismo lente que el cliente (margen unitario vs
+// benchmark · campos directos de skusMargen) → el cambio de métrica del SKU usa el renderer único.
+export function buildSkuContribSignals(skuName) {
+  const s = skusMargen.find((x) => x.nombre === skuName);
+  if (!s || !s.benchmark || typeof s.margen !== "number") return null;
+  const gap = +(s.benchmark - s.margen).toFixed(1);
+  return {
+    what: { entity: skuName, value: s.margen, unit: "%", metric: "contribucion", entityType: "sku" },
+    why: { mechanism: "internal_margin_compression", origin: "internal", target_entity: skuName,
+           driver: { mechanism: "internal_margin_compression", factor: "margen_unitario", value: s.margen, vs_benchmark: gap, unit: "pp" } },
+    implication: { action: { verb: "recuperar_margen_unitario", recoverable_K: Math.round(s.venta * (gap / 100)),
+                             expected_impact: { metric: "margen", from: s.margen, to: s.benchmark } }, reframe: null },
   };
 }
 

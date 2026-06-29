@@ -7,7 +7,7 @@
  * es común. Regla madre: cada card sale de un claim de la lectura, y cada claim del dato. Presentación pura. */
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
-import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones (comparar · cambiar métrica)
+import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones (comparar · cambiar métrica)
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -334,13 +334,15 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   if (!baseRd) return null;
   // OPERACIONES (estado de análisis): comparar (kind comparison) · cambiar métrica (cliente → contribución).
   const comparing = compareWith ? buildComparisonReading(baseRd.focusType, baseRd.focus, compareWith) : null;
-  const metricRd = (!comparing && metricView === "contribucion" && baseRd.focusType === "client")
-    ? buildReadingFromSignals(buildClientContribSignals(baseRd.focus)) : null;
+  const _contribSignals = baseRd.focusType === "client" ? buildClientContribSignals
+    : baseRd.focusType === "sku" ? buildSkuContribSignals : null;
+  const metricRd = (!comparing && metricView === "contribucion" && _contribSignals)
+    ? buildReadingFromSignals(_contribSignals(baseRd.focus)) : null;
   const rd = comparing || metricRd || baseRd;
   const derived = comparing || metricRd;
   const explorable = evidence.explorable;
   const canCompare = !!(explorable && (baseRd.focusType === "sku" || baseRd.focusType === "client") && explorable.compare && explorable.compare.length);
-  const metricOptions = baseRd.focusType === "client" ? [{ key: "margen", label: "margen" }, { key: "contribucion", label: "contribución" }] : null;
+  const metricOptions = _contribSignals ? [{ key: "margen", label: "margen" }, { key: "contribucion", label: "contribución" }] : null;
   const pack = packFor(rd);
   const Hero = pack.Hero, Evidence = pack.Evidence;
   const domainLabel = (evidence.metrica || rd.metric || "").toString().toUpperCase();
