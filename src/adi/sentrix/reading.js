@@ -96,3 +96,40 @@ export function buildSkuMarginReading(skuName) {
               `Mi lectura: ${rec}. El problema es el ${driver}, no la venta.`,
   };
 }
+
+// LECTURA de "margen de un CLIENTE" · el porqué = la CARGA COMERCIAL (rebate) sobre el promedio interno → lo
+// recuperable si se renegocia. NO recomputa: lee el objeto narrative_signals (lo MISMO que formatea el texto
+// narrativo del cliente · what/why/implication) → los números del panel == los del texto, byte por byte.
+// El texto del cliente NO se reemplaza (ya es ejecutivo); esto SOLO carga la boleta para que el panel lo demuestre.
+const _fmtK = (n) => "$" + Math.round(n) + "K";
+export function buildClientMarginReading(signals) {
+  if (!signals || !signals.what || !signals.why || !signals.why.driver) return null;
+  const a = (signals.implication && signals.implication.action) || null;
+  if (!a) return null;
+  const focus = signals.what.entity;
+  const margen = signals.what.value;                 // margen actual del cliente (lo que ADI dice)
+  const carga = signals.why.driver.value;            // pctRebate
+  const vsProm = signals.why.driver.vs_promedio;     // gap vs promedio interno (pp)
+  const targetCarga = a.target_carga;                // promedio interno (carga objetivo)
+  const recK = a.recoverable_K || 0;                 // recuperable al promedio (anual, $K)
+  const recBPK = a.bestPractice_recoverable_K || 0;  // recuperable a mejor práctica 3.0% ($K)
+  const targetMargen = a.expected_impact && a.expected_impact.to;  // margen si baja la carga al promedio
+  return {
+    domain: "margenes", metric: "margen", focusType: "client", focus,
+    monto: margen, montoFmt: margen + "%", pct: margen,
+    // el reframe del cliente: el margen no se decide mirando al cliente sino la carga comercial que le damos.
+    reframe: "antes de mirar al cliente, el margen se decide en la carga comercial",
+    // campos propios del cliente (la palanca = carga vs promedio · lo recuperable)
+    carga, vsPromedio: vsProm, targetCarga, bestPracticeCarga: a.bestPractice_carga || 3.0,
+    recoverableK: recK, recoverableBPK: recBPK, targetMargen,
+    drivers: [
+      { v: `${carga}%`, label: "carga comercial sobre la venta" },
+      { v: `+${vsProm}pp`, label: `sobre el promedio interno (${targetCarga}%)` },
+      { v: _fmtK(recK), label: "recuperable al promedio interno (anual)" },
+      { v: _fmtK(recBPK), label: `recuperable a mejor práctica (${(a.bestPractice_carga || 3.0).toFixed(1)}%)` },
+    ],
+    recommendation: signals.implication.reframe ||
+      "renegociaría la carga comercial de esta cuenta",
+    sensitive: focus,
+  };
+}

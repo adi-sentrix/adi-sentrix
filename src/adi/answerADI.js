@@ -27,7 +27,7 @@ import { eclContIsPureContinuation, composeSkuDevelopment } from "./eclCont.js";
 import { composeModuleOverview } from "./composers/overview.js";
 import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-readiness · "se adueña de la conversación"
 import { buildSentrixBoleta } from "./sentrix/boleta.js";        // Etapa 5 · Sentrix S1 · boleta universal availability-driven
-import { buildSkuMarginReading } from "./sentrix/reading.js";    // Etapa 5 · Sentrix S2b · lectura ejecutiva de margen de SKU
+import { buildSkuMarginReading, buildClientMarginReading } from "./sentrix/reading.js";    // Etapa 5 · Sentrix S2b/S2c · lectura ejecutiva de margen (SKU · cliente)
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -368,6 +368,16 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
           response.narrative_signals = null;       // la frase ejecutiva ES la narrativa → no dejar que la capa narrativa la pise
           response.evidence.reading = _rd;         // el boleta la spread-ea → Sentrix la demuestra
         }
+      }
+      // Etapa 5 · Sentrix S2c · LECTURA del CLIENTE · el porqué = la carga comercial sobre el promedio interno.
+      // A DIFERENCIA del SKU: el texto narrativo del cliente YA es ejecutivo → NO se reemplaza ni se limpia. Solo
+      // se carga reading{} en el boleta, construido DESDE response.narrative_signals (mismo objeto que formatea el
+      // texto) → los números del panel == los del texto, cero divergencia (regla madre). Gated · OFF = sin reading.
+      if (ADI_SENTRIX_READING_ENABLED && response.evidence && response.narrative_signals &&
+          response.evidence.ranking_entityType === "client" && response.evidence.ranking_direction === "worst" &&
+          response.evidence.ranking_topN === 1 && /marg/i.test(String(response.evidence.ranking_metric || ""))) {
+        const _crd = buildClientMarginReading(response.narrative_signals);
+        if (_crd) response.evidence.reading = _crd;   // solo el panel · texto narrativo intacto
       }
       return _finalize(response, "ranking_extremes", "ranking_extremes", ctx, scenario, intent);
     }

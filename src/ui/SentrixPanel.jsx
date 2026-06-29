@@ -56,6 +56,18 @@ function Num({ children, color = C.text, size = "0.94em" }) {
   return <span style={{ fontFamily:MONO, fontWeight:600, color, fontSize:size, fontFeatureSettings:"'tnum'", letterSpacing:"0.2px" }}>{children}</span>;
 }
 
+// chip de leyenda con valor en $ (la barra del cliente muestra plata recuperable, no %)
+function Legend({ color, label, v }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
+      <span style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }}/>
+      <span>{label}</span>
+      <Num>{v}</Num>
+    </div>
+  );
+}
+const fmtK = (n) => "$" + Math.round(n || 0) + "K";
+
 // ── la pieza adaptativa: el HÉROE "Por qué" según la métrica ──
 function HeroBody({ rd }) {
   if (rd.focusType === "sku" && rd.decomposition) {
@@ -72,6 +84,30 @@ function HeroBody({ rd }) {
             { label:"Rebate", pct: rd.decomposition.rebate, color:C.amber },
             { label:"Margen", pct: rd.decomposition.margen, color:C.green },
           ]}/>
+        </div>
+      </>
+    );
+  }
+  if (rd.focusType === "client") {
+    // margen de cliente → la palanca es la CARGA COMERCIAL · el héroe muestra la plata recuperable renegociándola
+    const recK = rd.recoverableK || 0, recBPK = rd.recoverableBPK || 0;
+    const pctAtProm = recBPK > 0 ? Math.max(4, Math.round((recK / recBPK) * 100)) : 100;
+    return (
+      <>
+        <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4, flexWrap:"wrap" }}>
+          <Num color={C.amber} size="2.1em">{rd.montoFmt}</Num>
+          <span style={{ fontSize:12.5, color:C.textMuted }}>margen · carga comercial <Num color={C.amber}>{rd.carga}%</Num> · <Num color={C.amber}>+{rd.vsPromedio}pp</Num> sobre el promedio ({rd.targetCarga}%)</span>
+        </div>
+        <div style={{ marginTop:14 }}>
+          <div style={{ fontSize:11, color:C.textMuted, marginBottom:8 }}>Margen recuperable renegociando la carga (anual):</div>
+          <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}` }}>
+            <div style={{ width:`${pctAtProm}%`, background:C.blue, transition:"width 0.4s ease" }}/>
+            <div style={{ width:`${100-pctAtProm}%`, background:"rgba(0,176,212,0.22)", transition:"width 0.4s ease" }}/>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 16px", marginTop:10 }}>
+            <Legend color={C.blue} label="al promedio interno" v={fmtK(recK)}/>
+            <Legend color="rgba(0,176,212,0.5)" label="a mejor práctica" v={fmtK(recBPK)}/>
+          </div>
         </div>
       </>
     );
@@ -94,8 +130,27 @@ function HeroBody({ rd }) {
   );
 }
 
-// ── evidencia mínima adaptativa: ranking (capital) o la descomposición numérica (sku) ──
+// ── evidencia mínima adaptativa: ranking (capital) · descomposición (sku) · la cuenta de la carga (cliente) ──
 function EvidenceBody({ rd }) {
+  if (rd.focusType === "client") {
+    const rows = [
+      { k:"Margen actual", v:`${rd.pct}%`, color:C.amber },
+      { k:`Carga comercial (promedio ${rd.targetCarga}%)`, v:`${rd.carga}%`, color:C.amber },
+      ...(rd.targetMargen != null ? [{ k:"Si baja la carga al promedio → margen", v:`${rd.targetMargen}%`, color:C.green }] : []),
+      { k:"Recuperable al promedio (anual)", v:fmtK(rd.recoverableK), color:C.blue },
+      { k:`Recuperable a mejor práctica (${(rd.bestPracticeCarga||3).toFixed(1)}%)`, v:fmtK(rd.recoverableBPK), color:C.blue },
+    ];
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, padding:"7px 0", borderBottom: i < rows.length-1 ? `1px solid rgba(255,255,255,0.03)` : "none" }}>
+            <span style={{ fontSize:12.5, color:C.textSub }}>{r.k}</span>
+            <Num color={r.color}>{r.v}</Num>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (rd.ranking && rd.ranking.length) {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
@@ -148,6 +203,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const dominio = (rd.domain || evidence.domain || "").toString().toUpperCase();
   const heroTitle = rd.focusType === "sku"
     ? `Por qué ${rd.focus} es el peor en margen`
+    : rd.focusType === "client"
+    ? `Por qué ${rd.focus} tiene el peor margen`
     : `Por qué ${rd.focus} es el foco`;
 
   return (
@@ -205,7 +262,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <Card>
             <Eyebrow>Mi lectura</Eyebrow>
             <div style={{ fontSize:13, color:C.textSub, lineHeight:1.55 }}>{rd.recommendation}.</div>
-            {rd.sensitive && (
+            {rd.sensitive && rd.sensitive !== rd.focus && (
               <div style={{ marginTop:8, fontSize:11.5, color:C.textMuted }}>
                 El caso más sensible: <span style={{ color:"#7fdef0", fontWeight:500 }}>{rd.sensitive}</span>
               </div>
