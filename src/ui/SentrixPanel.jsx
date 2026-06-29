@@ -7,7 +7,7 @@
  * es común. Regla madre: cada card sale de un claim de la lectura, y cada claim del dato. Presentación pura. */
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
-import { buildComparisonReading } from "../adi/sentrix/reading.js";   // paso 3b · operación comparar
+import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones (comparar · cambiar métrica)
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -240,26 +240,78 @@ function ComparisonEvidence({ rd }) {
   );
 }
 
-// ── barra "Seguir analizando" · el control de operaciones (paso 3b: comparar) + bloqueos honestos ──
-function ExplorarBar({ explorable, onCompare }) {
+// ── barra "Seguir analizando" · el control de operaciones (cambiar métrica · comparar) + bloqueos honestos ──
+function ExplorarBar({ explorable, onCompare, metricOptions, currentMetric, onMetric }) {
+  const peers = (explorable && explorable.compare) || [];
+  const blocked = (explorable && explorable.blocked) || [];
   return (
     <div style={{ padding:"13px 15px", borderRadius:10, border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.012)" }}>
       <Eyebrow tone={C.textMuted}>Seguir analizando</Eyebrow>
-      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-        <span style={{ fontSize:12.5, color:C.textSub, flexShrink:0 }}>Comparar con</span>
-        <select onChange={(e) => { if (e.target.value) onCompare(e.target.value); }} defaultValue=""
-          style={{ flex:1, minWidth:130, background:C.surfaceAlt, color:C.text, border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"7px 10px", fontSize:12.5, fontFamily:"'DM Sans', system-ui, sans-serif", cursor:"pointer", outline:"none" }}>
-          <option value="">elegí una entidad…</option>
-          {explorable.compare.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </div>
-      {explorable.blocked && explorable.blocked.length > 0 && (
+      {metricOptions && metricOptions.length > 1 && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+          <span style={{ fontSize:12.5, color:C.textSub, flexShrink:0 }}>Ver</span>
+          {metricOptions.map((mo) => {
+            const on = currentMetric === mo.key;
+            return (
+              <button key={mo.key} onClick={() => onMetric(mo.key)}
+                style={{ padding:"5px 11px", borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
+                  background: on ? "rgba(0,194,232,0.15)" : "transparent", border:`1px solid ${on ? C.blue : C.border}`, color: on ? C.blue : C.textSub }}>
+                {mo.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {peers.length > 0 && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ fontSize:12.5, color:C.textSub, flexShrink:0 }}>Comparar con</span>
+          <select onChange={(e) => { if (e.target.value) onCompare(e.target.value); }} defaultValue=""
+            style={{ flex:1, minWidth:130, background:C.surfaceAlt, color:C.text, border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"7px 10px", fontSize:12.5, fontFamily:"'DM Sans', system-ui, sans-serif", cursor:"pointer", outline:"none" }}>
+            <option value="">elegí una entidad…</option>
+            {peers.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+      )}
+      {blocked.length > 0 && (
         <div style={{ fontSize:11, color:C.textMuted, marginTop:9, lineHeight:1.45 }}>
-          <span style={{ color:C.amber, opacity:0.75 }}>No disponible:</span> {explorable.blocked.map((b) => b.view).join(" · ")} — sin granularidad atómica en los datos.
+          <span style={{ color:C.amber, opacity:0.75 }}>No disponible:</span> {blocked.map((b) => b.view).join(" · ")} — sin granularidad atómica en los datos.
         </div>
       )}
     </div>
   );
+}
+
+// ── contribución de cliente · margen unitario vs benchmark (la compresión) ──
+function MarginCompressionHero({ rd }) {
+  const fillPct = rd.benchmark > 0 ? Math.max(4, Math.round((rd.pct / rd.benchmark) * 100)) : 100;
+  const rec = rd.drivers && rd.drivers[3];
+  return (
+    <>
+      <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4, flexWrap:"wrap" }}>
+        <Num color={C.amber} size="2.1em">{rd.montoFmt}</Num>
+        <span style={{ fontSize:12.5, color:C.textMuted }}>margen unitario · <Num color={C.amber}>{rd.gap}pp</Num> bajo el benchmark (<Num>{rd.benchmark}%</Num>)</span>
+      </div>
+      <div style={{ marginTop:14 }}>
+        <div style={{ height:10, borderRadius:5, overflow:"hidden", background:"rgba(244,63,94,0.2)", border:`1px solid ${C.border}` }}>
+          <div style={{ width:`${fillPct}%`, height:"100%", background:C.amber, transition:"width 0.4s ease" }}/>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:11.5, color:C.textSub }}>
+          <span>margen <Num color={C.amber}>{rd.pct}%</Num></span>
+          <span>benchmark <Num>{rd.benchmark}%</Num></span>
+        </div>
+      </div>
+      {rec && <div style={{ marginTop:12, fontSize:12.5, color:C.textSub }}>Contribución recuperable al benchmark: <Num color={C.green} size="1.1em">{rec.v}</Num> anual</div>}
+    </>
+  );
+}
+function MarginCompressionEvidence({ rd }) {
+  const rows = [
+    { k: "Margen unitario actual", v: `${rd.pct}%`, color: C.amber },
+    { k: "Benchmark de cartera", v: `${rd.benchmark}%`, color: C.textSub },
+    { k: "Brecha de margen unitario", v: `${rd.gap}pp`, color: C.red, strong: true },
+    ...(rd.drivers && rd.drivers[3] ? [{ k: "Contribución recuperable (anual)", v: rd.drivers[3].v, color: C.green }] : []),
+  ];
+  return <Rows rows={rows}/>;
 }
 
 // matriz mechanism/kind → pack. Espejo de buildReadingFromSignals. Sin entrada → GENERIC.
@@ -268,6 +320,7 @@ const PANEL_PACKS = {
   cost_structure:           { title: (rd) => `Por qué ${rd.focus} es el peor en margen`, Hero: CostStructureHero, Evidence: CostStructureEvidence },
   capital_concentration:    { title: (rd) => `Por qué ${rd.focus} es el foco`,           Hero: CapitalHero,       Evidence: CapitalEvidence },
   comparison:               { title: (rd) => `Comparación · ${rd.focus}`,                Hero: ComparisonHero,    Evidence: ComparisonEvidence },
+  margin_compression:       { title: (rd) => `Por qué ${rd.focus} aporta menos contribución`, Hero: MarginCompressionHero, Evidence: MarginCompressionEvidence },
 };
 const GENERIC_PACK = { title: (rd) => `Por qué ${rd.focus}`, Hero: GenericHero, Evidence: null };
 const packFor = (rd) => PANEL_PACKS[rd.kind] || GENERIC_PACK;
@@ -275,14 +328,19 @@ const packFor = (rd) => PANEL_PACKS[rd.kind] || GENERIC_PACK;
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
   const baseRd = evidence && evidence.reading;
   const [compareWith, setCompareWith] = useState(null);
+  const [metricView, setMetricView] = useState(null);   // null = métrica base · "contribucion" = vista de contribución (cliente)
   const baseFocus = baseRd && baseRd.focus;
-  useEffect(() => { setCompareWith(null); }, [baseFocus]);   // nueva respuesta → resetea la comparación
+  useEffect(() => { setCompareWith(null); setMetricView(null); }, [baseFocus]);   // nueva respuesta → resetea las operaciones
   if (!baseRd) return null;
-  // operación COMPARAR (paso 3b): si hay un par elegido, el reading pasa a ser la comparación (kind "comparison").
+  // OPERACIONES (estado de análisis): comparar (kind comparison) · cambiar métrica (cliente → contribución).
   const comparing = compareWith ? buildComparisonReading(baseRd.focusType, baseRd.focus, compareWith) : null;
-  const rd = comparing || baseRd;
+  const metricRd = (!comparing && metricView === "contribucion" && baseRd.focusType === "client")
+    ? buildReadingFromSignals(buildClientContribSignals(baseRd.focus)) : null;
+  const rd = comparing || metricRd || baseRd;
+  const derived = comparing || metricRd;
   const explorable = evidence.explorable;
   const canCompare = !!(explorable && (baseRd.focusType === "sku" || baseRd.focusType === "client") && explorable.compare && explorable.compare.length);
+  const metricOptions = baseRd.focusType === "client" ? [{ key: "margen", label: "margen" }, { key: "contribucion", label: "contribución" }] : null;
   const pack = packFor(rd);
   const Hero = pack.Hero, Evidence = pack.Evidence;
   const domainLabel = (evidence.metrica || rd.metric || "").toString().toUpperCase();
@@ -360,9 +418,13 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             ← Volver a {baseRd.focus}
           </button>
         )}
-        {!comparing && canCompare && <ExplorarBar explorable={explorable} onCompare={setCompareWith}/>}
+        {!comparing && explorable && (canCompare || (metricOptions && metricOptions.length > 1)) && (
+          <ExplorarBar explorable={explorable} onCompare={setCompareWith}
+            metricOptions={metricOptions} currentMetric={metricView || "margen"}
+            onMetric={(k) => setMetricView(k === "margen" ? null : k)}/>
+        )}
         {/* slot temporal · bloqueado honesto hasta histórico real por entidad (regla madre) */}
-        {!comparing && <TemporalSlot evidence={evidence}/>}
+        {!derived && <TemporalSlot evidence={evidence}/>}
       </div>
     </div>
   );

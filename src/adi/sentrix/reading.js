@@ -26,10 +26,35 @@ const _fmtMoney = (n) => "$" + (Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "K
 export function buildReadingFromSignals(signals) {
   if (!signals || !signals.what || !signals.why || !signals.why.driver) return null;
   const mech = signals.why.driver.mechanism || signals.why.mechanism;
-  if (mech === "internal_commercial_load") return _readClientLoad(signals);
-  if (mech === "cost_structure")           return _readCostStructure(signals);
-  if (mech === "capital_concentration")    return _readCapital(signals);
+  if (mech === "internal_commercial_load")   return _readClientLoad(signals);
+  if (mech === "cost_structure")             return _readCostStructure(signals);
+  if (mech === "capital_concentration")      return _readCapital(signals);
+  if (mech === "internal_margin_compression") return _readMarginCompression(signals);
   return null;
+}
+const _money = (k) => (Math.abs(k) >= 1000 ? "$" + (k / 1000).toFixed(1) + "M" : "$" + Math.round(k || 0) + "K");
+
+// ── render · contribución de cliente · el margen unitario bajo el benchmark COMPRIME la contribución ──
+function _readMarginCompression(signals) {
+  const w = signals.what, d = signals.why.driver;
+  const a = (signals.implication && signals.implication.action) || {};
+  const gap = d.vs_benchmark, benchmark = +(w.value + gap).toFixed(1);
+  const recK = a.recoverable_K || 0;
+  return {
+    kind: "margin_compression",
+    domain: "margenes", metric: "contribucion", focusType: "client", focus: w.entity,
+    monto: w.value, montoFmt: w.value + "%", pct: w.value, benchmark, gap,
+    reframe: "el margen unitario bajo el benchmark comprime la contribución",
+    recoverableK: recK, targetMargen: benchmark,
+    drivers: [
+      { v: `${w.value}%`, label: "margen unitario actual" },
+      { v: `${benchmark}%`, label: "benchmark de cartera" },
+      { v: `${gap}pp`, label: "brecha de margen unitario" },
+      { v: _money(recK), label: "contribución recuperable al benchmark (anual)" },
+    ],
+    recommendation: signals.implication.reframe || "recuperaría el margen unitario hacia el benchmark de cartera",
+    sensitive: w.entity,
+  };
 }
 
 // ── render · cliente · carga comercial sobre el promedio interno (el porqué = la palanca de carga) ──
@@ -159,6 +184,22 @@ export function buildCapitalSignals(scenario) {
     why: { mechanism: "capital_concentration", origin: "internal", target_entity: focus.bodega,
            driver: { mechanism: "capital_concentration", dohAvg: focus.dohAvg, rotAvg: focus.rotAvg, dohBench, pct, lento } },
     implication: { ranking, totalInmov, sensitive: sensitive.sku, sensitiveDoh: sensitive.doh },
+  };
+}
+
+// cliente/contribución → signals(internal_margin_compression): margen unitario vs benchmark de cartera. Campos
+// DIRECTOS (margen, benchmark, venta de clientesMargen) → matchea la regla client.contribucion del motor sellado
+// (sin recompute dependiente de scope) → habilita "el peor cliente por contribución" Y el cambio de métrica.
+export function buildClientContribSignals(clientName) {
+  const c = clientesMargen.find((x) => x.nombre === clientName);
+  if (!c || !c.benchmark || typeof c.margen !== "number") return null;
+  const gap = +(c.benchmark - c.margen).toFixed(1);
+  return {
+    what: { entity: clientName, value: c.margen, unit: "%", metric: "contribucion", entityType: "client" },
+    why: { mechanism: "internal_margin_compression", origin: "internal", target_entity: clientName,
+           driver: { mechanism: "internal_margin_compression", factor: "margen_unitario", value: c.margen, vs_benchmark: gap, unit: "pp" } },
+    implication: { action: { verb: "recuperar_margen_unitario", recoverable_K: Math.round(c.venta * (gap / 100)),
+                             expected_impact: { metric: "margen", from: c.margen, to: c.benchmark } }, reframe: null },
   };
 }
 
