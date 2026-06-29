@@ -27,6 +27,7 @@ import { eclContIsPureContinuation, composeSkuDevelopment } from "./eclCont.js";
 import { composeModuleOverview } from "./composers/overview.js";
 import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-readiness · "se adueña de la conversación"
 import { buildSentrixBoleta } from "./sentrix/boleta.js";        // Etapa 5 · Sentrix S1 · boleta universal availability-driven
+import { buildSkuMarginReading } from "./sentrix/reading.js";    // Etapa 5 · Sentrix S2b · lectura ejecutiva de margen de SKU
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -44,7 +45,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -352,7 +353,24 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
       ctx: { ...ctx, scenarioId: scenario },
       inheritedScope: intent.inheritedScope || null, anexaMetric: _anexaMetric,
     });
-    if (response) return _finalize(response, "ranking_extremes", "ranking_extremes", ctx, scenario, intent);
+    if (response) {
+      // Etapa 5 · Sentrix S2b · LECTURA EJECUTIVA de margen de SKU · el porqué = descomposición del precio
+      // (costo + rebate + margen → el driver que aplasta el margen). ADI dice el porqué en vez de la línea fina,
+      // y el boleta carga reading{} → Sentrix lo demuestra. Gated · OFF = opener de composeRankingExtremes byte-exacto.
+      if (ADI_SENTRIX_READING_ENABLED && response.evidence &&
+          response.evidence.ranking_entityType === "sku" && response.evidence.ranking_direction === "worst" &&
+          response.evidence.ranking_topN === 1 &&     // foco singular · "los 3 peores" queda como lista
+          /marg/i.test(String(response.evidence.ranking_metric || ""))) {
+        const _ent = response.evidence.ranking_entities && response.evidence.ranking_entities[0];
+        const _rd = _ent ? buildSkuMarginReading(_ent) : null;
+        if (_rd) {
+          response.opener = _rd.sentence;          // ADI dice la lectura ejecutiva (el porqué)
+          response.narrative_signals = null;       // la frase ejecutiva ES la narrativa → no dejar que la capa narrativa la pise
+          response.evidence.reading = _rd;         // el boleta la spread-ea → Sentrix la demuestra
+        }
+      }
+      return _finalize(response, "ranking_extremes", "ranking_extremes", ctx, scenario, intent);
+    }
   }
   // client dive (Falabella) — replica PanelADI L36734
   if (intent.type === "client" || intent.type === "client_followup") {

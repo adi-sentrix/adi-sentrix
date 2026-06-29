@@ -4,6 +4,7 @@
  * real — aritmética, no opinión (regla madre en lo causal). El boleta la carga → ADI la dice y Sentrix la demuestra.
  * General y data-driven: corre sobre el dataset cargado (demo hoy, Excel del cliente mañana). */
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { skusMargen } from "../../data/skusMargen.js";
 import { invKPI } from "../../data/baseKpis.js";
 
 // inmovilizado Def2 canónica (igual que el spine/warehouse): alerta crit/warn O rotación < 2.
@@ -59,5 +60,39 @@ export function buildCapitalReading(scenario) {
               `Pero el problema no es tener stock — está concentrado y lento: ${ranking.length} SKUs lo explican, ` +
               `con ${focus.dohAvg} días de cobertura, casi ${(focus.dohAvg / dohBench).toFixed(1)}x el benchmark interno. ` +
               `Mi lectura: ${rec}. El más sensible es ${sensitive.sku}.`,
+  };
+}
+
+// LECTURA de "margen de un SKU" · el porqué del margen bajo = descomposición del precio (costo + rebate + margen)
+// → cuál componente lo aplasta (el driver). Aritmética del registro comercial, no opinión.
+export function buildSkuMarginReading(skuName) {
+  const s = skusMargen.find((x) => x.nombre === skuName);
+  if (!s || !s.venta) return null;
+  const costShare = Math.round((s.costo / s.venta) * 100);
+  const rebateShare = Math.round((s.rebates / s.venta) * 100);
+  const gap = +(s.benchmark - s.margen).toFixed(1);
+  const fam = skusMargen.filter((x) => x.marca === s.marca && x.nombre !== s.nombre);
+  const famAvg = fam.length ? Math.round(fam.reduce((a, x) => a + x.margen, 0) / fam.length) : null;
+  // driver = el componente que más aplasta el margen (costo dominante · rebate alto suma · si no, precio).
+  const driver = costShare >= 75 ? "costo" : s.pctRebate >= 5 ? "carga comercial" : "precio";
+  const rec = driver === "costo" ? "revisaría el costeo o el precio de lista de este SKU"
+            : driver === "carga comercial" ? "revisaría el rebate de este SKU"
+            : "revisaría el precio de lista";
+  return {
+    domain: "margenes", metric: "margen", focusType: "sku", focus: skuName,
+    monto: s.margen, montoFmt: s.margen + "%", pct: s.margen, benchmark: s.benchmark, gap,
+    reframe: `el ${driver} se lleva el margen, no la venta`,
+    decomposition: { costo: costShare, rebate: rebateShare, margen: Math.max(0, 100 - costShare - rebateShare) },
+    drivers: [
+      { v: `${costShare}%`, label: "del precio se lo lleva el costo" },
+      { v: `${s.pctRebate}%`, label: "rebate (carga) sobre la venta" },
+      { v: `${gap}pp`, label: `bajo el benchmark (${s.benchmark}%)` },
+      ...(famAvg != null ? [{ v: `${famAvg}%`, label: `margen promedio de ${s.marca}` }] : []),
+    ],
+    recommendation: rec, sensitive: skuName,
+    sentence: `${skuName} es el peor en margen: ${s.margen}%, ${gap}pp bajo el benchmark (${s.benchmark}%). ` +
+              `El costo se lleva el ${costShare}% del precio y el rebate (${s.pctRebate}%) suma — ` +
+              `el precio no cubre el costo como en el resto de ${s.marca}${famAvg != null ? ` (margen ${famAvg}%)` : ""}. ` +
+              `Mi lectura: ${rec}. El problema es el ${driver}, no la venta.`,
   };
 }
