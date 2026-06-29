@@ -32,6 +32,9 @@ export function buildAdiTurn(question, context, scenario) {
       route: r.route,
       sentrixAction: r.sentrixAction || null,
       suggestions: (r.suggestions && r.suggestions.length) ? r.suggestions : null,
+      // Etapa 5 · Sentrix · llevar la boleta al mensaje para que el panel la demuestre. Inerte cuando los
+      // flags Sentrix están OFF (r.evidence undefined → sin botón → sin panel · piso intacto byte-exacto).
+      evidence: r.evidence || null,
     },
     context: r.context || context || {},
   };
@@ -142,7 +145,33 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
   );
 }
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, animate = true, initialContext = null }) {
+// ── Botón "Ver evidencia en Sentrix" · Etapa 5 · aparece SOLO cuando el mensaje trae una lectura ejecutiva
+// (msg.evidence.reading) y el shell pasó el handler. Flags Sentrix OFF → sin reading → sin botón (inerte). ──
+function EvidenceButton({ evidence, onOpenEvidence, active }) {
+  if (!evidence || !evidence.reading || !onOpenEvidence) return null;
+  return (
+    <div style={{ marginLeft:44, marginTop:2 }}>
+      <button
+        onClick={() => onOpenEvidence(evidence)}
+        style={{
+          display:"flex", alignItems:"center", gap:7, padding:"7px 14px",
+          background: active ? "rgba(0,194,232,0.18)" : "rgba(0,194,232,0.08)",
+          border:`1px solid ${active ? C.blue : "rgba(0,176,212,0.55)"}`,
+          borderRadius:6, color:C.blue, fontFamily:"'DM Sans', system-ui, sans-serif",
+          fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = "rgba(0,194,232,0.16)"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(0,194,232,0.18)" : "rgba(0,194,232,0.08)"; }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
+        </svg>
+        <span>Ver evidencia en Sentrix</span>
+      </button>
+    </div>
+  );
+}
+
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [context, setContext]   = useState(initialContext || (modulo ? { activeModule: modulo } : {}));
@@ -232,6 +261,8 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                   </div>
                 </div>
                 <SentrixButton sentrixAction={msg.sentrixAction} onSentrixAction={onSentrixAction}/>
+                <EvidenceButton evidence={msg.evidence} active={openEvidenceId === msg.id}
+                  onOpenEvidence={onOpenEvidence ? (ev) => onOpenEvidence(ev, msg.id) : null}/>
                 {/* Suggestions del turno vigente · aparecen al terminar el typewriter */}
                 {isLastAdi && !isTyping && suggestionsVisible && msg.suggestions && msg.suggestions.length > 0 && (
                   <div style={{ display:"flex", flexDirection:"column", gap:8, marginLeft:44 }}>

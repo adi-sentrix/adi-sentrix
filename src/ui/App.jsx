@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { C } from "./theme.js";
 import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
+import { SentrixPanel } from "./SentrixPanel.jsx";   // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura)
 
 const getCurrentDateString = () => {
   const now = new Date();
@@ -17,6 +18,23 @@ const getCurrentDateString = () => {
 
 export default function App({ animate = true }) {
   const [scenario, setScenario] = useState("bonanza");
+  // Etapa 5 · Sentrix · estado del panel de evidencia (la "mesa de trabajo" estilo Code, a la derecha).
+  const [openEv, setOpenEv]   = useState(null);   // la boleta abierta (con reading{}) · null = panel cerrado
+  const [openId, setOpenId]   = useState(null);   // id del mensaje cuya evidencia está abierta (highlight del botón)
+  const [panelW, setPanelW]   = useState(460);    // ancho arrastrable
+  const [maxed, setMaxed]     = useState(false);  // agrandado
+
+  const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
+  const startResize = (e) => {
+    e.preventDefault();
+    const move = (ev) => {
+      const w = Math.min(Math.max(window.innerWidth - ev.clientX, 360), Math.round(window.innerWidth * 0.72));
+      setPanelW(w);
+    };
+    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); document.body.style.userSelect = ""; };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+    document.body.style.userSelect = "none";
+  };
 
   return (
     <div style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
@@ -56,8 +74,24 @@ export default function App({ animate = true }) {
       <main style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", position:"relative", background:"linear-gradient(180deg, #090909 0%, #070707 100%)", boxShadow:"inset 0 0 60px rgba(0,0,0,0.4)", overflow:"hidden" }}>
         <div style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", backgroundImage:"radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px)", backgroundSize:"32px 32px", backgroundPosition:"-1px -1px", maskImage:"radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%)", WebkitMaskImage:"radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%)" }}/>
         <div style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse 55% 45% at 50% 30%, rgba(0,176,212,0.05) 0%, rgba(0,176,212,0.02) 35%, transparent 70%)", animation:"adiAurora 18s ease-in-out infinite", transformOrigin:"50% 30%" }}/>
-        <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", flex:1, minHeight:0 }}>
-          <ChatADI scenario={scenario} animate={animate}/>
+        <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
+          <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
+            <ChatADI scenario={scenario} animate={animate}
+              onOpenEvidence={(ev, id) => { setOpenEv(ev); setOpenId(id); }}
+              openEvidenceId={openId}/>
+          </div>
+          {openEv && (
+            <>
+              {/* divisor arrastrable (estilo Code) */}
+              <div onMouseDown={startResize} title="Arrastrar para redimensionar"
+                style={{ width:6, flexShrink:0, cursor:"col-resize", background:"transparent", borderLeft:`1px solid ${C.border}`, transition:"background 0.15s" }}
+                onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(0,176,212,0.25)"; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
+              <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0 }}>
+                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed}/>
+              </div>
+            </>
+          )}
         </div>
       </main>
 
