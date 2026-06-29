@@ -9,7 +9,8 @@
  * Cero cálculo reescrito: reusa queryInterpreter + composeRetrieval ("{métrica} por {dimensión}") y
  * toma el extremo de materialMetrics (ya ordenado desc, con el valor ya formateado). Flag-gated.
  * Produce un objeto-plan evidence-ready (semilla del payload) que NO se emite todavía (eso es 2.1d). */
-import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED, ADI_INV_INMOVILIZADO_ENABLED, ADI_INV_NL_VOCAB_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_CORE_SPINE_ENABLED, ADI_SPINE_DIM_SUPERLATIVE_ENABLED, ADI_SPINE_FILTER_ENABLED, ADI_SPINE_FILTER_CLARIFY_ENABLED, ADI_SPINE_EVIDENCE_ENABLED, ADI_SPINE_COMBINED_ENABLED, ADI_QI_FILTER_ENABLED, ADI_INV_INMOVILIZADO_ENABLED, ADI_INV_NL_VOCAB_ENABLED, ADI_SENTRIX_READING_ENABLED } from "../../config/voiceFlags.js";
+import { buildCapitalReading } from "../sentrix/reading.js";   // Etapa 5 · Sentrix · lectura ejecutiva (el porqué)
 import { METRIC_REGISTRY } from "../../config/semantic/metricRegistry.js";
 import { DIMENSION_REGISTRY } from "../../config/semantic/dimensionRegistry.js";
 import { isAvailable, unavailableMessage } from "./availabilityMap.js";
@@ -250,10 +251,20 @@ export function resolveInventoryRetrieval(text, scenario) {
     const ml = (pick.metric || metric.label).toLowerCase() + _mlSuffix;
     let opener = `${pick.entity} es ${_dimNoun} con ${_dirWord} ${ml}${_filGloss} · ${pick.value}.`;
     if (opp && opp.entity !== pick.entity) opener += ` ${_bodegaDim ? "La" : "El"} de ${_oppWord} es ${opp.entity} · ${opp.value}.`;
+    // Etapa 5 · Sentrix S2a · LECTURA EJECUTIVA · capital inmovilizado por bodega (el foco) → ADI dice el porqué
+    // (reframe + drivers + recomendación + SKU sensible, derivado del dato) en vez de la línea fina, y el boleta
+    // carga la lectura estructurada para que Sentrix la demuestre. Gated · OFF = one-liner byte-exacto.
+    let _reading = null;
+    if (ADI_SENTRIX_READING_ENABLED && metricKey === "capital" && _bodegaDim && _inmovilizado && wantHigh) {
+      const _r = buildCapitalReading(scenario);
+      if (_r && _r.focus === pick.entity) { _reading = _r; opener = _r.sentence; }
+    }
+    const _ev = _evidence(scenario, { metricKey, dimKey: _dim, filtros: _evFiltros, operacion: (wantHigh ? "rank_top" : "rank_bottom") + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true });
+    if (_reading) _ev.reading = _reading;
     return {
       _spine: true, route: "spine_inv_superlative", opener,
       _plan: { metric: metricKey, dimension: _dim, direction: wantHigh ? "high" : "low", domain: "inventario", inmovilizado: _inmovilizado, formula: _evFormula, source: "queryInterpreter+composeRetrieval", rows_used: mm.length },
-      evidence: _evidence(scenario, { metricKey, dimKey: _dim, filtros: _evFiltros, operacion: (wantHigh ? "rank_top" : "rank_bottom") + (_inmovilizado ? "_inmovilizado" : ""), formula: _evFormula, rowsUsed: mm.length, invMetric: true }),
+      evidence: _ev,
     };
   }
   // sin dirección → tabla (reusa la respuesta de composeRetrieval · route + evidence de inventario)
