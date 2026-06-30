@@ -8,7 +8,9 @@
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
-import { entityExplorable } from "../adi/sentrix/capability.js";   // explorable del frame actual (stack de navegación)
+import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
+import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
+import { ADI_SENTRIX_TEMPORAL_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -456,10 +458,113 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <ExplorarBar explorable={curExplorable} onCompare={opCompare}
             metricOptions={metricOptions} currentMetric={current.metric} onMetric={setMetric}/>
         )}
-        {/* slot temporal · bloqueado honesto hasta histórico real por entidad (regla madre) · solo en la vista base */}
-        {atBase && !current.compareWith && current.metric === "margen" && <TemporalSlot evidence={evidence}/>}
+        {/* LA HISTORIA (paso 4) · evolutivo global real cuando el flag está ON · slot honesto si OFF · solo en base */}
+        {atBase && !current.compareWith && (
+          ADI_SENTRIX_TEMPORAL_ENABLED
+            ? <EvolutivoCard/>
+            : (current.metric === "margen" && <TemporalSlot evidence={evidence}/>)
+        )}
       </div>
     </div>
+  );
+}
+
+// ── LA HISTORIA · evolutivo GLOBAL de ventas (dato real) · honestidad aplicada al tiempo (paso 4) ──
+// Dibuja SOLO lo que el dato sostiene: la película global de ventas (ventasMensuales). Cada cifra cierra con su
+// serie (regla madre). El por-entidad se bloquea honesto (nota al pie). SVG custom · sin librería gráfica.
+function Stat({ label, v, sub, color }) {
+  return (
+    <div>
+      <div style={{ fontSize:10.5, color:C.textMuted }}>{label}</div>
+      <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}>
+        <Num color={color || C.text} size="1.05em">{v}</Num>
+        {sub && <span style={{ fontSize:9.5, color:C.textMuted, fontFamily:MONO }}>{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function EvolutivoCard() {
+  const ev = buildGlobalEvolution();
+  const [view, setView] = useState("comp");                                  // "comp" 12m·3 series · "seq" 24m
+  const [show, setShow] = useState({ actual:true, anterior:false, presupuesto:true });
+  const W = 520, H = 150, padL = 10, padR = 12, padT = 12, padB = 20;
+
+  const SER = [
+    { key:"actual",      label:"Este año",     color:C.blue,      data:ev.actual,      dashed:false },
+    { key:"anterior",    label:"Año anterior", color:C.textMuted, data:ev.anterior,    dashed:true  },
+    { key:"presupuesto", label:"Presupuesto",  color:C.amber,     data:ev.presupuesto, dashed:true  },
+  ];
+  const comp = view === "comp";
+  const lines = comp ? SER.filter((s) => show[s.key])
+                     : [{ key:"seq", label:"Ventas · 24 meses", color:C.blue, data:ev.seq24.map((p)=>p.v), dashed:false }];
+  const xlabels = comp ? ev.meses : ev.seq24.map((p) => p.mes);
+  const allVals = lines.flatMap((l) => l.data);
+  const lo0 = allVals.length ? Math.min(...allVals) : 0, hi0 = allVals.length ? Math.max(...allVals) : 1;
+  const span = (hi0 - lo0) || 1, ylo = lo0 - span * 0.14, yhi = hi0 + span * 0.14;
+  const npts = xlabels.length || 1;
+  const xAt = (i) => padL + (npts <= 1 ? 0 : (i / (npts - 1)) * (W - padL - padR));
+  const yAt = (v) => padT + (1 - (v - ylo) / (yhi - ylo)) * (H - padT - padB);
+  const dPath = (data) => data.map((v, i) => `${i === 0 ? "M" : "L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
+
+  const aIdxMax = ev.actual.indexOf(ev.max), aIdxMin = ev.actual.indexOf(ev.min);
+  const xi = (mi) => comp ? mi : ev.n + mi;                                   // en seq, el año actual arranca tras los 12
+  const showActualMarks = comp ? show.actual : true;
+  const fK = (n) => { const a = Math.abs(n), s = n < 0 ? "−" : ""; return a < 1000 ? s + "$" + Math.round(a) : s + "$" + (a / 1000).toFixed(a >= 10000 ? 0 : 1) + "K"; };
+
+  const Chip = ({ on, color, label, onClick }) => (
+    <button onClick={onClick} style={{ display:"flex", alignItems:"center", gap:5, padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: on ? "rgba(255,255,255,0.05)" : "transparent", border:`1px solid ${on?C.borderLight:C.border}`, color: on?C.textSub:C.textMuted, opacity: on?1:0.55 }}>
+      <span style={{ width:9, height:2.5, borderRadius:2, background:color, flexShrink:0 }}/>{label}
+    </button>
+  );
+
+  return (
+    <Card>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+        <Eyebrow>La historia · ventas en el tiempo</Eyebrow>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ fontFamily:MONO, fontSize:8.5, fontWeight:600, color:C.green, textTransform:"uppercase", letterSpacing:"0.7px", padding:"2px 6px", borderRadius:4, background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.16)" }}>dato real · alta confianza</span>
+          {["comp","seq"].map((v) => (
+            <button key={v} onClick={()=>setView(v)} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: view===v?"rgba(0,176,212,0.1)":"transparent", border:`1px solid ${view===v?"rgba(0,176,212,0.4)":C.border}`, color: view===v?C.blue:C.textMuted }}>{v==="comp"?"12 meses":"24 meses"}</button>
+          ))}
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        {[yhi, (yhi+ylo)/2, ylo].map((gv,i)=>(
+          <line key={i} x1={padL} y1={yAt(gv)} x2={W-padR} y2={yAt(gv)} stroke={C.border} strokeWidth="1"/>
+        ))}
+        {lines.map((l) => (
+          <path key={l.key} d={dPath(l.data)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={l.dashed?"4 3":"none"} opacity={l.dashed?0.7:1}/>
+        ))}
+        {showActualMarks && [{i:aIdxMax,v:ev.max,up:true},{i:aIdxMin,v:ev.min,up:false}].map((p,k)=>(
+          <g key={k}>
+            <circle cx={xAt(xi(p.i))} cy={yAt(p.v)} r="3.5" fill={p.up?C.green:C.red} stroke={C.bg} strokeWidth="1.5"/>
+            <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.green:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fK(p.v)}</text>
+          </g>
+        ))}
+        {xlabels.map((m,i)=> ((comp || i%3===0) ? (
+          <text key={i} x={xAt(i)} y={H-6} fill={C.textMuted} fontSize="8.5" fontFamily={MONO} textAnchor="middle">{m}</text>
+        ) : null))}
+      </svg>
+
+      {comp && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
+          {SER.map((s)=>(<Chip key={s.key} on={show[s.key]} color={s.color} label={s.label} onClick={()=>setShow((x)=>({...x,[s.key]:!x[s.key]}))}/>))}
+        </div>
+      )}
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"7px 14px", marginTop:12 }}>
+        <Stat label="Mayor caída"        v={fK(ev.drop.delta)}                          sub={ev.drop.from?`${ev.drop.from}→${ev.drop.mes}`:""}     color={C.red}/>
+        <Stat label="Mayor crecimiento"  v={`+${fK(ev.growth.delta)}`}                  sub={ev.growth.from?`${ev.growth.from}→${ev.growth.mes}`:""} color={C.green}/>
+        <Stat label="vs presupuesto"     v={`${ev.vsPresupuesto>=0?"+":""}${ev.vsPresupuesto}%`} sub={`${fK(ev.totAct)} vs ${fK(ev.totPpto)}`}      color={ev.vsPresupuesto>=0?C.green:C.red}/>
+        <Stat label="vs año anterior"    v={`${ev.vsAnterior>=0?"+":""}${ev.vsAnterior}%`}       sub={`${fK(ev.totAct)} vs ${fK(ev.totAnt)}`}       color={ev.vsAnterior>=0?C.green:C.red}/>
+      </div>
+
+      <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:12, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
+        Histórico <span style={{color:C.textSub}}>global real</span> (12 meses + año anterior + presupuesto). La película <span style={{color:C.textSub}}>por entidad</span> (cliente/SKU) se enciende cuando conectes histórico real — hoy ADI no inventa una tendencia por entidad.
+      </div>
+    </Card>
   );
 }
 

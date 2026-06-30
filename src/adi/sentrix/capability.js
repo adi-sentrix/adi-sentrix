@@ -38,6 +38,25 @@ export function datasetCapability() {
   };
 }
 
+// ── TEMPORAL · la regla del evolutivo (honestidad aplicada al tiempo · owner 2026-06-30) ──
+// Existe serie real para ese eje → muestra evolución; no hay serie real para ese cruce → bloquea honesto.
+// Hoy: global ventas REAL (se muestra) · por entidad SINTÉTICO (se bloquea · se enciende solo con histórico real).
+const _tipoES = { sku: "SKU", client: "cliente", bodega: "bodega", marca: "marca", brand: "marca" };
+export function temporalCapability(opts = {}) {
+  const { metric, entityType, entity } = opts;
+  const cap = datasetCapability();
+  const global = cap.history.global
+    ? { status: "show", scope: "global", metric: "ventas", confidence: "high" }
+    : { status: "blocked", reason: "no hay serie mensual global en el dato" };
+  let perEntity = null;
+  if (entityType && entity) {
+    perEntity = cap.history.perEntity
+      ? { status: "show", scope: "entity", confidence: "high" }
+      : { status: "blocked", reason: `el histórico por ${_tipoES[entityType] || "entidad"} es sintético (${metric || "esa métrica"} no varía mes a mes) — no hay serie real para afirmar una evolución` };
+  }
+  return { global, perEntity };
+}
+
 // ── peers comparables del MISMO tipo (del dataset cargado · reales) ──
 function _peersFor(entityType, entidad) {
   let names = [];
