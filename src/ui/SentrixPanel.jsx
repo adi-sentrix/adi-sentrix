@@ -416,7 +416,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
       {/* ── cuerpo (scroll) · la lente activa · Diagnóstico = el contenido actual ── */}
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:14 }}>
-        {(!ADI_SENTRIX_SHELL_ENABLED || tab === "diagnostico") ? (<>
+        {(!ADI_SENTRIX_SHELL_ENABLED || tab === "diagnostico") && (<>
 
         <Card accent>
           <Eyebrow>{pack.title(rd)}</Eyebrow>
@@ -427,7 +427,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <DataStrip focusType={current.focusType} focus={current.focus} scenario={evidence.periodo}/>
         )}
 
-        {Evidence && (
+        {/* Evidencia mínima · con el SHELL se mueve a su tab (separar historia de prueba) · OFF = sigue acá (byte-exacto) */}
+        {!ADI_SENTRIX_SHELL_ENABLED && Evidence && (
           <div>
             <Eyebrow tone={C.textMuted}>Evidencia mínima</Eyebrow>
             <Card><Evidence rd={rd}/></Card>
@@ -492,7 +493,19 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         {atBase && !current.compareWith && ADI_SENTRIX_PARETO_ENABLED && (
           <ConcentracionCard scenario={evidence.periodo}/>
         )}
-        </>) : <LensPlaceholder tab={tab} focus={rd.focus}/>}
+        </>)}
+
+        {/* EVIDENCIA · la prueba que valida la respuesta (la cuenta) · separada de la historia */}
+        {ADI_SENTRIX_SHELL_ENABLED && tab === "evidencia" && (
+          <div>
+            <Eyebrow>La cuenta de {rd.focus}</Eyebrow>
+            {Evidence
+              ? <Card><Evidence rd={rd}/></Card>
+              : <div style={{ fontSize:12.5, color:C.textMuted, lineHeight:1.6, padding:"4px 2px" }}>Sin cuenta detallada para esta lectura.</div>}
+          </div>
+        )}
+
+        {ADI_SENTRIX_SHELL_ENABLED && tab === "control" && <LensPlaceholder tab="control" focus={rd.focus}/>}
       </div>
     </div>
   );
