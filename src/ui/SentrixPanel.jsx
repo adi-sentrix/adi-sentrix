@@ -11,7 +11,7 @@ import { buildComparisonReading, buildReadingFromSignals, buildClientContribSign
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
-import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED } from "../config/voiceFlags.js";
+import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -341,7 +341,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   // ESTADO DE ANÁLISIS · STACK de navegación (§4): cada frame = {focusType, focus, metric, compareWith}.
   // El base = la respuesta de ADI; las operaciones empujan frames; "volver" desapila. La mesa viva.
   const [stack, setStack] = useState(() => (baseRd ? [mkBase(baseRd)] : []));
-  useEffect(() => { if (baseRd) setStack([mkBase(baseRd)]); }, [baseFocus]);   // nueva respuesta → estado limpio
+  const [tab, setTab] = useState("diagnostico");                               // shell · lente activa (Diagnóstico|Evidencia|Control)
+  useEffect(() => { if (baseRd) { setStack([mkBase(baseRd)]); setTab("diagnostico"); } }, [baseFocus]);   // nueva respuesta → estado limpio
   if (!baseRd) return null;
 
   const frames = stack.length ? stack : [mkBase(baseRd)];
@@ -400,8 +401,21 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         </div>
       </div>
 
-      {/* ── cuerpo (scroll) ── */}
+      {/* SHELL · 3 tabs sobre el estado compartido (mismo caso, distinta lente) · gated · OFF = sin tabs (byte-exacto) */}
+      {ADI_SENTRIX_SHELL_ENABLED && (
+        <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:C.surface }}>
+          {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ["control", "Control"]].map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${tab === k ? C.blue : "transparent"}`, color: tab === k ? C.blue : C.textMuted, fontSize:12.5, fontWeight: tab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── cuerpo (scroll) · la lente activa · Diagnóstico = el contenido actual ── */}
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:14 }}>
+        {(!ADI_SENTRIX_SHELL_ENABLED || tab === "diagnostico") ? (<>
 
         <Card accent>
           <Eyebrow>{pack.title(rd)}</Eyebrow>
@@ -473,7 +487,24 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         {atBase && !current.compareWith && ADI_SENTRIX_PARETO_ENABLED && (
           <ConcentracionCard scenario={evidence.periodo}/>
         )}
+        </>) : <LensPlaceholder tab={tab} focus={rd.focus}/>}
       </div>
+    </div>
+  );
+}
+
+// ── placeholder honesto de las lentes aún no construidas (Evidencia / Control) · próximos bricks ──
+function LensPlaceholder({ tab, focus }) {
+  const map = {
+    evidencia: { t: "Evidencia", d: `La cuenta exacta de ${focus || "esta lectura"} — cada cifra con su fuente, la confianza y los límites.` },
+    control: { t: "Control", d: `La mesa operable — ${focus || "el foco"} contra el promedio y el modelo, con columnas y acciones.` },
+  };
+  const m = map[tab] || { t: tab, d: "" };
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:9, textAlign:"center", padding:24, minHeight:200 }}>
+      <div style={{ fontFamily:MONO, fontSize:10.5, letterSpacing:"1.2px", color:C.blue, textTransform:"uppercase" }}>{m.t}</div>
+      <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, maxWidth:300 }}>{m.d}</div>
+      <div style={{ fontSize:11, color:C.textMuted, opacity:0.8 }}>En construcción · próximo brick.</div>
     </div>
   );
 }
