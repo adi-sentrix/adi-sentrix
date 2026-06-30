@@ -11,7 +11,7 @@
  *   ni nada que el spine sí responde. (temporal + cliente/marca inexistente = v2.)
  */
 import { detectBrandInText, detectSkuInText } from "../detectors.js";
-import { detectAllClientsInText } from "../router.js";
+import { detectAllClientsInText, detectAllWarehousesInText } from "../router.js";
 import { composeSmartGuide } from "./smartGuide.js";
 
 const _norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -32,8 +32,11 @@ function _temporalPerEntity(n, brand, text) {
     || new RegExp(`\\ben\\s+${_MESES}\\b`).test(n)
     || new RegExp(`${_MESES}\\b[^.]*\\bvs\\b[^.]*${_MESES}`).test(n);
   if (!temporal) return false;
-  // exige entidad ESPECÍFICA (marca/cliente/SKU) · la tendencia GLOBAL (ventasMensuales) SÍ es real → no bloquear.
-  return !!brand || (detectAllClientsInText(text) || []).length > 0 || !!detectSkuInText(text);
+  // exige entidad específica O un EJE de entidad (marca/cliente/SKU/bodega/familia) · la tendencia GLOBAL
+  // (ventasMensuales · sin eje de entidad) SÍ es real → no se bloquea.
+  return !!brand || (detectAllClientsInText(text) || []).length > 0 || !!detectSkuInText(text)
+    || (detectAllWarehousesInText(text) || []).some((w) => w && w !== "Todas")
+    || /\b(marcas?|clientes?|cuentas?|skus?|productos?|art[ií]culos?|bodegas?|sucursal\w*|familias?)\b/.test(n);
 }
 
 // Devuelve el texto honesto (límite declarado + redirección) o null si la pregunta NO es imposible.
@@ -52,6 +55,9 @@ export function composeHonestyGuard(text) {
     limit = "El detalle de marca por cliente no está en los datos (la marca por cuenta no viene desagregada). ";
   } else if ((clientRef && skuRef) || (asksWhoBuys && skuRef)) {
     limit = "No tengo qué productos compra cada cliente — no hay transacciones atómicas cliente×SKU. ";
+  } else if (clientRef && /\brotaci|\bdoh\b|\bcobertura\b|capital\s+inmoviliz|stock\s+(inmoviliz|muert|parad)/.test(n)) {
+    // métrica de inventario pedida sobre un cliente → un cliente no tiene rotación/DOH/capital.
+    limit = "Un cliente no tiene rotación, DOH ni capital inmovilizado — esas son métricas de inventario (por SKU o bodega). ";
   } else if (_temporalPerEntity(n, brand, text)) {
     // evolución/causa en el tiempo de UNA entidad específica · el histórico por entidad es plano/sintético.
     limit = "No tengo histórico real por entidad para afirmar una evolución o una causa en el tiempo. ";
