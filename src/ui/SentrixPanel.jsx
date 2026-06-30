@@ -11,7 +11,7 @@ import { buildComparisonReading, buildReadingFromSignals, buildClientContribSign
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
-import { buildEntityKPIs } from "../adi/sentrix/kpis.js";   // brick 2a · tira de datos (anticipa la pregunta)
+import { buildEntityKPIs, buildMarginDecomposition } from "../adi/sentrix/kpis.js";   // brick 2a/2b · tira + descomposición
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -361,6 +361,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   };
   const frameLabel = (fr) => (fr.compareWith ? `${fr.focus} vs ${fr.compareWith}` : fr.metric === "contribucion" ? `${fr.focus} · contribución` : fr.focus);
   const rd = frameReading(current);
+  // brick 2b · descomposición del margen → tesis data-derived + brecha (solo cliente, en base, con el shell)
+  const decomp = (ADI_SENTRIX_SHELL_ENABLED && current.focusType === "client" && current.metric === "margen" && frames.length === 1 && !current.compareWith)
+    ? buildMarginDecomposition(current.focus, evidence.periodo) : null;
 
   // operaciones del estado (empujan/actualizan frames)
   const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
@@ -398,7 +401,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           </div>
         </div>
         <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
-          <span style={{ color:C.textMuted }}>Demostrando: </span>{rd.reframe}
+          {decomp
+            ? decomp.thesisFull
+            : <><span style={{ color:C.textMuted }}>Demostrando: </span>{rd.reframe}</>}
         </div>
       </div>
 
@@ -422,6 +427,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <Eyebrow>{pack.title(rd)}</Eyebrow>
           <Hero rd={rd}/>
         </Card>
+
+        {decomp && <BrechaCard decomp={decomp}/>}
 
         {ADI_SENTRIX_SHELL_ENABLED && atBase && !current.compareWith && (
           <DataStrip focusType={current.focusType} focus={current.focus} scenario={evidence.periodo}/>
@@ -546,6 +553,37 @@ function DataStrip({ focusType, focus, scenario }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// ── LA BRECHA DESCOMPUESTA · el gap del margen partido en sus palancas (costo vs carga) · brick 2b ──
+// La tesis la elige el DATO: la palanca dominante. La cuenta cierra (costoComp + cargaComp = gap).
+function BrechaCard({ decomp }) {
+  const d = decomp;
+  const fp = (n) => (n >= 0 ? "+" : "−") + Math.abs(n) + "pp";
+  const rows = [
+    { label: "Estructura de costo", comp: d.costoComp, share: d.costoShare, color: C.red },
+    { label: "Carga comercial",     comp: d.cargaComp, share: d.cargaShare, color: C.amber },
+  ];
+  return (
+    <Card>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+        <Eyebrow>La brecha, descompuesta</Eyebrow>
+        <span style={{ fontSize:11, color:C.textMuted, fontFamily:MONO }}>vs promedio {d.avgM}%</span>
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+          <div style={{ width:128, fontSize:12, color:C.textSub, flexShrink:0 }}>{r.label}</div>
+          <div style={{ flex:1, height:13, background:"rgba(255,255,255,0.04)", borderRadius:3, overflow:"hidden" }}>
+            <div style={{ width:`${Math.max(r.share, 2)}%`, height:"100%", background:r.color, borderRadius:3, transition:"width 0.4s ease" }}/>
+          </div>
+          <div style={{ width:92, textAlign:"right", fontFamily:MONO, fontSize:12, color:r.color, flexShrink:0 }}>{fp(r.comp)} · {r.share}%</div>
+        </div>
+      ))}
+      <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, marginTop:8 }}>
+        El gap de <Num color={d.gap < 0 ? C.red : C.green}>{fp(d.gap)}</Num> lo explica <span style={{ color:C.textSub }}>{d.dominant === "costo" ? "la estructura de costo" : "la carga comercial"}</span> ({d.dominant === "costo" ? d.costoShare : d.cargaShare}%) — la tesis la elige el dato, no un molde.
+      </div>
+    </Card>
   );
 }
 

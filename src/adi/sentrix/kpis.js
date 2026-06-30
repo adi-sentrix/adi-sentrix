@@ -36,10 +36,41 @@ function _clientKPIs(name, s) {
     { label: "Contribución", value: _fM(cm.contribucion), sub: `${_r1(cm.contribucion / cm.venta * 100)}% de venta` },
     { label: "Carga comercial", value: cm.pctRebate + "%", sub: `prom. ${_r1(avgC)}%`, tone: "warn" },
     { label: "Ticket prom.", value: ticket != null ? _fKu(ticket) : "—", sub: `${cm.unidades} unidades` },
-    { label: "Costo unitario", value: _fKu(cm.costoMedio), sub: `${_r1(cm.costo / cm.venta * 100)}% de venta` },
+    { label: "Costo unitario", value: _fKu(cm.costoMedio), sub: `${_r1(100 - cm.margen - cm.pctRebate)}% de venta` },
     { label: "Unidades", value: "" + cm.unidades, sub: "" },
     { label: "vs benchmark", value: _pp(cm.margen - cm.benchmark), sub: `bench ${cm.benchmark}%`, tone: cm.margen >= cm.benchmark ? "up" : "down" },
   ];
+}
+
+// DESCOMPOSICIÓN del margen (cliente) · margen = 100 − costo% − carga% · descompone el gap vs el promedio en sus
+// palancas y elige la DOMINANTE → la tesis la dice el DATO, no un molde. La reusa la Evidencia (misma cuenta).
+export function buildMarginDecomposition(focus, scenario) {
+  const s = scenario || "bonanza";
+  const all = applyScenarioToClientesMargen(s);
+  const c = all.find((x) => x.nombre === focus);
+  if (!c) return null;
+  // margin-consistente: carga = pctRebate (canónico) · costo% = 100 − margen − carga → margen+carga+costo=100 SIEMPRE
+  // (el ajuste de escenario desincroniza costo/venta vs el margen; derivar del margen hace que la cuenta CIERRE).
+  const cargaPct = c.pctRebate, costoPct = 100 - c.margen - cargaPct;
+  const avgM = all.reduce((a, x) => a + x.margen, 0) / all.length;
+  const avgCarga = all.reduce((a, x) => a + x.pctRebate, 0) / all.length;
+  const avgCosto = 100 - avgM - avgCarga;
+  const gap = _r1(c.margen - avgM);                 // − = bajo el promedio
+  const cargaComp = _r1(avgCarga - cargaPct);       // aporte de la carga al gap
+  const costoComp = _r1(gap - cargaComp);           // aporte del costo = RESIDUAL → la cuenta cierra exacto (costo+carga=gap)
+  const absC = Math.abs(costoComp), absG = Math.abs(cargaComp), tot = absC + absG || 1;
+  const dominant = absC >= absG ? "costo" : "carga";
+  const thesis = dominant === "costo" ? "estructura de costo" : "carga comercial";
+  const otra = dominant === "costo" ? "la carga" : "el costo";
+  const thesisFull = gap < 0
+    ? `${focus} no pierde por ${otra} — pierde por ${thesis}`
+    : `${focus} destaca por ${thesis}`;
+  return {
+    focus, margen: c.margen, avgM: _r1(avgM), gap,
+    costoPct: _r1(costoPct), cargaPct: _r1(cargaPct), avgCosto: _r1(avgCosto), avgCarga: _r1(avgCarga),
+    costoComp, cargaComp, dominant, thesis, thesisFull,
+    costoShare: Math.round(absC / tot * 100), cargaShare: Math.round(absG / tot * 100),
+  };
 }
 
 function _bodegaKPIs(name, s) {
