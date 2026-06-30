@@ -7,7 +7,8 @@
  * es común. Regla madre: cada card sale de un claim de la lectura, y cada claim del dato. Presentación pura. */
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
-import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones (comparar · cambiar métrica)
+import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
+import { entityExplorable } from "../adi/sentrix/capability.js";   // explorable del frame actual (stack de navegación)
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -327,25 +328,44 @@ const packFor = (rd) => PANEL_PACKS[rd.kind] || GENERIC_PACK;
 
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
   const baseRd = evidence && evidence.reading;
-  const [compareWith, setCompareWith] = useState(null);
-  const [metricView, setMetricView] = useState(null);   // null = métrica base · "contribucion" = vista de contribución (cliente)
   const baseFocus = baseRd && baseRd.focus;
-  useEffect(() => { setCompareWith(null); setMetricView(null); }, [baseFocus]);   // nueva respuesta → resetea las operaciones
+  const mkBase = (r) => ({ focusType: r.focusType, focus: r.focus, metric: "margen", compareWith: null });
+  // ESTADO DE ANÁLISIS · STACK de navegación (§4): cada frame = {focusType, focus, metric, compareWith}.
+  // El base = la respuesta de ADI; las operaciones empujan frames; "volver" desapila. La mesa viva.
+  const [stack, setStack] = useState(() => (baseRd ? [mkBase(baseRd)] : []));
+  useEffect(() => { if (baseRd) setStack([mkBase(baseRd)]); }, [baseFocus]);   // nueva respuesta → estado limpio
   if (!baseRd) return null;
-  // OPERACIONES (estado de análisis): comparar (kind comparison) · cambiar métrica (cliente → contribución).
-  const comparing = compareWith ? buildComparisonReading(baseRd.focusType, baseRd.focus, compareWith) : null;
-  const _contribSignals = baseRd.focusType === "client" ? buildClientContribSignals
-    : baseRd.focusType === "sku" ? buildSkuContribSignals : null;
-  const metricRd = (!comparing && metricView === "contribucion" && _contribSignals)
-    ? buildReadingFromSignals(_contribSignals(baseRd.focus)) : null;
-  const rd = comparing || metricRd || baseRd;
-  const derived = comparing || metricRd;
+
+  const frames = stack.length ? stack : [mkBase(baseRd)];
+  const current = frames[frames.length - 1];
+  const atBase = frames.length === 1;
+  const isBaseEntity = (fr) => fr.focusType === baseRd.focusType && fr.focus === baseRd.focus;
+  const _contribFor = (ft) => (ft === "sku" ? buildSkuContribSignals : ft === "client" ? buildClientContribSignals : null);
+  // reading DERIVADO del frame (determinístico): comparación · contribución · entidad base (motor) · SKU entrado (client-side).
+  const frameReading = (fr) => {
+    if (fr.compareWith) return buildComparisonReading(fr.focusType, fr.focus, fr.compareWith) || baseRd;
+    if (fr.metric === "contribucion") { const mk = _contribFor(fr.focusType); const s = mk && mk(fr.focus); return (s && buildReadingFromSignals(s)) || baseRd; }
+    if (isBaseEntity(fr)) return baseRd;
+    if (fr.focusType === "sku") return buildReadingFromSignals(buildSkuMarginSignals(fr.focus)) || baseRd;
+    return baseRd;
+  };
+  const frameLabel = (fr) => (fr.compareWith ? `${fr.focus} vs ${fr.compareWith}` : fr.metric === "contribucion" ? `${fr.focus} · contribución` : fr.focus);
+  const rd = frameReading(current);
+
+  // operaciones del estado (empujan/actualizan frames)
+  const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
+  const setMetric = (m) => setStack((s) => { const f = _f(s); const cur = f[f.length - 1]; return [...f.slice(0, -1), { ...cur, metric: m, compareWith: null }]; });
+  const opCompare = (peer) => setStack((s) => { const f = _f(s); return [...f, { ...f[f.length - 1], compareWith: peer }]; });
+  const opEnter = (entity, ft) => setStack((s) => [..._f(s), { focusType: ft, focus: entity, metric: "margen", compareWith: null }]);
+  const back = () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+
   const explorable = evidence.explorable;
-  const canCompare = !!(explorable && (baseRd.focusType === "sku" || baseRd.focusType === "client") && explorable.compare && explorable.compare.length);
-  const metricOptions = _contribSignals ? [{ key: "margen", label: "margen" }, { key: "contribucion", label: "contribución" }] : null;
+  const curExplorable = explorable ? (isBaseEntity(current) && !current.compareWith && current.metric === "margen" ? explorable : entityExplorable(current.focusType, current.focus)) : null;
+  const canCompare = !!(curExplorable && (current.focusType === "sku" || current.focusType === "client") && curExplorable.compare && curExplorable.compare.length);
+  const metricOptions = (current.focusType === "sku" || current.focusType === "client") ? [{ key: "margen", label: "margen" }, { key: "contribucion", label: "contribución" }] : null;
   const pack = packFor(rd);
   const Hero = pack.Hero, Evidence = pack.Evidence;
-  const domainLabel = (evidence.metrica || rd.metric || "").toString().toUpperCase();
+  const domainLabel = (rd.metric || evidence.metrica || "").toString().toUpperCase();
   const dominio = (rd.domain || evidence.domain || "").toString().toUpperCase();
 
   return (
@@ -413,20 +433,30 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           </Card>
         )}
 
-        {/* operación COMPARAR (paso 3b) · volver cuando se compara · explorar cuando no */}
-        {comparing && (
-          <button onClick={() => setCompareWith(null)}
+        {/* navegación del estado de análisis (§4) · volver paso a paso · entrar a una entidad · explorar */}
+        {!atBase && (
+          <button onClick={back}
             style={{ alignSelf:"flex-start", display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:6, color:C.textSub, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-            ← Volver a {baseRd.focus}
+            ← Volver a {frameLabel(frames[frames.length - 2])}
           </button>
         )}
-        {!comparing && explorable && (canCompare || (metricOptions && metricOptions.length > 1)) && (
-          <ExplorarBar explorable={explorable} onCompare={setCompareWith}
-            metricOptions={metricOptions} currentMetric={metricView || "margen"}
-            onMetric={(k) => setMetricView(k === "margen" ? null : k)}/>
+        {current.compareWith && current.focusType === "sku" && (
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span style={{ fontSize:12.5, color:C.textSub, flexShrink:0 }}>Entrar a</span>
+            {[rd.a, rd.b].filter(Boolean).map((e) => (
+              <button key={e.entity} onClick={() => opEnter(e.entity, "sku")}
+                style={{ padding:"6px 12px", borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", background:"rgba(0,194,232,0.08)", border:`1px solid rgba(0,176,212,0.5)`, color:C.blue }}>
+                {e.entity} →
+              </button>
+            ))}
+          </div>
         )}
-        {/* slot temporal · bloqueado honesto hasta histórico real por entidad (regla madre) */}
-        {!derived && <TemporalSlot evidence={evidence}/>}
+        {!current.compareWith && curExplorable && (canCompare || (metricOptions && metricOptions.length > 1)) && (
+          <ExplorarBar explorable={curExplorable} onCompare={opCompare}
+            metricOptions={metricOptions} currentMetric={current.metric} onMetric={setMetric}/>
+        )}
+        {/* slot temporal · bloqueado honesto hasta histórico real por entidad (regla madre) · solo en la vista base */}
+        {atBase && !current.compareWith && current.metric === "margen" && <TemporalSlot evidence={evidence}/>}
       </div>
     </div>
   );
