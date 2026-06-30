@@ -222,28 +222,59 @@ export function buildSkuContribSignals(skuName) {
 // Compara DOS entidades del mismo tipo en su métrica, con campos DIRECTOS del dato (exacto · sin recompute
 // dependiente de scope) → consistente con la lectura primaria. El porqué de la brecha lo deriva del driver real
 // (SKU: costo del precio · cliente: carga comercial). kind "comparison" → el panel lo resuelve con su pack.
-function _comp(metric, domain, driverKey, a, b) {
-  const gap = +(a.value - b.value).toFixed(1);
-  const better = gap >= 0 ? a.entity : b.entity;
-  const worse = gap >= 0 ? b.entity : a.entity;
+function _comp(metric, domain, driverKey, a, b, opts = {}) {
+  const betterIsHigher = opts.betterIsHigher !== false;     // margen: más=mejor · capital inmovilizado: menos=mejor
+  const gapU = opts.gapUnit || "pp";
+  const rawGap = +(a.value - b.value).toFixed(1);
+  const aBetter = betterIsHigher ? rawGap >= 0 : rawGap <= 0;
+  const better = aBetter ? a.entity : b.entity;
+  const worse = aBetter ? b.entity : a.entity;
+  const gapAbs = Math.abs(rawGap);
+  const gapFmt = opts.gapFmt ? opts.gapFmt(gapAbs) : `${gapAbs}${gapU}`;
   const dDelta = Math.abs(+(a.driverVal - b.driverVal).toFixed(1));
+  const dDeltaFmt = opts.driverDeltaFmt ? opts.driverDeltaFmt(dDelta) : `${dDelta}${gapU}`;
   return {
     kind: "comparison", domain, metric, focusType: "comparison",
     focus: `${a.entity} vs ${b.entity}`,
-    a, b, gap: Math.abs(gap), better, worse,
-    reframe: `${better} tiene mejor ${metric} que ${worse}: ${Math.abs(gap)}pp de diferencia`,
+    a, b, gap: gapAbs, gapFmt, better, worse,
+    reframe: opts.reframe ? opts.reframe(better, worse, gapFmt)
+           : `${better} tiene mejor ${metric} que ${worse}: ${gapFmt} de diferencia`,
     drivers: [
       { v: a.valueFmt, label: `${metric} de ${a.entity}` },
       { v: b.valueFmt, label: `${metric} de ${b.entity}` },
-      { v: `${dDelta}pp`, label: `diferencia en ${driverKey}` },
+      { v: dDeltaFmt, label: `diferencia en ${driverKey}` },
     ],
-    recommendation: `el ${driverKey} explica la brecha — revisaría el de ${worse}`,
+    recommendation: opts.recommendation ? opts.recommendation(worse) : `el ${driverKey} explica la brecha — revisaría el de ${worse}`,
     sensitive: worse,
   };
 }
 
-export function buildComparisonReading(entityType, entA, entB) {
+// capital inmovilizado por bodega (Def2) bajo el escenario · para comparar bodega↔bodega.
+function _bodegaCapital(scenario) {
+  const inv = applyScenarioToSkuInventario(scenario).filter(_esInmov);
+  const by = {};
+  for (const r of inv) (by[r.bodega] = by[r.bodega] || []).push(r);
+  const map = {};
+  for (const [bodega, rows] of Object.entries(by)) {
+    map[bodega] = { capital: rows.reduce((s, r) => s + r.stockUSD, 0), dohAvg: Math.round(rows.reduce((s, r) => s + r.doh, 0) / rows.length) };
+  }
+  return map;
+}
+
+export function buildComparisonReading(entityType, entA, entB, scenario) {
   if (!entA || !entB || entA === entB) return null;
+  if (entityType === "bodega") {
+    const map = _bodegaCapital(scenario || "bonanza");
+    const da = map[entA], db = map[entB];
+    if (!da || !db) return null;
+    const mk = (name, d) => ({ entity: name, value: d.capital, valueFmt: _fmtMoney(d.capital), driverVal: d.dohAvg, sub: `cobertura ${d.dohAvg}d` });
+    return _comp("capital", "inventario", "cobertura", mk(entA, da), mk(entB, db), {
+      betterIsHigher: false,                                  // menos capital inmovilizado = mejor
+      gapFmt: (g) => _fmtMoney(g), driverDeltaFmt: (d) => `${d}d`,
+      reframe: (b, w, g) => `${b} tiene menos capital inmovilizado que ${w}: ${g} de diferencia`,
+      recommendation: (w) => `revisaría la cobertura y la salida comercial de ${w}`,
+    });
+  }
   if (entityType === "sku") {
     const sA = buildSkuMarginSignals(entA), sB = buildSkuMarginSignals(entB);
     if (!sA || !sB) return null;

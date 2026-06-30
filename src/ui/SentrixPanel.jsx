@@ -217,14 +217,15 @@ function ComparisonHero({ rd }) {
       <CompCol entity={rd.a.entity} valueFmt={rd.a.valueFmt} sub={rd.a.sub} better={rd.better === rd.a.entity}/>
       <div style={{ flexShrink:0, textAlign:"center", color:C.textMuted }}>
         <div style={{ fontFamily:MONO, fontSize:9, letterSpacing:"1px" }}>VS</div>
-        <Num color={C.text} size="1.05em">{rd.gap}pp</Num>
+        <Num color={C.text} size="1.05em">{rd.gapFmt || `${rd.gap}pp`}</Num>
       </div>
       <CompCol entity={rd.b.entity} valueFmt={rd.b.valueFmt} sub={rd.b.sub} better={rd.better === rd.b.entity}/>
     </div>
   );
 }
 function ComparisonEvidence({ rd }) {
-  const rows = [{ k: "Margen", a: rd.a.valueFmt, b: rd.b.valueFmt }, { k: "Driver", a: rd.a.sub, b: rd.b.sub }];
+  const metricLabel = rd.metric === "capital" ? "Capital" : rd.metric === "contribucion" ? "Contribución" : "Margen";
+  const rows = [{ k: metricLabel, a: rd.a.valueFmt, b: rd.b.valueFmt }, { k: "Driver", a: rd.a.sub, b: rd.b.sub }];
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
       <div style={{ display:"grid", gridTemplateColumns:"auto 1fr 1fr", gap:"0 12px", fontSize:9.5, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.5px", textTransform:"uppercase", paddingBottom:6, borderBottom:`1px solid ${C.border}`, marginBottom:4 }}>
@@ -343,7 +344,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const _contribFor = (ft) => (ft === "sku" ? buildSkuContribSignals : ft === "client" ? buildClientContribSignals : null);
   // reading DERIVADO del frame (determinístico): comparación · contribución · entidad base (motor) · SKU entrado (client-side).
   const frameReading = (fr) => {
-    if (fr.compareWith) return buildComparisonReading(fr.focusType, fr.focus, fr.compareWith) || baseRd;
+    if (fr.compareWith) return buildComparisonReading(fr.focusType, fr.focus, fr.compareWith, evidence.periodo) || baseRd;
     if (fr.metric === "contribucion") { const mk = _contribFor(fr.focusType); const s = mk && mk(fr.focus); return (s && buildReadingFromSignals(s)) || baseRd; }
     if (isBaseEntity(fr)) return baseRd;
     if (fr.focusType === "sku") return buildReadingFromSignals(buildSkuMarginSignals(fr.focus)) || baseRd;
@@ -361,7 +362,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
   const explorable = evidence.explorable;
   const curExplorable = explorable ? (isBaseEntity(current) && !current.compareWith && current.metric === "margen" ? explorable : entityExplorable(current.focusType, current.focus)) : null;
-  const canCompare = !!(curExplorable && (current.focusType === "sku" || current.focusType === "client") && curExplorable.compare && curExplorable.compare.length);
+  const canCompare = !!(curExplorable && (current.focusType === "sku" || current.focusType === "client" || current.focusType === "bodega") && curExplorable.compare && curExplorable.compare.length);
   const metricOptions = (current.focusType === "sku" || current.focusType === "client") ? [{ key: "margen", label: "margen" }, { key: "contribucion", label: "contribución" }] : null;
   const pack = packFor(rd);
   const Hero = pack.Hero, Evidence = pack.Evidence;
