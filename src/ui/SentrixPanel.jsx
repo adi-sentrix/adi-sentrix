@@ -10,7 +10,8 @@ import { C } from "./theme.js";
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
-import { ADI_SENTRIX_TEMPORAL_ENABLED } from "../config/voiceFlags.js";
+import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
+import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -71,6 +72,10 @@ function Legend({ color, label, v }) {
   );
 }
 const fmtK = (n) => "$" + Math.round(n || 0) + "K";
+// formato $ para gráficos. El dato viene en $K → se muestra en $M (÷1000), como las tarjetas KPI
+// (100000→$100.0M · 92900→$92.9M · 6800→$6.8M · -600→−$0.6M). Misma fuente de verdad que el header.
+const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(Number(n) || 0) / 1000; return s + "$" + v.toFixed(1) + "M"; };
+const r1 = (n) => Math.round(n * 10) / 10;
 
 // ══════════════════════════ PACKS (espejo del renderer · kind → {title, Hero, Evidence}) ══════════════════════════
 
@@ -464,6 +469,10 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             ? <EvolutivoCard/>
             : (current.metric === "margen" && <TemporalSlot evidence={evidence}/>)
         )}
+        {/* EL PARETO (paso 4b) · concentración 80/20 · solo en base · escenario del análisis vigente */}
+        {atBase && !current.compareWith && ADI_SENTRIX_PARETO_ENABLED && (
+          <ConcentracionCard scenario={evidence.periodo}/>
+        )}
       </div>
     </div>
   );
@@ -488,7 +497,8 @@ function EvolutivoCard() {
   const ev = buildGlobalEvolution();
   const [view, setView] = useState("comp");                                  // "comp" 12m·3 series · "seq" 24m
   const [show, setShow] = useState({ actual:true, anterior:false, presupuesto:true });
-  const W = 520, H = 150, padL = 10, padR = 12, padT = 12, padB = 20;
+  const [hov, setHov] = useState(null);                                      // mes bajo el cursor (tooltip)
+  const W = 540, H = 172, padL = 36, padR = 12, padT = 12, padB = 22;
 
   const SER = [
     { key:"actual",      label:"Este año",     color:C.blue,      data:ev.actual,      dashed:false },
@@ -501,7 +511,8 @@ function EvolutivoCard() {
   const xlabels = comp ? ev.meses : ev.seq24.map((p) => p.mes);
   const allVals = lines.flatMap((l) => l.data);
   const lo0 = allVals.length ? Math.min(...allVals) : 0, hi0 = allVals.length ? Math.max(...allVals) : 1;
-  const span = (hi0 - lo0) || 1, ylo = lo0 - span * 0.14, yhi = hi0 + span * 0.14;
+  const niceLo = Math.floor(lo0 / 1000) * 1000, niceHi = Math.ceil(hi0 / 1000) * 1000;
+  const padY = (niceHi - niceLo) * 0.08 || 1, ylo = niceLo - padY, yhi = niceHi + padY;
   const npts = xlabels.length || 1;
   const xAt = (i) => padL + (npts <= 1 ? 0 : (i / (npts - 1)) * (W - padL - padR));
   const yAt = (v) => padT + (1 - (v - ylo) / (yhi - ylo)) * (H - padT - padB);
@@ -509,8 +520,25 @@ function EvolutivoCard() {
 
   const aIdxMax = ev.actual.indexOf(ev.max), aIdxMin = ev.actual.indexOf(ev.min);
   const xi = (mi) => comp ? mi : ev.n + mi;                                   // en seq, el año actual arranca tras los 12
-  const showActualMarks = comp ? show.actual : true;
-  const fK = (n) => { const a = Math.abs(n), s = n < 0 ? "−" : ""; return a < 1000 ? s + "$" + Math.round(a) : s + "$" + (a / 1000).toFixed(a >= 10000 ? 0 : 1) + "K"; };
+  const showMarks = comp ? show.actual : true;
+  const grid = [niceHi, (niceHi + niceLo) / 2, niceLo];
+  const stepX = (W - padL - padR) / Math.max(npts - 1, 1);
+
+  // tooltip al PARAR EN LA CURVA (hover) · mes, valor, vs mes ant., vs ppto, lectura si el dato la sostiene
+  let tip = null;
+  if (hov != null && comp && show.actual) {
+    const i = hov, v = ev.actual[i];
+    const dPrev = i > 0 ? v - ev.actual[i - 1] : null;
+    const dPrevPct = (i > 0 && ev.actual[i - 1]) ? r1((v - ev.actual[i - 1]) / ev.actual[i - 1] * 100) : null;
+    const dPpto = v - ev.presupuesto[i], dPptoPct = ev.presupuesto[i] ? r1((v - ev.presupuesto[i]) / ev.presupuesto[i] * 100) : 0;
+    let lect = "";
+    if (i === aIdxMax) lect = "pico del año"; else if (i === aIdxMin) lect = "piso del año";
+    else if (ev.meses[i] === ev.drop.mes) lect = "mayor caída"; else if (ev.meses[i] === ev.growth.mes) lect = "mayor salto";
+    tip = { i, v, dPrev, dPrevPct, dPpto, dPptoPct, lect, mes: ev.meses[i] };
+  }
+  const TW = 134, TH = tip ? (35 + (tip.dPrev != null ? 13 : 0) + (tip.lect ? 13 : 0)) : 0;
+  const tipX = tip ? Math.min(Math.max(xAt(tip.i) - TW / 2, 2), W - TW - 2) : 0;
+  const tipY = tip ? Math.max(yAt(tip.v) - TH - 10, 2) : 0;
 
   const Chip = ({ on, color, label, onClick }) => (
     <button onClick={onClick} style={{ display:"flex", alignItems:"center", gap:5, padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: on ? "rgba(255,255,255,0.05)" : "transparent", border:`1px solid ${on?C.borderLight:C.border}`, color: on?C.textSub:C.textMuted, opacity: on?1:0.55 }}>
@@ -520,32 +548,51 @@ function EvolutivoCard() {
 
   return (
     <Card>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
-        <Eyebrow>La historia · ventas en el tiempo</Eyebrow>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
+        <Eyebrow>Evolución del negocio · ventas</Eyebrow>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <span style={{ fontFamily:MONO, fontSize:8.5, fontWeight:600, color:C.green, textTransform:"uppercase", letterSpacing:"0.7px", padding:"2px 6px", borderRadius:4, background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.16)" }}>dato real · alta confianza</span>
-          {["comp","seq"].map((v) => (
-            <button key={v} onClick={()=>setView(v)} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: view===v?"rgba(0,176,212,0.1)":"transparent", border:`1px solid ${view===v?"rgba(0,176,212,0.4)":C.border}`, color: view===v?C.blue:C.textMuted }}>{v==="comp"?"12 meses":"24 meses"}</button>
+          <span style={{ fontFamily:MONO, fontSize:8.5, fontWeight:600, color:C.green, textTransform:"uppercase", letterSpacing:"0.7px", padding:"2px 6px", borderRadius:4, background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.16)" }}>dato real</span>
+          {["comp","seq"].map((vv) => (
+            <button key={vv} onClick={()=>{setView(vv);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: view===vv?"rgba(0,176,212,0.1)":"transparent", border:`1px solid ${view===vv?"rgba(0,176,212,0.4)":C.border}`, color: view===vv?C.blue:C.textMuted }}>{vv==="comp"?"12 meses":"24 meses"}</button>
           ))}
         </div>
       </div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
-        {[yhi, (yhi+ylo)/2, ylo].map((gv,i)=>(
-          <line key={i} x1={padL} y1={yAt(gv)} x2={W-padR} y2={yAt(gv)} stroke={C.border} strokeWidth="1"/>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} onMouseLeave={()=>setHov(null)}>
+        {grid.map((gv,i)=>(
+          <g key={"g"+i}>
+            <line x1={padL} y1={yAt(gv)} x2={W-padR} y2={yAt(gv)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
+            <text x={padL-5} y={yAt(gv)+3} fill={C.textMuted} fontSize="8" fontFamily={MONO} textAnchor="end">{fMon(gv)}</text>
+          </g>
         ))}
         {lines.map((l) => (
-          <path key={l.key} d={dPath(l.data)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={l.dashed?"4 3":"none"} opacity={l.dashed?0.7:1}/>
+          <path key={l.key} d={dPath(l.data)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={l.dashed?"5 3":"none"} opacity={l.dashed?0.65:1}/>
         ))}
-        {showActualMarks && [{i:aIdxMax,v:ev.max,up:true},{i:aIdxMin,v:ev.min,up:false}].map((p,k)=>(
-          <g key={k}>
+        {comp && show.actual && ev.actual.map((v,i)=>(
+          <circle key={"d"+i} cx={xAt(i)} cy={yAt(v)} r={hov===i?3.5:2} fill={hov===i?C.blue:C.surface} stroke={C.blue} strokeWidth="1.5"/>
+        ))}
+        {showMarks && [{i:aIdxMax,v:ev.max,up:true},{i:aIdxMin,v:ev.min,up:false}].map((p,k)=>(
+          <g key={"m"+k}>
             <circle cx={xAt(xi(p.i))} cy={yAt(p.v)} r="3.5" fill={p.up?C.green:C.red} stroke={C.bg} strokeWidth="1.5"/>
-            <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.green:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fK(p.v)}</text>
+            {hov==null && <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.green:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fMon(p.v)}</text>}
           </g>
         ))}
         {xlabels.map((m,i)=> ((comp || i%3===0) ? (
-          <text key={i} x={xAt(i)} y={H-6} fill={C.textMuted} fontSize="8.5" fontFamily={MONO} textAnchor="middle">{m}</text>
+          <text key={"x"+i} x={xAt(i)} y={H-6} fill={C.textMuted} fontSize="8.5" fontFamily={MONO} textAnchor="middle">{m}</text>
         ) : null))}
+        {comp && ev.meses.map((m,i)=>(
+          <rect key={"h"+i} x={xAt(i)-stepX/2} y={padT} width={stepX} height={H-padT-padB} fill="transparent" onMouseEnter={()=>setHov(i)}/>
+        ))}
+        {tip && (<>
+          <line x1={xAt(tip.i)} y1={padT} x2={xAt(tip.i)} y2={H-padB} stroke={C.blue} strokeWidth="1" strokeDasharray="2 3" opacity="0.5"/>
+          <g transform={`translate(${tipX},${tipY})`}>
+            <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
+            <text x="9" y="16" fill={C.text} fontSize="10" fontFamily={MONO} fontWeight="600">{tip.mes} · {fMon(tip.v)}</text>
+            {tip.dPrev!=null && <text x="9" y="30" fill={tip.dPrev>=0?C.green:C.red} fontSize="8.5" fontFamily={MONO}>vs mes ant: {tip.dPrev>=0?"+":""}{fMon(tip.dPrev)} ({tip.dPrevPct>=0?"+":""}{tip.dPrevPct}%)</text>}
+            <text x="9" y={tip.dPrev!=null?43:30} fill={tip.dPpto>=0?C.green:C.red} fontSize="8.5" fontFamily={MONO}>vs ppto: {tip.dPpto>=0?"+":""}{fMon(tip.dPpto)} ({tip.dPptoPct>=0?"+":""}{tip.dPptoPct}%)</text>
+            {tip.lect && <text x="9" y={(tip.dPrev!=null?43:30)+13} fill={C.textSub} fontSize="8.5" fontFamily="'DM Sans', system-ui, sans-serif" fontStyle="italic">{tip.lect}</text>}
+          </g>
+        </>)}
       </svg>
 
       {comp && (
@@ -555,14 +602,80 @@ function EvolutivoCard() {
       )}
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"7px 14px", marginTop:12 }}>
-        <Stat label="Mayor caída"        v={fK(ev.drop.delta)}                          sub={ev.drop.from?`${ev.drop.from}→${ev.drop.mes}`:""}     color={C.red}/>
-        <Stat label="Mayor crecimiento"  v={`+${fK(ev.growth.delta)}`}                  sub={ev.growth.from?`${ev.growth.from}→${ev.growth.mes}`:""} color={C.green}/>
-        <Stat label="vs presupuesto"     v={`${ev.vsPresupuesto>=0?"+":""}${ev.vsPresupuesto}%`} sub={`${fK(ev.totAct)} vs ${fK(ev.totPpto)}`}      color={ev.vsPresupuesto>=0?C.green:C.red}/>
-        <Stat label="vs año anterior"    v={`${ev.vsAnterior>=0?"+":""}${ev.vsAnterior}%`}       sub={`${fK(ev.totAct)} vs ${fK(ev.totAnt)}`}       color={ev.vsAnterior>=0?C.green:C.red}/>
+        <Stat label="Mayor caída"        v={fMon(ev.drop.delta)}                          sub={ev.drop.from?`${ev.drop.from}→${ev.drop.mes}`:""}     color={C.red}/>
+        <Stat label="Mayor crecimiento"  v={`+${fMon(ev.growth.delta)}`}                  sub={ev.growth.from?`${ev.growth.from}→${ev.growth.mes}`:""} color={C.green}/>
+        <Stat label="vs presupuesto"     v={`${ev.vsPresupuesto>=0?"+":""}${ev.vsPresupuesto}%`} sub={`${fMon(ev.totAct)} vs ${fMon(ev.totPpto)}`}      color={ev.vsPresupuesto>=0?C.green:C.red}/>
+        <Stat label="vs año anterior"    v={`${ev.vsAnterior>=0?"+":""}${ev.vsAnterior}%`}       sub={`${fMon(ev.totAct)} vs ${fMon(ev.totAnt)}`}       color={ev.vsAnterior>=0?C.green:C.red}/>
       </div>
 
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:12, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
         Histórico <span style={{color:C.textSub}}>global real</span> (12 meses + año anterior + presupuesto). La película <span style={{color:C.textSub}}>por entidad</span> (cliente/SKU) se enciende cuando conectes histórico real — hoy ADI no inventa una tendencia por entidad.
+      </div>
+    </Card>
+  );
+}
+
+// ── EL PARETO · concentración 80/20 (dato real · data-driven) · barras + acumulado + referencia 80% ──
+// El % que muestra es el REAL del dato (no se fuerza 80). Honesto sin bloqueos (sumas acumuladas punto-en-tiempo).
+function ConcentracionCard({ scenario }) {
+  const [dim, setDim] = useState("cliente");
+  const [hov, setHov] = useState(null);
+  const con = buildConcentration(dim, scenario);
+  const bars = con.bars, nb = Math.max(bars.length, 1);
+  const W = 540, H = 190, padL = 34, padR = 30, padT = 14, padB = 46;
+  const maxV = bars.length ? bars[0].value : 1;
+  const niceHi = Math.ceil(maxV / 1000) * 1000 || 1;
+  const bw = (W - padL - padR) / nb;
+  const xC = (i) => padL + i * bw + bw / 2;
+  const barW = Math.min(bw * 0.62, 32);
+  const yBar = (v) => (H - padB) - (v / niceHi) * (H - padT - padB);
+  const yCum = (pct) => padT + (1 - pct / 100) * (H - padT - padB);
+  const cumPath = bars.map((b, i) => `${i === 0 ? "M" : "L"}${xC(i).toFixed(1)},${yCum(b.cumPct).toFixed(1)}`).join(" ");
+  const trunc = (s) => (s && s.length > 7 ? s.slice(0, 6) + "…" : s);
+
+  return (
+    <Card>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+        <Eyebrow>Concentración · regla 80/20</Eyebrow>
+        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+          {CONCENTRATION_DIMS.map((d)=>(
+            <button key={d.key} onClick={()=>{setDim(d.key);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10, fontFamily:"'DM Sans', system-ui, sans-serif", background: dim===d.key?"rgba(0,176,212,0.1)":"transparent", border:`1px solid ${dim===d.key?"rgba(0,176,212,0.4)":C.border}`, color: dim===d.key?C.blue:C.textMuted }}>{d.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ fontSize:13, color:C.textSub, lineHeight:1.5, marginBottom:6 }}>
+        Los primeros <Num color={C.blue}>{con.blockCount}</Num> {con.blockCount===1?con.label.toLowerCase():con.plural} explican el <Num color={C.amber}>{con.blockPct}%</Num> de las ventas.
+      </div>
+
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} onMouseLeave={()=>setHov(null)}>
+        {[100,80,50,25,0].map((p)=>(
+          <g key={"p"+p}>
+            <line x1={padL} y1={yCum(p)} x2={W-padR} y2={yCum(p)} stroke={p===80?C.amber:C.border} strokeWidth="1" strokeDasharray={p===80?"5 3":"3 4"} opacity={p===80?0.55:1}/>
+            <text x={W-padR+4} y={yCum(p)+3} fill={p===80?C.amber:C.textMuted} fontSize="8" fontFamily={MONO}>{p}%</text>
+          </g>
+        ))}
+        {bars.map((b,i)=>(
+          <rect key={"b"+i} x={xC(i)-barW/2} y={yBar(b.value)} width={barW} height={Math.max((H-padB)-yBar(b.value),0)} rx="2"
+            fill={b.inBlock?C.blue:"rgba(255,255,255,0.10)"} opacity={hov==null||hov===i?1:0.5} onMouseEnter={()=>setHov(i)}/>
+        ))}
+        <path d={cumPath} fill="none" stroke={C.amber} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        {bars.map((b,i)=>(<circle key={"c"+i} cx={xC(i)} cy={yCum(b.cumPct)} r={hov===i?3.5:2} fill={hov===i?C.amber:C.surface} stroke={C.amber} strokeWidth="1.5" onMouseEnter={()=>setHov(i)}/>))}
+        {bars.map((b,i)=> (nb<=14 || i%2===0) ? (
+          <text key={"x"+i} x={xC(i)} y={H-padB+12} fill={hov===i?C.text:C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="end" transform={`rotate(-40 ${xC(i)} ${H-padB+12})`}>{trunc(b.name)}</text>
+        ) : null)}
+        {hov!=null && bars[hov] && (() => { const b=bars[hov], TW=130, TH=46, tx=Math.min(Math.max(xC(hov)-TW/2,2),W-TW-2), ty=Math.max(yCum(b.cumPct)-TH-8,2); return (
+          <g transform={`translate(${tx},${ty})`}>
+            <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
+            <text x="9" y="16" fill={C.text} fontSize="10" fontFamily={MONO} fontWeight="600">{trunc(b.name)} · {fMon(b.value)}</text>
+            <text x="9" y="30" fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{r1(b.pct)}% del total</text>
+            <text x="9" y="41" fill={C.amber} fontSize="8.5" fontFamily={MONO}>acumulado: {r1(b.cumPct)}%</text>
+          </g>
+        ); })()}
+      </svg>
+
+      <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
+        Concentración por ventas ($) · escenario {con.scenario} · <span style={{color:C.textSub}}>barras azules</span> = el bloque que explica el 80%. Suma acumulada de dato real — el % es el que dice el dato, no se fuerza 80.
       </div>
     </Card>
   );

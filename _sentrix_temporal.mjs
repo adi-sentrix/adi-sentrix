@@ -3,7 +3,7 @@
 // (2) la regla temporal: global REAL → show · por entidad SINTÉTICO → bloqueo honesto.
 import { buildGlobalEvolution } from "./src/adi/sentrix/temporal.js";
 import { temporalCapability } from "./src/adi/sentrix/capability.js";
-import { ventasMensuales } from "./src/data/baseKpis.js";
+import { ventasMensuales, ventasKPI } from "./src/data/baseKpis.js";
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log("✅", m); } else { fail++; console.log("🚨", m); } };
@@ -14,7 +14,8 @@ const sum = a => a.reduce((x, y) => x + y, 0);
 const max = Math.max(...A), min = Math.min(...A);
 let dd = { d: 0, mes: null }, gg = { d: 0, mes: null };
 for (let i = 1; i < A.length; i++) { const d = A[i] - A[i - 1]; if (d < dd.d) dd = { d, mes: MES[i] }; if (d > gg.d) gg = { d, mes: MES[i] }; }
-const totAct = sum(A), totAnt = sum(AN), totPpto = sum(PP);
+// fuente de verdad = ventasKPI (igual que el evolutivo · reconcilia con las tarjetas · NO la suma de la serie)
+const totAct = Number(ventasKPI.totalActual), totAnt = Number(ventasKPI.totalAnterior), totPpto = Number(ventasKPI.totalPresupuesto);
 const r1 = n => Math.round(n * 10) / 10;
 const vsAnt = r1((totAct - totAnt) / totAnt * 100), vsPpto = r1((totAct - totPpto) / totPpto * 100);
 

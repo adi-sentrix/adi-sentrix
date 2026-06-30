@@ -5,7 +5,7 @@
  * Esta función produce SOLO el caso real (global ventas): la serie + el análisis (mín/máx, mayor caída/crecimiento,
  * vs presupuesto, vs año anterior), todo DERIVADO del dato, nunca inventado. Pura · client-side · el motor no la llama
  * (igual que buildComparisonReading) → motor sellado. La regla madre: cada cifra del gráfico cierra con su serie. */
-import { ventasMensuales } from "../../data/baseKpis.js";
+import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
@@ -38,8 +38,12 @@ export function buildGlobalEvolution() {
     if (d > growth.delta) growth = { delta: d, mes: meses[i], from: meses[i - 1] };
   }
 
-  // totales y comparaciones (de la serie misma → internamente consistente).
-  const totAct = _sum(actual), totAnt = _sum(anterior), totPpto = _sum(presupuesto);
+  // totales y comparaciones. FUENTE DE VERDAD = ventasKPI (lo que muestran las tarjetas) → el gráfico y la tarjeta
+  // cierran. La serie mensual del año anterior suma 93000 pero la KPI canónica dice 92900 (micro-inconsistencia del
+  // propio dato · 0.1%); usamos la KPI para que no haya dos cifras distintas de "año anterior" lado a lado.
+  const totAct = ventasKPI ? Number(ventasKPI.totalActual) : _sum(actual);
+  const totAnt = ventasKPI ? Number(ventasKPI.totalAnterior) : _sum(anterior);
+  const totPpto = ventasKPI ? Number(ventasKPI.totalPresupuesto) : _sum(presupuesto);
   const vsAnterior = totAnt ? _round1(((totAct - totAnt) / totAnt) * 100) : 0;
   const vsPresupuesto = totPpto ? _round1(((totAct - totPpto) / totPpto) * 100) : 0;
 
