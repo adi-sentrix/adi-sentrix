@@ -11,6 +11,7 @@ import { buildComparisonReading, buildReadingFromSignals, buildClientContribSign
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
+import { buildEntityKPIs } from "../adi/sentrix/kpis.js";   // brick 2a · tira de datos (anticipa la pregunta)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -422,6 +423,10 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <Hero rd={rd}/>
         </Card>
 
+        {ADI_SENTRIX_SHELL_ENABLED && atBase && !current.compareWith && (
+          <DataStrip focusType={current.focusType} focus={current.focus} scenario={evidence.periodo}/>
+        )}
+
         {Evidence && (
           <div>
             <Eyebrow tone={C.textMuted}>Evidencia mínima</Eyebrow>
@@ -505,6 +510,28 @@ function LensPlaceholder({ tab, focus }) {
       <div style={{ fontFamily:MONO, fontSize:10.5, letterSpacing:"1.2px", color:C.blue, textTransform:"uppercase" }}>{m.t}</div>
       <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, maxWidth:300 }}>{m.d}</div>
       <div style={{ fontSize:11, color:C.textMuted, opacity:0.8 }}>En construcción · próximo brick.</div>
+    </div>
+  );
+}
+
+// ── TIRA DE DATOS · todo el dato poderoso de la entidad, a la mano (anticipa la pregunta) · brick 2a ──
+function DataStrip({ focusType, focus, scenario }) {
+  const kpis = buildEntityKPIs(focusType, focus, scenario);
+  if (!kpis.length) return null;
+  const valColor = (t) => (t === "down" ? C.red : t === "warn" ? C.amber : C.text);
+  const subColor = (t) => (t === "up" ? C.green : t === "down" ? C.red : C.textMuted);
+  return (
+    <div>
+      <Eyebrow tone={C.textMuted}>Todo el dato · a la mano</Eyebrow>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:9 }}>
+        {kpis.map((k, i) => (
+          <div key={i} style={{ background:"rgba(255,255,255,0.022)", borderRadius:9, padding:"10px 12px" }}>
+            <div style={{ fontSize:10.5, color:C.textMuted, marginBottom:4 }}>{k.label}</div>
+            <Num color={valColor(k.tone)} size="1.05em">{k.value}</Num>
+            {k.sub && <div style={{ fontSize:10, color:subColor(k.tone), marginTop:2 }}>{k.sub}</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
