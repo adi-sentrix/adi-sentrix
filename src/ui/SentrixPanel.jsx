@@ -345,7 +345,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   // reading DERIVADO del frame (determinístico): comparación · contribución · entidad base (motor) · SKU entrado (client-side).
   const frameReading = (fr) => {
     if (fr.compareWith) return buildComparisonReading(fr.focusType, fr.focus, fr.compareWith, evidence.periodo) || baseRd;
-    if (fr.metric === "contribucion") { const mk = _contribFor(fr.focusType); const s = mk && mk(fr.focus); return (s && buildReadingFromSignals(s)) || baseRd; }
+    if (fr.metric === "contribucion") { const mk = _contribFor(fr.focusType); const s = mk && mk(fr.focus, evidence.periodo); return (s && buildReadingFromSignals(s)) || baseRd; }
     if (isBaseEntity(fr)) return baseRd;
     if (fr.focusType === "sku") return buildReadingFromSignals(buildSkuMarginSignals(fr.focus)) || baseRd;
     return baseRd;

@@ -11,9 +11,8 @@
  * Agregar una métrica = un productor (o una regla del motor) + una rama de render. La aritmética es real (regla
  * madre en lo causal): el porqué se DERIVA del dato, no se inventa.
  * Presentación nula · cero React. */
-import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { applyScenarioToSkuInventario, applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
-import { clientesMargen } from "../../data/demoData.js";
 import { invKPI } from "../../data/baseKpis.js";
 
 // inmovilizado Def2 canónica (igual que el spine/warehouse): alerta crit/warn O rotación < 2.
@@ -190,8 +189,8 @@ export function buildCapitalSignals(scenario) {
 // cliente/contribución → signals(internal_margin_compression): margen unitario vs benchmark de cartera. Campos
 // DIRECTOS (margen, benchmark, venta de clientesMargen) → matchea la regla client.contribucion del motor sellado
 // (sin recompute dependiente de scope) → habilita "el peor cliente por contribución" Y el cambio de métrica.
-export function buildClientContribSignals(clientName) {
-  const c = clientesMargen.find((x) => x.nombre === clientName);
+export function buildClientContribSignals(clientName, scenario) {
+  const c = applyScenarioToClientesMargen(scenario || "bonanza").find((x) => x.nombre === clientName);
   if (!c || !c.benchmark || typeof c.margen !== "number") return null;
   const gap = +(c.benchmark - c.margen).toFixed(1);
   return {
@@ -283,7 +282,8 @@ export function buildComparisonReading(entityType, entA, entB, scenario) {
     return _comp("margen", "margenes", "costo", mk(sA), mk(sB));
   }
   if (entityType === "client") {
-    const ca = clientesMargen.find((x) => x.nombre === entA), cb = clientesMargen.find((x) => x.nombre === entB);
+    const cm = applyScenarioToClientesMargen(scenario || "bonanza");
+    const ca = cm.find((x) => x.nombre === entA), cb = cm.find((x) => x.nombre === entB);
     if (!ca || !cb) return null;
     const mk = (c) => ({ entity: c.nombre, value: c.margen, valueFmt: c.margen + "%",
                          driverVal: c.pctRebate, sub: `carga ${c.pctRebate}%` });
