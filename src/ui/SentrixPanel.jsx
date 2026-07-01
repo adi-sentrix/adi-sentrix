@@ -910,15 +910,18 @@ function BrechaFilm({ film }) {
         {shown.map((s) => (
           <path key={s.key} d={smooth(s.data)} fill="none" stroke={s.color} strokeWidth={s.key === "margen" ? 2.4 : 1.8} strokeLinecap="round" strokeLinejoin="round" style={{ filter:`drop-shadow(0 0 5px ${s.color}66)` }}/>
         ))}
-        {/* punto del HOY (último · dato real) con glow */}
-        {shown.map((s) => <circle key={"e" + s.key} cx={xAt(n - 1)} cy={yAt(s.data[n - 1])} r="3.2" fill={s.color} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${s.color}88)` }}/>)}
+        {/* un punto en CADA mes (para ver todos los datos) · el último (HOY · dato real) más grande con glow */}
+        {shown.map((s) => s.data.map((v, i) => (
+          <circle key={"pt" + s.key + i} cx={xAt(i)} cy={yAt(v)} r={i === n - 1 ? 3.2 : 2.1} fill={s.color} stroke={C.bg} strokeWidth={i === n - 1 ? 1.5 : 0.8}
+            style={i === n - 1 ? { filter:`drop-shadow(0 0 4px ${s.color}88)` } : undefined}/>
+        )))}
         {film.meses.map((m, i) => (i % 2 === 0 ? <text key={"x" + i} x={xAt(i)} y={H - padB + 12} fill={C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="middle">{m}</text> : null))}
         {/* hitboxes de hover (uno por mes) · igual que el evolutivo */}
         {film.meses.map((m, i) => <rect key={"hb" + i} x={xAt(i) - stepX / 2} y={padT} width={stepX} height={H - padT - padB} fill="transparent" onMouseEnter={() => setHov(i)}/>)}
         {/* guía + puntos + tooltip al situarse en la curva */}
         {hov != null && (<>
           <line x1={xAt(hov)} y1={padT} x2={xAt(hov)} y2={H - padB} stroke={C.text} strokeWidth="1" strokeDasharray="2 3" opacity="0.4"/>
-          {shown.map((s) => <circle key={"hv" + s.key} cx={xAt(hov)} cy={yAt(s.data[hov])} r="4" fill={s.color} stroke={C.bg} strokeWidth="1.5"/>)}
+          {shown.map((s) => <circle key={"hv" + s.key} cx={xAt(hov)} cy={yAt(s.data[hov])} r="4.5" fill={C.red} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 5px ${C.red}aa)` }}/>)}
           {(() => { const tx = Math.min(Math.max(xAt(hov) - TW / 2, 2), W - TW - 2); return (
             <g transform={`translate(${tx},4)`}>
               <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
