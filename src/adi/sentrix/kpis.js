@@ -74,6 +74,30 @@ export function buildMarginDecomposition(focus, scenario) {
   };
 }
 
+// LA BRECHA EN EL TIEMPO · VISTA DE EJEMPLO (2c clic-curvas) · HONESTIDAD GRADUADA: NO hay histórico mes a mes por
+// entidad (historialMargen es sintético · la capability lo bloquea), así que esto es ILUSTRATIVO — el ERP lo enciende
+// con el dato real. Anclado a la VERDAD de HOY (el último punto = decomp real actual) · la palanca DOMINANTE deriva
+// desde el promedio de la industria hasta el valor de hoy (muestra la erosión), la otra queda plana · margen = 100 −
+// costo − carga (cierra). `example: true` → el panel lo rotula sin ambigüedad. Determinístico (wiggle por índice).
+export function buildBrechaFilm(focus, scenario) {
+  const d = buildMarginDecomposition(focus, scenario);
+  if (!d) return null;
+  const N = 12, meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const wig = (i, amp) => Math.sin(i * 1.7 + 0.6) * amp;             // wiggle determinístico (no Math.random · estable)
+  const costoDom = d.dominant === "costo";
+  const costo = [], carga = [], margen = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const c = costoDom ? d.avgCosto + (d.costoPct - d.avgCosto) * t : d.costoPct;   // la dominante deriva; la otra, plana
+    const g = costoDom ? d.cargaPct : d.avgCarga + (d.cargaPct - d.avgCarga) * t;
+    costo.push(_r1(c + (costoDom ? wig(i, 0.6) : 0)));
+    carga.push(_r1(g + (costoDom ? 0 : wig(i, 0.4))));
+    margen.push(_r1(100 - costo[i] - carga[i]));
+  }
+  costo[N - 1] = d.costoPct; carga[N - 1] = d.cargaPct; margen[N - 1] = d.margen;   // ANCLA: el "hoy" es el dato REAL
+  return { focus, meses, costo, carga, margen, dominant: d.dominant, thesis: d.thesis, example: true };
+}
+
 // EL RECIBO FRÍO (Evidencia enriquecida) · "no me creas, acá está la cuenta": la fórmula venta−costo−carga=margen
 // con cada cifra, su % y su FUENTE (ERP), la base de comparación, la confianza y los LÍMITES honestos (lo que el
 // dato NO afirma · derivados de capability, no hardcodeados). Reusa buildMarginDecomposition (misma cuenta que la

@@ -11,7 +11,7 @@ import { buildComparisonReading, buildReadingFromSignals, buildClientContribSign
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
-import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6 · tira + descomposición + recibo (cliente/bodega)
+import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt, buildBrechaFilm } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6/2c · tira + descomposición + recibo + película de la brecha
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
@@ -465,6 +465,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         </Card>
 
         {decomp && <BrechaCard decomp={decomp}/>}
+        {decomp && <BrechaFilm film={buildBrechaFilm(current.focus, evidence.periodo)}/>}
 
         {ADI_SENTRIX_SHELL_ENABLED && atBase && !current.compareWith && (
           <DataStrip focusType={current.focusType} focus={current.focus} scenario={evidence.periodo}/>
@@ -830,6 +831,63 @@ function BrechaCard({ decomp }) {
       ))}
       <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, marginTop:8 }}>
         El gap de <Num color={d.gap < 0 ? C.red : C.green}>{fp(d.gap)}</Num> lo explica <span style={{ color:C.textSub }}>{d.dominant === "costo" ? "la estructura de costo" : "la carga comercial"}</span> ({d.dominant === "costo" ? d.costoShare : d.cargaShare}%) — la tesis la elige el dato, no un molde.
+      </div>
+    </Card>
+  );
+}
+
+// ── LA BRECHA EN EL TIEMPO · clic-para-sumar-curvas (2c) · VISTA DE EJEMPLO honesta ──
+// NO hay histórico mes a mes por entidad (sintético) → esto es ILUSTRATIVO, rotulado sin ambigüedad (badge + copy +
+// curvas PUNTEADAS). El "hoy" (último punto) es el dato REAL. Sumás Costo/Carga y ves la palanca dominante trepar
+// mientras el margen se erosiona → la tesis, en el tiempo. El ERP lo enciende con la serie real.
+function BrechaFilm({ film }) {
+  const [show, setShow] = useState({ costo: false, carga: false });
+  if (!film) return null;
+  const W = 520, H = 148, padL = 28, padR = 12, padT = 10, padB = 22;
+  const series = [
+    { key: "margen", label: "Margen", color: C.text,  data: film.margen, on: true },
+    { key: "costo",  label: "Costo",  color: C.red,   data: film.costo,  on: show.costo },
+    { key: "carga",  label: "Carga",  color: C.amber, data: film.carga,  on: show.carga },
+  ];
+  const shown = series.filter((s) => s.on);
+  const vals = shown.flatMap((s) => s.data);
+  const lo = Math.min(...vals) - 2, hi = Math.max(...vals) + 2;   // rango AJUSTADO (no 0-80) → el drift se ve aunque estén las 3
+  const n = film.meses.length;
+  const xAt = (i) => padL + (i / (n - 1)) * (W - padL - padR);
+  const yAt = (v) => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
+  const path = (data) => data.map((v, i) => `${i === 0 ? "M" : "L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
+  const chip = (label, active, color, onClick) => (
+    <button onClick={onClick} style={{ display:"flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:5, cursor: onClick ? "pointer" : "default", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif",
+      background: active ? "rgba(255,255,255,0.06)" : "transparent", border:`1px solid ${active ? color + "88" : C.border}`, color: active ? C.text : C.textMuted }}>
+      <span style={{ width:8, height:8, borderRadius:2, background: active ? color : "transparent", border:`1px solid ${color}` }}/>{label}
+    </button>
+  );
+  return (
+    <Card>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
+        <Eyebrow>La brecha en el tiempo</Eyebrow>
+        <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.9px", textTransform:"uppercase", color:C.amber, border:`1px solid ${C.amber}55`, borderRadius:4, padding:"2px 7px" }}>Vista de ejemplo</span>
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+        {chip("Margen", true, C.text, null)}
+        {chip("Costo", show.costo, C.red, () => setShow((s) => ({ ...s, costo: !s.costo })))}
+        {chip("Carga", show.carga, C.amber, () => setShow((s) => ({ ...s, carga: !s.carga })))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        {[hi, (hi + lo) / 2, lo].map((p) => (
+          <g key={p}>
+            <line x1={padL} y1={yAt(p)} x2={W - padR} y2={yAt(p)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
+            <text x={padL - 5} y={yAt(p) + 3} fill={C.textMuted} fontSize="8" fontFamily={MONO} textAnchor="end">{Math.round(p)}%</text>
+          </g>
+        ))}
+        {shown.map((s) => (
+          <path key={s.key} d={path(s.data)} fill="none" stroke={s.color} strokeWidth={s.key === "margen" ? 2 : 1.6} strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" opacity={s.key === "margen" ? 1 : 0.9}/>
+        ))}
+        {shown.map((s) => <circle key={"e" + s.key} cx={xAt(n - 1)} cy={yAt(s.data[n - 1])} r="3" fill={s.color}/>)}
+        {film.meses.map((m, i) => (i % 2 === 0 ? <text key={i} x={xAt(i)} y={H - padB + 12} fill={C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="middle">{m}</text> : null))}
+      </svg>
+      <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; sumá <span style={{ color:C.red }}>Costo</span> y <span style={{ color:C.amber }}>Carga</span> y vas a ver la palanca dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
       </div>
     </Card>
   );
