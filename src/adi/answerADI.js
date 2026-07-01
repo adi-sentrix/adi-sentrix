@@ -29,7 +29,7 @@ import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-rea
 import { detectMultiAsk, SUBQ, joinOr, normAsk } from "./composers/multiAsk.js";   // PEDIDO MÚLTIPLE (lista) → secuencial guiado
 import { composeHonestyGuard } from "./composers/honestyGuard.js";   // GAP 1 · guard de honestidad ante lo imposible
 import { buildSentrixBoleta } from "./sentrix/boleta.js";        // Etapa 5 · Sentrix S1 · boleta universal availability-driven
-import { buildReadingFromSignals, buildSkuMarginSignals, buildClientContribSignals } from "./sentrix/reading.js";    // Etapa 5 · Sentrix · pipeline único de lectura ejecutiva
+import { buildReadingFromSignals, buildSkuMarginSignals, buildClientContribSignals, buildComparisonReading } from "./sentrix/reading.js";    // Etapa 5 · Sentrix · pipeline único de lectura ejecutiva
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -47,7 +47,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -333,7 +333,15 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
   // client comparison (Falabella vs Lider) — replica PanelADI L37375 · modulo = módulo activo
   if (intent.type === "client_comparison") {
     const resp = composeClientComparison(intent.clientA, intent.clientB, scenario, ctx.activeModule || null);
-    if (resp && resp.opener) return _finalize(resp, "client_comparison", "client_comparison", ctx, scenario, intent);
+    if (resp && resp.opener) {
+      // Etapa 5 · Sentrix · B1: "comparar" es operación núcleo de la mesa → el panel ABRE la comparación (dumbbell/vs).
+      // buildComparisonReading (cliente · scenario-aware) → evidence.reading (kind comparison) · SOLO panel · texto intacto.
+      if (ADI_SENTRIX_READING_ENABLED) {
+        const _cmp = buildComparisonReading("client", intent.clientA, intent.clientB, scenario);
+        if (_cmp) resp.evidence = { ...(resp.evidence || {}), reading: _cmp, entidad: intent.clientA, entityType: "client", metrica: "margen" };
+      }
+      return _finalize(resp, "client_comparison", "client_comparison", ctx, scenario, intent);
+    }
   }
   // brand comparison (Samsung vs LG) — replica PanelADI L37913 (mundo-marca estático)
   if (FEATURE_BRAND_AS_ENTITY && intent.type === "brand_comparison") {
@@ -412,7 +420,12 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
   // client contribution ranking (quién aporta más contribución) — replica PanelADI L37682
   if (intent.type === "client_contribution_ranking") {
     const resp = composeClientContributionRanking(scenario);
-    if (resp && resp.opener) return _finalize(resp, "client_contribution_ranking", "client_contribution_ranking", ctx, scenario, intent);
+    if (resp && resp.opener) {
+      // Etapa 5 · Sentrix · B1: el ranking de contribución es PANORÁMICO (todos los clientes · sin foco único) → abre
+      // el Cuadro en cliente ordenado por contribución (como el overview "X por cliente"). Gated · OFF = sin boleta.
+      if (ADI_CUADRO_OVERVIEW_ENABLED) resp.evidence = { ...(resp.evidence || {}), lens: "cuadro", entityType: "client", dimension: "client", metrica: "contribucion" };
+      return _finalize(resp, "client_contribution_ranking", "client_contribution_ranking", ctx, scenario, intent);
+    }
   }
   // sku operational (qué SKUs atrapan capital · no rotan · rotación promedio) — replica PanelADI L37801.
   // Expone narrative_signals (kind="sku_operational_group") → la capa narrativa lo reescribe.
