@@ -842,26 +842,39 @@ function BrechaCard({ decomp }) {
 // mientras el margen se erosiona → la tesis, en el tiempo. El ERP lo enciende con la serie real.
 function BrechaFilm({ film }) {
   const [show, setShow] = useState({ costo: false, carga: false });
+  const [hov, setHov] = useState(null);                                   // mes bajo el cursor (tooltip · igual que el evolutivo)
   if (!film) return null;
-  const W = 520, H = 148, padL = 28, padR = 12, padT = 10, padB = 22;
-  const series = [
-    { key: "margen", label: "Margen", color: C.text,  data: film.margen, on: true },
-    { key: "costo",  label: "Costo",  color: C.red,   data: film.costo,  on: show.costo },
-    { key: "carga",  label: "Carga",  color: C.amber, data: film.carga,  on: show.carga },
+  const W = 520, H = 156, padL = 30, padR = 14, padT = 12, padB = 22;
+  const series = [   // PALETA BASE de gráficos (owner): eléctrico / turquesa / lavanda
+    { key: "margen", label: "Margen", color: C.elec, data: film.margen, on: true },
+    { key: "costo",  label: "Costo",  color: C.teal, data: film.costo,  on: show.costo },
+    { key: "carga",  label: "Carga",  color: C.lav,  data: film.carga,  on: show.carga },
   ];
   const shown = series.filter((s) => s.on);
   const vals = shown.flatMap((s) => s.data);
-  const lo = Math.min(...vals) - 2, hi = Math.max(...vals) + 2;   // rango AJUSTADO (no 0-80) → el drift se ve aunque estén las 3
-  const n = film.meses.length;
-  const xAt = (i) => padL + (i / (n - 1)) * (W - padL - padR);
+  const lo = Math.min(...vals) - 2, hi = Math.max(...vals) + 2;           // rango AJUSTADO → el drift se ve
+  const n = film.meses.length, stepX = (W - padL - padR) / (n - 1);
+  const xAt = (i) => padL + i * stepX;
   const yAt = (v) => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
-  const path = (data) => data.map((v, i) => `${i === 0 ? "M" : "L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
+  // curva SUAVE (Catmull-Rom → bézier) · premium, no-Excel
+  const smooth = (data) => {
+    const p = data.map((v, i) => [xAt(i), yAt(v)]);
+    let d = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`;
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d;
+  };
   const chip = (label, active, color, onClick) => (
     <button onClick={onClick} style={{ display:"flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:5, cursor: onClick ? "pointer" : "default", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif",
       background: active ? "rgba(255,255,255,0.06)" : "transparent", border:`1px solid ${active ? color + "88" : C.border}`, color: active ? C.text : C.textMuted }}>
       <span style={{ width:8, height:8, borderRadius:2, background: active ? color : "transparent", border:`1px solid ${color}` }}/>{label}
     </button>
   );
+  const TW = 100, TH = 18 + shown.length * 13;
   return (
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
@@ -869,25 +882,49 @@ function BrechaFilm({ film }) {
         <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.9px", textTransform:"uppercase", color:C.amber, border:`1px solid ${C.amber}55`, borderRadius:4, padding:"2px 7px" }}>Vista de ejemplo</span>
       </div>
       <div style={{ display:"flex", gap:6, marginBottom:6 }}>
-        {chip("Margen", true, C.text, null)}
-        {chip("Costo", show.costo, C.red, () => setShow((s) => ({ ...s, costo: !s.costo })))}
-        {chip("Carga", show.carga, C.amber, () => setShow((s) => ({ ...s, carga: !s.carga })))}
+        {chip("Margen", true, C.elec, null)}
+        {chip("Costo", show.costo, C.teal, () => setShow((s) => ({ ...s, costo: !s.costo })))}
+        {chip("Carga", show.carga, C.lav, () => setShow((s) => ({ ...s, carga: !s.carga })))}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
-        {[hi, (hi + lo) / 2, lo].map((p) => (
-          <g key={p}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} onMouseLeave={() => setHov(null)}>
+        <defs>
+          <linearGradient id="filmArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3d74f5" stopOpacity="0.16"/>
+            <stop offset="100%" stopColor="#3d74f5" stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {[hi, (hi + lo) / 2, lo].map((p, k) => (
+          <g key={k}>
             <line x1={padL} y1={yAt(p)} x2={W - padR} y2={yAt(p)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
             <text x={padL - 5} y={yAt(p) + 3} fill={C.textMuted} fontSize="8" fontFamily={MONO} textAnchor="end">{Math.round(p)}%</text>
           </g>
         ))}
+        {/* área bajo el margen (el foco) · sutil */}
+        <path d={`${smooth(film.margen)} L${xAt(n - 1).toFixed(1)},${(H - padB).toFixed(1)} L${xAt(0).toFixed(1)},${(H - padB).toFixed(1)} Z`} fill="url(#filmArea)" stroke="none"/>
+        {/* curvas suaves con glow */}
         {shown.map((s) => (
-          <path key={s.key} d={path(s.data)} fill="none" stroke={s.color} strokeWidth={s.key === "margen" ? 2 : 1.6} strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" opacity={s.key === "margen" ? 1 : 0.9}/>
+          <path key={s.key} d={smooth(s.data)} fill="none" stroke={s.color} strokeWidth={s.key === "margen" ? 2.4 : 1.8} strokeLinecap="round" strokeLinejoin="round" style={{ filter:`drop-shadow(0 0 5px ${s.color}66)` }}/>
         ))}
-        {shown.map((s) => <circle key={"e" + s.key} cx={xAt(n - 1)} cy={yAt(s.data[n - 1])} r="3" fill={s.color}/>)}
-        {film.meses.map((m, i) => (i % 2 === 0 ? <text key={i} x={xAt(i)} y={H - padB + 12} fill={C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="middle">{m}</text> : null))}
+        {/* punto del HOY (último · dato real) con glow */}
+        {shown.map((s) => <circle key={"e" + s.key} cx={xAt(n - 1)} cy={yAt(s.data[n - 1])} r="3.2" fill={s.color} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${s.color}88)` }}/>)}
+        {film.meses.map((m, i) => (i % 2 === 0 ? <text key={"x" + i} x={xAt(i)} y={H - padB + 12} fill={C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="middle">{m}</text> : null))}
+        {/* hitboxes de hover (uno por mes) · igual que el evolutivo */}
+        {film.meses.map((m, i) => <rect key={"hb" + i} x={xAt(i) - stepX / 2} y={padT} width={stepX} height={H - padT - padB} fill="transparent" onMouseEnter={() => setHov(i)}/>)}
+        {/* guía + puntos + tooltip al situarse en la curva */}
+        {hov != null && (<>
+          <line x1={xAt(hov)} y1={padT} x2={xAt(hov)} y2={H - padB} stroke={C.text} strokeWidth="1" strokeDasharray="2 3" opacity="0.4"/>
+          {shown.map((s) => <circle key={"hv" + s.key} cx={xAt(hov)} cy={yAt(s.data[hov])} r="4" fill={s.color} stroke={C.bg} strokeWidth="1.5"/>)}
+          {(() => { const tx = Math.min(Math.max(xAt(hov) - TW / 2, 2), W - TW - 2); return (
+            <g transform={`translate(${tx},4)`}>
+              <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
+              <text x="9" y="13" fill={C.textSub} fontSize="9" fontFamily={MONO} fontWeight="600">{film.meses[hov]}</text>
+              {shown.map((s, k) => <text key={s.key} x="9" y={27 + k * 13} fill={s.color} fontSize="9" fontFamily={MONO}>{s.label}: {r1(s.data[hov])}%</text>)}
+            </g>
+          ); })()}
+        </>)}
       </svg>
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
-        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; sumá <span style={{ color:C.red }}>Costo</span> y <span style={{ color:C.amber }}>Carga</span> y vas a ver la palanca dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
+        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; sumá <span style={{ color:C.teal }}>Costo</span> y <span style={{ color:C.lav }}>Carga</span> y vas a ver la palanca dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
       </div>
     </Card>
   );
