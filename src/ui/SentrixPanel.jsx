@@ -380,8 +380,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const charts = diagnosisCharts(current.focusType);
   // EVIDENCIA enriquecida · el recibo frío (fórmula+fuentes+confianza+límites) para el caso cliente·margen (reusa decomp).
   const receipt = decomp ? buildMarginReceipt(current.focus, evidence.periodo) : null;
-  // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente hoy · null → placeholder.
-  const ring = (current.focusType === "client" && !current.compareWith) ? buildControlRing(current.focus, evidence.periodo) : null;
+  // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente + bodega · null → placeholder.
+  const ring = ((current.focusType === "client" || current.focusType === "bodega") && !current.compareWith)
+    ? buildControlRing(current.focusType, current.focus, evidence.periodo) : null;
 
   // operaciones del estado (empujan/actualizan frames)
   const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
@@ -649,17 +650,22 @@ function PathCard({ tag, tagColor, title, value, detail }) {
   );
 }
 function ControlRing({ ring, rd }) {
-  const money = (k) => (Math.abs(k) >= 1000 ? fMon(k) : fmtK(k));
+  // unidad de la plata: cliente en $K (contribución) · bodega en $ (stockUSD) → formateo distinto para no errar ×1000.
+  const money = ring.entityType === "bodega"
+    ? (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : "$" + Math.round(v))
+    : (v) => (Math.abs(v) >= 1000 ? fMon(v) : fmtK(v));
   const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
   const cellVal = (r, col) => {
-    if (col.key === "gap")    return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + r1(r.gap) + "pp";
-    if (col.fmt === "money")  return money(r.contribucion);
+    if (col.key === "gap")   return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + r1(r.gap) + "pp";
+    if (col.fmt === "money") return money(r[col.key]);
+    if (col.fmt === "x")     return r1(r[col.key]) + "x";
     return r1(r[col.key]) + "%";
   };
   const cellColor = (r, col) => {
     if (col.key === "gap")          return r.role === "avg" ? C.textMuted : (r.gap >= 0 ? C.green : C.red);
     if (col.key === "margen")       return r.role === "best" ? C.green : r.role === "focus" ? C.amber : C.textSub;
-    if (col.key === "contribucion") return r.role === "focus" ? C.text : C.textSub;   // la plata · el foco en blanco
+    if (col.key === "inmovilizado") return r.role === "focus" ? C.amber : C.textSub;   // la plata ATRAPADA · foco ámbar (alerta)
+    if (col.fmt === "money")        return r.role === "focus" ? C.text : C.textSub;    // la plata · el foco en blanco
     if (col.key === "carga" && r.role === "focus" && ring.lever === "carga") return C.amber;
     return C.textSub;
   };
@@ -696,20 +702,39 @@ function ControlRing({ ring, rd }) {
       <div>
         <Eyebrow>ADI · elegí un camino</Eyebrow>
         <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.5, marginBottom:10 }}>
-          {ring.focus} pierde por <span style={{ color:C.text, fontWeight:600 }}>{ring.leverLabel}</span>. Dos palancas, distinto esfuerzo:
+          {ring.focus} {ring.framingVerb || "pierde por"} <span style={{ color:C.text, fontWeight:600 }}>{ring.leverLabel}</span>. Dos palancas, distinto esfuerzo:
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-          {rd && rd.recoverableK != null && (
-            <PathCard tag="Rápido" tagColor={C.green}
-              title="Renegociar la carga comercial"
-              value={`+${money(rd.recoverableK)}`}
-              detail={`al promedio interno${rd.recoverableBPK ? ` · +${money(rd.recoverableBPK)} a mejor práctica` : ""} · anual`}/>
-          )}
-          {ring.costoTechoK > 0 && (
-            <PathCard tag="Estructural" tagColor={C.amber}
-              title={`Cerrar la brecha de ${ring.leverLabel}`}
-              value={`hasta +${money(ring.costoTechoK)}`}
-              detail="si el costo llegara al promedio interno · la palanca dominante, la más difícil (proveedores · mix · volumen)"/>
+          {ring.entityType === "bodega" ? (
+            <>
+              {ring.quickWinK > 0 && (
+                <PathCard tag="Rápido" tagColor={C.green}
+                  title="Liquidar el stock crítico"
+                  value={`+${money(ring.quickWinK)}`}
+                  detail="lo marcado crítico (120d+ / sin venta) · liberás ese capital ahora"/>
+              )}
+              {ring.estructuralK > 0 && (
+                <PathCard tag="Estructural" tagColor={C.amber}
+                  title="Rotar / transferir el stock lento"
+                  value={`hasta +${money(ring.estructuralK)}`}
+                  detail="todo el capital inmovilizado · mover lo lento a donde se vende o rebajar · la palanca dominante, más lenta"/>
+              )}
+            </>
+          ) : (
+            <>
+              {rd && rd.recoverableK != null && (
+                <PathCard tag="Rápido" tagColor={C.green}
+                  title="Renegociar la carga comercial"
+                  value={`+${money(rd.recoverableK)}`}
+                  detail={`al promedio interno${rd.recoverableBPK ? ` · +${money(rd.recoverableBPK)} a mejor práctica` : ""} · anual`}/>
+              )}
+              {ring.costoTechoK > 0 && (
+                <PathCard tag="Estructural" tagColor={C.amber}
+                  title={`Cerrar la brecha de ${ring.leverLabel}`}
+                  value={`hasta +${money(ring.costoTechoK)}`}
+                  detail="si el costo llegara al promedio interno · la palanca dominante, la más difícil (proveedores · mix · volumen)"/>
+              )}
+            </>
           )}
         </div>
       </div>

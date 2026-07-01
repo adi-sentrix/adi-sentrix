@@ -1,14 +1,15 @@
 // === HARNESS · brick 7 · CONTROL · la TABLA-RING (buildControlRing) ===
 import { buildControlRing } from "./src/adi/sentrix/control.js";
 import { buildMarginDecomposition } from "./src/adi/sentrix/kpis.js";
-import { applyScenarioToClientesMargen } from "./src/engine/scenarios.js";
+import { applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "./src/engine/scenarios.js";
 import { METRIC_DEFS } from "./src/adi/sentrix/glossary.js";
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log("✅", m); } else { fail++; console.log("🚨", m); } };
+const _inmov = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
 
-console.log("── EL RING · Lider anclado contra promedio + mejor + par (bonanza) ──");
-const ring = buildControlRing("Lider", "bonanza");
+console.log("── CLIENTE · el ring · Lider anclado contra promedio + mejor + par (bonanza) ──");
+const ring = buildControlRing("client", "Lider", "bonanza");
 ok(ring != null, "ring existe para Lider");
 const byRole = (r) => ring.rows.find((x) => x.role === r);
 const focus = byRole("focus"), avg = byRole("avg"), best = byRole("best"), peer = byRole("peer");
@@ -42,11 +43,30 @@ ok(ring.costoTechoK > 0, `techo de costo = $${ring.costoTechoK}K (si el costo ll
 console.log("\n── COLUMNAS del catálogo + GENERICIDAD ──");
 ok(ring.columns.length === 4 && ring.columns[0].key === "margen", "4 columnas (margen/carga/contribución/gap)");
 ok(ring.columns.every((c) => c.defKey && METRIC_DEFS[c.defKey]), "cada columna resuelve su ayuda en el glosario (el 'i' muestra definición)");
-ok(buildControlRing("NoExiste", "bonanza") === null, "foco no-cliente → null (honesto · placeholder)");
+ok(buildControlRing("client", "NoExiste", "bonanza") === null, "cliente inexistente → null (honesto · placeholder)");
+ok(buildControlRing("marca", "Samsung", "bonanza") === null, "tipo no soportado (marca) → null");
 
 console.log("\n── SCENARIO-AWARE ──");
-const rC = buildControlRing("Lider", "crisis");
+const rC = buildControlRing("client", "Lider", "crisis");
 ok(rC != null && rC.rows.find((x) => x.role === "focus"), "el ring se arma en crisis también");
+
+console.log("\n── BODEGA · GENERICIDAD (mismo esqueleto · la plata = capital/inmovilizado) ──");
+const rb = buildControlRing("bodega", "Valparaíso", "bonanza");
+ok(rb != null && rb.entityType === "bodega", "ring de bodega existe (Valparaíso)");
+const bF = rb.rows.find((x) => x.role === "focus"), bA = rb.rows.find((x) => x.role === "avg"), bB = rb.rows.find((x) => x.role === "best");
+ok(bF && bF.name === "Valparaíso", "fila FOCO = Valparaíso");
+ok(rb.columns.map((c) => c.key).join(",") === "capital,inmovilizado,rotacion,gap", "columnas de inventario: capital/inmovilizado/rotación/gap");
+ok(rb.columns.every((c) => c.defKey && METRIC_DEFS[c.defKey]), "cada columna de bodega resuelve su ayuda (el 'i')");
+// trazabilidad vs recálculo crudo
+const invV = applyScenarioToSkuInventario("bonanza").filter((x) => x.bodega === "Valparaíso");
+const capV = invV.reduce((a, x) => a + x.stockUSD, 0);
+const inmovV = invV.filter(_inmov).reduce((a, x) => a + x.stockUSD, 0);
+ok(bF.capital === Math.round(capV), `capital foco ${bF.capital} == recálculo ${Math.round(capV)}`);
+ok(bF.inmovilizado === Math.round(inmovV), `inmovilizado foco ${bF.inmovilizado} == recálculo ${Math.round(inmovV)}`);
+ok(bB && bB.name !== "Valparaíso", `mejor-en-clase = otra bodega (${bB.name}) · nunca una fila sola`);
+ok(rb.estructuralK === Math.round(inmovV), `camino estructural = todo el inmovilizado ($${rb.estructuralK}K)`);
+ok(rb.quickWinK >= 0 && rb.quickWinK <= rb.estructuralK, `quick-win (crítico $${rb.quickWinK}K) ≤ estructural (inmov $${rb.estructuralK}K)`);
+ok(buildControlRing("bodega", "NoExiste", "bonanza") === null, "bodega inexistente → null (honesto)");
 
 console.log("\n════════════════════════════════════════════════════");
 console.log(`GATES: ${pass}/${pass + fail} · ${fail === 0 ? "TODOS VERDES" : "HAY ROJOS"}`);

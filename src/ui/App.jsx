@@ -136,6 +136,8 @@ export default function App({ animate = true }) {
         /* "i" inline · misma ayuda determinística, para headers de tabla/columna (ring) · no absolute */
         .adi-i2 { position:relative; display:inline-flex; align-items:center; justify-content:center; width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.4); font-size:8px; font-style:italic; line-height:1; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; vertical-align:middle; margin-left:4px; text-transform:none; transition:color .15s, border-color .15s; }
         .adi-i2:hover { color:#2fb8da; border-color:rgba(47,184,218,0.6); }
+        /* el header del ring está al TOPE de la card → el tooltip abre HACIA ABAJO (si no se sale y pisa el título) · anclado a la derecha (abre hacia la izquierda · el panel recorta a la derecha) */
+        .adi-i2 .adi-tip { top:calc(100% + 7px); bottom:auto; right:-3px; left:auto; transform:translateY(-3px); }
         .adi-i2:hover .adi-tip { opacity:1; transform:translateY(0); }
       `}</style>
     </div>

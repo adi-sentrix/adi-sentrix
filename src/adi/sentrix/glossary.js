@@ -23,6 +23,7 @@ export const METRIC_DEFS = {
   "SKUs en alerta": "Cantidad de SKUs marcados crítico o de cuidado (lento o sin venta).",
   "Peor sin venta": "El SKU que más días lleva sin registrar una venta.",
   "% del inmov. total": "Qué parte del capital inmovilizado total concentra esta bodega.",
+  "vs promedio inmov": "Cuánto MENOS (o más) capital inmovilizado concentra esta bodega frente al promedio (positivo = mejor que el promedio).",
 };
 
 export const defOf = (label) => METRIC_DEFS[label] || null;
