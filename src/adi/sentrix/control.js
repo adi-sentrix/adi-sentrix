@@ -5,6 +5,7 @@
  * a la plata" · owner). Genérico: cliente·margen (contribución/carga) ↔ bodega·inventario (capital/inmovilizado/
  * rotación) — MISMO esqueleto, distinto juego de datos. DERIVADO del dato · scenario-aware · puro · testable. */
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { skusMargen } from "../../data/skusMargen.js";
 import { buildMarginDecomposition } from "./kpis.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -14,7 +15,91 @@ const _inmovilizado = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2; 
 export function buildControlRing(focusType, focus, scenario) {
   if (focusType === "client") return _clientRing(focus, scenario);
   if (focusType === "bodega") return _bodegaRing(focus, scenario);
+  if (focusType === "sku")    return _skuRing(focus);       // B4 · SKU/marca sobre skusMargen (scenario-blind · el motor no ajusta skusMargen)
+  if (focusType === "marca")  return _marcaRing(focus);
   return null;
+}
+
+// ── SKU · margen · la plata = CONTRIBUCIÓN · la palanca = estructura de costo · la LIGA = la familia (comparación
+// controlada dentro de la categoría · si la familia es chica, todo el catálogo). El par: mejor margen, carga parecida
+// → la ventaja se explica por el COSTO (el driver del SKU). ──
+const _rowSku = (x, role, avgM, note) => ({
+  name: x.nombre, role,
+  margen: x.margen, costo: _r1(100 - x.margen - x.pctRebate),
+  contribucion: Math.round(x.contribucion),   // la plata (raw $ · el panel lo formatea magnitude-aware)
+  gap: role === "avg" ? 0 : _r1(x.margen - avgM),
+  note: note || null,
+});
+function _skuRing(focus) {
+  const sku = skusMargen.find((x) => x.nombre === focus);
+  if (!sku) return null;
+  const fam = skusMargen.filter((x) => x.sfamilia === sku.sfamilia);
+  const base = fam.length >= 3 ? fam : skusMargen;
+  const avgM = base.reduce((a, x) => a + x.margen, 0) / base.length;
+  const avgCarga = base.reduce((a, x) => a + x.pctRebate, 0) / base.length;
+  const avgContrib = base.reduce((a, x) => a + x.contribucion, 0) / base.length;
+  const best = base.reduce((m, x) => (x.margen > m.margen ? x : m), base[0]);
+  const better = base.filter((x) => x.nombre !== focus && x.margen > sku.margen);
+  const par = better.length ? better.slice().sort((a, b) => Math.abs(a.pctRebate - sku.pctRebate) - Math.abs(b.pctRebate - sku.pctRebate))[0] : null;
+  const avgRow = { name: `Promedio ${fam.length >= 3 ? sku.sfamilia : "catálogo"}`, role: "avg", margen: _r1(avgM), costo: _r1(100 - avgM - avgCarga), contribucion: Math.round(avgContrib), gap: 0, note: null };
+  const rows = [_rowSku(sku, "focus", avgM)];
+  if (par && par.nombre !== best.nombre) rows.push(_rowSku(par, "peer", avgM, "≈ misma carga, mejor margen → la palanca es el costo"));
+  rows.push(avgRow);
+  if (best.nombre !== sku.nombre) rows.push(_rowSku(best, "best", avgM, "mejor en clase · el objetivo"));
+  const costoTechoK = Math.max(0, Math.round(((100 - sku.margen - sku.pctRebate) - (100 - avgM - avgCarga)) * sku.venta / 100));
+  return {
+    entityType: "sku", focus, lever: "costo", leverLabel: "estructura de costo", framingVerb: "pierde por",
+    columns: [
+      { key: "margen",       label: "Margen",       fmt: "pct",   defKey: "Margen" },
+      { key: "costo",        label: "Costo",        fmt: "pct",   defKey: "Costo" },
+      { key: "contribucion", label: "Contribución", fmt: "money", defKey: "Contribución" },
+      { key: "gap",          label: "vs prom",      fmt: "pp",    defKey: "vs promedio" },
+    ],
+    rows, costoTechoK,
+  };
+}
+
+// ── MARCA · agregación de sus SKUs · margen/carga PONDERADOS por venta · la plata = CONTRIBUCIÓN · la LIGA = las marcas ──
+function _marcaStats(name) {
+  const rows = skusMargen.filter((x) => x.marca === name);
+  if (!rows.length) return null;
+  const venta = rows.reduce((a, x) => a + x.venta, 0);
+  const contrib = rows.reduce((a, x) => a + x.contribucion, 0);
+  const carga = rows.reduce((a, x) => a + x.pctRebate * x.venta, 0) / (venta || 1);
+  return { name, venta, contribucion: contrib, margen: _r1(venta ? contrib / venta * 100 : 0), carga: _r1(carga), n: rows.length };
+}
+const _rowMarca = (x, role, avgM, note) => ({
+  name: x.name, role,
+  margen: x.margen, carga: x.carga, contribucion: Math.round(x.contribucion),
+  gap: role === "avg" ? 0 : _r1(x.margen - avgM),
+  note: note || null,
+});
+function _marcaRing(focus) {
+  const all = [...new Set(skusMargen.map((x) => x.marca))].map(_marcaStats).filter(Boolean);
+  const c = all.find((x) => x.name === focus);
+  if (!c) return null;
+  const avgM = all.reduce((a, x) => a + x.margen, 0) / all.length;
+  const avgCarga = all.reduce((a, x) => a + x.carga, 0) / all.length;
+  const avgContrib = all.reduce((a, x) => a + x.contribucion, 0) / all.length;
+  const best = all.reduce((m, x) => (x.margen > m.margen ? x : m), all[0]);
+  const better = all.filter((x) => x.name !== focus && x.margen > c.margen);
+  const par = better.length ? better.slice().sort((a, b) => Math.abs(a.carga - c.carga) - Math.abs(b.carga - c.carga))[0] : null;
+  const avgRow = { name: "Promedio marcas", role: "avg", margen: _r1(avgM), carga: _r1(avgCarga), contribucion: Math.round(avgContrib), gap: 0, note: null };
+  const rows = [_rowMarca(c, "focus", avgM)];
+  if (par && par.name !== best.name) rows.push(_rowMarca(par, "peer", avgM, "≈ misma carga, mejor margen → la palanca es el costo"));
+  rows.push(avgRow);
+  if (best.name !== c.name) rows.push(_rowMarca(best, "best", avgM, "mejor en clase · el objetivo"));
+  const costoTechoK = Math.max(0, Math.round(((100 - c.margen - c.carga) - (100 - avgM - avgCarga)) * c.venta / 100));
+  return {
+    entityType: "marca", focus, lever: "costo", leverLabel: "estructura de costo", framingVerb: "pierde por",
+    columns: [
+      { key: "margen",       label: "Margen",       fmt: "pct",   defKey: "Margen" },
+      { key: "carga",        label: "Carga",        fmt: "pct",   defKey: "Carga comercial" },
+      { key: "contribucion", label: "Contribución", fmt: "money", defKey: "Contribución" },
+      { key: "gap",          label: "vs prom",      fmt: "pp",    defKey: "vs promedio" },
+    ],
+    rows, costoTechoK,
+  };
 }
 
 // ── CLIENTE · margen · la plata = CONTRIBUCIÓN · la palanca = costo/carga ──

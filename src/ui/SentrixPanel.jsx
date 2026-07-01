@@ -418,7 +418,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const _routedTab = (rd, lens) => {
     const l = lens || "diagnostico";
     if (l === "cuadro") return ADI_SENTRIX_CUADRO_ENABLED ? "cuadro" : "diagnostico";   // el cuadro es panorámico (no depende del foco)
-    const hasLens = l === "diagnostico" || rd.focusType === "client" || rd.focusType === "bodega";
+    // Control abre para client/bodega/sku/marca (B4 · todos tienen ring) · Evidencia solo client/bodega (recibo) · Diagnóstico siempre.
+    const hasLens = l === "diagnostico" || rd.focusType === "client" || rd.focusType === "bodega"
+      || (l === "control" && (rd.focusType === "sku" || rd.focusType === "marca"));
     return hasLens ? l : "diagnostico";
   };
   const [tab, setTab] = useState(() => _routedTab(baseRd || {}, evidence && evidence.lens));   // shell · lente activa (Diagnóstico|Evidencia|Control)
@@ -457,8 +459,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     : (current.focusType === "client" && decomp) ? buildMarginReceipt(current.focus, evidence.periodo)
     : (current.focusType === "bodega") ? buildCapitalReceipt(current.focus, evidence.periodo)
     : null;
-  // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente + bodega · null → placeholder.
-  const ring = ((current.focusType === "client" || current.focusType === "bodega") && !current.compareWith)
+  // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente/bodega/sku/marca (B4) · null → placeholder.
+  const ring = (["client", "bodega", "sku", "marca"].includes(current.focusType) && !current.compareWith)
     ? buildControlRing(current.focusType, current.focus, evidence.periodo) : null;
 
   // operaciones del estado (empujan/actualizan frames)
@@ -745,10 +747,11 @@ function PathCard({ tag, tagColor, title, value, detail }) {
   );
 }
 function ControlRing({ ring, rd }) {
-  // unidad de la plata: cliente en $K (contribución) · bodega en $ (stockUSD) → formateo distinto para no errar ×1000.
-  const money = ring.entityType === "bodega"
-    ? (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : "$" + Math.round(v))
-    : (v) => (Math.abs(v) >= 1000 ? fMon(v) : fmtK(v));
+  // unidad de la plata: CLIENTE en $K (contribución en miles → fMon) · bodega/SKU/marca en $ raw (stockUSD/contribución
+  // de skusMargen · magnitude-aware) → formateo distinto para no errar ×1000 (B4 · SKU y marca son raw $ como bodega).
+  const money = ring.entityType === "client"
+    ? (v) => (Math.abs(v) >= 1000 ? fMon(v) : fmtK(v))
+    : (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : "$" + Math.round(v));
   const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
   const cellVal = (r, col) => {
     if (col.key === "gap")   return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + p1(r.gap) + "pp";

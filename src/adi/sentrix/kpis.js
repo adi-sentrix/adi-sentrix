@@ -4,6 +4,7 @@
  * no lo llama → motor sellado. Devuelve [{label, value, sub, tone}] · el panel solo renderiza. Data-driven:
  * deriva del dataset cargado, no hardcodea — mañana con el Excel del cliente sus columnas se declaran solas. */
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { skusMargen } from "../../data/skusMargen.js";
 import { temporalCapability, entityExplorable } from "./capability.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -18,7 +19,48 @@ export function buildEntityKPIs(focusType, focus, scenario) {
   const s = scenario || "bonanza";
   if (focusType === "client") return _clientKPIs(focus, s);
   if (focusType === "bodega") return _bodegaKPIs(focus, s);
-  return [];   // sku/marca/familia: próximo brick · el resto del Diagnóstico igual se muestra
+  if (focusType === "sku")    return _skuKPIs(focus);        // B4 · SKU y marca leen skusMargen (scenario-blind · el motor no ajusta skusMargen)
+  if (focusType === "marca")  return _marcaKPIs(focus);
+  return [];   // familia: próximo · el resto del Diagnóstico igual se muestra
+}
+
+// ── SKU · el dato del producto a la mano (skusMargen · $ raw → _fCap) · la liga = la familia ──
+function _skuKPIs(name) {
+  const sku = skusMargen.find((x) => x.nombre === name);
+  if (!sku) return [];
+  const fam = skusMargen.filter((x) => x.sfamilia === sku.sfamilia);
+  const avgM = fam.reduce((a, x) => a + x.margen, 0) / fam.length;
+  const costoPct = 100 - sku.margen - sku.pctRebate;
+  return [
+    { label: "Margen", value: _p1(sku.margen) + "%", sub: `${_pp(sku.margen - sku.benchmark)} vs bench`, tone: sku.margen >= sku.benchmark ? "up" : "down" },
+    { label: "Ventas", value: _fCap(sku.venta), sub: `${sku.unidades} unidades` },
+    { label: "Contribución", value: _fCap(sku.contribucion), sub: `${_p1(sku.contribucion / sku.venta * 100)}% de venta` },
+    { label: "Costo", value: _p1(costoPct) + "%", sub: "del precio", tone: "warn" },
+    { label: "Carga comercial", value: _p1(sku.pctRebate) + "%", sub: "rebate sobre venta", tone: "warn" },
+    { label: "Precio lista", value: "$" + Math.round(sku.precioLista), sub: `costo unitario $${Math.round(sku.costoMedio)}` },
+    { label: "vs familia", value: _pp(sku.margen - avgM), sub: `${sku.marca} · ${sku.sfamilia}`, tone: sku.margen >= avgM ? "up" : "down" },
+    { label: "Benchmark", value: _p1(sku.benchmark) + "%", sub: "de cartera" },
+  ];
+}
+
+// ── MARCA · agregación de sus SKUs (venta/contribución totales · margen PONDERADO = Σcontrib/Σventa) ──
+function _marcaKPIs(name) {
+  const rows = skusMargen.filter((x) => x.marca === name);
+  if (!rows.length) return [];
+  const venta = rows.reduce((a, x) => a + x.venta, 0);
+  const contrib = rows.reduce((a, x) => a + x.contribucion, 0);
+  const unidades = rows.reduce((a, x) => a + x.unidades, 0);
+  const margenP = venta ? contrib / venta * 100 : 0;
+  const bench = rows[0].benchmark;
+  const familias = [...new Set(rows.map((x) => x.sfamilia))];
+  return [
+    { label: "Margen", value: _p1(margenP) + "%", sub: `${_pp(margenP - bench)} vs bench (ponderado)`, tone: margenP >= bench ? "up" : "down" },
+    { label: "Ventas", value: _fCap(venta), sub: `${rows.length} SKUs` },
+    { label: "Contribución", value: _fCap(contrib), sub: `${_p1(contrib / venta * 100)}% de venta` },
+    { label: "Unidades", value: "" + unidades, sub: "vendidas" },
+    { label: "SKUs", value: "" + rows.length, sub: familias.join(" · ") },
+    { label: "Benchmark", value: _p1(bench) + "%", sub: "de cartera" },
+  ];
 }
 
 function _clientKPIs(name, s) {
