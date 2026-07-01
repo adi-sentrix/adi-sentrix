@@ -399,8 +399,8 @@ function CuadroOnlyPanel({ evidence, onClose, onToggleMax, maximized }) {
         </div>
       )}
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
-        {/* key por dimensión → si se abre otro ranking de distinta dimensión (cliente→sku) sin cerrar, remonta en la nueva */}
-        <CuadroMando key={initialDim} scenario={evidence.periodo} initialDim={initialDim}/>
+        {/* key por dimensión+métrica → si se abre otro ranking/overview distinto sin cerrar, remonta (dimensión y orden nuevos) */}
+        <CuadroMando key={initialDim + "-" + (evidence.metrica || "")} scenario={evidence.periodo} initialDim={initialDim} initialSort={evidence.metrica}/>
       </div>
     </div>
   );
@@ -840,7 +840,7 @@ function ControlRing({ ring, rd }) {
 // ── CUADRO DE MANDO (4ª lente) · la GRILLA operable · cockpit: ver y manejar TODO el dato ──
 // Dimensiones (clientes/SKU/marcas/bodegas) × columnas del catálogo · ordenar · top-N · en-alerta · seleccionar y
 // comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
-function CuadroMando({ scenario, initialDim }) {
+function CuadroMando({ scenario, initialDim, initialSort }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
@@ -849,7 +849,8 @@ function CuadroMando({ scenario, initialDim }) {
   const cm = buildCuadroMando(dim, scenario);
   const cols = cm.columns;
   const primary = cols.find((c) => c.key !== "accion") || cols[0];
-  const [sortKey, setSortKey] = useState(primary.key);
+  // si el overview trae una métrica que ES una columna (ej. "margen por cliente" → columna margen), abrimos ordenando por ahí.
+  const [sortKey, setSortKey] = useState(initialSort && cols.some((c) => c.key === initialSort) ? initialSort : primary.key);
   const money = (v) => "$" + (v / 1000).toFixed(1) + "M";       // dato en $K → $M (columnas comerciales)
   const moneyk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
   const fmt = (col, v) => {

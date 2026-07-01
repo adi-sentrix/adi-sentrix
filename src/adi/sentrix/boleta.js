@@ -3,7 +3,7 @@
  * que el motor de Sentrix consume: entidad/entityType/métrica + el bloque availability (qué puede mostrar el
  * motor con ESTE dato y ESTA respuesta). Conserva lo que el composer ya trajo (spread), no recalcula nada. */
 import { datasetCapability, entityExplorable } from "./capability.js";
-import { ADI_SENTRIX_EXPLORE_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_SENTRIX_EXPLORE_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED } from "../../config/voiceFlags.js";
 
 // RUTEO DE LENTE · ADI elige qué lente abre Sentrix leyendo la INTENCIÓN de la pregunta (mismo dato, distinta
 // intención). "probame / la cuenta / de dónde sale" → Evidencia (el recibo) · "qué hago / comparar / recuperar /
@@ -12,7 +12,7 @@ import { ADI_SENTRIX_EXPLORE_ENABLED } from "../../config/voiceFlags.js";
 function _lensFor(route, query) {
   const q = (query || "").toLowerCase();
   // PANORÁMICO ("todos/todas · el ranking · top N · los mejores/peores · la cartera · el cuadro") → Cuadro de mando
-  if (/todos (mis|los|las)|todas (mis|las)|toda (mi|la) cartera|el ranking|\btop\s*\d|los (\d+ )?(mejores|peores)|las (\d+ )?(mejores|peores)|panorama|cuadro de mando|todo el (negocio|panorama)|la grilla|la tabla (general|de todos)/.test(q)) return "cuadro";
+  if (/todos (mis|los|las)|todas (mis|las)|toda (mi|la) cartera|el ranking|\btop\s*\d|los (\d+ )?(mejores|peores)|las (\d+ )?(mejores|peores)|panorama|cuadro de mando|todo el (negocio|panorama)|la grilla|la tabla (general|de todos)|\b(ventas|margen|margenes|contribuci[oó]n|rotaci[oó]n|capital|unidades|stock|cobertura|doh)\s+por\s+(cliente|clientes|sku|skus|producto|productos|marca|marcas|bodega|bodegas|sucursal|sucursales)\b/.test(q)) return "cuadro";
   if (/prob[aá]me|prueb|de d[oó]nde (sale|viene)|la cuenta|c[oó]mo se calcula|desglos|descompon|justific|f[oó]rmula|no te creo/.test(q)) return "evidencia";
   if (/qu[eé] hago|qu[eé] hacer|acci[oó]n|compar|contra el (promedio|resto)|recuper|cu[aá]nto (gano|puedo|recupero|vale)|palanca|camino|qu[eé] toco/.test(q)) return "control";
   if (/simulation/.test(route || "") || route === "qi_retrieval") return "control";
@@ -30,6 +30,33 @@ export function buildSentrixBoleta(resp, intent, route, scenario, ctx) {
     ev.ranking_entityType || ev.entityType || (intent && intent.entityType) || null;
   const metrica =
     ev.ranking_metric || ev.metrica || (intent && intent.metric) || null;
+
+  // OVERVIEW PANORÁMICO → Cuadro · "ventas/margen/rotación POR cliente/sku/..." (retrieval de DIMENSIÓN · sin foco
+  // único). El motor ya trae dimensión+métrica en _qiContext (qi_retrieval) o query_plan (spine); armamos una boleta
+  // cuadro SIN reading → el botón "Ver en el Cuadro de mando" + CuadroOnlyPanel abren la grilla en esa dimensión.
+  // Solo si NO hay foco único Y el ruteo por intención dice cuadro. Gated · flag OFF = no dispara (byte-exacto).
+  if (ADI_CUADRO_OVERVIEW_ENABLED && !entidad && _lensFor(route, ctx && ctx.__query) === "cuadro") {
+    const qi = (resp && resp._qiContext) || null;
+    const qp = ev.query_plan || null;
+    const dim = ev.dimension || (qi && qi.dimension) || (qp && qp.dimension) || null;
+    const met = metrica || (qi && qi.metric) || (qp && qp.metrica) || null;
+    if (dim) {
+      const capO = datasetCapability();
+      return {
+        ...ev,
+        entidad: null,
+        entityType: dim,               // "cliente"/"sku"/"marca"/"bodega" · CuadroOnlyPanel lo mapea a la dimensión del grid
+        metrica: met,
+        dimension: dim,
+        periodo: ev.periodo || scenario || null,
+        lens: "cuadro",
+        fuente: ev.fuente || "ventas + costos",
+        confianza: ev.confianza || (resp && resp.confidence) || "alta",
+        availability: { history: capO.history, crosses: capO.crosses },
+        _sentrix: true,
+      };
+    }
+  }
 
   // sin entidad NI métrica NI evidencia previa → no es una respuesta-resultado (saludo/fallback) → sin boleta.
   if (!entidad && !metrica && (!ev || Object.keys(ev).length === 0)) return null;
