@@ -133,7 +133,7 @@ function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
     context: nextCtx,
     // Etapa 5 · Sentrix S1 · boleta UNIFORME en TODA respuesta comercial (cierra el gap: _finalize no surfaceaba
     // evidence). Flag OFF → sin campo (byte-exacto). Normaliza ranking_*/intent → entidad/métrica + availability.
-    ...(ADI_SENTRIX_BOLETA_ENABLED ? { evidence: buildSentrixBoleta(resp, intent, route, scenario) } : {}),
+    ...(ADI_SENTRIX_BOLETA_ENABLED ? { evidence: buildSentrixBoleta(resp, intent, route, scenario, ctx) } : {}),
   };
 }
 
@@ -241,7 +241,7 @@ const _plainWrap = (resp, route, ctx) => ({
   sentrixAction: _gateInvCTA(resp.sentrixAction),   // Cabo 2 · 3er punto de salida (hoy null/comercial · futuro-seguro)
   // Fase 2.1d · payload hermano. Etapa 5 · Sentrix S1: con el flag, normaliza a la boleta UNIFORME (+ availability) ·
   // OFF = resp.evidence || null byte-exacto. Las rutas sin evidencia (avisar/smart-guide) → boleta null (guard interno).
-  evidence: ADI_SENTRIX_BOLETA_ENABLED ? buildSentrixBoleta(resp, null, route, null) : (resp.evidence || null),
+  evidence: ADI_SENTRIX_BOLETA_ENABLED ? buildSentrixBoleta(resp, null, route, null, ctx) : (resp.evidence || null),
   intent: route,
   route,
   // ADI Core · 2.2b · escribe el contexto pendiente del spine (estampado con turn para el freshness de N+1).
@@ -604,6 +604,9 @@ export function answerADI(question, context = {}, state = {}) {
     if (_rp && _rp.opener) return _plainWrap(_rp, _rp.route, ctx);   // clarify → respuesta sellada
     if (_rp && _rp._rewrite) trimmed = _rp._rewrite;                 // combined → reescribe y sigue el flujo
   }
+  // Etapa 5 · Sentrix · el texto de la pregunta viaja en ctx para el RUTEO DE LENTE de la boleta (qué lente abre
+  // ADI según la intención). Inerte para el motor (nadie más lo lee) · con flags OFF la boleta ni se construye.
+  ctx = { ...ctx, __query: trimmed };
   // ── ADI Core · 2.2a-2 parte A · TOPIC-CHANGE cleanup (en el ORIGEN · cierra las 2 puertas) ──
   // Una pregunta de alcance global limpia el foco de cliente ANTES de detectIntent (puerta 1: follow-up
   // greedy detectClientMetricFollowUp) y del bloque ECL-CONT (puerta 2: MODO1 getClientDeepDive). Reasigna

@@ -5,7 +5,19 @@
 import { datasetCapability, entityExplorable } from "./capability.js";
 import { ADI_SENTRIX_EXPLORE_ENABLED } from "../../config/voiceFlags.js";
 
-export function buildSentrixBoleta(resp, intent, route, scenario) {
+// RUTEO DE LENTE · ADI elige qué lente abre Sentrix leyendo la INTENCIÓN de la pregunta (mismo dato, distinta
+// intención). "probame / la cuenta / de dónde sale" → Evidencia (el recibo) · "qué hago / comparar / recuperar /
+// palanca" → Control (la mesa) · el resto → Diagnóstico (la historia · el default). El panel VALIDA que la lente
+// tenga contenido para el foco. LLM-ready: v2 setea evidence.lens directo (esto es la versión determinística).
+function _lensFor(route, query) {
+  const q = (query || "").toLowerCase();
+  if (/prob[aá]me|prueb|de d[oó]nde (sale|viene)|la cuenta|c[oó]mo se calcula|desglos|descompon|justific|f[oó]rmula|no te creo/.test(q)) return "evidencia";
+  if (/qu[eé] hago|qu[eé] hacer|acci[oó]n|compar|contra el (promedio|resto)|recuper|cu[aá]nto (gano|puedo|recupero|vale)|palanca|camino|qu[eé] toco/.test(q)) return "control";
+  if (/simulation/.test(route || "") || route === "qi_retrieval") return "control";
+  return "diagnostico";
+}
+
+export function buildSentrixBoleta(resp, intent, route, scenario, ctx) {
   const ev = (resp && resp.evidence) || {};
 
   // entidad / tipo / métrica · de la evidencia comercial (ranking_*), del spine, o del intent — lo primero que haya.
@@ -29,6 +41,7 @@ export function buildSentrixBoleta(resp, intent, route, scenario) {
     metrica,
     dimension: ev.dimension || (intent && intent.dimension) || null,
     periodo: ev.periodo || scenario || null,
+    lens: ev.lens || _lensFor(route, ctx && ctx.__query),  // qué lente abre Sentrix (ruteo por intención · el panel la valida)
     fuente: ev.fuente || "ventas + costos",
     confianza: ev.confianza || (resp && resp.confidence) || "alta",
     // bloque AVAILABILITY · lo que el motor puede mostrar con este dato (data-driven · future-proof).

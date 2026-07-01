@@ -354,8 +354,15 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   // ESTADO DE ANÁLISIS · STACK de navegación (§4): cada frame = {focusType, focus, metric, compareWith}.
   // El base = la respuesta de ADI; las operaciones empujan frames; "volver" desapila. La mesa viva.
   const [stack, setStack] = useState(() => (baseRd ? [mkBase(baseRd)] : []));
-  const [tab, setTab] = useState("diagnostico");                               // shell · lente activa (Diagnóstico|Evidencia|Control)
-  useEffect(() => { if (baseRd) { setStack([mkBase(baseRd)]); setTab("diagnostico"); } }, [baseFocus]);   // nueva respuesta → estado limpio
+  // RUTEO DE LENTE · ADI abre la lente que el motor eligió (evidence.lens) · VALIDADA: Control/Evidencia solo si el
+  // foco base tiene contenido ahí (cliente/bodega); si no, cae a Diagnóstico (que siempre tiene la historia).
+  const _routedTab = (rd, lens) => {
+    const l = lens || "diagnostico";
+    const hasLens = l === "diagnostico" || rd.focusType === "client" || rd.focusType === "bodega";
+    return hasLens ? l : "diagnostico";
+  };
+  const [tab, setTab] = useState(() => _routedTab(baseRd || {}, evidence && evidence.lens));   // shell · lente activa (Diagnóstico|Evidencia|Control)
+  useEffect(() => { if (baseRd) { setStack([mkBase(baseRd)]); setTab(_routedTab(baseRd, evidence.lens)); } }, [baseFocus]);   // nueva respuesta → lente ruteada
   if (!baseRd) return null;
 
   const frames = stack.length ? stack : [mkBase(baseRd)];
