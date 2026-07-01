@@ -93,17 +93,22 @@ const r1 = (n) => Math.round(n * 10) / 10;
 // ══════════════════════════ PACKS (espejo del renderer · kind → {title, Hero, Evidence}) ══════════════════════════
 
 // ── cliente · carga comercial · héroe = barra de PLATA recuperable, evidencia = la cuenta de la carga ──
-function ClientLoadHero({ rd }) {
+// Reconciliación del nuance (owner): si la palanca DOMINANTE es el costo (decomp), el hero lo dice — la brecha
+// vive en el costo estructural y la carga es el QUICK-WIN (no "el" problema) · así no contradice al header/brecha.
+function ClientLoadHero({ rd, decomp }) {
   const recK = rd.recoverableK || 0, recBPK = rd.recoverableBPK || 0;
   const pctAtProm = recBPK > 0 ? Math.max(4, Math.round((recK / recBPK) * 100)) : 100;
+  const costoDom = decomp && decomp.dominant === "costo";
   return (
     <>
       <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4, flexWrap:"wrap" }}>
         <Num color={C.amber} size="2.1em">{rd.montoFmt}</Num>
-        <span style={{ fontSize:12.5, color:C.textMuted }}>margen · carga comercial <Num color={C.amber}>{rd.carga}%</Num> · <Num color={C.amber}>+{rd.vsPromedio}pp</Num> sobre el promedio ({rd.targetCarga}%)</span>
+        {costoDom
+          ? <span style={{ fontSize:12.5, color:C.textMuted }}>margen · la brecha vive en la <Num color={C.red}>estructura de costo</Num> · la carga (<Num color={C.amber}>{rd.carga}%</Num>) es el quick-win</span>
+          : <span style={{ fontSize:12.5, color:C.textMuted }}>margen · carga comercial <Num color={C.amber}>{rd.carga}%</Num> · <Num color={C.amber}>+{rd.vsPromedio}pp</Num> sobre el promedio ({rd.targetCarga}%)</span>}
       </div>
       <div style={{ marginTop:14 }}>
-        <div style={{ fontSize:11, color:C.textMuted, marginBottom:8 }}>Margen recuperable renegociando la carga (anual):</div>
+        <div style={{ fontSize:11, color:C.textMuted, marginBottom:8 }}>{costoDom ? "Quick-win · recuperable renegociando la carga (anual):" : "Margen recuperable renegociando la carga (anual):"}</div>
         <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}` }}>
           <div style={{ width:`${pctAtProm}%`, background:C.text, transition:"width 0.4s ease" }}/>
           <div style={{ width:`${100-pctAtProm}%`, background:"rgba(255,255,255,0.22)", transition:"width 0.4s ease" }}/>
@@ -456,7 +461,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
         <Card accent>
           <Eyebrow>{pack.title(rd)}</Eyebrow>
-          <Hero rd={rd}/>
+          <Hero rd={rd} decomp={decomp}/>
         </Card>
 
         {decomp && <BrechaCard decomp={decomp}/>}
