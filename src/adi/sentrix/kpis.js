@@ -7,7 +7,8 @@ import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScen
 import { temporalCapability, entityExplorable } from "./capability.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
-const _pp = (n) => (n >= 0 ? "+" : "") + _r1(n) + "pp";
+const _p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);   // % SIEMPRE con 1 decimal (parejos en la visual)
+const _pp = (n) => (n >= 0 ? "+" : "") + _p1(n) + "pp";
 const _fM = (n) => "$" + (Math.abs(Number(n) || 0) / 1000).toFixed(1) + "M";   // $K → $M (cliente/SKU ventas)
 const _fKu = (n) => "$" + (Number(n) || 0).toFixed(1) + "K";                   // valor unitario ya en $K (ticket, costo medio)
 const _fCap = (n) => "$" + (Math.abs(Number(n) || 0) / 1000).toFixed(1) + "K"; // inventario en $ → $K (capital)
@@ -32,14 +33,14 @@ function _clientKPIs(name, s) {
   const yoY = ant && ant > 0 ? _r1((venta - ant) / ant * 100) : null;
   const ticket = cm.unidades ? venta / cm.unidades : null;
   return [
-    { label: "Ventas", value: _fM(venta), sub: yoY != null ? `${yoY >= 0 ? "+" : ""}${yoY}% vs año ant.` : "", tone: yoY != null && yoY >= 0 ? "up" : yoY != null ? "down" : null },
-    { label: "Margen", value: cm.margen + "%", sub: `${_pp(cm.margen - avgM)} vs prom.`, tone: cm.margen >= avgM ? "up" : "down" },
-    { label: "Contribución", value: _fM(cm.contribucion), sub: `${_r1(cm.contribucion / cm.venta * 100)}% de venta` },
-    { label: "Carga comercial", value: cm.pctRebate + "%", sub: `prom. ${_r1(avgC)}%`, tone: "warn" },
+    { label: "Ventas", value: _fM(venta), sub: yoY != null ? `${yoY >= 0 ? "+" : ""}${_p1(yoY)}% vs año ant.` : "", tone: yoY != null && yoY >= 0 ? "up" : yoY != null ? "down" : null },
+    { label: "Margen", value: _p1(cm.margen) + "%", sub: `${_pp(cm.margen - avgM)} vs prom.`, tone: cm.margen >= avgM ? "up" : "down" },
+    { label: "Contribución", value: _fM(cm.contribucion), sub: `${_p1(cm.contribucion / cm.venta * 100)}% de venta` },
+    { label: "Carga comercial", value: _p1(cm.pctRebate) + "%", sub: `prom. ${_p1(avgC)}%`, tone: "warn" },
     { label: "Ticket prom.", value: ticket != null ? _fKu(ticket) : "—", sub: `${cm.unidades} unidades` },
-    { label: "Costo unitario", value: _fKu(cm.costoMedio), sub: `${_r1(100 - cm.margen - cm.pctRebate)}% de venta` },
+    { label: "Costo unitario", value: _fKu(cm.costoMedio), sub: `${_p1(100 - cm.margen - cm.pctRebate)}% de venta` },
     { label: "Unidades", value: "" + cm.unidades, sub: "" },
-    { label: "vs benchmark", value: _pp(cm.margen - cm.benchmark), sub: `bench ${cm.benchmark}%`, tone: cm.margen >= cm.benchmark ? "up" : "down" },
+    { label: "vs benchmark", value: _pp(cm.margen - cm.benchmark), sub: `bench ${_p1(cm.benchmark)}%`, tone: cm.margen >= cm.benchmark ? "up" : "down" },
   ];
 }
 
@@ -121,8 +122,8 @@ export function buildMarginReceipt(focus, scenario) {
   ];
   const benchmark = cm ? cm.benchmark : null;
   const comparison = [                                                          // + = mejor · unidad pp
-    { label: "Promedio interno", base: `${d.avgM}%`, gap: d.gap, unit: "pp" },
-    ...(benchmark != null ? [{ label: "Benchmark industria", base: `${benchmark}%`, gap: _r1(d.margen - benchmark), unit: "pp" }] : []),
+    { label: "Promedio interno", base: `${_p1(d.avgM)}%`, gap: d.gap, unit: "pp" },
+    ...(benchmark != null ? [{ label: "Benchmark industria", base: `${_p1(benchmark)}%`, gap: _r1(d.margen - benchmark), unit: "pp" }] : []),
   ];
   const confianza = { level: "Alta", reason: "cuenta cerrada con dato del período — sin estimaciones (venta − costo − carga = margen, cierra exacto)" };
   // LÍMITES honestos · derivados de la capa de disponibilidad (no inventados)
@@ -164,7 +165,7 @@ export function buildCapitalReceipt(focus, scenario) {
   const avgInmovPct = per.reduce((a, x) => a + x.inmovPct, 0) / per.length;
   const avgRot = per.reduce((a, x) => a + x.rot, 0) / per.length;
   const comparison = [
-    { label: "Inmovilización vs promedio", base: `${_r1(avgInmovPct)}%`, gap: _r1(avgInmovPct - inmovPct), unit: "pp" },   // + = menos inmov = mejor
+    { label: "Inmovilización vs promedio", base: `${_p1(avgInmovPct)}%`, gap: _r1(avgInmovPct - inmovPct), unit: "pp" },   // + = menos inmov = mejor
     { label: "Rotación vs promedio",       base: `${_r1(avgRot)}x`,      gap: _r1(rot - avgRot),            unit: "x"  },   // + = rota más = mejor
   ];
   const confianza = { level: "Alta", reason: "dato del ERP point-in-time — sin estimaciones (sano + inmovilizado = capital, cierra exacto)" };
@@ -189,11 +190,11 @@ function _bodegaKPIs(name, s) {
   const totInmov = allInv.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
   return [
     { label: "Capital", value: _fCap(cap), sub: `${inv.length} SKUs` },
-    { label: "Inmovilizado", value: _fCap(inmovCap), sub: `${_r1(inmovCap / cap * 100)}%`, tone: "down" },
+    { label: "Inmovilizado", value: _fCap(inmovCap), sub: `${_p1(inmovCap / cap * 100)}%`, tone: "down" },
     { label: "Rotación", value: _r1(rot) + "x", sub: "", tone: rot < 3 ? "down" : null },
     { label: "DOH", value: Math.round(doh) + "d", sub: "días de cobertura" },
     { label: "SKUs en alerta", value: `${enAlerta} / ${inv.length}`, sub: "", tone: "warn" },
     { label: "Peor sin venta", value: peor.d + "d", sub: peor.sku },
-    { label: "% del inmov. total", value: totInmov ? `${_r1(inmovCap / totInmov * 100)}%` : "—", sub: `de ${_fCap(totInmov)}`, tone: "down" },
+    { label: "% del inmov. total", value: totInmov ? `${_p1(inmovCap / totInmov * 100)}%` : "—", sub: `de ${_fCap(totInmov)}`, tone: "down" },
   ];
 }

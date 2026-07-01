@@ -17,6 +17,7 @@ import { invKPI } from "../../data/baseKpis.js";
 
 // inmovilizado Def2 canónica (igual que el spine/warehouse): alerta crit/warn O rotación < 2.
 const _esInmov = (r) => r.alerta === "crit" || r.alerta === "warn" || r.rotacion < 2;
+const _p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);               // % SIEMPRE con 1 decimal (parejos en la visual · solo campos del PANEL, nunca los `sentence` del chat)
 const _fmtK = (n) => "$" + Math.round(n || 0) + "K";                                  // cliente · $K ya en miles
 const _fmtMoney = (n) => "$" + (Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "K" : Math.round(n));  // capital · USD
 
@@ -42,13 +43,13 @@ function _readMarginCompression(signals) {
   return {
     kind: "margin_compression",
     domain: "margenes", metric: "contribucion", focusType: w.entityType || "client", focus: w.entity,
-    monto: w.value, montoFmt: w.value + "%", pct: w.value, benchmark, gap,
+    monto: w.value, montoFmt: _p1(w.value) + "%", pct: w.value, benchmark, gap,
     reframe: "el margen unitario bajo el benchmark comprime la contribución",
     recoverableK: recK, targetMargen: benchmark,
     drivers: [
-      { v: `${w.value}%`, label: "margen unitario actual" },
-      { v: `${benchmark}%`, label: "benchmark de cartera" },
-      { v: `${gap}pp`, label: "brecha de margen unitario" },
+      { v: `${_p1(w.value)}%`, label: "margen unitario actual" },
+      { v: `${_p1(benchmark)}%`, label: "benchmark de cartera" },
+      { v: `${_p1(gap)}pp`, label: "brecha de margen unitario" },
       { v: _money(recK), label: "contribución recuperable al benchmark (anual)" },
     ],
     recommendation: signals.implication.reframe || "recuperaría el margen unitario hacia el benchmark de cartera",
@@ -67,13 +68,13 @@ function _readClientLoad(signals) {
   return {
     kind: "internal_commercial_load",        // → el panel resuelve el pack por kind (espejo del renderer)
     domain: "margenes", metric: "margen", focusType: "client", focus: w.entity,
-    monto: w.value, montoFmt: w.value + "%", pct: w.value,
+    monto: w.value, montoFmt: _p1(w.value) + "%", pct: w.value,
     reframe: "antes de mirar al cliente, el margen se decide en la carga comercial",
     carga, vsPromedio: vsProm, targetCarga, bestPracticeCarga: bpCarga,
     recoverableK: recK, recoverableBPK: recBPK, targetMargen: a.expected_impact && a.expected_impact.to,
     drivers: [
-      { v: `${carga}%`, label: "carga comercial sobre la venta" },
-      { v: `+${vsProm}pp`, label: `sobre el promedio interno (${targetCarga}%)` },
+      { v: `${_p1(carga)}%`, label: "carga comercial sobre la venta" },
+      { v: `+${_p1(vsProm)}pp`, label: `sobre el promedio interno (${_p1(targetCarga)}%)` },
       { v: _fmtK(recK), label: "recuperable al promedio interno (anual)" },
       { v: _fmtK(recBPK), label: `recuperable a mejor práctica (${bpCarga.toFixed(1)}%)` },
     ],
@@ -92,14 +93,14 @@ function _readCostStructure(signals) {
   return {
     kind: "cost_structure",
     domain: "margenes", metric: "margen", focusType: "sku", focus: w.entity,
-    monto: w.value, montoFmt: w.value + "%", pct: w.value, benchmark: d.benchmark, gap: d.gap,
+    monto: w.value, montoFmt: _p1(w.value) + "%", pct: w.value, benchmark: d.benchmark, gap: d.gap,
     reframe: `el ${driver} se lleva el margen, no la venta`,
     decomposition: { costo: d.costShare, rebate: d.rebateShare, margen: Math.max(0, 100 - d.costShare - d.rebateShare) },
     drivers: [
-      { v: `${d.costShare}%`, label: "del precio se lo lleva el costo" },
-      { v: `${d.pctRebate}%`, label: "rebate (carga) sobre la venta" },
-      { v: `${d.gap}pp`, label: `bajo el benchmark (${d.benchmark}%)` },
-      ...(d.famAvg != null ? [{ v: `${d.famAvg}%`, label: `margen promedio de ${d.marca}` }] : []),
+      { v: `${_p1(d.costShare)}%`, label: "del precio se lo lleva el costo" },
+      { v: `${_p1(d.pctRebate)}%`, label: "rebate (carga) sobre la venta" },
+      { v: `${_p1(d.gap)}pp`, label: `bajo el benchmark (${_p1(d.benchmark)}%)` },
+      ...(d.famAvg != null ? [{ v: `${_p1(d.famAvg)}%`, label: `margen promedio de ${d.marca}` }] : []),
     ],
     recommendation: rec, sensitive: w.entity,
     sentence: `${w.entity} es el peor en margen: ${w.value}%, ${d.gap}pp bajo el benchmark (${d.benchmark}%). ` +
@@ -124,7 +125,7 @@ function _readCapital(signals) {
     drivers: [
       { v: `${d.dohAvg}d`, label: `cobertura promedio vs ${d.dohBench}d benchmark interno` },
       { v: `${d.rotAvg}x`, label: "rotación baja del capital frenado" },
-      { v: `${im.ranking.length} SKU`, label: `concentran el ${d.pct}% del capital inmovilizado` },
+      { v: `${im.ranking.length} SKU`, label: `concentran el ${_p1(d.pct)}% del capital inmovilizado` },
       { v: `${im.sensitiveDoh}d`, label: `${im.sensitive} es el caso más sensible` },
     ],
     ranking: im.ranking,

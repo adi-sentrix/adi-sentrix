@@ -55,7 +55,7 @@ function StackBar({ segments }) {
     <div>
       <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}` }}>
         {segments.map((s, i) => (
-          <div key={i} title={`${s.label} ${s.pct}%`} style={{ width:`${s.pct}%`, background:s.color, transition:"width 0.4s ease" }}/>
+          <div key={i} title={`${s.label} ${p1(s.pct)}%`} style={{ width:`${s.pct}%`, background:s.color, transition:"width 0.4s ease" }}/>
         ))}
       </div>
       <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 16px", marginTop:10 }}>
@@ -63,7 +63,7 @@ function StackBar({ segments }) {
           <div key={i} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
             <span style={{ width:8, height:8, borderRadius:2, background:s.color, flexShrink:0 }}/>
             <span>{s.label}</span>
-            <span style={{ fontFamily:MONO, fontWeight:600, color:C.text }}>{s.pct}%</span>
+            <span style={{ fontFamily:MONO, fontWeight:600, color:C.text }}>{p1(s.pct)}%</span>
           </div>
         ))}
       </div>
@@ -90,6 +90,9 @@ const fmtK = (n) => "$" + Math.round(n || 0) + "K";
 // (100000→$100.0M · 92900→$92.9M · 6800→$6.8M · -600→−$0.6M). Misma fuente de verdad que el header.
 const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(Number(n) || 0) / 1000; return s + "$" + v.toFixed(1) + "M"; };
 const r1 = (n) => Math.round(n * 10) / 10;
+// % SIEMPRE con 1 decimal (owner: "que queden parejos en la visual") → redondea como r1 pero fuerza el cero final.
+// NO reemplaza a r1 (que también formatea 'x' de rotación, que no lleva decimal fijo). Devuelve string.
+const p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
 // aclara un color hex hacia el blanco (para puntos de gráfico más claros que su curva)
 const _lighten = (hex, amt = 0.45) => {
   const h = (hex || "").replace("#", ""); if (h.length < 6) return hex;
@@ -111,8 +114,8 @@ function ClientLoadHero({ rd, decomp }) {
       <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4, flexWrap:"wrap" }}>
         <Num color={C.amber} size="2.1em">{rd.montoFmt}</Num>
         {costoDom
-          ? <span style={{ fontSize:12.5, color:C.textMuted }}>margen · la brecha vive en la <Num color={C.red}>estructura de costo</Num> · la carga (<Num color={C.amber}>{rd.carga}%</Num>) es el quick-win</span>
-          : <span style={{ fontSize:12.5, color:C.textMuted }}>margen · carga comercial <Num color={C.amber}>{rd.carga}%</Num> · <Num color={C.amber}>+{rd.vsPromedio}pp</Num> sobre el promedio ({rd.targetCarga}%)</span>}
+          ? <span style={{ fontSize:12.5, color:C.textMuted }}>margen · la brecha vive en la <Num color={C.red}>estructura de costo</Num> · la carga (<Num color={C.amber}>{p1(rd.carga)}%</Num>) es el quick-win</span>
+          : <span style={{ fontSize:12.5, color:C.textMuted }}>margen · carga comercial <Num color={C.amber}>{p1(rd.carga)}%</Num> · <Num color={C.amber}>+{p1(rd.vsPromedio)}pp</Num> sobre el promedio ({p1(rd.targetCarga)}%)</span>}
       </div>
       <div style={{ marginTop:14 }}>
         <div style={{ fontSize:11, color:C.textMuted, marginBottom:8 }}>{costoDom ? "Quick-win · recuperable renegociando la carga (anual):" : "Margen recuperable renegociando la carga (anual):"}</div>
@@ -130,9 +133,9 @@ function ClientLoadHero({ rd, decomp }) {
 }
 function ClientLoadEvidence({ rd }) {
   const rows = [
-    { k:"Margen actual", v:`${rd.pct}%`, color:C.amber },
-    { k:`Carga comercial (promedio ${rd.targetCarga}%)`, v:`${rd.carga}%`, color:C.amber },
-    ...(rd.targetMargen != null ? [{ k:"Si baja la carga al promedio → margen", v:`${rd.targetMargen}%`, color:C.green }] : []),
+    { k:"Margen actual", v:`${p1(rd.pct)}%`, color:C.amber },
+    { k:`Carga comercial (promedio ${p1(rd.targetCarga)}%)`, v:`${p1(rd.carga)}%`, color:C.amber },
+    ...(rd.targetMargen != null ? [{ k:"Si baja la carga al promedio → margen", v:`${p1(rd.targetMargen)}%`, color:C.green }] : []),
     { k:"Recuperable al promedio (anual)", v:fmtK(rd.recoverableK), color:C.text },
     { k:`Recuperable a mejor práctica (${(rd.bestPracticeCarga||3).toFixed(1)}%)`, v:fmtK(rd.recoverableBPK), color:C.text },
   ];
@@ -145,7 +148,7 @@ function CostStructureHero({ rd }) {
     <>
       <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4 }}>
         <Num color={C.red} size="2.1em">{rd.montoFmt}</Num>
-        <span style={{ fontSize:12.5, color:C.textMuted }}>margen · <Num color={C.amber}>{rd.gap}pp</Num> bajo el benchmark (<Num>{rd.benchmark}%</Num>)</span>
+        <span style={{ fontSize:12.5, color:C.textMuted }}>margen · <Num color={C.amber}>{p1(rd.gap)}pp</Num> bajo el benchmark (<Num>{p1(rd.benchmark)}%</Num>)</span>
       </div>
       <div style={{ marginTop:14 }}>
         <StackBar segments={[
@@ -159,10 +162,10 @@ function CostStructureHero({ rd }) {
 }
 function CostStructureEvidence({ rd }) {
   const rows = [
-    { k:"Precio de venta (100%)", v:"base", color:C.textSub },
-    { k:"− Costo", v:`${rd.decomposition.costo}%`, color:C.red },
-    { k:"− Rebate (carga comercial)", v:`${rd.decomposition.rebate}%`, color:C.amber },
-    { k:"= Margen que queda", v:`${rd.decomposition.margen}%`, color:C.green, strong:true },
+    { k:"Precio de venta (100.0%)", v:"base", color:C.textSub },
+    { k:"− Costo", v:`${p1(rd.decomposition.costo)}%`, color:C.red },
+    { k:"− Rebate (carga comercial)", v:`${p1(rd.decomposition.rebate)}%`, color:C.amber },
+    { k:"= Margen que queda", v:`${p1(rd.decomposition.margen)}%`, color:C.green, strong:true },
   ];
   return <Rows rows={rows}/>;
 }
@@ -174,7 +177,7 @@ function CapitalHero({ rd }) {
     <>
       <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4 }}>
         <Num color={C.text} size="2.1em">{rd.montoFmt}</Num>
-        <span style={{ fontSize:12.5, color:C.textMuted }}><Num color={C.text}>{rd.pct}%</Num> del capital inmovilizado{rd.totalInmovFmt ? <> (<Num>{rd.totalInmovFmt}</Num> total)</> : null}</span>
+        <span style={{ fontSize:12.5, color:C.textMuted }}><Num color={C.text}>{p1(rd.pct)}%</Num> del capital inmovilizado{rd.totalInmovFmt ? <> (<Num>{rd.totalInmovFmt}</Num> total)</> : null}</span>
       </div>
       <div style={{ marginTop:14 }}>
         <StackBar segments={[
@@ -249,7 +252,7 @@ function ComparisonHero({ rd }) {
       <CompCol entity={rd.a.entity} valueFmt={rd.a.valueFmt} sub={rd.a.sub} better={rd.better === rd.a.entity}/>
       <div style={{ flexShrink:0, textAlign:"center", color:C.textMuted }}>
         <div style={{ fontFamily:MONO, fontSize:9, letterSpacing:"1px" }}>VS</div>
-        <Num color={C.text} size="1.05em">{rd.gapFmt || `${rd.gap}pp`}</Num>
+        <Num color={C.text} size="1.05em">{rd.gapFmt || `${p1(rd.gap)}pp`}</Num>
       </div>
       <CompCol entity={rd.b.entity} valueFmt={rd.b.valueFmt} sub={rd.b.sub} better={rd.better === rd.b.entity}/>
     </div>
@@ -323,15 +326,15 @@ function MarginCompressionHero({ rd }) {
     <>
       <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4, flexWrap:"wrap" }}>
         <Num color={C.amber} size="2.1em">{rd.montoFmt}</Num>
-        <span style={{ fontSize:12.5, color:C.textMuted }}>margen unitario · <Num color={C.amber}>{rd.gap}pp</Num> bajo el benchmark (<Num>{rd.benchmark}%</Num>)</span>
+        <span style={{ fontSize:12.5, color:C.textMuted }}>margen unitario · <Num color={C.amber}>{p1(rd.gap)}pp</Num> bajo el benchmark (<Num>{p1(rd.benchmark)}%</Num>)</span>
       </div>
       <div style={{ marginTop:14 }}>
         <div style={{ height:10, borderRadius:5, overflow:"hidden", background:"rgba(244,63,94,0.2)", border:`1px solid ${C.border}` }}>
           <div style={{ width:`${fillPct}%`, height:"100%", background:C.amber, transition:"width 0.4s ease" }}/>
         </div>
         <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:11.5, color:C.textSub }}>
-          <span>margen <Num color={C.amber}>{rd.pct}%</Num></span>
-          <span>benchmark <Num>{rd.benchmark}%</Num></span>
+          <span>margen <Num color={C.amber}>{p1(rd.pct)}%</Num></span>
+          <span>benchmark <Num>{p1(rd.benchmark)}%</Num></span>
         </div>
       </div>
       {rec && <div style={{ marginTop:12, fontSize:12.5, color:C.textSub }}>Contribución recuperable al benchmark: <Num color={C.green} size="1.1em">{rec.v}</Num> anual</div>}
@@ -340,9 +343,9 @@ function MarginCompressionHero({ rd }) {
 }
 function MarginCompressionEvidence({ rd }) {
   const rows = [
-    { k: "Margen unitario actual", v: `${rd.pct}%`, color: C.amber },
-    { k: "Benchmark de cartera", v: `${rd.benchmark}%`, color: C.textSub },
-    { k: "Brecha de margen unitario", v: `${rd.gap}pp`, color: C.red, strong: true },
+    { k: "Margen unitario actual", v: `${p1(rd.pct)}%`, color: C.amber },
+    { k: "Benchmark de cartera", v: `${p1(rd.benchmark)}%`, color: C.textSub },
+    { k: "Brecha de margen unitario", v: `${p1(rd.gap)}pp`, color: C.red, strong: true },
     ...(rd.drivers && rd.drivers[3] ? [{ k: "Contribución recuperable (anual)", v: rd.drivers[3].v, color: C.green }] : []),
   ];
   return <Rows rows={rows}/>;
@@ -589,7 +592,7 @@ function CompChip({ label, base, gap, unit = "pp" }) {
       <div style={{ fontSize:11, color:C.textMuted, marginBottom:6 }}>{label}</div>
       <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
         <Num color={C.textSub}>{base}</Num>
-        <Num color={up ? C.green : C.red}>{(up ? "+" : "") + r1(gap) + unit}</Num>
+        <Num color={up ? C.green : C.red}>{(up ? "+" : "") + (unit === "x" ? r1(gap) : p1(gap)) + unit}</Num>
       </div>
     </div>
   );
@@ -622,7 +625,7 @@ function EvidenciaRecibo({ receipt: r }) {
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 <Num color={toneColor[l.tone]} size={l.strong ? "1.2em" : "0.98em"}>{money(l.usd)}</Num>
-                <div style={{ fontFamily:MONO, fontSize:11, color:pctColor[l.tone], marginTop:4 }}>{r1(l.pct)}%</div>
+                <div style={{ fontFamily:MONO, fontSize:11, color:pctColor[l.tone], marginTop:4 }}>{p1(l.pct)}%</div>
               </div>
             </div>
           ))}
@@ -697,10 +700,10 @@ function ControlRing({ ring, rd }) {
     : (v) => (Math.abs(v) >= 1000 ? fMon(v) : fmtK(v));
   const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
   const cellVal = (r, col) => {
-    if (col.key === "gap")   return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + r1(r.gap) + "pp";
+    if (col.key === "gap")   return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + p1(r.gap) + "pp";
     if (col.fmt === "money") return money(r[col.key]);
     if (col.fmt === "x")     return r1(r[col.key]) + "x";
-    return r1(r[col.key]) + "%";
+    return p1(r[col.key]) + "%";
   };
   const cellColor = (r, col) => {
     if (col.key === "gap")          return r.role === "avg" ? C.textMuted : (r.gap >= 0 ? C.green : C.red);
@@ -802,10 +805,10 @@ function CuadroMando({ scenario }) {
     if (v == null) return "—";
     if (col.fmt === "money")  return money(v);
     if (col.fmt === "moneyk") return moneyk(v);
-    if (col.fmt === "pct")    return r1(v) + "%";
+    if (col.fmt === "pct")    return p1(v) + "%";
     if (col.fmt === "x")      return r1(v) + "x";
     if (col.fmt === "int")    return Math.round(v).toLocaleString("es-CL");
-    if (col.fmt === "pp")     return v === 0 ? "—" : (v > 0 ? "+" : "") + r1(v) + "pp";
+    if (col.fmt === "pp")     return v === 0 ? "—" : (v > 0 ? "+" : "") + p1(v) + "pp";
     return v;
   };
   const cellColor = (col, r) => {
@@ -919,7 +922,7 @@ function CuadroMando({ scenario }) {
           {/* nota de referencia: el promedio (la ley de las lentes) queda en el pie */}
           {!onlySel && cm.avg && (
             <div style={{ fontSize:10.5, color:C.textMuted, padding:"6px 8px 0", fontFamily:MONO }}>
-              Promedio {cm.label.toLowerCase()}: margen {r1(cm.avg.margen)}%{cm.avg.inmovPct != null ? ` · inmov ${r1(cm.avg.inmovPct)}%` : ""}
+              Promedio {cm.label.toLowerCase()}: margen {p1(cm.avg.margen)}%{cm.avg.inmovPct != null ? ` · inmov ${p1(cm.avg.inmovPct)}%` : ""}
             </div>
           )}
         </div>
@@ -976,7 +979,7 @@ function DataStrip({ focusType, focus, scenario }) {
 // La tesis la elige el DATO: la palanca dominante. La cuenta cierra (costoComp + cargaComp = gap).
 function BrechaCard({ decomp }) {
   const d = decomp;
-  const fp = (n) => (n >= 0 ? "+" : "−") + Math.abs(n) + "pp";
+  const fp = (n) => (n >= 0 ? "+" : "−") + p1(Math.abs(n)) + "pp";
   const rows = [
     { label: "Estructura de costo", comp: d.costoComp, share: d.costoShare, color: C.red },
     { label: "Carga comercial",     comp: d.cargaComp, share: d.cargaShare, color: C.amber },
@@ -985,7 +988,7 @@ function BrechaCard({ decomp }) {
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
         <Eyebrow def={METRIC_DEFS["La brecha descompuesta"]}>La brecha, descompuesta</Eyebrow>
-        <span style={{ fontSize:11, color:C.textMuted, fontFamily:MONO }}>vs promedio {d.avgM}%</span>
+        <span style={{ fontSize:11, color:C.textMuted, fontFamily:MONO }}>vs promedio {p1(d.avgM)}%</span>
       </div>
       {rows.map((r, i) => (
         <div key={i} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
@@ -993,11 +996,11 @@ function BrechaCard({ decomp }) {
           <div style={{ flex:1, height:13, background:"rgba(255,255,255,0.04)", borderRadius:3, overflow:"hidden" }}>
             <div style={{ width:`${Math.max(r.share, 2)}%`, height:"100%", background:r.color, borderRadius:3, transition:"width 0.4s ease" }}/>
           </div>
-          <div style={{ width:92, textAlign:"right", fontFamily:MONO, fontSize:12, color:r.color, flexShrink:0 }}>{fp(r.comp)} · {r.share}%</div>
+          <div style={{ width:92, textAlign:"right", fontFamily:MONO, fontSize:12, color:r.color, flexShrink:0 }}>{fp(r.comp)} · {p1(r.share)}%</div>
         </div>
       ))}
       <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, marginTop:8 }}>
-        El gap de <Num color={d.gap < 0 ? C.red : C.green}>{fp(d.gap)}</Num> lo explica <span style={{ color:C.textSub }}>{d.dominant === "costo" ? "la estructura de costo" : "la carga comercial"}</span> ({d.dominant === "costo" ? d.costoShare : d.cargaShare}%) — la tesis la elige el dato, no un molde.
+        El gap de <Num color={d.gap < 0 ? C.red : C.green}>{fp(d.gap)}</Num> lo explica <span style={{ color:C.textSub }}>{d.dominant === "costo" ? "la estructura de costo" : "la carga comercial"}</span> ({p1(d.dominant === "costo" ? d.costoShare : d.cargaShare)}%) — la tesis la elige el dato, no un molde.
       </div>
     </Card>
   );
@@ -1063,7 +1066,7 @@ function BrechaFilm({ film }) {
         {[hi, (hi + lo) / 2, lo].map((p, k) => (
           <g key={k}>
             <line x1={padL} y1={yAt(p)} x2={W - padR} y2={yAt(p)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
-            <text x={padL - 5} y={yAt(p) + 3} fill={C.textMuted} fontSize="8" fontFamily={MONO} textAnchor="end">{Math.round(p)}%</text>
+            <text x={padL - 5} y={yAt(p) + 3} fill={C.textMuted} fontSize="8" fontFamily={MONO} textAnchor="end">{p1(p)}%</text>
           </g>
         ))}
         {/* área bajo el margen (el foco) · sutil */}
@@ -1088,7 +1091,7 @@ function BrechaFilm({ film }) {
             <g transform={`translate(${tx},4)`}>
               <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
               <text x="9" y="13" fill={C.textSub} fontSize="9" fontFamily={MONO} fontWeight="600">{film.meses[hov]}</text>
-              {shown.map((s, k) => <text key={s.key} x="9" y={27 + k * 13} fill={s.color} fontSize="9" fontFamily={MONO}>{s.label}: {r1(s.data[hov])}%</text>)}
+              {shown.map((s, k) => <text key={s.key} x="9" y={27 + k * 13} fill={s.color} fontSize="9" fontFamily={MONO}>{s.label}: {p1(s.data[hov])}%</text>)}
             </g>
           ); })()}
         </>)}
@@ -1139,8 +1142,8 @@ function ComparacionChart({ a, b, scenario }) {
               <line x1={Math.min(xa, xb)} y1={y} x2={Math.max(xa, xb)} y2={y} stroke={C.borderLight} strokeWidth="2.5" strokeLinecap="round"/>
               <circle cx={xa} cy={y} r="5" fill={colA} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${colA}88)` }}/>
               <circle cx={xb} cy={y} r="5" fill={colB} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${colB}88)` }}/>
-              <text x={xa} y={y - 9} textAnchor="middle" fill={colA} fontSize="9.5" fontFamily={MONO}>{r1(r.va)}%</text>
-              <text x={xb} y={y + 16} textAnchor="middle" fill={colB} fontSize="9.5" fontFamily={MONO}>{r1(r.vb)}%</text>
+              <text x={xa} y={y - 9} textAnchor="middle" fill={colA} fontSize="9.5" fontFamily={MONO}>{p1(r.va)}%</text>
+              <text x={xb} y={y + 16} textAnchor="middle" fill={colB} fontSize="9.5" fontFamily={MONO}>{p1(r.vb)}%</text>
             </g>
           );
         })}
@@ -1274,8 +1277,8 @@ function EvolutivoCard() {
           <g transform={`translate(${tipX},${tipY})`}>
             <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
             <text x="9" y="16" fill={C.text} fontSize="10" fontFamily={MONO} fontWeight="600">{tip.mes} · {fMon(tip.v)}</text>
-            {tip.dPrev!=null && <text x="9" y="30" fill={tip.dPrev>=0?C.green:C.red} fontSize="8.5" fontFamily={MONO}>vs mes ant: {tip.dPrev>=0?"+":""}{fMon(tip.dPrev)} ({tip.dPrevPct>=0?"+":""}{tip.dPrevPct}%)</text>}
-            <text x="9" y={tip.dPrev!=null?43:30} fill={tip.dPpto>=0?C.green:C.red} fontSize="8.5" fontFamily={MONO}>vs ppto: {tip.dPpto>=0?"+":""}{fMon(tip.dPpto)} ({tip.dPptoPct>=0?"+":""}{tip.dPptoPct}%)</text>
+            {tip.dPrev!=null && <text x="9" y="30" fill={tip.dPrev>=0?C.green:C.red} fontSize="8.5" fontFamily={MONO}>vs mes ant: {tip.dPrev>=0?"+":""}{fMon(tip.dPrev)} ({tip.dPrevPct>=0?"+":""}{p1(tip.dPrevPct)}%)</text>}
+            <text x="9" y={tip.dPrev!=null?43:30} fill={tip.dPpto>=0?C.green:C.red} fontSize="8.5" fontFamily={MONO}>vs ppto: {tip.dPpto>=0?"+":""}{fMon(tip.dPpto)} ({tip.dPptoPct>=0?"+":""}{p1(tip.dPptoPct)}%)</text>
             {tip.lect && <text x="9" y={(tip.dPrev!=null?43:30)+13} fill={C.textSub} fontSize="8.5" fontFamily="'DM Sans', system-ui, sans-serif" fontStyle="italic">{tip.lect}</text>}
           </g>
         </>)}
@@ -1290,8 +1293,8 @@ function EvolutivoCard() {
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"7px 14px", marginTop:12 }}>
         <Stat label="Mayor caída"        v={fMon(ev.drop.delta)}                          sub={ev.drop.from?`${ev.drop.from}→${ev.drop.mes}`:""}     color={C.red}/>
         <Stat label="Mayor crecimiento"  v={`+${fMon(ev.growth.delta)}`}                  sub={ev.growth.from?`${ev.growth.from}→${ev.growth.mes}`:""} color={C.green}/>
-        <Stat label="vs presupuesto"     v={`${ev.vsPresupuesto>=0?"+":""}${ev.vsPresupuesto}%`} sub={`${fMon(ev.totAct)} vs ${fMon(ev.totPpto)}`}      color={ev.vsPresupuesto>=0?C.green:C.red}/>
-        <Stat label="vs año anterior"    v={`${ev.vsAnterior>=0?"+":""}${ev.vsAnterior}%`}       sub={`${fMon(ev.totAct)} vs ${fMon(ev.totAnt)}`}       color={ev.vsAnterior>=0?C.green:C.red}/>
+        <Stat label="vs presupuesto"     v={`${ev.vsPresupuesto>=0?"+":""}${p1(ev.vsPresupuesto)}%`} sub={`${fMon(ev.totAct)} vs ${fMon(ev.totPpto)}`}      color={ev.vsPresupuesto>=0?C.green:C.red}/>
+        <Stat label="vs año anterior"    v={`${ev.vsAnterior>=0?"+":""}${p1(ev.vsAnterior)}%`}       sub={`${fMon(ev.totAct)} vs ${fMon(ev.totAnt)}`}       color={ev.vsAnterior>=0?C.green:C.red}/>
       </div>
 
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:12, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
@@ -1336,7 +1339,7 @@ function ConcentracionCard({ scenario, spec }) {
       </div>
 
       <div style={{ fontSize:13, color:C.textSub, lineHeight:1.5, marginBottom:6 }}>
-        Los primeros <Num color={C.text}>{con.blockCount}</Num> {con.blockCount===1?con.label.toLowerCase():con.plural} {sp.verb} el <Num color={C.amber}>{con.blockPct}%</Num> {sp.ofNoun}.
+        Los primeros <Num color={C.text}>{con.blockCount}</Num> {con.blockCount===1?con.label.toLowerCase():con.plural} {sp.verb} el <Num color={C.amber}>{p1(con.blockPct)}%</Num> {sp.ofNoun}.
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} onMouseLeave={()=>setHov(null)}>
@@ -1357,7 +1360,7 @@ function ConcentracionCard({ scenario, spec }) {
         {[100,80,50,25,0].map((p)=>(
           <g key={"p"+p}>
             <line x1={padL} y1={yCum(p)} x2={W-padR} y2={yCum(p)} stroke={p===80?C.amber:C.border} strokeWidth="1" strokeDasharray={p===80?"5 3":"3 4"} opacity={p===80?0.55:1}/>
-            <text x={W-padR+4} y={yCum(p)+3} fill={p===80?C.amber:C.textMuted} fontSize="8" fontFamily={MONO}>{p}%</text>
+            <text x={W-padR+4} y={yCum(p)+3} fill={p===80?C.amber:C.textMuted} fontSize="8" fontFamily={MONO}>{p1(p)}%</text>
           </g>
         ))}
         {bars.map((b,i)=>{ const t=tierOf(b,i); return (
@@ -1380,14 +1383,14 @@ function ConcentracionCard({ scenario, spec }) {
           <g transform={`translate(${tx},${ty})`}>
             <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
             <text x="9" y="16" fill={C.text} fontSize="10" fontFamily={MONO} fontWeight="600">{trunc(b.name)} · {fMon(b.value)}</text>
-            <text x="9" y="30" fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{r1(b.pct)}% del total</text>
-            <text x="9" y="41" fill={C.amber} fontSize="8.5" fontFamily={MONO}>acumulado: {r1(b.cumPct)}%</text>
+            <text x="9" y="30" fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{p1(b.pct)}% del total</text>
+            <text x="9" y="41" fill={C.amber} fontSize="8.5" fontFamily={MONO}>acumulado: {p1(b.cumPct)}%</text>
           </g>
         ); })()}
       </svg>
 
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
-        Concentración {sp.byNoun} ($) · escenario {con.scenario} · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80% · <span style={{color:C.celeste}}>línea celeste</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80%.
+        Concentración {sp.byNoun} ($) · escenario {con.scenario} · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80.0% · <span style={{color:C.celeste}}>línea celeste</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80.0%.
       </div>
     </Card>
   );
