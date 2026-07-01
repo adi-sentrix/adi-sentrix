@@ -11,7 +11,7 @@ import { buildComparisonReading, buildReadingFromSignals, buildClientContribSign
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
-import { buildEntityKPIs, buildMarginDecomposition } from "../adi/sentrix/kpis.js";   // brick 2a/2b · tira + descomposición
+import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6 · tira + descomposición + recibo
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
@@ -377,6 +377,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     ? buildMarginDecomposition(current.focus, evidence.periodo) : null;
   // EL MOTOR arma la superficie del Diagnóstico (qué gráficos + métrica/dims) según el foco · LLM-ready (surface.js).
   const charts = diagnosisCharts(current.focusType);
+  // EVIDENCIA enriquecida · el recibo frío (fórmula+fuentes+confianza+límites) para el caso cliente·margen (reusa decomp).
+  const receipt = decomp ? buildMarginReceipt(current.focus, evidence.periodo) : null;
 
   // operaciones del estado (empujan/actualizan frames)
   const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
@@ -519,18 +521,103 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         )}
         </>)}
 
-        {/* EVIDENCIA · la prueba que valida la respuesta (la cuenta) · separada de la historia */}
+        {/* EVIDENCIA · la prueba que valida la respuesta · el RECIBO FRÍO (fórmula+fuentes+confianza+límites) para
+            cliente·margen · el pack bespoke (SKU ranking / comparación) para el resto · separada de la historia */}
         {ADI_SENTRIX_SHELL_ENABLED && tab === "evidencia" && (
-          <div>
-            <Eyebrow>La cuenta de {rd.focus}</Eyebrow>
-            {Evidence
-              ? <Card><Evidence rd={rd}/></Card>
-              : <div style={{ fontSize:12.5, color:C.textMuted, lineHeight:1.6, padding:"4px 2px" }}>Sin cuenta detallada para esta lectura.</div>}
-          </div>
+          receipt
+            ? <EvidenciaRecibo receipt={receipt}/>
+            : <div>
+                <Eyebrow>La cuenta de {rd.focus}</Eyebrow>
+                {Evidence
+                  ? <Card><Evidence rd={rd}/></Card>
+                  : <div style={{ fontSize:12.5, color:C.textMuted, lineHeight:1.6, padding:"4px 2px" }}>Sin cuenta detallada para esta lectura.</div>}
+              </div>
         )}
 
         {ADI_SENTRIX_SHELL_ENABLED && tab === "control" && <LensPlaceholder tab="control" focus={rd.focus}/>}
       </div>
+    </div>
+  );
+}
+
+// ── EVIDENCIA ENRIQUECIDA · el RECIBO FRÍO (brick 6) · "no me creas, acá está la cuenta" ──
+// Fórmula venta−costo−carga=margen con cada cifra + su FUENTE (ERP), la base de comparación, la confianza y los
+// LÍMITES honestos (lo que el dato NO afirma · derivados de capability). Todo del buildMarginReceipt (motor).
+function CompChip({ label, base, gap }) {
+  const up = gap >= 0;
+  return (
+    <div style={{ padding:"10px 13px", borderRadius:10, background:"rgba(255,255,255,0.022)", border:`1px solid ${C.border}` }}>
+      <div style={{ fontSize:11, color:C.textMuted, marginBottom:6 }}>{label}</div>
+      <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
+        <Num color={C.textSub}>{base}</Num>
+        <Num color={up ? C.green : C.red}>{(up ? "+" : "") + r1(gap)}pp</Num>
+      </div>
+    </div>
+  );
+}
+function EvidenciaRecibo({ receipt: r }) {
+  const toneColor = { base: C.text, costo: C.red, carga: C.amber, margen: C.text };
+  const pctColor  = { base: C.textMuted, costo: C.red, carga: C.amber, margen: C.textSub };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {/* LA CUENTA · fórmula con fuentes */}
+      <Card>
+        <Eyebrow>La cuenta · venta − costo − carga = margen</Eyebrow>
+        <div style={{ display:"flex", flexDirection:"column", marginTop:2 }}>
+          {r.lines.map((l, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14,
+              padding: l.strong ? "12px 0 2px" : "11px 0",
+              borderTop: l.strong ? `1px solid ${C.borderLight}` : (i > 0 ? "1px solid rgba(255,255,255,0.035)" : "none"),
+              marginTop: l.strong ? 5 : 0 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+                  <span style={{ fontFamily:MONO, fontSize:13, color:C.textMuted, width:9, flexShrink:0, opacity: l.sign ? 1 : 0 }}>{l.sign || "·"}</span>
+                  <span style={{ fontSize:13.5, color: l.strong ? C.text : C.textSub, fontWeight: l.strong ? 600 : 500 }}>{l.label}</span>
+                </div>
+                <div style={{ fontFamily:MONO, fontSize:9.5, color:C.textMuted, letterSpacing:"0.4px", textTransform:"uppercase", marginLeft:17, marginTop:4 }}>{l.source}</div>
+              </div>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                <Num color={toneColor[l.tone]} size={l.strong ? "1.2em" : "0.98em"}>{fMon(l.usd)}</Num>
+                <div style={{ fontFamily:MONO, fontSize:11, color:pctColor[l.tone], marginTop:4 }}>{r1(l.pct)}%</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* BASE DE COMPARACIÓN · contra qué se mide */}
+      <div>
+        <Eyebrow>Contra qué se mide</Eyebrow>
+        <div style={{ display:"grid", gridTemplateColumns: r.comparison.benchmark != null ? "1fr 1fr" : "1fr", gap:9 }}>
+          <CompChip label="Promedio interno" base={`${r.comparison.avgM}%`} gap={r.comparison.gapProm}/>
+          {r.comparison.benchmark != null && <CompChip label="Benchmark industria" base={`${r.comparison.benchmark}%`} gap={r.comparison.gapBench}/>}
+        </div>
+      </div>
+
+      {/* CONFIANZA · el sello verde (cuenta cerrada) */}
+      <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px", borderRadius:10, background:"rgba(16,185,129,0.05)", border:"1px solid rgba(16,185,129,0.14)" }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop:2, flexShrink:0, filter:"drop-shadow(0 0 4px rgba(16,185,129,0.4))" }}>
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55 }}>
+          <span style={{ color:C.green, fontWeight:600 }}>Confianza {r.confianza.level}</span> — {r.confianza.reason}.
+        </div>
+      </div>
+
+      {/* LÍMITES HONESTOS · lo que esta cuenta NO afirma (data-driven de capability) */}
+      {r.limites.length > 0 && (
+        <div>
+          <Eyebrow>Lo que esta cuenta NO afirma</Eyebrow>
+          <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+            {r.limites.map((t, i) => (
+              <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", fontSize:12.5, color:C.textSub, lineHeight:1.5 }}>
+                <span style={{ color:C.textMuted, flexShrink:0, fontFamily:MONO }}>—</span>
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

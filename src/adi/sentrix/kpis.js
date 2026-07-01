@@ -4,6 +4,7 @@
  * no lo llama → motor sellado. Devuelve [{label, value, sub, tone}] · el panel solo renderiza. Data-driven:
  * deriva del dataset cargado, no hardcodea — mañana con el Excel del cliente sus columnas se declaran solas. */
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { temporalCapability, entityExplorable } from "./capability.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _pp = (n) => (n >= 0 ? "+" : "") + _r1(n) + "pp";
@@ -71,6 +72,43 @@ export function buildMarginDecomposition(focus, scenario) {
     costoComp, cargaComp, dominant, thesis, thesisFull,
     costoShare: Math.round(absC / tot * 100), cargaShare: Math.round(absG / tot * 100),
   };
+}
+
+// EL RECIBO FRÍO (Evidencia enriquecida) · "no me creas, acá está la cuenta": la fórmula venta−costo−carga=margen
+// con cada cifra, su % y su FUENTE (ERP), la base de comparación, la confianza y los LÍMITES honestos (lo que el
+// dato NO afirma · derivados de capability, no hardcodeados). Reusa buildMarginDecomposition (misma cuenta que la
+// brecha → cierra exacto). Cliente·margen. Puro · client-side · testable. Null si no aplica (otro tipo/métrica).
+export function buildMarginReceipt(focus, scenario) {
+  const s = scenario || "bonanza";
+  const d = buildMarginDecomposition(focus, s);
+  if (!d) return null;
+  const cv = (applyScenarioToClientesVentas(s) || []).find((c) => c.nombre === focus);
+  const cm = (applyScenarioToClientesMargen(s) || []).find((c) => c.nombre === focus);
+  const venta = cv ? cv.actual : (cm ? cm.venta : 0);          // $K
+  // $ derivados de la IDENTIDAD (venta × %/100) → la columna $ cierra exacto igual que la %.
+  const costoUSD = venta * d.costoPct / 100;
+  const cargaUSD = venta * d.cargaPct / 100;
+  const margenUSD = venta * d.margen / 100;                    // = contribución (derivada)
+  const lines = [
+    { label: "Ventas netas",     usd: venta,     pct: 100,        sign: "",  source: "ERP · facturación del período",     tone: "base"   },
+    { label: "Costo de ventas",  usd: costoUSD,  pct: d.costoPct, sign: "−", source: "ERP · costo de mercadería vendida", tone: "costo"  },
+    { label: "Carga comercial",  usd: cargaUSD,  pct: d.cargaPct, sign: "−", source: "ERP · rebates + descuentos",        tone: "carga"  },
+    { label: "Margen",           usd: margenUSD, pct: d.margen,   sign: "=", source: "derivado · venta − costo − carga",   tone: "margen", strong: true },
+  ];
+  const benchmark = cm ? cm.benchmark : null;
+  const comparison = {
+    avgM: d.avgM, gapProm: d.gap,                                              // vs promedio interno (− = bajo)
+    benchmark, gapBench: benchmark != null ? _r1(d.margen - benchmark) : null, // vs benchmark de industria
+  };
+  const confianza = { level: "Alta", reason: "cuenta cerrada con dato del período — sin estimaciones (venta − costo − carga = margen, cierra exacto)" };
+  // LÍMITES honestos · derivados de la capa de disponibilidad (no inventados)
+  const limites = [];
+  const temp = temporalCapability({ entityType: "client", entity: focus, metric: "margen" });
+  if (temp.perEntity && temp.perEntity.status === "blocked")
+    limites.push(`La evolución del margen de ${focus} mes a mes: el histórico por cliente aún es sintético — se enciende con el ERP.`);
+  (entityExplorable("client", focus).blocked || []).forEach((b) =>
+    limites.push(`El desglose de ${b.view}: ${b.reason}.`));
+  return { focus, venta, lines, comparison, confianza, limites, dominant: d.dominant, thesis: d.thesis };
 }
 
 function _bodegaKPIs(name, s) {
