@@ -627,6 +627,12 @@ function EvidenciaRecibo({ receipt: r }) {
   );
 }
 
+// "i" de ayuda inline (determinístico · lee el catálogo) · para headers de columna del ring
+function InfoDot({ def }) {
+  if (!def) return null;
+  return <span className="adi-i2">i<span className="adi-tip">{def}</span></span>;
+}
+
 // ── CONTROL · la TABLA-RING (brick 7) · "el ring, nunca una fila sola" · foco vs promedio vs par vs mejor + caminos ──
 function PathCard({ tag, tagColor, title, value, detail }) {
   return (
@@ -645,11 +651,15 @@ function PathCard({ tag, tagColor, title, value, detail }) {
 function ControlRing({ ring, rd }) {
   const money = (k) => (Math.abs(k) >= 1000 ? fMon(k) : fmtK(k));
   const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
-  const cellVal = (r, col) => col.key === "gap" ? (r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + r1(r.gap) + "pp") : r1(r[col.key]) + "%";
+  const cellVal = (r, col) => {
+    if (col.key === "gap")    return r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + r1(r.gap) + "pp";
+    if (col.fmt === "money")  return money(r.contribucion);
+    return r1(r[col.key]) + "%";
+  };
   const cellColor = (r, col) => {
-    if (col.key === "gap")    return r.role === "avg" ? C.textMuted : (r.gap >= 0 ? C.green : C.red);
-    if (col.key === "margen") return r.role === "best" ? C.green : r.role === "focus" ? C.amber : C.textSub;
-    if (col.key === "costo" && r.role === "focus" && ring.lever === "costo") return C.red;
+    if (col.key === "gap")          return r.role === "avg" ? C.textMuted : (r.gap >= 0 ? C.green : C.red);
+    if (col.key === "margen")       return r.role === "best" ? C.green : r.role === "focus" ? C.amber : C.textSub;
+    if (col.key === "contribucion") return r.role === "focus" ? C.text : C.textSub;   // la plata · el foco en blanco
     if (col.key === "carga" && r.role === "focus" && ring.lever === "carga") return C.amber;
     return C.textSub;
   };
@@ -661,7 +671,7 @@ function ControlRing({ ring, rd }) {
         <Eyebrow>El ring · {ring.focus} contra su liga</Eyebrow>
         <Card>
           <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", fontSize:9.5, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.5px", textTransform:"uppercase", paddingBottom:8, borderBottom:`1px solid ${C.border}`, marginBottom:2 }}>
-            <span/>{ring.columns.map((c) => <span key={c.key} style={{ textAlign:"right" }}>{c.label}</span>)}
+            <span/>{ring.columns.map((c) => <span key={c.key} style={{ textAlign:"right", whiteSpace:"nowrap" }}>{c.label}{c.defKey && METRIC_DEFS[c.defKey] && <InfoDot def={METRIC_DEFS[c.defKey]}/>}</span>)}
           </div>
           {ring.rows.map((r, i) => {
             const tag = roleTag[r.role] || roleTag.peer, isFocus = r.role === "focus";

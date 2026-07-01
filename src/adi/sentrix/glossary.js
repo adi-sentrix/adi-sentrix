@@ -14,6 +14,7 @@ export const METRIC_DEFS = {
   "Costo unitario": "Lo que cuesta cada unidad, y su peso sobre la venta.",
   "Unidades": "Cantidad de unidades vendidas en el período.",
   "vs benchmark": "Distancia del margen contra el benchmark de la industria.",
+  "vs promedio": "La distancia del margen contra el promedio interno de tus clientes (en puntos porcentuales).",
   // — inventario / bodega —
   "Capital": "La plata inmovilizada en stock (valor del inventario).",
   "Inmovilizado": "El stock que no rota (en alerta o rotación < 2): plata atrapada.",

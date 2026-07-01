@@ -24,7 +24,7 @@ const _row = (x, role, avgM, note) => ({
   name: x.nombre, role,
   margen: x.margen,
   carga: _r1(x.pctRebate),
-  costo: _r1(100 - x.margen - x.pctRebate),
+  contribucion: Math.round(x.contribucion),   // $K · "la gente reacciona a la plata" (owner): el stake del cliente
   gap: role === "avg" ? 0 : _r1(x.margen - avgM),
   note: note || null,
 });
@@ -47,7 +47,8 @@ export function buildControlRing(focus, scenario) {
                                     : "≈ mismo costo, mejor margen → la palanca es la carga";
 
   // fila PROMEDIO y MEJOR sintéticas (mismo shape) · el promedio no tiene "nombre" de cliente
-  const avgRow = { name: "Promedio interno", role: "avg", margen: _r1(avgM), carga: _r1(avgCarga), costo: _r1(avgCosto), gap: 0, note: null };
+  const avgContrib = all.reduce((a, x) => a + (x.contribucion || 0), 0) / all.length;
+  const avgRow = { name: "Promedio interno", role: "avg", margen: _r1(avgM), carga: _r1(avgCarga), contribucion: Math.round(avgContrib), gap: 0, note: null };
   const rows = [_row(c, "focus", avgM)];
   if (par && par.nombre !== best.nombre) rows.push(_row(par, "peer", avgM, parNote));
   rows.push(avgRow);
@@ -62,10 +63,10 @@ export function buildControlRing(focus, scenario) {
   return {
     entityType: "client", focus, lever, leverLabel,
     columns: [
-      { key: "margen", label: "Margen", fmt: "pct" },
-      { key: "carga",  label: "Carga",  fmt: "pct" },
-      { key: "costo",  label: "Costo",  fmt: "pct" },
-      { key: "gap",    label: "vs prom", fmt: "pp" },
+      { key: "margen",       label: "Margen",       fmt: "pct",   defKey: "Margen" },
+      { key: "carga",        label: "Carga",        fmt: "pct",   defKey: "Carga comercial" },
+      { key: "contribucion", label: "Contribución", fmt: "money", defKey: "Contribución" },   // la plata (owner) · reemplaza costo%
+      { key: "gap",          label: "vs prom",      fmt: "pp",    defKey: "vs promedio" },
     ],
     rows, costoTechoK,
   };

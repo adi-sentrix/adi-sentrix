@@ -133,6 +133,10 @@ export default function App({ animate = true }) {
         .adi-i:hover { color:#2fb8da; border-color:rgba(47,184,218,0.6); }
         .adi-tip { position:absolute; bottom:calc(100% + 7px); right:-3px; width:198px; background:#0b0b0d; border:1px solid rgba(47,184,218,0.4); border-radius:8px; padding:8px 11px; font-size:11px; line-height:1.5; color:#c4c2bd; opacity:0; transform:translateY(3px); pointer-events:none; transition:opacity .15s, transform .15s; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,0.55); text-align:left; font-style:normal; font-weight:400; letter-spacing:0; }
         .adi-i:hover .adi-tip { opacity:1; transform:translateY(0); }
+        /* "i" inline · misma ayuda determinística, para headers de tabla/columna (ring) · no absolute */
+        .adi-i2 { position:relative; display:inline-flex; align-items:center; justify-content:center; width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.4); font-size:8px; font-style:italic; line-height:1; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; vertical-align:middle; margin-left:4px; text-transform:none; transition:color .15s, border-color .15s; }
+        .adi-i2:hover { color:#2fb8da; border-color:rgba(47,184,218,0.6); }
+        .adi-i2:hover .adi-tip { opacity:1; transform:translateY(0); }
       `}</style>
     </div>
   );

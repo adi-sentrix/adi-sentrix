@@ -2,6 +2,7 @@
 import { buildControlRing } from "./src/adi/sentrix/control.js";
 import { buildMarginDecomposition } from "./src/adi/sentrix/kpis.js";
 import { applyScenarioToClientesMargen } from "./src/engine/scenarios.js";
+import { METRIC_DEFS } from "./src/adi/sentrix/glossary.js";
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log("✅", m); } else { fail++; console.log("🚨", m); } };
@@ -16,13 +17,16 @@ ok(avg && avg.gap === 0 && /promedio/i.test(avg.name), "fila PROMEDIO (gap 0)");
 ok(best && best.gap > 0, "fila MEJOR-EN-CLASE (gap positivo)");
 ok(ring.rows.length >= 3, `el ring nunca es una fila sola (${ring.rows.length} filas)`);
 
-console.log("\n── CONSISTENCIA · identidad margen = 100 − costo − carga (cierra con brecha/recibo) ──");
-ring.rows.forEach((r) => ok(Math.abs((r.margen + r.carga + r.costo) - 100) < 0.15, `${r.name}: ${r.margen}+${r.carga}+${r.costo} ≈ 100`));
+console.log("\n── LA PLATA · contribución ($) reemplaza costo% (owner · la gente reacciona a la plata) ──");
+ok(ring.columns.some((c) => c.key === "contribucion"), "el ring tiene columna Contribución ($)");
+ok(!ring.columns.some((c) => c.key === "costo"), "el costo% ya NO es columna (vive en Diagnóstico/Evidencia)");
+[focus, peer, best].forEach((r) => ok(r.contribucion > 0, `${r.name}: contribución $${r.contribucion}K (el stake)`));
 
 console.log("\n── TRAZABILIDAD · el foco == el dato crudo ──");
 const cm = applyScenarioToClientesMargen("bonanza").find((c) => c.nombre === "Lider");
 ok(focus.margen === cm.margen, `margen foco ${focus.margen} == dato ${cm.margen}`);
 ok(focus.carga === Math.round(cm.pctRebate * 10) / 10, `carga foco ${focus.carga} == dato ${cm.pctRebate}`);
+ok(focus.contribucion === Math.round(cm.contribucion), `contribución foco ${focus.contribucion} == dato ${Math.round(cm.contribucion)}`);
 
 console.log("\n── LA PALANCA · dominante = la de la brecha · par instructivo la aísla ──");
 const d = buildMarginDecomposition("Lider", "bonanza");
@@ -36,7 +40,8 @@ console.log("\n── ELEGÍ UN CAMINO · techo estructural de costo ($ honesto)
 ok(ring.costoTechoK > 0, `techo de costo = $${ring.costoTechoK}K (si el costo llegara al promedio)`);
 
 console.log("\n── COLUMNAS del catálogo + GENERICIDAD ──");
-ok(ring.columns.length === 4 && ring.columns[0].key === "margen", "4 columnas (margen/carga/costo/gap)");
+ok(ring.columns.length === 4 && ring.columns[0].key === "margen", "4 columnas (margen/carga/contribución/gap)");
+ok(ring.columns.every((c) => c.defKey && METRIC_DEFS[c.defKey]), "cada columna resuelve su ayuda en el glosario (el 'i' muestra definición)");
 ok(buildControlRing("NoExiste", "bonanza") === null, "foco no-cliente → null (honesto · placeholder)");
 
 console.log("\n── SCENARIO-AWARE ──");
