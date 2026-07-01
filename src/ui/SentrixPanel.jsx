@@ -28,10 +28,10 @@ const CARD_SIDES = {
   boxShadow: "inset 7px 0 14px -9px rgba(47,184,218,0.5), inset -7px 0 14px -9px rgba(47,184,218,0.5)",
 };
 
-function Eyebrow({ children, tone = C.textMuted }) {
+function Eyebrow({ children, tone = C.textMuted, def }) {
   return (
     <div style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, color:tone, textTransform:"uppercase", letterSpacing:"1.4px", marginBottom:10 }}>
-      {children}
+      {children}{def && <InfoDot def={def} align="left"/>}
     </div>
   );
 }
@@ -464,6 +464,11 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <Hero rd={rd} decomp={decomp}/>
         </Card>
 
+        {/* COMPARANDO · el gráfico de comparación (dumbbell) · el que faltaba cuando elegís una entidad */}
+        {current.compareWith && current.focusType === "client" && (
+          <ComparacionChart a={current.focus} b={current.compareWith} scenario={evidence.periodo}/>
+        )}
+
         {decomp && <BrechaCard decomp={decomp}/>}
         {decomp && <BrechaFilm film={buildBrechaFilm(current.focus, evidence.periodo)}/>}
 
@@ -817,7 +822,7 @@ function BrechaCard({ decomp }) {
   return (
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-        <Eyebrow>La brecha, descompuesta</Eyebrow>
+        <Eyebrow def={METRIC_DEFS["La brecha descompuesta"]}>La brecha, descompuesta</Eyebrow>
         <span style={{ fontSize:11, color:C.textMuted, fontFamily:MONO }}>vs promedio {d.avgM}%</span>
       </div>
       {rows.map((r, i) => (
@@ -878,7 +883,7 @@ function BrechaFilm({ film }) {
   return (
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
-        <Eyebrow>La brecha en el tiempo</Eyebrow>
+        <Eyebrow def={METRIC_DEFS["La brecha en el tiempo"]}>La brecha en el tiempo</Eyebrow>
         <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.9px", textTransform:"uppercase", color:C.amber, border:`1px solid ${C.amber}55`, borderRadius:4, padding:"2px 7px" }}>Vista de ejemplo</span>
       </div>
       <div style={{ display:"flex", gap:6, marginBottom:6 }}>
@@ -930,6 +935,58 @@ function BrechaFilm({ film }) {
   );
 }
 
+// ── COMPARACIÓN CONTROLADA · el GRÁFICO que faltaba al comparar (dumbbell) · dos entidades en cada métrica ──
+// Escala AJUSTADA por métrica → la distancia entre los puntos ES la diferencia real (aunque sea 0.5pp se ve). Dato
+// real (buildMarginDecomposition de A y B) · cliente·margen. Revela la palanca que los separa.
+function ComparacionChart({ a, b, scenario }) {
+  const dA = buildMarginDecomposition(a, scenario), dB = buildMarginDecomposition(b, scenario);
+  if (!dA || !dB) return null;
+  const rows = [
+    { label: "Margen", va: dA.margen,   vb: dB.margen,   hiBetter: true  },
+    { label: "Carga",  va: dA.cargaPct, vb: dB.cargaPct, hiBetter: false },   // menos carga = mejor
+    { label: "Costo",  va: dA.costoPct, vb: dB.costoPct, hiBetter: false },   // menos costo = mejor
+  ];
+  const W = 520, padL = 62, padR = 54, rowH = 34, H = rows.length * rowH + 14;
+  const colA = C.elec, colB = C.teal;
+  // la palanca que separa: la métrica no-margen con mayor diferencia (a favor del que gana margen)
+  const bWins = dB.margen >= dA.margen;
+  const lever = Math.abs(dA.costoPct - dB.costoPct) >= Math.abs(dA.cargaPct - dB.cargaPct) ? "estructura de costo" : "carga comercial";
+  return (
+    <Card>
+      <Eyebrow def={METRIC_DEFS["Comparación controlada"]}>Comparación controlada</Eyebrow>
+      <div style={{ display:"flex", gap:16, marginBottom:4 }}>
+        {[[a, colA], [b, colB]].map(([nm, col]) => (
+          <span key={nm} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
+            <span style={{ width:9, height:9, borderRadius:"50%", background:col }}/>{nm}
+          </span>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        {rows.map((r, i) => {
+          const y = 16 + i * rowH;
+          const lo = Math.min(r.va, r.vb), hi = Math.max(r.va, r.vb), rng = Math.max(hi - lo, 1);
+          const axLo = lo - rng * 0.9, axHi = hi + rng * 0.9;
+          const x = (v) => padL + (v - axLo) / (axHi - axLo) * (W - padL - padR);
+          const xa = x(r.va), xb = x(r.vb);
+          return (
+            <g key={i}>
+              <text x={padL - 10} y={y + 4} textAnchor="end" fill={C.textSub} fontSize="11.5" fontFamily="'DM Sans', system-ui, sans-serif">{r.label}</text>
+              <line x1={Math.min(xa, xb)} y1={y} x2={Math.max(xa, xb)} y2={y} stroke={C.borderLight} strokeWidth="2.5" strokeLinecap="round"/>
+              <circle cx={xa} cy={y} r="5" fill={colA} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${colA}88)` }}/>
+              <circle cx={xb} cy={y} r="5" fill={colB} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${colB}88)` }}/>
+              <text x={xa} y={y - 9} textAnchor="middle" fill={colA} fontSize="9.5" fontFamily={MONO}>{r1(r.va)}%</text>
+              <text x={xb} y={y + 16} textAnchor="middle" fill={colB} fontSize="9.5" fontFamily={MONO}>{r1(r.vb)}%</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+        <span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>.
+      </div>
+    </Card>
+  );
+}
+
 // ── LA HISTORIA · evolutivo GLOBAL de ventas (dato real) · honestidad aplicada al tiempo (paso 4) ──
 // Dibuja SOLO lo que el dato sostiene: la película global de ventas (ventasMensuales). Cada cifra cierra con su
 // serie (regla madre). El por-entidad se bloquea honesto (nota al pie). SVG custom · sin librería gráfica.
@@ -959,7 +1016,7 @@ function EvolutivoCard() {
   ];
   const comp = view === "comp";
   const lines = comp ? SER.filter((s) => show[s.key])
-                     : [{ key:"seq", label:"Ventas · 24 meses", color:C.text, data:ev.seq24.map((p)=>p.v), dashed:false }];
+                     : [{ key:"seq", label:"Ventas · 24 meses", color:C.elec, data:ev.seq24.map((p)=>p.v), dashed:false }];
   const xlabels = comp ? ev.meses : ev.seq24.map((p) => p.mes);
   const allVals = lines.flatMap((l) => l.data);
   const lo0 = allVals.length ? Math.min(...allVals) : 0, hi0 = allVals.length ? Math.max(...allVals) : 1;
@@ -1001,7 +1058,7 @@ function EvolutivoCard() {
   return (
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 }}>
-        <Eyebrow>Evolución del negocio · ventas</Eyebrow>
+        <Eyebrow def={METRIC_DEFS["Evolución del negocio"]}>Evolución del negocio · ventas</Eyebrow>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <span style={{ fontFamily:MONO, fontSize:8.5, fontWeight:600, color:C.green, textTransform:"uppercase", letterSpacing:"0.7px", padding:"2px 6px", borderRadius:4, background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.16)" }}>dato real</span>
           {["comp","seq"].map((vv) => (
@@ -1026,6 +1083,9 @@ function EvolutivoCard() {
         {comp && show.actual && (
           <path d={`${ev.actual.map((v,i)=>`${i===0?"M":"L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ")} L${xAt(ev.actual.length-1).toFixed(1)},${(H-padB).toFixed(1)} L${xAt(0).toFixed(1)},${(H-padB).toFixed(1)} Z`} fill="url(#evoArea)" stroke="none"/>
         )}
+        {!comp && (   // 24 meses · misma sombra (área bajo la curva) que la vista de 12m
+          <path d={`${lines[0].data.map((v,i)=>`${i===0?"M":"L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ")} L${xAt(lines[0].data.length-1).toFixed(1)},${(H-padB).toFixed(1)} L${xAt(0).toFixed(1)},${(H-padB).toFixed(1)} Z`} fill="url(#evoArea)" stroke="none"/>
+        )}
         {lines.map((l) => (
           <path key={l.key} d={dPath(l.data)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={l.dashed?"5 3":"none"} opacity={l.dashed?0.65:1} style={{ filter: l.dashed ? "none" : `drop-shadow(0 0 5px ${l.color}66)` }}/>
         ))}
@@ -1034,8 +1094,8 @@ function EvolutivoCard() {
         ))}
         {showMarks && [{i:aIdxMax,v:ev.max,up:true},{i:aIdxMin,v:ev.min,up:false}].map((p,k)=>(
           <g key={"m"+k}>
-            <circle cx={xAt(xi(p.i))} cy={yAt(p.v)} r="3.5" fill={p.up?C.elec:C.red} stroke={C.bg} strokeWidth="1.5"/>
-            {hov==null && <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.elec:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fMon(p.v)}</text>}
+            <circle cx={xAt(xi(p.i))} cy={yAt(p.v)} r="3.5" fill={p.up?C.green:C.red} stroke={C.bg} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${(p.up?C.green:C.red)}88)` }}/>
+            {hov==null && <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.green:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fMon(p.v)}</text>}
           </g>
         ))}
         {xlabels.map((m,i)=> ((comp || i%3===0) ? (
@@ -1102,7 +1162,7 @@ function ConcentracionCard({ scenario, spec }) {
   return (
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
-        <Eyebrow>Concentración · regla 80/20</Eyebrow>
+        <Eyebrow def={METRIC_DEFS["Concentración"]}>Concentración · regla 80/20</Eyebrow>
         <div style={{ display:"flex", alignItems:"center", gap:4 }}>
           {sp.dims.map((d)=>(
             <button key={d.key} onClick={()=>{setDim(d.key);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10, fontFamily:"'DM Sans', system-ui, sans-serif", background: dim===d.key?"rgba(255,255,255,0.1)":"transparent", border:`1px solid ${dim===d.key?"rgba(255,255,255,0.4)":C.border}`, color: dim===d.key?C.text:C.textMuted }}>{d.label}</button>
