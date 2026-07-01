@@ -26,6 +26,7 @@ import { applyInvestigationContext, _d1ExtractCause, _d1fResolveEntityName } fro
 import { eclContIsPureContinuation, composeSkuDevelopment } from "./eclCont.js";
 import { composeModuleOverview } from "./composers/overview.js";
 import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-readiness · "se adueña de la conversación"
+import { detectMultiAsk, SUBQ, joinOr, normAsk } from "./composers/multiAsk.js";   // PEDIDO MÚLTIPLE (lista) → secuencial guiado
 import { composeHonestyGuard } from "./composers/honestyGuard.js";   // GAP 1 · guard de honestidad ante lo imposible
 import { buildSentrixBoleta } from "./sentrix/boleta.js";        // Etapa 5 · Sentrix S1 · boleta universal availability-driven
 import { buildReadingFromSignals, buildSkuMarginSignals } from "./sentrix/reading.js";    // Etapa 5 · Sentrix · pipeline único de lectura ejecutiva
@@ -46,7 +47,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -590,6 +591,44 @@ function _detectCutRefinement(text, ctx) {
   return { opener: `${q.N === 1 ? "El" : "Los"} ${q.N} ${_dirW} en ${_met}${_filt}: ${slice.map(x => `${x.entity} ${x.value}`).join(", ")}.` };
 }
 
+// ── PEDIDO MÚLTIPLE · secuencial guiado (se adueña · no puntea, no inventa cruce) · gated ADI_MULTI_ASK_ENABLED ──
+// Contesta UNA métrica sola con contexto LIMPIO (standalone · no contamina con el foco previo). __inSequence evita
+// re-detectar el multi-ask en la recursión. El estado conversacional real se preserva vía {...ctx} (no sub.context).
+function _seqSubAnswer(metric, scenario) {
+  return answerADI(SUBQ[metric] || metric, { __inSequence: true }, { scenario });
+}
+function _startSequence(metrics, ctx, scenario) {
+  const first = metrics[0], rest = metrics.slice(1);
+  const sub = _seqSubAnswer(first, scenario);
+  const nWord = metrics.length === 2 ? "dos" : metrics.length === 3 ? "tres" : String(metrics.length);
+  const header = `Pediste ${nWord} cosas — arranco por **${first}**:\n\n`;
+  const chain = rest.length ? `\n\n¿Sigo con ${joinOr(rest)}?` : "";
+  return { ...sub, text: header + (sub.text || "") + chain, suggestions: null, route: "multi_ask_sequence", intent: "multi_ask_sequence",
+    context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1, pendingSequence: rest.length ? { queue: rest, asked: metrics } : null } };
+}
+function _resolveSequence(trimmed, ctx, scenario) {
+  const seq = ctx.pendingSequence;
+  if (!seq || !seq.queue || !seq.queue.length) return null;
+  const q = normAsk(trimmed);
+  const _pend = (p) => ({ ...ctx, turnCount: (ctx.turnCount || 0) + 1, pendingSequence: p || null });
+  const named = seq.queue.find((m) => normAsk(m).split(" ").filter((w) => w.length > 3).some((w) => q.includes(w)));
+  const wantsAll = /\btodas?\b|\btodos?\b|las (dos|tres)|el resto|con todo|de una las/.test(q);
+  const affirm = /\bs[ií]\b|dale|segu[ií]|sigue|obvio|claro|\bok\b|de una|proxim|siguiente|adelante/.test(q);
+  const declines = !affirm && !named && !wantsAll && /\bno\b|basta|d[eé]jalo|listo|nada m[aá]s|despu[eé]s|luego|gracias/.test(q);
+  if (declines) return { text: `Listo. Cuando quieras seguimos con ${joinOr(seq.queue)}.`, route: "multi_ask_sequence", intent: "multi_ask_sequence", suggestions: null, sentrixAction: null, evidence: null, context: _pend(null) };
+  if (wantsAll) {
+    const parts = seq.queue.map((m) => `**${m}** —\n${(_seqSubAnswer(m, scenario).text || "")}`);
+    return { text: parts.join("\n\n───\n\n") + `\n\nCon eso cubrí las ${seq.asked.length}.`, route: "multi_ask_sequence", intent: "multi_ask_sequence", suggestions: null, sentrixAction: null, evidence: null, context: _pend(null) };
+  }
+  if (named || affirm) {
+    const next = named || seq.queue[0], rest = seq.queue.filter((m) => m !== next);
+    const sub = _seqSubAnswer(next, scenario);
+    const chain = rest.length ? `\n\n¿Sigo con ${joinOr(rest)}?` : `\n\nCon eso cubrí las ${seq.asked.length}.`;
+    return { ...sub, text: (sub.text || "") + chain, suggestions: null, route: "multi_ask_sequence", intent: "multi_ask_sequence", context: _pend(rest.length ? { ...seq, queue: rest } : null) };
+  }
+  return null;
+}
+
 export function answerADI(question, context = {}, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   let trimmed = (question || "").trim();
@@ -607,6 +646,18 @@ export function answerADI(question, context = {}, state = {}) {
   // Etapa 5 · Sentrix · el texto de la pregunta viaja en ctx para el RUTEO DE LENTE de la boleta (qué lente abre
   // ADI según la intención). Inerte para el motor (nadie más lo lee) · con flags OFF la boleta ni se construye.
   ctx = { ...ctx, __query: trimmed };
+  // ── PEDIDO MÚLTIPLE · secuencial guiado ── (a) continuación de una cola pendiente (turno N+1: "sí"/"márgenes"/
+  // "todas"/"no"); (b) detección de un pedido nuevo (lista de ≥2 métricas). Gated · __inSequence evita re-entrar en
+  // la recursión. OFF = byte-exacto (cae al smart-guide/avisar). El CRUCE ("ventas contra margen") NO cae acá.
+  if (ADI_MULTI_ASK_ENABLED && !ctx.__inSequence) {
+    if (ctx.pendingSequence) {
+      const _cont = _resolveSequence(trimmed, ctx, scenario);
+      if (_cont) return _cont;                                  // continuó / cerró la secuencia
+      ctx = { ...ctx, pendingSequence: null };                  // no era continuación → descarta la cola y sigue
+    }
+    const _ms = detectMultiAsk(trimmed);
+    if (_ms) return _startSequence(_ms, ctx, scenario);         // pedido múltiple nuevo → arranca la secuencia
+  }
   // ── ADI Core · 2.2a-2 parte A · TOPIC-CHANGE cleanup (en el ORIGEN · cierra las 2 puertas) ──
   // Una pregunta de alcance global limpia el foco de cliente ANTES de detectIntent (puerta 1: follow-up
   // greedy detectClientMetricFollowUp) y del bloque ECL-CONT (puerta 2: MODO1 getClientDeepDive). Reasigna
