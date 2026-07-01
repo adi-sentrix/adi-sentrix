@@ -5,6 +5,12 @@
 import { datasetCapability, entityExplorable } from "./capability.js";
 import { ADI_SENTRIX_EXPLORE_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED } from "../../config/voiceFlags.js";
 
+// B2 · ENUM CANÓNICO de eje · UN token por eje para que el LLM lea/emita sin dialectos por-ruta (hoy la boleta recibía
+// 'client' del ranking vs 'cliente' del qi vs 'sucursal' del spine capital). Canónico = English (lo que ya usan
+// reading.focusType + capability.entityExplorable + los packs del panel). Los English pasan igual; Spanish/sucursal se mapean.
+const _CANON = { cliente: "client", clientes: "client", sku: "sku", skus: "sku", producto: "sku", productos: "sku", marca: "marca", marcas: "marca", bodega: "bodega", bodegas: "bodega", sucursal: "bodega", sucursales: "bodega" };
+const _canonType = (t) => { const k = t && String(t).toLowerCase(); return (k && _CANON[k]) || t || null; };
+
 // RUTEO DE LENTE · ADI elige qué lente abre Sentrix leyendo la INTENCIÓN de la pregunta (mismo dato, distinta
 // intención). "probame / la cuenta / de dónde sale" → Evidencia (el recibo) · "qué hago / comparar / recuperar /
 // palanca" → Control (la mesa) · el resto → Diagnóstico (la historia · el default). El panel VALIDA que la lente
@@ -45,9 +51,9 @@ export function buildSentrixBoleta(resp, intent, route, scenario, ctx) {
       return {
         ...ev,
         entidad: null,
-        entityType: dim,               // "cliente"/"sku"/"marca"/"bodega" · CuadroOnlyPanel lo mapea a la dimensión del grid
+        entityType: _canonType(dim),   // enum canónico (client/sku/marca/bodega) · CuadroOnlyPanel lo mapea a la dimensión del grid
         metrica: met,
-        dimension: dim,
+        dimension: _canonType(dim),
         periodo: ev.periodo || scenario || null,
         lens: "cuadro",
         fuente: ev.fuente || "ventas + costos",
@@ -66,9 +72,9 @@ export function buildSentrixBoleta(resp, intent, route, scenario, ctx) {
   return {
     ...ev,                                                  // conserva ranking_*/query_plan/formula/… del composer
     entidad,
-    entityType,
+    entityType: _canonType(entityType),                    // B2 · enum canónico de eje (client/sku/marca/bodega)
     metrica,
-    dimension: ev.dimension || (intent && intent.dimension) || null,
+    dimension: _canonType(ev.dimension || (intent && intent.dimension) || null),
     periodo: ev.periodo || scenario || null,
     lens: ev.lens || _lensFor(route, ctx && ctx.__query),  // qué lente abre Sentrix (ruteo por intención · el panel la valida)
     fuente: ev.fuente || "ventas + costos",
@@ -80,7 +86,7 @@ export function buildSentrixBoleta(resp, intent, route, scenario, ctx) {
     // El spine (bodega) no setea entidad/entityType a nivel boleta → fallback al foco de la lectura.
     ...(() => {
       if (!ADI_SENTRIX_EXPLORE_ENABLED) return {};
-      const exType = entityType || (ev.reading && ev.reading.focusType) || null;
+      const exType = _canonType(entityType || (ev.reading && ev.reading.focusType) || null);
       const exEnt = entidad || (ev.reading && ev.reading.focus) || null;
       return exType && exEnt ? { explorable: entityExplorable(exType, exEnt) } : {};
     })(),

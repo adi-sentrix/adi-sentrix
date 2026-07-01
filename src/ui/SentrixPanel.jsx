@@ -367,9 +367,9 @@ const packFor = (rd) => PANEL_PACKS[rd.kind] || GENERIC_PACK;
 // header + una sola pestaña (Cuadro) + la grilla, abierta en la dimensión del ranking.
 function CuadroOnlyPanel({ evidence, onClose, onToggleMax, maximized }) {
   const metricLabel = (evidence.metrica || "ranking").toString().toUpperCase();
-  const initialDim = evidence.entityType === "sku" ? "sku"
-    : evidence.entityType === "bodega" ? "bodega"
-    : evidence.entityType === "marca" ? "marca" : "cliente";
+  // enum canónico de la boleta (client/sku/marca/bodega) → dimensión del grid (cliente/sku/marca/bodega) · robusto a
+  // variantes/sucursal (antes 'sucursal' caía silenciosamente al grid de clientes · bug latente que B2 cierra).
+  const initialDim = ({ sku: "sku", marca: "marca", bodega: "bodega", sucursal: "bodega", client: "cliente", cliente: "cliente", clientes: "cliente" })[String(evidence.entityType || "").toLowerCase()] || "cliente";
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
