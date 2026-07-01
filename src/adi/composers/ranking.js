@@ -1,7 +1,7 @@
 /* === adi/composers/ranking.js ===
  * Composer de ancla extraído de 41cc33d8 · verbatim · solo imports agregados. */
 import { RANKING_EXTREMES_METRICS } from "../../config/rankingData.js";
-import { ADI_RANKING_NL_DIRECTION_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED, VOICE_RANKING_EXTREMES_ENABLED } from "../../config/voiceFlags.js";
+import { ADI_RANKING_NL_DIRECTION_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_RANKING_DEFAULT_METRIC_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED, VOICE_RANKING_EXTREMES_ENABLED } from "../../config/voiceFlags.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { buildReframe, buildSuggestedAction, calculateRecoverable, classifySeverity, detectInternalDriver } from "../../engine/signals.js";
@@ -234,7 +234,19 @@ export function detectRankingExtremesIntent(text, ctx) {
   // Re-resolver métrica con entityType ya conocido (mejora desambiguación
   // margen → sku_margen vs margen según hint)
   metric = _detectMetricInText(normalized, entityType);
-  if (!metric) return null;
+  if (!metric) {
+    // DEFAULT-METRIC del ranking panorámico ("los N mejores/peores clientes/SKU" · N explícito o "top", SIN métrica
+    // nombrada) → en vez de abortar (lo que dejaba al guard de número DIFERIR el caso con dígito), damos la métrica
+    // comercial natural (cliente → contribucion · SKU → sku_margen) → composeRankingExtremes arma la lista real con
+    // sentrixAction + evidence → el boleta abre el Cuadro. Scope estricto: solo con N explícito o "top" (el "mejores
+    // clientes" PELADO sigue sin métrica → honest_fallback · gate [36] intacto). Flag OFF = aborta igual que hoy.
+    const _hasExplicitN = /\b(?:los|las)?\s*\d+\s+(?:peor|peores|mejor|mejores|mas|menor|menores|mayor|mayores)\b/.test(normalized) || /\btop\b/.test(normalized);
+    if (ADI_RANKING_DEFAULT_METRIC_ENABLED && _hasExplicitN) {
+      metric = entityType === "sku" ? "sku_margen" : "contribucion";
+    } else {
+      return null;
+    }
+  }
 
   // Validar que el metric pertenece al entityType correcto
   const spec = RANKING_EXTREMES_METRICS[metric];

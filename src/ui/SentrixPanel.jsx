@@ -362,6 +362,50 @@ const PANEL_PACKS = {
 const GENERIC_PACK = { title: (rd) => `Por qué ${rd.focus}`, Hero: GenericHero, Evidence: null };
 const packFor = (rd) => PANEL_PACKS[rd.kind] || GENERIC_PACK;
 
+// ── RANKING PANORÁMICO · el Cuadro directo (sin foco único) · "los N mejores/peores clientes/SKU" → la grilla ──
+// El ranking no trae reading de UNA entidad; el Cuadro es panorámico (vista de dimensión completa). Shell mínimo:
+// header + una sola pestaña (Cuadro) + la grilla, abierta en la dimensión del ranking.
+function CuadroOnlyPanel({ evidence, onClose, onToggleMax, maximized }) {
+  const metricLabel = (evidence.metrica || "ranking").toString().toUpperCase();
+  const initialDim = evidence.entityType === "sku" ? "sku"
+    : evidence.entityType === "bodega" ? "bodega"
+    : evidence.entityType === "marca" ? "marca" : "cliente";
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span>
+            <span style={{ opacity:0.4 }}>›</span><span>{metricLabel}</span>
+            <span style={{ opacity:0.4 }}>›</span><span>RANKING</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>
+              {maximized
+                ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></>
+                : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}
+            </IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
+          <span style={{ color:C.textMuted }}>Demostrando: </span>el ranking completo — ordená, filtrá y compará en el Cuadro de mando.
+        </div>
+      </div>
+      {ADI_SENTRIX_SHELL_ENABLED && (
+        <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:"#000000" }}>
+          <button style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${C.text}`, color:C.text, fontSize:12.5, fontWeight:600, cursor:"default", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>Cuadro de mando</button>
+        </div>
+      )}
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
+        {/* key por dimensión → si se abre otro ranking de distinta dimensión (cliente→sku) sin cerrar, remonta en la nueva */}
+        <CuadroMando key={initialDim} scenario={evidence.periodo} initialDim={initialDim}/>
+      </div>
+    </div>
+  );
+}
+
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
   const baseRd = evidence && evidence.reading;
   const baseFocus = baseRd && baseRd.focus;
@@ -379,7 +423,14 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   };
   const [tab, setTab] = useState(() => _routedTab(baseRd || {}, evidence && evidence.lens));   // shell · lente activa (Diagnóstico|Evidencia|Control)
   useEffect(() => { if (baseRd) { setStack([mkBase(baseRd)]); setTab(_routedTab(baseRd, evidence.lens)); } }, [baseFocus]);   // nueva respuesta → lente ruteada
-  if (!baseRd) return null;
+  if (!baseRd) {
+    // RANKING PANORÁMICO → el Cuadro directo. "los N mejores/peores clientes/SKU" no tiene un foco ÚNICO (no hay reading
+    // de UNA entidad), pero el Cuadro es una vista de dimensión COMPLETA que no necesita foco → abrimos el Cuadro solo,
+    // en la dimensión del ranking. Sin esto el panel no renderiza (exige baseRd). Gated CUADRO · sin-lente/OFF = null (byte-exacto).
+    if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
+      return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    return null;
+  }
 
   const frames = stack.length ? stack : [mkBase(baseRd)];
   const current = frames[frames.length - 1];
@@ -789,8 +840,8 @@ function ControlRing({ ring, rd }) {
 // ── CUADRO DE MANDO (4ª lente) · la GRILLA operable · cockpit: ver y manejar TODO el dato ──
 // Dimensiones (clientes/SKU/marcas/bodegas) × columnas del catálogo · ordenar · top-N · en-alerta · seleccionar y
 // comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
-function CuadroMando({ scenario }) {
-  const [dim, setDim] = useState("cliente");
+function CuadroMando({ scenario, initialDim }) {
+  const [dim, setDim] = useState(initialDim || "cliente");
   const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
   const [mode, setMode] = useState("all");            // all | top | bottom | alert
