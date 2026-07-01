@@ -3,7 +3,7 @@
  * Presentación pura · NO cambia el texto (solo envuelve cifras/entidades en <span> con estilo);
  * el textContent renderizado es byte-idéntico al texto que entrega answerADI. */
 import React from "react";
-import { FINANCIAL_HIGHLIGHT, FINANCIAL_PLAIN, KNOWN_ENTITIES } from "./theme.js";
+import { FINANCIAL_HIGHLIGHT, FINANCIAL_PLAIN, FINANCIAL_TABULAR, KNOWN_ENTITIES } from "./theme.js";
 
 export function isTabularText(text) {
   if (!text) return false;
@@ -50,10 +50,11 @@ export function tokenizeFinancialText(text) {
   return tokens;
 }
 
-export function renderWithFinancialHighlight(text, keyPrefix="fh", forcePlain=false) {
+export function renderWithFinancialHighlight(text, keyPrefix="fh", forcePlain=false, tabular=false) {
   const tokens = tokenizeFinancialText(text);
   if (tokens.length <= 1) return text; // Sin matches · devuelve string crudo
-  const styleSet = forcePlain ? FINANCIAL_PLAIN : FINANCIAL_HIGHLIGHT;
+  // TABULAR: estilos color-only (heredan la fuente MONO del contenedor → columnas alineadas). Chips normales en prosa.
+  const styleSet = tabular ? FINANCIAL_TABULAR : (forcePlain ? FINANCIAL_PLAIN : FINANCIAL_HIGHLIGHT);
   return tokens.map((t, i) => {
     if (t.type === "plain") return t.text;
     const style = styleSet[t.type];
@@ -61,12 +62,13 @@ export function renderWithFinancialHighlight(text, keyPrefix="fh", forcePlain=fa
   });
 }
 
-export function renderMarkdownLite(text) {
+export function renderMarkdownLite(text, tabular=false) {
   if (!text) return null;
 
   // Detección de contexto tabular: si el texto tiene alineación columnar
   // (2+ espacios consecutivos entre caracteres), suprimimos chips en cifras
   // para no romper la visualidad de tabla. En prosa narrativa: chips normales.
+  // `tabular` (lo pasa AdiMessageBody al renderizar el bloque en MONO) → estilos color-only para alinear columnas.
   const forcePlain = isTabularText(text);
 
   // Tokenize the string into segments of plain text + bold + italic.
@@ -78,26 +80,26 @@ export function renderMarkdownLite(text) {
   while (remaining.length > 0) {
     const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
     if (boldMatch) {
-      segments.push(<strong key={`md-${key++}`}>{renderWithFinancialHighlight(boldMatch[1], `md-${key}b`, forcePlain)}</strong>);
+      segments.push(<strong key={`md-${key++}`}>{renderWithFinancialHighlight(boldMatch[1], `md-${key}b`, forcePlain, tabular)}</strong>);
       remaining = remaining.slice(boldMatch[0].length);
       continue;
     }
 
     const italicMatch = remaining.match(/^\*([^*]+)\*/);
     if (italicMatch) {
-      segments.push(<em key={`md-${key++}`}>{renderWithFinancialHighlight(italicMatch[1], `md-${key}i`, forcePlain)}</em>);
+      segments.push(<em key={`md-${key++}`}>{renderWithFinancialHighlight(italicMatch[1], `md-${key}i`, forcePlain, tabular)}</em>);
       remaining = remaining.slice(italicMatch[0].length);
       continue;
     }
 
     const nextMarker = remaining.indexOf("*");
     if (nextMarker === -1) {
-      segments.push(<span key={`md-${key++}`}>{renderWithFinancialHighlight(remaining, `md-${key}p`, forcePlain)}</span>);
+      segments.push(<span key={`md-${key++}`}>{renderWithFinancialHighlight(remaining, `md-${key}p`, forcePlain, tabular)}</span>);
       break;
     }
 
     if (nextMarker > 0) {
-      segments.push(<span key={`md-${key++}`}>{renderWithFinancialHighlight(remaining.slice(0, nextMarker), `md-${key}p`, forcePlain)}</span>);
+      segments.push(<span key={`md-${key++}`}>{renderWithFinancialHighlight(remaining.slice(0, nextMarker), `md-${key}p`, forcePlain, tabular)}</span>);
       remaining = remaining.slice(nextMarker);
     } else {
       segments.push(<span key={`md-${key++}`}>{remaining.charAt(0)}</span>);

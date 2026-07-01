@@ -57,6 +57,20 @@ export const FINANCIAL_PLAIN = {
   entity:{ color:"#eef2f6", fontWeight:600 },
 };
 
+// Estilos TABULAR · SOLO color/peso · SIN font-family ni font-size → heredan del contenedor monoespaciado →
+// alineación de columnas perfecta (bold-mono = mismo ancho que regular-mono · cifras y texto al mismo tamaño).
+export const FINANCIAL_TABULAR = {
+  money: { color:"#FFFFFF", fontWeight:600 },
+  pct:   { color:"#FFFFFF", fontWeight:600 },
+  unit:  { color:"#FFFFFF", fontWeight:600 },
+  mult:  { color:"#FFFFFF", fontWeight:600 },
+  ratio: { color:"#FFFFFF", fontWeight:600 },
+  pp:    { color:"#fde047", fontWeight:600 },
+  up:    { color:"#10b981", fontWeight:600 },
+  down:  { color:"#f43f5e", fontWeight:600 },
+  entity:{ color:"#eef2f6", fontWeight:600 },
+};
+
 export const KNOWN_ENTITIES = [
   "Mercado Libre", "Falabella", "Lider", "Líder", "Jumbo", "Sodimac",
   "Tottus", "Paris", "Ripley", "Easy", "La Polar", "Hites", "ABC", "Unimarc"

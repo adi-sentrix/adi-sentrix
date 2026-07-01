@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { C } from "./theme.js";
-import { renderMarkdownLite } from "./markdown.jsx";
+import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
@@ -104,6 +104,20 @@ export function AdiMessageBody({ text }) {
           }}>
             Recomendación
           </span>
+        </div>
+      );
+    }
+    // Bloque TABULAR (columnas alineadas con padding de espacios · ej. "ventas por cliente") → contenedor MONOESPACIADO
+    // con whiteSpace:pre (preserva TODOS los espacios) → las cifras quedan parejas. El texto crudo ya viene alineado en
+    // monoespaciado; el chat lo rompía al mezclar 'DM Sans' bold (entidades) + JetBrains Mono (cifras). Byte-idéntico (solo render).
+    if (isTabularText(trimmed)) {
+      return (
+        <div key={`block-${blockIdx}`} style={{
+          margin: "2px 0 18px 0", whiteSpace: "pre", overflowX: "auto",
+          fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 13, lineHeight: 1.75,
+          color: C.textSub, letterSpacing: 0
+        }}>
+          {renderMarkdownLite(block, true)}
         </div>
       );
     }
