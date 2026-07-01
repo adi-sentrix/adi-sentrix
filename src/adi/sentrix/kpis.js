@@ -96,10 +96,10 @@ export function buildMarginReceipt(focus, scenario) {
     { label: "Margen",           usd: margenUSD, pct: d.margen,   sign: "=", source: "derivado · venta − costo − carga",   tone: "margen", strong: true },
   ];
   const benchmark = cm ? cm.benchmark : null;
-  const comparison = {
-    avgM: d.avgM, gapProm: d.gap,                                              // vs promedio interno (− = bajo)
-    benchmark, gapBench: benchmark != null ? _r1(d.margen - benchmark) : null, // vs benchmark de industria
-  };
+  const comparison = [                                                          // + = mejor · unidad pp
+    { label: "Promedio interno", base: `${d.avgM}%`, gap: d.gap, unit: "pp" },
+    ...(benchmark != null ? [{ label: "Benchmark industria", base: `${benchmark}%`, gap: _r1(d.margen - benchmark), unit: "pp" }] : []),
+  ];
   const confianza = { level: "Alta", reason: "cuenta cerrada con dato del período — sin estimaciones (venta − costo − carga = margen, cierra exacto)" };
   // LÍMITES honestos · derivados de la capa de disponibilidad (no inventados)
   const limites = [];
@@ -108,7 +108,47 @@ export function buildMarginReceipt(focus, scenario) {
     limites.push(`La evolución del margen de ${focus} mes a mes: el histórico por cliente aún es sintético — se enciende con el ERP.`);
   (entityExplorable("client", focus).blocked || []).forEach((b) =>
     limites.push(`El desglose de ${b.view}: ${b.reason}.`));
-  return { focus, venta, lines, comparison, confianza, limites, dominant: d.dominant, thesis: d.thesis };
+  return { entityType: "client", focus, venta, lines, comparison, confianza, limites, dominant: d.dominant, thesis: d.thesis };
+}
+
+// EL RECIBO FRÍO de una BODEGA (inventario) · la cuenta del capital: capital = sano (rota) + inmovilizado (atrapado)
+// → cierra exacto. Misma forma que el de cliente (lines/comparison/confianza/limites) → UN componente los renderiza
+// ambos. Fuentes ERP · comparación vs promedio de bodegas · límites honestos de inventario. Puro · testable.
+export function buildCapitalReceipt(focus, scenario) {
+  const s = scenario || "bonanza";
+  const allInv = applyScenarioToSkuInventario(s) || [];
+  const inv = allInv.filter((x) => x.bodega === focus);
+  if (!inv.length) return null;
+  const inmov = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;   // def canónica
+  const cap = inv.reduce((a, x) => a + x.stockUSD, 0);
+  const inmovCap = inv.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
+  const sano = cap - inmovCap;
+  const inmovPct = cap ? inmovCap / cap * 100 : 0, sanoPct = 100 - inmovPct;
+  const rot = inv.reduce((a, x) => a + x.rotacion, 0) / inv.length;
+  const lines = [
+    { label: "Capital en stock",       usd: cap,      pct: 100,           sign: "",  source: "ERP · valor de inventario",         tone: "base"  },
+    { label: "Capital que rota (sano)", usd: sano,     pct: _r1(sanoPct),  sign: "−", source: "rotación ≥ 2 · sin alerta",         tone: "base"  },
+    { label: "Inmovilizado (atrapado)", usd: inmovCap, pct: _r1(inmovPct), sign: "=", source: "en alerta o rotación < 2",          tone: "carga", strong: true },
+  ];
+  // comparación vs el promedio de las bodegas (+ = mejor: menos inmovilizado / más rotación)
+  const names = [...new Set(allInv.map((x) => x.bodega))];
+  const per = names.map((b) => {
+    const r = allInv.filter((x) => x.bodega === b), c = r.reduce((a, x) => a + x.stockUSD, 0);
+    const im = r.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
+    return { inmovPct: c ? im / c * 100 : 0, rot: r.reduce((a, x) => a + x.rotacion, 0) / r.length };
+  });
+  const avgInmovPct = per.reduce((a, x) => a + x.inmovPct, 0) / per.length;
+  const avgRot = per.reduce((a, x) => a + x.rot, 0) / per.length;
+  const comparison = [
+    { label: "Inmovilización vs promedio", base: `${_r1(avgInmovPct)}%`, gap: _r1(avgInmovPct - inmovPct), unit: "pp" },   // + = menos inmov = mejor
+    { label: "Rotación vs promedio",       base: `${_r1(avgRot)}x`,      gap: _r1(rot - avgRot),            unit: "x"  },   // + = rota más = mejor
+  ];
+  const confianza = { level: "Alta", reason: "dato del ERP point-in-time — sin estimaciones (sano + inmovilizado = capital, cierra exacto)" };
+  const limites = [   // honestos, propios de inventario (no hay serie temporal · no hay proyección por SKU)
+    `La evolución del capital de ${focus} mes a mes: el inventario es point-in-time, no hay serie histórica — se enciende con el ERP.`,
+    `Cuándo se venderá cada SKU: solo tengo el ritmo de rotación actual, no una proyección por fecha.`,
+  ];
+  return { entityType: "bodega", focus, lines, comparison, confianza, limites };
 }
 
 function _bodegaKPIs(name, s) {

@@ -11,7 +11,7 @@ import { buildComparisonReading, buildReadingFromSignals, buildClientContribSign
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
-import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6 · tira + descomposición + recibo
+import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6 · tira + descomposición + recibo (cliente/bodega)
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
@@ -378,8 +378,11 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     ? buildMarginDecomposition(current.focus, evidence.periodo) : null;
   // EL MOTOR arma la superficie del Diagnóstico (qué gráficos + métrica/dims) según el foco · LLM-ready (surface.js).
   const charts = diagnosisCharts(current.focusType);
-  // EVIDENCIA enriquecida · el recibo frío (fórmula+fuentes+confianza+límites) para el caso cliente·margen (reusa decomp).
-  const receipt = decomp ? buildMarginReceipt(current.focus, evidence.periodo) : null;
+  // EVIDENCIA enriquecida · el recibo frío (fórmula+fuentes+confianza+límites) · cliente·margen O bodega·capital.
+  const receipt = current.compareWith ? null
+    : (current.focusType === "client" && decomp) ? buildMarginReceipt(current.focus, evidence.periodo)
+    : (current.focusType === "bodega") ? buildCapitalReceipt(current.focus, evidence.periodo)
+    : null;
   // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente + bodega · null → placeholder.
   const ring = ((current.focusType === "client" || current.focusType === "bodega") && !current.compareWith)
     ? buildControlRing(current.focusType, current.focus, evidence.periodo) : null;
@@ -549,14 +552,14 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 // ── EVIDENCIA ENRIQUECIDA · el RECIBO FRÍO (brick 6) · "no me creas, acá está la cuenta" ──
 // Fórmula venta−costo−carga=margen con cada cifra + su FUENTE (ERP), la base de comparación, la confianza y los
 // LÍMITES honestos (lo que el dato NO afirma · derivados de capability). Todo del buildMarginReceipt (motor).
-function CompChip({ label, base, gap }) {
+function CompChip({ label, base, gap, unit = "pp" }) {
   const up = gap >= 0;
   return (
     <div style={{ padding:"10px 13px", borderRadius:10, background:"rgba(255,255,255,0.022)", border:`1px solid ${C.border}` }}>
       <div style={{ fontSize:11, color:C.textMuted, marginBottom:6 }}>{label}</div>
       <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
         <Num color={C.textSub}>{base}</Num>
-        <Num color={up ? C.green : C.red}>{(up ? "+" : "") + r1(gap)}pp</Num>
+        <Num color={up ? C.green : C.red}>{(up ? "+" : "") + r1(gap) + unit}</Num>
       </div>
     </div>
   );
@@ -564,11 +567,16 @@ function CompChip({ label, base, gap }) {
 function EvidenciaRecibo({ receipt: r }) {
   const toneColor = { base: C.text, costo: C.red, carga: C.amber, margen: C.text };
   const pctColor  = { base: C.textMuted, costo: C.red, carga: C.amber, margen: C.textSub };
+  // unidad de la plata: cliente en $K · bodega en $ (stockUSD) → mismo formateo por-tipo que el ring (no errar ×1000).
+  const money = r.entityType === "bodega"
+    ? (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "K" : "$" + Math.round(v))
+    : (v) => fMon(v);
+  const formula = r.entityType === "bodega" ? "capital = sano + inmovilizado" : "venta − costo − carga = margen";
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       {/* LA CUENTA · fórmula con fuentes */}
       <Card>
-        <Eyebrow>La cuenta · venta − costo − carga = margen</Eyebrow>
+        <Eyebrow>La cuenta · {formula}</Eyebrow>
         <div style={{ display:"flex", flexDirection:"column", marginTop:2 }}>
           {r.lines.map((l, i) => (
             <div key={i} style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14,
@@ -583,7 +591,7 @@ function EvidenciaRecibo({ receipt: r }) {
                 <div style={{ fontFamily:MONO, fontSize:9.5, color:C.textMuted, letterSpacing:"0.4px", textTransform:"uppercase", marginLeft:17, marginTop:4 }}>{l.source}</div>
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
-                <Num color={toneColor[l.tone]} size={l.strong ? "1.2em" : "0.98em"}>{fMon(l.usd)}</Num>
+                <Num color={toneColor[l.tone]} size={l.strong ? "1.2em" : "0.98em"}>{money(l.usd)}</Num>
                 <div style={{ fontFamily:MONO, fontSize:11, color:pctColor[l.tone], marginTop:4 }}>{r1(l.pct)}%</div>
               </div>
             </div>
@@ -591,14 +599,15 @@ function EvidenciaRecibo({ receipt: r }) {
         </div>
       </Card>
 
-      {/* BASE DE COMPARACIÓN · contra qué se mide */}
-      <div>
-        <Eyebrow>Contra qué se mide</Eyebrow>
-        <div style={{ display:"grid", gridTemplateColumns: r.comparison.benchmark != null ? "1fr 1fr" : "1fr", gap:9 }}>
-          <CompChip label="Promedio interno" base={`${r.comparison.avgM}%`} gap={r.comparison.gapProm}/>
-          {r.comparison.benchmark != null && <CompChip label="Benchmark industria" base={`${r.comparison.benchmark}%`} gap={r.comparison.gapBench}/>}
+      {/* BASE DE COMPARACIÓN · contra qué se mide (array genérico · cliente: prom/benchmark · bodega: inmov/rotación) */}
+      {r.comparison && r.comparison.length > 0 && (
+        <div>
+          <Eyebrow>Contra qué se mide</Eyebrow>
+          <div style={{ display:"grid", gridTemplateColumns: r.comparison.length > 1 ? "1fr 1fr" : "1fr", gap:9 }}>
+            {r.comparison.map((c, i) => <CompChip key={i} label={c.label} base={c.base} gap={c.gap} unit={c.unit}/>)}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* CONFIANZA · el sello verde (cuenta cerrada) */}
       <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px", borderRadius:10, background:"rgba(16,185,129,0.05)", border:"1px solid rgba(16,185,129,0.14)" }}>
