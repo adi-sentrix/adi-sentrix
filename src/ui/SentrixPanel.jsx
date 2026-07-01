@@ -89,6 +89,12 @@ const fmtK = (n) => "$" + Math.round(n || 0) + "K";
 // (100000→$100.0M · 92900→$92.9M · 6800→$6.8M · -600→−$0.6M). Misma fuente de verdad que el header.
 const fMon = (n) => { const s = (Number(n) || 0) < 0 ? "−" : "", v = Math.abs(Number(n) || 0) / 1000; return s + "$" + v.toFixed(1) + "M"; };
 const r1 = (n) => Math.round(n * 10) / 10;
+// aclara un color hex hacia el blanco (para puntos de gráfico más claros que su curva)
+const _lighten = (hex, amt = 0.45) => {
+  const h = (hex || "").replace("#", ""); if (h.length < 6) return hex;
+  const c = (i) => { const v = parseInt(h.slice(i, i + 2), 16); return Math.round(v + (255 - v) * amt); };
+  return `rgb(${c(0)},${c(2)},${c(4)})`;
+};
 
 // ══════════════════════════ PACKS (espejo del renderer · kind → {title, Hero, Evidence}) ══════════════════════════
 
@@ -910,12 +916,12 @@ function BrechaFilm({ film }) {
         {shown.map((s) => (
           <path key={s.key} d={smooth(s.data)} fill="none" stroke={s.color} strokeWidth={s.key === "margen" ? 2.4 : 1.8} strokeLinecap="round" strokeLinejoin="round" style={{ filter:`drop-shadow(0 0 5px ${s.color}66)` }}/>
         ))}
-        {/* un punto en CADA mes (para ver todos los datos) · el último (HOY · dato real) más grande con glow */}
+        {/* un punto en CADA mes (para ver todos los datos) · tono MÁS CLARO que la curva · el último (HOY · dato real) más grande con glow */}
         {shown.map((s) => s.data.map((v, i) => (
-          <circle key={"pt" + s.key + i} cx={xAt(i)} cy={yAt(v)} r={i === n - 1 ? 3.2 : 2.1} fill={s.color} stroke={C.bg} strokeWidth={i === n - 1 ? 1.5 : 0.8}
+          <circle key={"pt" + s.key + i} cx={xAt(i)} cy={yAt(v)} r={i === n - 1 ? 3.2 : 2.1} fill={_lighten(s.color)} stroke={C.bg} strokeWidth={i === n - 1 ? 1.5 : 0.8}
             style={i === n - 1 ? { filter:`drop-shadow(0 0 4px ${s.color}88)` } : undefined}/>
         )))}
-        {film.meses.map((m, i) => (i % 2 === 0 ? <text key={"x" + i} x={xAt(i)} y={H - padB + 12} fill={C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="middle">{m}</text> : null))}
+        {film.meses.map((m, i) => <text key={"x" + i} x={xAt(i)} y={H - padB + 12} fill={C.textMuted} fontSize="7" fontFamily={MONO} textAnchor="middle">{m}</text>)}
         {/* hitboxes de hover (uno por mes) · igual que el evolutivo */}
         {film.meses.map((m, i) => <rect key={"hb" + i} x={xAt(i) - stepX / 2} y={padT} width={stepX} height={H - padT - padB} fill="transparent" onMouseEnter={() => setHov(i)}/>)}
         {/* guía + puntos + tooltip al situarse en la curva */}
