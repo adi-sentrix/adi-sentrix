@@ -14,6 +14,7 @@ import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentra
 import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6 · tira + descomposición + recibo
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
+import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -379,6 +380,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const charts = diagnosisCharts(current.focusType);
   // EVIDENCIA enriquecida · el recibo frío (fórmula+fuentes+confianza+límites) para el caso cliente·margen (reusa decomp).
   const receipt = decomp ? buildMarginReceipt(current.focus, evidence.periodo) : null;
+  // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente hoy · null → placeholder.
+  const ring = (current.focusType === "client" && !current.compareWith) ? buildControlRing(current.focus, evidence.periodo) : null;
 
   // operaciones del estado (empujan/actualizan frames)
   const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
@@ -534,7 +537,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
               </div>
         )}
 
-        {ADI_SENTRIX_SHELL_ENABLED && tab === "control" && <LensPlaceholder tab="control" focus={rd.focus}/>}
+        {ADI_SENTRIX_SHELL_ENABLED && tab === "control" && (
+          ring ? <ControlRing ring={ring} rd={rd}/> : <LensPlaceholder tab="control" focus={rd.focus}/>
+        )}
       </div>
     </div>
   );
@@ -618,6 +623,86 @@ function EvidenciaRecibo({ receipt: r }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── CONTROL · la TABLA-RING (brick 7) · "el ring, nunca una fila sola" · foco vs promedio vs par vs mejor + caminos ──
+function PathCard({ tag, tagColor, title, value, detail }) {
+  return (
+    <div style={{ padding:"12px 14px", borderRadius:10, background:"rgba(255,255,255,0.022)", border:`1px solid ${C.border}` }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:5 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+          <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.6px", textTransform:"uppercase", color:tagColor, border:`1px solid ${tagColor}55`, borderRadius:4, padding:"2px 6px", flexShrink:0 }}>{tag}</span>
+          <span style={{ fontSize:13, color:C.text, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{title}</span>
+        </div>
+        <Num color={C.green} size="1.05em">{value}</Num>
+      </div>
+      <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.45 }}>{detail}</div>
+    </div>
+  );
+}
+function ControlRing({ ring, rd }) {
+  const money = (k) => (Math.abs(k) >= 1000 ? fMon(k) : fmtK(k));
+  const roleTag = { focus:{ t:"Foco", c:C.celeste }, peer:{ t:"Par", c:C.textMuted }, avg:{ t:"Promedio", c:C.textMuted }, best:{ t:"Mejor", c:C.green } };
+  const cellVal = (r, col) => col.key === "gap" ? (r.role === "avg" ? "—" : (r.gap >= 0 ? "+" : "") + r1(r.gap) + "pp") : r1(r[col.key]) + "%";
+  const cellColor = (r, col) => {
+    if (col.key === "gap")    return r.role === "avg" ? C.textMuted : (r.gap >= 0 ? C.green : C.red);
+    if (col.key === "margen") return r.role === "best" ? C.green : r.role === "focus" ? C.amber : C.textSub;
+    if (col.key === "costo" && r.role === "focus" && ring.lever === "costo") return C.red;
+    if (col.key === "carga" && r.role === "focus" && ring.lever === "carga") return C.amber;
+    return C.textSub;
+  };
+  const GRID = "1.5fr repeat(4, 1fr)";
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {/* EL RING · foco anclado contra su liga */}
+      <div>
+        <Eyebrow>El ring · {ring.focus} contra su liga</Eyebrow>
+        <Card>
+          <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", fontSize:9.5, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.5px", textTransform:"uppercase", paddingBottom:8, borderBottom:`1px solid ${C.border}`, marginBottom:2 }}>
+            <span/>{ring.columns.map((c) => <span key={c.key} style={{ textAlign:"right" }}>{c.label}</span>)}
+          </div>
+          {ring.rows.map((r, i) => {
+            const tag = roleTag[r.role] || roleTag.peer, isFocus = r.role === "focus";
+            return (
+              <div key={i}>
+                <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"9px 8px", borderRadius:7,
+                  background: isFocus ? "rgba(47,184,218,0.06)" : "transparent", border: isFocus ? "1px solid rgba(47,184,218,0.18)" : "1px solid transparent", marginTop: i > 0 ? 2 : 4 }}>
+                  <span style={{ minWidth:0, display:"flex", flexDirection:"column", gap:2 }}>
+                    <span style={{ color: isFocus ? C.text : r.role === "best" ? "#eef2f6" : C.textSub, fontWeight: isFocus || r.role === "best" ? 600 : 500, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                    <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.5px", textTransform:"uppercase", color:tag.c }}>{tag.t}</span>
+                  </span>
+                  {ring.columns.map((col) => <span key={col.key} style={{ textAlign:"right" }}><Num color={cellColor(r, col)}>{cellVal(r, col)}</Num></span>)}
+                </div>
+                {r.note && <div style={{ fontSize:10.5, color:C.textMuted, fontStyle:"italic", padding:"1px 8px 3px 8px" }}>{r.note}</div>}
+              </div>
+            );
+          })}
+        </Card>
+      </div>
+
+      {/* ADI · ELEGÍ UN CAMINO · las palancas con $ honesto */}
+      <div>
+        <Eyebrow>ADI · elegí un camino</Eyebrow>
+        <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.5, marginBottom:10 }}>
+          {ring.focus} pierde por <span style={{ color:C.text, fontWeight:600 }}>{ring.leverLabel}</span>. Dos palancas, distinto esfuerzo:
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+          {rd && rd.recoverableK != null && (
+            <PathCard tag="Rápido" tagColor={C.green}
+              title="Renegociar la carga comercial"
+              value={`+${money(rd.recoverableK)}`}
+              detail={`al promedio interno${rd.recoverableBPK ? ` · +${money(rd.recoverableBPK)} a mejor práctica` : ""} · anual`}/>
+          )}
+          {ring.costoTechoK > 0 && (
+            <PathCard tag="Estructural" tagColor={C.amber}
+              title={`Cerrar la brecha de ${ring.leverLabel}`}
+              value={`hasta +${money(ring.costoTechoK)}`}
+              detail="si el costo llegara al promedio interno · la palanca dominante, la más difícil (proveedores · mix · volumen)"/>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
