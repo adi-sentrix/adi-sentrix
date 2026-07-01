@@ -628,10 +628,12 @@ function EvidenciaRecibo({ receipt: r }) {
   );
 }
 
-// "i" de ayuda inline (determinístico · lee el catálogo) · para headers de columna del ring
-function InfoDot({ def }) {
+// "i" de ayuda inline (determinístico · lee el catálogo) · para headers de columna del ring · align encuadra el
+// tooltip según la posición de la columna (centro / derecha=abre a la izquierda) para que no se salga en ninguna.
+function InfoDot({ def, align = "center" }) {
   if (!def) return null;
-  return <span className="adi-i2">i<span className="adi-tip">{def}</span></span>;
+  const cls = align === "left" ? "tip-l" : align === "right" ? "tip-r" : "tip-c";
+  return <span className="adi-i2">i<span className={`adi-tip ${cls}`}>{def}</span></span>;
 }
 
 // ── CONTROL · la TABLA-RING (brick 7) · "el ring, nunca una fila sola" · foco vs promedio vs par vs mejor + caminos ──
@@ -677,7 +679,7 @@ function ControlRing({ ring, rd }) {
         <Eyebrow>El ring · {ring.focus} contra su liga</Eyebrow>
         <Card>
           <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", fontSize:9.5, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.5px", textTransform:"uppercase", paddingBottom:8, borderBottom:`1px solid ${C.border}`, marginBottom:2 }}>
-            <span/>{ring.columns.map((c) => <span key={c.key} style={{ textAlign:"right", whiteSpace:"nowrap" }}>{c.label}{c.defKey && METRIC_DEFS[c.defKey] && <InfoDot def={METRIC_DEFS[c.defKey]}/>}</span>)}
+            <span/>{ring.columns.map((c, idx) => <span key={c.key} style={{ textAlign:"right", whiteSpace:"nowrap" }}>{c.label}{c.defKey && METRIC_DEFS[c.defKey] && <InfoDot def={METRIC_DEFS[c.defKey]} align={idx === 0 ? "left" : idx >= Math.ceil(ring.columns.length / 2) ? "right" : "center"}/>}</span>)}
           </div>
           {ring.rows.map((r, i) => {
             const tag = roleTag[r.role] || roleTag.peer, isFocus = r.role === "focus";
