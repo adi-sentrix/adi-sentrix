@@ -370,6 +370,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   // foco base tiene contenido ahí (cliente/bodega); si no, cae a Diagnóstico (que siempre tiene la historia).
   const _routedTab = (rd, lens) => {
     const l = lens || "diagnostico";
+    if (l === "cuadro") return ADI_SENTRIX_CUADRO_ENABLED ? "cuadro" : "diagnostico";   // el cuadro es panorámico (no depende del foco)
     const hasLens = l === "diagnostico" || rd.focusType === "client" || rd.focusType === "bodega";
     return hasLens ? l : "diagnostico";
   };
@@ -787,7 +788,8 @@ function ControlRing({ ring, rd }) {
 // comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
 function CuadroMando({ scenario }) {
   const [dim, setDim] = useState("cliente");
-  const [sel, setSel] = useState([]);                 // nombres seleccionados (comparar = filtrar al resto)
+  const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
+  const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
   const [mode, setMode] = useState("all");            // all | top | bottom | alert
   const [scope, setScope] = useState("global");       // global | fecha (honesto)
   const cm = buildCuadroMando(dim, scenario);
@@ -815,7 +817,7 @@ function CuadroMando({ scenario }) {
   };
   const sortCol = cols.find((c) => c.key === sortKey) || primary;
   let rows = cm.rows.slice().sort((a, b) => (sortCol.sort === "asc" ? -1 : 1) * ((b[sortKey] || 0) - (a[sortKey] || 0)));
-  if (sel.length) rows = rows.filter((r) => sel.includes(r.name));
+  if (onlySel && sel.length) rows = rows.filter((r) => sel.includes(r.name));   // el filtro ES una acción aparte (no al seleccionar)
   else if (mode === "top") rows = rows.slice(0, 10);
   else if (mode === "bottom") rows = rows.slice(-10);
   else if (mode === "alert") rows = rows.filter((r) => r.alert);
@@ -826,6 +828,15 @@ function CuadroMando({ scenario }) {
       background: active ? "rgba(255,255,255,0.1)" : "transparent", border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, color: active ? C.text : C.textMuted }}>{label}</button>
   );
   const actionColor = (a) => (/revisar|renegociar|liquidar|acelerar|precio|mix|lento/.test(a) ? C.amber : /referencia/.test(a) ? C.green : C.textMuted);
+  // ICONO DE ESTADO del margen (owner: el margen con icono, no color en el número · identifica rojo/ámbar/verde) ·
+  // chevron ↑ verde (sobre el prom) · — ámbar (parejo) · ↓ rojo (bajo el prom) · con glow, premium.
+  const statusOf = (r) => (r.gap == null ? null : r.gap >= 0 ? "g" : r.gap <= -3 ? "r" : "a");
+  const statusCol = { g: C.green, a: C.amber, r: C.red };
+  const MargenIcon = ({ st }) => (st ? (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke={statusCol[st]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter:`drop-shadow(0 0 3px ${statusCol[st]}88)`, flexShrink:0 }}>
+      {st === "g" ? <polyline points="3 8 6 4.5 9 8"/> : st === "r" ? <polyline points="3 4.5 6 8 9 4.5"/> : <line x1="3" y1="6" x2="9" y2="6"/>}
+    </svg>
+  ) : null);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       {/* dimensión + alcance */}
@@ -844,17 +855,18 @@ function CuadroMando({ scenario }) {
           El corte por fecha por entidad se enciende con el histórico del ERP · hoy el dato es del período <b>{scenario}</b>.
         </div>
       )}
-      {/* filtros rápidos */}
+      {/* filtros rápidos · seleccionar RESALTA (todas visibles) · "solo seleccionados" filtra */}
       <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
         <span style={{ fontSize:11, color:C.textMuted }}>Ver</span>
-        {pill(mode === "all" && !sel.length, "Todos", () => { setMode("all"); setSel([]); }, "all")}
-        {pill(mode === "top" && !sel.length, "Top 10", () => { setMode("top"); setSel([]); }, "top")}
-        {pill(mode === "bottom" && !sel.length, "Peores 10", () => { setMode("bottom"); setSel([]); }, "bot")}
-        {pill(mode === "alert" && !sel.length, "En alerta", () => { setMode("alert"); setSel([]); }, "al")}
+        {pill(mode === "all" && !onlySel, "Todos", () => { setMode("all"); setOnlySel(false); }, "all")}
+        {pill(mode === "top" && !onlySel, "Top 10", () => { setMode("top"); setOnlySel(false); }, "top")}
+        {pill(mode === "bottom" && !onlySel, "Peores 10", () => { setMode("bottom"); setOnlySel(false); }, "bot")}
+        {pill(mode === "alert" && !onlySel, "En alerta", () => { setMode("alert"); setOnlySel(false); }, "al")}
         {sel.length > 0 && (
-          <span style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, fontSize:11.5, color:C.celeste }}>
-            {sel.length} en comparación
-            <button onClick={() => setSel([])} style={{ padding:"3px 8px", borderRadius:5, fontSize:11, cursor:"pointer", background:"transparent", border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif" }}>limpiar</button>
+          <span style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.celeste }}>
+            {sel.length} seleccionado{sel.length > 1 ? "s" : ""}
+            {pill(onlySel, "Solo seleccionados", () => setOnlySel((v) => !v), "only")}
+            <button onClick={() => { setSel([]); setOnlySel(false); }} style={{ padding:"3px 8px", borderRadius:5, fontSize:11, cursor:"pointer", background:"transparent", border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif" }}>limpiar</button>
           </span>
         )}
       </div>
@@ -885,6 +897,10 @@ function CuadroMando({ scenario }) {
                 </span>
                 {cols.map((c) => c.key === "accion" ? (
                   <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
+                ) : c.key === "margen" ? (
+                  <span key={c.key} style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                    <MargenIcon st={statusOf(r)}/><Num color={C.text}>{fmt(c, r[c.key])}</Num>
+                  </span>
                 ) : (
                   <span key={c.key} style={{ textAlign:"right" }}><Num color={cellColor(c, r)}>{fmt(c, r[c.key])}</Num></span>
                 ))}
@@ -892,7 +908,7 @@ function CuadroMando({ scenario }) {
             );
           })}
           {/* fila TOTALES · el resumen operativo (sumas · margen ponderado) */}
-          {!sel.length && cm.total && (
+          {!onlySel && cm.total && (
             <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"10px 8px", marginTop:4, borderTop:`1px solid ${C.borderLight}`, background:"rgba(255,255,255,0.02)" }}>
               <span/><span style={{ fontFamily:MONO, fontSize:9, fontWeight:600, letterSpacing:"0.6px", textTransform:"uppercase", color:C.text }}>Total</span>
               {cols.map((c) => c.key === "accion" ? <span key={c.key}/> : (
@@ -901,15 +917,17 @@ function CuadroMando({ scenario }) {
             </div>
           )}
           {/* nota de referencia: el promedio (la ley de las lentes) queda en el pie */}
-          {!sel.length && cm.avg && (
+          {!onlySel && cm.avg && (
             <div style={{ fontSize:10.5, color:C.textMuted, padding:"6px 8px 0", fontFamily:MONO }}>
               Promedio {cm.label.toLowerCase()}: margen {r1(cm.avg.margen)}%{cm.avg.inmovPct != null ? ` · inmov ${r1(cm.avg.inmovPct)}%` : ""}
             </div>
           )}
         </div>
       </div>
+      {/* al seleccionar EXACTAMENTE 2 clientes → el dumbbell (comparación controlada) además del filtro */}
+      {dim === "cliente" && sel.length === 2 && <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/>}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar y comparar · ordená por cualquier columna · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar y comparar{dim === "cliente" ? " (2 → gráfico)" : ""} · ordená por cualquier columna · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );

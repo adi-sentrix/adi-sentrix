@@ -11,6 +11,8 @@ import { ADI_SENTRIX_EXPLORE_ENABLED } from "../../config/voiceFlags.js";
 // tenga contenido para el foco. LLM-ready: v2 setea evidence.lens directo (esto es la versión determinística).
 function _lensFor(route, query) {
   const q = (query || "").toLowerCase();
+  // PANORÁMICO ("todos/todas · el ranking · top N · los mejores/peores · la cartera · el cuadro") → Cuadro de mando
+  if (/todos (mis|los|las)|todas (mis|las)|toda (mi|la) cartera|el ranking|\btop\s*\d|los (\d+ )?(mejores|peores)|las (\d+ )?(mejores|peores)|panorama|cuadro de mando|todo el (negocio|panorama)|la grilla|la tabla (general|de todos)/.test(q)) return "cuadro";
   if (/prob[aá]me|prueb|de d[oó]nde (sale|viene)|la cuenta|c[oó]mo se calcula|desglos|descompon|justific|f[oó]rmula|no te creo/.test(q)) return "evidencia";
   if (/qu[eé] hago|qu[eé] hacer|acci[oó]n|compar|contra el (promedio|resto)|recuper|cu[aá]nto (gano|puedo|recupero|vale)|palanca|camino|qu[eé] toco/.test(q)) return "control";
   if (/simulation/.test(route || "") || route === "qi_retrieval") return "control";
