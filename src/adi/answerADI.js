@@ -29,7 +29,7 @@ import { composeSmartGuide } from "./composers/smartGuide.js";   // fix demo-rea
 import { detectMultiAsk, SUBQ, joinOr, normAsk } from "./composers/multiAsk.js";   // PEDIDO MÚLTIPLE (lista) → secuencial guiado
 import { composeHonestyGuard } from "./composers/honestyGuard.js";   // GAP 1 · guard de honestidad ante lo imposible
 import { buildSentrixBoleta } from "./sentrix/boleta.js";        // Etapa 5 · Sentrix S1 · boleta universal availability-driven
-import { buildReadingFromSignals, buildSkuMarginSignals } from "./sentrix/reading.js";    // Etapa 5 · Sentrix · pipeline único de lectura ejecutiva
+import { buildReadingFromSignals, buildSkuMarginSignals, buildClientContribSignals } from "./sentrix/reading.js";    // Etapa 5 · Sentrix · pipeline único de lectura ejecutiva
 import { extractInverseProjection, composeInverseProjection } from "./composers/inverse.js";
 import { extractMarginSimulation, extractLossSimulation, extractGrowthSimulation, extractPriceSimulation, buildSimulationState, compareStates, composeSimulationDelta, composeGrowthProjection, composePriceLever } from "./composers/simulation.js";
 import { detectRankingExtremesIntent, composeRankingExtremes, _buildScopeForMetric, _rwmDetectPrincipalAnexa } from "./composers/ranking.js";
@@ -396,7 +396,18 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
     const deep = getClientDeepDive(intent.clientName, scenario, deepContext);
     // El dispatch vivo de client del piso NO setea lastComposerResponse → la capa narrativa no dispara
     // (verificado ESTÁTICO). El modular replica no exponiendo narrative_signals en client_dive.
-    if (deep && deep.opener) return _finalize({ ...deep, narrative_signals: null }, "client_dive", "client_dive", ctx, scenario, intent);
+    if (deep && deep.opener) {
+      const _cd = { ...deep, narrative_signals: null };
+      // Etapa 5 · Sentrix · A1 (cierre del caso estrella): el client_dive ("cómo está Falabella") ahora carga reading{}
+      // → Sentrix ABRE (antes emitía una boleta sin reading → el panel no renderizaba · el mayor dead-end). Reading
+      // SINTÉTICO (buildClientContribSignals · margin_compression · scenario-aware) · SOLO el panel: el texto (deep.opener)
+      // queda intacto. Gated ADI_SENTRIX_READING_ENABLED · OFF = sin reading (byte-exacto · client_dive del piso).
+      if (ADI_SENTRIX_READING_ENABLED) {
+        const _crd = buildReadingFromSignals(buildClientContribSignals(intent.clientName, scenario));
+        if (_crd) _cd.evidence = { ...(deep.evidence || {}), reading: _crd, entidad: intent.clientName, entityType: "client", metrica: _crd.metric || "margen" };
+      }
+      return _finalize(_cd, "client_dive", "client_dive", ctx, scenario, intent);
+    }
   }
   // client contribution ranking (quién aporta más contribución) — replica PanelADI L37682
   if (intent.type === "client_contribution_ranking") {
