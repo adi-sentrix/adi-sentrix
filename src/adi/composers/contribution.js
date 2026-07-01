@@ -2,6 +2,7 @@
  * composeClientContributionRanking · BRIEF #46 · extraído de 41cc33d8 (L24337) · verbatim.
  * Ranking de clientes por contribución mensual. Determinístico sobre clientesMargen. */
 import { clientesMargen } from "../../data/demoData.js";
+import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { _buildEntityId } from "../router.js";
 
@@ -12,9 +13,13 @@ export function composeClientContributionRanking(scenarioId) {
     return `$${(val / 1000).toFixed(2)}M`;
   };
 
-  // ── 2. Ranking runtime sobre clientesMargen
-  // clientesMargen tiene contribucion en miles USD. Ordenar desc.
-  const ranked = [...clientesMargen]
+  // ── 2. Ranking runtime sobre clientesMargen · SCENARIO-AWARE (fix GAP 2): antes leía SIEMPRE la base cruda → en
+  // crisis/tensión el cuerpo quedaba byte-idéntico a bonanza y contradecía su propio titular scenario-aware (46% vs 49%).
+  // BONANZA usa la base ALMACENADA (contribucion tal cual · byte-idéntico al oráculo/monolito · el oráculo corre en
+  // bonanza) · crisis/tensión aplican el escenario (que recomputa contribucion=venta×margen) → el cuerpo reconcilia con
+  // el titular. clientesMargen tiene contribucion en miles USD.
+  const source = scenarioId === "bonanza" ? clientesMargen : applyScenarioToClientesMargen(scenarioId);
+  const ranked = [...source]
     .filter(c => c.tipo === "cliente")
     .sort((a, b) => b.contribucion - a.contribucion);
 
