@@ -47,14 +47,14 @@ function AdiAvatar({ spark = false }) {
       width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center",
       flexShrink:0, marginTop:4, transformOrigin:"center center",
       animation: spark ? "adiSpark 1.4s ease-in-out infinite" : "none",
-      filter:"drop-shadow(0 0 5px rgba(0,176,212,0.35))"
+      filter:"drop-shadow(0 0 5px rgba(47,184,218,0.3))"
     }}>
-      <svg width="18" height="18" viewBox="0 0 200 200" fill="none" stroke="#00b0d4" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3.2"/>
         <circle cx="100" cy="100" r="55" strokeWidth="1.8" opacity="0.65"/>
         <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.6" opacity="0.5"/>
         <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.6" opacity="0.5"/>
-        <circle cx="100" cy="100" r="6" fill="#00b0d4" stroke="none"/>
+        <circle cx="100" cy="100" r="6" fill="#2fb8da" stroke="none"/>
       </svg>
     </div>
   );
@@ -91,15 +91,15 @@ export function AdiMessageBody({ text }) {
         <div key={`block-${blockIdx}`} style={{
           display:"flex", alignItems:"center", gap:9,
           marginTop:10, marginBottom:14,
-          paddingTop:14, borderTop:"1px solid rgba(0,176,212,0.15)"
+          paddingTop:14, borderTop:"1px solid rgba(255,255,255,0.1)"
         }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7fdef0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.textSub} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}>
             <line x1="5" y1="12" x2="19" y2="12"/>
             <polyline points="12 5 19 12 12 19"/>
           </svg>
           <span style={{
             fontFamily:"'JetBrains Mono', ui-monospace, monospace",
-            fontSize:10.5, fontWeight:600, color:"#7fdef0",
+            fontSize:10.5, fontWeight:600, color:C.textSub,
             textTransform:"uppercase", letterSpacing:"1.4px"
           }}>
             Recomendación
@@ -124,12 +124,12 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
         onClick={() => onSentrixAction(sentrixAction.payload)}
         style={{
           display:"flex", alignItems:"center", gap:6, padding:"7px 14px",
-          background:"rgba(0, 194, 232, 0.08)", border:`1px solid ${C.blue}`,
-          borderRadius:6, color:C.blue, fontFamily:"'DM Sans', system-ui, sans-serif",
+          background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.14)",
+          borderRadius:6, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif",
           fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = "rgba(0, 194, 232, 0.15)"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = "rgba(0, 194, 232, 0.08)"; }}>
+        onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}>
         <span>↗</span>
         <span>{sentrixAction.label}</span>
       </button>
@@ -155,13 +155,13 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
         onClick={() => onOpenEvidence(evidence)}
         style={{
           display:"flex", alignItems:"center", gap:7, padding:"7px 14px",
-          background: active ? "rgba(0,194,232,0.18)" : "rgba(0,194,232,0.08)",
-          border:`1px solid ${active ? C.blue : "rgba(0,176,212,0.55)"}`,
-          borderRadius:6, color:C.blue, fontFamily:"'DM Sans', system-ui, sans-serif",
+          background: active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)",
+          border:`1px solid ${active ? "rgba(47,184,218,0.6)" : "rgba(255,255,255,0.14)"}`,
+          borderRadius:6, color: active ? C.celeste : C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif",
           fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = "rgba(0,194,232,0.16)"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(0,194,232,0.18)" : "rgba(0,194,232,0.08)"; }}>
+        onMouseEnter={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.2)" : "rgba(255,255,255,0.08)"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)"; }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
         </svg>
@@ -244,11 +244,11 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                 <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
                   <AdiAvatar spark={isTyping}/>
                   <div data-testid="adi-bubble" style={{
-                    flex:1, minWidth:0, background:"rgba(255,255,255,0.018)", padding:"16px 20px",
-                    borderRadius:10, border:"1px solid rgba(255,255,255,0.05)",
+                    flex:1, minWidth:0, background:"rgba(255,255,255,0.032)", padding:"16px 20px",
+                    borderRadius:10, border:"1px solid rgba(255,255,255,0.07)",
                     fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, lineHeight:1.65,
                     letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line",
-                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.025)"
+                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.03)"
                   }}>
                     {isTyping ? (
                       <TypewriterText
@@ -277,7 +277,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                             fontSize:13, fontWeight:500, letterSpacing:"-0.005em",
                             cursor:"pointer", transition:"all 0.15s ease"
                           }}
-                          onMouseEnter={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.blue; }}
+                          onMouseEnter={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.borderLight; }}
                           onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.border; }}>
                           {sugText}
                         </button>
@@ -299,12 +299,12 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
             value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
             placeholder="Pregunta a ADI..."
-            style={{ flex:1, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:10, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, color:C.text, outline:"none", caretColor:C.blue, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-            onFocus={e=>{ e.target.style.borderColor=C.blue; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(0,176,212,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
+            style={{ flex:1, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:10, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
             onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
           />
           <button onClick={()=>submit(input)} disabled={!input.trim()}
-            style={{ width:38, height:38, borderRadius:"50%", border:"none", background:input.trim()?"linear-gradient(180deg,#00b0d4,#0e7fa8)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(0,176,212,0.6)":"0 1px 4px rgba(0,0,0,0.35)" }}>
+            style={{ width:38, height:38, borderRadius:"50%", border:"none", background:input.trim()?"linear-gradient(180deg,#3fc4e2,#1c8fae)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(47,184,218,0.55)":"0 1px 4px rgba(0,0,0,0.35)" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"/>
               <polyline points="13 6 19 12 13 18"/>

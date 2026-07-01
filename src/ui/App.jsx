@@ -42,13 +42,13 @@ export default function App({ animate = true }) {
       {/* ── HEADER ── */}
       <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-          <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"linear-gradient(135deg, rgba(0,176,212,0.08), rgba(14,127,168,0.04))", border:"1px solid rgba(0,176,212,0.18)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(0,176,212,0.06), 0 4px 12px -3px rgba(0,176,212,0.2)" }}>
-            <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#00b0d4" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+          <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))", border:"1px solid rgba(255,255,255,0.12)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(255,255,255,0.04), 0 4px 12px -3px rgba(0,0,0,0.4)" }}>
+            <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3.2"/>
               <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
               <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
               <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.5" opacity="0.5"/>
-              <circle cx="100" cy="100" r="6" fill="#00b0d4" stroke="none"/>
+              <circle cx="100" cy="100" r="6" fill="#2fb8da" stroke="none"/>
             </svg>
           </div>
           <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
@@ -72,7 +72,7 @@ export default function App({ animate = true }) {
       {/* ── MAIN · ADI centro con atmósfera ── */}
       <main style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", position:"relative", background:C.bg, overflow:"hidden" }}>
         {/* glow sutil ESTÁTICO (sin animación) · da vida a la esquina del chat · efecto tipo panel lateral de Code */}
-        <div style={{ position:"absolute", left:0, bottom:0, width:"58%", height:"62%", zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse 75% 75% at 0% 100%, rgba(0,176,212,0.07), transparent 70%)" }}/>
+        <div style={{ position:"absolute", left:0, bottom:0, width:"58%", height:"62%", zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse 75% 75% at 0% 100%, rgba(47,184,218,0.06), transparent 70%)" }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate}
@@ -84,7 +84,7 @@ export default function App({ animate = true }) {
               {/* divisor arrastrable (estilo Code) */}
               <div onMouseDown={startResize} title="Arrastrar para redimensionar"
                 style={{ width:6, flexShrink:0, cursor:"col-resize", background:"transparent", borderLeft:`1px solid ${C.border}`, transition:"background 0.15s" }}
-                onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(0,176,212,0.25)"; }}
+                onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.25)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
               <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0 }}>
                 <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed}/>
@@ -107,9 +107,9 @@ export default function App({ animate = true }) {
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         @keyframes auroraBreathe { 0%,100%{opacity:0.6} 50%{opacity:1} }
         @keyframes livePulse {
-          0%  { box-shadow: 0 0 0 0 rgba(0,176,212,0.5); transform:scale(1); }
-          60% { box-shadow: 0 0 0 8px rgba(0,176,212,0); transform:scale(1.15); }
-          100%{ box-shadow: 0 0 0 0 rgba(0,176,212,0);  transform:scale(1); }
+          0%  { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); transform:scale(1); }
+          60% { box-shadow: 0 0 0 8px rgba(16,185,129,0); transform:scale(1.15); }
+          100%{ box-shadow: 0 0 0 0 rgba(16,185,129,0);  transform:scale(1); }
         }
         @keyframes adiAurora {
           0%, 100% { transform: scale(1)   translate(0, 0);     opacity: 0.7; }
@@ -118,9 +118,21 @@ export default function App({ animate = true }) {
           75%      { transform: scale(1.04) translate(3%, 3%);   opacity: 0.8; }
         }
         @keyframes adiSpark {
-          0%, 100% { transform: scale(1);   box-shadow: 0 0 0 1px rgba(0,176,212,0.4), 0 0 16px rgba(0,176,212,0.55), 0 0 32px rgba(0,176,212,0.2); }
-          50%      { transform: scale(1.1); box-shadow: 0 0 0 1px rgba(0,176,212,0.7), 0 0 28px rgba(0,176,212,0.85), 0 0 56px rgba(0,176,212,0.4); }
+          0%, 100% { transform: scale(1);   box-shadow: 0 0 0 1px rgba(47,184,218,0.4), 0 0 16px rgba(47,184,218,0.55), 0 0 32px rgba(47,184,218,0.2); }
+          50%      { transform: scale(1.1); box-shadow: 0 0 0 1px rgba(47,184,218,0.7), 0 0 28px rgba(47,184,218,0.85), 0 0 56px rgba(47,184,218,0.4); }
         }
+        @keyframes sentrixSweep {
+          0%   { transform: translateX(-220px) skewX(-14deg); opacity: 0; }
+          12%  { opacity: 1; }
+          88%  { opacity: 1; }
+          100% { transform: translateX(2200px) skewX(-14deg); opacity: 0; }
+        }
+        .sentrix-sweep { position:absolute; top:0; left:0; height:100%; width:170px; z-index:6; pointer-events:none; background:linear-gradient(100deg, transparent, rgba(60,200,235,0.09), transparent); mix-blend-mode:screen; animation: sentrixSweep 8s ease-in-out infinite; }
+        /* "i" de ayuda en cada card · lee el catálogo de definiciones (determinístico, cero tokens) · tooltip en hover */
+        .adi-i { position:absolute; top:7px; right:8px; width:14px; height:14px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.4); font-size:9px; font-style:italic; line-height:12px; text-align:center; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; transition:color .15s, border-color .15s; z-index:4; }
+        .adi-i:hover { color:#2fb8da; border-color:rgba(47,184,218,0.6); }
+        .adi-tip { position:absolute; bottom:calc(100% + 7px); right:-3px; width:198px; background:#0b0b0d; border:1px solid rgba(47,184,218,0.4); border-radius:8px; padding:8px 11px; font-size:11px; line-height:1.5; color:#c4c2bd; opacity:0; transform:translateY(3px); pointer-events:none; transition:opacity .15s, transform .15s; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,0.55); text-align:left; font-style:normal; font-weight:400; letter-spacing:0; }
+        .adi-i:hover .adi-tip { opacity:1; transform:translateY(0); }
       `}</style>
     </div>
   );

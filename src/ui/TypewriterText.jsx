@@ -60,7 +60,7 @@ export function TypewriterText({ text, speed = 8, startDelay = 0, showCursor = t
       {showCursor && !done && (
         <span style={{
           display:"inline-block", width:2, height:"1em",
-          background:C.blue, marginLeft:2,
+          background:C.celeste, marginLeft:2,
           verticalAlign:"text-bottom",
           animation:"blink 1s infinite"
         }}/>

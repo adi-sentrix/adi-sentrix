@@ -12,11 +12,22 @@ import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
 import { buildEntityKPIs, buildMarginDecomposition } from "../adi/sentrix/kpis.js";   // brick 2a/2b · tira + descomposición
+import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
+import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
-function Eyebrow({ children, tone = C.blue }) {
+// bordes celestes SOLO en los costados (izq+der) + glow lateral suave · top/bottom oscuros · toda card lo usa
+const CARD_SIDES = {
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+  borderBottom: "1px solid rgba(255,255,255,0.05)",
+  borderLeft: "1px solid rgba(47,184,218,0.5)",
+  borderRight: "1px solid rgba(47,184,218,0.5)",
+  boxShadow: "inset 7px 0 14px -9px rgba(47,184,218,0.5), inset -7px 0 14px -9px rgba(47,184,218,0.5)",
+};
+
+function Eyebrow({ children, tone = C.textMuted }) {
   return (
     <div style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, color:tone, textTransform:"uppercase", letterSpacing:"1.4px", marginBottom:10 }}>
       {children}
@@ -27,9 +38,9 @@ function Eyebrow({ children, tone = C.blue }) {
 function Card({ children, accent = false }) {
   return (
     <div style={{
-      background: accent ? "linear-gradient(180deg, rgba(0,176,212,0.05), rgba(0,176,212,0.015))" : "rgba(255,255,255,0.018)",
-      border: `1px solid ${accent ? "rgba(0,176,212,0.18)" : C.border}`,
-      borderRadius:10, padding:"16px 18px",
+      background: accent ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.022)",
+      ...CARD_SIDES,
+      borderRadius:12, padding:"16px 18px",
     }}>
       {children}
     </div>
@@ -93,12 +104,12 @@ function ClientLoadHero({ rd }) {
       <div style={{ marginTop:14 }}>
         <div style={{ fontSize:11, color:C.textMuted, marginBottom:8 }}>Margen recuperable renegociando la carga (anual):</div>
         <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}` }}>
-          <div style={{ width:`${pctAtProm}%`, background:C.blue, transition:"width 0.4s ease" }}/>
-          <div style={{ width:`${100-pctAtProm}%`, background:"rgba(0,176,212,0.22)", transition:"width 0.4s ease" }}/>
+          <div style={{ width:`${pctAtProm}%`, background:C.text, transition:"width 0.4s ease" }}/>
+          <div style={{ width:`${100-pctAtProm}%`, background:"rgba(255,255,255,0.22)", transition:"width 0.4s ease" }}/>
         </div>
         <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 16px", marginTop:10 }}>
-          <Legend color={C.blue} label="al promedio interno" v={fmtK(recK)}/>
-          <Legend color="rgba(0,176,212,0.5)" label="a mejor práctica" v={fmtK(recBPK)}/>
+          <Legend color={C.text} label="al promedio interno" v={fmtK(recK)}/>
+          <Legend color="rgba(255,255,255,0.5)" label="a mejor práctica" v={fmtK(recBPK)}/>
         </div>
       </div>
     </>
@@ -109,8 +120,8 @@ function ClientLoadEvidence({ rd }) {
     { k:"Margen actual", v:`${rd.pct}%`, color:C.amber },
     { k:`Carga comercial (promedio ${rd.targetCarga}%)`, v:`${rd.carga}%`, color:C.amber },
     ...(rd.targetMargen != null ? [{ k:"Si baja la carga al promedio → margen", v:`${rd.targetMargen}%`, color:C.green }] : []),
-    { k:"Recuperable al promedio (anual)", v:fmtK(rd.recoverableK), color:C.blue },
-    { k:`Recuperable a mejor práctica (${(rd.bestPracticeCarga||3).toFixed(1)}%)`, v:fmtK(rd.recoverableBPK), color:C.blue },
+    { k:"Recuperable al promedio (anual)", v:fmtK(rd.recoverableK), color:C.text },
+    { k:`Recuperable a mejor práctica (${(rd.bestPracticeCarga||3).toFixed(1)}%)`, v:fmtK(rd.recoverableBPK), color:C.text },
   ];
   return <Rows rows={rows}/>;
 }
@@ -149,12 +160,12 @@ function CapitalHero({ rd }) {
   return (
     <>
       <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4 }}>
-        <Num color={C.blue} size="2.1em">{rd.montoFmt}</Num>
-        <span style={{ fontSize:12.5, color:C.textMuted }}><Num color={C.blue}>{rd.pct}%</Num> del capital inmovilizado{rd.totalInmovFmt ? <> (<Num>{rd.totalInmovFmt}</Num> total)</> : null}</span>
+        <Num color={C.text} size="2.1em">{rd.montoFmt}</Num>
+        <span style={{ fontSize:12.5, color:C.textMuted }}><Num color={C.text}>{rd.pct}%</Num> del capital inmovilizado{rd.totalInmovFmt ? <> (<Num>{rd.totalInmovFmt}</Num> total)</> : null}</span>
       </div>
       <div style={{ marginTop:14 }}>
         <StackBar segments={[
-          { label: rd.focus, pct: rd.pct, color:C.blue },
+          { label: rd.focus, pct: rd.pct, color:C.text },
           { label:"Resto", pct: resto, color:"rgba(255,255,255,0.14)" },
         ]}/>
       </div>
@@ -174,7 +185,7 @@ function CapitalEvidence({ rd }) {
           <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr auto auto", gap:"0 16px", alignItems:"center", padding:"6px 0", borderBottom: i < rd.ranking.length-1 ? `1px solid rgba(255,255,255,0.03)` : "none" }}>
             <span style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
               <span style={{ width:6, height:6, borderRadius:"50%", background:dot, flexShrink:0 }}/>
-              <span style={{ color:"#7fdef0", fontWeight:500, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.sku}</span>
+              <span style={{ color:"#eef2f6", fontWeight:600, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.sku}</span>
             </span>
             <Num>{cap}</Num>
             <Num color={r.doh >= 90 ? C.amber : C.textSub}>{r.doh}d</Num>
@@ -189,7 +200,7 @@ function CapitalEvidence({ rd }) {
 function GenericHero({ rd }) {
   return (
     <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:4, flexWrap:"wrap" }}>
-      <Num color={C.blue} size="2.1em">{rd.montoFmt}</Num>
+      <Num color={C.text} size="2.1em">{rd.montoFmt}</Num>
       <span style={{ fontSize:12.5, color:C.textMuted }}>{rd.reframe}</span>
     </div>
   );
@@ -213,7 +224,7 @@ function Rows({ rows }) {
 function CompCol({ entity, valueFmt, sub, better }) {
   return (
     <div style={{ flex:1, minWidth:0, textAlign:"center", padding:"2px 6px" }}>
-      <div style={{ fontSize:12, color:"#7fdef0", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:6 }}>{entity}</div>
+      <div style={{ fontSize:12, color:"#eef2f6", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:6 }}>{entity}</div>
       <Num color={better ? C.green : C.amber} size="1.85em">{valueFmt}</Num>
       <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>{sub}</div>
     </div>
@@ -265,7 +276,7 @@ function ExplorarBar({ explorable, onCompare, metricOptions, currentMetric, onMe
             return (
               <button key={mo.key} onClick={() => onMetric(mo.key)}
                 style={{ padding:"5px 11px", borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
-                  background: on ? "rgba(0,194,232,0.15)" : "transparent", border:`1px solid ${on ? C.blue : C.border}`, color: on ? C.blue : C.textSub }}>
+                  background: on ? "rgba(255,255,255,0.15)" : "transparent", border:`1px solid ${on ? C.text : C.border}`, color: on ? C.text : C.textSub }}>
                 {mo.label}
               </button>
             );
@@ -364,6 +375,8 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   // brick 2b · descomposición del margen → tesis data-derived + brecha (solo cliente, en base, con el shell)
   const decomp = (ADI_SENTRIX_SHELL_ENABLED && current.focusType === "client" && current.metric === "margen" && frames.length === 1 && !current.compareWith)
     ? buildMarginDecomposition(current.focus, evidence.periodo) : null;
+  // EL MOTOR arma la superficie del Diagnóstico (qué gráficos + métrica/dims) según el foco · LLM-ready (surface.js).
+  const charts = diagnosisCharts(current.focusType);
 
   // operaciones del estado (empujan/actualizan frames)
   const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
@@ -382,12 +395,14 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const dominio = (rd.domain || evidence.domain || "").toString().toUpperCase();
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:C.surface, borderLeft:`1px solid ${C.border}` }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      {/* barrido de luz · reflejo premium que cruza el panel (izq→der · lento · elegante) */}
+      <div className="sentrix-sweep"/>
       {/* ── header del panel ── */}
-      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(0,176,212,0.03), transparent)" }}>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
-            <span style={{ color:C.blue, fontWeight:600 }}>Sentrix</span>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span>
             <span style={{ opacity:0.4 }}>›</span><span>{dominio}</span>
             <span style={{ opacity:0.4 }}>›</span><span>{domainLabel}</span>
           </div>
@@ -409,10 +424,10 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
       {/* SHELL · 3 tabs sobre el estado compartido (mismo caso, distinta lente) · gated · OFF = sin tabs (byte-exacto) */}
       {ADI_SENTRIX_SHELL_ENABLED && (
-        <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:C.surface }}>
+        <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:"#000000" }}>
           {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ["control", "Control"]].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${tab === k ? C.blue : "transparent"}`, color: tab === k ? C.blue : C.textMuted, fontSize:12.5, fontWeight: tab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${tab === k ? C.text : "transparent"}`, color: tab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: tab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
               {label}
             </button>
           ))}
@@ -447,7 +462,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             <Eyebrow tone={C.textMuted}>Drivers de la lectura · lo que vuelve el dato criterio</Eyebrow>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               {rd.drivers.map((d, i) => (
-                <div key={i} style={{ background:"rgba(255,255,255,0.018)", border:`1px solid ${C.border}`, borderRadius:8, padding:"11px 13px" }}>
+                <div key={i} style={{ background:"rgba(255,255,255,0.018)", ...CARD_SIDES, borderRadius:8, padding:"11px 13px" }}>
                   <Num size="1.25em">{d.v}</Num>
                   <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.4, marginTop:4 }}>{d.label}</div>
                 </div>
@@ -462,7 +477,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             <div style={{ fontSize:13, color:C.textSub, lineHeight:1.55 }}>{rd.recommendation}.</div>
             {rd.sensitive && rd.sensitive !== rd.focus && (
               <div style={{ marginTop:8, fontSize:11.5, color:C.textMuted }}>
-                El caso más sensible: <span style={{ color:"#7fdef0", fontWeight:500 }}>{rd.sensitive}</span>
+                El caso más sensible: <span style={{ color:"#eef2f6", fontWeight:600 }}>{rd.sensitive}</span>
               </div>
             )}
           </Card>
@@ -480,7 +495,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             <span style={{ fontSize:12.5, color:C.textSub, flexShrink:0 }}>Entrar a</span>
             {[rd.a, rd.b].filter(Boolean).map((e) => (
               <button key={e.entity} onClick={() => opEnter(e.entity, "sku")}
-                style={{ padding:"6px 12px", borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", background:"rgba(0,194,232,0.08)", border:`1px solid rgba(0,176,212,0.5)`, color:C.blue }}>
+                style={{ padding:"6px 12px", borderRadius:6, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", background:"rgba(255,255,255,0.08)", border:`1px solid rgba(255,255,255,0.5)`, color:C.text }}>
                 {e.entity} →
               </button>
             ))}
@@ -490,15 +505,17 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
           <ExplorarBar explorable={curExplorable} onCompare={opCompare}
             metricOptions={metricOptions} currentMetric={current.metric} onMetric={setMetric}/>
         )}
-        {/* LA HISTORIA (paso 4) · evolutivo global real cuando el flag está ON · slot honesto si OFF · solo en base */}
-        {atBase && !current.compareWith && (
+        {/* LA HISTORIA (paso 4) · evolutivo de margen REAL · el motor lo muestra SOLO donde hay histórico (comercial);
+            en inventario (point-in-time) se oculta — no se inventa tendencia (honestidad) · solo en base */}
+        {atBase && !current.compareWith && charts.evolution && (
           ADI_SENTRIX_TEMPORAL_ENABLED
             ? <EvolutivoCard/>
             : (current.metric === "margen" && <TemporalSlot evidence={evidence}/>)
         )}
-        {/* EL PARETO (paso 4b) · concentración 80/20 · solo en base · escenario del análisis vigente */}
+        {/* EL PARETO (paso 4b) · concentración 80/20 · el motor pivotea métrica/dims según el foco (ventas ↔ capital
+            inmovilizado) · solo en base · escenario del análisis vigente */}
         {atBase && !current.compareWith && ADI_SENTRIX_PARETO_ENABLED && (
-          <ConcentracionCard scenario={evidence.periodo}/>
+          <ConcentracionCard key={charts.concentration.metric} scenario={evidence.periodo} spec={charts.concentration}/>
         )}
         </>)}
 
@@ -527,7 +544,7 @@ function LensPlaceholder({ tab, focus }) {
   const m = map[tab] || { t: tab, d: "" };
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:9, textAlign:"center", padding:24, minHeight:200 }}>
-      <div style={{ fontFamily:MONO, fontSize:10.5, letterSpacing:"1.2px", color:C.blue, textTransform:"uppercase" }}>{m.t}</div>
+      <div style={{ fontFamily:MONO, fontSize:10.5, letterSpacing:"1.2px", color:C.text, textTransform:"uppercase" }}>{m.t}</div>
       <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, maxWidth:300 }}>{m.d}</div>
       <div style={{ fontSize:11, color:C.textMuted, opacity:0.8 }}>En construcción · próximo brick.</div>
     </div>
@@ -544,13 +561,14 @@ function DataStrip({ focusType, focus, scenario }) {
     <div>
       <Eyebrow tone={C.textMuted}>Todo el dato · a la mano</Eyebrow>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:9 }}>
-        {kpis.map((k, i) => (
-          <div key={i} style={{ background:"rgba(255,255,255,0.022)", borderRadius:9, padding:"10px 12px" }}>
-            <div style={{ fontSize:10.5, color:C.textMuted, marginBottom:4 }}>{k.label}</div>
+        {kpis.map((k, i) => { const def = METRIC_DEFS[k.label]; return (
+          <div key={i} style={{ position:"relative", background:"rgba(255,255,255,0.022)", ...CARD_SIDES, borderRadius:9, padding:"10px 12px" }}>
+            {def && <span className="adi-i">i<span className="adi-tip">{def}</span></span>}
+            <div style={{ fontSize:10.5, color:C.textMuted, marginBottom:4, paddingRight:14 }}>{k.label}</div>
             <Num color={valColor(k.tone)} size="1.05em">{k.value}</Num>
             {k.sub && <div style={{ fontSize:10, color:subColor(k.tone), marginTop:2 }}>{k.sub}</div>}
           </div>
-        ))}
+        ); })}
       </div>
     </div>
   );
@@ -610,13 +628,13 @@ function EvolutivoCard() {
   const W = 540, H = 172, padL = 36, padR = 12, padT = 12, padB = 22;
 
   const SER = [
-    { key:"actual",      label:"Este año",     color:C.blue,      data:ev.actual,      dashed:false },
-    { key:"anterior",    label:"Año anterior", color:C.textMuted, data:ev.anterior,    dashed:true  },
-    { key:"presupuesto", label:"Presupuesto",  color:C.amber,     data:ev.presupuesto, dashed:true  },
+    { key:"actual",      label:"Este año",     color:C.elec, data:ev.actual,      dashed:false },
+    { key:"anterior",    label:"Año anterior", color:C.teal, data:ev.anterior,    dashed:true  },
+    { key:"presupuesto", label:"Presupuesto",  color:C.lav,  data:ev.presupuesto, dashed:true  },
   ];
   const comp = view === "comp";
   const lines = comp ? SER.filter((s) => show[s.key])
-                     : [{ key:"seq", label:"Ventas · 24 meses", color:C.blue, data:ev.seq24.map((p)=>p.v), dashed:false }];
+                     : [{ key:"seq", label:"Ventas · 24 meses", color:C.text, data:ev.seq24.map((p)=>p.v), dashed:false }];
   const xlabels = comp ? ev.meses : ev.seq24.map((p) => p.mes);
   const allVals = lines.flatMap((l) => l.data);
   const lo0 = allVals.length ? Math.min(...allVals) : 0, hi0 = allVals.length ? Math.max(...allVals) : 1;
@@ -662,28 +680,37 @@ function EvolutivoCard() {
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <span style={{ fontFamily:MONO, fontSize:8.5, fontWeight:600, color:C.green, textTransform:"uppercase", letterSpacing:"0.7px", padding:"2px 6px", borderRadius:4, background:"rgba(16,185,129,0.08)", border:"1px solid rgba(16,185,129,0.16)" }}>dato real</span>
           {["comp","seq"].map((vv) => (
-            <button key={vv} onClick={()=>{setView(vv);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: view===vv?"rgba(0,176,212,0.1)":"transparent", border:`1px solid ${view===vv?"rgba(0,176,212,0.4)":C.border}`, color: view===vv?C.blue:C.textMuted }}>{vv==="comp"?"12 meses":"24 meses"}</button>
+            <button key={vv} onClick={()=>{setView(vv);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10.5, fontFamily:"'DM Sans', system-ui, sans-serif", background: view===vv?"rgba(255,255,255,0.1)":"transparent", border:`1px solid ${view===vv?"rgba(255,255,255,0.4)":C.border}`, color: view===vv?C.text:C.textMuted }}>{vv==="comp"?"12 meses":"24 meses"}</button>
           ))}
         </div>
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} onMouseLeave={()=>setHov(null)}>
+        <defs>
+          <linearGradient id="evoArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3d74f5" stopOpacity="0.18"/>
+            <stop offset="100%" stopColor="#3d74f5" stopOpacity="0"/>
+          </linearGradient>
+        </defs>
         {grid.map((gv,i)=>(
           <g key={"g"+i}>
             <line x1={padL} y1={yAt(gv)} x2={W-padR} y2={yAt(gv)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
             <text x={padL-5} y={yAt(gv)+3} fill={C.textMuted} fontSize="8" fontFamily={MONO} textAnchor="end">{fMon(gv)}</text>
           </g>
         ))}
+        {comp && show.actual && (
+          <path d={`${ev.actual.map((v,i)=>`${i===0?"M":"L"}${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ")} L${xAt(ev.actual.length-1).toFixed(1)},${(H-padB).toFixed(1)} L${xAt(0).toFixed(1)},${(H-padB).toFixed(1)} Z`} fill="url(#evoArea)" stroke="none"/>
+        )}
         {lines.map((l) => (
-          <path key={l.key} d={dPath(l.data)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={l.dashed?"5 3":"none"} opacity={l.dashed?0.65:1}/>
+          <path key={l.key} d={dPath(l.data)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={l.dashed?"5 3":"none"} opacity={l.dashed?0.65:1} style={{ filter: l.dashed ? "none" : `drop-shadow(0 0 5px ${l.color}66)` }}/>
         ))}
         {comp && show.actual && ev.actual.map((v,i)=>(
-          <circle key={"d"+i} cx={xAt(i)} cy={yAt(v)} r={hov===i?3.5:2} fill={hov===i?C.blue:C.surface} stroke={C.blue} strokeWidth="1.5"/>
+          <circle key={"d"+i} cx={xAt(i)} cy={yAt(v)} r={hov===i?3.5:2} fill={hov===i?C.elec:C.surface} stroke={C.elec} strokeWidth="1.5"/>
         ))}
         {showMarks && [{i:aIdxMax,v:ev.max,up:true},{i:aIdxMin,v:ev.min,up:false}].map((p,k)=>(
           <g key={"m"+k}>
-            <circle cx={xAt(xi(p.i))} cy={yAt(p.v)} r="3.5" fill={p.up?C.green:C.red} stroke={C.bg} strokeWidth="1.5"/>
-            {hov==null && <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.green:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fMon(p.v)}</text>}
+            <circle cx={xAt(xi(p.i))} cy={yAt(p.v)} r="3.5" fill={p.up?C.elec:C.red} stroke={C.bg} strokeWidth="1.5"/>
+            {hov==null && <text x={xAt(xi(p.i))} y={yAt(p.v)+(p.up?-8:14)} fill={p.up?C.elec:C.red} fontSize="9" fontFamily={MONO} textAnchor="middle">{fMon(p.v)}</text>}
           </g>
         ))}
         {xlabels.map((m,i)=> ((comp || i%3===0) ? (
@@ -693,7 +720,7 @@ function EvolutivoCard() {
           <rect key={"h"+i} x={xAt(i)-stepX/2} y={padT} width={stepX} height={H-padT-padB} fill="transparent" onMouseEnter={()=>setHov(i)}/>
         ))}
         {tip && (<>
-          <line x1={xAt(tip.i)} y1={padT} x2={xAt(tip.i)} y2={H-padB} stroke={C.blue} strokeWidth="1" strokeDasharray="2 3" opacity="0.5"/>
+          <line x1={xAt(tip.i)} y1={padT} x2={xAt(tip.i)} y2={H-padB} stroke={C.text} strokeWidth="1" strokeDasharray="2 3" opacity="0.5"/>
           <g transform={`translate(${tipX},${tipY})`}>
             <rect width={TW} height={TH} rx="6" fill="#0a0a09" stroke={C.borderLight} strokeWidth="1"/>
             <text x="9" y="16" fill={C.text} fontSize="10" fontFamily={MONO} fontWeight="600">{tip.mes} · {fMon(tip.v)}</text>
@@ -726,13 +753,18 @@ function EvolutivoCard() {
 
 // ── EL PARETO · concentración 80/20 (dato real · data-driven) · barras + acumulado + referencia 80% ──
 // El % que muestra es el REAL del dato (no se fuerza 80). Honesto sin bloqueos (sumas acumuladas punto-en-tiempo).
-function ConcentracionCard({ scenario }) {
-  const [dim, setDim] = useState("cliente");
+function ConcentracionCard({ scenario, spec }) {
+  const sp = spec || { metric:"ventas", dims:CONCENTRATION_DIMS, defaultDim:"cliente", verb:"explican", ofNoun:"de las ventas", byNoun:"por ventas" };
+  const [dim, setDim] = useState(sp.defaultDim);
   const [hov, setHov] = useState(null);
-  const con = buildConcentration(dim, scenario);
+  const con = buildConcentration(dim, scenario, sp.metric);
   const bars = con.bars, nb = Math.max(bars.length, 1);
   const W = 540, H = 190, padL = 34, padR = 30, padT = 14, padB = 46;
   const maxV = bars.length ? bars[0].value : 1;
+  // 3 tiers premium: bloque 80% azul eléctrico · cola alta turquesa ahumado · cola baja lavanda metálico (gradiente + glow por tier)
+  const tierOf = (b, i) => b.inBlock ? "c" : ((i - con.blockCount) / Math.max(con.n - con.blockCount, 1) < 0.5 ? "a" : "r");
+  const fillFor = (t) => (t === "c" ? "url(#barAzul)" : t === "a" ? "url(#barTurq)" : "url(#barLav)");
+  const glowFor = (t) => (t === "c" ? "drop-shadow(0 0 5px rgba(61,116,245,0.42))" : t === "a" ? "drop-shadow(0 0 4px rgba(91,158,160,0.32))" : "drop-shadow(0 0 4px rgba(164,155,208,0.32))");
   const niceHi = Math.ceil(maxV / 1000) * 1000 || 1;
   const bw = (W - padL - padR) / nb;
   const xC = (i) => padL + i * bw + bw / 2;
@@ -747,29 +779,50 @@ function ConcentracionCard({ scenario }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
         <Eyebrow>Concentración · regla 80/20</Eyebrow>
         <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-          {CONCENTRATION_DIMS.map((d)=>(
-            <button key={d.key} onClick={()=>{setDim(d.key);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10, fontFamily:"'DM Sans', system-ui, sans-serif", background: dim===d.key?"rgba(0,176,212,0.1)":"transparent", border:`1px solid ${dim===d.key?"rgba(0,176,212,0.4)":C.border}`, color: dim===d.key?C.blue:C.textMuted }}>{d.label}</button>
+          {sp.dims.map((d)=>(
+            <button key={d.key} onClick={()=>{setDim(d.key);setHov(null);}} style={{ padding:"3px 8px", borderRadius:5, cursor:"pointer", fontSize:10, fontFamily:"'DM Sans', system-ui, sans-serif", background: dim===d.key?"rgba(255,255,255,0.1)":"transparent", border:`1px solid ${dim===d.key?"rgba(255,255,255,0.4)":C.border}`, color: dim===d.key?C.text:C.textMuted }}>{d.label}</button>
           ))}
         </div>
       </div>
 
       <div style={{ fontSize:13, color:C.textSub, lineHeight:1.5, marginBottom:6 }}>
-        Los primeros <Num color={C.blue}>{con.blockCount}</Num> {con.blockCount===1?con.label.toLowerCase():con.plural} explican el <Num color={C.amber}>{con.blockPct}%</Num> de las ventas.
+        Los primeros <Num color={C.text}>{con.blockCount}</Num> {con.blockCount===1?con.label.toLowerCase():con.plural} {sp.verb} el <Num color={C.amber}>{con.blockPct}%</Num> {sp.ofNoun}.
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} onMouseLeave={()=>setHov(null)}>
+        <defs>
+          <linearGradient id="barAzul" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#5a8cff" stopOpacity="1"/>
+            <stop offset="100%" stopColor="#2f56d8" stopOpacity="0.74"/>
+          </linearGradient>
+          <linearGradient id="barTurq" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#74b6b8" stopOpacity="1"/>
+            <stop offset="100%" stopColor="#487f81" stopOpacity="0.74"/>
+          </linearGradient>
+          <linearGradient id="barLav" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#bcb2e2" stopOpacity="1"/>
+            <stop offset="100%" stopColor="#877dba" stopOpacity="0.74"/>
+          </linearGradient>
+        </defs>
         {[100,80,50,25,0].map((p)=>(
           <g key={"p"+p}>
             <line x1={padL} y1={yCum(p)} x2={W-padR} y2={yCum(p)} stroke={p===80?C.amber:C.border} strokeWidth="1" strokeDasharray={p===80?"5 3":"3 4"} opacity={p===80?0.55:1}/>
             <text x={W-padR+4} y={yCum(p)+3} fill={p===80?C.amber:C.textMuted} fontSize="8" fontFamily={MONO}>{p}%</text>
           </g>
         ))}
-        {bars.map((b,i)=>(
-          <rect key={"b"+i} x={xC(i)-barW/2} y={yBar(b.value)} width={barW} height={Math.max((H-padB)-yBar(b.value),0)} rx="2"
-            fill={b.inBlock?C.blue:"rgba(255,255,255,0.10)"} opacity={hov==null||hov===i?1:0.5} onMouseEnter={()=>setHov(i)}/>
-        ))}
-        <path d={cumPath} fill="none" stroke={C.amber} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        {bars.map((b,i)=>(<circle key={"c"+i} cx={xC(i)} cy={yCum(b.cumPct)} r={hov===i?3.5:2} fill={hov===i?C.amber:C.surface} stroke={C.amber} strokeWidth="1.5" onMouseEnter={()=>setHov(i)}/>))}
+        {bars.map((b,i)=>{ const t=tierOf(b,i); return (
+          <rect key={"b"+i} x={xC(i)-barW/2} y={yBar(b.value)} width={barW} height={Math.max((H-padB)-yBar(b.value),0)} rx="3"
+            fill={fillFor(t)} opacity={hov==null||hov===i?1:0.55}
+            style={{ filter: glowFor(t) }} onMouseEnter={()=>setHov(i)}/>
+        ); })}
+        <path d={cumPath} fill="none" stroke={C.celeste} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" style={{ filter:`drop-shadow(0 0 3px ${C.celeste}55)` }}/>
+        {bars.map((b,i)=>(<circle key={"c"+i} cx={xC(i)} cy={yCum(b.cumPct)} r={hov===i?3:1.4} fill={hov===i?C.celeste:"#0a0a09"} stroke={C.celeste} strokeWidth="1" opacity="0.9" onMouseEnter={()=>setHov(i)}/>))}
+        {con.blockCount>=1 && con.blockCount<=bars.length && (
+          <g>
+            <circle cx={xC(con.blockCount-1)} cy={yCum(bars[con.blockCount-1].cumPct)} r="5.5" fill="none" stroke={C.red} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 5px ${C.red}aa)` }}/>
+            <circle cx={xC(con.blockCount-1)} cy={yCum(bars[con.blockCount-1].cumPct)} r="2.5" fill={C.red}/>
+          </g>
+        )}
         {bars.map((b,i)=> (nb<=14 || i%2===0) ? (
           <text key={"x"+i} x={xC(i)} y={H-padB+12} fill={hov===i?C.text:C.textMuted} fontSize="7.5" fontFamily={MONO} textAnchor="end" transform={`rotate(-40 ${xC(i)} ${H-padB+12})`}>{trunc(b.name)}</text>
         ) : null)}
@@ -784,7 +837,7 @@ function ConcentracionCard({ scenario }) {
       </svg>
 
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
-        Concentración por ventas ($) · escenario {con.scenario} · <span style={{color:C.textSub}}>barras azules</span> = el bloque que explica el 80%. Suma acumulada de dato real — el % es el que dice el dato, no se fuerza 80.
+        Concentración {sp.byNoun} ($) · escenario {con.scenario} · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80% · <span style={{color:C.celeste}}>línea celeste</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80%.
       </div>
     </Card>
   );

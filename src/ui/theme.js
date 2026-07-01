@@ -11,6 +11,11 @@ export const C = {
   text: "#ecebe8", textSub: "#bcbab5", textMuted: "#8d8a84",
   blue: "#00b0d4", indigo: "#0e7fa8", green: "#10b981",
   red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
+  celeste: "#2fb8da",   // celeste · acumulada del Pareto (la línea que cruza)
+  // Paleta PREMIUM de gráficos (owner 2026-06-30 · líneas y barras · 3 tiers/series): vibrante → ahumado → metálico.
+  elec: "#3d74f5",      // azul eléctrico vibrante · tier alto / serie actual
+  teal: "#5b9ea0",      // turquesa ahumado · tier medio / serie año anterior
+  lav:  "#a49bd0",      // lavanda metálico · tier bajo / serie presupuesto
 };
 
 export const NUM_BASE = {
@@ -36,7 +41,7 @@ export const FINANCIAL_HIGHLIGHT = {
   pp:    { ...NUM_BASE, color:"#fde047", background:"rgba(253,224,71,0.06)", border:"1px solid rgba(253,224,71,0.1)" },
   up:    { ...NUM_BASE, color:"#10b981", background:"rgba(16,185,129,0.06)", border:"1px solid rgba(16,185,129,0.1)" },
   down:  { ...NUM_BASE, color:"#f43f5e", background:"rgba(244,63,94,0.06)", border:"1px solid rgba(244,63,94,0.1)" },
-  entity:{ color:"#7fdef0", fontWeight:500 },
+  entity:{ color:"#eef2f6", fontWeight:600 },
 };
 
 // Estilos "plain" sin chip: usados en contexto tabular para no romper alineación columnar.
@@ -49,7 +54,7 @@ export const FINANCIAL_PLAIN = {
   pp:    { color:"#fde047", fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:"0.94em", fontFeatureSettings:"'tnum'" },
   up:    { color:"#10b981", fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:"0.94em", fontFeatureSettings:"'tnum'" },
   down:  { color:"#f43f5e", fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:"0.94em", fontFeatureSettings:"'tnum'" },
-  entity:{ color:"#7fdef0", fontWeight:500 },
+  entity:{ color:"#eef2f6", fontWeight:600 },
 };
 
 export const KNOWN_ENTITIES = [
