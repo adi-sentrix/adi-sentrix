@@ -15,7 +15,8 @@ import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCap
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
-import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED } from "../config/voiceFlags.js";
+import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
+import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -452,9 +453,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
       {/* SHELL · 3 tabs sobre el estado compartido (mismo caso, distinta lente) · gated · OFF = sin tabs (byte-exacto) */}
       {ADI_SENTRIX_SHELL_ENABLED && (
         <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:"#000000" }}>
-          {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ["control", "Control"]].map(([k, label]) => (
+          {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ["control", "Control"], ...(ADI_SENTRIX_CUADRO_ENABLED ? [["cuadro", "Cuadro de mando"]] : [])].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${tab === k ? C.text : "transparent"}`, color: tab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: tab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${tab === k ? C.text : "transparent"}`, color: tab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: tab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
               {label}
             </button>
           ))}
@@ -567,6 +568,10 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
         {ADI_SENTRIX_SHELL_ENABLED && tab === "control" && (
           ring ? <ControlRing ring={ring} rd={rd}/> : <LensPlaceholder tab="control" focus={rd.focus}/>
+        )}
+
+        {ADI_SENTRIX_SHELL_ENABLED && ADI_SENTRIX_CUADRO_ENABLED && tab === "cuadro" && (
+          <CuadroMando scenario={evidence.periodo}/>
         )}
       </div>
     </div>
@@ -772,6 +777,139 @@ function ControlRing({ ring, rd }) {
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CUADRO DE MANDO (4ª lente) · la GRILLA operable · cockpit: ver y manejar TODO el dato ──
+// Dimensiones (clientes/SKU/marcas/bodegas) × columnas del catálogo · ordenar · top-N · en-alerta · seleccionar y
+// comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
+function CuadroMando({ scenario }) {
+  const [dim, setDim] = useState("cliente");
+  const [sel, setSel] = useState([]);                 // nombres seleccionados (comparar = filtrar al resto)
+  const [mode, setMode] = useState("all");            // all | top | bottom | alert
+  const [scope, setScope] = useState("global");       // global | fecha (honesto)
+  const cm = buildCuadroMando(dim, scenario);
+  const cols = cm.columns;
+  const primary = cols.find((c) => c.key !== "accion") || cols[0];
+  const [sortKey, setSortKey] = useState(primary.key);
+  const money = (v) => "$" + (v / 1000).toFixed(1) + "M";       // dato en $K → $M (columnas comerciales)
+  const moneyk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
+  const fmt = (col, v) => {
+    if (v == null) return "—";
+    if (col.fmt === "money")  return money(v);
+    if (col.fmt === "moneyk") return moneyk(v);
+    if (col.fmt === "pct")    return r1(v) + "%";
+    if (col.fmt === "x")      return r1(v) + "x";
+    if (col.fmt === "int")    return Math.round(v).toLocaleString("es-CL");
+    if (col.fmt === "pp")     return v === 0 ? "—" : (v > 0 ? "+" : "") + r1(v) + "pp";
+    return v;
+  };
+  const cellColor = (col, r) => {
+    if (col.fmt === "pp")     return r._ref || r[col.key] === 0 ? C.textMuted : (r[col.key] >= 0 ? C.green : C.red);
+    if (col.tone === "margen")return r._ref ? C.textSub : (r.gap >= 0 ? C.green : r.gap <= -3 ? C.red : C.amber);
+    if (col.tone === "inmov") return r._ref ? C.textSub : (r.gap < 0 ? C.amber : C.textSub);
+    if (col.fmt === "money" || col.fmt === "moneyk") return C.text;
+    return C.textSub;
+  };
+  const sortCol = cols.find((c) => c.key === sortKey) || primary;
+  let rows = cm.rows.slice().sort((a, b) => (sortCol.sort === "asc" ? -1 : 1) * ((b[sortKey] || 0) - (a[sortKey] || 0)));
+  if (sel.length) rows = rows.filter((r) => sel.includes(r.name));
+  else if (mode === "top") rows = rows.slice(0, 10);
+  else if (mode === "bottom") rows = rows.slice(-10);
+  else if (mode === "alert") rows = rows.filter((r) => r.alert);
+  const toggleSel = (n) => setSel((s) => (s.includes(n) ? s.filter((x) => x !== n) : [...s, n]));
+  const GRID = `20px 1.4fr ${cols.map(() => "1fr").join(" ")}`;
+  const pill = (active, label, onClick, key) => (
+    <button key={key} onClick={onClick} style={{ padding:"4px 10px", borderRadius:6, fontSize:11.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap",
+      background: active ? "rgba(255,255,255,0.1)" : "transparent", border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, color: active ? C.text : C.textMuted }}>{label}</button>
+  );
+  const actionColor = (a) => (/revisar|renegociar|liquidar|acelerar|precio|mix|lento/.test(a) ? C.amber : /referencia/.test(a) ? C.green : C.textMuted);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      {/* dimensión + alcance */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+        <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+          {CUADRO_DIMS.map((d) => pill(dim === d.key, d.label, () => { setDim(d.key); setSel([]); setSortKey(primary.key); }, d.key))}
+        </div>
+        <div style={{ display:"flex", gap:5 }}>
+          {pill(scope === "global", "Global", () => setScope("global"), "g")}
+          {pill(scope === "fecha", "Por fecha", () => setScope("fecha"), "f")}
+        </div>
+      </div>
+      {scope === "fecha" && (
+        <div style={{ fontSize:11, color:C.amber, opacity:0.85, lineHeight:1.4 }}>
+          <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.6px", border:`1px solid ${C.amber}55`, borderRadius:4, padding:"1px 6px", marginRight:6 }}>EJEMPLO</span>
+          El corte por fecha por entidad se enciende con el histórico del ERP · hoy el dato es del período <b>{scenario}</b>.
+        </div>
+      )}
+      {/* filtros rápidos */}
+      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+        <span style={{ fontSize:11, color:C.textMuted }}>Ver</span>
+        {pill(mode === "all" && !sel.length, "Todos", () => { setMode("all"); setSel([]); }, "all")}
+        {pill(mode === "top" && !sel.length, "Top 10", () => { setMode("top"); setSel([]); }, "top")}
+        {pill(mode === "bottom" && !sel.length, "Peores 10", () => { setMode("bottom"); setSel([]); }, "bot")}
+        {pill(mode === "alert" && !sel.length, "En alerta", () => { setMode("alert"); setSel([]); }, "al")}
+        {sel.length > 0 && (
+          <span style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, fontSize:11.5, color:C.celeste }}>
+            {sel.length} en comparación
+            <button onClick={() => setSel([])} style={{ padding:"3px 8px", borderRadius:5, fontSize:11, cursor:"pointer", background:"transparent", border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif" }}>limpiar</button>
+          </span>
+        )}
+      </div>
+      {/* la grilla */}
+      <div style={{ overflowX:"auto" }}>
+        <div style={{ minWidth: 40 + cols.length * 66 + 120 }}>
+          {/* header */}
+          <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", fontSize:9, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.4px", textTransform:"uppercase", padding:"0 8px 7px", borderBottom:`1px solid ${C.border}` }}>
+            <span/><span>{cm.label}</span>
+            {cols.map((c) => (
+              <span key={c.key} onClick={() => c.key !== "accion" && setSortKey(c.key)} style={{ textAlign: c.key === "accion" ? "left" : "right", cursor: c.key === "accion" ? "default" : "pointer", color: sortKey === c.key ? C.text : C.textMuted, whiteSpace:"nowrap" }}>
+                {c.label}{sortKey === c.key ? " ↓" : ""}{c.defKey && METRIC_DEFS[c.defKey] ? <InfoDot def={METRIC_DEFS[c.defKey]} align="right"/> : null}
+              </span>
+            ))}
+          </div>
+          {/* filas */}
+          {rows.map((r, i) => {
+            const on = sel.includes(r.name);
+            return (
+              <div key={r.name} onClick={() => toggleSel(r.name)} style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"8px", borderRadius:6, cursor:"pointer",
+                background: on ? "rgba(47,184,218,0.08)" : "transparent", border:`1px solid ${on ? "rgba(47,184,218,0.25)" : "transparent"}`, borderBottom:`1px solid ${on ? "rgba(47,184,218,0.25)" : "rgba(255,255,255,0.03)"}` }}>
+                <span style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <span style={{ width:13, height:13, borderRadius:3, border:`1px solid ${on ? C.celeste : "rgba(255,255,255,0.25)"}`, background: on ? C.celeste : "transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#000" }}>{on ? "✓" : ""}</span>
+                </span>
+                <span style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
+                  {r.alert && <span style={{ width:6, height:6, borderRadius:"50%", background:C.red, flexShrink:0 }}/>}
+                  <span style={{ color:"#eef2f6", fontWeight:600, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                </span>
+                {cols.map((c) => c.key === "accion" ? (
+                  <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
+                ) : (
+                  <span key={c.key} style={{ textAlign:"right" }}><Num color={cellColor(c, r)}>{fmt(c, r[c.key])}</Num></span>
+                ))}
+              </div>
+            );
+          })}
+          {/* fila TOTALES · el resumen operativo (sumas · margen ponderado) */}
+          {!sel.length && cm.total && (
+            <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"10px 8px", marginTop:4, borderTop:`1px solid ${C.borderLight}`, background:"rgba(255,255,255,0.02)" }}>
+              <span/><span style={{ fontFamily:MONO, fontSize:9, fontWeight:600, letterSpacing:"0.6px", textTransform:"uppercase", color:C.text }}>Total</span>
+              {cols.map((c) => c.key === "accion" ? <span key={c.key}/> : (
+                <span key={c.key} style={{ textAlign:"right" }}><Num color={c.key === "margen" ? C.text : c.fmt === "pp" ? C.textMuted : C.text}>{cm.total[c.key] == null ? "—" : fmt(c, cm.total[c.key])}</Num></span>
+              ))}
+            </div>
+          )}
+          {/* nota de referencia: el promedio (la ley de las lentes) queda en el pie */}
+          {!sel.length && cm.avg && (
+            <div style={{ fontSize:10.5, color:C.textMuted, padding:"6px 8px 0", fontFamily:MONO }}>
+              Promedio {cm.label.toLowerCase()}: margen {r1(cm.avg.margen)}%{cm.avg.inmovPct != null ? ` · inmov ${r1(cm.avg.inmovPct)}%` : ""}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
+        Tocá una fila para seleccionar y comparar · ordená por cualquier columna · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
