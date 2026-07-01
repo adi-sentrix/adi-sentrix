@@ -44,7 +44,12 @@ console.log("\n── COLUMNAS del catálogo + GENERICIDAD ──");
 ok(ring.columns.length === 4 && ring.columns[0].key === "margen", "4 columnas (margen/carga/contribución/gap)");
 ok(ring.columns.every((c) => c.defKey && METRIC_DEFS[c.defKey]), "cada columna resuelve su ayuda en el glosario (el 'i' muestra definición)");
 ok(buildControlRing("client", "NoExiste", "bonanza") === null, "cliente inexistente → null (honesto · placeholder)");
-ok(buildControlRing("marca", "Samsung", "bonanza") === null, "tipo no soportado (marca) → null");
+// B4 · SKU y marca AHORA arman ring (antes null · placeholder) · el par instructivo dentro de la familia/marcas
+const _skuRing = buildControlRing("sku", "MAK-COMP-AIR", "bonanza");
+ok(_skuRing && _skuRing.entityType === "sku" && _skuRing.rows.some((r) => r.role === "focus") && _skuRing.rows.some((r) => r.role === "best"), "SKU → ring (foco + mejor-en-clase · B4)");
+const _marcaRing = buildControlRing("marca", "Samsung", "bonanza");
+ok(_marcaRing && _marcaRing.entityType === "marca" && _marcaRing.rows.some((r) => r.role === "focus"), "marca → ring (agregación ponderada · B4)");
+ok(buildControlRing("familia", "Línea Blanca", "bonanza") === null, "tipo aún no soportado (familia) → null");
 
 console.log("\n── SCENARIO-AWARE ──");
 const rC = buildControlRing("client", "Lider", "crisis");

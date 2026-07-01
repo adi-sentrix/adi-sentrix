@@ -32,8 +32,10 @@ const mB = buildEntityKPIs("client", "Lider", "bonanza").find((k) => k.label ===
 const mC = buildEntityKPIs("client", "Lider", "crisis").find((k) => k.label === "Margen").value;
 ok(mB !== mC, `margen bonanza ${mB} != crisis ${mC} (scenario-aware)`);
 
-console.log("\n── GENERICIDAD · tipo no soportado → vacío (no rompe) ──");
-ok(buildEntityKPIs("marca", "Bosch", "bonanza").length === 0, `marca → [] (el resto del Diagnóstico igual se muestra)`);
+console.log("\n── GENERICIDAD · SKU/marca AHORA arman DataStrip (B4) · familia sigue vacío ──");
+ok(buildEntityKPIs("sku", "LG-DRYER8KG", "bonanza").length >= 6, `SKU → DataStrip (margen/ventas/contribución/costo/... · B4)`);
+ok(buildEntityKPIs("marca", "Bosch", "bonanza").length >= 5, `marca → DataStrip (agregación ponderada · B4)`);
+ok(buildEntityKPIs("familia", "Línea Blanca", "bonanza").length === 0, `familia → [] (tipo aún no soportado · el resto del Diagnóstico igual se muestra)`);
 
 console.log("\n" + "═".repeat(50));
 console.log(`GATES: ${pass}/${pass + fail}` + (fail ? " · 🚨 HAY ROJOS" : " · TODOS VERDES"));
