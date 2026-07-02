@@ -7,6 +7,7 @@ import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScen
 import { detectInternalDriver, calculateRecoverable } from "../../engine/signals.js";
 import { _deriveTierFromContribution } from "./clientDive.js";
 import { scanMechanisms } from "./thesis.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 // ── classifySkuOperationalProfile · perfil individual del SKU (L11476) · módulo-local verbatim ──
 function classifySkuOperationalProfile(sku) {
@@ -134,7 +135,7 @@ function _detectExecutiveActions(scenarioId, override) {
       // (margen<0 era inalcanzable · clamp Math.max(6,...) · #L-MAT-B2-ELEVACION-AUN-INALCANZABLE)
       const _cargaCrit = top3.some(c => {
         const cm = applyScenarioToClientesMargen(scenarioId, override).find(x => x.nombre === c.nombre);
-        const _bench = (cm && cm.benchmark) || 30.1;
+        const _bench = (cm && cm.benchmark) || POLICY.benchmark;
         return cm && cm.margen != null && cm.margen < _bench / 2;
       });
       const _cargaUrgency = _cargaCrit ? "critica" : "atencion";
@@ -203,7 +204,7 @@ function _detectExecutiveActions(scenarioId, override) {
       const _cmConc = applyScenarioToClientesMargen(scenarioId, override);
       const _concDeteriorada = (agg.top3_names || []).some(name => {
         const c = _cmConc.find(x => x.nombre === name);
-        const _bench = (c && c.benchmark) || 30.1;
+        const _bench = (c && c.benchmark) || POLICY.benchmark;
         return c && c.margen != null && c.margen < _bench / 2;
       });
       const _concUrgency = _concDeteriorada ? "critica" : "seguir";

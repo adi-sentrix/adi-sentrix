@@ -8,6 +8,7 @@ import { CLIENTES_STRATEGIC_PROFILE } from "../../data/demoData.js";
 import { calculateIncrementalGrowth } from "../../engine/portfolio.js";
 import { applyScenarioToClientesMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";
 import { buildReframe, buildSuggestedAction, calculateRecoverable, classifySeverity, detectInternalDriver } from "../../engine/signals.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 import { getStrategicProfile, getSubstitutionMap } from "../detectors.js";
 import { filterTextualSuggestions } from "../helpers.js";
 import { scanMechanisms } from "./thesis.js";
@@ -328,7 +329,7 @@ export function buildNarrativeSignalsForClientDeepDive(clientName, scenarioId) {
       what: {
         entity: clientName,
         margen: margenEntity.margen,
-        benchmark: margenEntity.benchmark || 30.1,
+        benchmark: margenEntity.benchmark || POLICY.benchmark,
         pctRebate: margenEntity.pctRebate,
       },
       why: driver ? {
@@ -802,7 +803,7 @@ export function composeRecommendation(trace, profile, context = {}) {
     case "low_quality_growth":
     case "pricing_pressure": {
       // Operational target: 3.5% (between best practice 3% and current load)
-      const operationalTarget = 3.5;
+      const operationalTarget = POLICY.targetCarga;
       const pointsToReduce = +(carga - operationalTarget).toFixed(1);
       const impactK = Math.round(ventasK * pointsToReduce / 100);
       action = `Reducir gradualmente la carga comercial desde ${carga}% hacia niveles cercanos al benchmark interno de ${operationalTarget}% permitiría recuperar aproximadamente $${impactK}K anuales de contribución.`;

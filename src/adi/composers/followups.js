@@ -1,5 +1,6 @@
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { filterTextualSuggestions } from "../helpers.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 export function composeClientMetricFollowUp(clientName, metricKey, scenario, modulo) {
   // FASE 1.5.B-HOTFIX-3-PATCH-3 · cross-dataset
@@ -32,7 +33,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
   const avgMargen = dataset
     .filter(x => x.margen !== null && x.margen !== undefined)
     .reduce((s, x, _, arr) => s + x.margen / arr.length, 0);
-  const benchmark = c.benchmark || 30.1;
+  const benchmark = c.benchmark || POLICY.benchmark;
 
   let opener = "";
   let suggestions = [];

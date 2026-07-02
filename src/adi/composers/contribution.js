@@ -5,6 +5,7 @@ import { clientesMargen } from "../../data/demoData.js";
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { _buildEntityId } from "../router.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 export function composeClientContributionRanking(scenarioId) {
   // ── 1. Helpers formato
@@ -67,7 +68,7 @@ export function composeClientContributionRanking(scenarioId) {
   if (margenAlto && margenBajo && margenAlto !== margenBajo) {
     lecturaCausal += ` ${margenAlto.nombre} (${margenAlto.margen}% margen) y ${margenBajo.nombre} (${margenBajo.margen}% margen) coexisten en el top: el segundo aporta volumen pero a costo de carga comercial (${margenBajo.pctRebate}%) sobre la mejor práctica interna.`;
   } else if (margenAlto) {
-    lecturaCausal += ` ${margenAlto.nombre} opera con margen ${margenAlto.margen}%, ${margenAlto.margen >= 25 ? "por encima" : "alineado"} del benchmark cartera (30.1%).`;
+    lecturaCausal += ` ${margenAlto.nombre} opera con margen ${margenAlto.margen}%, ${margenAlto.margen >= 25 ? "por encima" : "alineado"} del benchmark cartera (${POLICY.benchmark}%).`;
   }
 
   // ── 5. FOCO accionable

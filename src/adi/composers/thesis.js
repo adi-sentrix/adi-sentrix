@@ -3,6 +3,7 @@
  * Importa motor (engine/) + datos/config sellados. Cero cambio de cálculo. */
 import { MECHANISM_REGISTRY } from "../../config/mechanisms.js";
 import { applyScenarioToClientesMargen, applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 export function composeBusinessThesisOpener(scenarioId) {
   if (!scenarioId) return null;
@@ -15,7 +16,7 @@ export function composeBusinessThesisOpener(scenarioId) {
 
   if (t.es_causal && t.titular === "dependencia") {
     // crisis = alguna entity_clave opera bajo media benchmark (MISMA señal · MAT-B3/C · no se inventa)
-    const benchmark = 30.1;
+    const benchmark = POLICY.benchmark;
     const clientes = applyScenarioToClientesMargen(scenarioId);
     const agudo = (t.entities_clave || []).some(name => {
       const c = clientes.find(x => x.nombre === name);
@@ -36,7 +37,7 @@ export function composeBusinessThesisOpener(scenarioId) {
 }
 
 export function deriveBusinessThesis(scenarioId, override) {
-  const benchmark = 30.1; // umbral de cartera (consistente con el código · const local)
+  const benchmark = POLICY.benchmark; // umbral de cartera (consistente con el código · const local)
   const scan = scanMechanisms(scenarioId, override);
   const clientes = applyScenarioToClientesMargen(scenarioId, override);
   const skus = applyScenarioToSkuInventario(scenarioId, override);

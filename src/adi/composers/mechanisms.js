@@ -7,6 +7,7 @@ import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { _buildEntityId } from "../router.js";
 import { MECHANISM_REGISTRY } from "../../config/mechanisms.js";
 import { VOZ2_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED } from "../../config/voiceFlags.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 // ── r7_* formatters · copiados verbatim de 41cc33d8 (L19886-19901) ──
 // Usados por composeCustomerDependencyRiskResponse (M y listInstances) y composeMechanismScan (K).
@@ -87,12 +88,12 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
   const rangoCarga = cargas.length === 1
     ? `${cargas[0]}%`
     : `${Math.min(...cargas).toFixed(1)}% y ${Math.max(...cargas).toFixed(1)}%`;
-  const bestPractice = top_instance.bestPractice_pct || 3.0;
+  const bestPractice = top_instance.bestPractice_pct || POLICY.bestPracticeCarga;
 
   const _voz2 = (typeof VOZ2_ENABLED !== "undefined" && VOZ2_ENABLED);
   const lectura = _voz2
-    ? `Las ${top3.length} ${cuentasWord} aportan ${fmtM(totalContribTier)} al año (${pctSales}% de las ventas de la cartera), pero todas rinden por debajo del promedio de la cartera (30.1%). La diferencia se concentra en la carga comercial, que está entre ${rangoCarga} y por encima de lo sano internamente (${bestPractice}%). Cada punto adicional en esa carga reduce el aporte que la cuenta podría generar.`
-    : `Las ${top3.length} ${cuentasWord} sostienen ${fmtM(totalContribTier)} anuales en contribución agregada (${pctSales}% del total de ventas cartera) pero operan con márgenes entre ${rangoMargen}, todos bajo el benchmark de cartera (30.1%). La presión sobre el margen unitario proviene de carga comercial alta (${rangoCarga}, sobre la mejor práctica interna de ${bestPractice}%). Cada punto de carga sobre la mejor práctica se traduce directamente en contribución que no se captura.`;
+    ? `Las ${top3.length} ${cuentasWord} aportan ${fmtM(totalContribTier)} al año (${pctSales}% de las ventas de la cartera), pero todas rinden por debajo del promedio de la cartera (${POLICY.benchmark}%). La diferencia se concentra en la carga comercial, que está entre ${rangoCarga} y por encima de lo sano internamente (${bestPractice}%). Cada punto adicional en esa carga reduce el aporte que la cuenta podría generar.`
+    : `Las ${top3.length} ${cuentasWord} sostienen ${fmtM(totalContribTier)} anuales en contribución agregada (${pctSales}% del total de ventas cartera) pero operan con márgenes entre ${rangoMargen}, todos bajo el benchmark de cartera (${POLICY.benchmark}%). La presión sobre el margen unitario proviene de carga comercial alta (${rangoCarga}, sobre la mejor práctica interna de ${bestPractice}%). Cada punto de carga sobre la mejor práctica se traduce directamente en contribución que no se captura.`;
 
   // ── FOCO · acción accionable con cliente líder + recuperable
   // NOTA · recuperable_at_target_3_5 viene en USD raw. recuperable_total_K
@@ -101,7 +102,7 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
   const recuperableTotalUSD = m.aggregate.recuperable_total_K * 1000;
   const otros = top3.slice(1).map(i => i.clientName).join(" y ");
 
-  let focoText = `Mecanismo disponible: ${top_instance.clientName} concentra mayor materialidad (${fmtM(top_instance.contribucion_M)}) y mayor gap de carga (${top_instance.carga_pct}% vs 3.5%) · la palanca de renegociación opera sobre ese cliente. Una reducción gradual desde ${top_instance.carga_pct}% hacia 3.5% recuperaría aproximadamente ${fmtK(recuperablePalanca)} anuales sin afectar volumen presente.`;
+  let focoText = `Mecanismo disponible: ${top_instance.clientName} concentra mayor materialidad (${fmtM(top_instance.contribucion_M)}) y mayor gap de carga (${top_instance.carga_pct}% vs ${POLICY.targetCarga}%) · la palanca de renegociación opera sobre ese cliente. Una reducción gradual desde ${top_instance.carga_pct}% hacia ${POLICY.targetCarga}% recuperaría aproximadamente ${fmtK(recuperablePalanca)} anuales sin afectar volumen presente.`;
   if (otros) {
     focoText += ` La misma lógica progresiva sobre ${otros} liberaría aproximadamente ${fmtK(recuperableTotalUSD)} agregados de contribución.`;
   }
@@ -137,10 +138,10 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
     evidence: {
       cliente_principal: top_instance.clientName,
       margen_pct: top_instance.margen_pct,
-      benchmark_margen: 30.1,
+      benchmark_margen: POLICY.benchmark,
       carga_actual: top_instance.carga_pct,
-      best_practice_carga: 3.5,
-      gap_carga_pp: +(top_instance.carga_pct - 3.5).toFixed(1),
+      best_practice_carga: POLICY.targetCarga,
+      gap_carga_pp: +(top_instance.carga_pct - POLICY.targetCarga).toFixed(1),
       contribucion_principal_M: top_instance.contribucion_M,
       recuperable_principal_USD: top_instance.recuperable_at_target_3_5,
       recuperable_agregado_K: m.aggregate.recuperable_total_K,
@@ -219,7 +220,7 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
   const rangoMargen = margenes.length === 1
     ? `${margenes[0]}%`
     : `${Math.min(...margenes).toFixed(1)}% y ${Math.max(...margenes).toFixed(1)}%`;
-  const benchmark = top_instance.benchmark_pct || 30.1;
+  const benchmark = top_instance.benchmark_pct || POLICY.benchmark;
   const totalRecuperable = m.aggregate.contribucion_perdida_M;
   const totalRecuperableStr = `$${Math.round(totalRecuperable * 1000)}K`;
 
@@ -238,7 +239,7 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
   if (erosionLider) {
     // Si el líder también está en erosion, tenemos carga y recuperable
     const recuperableLider = erosionLider.recuperable_at_target_3_5;
-    focoText = `Mecanismo disponible: ${top_instance.clientName} combina mayor materialidad de cartera (${fmtM(lider_contribAbs)} de contribución) y mayor controlabilidad operativa (carga comercial ${erosionLider.carga_pct}%) · zona donde la palanca tiene mayor impacto cuantificable. Una reducción gradual desde ${erosionLider.carga_pct}% hacia 3.5% recuperaría aproximadamente ${fmtK(recuperableLider)} anuales sin sacrificar volumen presente.`;
+    focoText = `Mecanismo disponible: ${top_instance.clientName} combina mayor materialidad de cartera (${fmtM(lider_contribAbs)} de contribución) y mayor controlabilidad operativa (carga comercial ${erosionLider.carga_pct}%) · zona donde la palanca tiene mayor impacto cuantificable. Una reducción gradual desde ${erosionLider.carga_pct}% hacia ${POLICY.targetCarga}% recuperaría aproximadamente ${fmtK(recuperableLider)} anuales sin sacrificar volumen presente.`;
   } else {
     // Sin datos de carga · foco basado en materialidad y deterioro de margen
     const contribPerdida = top_instance.contribucion_perdida_M;

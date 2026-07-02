@@ -9,6 +9,7 @@ import { composeSentrixAction } from "./clientDive.js";
 import { composeBusinessThesisOpener } from "./thesis.js";
 import { _capitalInmovilizado } from "./warehouse.js";
 import { ADI_CAPITAL_DEF_CANONICA_ENABLED } from "../../config/voiceFlags.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico · mismos valores)
 
 // Sub-composers de otros archetypes · aún no extraídos (no se invocan para fuga_distribuida).
 const composeMechanismRanking = () => { throw new Error("composeMechanismRanking no extraído"); };
@@ -78,7 +79,7 @@ function validateM3Evidence(archetype, domainsDetected, scenarioId) {
   if (domainsDetected.length >= 2) {
     if (domainsDetected.includes("margenes") && domainsDetected.includes("ventas")) {
       const tier1WithPressure = margenes.filter(c =>
-        c.margen < 30.1 && c.pctRebate > 3.0
+        c.margen < POLICY.benchmark && c.pctRebate > POLICY.bestPracticeCarga
       );
       if (tier1WithPressure.length > 0) {
         return {
@@ -141,9 +142,9 @@ function validateM3Evidence(archetype, domainsDetected, scenarioId) {
 function composePriorityRecommendationV2(scenarioId) {
   const margenes = applyScenarioToClientesMargen(scenarioId);
   const ventas = applyScenarioToClientesVentas(scenarioId);
-  const benchmark = 30.1;
-  const bestPractice = 3.0;
-  const target_carga = 3.5;
+  const benchmark = POLICY.benchmark;
+  const bestPractice = POLICY.bestPracticeCarga;
+  const target_carga = POLICY.targetCarga;
 
   // Cliente prioritario: Falabella · fall-back defensivo si no está en escenario.
   let cliente_m = margenes.find(c => c.nombre === "Falabella");
@@ -274,8 +275,8 @@ export function composeCrossDomainResponse(detection, scenarioId) {
 
   if (archetype === "fuga_distribuida") {
     const margenesForAction = applyScenarioToClientesMargen(scenarioId);
-    const benchmark = 30.1;
-    const target_carga = 3.5;
+    const benchmark = POLICY.benchmark;
+    const target_carga = POLICY.targetCarga;
     const tier1WithPressure = margenesForAction.filter(c =>
       c.margen < benchmark && c.pctRebate > target_carga
     );
@@ -295,15 +296,15 @@ function composeM1Donde(archetype, domains, scenarioId) {
   const ventas = applyScenarioToClientesVentas(scenarioId);
   const margenes = applyScenarioToClientesMargen(scenarioId);
   const totalActual = ventas.reduce((s, c) => s + c.actual, 0);
-  const benchmark = 30.1;
-  const bestPractice = 3.0;
+  const benchmark = POLICY.benchmark;
+  const bestPractice = POLICY.bestPracticeCarga;
 
   if (archetype === "fuga_distribuida") {
     // BRIEF #15-quater · alinear target 3.5% con M4 y mecanismo-first.
     // Filtro: cuentas con margen bajo benchmark Y carga sobre target (no
     // sobre bestPractice). Asegura que las cuentas listadas efectivamente
     // tienen recuperable positivo al target 3.5%.
-    const target_carga = 3.5;
+    const target_carga = POLICY.targetCarga;
     const tier1WithPressure = margenes.filter(c =>
       c.margen < benchmark && c.pctRebate > target_carga
     );
@@ -452,15 +453,15 @@ function composeM3ComoSeConectan(archetype, domains, evidence, scenarioId) {
 
 function composeM4QuePriorizar(archetype, domains, scenarioId) {
   const margenes = applyScenarioToClientesMargen(scenarioId);
-  const benchmark = 30.1;
-  const bestPractice = 3.0;
+  const benchmark = POLICY.benchmark;
+  const bestPractice = POLICY.bestPracticeCarga;
 
   if (archetype === "fuga_distribuida") {
     const falabella = margenes.find(c => c.nombre === "Falabella");
     if (!falabella) return `La palanca prioritaria requiere identificación de la cuenta de mayor materialidad activa.`;
 
     // BRIEF #15-ter · FIX 3b · alinear target con BRIEF #15 (3.5%, no 3.0%)
-    const target_carga = 3.5;
+    const target_carga = POLICY.targetCarga;
     const recuperable = ((falabella.pctRebate - target_carga) / 100) * falabella.venta;
     const recuperableK = Math.round(recuperable);
 

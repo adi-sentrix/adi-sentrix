@@ -7,6 +7,7 @@ import { clientesMargen } from "../../data/demoData.js";
 import { getInvKPI, getMargenKPI, getVentasKPI } from "../../engine/metrics.js";
 import { applyScenarioToClientesVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { filterTextualSuggestions } from "../helpers.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 export function composeModuleOverview(scenarioId, moduloId) {
   // ── ADI Core · 2.2a-2 parte B · CIERRE SEMÁNTICO del overview de inventario ──
@@ -141,7 +142,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
     const margenAnt = k.pctAnt;
     const contribTotal = k.totalUSD;       // escala miles
     const gap = k.gapPuntos;                // YoY (pct - pctAnt) · NO vs benchmark (ver L17790)
-    const benchmark = k.benchmark || 30.1;
+    const benchmark = k.benchmark || POLICY.benchmark;
     const deltaPp = margenPct - margenAnt; // delta YoY puntos
     const ventaActual = vk.totalActual;    // escala miles (KPI canónico)
 
@@ -394,7 +395,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const margenPct = k.pct;
     const margenAnt = k.pctAnt;
     const gap = k.gapPuntos;
-    const benchmark = k.benchmark || 30.1;
+    const benchmark = k.benchmark || POLICY.benchmark;
     const deltaPp = margenPct - margenAnt;
     const ventaActual = vk.totalActual;
 

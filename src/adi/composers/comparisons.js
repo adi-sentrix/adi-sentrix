@@ -2,6 +2,7 @@ import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { filterTextualSuggestions } from "../helpers.js";
 import { _bFmt1, _bFmt2, _brandHasClientWorld, _brandRow } from "../router.js";
 import { _cmpRatio } from "./warehouse.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
   // FASE 1.5.B-HOTFIX-3-PATCH-3 · cross-dataset
@@ -34,7 +35,7 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
     };
   }
 
-  const benchmark = A.benchmark || 30.1;
+  const benchmark = A.benchmark || POLICY.benchmark;
 
   // Cálculos comparativos
   const diffVentas = A.venta - B.venta;

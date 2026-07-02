@@ -29,6 +29,7 @@ import {
   _aggregateInventario,
 } from "../../engine/metrics.js";
 import { scanMechanisms } from "./thesis.js";
+import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 // ── classifySkuOperationalProfile · clasificación perfil SKU (monolito L11476) ──
 function classifySkuOperationalProfile(sku) {
@@ -406,10 +407,10 @@ const KPI_CATALOG = [
     label: "Carga comercial promedio",
     compute: (ctx) => ctx?.margenes?.cargaComercialPromedio,
     unit: "%",
-    target: 3.5,
+    target: POLICY.targetCarga,
     target_direction: "lte",
-    benchmark: 3.5,
-    target_label: "≤ 3.5% (best practice 3.0%)",
+    benchmark: POLICY.targetCarga,
+    target_label: `≤ ${POLICY.targetCarga}% (best practice ${POLICY.bestPracticeCarga}%)`,
     frequency: "mensual",
     governance: "Pricing · Comercial",
   },
