@@ -25,7 +25,7 @@ export function validateDataset(mode = "demo") {
     let hits;
     try { hits = rule.check(ctx) || []; }
     catch (e) { findings.blocker.push({ rule: rule.id, where: "(check)", msg: `la regla crasheó: ${e.message}` }); continue; }
-    for (const h of hits) (findings[rule.severity] || findings.warning).push({ rule: rule.id, ...h });
+    for (const h of hits) (findings[h.severity || rule.severity] || findings.warning).push({ rule: rule.id, ...h });   // severidad por-hallazgo si la trae
   }
   const apt = mode === "demo" ? true : findings.blocker.length === 0;
   return {

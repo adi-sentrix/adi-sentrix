@@ -58,6 +58,7 @@ export const SOURCES = {
     origin: { kind: "static", module: "src/data/demoData.js", export: "marcasMargen" },
     load: () => marcasMargen,
     scenarioLoad: null,                                          // agregación · hoy base (se deriva de sku/cliente · scenario-blind)
+    aggregate: true,                                             // ← AGREGADO: contribución almacenada = fuente de verdad · venta×margen = validación con tolerancia agregada (redondeo del margen ponderado)
     keyField: "nombre",
     schema: { nombre: "string", tipo: "enum(marca)", venta: "money(K)", contribucion: "money(K)", margen: "pct",
               pctRebate: "pct", benchmark: "pct", unidades: "count" },
@@ -66,6 +67,7 @@ export const SOURCES = {
     origin: { kind: "static", module: "src/data/demoData.js", export: "sfamiliasMargen" },
     load: () => sfamiliasMargen,
     scenarioLoad: (scn) => applyScenarioToSfamiliasMargen(scn),  // scenario-aware (derivada de clientes)
+    aggregate: true,                                             // ← AGREGADO: mismo trato que marca (fuente de verdad = almacenada · tolerancia agregada)
     keyField: "nombre",
     schema: { nombre: "string", tipo: "enum(sfamilia)", venta: "money(K)", contribucion: "money(K)", margen: "pct",
               pctRebate: "pct", benchmark: "pct", unidades: "count" },

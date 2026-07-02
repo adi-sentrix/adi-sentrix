@@ -12,7 +12,8 @@
  * cobertura parcial · métrica base-only) · info (limitación declarada, ej. SKU margen base-only fuera de bonanza). */
 
 export const TOLERANCE = {
-  money: { absK: 1, absRaw: 1000, rel: 0.001 },   // $1K en la unidad del campo (K→1 · raw→1000) O 0.1% relativo
+  money: { absK: 1, absRaw: 1000, rel: 0.001 },   // PRIMARIO · $1K en la unidad del campo (K→1 · raw→1000) O 0.1% relativo
+  moneyAgg: { rel: 0.005 },                        // AGREGADO (marca/familia) · tolerancia de redondeo del margen ponderado (0.5%) → warning, no blocker
   pct: 0.1,                                        // puntos porcentuales
   ratio: 0.1,                                      // x / días
 };
@@ -78,16 +79,24 @@ export const RULES = [
   },
   // ── DINERO · fórmula-metadata cierra ──
   {
-    id: "contribucion-cierra", severity: "blocker", modes: ["ci", "demo", "prod"],   // corre en demo (observe-first REPORTA · no bloquea)
-    desc: "La contribución almacenada cierra con venta × margen (tolerancia mixta $1K/0.1%)",
+    id: "contribucion-cierra", severity: "blocker", modes: ["ci", "demo", "prod"],   // severidad POR HALLAZGO (ver abajo)
+    // SEVERIDAD POR EJE (lectura del owner · confirmada por revisión): en PRIMARIOS (cliente/sku) la contribución DEBE
+    // cerrar con venta×margen → blocker si no. En AGREGADOS (marca/familia · aggregate:true) la contribución ALMACENADA
+    // es la fuente de verdad y venta×margen es una validación con tolerancia agregada (el margen ponderado va redondeado
+    // a 1 decimal → Δ ~0.05-0.1% por construcción) → warning; solo un desvío GRANDE (> tolerancia agregada) es blocker.
+    desc: "Contribución cierra con venta×margen · primario=blocker · agregado=warning (redondeo · tolerancia agregada)",
     check: (ctx) => {
       const out = [];
       for (const [src, scale] of [["clientesMargen", "K"], ["skusMargen", "raw"], ["marcasMargen", "K"], ["sfamiliasMargen", "K"]]) {
+        const isAgg = ctx.SOURCES[src].aggregate === true;
         for (const r of ctx.load(src)) {
           if (typeof r.venta !== "number" || typeof r.margen !== "number" || typeof r.contribucion !== "number") continue;
           const computed = r.venta * r.margen / 100;
           const { ok, delta, rel } = _moneyClose(r.contribucion, computed, scale);
-          if (!ok) out.push({ where: `${src}·${r.nombre}`, msg: `contribución ${r.contribucion} vs venta×margen ${computed.toFixed(1)} (Δ${delta.toFixed(1)} · ${(rel * 100).toFixed(2)}%)` });
+          if (ok) continue;   // dentro de la tolerancia primaria → cierra
+          if (!isAgg) { out.push({ severity: "blocker", where: `${src}·${r.nombre}`, msg: `PRIMARIO no cierra: contribución ${r.contribucion} vs venta×margen ${computed.toFixed(1)} (Δ${delta.toFixed(1)} · ${(rel * 100).toFixed(2)}%)` }); continue; }
+          const aggOk = rel <= TOLERANCE.moneyAgg.rel;
+          out.push({ severity: aggOk ? "warning" : "blocker", where: `${src}·${r.nombre}`, msg: `AGREGADO ${aggOk ? "redondeo" : "DESVÍO real"}: stored ${r.contribucion} (fuente de verdad) vs venta×margen ${computed.toFixed(1)} (Δ${delta.toFixed(1)} · ${(rel * 100).toFixed(3)}%)` });
         }
       }
       return out;
