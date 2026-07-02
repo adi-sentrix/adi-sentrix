@@ -47,7 +47,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED, ADI_SKU_SCENARIO_GUARD_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -283,6 +283,21 @@ function _gateInvCTA(sa) {
 function _inventarioAvisarMsg(filterName) {
   const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, igual te aviso en vez de darte un número que parezca firme.` : "";
   return `Eso vive en inventario y todavía no está habilitado en esta fase (Fase 2.5). No voy a responder con datos parciales o globales.${_filt} Lo que sí tengo hoy es ventas y márgenes.`;
+}
+
+// GUARD SKU-MARGEN × ESCENARIO (hardening confianza) · el margen por SKU no está modelado por escenario (skusMargen es
+// fijo · el motor solo ajusta clientes) → fuera de bonanza NO es scenario-current y contradice el roll-up de familia/
+// cartera. Detección precisa: ranking sku_margen O "margen por sku/producto". Solo dispara non-bonanza.
+function _esSkuMargenNoBonanza(intent, trimmed, scenario) {
+  if (!scenario || scenario === "bonanza") return false;
+  if (intent && intent.type === "ranking_extremes" && intent.metric === "sku_margen") return true;
+  const q = normalizeText(trimmed);
+  return /\bmargen(es)?\b/.test(q) && /\bpor\s+(sku|skus|producto|productos)\b/.test(q);
+}
+const _SCN_LABEL = { tension: "la tensión", crisis: "la crisis" };
+function _skuMargenScenarioMsg(scenario) {
+  const _sc = _SCN_LABEL[scenario] || "este escenario";
+  return `El margen por SKU todavía no lo ajusto por escenario — se enciende con el ERP. En ${_sc} no te lo muestro para no darte un número que no cierra con el resto de la cartera. Lo que SÍ refleja el escenario: el margen por cliente y por familia. ¿Arrancamos por ahí?`;
 }
 
 // wrap fallback · opener (con applyVoiceCalibration interno) + SOLO suffix.
@@ -867,6 +882,13 @@ export function answerADI(question, context = {}, state = {}) {
     const _f = detectAllFamiliesInText(trimmed, { strict: true });
     const _filterName = _b || (_f.length ? _f[0] : null);
     return _plainWrap({ opener: ADI_SMART_GUIDE_ENABLED ? composeSmartGuide(trimmed) : _inventarioAvisarMsg(_filterName) }, "qi_inventory_avisar", ctx);
+  }
+
+  // ── GUARD SKU-MARGEN × ESCENARIO (hardening confianza) · corre ANTES del QI retrieval y del dispatch → captura las
+  // dos superficies ("el sku con peor margen" ranking + "margen por sku" tabla). Bloqueo honesto en tensión/crisis.
+  // Gated · OFF = base byte-exacto · solo non-bonanza → la demo (bonanza) y el gate (bonanza) quedan intactos.
+  if (ADI_SKU_SCENARIO_GUARD_ENABLED && _esSkuMargenNoBonanza(intent, trimmed, scenario)) {
+    return _plainWrap({ opener: _skuMargenScenarioMsg(scenario) }, "sku_margen_scenario_guard", ctx);
   }
 
   // ── QI RETRIEVAL · tabla paramétrica (replica PanelADI FASE 3 · L37159-37182) ──
