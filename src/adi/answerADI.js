@@ -47,7 +47,7 @@ import { _isExplicitModuleOverviewQuery, _isBareModuleWord } from "./overviewGat
 import { dispatchNarrativeComposer, selectPosture, applyVoiceCalibration } from "./narrativeLayer.js";
 import { VOICE_NARRATIVE_LAYER_ENABLED } from "../config/voiceFlags.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED, ADI_SKU_SCENARIO_GUARD_ENABLED } from "../config/voiceFlags.js";
+import { VOICE_RANKING_EXTREMES_ENABLED, ADI_RANKING_WITH_METRICS_ENABLED, ADI_ECL_VOICE_POLISH_ENABLED, VOICE_GLOBAL_HONEST_FALLBACK_ENABLED, ADI_BARE_MODULE_OVERVIEW_ENABLED, ADI_D0A_ANOMALY_ROUTER_ENABLED, ADI_D0B_OPPORTUNITY_ROUTER_ENABLED, ADI_D0C_EXPLORATION_ROUTER_ENABLED, ADI_CTX_THREADING_ENABLED, ADI_FOLLOWUP_CLIENT_METRIC_ENABLED, VOICE_ACTIVE_RESULT_ENABLED, VOICE_DEUDA_J_ENABLED, VOICE_D1_CAUSE_ENABLED, VOICE_D1F_ENTITY_SANITIZE_ENABLED, ADI_ECL_CONT_FOLLOWUP_ENABLED, VOICE_R4_SKU_DEV_ENABLED, ADI_QI_FILTER_ENABLED, ADI_MT_SAFETY_ENABLED, ADI_MT_INV_COVERAGE_ENABLED, ADI_MT_TOPIC_CLEAN_ENABLED, ADI_MT_SPINE_FOLLOWUP_ENABLED, ADI_MT_REFINE_METRIC_ENABLED, ADI_MT_REFINE_FILTER_ENABLED, ADI_MT_REFINE_CUT_ENABLED, ADI_SMART_GUIDE_ENABLED, ADI_SIM_SCOPE_FOLLOWUP_ENABLED, ADI_SENTRIX_BOLETA_ENABLED, ADI_SENTRIX_READING_ENABLED, ADI_HONESTY_GUARD_ENABLED, ADI_MULTI_ASK_ENABLED, ADI_CUADRO_OVERVIEW_ENABLED, ADI_SKU_SCENARIO_GUARD_ENABLED, ADI_MECHANISM_SCAN_ENABLED } from "../config/voiceFlags.js";
 import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTITY, FEATURE_ENTITY_COMPARISON, FEATURE_INVERSE_PROJECTION, FEATURE_WAREHOUSE_AS_ENTITY, FEATURE_GROWTH_PROJECTION, FEATURE_PRICE_LEVER } from "../config/features.js";
 
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
@@ -281,8 +281,9 @@ function _gateInvCTA(sa) {
 }
 // mensaje ÚNICO, terminal · conserva filtro si lo hay · NO ofrece números alternativos · NO agrega adyacente
 function _inventarioAvisarMsg(filterName) {
-  const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, igual te aviso en vez de darte un número que parezca firme.` : "";
-  return `Eso vive en inventario y todavía no está habilitado en esta fase (Fase 2.5). No voy a responder con datos parciales o globales.${_filt} Lo que sí tengo hoy es ventas y márgenes.`;
+  // hardening · voz de negocio (sin jerga "Fase 2.5") · uniforme con unavailableMessage (availabilityMap)
+  const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, prefiero avisarte antes que darte un número que parezca firme.` : "";
+  return `El detalle de inventario todavía no lo tengo conectado en esta vista.${_filt} Lo que sí te puedo dar hoy: ventas y márgenes — por cliente, producto, marca o bodega. ¿Arrancamos por ahí?`;
 }
 
 // GUARD SKU-MARGEN × ESCENARIO (hardening confianza) · el margen por SKU no está modelado por escenario (skusMargen es
@@ -463,6 +464,12 @@ function dispatchIntent(intent, trimmed, scenario, ctx) {
     if (intent.crossDomain.archetype === "fuga_distribuida") {
       const resp = composeCrossDomainResponse(intent.crossDomain, scenario);
       if (resp && resp.opener) return _finalize(resp, "cross_domain_query", "cross_domain_query", ctx, scenario, intent);
+    }
+    // HARDENING demo · mechanism_scan ("qué mecanismos están activos") → composeCrossDomainResponse ya lo despacha
+    // (composeMechanismScan) pero faltaba cablearlo → daba pantalla en blanco. Gated · OFF = blanco (piso byte-exacto).
+    if (ADI_MECHANISM_SCAN_ENABLED && intent.crossDomain.archetype === "mechanism_scan") {
+      const resp = composeCrossDomainResponse(intent.crossDomain, scenario);
+      if (resp && resp.opener) return _finalize(resp, "cross_domain_mechanism_scan", "cross_domain_mechanism_scan", ctx, scenario, intent);
     }
   }
   return null; // otros intent.type aún no despachados (ramas siguientes)

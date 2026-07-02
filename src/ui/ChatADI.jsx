@@ -14,7 +14,7 @@ import { TypewriterText } from "./TypewriterText.jsx";
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
 // La UI refleja esa honestidad en vez de fabricar un overview.
 export const NOT_YET_TEXT =
-  "Esa ruta todavía no está extraída en el ADI modular (queda en el bloque diferido). No invento una respuesta.";
+  "Esa vista todavía no la tengo lista — y prefiero no inventarte un número. Hoy te puedo ayudar con ventas, márgenes e inventario, por cliente, producto, marca o bodega. ¿Arrancamos por ahí?";
 
 // ── Helper PURO · construye el turno que la UI agrega. Único punto que llama a answerADI.
 // La UI consume turn.adiMsg.text === answerADI(q).text (byte-idéntico · regla madre).

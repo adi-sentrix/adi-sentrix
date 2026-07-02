@@ -1002,7 +1002,7 @@ function LensPlaceholder({ tab, focus }) {
     <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:9, textAlign:"center", padding:24, minHeight:200 }}>
       <div style={{ fontFamily:MONO, fontSize:10.5, letterSpacing:"1.2px", color:C.text, textTransform:"uppercase" }}>{m.t}</div>
       <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, maxWidth:300 }}>{m.d}</div>
-      <div style={{ fontSize:11, color:C.textMuted, opacity:0.8 }}>En construcción · próximo brick.</div>
+      <div style={{ fontSize:11, color:C.textMuted, opacity:0.8 }}>Disponible pronto.</div>
     </div>
   );
 }

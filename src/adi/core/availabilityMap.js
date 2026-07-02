@@ -37,10 +37,9 @@ export function isAvailable(domain, metric) {
   return false;
 }
 
-// mensaje honesto único · coincide BYTE a BYTE con _inventarioAvisarMsg del muro (voz uniforme)
+// mensaje honesto único · VOZ DE NEGOCIO (hardening · sin jerga interna "Fase 2.5") · coincide con _inventarioAvisarMsg del muro (voz uniforme)
 export function unavailableMessage(domain, { filterName } = {}) {
-  const d = AVAILABILITY[domain] || {};
   const _label = (DOMAIN_REGISTRY[domain] && DOMAIN_REGISTRY[domain].label) || domain;
-  const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, igual te aviso en vez de darte un número que parezca firme.` : "";
-  return `Eso vive en ${_label} y todavía no está habilitado en esta fase (${d.reason || "más adelante"}). No voy a responder con datos parciales o globales.${_filt} Lo que sí tengo hoy es ventas y márgenes.`;
+  const _filt = filterName ? ` Con el filtro de ${filterName} que mencionaste, prefiero avisarte antes que darte un número que parezca firme.` : "";
+  return `El detalle de ${_label} todavía no lo tengo conectado en esta vista.${_filt} Lo que sí te puedo dar hoy: ventas y márgenes — por cliente, producto, marca o bodega. ¿Arrancamos por ahí?`;
 }
