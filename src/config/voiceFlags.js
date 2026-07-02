@@ -260,3 +260,8 @@ export const ECL_CONT_ENABLED = true;
 export const ARCO_ENABLED = true;
 
 export const VOICE_AN_INTEGRATOR_ENABLED = false;
+
+// ── ADI Core · Paso 4 · SEAM del spec (pre-LLM) · switch demo/pago · default FALSE ──
+// FALSE = demo determinística: la UI llama answerADI(text) · sin LLM/key/gasto (byte-exacto · gate 16/0).
+// TRUE (pago/futuro) = la UI enruta LLM(text) → spec → answerADIFromSpec(spec). No la importa el motor sellado.
+export const ADI_LLM_ENABLED = false;

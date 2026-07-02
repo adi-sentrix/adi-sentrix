@@ -53,7 +53,7 @@ import { FEATURE_INTENT_LAYER, FEATURE_INTENT_LAYER_EARLY, FEATURE_BRAND_AS_ENTI
 // ── _finalize · capas transversales sobre la respuesta (ECL polish + suffix proactivo) ──
 // Replica el unified pipeline: applyVoiceContract (L38287) → observación aditiva (L38489-38502).
 // El suffix lleva el gate de sesión observationEmittedScenario (una vez por escenario · multi-turno).
-function _finalize(resp, route, intentLabel, ctx, scenario, intent) {
+export function _finalize(resp, route, intentLabel, ctx, scenario, intent) {   // export aditivo (Paso 4 · seam del spec) · comportamiento intacto (gate 16/0)
   let text = resp.opener;
   // ── Capa narrativa (FASE 5 · replica PanelADI L38177-38207) ──
   // Dispara cuando el composer expone narrative_signals (el piso lo hace cuando el dispatch setea
@@ -323,7 +323,7 @@ const _fallbackWrap = (resp, route, intentLabel, ctx, scenario) => {
 };
 
 // Dispatch de la cascada de PanelADI · intent.type → composer (rama por rama). Todas con _finalize.
-function dispatchIntent(intent, trimmed, scenario, ctx) {
+export function dispatchIntent(intent, trimmed, scenario, ctx) {   // export aditivo (Paso 4 · seam del spec) · comportamiento intacto (gate 16/0)
   if (!intent) return null;
   // client metric follow-up ("y su margen?" · resuelto desde lastClientMentioned) — replica PanelADI L37356.
   // detectClientMetricFollowUp (router.js · ya en resolveSemanticIntent) requiere lastClientMentioned →

@@ -46,6 +46,16 @@ export const METRICS = {
       familia: { source: "sfamiliasMargen", field: "contribucion" },
     },
   },
+  costo: {  // costo de la venta (dato del ERP) · en tu enum del spec
+    label: "Costo", unit: "money", scale: { cliente: "K", sku: "raw" },
+    polarity: "lowerIsBetter", formula: null,   // dato primario almacenado
+    axes: ["cliente", "sku"],                    // marca/familia no traen campo costo (ver sourceManifest)
+    scenarioAware: { cliente: true, sku: false },
+    sourceByAxis: {
+      cliente: { source: "clientesMargen", field: "costo" },
+      sku:     { source: "skusMargen",     field: "costo" },
+    },
+  },
   carga: {  // carga comercial = pctRebate
     label: "Carga comercial", unit: "pct", polarity: "lowerIsBetter",
     target: "targetCarga", bestPractice: "bestPracticeCarga",   // → businessPolicy
