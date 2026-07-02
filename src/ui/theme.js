@@ -1,6 +1,7 @@
 /* === src/ui/theme.js ===
  * Tokens visuales + estilos del highlighter financiero · extraídos de 41cc33d8 · verbatim.
  * Presentación pura · cero cálculo. La única diferencia con el monolito es DÓNDE vive el estilo. */
+import { clientesMargen } from "../data/demoData.js";   // hardening prep-LLM · KNOWN_ENTITIES derivado del dato (no lista hardcodeada)
 
 // Paleta SOBRIA + CÁLIDA (Etapa 5 · look de Code · owner 2026-06-29): charcoal cálido (sutil, no sepia),
 // texto off-white cálido, cero brillo de ambiente. Cyan SOLO como acento funcional frío (cifras/logo/activo ·
@@ -71,7 +72,10 @@ export const FINANCIAL_TABULAR = {
   entity:{ color:"#eef2f6", fontWeight:600 },
 };
 
-export const KNOWN_ENTITIES = [
-  "Mercado Libre", "Falabella", "Lider", "Líder", "Jumbo", "Sodimac",
-  "Tottus", "Paris", "Ripley", "Easy", "La Polar", "Hites", "ABC", "Unimarc"
-];
+// DERIVADO del dato (hardening prep-LLM): antes era una lista literal de 14 nombres → si el owner (o el LLM) agrega
+// un cliente, ADI lo nombra pero el highlight no lo resaltaba. Ahora sale de clientesMargen · longest-first para el
+// regex del tokenizer (Mercado Libre antes que Lider · match más largo primero) · presentación pura (byte-safe).
+export const KNOWN_ENTITIES = clientesMargen
+  .filter((c) => c.tipo === "cliente")
+  .map((c) => c.nombre)
+  .sort((a, b) => b.length - a.length);
