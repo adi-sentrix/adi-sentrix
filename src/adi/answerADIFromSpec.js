@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval } from "./specRetrieval.js";               // productor spec-driven genérico (inventario + agregados marca/familia · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · data-driven del contrato)
 
 const SCHEMA_VERSION = 1;
 const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "explain_availability"]);
@@ -240,20 +240,34 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         return _degrade("compare-shape", "Para comparar necesito exactamente dos entidades.", [], ctx);
       const cdim = cmp.dimension || spec.dimension;
       const mk = _COMPARE_INTENT[cdim];
-      if (!mk)
-        return _degrade("compare-dim-not-wired", `La comparación por ${_d(cdim)} todavía no está conectada. Puedo comparar por cliente, marca o bodega.`, [], ctx);
-      const out = dispatchIntent(mk(cmp.entities[0], cmp.entities[1]), "", scenario, ctx);
-      return out || _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]}. ¿Están bien escritos?`, [], ctx);
+      if (mk) {   // cliente/marca/bodega → composer rico del motor
+        const out = dispatchIntent(mk(cmp.entities[0], cmp.entities[1]), "", scenario, ctx);
+        return out || _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]}. ¿Están bien escritos?`, [], ctx);
+      }
+      if (cdim === "sku" || cdim === "familia") {   // sku/familia → productor spec-driven (data-driven del contrato)
+        const resp = composeSpecCompare({ dimension: cdim, entities: cmp.entities, scenario });
+        if (!resp || !resp.opener) return _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]} por ${_d(cdim)}. ¿Están bien escritos?`, [], ctx);
+        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      }
+      return _degrade("compare-dim-not-wired", `La comparación por ${_d(cdim)} todavía no está conectada.`, [], ctx);
     }
 
     if (spec.operation === "dive") {
       const mk = _DIVE_INTENT[spec.dimension];
-      if (!mk)
-        return _degrade("dive-dim-not-wired", `El detalle por ${_d(spec.dimension)} todavía no está conectado. Puedo profundizar en cliente, marca o bodega.`, [], ctx);
-      const ent = spec.entity || (spec.filters && (spec.filters[spec.dimension] || spec.filters.cliente));
-      if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
-      const out = dispatchIntent(mk(ent), "", scenario, ctx);
-      return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
+      if (mk) {   // cliente/marca/bodega → composer rico del motor
+        const ent = spec.entity || (spec.filters && (spec.filters[spec.dimension] || spec.filters.cliente));
+        if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
+        const out = dispatchIntent(mk(ent), "", scenario, ctx);
+        return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
+      }
+      if (spec.dimension === "sku" || spec.dimension === "familia") {   // sku/familia → productor spec-driven
+        const ent = spec.entity || (spec.filters && spec.filters[spec.dimension]);
+        if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
+        const resp = composeSpecDive({ dimension: spec.dimension, entity: ent, scenario });
+        if (!resp || !resp.opener) return _degrade("dive-empty", `No encontré "${ent}" en ${_dp(spec.dimension)}. ¿Está bien escrito?`, [], ctx);
+        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      }
+      return _degrade("dive-dim-not-wired", `El detalle por ${_d(spec.dimension)} todavía no está conectado.`, [], ctx);
     }
   } catch (e) {
     return _degrade("executor-error", `Algo falló al ejecutar el pedido (${e && e.message}). No inventé un número: mejor te lo digo.`, [], ctx);

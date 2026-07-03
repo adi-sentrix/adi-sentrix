@@ -24,7 +24,8 @@ const _money = (v) => {
   if (a >= 1e3) return `$${Math.round(v / 1e3)}K`;
   return `$${Math.round(v)}`;
 };
-const _fmt = (v, unit) => (unit === "money" ? _money(v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
+// escala del contrato: money(K) = valor en MILES de $ → a dólares reales antes de formatear (money(raw) = $ crudo)
+const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * 1000 : v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
 
 // composeSpecRetrieval({metric, dimension, filters, scenario, limit, sort}) → {opener, evidence} | null (no soportado)
 export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario, limit = null, sort = null }) {
@@ -64,7 +65,8 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
   result.sort((a, b) => (dir === "asc" ? a.value - b.value : b.value - a.value));
   if (limit && limit > 0) result = result.slice(0, limit);
 
-  const lines = result.map((x) => `${x.name}: ${_fmt(x.value, m.unit)}`).join(" · ");
+  const _sc = m.scale && m.scale[dimension];
+  const lines = result.map((x) => `${x.name}: ${_fmt(x.value, m.unit, _sc)}`).join(" · ");
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
   const opener = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · escenario ${scenario}.\n\n${lines}`;
   return {
@@ -75,4 +77,48 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
     // texto (fuente única de la narración) y no un crudo (64200) que no aparece → evita falsos "falta obligatoria".
     evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro" },
   };
+}
+
+// métricas que aplican a un eje (con sourceByAxis declarado) · base de dive/compare
+function _metricsFor(dimension) {
+  return Object.entries(METRICS).filter(([, m]) => (m.axes || []).includes(dimension) && m.sourceByAxis && m.sourceByAxis[dimension]);
+}
+// valor de una entidad para una métrica en un eje (busca la fila por el keyField de la fuente) · null si no está
+function _entityValue(name, m, dimension, scenario) {
+  const sba = m.sourceByAxis[dimension];
+  const src = SOURCES[sba.source];
+  if (!src) return null;
+  const row = _load(sba.source, scenario).find((r) => String(r[src.keyField]) === String(name));
+  return row && typeof row[sba.field] === "number" ? row[sba.field] : null;
+}
+
+// composeSpecDive({dimension, entity, scenario}) → perfil de UNA entidad (todas sus métricas del contrato) | null (no está)
+export function composeSpecDive({ dimension, entity, scenario }) {
+  const ent = ENTITIES[dimension];
+  if (!ent || !entity) return null;
+  const lines = [];
+  for (const [, m] of _metricsFor(dimension)) {
+    const v = _entityValue(entity, m, dimension, scenario);
+    if (v != null) lines.push(`${m.label}: ${_fmt(v, m.unit, m.scale && m.scale[dimension])}`);
+  }
+  if (!lines.length) return null;                          // entidad no encontrada en ningún source → el seam degrada honesto
+  const opener = `${entity} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join(" · ")}`;
+  return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro" } };
+}
+
+// composeSpecCompare({dimension, entities:[a,b], scenario}) → dos entidades lado a lado, métrica por métrica | null
+export function composeSpecCompare({ dimension, entities, scenario }) {
+  const ent = ENTITIES[dimension];
+  if (!ent || !Array.isArray(entities) || entities.length !== 2) return null;
+  const [a, b] = entities;
+  const lines = [];
+  for (const [, m] of _metricsFor(dimension)) {
+    const va = _entityValue(a, m, dimension, scenario), vb = _entityValue(b, m, dimension, scenario);
+    if (va == null && vb == null) continue;
+    const _sc = m.scale && m.scale[dimension];
+    lines.push(`${m.label}: ${a} ${va == null ? "—" : _fmt(va, m.unit, _sc)} vs ${b} ${vb == null ? "—" : _fmt(vb, m.unit, _sc)}`);
+  }
+  if (!lines.length) return null;                          // ninguna de las dos entidades encontrada → el seam degrada honesto
+  const opener = `${a} vs ${b} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join("\n")}`;
+  return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: a, entityType: dimension, dimension, lens: "cuadro" } };
 }

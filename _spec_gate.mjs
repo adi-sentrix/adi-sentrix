@@ -42,13 +42,18 @@ const TESTS = [
   { n: "20 · compare marca EJECUTA (brand_comparison)", spec: S({ operation: "compare", metric: "margen", dimension: "marca", comparison: { dimension: "marca", entities: ["Samsung", "LG"] } }), ok: (r) => executes(r, "brand_comparison") },
   { n: "21 · dive marca EJECUTA (brand_dive)", spec: S({ operation: "dive", metric: "margen", dimension: "marca", entity: "Samsung" }), ok: (r) => executes(r, "brand_dive") },
   { n: "22 · dive bodega EJECUTA (warehouse_dive)", spec: S({ operation: "dive", metric: "capital", dimension: "bodega", entity: "Santiago" }), ok: (r) => executes(r, "warehouse_dive") },
-  { n: "23 · compare sku degrada honesto (sin composer)", spec: S({ operation: "compare", metric: "margen", dimension: "sku", comparison: { dimension: "sku", entities: ["A", "B"] } }), ok: (r) => blocked(r, "compare-dim-not-wired") },
+  { n: "23 · compare SKU EJECUTA (productor spec-driven)", spec: S({ operation: "compare", metric: "margen", dimension: "sku", comparison: { dimension: "sku", entities: ["SAM-REF500L", "SAM-TV55"] } }), ok: (r) => executes(r, "qi_retrieval") && /SAM-REF500L/.test(r.text) },
   { n: "24 · dive SIN métrica ejecuta (dive perfila la entidad · no requiere métrica)", spec: S({ operation: "dive", metric: null, dimension: "marca", entity: "Samsung" }), ok: (r) => executes(r, "brand_dive") },
   // rank marca/familia vía el productor spec-driven genérico (agregados · sourceByAxis)
   { n: "25 · rank margen@marca EJECUTA (agregado spec-driven)", spec: S({ operation: "rank", metric: "margen", dimension: "marca", limit: 3, sort: { by: "margen", dir: "desc" } }), ok: (r) => executes(r, "qi_retrieval") && /%/.test(r.text) },
   { n: "26 · rank contribucion@familia EJECUTA", spec: S({ operation: "rank", metric: "contribucion", dimension: "familia", limit: 3, sort: { by: "contribucion", dir: "desc" } }), ok: (r) => executes(r, "qi_retrieval") && /\$/.test(r.text) },
   { n: "27 · rank ventas@marca EJECUTA", spec: S({ operation: "rank", metric: "ventas", dimension: "marca" }), ok: (r) => executes(r, "qi_retrieval") },
   { n: "28 · rank con métrica NO soportada en el eje degrada honesto (carga@familia)", spec: S({ operation: "rank", metric: "carga", dimension: "familia" }), ok: (r) => blocked(r, "metric-not-in-dim") },
+  // dive/compare para SKU y familia (productores spec-driven · el motor no tiene composer para estos)
+  { n: "29 · dive SKU EJECUTA (perfil comercial + inventario)", spec: S({ operation: "dive", metric: null, dimension: "sku", entity: "SAM-REF500L" }), ok: (r) => executes(r, "qi_retrieval") && /SAM-REF500L/.test(r.text) },
+  { n: "30 · dive familia EJECUTA", spec: S({ operation: "dive", metric: null, dimension: "familia", entity: "Electrodomésticos" }), ok: (r) => executes(r, "qi_retrieval") },
+  { n: "31 · compare familia EJECUTA", spec: S({ operation: "compare", metric: "margen", dimension: "familia", comparison: { dimension: "familia", entities: ["Electrodomésticos", "Línea Blanca"] } }), ok: (r) => executes(r, "qi_retrieval") },
+  { n: "32 · dive SKU inexistente degrada honesto (no lo inventa)", spec: S({ operation: "dive", metric: null, dimension: "sku", entity: "NO-EXISTE-999" }), ok: (r) => blocked(r, "dive-empty") },
 ];
 
 let pass = 0, fail = 0; const lines = [];
