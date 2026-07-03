@@ -269,3 +269,7 @@ export const ADI_LLM_ENABLED = false;
 // ── ADI Core · Paso 5 · sub-flag de narración (LLM #2) · default TRUE ──
 // Con ADI_LLM_ENABLED ON: TRUE = parse + narra (number-guard) · FALSE = parse-only (más barato/rápido). No la ve el motor.
 export const ADI_LLM_NARRATE_ENABLED = true;
+
+// ── ADI Core · Paso 5 · UX pre-prod · selector de escenarios SOLO en dev · default FALSE ──
+// FALSE = chip estático "Datos actuales" (el escenario interno sigue "bonanza"=base · motor/tests/scenarioLoad intactos). TRUE = ScenarioSelector.
+export const ADI_SCENARIO_SWITCHER_ENABLED = false;

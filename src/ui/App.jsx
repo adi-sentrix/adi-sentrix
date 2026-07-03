@@ -7,7 +7,7 @@ import { C } from "./theme.js";
 import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
 import { SentrixPanel } from "./SentrixPanel.jsx";   // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura)
-import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo (demo vs IA) en el header
+import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
 
 const getCurrentDateString = () => {
   const now = new Date();
@@ -59,7 +59,16 @@ export default function App({ animate = true }) {
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
-          <ScenarioSelector scenario={scenario} onChange={setScenario}/>
+          {/* Escenarios (bonanza/tensión/crisis) SOLO en dev (ADI_SCENARIO_SWITCHER_ENABLED) · por defecto un chip neutro "Datos actuales" */}
+          {ADI_SCENARIO_SWITCHER_ENABLED ? (
+            <ScenarioSelector scenario={scenario} onChange={setScenario}/>
+          ) : (
+            <div title="Estás viendo los datos actuales del negocio"
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:`1px solid ${C.border}`, background:C.surface, flexShrink:0, whiteSpace:"nowrap" }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}/>
+              <span style={{ fontSize:11, fontWeight:600, color:C.textSub, letterSpacing:"-0.005em" }}>Datos actuales</span>
+            </div>
+          )}
           {/* Modo demo vs IA · lee ADI_LLM_ENABLED (build-time) · nunca expone la key */}
           <div title={ADI_LLM_ENABLED ? "Modo IA · el LLM traduce tu pregunta a un spec; ADI calcula, valida y decide (no inventa cifras)" : "Modo demo · motor determinístico, sin LLM ni gasto"}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap",

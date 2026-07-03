@@ -19,6 +19,12 @@ import { TypewriterText } from "./TypewriterText.jsx";
 export const NOT_YET_TEXT =
   "Esa vista todavía no la tengo lista — y prefiero no inventarte un número. Hoy te puedo ayudar con ventas, márgenes e inventario, por cliente, producto, marca o bodega. ¿Arrancamos por ahí?";
 
+// UX pre-prod · saca el LENGUAJE DE ESCENARIO DEMO de lo que ve el usuario. El motor sigue devolviendo "Bonanza"
+// (byte-exacto · gate intacto) · esto es SOLO display: "escenario <nombre>" → "escenario actual". NO toca cifras.
+function _sanitizeScenario(text) {
+  return typeof text === "string" ? text.replace(/(escenario\s+)(bonanza|tensi[oó]n|tension|crisis)/gi, "$1actual") : text;
+}
+
 // ── Helper PURO · arma el turno que la UI agrega DESDE el resultado de ADI (answerADI o answerADIFromSpec).
 // La UI CONSUME el resultado, no recalcula (regla madre). Mismo shape para ambos caminos.
 function _turnFromResult(q, r, context, source) {
@@ -29,7 +35,7 @@ function _turnFromResult(q, r, context, source) {
     userMsg: { role: "user", text: q },
     adiMsg: {
       role: "adi",
-      text: deferred ? NOT_YET_TEXT : r.text,
+      text: deferred ? NOT_YET_TEXT : _sanitizeScenario(r.text),
       route: r.route,
       _source: source || "demo",   // UX · origen: "demo" (sin LLM) · "llm" (narrado) · "deterministico" (LLM parse-only o fallback)
       sentrixAction: r.sentrixAction || null,
@@ -63,7 +69,7 @@ async function _fetchSpec(text, scenario) {
 async function _fetchNarration(validated) {
   const res = await fetch("/api/adi-narrate", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text: validated.text, evidence: validated.evidence || null }),
+    body: JSON.stringify({ text: _sanitizeScenario(validated.text), evidence: validated.evidence || null }),
   });
   const data = await res.json();
   if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
