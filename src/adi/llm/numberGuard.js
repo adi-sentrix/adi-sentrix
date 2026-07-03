@@ -43,7 +43,9 @@ function _mandatory(validated) {
   const nums = [];
   if (Array.isArray(ev.ranking_values)) for (const n of ev.ranking_values) nums.push(String(n));
   if (Array.isArray(ev.mandatoryFigures)) for (const n of ev.mandatoryFigures) nums.push(String(n));
-  return nums;
+  if (nums.length) return nums;
+  // sin figuras estructuradas → TODAS las cifras del texto determinístico son obligatorias (no perder ninguna · seguro)
+  return _tokens(validated && validated.text);
 }
 
 // numberGuard(narration, validated) → { ok, verdict, reason, unauthorized[], missing[] }
@@ -71,4 +73,16 @@ export function numberGuard(narration, validated) {
     ? "la narración solo usa cifras de ADI y no omite obligatorias"
     : (unauthorized.length ? `cifra(s) no autorizada(s): ${unauthorized.join(", ")}` : `falta(n) cifra(s) obligatoria(s): ${missing.join(", ")}`);
   return { ok, verdict, reason, unauthorized, missing };
+}
+
+// DECISOR de la narración: devuelve la narración SOLO si pasa el guard; si no (o si vino vacía) → el texto
+// determinístico de ADI. Es el punto único donde "si numberGuard falla, se descarta la narración".
+export function pickNarratedText(validated, narration) {
+  const det = (validated && validated.text) || "";
+  if (!narration || typeof narration !== "string" || !narration.trim())
+    return { text: det, narrated: false, verdict: "sin-narración", reason: "narración vacía" };
+  const g = numberGuard(narration, validated);
+  return g.ok
+    ? { text: narration, narrated: true, verdict: "fiel", reason: g.reason }
+    : { text: det, narrated: false, verdict: g.verdict, reason: g.reason };
 }

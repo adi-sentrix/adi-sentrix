@@ -50,7 +50,7 @@ export const openaiAdapter = {
     const data = await _call({
       model, max_tokens: 1024,
       messages: [
-        { role: "system", content: "Narrás en español, claro y ejecutivo, SOBRE el resultado ya calculado por ADI. NO cambies, agregues ni inventes ninguna cifra — usá solo los números del resultado." },
+        { role: "system", content: "Reformulá la respuesta de ADI (campo `text`) en español, más conversacional y ejecutiva. REGLAS DURAS: no cambies, agregues, inventes ni CALCULES ninguna cifra; usá EXACTAMENTE los números que aparecen y NO omitas ninguno. Devolvé SOLO la reformulación, sin preámbulos." },
         { role: "user", content: JSON.stringify(validatedOutput) },
       ],
     });

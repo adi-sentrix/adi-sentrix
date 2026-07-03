@@ -45,7 +45,7 @@ export const anthropicAdapter = {
   async narrate(validatedOutput, { model }) {
     const data = await _call({
       model, max_tokens: 1024,
-      system: "Narrás en español, claro y ejecutivo, SOBRE el resultado ya calculado por ADI. Regla dura: NO cambies, agregues ni inventes ninguna cifra — usá solo los números que vienen en el resultado.",
+      system: "Reformulá la respuesta de ADI (campo `text`) en español, más conversacional y ejecutiva. REGLAS DURAS: no cambies, agregues, inventes ni CALCULES ninguna cifra; usá EXACTAMENTE los números que aparecen y NO omitas ninguno. Devolvé SOLO la reformulación, sin preámbulos.",
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");

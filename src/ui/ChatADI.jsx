@@ -8,6 +8,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
+import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
 import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";        // Paso 5 · switch demo/LLM (default false)
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
@@ -57,12 +58,31 @@ async function _fetchSpec(text, scenario) {
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin spec");
   return data.spec;
 }
+// LLM #2 · pide la narración del output validado (server-side). El number-guard decide después, en el cliente.
+async function _fetchNarration(validated) {
+  const res = await fetch("/api/adi-narrate", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text: validated.text, evidence: validated.evidence || null }),
+  });
+  const data = await res.json();
+  if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
+  return data.narration;
+}
 export async function buildAdiTurnLLM(question, context, scenario) {
   const q = (question || "").trim();
   let r;
   try {
     const spec = await _fetchSpec(q, scenario);
     r = answerADIFromSpec(spec, context || {}, { scenario });   // ADI valida + ejecuta/degrada honesto (local)
+    // NARRACIÓN LLM #2 · reformula el output validado y PASA por el number-guard (pickNarratedText):
+    //   guard OK → se muestra la narración · guard falla / gateway cae → texto determinístico de ADI. Nunca inventa cifras.
+    if (r && r.text) {
+      try {
+        const narration = await _fetchNarration(r);
+        const picked = pickNarratedText(r, narration);
+        r = { ...r, text: picked.text, _narrated: picked.narrated };
+      } catch { /* narración/gateway falló → r queda con el texto determinístico (r.text intacto) */ }
+    }
   } catch (e) {
     r = answerADI(q, context || {}, { scenario });              // fallback al piso determinístico (el LLM no manda)
   }
