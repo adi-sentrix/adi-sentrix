@@ -7,6 +7,8 @@
  * hero magic-moment) NO entra acá: el HANDOFF §2 define el adelgazado como solo la cáscara. */
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
+import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
+import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";        // Paso 5 · switch demo/LLM (default false)
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
@@ -16,11 +18,9 @@ import { TypewriterText } from "./TypewriterText.jsx";
 export const NOT_YET_TEXT =
   "Esa vista todavía no la tengo lista — y prefiero no inventarte un número. Hoy te puedo ayudar con ventas, márgenes e inventario, por cliente, producto, marca o bodega. ¿Arrancamos por ahí?";
 
-// ── Helper PURO · construye el turno que la UI agrega. Único punto que llama a answerADI.
-// La UI consume turn.adiMsg.text === answerADI(q).text (byte-idéntico · regla madre).
-export function buildAdiTurn(question, context, scenario) {
-  const q = (question || "").trim();
-  const r = answerADI(q, context || {}, { scenario });
+// ── Helper PURO · arma el turno que la UI agrega DESDE el resultado de ADI (answerADI o answerADIFromSpec).
+// La UI CONSUME el resultado, no recalcula (regla madre). Mismo shape para ambos caminos.
+function _turnFromResult(q, r, context) {
   const deferred = r.text == null;
   return {
     result: r,
@@ -38,6 +38,35 @@ export function buildAdiTurn(question, context, scenario) {
     },
     context: r.context || context || {},
   };
+}
+
+// CAMINO DEMO/PISO (ADI_LLM_ENABLED OFF · SYNC · byte-exacto): la UI llama answerADI(text) como siempre.
+export function buildAdiTurn(question, context, scenario) {
+  const q = (question || "").trim();
+  return _turnFromResult(q, answerADI(q, context || {}, { scenario }), context);
+}
+
+// CAMINO LLM (ADI_LLM_ENABLED ON · ASYNC): texto → gateway (server-side, tiene la key) → spec → answerADIFromSpec LOCAL.
+// Regla: el LLM SOLO traduce a spec · ADI valida y ejecuta/degrada honesto. Si el gateway falla → CAE AL PISO (answerADI).
+async function _fetchSpec(text, scenario) {
+  const res = await fetch("/api/adi-spec", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text, scenario }),
+  });
+  const data = await res.json();
+  if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin spec");
+  return data.spec;
+}
+export async function buildAdiTurnLLM(question, context, scenario) {
+  const q = (question || "").trim();
+  let r;
+  try {
+    const spec = await _fetchSpec(q, scenario);
+    r = answerADIFromSpec(spec, context || {}, { scenario });   // ADI valida + ejecuta/degrada honesto (local)
+  } catch (e) {
+    r = answerADI(q, context || {}, { scenario });              // fallback al piso determinístico (el LLM no manda)
+  }
+  return _turnFromResult(q, r, context);
 }
 
 // ── Logo ADI inline (verbatim del piso) ──
@@ -201,22 +230,37 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  // aplica el estado de un turno YA resuelto (idéntico para piso y LLM)
+  const _applyTurn = (turn, adiId) => {
+    setContext(turn.context);
+    if (animate) { setPendingId(adiId); setSuggestionsVisible(false); }
+    else { setPendingId(null); setSuggestionsVisible(true); }
+  };
+
   const submit = (raw) => {
     const q = (raw || "").trim();
     if (!q) return;
+    setInput("");
+
+    // ── CAMINO LLM (flag ON · async): user msg + "Pensando…" ahora; resolvemos async y reemplazamos el placeholder ──
+    if (ADI_LLM_ENABLED) {
+      const userMsg = { role: "user", text: q, id: ++idRef.current };
+      const adiId = ++idRef.current;
+      setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", id: adiId }]);
+      setSuggestionsVisible(false);
+      buildAdiTurnLLM(q, context, scenario).then((turn) => {
+        setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
+        _applyTurn(turn, adiId);
+      });
+      return;
+    }
+
+    // ── CAMINO DEMO/PISO (flag OFF · sync · intacto byte-exacto) ──
     const turn = buildAdiTurn(q, context, scenario);
     const userMsg = { ...turn.userMsg, id: ++idRef.current };
     const adiMsg  = { ...turn.adiMsg,  id: ++idRef.current };
     setMessages(prev => [...prev, userMsg, adiMsg]);
-    setContext(turn.context);
-    setInput("");
-    if (animate) {
-      setPendingId(adiMsg.id);
-      setSuggestionsVisible(false);
-    } else {
-      setPendingId(null);
-      setSuggestionsVisible(true);
-    }
+    _applyTurn(turn, adiMsg.id);
   };
 
   const lastAdiId = (() => {
