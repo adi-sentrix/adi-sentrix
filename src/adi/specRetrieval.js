@@ -1,20 +1,21 @@
-/* === src/adi/inventorySpec.js · ADI Core · Paso 5 (follow-up) · PRODUCTOR DE INVENTARIO SPEC-DRIVEN ===
- * capital/rotación/DOH por bodega (y por SKU) que EJECUTAN desde el spec, sin sintetizar texto ni reusar el parser NL
- * (resolveInventoryRetrieval sigue intacto para el camino determinístico). Es DATA-DRIVEN del contrato: lee
- * METRICS[metric].sourceByAxis[dimension] {source, field, agg} → carga la fuente (scenario-aware) → agrupa/agrega por el
- * eje → formatea. NO toca el motor sellado (solo LEE los mismos exports que el contrato ya describe). Si la combinación
- * no está declarada → devuelve null y el seam degrada honesto.
+/* === src/adi/specRetrieval.js · ADI Core · Paso 5 · PRODUCTOR SPEC-DRIVEN (retrieval/ranking genérico) ===
+ * Ejecuta métrica × dimensión × filtros desde el SPEC, sin sintetizar texto ni reusar el parser NL (los productores
+ * text-based del motor siguen intactos para el camino determinístico). Es DATA-DRIVEN del CONTRATO: lee
+ * METRICS[metric].sourceByAxis[dimension] {source, field, agg} → carga la fuente vía el sourceManifest (scenario-aware
+ * si lo declara) → agrupa (eje group-by) o lista (por-fila) → agrega (sum/avg) → formatea. Sirve para INVENTARIO
+ * (capital/rotación/DOH por bodega/sku) Y para AGREGADOS comerciales (rank margen/contribución/ventas por marca/familia).
+ * SOLO importa el CONTRATO · NO toca el motor sellado. Combinación no declarada → null → el seam degrada honesto.
  */
-import { applyScenarioToSkuInventario } from "../engine/scenarios.js";
 import { METRICS } from "../config/contract/metricRegistry.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 
-// carga la fuente aplicando el escenario (hoy solo inventario · extensible)
+// carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
-  if (source === "skuInventario") return applyScenarioToSkuInventario(scenario) || [];
   const s = SOURCES[source];
-  return (s && typeof s.load === "function" && s.load()) || [];
+  if (!s) return [];
+  if (typeof s.scenarioLoad === "function") return s.scenarioLoad(scenario) || [];
+  return (typeof s.load === "function" && s.load()) || [];
 }
 
 const _money = (v) => {
@@ -23,10 +24,10 @@ const _money = (v) => {
   if (a >= 1e3) return `$${Math.round(v / 1e3)}K`;
   return `$${Math.round(v)}`;
 };
-const _fmt = (v, unit) => (unit === "money" ? _money(v) : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
+const _fmt = (v, unit) => (unit === "money" ? _money(v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
 
-// composeInventorySpec({metric, dimension, filters, scenario, limit, sort}) → {opener, evidence} | null (no soportado)
-export function composeInventorySpec({ metric, dimension, filters = {}, scenario, limit = null, sort = null }) {
+// composeSpecRetrieval({metric, dimension, filters, scenario, limit, sort}) → {opener, evidence} | null (no soportado)
+export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario, limit = null, sort = null }) {
   const m = METRICS[metric];
   const sba = m && m.sourceByAxis && m.sourceByAxis[dimension];
   if (!sba) return null;                                    // métrica@eje no declarada → no soportada (seam degrada)
