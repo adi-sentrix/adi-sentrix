@@ -21,7 +21,7 @@ export const NOT_YET_TEXT =
 
 // ── Helper PURO · arma el turno que la UI agrega DESDE el resultado de ADI (answerADI o answerADIFromSpec).
 // La UI CONSUME el resultado, no recalcula (regla madre). Mismo shape para ambos caminos.
-function _turnFromResult(q, r, context) {
+function _turnFromResult(q, r, context, source) {
   const deferred = r.text == null;
   return {
     result: r,
@@ -31,6 +31,7 @@ function _turnFromResult(q, r, context) {
       role: "adi",
       text: deferred ? NOT_YET_TEXT : r.text,
       route: r.route,
+      _source: source || "demo",   // UX · origen: "demo" (sin LLM) · "llm" (narrado) · "deterministico" (LLM parse-only o fallback)
       sentrixAction: r.sentrixAction || null,
       suggestions: (r.suggestions && r.suggestions.length) ? r.suggestions : null,
       // Etapa 5 · Sentrix · llevar la boleta al mensaje para que el panel la demuestre. Inerte cuando los
@@ -44,7 +45,7 @@ function _turnFromResult(q, r, context) {
 // CAMINO DEMO/PISO (ADI_LLM_ENABLED OFF · SYNC · byte-exacto): la UI llama answerADI(text) como siempre.
 export function buildAdiTurn(question, context, scenario) {
   const q = (question || "").trim();
-  return _turnFromResult(q, answerADI(q, context || {}, { scenario }), context);
+  return _turnFromResult(q, answerADI(q, context || {}, { scenario }), context, "demo");
 }
 
 // CAMINO LLM (ADI_LLM_ENABLED ON · ASYNC): texto → gateway (server-side, tiene la key) → spec → answerADIFromSpec LOCAL.
@@ -70,7 +71,7 @@ async function _fetchNarration(validated) {
 }
 export async function buildAdiTurnLLM(question, context, scenario) {
   const q = (question || "").trim();
-  let r;
+  let r, narrated = false;
   try {
     const spec = await _fetchSpec(q, scenario);
     r = answerADIFromSpec(spec, context || {}, { scenario });   // ADI valida + ejecuta/degrada honesto (local)
@@ -80,13 +81,14 @@ export async function buildAdiTurnLLM(question, context, scenario) {
       try {
         const narration = await _fetchNarration(r);
         const picked = pickNarratedText(r, narration);
-        r = { ...r, text: picked.text, _narrated: picked.narrated };
+        r = { ...r, text: picked.text };
+        narrated = picked.narrated;
       } catch { /* narración/gateway falló → r queda con el texto determinístico (r.text intacto) */ }
     }
   } catch (e) {
     r = answerADI(q, context || {}, { scenario });              // fallback al piso determinístico (el LLM no manda)
   }
-  return _turnFromResult(q, r, context);
+  return _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
 }
 
 // ── Logo ADI inline (verbatim del piso) ──
@@ -236,6 +238,32 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   );
 }
 
+// UX · estado "pensando" del modo LLM (mientras el gateway traduce texto→spec y ADI ejecuta) · puntos animados
+function ThinkingIndicator() {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, color:C.textSub, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+      <span>Pensando</span>
+      <span className="adi-think"><span className="adi-dot"/><span className="adi-dot"/><span className="adi-dot"/></span>
+    </div>
+  );
+}
+
+// UX · marca sutil del origen de la respuesta (SOLO en modo LLM · en demo el header ya lo indica).
+//   "llm" = el LLM redactó sobre cifras validadas por ADI (number-guard OK) · "deterministico" = texto de ADI (parse-only o fallback).
+function SourceBadge({ source }) {
+  if (source !== "llm" && source !== "deterministico") return null;
+  const isAI = source === "llm";
+  return (
+    <div style={{ marginLeft:44, marginTop:1, display:"flex", alignItems:"center", gap:6, opacity:0.72 }}
+      title={isAI ? "Redactado por el LLM sobre cifras validadas por ADI (number-guard OK · no inventa cifras)" : "Respuesta determinística de ADI (sin narración del LLM · o fallback)"}>
+      <span style={{ width:5, height:5, borderRadius:"50%", background: isAI ? C.celeste : "rgba(255,255,255,0.3)", flexShrink:0 }}/>
+      <span style={{ fontSize:9.5, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.6px", color:C.textMuted, textTransform:"uppercase" }}>
+        {isAI ? "narrado · IA" : "determinístico"}
+      </span>
+    </div>
+  );
+}
+
 export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
@@ -266,7 +294,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     if (ADI_LLM_ENABLED) {
       const userMsg = { role: "user", text: q, id: ++idRef.current };
       const adiId = ++idRef.current;
-      setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", id: adiId }]);
+      setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
       setSuggestionsVisible(false);
       buildAdiTurnLLM(q, context, scenario).then((turn) => {
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
@@ -318,11 +346,12 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
               );
             }
             const isTyping = animate && msg.id === pendingId;
+            const isPending = !!msg.pending;
             const isLastAdi = msg.id === lastAdiId;
             return (
               <div key={msg.id} style={{ display:"flex", flexDirection:"column", gap:6, width:"100%" }}>
                 <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
-                  <AdiAvatar spark={isTyping}/>
+                  <AdiAvatar spark={isTyping || isPending}/>
                   <div data-testid="adi-bubble" style={{
                     flex:1, minWidth:0, background:"rgba(255,255,255,0.032)", padding:"16px 20px",
                     borderRadius:10, border:"1px solid rgba(255,255,255,0.07)",
@@ -330,7 +359,9 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                     letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line",
                     boxShadow:"inset 0 1px 0 rgba(255,255,255,0.03)"
                   }}>
-                    {isTyping ? (
+                    {isPending ? (
+                      <ThinkingIndicator/>
+                    ) : isTyping ? (
                       <TypewriterText
                         text={msg.text} speed={8} showCursor={true}
                         onComplete={() => { setPendingId(null); setSuggestionsVisible(true); }}
@@ -340,6 +371,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                     )}
                   </div>
                 </div>
+                {!isPending && !isTyping && <SourceBadge source={msg._source}/>}
                 <SentrixButton sentrixAction={msg.sentrixAction} onSentrixAction={onSentrixAction}/>
                 <EvidenceButton evidence={msg.evidence} active={openEvidenceId === msg.id}
                   onOpenEvidence={onOpenEvidence ? (ev) => onOpenEvidence(ev, msg.id) : null}/>

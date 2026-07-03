@@ -7,6 +7,7 @@ import { C } from "./theme.js";
 import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
 import { SentrixPanel } from "./SentrixPanel.jsx";   // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura)
+import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo (demo vs IA) en el header
 
 const getCurrentDateString = () => {
   const now = new Date();
@@ -59,12 +60,21 @@ export default function App({ animate = true }) {
 
         <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
           <ScenarioSelector scenario={scenario} onChange={setScenario}/>
-          <div style={{ display:"flex", alignItems:"center", gap:7, paddingLeft:14, borderLeft:`1px solid ${C.border}`, flexShrink:0, whiteSpace:"nowrap" }}>
+          {/* Modo demo vs IA · lee ADI_LLM_ENABLED (build-time) · nunca expone la key */}
+          <div title={ADI_LLM_ENABLED ? "Modo IA · el LLM traduce tu pregunta a un spec; ADI calcula, valida y decide (no inventa cifras)" : "Modo demo · motor determinístico, sin LLM ni gasto"}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap",
+              border:`1px solid ${ADI_LLM_ENABLED ? "rgba(47,184,218,0.45)" : C.border}`, background: ADI_LLM_ENABLED ? "rgba(47,184,218,0.10)" : "rgba(255,255,255,0.03)" }}>
+            <span style={{ width:5, height:5, borderRadius:"50%", background: ADI_LLM_ENABLED ? "#2fb8da" : "rgba(255,255,255,0.35)", flexShrink:0 }}/>
+            <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color: ADI_LLM_ENABLED ? "#2fb8da" : C.textMuted, textTransform:"uppercase" }}>
+              {ADI_LLM_ENABLED ? "IA" : "Demo"}
+            </span>
+          </div>
+          <div className="hdr-live" style={{ display:"flex", alignItems:"center", gap:7, paddingLeft:14, borderLeft:`1px solid ${C.border}`, flexShrink:0, whiteSpace:"nowrap" }}>
             <span style={{ position:"relative", width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}>
               <span style={{ position:"absolute", inset:-3, borderRadius:"50%", border:"1px solid rgba(16,185,129,0.5)", animation:"livePulse 1.8s ease-out infinite" }}/>
             </span>
-            <span style={{ fontSize:9.5, color:C.textMuted, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1px" }}>LIVE</span>
-            <span style={{ fontSize:10.5, color:C.text, fontWeight:500, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.3px" }}>{getCurrentDateString()}</span>
+            <span className="hdr-live-text" style={{ fontSize:9.5, color:C.textMuted, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1px" }}>LIVE</span>
+            <span className="hdr-date" style={{ fontSize:10.5, color:C.text, fontWeight:500, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.3px" }}>{getCurrentDateString()}</span>
           </div>
         </div>
       </header>
@@ -105,6 +115,15 @@ export default function App({ animate = true }) {
         button:focus { outline:none; }
         input::placeholder { color:#9a9a9a; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes adiThink { 0%,80%,100%{ opacity:0.2; transform:translateY(0); } 40%{ opacity:1; transform:translateY(-2px); } }
+        .adi-think { display:inline-flex; gap:3px; align-items:center; }
+        .adi-dot { width:4px; height:4px; border-radius:50%; background:#2fb8da; display:inline-block; animation:adiThink 1.2s ease-in-out infinite; }
+        .adi-dot:nth-child(2){ animation-delay:0.15s; }
+        .adi-dot:nth-child(3){ animation-delay:0.30s; }
+        /* responsive del header · ocultar progresivamente lo menos esencial (deja escenario + badge de modo) */
+        @media (max-width: 1040px) { .hdr-date { display:none !important; } }
+        @media (max-width: 900px)  { .hdr-live-text { display:none !important; } }
+        @media (max-width: 620px)  { .hdr-esc-label, .hdr-esc-word, .hdr-live { display:none !important; } }
         @keyframes auroraBreathe { 0%,100%{opacity:0.6} 50%{opacity:1} }
         @keyframes livePulse {
           0%  { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); transform:scale(1); }

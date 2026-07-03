@@ -14,7 +14,7 @@ export function ScenarioSelector({ scenario, onChange }) {
       background:C.surface,
       border:`1px solid ${C.border}`
     }}>
-      <span style={{
+      <span className="hdr-esc-label" style={{
         fontSize:9, fontWeight:700,
         color:C.textMuted, letterSpacing:"0.08em",
         marginRight:4, textTransform:"uppercase"
@@ -45,7 +45,7 @@ export function ScenarioSelector({ scenario, onChange }) {
               boxShadow: active ? `0 0 8px ${s.dotColor}` : "none",
               transition:"box-shadow 0.18s ease"
             }}/>
-            {s.label}
+            <span className={active ? undefined : "hdr-esc-word"}>{s.label}</span>
           </button>
         );
       })}
