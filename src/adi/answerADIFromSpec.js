@@ -34,6 +34,17 @@ const _RANK = {
 // overview (composeRetrieval · vocab QI): costo NO está en el vocab → cae al degrade honesto.
 const _QIM = { ventas: "ventas", margen: "margen", contribucion: "contribucion", rotacion: "rotacion", carga: "carga", capital: "capital", doh: "cobertura", cobertura: "cobertura" };
 const _QID = { cliente: "cliente", sku: "sku", marca: "marca", familia: "familia", bodega: "bodega" };
+// compare/dive · eje → intent del motor (composers que YA existen · brand/warehouse dispatchan con sus FEATURE_* ON)
+const _COMPARE_INTENT = {
+  cliente: (a, b) => ({ type: "client_comparison", clientA: a, clientB: b }),
+  marca:   (a, b) => ({ type: "brand_comparison", brandA: a, brandB: b }),
+  bodega:  (a, b) => ({ type: "warehouse_comparison", whA: a, whB: b }),
+};
+const _DIVE_INTENT = {
+  cliente: (e) => ({ type: "client", clientName: e }),
+  marca:   (e) => ({ type: "brand_dive", brand: e }),
+  bodega:  (e) => ({ type: "warehouse_dive", specificSucursal: e }),
+};
 
 // ── helpers de etiqueta (para hablarle al usuario en criollo, no en claves) ──
 const _m = (k) => (METRICS[k] ? String(METRICS[k].label).toLowerCase() : k);
@@ -110,8 +121,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
   if (!OPERATIONS.has(spec.operation))
     return _degrade("unsupported-op", `No sé hacer "${spec.operation}". Hoy puedo: ${[...OPERATIONS].join(", ")}.`, [], ctx);
 
-  // ── #2 · métrica existe ──
-  if (!spec.metric || !METRICS[spec.metric])
+  // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
+  if (spec.operation !== "dive" && (!spec.metric || !METRICS[spec.metric]))
     return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);
 
   // ── #3 · dimensión existe ──
@@ -134,9 +145,9 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
     return _plain(`El ${_m(spec.metric)} por ${_d(spec.dimension)} no lo tengo como vista propia hoy.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: sib0 });
   }
 
-  // ── #4 · métrica disponible en esa dimensión (según el contrato) ──
-  const axes = METRICS[spec.metric].axes || [];
-  if (!axes.includes(spec.dimension))
+  // ── #4 · métrica disponible en esa dimensión (dive se salta: no usa métrica) ──
+  const axes = (METRICS[spec.metric] && METRICS[spec.metric].axes) || [];
+  if (spec.operation !== "dive" && !axes.includes(spec.dimension))
     return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);
 
   // ── #5 · filtros válidos (clave = una dimensión conocida) ──
@@ -228,21 +239,21 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       if (!cmp || !Array.isArray(cmp.entities) || cmp.entities.length !== 2)
         return _degrade("compare-shape", "Para comparar necesito exactamente dos entidades.", [], ctx);
       const cdim = cmp.dimension || spec.dimension;
-      if (cdim !== "cliente")
-        return _degrade("compare-dim-not-wired", `La comparación por ${_d(cdim)} todavía no está conectada. Puedo comparar dos clientes.`, [], ctx);
-      const intent = { type: "client_comparison", clientA: cmp.entities[0], clientB: cmp.entities[1] };
-      const out = dispatchIntent(intent, "", scenario, ctx);
+      const mk = _COMPARE_INTENT[cdim];
+      if (!mk)
+        return _degrade("compare-dim-not-wired", `La comparación por ${_d(cdim)} todavía no está conectada. Puedo comparar por cliente, marca o bodega.`, [], ctx);
+      const out = dispatchIntent(mk(cmp.entities[0], cmp.entities[1]), "", scenario, ctx);
       return out || _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]}. ¿Están bien escritos?`, [], ctx);
     }
 
     if (spec.operation === "dive") {
-      if (spec.dimension !== "cliente")
-        return _degrade("dive-dim-not-wired", `El detalle por ${_d(spec.dimension)} todavía no está conectado. Puedo profundizar en un cliente.`, [], ctx);
-      const ent = spec.entity || (spec.filters && spec.filters.cliente);
-      if (!ent) return _degrade("dive-no-entity", "¿En qué cliente querés que profundice?", [], ctx);
-      const intent = { type: "client", clientName: ent };
-      const out = dispatchIntent(intent, "", scenario, ctx);
-      return out || _degrade("dive-empty", `No encontré a "${ent}". ¿Está bien escrito?`, [], ctx);
+      const mk = _DIVE_INTENT[spec.dimension];
+      if (!mk)
+        return _degrade("dive-dim-not-wired", `El detalle por ${_d(spec.dimension)} todavía no está conectado. Puedo profundizar en cliente, marca o bodega.`, [], ctx);
+      const ent = spec.entity || (spec.filters && (spec.filters[spec.dimension] || spec.filters.cliente));
+      if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
+      const out = dispatchIntent(mk(ent), "", scenario, ctx);
+      return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
     }
   } catch (e) {
     return _degrade("executor-error", `Algo falló al ejecutar el pedido (${e && e.message}). No inventé un número: mejor te lo digo.`, [], ctx);

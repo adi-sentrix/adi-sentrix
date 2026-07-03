@@ -38,6 +38,12 @@ const TESTS = [
   { n: "17 · doh@bodega overview EJECUTA", spec: S({ operation: "overview", metric: "doh", dimension: "bodega" }), ok: (r) => executes(r, "qi_retrieval") },
   { n: "18 · capital@bodega rank top 2 EJECUTA", spec: S({ operation: "rank", metric: "capital", dimension: "bodega", limit: 2, sort: { by: "capital", dir: "desc" } }), ok: (r) => executes(r, "qi_retrieval") },
   { n: "19 · capital@cliente degrada honesto (métrica no en esa dimensión)", spec: S({ operation: "overview", metric: "capital", dimension: "cliente" }), ok: (r) => blocked(r, "metric-not-in-dim") },
+  // cobertura FULL de compare/dive (marca/bodega vía composers del motor · sku/familia degradan honesto)
+  { n: "20 · compare marca EJECUTA (brand_comparison)", spec: S({ operation: "compare", metric: "margen", dimension: "marca", comparison: { dimension: "marca", entities: ["Samsung", "LG"] } }), ok: (r) => executes(r, "brand_comparison") },
+  { n: "21 · dive marca EJECUTA (brand_dive)", spec: S({ operation: "dive", metric: "margen", dimension: "marca", entity: "Samsung" }), ok: (r) => executes(r, "brand_dive") },
+  { n: "22 · dive bodega EJECUTA (warehouse_dive)", spec: S({ operation: "dive", metric: "capital", dimension: "bodega", entity: "Santiago" }), ok: (r) => executes(r, "warehouse_dive") },
+  { n: "23 · compare sku degrada honesto (sin composer)", spec: S({ operation: "compare", metric: "margen", dimension: "sku", comparison: { dimension: "sku", entities: ["A", "B"] } }), ok: (r) => blocked(r, "compare-dim-not-wired") },
+  { n: "24 · dive SIN métrica ejecuta (dive perfila la entidad · no requiere métrica)", spec: S({ operation: "dive", metric: null, dimension: "marca", entity: "Samsung" }), ok: (r) => executes(r, "brand_dive") },
 ];
 
 let pass = 0, fail = 0; const lines = [];

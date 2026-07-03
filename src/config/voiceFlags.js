@@ -265,3 +265,7 @@ export const VOICE_AN_INTEGRATOR_ENABLED = false;
 // FALSE = demo determinística: la UI llama answerADI(text) · sin LLM/key/gasto (byte-exacto · gate 16/0).
 // TRUE (pago/futuro) = la UI enruta LLM(text) → spec → answerADIFromSpec(spec). No la importa el motor sellado.
 export const ADI_LLM_ENABLED = false;
+
+// ── ADI Core · Paso 5 · sub-flag de narración (LLM #2) · default TRUE ──
+// Con ADI_LLM_ENABLED ON: TRUE = parse + narra (number-guard) · FALSE = parse-only (más barato/rápido). No la ve el motor.
+export const ADI_LLM_NARRATE_ENABLED = true;

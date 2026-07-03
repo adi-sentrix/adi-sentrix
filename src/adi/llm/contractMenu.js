@@ -47,7 +47,7 @@ export function buildContractMenu() {
   L.push("  · Elegí metric / dimension / operation SOLO de las listas de arriba. Si la pregunta no encaja exacto, elegí lo más cercano disponible.");
   L.push("  · rank: `sort.dir` 'desc' = los más altos · 'asc' = los más bajos · `limit` = N.");
   L.push("  · compare: `comparison { dimension, entities:[a, b] }` (exactamente dos).");
-  L.push("  · dive: `entity` = la entidad concreta.");
+  L.push("  · dive: `dimension` = el TIPO de la entidad (cliente si es un cliente · marca si es una marca · bodega si es una bodega) · `entity` = el nombre · `metric` = una representativa (ej. margen · el dive perfila la entidad entera).");
   L.push("  · filtro por marca/familia/cliente/bodega → `filters { marca?, familia?, cliente?, bodega? }`.");
   return L.join("\n");
 }

@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
-import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";        // Paso 5 · switch demo/LLM (default false)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
@@ -74,9 +74,9 @@ export async function buildAdiTurnLLM(question, context, scenario) {
   try {
     const spec = await _fetchSpec(q, scenario);
     r = answerADIFromSpec(spec, context || {}, { scenario });   // ADI valida + ejecuta/degrada honesto (local)
-    // NARRACIÓN LLM #2 · reformula el output validado y PASA por el number-guard (pickNarratedText):
+    // NARRACIÓN LLM #2 · sub-flag ADI_LLM_NARRATE_ENABLED (false = parse-only) · PASA por el number-guard (pickNarratedText):
     //   guard OK → se muestra la narración · guard falla / gateway cae → texto determinístico de ADI. Nunca inventa cifras.
-    if (r && r.text) {
+    if (ADI_LLM_NARRATE_ENABLED && r && r.text) {
       try {
         const narration = await _fetchNarration(r);
         const picked = pickNarratedText(r, narration);
