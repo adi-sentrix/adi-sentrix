@@ -29,6 +29,9 @@ const TESTS = [
   { n: "10 · operación no soportada ofrece", spec: S({ operation: "forecast", metric: "ventas", dimension: "cliente" }), ok: (r) => blocked(r, "unsupported-op") },
   { n: "11 · costo (declarado, no cableado) degrada", spec: S({ operation: "overview", metric: "costo", dimension: "cliente" }), ok: (r) => blocked(r, "metric-not-wired") },
   { n: "12 · schemaVersion desconocida bloquea", spec: { schemaVersion: 2, operation: "overview", metric: "ventas", dimension: "cliente" }, ok: (r) => blocked(r, "version") },
+  // fix #2 (hallado en el experimento LLM): explain_availability EXPLICA (no cae en el bloqueo genérico metric-not-in-dim)
+  { n: "13 · explain_availability(margen@bodega) explica, no bloquea", spec: S({ operation: "explain_availability", metric: "margen", dimension: "bodega" }), ok: (r) => r.route === "spec_explain" && typeof r.text === "string" && /bodega/i.test(r.text) },
+  { n: "14 · overview(margen@bodega) SÍ bloquea metric-not-in-dim (regresión #7)", spec: S({ operation: "overview", metric: "margen", dimension: "bodega" }), ok: (r) => blocked(r, "metric-not-in-dim") },
 ];
 
 let pass = 0, fail = 0; const lines = [];

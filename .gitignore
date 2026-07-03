@@ -12,3 +12,6 @@ _oracle/_*_entry.jsx
 # Resultados de batería (regenerados en cada corrida)
 _parity_results.json
 dev.log
+
+# API keys (Paso 5) - nunca commitear
+.env

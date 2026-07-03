@@ -117,6 +117,22 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
   if (!spec.dimension || !ENTITIES[spec.dimension])
     return _degrade("unknown-dimension", `¿Por qué eje? Tengo: ${Object.keys(ENTITIES).map(_dp).join(", ")}.`, [], ctx);
 
+  // explain_availability se resuelve ACÁ (antes de #4): su trabajo ES explicar disponibilidad, incluso cuando la
+  // métrica NO está en esa dimensión (ese es justo el caso a explicar) → no debe caer en el bloqueo genérico #4.
+  if (spec.operation === "explain_availability") {
+    const ax = METRICS[spec.metric].axes || [];
+    if (!ax.includes(spec.dimension))
+      return _plain(`El ${_m(spec.metric)} no está disponible por ${_d(spec.dimension)}. Sí lo tengo por ${ax.map(_d).join(", ")}.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: ax.map((a) => `${spec.metric}@${a}`) });
+    const sf = SURFACE[`${spec.metric}@${spec.dimension}`];
+    if (sf) {
+      const b = sf.blockedWhen("bonanza");
+      if (b) return _plain(`${_cap(b.reason)}.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: b.offer });
+      return _plain(`Sí lo tengo: ${_m(spec.metric)} por ${_d(spec.dimension)} está disponible (lentes: ${sf.lenses.join(", ")}).`, { route: "spec_explain", intent: "explain_availability", ctx });
+    }
+    const sib0 = ax.filter((a) => SURFACE[`${spec.metric}@${a}`]).map((a) => `${spec.metric}@${a}`);
+    return _plain(`El ${_m(spec.metric)} por ${_d(spec.dimension)} no lo tengo como vista propia hoy.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: sib0 });
+  }
+
   // ── #4 · métrica disponible en esa dimensión (según el contrato) ──
   const axes = METRICS[spec.metric].axes || [];
   if (!axes.includes(spec.dimension))
@@ -158,16 +174,6 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
 
   // ── ejecución por operación ──────────────────────────────────────────────────────────────────────
   try {
-    if (spec.operation === "explain_availability") {
-      if (surf) {
-        const blk = surf.blockedWhen(scenario);
-        if (blk) return _plain(`${_cap(blk.reason)}.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: blk.offer });
-        return _plain(`Sí lo tengo: ${_m(spec.metric)} por ${_d(spec.dimension)} está disponible (lentes: ${surf.lenses.join(", ")}).`, { route: "spec_explain", intent: "explain_availability", ctx });
-      }
-      const sib = axes.filter((a) => SURFACE[`${spec.metric}@${a}`]).map((a) => `${spec.metric}@${a}`);
-      return _plain(`El ${_m(spec.metric)} por ${_d(spec.dimension)} no lo tengo como vista propia hoy.${sib.length ? "" : ""}`, { route: "spec_explain", intent: "explain_availability", ctx, offer: sib });
-    }
-
     if (spec.operation === "overview") {
       const qm = _QIM[spec.metric];
       if (!qm) {   // ej. costo: declarado en el registro (tu enum) pero sin productor de tabla → honesto
