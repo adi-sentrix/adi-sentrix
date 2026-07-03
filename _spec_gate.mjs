@@ -32,6 +32,12 @@ const TESTS = [
   // fix #2 (hallado en el experimento LLM): explain_availability EXPLICA (no cae en el bloqueo genérico metric-not-in-dim)
   { n: "13 · explain_availability(margen@bodega) explica, no bloquea", spec: S({ operation: "explain_availability", metric: "margen", dimension: "bodega" }), ok: (r) => r.route === "spec_explain" && typeof r.text === "string" && /bodega/i.test(r.text) },
   { n: "14 · overview(margen@bodega) SÍ bloquea metric-not-in-dim (regresión #7)", spec: S({ operation: "overview", metric: "margen", dimension: "bodega" }), ok: (r) => blocked(r, "metric-not-in-dim") },
+  // productor de inventario spec-driven (capital/rotación/DOH por bodega/sku · sin texto)
+  { n: "15 · capital@bodega overview EJECUTA (spec-driven)", spec: S({ operation: "overview", metric: "capital", dimension: "bodega" }), ok: (r) => executes(r, "qi_retrieval") && /Santiago|Valpara|\$/.test(r.text) },
+  { n: "16 · rotacion@bodega overview EJECUTA", spec: S({ operation: "overview", metric: "rotacion", dimension: "bodega" }), ok: (r) => executes(r, "qi_retrieval") && /x/.test(r.text) },
+  { n: "17 · doh@bodega overview EJECUTA", spec: S({ operation: "overview", metric: "doh", dimension: "bodega" }), ok: (r) => executes(r, "qi_retrieval") },
+  { n: "18 · capital@bodega rank top 2 EJECUTA", spec: S({ operation: "rank", metric: "capital", dimension: "bodega", limit: 2, sort: { by: "capital", dir: "desc" } }), ok: (r) => executes(r, "qi_retrieval") },
+  { n: "19 · capital@cliente degrada honesto (métrica no en esa dimensión)", spec: S({ operation: "overview", metric: "capital", dimension: "cliente" }), ok: (r) => blocked(r, "metric-not-in-dim") },
 ];
 
 let pass = 0, fail = 0; const lines = [];

@@ -34,6 +34,7 @@ export const SURFACE = {
   "rotacion@sku":     { lenses: ["cuadro"],  comparable: false, blockedWhen: () => null },
   "rotacion@bodega":  { lenses: ["control", "cuadro"], comparable: true, blockedWhen: () => null },
   "doh@sku":          { lenses: ["cuadro"],  comparable: false, blockedWhen: () => null },
+  "doh@bodega":       { lenses: ["control", "cuadro"], comparable: true, blockedWhen: () => null },
 };
 
 // ── CRUCES BLOQUEADOS · sin granularidad atómica en el dato (declara lo que el honesty-guard hace hoy) ──

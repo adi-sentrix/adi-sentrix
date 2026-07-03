@@ -20,6 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
+import { composeInventorySpec } from "./inventorySpec.js";               // productor de inventario spec-driven (capital/rotación/DOH por bodega/sku)
 
 const SCHEMA_VERSION = 1;
 const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "explain_availability"]);
@@ -175,6 +176,12 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
   // ── ejecución por operación ──────────────────────────────────────────────────────────────────────
   try {
     if (spec.operation === "overview") {
+      // INVENTARIO (capital/rotación/DOH) → productor spec-driven (data-driven del contrato · sin texto) · sku o bodega
+      if (METRICS[spec.metric].domain === "inventario") {
+        const resp = composeInventorySpec({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
+        if (!resp || !resp.opener) return _degrade("inventory-empty", `No pude armar ${_m(spec.metric)} por ${_dp(spec.dimension)}.`, [], ctx);
+        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      }
       const qm = _QIM[spec.metric];
       if (!qm) {   // ej. costo: declarado en el registro (tu enum) pero sin productor de tabla → honesto
         const sibs = ["ventas", "margen", "contribucion"].filter((x) => (METRICS[x].axes || []).includes(spec.dimension)).map((x) => `${x}@${spec.dimension}`);
@@ -195,6 +202,12 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
     }
 
     if (spec.operation === "rank") {
+      // INVENTARIO por BODEGA → productor spec-driven (composeRankingExtremes no hace bodega)
+      if (spec.dimension === "bodega" && METRICS[spec.metric].domain === "inventario") {
+        const resp = composeInventorySpec({ metric: spec.metric, dimension: "bodega", filters: spec.filters, scenario, limit: Math.max(1, spec.limit || 5), sort: spec.sort || { dir: "desc" } });
+        if (!resp || !resp.opener) return _degrade("rank-inventory-empty", `No pude rankear ${_m(spec.metric)} por bodega.`, [], ctx);
+        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      }
       const entityType = spec.dimension === "sku" ? "sku" : (spec.dimension === "cliente" ? "client" : null);
       if (!entityType)
         return _degrade("rank-dim-not-wired", `El ranking por ${_d(spec.dimension)} todavía no está conectado. Lo tengo por cliente y por SKU.`, [], ctx);
