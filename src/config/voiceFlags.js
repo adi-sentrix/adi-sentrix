@@ -261,14 +261,17 @@ export const ARCO_ENABLED = true;
 
 export const VOICE_AN_INTEGRATOR_ENABLED = false;
 
-// ── ADI Core · Paso 4 · SEAM del spec (pre-LLM) · switch demo/pago · default FALSE ──
+// ── ADI Core · Paso 4 · SEAM del spec (pre-LLM) · switch demo/pago · ENV-DRIVEN build-time · default FALSE ──
 // FALSE = demo determinística: la UI llama answerADI(text) · sin LLM/key/gasto (byte-exacto · gate 16/0).
 // TRUE (pago/futuro) = la UI enruta LLM(text) → spec → answerADIFromSpec(spec). No la importa el motor sellado.
-export const ADI_LLM_ENABLED = false;
+// Controlado por VITE_ADI_LLM_ENABLED: Vite (define en vite.config.js) inyecta el global __ADI_LLM_ENABLED__.
+// Guard `typeof`: en Node (gates/oráculo) el global NO existe → cae al piso demo (byte-exacto). La KEY NUNCA vive acá (server-side · OPENAI_API_KEY, jamás VITE_).
+export const ADI_LLM_ENABLED = (typeof __ADI_LLM_ENABLED__ !== "undefined") ? __ADI_LLM_ENABLED__ : false;
 
-// ── ADI Core · Paso 5 · sub-flag de narración (LLM #2) · default TRUE ──
+// ── ADI Core · Paso 5 · sub-flag de narración (LLM #2) · ENV-DRIVEN (VITE_ADI_LLM_NARRATE_ENABLED) · default TRUE ──
 // Con ADI_LLM_ENABLED ON: TRUE = parse + narra (number-guard) · FALSE = parse-only (más barato/rápido). No la ve el motor.
-export const ADI_LLM_NARRATE_ENABLED = true;
+// default TRUE salvo VITE_ADI_LLM_NARRATE_ENABLED="false" explícito. Mismo guard `typeof` para Node.
+export const ADI_LLM_NARRATE_ENABLED = (typeof __ADI_LLM_NARRATE_ENABLED__ !== "undefined") ? __ADI_LLM_NARRATE_ENABLED__ : true;
 
 // ── ADI Core · Paso 5 · UX pre-prod · selector de escenarios SOLO en dev · default FALSE ──
 // FALSE = chip estático "Datos actuales" (el escenario interno sigue "bonanza"=base · motor/tests/scenarioLoad intactos). TRUE = ScenarioSelector.

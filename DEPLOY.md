@@ -22,7 +22,17 @@ OPENAI_API_KEY=...             # o ANTHROPIC_API_KEY, según el provider
 PORT=8080                      # opcional (server.js)
 ```
 
-> Con `ADI_LLM_ENABLED=false` (en `voiceFlags.js`) el cliente **ni llama** al gateway → demo determinística, sin key. El gateway sólo se ejerce con el flag ON.
+### Activar el modo LLM en producción
+
+El **cliente** decide si llama al gateway con `ADI_LLM_ENABLED`, ahora **env-driven a build-time** (Vite `define` desde `VITE_ADI_LLM_ENABLED`). Es un booleano **no secreto** (por eso va con `VITE_`; la **key jamás** va con `VITE_` — vive server-side en `OPENAI_API_KEY`).
+
+| Var (Vercel) | Cuándo | Efecto |
+|---|---|---|
+| `VITE_ADI_LLM_ENABLED=true` | **build-time** (cliente) | el frontend llama al gateway (modo IA). Sin ella / `false` → **demo determinística** |
+| `VITE_ADI_LLM_NARRATE_ENABLED=false` | build-time (cliente) | apaga la narración (LLM #2) → parse-only. default `true` |
+| `OPENAI_API_KEY` (+ `LLM_PROVIDER`, `LLM_MODEL_*`) | **runtime** (server/función) | la usa el gateway. **Nunca** con `VITE_` |
+
+**Para prod con LLM:** seteá `VITE_ADI_LLM_ENABLED=true` **+** `OPENAI_API_KEY` / `LLM_PROVIDER` / `LLM_MODEL_*` en las *Environment Variables* de Vercel y **redeploy** (el flag del cliente se hornea en el build). Si el gateway falla o falta la key → el cliente **degrada a demo** (no rompe, no inventa cifras).
 
 ## Receta A — Node host (Render / Railway / Fly / VPS / Docker)
 
