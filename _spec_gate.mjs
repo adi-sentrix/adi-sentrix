@@ -54,6 +54,16 @@ const TESTS = [
   { n: "30 · dive familia EJECUTA", spec: S({ operation: "dive", metric: null, dimension: "familia", entity: "Electrodomésticos" }), ok: (r) => executes(r, "qi_retrieval") },
   { n: "31 · compare familia EJECUTA", spec: S({ operation: "compare", metric: "margen", dimension: "familia", comparison: { dimension: "familia", entities: ["Electrodomésticos", "Línea Blanca"] } }), ok: (r) => executes(r, "qi_retrieval") },
   { n: "32 · dive SKU inexistente degrada honesto (no lo inventa)", spec: S({ operation: "dive", metric: null, dimension: "sku", entity: "NO-EXISTE-999" }), ok: (r) => blocked(r, "dive-empty") },
+  // ── DIAGNOSE · barrido data-driven de focos de pérdida (contribución/carga/capital · ordenados por $) ──
+  { n: "33 · diagnose cartera EJECUTA (focos de pérdida con $)", spec: S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), ok: (r) => executes(r, "qi_retrieval") && /foco/i.test(r.text) && /\$/.test(r.text) },
+  { n: "34 · diagnose con dimensión inválida bloquea honesto", spec: S({ operation: "diagnose", metric: "contribucion", dimension: "vendedor" }), ok: (r) => blocked(r, "unknown-dimension") },
+  // ── WHY · el porqué (reusa el mecanismo determinístico · gradúa la certeza) ──
+  { n: "35 · why SKU EJECUTA (mecanismo de inventario)", spec: S({ operation: "why", dimension: "sku", entity: "LG-DRYER8KG" }), ok: (r) => executes(r, "why_mechanism") && /Mecanismo/i.test(r.text) },
+  { n: "36 · why cliente book-wide REUSA el mecanismo determinístico", spec: S({ operation: "why", dimension: "cliente" }), ok: (r) => r.route === "cross_domain_mechanism" && /carga/i.test(r.text) },
+  { n: "37 · why sin entidad (sku) bloquea honesto", spec: S({ operation: "why", dimension: "sku" }), ok: (r) => blocked(r, "why-no-entity") },
+  // ── RECOMMEND · qué hacer (SOLO palancas probadas · honesto si no hay) ──
+  { n: "38 · recommend cartera EJECUTA (palanca probada + trade-off)", spec: S({ operation: "recommend", dimension: "cliente" }), ok: (r) => executes(r, "recommend_action") && /Recomendaci[oó]n/i.test(r.text) && /probado por el dato/i.test(r.text) },
+  { n: "39 · recommend sin foco material bloquea honesto (no inventa solución)", spec: S({ operation: "recommend", dimension: "cliente", entity: "Mercado Libre" }), ok: (r) => blocked(r, "recommend-empty") },
 ];
 
 let pass = 0, fail = 0; const lines = [];

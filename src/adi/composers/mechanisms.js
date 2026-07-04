@@ -96,9 +96,10 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
     : `Las ${top3.length} ${cuentasWord} sostienen ${fmtM(totalContribTier)} anuales en contribución agregada (${pctSales}% del total de ventas cartera) pero operan con márgenes entre ${rangoMargen}, todos bajo el benchmark de cartera (${POLICY.benchmark}%). La presión sobre el margen unitario proviene de carga comercial alta (${rangoCarga}, sobre la mejor práctica interna de ${bestPractice}%). Cada punto de carga sobre la mejor práctica se traduce directamente en contribución que no se captura.`;
 
   // ── FOCO · acción accionable con cliente líder + recuperable
-  // NOTA · recuperable_at_target_3_5 viene en USD raw. recuperable_total_K
-  // viene en unidades K (canónico aggregate). Convertir a USD antes de fmtK.
-  const recuperablePalanca = top_instance.recuperable_at_target_3_5;
+  // FIX (V_VISUAL 2026-07-03) · recuperable_at_target_3_5 viene en unidades K (= (pctRebate−target)/100 × ventas_K),
+  // igual que recuperable_total_K → hay que ×1000 a USD antes de fmtK. Sin esto fmtK lo trata como <1000 y OMITE la "K"
+  // ("$194" en vez de "$194K"). El comentario previo tenía la unidad al revés.
+  const recuperablePalanca = top_instance.recuperable_at_target_3_5 * 1000;
   const recuperableTotalUSD = m.aggregate.recuperable_total_K * 1000;
   const otros = top3.slice(1).map(i => i.clientName).join(" y ");
 

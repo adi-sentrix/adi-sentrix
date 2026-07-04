@@ -16,6 +16,9 @@ const OPERATIONS = [
   ["rank", "top/bottom N de una dimensión por una métrica · ej: 'los 5 mejores clientes por contribución'"],
   ["compare", "dos entidades de una misma dimensión · ej: 'compará Falabella con Lider'"],
   ["dive", "el detalle de UNA entidad · ej: '¿cómo está Falabella?'"],
+  ["diagnose", "dónde se está perdiendo/inmovilizando plata en la cartera · ej: '¿dónde pierdo dinero?', '¿qué me come el margen?', '¿dónde tengo capital dormido?' · barre los focos (contribución no capturada · carga comercial alta · capital dormido) y los ordena por impacto en $"],
+  ["why", "el PORQUÉ de algo · ej: '¿por qué Falabella cede margen?', '¿por qué este SKU no rota?', '¿por qué vendo más pero gano menos?' · reusa el mecanismo (carga/rotación/capital) y gradúa la certeza (probado / la señal apunta / no puedo afirmar)"],
+  ["recommend", "QUÉ HACER · ej: '¿qué hago con los SKU dormidos?', '¿cómo lo corrijo?', '¿qué me recomendás?' · recomienda SOLO sobre palancas probadas (carga/capital) con su $ y su trade-off; si la causa está abierta, recomienda diagnosticar (no inventa una solución)"],
   ["explain_availability", "explicar si una métrica por un eje está disponible, o por qué no"],
 ];
 
@@ -48,6 +51,9 @@ export function buildContractMenu() {
   L.push("  · rank: `sort.dir` 'desc' = los más altos · 'asc' = los más bajos · `limit` = N.");
   L.push("  · compare: `comparison { dimension, entities:[a, b] }` (exactamente dos).");
   L.push("  · dive: `dimension` = el TIPO de la entidad (cliente si es un cliente · marca si es una marca · bodega si es una bodega) · `entity` = el nombre · `metric` = una representativa (ej. margen · el dive perfila la entidad entera).");
+  L.push("  · diagnose: para '¿dónde pierdo/gano plata?' y similares · `dimension` = cliente y `metric` = contribucion (representativos) · el motor barre TODOS los focos solo; filtrá con `filters` (marca/familia/bodega) si el usuario acota a una parte de la cartera.");
+  L.push("  · why: para '¿por qué…?' · `dimension` = el eje (cliente/sku/familia) · `entity` = la entidad si la nombran (ej. Falabella, LG-DRYER8KG) · `metric` opcional como pista (margen/carga/contribucion) · el motor reusa el mecanismo y gradúa la certeza.");
+  L.push("  · recommend: para '¿qué hago?' / '¿cómo lo corrijo?' · `dimension` = cliente (o el eje del foco) · `entity` = la entidad si la nombran · el motor recomienda SOLO sobre palancas probadas y, si la causa está abierta, recomienda diagnosticar.");
   L.push("  · filtro por marca/familia/cliente/bodega → `filters { marca?, familia?, cliente?, bodega? }`.");
   return L.join("\n");
 }

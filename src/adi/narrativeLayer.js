@@ -195,6 +195,7 @@ function composeRankingGroupNarrative(items, posture, ctx) {
     const v = w.unit === "%" ? `${w.value.toFixed(1)}%`
             : w.unit === "x" ? `${w.value.toFixed(1)}x`
             : w.unit === "d" ? `${Math.round(w.value)}d`
+            : w.unit === "$" ? _fmtMoneyK(w.value)   // FIX (V_VISUAL 2026-07-03) · faltaba el caso money → mostraba "4271" crudo en vez de "$4.27M" (espeja la línea del narrador single-item)
             : String(w.value);
     return `${w.entity} (${v})`;
   });

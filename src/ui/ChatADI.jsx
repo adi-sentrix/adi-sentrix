@@ -9,6 +9,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
+import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo data-driven (reusa el motor diagnose)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
@@ -270,6 +271,70 @@ function SourceBadge({ source }) {
   );
 }
 
+// INICIO · las 4 preguntas de plata → specs ENLATADOS. Corren en demo Y con LLM: el análisis es 100% determinístico
+// (los chips no necesitan al LLM para ejecutar) · sólo el texto libre pasa por el LLM para traducirse a spec.
+// El flagship es el `diagnose` (barrido completo de focos) · los otros 3 son ángulos de plata puntuales.
+const _SPEC = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o });
+const HERO_CHIPS = [
+  { q: "¿Dónde estoy perdiendo dinero?",     spec: _SPEC({ operation: "diagnose", dimension: "cliente", metric: "contribucion" }) },
+  { q: "¿Qué clientes ceden más margen?",    spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "margen", sort: { by: "margen", dir: "asc" }, limit: 5 }) },
+  { q: "¿Dónde tengo capital inmovilizado?", spec: _SPEC({ operation: "overview", dimension: "bodega", metric: "capital" }) },
+  { q: "¿Quién sostiene mi contribución?",   spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "contribucion", sort: { by: "contribucion", dir: "desc" }, limit: 5 }) },
+];
+
+// ── INICIO · hero con el RESUMEN EJECUTIVO (KPIs + lectura data-driven) + las preguntas de plata ──
+function HeroInicio({ scenario, onChip }) {
+  const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20, padding:"8px 0", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+      {/* encabezado */}
+      <div style={{ display:"flex", alignItems:"center", gap:13 }}>
+        <div style={{ width:46, height:46, borderRadius:13, display:"flex", alignItems:"center", justifyContent:"center", border:"1px solid rgba(47,184,218,0.28)", background:"rgba(47,184,218,0.07)", flexShrink:0 }}>
+          <svg width="27" height="27" viewBox="0 0 200 200" fill="none" stroke="#dfe3e8" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3"/>
+            <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.6"/>
+            <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
+            <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.5" opacity="0.5"/>
+            <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
+          </svg>
+        </div>
+        <div>
+          <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em" }}>Tu negocio hoy</div>
+          <div style={{ fontSize:12.5, color:C.textMuted }}>Resumen ejecutivo · datos actuales</div>
+        </div>
+      </div>
+      {/* KPIs (wrap en pantallas angostas) */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:10 }}>
+        {resumen.kpis.map((k, i) => (
+          <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px" }}>
+            <div style={{ fontSize:11.5, color:C.textMuted, marginBottom:5 }}>{k.label}</div>
+            <div style={{ fontSize:19, fontWeight:600, color:C.text, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+      {/* Lectura (el diferencial · sale del diagnose) */}
+      <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:12, background:"rgba(47,184,218,0.03)" }}>
+        <span style={{ color:C.celeste, fontWeight:600 }}>Lectura · </span>{resumen.lectura}
+      </div>
+      {/* preguntas de plata (chips enlatados) */}
+      <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
+        <div style={{ fontSize:12, color:C.textMuted, marginBottom:11 }}>Preguntame algo puntual</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:10 }}>
+          {HERO_CHIPS.map((c, i) => (
+            <button key={i} onClick={() => onChip(c.spec, c.q)}
+              style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 14px", borderRadius:11, border:`1px solid ${C.border}`, background:C.surface, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13, fontWeight:500, textAlign:"left", cursor:"pointer", lineHeight:1.35, transition:"background 0.15s, border-color 0.15s" }}
+              onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:C.celeste, flexShrink:0 }}/>
+              {c.q}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
@@ -283,6 +348,12 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  // el textarea AUTO-CRECE con el texto largo (hasta ~7 líneas · después scrollea adentro) · vuelve a 1 línea al enviar
+  useEffect(() => {
+    const ta = inputRef.current;
+    if (ta) { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 160) + "px"; }
+  }, [input]);
 
   // aplica el estado de un turno YA resuelto (idéntico para piso y LLM)
   const _applyTurn = (turn, adiId) => {
@@ -317,6 +388,19 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     _applyTurn(turn, adiMsg.id);
   };
 
+  // INICIO · un chip de plata ejecuta un SPEC FIJO directo por el seam (determinístico · corre en demo Y con LLM · no
+  // necesita al gateway). En modo LLM se marca "determinístico" (el análisis del chip no se narra · es honesto).
+  const submitSpec = (spec, label) => {
+    const q = (label || "").trim();
+    if (!q) return;
+    const r = answerADIFromSpec(spec, context, { scenario });
+    const turn = _turnFromResult(q, r, context, ADI_LLM_ENABLED ? "deterministico" : "demo");
+    const userMsg = { ...turn.userMsg, id: ++idRef.current };
+    const adiMsg  = { ...turn.adiMsg,  id: ++idRef.current };
+    setMessages(prev => [...prev, userMsg, adiMsg]);
+    _applyTurn(turn, adiMsg.id);
+  };
+
   const lastAdiId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "adi") return messages[i].id;
     return null;
@@ -328,12 +412,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       <div ref={scrollRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
         <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 24px 24px 24px", display:"flex", flexDirection:"column", gap:24 }}>
           {messages.length === 0 && (
-            <div style={{ display:"flex", gap:16, alignItems:"flex-start", opacity:0.85 }}>
-              <AdiAvatar/>
-              <div style={{ flex:1, minWidth:0, color:C.textSub, fontSize:14, lineHeight:1.65, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-                Soy ADI. Preguntame por las ventas, el margen o el inventario — o por un cliente, una marca, una bodega.
-              </div>
-            </div>
+            <HeroInicio scenario={scenario} onChip={submitSpec} />
           )}
 
           {messages.map((msg) => {
@@ -411,21 +490,22 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
 
       {/* ── INPUT (sticky abajo) · verbatim del piso ── */}
       <div style={{ padding:"16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", gap:8 }}>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <input
+        <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+          <textarea
             ref={inputRef}
+            rows={1}
             value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
-            placeholder="Pregunta a ADI..."
-            style={{ flex:1, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:10, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            placeholder="Preguntá a ADI…"
+            style={{ flex:1, resize:"none", overflowY:"auto", maxHeight:160, minHeight:26, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:14, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:15, lineHeight:1.5, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
             onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
             onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
           />
           <button onClick={()=>submit(input)} disabled={!input.trim()}
-            style={{ width:38, height:38, borderRadius:"50%", border:"none", background:input.trim()?"linear-gradient(180deg,#3fc4e2,#1c8fae)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(47,184,218,0.55)":"0 1px 4px rgba(0,0,0,0.35)" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-              <polyline points="13 6 19 12 13 18"/>
+            style={{ width:44, height:44, borderRadius:14, border:"none", background:input.trim()?"linear-gradient(180deg,#3fc4e2,#1c8fae)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(47,184,218,0.55)":"0 1px 4px rgba(0,0,0,0.35)" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5"/>
+              <polyline points="5 12 12 5 19 12"/>
             </svg>
           </button>
         </div>

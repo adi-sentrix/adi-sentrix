@@ -14,6 +14,8 @@ export const POLICY = {
   benchmark: 30.1,          // margen benchmark de cartera (%) · FALLBACK · el dato lo trae por-fila
   bestPracticeCarga: 3.0,   // mejor práctica interna de carga comercial (%)
   targetCarga: 3.5,         // target operativo de carga comercial (%)
+  rotacionMin: 2,           // diagnose · piso de rotación (x): por debajo, el stock se considera dormido (numérico · portable a ERP real)
+  dohMax: 120,              // diagnose · techo de cobertura (días): por encima, el stock se considera dormido
 };
 
 // helper: el benchmark de una entidad, respetando el dato por-fila (el dato manda · POLICY es el piso).

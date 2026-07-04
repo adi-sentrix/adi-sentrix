@@ -20,10 +20,11 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · data-driven del contrato)
+import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "explain_availability"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -122,7 +123,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
     return _degrade("unsupported-op", `No sé hacer "${spec.operation}". Hoy puedo: ${[...OPERATIONS].join(", ")}.`, [], ctx);
 
   // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
-  if (spec.operation !== "dive" && (!spec.metric || !METRICS[spec.metric]))
+  if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && (!spec.metric || !METRICS[spec.metric]))
     return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);
 
   // ── #3 · dimensión existe ──
@@ -145,9 +146,9 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
     return _plain(`El ${_m(spec.metric)} por ${_d(spec.dimension)} no lo tengo como vista propia hoy.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: sib0 });
   }
 
-  // ── #4 · métrica disponible en esa dimensión (dive se salta: no usa métrica) ──
+  // ── #4 · métrica disponible en esa dimensión (dive/diagnose se saltan: dive no usa métrica · diagnose barre cross-eje) ──
   const axes = (METRICS[spec.metric] && METRICS[spec.metric].axes) || [];
-  if (spec.operation !== "dive" && !axes.includes(spec.dimension))
+  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && !axes.includes(spec.dimension))
     return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);
 
   // ── #5 · filtros válidos (clave = una dimensión conocida) ──
@@ -191,7 +192,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       if (METRICS[spec.metric].domain === "inventario") {
         const resp = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
         if (!resp || !resp.opener) return _degrade("inventory-empty", `No pude armar ${_m(spec.metric)} por ${_dp(spec.dimension)}.`, [], ctx);
-        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        // Fase 2 · contrato overview_domain (lectura → volumen → concentración → señal → cruce · data-driven, sin cifras nuevas)
+        return _finalize(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
       }
       const qm = _QIM[spec.metric];
       if (!qm) {   // ej. costo: declarado en el registro (tu enum) pero sin productor de tabla → honesto
@@ -209,7 +211,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       };
       const resp = composeRetrieval(qi, scenario, {});
       if (!resp || !resp.opener) return _degrade("overview-empty", `No pude armar ${_m(spec.metric)} por ${_dp(spec.dimension)}.`, [], ctx);
-      return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      // Fase 2c · contrato overview_domain comercial (prepone lectura general volumen/valor · reusa el RIL · reading-forward)
+      return _finalize(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
     }
 
     if (spec.operation === "rank") {
@@ -217,7 +220,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       if (spec.dimension === "marca" || spec.dimension === "familia" || spec.dimension === "bodega") {
         const resp = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: Math.max(1, spec.limit || 5), sort: spec.sort || { dir: "desc" } });
         if (!resp || !resp.opener) return _degrade("rank-empty", `No pude rankear ${_m(spec.metric)} por ${_d(spec.dimension)}. Probá otra métrica para ese eje.`, [], ctx);
-        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        // Fase 2 · contrato rank_business_entity (ranking → patrón → brecha → advertencia → cruce)
+        return _finalize(composeContract("rank_business_entity", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
       }
       const entityType = spec.dimension === "sku" ? "sku" : (spec.dimension === "cliente" ? "client" : null);
       if (!entityType)
@@ -247,7 +251,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       if (cdim === "sku" || cdim === "familia") {   // sku/familia → productor spec-driven (data-driven del contrato)
         const resp = composeSpecCompare({ dimension: cdim, entities: cmp.entities, scenario });
         if (!resp || !resp.opener) return _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]} por ${_d(cdim)}. ¿Están bien escritos?`, [], ctx);
-        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        // Fase 2b · contrato compare_entities (diferencia principal → ganador → riesgo → decisión)
+        return _finalize(composeContract("compare_entities", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
       }
       return _degrade("compare-dim-not-wired", `La comparación por ${_d(cdim)} todavía no está conectada.`, [], ctx);
     }
@@ -265,9 +270,53 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
         const resp = composeSpecDive({ dimension: spec.dimension, entity: ent, scenario });
         if (!resp || !resp.opener) return _degrade("dive-empty", `No encontré "${ent}" en ${_dp(spec.dimension)}. ¿Está bien escrito?`, [], ctx);
-        return _finalize(resp, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        // Fase 2b · contrato dive_entity (perfil → tensión → mecanismo graduado → impacto → acción)
+        return _finalize(composeContract("dive_entity", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
       }
       return _degrade("dive-dim-not-wired", `El detalle por ${_d(spec.dimension)} todavía no está conectado.`, [], ctx);
+    }
+
+    if (spec.operation === "diagnose") {
+      // barrido data-driven de focos de pérdida/inmovilización (contribución/carga/capital) · el `filters` lo acota
+      const resp = composeSpecDiagnose({ filters: spec.filters, scenario });
+      if (!resp || !resp.opener) {
+        const sc = [spec.filters && spec.filters.marca, spec.filters && spec.filters.familia, spec.filters && spec.filters.bodega, spec.filters && spec.filters.cliente].filter(Boolean).join("/");
+        return _degrade("diagnose-empty", `No encontré fugas materiales${sc ? ` en ${sc}` : ""} en este escenario. Todo lo que veo está sobre su benchmark y con el capital rotando.`, [], ctx);
+      }
+      // Fase 1 · CONTRATO de respuesta: envolver el productor en el contrato ejecutivo (diagnose_value_leak) antes de finalizar.
+      return _finalize(composeContract("diagnose_value_leak", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+    }
+
+    if (spec.operation === "why") {
+      // Fase 3a · el porqué: REUSA el mecanismo determinístico (no duplica). Ruta por (dimensión, entidad):
+      const dim = spec.dimension, ent = spec.entity || (spec.filters && spec.filters[dim]);
+      // (A) cliente book-wide (sin entidad) → mecanismo del motor vía dispatchIntent (rico · assert-only · ya narrado, NO pasa por el closer)
+      if (dim === "cliente" && !ent) {
+        const arch = spec.metric === "contribucion" ? "mechanism_quality_growth" : "mechanism_commercial_erosion";
+        const out = dispatchIntent({ type: "cross_domain_query", crossDomain: { isCrossDomainQuery: true, archetype: arch, domainsDetected: [], hasRankingIntent: false } }, "", scenario, ctx);
+        if (out && out.text) return out;   // si el mecanismo no dispara → cae a la vía data-driven honesta de abajo
+      }
+      // (B) sku/familia con entidad → composeSpecDive + contrato why (el trapped_capital del motor es stub · esta es la lógica reusable)
+      if (dim === "sku" || dim === "familia") {
+        if (!ent) return _degrade("why-no-entity", `¿De qué ${_d(dim)} querés el porqué?`, [], ctx);
+        const resp = composeSpecDive({ dimension: dim, entity: ent, scenario });
+        if (!resp || !resp.opener) return _degrade("why-empty", `No encontré "${ent}" para explicar su porqué. ¿Está bien escrito?`, [], ctx);
+        return _finalize(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), "why_mechanism", "why_mechanism", ctx, scenario, null);
+      }
+      // (C) cliente con entidad (o fallback) → diagnose SCOPED al cliente + contrato why (reusa los detectores carga/margen graduados)
+      const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
+      const resp = composeSpecDiagnose({ filters, scenario });
+      if (!resp || !resp.opener) return _degrade("why-empty", `Con este dato no encontré una causa material que afirmar${ent ? ` en ${ent}` : ""}. Para cerrarla necesito el detalle por SKU o canal.`, [], ctx);
+      return _finalize(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), "why_mechanism", "why_mechanism", ctx, scenario, null);
+    }
+
+    if (spec.operation === "recommend") {
+      // Fase 3b · SOLO recomienda sobre palancas PROBADAS (carga/capital) del diagnose · si la causa está abierta el closer recomienda diagnosticar, no inventa.
+      const dim = spec.dimension, ent = spec.entity || (spec.filters && spec.filters[dim]);
+      const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
+      const resp = composeSpecDiagnose({ filters, scenario });
+      if (!resp || !resp.opener) return _degrade("recommend-empty", `No tengo una palanca accionable probada para recomendar${ent ? ` en ${ent}` : ""}. Para recomendar necesito un foco material con causa probada.`, [], ctx);
+      return _finalize(composeContract("recommend_action", resp, resp.evidence, ctx, scenario), "recommend_action", "recommend_action", ctx, scenario, null);
     }
   } catch (e) {
     return _degrade("executor-error", `Algo falló al ejecutar el pedido (${e && e.message}). No inventé un número: mejor te lo digo.`, [], ctx);
