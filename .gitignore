@@ -15,3 +15,6 @@ dev.log
 
 # API keys (Paso 5) - nunca commitear
 .env
+
+# Build de Vite (lo genera el host · Vercel corre `vite build`) — nunca commitear
+dist/

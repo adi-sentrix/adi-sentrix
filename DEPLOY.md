@@ -35,7 +35,7 @@ Seteá las env vars en el panel del host. Listo. (Dockerfile: `CMD ["npm","start
 
 ## Receta B — Vercel / Netlify (serverless functions)
 
-Frontend estático desde `dist/`; cada endpoint es una función que reusa `gatewayFetch`. Ej. `api/adi-spec.js`:
+**Ya incluido en el repo:** [`api/adi-spec.js`](api/adi-spec.js) + [`api/adi-narrate.js`](api/adi-narrate.js) (cada uno envuelve `gatewayFetch` en runtime `edge`) y [`vercel.json`](vercel.json) (framework `vite`). Vercel detecta el `api/` solo y sirve `dist/` estático. Conectá el repo, seteá las *Environment Variables* del proyecto (`LLM_PROVIDER`, `LLM_MODEL_PARSE`, `LLM_MODEL_NARRATE`, `OPENAI_API_KEY` · server-side, **NUNCA** `VITE_*`) y deploy → endpoints en `/api/adi-spec` y `/api/adi-narrate`. El wrapper es mínimo (idéntico en ambos):
 
 ```js
 import { gatewayFetch } from "../src/adi/llm/gatewayFetch.js";
