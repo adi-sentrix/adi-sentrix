@@ -1,3 +1,7 @@
+// [LEGACY · NO-GATE · 2026-07-04] Harness ROTO: el bundle del oráculo (_oracle_entry.jsx, que incluye ADISentric) da
+// "m.answerADI is not a function" — issue pre-existente del oracle-bundle, NO del producto. NO es un gate vigente
+// (los gates del producto son _gate · _spec_gate · _struct_gate · _guard_gate · _boleta_gate). NO usar para CI/readiness.
+// Su intención (el HONESTY_GUARD no sobre-bloquea preguntas legítimas) quedó verificada en la auditoría de flags (2026-07-04).
 // === PRUEBA · NO SOBRE-BLOQUEO · el guard de honestidad NO debe bloquear preguntas LEGÍTIMAS ===
 // El riesgo real del guard: bloquear lo que ADI SÍ puede responder. Corre el corpus legítimo por answerADI
 // (guard ON) y verifica que NINGUNA rutee a "honesty_guard". Es la otra mitad del doble gate.
