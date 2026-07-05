@@ -18,7 +18,7 @@
  */
 
 // formateador canónico · MISMA escala que specRetrieval._money (money en $ CRUDOS)
-const _moneyC = (v) => { const a = Math.abs(v); if (a >= 1e6) return `$${(v / 1e6).toFixed(1)}M`; if (a >= 1e3) return `$${Math.round(v / 1e3)}K`; return `$${Math.round(v)}`; };
+const _moneyC = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
 const _fmtC = (raw, unit) =>
   unit === "money" ? _moneyC(raw) :
   unit === "pct"   ? `${raw}%` :
@@ -39,8 +39,8 @@ export function parseFigures(text) {
   const push = (unit, raw, txt) => { if (Number.isFinite(raw)) out.push({ unit, raw, text: txt, canon: `${unit}:${_fmtC(raw, unit).replace(/\s/g, "")}` }); };
   const num = (t) => parseFloat(String(t).replace(/,/g, "")); // ADI formatea US-style: '.' = decimal, ',' = miles (se quita)
   let m;
-  const reMoney = /\$\s?(\d[\d.,]*\d|\d)\s?([KMB])?/gi;   // $X, $X.YK, $X.YM, $XB
-  while ((m = reMoney.exec(s))) { let v = num(m[1]); const u = (m[2] || "").toUpperCase(); if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6; else if (u === "B") v *= 1e9; push("money", v, m[0]); }
+  const reMoney = /(-?)\$\s?(\d[\d.,]*\d|\d)\s?([KMB])?/gi;   // -?$X · captura el signo → "-$6K" da raw negativo (canon consistente)
+  while ((m = reMoney.exec(s))) { let v = num(m[2]); const u = (m[3] || "").toUpperCase(); if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6; else if (u === "B") v *= 1e9; if (m[1] === "-") v = -v; push("money", v, m[0]); }
   const rePct = /(\d[\d.,]*\d|\d)\s?%/g;                  // X% / X.Y%
   while ((m = rePct.exec(s))) push("pct", num(m[1]), m[0]);
   const reRatio = /(\d[\d.,]*\d|\d)\s?(?:x\b|×|veces\b|vez\b)/gi;   // Xx / X× / X veces (× = U+00D7, el que usa el motor; atrapa "13 veces")
