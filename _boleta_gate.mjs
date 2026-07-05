@@ -70,5 +70,29 @@ ok("20 · pickNarratedText BLOQUEA '13 veces' contra la boleta de marca (el bug 
 ok("21 · pickNarratedText narra el texto VERBATIM del motor (marca)",
   pickNarratedText(rMarca, rMarca.text).narrated === true);
 
+// ── 5 · increment 2b · resto de contratos EMITEN/HEREDAN boleta (end-to-end via answerADIFromSpec) ──
+const e2e = (name, spec) => {
+  const r = answerADIFromSpec(spec, {}, { scenario: "bonanza" });
+  const b = r && r.evidence && r.evidence.boleta;
+  ok(`${name} (route ${r && r.route})`, Array.isArray(b) && b.length > 0);
+};
+e2e("22 · rank contribucion@cliente emite boleta", { schemaVersion: 1, operation: "rank", metric: "contribucion", dimension: "cliente", limit: 5 });
+e2e("23 · dive cliente (Falabella) emite boleta", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "Falabella" });
+e2e("24 · why cliente (Falabella) hereda boleta de diagnose", { schemaVersion: 1, operation: "why", metric: "margen", dimension: "cliente", entity: "Falabella" });
+e2e("25 · recommend cliente (Falabella) hereda boleta de diagnose", { schemaVersion: 1, operation: "recommend", metric: "margen", dimension: "cliente", entity: "Falabella" });
+e2e("26 · why book-wide cliente (ruta del motor)", { schemaVersion: 1, operation: "why", metric: "margen", dimension: "cliente" });
+e2e("27 · overview comercial ventas@cliente emite boleta", { schemaVersion: 1, operation: "overview", metric: "ventas", dimension: "cliente" });
+
+// ── 6 · auto-consistencia: el TEXTO FINAL de ADI pasa su PROPIA boleta en todos los contratos ──
+const selfOk = (name, spec) => {
+  const r = answerADIFromSpec(spec, {}, { scenario: "bonanza" });
+  const b = r && r.evidence && r.evidence.boleta;
+  ok(`${name} · el texto de ADI pasa su propia boleta`, Array.isArray(b) && b.length > 0 && guardAgainstBoleta(r.text, b).ok);
+};
+selfOk("28 · diagnose",  { schemaVersion: 1, operation: "diagnose", metric: "margen", dimension: "cliente" });
+selfOk("29 · compare marca", { schemaVersion: 1, operation: "compare", metric: "ventas", dimension: "marca", comparison: { dimension: "marca", entities: ["Samsung", "LG"] } });
+selfOk("30 · rank cliente", { schemaVersion: 1, operation: "rank", metric: "contribucion", dimension: "cliente", limit: 5 });
+selfOk("31 · overview comercial", { schemaVersion: 1, operation: "overview", metric: "ventas", dimension: "cliente" });
+
 console.log(`\n── boleta-gate: ${pass} PASS · ${fail} FAIL ──`);
 process.exit(fail ? 1 : 0);

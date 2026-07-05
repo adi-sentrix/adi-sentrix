@@ -22,7 +22,20 @@ import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
 import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
-import { boletaFromText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR (compare marca/cliente/bodega) derivada de su texto (el composer sellado no la emite)
+import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
+
+// _finBoleta · como _finalize pero adjunta evidence.boleta que CUBRE el texto final, INDEPENDIENTE de flags.
+// Necesario porque _finalize surfacea `evidence` solo con ADI_SENTRIX_BOLETA_ENABLED (colisión con la boleta-Sentrix del panel);
+// al piso ese flag está OFF → la boleta del composer se perdía. Base = boleta first-class del composer + cifras que _finalize
+// agrega al texto (suffix proactivo, lead, narrativa) → self-consistente: la propia respuesta pasa su boleta.
+function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenario) {
+  const r = _finalize(contractResp, route, intentLabel, ctx, scenario, null);
+  if (r && r.text) {
+    const base = (composerResp && composerResp.evidence && composerResp.evidence.boleta) || [];
+    r.evidence = { ...(r.evidence || {}), boleta: ensureBoletaCoversText(base, r.text) };
+  }
+  return r;
+}
 
 const SCHEMA_VERSION = 1;
 const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability"]);
@@ -194,7 +207,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         const resp = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
         if (!resp || !resp.opener) return _degrade("inventory-empty", `No pude armar ${_m(spec.metric)} por ${_dp(spec.dimension)}.`, [], ctx);
         // Fase 2 · contrato overview_domain (lectura → volumen → concentración → señal → cruce · data-driven, sin cifras nuevas)
-        return _finalize(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        return _finBoleta(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
       const qm = _QIM[spec.metric];
       if (!qm) {   // ej. costo: declarado en el registro (tu enum) pero sin productor de tabla → honesto
@@ -213,7 +226,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       const resp = composeRetrieval(qi, scenario, {});
       if (!resp || !resp.opener) return _degrade("overview-empty", `No pude armar ${_m(spec.metric)} por ${_dp(spec.dimension)}.`, [], ctx);
       // Fase 2c · contrato overview_domain comercial (prepone lectura general volumen/valor · reusa el RIL · reading-forward)
-      return _finalize(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      // BOLETA (overview comercial · composeRetrieval no emite boleta first-class): _finBoleta la deriva del texto final (base vacía).
+      return _finBoleta(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
     }
 
     if (spec.operation === "rank") {
@@ -222,7 +236,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         const resp = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: Math.max(1, spec.limit || 5), sort: spec.sort || { dir: "desc" } });
         if (!resp || !resp.opener) return _degrade("rank-empty", `No pude rankear ${_m(spec.metric)} por ${_d(spec.dimension)}. Probá otra métrica para ese eje.`, [], ctx);
         // Fase 2 · contrato rank_business_entity (ranking → patrón → brecha → advertencia → cruce)
-        return _finalize(composeContract("rank_business_entity", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        return _finBoleta(composeContract("rank_business_entity", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
       const entityType = spec.dimension === "sku" ? "sku" : (spec.dimension === "cliente" ? "client" : null);
       if (!entityType)
@@ -236,6 +250,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       const topN = Math.max(1, spec.limit || 5);
       const intent = { type: "ranking_extremes", direction, metric: rm, entityType, topN, inheritedScope: null };
       const out = dispatchIntent(intent, "", scenario, ctx);
+      // BOLETA (ruta del MOTOR · rank cliente/sku): el composer sellado no emite boleta → la derivamos de SU texto (unit-aware)
+      if (out && out.text) out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `rank ${_m(spec.metric)} por ${_d(spec.dimension)}` }) };
       return out || _degrade("rank-empty", `No pude armar el ranking de ${_m(spec.metric)}.`, [], ctx);
     }
 
@@ -256,7 +272,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         const resp = composeSpecCompare({ dimension: cdim, entities: cmp.entities, scenario });
         if (!resp || !resp.opener) return _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]} por ${_d(cdim)}. ¿Están bien escritos?`, [], ctx);
         // Fase 2b · contrato compare_entities (diferencia principal → ganador → riesgo → decisión)
-        return _finalize(composeContract("compare_entities", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        return _finBoleta(composeContract("compare_entities", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
       return _degrade("compare-dim-not-wired", `La comparación por ${_d(cdim)} todavía no está conectada.`, [], ctx);
     }
@@ -267,6 +283,8 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         const ent = spec.entity || (spec.filters && (spec.filters[spec.dimension] || spec.filters.cliente));
         if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
         const out = dispatchIntent(mk(ent), "", scenario, ctx);
+        // BOLETA (ruta del MOTOR · dive cliente/marca/bodega): el composer sellado no emite boleta → la derivamos de SU texto
+        if (out && out.text) out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `${ent} (${_d(spec.dimension)})` }) };
         return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
       }
       if (spec.dimension === "sku" || spec.dimension === "familia") {   // sku/familia → productor spec-driven
@@ -275,7 +293,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         const resp = composeSpecDive({ dimension: spec.dimension, entity: ent, scenario });
         if (!resp || !resp.opener) return _degrade("dive-empty", `No encontré "${ent}" en ${_dp(spec.dimension)}. ¿Está bien escrito?`, [], ctx);
         // Fase 2b · contrato dive_entity (perfil → tensión → mecanismo graduado → impacto → acción)
-        return _finalize(composeContract("dive_entity", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        return _finBoleta(composeContract("dive_entity", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
       return _degrade("dive-dim-not-wired", `El detalle por ${_d(spec.dimension)} todavía no está conectado.`, [], ctx);
     }
@@ -288,7 +306,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
         return _degrade("diagnose-empty", `No encontré fugas materiales${sc ? ` en ${sc}` : ""} en este escenario. Todo lo que veo está sobre su benchmark y con el capital rotando.`, [], ctx);
       }
       // Fase 1 · CONTRATO de respuesta: envolver el productor en el contrato ejecutivo (diagnose_value_leak) antes de finalizar.
-      return _finalize(composeContract("diagnose_value_leak", resp, resp.evidence, ctx, scenario), "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+      return _finBoleta(composeContract("diagnose_value_leak", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
     }
 
     if (spec.operation === "why") {
@@ -298,20 +316,24 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       if (dim === "cliente" && !ent) {
         const arch = spec.metric === "contribucion" ? "mechanism_quality_growth" : "mechanism_commercial_erosion";
         const out = dispatchIntent({ type: "cross_domain_query", crossDomain: { isCrossDomainQuery: true, archetype: arch, domainsDetected: [], hasRankingIntent: false } }, "", scenario, ctx);
-        if (out && out.text) return out;   // si el mecanismo no dispara → cae a la vía data-driven honesta de abajo
+        if (out && out.text) {   // si el mecanismo no dispara → cae a la vía data-driven honesta de abajo
+          // BOLETA (ruta del MOTOR · why book-wide): el mecanismo sellado no emite boleta → la derivamos de SU texto (unit-aware)
+          out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `por qué (${dim})` }) };
+          return out;
+        }
       }
       // (B) sku/familia con entidad → composeSpecDive + contrato why (el trapped_capital del motor es stub · esta es la lógica reusable)
       if (dim === "sku" || dim === "familia") {
         if (!ent) return _degrade("why-no-entity", `¿De qué ${_d(dim)} querés el porqué?`, [], ctx);
         const resp = composeSpecDive({ dimension: dim, entity: ent, scenario });
         if (!resp || !resp.opener) return _degrade("why-empty", `No encontré "${ent}" para explicar su porqué. ¿Está bien escrito?`, [], ctx);
-        return _finalize(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), "why_mechanism", "why_mechanism", ctx, scenario, null);
+        return _finBoleta(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), resp, "why_mechanism", "why_mechanism", ctx, scenario);
       }
       // (C) cliente con entidad (o fallback) → diagnose SCOPED al cliente + contrato why (reusa los detectores carga/margen graduados)
       const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
       const resp = composeSpecDiagnose({ filters, scenario });
       if (!resp || !resp.opener) return _degrade("why-empty", `Con este dato no encontré una causa material que afirmar${ent ? ` en ${ent}` : ""}. Para cerrarla necesito el detalle por SKU o canal.`, [], ctx);
-      return _finalize(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), "why_mechanism", "why_mechanism", ctx, scenario, null);
+      return _finBoleta(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), resp, "why_mechanism", "why_mechanism", ctx, scenario);
     }
 
     if (spec.operation === "recommend") {
@@ -320,7 +342,7 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
       const resp = composeSpecDiagnose({ filters, scenario });
       if (!resp || !resp.opener) return _degrade("recommend-empty", `No tengo una palanca accionable probada para recomendar${ent ? ` en ${ent}` : ""}. Para recomendar necesito un foco material con causa probada.`, [], ctx);
-      return _finalize(composeContract("recommend_action", resp, resp.evidence, ctx, scenario), "recommend_action", "recommend_action", ctx, scenario, null);
+      return _finBoleta(composeContract("recommend_action", resp, resp.evidence, ctx, scenario), resp, "recommend_action", "recommend_action", ctx, scenario);
     }
   } catch (e) {
     return _degrade("executor-error", `Algo falló al ejecutar el pedido (${e && e.message}). No inventé un número: mejor te lo digo.`, [], ctx);

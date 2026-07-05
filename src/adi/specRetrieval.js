@@ -72,13 +72,16 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
   const lines = outRows.map((x) => `${x.name}: ${x.fmt}`).join(" · ");
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
   const opener = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · escenario ${scenario}.\n\n${lines}`;
+  // BOLETA (primera clase): cada fila del ranking es una cifra autorizada · value == x.fmt del texto (una sola verdad)
+  const _bctx = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""}`;
+  const bol = outRows.map((x) => fig(`${x.name} · ${m.label}`, x.fmt, { unit: m.unit, raw: x.value, context: _bctx }));
   return {
     opener,
     suggestions: null,
     sentrixAction: null,
     // evidence enriquecida (Fase 2 · contratos): `rows` estructuradas (nombre + valor + formato) para que el CLOSER lea
     // el PATRÓN (líder/cola/polaridad) sin recomputar ni introducir cifras. El texto sigue mostrando formateado ("$64K").
-    evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro",
+    evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro", boleta: bol,
       rows: outRows, metricLabel: m.label, unit: m.unit, polarity: m.polarity, dimLabel: ent.label.sing, sortDir: dir },
   };
 }
@@ -111,7 +114,9 @@ export function composeSpecDive({ dimension, entity, scenario }) {
   }
   if (!lines.length) return null;                          // entidad no encontrada en ningún source → el seam degrada honesto
   const opener = `${entity} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join(" · ")}`;
-  return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro", metrics } };
+  // BOLETA (primera clase): cada métrica del perfil es una cifra autorizada · value == fmt del texto (una sola verdad)
+  const bol = metrics.map((mm) => fig(`${entity} · ${mm.label}`, mm.fmt, { unit: mm.unit, raw: mm.value, context: `${entity} (${ent.label.sing})` }));
+  return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro", metrics, boleta: bol } };
 }
 
 // composeSpecCompare({dimension, entities:[a,b], scenario}) → dos entidades lado a lado, métrica por métrica | null

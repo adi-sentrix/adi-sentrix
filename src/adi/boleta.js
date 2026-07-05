@@ -86,3 +86,19 @@ export function boletaFromText(text, { context = null, mandatory = false } = {})
     mandatory, source: "actual", formula: null, context, canon: f.canon,
   }));
 }
+
+// ensureBoletaCoversText(boleta, text) → parte de la boleta FIRST-CLASS del composer (labels/mandatory/formula) y AGREGA
+// las cifras del texto FINAL que no estén cubiertas (derivadas · las capas de _finalize agregan: suffix proactivo, lead,
+// narrativa). Garantiza que la boleta cubra EXACTAMENTE el texto que la narración reformula → self-consistente, flag-independiente.
+export function ensureBoletaCoversText(boleta, text, { context = null } = {}) {
+  const base = Array.isArray(boleta) ? boleta.slice() : [];
+  const seenCanon = new Set(base.map((f) => f.canon));
+  const seenVerb = new Set(base.map((f) => String(f.value).replace(/\s/g, "")));
+  for (const f of parseFigures(text)) {
+    if (!seenCanon.has(f.canon) && !seenVerb.has(String(f.text).replace(/\s/g, ""))) {
+      base.push({ label: f.text, value: f.text, unit: f.unit, raw: f.raw, mandatory: false, source: "actual", formula: null, context, canon: f.canon });
+      seenCanon.add(f.canon);
+    }
+  }
+  return base;
+}
