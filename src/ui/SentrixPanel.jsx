@@ -17,6 +17,8 @@ import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el 
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
+import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
+const _isDev = ADI_PROFILE === "dev";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 
@@ -462,6 +464,10 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   // CONTROL · la tabla-ring (foco vs promedio vs par instructivo vs mejor-en-clase) · cliente/bodega/sku/marca (B4) · null → placeholder.
   const ring = (["client", "bodega", "sku", "marca"].includes(current.focusType) && !current.compareWith)
     ? buildControlRing(current.focusType, current.focus, evidence.periodo) : null;
+  // Control SOLO con ring real (foco individual) · o en dev (trabajo interno). En comparación (ring null) el tab NO aparece
+  // en demo/prod → nunca se ve "Disponible pronto". effTab cae a Diagnóstico si Control no aplica (sin panel en blanco).
+  const showControl = ADI_SENTRIX_SHELL_ENABLED && (!!ring || _isDev);
+  const effTab = (tab === "control" && !showControl) ? "diagnostico" : tab;
 
   // operaciones del estado (empujan/actualizan frames)
   const _f = (s) => (s.length ? s : [mkBase(baseRd)]);
@@ -510,9 +516,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
       {/* SHELL · 3 tabs sobre el estado compartido (mismo caso, distinta lente) · gated · OFF = sin tabs (byte-exacto) */}
       {ADI_SENTRIX_SHELL_ENABLED && (
         <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:"#000000" }}>
-          {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ["control", "Control"], ...(ADI_SENTRIX_CUADRO_ENABLED ? [["cuadro", "Cuadro de mando"]] : [])].map(([k, label]) => (
+          {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ...(showControl ? [["control", "Control"]] : []), ...(ADI_SENTRIX_CUADRO_ENABLED ? [["cuadro", "Cuadro de mando"]] : [])].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${tab === k ? C.text : "transparent"}`, color: tab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: tab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${effTab === k ? C.text : "transparent"}`, color: effTab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: effTab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
               {label}
             </button>
           ))}
@@ -521,7 +527,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
       {/* ── cuerpo (scroll) · la lente activa · Diagnóstico = el contenido actual ── */}
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:14 }}>
-        {(!ADI_SENTRIX_SHELL_ENABLED || tab === "diagnostico") && (<>
+        {(!ADI_SENTRIX_SHELL_ENABLED || effTab === "diagnostico") && (<>
 
         <Card accent>
           <Eyebrow>{pack.title(rd)}</Eyebrow>
@@ -612,7 +618,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
 
         {/* EVIDENCIA · la prueba que valida la respuesta · el RECIBO FRÍO (fórmula+fuentes+confianza+límites) para
             cliente·margen · el pack bespoke (SKU ranking / comparación) para el resto · separada de la historia */}
-        {ADI_SENTRIX_SHELL_ENABLED && tab === "evidencia" && (
+        {ADI_SENTRIX_SHELL_ENABLED && effTab === "evidencia" && (
           receipt
             ? <EvidenciaRecibo receipt={receipt}/>
             : <div>
@@ -623,11 +629,11 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
               </div>
         )}
 
-        {ADI_SENTRIX_SHELL_ENABLED && tab === "control" && (
+        {ADI_SENTRIX_SHELL_ENABLED && effTab === "control" && (
           ring ? <ControlRing ring={ring} rd={rd}/> : <LensPlaceholder tab="control" focus={rd.focus}/>
         )}
 
-        {ADI_SENTRIX_SHELL_ENABLED && ADI_SENTRIX_CUADRO_ENABLED && tab === "cuadro" && (
+        {ADI_SENTRIX_SHELL_ENABLED && ADI_SENTRIX_CUADRO_ENABLED && effTab === "cuadro" && (
           <CuadroMando scenario={evidence.periodo}/>
         )}
       </div>
@@ -904,10 +910,10 @@ function CuadroMando({ scenario, initialDim, initialSort }) {
         </div>
         <div style={{ display:"flex", gap:5 }}>
           {pill(scope === "global", "Global", () => setScope("global"), "g")}
-          {pill(scope === "fecha", "Por fecha", () => setScope("fecha"), "f")}
+          {_isDev && pill(scope === "fecha", "Por fecha", () => setScope("fecha"), "f")}
         </div>
       </div>
-      {scope === "fecha" && (
+      {_isDev && scope === "fecha" && (
         <div style={{ fontSize:11, color:C.amber, opacity:0.85, lineHeight:1.4 }}>
           <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.6px", border:`1px solid ${C.amber}55`, borderRadius:4, padding:"1px 6px", marginRight:6 }}>EJEMPLO</span>
           El corte por fecha por entidad se enciende con el histórico del ERP · hoy el dato es del período <b>{scenario}</b>.
