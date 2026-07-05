@@ -8,7 +8,7 @@
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 
-const OPERATIONS = ["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability"];
+const OPERATIONS = ["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability", "table"];
 const ASSUMPTION_TYPES = ["growth", "price", "margin", "inventory", "custom"];
 
 export function buildSpecTool() {
@@ -46,7 +46,21 @@ export function buildSpecTool() {
             value: { type: "number" },
             unit: { type: "string", enum: ["pct", "money", "days"] },
           },
-          description: "solo si scenario=simulation",
+          description: "LEGACY · no usar para simulaciones (usá `transform`). Se mantiene para compat.",
+        },
+        // SIMULACIÓN · un SUPUESTO aplicado sobre el dato REAL (base única = real · NO es un escenario del negocio ·
+        // nada de bonanza/tensión/crisis). La proyección vive ACÁ, no en `scenario`.
+        // op: delta = +X% sobre el valor · delta_pts = +X puntos sobre una tasa · target = fijar la métrica en X.
+        transform: {
+          type: ["object", "null"],
+          properties: {
+            kind: { type: "string", enum: ["assumption"] },
+            op: { type: "string", enum: ["delta", "delta_pts", "target"] },
+            value: { type: "number" },
+            unit: { type: "string", enum: ["pct", "money", "days"] },
+            base: { type: "string", enum: ["real"] },
+          },
+          description: "supuesto sobre el dato REAL (ej. ventas +3% → {op:delta, value:3, unit:pct, base:real}). Presente = proyección actual vs supuesto.",
         },
         lens: { type: ["string", "null"], enum: ["diagnostico", "evidencia", "control", "cuadro", null] },
         confidence: { type: ["number", "null"], description: "0..1 · tu confianza en esta interpretación" },

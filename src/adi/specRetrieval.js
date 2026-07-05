@@ -19,6 +19,12 @@ function _load(source, scenario) {
   if (typeof s.scenarioLoad === "function") return s.scenarioLoad(scenario) || [];
   return (typeof s.load === "function" && s.load()) || [];
 }
+// carga la BASE REAL de una fuente (SIEMPRE .load() · el dato "actual" que ve el usuario · SIN motor de escenarios).
+// Las simulaciones (supuestos) se aplican SOBRE esto; nunca se invoca scenarioLoad ni bonanza/tensión/crisis.
+function _loadReal(source) {
+  const s = SOURCES[source];
+  return (s && typeof s.load === "function" && s.load()) || [];
+}
 
 const _money = (v) => {
   const a = Math.abs(v);
@@ -266,6 +272,85 @@ export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
     evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", boleta: bol,
       findings: focos.map((f) => ({ detector: f.detector, titulo: f.titulo, subtotal_usd: f.subtotal,
         items: f.items.map((it) => ({ entidad: it.entidad, usd: it.usd, ...(it.bodega ? { bodega: it.bodega } : {}), ...(it.critico ? { critico: true } : {}) })) })) },
+  };
+}
+
+/* ── composeSpecSimulate · SIMULACIÓN = un SUPUESTO aplicado sobre el dato REAL (base única = real) ─────────────
+ * NO es un escenario del negocio (nada de bonanza/tensión/crisis · no invoca el motor de escenarios). Lee la base real
+ * (_loadReal), aplica el transform explícito, y arma la tabla ACTUAL vs SUPUESTO vs Δ con FÓRMULA por celda. La boleta
+ * marca cada cifra: actual = source:"actual" · supuesto/Δ = source:"computed" + formula (auditable). Fuera de la allow-list
+ * (o transform no soportado) → null → el seam degrada honesto ("puedo leer X actual, pero ese supuesto no está habilitado"). */
+// métricas que admiten un supuesto delta-% (NIVELES monetarios que escalan linealmente · NO tasas/ratios: margen/rotación/DOH)
+const _SIMULABLE_DELTA_PCT = new Set(["ventas", "contribucion", "capital"]);
+const _sgn = (v) => (v >= 0 ? "+" : "");
+
+export function composeSpecSimulate({ metric, dimension, filters = {}, transform } = {}) {
+  // allow-list v1: solo delta +/-X% sobre métricas de nivel. Lo demás → null → degrade honesto.
+  if (!transform || transform.op !== "delta" || transform.unit !== "pct" || !_SIMULABLE_DELTA_PCT.has(metric)) return null;
+  const m = METRICS[metric];
+  const sba = m && m.sourceByAxis && m.sourceByAxis[dimension];
+  const ent = ENTITIES[dimension];
+  if (!sba || !ent) return null;
+
+  let rows = _loadReal(sba.source);                       // BASE REAL · sin escenario
+  if (!Array.isArray(rows) || !rows.length) return null;
+  if (filters.marca)   rows = rows.filter((r) => r.marca === filters.marca);
+  if (filters.familia) rows = rows.filter((r) => r.sfamilia === filters.familia);
+  if (filters.bodega)  rows = rows.filter((r) => r.bodega === filters.bodega);
+  if (!rows.length) return null;
+
+  const field = sba.field;
+  let actual;
+  if (ent.isGroupBy) {
+    const groups = {};
+    for (const r of rows) { const k = r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
+    const agg = sba.agg || "sum";
+    actual = Object.entries(groups).map(([name, grp]) => {
+      const vals = grp.map((r) => r[field]).filter((v) => typeof v === "number");
+      const sum = vals.reduce((a, b) => a + b, 0);
+      return { name, value: agg === "avg" ? (vals.length ? sum / vals.length : 0) : sum };
+    });
+  } else {
+    const nameField = (SOURCES[sba.source] && SOURCES[sba.source].keyField) || "sku";
+    actual = rows.map((r) => ({ name: r[nameField], value: r[field] })).filter((x) => typeof x.value === "number");
+  }
+  if (!actual.length) return null;
+  actual.sort((a, b) => b.value - a.value);
+
+  const pct = transform.value, factor = 1 + pct / 100;    // ej. +3% → 1.03
+  const _sc = m.scale && m.scale[dimension];
+  const _f = (v) => _fmt(v, m.unit, _sc);                 // MISMO formateador que el texto determinístico
+  const items = actual.map((x) => {
+    const supuesto = x.value * factor, delta = supuesto - x.value;
+    return { name: x.name, actual: x.value, supuesto, delta, aFmt: _f(x.value), sFmt: _f(supuesto), dFmt: _f(delta) };
+  });
+  const totA = items.reduce((s, it) => s + it.actual, 0), totS = totA * factor, totD = totS - totA;
+
+  // TEXTO · tabla actual vs supuesto (lenguaje de PRODUCTO · nunca "escenario")
+  const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
+  const head = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · dato real vs supuesto (${_sgn(pct)}${pct}%).`;
+  const lines = items.map((it) => `${it.name}: ${it.aFmt} → ${it.sFmt} (Δ ${_sgn(it.delta)}${it.dFmt})`).join("\n");
+  const totLine = `Total: ${_f(totA)} → ${_f(totS)} (Δ ${_sgn(totD)}${_f(totD)}).`;
+  const opener = `${head}\n\n${lines}\n\n${totLine}`;
+
+  // BOLETA · actual (source:actual) + supuesto/Δ (source:computed + fórmula auditable)
+  const _ctx = `supuesto ${m.label} ${_sgn(pct)}${pct}% sobre el dato real`;
+  const bol = [];
+  for (const it of items) {
+    bol.push(fig(`${it.name} · actual`,   it.aFmt, { unit: m.unit, raw: it.actual,   context: _ctx, source: "actual" }));
+    bol.push(fig(`${it.name} · supuesto`, it.sFmt, { unit: m.unit, raw: it.supuesto, context: _ctx, source: "computed", formula: `${it.aFmt} × ${factor}` }));
+    bol.push(fig(`${it.name} · Δ`,        it.dFmt, { unit: m.unit, raw: it.delta,    context: _ctx, source: "computed", formula: "supuesto − actual" }));
+  }
+  bol.push(fig("Total · actual",   _f(totA), { unit: m.unit, raw: totA, mandatory: true, context: _ctx, source: "actual" }));
+  bol.push(fig("Total · supuesto", _f(totS), { unit: m.unit, raw: totS, mandatory: true, context: _ctx, source: "computed", formula: `total actual × ${factor}` }));
+  bol.push(fig("Total · Δ",        _f(totD), { unit: m.unit, raw: totD, context: _ctx, source: "computed", formula: "supuesto − actual" }));
+
+  return {
+    opener, suggestions: null, sentrixAction: null,
+    evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro", boleta: bol,
+      transform: { op: "delta", value: pct, unit: "pct", base: "real" },
+      projection: items.map((it) => ({ name: it.name, actual: it.actual, supuesto: it.supuesto, delta: it.delta })),
+      total: { actual: totA, supuesto: totS, delta: totD } },
   };
 }
 

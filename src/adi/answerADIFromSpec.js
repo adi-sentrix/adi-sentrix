@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -38,7 +38,7 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
 }
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability", "table"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -201,6 +201,18 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
 
   // ── ejecución por operación ──────────────────────────────────────────────────────────────────────
   try {
+    // SIMULACIÓN · un SUPUESTO sobre el dato REAL (transform presente). Base única = real · NO invoca el motor de escenarios.
+    // Ortogonal a la operación (operation "table"/"overview"); lo que dispara la proyección es el transform.
+    if (spec.transform && spec.transform.op) {
+      const sim = composeSpecSimulate({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters || {}, transform: spec.transform });
+      if (sim && sim.opener) {
+        const r = _finalize(sim, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        if (r && r.text) r.evidence = { ...(r.evidence || {}), ...sim.evidence, boleta: ensureBoletaCoversText(sim.evidence.boleta, r.text) };
+        return r;
+      }
+      const _te = `${spec.transform.op} ${spec.transform.value}${spec.transform.unit === "pct" ? "%" : ""}`;
+      return _degrade("simulate-not-supported", `Puedo leer ${_m(spec.metric)} actual, pero ese supuesto (${_te}) todavía no está habilitado para ${_dp(spec.dimension)}. Hoy proyecto ventas/contribución/capital con un +/-X% sobre el dato real.`, [], ctx);
+    }
     if (spec.operation === "overview") {
       // INVENTARIO (capital/rotación/DOH) → productor spec-driven (data-driven del contrato · sin texto) · sku o bodega
       if (METRICS[spec.metric].domain === "inventario") {
