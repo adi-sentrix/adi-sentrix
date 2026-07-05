@@ -22,6 +22,19 @@ OPENAI_API_KEY=...             # o ANTHROPIC_API_KEY, según el provider
 PORT=8080                      # opcional (server.js)
 ```
 
+### Perfiles de ejecución (`VITE_ADI_PROFILE`)
+
+El **piso** protege el motor (gates byte-exactos) — NO es la experiencia de cliente. El perfil (build-time) resuelve qué features se prenden, **sin editar `voiceFlags.js` a mano**:
+
+| Perfil | Uso | Features (Sentrix/evidencia/boleta/diagnóstico) | Escenarios visibles | Suffix proactivo |
+|---|---|---|---|---|
+| `floor` | gates / oráculo | OFF (byte-exacto) | OFF | ON (piso) |
+| `demo` | demo privada | **ON** | OFF | OFF |
+| `prod` | producción | **ON** | OFF | OFF |
+| `dev` | trabajo interno | ON + dev-tools | **ON** | OFF |
+
+Default: `dev` en `npm run dev`; `floor` en un build sin `VITE_ADI_PROFILE` (seguro). **Seteá `VITE_ADI_PROFILE=prod` (o `demo`) en el deploy correspondiente.** Bajo Node (gates/oráculo) siempre cae a `floor` → byte-exacto. Es ortogonal al LLM (`VITE_ADI_LLM_*`).
+
 ### Activar el modo LLM en producción
 
 El **cliente** decide si llama al gateway con `ADI_LLM_ENABLED`, ahora **env-driven a build-time** (Vite `define` desde `VITE_ADI_LLM_ENABLED`). Es un booleano **no secreto** (por eso va con `VITE_`; la **key jamás** va con `VITE_` — vive server-side en `OPENAI_API_KEY`).
