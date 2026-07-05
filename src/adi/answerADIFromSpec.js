@@ -119,11 +119,32 @@ function _assumptionEcho(a) {
   return `${a.type} ${a.value}${u}`;
 }
 
+// ── SCRUB de lenguaje de escenario (producto: base única = real · demo/prod NUNCA dicen Bonanza/Tensión/Crisis) ──
+// Reescribe el label heredado de los composers ("· escenario Bonanza", "cifras runtime sobre escenario X") a
+// "base real" / "dato real". SOLO en el retorno del seam → el motor 16/0 (answerADI) queda byte-exacto · cero cifras tocadas.
+const _SCN = "(?:Bonanza|Tensi[oó]n|Crisis|bonanza|tensi[oó]n|crisis|activo|actual)";
+function _scrubScenario(text) {
+  if (typeof text !== "string" || text.indexOf("escenario") < 0) return text;
+  return text
+    .replace(new RegExp(`runtime (?:sobre|del) escenario ${_SCN}`, "g"), "sobre el dato real")   // "Cifras runtime del escenario Bonanza" → "Cifras sobre el dato real"
+    .replace(new RegExp(`· escenario ${_SCN}`, "g"), "· base real")                              // "… por Cliente · escenario Bonanza" → "… · base real"
+    .replace(new RegExp(`del escenario ${_SCN}`, "g"), "del dato real")
+    .replace(new RegExp(`en (?:este|el) escenario\\b`, "g"), "en la base real")
+    .replace(new RegExp(`escenario ${_SCN}`, "g"), "base real");                                 // residual ("escenario activo/actual")
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════════════════
  * answerADIFromSpec(spec, context, state) → { text, suggestions, sentrixAction, intent, route, context, evidence }
  * Camino PARALELO/dev · testeable sin proveedor LLM (specs a mano · _spec_gate.mjs). La UI lo usa solo con ADI_LLM_ENABLED.
+ * WRAPPER: llama al impl y aplica _scrubScenario al texto de salida (choke point único · gate-safe · no toca el motor).
  * ═══════════════════════════════════════════════════════════════════════════════════════════════════ */
-export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-disable-line no-unused-vars
+export function answerADIFromSpec(spec, context = {}, state = {}) {
+  const r = _answerADIFromSpecImpl(spec, context, state);
+  if (r && typeof r.text === "string") r.text = _scrubScenario(r.text);
+  return r;
+}
+
+function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-disable-line no-unused-vars
   const ctx = { ...(context || {}), __query: "" };
 
   // ── #0 · schemaVersion (ANTES que todo · si no reconozco la versión, no interpreto los demás campos) ──
@@ -204,6 +225,11 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
     // SIMULACIÓN · un SUPUESTO sobre el dato REAL (transform presente). Base única = real · NO invoca el motor de escenarios.
     // Ortogonal a la operación (operation "table"/"overview"); lo que dispara la proyección es el transform.
     if (spec.transform && spec.transform.op) {
+      // COMPUESTO · el pedido trae 2+ supuestos (el schema v1 lleva UN transform) → el LLM marca op:"multi".
+      // Decisión de producto: NO proyectar parcial ni tomar uno en silencio · degradar honesto y sugerir separar.
+      if (spec.transform.op === "multi" || spec.transform.compound === true) {
+        return _degrade("simulate-compound", "Puedo proyectar un supuesto a la vez sobre el dato real. Hoy simulo ventas, contribución o capital con un +/-X%. Tu pedido combina dos supuestos — separémoslo: probá primero el que ya está habilitado y el otro cuando esa palanca lo esté.", [], ctx);
+      }
       const sim = composeSpecSimulate({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters || {}, transform: spec.transform });
       if (sim && sim.opener) {
         const r = _finalize(sim, "qi_retrieval", "qi_retrieval", ctx, scenario, null);

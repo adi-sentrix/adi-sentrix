@@ -64,6 +64,11 @@ const TESTS = [
   // ── RECOMMEND · qué hacer (SOLO palancas probadas · honesto si no hay) ──
   { n: "38 · recommend cartera EJECUTA (palanca probada + trade-off)", spec: S({ operation: "recommend", dimension: "cliente" }), ok: (r) => executes(r, "recommend_action") && /Recomendaci[oó]n/i.test(r.text) && /probado por el dato/i.test(r.text) },
   { n: "39 · recommend sin foco material bloquea honesto (no inventa solución)", spec: S({ operation: "recommend", dimension: "cliente", entity: "Mercado Libre" }), ok: (r) => blocked(r, "recommend-empty") },
+  // ── SCRUB de escenario · el seam NUNCA muestra Bonanza/Tensión/Crisis/escenario (base única = real · demo/prod) ──
+  { n: "40 · overview NO filtra escenario (dice 'base real')", spec: S({ operation: "overview", metric: "ventas", dimension: "cliente" }), ok: (r) => !/escenario|bonanza|tensi[oó]n|crisis/i.test(r.text) && /base real/.test(r.text) },
+  { n: "41 · compare NO filtra 'cifras runtime sobre escenario'", spec: S({ operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }), ok: (r) => !/escenario|bonanza|tensi[oó]n|crisis/i.test(r.text) },
+  // ── SIMULATE COMPUESTO · 2+ supuestos (op:multi) → degrade honesto (no proyecta parcial ni toma uno en silencio) ──
+  { n: "42 · transform op:multi degrada honesto (un supuesto a la vez)", spec: S({ operation: "table", metric: "ventas", dimension: "cliente", transform: { kind: "assumption", op: "multi", base: "real" } }), ok: (r) => blocked(r, "simulate-compound") && /un supuesto a la vez/.test(r.text) },
 ];
 
 let pass = 0, fail = 0; const lines = [];
