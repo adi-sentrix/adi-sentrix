@@ -221,6 +221,7 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
 // (msg.evidence.reading) y el shell pasó el handler. Flags Sentrix OFF → sin reading → sin botón (inerte). ──
 function EvidenceButton({ evidence, onOpenEvidence, active }) {
   // Aparece con una lectura ejecutiva (evidence.reading) O con un ranking panorámico (lens=cuadro · sin foco único → el Cuadro).
+  const isSim = !!(evidence && evidence.transform);
   const isCuadro = !!(evidence && evidence.lens === "cuadro" && !evidence.reading);
   if (!evidence || (!evidence.reading && !isCuadro) || !onOpenEvidence) return null;
   return (
@@ -239,7 +240,7 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
         </svg>
-        <span>{isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
+        <span>{isSim ? "Ver la proyección en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
       </button>
     </div>
   );

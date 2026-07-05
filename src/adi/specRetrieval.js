@@ -347,10 +347,13 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
 
   return {
     opener, suggestions: null, sentrixAction: null,
-    evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro", boleta: bol,
+    evidence: { entityType: dimension, dimension, metrica: metric, metricLabel: m.label, dimLabel: ent.label.sing,
+      lens: "cuadro", boleta: bol, factor,
       transform: { op: "delta", value: pct, unit: "pct", base: "real" },
-      projection: items.map((it) => ({ name: it.name, actual: it.actual, supuesto: it.supuesto, delta: it.delta })),
-      total: { actual: totA, supuesto: totS, delta: totD } },
+      // projection ENRIQUECIDA (formateados + fórmula) para que Sentrix renderice la tabla sin recomputar
+      projection: items.map((it) => ({ name: it.name, actual: it.actual, supuesto: it.supuesto, delta: it.delta,
+        aFmt: it.aFmt, sFmt: it.sFmt, dFmt: it.dFmt, formula: `${it.aFmt} × ${factor}` })),
+      total: { actual: totA, supuesto: totS, delta: totD, aFmt: _f(totA), sFmt: _f(totS), dFmt: _f(totD) } },
   };
 }
 
