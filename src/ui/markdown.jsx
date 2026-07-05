@@ -7,8 +7,15 @@ import { FINANCIAL_HIGHLIGHT, FINANCIAL_PLAIN, FINANCIAL_TABULAR, KNOWN_ENTITIES
 
 export function isTabularText(text) {
   if (!text) return false;
-  // Buscar línea con 2+ espacios consecutivos entre caracteres no-espacio
-  return /\S\s{2,}\S/.test(text);
+  // Tabla real de ADI = 2+ lineas alineadas por un hueco de 2+ espacios (normales o NBSP  , que usa el
+  // padding de las grillas). La prosa narrada tiene dobles espacios sueltos (tras un punto, "clave: valor") que
+  // NO deben forzar el modo tabla, asi que exigimos 2+ lineas con el hueco (una sola no alcanza) y por linea.
+  const gapLine = new RegExp("\\S[ \\u00A0]{2,}\\S");   // hueco = 2+ (espacio normal o NBSP)
+  let aligned = 0;
+  for (const line of String(text).split("\n")) {
+    if (gapLine.test(line) && ++aligned >= 2) return true;
+  }
+  return false;
 }
 
 // Patrón unificado · longest-match-first
