@@ -56,7 +56,9 @@ const QUESTIONS = [
   { q: "ventas por marca", note: "overview ventas marca" },
   { q: "los 3 SKU con peor margen", note: "rank sku margen asc 3" },
   { q: "¿por qué no puedo ver el margen por bodega?", note: "explain/metric-not-in-dim margen@bodega" },
-  { q: "¿qué pasa con el margen por SKU si el margen cae 5 puntos?", note: "simulation margin sku → base-only" },
+  { q: "sube las ventas 3% por cliente", note: "transform ventas@cliente +3% → EJECUTA (actual vs supuesto)" },
+  { q: "¿y si la contribución por marca cae 5%?", note: "transform contribucion@marca -5% → EJECUTA" },
+  { q: "¿qué pasa con el margen por SKU si el margen cae 5 puntos?", note: "supuesto sobre tasa (margen) → DEGRADA-HONESTO (no habilitado)" },
   { q: "qué SKU rotan menos", note: "rank sku rotacion asc" },
   { q: "cuánto capital tengo por bodega", note: "overview capital bodega" },
   { q: "el costo por cliente", note: "overview costo cliente → declarado, no ejecutable" },
@@ -110,7 +112,7 @@ for (const { q, note } of QUESTIONS) {
     if (usage) { tokIn += usage.input_tokens || 0; tokOut += usage.output_tokens || 0; }
     const r = answerADIFromSpec(spec, {}, {});
     route = r.route; cat = categorize(route);
-    detail = `${spec.operation}/${spec.metric}@${spec.dimension}${spec.scenario === "simulation" ? " [sim]" : ""}${spec.limit ? " N=" + spec.limit : ""}${spec.sort ? " " + spec.sort.dir : ""}`;
+    detail = `${spec.operation}/${spec.metric}@${spec.dimension}${spec.transform && spec.transform.op ? ` [Δ${spec.transform.op} ${spec.transform.value}${spec.transform.unit === "pct" ? "%" : ""}]` : ""}${spec.scenario === "simulation" ? " [sim-legacy]" : ""}${spec.limit ? " N=" + spec.limit : ""}${spec.sort ? " " + spec.sort.dir : ""}`;
   } catch (e) { ms = Date.now() - t0; route = "THREW"; cat = "ERROR"; detail = String(e && e.message).slice(0, 140); }
   counts[cat]++;
   lines.push(`  [${cat.padEnd(14)}] "${q}"  (${ms}ms)\n        spec: ${detail}   · ruta: ${route}   (esperado: ${note})`);

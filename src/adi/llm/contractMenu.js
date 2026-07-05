@@ -8,7 +8,6 @@
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 import { BLOCKED_CROSSES } from "../../config/contract/surfaceContract.js";
-import { ASSUMPTIONS } from "../../config/contract/assumptionRegistry.js";
 
 // descripciones de las operaciones (capa de presentación · el set canónico vive en el seam)
 const OPERATIONS = [
@@ -39,8 +38,10 @@ export function buildContractMenu() {
   L.push("");
   L.push("EJES disponibles (campo `dimension`): " + Object.keys(ENTITIES).join(", ") + ".");
   L.push("");
-  L.push("ESCENARIO (campo `scenario`): 'actual' (por defecto) o 'simulation'.");
-  L.push("  · Si es 'simulation', agregá `assumption { type, value, unit }`. type: " + Object.keys(ASSUMPTIONS).join(", ") + " · unit: pct | money | days.");
+  L.push("SUPUESTOS / PROYECCIÓN (campo `transform`): ADI proyecta un SUPUESTO sobre el DATO REAL — es 'actual vs supuesto', NO un escenario del negocio (nada de bonanza/tensión/crisis).");
+  L.push("  · Si el usuario pide proyectar/simular un cambio (ej. 'sube ventas 3%', 'agregales 3% a la contribución', '¿y si crece 5%?', 'bajá el capital 10%'), emití `transform { kind:'assumption', op:'delta', value:<n>, unit:'pct', base:'real' }`. value negativo = baja (ej. -5).");
+  L.push("  · Hoy se proyecta sobre ventas / contribución / capital (niveles), en cualquier eje. Otra métrica (margen/rotación/DOH, que son tasas) o eje no habilitado → ADI degrada honesto solo.");
+  L.push("  · IMPORTANTE: dejá `scenario` en 'actual' aunque haya supuesto. La proyección vive en `transform`, NO en `scenario`. NO uses `scenario:'simulation'` ni `assumption` (son legacy, sin uso en el producto).");
   L.push("");
   L.push("CRUCES BLOQUEADOS (NO los pidas · no hay dato atómico para cruzarlos):");
   for (const bc of BLOCKED_CROSSES) L.push(`  · ${bc.cross.join(" × ")}: ${bc.reason}`);
