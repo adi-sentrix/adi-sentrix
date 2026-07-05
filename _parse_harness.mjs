@@ -48,25 +48,13 @@ let adapter;
 try { adapter = getAdapter(PROVIDER); }
 catch (e) { console.log("── _parse_harness: config ──\n  " + e.message); process.exit(1); }
 
+// Las 5 frases EXACTAS de la revisión en vivo del owner (verbatim · espejo del deploy demo).
 const QUESTIONS = [
-  { q: "¿cuáles son mis 5 mejores clientes por contribución?", note: "rank cliente contribucion desc 5" },
-  { q: "mostrame el margen por cliente", note: "overview margen cliente" },
-  { q: "compará Falabella con Lider", note: "compare cliente" },
-  { q: "¿cómo está Falabella?", note: "dive cliente Falabella" },
-  { q: "ventas por marca", note: "overview ventas marca" },
-  { q: "los 3 SKU con peor margen", note: "rank sku margen asc 3" },
-  { q: "¿por qué no puedo ver el margen por bodega?", note: "explain/metric-not-in-dim margen@bodega" },
-  { q: "sube las ventas 3% por cliente", note: "transform ventas@cliente +3% → EJECUTA (actual vs supuesto)" },
-  { q: "¿y si la contribución por marca cae 5%?", note: "transform contribucion@marca -5% → EJECUTA" },
-  { q: "¿qué pasa con el margen por SKU si el margen cae 5 puntos?", note: "supuesto sobre tasa (margen) → DEGRADA-HONESTO (no habilitado)" },
-  { q: "qué SKU rotan menos", note: "rank sku rotacion asc" },
-  { q: "cuánto capital tengo por bodega", note: "overview capital bodega" },
-  { q: "el costo por cliente", note: "overview costo cliente → declarado, no ejecutable" },
-  { q: "contribución por familia", note: "overview contribucion familia" },
-  { q: "el peor cliente por margen", note: "rank cliente margen asc 1" },
-  { q: "dame el margen de la marca Bosch por cliente", note: "cruce marca×cliente → bloqueado" },
-  { q: "rotación por SKU, los 10 más altos", note: "rank sku rotacion desc 10" },
-  { q: "compará la marca Bosch con la marca Makita", note: "compare marca → no cableado" },
+  { q: "sube las ventas 3% por cliente",         note: "transform delta +3% ventas@cliente → EJECUTA (actual vs supuesto)" },
+  { q: "bajá el capital 10% por bodega",         note: "transform delta -10% capital@bodega → EJECUTA (Δ negativo -$)" },
+  { q: "sube el margen 3%",                      note: "supuesto sobre TASA (margen) → DEGRADA-HONESTO (no habilitado)" },
+  { q: "sube la contribución 5% por familia",    note: "transform delta +5% contribucion@familia → EJECUTA (directo, sin derivar de ventas)" },
+  { q: "ventas +3% y margen +2pts",              note: "COMPUESTO → op:multi → DEGRADA-HONESTO (un supuesto a la vez)" },
 ];
 
 const OUT_OF_CONTRACT = new Set(["version", "unsupported-op", "unknown-metric", "unknown-dimension", "metric-not-in-dim", "bad-filter", "bad-assumption", "no-spec", "unhandled"]);
@@ -100,11 +88,18 @@ async function parseWithRetry(q) {
   }
 }
 
+// ── helpers de reporte (lo que el owner quiere ver por frase) ──
+const _tf = (s) => (s && s.transform && s.transform.op)
+  ? `SÍ · {op:${s.transform.op}, value:${s.transform.value ?? "—"}, unit:${s.transform.unit ?? "—"}, base:${s.transform.base ?? "—"}}`
+  : "no";
+const _compuesto = (s, route) => ((s && s.transform && s.transform.op === "multi") || route === "spec_blocked_simulate-compound") ? "SÍ" : "no";
+const _prohibido = (text) => { const m = String(text || "").match(/escenario|bonanza|tensi[oó]n|crisis/i); return m ? `⚠️ SÍ ("${m[0]}")` : "NINGUNO ✓"; };
+
 const counts = { EJECUTA: 0, "DEGRADA-HONESTO": 0, "FUERA-CONTRATO": 0, ERROR: 0 };
 let tokIn = 0, tokOut = 0, totalMs = 0, calls = 0;
 const lines = [];
 for (const { q, note } of QUESTIONS) {
-  let cat, route, detail, ms = 0;
+  let cat, route, block, ms = 0;
   const t0 = Date.now();
   try {
     const { spec, usage } = await parseWithRetry(q);
@@ -112,17 +107,24 @@ for (const { q, note } of QUESTIONS) {
     if (usage) { tokIn += usage.input_tokens || 0; tokOut += usage.output_tokens || 0; }
     const r = answerADIFromSpec(spec, {}, {});
     route = r.route; cat = categorize(route);
-    detail = `${spec.operation}/${spec.metric}@${spec.dimension}${spec.transform && spec.transform.op ? ` [Δ${spec.transform.op} ${spec.transform.value}${spec.transform.unit === "pct" ? "%" : ""}]` : ""}${spec.scenario === "simulation" ? " [sim-legacy]" : ""}${spec.limit ? " N=" + spec.limit : ""}${spec.sort ? " " + spec.sort.dir : ""}`;
-  } catch (e) { ms = Date.now() - t0; route = "THREW"; cat = "ERROR"; detail = String(e && e.message).slice(0, 140); }
+    block = [
+      `        operación: ${spec.operation} · métrica: ${spec.metric} · dimensión: ${spec.dimension}`,
+      `        transform: ${_tf(spec)}`,
+      `        resultado: ${cat} · compuesto: ${_compuesto(spec, route)} · ruta: ${route}`,
+      `        lenguaje prohibido (escenario/Bonanza/Tensión/Crisis): ${_prohibido(r.text)}`,
+      `        spec: ${JSON.stringify(spec)}`,
+      `        esperado: ${note}`,
+    ].join("\n");
+  } catch (e) { ms = Date.now() - t0; route = "THREW"; cat = "ERROR"; block = `        ERROR: ${String(e && e.message).slice(0, 160)}\n        esperado: ${note}`; }
   counts[cat]++;
-  lines.push(`  [${cat.padEnd(14)}] "${q}"  (${ms}ms)\n        spec: ${detail}   · ruta: ${route}   (esperado: ${note})`);
+  lines.push(`  [${cat.padEnd(14)}] "${q}"  (${ms}ms)\n${block}`);
   await sleep(2500);   // espaciado base para no golpear el RPM de la org nueva
 }
 
 const dentro = counts.EJECUTA + counts["DEGRADA-HONESTO"];
-console.log(`── _parse_harness · provider=${PROVIDER} · model=${MODEL} ──`);
+console.log(`── _parse_harness · provider=${PROVIDER} · model=${MODEL} · ${QUESTIONS.length} frases (revisión en vivo) ──`);
 console.log(`  ¿ENTRÓ POR LA PUERTA (spec dentro del contrato)?  ${dentro}/${QUESTIONS.length}`);
 console.log(`  EJECUTA ${counts.EJECUTA} · DEGRADA-HONESTO ${counts["DEGRADA-HONESTO"]} · FUERA-CONTRATO ${counts["FUERA-CONTRATO"]} · ERROR ${counts.ERROR}`);
 console.log(`  costo/latencia: tokens in=${tokIn} out=${tokOut} · latencia media ${calls ? Math.round(totalMs / calls) : 0}ms (${calls} llamadas)`);
-console.log(lines.join("\n"));
+console.log(lines.join("\n\n"));
 process.exit(0);
