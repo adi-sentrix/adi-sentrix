@@ -6,6 +6,7 @@
  * (no verbatim en el output) cuenta como no-autorizado → bloqueado. Puro · sin red · sin estado · NO toca el motor sellado.
  * Regla madre: el LLM narra, ADI decide la cifra. Este es el candado que lo garantiza.
  */
+import { guardAgainstBoleta } from "../boleta.js";   // guard v2 · valida la narración contra la BOLETA (unit-aware · verbatim)
 
 // tokens numéricos de un texto (con separadores · el % y $ se sacan al normalizar)
 function _tokens(text) { return String(text == null ? "" : text).match(/\d[\d.,]*\d|\d/g) || []; }
@@ -81,7 +82,17 @@ export function pickNarratedText(validated, narration) {
   const det = (validated && validated.text) || "";
   if (!narration || typeof narration !== "string" || !narration.trim())
     return { text: det, narrated: false, verdict: "sin-narración", reason: "narración vacía" };
-  const g = numberGuard(narration, validated);
+  // GUARD v2 · ÚNICO punto que usa la BOLETA: si el output la trae → validamos CONTRA ella (unit-aware · verbatim ·
+  // obligatorias · atrapa drift de escala y ratio garbleado). Si no → guard v1 (dígitos de texto+evidence). El _guardWrap
+  // del closer sigue en v1 (valida el texto EJECUTIVO de ADI, no la narración) → gates struct/guard intactos.
+  const _bol = validated && validated.evidence && validated.evidence.boleta;
+  let g;
+  if (Array.isArray(_bol) && _bol.length) {
+    const r = guardAgainstBoleta(narration, _bol);
+    g = { ...r, verdict: r.ok ? "fiel" : (r.unauthorized.length ? "cifra-no-autorizada" : "cifra-obligatoria-faltante") };
+  } else {
+    g = numberGuard(narration, validated);
+  }
   return g.ok
     ? { text: narration, narrated: true, verdict: "fiel", reason: g.reason }
     : { text: det, narrated: false, verdict: g.verdict, reason: g.reason };

@@ -10,6 +10,7 @@ import { METRICS } from "../config/contract/metricRegistry.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
+import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -129,7 +130,14 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
   }
   if (!lines.length) return null;                          // ninguna de las dos entidades encontrada → el seam degrada honesto
   const opener = `${a} vs ${b} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join("\n")}`;
-  return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: a, entityB: b, entityType: dimension, dimension, lens: "cuadro", pairs } };
+  // BOLETA (primera clase): cada lado de cada métrica es una cifra autorizada · value == el fmt del texto (una sola verdad)
+  const _ctx = `${a} vs ${b}`;
+  const bol = [];
+  for (const p of pairs) {
+    if (p.aFmt !== "—") bol.push(fig(`${a} · ${p.label}`, p.aFmt, { unit: p.unit, raw: p.aVal, mandatory: true, context: _ctx }));
+    if (p.bFmt !== "—") bol.push(fig(`${b} · ${p.label}`, p.bFmt, { unit: p.unit, raw: p.bVal, mandatory: true, context: _ctx }));
+  }
+  return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: a, entityB: b, entityType: dimension, dimension, lens: "cuadro", pairs, boleta: bol } };
 }
 
 /* ── composeSpecDiagnose · ADI Core · motor DIAGNOSE (¿dónde se pierde/inmoviliza plata?) ──────────────
@@ -238,12 +246,19 @@ export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
     if (f.detector === "capital") return "El capital dormido en detalle";
     return null;
   }).filter(Boolean);
+  // BOLETA (primera clase): subtotales (obligatorios) + top-3 por foco · value == el _money del texto (una sola verdad)
+  const _ctx = `diagnóstico${scope ? ` · ${scope}` : ""}`;
+  const bol = [];
+  for (const f of focos) {
+    bol.push(fig(`${f.titulo} · subtotal`, _money(f.subtotal), { unit: "money", raw: f.subtotal, mandatory: true, context: _ctx }));
+    for (const it of f.top.slice(0, 3)) bol.push(fig(`${f.titulo} · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
+  }
   return {
     opener: `${header}\n\n${blocks}`,
     suggestions: suggestions.length ? suggestions : null,
     sentrixAction: null,
-    // findings per-item para Sentrix (la boleta/panel los consume · lens diagnostico) · $ ya calculado del dato
-    evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente",
+    // findings per-item para Sentrix (la boleta/panel los consume · lens diagnostico) · $ ya calculado del dato · + boleta (LLM #2)
+    evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", boleta: bol,
       findings: focos.map((f) => ({ detector: f.detector, titulo: f.titulo, subtotal_usd: f.subtotal,
         items: f.items.map((it) => ({ entidad: it.entidad, usd: it.usd, ...(it.bodega ? { bodega: it.bodega } : {}), ...(it.critico ? { critico: true } : {}) })) })) },
   };
