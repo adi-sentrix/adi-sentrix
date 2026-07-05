@@ -22,6 +22,7 @@ import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
 import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
+import { boletaFromText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR (compare marca/cliente/bodega) derivada de su texto (el composer sellado no la emite)
 
 const SCHEMA_VERSION = 1;
 const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability"]);
@@ -246,6 +247,9 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {   // eslint-
       const mk = _COMPARE_INTENT[cdim];
       if (mk) {   // cliente/marca/bodega → composer rico del motor
         const out = dispatchIntent(mk(cmp.entities[0], cmp.entities[1]), "", scenario, ctx);
+        // BOLETA (ruta del MOTOR · increment 2): el composer sellado no emite boleta → la derivamos de SU texto (unit-aware).
+        // Cierra el garble de marca (1.3× → "13 veces"): el guard del LLM #2 autoriza SOLO las cifras que ADI ya dijo, con su unidad.
+        if (out && out.text) out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `${cmp.entities[0]} vs ${cmp.entities[1]}` }) };
         return out || _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]}. ¿Están bien escritos?`, [], ctx);
       }
       if (cdim === "sku" || cdim === "familia") {   // sku/familia → productor spec-driven (data-driven del contrato)

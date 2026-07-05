@@ -5,6 +5,7 @@
 import { composeSpecDiagnose, composeSpecCompare } from "./src/adi/specRetrieval.js";
 import { fig, guardAgainstBoleta } from "./src/adi/boleta.js";
 import { numberGuard, pickNarratedText } from "./src/adi/llm/numberGuard.js";
+import { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";
 
 let pass = 0, fail = 0;
 const ok = (name, cond) => { if (cond) { pass++; console.log("  ✓ " + name); } else { fail++; console.log("  ✗ " + name); } };
@@ -54,6 +55,20 @@ ok("14 · la boleta atrapa unit-drift ($31.6M) que el v1 (solo dígitos) NO ve",
 const noBoleta = { text: "Falabella cede $1.6M.", evidence: null };
 ok("15 · sin boleta, numberGuard v1 intacto (autoriza $1.6M del texto)", numberGuard("Falabella cede $1.6M.", noBoleta).ok);
 ok("16 · sin boleta, numberGuard v1 bloquea inventada $9.9M", !numberGuard("Falabella cede $9.9M.", noBoleta).ok);
+
+// ── 4 · adaptador de rutas del MOTOR · compare de marca (cierra Samsung vs LG / "13 veces") ──
+const rMarca = answerADIFromSpec(
+  { schemaVersion: 1, operation: "compare", metric: "ventas", dimension: "marca", comparison: { dimension: "marca", entities: ["Samsung", "LG"] } },
+  {}, { scenario: "bonanza" });
+ok("17 · marca-compare emite evidence.boleta (derivada del texto del motor)",
+  !!(rMarca && rMarca.evidence && Array.isArray(rMarca.evidence.boleta) && rMarca.evidence.boleta.length));
+ok("18 · la boleta de marca CAPTURA el ratio 1.3× (× real = U+00D7)", rMarca.evidence.boleta.some((f) => f.unit === "ratio"));
+ok("19 · cada value de la boleta de marca aparece VERBATIM en el texto",
+  rMarca.evidence.boleta.every((f) => rMarca.text.includes(f.value)));
+ok("20 · pickNarratedText BLOQUEA '13 veces' contra la boleta de marca (el bug real)",
+  pickNarratedText(rMarca, "Samsung supera a LG por una relación de 13 veces.").narrated === false);
+ok("21 · pickNarratedText narra el texto VERBATIM del motor (marca)",
+  pickNarratedText(rMarca, rMarca.text).narrated === true);
 
 console.log(`\n── boleta-gate: ${pass} PASS · ${fail} FAIL ──`);
 process.exit(fail ? 1 : 0);

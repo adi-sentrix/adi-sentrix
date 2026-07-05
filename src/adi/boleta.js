@@ -43,7 +43,7 @@ export function parseFigures(text) {
   while ((m = reMoney.exec(s))) { let v = num(m[1]); const u = (m[2] || "").toUpperCase(); if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6; else if (u === "B") v *= 1e9; push("money", v, m[0]); }
   const rePct = /(\d[\d.,]*\d|\d)\s?%/g;                  // X% / X.Y%
   while ((m = rePct.exec(s))) push("pct", num(m[1]), m[0]);
-  const reRatio = /(\d[\d.,]*\d|\d)\s?(?:x\b|veces\b|vez\b)/gi;   // Xx / X veces (atrapa "13 veces")
+  const reRatio = /(\d[\d.,]*\d|\d)\s?(?:x\b|×|veces\b|vez\b)/gi;   // Xx / X× / X veces (× = U+00D7, el que usa el motor; atrapa "13 veces")
   while ((m = reRatio.exec(s))) push("ratio", num(m[1]), m[0]);
   const reDays = /(\d[\d.,]*\d|\d)\s?(?:d\b|d[ií]as?\b)/gi;       // Xd / X días
   while ((m = reDays.exec(s))) push("days", num(m[1]), m[0]);
@@ -75,4 +75,14 @@ export function guardAgainstBoleta(narration, boleta) {
       : unauthorized.length ? `cifra(s) fuera de la boleta: ${unauthorized.join(", ")}`
       : `falta(n) cifra(s) obligatoria(s): ${missing.join(", ")}`,
   };
+}
+
+// boletaFromText(text) → boleta DERIVADA del texto de un composer SELLADO (rutas del motor: compare de marca/cliente/bodega,
+// que no pueden emitir boleta propia sin tocar el motor). Unit-aware: value = la cifra VERBATIM del texto CON su unidad →
+// el guard autoriza EXACTAMENTE las cifras de ADI y bloquea drift/garble (1.3× → "13 veces"). El closer del contrato no se toca.
+export function boletaFromText(text, { context = null, mandatory = false } = {}) {
+  return parseFigures(text).map((f) => ({
+    label: f.text, value: f.text, unit: f.unit, raw: f.raw,
+    mandatory, source: "actual", formula: null, context, canon: f.canon,
+  }));
 }
