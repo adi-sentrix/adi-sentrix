@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · inventory · margin · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -38,7 +38,7 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
 }
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "why", "recommend", "explain_availability", "table"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "why", "recommend", "explain_availability", "table"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -172,8 +172,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && (!spec.metric || !METRICS[spec.metric]))
     return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);
 
-  // ── #3 · dimensión existe ──
-  if (!spec.dimension || !ENTITIES[spec.dimension])
+  // ── #3 · dimensión existe (margin holístico se salta: maneja su propio eje, incl. "canal" que no es una ENTITY del contrato) ──
+  if (spec.operation !== "margin" && (!spec.dimension || !ENTITIES[spec.dimension]))
     return _degrade("unknown-dimension", `¿Por qué eje? Tengo: ${Object.keys(ENTITIES).map(_dp).join(", ")}.`, [], ctx);
 
   // explain_availability se resuelve ACÁ (antes de #4): su trabajo ES explicar disponibilidad, incluso cuando la
@@ -196,7 +196,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   //     cross-eje · inventory es HOLÍSTICO — composeSpecInventory usa el motor sellado, no retrieval por eje, y responde
   //     "la pregunta manda el foco" por SKU/bodega/familia con UNA sola verdad, así que capital@familia NO debe bloquear) ──
   const axes = (METRICS[spec.metric] && METRICS[spec.metric].axes) || [];
-  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && !axes.includes(spec.dimension))
+  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && spec.operation !== "margin" && !axes.includes(spec.dimension))
     return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);
 
   // ── #5 · filtros válidos (clave = una dimensión conocida) ──
@@ -380,6 +380,19 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory" };
+      return r;
+    }
+
+    // FOCO MARGEN (owner 2026-07-06 · "la pregunta manda el foco"): rompe la trampa "todo→diagnose genérico" que el smoke en
+    // vivo encontró. La pregunta elige el foco (bajo_benchmark/alto_volumen_bajo_margen/causa_precio|costo/subir_precio/
+    // subpenetrado/stock_bajo_margen/palancas) o marca el HUECO honesto (caida/sin_serie/proveedor/mix/vendedor) → responde
+    // lo específico o avisa + pivotea, NUNCA los "3 focos" genéricos.
+    if (spec.operation === "margin") {
+      const resp = composeSpecMargin({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, negativo: spec.negativo, pct: spec.pct, gap: spec.gap });
+      if (!resp || !resp.opener)
+        return _degrade("margin-empty", `No veo ${_m("margen")} material bajo el benchmark en este corte — la cartera está sobre el mínimo.`, [], ctx);
+      const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
+      if (r && r.evidence && resp.evidence && resp.evidence.margin) r.evidence = { ...r.evidence, margin: resp.evidence.margin, lens: "margin" };
       return r;
     }
 

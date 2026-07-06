@@ -12,6 +12,7 @@ import { answerConversational, buildConversationContext } from "../adi/conversat
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
 import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
 import { detectInventoryFocus } from "../adi/inventoryFocus.js";   // "la pregunta manda el foco" (frenado/quiebre/sobrestock/stale)
+import { detectMarginFocus } from "../adi/marginFocus.js";         // idem margen (rompe la trampa todo→diagnose genérico)
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -122,8 +123,25 @@ function _coerceCompare(q, spec) {
 // forzamos operation=inventory con el SUB-FOCO que pide la pregunta (frenado/quiebre/sobrestock/stale · detectInventoryFocus),
 // NO el diagnóstico genérico. Excluye simulaciones de nivel ("sube el capital 3%") y comparaciones (ya ruteadas). Además
 // LIMPIA un transform espurio: el LLM a veces lee "90 días sin vender" como delta:90/unit:days → lo borramos (no es simulación).
+// SAFETY NET del FOCO MARGEN (owner 2026-07-06): el smoke en vivo mostró que el LLM manda casi toda pregunta de margen a
+// operation=diagnose → el "genérico de 3 focos" (responde otra pregunta). Si el texto es de margen, forzamos operation=margin
+// con el SUB-FOCO que pide la pregunta (o el HUECO honesto). NO toca dives/compares de una entidad puntual ni simulaciones.
+function _coerceMargin(q, spec) {
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.entity) return spec;
+  const m = detectMarginFocus(q);
+  if (!m.isMargin) return spec;
+  const s = { ...spec, operation: "margin", metric: "margen", dimension: m.dimension || "cliente",
+    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
+  if (m.focus) s.focus = m.focus;
+  if (m.gap) s.gap = m.gap;
+  if (m.negativo) s.negativo = true;
+  if (m.pct) s.pct = true;
+  if (s.transform) delete s.transform;   // una pregunta de margen no es una simulación (el SIM_PCT ya se filtró en el detector)
+  return s;
+}
+
 function _coerceInventory(q, spec) {
-  if (!q || !spec || spec.operation === "compare") return spec;
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "margin") return spec;
   const inv = detectInventoryFocus(q);
   if (!inv.isInventory) return spec;
   const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";
@@ -152,7 +170,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
     const _hasLast = !!(context && context.lastEvidence);
-    r = answerConversational(_coerceExplain(q, _coerceInventory(q, _coerceCompare(q, spec)), _hasLast), context || {}, { scenario }); // foco compare/inventario/por-qué forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
+    r = answerConversational(_coerceExplain(q, _coerceInventory(q, _coerceMargin(q, _coerceCompare(q, spec))), _hasLast), context || {}, { scenario }); // foco compare/margen/inventario/por-qué forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;

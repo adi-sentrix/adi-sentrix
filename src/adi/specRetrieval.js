@@ -11,7 +11,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
-import { diagnoseInventario } from "./diagnosis/economicDiagnosis.js";   // motor de las 4 puntas (sano/quiebre/frenado/sobrestock) · UNA verdad
+import { diagnoseInventario, diagnoseClientes, diagnoseSkus } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU · UNA verdad
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -46,9 +46,9 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
 
   let rows = _load(sba.source, scenario);
   if (!Array.isArray(rows) || !rows.length) return null;
-  if (filters.marca)   rows = rows.filter((r) => r.marca === filters.marca);
-  if (filters.familia) rows = rows.filter((r) => r.sfamilia === filters.familia);
-  if (filters.bodega)  rows = rows.filter((r) => r.bodega === filters.bodega);
+  if (filters.marca)   rows = rows.filter((r) => r && r.marca === filters.marca);
+  if (filters.familia) rows = rows.filter((r) => r && r.sfamilia === filters.familia);
+  if (filters.bodega)  rows = rows.filter((r) => r && r.bodega === filters.bodega);
   if (!rows.length) return null;
 
   const field = sba.field;
@@ -212,10 +212,10 @@ function _sf(metric, dim) { const m = METRICS[metric]; return (m && m.sourceByAx
 
 // acota el barrido a una marca/familia/bodega/cliente (los `filters` del spec)
 function _scopeRows(rows, filters) {
-  if (filters.marca)   rows = rows.filter((r) => r.marca === filters.marca);
-  if (filters.familia) rows = rows.filter((r) => r.sfamilia === filters.familia);
-  if (filters.bodega)  rows = rows.filter((r) => r.bodega === filters.bodega);
-  if (filters.cliente) rows = rows.filter((r) => r.nombre === filters.cliente);
+  if (filters.marca)   rows = rows.filter((r) => r && r.marca === filters.marca);
+  if (filters.familia) rows = rows.filter((r) => r && r.sfamilia === filters.familia);
+  if (filters.bodega)  rows = rows.filter((r) => r && r.bodega === filters.bodega);
+  if (filters.cliente) rows = rows.filter((r) => r && r.nombre === filters.cliente);
   return rows;
 }
 
@@ -445,6 +445,210 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   };
 }
 
+/* ── composeSpecMargin · FOCO MARGEN (owner 2026-07-06 · "la pregunta manda el foco") ────────────────────────
+ * Rompe la trampa que el smoke en vivo encontró: el LLM colapsaba TODA pregunta de margen a diagnose → el "genérico de 3
+ * focos" (23/25 · respondía otra pregunta). Acá la PREGUNTA elige el foco y el motor responde LO ESPECÍFICO con el dato
+ * disponible; si el dato no existe (gap), avisa honesto y ofrece la lente más cercana (nunca el genérico). Reusa
+ * diagnoseClientes/diagnoseSkus (patrón económico, gate-probado) + benchmark (POLICY 30.1) + descomposición precio/costo
+ * (precioLista/costoMedio) + carga/rebates. Boleta rica (cifras autorizadas). Data-driven vía el contrato (_sf+_load). */
+const _p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+const _benchOf = (r) => (r && typeof r.benchmark === "number" ? r.benchmark : POLICY.benchmark);
+const _markup = (r) => (r && r.precioLista > 0 ? (r.precioLista - r.costoMedio) / r.precioLista * 100 : null);   // markup sobre lista (%)
+const _costShare = (r) => (r && r.precioLista > 0 ? r.costoMedio / r.precioLista * 100 : null);                  // costo como % de la lista
+const _MLBL = { cliente: { s: "cliente", p: "clientes", art: "Los" }, sku: { s: "SKU", p: "SKU", art: "Los" }, familia: { s: "familia", p: "familias", art: "Las" }, marca: { s: "marca", p: "marcas", art: "Las" }, canal: { s: "canal", p: "canales", art: "Los" } };
+const _mNombre = (r) => r.nombre || r.sku;
+// margen por CANAL (no hay eje contractual · join clientesMargen × clientesVentas.canal · promedio ponderado por venta)
+function _marginByCanal(scenario) {
+  const mSf = _sf("margen", "cliente"), vSf = _sf("ventas", "cliente");
+  if (!mSf || !vSf) return [];
+  const mRows = (_load(mSf.source, scenario) || []).filter(Boolean), vRows = (_load(vSf.source, scenario) || []).filter(Boolean);
+  const canalBy = {}; for (const v of vRows) canalBy[v.nombre] = v.canal || "—";
+  const g = {};
+  for (const r of mRows) { const k = canalBy[r.nombre] || "—"; const gg = (g[k] = g[k] || { nombre: k, venta: 0, contribucion: 0, _mw: 0 }); gg.venta += r.venta || 0; gg.contribucion += r.contribucion || 0; gg._mw += (r.margen || 0) * (r.venta || 0); }
+  return Object.values(g).map((x) => ({ nombre: x.nombre, venta: x.venta, contribucion: x.contribucion, margen: x.venta ? +(x._mw / x.venta).toFixed(1) : 0, benchmark: POLICY.benchmark }));
+}
+function _marginRows(dim, scenario) {
+  if (dim === "canal") return _marginByCanal(scenario);
+  const sf = _sf("margen", dim);
+  if (!sf) return [];
+  return (_load(sf.source, scenario) || []).filter(Boolean);
+}
+
+export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchmark", dimension = "cliente", negativo = false, pct = false, gap = null } = {}) {
+  const dim = _MLBL[dimension] ? dimension : "cliente";
+  const L = _MLBL[dim];
+  let rows = _scopeRows(_marginRows(dim, scenario), filters);
+  if (!rows.length) return null;
+  const bench = _benchOf(rows[0]);
+  const totVenta = rows.reduce((a, r) => a + (r.venta || 0), 0);
+  const below = rows.filter((r) => typeof r.margen === "number" && r.margen < _benchOf(r)).sort((a, b) => (_benchOf(b) - b.margen) - (_benchOf(a) - a.margen));
+  const _gap = (r) => +(_benchOf(r) - r.margen).toFixed(1);
+  const _lo = (n) => rows.slice().sort((a, b) => a.margen - b.margen).slice(0, n);
+  const _ctx = "margen";
+  let lines = [], suggestions = [], bol = [];
+  const figMargin = (label, r) => fig(`${L.s} · ${_mNombre(r)} margen`, `${_p1(r.margen)}%`, { unit: "pct", raw: r.margen, mandatory: false, context: _ctx });
+  const pushMarginFigs = (list) => { for (const r of list.slice(0, 5)) bol.push(figMargin("", r)); };
+
+  // ── HUECOS honestos (el dato no existe → avisar + pivot a la lente más cercana · NUNCA el genérico) ──
+  if (gap) {
+    const lo = _lo(3), pivotList = (below.length ? below : lo).slice(0, 3);
+    const pivotTxt = pivotList.map((r) => `${_mNombre(r)} ${_p1(r.margen)}%`).join(" · ");
+    const GAP = {
+      caida: { falta: `margen del período anterior por ${L.s}`, no: `medir la CAÍDA de margen (necesito dos períodos y sólo tengo el actual)`, ofrece: `el NIVEL de margen vs el benchmark ${_p1(bench)}% HOY` },
+      sin_serie: { falta: `serie temporal de costo y precio por SKU`, no: `ver "costo creciente / precio estancado" (necesito al menos dos períodos)`, ofrece: `qué SKU tienen el margen más presionado HOY (precio pegado al costo)` },
+      proveedor: { falta: `el eje "proveedor" (tengo marca, no proveedor upstream)`, no: `atribuir la presión de margen a un proveedor`, ofrece: `qué MARCAS presionan más el margen (aprox. línea de suministro)` },
+      mix_cliente_sku: { falta: `la matriz transaccional cliente×SKU (qué SKU compra cada cliente)`, no: `cruzar cliente×SKU para el peor mix`, ofrece: `los SKU de peor margen por separado (el cruce por cliente no existe en los datos)` },
+      vendedor: { falta: `la dimensión "vendedor" (no está en los datos)`, no: `atribuir margen a un vendedor`, ofrece: `qué clientes venden mucho y comprimen el margen (alto volumen, bajo margen)` },
+    }[gap];
+    lines = [
+      `No te puedo ${GAP.no}: falta ${GAP.falta}. No lo invento.`,
+      `Lo más cercano que SÍ tengo es ${GAP.ofrece}: ${pivotTxt}${below.length ? ` — ${below.length} de ${rows.length} ${L.p} bajo el benchmark ${_p1(bench)}%` : ""}.`,
+      `¿Querés que arranque por ahí?`,
+    ];
+    pushMarginFigs(pivotList);
+    suggestions = [gap === "proveedor" ? "Margen por marca" : gap === "mix_cliente_sku" ? "Peor SKU por margen" : `${L.p} bajo el benchmark`, "Palancas para recuperar margen"];
+    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: dim, boleta: bol, margin: { focus: "gap:" + gap, bench, below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen })) } } };
+  }
+
+  // ── FOCOS reales ──
+  if (focus === "alto_volumen_bajo_margen") {
+    const ranked = rows.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0));
+    const hits = ranked.filter((r) => r.margen < _benchOf(r)).slice(0, 4);
+    const lead = hits.length ? hits : ranked.slice(0, 3);
+    lines = [
+      `${L.art} ${L.p} que más venden y peor margen dejan: ${lead.map((r) => `${_mNombre(r)} (${_money(r.venta)} a ${_p1(r.margen)}%)`).join(" · ")}.`,
+      `${_mNombre(lead[0])} es el caso más caro: factura ${_money(lead[0].venta)} pero a ${_p1(lead[0].margen)}% — ${_p1(_gap(lead[0]))}pp bajo el benchmark ${_p1(bench)}%. Cada punto de margen ahí vale mucho por el volumen.`,
+      `**Por qué importa:** el volumen amplifica el margen bajo — es donde una corrección chica de precio o rebate rinde más en $.`,
+      `**Qué hacer:** priorizá ${lead.slice(0, 2).map(_mNombre).join(" y ")} para revisar lista/rebate; ahí está la mayor recuperación por punto.`,
+    ];
+    pushMarginFigs(lead);
+    suggestions = ["Es por precio o por costo", "Palancas para recuperar margen"];
+  } else if (focus === "bajo_benchmark") {
+    const negatives = rows.filter((r) => r.margen < 0);
+    if (pct) {
+      const vBelow = below.reduce((a, r) => a + (r.venta || 0), 0), share = totVenta ? vBelow / totVenta * 100 : 0;
+      lines = [
+        `El ${_p1(share)}% de la venta (${_money(vBelow)} de ${_money(totVenta)}) está bajo el margen mínimo de ${_p1(bench)}%.`,
+        `Lo cargan ${below.slice(0, 3).map((r) => `${_mNombre(r)} (${_p1(r.margen)}%)`).join(" · ")} — ${below.length} de ${rows.length} ${L.p} por debajo.`,
+        `**Qué hacer:** ese tramo es el que más mueve el margen de cartera; arrancá por los de mayor venta bajo el piso.`,
+      ];
+      pushMarginFigs(below);
+    } else if (negativo) {
+      if (!negatives.length) {
+        const piso = _lo(1)[0];
+        lines = [
+          `Ninguno tiene margen negativo — el piso es ${_mNombre(piso)} con ${_p1(piso.margen)}%. No te invento una alarma que no existe.`,
+          `Lo que SÍ está bajo el mínimo de ${_p1(bench)}% son ${below.length} de ${rows.length} ${L.p}: ${below.slice(0, 4).map((r) => `${_mNombre(r)} (${_p1(r.margen)}%, ${_p1(_gap(r))}pp)`).join(" · ")}.`,
+          `**Qué hacer:** el problema no es pérdida directa, es margen delgado — el foco son esos ${L.p} bajo el piso.`,
+        ];
+        pushMarginFigs(below);
+      } else {
+        lines = [`${negatives.length} ${L.p} con margen negativo: ${negatives.map((r) => `${_mNombre(r)} (${_p1(r.margen)}%)`).join(" · ")}. Es plata que se pierde en cada venta — máxima prioridad.`];
+        pushMarginFigs(negatives);
+      }
+    } else {
+      lines = [
+        `${below.length} de ${rows.length} ${L.p} están bajo el margen mínimo de ${_p1(bench)}%: ${below.slice(0, 5).map((r) => `${_mNombre(r)} ${_p1(r.margen)}% (${_p1(_gap(r))}pp)`).join(" · ")}.`,
+        `El más lejos del piso es ${_mNombre(below[0])} a ${_p1(below[0].margen)}% (${_p1(_gap(below[0]))}pp bajo el benchmark).`,
+        `**Qué hacer:** rankeados por brecha, esos son los que más margen recuperan si corregís precio o costo.`,
+      ];
+      pushMarginFigs(below);
+    }
+    suggestions = ["Es por precio o por costo", "Cuánta venta está bajo el mínimo"];
+  } else if (focus === "causa_precio" || focus === "causa_costo") {
+    const cand = below.filter((r) => _markup(r) != null);
+    const src = cand.length ? cand : rows.filter((r) => _markup(r) != null);
+    if (!src.length) return null;
+    if (focus === "causa_precio") {
+      const byThin = src.slice().sort((a, b) => _markup(a) - _markup(b)).slice(0, 4);   // markup más fino = precio no da
+      lines = [
+        `Estos ${L.p} ceden margen por el PRECIO: la lista está pegada al costo. ${byThin.map((r) => `${_mNombre(r)} (markup ${_p1(_markup(r))}%)`).join(" · ")}.`,
+        `${_mNombre(byThin[0])} deja apenas ${_p1(_markup(byThin[0]))}% de markup sobre lista vs el ${_p1(bench)}% de referencia — el precio no alcanza a cubrir el margen objetivo.`,
+        `**Qué hacer:** la palanca es la lista de precios, no el costo. Subir lista en ${byThin.slice(0, 2).map(_mNombre).join(" y ")} recupera margen directo (si la demanda aguanta).`,
+      ];
+      pushMarginFigs(byThin);
+      suggestions = ["Cuáles ceden por costo", "Candidatos a subir precio"];
+    } else {
+      const byCost = src.slice().sort((a, b) => _costShare(b) - _costShare(a)).slice(0, 4);   // costo se lleva más del precio
+      lines = [
+        `Estos ${L.p} ceden margen por el COSTO: se lleva la mayor parte del precio de lista. ${byCost.map((r) => `${_mNombre(r)} (costo ${Math.round(_costShare(r))}% de la lista)`).join(" · ")}.`,
+        `En ${_mNombre(byCost[0])} el costo es el ${Math.round(_costShare(byCost[0]))}% de la lista — queda poco para el margen aunque el precio esté en regla.`,
+        `**Qué hacer:** la palanca acá es la compra/costo, no el precio. Negociar costo en ${byCost.slice(0, 2).map(_mNombre).join(" y ")} es lo que mueve el margen.`,
+      ];
+      pushMarginFigs(byCost);
+      suggestions = ["Cuáles ceden por precio", "Palancas para recuperar margen"];
+    }
+  } else if (focus === "subir_precio") {
+    const src = rows.filter((r) => _markup(r) != null);
+    const uMed = src.map((r) => r.unidades || 0).sort((a, b) => a - b)[Math.floor(src.length / 2)] || 0;
+    const cand = src.filter((r) => r.margen < _benchOf(r) && (r.unidades || 0) >= uMed).sort((a, b) => _markup(a) - _markup(b)).slice(0, 4);
+    const lead = cand.length ? cand : src.filter((r) => r.margen < _benchOf(r)).slice(0, 3);
+    if (!lead.length) return null;
+    lines = [
+      `Candidatos a subir precio (margen bajo + demanda que aguanta): ${lead.map((r) => `${_mNombre(r)} (${r.unidades || "—"}u a ${_p1(r.margen)}%, markup ${_p1(_markup(r))}%)`).join(" · ")}.`,
+      `${_mNombre(lead[0])} vende ${lead[0].unidades || "—"}u con markup de sólo ${_p1(_markup(lead[0]))}% — hay espacio de lista sin que el volumen sea frágil.`,
+      `**Ojo:** son candidatos por SEÑAL (margen bajo + volumen sano), no una prueba de elasticidad. Conviene testear una corrección chica antes de mover todo.`,
+    ];
+    pushMarginFigs(lead);
+    suggestions = ["Es por precio o por costo", "Productos de alto margen subpenetrados"];
+  } else if (focus === "alto_margen_subpenetrado") {
+    const ds = diagnoseSkus(rows, { salesField: "venta", marginField: "margen" });
+    let sub = rows.filter((r) => ds[_mNombre(r)] && ds[_mNombre(r)].patron === "alto_margen_subpenetrado");
+    if (!sub.length) sub = rows.filter((r) => r.margen >= bench).sort((a, b) => (a.venta || 0) - (b.venta || 0)).slice(0, 4);
+    sub = sub.sort((a, b) => b.margen - a.margen).slice(0, 4);
+    lines = [
+      `Productos de alto margen y baja penetración (upside si ganan distribución): ${sub.map((r) => `${_mNombre(r)} (${_p1(r.margen)}% margen, sólo ${_money(r.venta)})`).join(" · ")}.`,
+      `${_mNombre(sub[0])} rinde ${_p1(sub[0].margen)}% pero factura poco — cada peso extra de venta acá entra a margen alto.`,
+      `**Qué hacer:** empujar volumen/distribución en estos rinde más que defender los de bajo margen. Es crecer donde ya ganás bien.`,
+    ];
+    pushMarginFigs(sub);
+    suggestions = ["Candidatos a subir precio", "Los que más venden y peor margen"];
+  } else if (focus === "stock_bajo_margen") {
+    const kSf = _sf("capital", "sku");
+    const skus = kSf ? (_load(kSf.source, scenario) || []).filter(Boolean) : [];
+    const lowM = skus.filter((s) => typeof s.margenPct === "number" && s.margenPct < POLICY.benchmark);
+    if (!lowM.length) return null;
+    const bMap = {};
+    for (const s of lowM) { const k = s.bodega || "—"; (bMap[k] = bMap[k] || { bodega: k, usd: 0, skus: [] }); bMap[k].usd += s.stockUSD || 0; bMap[k].skus.push(s); }
+    const byBod = Object.values(bMap).sort((a, b) => b.usd - a.usd);
+    const topB = byBod[0], topSk = lowM.slice().sort((a, b) => (b.stockUSD || 0) - (a.stockUSD || 0)).slice(0, 3);
+    lines = [
+      `Las bodegas con más stock parado en productos de bajo margen: ${byBod.slice(0, 3).map((b) => `${b.bodega} (${_money(b.usd)})`).join(" · ")}.`,
+      `${topB.bodega} concentra ${_money(topB.usd)} en SKU de margen bajo — ${topSk.map((s) => `${s.sku} (${_p1(s.margenPct)}%, ${_money(s.stockUSD)})`).join(" · ")}.`,
+      `**Por qué duele doble:** es capital inmovilizado Y de baja rentabilidad — si rota, deja poco; si no rota, ata caja sin premio.`,
+      `**Qué hacer:** son los primeros candidatos a liquidar o dejar de reponer — bajo margen no justifica ocupar capital.`,
+    ];
+    for (const s of topSk) bol.push(fig(`SKU · ${s.sku} capital`, _money(s.stockUSD), { unit: "money", raw: s.stockUSD, mandatory: false, context: "stock en bajo margen" }));
+    suggestions = ["Qué SKU libero primero", "Los de bajo margen por costo o precio"];
+    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: "bodega", boleta: bol, margin: { focus, byBodega: byBod.map((b) => ({ bodega: b.bodega, usd: b.usd })) } } };
+  } else if (focus === "palancas") {
+    const target = POLICY.targetCarga;
+    const cargaHigh = rows.filter((r) => typeof r.pctRebate === "number" && r.pctRebate > target).sort((a, b) => b.pctRebate - a.pctRebate).slice(0, 4);
+    const thinPrice = rows.filter((r) => _markup(r) != null && r.margen < _benchOf(r)).sort((a, b) => _markup(a) - _markup(b)).slice(0, 3);
+    lines = [
+      `Las palancas que más comen margen, en orden:`,
+      `**1 · Carga/rebates** — ${cargaHigh.length ? `${cargaHigh.map((r) => `${_mNombre(r)} (${_p1(r.pctRebate)}%)`).join(" · ")} están sobre el target de ${_p1(target)}%` : `todos dentro del target de ${_p1(target)}%`}. Es margen que se entrega en descuento; recortable donde el poder de negociación lo permite.`,
+      thinPrice.length ? `**2 · Precio de lista** — ${thinPrice.map((r) => `${_mNombre(r)} (markup ${_p1(_markup(r))}%)`).join(" · ")}: la lista está pegada al costo, subir precio recupera margen directo.` : "",
+      `**Qué hacer (volumen-safe):** arrancá por la carga de los ${L.p} con más poder de compra tuyo y por la lista donde la demanda aguanta — así recuperás margen sin resignar volumen.`,
+    ];
+    for (const r of cargaHigh) bol.push(fig(`${L.s} · ${_mNombre(r)} carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
+    suggestions = ["Los que más venden y peor margen", "Es por precio o por costo"];
+  } else {
+    return null;
+  }
+
+  // ── boleta: contexto de cartera + benchmark (cifras autorizadas) ──
+  bol.push(fig("Benchmark de margen", `${_p1(bench)}%`, { unit: "pct", raw: bench, mandatory: true, context: _ctx }));
+  bol.push(fig(`${L.p} bajo el benchmark`, String(below.length), { unit: "count", raw: below.length, mandatory: false, context: _ctx }));
+  return {
+    opener: lines.filter(Boolean).join("\n\n"),
+    suggestions,
+    sentrixAction: null,
+    evidence: { lens: "margin", metrica: "margen", dimension: dim, boleta: bol,
+      margin: { focus, bench, dimension: dim, below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen, venta: r.venta, gap: _gap(r) })) } },
+  };
+}
+
 /* ── composeSpecSimulate · SIMULACIÓN = un SUPUESTO aplicado sobre el dato REAL (base única = real) ─────────────
  * NO es un escenario del negocio (nada de bonanza/tensión/crisis · no invoca el motor de escenarios). Lee la base real
  * (_loadReal), aplica el transform explícito, y arma la tabla ACTUAL vs SUPUESTO vs Δ con FÓRMULA por celda. La boleta
@@ -519,9 +723,9 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
 
   let rows = _loadReal(sba.source);                       // BASE REAL · sin escenario
   if (!Array.isArray(rows) || !rows.length) return null;
-  if (filters.marca)   rows = rows.filter((r) => r.marca === filters.marca);
-  if (filters.familia) rows = rows.filter((r) => r.sfamilia === filters.familia);
-  if (filters.bodega)  rows = rows.filter((r) => r.bodega === filters.bodega);
+  if (filters.marca)   rows = rows.filter((r) => r && r.marca === filters.marca);
+  if (filters.familia) rows = rows.filter((r) => r && r.sfamilia === filters.familia);
+  if (filters.bodega)  rows = rows.filter((r) => r && r.bodega === filters.bodega);
   if (!rows.length) return null;
 
   const field = sba.field;
