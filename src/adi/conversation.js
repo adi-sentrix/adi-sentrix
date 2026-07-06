@@ -51,6 +51,19 @@ const _specSelfContained = (s) => !!(s && s.operation && s.metric && s.dimension
 // ── composeExplain · el PORQUÉ de la última lectura (reusa estructura/concentración ya computada · sin cifras nuevas) ──
 export function composeExplain(last) {
   if (!last) return _needLast();
+  // CONTINUIDAD (D · owner 2026-07-06): el "por qué" sigue el ÚLTIMO foco. Si el foco era CAPITAL inmovilizado, explica
+  // capital (rotación/DOH), NO margen. Reusa la evidencia de inventario · cita solo el total (en boleta) · honesto sobre
+  // la causa raíz (el dato dice DÓNDE está frenado, no todavía por qué dejó de venderse).
+  if (last.inventory && Array.isArray(last.inventory.bySku) && last.inventory.bySku.length) {
+    const inv = last.inventory, _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
+    const top = inv.bySku.slice(0, 2).map((s) => s.sku).join(" y ");
+    const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más frenados (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está frenado el capital, todavía no por qué dejó de venderse.`;
+    // boleta = total + capital POR SKU (money · para que el narrador pueda ser rico) · SIN DOH/rotación sueltas (evitan el
+    // guard) · sin `inventory` pesado en la evidencia → la narración pasa el guard (NARRADO), no cae a tabla cruda.
+    const bol = [fig("Capital inmovilizado · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital inmovilizado" })];
+    for (const s of inv.bySku.slice(0, 3)) bol.push(fig(`SKU · ${s.sku}`, _m(s.usd), { unit: "money", raw: s.usd, context: "capital inmovilizado" }));
+    return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: bol }, route: "followup_explain" };
+  }
   const con = last.concentration, st = last.structural || {};
   if (last.transform && con) {
     const pct = last.transform.value, sgn = pct >= 0 ? "+" : "";

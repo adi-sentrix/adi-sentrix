@@ -128,6 +128,16 @@ function _coerceInventory(q, spec) {
   return { ...spec, operation: "inventory", metric: "capital", dimension: "bodega", turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
 }
 
+// CONTINUIDAD del "por qué" (owner 2026-07-06 · D): un "por qué" GENÉRICO (o sobre el foco de inventario) NO debe
+// re-diagnosticar — sigue el ÚLTIMO foco vía composeExplain. "por qué Falabella cede margen" (entidad puntual) NO cae acá.
+const _BARE_WHY_RE = /^\s*(?:dime\s+|explic[aá]\w*(?:me)?\s+)?(?:el\s+)?por\s?qu[eé](?:\s+(?:ocurre|pasa|sucede|es\s+(?:eso|as[ií])|raz[oó]n|la\s+raz[oó]n))?\s*[?.!¡¿]*$/i;
+const _WHY_CAPITAL_RE = /por\s?qu[eé].*(capital|dormid\w*|inmoviliz\w*|no\s+rot\w*|frenad\w*)/i;
+function _coerceExplain(q, spec, hasLast) {
+  if (!hasLast || !q || !spec) return spec;
+  if (_BARE_WHY_RE.test(q) || _WHY_CAPITAL_RE.test(q)) return { ...spec, turn_type: "followup_explain" };
+  return spec;
+}
+
 export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
   const q = (question || "").trim();
   let r, narrated = false;
@@ -135,7 +145,8 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence);   // contexto chico para el LLM #1
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
-    r = answerConversational(_coerceInventory(q, _coerceCompare(q, spec)), context || {}, { scenario }); // foco compare/inventario forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
+    const _hasLast = !!(context && context.lastEvidence);
+    r = answerConversational(_coerceExplain(q, _coerceInventory(q, _coerceCompare(q, spec)), _hasLast), context || {}, { scenario }); // foco compare/inventario/por-qué forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;

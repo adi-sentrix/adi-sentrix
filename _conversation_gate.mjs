@@ -89,6 +89,11 @@ ok("29 · V2 target = el propio sujeto → pide otra cuenta (no compara consigo 
 ok("30 · V2 robustez: el LLM manda new_query + compare con 1 entidad → igual se resuelve como followup elíptico (EJECUTA)",
   (() => { const r = AC(S({ turn_type: "new_query", operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST_ENT }, {}); return exec(r) && /Falabella/.test(r.text) && /Lider/.test(r.text); })());
 
+// ══ D · CONTINUIDAD del "por qué": explain sigue el ÚLTIMO foco (capital), NO re-diagnostica (owner 2026-07-06) ══
+const LAST_INV = { inventory: { total: 33200, byBodega: [{ bodega: "Valparaíso", usd: 24800, pct: 75 }], bySku: [{ sku: "LG-DRYER8KG", usd: 13600, doh: 165, rotacion: 1, critico: true }, { sku: "BOS-SANDER", usd: 11200, doh: 115, rotacion: 1.6, critico: false }] } };
+ok("31 · D · explain sobre foco INVENTARIO → explica CAPITAL (rotación/DOH · góndola), NO margen · route followup_explain · boleta self-consistente",
+  (() => { const r = AC(S({ turn_type: "followup_explain" }), { lastEvidence: LAST_INV }, {}); return r.route === "followup_explain" && /rotaci|DOH|dejaron de rotar|sin salida|g[oó]ndola|capital/i.test(r.text) && !/contribuci[oó]n no capturada|carga comercial/i.test(r.text) && guardAgainstBoleta(r.text, r.evidence.boleta).ok; })());
+
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══
 // ══ V4 · recall_analysis (ctx.history) — PENDIENTE ══
 // ══ V5 · session_resume / apply_criteria (ctx.session/criteria · con permiso) — PENDIENTE ══
