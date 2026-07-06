@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "vite build",
+  "buildCommand": "VITE_ADI_PROFILE=prod VITE_ADI_LLM_ENABLED=true VITE_ADI_LLM_NARRATE_ENABLED=true vite build",
   "outputDirectory": "dist"
 }
