@@ -66,7 +66,7 @@ export function buildContractMenu() {
   L.push("  · `followup_explain`: '¿por qué decís eso?' / 'explicámelo simple' → ADI explica desde la estructura ya computada.");
   L.push("  · `meta_question`: '¿esto es real o supuesto?' / '¿de dónde sale?' / '¿qué podés hacer?' → poné el tema en `meta` ('real_o_supuesto'|'fuente'|'capacidades').");
   L.push("  · `clarification_needed`: si el pedido es ambiguo o cruza mundos, poné la repregunta en `clarify` (no adivines).");
-  L.push("  · `followup_compare` (ej. 'compará con Lider'): declarado; ponelo si aplica (hoy ADI responde honesto que llega pronto).");
+  L.push("  · `followup_compare` ('compará con Lider', 'compáralo con La Polar', 'y versus Jumbo'): comparación conversacional. Poné en `comparison.entities` la(s) entidad(es) que el usuario NOMBRA (el target, ej. ['La Polar']) y `comparison.dimension` = el eje de `contexto.last`. NO repitas el sujeto: ADI lo toma de la última evidencia. Si el usuario nombra dos entidades explícitas, poné las dos.");
   L.push("  · SIN contexto o pedido autónomo → `new_query`. NUNCA inventes cifras ni entidades que no estén en el contexto o en las listas.");
   return L.join("\n");
 }

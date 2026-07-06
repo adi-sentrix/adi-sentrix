@@ -67,7 +67,8 @@ export function buildSpecTool() {
         // ── CONVERSACIÓN (V1) · clasificá el turno. `new_query` = autónomo (llená metric/dimension/operation). `followup_*`
         //    = refiere a lo ÚLTIMO (usá conversationContext.last): modify_assumption/change_dimension → emití el spec YA
         //    RESUELTO (mismo metric/dim, cambiando el parámetro); recommendation/explain/meta → ADI resuelve, no calculás.
-        //    `followup_compare` está DECLARADO (V2) pero hoy responde honesto. Default new_query.
+        //    `followup_compare` (V2) ejecuta comparación REAL: poné en `comparison.entities` el/los target(s) que el
+        //    usuario nombra (el sujeto lo toma ADI del contexto). Default new_query.
         turn_type: { type: "string", enum: ["new_query", "followup_modify_assumption", "followup_change_dimension", "followup_recommendation", "followup_explain", "meta_question", "clarification_needed", "followup_compare"], description: "clasificación del turno en la conversación" },
         meta: { type: ["string", "null"], description: "para meta_question: el tema ('real_o_supuesto' | 'fuente' | 'capacidades')" },
         clarify: { type: ["string", "null"], description: "para clarification_needed: la repregunta breve a devolver al usuario" },

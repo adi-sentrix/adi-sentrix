@@ -41,10 +41,10 @@ ok("6 · explain → historia fluida (sin header) desde la estructura/concentrac
 const rMeta = AC(S({ turn_type: "meta_question", meta: "real_o_supuesto" }), { lastEvidence: LAST }, {});
 ok("7 · meta real/supuesto → honesto ('es un supuesto…')", /supuesto/i.test(rMeta.text) && /dato real/i.test(rMeta.text) && rMeta.route === "meta_question");
 
-// ── V1 · followup_compare DECLARADO pero HONESTO (no finge) ───────────────────────────────────────────────────────
-ok("8 · compare sin target → pide contra qué entidad", /contra qu[eé] entidad|contra cu[aá]l/i.test(AC(S({ turn_type: "followup_compare" }), { lastEvidence: LAST }, {}).text));
-ok("9 · compare con target → honesto 'próximo paso' (NO finge comparación · sin cifras nuevas)",
-  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }), { lastEvidence: LAST }, {}); return /pr[oó]ximo paso/i.test(r.text) && /Lider/.test(r.text) && (r.evidence.boleta || []).length === 0; })());
+// ── V1 · followup_compare repregunta ESPECÍFICO cuando falta sujeto/target (last general · sin adivinar) ───────────
+ok("8 · compare sin target (last general) → repregunta por el target", /contra qu[eé] cliente/i.test(AC(S({ turn_type: "followup_compare" }), { lastEvidence: LAST }, {}).text));
+ok("9 · compare con target pero last general (sin sujeto) → repregunta por el sujeto",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST }, {}); return /qu[eé] cliente comparo con Lider/i.test(r.text) && r.route === "clarification_needed"; })());
 
 // ── V1 · clarification + desconocido (Condición 1 del owner) ──────────────────────────────────────────────────────
 ok("10 · clarification_needed → devuelve la repregunta", AC(S({ turn_type: "clarification_needed", clarify: "¿por cliente o por marca?" }), {}, {}).text === "¿por cliente o por marca?");
@@ -70,7 +70,24 @@ ok("21 · narrate: explain → prompt EXPLAIN (simple)", BNS({ followup: true, k
 ok("22 · narrate: meta/compare → GENERAL (fiel, no distorsiona)", BNS({ followup: true, kind: "meta" }) === NARRATE_GENERAL && BNS({ followup: true, kind: "compare_pending" }) === NARRATE_GENERAL);
 ok("23 · narrate: recommendation → RECOMENDACIÓN · simulación → SIMULACIÓN", BNS({ followup: true, transform: {} }) === NARRATE_RECOMMENDATION && BNS({ transform: {} }) === NARRATE_SIMULATION);
 
-// ══ V2 · followup_compare (comparación real) — PENDIENTE, no testeado acá ══
+// ══ V2 · followup_compare — COMPARACIÓN CONVERSACIONAL REAL (sujeto del contexto · target del LLM · seam ejecuta) ══
+const LAST_ENT = { entidad: "Falabella", entityType: "cliente", dimension: "cliente", metrica: "margen", lens: "cuadro" };  // última = foco sobre UNA cuenta
+const LAST_DIAG = { findings: [{ detector: "margen", titulo: "Contribución no capturada", items: [{ entidad: "Falabella", usd: 1600000 }] }], dimension: "cliente", entityType: "cliente" };
+ok("24 · V2 compare REAL: sujeto=Falabella (contexto) + target=Lider (LLM elíptico) → EJECUTA + boleta fresca",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST_ENT }, {}); return exec(r) && /Falabella/.test(r.text) && /Lider/.test(r.text) && r.evidence && Array.isArray(r.evidence.boleta) && r.evidence.boleta.length > 0; })());
+ok("25 · V2 compare tras DIAGNOSE: sujeto = foco principal (Falabella) + target Lider → EJECUTA",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { entities: ["Lider"] } }), { lastEvidence: LAST_DIAG }, {}); return exec(r) && /Falabella/.test(r.text) && /Lider/.test(r.text); })());
+ok("26 · V2 dos entidades EXPLÍCITAS ('compará Falabella con Lider') sin contexto → EJECUTA",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }), {}, {}); return exec(r) && /Falabella/.test(r.text) && /Lider/.test(r.text); })());
+ok("27 · V2 contra 'el promedio' → repregunta honesta (NO placeholder · no finge)",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { entities: ["el promedio"] } }), { lastEvidence: LAST_ENT }, {}); return /promedio de cartera/i.test(r.text) && r.route === "clarification_needed"; })());
+ok("28 · V2 cruza mundos (Samsung no es cliente) → degrade HONESTO (dice que no lo tiene · no fabrica comparación)",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { entities: ["Samsung"] } }), { lastEvidence: LAST_ENT }, {}); return /no tengo a Samsung|no pude comparar|est[aá]n bien escritos|no encontr|no est[aá]/i.test(r.text) && !/Samsung.*\$\d/.test(r.text); })());
+ok("29 · V2 target = el propio sujeto → pide otra cuenta (no compara consigo mismo)",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { entities: ["Falabella"] } }), { lastEvidence: LAST_ENT }, {}); return /contra qu[eé] cliente/i.test(r.text) && r.route === "clarification_needed"; })());
+ok("30 · V2 robustez: el LLM manda new_query + compare con 1 entidad → igual se resuelve como followup elíptico (EJECUTA)",
+  (() => { const r = AC(S({ turn_type: "new_query", operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST_ENT }, {}); return exec(r) && /Falabella/.test(r.text) && /Lider/.test(r.text); })());
+
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══
 // ══ V4 · recall_analysis (ctx.history) — PENDIENTE ══
 // ══ V5 · session_resume / apply_criteria (ctx.session/criteria · con permiso) — PENDIENTE ══

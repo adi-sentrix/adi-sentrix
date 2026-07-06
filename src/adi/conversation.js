@@ -17,6 +17,7 @@
 import { answerADIFromSpec } from "./answerADIFromSpec.js";
 import { composeFollowupRecommendation } from "./specRetrieval.js";
 import { fig } from "./boleta.js";
+import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 
 // ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia) ─────────────────────────────────────────
 export function buildConversationContext(recentTurns, lastEvidence) {
@@ -87,13 +88,56 @@ export function composeMeta(topic, last) {
   return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "meta", boleta: bol, transform: (last && last.transform) || null }, route: "meta_question" };
 }
 
-// ── composeCompareNotYet · V2 declarado · en V1 responde HONESTO (no finge comparación) · pide target si falta ──────────
+// ── composeCompareNotYet · (legacy V1) placeholder honesto · reemplazado por composeCompare (V2) · se conserva por compat ──
 export function composeCompareNotYet(spec, last) {   // eslint-disable-line no-unused-vars
   const target = spec && ((spec.comparison && spec.comparison.entities && spec.comparison.entities.slice(-1)[0]) || spec.entity);
   const text = target
     ? `La comparación conversacional llega en el próximo paso. Decime que avance y la preparo contra ${target}; por ahora te dejo la lectura actual.`
     : "Puedo comparar en el próximo paso, pero necesito contra qué entidad. ¿Contra cuál querés cruzarlo?";
   return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "compare_pending", boleta: [] }, route: "followup_compare" };
+}
+
+// ── V2 · comparación conversacional REAL. El LLM aporta el TARGET (lo explícito del mensaje: "La Polar"); el SUJETO y el
+// EJE salen de la última evidencia (fuente de verdad, no la memoria del LLM). Construye el spec de compare y lo ejecuta
+// por el SEAM → comparación rica + boleta FRESCA (o degrade honesto si no encuentra / cruza mundos). Sin sujeto/target →
+// repregunta ESPECÍFICO (no placeholder). Reglas del owner 2026-07-06.
+const _low = (x) => String(x == null ? "" : x).trim().toLowerCase();
+function _lastEntity(last) {
+  if (!last) return null;
+  if (last.entidad) return last.entidad;                                  // dive/why/compare sobre UNA entidad
+  const f = Array.isArray(last.findings) && last.findings[0];             // tras un diagnose: el foco principal
+  const it = f && Array.isArray(f.items) && f.items[0];
+  return (it && it.entidad) || null;
+}
+function _compareTarget(spec, subject) {
+  const ents = (spec && spec.comparison && Array.isArray(spec.comparison.entities)) ? spec.comparison.entities.filter(Boolean) : [];
+  const notSubj = ents.filter((e) => _low(e) !== _low(subject));         // el LLM puede mandar [target] o [subject, target]
+  if (notSubj.length) return notSubj[notSubj.length - 1];
+  if (spec && spec.entity && _low(spec.entity) !== _low(subject)) return spec.entity;
+  return null;
+}
+export function composeCompare(spec, ctx, state) {
+  const last = ctx && ctx.last;
+  const cmpEnts = (spec && spec.comparison && Array.isArray(spec.comparison.entities)) ? spec.comparison.entities.filter(Boolean) : [];
+  if (!last && cmpEnts.length < 2) return _needLast();                    // sin contexto y sin dos entidades explícitas → honesto
+  const dim = (last && (last.dimension || last.entityType)) || (spec && spec.comparison && spec.comparison.dimension) || (spec && spec.dimension) || null;
+  const dLabel = (ENTITIES[dim] && ENTITIES[dim].label.sing) || "eje";
+  let subject, target;
+  if (cmpEnts.length >= 2) { subject = cmpEnts[0]; target = cmpEnts[1]; }  // dos entidades EXPLÍCITAS ('compará A con B')
+  else { subject = _lastEntity(last); target = _compareTarget(spec, subject); }  // elíptico: sujeto del contexto, target del LLM
+  if (!dim) return _clarify("¿Sobre qué eje comparo? Decime cliente, marca, familia o bodega.");
+  if (target && /^(el |la |los |las )?(promedio|media|benchmark|mercado|cartera)$/i.test(String(target).trim()))
+    return _clarify(`Contra otra ${dLabel} puntual sí puedo cruzarlo; el promedio de cartera lo tenés en el panel. ¿Contra qué ${dLabel} lo comparo?`);
+  if (!target) return _clarify(`¿Contra qué ${dLabel} lo comparo?`);
+  if (!subject) return _clarify(`Tengo ${target}, pero veníamos de una lectura general. ¿Qué ${dLabel} comparo con ${target}?`);
+  const cmpSpec = {
+    schemaVersion: 1, operation: "compare",
+    metric: (spec && spec.metric) || (last && last.metrica) || "contribucion",
+    dimension: dim,
+    comparison: { dimension: dim, entities: [subject, target] },
+    scenario: "actual",
+  };
+  return answerADIFromSpec(cmpSpec, ctx, state);   // seam: comparación real + boleta fresca · degrada honesto si no cierra
 }
 
 // ── REGISTRY · turn_type → resolver. Sumar una fase = sumar una entrada (V2-V6), NO reestructurar. ───────────────────
@@ -105,7 +149,7 @@ const TURN_RESOLVERS = {
   followup_explain:           (spec, ctx) => composeExplain(ctx.last),                                    // V1
   meta_question:              (spec, ctx) => composeMeta(spec && spec.meta, ctx.last),                    // V1
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
-  followup_compare:           (spec, ctx) => composeCompareNotYet(spec, ctx.last),                        // V2 real · V1 = honesto (declarado)
+  followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)
   // ── V3 · multi_analysis: (spec, ctx, state) => composeMulti(spec, ctx, state)  → evidences[] (shape reservado)
   // ── V4 · recall_analysis: (spec, ctx) => composeRecall(spec, ctx.history)
   // ── V5 · session_resume / apply_criteria: (spec, ctx) => ... (ctx.session / ctx.criteria · con permiso)
@@ -129,5 +173,13 @@ export function resolveTurn(turnType, spec, ctx, state) {
 // SHAPE MULTI-READY (V3): una respuesta puede llevar `evidence` (una · V1) o `evidences:[]` (varias · V3). V1 emite UNA.
 export function answerConversational(spec, context = {}, state = {}) {
   const last = (context && context.lastEvidence) || null;
-  return resolveTurn(spec && spec.turn_type, spec, { ...context, last }, state);
+  let tt = spec && spec.turn_type;
+  // ROBUSTEZ V2 (no depender de la clasificación del LLM): "compáralo con X" a veces llega como new_query + operation
+  // compare con UNA sola entidad (el target). Un compare con <2 entidades es un followup ELÍPTICO → composeCompare
+  // rellena el sujeto desde el contexto (o degrada honesto si no hay). Un compare con 2 entidades explícitas sigue normal.
+  if (spec && spec.operation === "compare") {
+    const ents = (spec.comparison && Array.isArray(spec.comparison.entities)) ? spec.comparison.entities.filter(Boolean) : [];
+    if (ents.length < 2) tt = "followup_compare";
+  }
+  return resolveTurn(tt, spec, { ...context, last }, state);
 }
