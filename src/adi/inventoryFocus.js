@@ -8,8 +8,9 @@
 
 // intención de INVENTARIO (amplia · dispara el foco) — capital/stock/reposición/quiebre/sobrestock/rotación/sin-venta
 export const INV_INTENT_RE = /\b(capital|inmoviliz\w*|dormid\w*|inventario|stock|reposici\w*|repon\w*|reabastec\w*|quiebr\w*|sobre[-\s]?stock|exceso|excedent\w*|rotaci\w*|d[ií]as?\s+sin\s+vend\w*|sin\s+vend\w*|sin\s+rotar|estancad\w*|sin\s+movimiento)\b/iu;
-// simulación de NIVEL (delta %) — "subí/bajá/aumentá el capital 10%" · NO es lectura de inventario → dejar simular
-const SIM_PCT_RE = /\b(sub[ei]\w*|baj[ae]\w*|aument\w*|increment\w*|reduc[íi]\w*|proyect\w*)\b|[+\-]?\s?\d+\s?%/i;
+// simulación de NIVEL (delta %) — "subí/bajá/aumentá el capital 10%" · NO es lectura de inventario → dejar simular.
+// Requiere un NÚMERO junto al verbo (si no, "baja disponibilidad" / "baja rotación" caían como simulación por error).
+const SIM_PCT_RE = /\b(sub[ei]\w*|baj[ae]\w*|aument\w*|increment\w*|reduc[íi]\w*|proyect\w*)\b.*\d|[+\-]\s?\d+\s?%|\d+\s?%/i;
 // sub-focos (la pregunta manda cuál lidera)
 const QUIEBRE_RE = /\b(reposici\w*|repon\w*|reabastec\w*|quiebr\w*|urgente|se\s+(agota|corta|acaba)\w*|falta\w*\s+(de\s+)?stock|qued\w*\s+sin\s+stock|alta\s+demanda|sin\s+producto)\b/iu;
 const SOBRE_RE   = /\b(sobre[-\s]?stock|exceso|excedent\w*|sobra\w*|demasiad\w*\s+stock|much[oa]\s+stock|cobertura\s+(alta|excesiv\w*))\b/iu;
