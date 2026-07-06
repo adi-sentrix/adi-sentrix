@@ -108,8 +108,12 @@ async function _narrateResult(r) {
 // texto pide comparar ('compará/compáralo/versus/vs/contra X'), forzamos operation=compare + turn_type=followup_compare y,
 // si el LLM no puso el target, lo extraemos del texto ('… con/contra X'). El sujeto lo resuelve composeCompare del contexto.
 const _CMP_INTENT_RE = /\b(compar[aá]\w*|compár\w*|comparemos|versus|vs\.?)\b|\bcontra\s+\p{L}/iu;
+// "ventas CONTRA el presupuesto / año anterior / plan / meta" NO es comparación de entidades → es ventas (vs plan/YoY).
+// Sólo bloquea cuando el ÚNICO indicio es "contra <plan/tiempo>" (si hay "compará/versus/vs" explícito, sí compara).
+const _CMP_PLAN_RE = /\bcontra\s+(el\s+|la\s+|los\s+|las\s+)?(presupuesto|ppto|a[ñn]o(\s+(anterior|pasado))?|per[ií]odo|plan|meta|objetivo|mes(\s+(anterior|pasado))?|benchmark)\b/i;
 function _coerceCompare(q, spec) {
   if (!q || !spec || !_CMP_INTENT_RE.test(q)) return spec;
+  if (_CMP_PLAN_RE.test(q) && !/compar[aá]\w*|compár\w*|versus|\bvs\b/i.test(q)) return spec;   // comparación vs plan/tiempo → la maneja ventas
   const s = { ...spec, operation: "compare", turn_type: "followup_compare" };
   const ents = (s.comparison && Array.isArray(s.comparison.entities)) ? s.comparison.entities.filter(Boolean) : [];
   if (!ents.length) {
