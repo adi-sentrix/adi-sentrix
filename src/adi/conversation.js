@@ -64,6 +64,20 @@ export function composeExplain(last) {
     for (const s of inv.bySku.slice(0, 3)) bol.push(fig(`SKU · ${s.sku}`, _m(s.usd), { unit: "money", raw: s.usd, context: "capital inmovilizado" }));
     return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: bol }, route: "followup_explain" };
   }
+  // CONTINUIDAD (D) tras un DIAGNÓSTICO: el "por qué" explica el FOCO TOP (contribución/carga/capital), no un relleno
+  // genérico. Mecanismo por detector · graduado y honesto (lo probado vs la causa raíz que necesita el detalle).
+  if (Array.isArray(last.findings) && last.findings.length) {
+    const _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
+    const f = last.findings[0], topE = (f.items && f.items[0] && f.items[0].entidad) || null;
+    const mech = f.detector === "carga"
+      ? "la carga comercial está por encima del target interno — es plata que se va en condiciones/rebate y no llega al margen."
+      : f.detector === "capital"
+      ? "esos SKU dejaron de rotar (DOH alto, rotación baja): el stock no sale y ahí queda el capital atrapado."
+      : `${topE ? topE + " y compañía ceden" : "el margen cede"} frente al benchmark de la cartera; la causa raíz —precio, costo o mezcla— hay que verla por SKU o canal.`;
+    const text = `Lo digo porque el foco que más pesa es ${f.titulo.toLowerCase()} (${_m(f.subtotal_usd)}): ${mech} Eso es lo que el dato prueba hoy; la causa exacta se confirma bajando al detalle.`;
+    const bol = [fig(`${f.titulo} · subtotal`, _m(f.subtotal_usd), { unit: "money", raw: f.subtotal_usd, mandatory: true, context: "diagnóstico" })];
+    return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: bol }, route: "followup_explain" };
+  }
   const con = last.concentration, st = last.structural || {};
   if (last.transform && con) {
     const pct = last.transform.value, sgn = pct >= 0 ? "+" : "";
