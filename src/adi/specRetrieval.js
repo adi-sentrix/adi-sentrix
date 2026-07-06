@@ -409,6 +409,47 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   };
 }
 
+/* ── composeFollowupRecommendation · FOLLOW-UP EJECUTIVO sobre la última evidencia (owner 2026-07-06) ─────────────────
+ * "dime qué hacemos" DESPUÉS de una simulación → recomendación desde la última evidence.transform (NO re-parsea eje/métrica).
+ * Determinística · reusa las cifras/estructura ya computadas (pct + bloque 80/20) · misma boleta estructural (guard duro:
+ * no inventa, no enumera, no lenguaje de escenario). Decisión primero → por qué → condición → siguiente paso. */
+export function composeFollowupRecommendation(evidence) {
+  if (!evidence || !evidence.transform || evidence.transform.op !== "delta") return null;
+  const t = evidence.transform, st = evidence.structural || {}, con = evidence.concentration || {};
+  const pct = t.value, sgn = pct >= 0 ? "+" : "";
+  const metric = evidence.metrica, mLabel = String(evidence.metricLabel || metric || "").toLowerCase();
+  const plural = st.plural || con.plural || `${evidence.dimLabel || "entidades"}`;
+  const blockCount = con.blockCount || st.blockCount || 0, blockPct = con.blockPct || st.blockPct || 0;
+  const concentrated = con.concentrated != null ? con.concentrated : !!st.concentrated;
+  const _fem = new Set(["marca", "familia", "bodega"]).has(evidence.dimension);
+  const _esos = _fem ? "esas" : "esos";
+  const crosses = metric === "capital" ? "DOH, rotación y bodega"
+    : metric === "contribucion" ? "margen, participación y costo"
+    : "margen, contribución y carga comercial";
+  const cond = metric === "capital" ? "Si ese capital rota sano, conviene liberarlo; si es stock lento, primero destrabar la rotación."
+    : metric === "contribucion" ? "Si ese bloque sostiene su margen, priorizar ahí; si no, revisar precio y costo antes de escalar."
+    : "Si ese bloque captura margen, priorizar crecimiento ahí; si solo suma volumen, corregir condiciones, costo o carga comercial antes de vender más.";
+  const lead = concentrated
+    ? `No empujaría el ${sgn}${pct}% a toda la cartera a ciegas. El impacto se concentra: ${blockCount} ${plural} explican el ${blockPct}%, así que la acción es revisar ese bloque antes de activar crecimiento general.`
+    : `No empujaría el ${sgn}${pct}% a ciegas. El impacto está repartido, así que la acción es validar dónde el ${mLabel} es rentable antes de activarlo.`;
+  const next = concentrated
+    ? `El siguiente paso es cruzar ${_esos} ${blockCount} ${plural} contra ${crosses}.`
+    : `El siguiente paso es cruzar el ${mLabel} contra ${crosses} y ver dónde conviene empujar.`;
+  const opener = `${lead} ${cond} ${next}`;
+
+  const _ctx = `recomendación sobre supuesto ${mLabel} ${sgn}${pct}%`;
+  const bol = [];
+  bol.push(fig("Supuesto %", `${Math.abs(pct)}%`, { unit: "pct", raw: Math.abs(pct), context: _ctx, source: "computed", formula: "supuesto aplicado sobre el dato real" }));
+  if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, context: _ctx, source: "computed", formula: `${blockCount} ${plural} acumulan el ${blockPct}%` }));
+  return {
+    opener, suggestions: null, sentrixAction: null,
+    // followup:true → narrate usa el prompt de RECOMENDACIÓN · transform → guard scoped (scrub escenario) · SIN projection/lens
+    // (no reabre panel ni muestra botón) · SIN cifras por entidad (enumeración imposible).
+    evidence: { followup: true, transform: t, boleta: bol, metrica: metric, metricLabel: evidence.metricLabel, dimLabel: evidence.dimLabel, dimension: evidence.dimension, structural: st },
+    route: "followup_recommendation",
+  };
+}
+
 /* ── buildResumenEjecutivo · la LECTURA del negocio para el INICIO (KPIs + una línea) · data-driven, reusa el diagnose ──
  * KPIs de contexto (ventas/margen/contribución/capital) del dato del escenario + una LECTURA generada de los focos del
  * diagnose (el MISMO motor). Todo se recalcula cuando cambia el dato/escenario. NADA hardcodeado, NADA de texto fijo. */

@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
-import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo data-driven (reusa el motor diagnose)
+import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up ejecutivo sobre la última evidencia
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
@@ -45,7 +45,9 @@ function _turnFromResult(q, r, context, source) {
       // flags Sentrix están OFF (r.evidence undefined → sin botón → sin panel · piso intacto byte-exacto).
       evidence: r.evidence || null,
     },
-    context: r.context || context || {},
+    // CONTINUIDAD · threadeá la última evidencia ACCIONABLE al contexto → el próximo turno puede resolver un follow-up
+    // ejecutivo ("dime qué hacemos") desde acá, sin re-parsear eje/métrica. Si este turno no trae evidence, conservá la previa.
+    context: { ...(r.context || context || {}), lastEvidence: r.evidence || (context && context.lastEvidence) || null },
   };
 }
 
@@ -76,24 +78,36 @@ async function _fetchNarration(validated) {
   if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
   return data.narration;
 }
+// FOLLOW-UP EJECUTIVO · "qué hacemos / qué recomendás / qué sigue / y ahora / cuál es la acción" → recomendación sobre la
+// última evidencia (NO se re-parsea como consulta nueva de eje/métrica). Solo dispara si hay una evidencia accionable previa.
+const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé]\s+recomiend[ao]s|qu[eé]\s+recomend[aá]s|qu[eé]\s+sigue|y\s+ahora|cu[aá]l\s+es\s+la\s+acci[oó]n)\b/i;
+
 export async function buildAdiTurnLLM(question, context, scenario) {
   const q = (question || "").trim();
   let r, narrated = false;
-  try {
-    const spec = await _fetchSpec(q, scenario);
-    r = answerADIFromSpec(spec, context || {}, { scenario });   // ADI valida + ejecuta/degrada honesto (local)
-    // NARRACIÓN LLM #2 · sub-flag ADI_LLM_NARRATE_ENABLED (false = parse-only) · PASA por el number-guard (pickNarratedText):
-    //   guard OK → se muestra la narración · guard falla / gateway cae → texto determinístico de ADI. Nunca inventa cifras.
-    if (ADI_LLM_NARRATE_ENABLED && r && r.text) {
-      try {
-        const narration = await _fetchNarration(r);
-        const picked = pickNarratedText(r, narration);
-        r = { ...r, text: picked.text };
-        narrated = picked.narrated;
-      } catch { /* narración/gateway falló → r queda con el texto determinístico (r.text intacto) */ }
+  // ── CONTINUIDAD · follow-up ejecutivo sobre la última evidencia (la capa LLM/seam consume la continuidad que ADI ya tenía).
+  const _last = context && context.lastEvidence;
+  const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
+  if (_fu) {
+    r = _fu;                                                    // recomendación determinística desde la última evidencia (sin LLM #1)
+  } else {
+    try {
+      const spec = await _fetchSpec(q, scenario);
+      r = answerADIFromSpec(spec, context || {}, { scenario }); // ADI valida + ejecuta/degrada honesto (local)
+    } catch (e) {
+      r = answerADI(q, context || {}, { scenario });            // fallback al piso determinístico (el LLM no manda)
     }
-  } catch (e) {
-    r = answerADI(q, context || {}, { scenario });              // fallback al piso determinístico (el LLM no manda)
+  }
+  // NARRACIÓN LLM #2 · aplica al follow-up Y al spec · sub-flag ADI_LLM_NARRATE_ENABLED (false = parse-only) · PASA por el
+  // number-guard (pickNarratedText): guard OK → narración · guard falla / gateway cae → texto determinístico. Nunca inventa.
+  // buildNarrateSystem elige el prompt: followup → RECOMENDACIÓN · transform → SIMULACIÓN · resto → general.
+  if (ADI_LLM_NARRATE_ENABLED && r && r.text) {
+    try {
+      const narration = await _fetchNarration(r);
+      const picked = pickNarratedText(r, narration);
+      r = { ...r, text: picked.text };
+      narrated = picked.narrated;
+    } catch { /* narración/gateway falló → r queda con el texto determinístico (r.text intacto) */ }
   }
   return _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
 }

@@ -12,7 +12,12 @@ export const NARRATE_GENERAL = "Reformulá la respuesta de ADI (campo `text`) en
 // (la boleta de simulación es estructural-only → una enumeración por entidad es IMPOSIBLE, no solo desaconsejada).
 export const NARRATE_SIMULATION = "Redactá una LECTURA EJECUTIVA de una simulación (un supuesto aplicado sobre el dato real), NO un resumen de tabla. Preservá la TESIS calculada por ADI (campo `text`): el impacto total, la concentración 80/20 y su sentido (amplifica la estructura actual / reparte el impacto). FORMATO OBLIGATORIO: ordená la respuesta en bloques cortos con estos títulos en negrita, máximo 4, cada uno de 1-2 frases: **Lectura** (el impacto total), **Estructura** (el 80/20 y qué amplifica), **Riesgo** (qué queda abierto), **Qué hacer** (el siguiente movimiento). Podés y DEBÉS expandir la implicancia de negocio dentro de esos bloques —qué significa el supuesto, qué prioridad marca, qué riesgo, qué acción— pero SOLO con las cifras de evidence.boleta, verbatim y con su unidad ($, K, M, %): ninguna otra cifra permitida. Podés enumerar esas SECCIONES; NUNCA enumeres entidades, filas ni cifras por entidad (el detalle vive en la tabla de Sentrix). PROHIBIDO: inventar, derivar o calcular números nuevos; usar 'escenario', 'Bonanza', 'Tensión' o 'Crisis' (decí 'supuesto', 'proyección' o 'dato real'); suavizar o cambiar la tesis; frases genéricas de relleno. Que suene MEJOR que la versión determinística, no más genérica. Devolvé SOLO la lectura, sin preámbulos.";
 
-// buildNarrateSystem(evidence) → el system prompt correcto. Simulación = evidence.transform presente.
+// RECOMENDACIÓN · follow-up ejecutivo sobre la última evidencia ("dime qué hacemos"). Decisión primero, breve, desde la boleta.
+export const NARRATE_RECOMMENDATION = "Redactá una RECOMENDACIÓN EJECUTIVA sobre la última proyección: DECISIÓN primero, después el porqué y el siguiente paso. 3 a 5 líneas, directa, como un asesor senior que aconseja qué hacer. Preservá la recomendación de ADI (campo `text`) y hacela más nítida, no más genérica, usando SOLO las cifras de evidence.boleta (verbatim, con su unidad). PROHIBIDO: enumerar entidades/filas/cifras por entidad; inventar o derivar números; usar 'escenario', 'Bonanza', 'Tensión' o 'Crisis' (decí 'supuesto', 'proyección' o 'dato real'); frases genéricas de relleno. Devolvé SOLO la recomendación, sin preámbulos.";
+
+// buildNarrateSystem(evidence) → el system prompt correcto. followup → recomendación · transform → simulación · resto → general.
 export function buildNarrateSystem(evidence) {
-  return (evidence && evidence.transform) ? NARRATE_SIMULATION : NARRATE_GENERAL;
+  if (evidence && evidence.followup) return NARRATE_RECOMMENDATION;
+  if (evidence && evidence.transform) return NARRATE_SIMULATION;
+  return NARRATE_GENERAL;
 }
