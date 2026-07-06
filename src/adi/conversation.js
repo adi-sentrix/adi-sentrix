@@ -119,19 +119,25 @@ function _compareTarget(spec, subject) {
 export function composeCompare(spec, ctx, state) {
   const last = ctx && ctx.last;
   const cmpEnts = (spec && spec.comparison && Array.isArray(spec.comparison.entities)) ? spec.comparison.entities.filter(Boolean) : [];
-  if (!last && cmpEnts.length < 2) return _needLast();                    // sin contexto y sin dos entidades explícitas → honesto
-  const dim = (last && (last.dimension || last.entityType)) || (spec && spec.comparison && spec.comparison.dimension) || (spec && spec.dimension) || null;
+  const dim0 = (last && (last.dimension || last.entityType)) || (spec && spec.comparison && spec.comparison.dimension) || (spec && spec.dimension) || null;
+  // dim a prueba de balas: si el contexto/LLM no trae un eje VÁLIDO, caemos al eje primario (cliente) — la mayoría de las
+  // comparaciones son cliente-vs-cliente. Así el compare NUNCA cae al genérico "unknown-dimension" del seam; si la entidad
+  // no existe en ese eje, el seam degrada HONESTO ("no tengo X"). NADA hardcodeado del dato, sólo el eje por defecto.
+  const dim = (dim0 && ENTITIES[dim0]) ? dim0 : (ENTITIES.cliente ? "cliente" : Object.keys(ENTITIES)[0]);
   const dLabel = (ENTITIES[dim] && ENTITIES[dim].label.sing) || "eje";
   let subject, target;
   if (cmpEnts.length >= 2) { subject = cmpEnts[0]; target = cmpEnts[1]; }  // dos entidades EXPLÍCITAS ('compará A con B')
   else { subject = _lastEntity(last); target = _compareTarget(spec, subject); }  // elíptico: sujeto del contexto, target del LLM
+  // NUNCA el _needLast genérico narrado: un compare-intent SIEMPRE devuelve repregunta CRISP (o compara).
   if (!dim) return _clarify("¿Sobre qué eje comparo? Decime cliente, marca, familia o bodega.");
   const _egs = (excl) => { const xs = sampleEntities(dim, 4).filter((e) => _low(e) !== _low(excl)).slice(0, 3); return xs.length ? xs.join(", ") : null; };
+  const _plur = (ENTITIES[dim] && ENTITIES[dim].label.plur) || `${dLabel}s`;
   if (target && /^(el |la |los |las )?(promedio|media|benchmark|mercado|cartera)$/i.test(String(target).trim())) {
     const eg = _egs(subject); const sj = subject ? `${subject}` : `un ${dLabel}`;
     return _clarify(`El promedio de cartera lo tenés en el panel. Para cruzar puntual, decime contra qué ${dLabel} comparo ${sj}${eg ? ` — ej. ${eg}` : ""}.`);
   }
-  if (!target) { const eg = _egs(subject); const sj = subject ? ` ${subject}` : ""; return _clarify(`¿Contra qué ${dLabel} comparo${sj}?${eg ? ` Puedo cruzarlo contra ${eg} u otro ${dLabel}.` : ""}`); }
+  if (!target && !subject) { const eg = _egs(); return _clarify(`¿Qué dos ${_plur} querés comparar?${eg ? ` Ej: ${eg}.` : ""}`); }
+  if (!target) { const eg = _egs(subject); return _clarify(`¿Contra qué ${dLabel} comparo ${subject}?${eg ? ` Puedo cruzarlo contra ${eg} u otro ${dLabel}.` : ""}`); }
   if (!subject) { const eg = _egs(target); return _clarify(`¿Qué ${dLabel} querés comparar con ${target}?${eg ? ` Puedo cruzar ${target} contra ${eg} u otro ${dLabel}.` : ""}`); }
   const cmpSpec = {
     schemaVersion: 1, operation: "compare",

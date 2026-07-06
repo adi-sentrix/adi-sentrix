@@ -101,6 +101,22 @@ async function _narrateResult(r) {
   } catch { return { r, narrated: false }; }
 }
 
+// SAFETY NET determinístico del COMPARE (no depender de la clasificación variable del LLM #1 · owner 2026-07-06): si el
+// texto pide comparar ('compará/compáralo/versus/vs/contra X'), forzamos operation=compare + turn_type=followup_compare y,
+// si el LLM no puso el target, lo extraemos del texto ('… con/contra X'). El sujeto lo resuelve composeCompare del contexto.
+const _CMP_INTENT_RE = /\b(compar[aá]\w*|compár\w*|comparemos|versus|vs\.?)\b|\bcontra\s+\p{L}/iu;
+function _coerceCompare(q, spec) {
+  if (!q || !spec || !_CMP_INTENT_RE.test(q)) return spec;
+  const s = { ...spec, operation: "compare", turn_type: "followup_compare" };
+  const ents = (s.comparison && Array.isArray(s.comparison.entities)) ? s.comparison.entities.filter(Boolean) : [];
+  if (!ents.length) {
+    const m = q.match(/\b(?:con|contra|versus|vs\.?)\s+(.+?)\s*[?.!¡¿]*$/i);
+    const t = m && m[1] && m[1].trim();
+    s.comparison = { ...(s.comparison || {}), entities: t ? [t] : [] };
+  }
+  return s;
+}
+
 export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
   const q = (question || "").trim();
   let r, narrated = false;
@@ -108,7 +124,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence);   // contexto chico para el LLM #1
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
-    r = answerConversational(spec, context || {}, { scenario }); // rutea por turn_type · el seam valida/degrada honesto (local)
+    r = answerConversational(_coerceCompare(q, spec), context || {}, { scenario }); // compare-intent forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;
@@ -247,7 +263,7 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   const isSim = !!(evidence && evidence.transform);
   const isCuadro = !!(evidence && evidence.lens === "cuadro" && !evidence.reading);
   const isDiagnose = !!(evidence && Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico
-  const isCompare = !!(evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB) && !evidence.reading);   // A vs B → panel Comparación
+  const isCompare = !!(evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB));   // A vs B → panel Comparación (aunque traiga reading del motor)
   if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare) || !onOpenEvidence) return null;
   return (
     <div style={{ marginLeft:44, marginTop:2 }}>
@@ -368,6 +384,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const [pendingId, setPendingId] = useState(null); // id del mensaje ADI animándose (typewriter)
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const idRef = useRef(0);
+  const ctxRef = useRef(context);   // SIEMPRE el contexto más reciente (evita la stale-closure de React en el camino LLM async · threading de lastEvidence)
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
 
@@ -383,6 +400,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
 
   // aplica el estado de un turno YA resuelto (idéntico para piso y LLM)
   const _applyTurn = (turn, adiId) => {
+    ctxRef.current = turn.context;   // sincrónico · el próximo turno LLM lo lee del ref (no de la closure, que puede estar stale)
     setContext(turn.context);
     if (animate) { setPendingId(adiId); setSuggestionsVisible(false); }
     else { setPendingId(null); setSuggestionsVisible(true); }
@@ -399,7 +417,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       const adiId = ++idRef.current;
       setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
       setSuggestionsVisible(false);
-      buildAdiTurnLLM(q, context, scenario, messages).then((turn) => {   // messages = historial previo → conversationContext
+      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messages).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
       });

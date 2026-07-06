@@ -42,7 +42,8 @@ const rMeta = AC(S({ turn_type: "meta_question", meta: "real_o_supuesto" }), { l
 ok("7 · meta real/supuesto → honesto ('es un supuesto…')", /supuesto/i.test(rMeta.text) && /dato real/i.test(rMeta.text) && rMeta.route === "meta_question");
 
 // ── V1 · followup_compare repregunta ESPECÍFICO cuando falta sujeto/target (last general · sin adivinar) ───────────
-ok("8 · compare sin target (last general) → repregunta por el target", /contra qu[eé] cliente/i.test(AC(S({ turn_type: "followup_compare" }), { lastEvidence: LAST }, {}).text));
+ok("8 · compare sin target ni sujeto (last general) → repregunta CRISP '¿qué dos clientes?' (no _needLast genérico)",
+  (() => { const r = AC(S({ turn_type: "followup_compare" }), { lastEvidence: LAST }, {}); return /qu[eé] dos clientes/i.test(r.text) && !/no tengo una lectura/i.test(r.text) && r.route === "clarification_needed"; })());
 ok("9 · compare con target pero last general (sin sujeto) → repregunta CRISP con opciones concretas (no vaga)",
   (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST }, {}); return /comparar con Lider/i.test(r.text) && /u otro cliente|Puedo cruzar/i.test(r.text) && !/tienes algunos|podr[ií]amos hacer un an[aá]lisis/i.test(r.text) && r.route === "clarification_needed"; })());
 

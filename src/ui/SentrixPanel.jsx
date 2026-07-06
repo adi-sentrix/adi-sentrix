@@ -648,6 +648,10 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
 }
 
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
+  // COMPARACIÓN · tiene PRIORIDAD sobre el shell de reading: el compare del motor trae `reading` además de `pairs`, pero
+  // la evidencia de lo que ADI afirma ("X factura más, Y capta mejor margen") es la tabla A vs B, no la lente de una entidad.
+  if (evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB))
+    return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
   const baseRd = evidence && evidence.reading;
   const baseFocus = baseRd && baseRd.focus;
   const mkBase = (r) => ({ focusType: r.focusType, focus: r.focus, metric: "margen", compareWith: null });
