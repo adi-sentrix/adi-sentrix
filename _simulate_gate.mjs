@@ -44,5 +44,14 @@ ok("13 · sin transform → ruta normal, NO simula (sin evidence.transform)", !(
 // ── 4 · base = real (no escenario) ───────────────────────────────────────────────
 ok("14 · la boleta declara base real ('...sobre el dato real')", bol.some((f) => /sobre el dato real/.test(f.context || "")));
 
+// ── 5 · COHERENCIA narración ⟷ Sentrix (criterio duro del owner): la cifra que ADI NARRA (opener) = el blockPct de
+//    evidence.concentration = el Acum% del corte (última fila del bloque) = la figura de la boleta. UNA sola fuente →
+//    lo que Sentrix pinta (callout + Acum%) NO puede divergir de lo que ADI dice. "No hay cifra narrativa sin respaldo."
+const _cc = cs.evidence.concentration;
+const _lastCum = Math.round(_cc.bars[_cc.blockCount - 1].cumPct);
+const _openerPct = (cs.opener.match(/explican el (\d+)%/) || [])[1];
+ok("15 · coherencia: narración% === concentration.blockPct === Acum% del corte === boleta",
+  _cc.blockPct === _lastCum && String(_cc.blockPct) === _openerPct && cs.evidence.boleta.some((f) => /Concentración/.test(f.label) && f.value === `${_cc.blockPct}%`));
+
 console.log(`\n── simulate-gate: ${pass} PASS · ${fail} FAIL ──`);
 process.exit(fail ? 1 : 0);
