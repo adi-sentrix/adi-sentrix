@@ -25,6 +25,8 @@ const cases = [
   { n: "5d · 'Estuve analizando la información y detecté que'", in: "Estuve analizando la información y detecté que Falabella cede $1.6M.", out: "Falabella cede $1.6M." },
   { n: "5e · flow3: 'Estuve revisando los números de X y hay…' (ancla en 'los números de')", in: "Estuve revisando los números de Falabella y hay un par de cosas que afectan tu margen. Primero, $1.6M en Falabella.", out: "Hay un par de cosas que afectan tu margen. Primero, $1.6M en Falabella." },
   { n: "5f · 'He estado analizando la situación y detecté que'", in: "He estado analizando la situación y detecté que Falabella pierde $1.6M.", out: "Falabella pierde $1.6M." },
+  { n: "5f2 · 'He estado revisando TUS números y hay…' (variante tus/mis/sus)", in: "He estado revisando tus números y hay tres áreas donde se te va plata. Primero, $4.9M.", out: "Hay tres áreas donde se te va plata. Primero, $4.9M." },
+  { n: "5f3 · 'Revisé tus cifras y encontré que'", in: "Revisé tus cifras y encontré que el capital dormido suma $33K.", out: "El capital dormido suma $33K." },
   { n: "5g · 'Claramente, estos datos indican que' encadenado al inicio", in: "Claramente, estos datos indican que se debe actuar en Falabella.", out: "Se debe actuar en Falabella." },
   { n: "5h · 'Claramente,' + 'estos datos indican que' mid-texto", in: "Falabella pierde $1.6M. Claramente, estos datos indican que hay que actuar.", out: "Falabella pierde $1.6M. Hay que actuar." },
   // 2 · muletillas conectoras mid-texto

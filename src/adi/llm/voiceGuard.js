@@ -13,7 +13,7 @@ const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 // abre así (sólo la muletilla de informe). Consume hasta el hallazgo (deja "hay un par de cosas…"/"tres áreas…") y, si
 // sigue un verbo de hallazgo + "que", lo consume. No toca cifras.
 const _REVIEW_VERB = String.raw`(?:revis\p{L}+|analiz\p{L}+|analic\p{L}+|mir\p{L}+|examin\p{L}+|repas\p{L}+|estudi\p{L}+|evalu\p{L}+)`;
-const _DATA_OBJ = String.raw`(?:tus\s+datos|la\s+informaci[oó]n|los\s+datos|la\s+data|los\s+n[uú]meros|las\s+cifras|el\s+detalle|la\s+situaci[oó]n|el\s+negocio|la\s+cartera|el\s+panorama|tu\s+(?:cartera|negocio|informaci[oó]n))`;
+const _DATA_OBJ = String.raw`(?:(?:tus|los|las|mis|sus)\s+(?:datos|n[uú]meros|cifras)|la\s+(?:informaci[oó]n|data|situaci[oó]n|cartera)|el\s+(?:detalle|negocio|panorama)|tu\s+(?:cartera|negocio|informaci[oó]n|data))`;
 const _FOUND_VERB = String.raw`(?:encontr\p{L}+|detect\p{L}+|not\p{L}+|identific\p{L}+|hall\p{L}+|vist\p{L}+|observ\p{L}+|cuent\p{L}+|ve\p{L}*)`;
 const REVIEW_PREAMBLE = new RegExp(
   String.raw`^\s*(?:tras\s+|luego\s+de\s+|despu[eé]s\s+de\s+)?(?:he\s+|hemos\s+|estuve\s+|estoy\s+|estuvimos\s+)?(?:estado\s+)?` +
