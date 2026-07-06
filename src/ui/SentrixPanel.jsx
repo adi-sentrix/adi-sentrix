@@ -647,6 +647,75 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
   );
 }
 
+// ContribucionPanel · FOCO CONTRIBUCIÓN (owner 2026-07-06) · pareto (quién sostiene · 80/20 con acumulado) · gap
+// (contribución no capturada · plata sobre la mesa) · rank (top por contribución). Respalda el texto de ADI.
+function ContribucionPanel({ evidence, onClose, onToggleMax, maximized }) {
+  const p = (evidence && evidence.contribucion && evidence.contribucion.panel) || {};
+  const kind = p.kind, rows = p.rows || [];
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  const maxV = Math.max(1, ...rows.map((r) => Math.abs(r.val != null ? r.val : (r.part || 0))));
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>CONTRIBUCIÓN</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
+          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Contribución"}</div>
+          {kind === "pareto" ? <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.green}>{p1(p.totalPct)}%</Num> en {p.cutoff}/{p.of}</div>
+            : p.headline ? <div style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{p.headline}</div> : null}
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
+        {kind === "pareto" && (
+          <div>
+            <div style={{ ...head, marginBottom:11, display:"flex", justifyContent:"space-between" }}><span>Contribución acumulada</span><span style={{ textTransform:"none", letterSpacing:0, color:C.green }}>corte 80%</span></div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {rows.map((r, i) => { const inTop = i < p.cutoff; return (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:9 }}>
+                  <span style={{ fontSize:12, color: inTop ? C.textSub : C.textMuted, width:104, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ width:`${Math.max(2, r.part / maxV * 100)}%`, height:"100%", background: inTop ? C.blue : "rgba(255,255,255,0.2)", opacity:0.85 }}/>
+                  </div>
+                  <span style={{ fontFamily:MONO, fontSize:11.5, color: inTop ? C.text : C.textMuted, width:52, textAlign:"right", flexShrink:0 }}>{r.valFmt}</span>
+                  <span style={{ fontFamily:MONO, fontSize:10.5, color: r.acum <= 80 ? C.green : C.textMuted, width:42, textAlign:"right", flexShrink:0 }}>{p1(r.acum)}%</span>
+                </div>
+              ); })}
+            </div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:11 }}>Azul = las cuentas que hacen el 80% de tu contribución (las de arriba del corte). La última columna es el acumulado. Cifras de dato real.</div>
+          </div>
+        )}
+        {(kind === "gap" || kind === "rank") && (
+          <div>
+            <div style={{ ...head, marginBottom:11 }}>{kind === "gap" ? "Plata sobre la mesa, por cliente" : "Contribución, por cuenta"}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+              {rows.map((r, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:12, color: r.hi ? C.text : C.textSub, fontWeight: r.hi ? 600 : 400, width:118, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <div style={{ flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ width:`${Math.max(2, Math.abs(r.val || 0) / maxV * 100)}%`, height:"100%", background: kind === "gap" ? C.amber : (r.hi ? C.violet : C.blue), opacity:0.85 }}/>
+                  </div>
+                  <span style={{ fontFamily:MONO, fontSize:12, color:C.text, fontVariantNumeric:"tabular-nums", width:60, textAlign:"right", flexShrink:0 }}>{r.valFmt}</span>
+                  {r.sub ? <span style={{ fontFamily:MONO, fontSize:10.5, color:C.textMuted, width:42, textAlign:"right", flexShrink:0 }}>{r.sub}</span> : null}
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>{kind === "gap" ? "Ámbar = contribución no capturada (si el margen llegara al benchmark). Cifras de dato real." : "Contribución en $ por cuenta, ordenada. Cifras de dato real."}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // VentasPanel · FOCO VENTAS (owner 2026-07-06) · se adapta al foco: movers (quién tracciona/resta vs plan o YoY) ·
 // decomp (el crecimiento partido en volumen vs precio · el separador ADI-vs-BI) · mix (participación de familias) ·
 // rank (SKU por venta). Respalda el texto de ADI. Los $ ya vienen formateados (valFmt) desde el composer (escala ×1000).
@@ -958,6 +1027,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // VENTAS · movers/decomp/mix/rank = la evidencia del foco de ventas.
     if (evidence && evidence.ventas && evidence.ventas.panel && (evidence.ventas.panel.kind === "decomp" || (Array.isArray(evidence.ventas.panel.rows) && evidence.ventas.panel.rows.length)))
       return <VentasPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // CONTRIBUCIÓN · pareto (80/20) / gap (no capturada) / rank = la evidencia del foco de contribución.
+    if (evidence && evidence.contribucion && evidence.contribucion.panel && Array.isArray(evidence.contribucion.panel.rows) && evidence.contribucion.panel.rows.length)
+      return <ContribucionPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
       return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     return null;

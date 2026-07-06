@@ -14,6 +14,7 @@ import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de v
 import { detectInventoryFocus } from "../adi/inventoryFocus.js";   // "la pregunta manda el foco" (frenado/quiebre/sobrestock/stale)
 import { detectMarginFocus } from "../adi/marginFocus.js";         // idem margen (rompe la trampa todo→diagnose genérico)
 import { detectVentasFocus } from "../adi/ventasFocus.js";         // idem ventas (vs ppto/YoY/descomposición/mix + huecos honestos)
+import { detectContribucionFocus } from "../adi/contribucionFocus.js";   // idem contribución (concentración 80/20 · origen · no capturada)
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -134,8 +135,22 @@ function _coerceCompare(q, spec) {
 // SAFETY NET del FOCO VENTAS (owner 2026-07-06): corre ANTES que margen/inventario pero CEDE a ellos (detectVentasFocus
 // devuelve isVentas:false ante quiebre/stock, y margen/inventario -que corren después- reclaman lo suyo). No toca
 // dives/compares de entidad puntual. Rompe la trampa "todo→diagnose genérico" ruteando al foco de ventas o al hueco honesto.
+// SAFETY NET del FOCO CONTRIBUCIÓN (owner 2026-07-06 · 4º dominio): corre PRIMERO (su palabra "contribución" es el
+// disparador más específico) para que "venta"/"margen" dentro de una pregunta de contribución no la roben ventas/margen.
+function _coerceContribucion(q, spec) {
+  if (!q || !spec || spec.operation === "compare") return spec;
+  const c = detectContribucionFocus(q);
+  if (!c.isContrib) return spec;
+  const s = { ...spec, operation: "contribucion", metric: "contribucion", dimension: c.dimension || "cliente",
+    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
+  if (c.focus) s.focus = c.focus;
+  if (c.entity) s.entity = c.entity;
+  if (s.transform) delete s.transform;
+  return s;
+}
+
 function _coerceVentas(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "margin" || spec.entity) return spec;
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "margin" || spec.operation === "contribucion" || spec.entity) return spec;
   const v = detectVentasFocus(q);
   if (!v.isVentas) return spec;
   const s = { ...spec, operation: "ventas", metric: "ventas", dimension: v.dimension || "cliente",
@@ -148,7 +163,7 @@ function _coerceVentas(q, spec) {
 }
 
 function _coerceMargin(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.entity) return spec;
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "contribucion" || spec.entity) return spec;
   const m = detectMarginFocus(q);
   if (!m.isMargin) return spec;
   const s = { ...spec, operation: "margin", metric: "margen", dimension: m.dimension || "cliente",
@@ -162,7 +177,7 @@ function _coerceMargin(q, spec) {
 }
 
 function _coerceInventory(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas") return spec;
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
   const inv = detectInventoryFocus(q);
   if (!inv.isInventory) return spec;
   const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";
@@ -191,7 +206,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
     const _hasLast = !!(context && context.lastEvidence);
-    r = answerConversational(_coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceCompare(q, spec)))), _hasLast), context || {}, { scenario }); // foco compare→margen→ventas→inventario forzado (ventas cede el dominio inventario vía INV_INTENT; sucursal-primaria la reclama ventas) · el seam valida/degrada honesto
+    r = answerConversational(_coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, _coerceCompare(q, spec))))), _hasLast), context || {}, { scenario }); // foco compare→contribución→margen→ventas→inventario (contribución primero: su palabra es la más específica) · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;
@@ -335,7 +350,8 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   const isMargin = !!(evidence && evidence.margin && evidence.margin.panel && Array.isArray(evidence.margin.panel.rows) && evidence.margin.panel.rows.length);   // margen vs benchmark → panel Margen
   const _vp = evidence && evidence.ventas && evidence.ventas.panel;
   const isVentas = !!(_vp && (_vp.kind === "decomp" || (Array.isArray(_vp.rows) && _vp.rows.length)));   // movers/decomp/mix/rank → panel Ventas
-  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas) || !onOpenEvidence) return null;
+  const isContrib = !!(evidence && evidence.contribucion && evidence.contribucion.panel && Array.isArray(evidence.contribucion.panel.rows) && evidence.contribucion.panel.rows.length);   // pareto/gap/rank → panel Contribución
+  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas && !isContrib) || !onOpenEvidence) return null;
   return (
     <div style={{ marginLeft:44, marginTop:2 }}>
       <button
@@ -352,7 +368,7 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
         </svg>
-        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
+        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isContrib ? "Ver la contribución en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
       </button>
     </div>
   );

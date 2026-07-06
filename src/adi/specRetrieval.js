@@ -11,7 +11,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
-import { diagnoseInventario, diagnoseClientes, diagnoseSkus } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU · UNA verdad
+import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
 import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas } from "../data/demoData.js";   // ventas con YoY+ppto (marca/familia NO están en el contrato → carga directa)
 import { skusMargen as _skusM } from "../data/skusMargen.js";   // SKU: venta+unidades (sin anterior/ppto)
 import { ventasKPI as _vKPI } from "../data/baseKpis.js";       // totales de cartera (100K vs 92.9K vs 97K)
@@ -846,6 +846,119 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
   if (!block) return null;
   return { opener: block.lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions, sentrixAction: null,
     evidence: { lens: "ventas", metrica: "ventas", dimension: dim, boleta: block.bol, ventas: { focus, dimension: dim, panel: block.panel || null } } };
+}
+
+/* ── composeSpecContribucion · FOCO CONTRIBUCIÓN (owner 2026-07-06 · "la pregunta manda el foco") ────────────
+ * 4º dominio. Contribución = el $ que aporta cada entidad (distinto del margen %). Conceptos propios: concentración 80/20
+ * (quién la sostiene), origen (volumen vs calidad · reusa origenContribucion del motor), no capturada (gap vs benchmark ≈
+ * el $4.9M del resumen), alta-venta-baja-contribución. Reusa _marginRows (mismas fuentes) + diagnoseClientes + concentracion.
+ * Escala ×1000 (_mVenta) consistente con el resumen. Corre ANTES de margen/ventas (evita que "venta"/"margen" lo secuestren). */
+const _ORIGEN_TXT = { volumen: "del VOLUMEN — es una cuenta grande, pero con margen bajo el promedio (plata por tamaño, no por calidad)", calidad: "de la CALIDAD — buen margen, aunque no sea la cuenta más grande", mix_balanceado: "de un mix equilibrado — buen tamaño y buen margen a la vez", bajo_impacto: "de poco — ni el volumen ni el margen la sostienen" };
+
+export function composeSpecContribucion({ filters = {}, scenario, focus = "rank", dimension = "cliente", entity = null } = {}) {
+  const dim = _MLBL[dimension] ? dimension : "cliente";
+  const L = _MLBL[dim];
+  const rows = _scopeRows(_marginRows(dim, scenario), filters).filter((r) => typeof r.contribucion === "number");
+  if (!rows.length) return null;
+  const bench = _benchOf(rows[0]);
+  const totC = rows.reduce((a, r) => a + (r.contribucion || 0), 0) || 1;
+  const _ctx = "contribución";
+  const dc = dim === "cliente" ? diagnoseClientes(_cVentas, _marginRows("cliente", scenario)) : {};
+  const _share = (c) => +(c / totC * 100).toFixed(1);
+  let lines = [], suggestions = [], bol = [], panel = null;
+
+  if (focus === "concentracion") {
+    const con = concentracion(rows.map((r) => ({ nombre: _mNombre(r), valor: r.contribucion })), 0.8);
+    const restN = rows.length - con.cantidadEntidades, restPct = +(100 - con.totalCubiertoPct).toFixed(1);
+    const sorted = rows.slice().sort((a, b) => b.contribucion - a.contribucion);
+    let acc = 0; const prows = sorted.map((r) => { acc += r.contribucion; return { nombre: _mNombre(r), valFmt: _mVenta(r.contribucion), part: _share(r.contribucion), acum: +(acc / totC * 100).toFixed(1) }; });
+    lines = [
+      `El ${_p1(con.totalCubiertoPct)}% de tu contribución la sostienen ${con.cantidadEntidades} de ${rows.length} ${L.p}: ${con.entidades.slice(0, 4).map((e) => `${e.nombre} (${_p1(e.participacionPct)}%)`).join(" · ")}.`,
+      restN > 0 ? `El resto (${restN} ${L.p}) aporta apenas el ${_p1(restPct)}%.` : "",
+      `**Qué significa:** tu contribución está ${con.cantidadEntidades <= rows.length / 2 ? "concentrada en pocas cuentas" : "bastante repartida"} — cuidar a esas ${con.cantidadEntidades} es prioridad, perder una pega directo en la plata.`,
+    ];
+    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${L.s} · ${e.nombre} contribución`, _mVenta(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: _ctx }));
+    panel = { kind: "pareto", title: "Quién sostiene la contribución", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rows.length, rows: prows };
+    suggestions = ["De dónde viene esa contribución", "Cuánta contribución no capturo"];
+  } else if (focus === "no_capturada") {
+    // MISMA verdad que el diagnóstico del resumen (~$4.9M): venta(clientesVentas.actual)×benchmark/100 − contribución, con
+    // los gates de materialidad (≥4pp bajo benchmark · ≥ piso $). Cliente-level (donde vive el gap). `gap` ya está en $ real.
+    const vBy = {}; for (const v of _cVentas) vBy[v.nombre] = v;
+    const mRows = _marginRows("cliente", scenario);
+    const withGap = [];
+    for (const r of mRows) {
+      const v = vBy[r.nombre]; if (!v || typeof v.actual !== "number") continue;
+      const bmk = _benchOf(r), mg = r.margen, cb = r.contribucion;
+      if (typeof mg !== "number" || typeof cb !== "number" || (bmk - mg) < _DIAG_MARGIN_GAP) continue;
+      const usd = Math.round(((v.actual * bmk / 100) - cb) * 1000);
+      if (usd >= _DIAG_FLOOR_USD) withGap.push({ nombre: r.nombre, gap: usd, margen: mg });
+    }
+    withGap.sort((a, b) => b.gap - a.gap);
+    const totalGap = withGap.reduce((a, r) => a + r.gap, 0);
+    lines = [
+      `Estás dejando ${_money(totalGap)} de contribución sobre la mesa: es lo que sumarías si los ${withGap.length} clientes materiales que hoy están bajo el benchmark (${_p1(bench)}%) llegaran al piso.`,
+      `Los que más dejan: ${withGap.slice(0, 4).map((r) => `${r.nombre} (${_money(r.gap)}, margen ${_p1(r.margen)}%)`).join(" · ")}.`,
+      `**Por qué:** es la brecha entre lo que vendés y lo que rinde — no es una pérdida contable, es contribución que el margen delgado te deja capturar.`,
+      `**Qué hacer:** cada punto de margen recuperado en los de mayor venta es la palanca más directa sobre esta plata.`,
+    ];
+    for (const r of withGap.slice(0, 4)) bol.push(fig(`${L.s} · ${r.nombre} no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
+    panel = { kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => ({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) })) };
+    suggestions = ["Quién sostiene la contribución", "Es por precio o por costo"];
+  } else if (focus === "origen") {
+    if (entity && dc[entity]) {
+      const d = dc[entity], r = rows.find((x) => _mNombre(x) === entity);
+      lines = [
+        `La contribución de ${entity}${r ? ` (${_mVenta(r.contribucion)}, ${_share(r.contribucion)}% del total)` : ""} viene ${_ORIGEN_TXT[d.origenContribucion] || "de una mezcla de factores"}.`,
+        `${d.razon}`,
+        `**Qué mirar:** ${d.origenContribucion === "volumen" ? "crece por tamaño, no por rentabilidad — subir su margen aunque sea un punto rinde mucho por el volumen que mueve" : d.origenContribucion === "calidad" ? "aporta por calidad de venta — el upside está en ganarle volumen sin resignar ese margen" : "conviene sostener el equilibrio y empujar donde haya espacio"}.`,
+      ];
+      if (r) bol.push(fig(`${L.s} · ${entity} contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: true, context: _ctx }));
+      panel = { kind: "rank", title: `Contribución · contexto de ${entity}`, rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => ({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion), hi: _mNombre(x) === entity })) };
+    } else {
+      const byO = {}; for (const r of rows) { const d = dc[_mNombre(r)]; if (d) { (byO[d.origenContribucion] = byO[d.origenContribucion] || { c: 0, names: [] }); byO[d.origenContribucion].c += r.contribucion; byO[d.origenContribucion].names.push(_mNombre(r)); } }
+      const ord = Object.entries(byO).sort((a, b) => b[1].c - a[1].c);
+      const dom = ord[0];
+      lines = [
+        `Tu contribución viene sobre todo ${_ORIGEN_TXT[dom[0]] ? _ORIGEN_TXT[dom[0]].split(" — ")[0] : "del volumen"}: ${dom[1].names.slice(0, 3).join(", ")} pesan ${_mVenta(dom[1].c)} (${_share(dom[1].c)}%).`,
+        ord[1] ? `Del lado ${ord[1][0] === "calidad" ? "de la calidad (margen alto)" : ord[1][0]}: ${ord[1][1].names.slice(0, 3).join(", ")} (${_mVenta(ord[1][1].c)}).` : "",
+        `**Qué mirar:** si la contribución depende del volumen (cuentas grandes, margen bajo), es más frágil — un punto de margen ahí es la mayor palanca.`,
+      ];
+      panel = { kind: "rank", title: "Contribución por cliente", rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => ({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion) })) };
+    }
+    suggestions = ["Quién sostiene la contribución", "Cuánta contribución no capturo"];
+  } else if (focus === "alta_venta_baja_contribucion") {
+    const wd = rows.map((r) => ({ nombre: _mNombre(r), venta: r.venta, contribucion: r.contribucion, margen: r.margen, patron: dc[_mNombre(r)] && dc[_mNombre(r)].patron }));
+    const altoVol = wd.filter((r) => r.patron === "alto_volumen_bajo_margen").sort((a, b) => (b.venta || 0) - (a.venta || 0));
+    const buenM = wd.filter((r) => r.patron === "buen_margen_baja_contribucion").sort((a, b) => (b.margen || 0) - (a.margen || 0));
+    const lead = altoVol.length ? altoVol : wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).filter((r) => _share(r.contribucion) < 100 / rows.length).slice(0, 3);
+    lines = [
+      `Venden mucho pero su contribución no acompaña el tamaño: ${lead.slice(0, 3).map((r) => `${r.nombre} (${_mVenta(r.venta)} de venta, ${_mVenta(r.contribucion)} de contribución a ${_p1(r.margen)}%)`).join(" · ")}.`,
+      lead[0] ? `${lead[0].nombre} es el caso más caro: factura mucho pero a margen ${_p1(lead[0].margen)}%, así que aporta menos plata de la que su volumen sugiere.` : "",
+      buenM.length ? `Del otro lado, ${buenM.slice(0, 2).map((r) => `${r.nombre} (${_p1(r.margen)}% margen)`).join(" y ")} tienen buen margen pero aportan poco — por tamaño chico, no por calidad.` : "",
+      `**Qué hacer:** en los de alto volumen y bajo margen, un punto de margen es la mayor palanca; en los de buen margen y poco tamaño, el upside es ganarles volumen.`,
+    ];
+    for (const r of lead.slice(0, 3)) bol.push(fig(`${L.s} · ${r.nombre} contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
+    panel = { kind: "rank", title: "Venta vs contribución", rows: wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, 8).map((r) => ({ nombre: r.nombre, val: r.contribucion, valFmt: _mVenta(r.contribucion), sub: `${_p1(r.margen)}%` })) };
+    suggestions = ["De dónde viene la contribución", "Cuánta contribución no capturo"];
+  } else {   // rank
+    const sorted = rows.slice().sort((a, b) => b.contribucion - a.contribucion);
+    lines = [
+      `Los ${L.p} que más aportan a la contribución: ${sorted.slice(0, 5).map((r) => `${_mNombre(r)} (${_mVenta(r.contribucion)}, ${_share(r.contribucion)}%)`).join(" · ")}.`,
+      `Entre los primeros ${Math.min(3, sorted.length)} juntan ${_mVenta(sorted.slice(0, 3).reduce((a, r) => a + r.contribucion, 0))} de los ${_mVenta(totC)} totales.`,
+      `**Qué mirar:** son las cuentas que hay que blindar; si querés ver qué tan concentrada está, mirá el 80/20.`,
+    ];
+    for (const r of sorted.slice(0, 5)) bol.push(fig(`${L.s} · ${_mNombre(r)} contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
+    panel = { kind: "rank", title: `Contribución por ${L.s}`, rows: sorted.slice(0, 8).map((r) => ({ nombre: _mNombre(r), val: r.contribucion, valFmt: _mVenta(r.contribucion) })) };
+    suggestions = ["Quién sostiene la contribución", "De dónde viene la contribución"];
+  }
+
+  bol.push(fig("Contribución total", _mVenta(totC), { unit: "money", raw: totC * 1000, mandatory: false, context: _ctx }));
+  return {
+    opener: lines.filter(Boolean).join("\n\n"),
+    suggestions,
+    sentrixAction: null,
+    evidence: { lens: "contribucion", metrica: "contribucion", dimension: dim, boleta: bol, contribucion: { focus, dimension: dim, panel } },
+  };
 }
 
 /* ── composeSpecSimulate · SIMULACIÓN = un SUPUESTO aplicado sobre el dato REAL (base única = real) ─────────────

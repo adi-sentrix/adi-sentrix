@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · inventory · margin · ventas · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · inventory · margin · ventas · contribucion · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -38,7 +38,7 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
 }
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "ventas", "why", "recommend", "explain_availability", "table"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "ventas", "contribucion", "why", "recommend", "explain_availability", "table"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -196,7 +196,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   //     cross-eje · inventory es HOLÍSTICO — composeSpecInventory usa el motor sellado, no retrieval por eje, y responde
   //     "la pregunta manda el foco" por SKU/bodega/familia con UNA sola verdad, así que capital@familia NO debe bloquear) ──
   const axes = (METRICS[spec.metric] && METRICS[spec.metric].axes) || [];
-  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && spec.operation !== "margin" && spec.operation !== "ventas" && !axes.includes(spec.dimension))
+  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && spec.operation !== "margin" && spec.operation !== "ventas" && spec.operation !== "contribucion" && !axes.includes(spec.dimension))
     return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);
 
   // ── #5 · filtros válidos (clave = una dimensión conocida) ──
@@ -405,6 +405,18 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         return _degrade("ventas-empty", `No pude armar la lectura de ventas para ese corte. Te puedo mostrar la venta vs presupuesto o vs el año anterior por cliente.`, [], ctx);
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       if (r && r.evidence && resp.evidence && resp.evidence.ventas) r.evidence = { ...r.evidence, ventas: resp.evidence.ventas, lens: "ventas" };
+      return r;
+    }
+
+    // FOCO CONTRIBUCIÓN (owner 2026-07-06 · "la pregunta manda el foco"): concentración 80/20 · origen (volumen vs calidad) ·
+    // no capturada · alta-venta-baja-contribución · rank. El motor ya tiene las piezas (concentracion/origenContribucion);
+    // acá se rutean en vez de caer al genérico. Rompe la trampa "todo→diagnose" para las preguntas de contribución.
+    if (spec.operation === "contribucion") {
+      const resp = composeSpecContribucion({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, entity: spec.entity });
+      if (!resp || !resp.opener)
+        return _degrade("contribucion-empty", `No pude armar la lectura de contribución para ese corte. Te puedo mostrar quién sostiene la contribución o el ranking por cliente.`, [], ctx);
+      const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
+      if (r && r.evidence && resp.evidence && resp.evidence.contribucion) r.evidence = { ...r.evidence, contribucion: resp.evidence.contribucion, lens: "contribucion" };
       return r;
     }
 
