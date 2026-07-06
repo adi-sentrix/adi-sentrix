@@ -442,10 +442,11 @@ export function composeFollowupRecommendation(evidence) {
   bol.push(fig("Supuesto %", `${Math.abs(pct)}%`, { unit: "pct", raw: Math.abs(pct), context: _ctx, source: "computed", formula: "supuesto aplicado sobre el dato real" }));
   if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, context: _ctx, source: "computed", formula: `${blockCount} ${plural} acumulan el ${blockPct}%` }));
   return {
-    opener, suggestions: null, sentrixAction: null,
+    text: opener, suggestions: null, sentrixAction: null,   // `text` (shape finalizado que consume la UI · NO `opener`)
     // followup:true → narrate usa el prompt de RECOMENDACIÓN · transform → guard scoped (scrub escenario) · SIN projection/lens
-    // (no reabre panel ni muestra botón) · SIN cifras por entidad (enumeración imposible).
-    evidence: { followup: true, transform: t, boleta: bol, metrica: metric, metricLabel: evidence.metricLabel, dimLabel: evidence.dimLabel, dimension: evidence.dimension, structural: st },
+    // (no reabre panel ni muestra botón) · SIN cifras por entidad (enumeración imposible). Lleva structural+concentration
+    // para que un explain/meta encadenado siga teniendo el porqué a mano.
+    evidence: { followup: true, transform: t, boleta: bol, metrica: metric, metricLabel: evidence.metricLabel, dimLabel: evidence.dimLabel, dimension: evidence.dimension, structural: st, concentration: con },
     route: "followup_recommendation",
   };
 }
