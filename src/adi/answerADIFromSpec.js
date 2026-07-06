@@ -141,6 +141,15 @@ function _scrubScenario(text) {
 export function answerADIFromSpec(spec, context = {}, state = {}) {
   const r = _answerADIFromSpecImpl(spec, context, state);
   if (r && typeof r.text === "string") r.text = _scrubScenario(r.text);
+  // SENTRIX · overview/rank/diagnose (evidencia de DIMENSIÓN · sin reading/transform/followup) → abren el CUADRO de la
+  // cartera (owner 2026-07-06). El camino LLM no cableaba esto (solo dive→shell e inventario→cuadro lo hacían) → el
+  // usuario no veía la evidencia. El CuadroOnlyPanel es genérico (carga la grilla por entityType). Post-proceso del seam:
+  // NO toca el motor/composers ni la vía determinística · el spec_gate valida rutas, no lens.
+  const e = r && r.evidence;
+  const _op = spec && spec.operation, _dim = (e && e.dimension) || (spec && spec.dimension) || null;
+  if (e && _dim && !e.reading && !e.transform && !e.followup && e.lens !== "cuadro" && (_op === "overview" || _op === "rank" || _op === "diagnose")) {
+    r.evidence = { ...e, lens: "cuadro", dimension: _dim, entityType: e.entityType || _dim };
+  }
   return r;
 }
 
