@@ -284,6 +284,61 @@ export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
 const _SIMULABLE_DELTA_PCT = new Set(["ventas", "contribucion", "capital"]);
 const _sgn = (v) => (v >= 0 ? "+" : "");
 
+// ── VEREDICTO DE CALIDAD (B · owner 2026-07-06): juzga el BLOQUE 80% contra DOS niveles — promedio INTERNO (cartera,
+//    siempre disponible) + benchmark DECLARADO (POLICY · NUNCA inventado). Graduado: coinciden → fuerte · difieren →
+//    mixto. Si no hay cruce/benchmark → "sin_benchmark" honesto. El LLM NO juzga: ADI calcula, el LLM narra.
+//    Cruce por métrica: ventas/contribución → margen · capital → rotación (ambos higherIsBetter). ────────────────────
+const _QUALITY_CROSS = { ventas: "margen", contribucion: "margen", capital: "rotacion" };
+
+// mapa entidad→valor del cruce (reusa el patrón de composeSpecSimulate: group-by con agg, o por-fila)
+function _crossByEntity(crossMetric, dimension) {
+  const cm = METRICS[crossMetric], sba = cm && cm.sourceByAxis && cm.sourceByAxis[dimension], ent = ENTITIES[dimension];
+  if (!sba || !ent) return null;
+  const rows = _loadReal(sba.source);
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const field = sba.field, map = {};
+  if (ent.isGroupBy) {
+    const groups = {};
+    for (const r of rows) { const k = r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
+    const agg = sba.agg || "avg";
+    for (const [name, grp] of Object.entries(groups)) {
+      const vals = grp.map((r) => r[field]).filter((v) => typeof v === "number"), sum = vals.reduce((a, b) => a + b, 0);
+      map[name] = agg === "sum" ? sum : (vals.length ? sum / vals.length : 0);
+    }
+  } else {
+    const nameField = (SOURCES[sba.source] && SOURCES[sba.source].keyField) || "sku";
+    for (const r of rows) { if (typeof r[field] === "number") map[r[nameField]] = r[field]; }
+  }
+  return map;
+}
+
+export function computeQualityVerdict({ metric, dimension, items, blockCount } = {}) {
+  const _none = (reason) => ({ verdict: "sin_benchmark", basis: null, explanation: reason });
+  const crossMetric = _QUALITY_CROSS[metric];
+  if (!crossMetric) return _none("No puedo juzgar la calidad de este supuesto con el dato disponible.");
+  const cm = METRICS[crossMetric], cross = _crossByEntity(crossMetric, dimension);
+  if (!cross || !Object.keys(cross).length) return _none(`No tengo ${cm.label.toLowerCase()} por ${(ENTITIES[dimension] && ENTITIES[dimension].label.sing) || dimension} para juzgar la calidad.`);
+  const wavg = (arr) => { let sw = 0, s = 0; for (const it of arr) { const cv = cross[it.name]; if (typeof cv !== "number") continue; const w = Math.abs(it.actual) || 0; s += cv * w; sw += w; } return sw ? s / sw : null; };
+  const blockVal = wavg((items || []).slice(0, blockCount || 0)), internalAvg = wavg(items || []);
+  if (blockVal == null || internalAvg == null) return _none(`No puedo cruzar ${cm.label.toLowerCase()} con este bloque.`);
+  const declared = crossMetric === "margen" ? POLICY.benchmark : crossMetric === "rotacion" ? POLICY.rotacionMin : null;
+  const aboveInternal = blockVal >= internalAvg, aboveDeclared = declared != null ? blockVal >= declared : aboveInternal;
+  const verdict = (aboveInternal && aboveDeclared) ? "buena_captura" : (!aboveInternal && !aboveDeclared) ? "captura_debil" : "mixta";
+  const u = cm.unit, f = (v) => u === "pct" ? `${v.toFixed(1)}%` : u === "ratio" ? `${v.toFixed(1)}x` : String(Math.round(v));
+  const bF = f(blockVal), iF = f(internalAvg), dF = declared != null ? f(declared) : null;
+  let explanation;
+  if (crossMetric === "margen") {
+    explanation = verdict === "buena_captura" ? `El bloque captura buen margen: ${bF} vs ${iF} de la cartera (benchmark ${dF}). Crecer ahí rinde.`
+      : verdict === "captura_debil" ? `El bloque está por debajo en margen: ${bF} vs ${iF} de la cartera (benchmark ${dF}). Crecer ahí suma volumen, no rentabilidad.`
+      : `Captura media: ${bF} de margen — ${aboveInternal ? "sobre" : "bajo"} el promedio de cartera (${iF}) pero ${aboveDeclared ? "sobre" : "bajo"} el benchmark (${dF}). Conviene mirar antes de empujar.`;
+  } else {
+    explanation = verdict === "buena_captura" ? `El bloque rota sano: ${bF} vs ${iF} (mínimo ${dF}). Liberar ahí suelta plata sana.`
+      : verdict === "captura_debil" ? `El bloque rota lento: ${bF} vs ${iF} (mínimo ${dF}). Mover ese stock no libera plata real.`
+      : `Rotación intermedia: ${bF} vs ${iF} (mínimo ${dF}). Mirar caso a caso antes de mover.`;
+  }
+  return { verdict, basis: declared != null ? "both" : "internal_avg", crossMetric, crossLabel: cm.label, blockValue: blockVal, blockValueFmt: bF, internalAvg, internalAvgFmt: iF, declared, declaredFmt: dF, aboveInternal, aboveDeclared, explanation };
+}
+
 export function composeSpecSimulate({ metric, dimension, filters = {}, transform } = {}) {
   // allow-list v1: solo delta +/-X% sobre métricas de nivel. Lo demás → null → degrade honesto.
   if (!transform || transform.op !== "delta" || transform.unit !== "pct" || !_SIMULABLE_DELTA_PCT.has(metric)) return null;
@@ -405,7 +460,9 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
       total: { actual: totA, supuesto: totS, delta: totD, aFmt: _f(totA), sFmt: _f(totS), dFmt: _f(totD) },
       // 80/20 DEL IMPACTO (para el panel Sentrix · barras + acumulado + bloque) + la lectura estructural
       concentration: { bars, blockCount, blockPct, n: nEnt, concentrated, single, impactTotal: impTot, impactTotalFmt: _f(_absTotD) },
-      structural: { reading: _reading, risk: _riskT, action: _actionT, concentrated, blockCount, blockPct, plural: _plural } },
+      structural: { reading: _reading, risk: _riskT, action: _actionT, concentrated, blockCount, blockPct, plural: _plural },
+      // VEREDICTO DE CALIDAD (B) · cruza el bloque 80% con margen/rotación vs promedio interno + benchmark declarado
+      quality_verdict: computeQualityVerdict({ metric, dimension, items, blockCount }) },
   };
 }
 

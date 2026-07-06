@@ -2,7 +2,7 @@
  * base única = real · transform explícito · fórmula por celda · boleta source:"computed" · degrade honesto ·
  * lenguaje de PRODUCTO (dato real / supuesto / Δ · nunca escenario/bonanza/tensión/crisis). */
 import { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";
-import { composeSpecSimulate } from "./src/adi/specRetrieval.js";
+import { composeSpecSimulate, computeQualityVerdict } from "./src/adi/specRetrieval.js";
 import { guardAgainstBoleta } from "./src/adi/boleta.js";
 
 let pass = 0, fail = 0;
@@ -52,6 +52,17 @@ const _lastCum = Math.round(_cc.bars[_cc.blockCount - 1].cumPct);
 const _openerPct = (cs.opener.match(/explican el (\d+)%/) || [])[1];
 ok("15 · coherencia: narración% === concentration.blockPct === Acum% del corte === boleta",
   _cc.blockPct === _lastCum && String(_cc.blockPct) === _openerPct && cs.evidence.boleta.some((f) => /Concentración/.test(f.label) && f.value === `${_cc.blockPct}%`));
+
+// ── 5 · VEREDICTO DE CALIDAD (B) · juzga el bloque 80% contra promedio INTERNO + benchmark DECLARADO, graduado, honesto ──
+const _qv = cs.evidence.quality_verdict;
+ok("16 · veredicto presente (buena/débil/mixta) · basis 'both' · cruce margen (ventas→margen)",
+  ["buena_captura", "captura_debil", "mixta"].includes(_qv.verdict) && _qv.basis === "both" && _qv.crossMetric === "margen");
+ok("17 · declarado = POLICY (30.1 · NO inventado) + la explicación cita bloque · interno · declarado",
+  _qv.declared === 30.1 && _qv.explanation.includes(_qv.blockValueFmt) && _qv.explanation.includes(_qv.internalAvgFmt) && _qv.explanation.includes(_qv.declaredFmt));
+const _qCap = composeSpecSimulate({ metric: "capital", dimension: "bodega", filters: {}, transform: { kind: "assumption", op: "delta", value: -10, unit: "pct", base: "real" } }).evidence.quality_verdict;
+ok("18 · capital → cruce rotación vs mínimo declarado (2x) · basis both", _qCap.crossMetric === "rotacion" && _qCap.declared === 2 && _qCap.basis === "both");
+ok("19 · HONESTIDAD: métrica sin cruce → 'sin_benchmark' (NUNCA juzga bueno/malo sin benchmark)",
+  computeQualityVerdict({ metric: "margen", dimension: "cliente", items: [{ name: "x", actual: 1 }], blockCount: 1 }).verdict === "sin_benchmark");
 
 console.log(`\n── simulate-gate: ${pass} PASS · ${fail} FAIL ──`);
 process.exit(fail ? 1 : 0);
