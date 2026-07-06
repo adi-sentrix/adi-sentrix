@@ -10,6 +10,7 @@ import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
+import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -91,7 +92,9 @@ async function _narrateResult(r) {
   try {
     const narration = await _fetchNarration(r);
     const picked = pickNarratedText(r, narration);
-    return { r: { ...r, text: picked.text }, narrated: picked.narrated };
+    // GUARD DE VOZ (determinístico) · corre DESPUÉS del number-guard (no toca cifras) · aplica al texto final elegido
+    // (narrado LLM o determinístico de fallback) → mata "He revisado tus datos…"/"Las proyecciones indican…"/"Sin embargo…".
+    return { r: { ...r, text: stripRoboticVoice(picked.text) }, narrated: picked.narrated };
   } catch { return { r, narrated: false }; }
 }
 
