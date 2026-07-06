@@ -30,7 +30,7 @@ const ans = (q) => { const { tag, spec } = coerce(q); const r = A(spec, {}, {});
 
 // [pregunta, tag esperado, [regex que DEBE contener]]
 const CASES = [
-  ["¿Cómo va la venta real versus el presupuesto del período?", "ventas:vs_presupuesto", [/\+3\.1% sobre presupuesto/i, /\$100K vs \$97K/]],
+  ["¿Cómo va la venta real versus el presupuesto del período?", "ventas:vs_presupuesto", [/\+3\.1% sobre presupuesto/i, /\$100\.0M vs \$97\.0M/]],
   ["¿Qué clientes, sucursales, canales o familias explican la mayor desviación contra presupuesto?", "ventas:vs_presupuesto", [/sobre presupuesto/i, /Falabella/]],
   ["¿Qué parte de la brecha contra presupuesto viene por menor volumen, menor precio promedio o menor frecuencia de compra?", "ventas:descomposicion_vol_precio", [/volumen y precio/i, /m[aá]s unidades/i, /frecuencia (no la tengo|de compra)/i]],
   ["¿Cómo va la venta versus el mismo período del año anterior?", "ventas:vs_anterior", [/\+7\.6% vs el año anterior/i]],

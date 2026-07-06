@@ -458,6 +458,7 @@ const _p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
 const _benchOf = (r) => (r && typeof r.benchmark === "number" ? r.benchmark : POLICY.benchmark);
 const _markup = (r) => (r && r.precioLista > 0 ? (r.precioLista - r.costoMedio) / r.precioLista * 100 : null);   // markup sobre lista (%)
 const _costShare = (r) => (r && r.precioLista > 0 ? r.costoMedio / r.precioLista * 100 : null);                  // costo como % de la lista
+const _mVenta = (v) => _money(v * 1000);   // venta/contribucion en MILES -> $ real (escala del contrato · consistente con ventas y el resumen ejecutivo · NO para stockUSD, que es crudo)
 const _MLBL = { cliente: { s: "cliente", p: "clientes", art: "Los" }, sku: { s: "SKU", p: "SKU", art: "Los" }, familia: { s: "familia", p: "familias", art: "Las" }, marca: { s: "marca", p: "marcas", art: "Las" }, canal: { s: "canal", p: "canales", art: "Los" } };
 const _mNombre = (r) => r.nombre || r.sku;
 // margen por CANAL (no hay eje contractual · join clientesMargen × clientesVentas.canal · promedio ponderado por venta)
@@ -519,8 +520,8 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     const hits = ranked.filter((r) => r.margen < _benchOf(r)).slice(0, 4);
     const lead = hits.length ? hits : ranked.slice(0, 3);
     lines = [
-      `${L.art} ${L.p} que más venden y peor margen dejan: ${lead.map((r) => `${_mNombre(r)} (${_money(r.venta)} a ${_p1(r.margen)}%)`).join(" · ")}.`,
-      `${_mNombre(lead[0])} es el caso más caro: factura ${_money(lead[0].venta)} pero a ${_p1(lead[0].margen)}% — ${_p1(_gap(lead[0]))}pp bajo el benchmark ${_p1(bench)}%. Cada punto de margen ahí vale mucho por el volumen.`,
+      `${L.art} ${L.p} que más venden y peor margen dejan: ${lead.map((r) => `${_mNombre(r)} (${_mVenta(r.venta)} a ${_p1(r.margen)}%)`).join(" · ")}.`,
+      `${_mNombre(lead[0])} es el caso más caro: factura ${_mVenta(lead[0].venta)} pero a ${_p1(lead[0].margen)}% — ${_p1(_gap(lead[0]))}pp bajo el benchmark ${_p1(bench)}%. Cada punto de margen ahí vale mucho por el volumen.`,
       `**Por qué importa:** el volumen amplifica el margen bajo — es donde una corrección chica de precio o rebate rinde más en $.`,
       `**Qué hacer:** priorizá ${lead.slice(0, 2).map(_mNombre).join(" y ")} para revisar lista/rebate; ahí está la mayor recuperación por punto.`,
     ];
@@ -531,7 +532,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     if (pct) {
       const vBelow = below.reduce((a, r) => a + (r.venta || 0), 0), share = totVenta ? vBelow / totVenta * 100 : 0;
       lines = [
-        `El ${_p1(share)}% de la venta (${_money(vBelow)} de ${_money(totVenta)}) está bajo el margen mínimo de ${_p1(bench)}%.`,
+        `El ${_p1(share)}% de la venta (${_mVenta(vBelow)} de ${_mVenta(totVenta)}) está bajo el margen mínimo de ${_p1(bench)}%.`,
         `Lo cargan ${below.slice(0, 3).map((r) => `${_mNombre(r)} (${_p1(r.margen)}%)`).join(" · ")} — ${below.length} de ${rows.length} ${L.p} por debajo.`,
         `**Qué hacer:** ese tramo es el que más mueve el margen de cartera; arrancá por los de mayor venta bajo el piso.`,
       ];
@@ -600,7 +601,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     if (!sub.length) sub = rows.filter((r) => r.margen >= bench).sort((a, b) => (a.venta || 0) - (b.venta || 0)).slice(0, 4);
     sub = sub.sort((a, b) => b.margen - a.margen).slice(0, 4);
     lines = [
-      `Productos de alto margen y baja penetración (upside si ganan distribución): ${sub.map((r) => `${_mNombre(r)} (${_p1(r.margen)}% margen, sólo ${_money(r.venta)})`).join(" · ")}.`,
+      `Productos de alto margen y baja penetración (upside si ganan distribución): ${sub.map((r) => `${_mNombre(r)} (${_p1(r.margen)}% margen, sólo ${_mVenta(r.venta)})`).join(" · ")}.`,
       `${_mNombre(sub[0])} rinde ${_p1(sub[0].margen)}% pero factura poco — cada peso extra de venta acá entra a margen alto.`,
       `**Qué hacer:** empujar volumen/distribución en estos rinde más que defender los de bajo margen. Es crecer donde ya ganás bien.`,
     ];
@@ -686,7 +687,7 @@ function _ventasFocusBlock(focus, dim, filters) {
   const L = _VLBL[dim] || _VLBL.cliente;
   let rows = _scopeRows(_ventasRows(dim), filters);
   if (!rows.length) return null;
-  const _m = _money;   // escala CRUDA (consistente con margen/inventario · el total de cartera es ~$100K)
+  const _m = (v) => _money(v * 1000);   // ventas en MILES → $ real (escala del contrato · el total de cartera es ~$100M · consistente con el resumen ejecutivo)
   const bol = [];
 
   if (focus === "vs_presupuesto") {
@@ -695,7 +696,7 @@ function _ventasFocusBlock(focus, dim, filters) {
     const totLine = `La venta va ${_sgnp(tp)}${_p1(tp)}% ${tp >= 0 ? "sobre" : "bajo"} presupuesto (${_m(_vKPI.totalActual)} vs ${_m(_vKPI.totalPresupuesto)}).`;
     const rowsP = _pptoByDim(dim);
     if (!rowsP.length) {   // sku → sin ppto propio
-      return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual, mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto, mandatory: false, context: "vs presupuesto" })] };
+      return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual * 1000, mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" })] };
     }
     const withDev = rowsP.map((r) => ({ ...r, dev: (r.actual || 0) - r.presupuesto, devp: _pctChg(r.actual || 0, r.presupuesto) })).sort((a, b) => b.dev - a.dev);
     const over = withDev.filter((r) => r.dev > 0), under = withDev.filter((r) => r.dev < 0).sort((a, b) => a.dev - b.dev);
@@ -705,9 +706,9 @@ function _ventasFocusBlock(focus, dim, filters) {
       under.length ? `Los que quedan cortos: ${under.slice(0, 3).map((r) => `${r.nombre} (${_m(r.dev)}, ${_p1(r.devp)}%)`).join(" · ")}.` : `Ningún ${L.s} quedó bajo presupuesto.`,
       `**Qué hacer:** el foco de recuperación son los que quedan cortos; los de arriba marcan qué está funcionando.`,
     ];
-    for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${L.s} · ${r.nombre} vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev, mandatory: false, context: "vs presupuesto" }));
-    bol.push(fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual, mandatory: true, context: "vs presupuesto" }));
-    bol.push(fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto, mandatory: false, context: "vs presupuesto" }));
+    for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${L.s} · ${r.nombre} vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
+    bol.push(fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual * 1000, mandatory: true, context: "vs presupuesto" }));
+    bol.push(fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" }));
     return { lines, suggestions: ["Cómo vamos vs el año anterior", "Es por volumen o por precio"], bol };
   }
 
@@ -725,7 +726,7 @@ function _ventasFocusBlock(focus, dim, filters) {
       down.length ? `Restan: ${down.slice(0, 4).map((r) => `${r.nombre} (${_m(r.d)})`).join(" · ")}.` : `Ningún ${LL.s} cae vs el año anterior.`,
       `**Qué hacer:** el neto es positivo, pero los que restan son la fuga a mirar — recuperarlos suma directo.`,
     ];
-    for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${LL.s} · ${r.nombre} YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d, mandatory: false, context: "vs año anterior" }));
+    for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${LL.s} · ${r.nombre} YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "vs año anterior" }));
     return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol };
   }
 
@@ -759,7 +760,7 @@ function _ventasFocusBlock(focus, dim, filters) {
       `Nota: no tengo flag de "cliente activo/nuevo" ni frecuencia de compra (no hay transacciones) — esto es caída de venta YoY, la señal más cercana a "dejar de comprar".`,
       `**Qué hacer:** la mayor oportunidad de recuperación está justo acá — recuperar a estos clientes vale ${_m(Math.abs(down.slice(0, 4).reduce((a, r) => a + r.d, 0)))}.`,
     ];
-    for (const r of down.slice(0, 4)) bol.push(fig(`Cliente · ${r.nombre} YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d, mandatory: false, context: "caída YoY" }));
+    for (const r of down.slice(0, 4)) bol.push(fig(`Cliente · ${r.nombre} YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "caída YoY" }));
     return { lines, suggestions: ["Crecimiento YoY por cliente", "Es por volumen o por precio"], bol };
   }
 
@@ -798,7 +799,7 @@ function _ventasFocusBlock(focus, dim, filters) {
       `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}, seguido de ${ranked[1].nombre} (${_m(ranked[1].venta)}).`,
       `**Ojo:** no tengo presupuesto ni año anterior POR SKU (sólo por cliente/marca/familia), así que no puedo comparar cada SKU contra plan ni contra el año pasado — eso te lo doy a nivel cliente o familia.`,
     ];
-    for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta, mandatory: false, context: "ranking de venta" }));
+    for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "ranking de venta" }));
     return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol };
   }
   return null;
