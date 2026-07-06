@@ -73,7 +73,7 @@ const TESTS = [
   { n: "43 · overview → evidence.lens=cuadro + dimensión (abre el Cuadro)", spec: S({ operation: "overview", metric: "ventas", dimension: "cliente" }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" && r.evidence.dimension === "cliente" },
   { n: "44 · diagnose → evidence.lens=cuadro (abre el Cuadro de la cartera)", spec: S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" },
   { n: "45 · rank → evidence.lens=cuadro (abre el Cuadro)", spec: S({ operation: "rank", metric: "margen", dimension: "cliente", sort: { by: "margen", dir: "asc" }, limit: 5 }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" },
-  { n: "46 · dive NO se fuerza a cuadro (mantiene reading/shell)", spec: S({ operation: "dive", metric: "margen", dimension: "cliente", entity: "Falabella" }), ok: (r) => r.evidence && r.evidence.reading && r.evidence.lens !== "cuadro" },
+  { n: "46 · dive NO se fuerza a cuadro (op fuera del set · el shell/reading es flag-gated aparte)", spec: S({ operation: "dive", metric: "margen", dimension: "cliente", entity: "Falabella" }), ok: (r) => !(r.evidence && r.evidence.lens === "cuadro") },
 ];
 
 let pass = 0, fail = 0; const lines = [];
