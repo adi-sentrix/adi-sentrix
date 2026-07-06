@@ -348,27 +348,37 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   const _primeros = _fem ? "las primeras" : "los primeros";
   const _ninguna = _fem ? "ninguna" : "ninguno";
 
-  // ── LECTURA ESTRUCTURAL · voz EJECUTIVA (tesis, no reporte · owner 2026-07-05): impacto total → 80/20 → tesis → siguiente
-  //    análisis. NO enumera (el detalle por entidad vive en la mesa de Sentrix). El VEREDICTO de calidad computado = incr. B.
+  // ── LECTURA EJECUTIVA en BLOQUES (owner 2026-07-06): Lectura → Estructura → Riesgo → Qué hacer (máx 4 · 1-2 frases c/u).
+  //    ADI ORDENA la decisión; Sentrix muestra la tabla. NO enumera entidades (el detalle vive en evidence.projection).
   const _absTotD = Math.abs(totD), _impPct = Math.abs(pct);   // impacto % = |pct| (delta parejo · consistente con el %)
   const _verb = totD >= 0 ? "suma" : "resta";
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
   const _art = { ventas: "las", contribucion: "la", capital: "el" }[metric] || "el";   // artículo del sustantivo métrica
-  const impLine = `Un ${_sgn(pct)}${pct}% parejo lleva ${_art} ${m.label.toLowerCase()}${filt ? ` (${filt})` : ""} de ${_f(totA)} a ${_f(totS)}: ${_verb} ${_f(_absTotD)} sobre el dato real.`;
-  const _subj = concentrated ? "ese bloque" : (metric === "capital" ? "ese movimiento" : "ese crecimiento");
-  const _nextObj = metric === "ventas" ? `si ${_subj} captura margen o solo volumen`
-    : metric === "contribucion" ? (concentrated ? "quién dentro del bloque captura mejor la contribución" : "quién captura mejor la contribución")
-    : `si ${_subj} libera capital sano o mueve stock lento`;
+  const _k = concentrated ? "block" : "spread";
+  // Riesgo/Qué-hacer por métrica × (bloque concentrado / impacto repartido). Framing CONDICIONAL (no computa calidad · eso es B).
+  const _RISK = {
+    ventas:       { block: "Si ese bloque solo suma volumen y no captura margen, crecer puede agrandar una captura débil.",  spread: "Si el crecimiento no captura margen, subir parejo agranda escala sin mejorar la calidad." },
+    contribucion: { block: "Si el bloque que más aporta no sostiene su margen, subir la contribución puede no ser rentable.", spread: "Si el aporte no sostiene su margen, subir la contribución puede no ser rentable." },
+    capital:      { block: "Si ese bloque es stock lento, moverlo no libera plata sana.",                                     spread: "Si el stock que se mueve es lento, no libera plata sana." },
+  };
+  const _ACTION = {
+    ventas:       { block: "Antes de empujar a toda la cartera, cruzaría ese bloque con margen, contribución y carga comercial. Si captura margen, priorizar crecimiento ahí; si no, corregir condiciones antes de vender más.", spread: "Cruzaría el crecimiento con margen, contribución y carga comercial, y empujaría solo donde la captura sea sana." },
+    contribucion: { block: "Cruzaría ese bloque con margen y participación. Si el margen acompaña, priorizar ahí; si no, revisar precio y costo antes de escalar.",                                                                 spread: "Cruzaría el aporte con margen y participación, y priorizaría donde sea rentable." },
+    capital:      { block: "Cruzaría ese bloque con DOH y rotación. Si rota sano, liberar; si es stock lento, primero destrabar la rotación.",                                                                                     spread: "Cruzaría el stock con DOH y rotación, y liberaría primero lo que rota sano." },
+  };
+  const _riskT = (_RISK[metric] || _RISK.ventas)[_k];
+  const _actionT = (_ACTION[metric] || _ACTION.ventas)[_k];
   const _reading = single ? `El supuesto recae sobre una sola ${ent.label.sing}.`
     : concentrated ? "El supuesto amplifica la estructura actual."
     : `El supuesto reparte el impacto entre ${nEnt} ${_plural}.`;
-  // TEXTO · TESIS (sin header de reporte · Sentrix carga el contexto métrica/dimensión/supuesto) · lenguaje de PRODUCTO
-  const body = single
-    ? `${impLine} El supuesto recae sobre una sola ${ent.label.sing}: el impacto es directo.`
-    : concentrated
-    ? `${impLine} El impacto se concentra: ${_primeros} ${blockCount} ${_plural} explican el ${blockPct}%. El supuesto amplifica la estructura actual; el siguiente análisis es revisar ${_nextObj}.`
-    : `${impLine} El supuesto reparte el impacto entre ${nEnt} ${_plural}: ${_ninguna} concentra el resultado. El siguiente análisis es revisar ${_nextObj}.`;
-  const opener = body;
+  // BLOQUES (sin header de reporte · Sentrix carga el contexto métrica/dimensión/supuesto) · lenguaje de PRODUCTO
+  const _lectura = `**Lectura**\nUn ${_sgn(pct)}${pct}% lleva ${_art} ${m.label.toLowerCase()}${filt ? ` (${filt})` : ""} de ${_f(totA)} a ${_f(totS)}: ${_verb} ${_f(_absTotD)} sobre el dato real.`;
+  const _estructura = `**Estructura**\n${single ? `El supuesto recae sobre una sola ${ent.label.sing}: el impacto es directo.`
+    : concentrated ? `El impacto se concentra: ${_primeros} ${blockCount} ${_plural} explican el ${blockPct}%. El supuesto amplifica la estructura actual.`
+    : `El impacto se reparte entre ${nEnt} ${_plural}: ${_ninguna} concentra el resultado.`}`;
+  const opener = single
+    ? `${_lectura}\n\n${_estructura}`
+    : `${_lectura}\n\n${_estructura}\n\n**Riesgo**\n${_riskT}\n\n**Qué hacer**\n${_actionT}`;
 
   // BOLETA ESTRUCTURAL · SOLO cifras de estructura (impacto total + concentración). SIN per-entidad → el guard del LLM #2
   // (guardAgainstBoleta) bloquea CUALQUIER cifra por entidad → la enumeración es IMPOSIBLE, no solo desaconsejada. El
@@ -395,7 +405,7 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
       total: { actual: totA, supuesto: totS, delta: totD, aFmt: _f(totA), sFmt: _f(totS), dFmt: _f(totD) },
       // 80/20 DEL IMPACTO (para el panel Sentrix · barras + acumulado + bloque) + la lectura estructural
       concentration: { bars, blockCount, blockPct, n: nEnt, concentrated, single, impactTotal: impTot, impactTotalFmt: _f(_absTotD) },
-      structural: { reading: _reading, action: `revisar ${_nextObj}`, blockCount, blockPct, plural: _plural } },
+      structural: { reading: _reading, risk: _riskT, action: _actionT, concentrated, blockCount, blockPct, plural: _plural } },
   };
 }
 
