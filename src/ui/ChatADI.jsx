@@ -332,7 +332,8 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   const isDiagnose = !!(evidence && Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico
   const isCompare = !!(evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB));   // A vs B → panel Comparación (aunque traiga reading del motor)
   const isInventory = !!(evidence && evidence.inventory && Array.isArray(evidence.inventory.bySku) && evidence.inventory.bySku.length);   // capital por bodega/SKU → panel Inventario
-  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory) || !onOpenEvidence) return null;
+  const isMargin = !!(evidence && evidence.margin && evidence.margin.panel && Array.isArray(evidence.margin.panel.rows) && evidence.margin.panel.rows.length);   // margen vs benchmark → panel Margen
+  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin) || !onOpenEvidence) return null;
   return (
     <div style={{ marginLeft:44, marginTop:2 }}>
       <button
@@ -349,7 +350,7 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
         </svg>
-        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
+        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
       </button>
     </div>
   );

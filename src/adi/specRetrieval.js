@@ -459,6 +459,14 @@ const _benchOf = (r) => (r && typeof r.benchmark === "number" ? r.benchmark : PO
 const _markup = (r) => (r && r.precioLista > 0 ? (r.precioLista - r.costoMedio) / r.precioLista * 100 : null);   // markup sobre lista (%)
 const _costShare = (r) => (r && r.precioLista > 0 ? r.costoMedio / r.precioLista * 100 : null);                  // costo como % de la lista
 const _mVenta = (v) => _money(v * 1000);   // venta/contribucion en MILES -> $ real (escala del contrato · consistente con ventas y el resumen ejecutivo · NO para stockUSD, que es crudo)
+// panel de Sentrix para margen: cada entidad vs la línea de benchmark (la "calidad de la venta" de un vistazo) + descomposición precio/costo
+const _MFOCUS_TITLE = { bajo_benchmark: "Margen vs benchmark", alto_volumen_bajo_margen: "Volumen vs margen", causa_precio: "Margen · el precio no da", causa_costo: "Margen · el costo aprieta", subir_precio: "Candidatos a subir precio", alto_margen_subpenetrado: "Alto margen subpenetrado", palancas: "Palancas de margen" };
+function _marginPanel(rows, bench, focus) {
+  const rr = (rows || []).filter((r) => typeof r.margen === "number")
+    .map((r) => ({ nombre: r.nombre || r.sku, margen: r.margen, venta: typeof r.venta === "number" ? r.venta : null, markup: _markup(r), costShare: _costShare(r), below: r.margen < _benchOf(r) }))
+    .sort((a, b) => a.margen - b.margen);
+  return { title: _MFOCUS_TITLE[focus] || "Margen", bench, focus, showDecomp: focus === "causa_precio" || focus === "causa_costo" || focus === "subir_precio", rows: rr, belowCount: rr.filter((x) => x.below).length, total: rr.length };
+}
 const _MLBL = { cliente: { s: "cliente", p: "clientes", art: "Los" }, sku: { s: "SKU", p: "SKU", art: "Los" }, familia: { s: "familia", p: "familias", art: "Las" }, marca: { s: "marca", p: "marcas", art: "Las" }, canal: { s: "canal", p: "canales", art: "Los" } };
 const _mNombre = (r) => r.nombre || r.sku;
 // margen por CANAL (no hay eje contractual · join clientesMargen × clientesVentas.canal · promedio ponderado por venta)
@@ -511,7 +519,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     ];
     pushMarginFigs(pivotList);
     suggestions = [gap === "proveedor" ? "Margen por marca" : gap === "mix_cliente_sku" ? "Peor SKU por margen" : `${L.p} bajo el benchmark`, "Palancas para recuperar margen"];
-    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: dim, boleta: bol, margin: { focus: "gap:" + gap, bench, below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen })) } } };
+    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: dim, boleta: bol, margin: { focus: "gap:" + gap, bench, panel: _marginPanel(rows, bench, "bajo_benchmark"), below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen })) } } };
   }
 
   // ── FOCOS reales ──
@@ -624,7 +632,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     ];
     for (const s of topSk) bol.push(fig(`SKU · ${s.sku} capital`, _money(s.stockUSD), { unit: "money", raw: s.stockUSD, mandatory: false, context: "stock en bajo margen" }));
     suggestions = ["Qué SKU libero primero", "Los de bajo margen por costo o precio"];
-    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: "bodega", boleta: bol, margin: { focus, byBodega: byBod.map((b) => ({ bodega: b.bodega, usd: b.usd })) } } };
+    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: "bodega", boleta: bol, margin: { focus, panel: _marginPanel(lowM.map((s) => ({ nombre: s.sku, margen: s.margenPct })), POLICY.benchmark, "bajo_benchmark"), byBodega: byBod.map((b) => ({ bodega: b.bodega, usd: b.usd })) } } };
   } else if (focus === "palancas") {
     const target = POLICY.targetCarga;
     const cargaHigh = rows.filter((r) => typeof r.pctRebate === "number" && r.pctRebate > target).sort((a, b) => b.pctRebate - a.pctRebate).slice(0, 4);
@@ -649,7 +657,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     suggestions,
     sentrixAction: null,
     evidence: { lens: "margin", metrica: "margen", dimension: dim, boleta: bol,
-      margin: { focus, bench, dimension: dim, below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen, venta: r.venta, gap: _gap(r) })) } },
+      margin: { focus, bench, dimension: dim, panel: _marginPanel(rows, bench, focus), below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen, venta: r.venta, gap: _gap(r) })) } },
   };
 }
 

@@ -647,6 +647,76 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
   );
 }
 
+// MarginPanel · FOCO MARGEN (owner 2026-07-06) · la "calidad de la venta" de un vistazo: cada entidad contra la LÍNEA de
+// benchmark (bajo la línea = margen delgado) + descomposición precio/costo cuando el foco lo pide. Respalda el texto de ADI.
+function MarginPanel({ evidence, onClose, onToggleMax, maximized }) {
+  const p = (evidence && evidence.margin && evidence.margin.panel) || {};
+  const rows = p.rows || [], bench = p.bench || 30.1;
+  const scale = Math.max(40, ...rows.map((r) => r.margen || 0));   // eje 0..scale (%)
+  const benchPct = Math.min(100, bench / scale * 100);
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  const decomp = rows.filter((r) => typeof r.costShare === "number" && r.below).slice(0, 5);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>MARGEN</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
+          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Margen"}</div>
+          <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.text}>{p.belowCount}</Num>/{p.total} bajo benchmark</div>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
+        <div>
+          <div style={{ ...head, marginBottom:11, display:"flex", justifyContent:"space-between" }}><span>Margen vs benchmark</span><span style={{ textTransform:"none", letterSpacing:0, color:C.amber }}>línea = {p1(bench)}%</span></div>
+          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+            {rows.map((r, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:12, color:C.textSub, width:104, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                <div style={{ position:"relative", flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ width:`${Math.min(100, (r.margen || 0) / scale * 100)}%`, height:"100%", background: r.below ? C.amber : C.green, opacity:0.85 }}/>
+                  <div style={{ position:"absolute", left:`${benchPct}%`, top:-1, bottom:-1, width:1.5, background:C.amber, opacity:0.9 }}/>
+                </div>
+                <span style={{ fontFamily:MONO, fontSize:12, color: r.below ? C.amber : C.textSub, fontVariantNumeric:"tabular-nums", width:44, textAlign:"right", flexShrink:0 }}>{p1(r.margen)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {decomp.length > 0 && (
+          <div>
+            <div style={{ ...head, marginBottom:11 }}>De dónde sale el margen · precio vs costo</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              {decomp.map((r, i) => (
+                <div key={i}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ fontSize:12, color:C.textSub }}>{r.nombre}</span>
+                    <span style={{ fontFamily:MONO, fontSize:11, color:C.textMuted }}>markup <Num color={r.markup < bench ? C.amber : C.green}>{p1(r.markup)}%</Num></span>
+                  </div>
+                  <div style={{ display:"flex", height:8, borderRadius:4, overflow:"hidden" }}>
+                    <div title={`costo ${Math.round(r.costShare)}%`} style={{ width:`${Math.min(100, r.costShare)}%`, background:"rgba(255,255,255,0.18)" }}/>
+                    <div title={`markup ${p1(r.markup)}%`} style={{ flex:1, background: r.markup < bench ? C.amber : C.green, opacity:0.85 }}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:9 }}>Gris = costo sobre el precio de lista · color = markup. Markup fino (bajo {p1(bench)}%) = el precio no cubre el margen objetivo.</div>
+          </div>
+        )}
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark. Cifras de dato real.</div>
+      </div>
+    </div>
+  );
+}
+
 // InventoryPanel · FOCO CAPITAL INMOVILIZADO (owner 2026-07-06 · "la pregunta manda el foco") · evidencia de inventario:
 // total → por bodega (barra) → por SKU (capital · DOH · rotación · crítico). Respalda lo que ADI afirma en el texto.
 function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
@@ -790,6 +860,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // INVENTARIO · capital inmovilizado por bodega/SKU = la evidencia del foco de inventario · antes del Cuadro.
     if (evidence && evidence.inventory && Array.isArray(evidence.inventory.bySku))
       return <InventoryPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // MARGEN · cada entidad vs la línea de benchmark (+ precio/costo) = la evidencia del foco de margen.
+    if (evidence && evidence.margin && evidence.margin.panel && Array.isArray(evidence.margin.panel.rows) && evidence.margin.panel.rows.length)
+      return <MarginPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
       return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     return null;
