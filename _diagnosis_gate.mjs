@@ -4,13 +4,13 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_dge.js"), out = path.join(root, "_dgb.mjs");
 fs.writeFileSync(entry, [
-  'export { diagnoseClientes, diagnoseInventario, diagnoseInventarioSku } from "./src/adi/diagnosis/economicDiagnosis.js";',
+  'export { diagnoseClientes, diagnoseInventario, diagnoseInventarioSku, concentracion } from "./src/adi/diagnosis/economicDiagnosis.js";',
   'export { clientesVentas, clientesMargen, skuInventario } from "./src/data/demoData.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { diagnoseClientes, diagnoseInventario, diagnoseInventarioSku, clientesVentas, clientesMargen, skuInventario } = M;
+const { diagnoseClientes, diagnoseInventario, diagnoseInventarioSku, concentracion, clientesVentas, clientesMargen, skuInventario } = M;
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
@@ -45,6 +45,16 @@ const tiny = [
   { sku: "MINI-QUIEBRE", bodega: "X", stockUSD: 300, rotacion: 9, doh: 10 },  // quiebre ínfimo · <$ · <% · no top-3 por capital
 ];
 ok("16 · quiebre chico (<$20k · <5% · no top-3 por capital) → NO material (no secuestra la respuesta)", diagnoseInventario(tiny).quiebreMaterial === false);
+
+// ── CONCENTRACIÓN · el 80/20 CON su composición de riesgo (owner) ──
+const conV = concentracion(clientesVentas.map((r) => ({ nombre: r.nombre, valor: r.actual, diagnostico: DC[r.nombre] && DC[r.nombre].patron })), 0.8);
+ok("17 · concentración ventas → 7 clientes = 81% · regla '80/20'", conV.cantidadEntidades === 7 && Math.round(conV.totalCubiertoPct) === 81 && conV.regla === "80/20");
+ok("18 · cada integrante del 80% trae participación·acumulado·DIAGNÓSTICO (composición, no solo el número)", conV.entidades[0].nombre === "Falabella" && conV.entidades[0].diagnostico === "alto_volumen_bajo_margen" && conV.entidades.every((e) => typeof e.participacionPct === "number" && typeof e.acumuladoPct === "number" && e.diagnostico != null));
+ok("19 · acumulado MONÓTONO creciente y el último ≥ umbral (80%)", (() => { let prev = 0; for (const e of conV.entidades) { if (e.acumuladoPct < prev) return false; prev = e.acumuladoPct; } return conV.entidades[conV.entidades.length - 1].acumuladoPct >= 80; })());
+const conC = concentracion(clientesMargen.map((r) => ({ nombre: r.nombre, valor: r.contribucion, diagnostico: DC[r.nombre] && DC[r.nombre].patron })), 0.8);
+ok("20 · concentración contribución → 8 clientes = 82% (composición del riesgo de plata)", conC.cantidadEntidades === 8 && Math.round(conC.totalCubiertoPct) === 82);
+const conK = concentracion(skuInventario.map((s) => ({ nombre: s.sku, valor: s.stockUSD, diagnostico: diagnoseInventarioSku(s) })), 0.8);
+ok("21 · concentración capital (inventario) → integrantes con ESTADO (quiebre/frenado/sano dentro del 80%)", conK.cantidadEntidades > 0 && conK.entidades.some((e) => ["riesgo_quiebre", "capital_frenado", "sobrestock", "capital_sano"].includes(e.diagnostico)));
 
 console.log(`\n── _diagnosis_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

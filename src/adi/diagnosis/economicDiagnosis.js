@@ -77,6 +77,32 @@ export function diagnoseClientes(ventasRows, margenRows, opts = {}) {
   return out;
 }
 
+// ── CONCENTRACIÓN · el 80/20 CON su composición de riesgo (owner 2026-07-06) ─────────────────────────────────────────
+// No solo "el 81% está en 7" — QUIÉNES y con qué diagnóstico. Habilita "…y varios son alto volumen con bajo margen".
+// items: [{nombre, valor(raw · para ordenar/computar), fmt?(string para mostrar), diagnostico?}] · el caller adjunta el
+// diagnóstico (patrón del cliente o estado del SKU). El guard NO deja al LLM inventar integrantes, acumulados ni diagnósticos.
+export function concentracion(items, umbral = 0.8) {
+  const list = (items || []).filter((i) => typeof i.valor === "number");
+  const total = list.reduce((s, i) => s + i.valor, 0) || 1;
+  const sorted = [...list].sort((a, b) => b.valor - a.valor);
+  const entidades = []; let acc = 0;
+  for (const it of sorted) {
+    acc += it.valor;
+    entidades.push({
+      nombre: it.nombre, valor: it.fmt != null ? it.fmt : it.valor,
+      participacionPct: +((it.valor / total) * 100).toFixed(1), acumuladoPct: +((acc / total) * 100).toFixed(1),
+      diagnostico: it.diagnostico != null ? it.diagnostico : null,
+    });
+    if (acc / total >= umbral) break;
+  }
+  return {
+    regla: `${Math.round(umbral * 100)}/${Math.round((1 - umbral) * 100)}`, umbral,
+    cantidadEntidades: entidades.length,
+    totalCubiertoPct: entidades.length ? entidades[entidades.length - 1].acumuladoPct : 0,
+    entidades,
+  };
+}
+
 // ── INVENTARIO · diagnosticoInventario (las DOS puntas: sobra y falta) ───────────────────────────────────────────────
 export function diagnoseInventarioSku(s, opts = {}) {
   const rotMin = opts.rotacionMin ?? POLICY.rotacionMin, dohMax = opts.dohMax ?? POLICY.dohMax;
