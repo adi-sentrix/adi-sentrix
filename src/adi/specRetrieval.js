@@ -11,6 +11,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
+import { diagnoseInventario } from "./diagnosis/economicDiagnosis.js";   // motor de las 4 puntas (sano/quiebre/frenado/sobrestock) · UNA verdad
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -320,44 +321,69 @@ export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
  * Estructura por PARTES: lectura (total + bodega principal) → por bodega → por SKU → por qué (rotación/DOH) → qué hacer.
  * Def de dormido = la del diagnose (POLICY · rotación<rotacionMin ó doh>dohMax) → UNA verdad. Data-driven de skuInventario;
  * la evidencia (inventory: total/byBodega/bySku) alimenta el panel de inventario de Sentrix. null → el seam degrada honesto. */
+// etiquetas de las 4 puntas (una sola verdad de nombre · el LLM las narra, no las inventa)
+const _ESTADO_LABEL = { capital_frenado: "capital frenado", riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" };
+const _ESTADO_ORDEN = ["capital_frenado", "riesgo_quiebre", "sobrestock", "capital_sano"];
+
 export function composeSpecInventory({ filters = {}, scenario } = {}) {
   const kSF = _sf("capital", "sku"), rSF = _sf("rotacion", "sku"), dSF = _sf("doh", "sku");
   if (!kSF || !rSF || !dSF) return null;
   const rows = _scopeRows(_load(kSF.source, scenario), filters);
   if (!rows.length) return null;
   const key = (SOURCES[kSF.source] && SOURCES[kSF.source].keyField) || "sku";
-  const dormant = [];
-  for (const r of rows) {
-    const cap = r[kSF.field], rot = r[rSF.field], doh = r[dSF.field];
-    if (typeof cap !== "number") continue;
-    const isDorm = (typeof rot === "number" && rot < POLICY.rotacionMin) || (typeof doh === "number" && doh > POLICY.dohMax);
-    if (!isDorm) continue;
-    dormant.push({ sku: r[key], usd: cap, doh, rotacion: rot, bodega: r.bodega || "—", diasSinVenta: r.diasSinVenta, critico: r.alerta === "crit" });
-  }
+  // DIAGNÓSTICO COMPLETO por el motor sellado (las 4 puntas + por bodega + por familia + materialidad del quiebre) · UNA verdad.
+  const D = diagnoseInventario(rows, { capitalField: kSF.field });
+  const critById = {}; for (const r of rows) critById[r[key]] = r.alerta === "crit";
+  // el FOCO de la pregunta ("capital inmovilizado") = el frenado; el resto es contexto honesto (la otra historia, materialidad-gated).
+  const dormant = D.perSku.filter((s) => s.estado === "capital_frenado")
+    .map((s) => ({ sku: s.sku, usd: s.capital, doh: s.doh, rotacion: s.rotacion, bodega: s.bodega || "—", familia: s.familia, diasSinVenta: s.diasSinVenta, critico: !!critById[s.sku] }))
+    .sort((a, b) => b.usd - a.usd);
   if (!dormant.length) return null;
-  dormant.sort((a, b) => b.usd - a.usd);
   const total = dormant.reduce((s, r) => s + r.usd, 0);
   const bMap = {};
   for (const r of dormant) bMap[r.bodega] = (bMap[r.bodega] || 0) + r.usd;
   const byBodega = Object.entries(bMap).map(([bodega, usd]) => ({ bodega, usd, pct: Math.round(usd / total * 100) })).sort((a, b) => b.usd - a.usd);
   const topB = byBodega[0], crit = dormant.filter((r) => r.critico);
-  // TEXTO por partes — la pregunta (capital) manda el foco
+  // frenado por FAMILIA (A · desde el motor) — dónde vive el capital dormido
+  const frenadoByFamilia = D.byFamilia
+    .map((f) => ({ familia: f.nombre, usd: (f.estados.capital_frenado && f.estados.capital_frenado.usd) || 0 }))
+    .filter((f) => f.usd > 0).sort((a, b) => b.usd - a.usd);
+  // las 4 puntas (distribución) + la otra punta MATERIAL (quiebre) — el motor decide si es material (no ruido)
+  const estados = _ESTADO_ORDEN.filter((e) => D.dist[e]).map((e) => ({ estado: e, label: _ESTADO_LABEL[e], usd: D.dist[e].usd, pct: D.dist[e].pct, count: D.dist[e].count }));
+  const q = D.dist.riesgo_quiebre;
+  const qFam = D.byFamilia.filter((f) => f.estados.riesgo_quiebre && f.estados.riesgo_quiebre.usd > 0)
+    .map((f) => ({ familia: f.nombre, usd: f.estados.riesgo_quiebre.usd })).sort((a, b) => b.usd - a.usd);
+  const qSkus = D.perSku.filter((s) => s.estado === "riesgo_quiebre").sort((a, b) => b.capital - a.capital);
+  const quiebre = D.quiebreMaterial && q && q.usd > 0
+    ? { usd: q.usd, pct: q.pct, count: q.count, material: true, familias: qFam, skus: qSkus.slice(0, 4).map((s) => ({ sku: s.sku, usd: s.capital, doh: s.doh, rotacion: s.rotacion, bodega: s.bodega })) }
+    : null;
+  // TEXTO por partes — la pregunta (capital inmovilizado) manda el foco; el cierre honesto cuenta la otra punta si es MATERIAL
   const L1 = `Tenés ${_money(total)} de capital inmovilizado en ${dormant.length} SKU sin rotar. Se concentra en ${topB.bodega} (${_money(topB.usd)}, ${topB.pct}%).`;
   const L2 = `Por bodega: ${byBodega.map((b) => `${b.bodega} ${_money(b.usd)}`).join(" · ")}.`;
+  const L2b = frenadoByFamilia.length ? `Por familia lo carga ${frenadoByFamilia[0].familia} (${_money(frenadoByFamilia[0].usd)})${frenadoByFamilia[1] ? ` y ${frenadoByFamilia[1].familia} (${_money(frenadoByFamilia[1].usd)})` : ""}.` : "";
   const L3 = `Los SKU que lo explican: ${dormant.slice(0, 4).map((r) => `${r.sku} ${_money(r.usd)} (${r.doh}d DOH, rotación ${r.rotacion}x)`).join(" · ")}.`;
   const L4 = `**Por qué:** dejaron de rotar — rotación bajo ${POLICY.rotacionMin}x o DOH sobre ${POLICY.dohMax}d. Es stock que no sale y te atrapa la plata.`;
   const topCrit = crit.slice(0, 2).map((r) => r.sku);
   const L5 = `**Qué hacer:** arrancá por ${topCrit.length ? topCrit.join(" y ") : dormant[0].sku} (los más frenados) — liquidación o reasignación libera esa plata para SKU que sí rotan; después revisá la reposición para no repetirlo.`;
+  // L6 · la OTRA punta — sin esto la respuesta era media historia (mostraba el frenado, ocultaba el quiebre material)
+  const L6 = quiebre
+    ? `**No es lo único — hay otra punta:** ${_money(quiebre.usd)} (${quiebre.pct}% del inventario) en riesgo de quiebre${qFam.length ? `, sobre todo en ${qFam[0].familia}` : ""} — SKU que rotan rápido con poca cobertura y se van a cortar. No es plata de más: es plata mal repartida. Mientras ${topB.bodega} tiene stock dormido, esos se quedan sin producto.`
+    : "";
   const _ctx = "capital inmovilizado";
   const bol = [fig("Capital inmovilizado · total", _money(total), { unit: "money", raw: total, mandatory: true, context: _ctx })];
   for (const b of byBodega) bol.push(fig(`Bodega · ${b.bodega}`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: _ctx }));
+  for (const f of frenadoByFamilia.slice(0, 3)) bol.push(fig(`Familia · ${f.familia}`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: _ctx }));
   for (const r of dormant.slice(0, 4)) bol.push(fig(`SKU · ${r.sku}`, _money(r.usd), { unit: "money", raw: r.usd, mandatory: false, context: _ctx }));
+  // boleta rica: las 4 puntas del inventario autorizadas (la narración las usa selectivamente · el guard no deja inventar otra)
+  for (const e of estados) bol.push(fig(`Inventario · ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
+  if (quiebre) for (const s of quiebre.skus) bol.push(fig(`Riesgo de quiebre · ${s.sku}`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: "riesgo de quiebre" }));
   return {
-    opener: `${L1}\n\n${L2}\n\n${L3}\n\n${L4}\n\n${L5}`,
-    suggestions: ["Por qué el capital está dormido", "Qué SKU libero primero"],
+    opener: [L1, L2, L2b, L3, L4, L5, L6].filter(Boolean).join("\n\n"),
+    suggestions: quiebre ? ["Qué SKU repongo por quiebre", "Qué SKU libero primero"] : ["Por qué el capital está dormido", "Qué SKU libero primero"],
     sentrixAction: null,
     evidence: { lens: "inventory", metrica: "capital", dimension: "bodega", boleta: bol,
-      inventory: { total, byBodega, bySku: dormant.map((r) => ({ sku: r.sku, usd: r.usd, doh: r.doh, rotacion: r.rotacion, bodega: r.bodega, critico: r.critico })) } },
+      inventory: { total, byBodega, bySku: dormant.map((r) => ({ sku: r.sku, usd: r.usd, doh: r.doh, rotacion: r.rotacion, bodega: r.bodega, critico: r.critico })),
+        totalInventario: D.total, estados, frenadoByFamilia, quiebre } },
   };
 }
 

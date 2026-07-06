@@ -652,6 +652,8 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
 function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
   const inv = (evidence && evidence.inventory) || {};
   const byBodega = inv.byBodega || [], bySku = inv.bySku || [];
+  const estados = inv.estados || [];   // las 4 puntas (sano/quiebre/frenado/sobrestock) · del motor sellado
+  const estColor = { capital_frenado: C.amber, riesgo_quiebre: C.red, sobrestock: C.cyan, capital_sano: C.green };
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
   const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
@@ -689,7 +691,38 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
             ))}
           </div>
         </div>
+        {estados.length > 0 && (
+          <div>
+            <div style={{ ...head, marginBottom:9 }}>Las 4 puntas del inventario<span style={{ textTransform:"none", letterSpacing:0, opacity:0.65 }}> · {_fm(inv.totalInventario || 0)} total</span></div>
+            <div style={{ display:"flex", height:9, borderRadius:5, overflow:"hidden", marginBottom:11 }}>
+              {estados.map((e, i) => (<div key={i} title={`${e.label} ${e.pct}%`} style={{ width:`${e.pct}%`, background:estColor[e.estado] || C.textMuted, opacity:0.88 }}/>))}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {estados.map((e, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ width:8, height:8, borderRadius:2, background:estColor[e.estado] || C.textMuted, flexShrink:0 }}/>
+                  <span style={{ fontSize:12, color:C.textSub, flex:1 }}>{e.label}</span>
+                  <span style={{ fontFamily:MONO, fontSize:12, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(e.usd)}</span>
+                  <span style={{ fontFamily:MONO, fontSize:11, color:C.textMuted, width:34, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{e.pct}%</span>
+                </div>
+              ))}
+            </div>
+            {inv.quiebre && (
+              <div style={{ marginTop:12, padding:"10px 12px", borderRadius:7, background:"rgba(244,63,94,0.08)", border:"1px solid rgba(244,63,94,0.25)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:5 }}>
+                  <span style={{ width:6, height:6, borderRadius:"50%", background:C.red, flexShrink:0 }}/>
+                  <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.red, textTransform:"uppercase" }}>La otra punta · riesgo de quiebre</span>
+                </div>
+                <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55 }}>
+                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(inv.quiebre.usd)}</span> ({inv.quiebre.pct}%) en {inv.quiebre.count} SKU que rotan rápido con poca cobertura — se van a cortar.
+                  {inv.quiebre.familias && inv.quiebre.familias.length ? <> Sobre todo en {inv.quiebre.familias[0].familia}.</> : null}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <div>
+          <div style={{ ...head, marginBottom:9 }}>SKU frenados · el detalle</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", gap:"0 16px", alignItems:"center" }}>
             <div style={head}>SKU</div><div style={{ ...head, textAlign:"right" }}>Capital</div><div style={{ ...head, textAlign:"right" }}>DOH</div><div style={{ ...head, textAlign:"right" }}>Rot.</div>
             {bySku.map((s, i) => (
