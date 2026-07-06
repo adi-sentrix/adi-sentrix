@@ -647,6 +647,98 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
   );
 }
 
+// VentasPanel · FOCO VENTAS (owner 2026-07-06) · se adapta al foco: movers (quién tracciona/resta vs plan o YoY) ·
+// decomp (el crecimiento partido en volumen vs precio · el separador ADI-vs-BI) · mix (participación de familias) ·
+// rank (SKU por venta). Respalda el texto de ADI. Los $ ya vienen formateados (valFmt) desde el composer (escala ×1000).
+function VentasPanel({ evidence, onClose, onToggleMax, maximized }) {
+  const p = (evidence && evidence.ventas && evidence.ventas.panel) || {};
+  const kind = p.kind, rows = p.rows || [];
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.val || 0)));
+  const hl = p.headline || "";
+  const hlColor = hl.startsWith("-") ? C.red : hl.startsWith("+") ? C.green : C.text;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>VENTAS</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
+          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Ventas"}</div>
+          {hl ? <div style={{ fontFamily:MONO, fontSize:16, color:hlColor, fontWeight:700, whiteSpace:"nowrap" }}>{hl}{p.headlineSub ? <span style={{ fontSize:10.5, color:C.textMuted, fontWeight:400 }}> · {p.headlineSub}</span> : null}</div>
+            : p.headlineSub ? <div style={{ fontFamily:MONO, fontSize:11, color:C.textMuted }}>{p.headlineSub}</div> : null}
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:16 }}>
+        {kind === "decomp" && (
+          <div>
+            <div style={{ ...head, marginBottom:11 }}>El crecimiento, partido</div>
+            <div style={{ display:"flex", height:14, borderRadius:5, overflow:"hidden", marginBottom:12, background:"rgba(255,255,255,0.05)" }}>
+              <div title={`volumen ${p1(p.volp)}%`} style={{ width:`${Math.max(2, Math.abs(p.volp) / (Math.abs(p.volp) + Math.abs(p.prip) || 1) * 100)}%`, background:C.cyan, opacity:0.85 }}/>
+              <div title={`precio ${p1(p.prip)}%`} style={{ flex:1, background:C.green, opacity:0.8 }}/>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              {[{ lbl:"Más unidades (volumen)", v:p.volp, led:p.volLed, col:C.cyan }, { lbl:"Mejor precio realizado", v:p.prip, led:p.priLed, col:C.green }].map((x, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ width:9, height:9, borderRadius:2, background:x.col, flexShrink:0 }}/>
+                  <span style={{ fontSize:12, color:C.textSub, flex:1 }}>{x.lbl}<span style={{ color:C.textMuted }}> · empuja {x.led}</span></span>
+                  <span style={{ fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums" }}>{x.v >= 0 ? "+" : ""}{p1(x.v)}%</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:11 }}>El {hl || `+${p1(p.totp)}%`} YoY se descompone en volumen (más unidades) vs precio realizado (venta/unidades). Más volumen que precio = crecimiento sano. "Precio realizado" no es un ticket.</div>
+          </div>
+        )}
+        {kind === "mix" && (
+          <div>
+            <div style={{ ...head, marginBottom:11 }}>Participación en el mix · hoy vs año anterior</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {rows.map((r, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:12, color:C.textSub, width:150, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <div style={{ position:"relative", flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ width:`${r.sNow}%`, height:"100%", background:C.blue, opacity:0.8 }}/>
+                    <div style={{ position:"absolute", left:`${r.sAnt}%`, top:-1, bottom:-1, width:1.5, background:C.textMuted }}/>
+                  </div>
+                  <span style={{ fontFamily:MONO, fontSize:12, color:C.text, width:42, textAlign:"right", flexShrink:0 }}>{p1(r.sNow)}%</span>
+                  <span style={{ fontFamily:MONO, fontSize:11, color: r.dpp >= 0 ? C.green : C.red, width:44, textAlign:"right", flexShrink:0 }}>{r.dpp >= 0 ? "+" : ""}{p1(r.dpp)}pp</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>La barra es el share de hoy; la línea gris marca el share del año anterior. Verde/rojo = puntos ganados/perdidos.</div>
+          </div>
+        )}
+        {(kind === "movers" || kind === "rank") && (
+          <div>
+            <div style={{ ...head, marginBottom:11 }}>{kind === "rank" ? "Ranking de venta" : "Quién mueve la aguja"}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+              {rows.map((r, i) => { const col = kind === "rank" ? C.blue : (r.pos ? C.green : C.red); return (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:12, color:C.textSub, width:110, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <div style={{ flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ width:`${Math.max(2, Math.abs(r.val || 0) / maxAbs * 100)}%`, height:"100%", background:col, opacity:0.85 }}/>
+                  </div>
+                  <span style={{ fontFamily:MONO, fontSize:12, color:C.text, fontVariantNumeric:"tabular-nums", width:64, textAlign:"right", flexShrink:0 }}>{r.valFmt}</span>
+                  {typeof r.pct === "number" ? <span style={{ fontFamily:MONO, fontSize:10.5, color:C.textMuted, width:44, textAlign:"right", flexShrink:0 }}>{r.pct >= 0 ? "+" : ""}{p1(r.pct)}%</span> : null}
+                </div>
+              ); })}
+            </div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>{kind === "rank" ? "SKU ordenados por venta del período. Cifras de dato real." : "Verde = suma, rojo = resta. Ordenado por impacto en $. Cifras de dato real."}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // MarginPanel · FOCO MARGEN (owner 2026-07-06) · la "calidad de la venta" de un vistazo: cada entidad contra la LÍNEA de
 // benchmark (bajo la línea = margen delgado) + descomposición precio/costo cuando el foco lo pide. Respalda el texto de ADI.
 function MarginPanel({ evidence, onClose, onToggleMax, maximized }) {
@@ -863,6 +955,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // MARGEN · cada entidad vs la línea de benchmark (+ precio/costo) = la evidencia del foco de margen.
     if (evidence && evidence.margin && evidence.margin.panel && Array.isArray(evidence.margin.panel.rows) && evidence.margin.panel.rows.length)
       return <MarginPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // VENTAS · movers/decomp/mix/rank = la evidencia del foco de ventas.
+    if (evidence && evidence.ventas && evidence.ventas.panel && (evidence.ventas.panel.kind === "decomp" || (Array.isArray(evidence.ventas.panel.rows) && evidence.ventas.panel.rows.length)))
+      return <VentasPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
       return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     return null;

@@ -717,7 +717,8 @@ function _ventasFocusBlock(focus, dim, filters) {
     for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${L.s} · ${r.nombre} vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
     bol.push(fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual * 1000, mandatory: true, context: "vs presupuesto" }));
     bol.push(fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" }));
-    return { lines, suggestions: ["Cómo vamos vs el año anterior", "Es por volumen o por precio"], bol };
+    const panel = { kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(_vKPI.totalActual)} vs ${_m(_vKPI.totalPresupuesto)}`, rows: withDev.map((r) => ({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 })) };
+    return { lines, suggestions: ["Cómo vamos vs el año anterior", "Es por volumen o por precio"], bol, panel };
   }
 
   if (focus === "vs_anterior" || focus === "explica_yoy") {
@@ -735,7 +736,8 @@ function _ventasFocusBlock(focus, dim, filters) {
       `**Qué hacer:** el neto es positivo, pero los que restan son la fuga a mirar — recuperarlos suma directo.`,
     ];
     for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${LL.s} · ${r.nombre} YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "vs año anterior" }));
-    return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol };
+    const panel = { kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 })).sort((a, b) => b.val - a.val) };
+    return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol, panel };
   }
 
   if (focus === "descomposicion_vol_precio") {
@@ -755,7 +757,8 @@ function _ventasFocusBlock(focus, dim, filters) {
     bol.push(fig("Crecimiento total YoY", `${_sgnp(totp)}${_p1(totp)}%`, { unit: "pct", raw: +totp.toFixed(1), mandatory: true, context: "descomposición" }));
     bol.push(fig("Efecto volumen", `${_sgnp(volp)}${_p1(volp)}%`, { unit: "pct", raw: +volp.toFixed(1), mandatory: false, context: "descomposición" }));
     bol.push(fig("Efecto precio realizado", `${_sgnp(prip)}${_p1(prip)}%`, { unit: "pct", raw: +prip.toFixed(1), mandatory: false, context: "descomposición" }));
-    return { lines, suggestions: ["Quiénes traccionan el crecimiento", "Participación de familias en el mix"], bol };
+    const panel = { kind: "decomp", title: "Volumen vs precio", totp: +totp.toFixed(1), volp: +volp.toFixed(1), prip: +prip.toFixed(1), volLed: volLed.nombre, priLed: priLed.nombre };
+    return { lines, suggestions: ["Quiénes traccionan el crecimiento", "Participación de familias en el mix"], bol, panel };
   }
 
   if (focus === "caida_clientes") {
@@ -769,7 +772,8 @@ function _ventasFocusBlock(focus, dim, filters) {
       `**Qué hacer:** la mayor oportunidad de recuperación está justo acá — recuperar a estos clientes vale ${_m(Math.abs(down.slice(0, 4).reduce((a, r) => a + r.d, 0)))}.`,
     ];
     for (const r of down.slice(0, 4)) bol.push(fig(`Cliente · ${r.nombre} YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "caída YoY" }));
-    return { lines, suggestions: ["Crecimiento YoY por cliente", "Es por volumen o por precio"], bol };
+    const panel = { kind: "movers", title: "Clientes que retroceden", headlineSub: "vs el año anterior", rows: down.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: _m(r.d), pct: +r.p.toFixed(1), pos: false })) };
+    return { lines, suggestions: ["Crecimiento YoY por cliente", "Es por volumen o por precio"], bol, panel };
   }
 
   if (focus === "precio_realizado") {
@@ -783,7 +787,8 @@ function _ventasFocusBlock(focus, dim, filters) {
       `Tampoco tengo sucursal ni vendedor, así que el corte por esos ejes no es posible. Frecuencia y tráfico requieren transacciones (no existen).`,
     ];
     for (const r of up.slice(0, 3)) if (r.yoy != null) bol.push(fig(`${L.s} · ${r.nombre} precio realizado YoY`, `${_sgnp(r.yoy)}${_p1(r.yoy)}%`, { unit: "pct", raw: +r.yoy.toFixed(1), mandatory: false, context: "precio realizado" }));
-    return { lines, suggestions: ["Es por volumen o por precio", "Crecimiento YoY por cliente"], bol };
+    const panel = { kind: "movers", title: "Precio realizado YoY (proxy, no es ticket)", pctMode: true, rows: up.filter((r) => r.yoy != null).map((r) => ({ nombre: r.nombre, val: r.yoy, valFmt: `${_sgnp(r.yoy)}${_p1(r.yoy)}%`, pos: r.yoy >= 0 })) };
+    return { lines, suggestions: ["Es por volumen o por precio", "Crecimiento YoY por cliente"], bol, panel };
   }
 
   if (focus === "mix_familia") {
@@ -797,7 +802,8 @@ function _ventasFocusBlock(focus, dim, filters) {
       `**Qué mirar:** quién gana peso del mix marca hacia dónde se mueve la demanda — útil para reponer y negociar donde estás creciendo.`,
     ];
     for (const r of mix) bol.push(fig(`Familia · ${r.nombre} share`, `${_p1(r.sNow)}%`, { unit: "pct", raw: +r.sNow.toFixed(1), mandatory: false, context: "mix de ventas" }));
-    return { lines, suggestions: ["Crecimiento YoY por familia", "Es por volumen o por precio"], bol };
+    const panel = { kind: "mix", title: "Mix de ventas · participación", rows: mix.slice().sort((a, b) => b.sNow - a.sNow).map((r) => ({ nombre: r.nombre, sNow: +r.sNow.toFixed(1), sAnt: +r.sAnt.toFixed(1), dpp: +r.dpp.toFixed(1) })) };
+    return { lines, suggestions: ["Crecimiento YoY por familia", "Es por volumen o por precio"], bol, panel };
   }
 
   if (focus === "rank_venta") {
@@ -808,7 +814,8 @@ function _ventasFocusBlock(focus, dim, filters) {
       `**Ojo:** no tengo presupuesto ni año anterior POR SKU (sólo por cliente/marca/familia), así que no puedo comparar cada SKU contra plan ni contra el año pasado — eso te lo doy a nivel cliente o familia.`,
     ];
     for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "ranking de venta" }));
-    return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol };
+    const panel = { kind: "rank", title: "SKU por venta", rows: ranked.slice(0, 8).map((s) => ({ nombre: s.nombre, val: s.venta, valFmt: _m(s.venta) })) };
+    return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol, panel };
   }
   return null;
 }
@@ -833,12 +840,12 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
       ...block.lines,
     ];
     return { opener: lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions.length ? block.suggestions : ["Cómo vamos vs el año anterior", "Cómo vamos vs presupuesto"], sentrixAction: null,
-      evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf } } };
+      evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf, gapLabel: g.no, panel: block.panel || null } } };
   }
   const block = _ventasFocusBlock(focus, dim, filters);
   if (!block) return null;
   return { opener: block.lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions, sentrixAction: null,
-    evidence: { lens: "ventas", metrica: "ventas", dimension: dim, boleta: block.bol, ventas: { focus, dimension: dim } } };
+    evidence: { lens: "ventas", metrica: "ventas", dimension: dim, boleta: block.bol, ventas: { focus, dimension: dim, panel: block.panel || null } } };
 }
 
 /* ── composeSpecSimulate · SIMULACIÓN = un SUPUESTO aplicado sobre el dato REAL (base única = real) ─────────────
