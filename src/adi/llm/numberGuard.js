@@ -78,22 +78,40 @@ export function numberGuard(narration, validated) {
 
 // DECISOR de la narración: devuelve la narración SOLO si pasa el guard; si no (o si vino vacía) → el texto
 // determinístico de ADI. Es el punto único donde "si numberGuard falla, se descarta la narración".
+// LENGUAJE PROHIBIDO en narración: producto = dato real + supuesto · NO hay escenarios. "escenario(s)" es corregible
+// ("escenario"→"supuesto", case-preserving); los NOMBRES de escenario (Bonanza/Tensión/Crisis) NO son corregibles
+// semánticamente → la narración se descarta y cae al texto determinístico (ya limpio por el seam).
+function _scrubNarrationLang(s) {
+  return String(s)
+    .replace(/escenarios/g, "supuestos").replace(/Escenarios/g, "Supuestos")
+    .replace(/escenario/g, "supuesto").replace(/Escenario/g, "Supuesto");
+}
+const _PROHIBITED = /\b(bonanza|tensi[oó]n|crisis)\b/i;
+
 export function pickNarratedText(validated, narration) {
   const det = (validated && validated.text) || "";
   if (!narration || typeof narration !== "string" || !narration.trim())
     return { text: det, narrated: false, verdict: "sin-narración", reason: "narración vacía" };
+  let narr = narration;
+  // LENGUAJE PROHIBIDO (scoped a simulaciones · evidence.transform): corregí "escenario"→"supuesto"; si quedan
+  // nombres de escenario (Bonanza/Tensión/Crisis) → descartá la narración (cae al determinístico). Owner 2026-07-06.
+  if (validated && validated.evidence && validated.evidence.transform) {
+    narr = _scrubNarrationLang(narr);
+    if (_PROHIBITED.test(narr))
+      return { text: det, narrated: false, verdict: "lenguaje-prohibido", reason: "narración con lenguaje de escenario" };
+  }
   // GUARD v2 · ÚNICO punto que usa la BOLETA: si el output la trae → validamos CONTRA ella (unit-aware · verbatim ·
   // obligatorias · atrapa drift de escala y ratio garbleado). Si no → guard v1 (dígitos de texto+evidence). El _guardWrap
   // del closer sigue en v1 (valida el texto EJECUTIVO de ADI, no la narración) → gates struct/guard intactos.
   const _bol = validated && validated.evidence && validated.evidence.boleta;
   let g;
   if (Array.isArray(_bol) && _bol.length) {
-    const r = guardAgainstBoleta(narration, _bol);
+    const r = guardAgainstBoleta(narr, _bol);
     g = { ...r, verdict: r.ok ? "fiel" : (r.unauthorized.length ? "cifra-no-autorizada" : "cifra-obligatoria-faltante") };
   } else {
-    g = numberGuard(narration, validated);
+    g = numberGuard(narr, validated);
   }
   return g.ok
-    ? { text: narration, narrated: true, verdict: "fiel", reason: g.reason }
+    ? { text: narr, narrated: true, verdict: "fiel", reason: g.reason }
     : { text: det, narrated: false, verdict: g.verdict, reason: g.reason };
 }
