@@ -326,24 +326,63 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   });
   const totA = items.reduce((s, it) => s + it.actual, 0), totS = totA * factor, totD = totS - totA;
 
-  // TEXTO · tabla actual vs supuesto (lenguaje de PRODUCTO · nunca "escenario")
+  // ── CONCENTRACIÓN DEL IMPACTO (80/20) · reusa el PRINCIPIO del Pareto (sentrix/concentration.js): orden desc por Δ +
+  //    acumulado + bloque hasta cruzar el 80%. Para un delta PAREJO, Δ_i ∝ actual_i → la concentración del impacto ES la
+  //    de la estructura actual (el supuesto la AMPLIFICA) · % REAL, nunca forzado a 80 (honesto, data-driven). ──────────
+  const impSorted = items.slice().sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const impTot = impSorted.reduce((s, it) => s + Math.abs(it.delta), 0) || 1;
+  let _cum = 0;
+  const bars = impSorted.map((it) => {
+    _cum += Math.abs(it.delta);
+    return { name: it.name, value: Math.abs(it.delta), dFmt: it.dFmt, pct: Math.round((Math.abs(it.delta) / impTot) * 100), cumPct: (_cum / impTot) * 100 };
+  });
+  let blockCount = bars.findIndex((b) => b.cumPct >= 80) + 1;
+  if (blockCount <= 0) blockCount = bars.length;
+  bars.forEach((b, i) => { b.inBlock = i < blockCount; });
+  const blockPct = bars[blockCount - 1] ? Math.round(bars[blockCount - 1].cumPct) : 0;   // % REAL en el corte
+  const nEnt = bars.length;
+  const single = nEnt === 1;
+  const concentrated = !single && blockCount <= Math.ceil(nEnt / 2);   // una minoría explica la mayoría
+  const _plural = ent.label.plural || `${ent.label.sing}s`;
+  const _fem = new Set(["marca", "familia", "bodega"]).has(dimension);   // concordancia de género (premium · sin "olor a prototipo")
+  const _primeros = _fem ? "las primeras" : "los primeros";
+  const _ninguna = _fem ? "ninguna" : "ninguno";
+
+  // ── LECTURA ESTRUCTURAL + puntero de calidad (el VEREDICTO de calidad computado = incremento B) ──────────────────────
+  const _absTotD = Math.abs(totD), _impPct = Math.abs(pct);   // impacto % = |pct| (delta parejo · consistente con el header)
+  const _verb = totD >= 0 ? "suma" : "resta";
+  const _estr = single ? `El supuesto recae sobre una sola ${ent.label.sing} (Δ ${_sgn(totD)}${_f(totD)}).`
+    : concentrated ? "El supuesto amplifica la estructura actual: el resultado depende del bloque que ya concentra el negocio."
+    : `El impacto (Δ) está repartido entre ${nEnt} ${_plural} — ${_ninguna} concentra el resultado.`;
+  const _cross = metric === "ventas" ? "si el crecimiento captura margen o solo suma volumen"
+    : metric === "contribucion" ? "quién captura mejor la contribución"
+    : "si libera capital sano o mueve stock lento";
+  const _accion = single ? ""
+    : concentrated ? ` Antes de empujar a toda la cartera, el foco es ese bloque: mirá ${_cross}.`
+    : ` El foco no es un bloque puntual; conviene igual chequear ${_cross}.`;
+
+  // TEXTO · LECTURA ESTRUCTURAL (NO enumera · el detalle por entidad vive en la mesa de Sentrix) · lenguaje de PRODUCTO
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
   const head = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · dato real vs supuesto (${_sgn(pct)}${pct}%).`;
-  const lines = items.map((it) => `${it.name}: ${it.aFmt} → ${it.sFmt} (Δ ${_sgn(it.delta)}${it.dFmt})`).join("\n");
-  const totLine = `Total: ${_f(totA)} → ${_f(totS)} (Δ ${_sgn(totD)}${_f(totD)}).`;
-  const opener = `${head}\n\n${lines}\n\n${totLine}`;
+  const impLine = `Un ${_sgn(pct)}${pct}% parejo ${_verb} ${_f(_absTotD)} sobre el dato real (${_f(totA)} → ${_f(totS)})`;
+  const body = concentrated
+    ? `${impLine}, pero el impacto no se reparte igual: ${_primeros} ${blockCount} ${_plural} explican el ${blockPct}% del Δ. ${_estr}${_accion}`
+    : `${impLine}. ${_estr}${_accion}`;
+  const opener = `${head}\n\n${body}`;
 
-  // BOLETA · actual (source:actual) + supuesto/Δ (source:computed + fórmula auditable)
+  // BOLETA · estructural (impacto total + concentración) MANDATORY · per-entidad AUTORIZADA (habilita nombrar el bloque, NO obliga a enumerar)
   const _ctx = `supuesto ${m.label} ${_sgn(pct)}${pct}% sobre el dato real`;
   const bol = [];
+  bol.push(fig("Total · actual",       _f(totA),      { unit: m.unit, raw: totA,     mandatory: true, context: _ctx, source: "actual" }));
+  bol.push(fig("Total · supuesto",     _f(totS),      { unit: m.unit, raw: totS,     mandatory: true, context: _ctx, source: "computed", formula: `total actual × ${factor}` }));
+  bol.push(fig("Impacto absoluto",     _f(_absTotD),  { unit: m.unit, raw: _absTotD, mandatory: true, context: _ctx, source: "computed", formula: "|supuesto − actual|" }));
+  bol.push(fig("Impacto %",            `${_impPct}%`, { unit: "pct",  raw: _impPct,  context: _ctx, source: "computed", formula: "impacto / total actual" }));
+  if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, context: _ctx, source: "computed", formula: `${blockCount} ${_plural} acumulan el ${blockPct}% del Δ` }));
   for (const it of items) {
     bol.push(fig(`${it.name} · actual`,   it.aFmt, { unit: m.unit, raw: it.actual,   context: _ctx, source: "actual" }));
     bol.push(fig(`${it.name} · supuesto`, it.sFmt, { unit: m.unit, raw: it.supuesto, context: _ctx, source: "computed", formula: `${it.aFmt} × ${factor}` }));
     bol.push(fig(`${it.name} · Δ`,        it.dFmt, { unit: m.unit, raw: it.delta,    context: _ctx, source: "computed", formula: "supuesto − actual" }));
   }
-  bol.push(fig("Total · actual",   _f(totA), { unit: m.unit, raw: totA, mandatory: true, context: _ctx, source: "actual" }));
-  bol.push(fig("Total · supuesto", _f(totS), { unit: m.unit, raw: totS, mandatory: true, context: _ctx, source: "computed", formula: `total actual × ${factor}` }));
-  bol.push(fig("Total · Δ",        _f(totD), { unit: m.unit, raw: totD, context: _ctx, source: "computed", formula: "supuesto − actual" }));
 
   return {
     opener, suggestions: null, sentrixAction: null,
@@ -353,7 +392,10 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
       // projection ENRIQUECIDA (formateados + fórmula) para que Sentrix renderice la tabla sin recomputar
       projection: items.map((it) => ({ name: it.name, actual: it.actual, supuesto: it.supuesto, delta: it.delta,
         aFmt: it.aFmt, sFmt: it.sFmt, dFmt: it.dFmt, formula: `${it.aFmt} × ${factor}` })),
-      total: { actual: totA, supuesto: totS, delta: totD, aFmt: _f(totA), sFmt: _f(totS), dFmt: _f(totD) } },
+      total: { actual: totA, supuesto: totS, delta: totD, aFmt: _f(totA), sFmt: _f(totS), dFmt: _f(totD) },
+      // 80/20 DEL IMPACTO (para el panel Sentrix · barras + acumulado + bloque) + la lectura estructural
+      concentration: { bars, blockCount, blockPct, n: nEnt, concentrated, single, impactTotal: impTot, impactTotalFmt: _f(_absTotD) },
+      structural: { reading: _estr, action: _accion.trim(), blockCount, blockPct, plural: _plural, cross: _cross } },
   };
 }
 
