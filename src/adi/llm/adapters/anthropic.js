@@ -3,9 +3,11 @@
  * text, model) y devuelve el SPEC. NO define métricas, entidades, disponibilidad, cálculos, bloqueos ni verdad del dato
  * — todo eso es de ADI (contrato). Si mañana cambiamos de proveedor, se cambia el adapter; el spec/contrato no.
  *
- * parse(text, {system, tool, model})     → { spec, usage }
- * narrate(validatedOutput, {model})      → { text, usage }   (no se usa en el experimento v1 · queda listo)
+ * parse(text, {system, tool, model})        → { spec, usage }
+ * narrate(validatedOutput, {model, system})  → { text, usage }   (system lo inyecta gatewayCore: general vs simulación)
  */
+import { NARRATE_GENERAL } from "../narratePrompt.js";   // fallback si gatewayCore no inyecta system (siempre lo hace)
+
 const BASE = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/v1/messages";
 const VERSION = "2023-06-01";
@@ -42,10 +44,10 @@ export const anthropicAdapter = {
   },
 
   // output validado → narración (reformula sin cambiar cifras · el number-guard lo verifica aparte, en ADI)
-  async narrate(validatedOutput, { model }) {
+  async narrate(validatedOutput, { model, system }) {
     const data = await _call({
       model, max_tokens: 1024,
-      system: "Reformulá la respuesta de ADI (campo `text`) en español, más conversacional y ejecutiva, manteniendo la voz decidida de ADI (lectura, porqué, palanca). REGLAS DURAS sobre las cifras: (1) copiá cada número EXACTAMENTE como aparece, CON su unidad ($, K, M, %, x, días); (2) NO cambies la escala (nunca conviertas M a K ni % a puntos); (3) NO derives, calcules ni inventes NINGÚN número nuevo: prohibido inventar ratios, múltiplos ('N veces'), diferencias ni porcentajes que no estén ya en el texto; (4) no omitas ninguna cifra; (5) si el input trae evidence.boleta, esa ES la lista de cifras AUTORIZADAS: usá SOLO esos value, verbatim (ninguna otra cifra permitida). FORMATO: prosa en párrafos; SIN columnas, SIN tablas ASCII, un solo espacio entre palabras. Devolvé SOLO la reformulación, sin preámbulos.",
+      system: system || NARRATE_GENERAL,
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");

@@ -6,6 +6,8 @@
  * Esto PRUEBA la regla de oro: cambiar de proveedor = cambiar SOLO el adapter. El spec, el contrato, answerADIFromSpec,
  * el number-guard y los tests no se tocan.
  */
+import { NARRATE_GENERAL } from "../narratePrompt.js";   // fallback si gatewayCore no inyecta system (siempre lo hace)
+
 const BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/chat/completions";
 
@@ -45,12 +47,12 @@ export const openaiAdapter = {
     return { spec, usage: _usage(data.usage) };
   },
 
-  // output validado → narración (no se usa en el experimento v1 · queda listo · regla: no cambia cifras)
-  async narrate(validatedOutput, { model }) {
+  // output validado → narración · el system lo elige gatewayCore (general vs simulación) y lo inyecta acá · no cambia cifras
+  async narrate(validatedOutput, { model, system }) {
     const data = await _call({
       model, max_tokens: 1024,
       messages: [
-        { role: "system", content: "Reformulá la respuesta de ADI (campo `text`) en español, más conversacional y ejecutiva, manteniendo la voz decidida de ADI (lectura, porqué, palanca). REGLAS DURAS sobre las cifras: (1) copiá cada número EXACTAMENTE como aparece, CON su unidad ($, K, M, %, x, días); (2) NO cambies la escala (nunca conviertas M a K ni % a puntos); (3) NO derives, calcules ni inventes NINGÚN número nuevo: prohibido inventar ratios, múltiplos ('N veces'), diferencias ni porcentajes que no estén ya en el texto; (4) no omitas ninguna cifra; (5) si el input trae evidence.boleta, esa ES la lista de cifras AUTORIZADAS: usá SOLO esos value, verbatim (ninguna otra cifra permitida). FORMATO: prosa en párrafos; SIN columnas, SIN tablas ASCII, un solo espacio entre palabras. Devolvé SOLO la reformulación, sin preámbulos." },
+        { role: "system", content: system || NARRATE_GENERAL },
         { role: "user", content: JSON.stringify(validatedOutput) },
       ],
     });

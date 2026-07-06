@@ -370,21 +370,19 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
     : `${impLine} El supuesto reparte el impacto entre ${nEnt} ${_plural}: ${_ninguna} concentra el resultado. El siguiente análisis es revisar ${_nextObj}.`;
   const opener = body;
 
-  // BOLETA · estructural (impacto total + concentración) MANDATORY · per-entidad AUTORIZADA (habilita nombrar el bloque, NO obliga a enumerar)
+  // BOLETA ESTRUCTURAL · SOLO cifras de estructura (impacto total + concentración). SIN per-entidad → el guard del LLM #2
+  // (guardAgainstBoleta) bloquea CUALQUIER cifra por entidad → la enumeración es IMPOSIBLE, no solo desaconsejada. El
+  // detalle fila-por-fila vive en evidence.projection (la mesa de Sentrix), auditable, fuera del alcance de la narración.
   const _ctx = `supuesto ${m.label} ${_sgn(pct)}${pct}% sobre el dato real`;
   const bol = [];
   // total actual/supuesto AUTORIZADAS (no mandatory) → NARRATE ON puede usar el before/after sin que el guard obligue a citarlas
   bol.push(fig("Total · actual",       _f(totA),      { unit: m.unit, raw: totA,     context: _ctx, source: "actual" }));
   bol.push(fig("Total · supuesto",     _f(totS),      { unit: m.unit, raw: totS,     context: _ctx, source: "computed", formula: `total actual × ${factor}` }));
-  // MANDATORY: impacto total + impacto % + (bloque 80/20 cuando concentra) → la tesis SIEMPRE los cita
+  // MANDATORY: impacto total + (bloque 80/20 cuando concentra) → la tesis SIEMPRE los cita. Impacto % AUTORIZADO (no
+  // obligatorio): la lectura premium se centra en $ impacto y concentración, no siempre repite el % del supuesto.
   bol.push(fig("Impacto absoluto",     _f(_absTotD),  { unit: m.unit, raw: _absTotD, mandatory: true, context: _ctx, source: "computed", formula: "|supuesto − actual|" }));
-  bol.push(fig("Impacto %",            `${_impPct}%`, { unit: "pct",  raw: _impPct,  mandatory: true, context: _ctx, source: "computed", formula: "impacto / total actual" }));
+  bol.push(fig("Impacto %",            `${_impPct}%`, { unit: "pct",  raw: _impPct,  context: _ctx, source: "computed", formula: "impacto / total actual" }));
   if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, context: _ctx, source: "computed", formula: `${blockCount} ${_plural} acumulan el ${blockPct}% del Δ` }));
-  for (const it of items) {
-    bol.push(fig(`${it.name} · actual`,   it.aFmt, { unit: m.unit, raw: it.actual,   context: _ctx, source: "actual" }));
-    bol.push(fig(`${it.name} · supuesto`, it.sFmt, { unit: m.unit, raw: it.supuesto, context: _ctx, source: "computed", formula: `${it.aFmt} × ${factor}` }));
-    bol.push(fig(`${it.name} · Δ`,        it.dFmt, { unit: m.unit, raw: it.delta,    context: _ctx, source: "computed", formula: "supuesto − actual" }));
-  }
 
   return {
     opener, suggestions: null, sentrixAction: null,

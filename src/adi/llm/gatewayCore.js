@@ -10,6 +10,7 @@
  */
 import { buildContractMenu } from "./contractMenu.js";
 import { buildSpecTool } from "./specTool.js";
+import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
@@ -34,7 +35,8 @@ export async function handleSpec({ text } = {}, env) {
 export async function handleNarrate({ text, evidence } = {}, env) {
   if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
   const { provider, narrateModel } = _config(env);
-  const { text: narration, usage } = await getAdapter(provider).narrate({ text, evidence }, { model: narrateModel });
+  const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
+  const { text: narration, usage } = await getAdapter(provider).narrate({ text, evidence }, { model: narrateModel, system });
   return { ok: true, narration, usage };
 }
 
