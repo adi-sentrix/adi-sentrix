@@ -8,7 +8,7 @@
  * number-guard corren en el CLIENTE (answerADIFromSpec + pickNarratedText local) → este gateway sólo habla con el
  * proveedor. NO toca el motor sellado. Si algo falla → {ok:false} y el cliente degrada al piso determinístico.
  */
-import { buildContractMenu } from "./contractMenu.js";
+import { buildContractMenu, buildParseUserMessage } from "./contractMenu.js";
 import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
@@ -23,11 +23,14 @@ function _config(env) {
   return { provider, model, narrateModel };
 }
 
-// LLM #1 · texto → spec · devuelve {ok, spec, usage} | {ok:false, error}
-export async function handleSpec({ text } = {}, env) {
+// LLM #1 · texto (+ contexto de conversación) → spec · devuelve {ok, spec, usage} | {ok:false, error}
+// El `context` (conversationContext · turnos + última evidencia) viaja al LLM #1 vía buildParseUserMessage → clasifica
+// turn_type y resuelve referencias. El motor/seam sigue validando; el contexto NO habilita saltar guards.
+export async function handleSpec({ text, context } = {}, env) {
   if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
   const { provider, model } = _config(env);
-  const { spec, usage } = await getAdapter(provider).parse(text, { system: buildContractMenu(), tool: buildSpecTool(), model });
+  const userMessage = buildParseUserMessage(context, text);
+  const { spec, usage } = await getAdapter(provider).parse(userMessage, { system: buildContractMenu(), tool: buildSpecTool(), model });
   return { ok: true, spec, usage };
 }
 

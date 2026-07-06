@@ -9,11 +9,14 @@ fs.writeFileSync(entry, [
   'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, composeCompareNotYet } from "./src/adi/conversation.js";',
   'export { composeSpecSimulate } from "./src/adi/specRetrieval.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
+  'export { buildParseUserMessage } from "./src/adi/llm/contractMenu.js";',
+  'export { buildNarrateSystem, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } from "./src/adi/llm/narratePrompt.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
 const { answerConversational: AC, resolveTurn, buildConversationContext: BCC, composeExplain, composeMeta, composeCompareNotYet, composeSpecSimulate, guardAgainstBoleta } = M;
+const { buildParseUserMessage: BPUM, buildNarrateSystem: BNS, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } = M;
 
 let pass = 0, fail = 0; const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
@@ -58,6 +61,14 @@ const cc = BCC([{ role: "user", text: "a" }, { role: "adi", text: "b", route: "q
 ok("16 · contexto = últimos 3 turnos", cc.turns.length === 3);
 ok("17 · last = digest (kind supuesto · transform · boletaDigest ≤6 · NO boleta completa)", cc.last.kind === "supuesto" && cc.last.transform && Array.isArray(cc.last.boletaDigest) && cc.last.boletaDigest.length <= 6 && cc.last.boletaDigest.length < (LAST.boleta || []).length);
 ok("18 · campos de fases futuras reservados (history/session/criteria)", Array.isArray(cc.history) && cc.session === null && cc.criteria === null);
+
+// ── V1 · incremento 2 · CONTEXTO viaja al LLM #1 (buildParseUserMessage) + narración por TIPO (buildNarrateSystem) ──
+const um = BPUM(BCC([{ role: "user", text: "sube las ventas 3% por cliente" }], LAST), "dime qué hacemos");
+ok("19 · buildParseUserMessage antepone el CONTEXTO + el mensaje", /CONTEXTO DE CONVERSACIÓN/.test(um) && /MENSAJE DEL USUARIO/.test(um) && /dime qué hacemos/.test(um) && /"kind":"supuesto"/.test(um));
+ok("20 · sin contexto → solo el texto (turno aislado)", BPUM(null, "ventas por cliente") === "ventas por cliente" && BPUM({ turns: [], last: null }, "hola") === "hola");
+ok("21 · narrate: explain → prompt EXPLAIN (simple)", BNS({ followup: true, kind: "explain" }) === NARRATE_EXPLAIN);
+ok("22 · narrate: meta/compare → GENERAL (fiel, no distorsiona)", BNS({ followup: true, kind: "meta" }) === NARRATE_GENERAL && BNS({ followup: true, kind: "compare_pending" }) === NARRATE_GENERAL);
+ok("23 · narrate: recommendation → RECOMENDACIÓN · simulación → SIMULACIÓN", BNS({ followup: true, transform: {} }) === NARRATE_RECOMMENDATION && BNS({ transform: {} }) === NARRATE_SIMULATION);
 
 // ══ V2 · followup_compare (comparación real) — PENDIENTE, no testeado acá ══
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══

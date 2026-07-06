@@ -57,5 +57,26 @@ export function buildContractMenu() {
   L.push("  · why: para '¿por qué…?' · `dimension` = el eje (cliente/sku/familia) · `entity` = la entidad si la nombran (ej. Falabella, LG-DRYER8KG) · `metric` opcional como pista (margen/carga/contribucion) · el motor reusa el mecanismo y gradúa la certeza.");
   L.push("  · recommend: para '¿qué hago?' / '¿cómo lo corrijo?' · `dimension` = cliente (o el eje del foco) · `entity` = la entidad si la nombran · el motor recomienda SOLO sobre palancas probadas y, si la causa está abierta, recomienda diagnosticar.");
   L.push("  · filtro por marca/familia/cliente/bodega → `filters { marca?, familia?, cliente?, bodega? }`.");
+  L.push("");
+  L.push("CONVERSACIÓN — clasificá `turn_type` (V1). Puede venir un bloque CONTEXTO (turnos previos + la última evidencia accionable: metric/dimension/transform/boletaDigest). Usalo para resolver referencias:");
+  L.push("  · `new_query`: pedido AUTÓNOMO (no depende de lo anterior). Llená metric/dimension/operation normalmente. Ej: 'los 5 mejores clientes por margen'.");
+  L.push("  · `followup_modify_assumption`: cambia el SUPUESTO de lo último ('y si fuera 5%', 'subilo a 10%'). Emití el spec YA RESUELTO: mismo metric/dimension/filters que `contexto.last`, con `transform` nuevo (value cambiado). NO calculás — solo el parámetro.");
+  L.push("  · `followup_change_dimension`: mismo análisis, OTRO eje ('mostralo por marca', 'y por familia?'). Emití el spec resuelto: mismo metric/transform que `contexto.last`, `dimension` nueva.");
+  L.push("  · `followup_recommendation`: '¿qué hacemos?' / '¿qué recomendás?' → NO emitas cifras; ADI arma la recomendación desde la última evidencia.");
+  L.push("  · `followup_explain`: '¿por qué decís eso?' / 'explicámelo simple' → ADI explica desde la estructura ya computada.");
+  L.push("  · `meta_question`: '¿esto es real o supuesto?' / '¿de dónde sale?' / '¿qué podés hacer?' → poné el tema en `meta` ('real_o_supuesto'|'fuente'|'capacidades').");
+  L.push("  · `clarification_needed`: si el pedido es ambiguo o cruza mundos, poné la repregunta en `clarify` (no adivines).");
+  L.push("  · `followup_compare` (ej. 'compará con Lider'): declarado; ponelo si aplica (hoy ADI responde honesto que llega pronto).");
+  L.push("  · SIN contexto o pedido autónomo → `new_query`. NUNCA inventes cifras ni entidades que no estén en el contexto o en las listas.");
   return L.join("\n");
+}
+
+// buildParseUserMessage(conversationContext, text) → el mensaje de usuario para el LLM #1. Si hay contexto (turnos + última
+// evidencia), lo antepone como bloque legible para que el modelo clasifique turn_type y resuelva referencias. Sin contexto
+// (o sin `last`) → solo el texto (turno aislado). El CONTEXTO es data para interpretar; el pedido real es "MENSAJE".
+export function buildParseUserMessage(conversationContext, text) {
+  const c = conversationContext;
+  if (!c || (!c.last && !(c.turns && c.turns.length))) return String(text || "");
+  const compact = { turns: c.turns || [], last: c.last || null };
+  return `CONTEXTO DE CONVERSACIÓN (para interpretar · NO es el pedido):\n${JSON.stringify(compact)}\n\nMENSAJE DEL USUARIO:\n${String(text || "")}`;
 }

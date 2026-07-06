@@ -15,8 +15,16 @@ export const NARRATE_SIMULATION = "Sos un Controller Senior / CFO operativo. Tu 
 // RECOMENDACIÓN · follow-up ejecutivo sobre la última evidencia ("dime qué hacemos"). Decisión primero, breve, desde la boleta.
 export const NARRATE_RECOMMENDATION = "Redactá una RECOMENDACIÓN EJECUTIVA sobre la última proyección: DECISIÓN primero, después el porqué y el siguiente paso. 3 a 5 líneas, directa, como un asesor senior que aconseja qué hacer. Preservá la recomendación de ADI (campo `text`) y hacela más nítida, no más genérica, usando SOLO las cifras de evidence.boleta (verbatim, con su unidad). PROHIBIDO: enumerar entidades/filas/cifras por entidad; inventar o derivar números; usar 'escenario', 'Bonanza', 'Tensión' o 'Crisis' (decí 'supuesto', 'proyección' o 'dato real'); frases genéricas de relleno. Devolvé SOLO la recomendación, sin preámbulos.";
 
-// buildNarrateSystem(evidence) → el system prompt correcto. followup → recomendación · transform → simulación · resto → general.
+// EXPLAIN · el "por qué" de una lectura, en simple (CFO que explica sin tecnicismos). Corto.
+export const NARRATE_EXPLAIN = "Reformulá esta explicación (el porqué de una lectura) en lenguaje SIMPLE y corto, para el dueño del negocio, como un CFO que explica sin tecnicismos ni palabrería. Usá SOLO las cifras de evidence.boleta, verbatim y con su unidad. No inventes ni derives números. No enumeres entidades. No uses 'escenario', 'Bonanza', 'Tensión' ni 'Crisis' (decí 'supuesto', 'proyección' o 'dato real'). 2-3 frases. Devolvé SOLO la explicación, sin preámbulos.";
+
+// buildNarrateSystem(evidence) → el system prompt correcto por TIPO de respuesta.
+//   explain → explicación simple · meta/compare_pending → fiel (factual, no distorsionar) · recommendation → decisión ·
+//   simulación → 4 bloques · resto → general.
 export function buildNarrateSystem(evidence) {
+  const kind = evidence && evidence.kind;
+  if (kind === "explain") return NARRATE_EXPLAIN;
+  if (kind === "meta" || kind === "compare_pending") return NARRATE_GENERAL;
   if (evidence && evidence.followup) return NARRATE_RECOMMENDATION;
   if (evidence && evidence.transform) return NARRATE_SIMULATION;
   return NARRATE_GENERAL;

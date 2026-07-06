@@ -8,8 +8,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
+import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
-import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up ejecutivo sobre la última evidencia
+import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
@@ -45,9 +46,9 @@ function _turnFromResult(q, r, context, source) {
       // flags Sentrix están OFF (r.evidence undefined → sin botón → sin panel · piso intacto byte-exacto).
       evidence: r.evidence || null,
     },
-    // CONTINUIDAD · threadeá la última evidencia ACCIONABLE al contexto → el próximo turno puede resolver un follow-up
-    // ejecutivo ("dime qué hacemos") desde acá, sin re-parsear eje/métrica. Si este turno no trae evidence, conservá la previa.
-    context: { ...(r.context || context || {}), lastEvidence: r.evidence || (context && context.lastEvidence) || null },
+    // CONTINUIDAD · threadeá la última evidencia ACCIONABLE. Los narrativos (recommendation/explain/meta · `followup:true`)
+    // NO la reemplazan → "por qué?" / "y si fuera 5%?" siguen refiriendo a la simulación, no a la recomendación. (Cond. 3 del owner.)
+    context: { ...(r.context || context || {}), lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null) },
   };
 }
 
@@ -59,10 +60,10 @@ export function buildAdiTurn(question, context, scenario) {
 
 // CAMINO LLM (ADI_LLM_ENABLED ON · ASYNC): texto → gateway (server-side, tiene la key) → spec → answerADIFromSpec LOCAL.
 // Regla: el LLM SOLO traduce a spec · ADI valida y ejecuta/degrada honesto. Si el gateway falla → CAE AL PISO (answerADI).
-async function _fetchSpec(text, scenario) {
+async function _fetchSpec(text, scenario, context) {
   const res = await fetch("/api/adi-spec", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, scenario }),
+    body: JSON.stringify({ text, scenario, context: context || null }),   // conversationContext → el LLM #1 clasifica turn_type
   });
   const data = await res.json();
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin spec");
@@ -82,21 +83,19 @@ async function _fetchNarration(validated) {
 // última evidencia (NO se re-parsea como consulta nueva de eje/métrica). Solo dispara si hay una evidencia accionable previa.
 const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé]\s+recomiend[ao]s|qu[eé]\s+recomend[aá]s|qu[eé]\s+sigue|y\s+ahora|cu[aá]l\s+es\s+la\s+acci[oó]n)\b/i;
 
-export async function buildAdiTurnLLM(question, context, scenario) {
+export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
   const q = (question || "").trim();
   let r, narrated = false;
-  // ── CONTINUIDAD · follow-up ejecutivo sobre la última evidencia (la capa LLM/seam consume la continuidad que ADI ya tenía).
-  const _last = context && context.lastEvidence;
-  const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
-  if (_fu) {
-    r = _fu;                                                    // recomendación determinística desde la última evidencia (sin LLM #1)
-  } else {
-    try {
-      const spec = await _fetchSpec(q, scenario);
-      r = answerADIFromSpec(spec, context || {}, { scenario }); // ADI valida + ejecuta/degrada honesto (local)
-    } catch (e) {
-      r = answerADI(q, context || {}, { scenario });            // fallback al piso determinístico (el LLM no manda)
-    }
+  // ── PRECEDENCIA (V1 · owner): CONVERSACIONAL → REGEX (fallback) → UN-TURNO. El regex NO se elimina hasta probar el conversacional.
+  const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence);   // contexto chico para el LLM #1
+  try {
+    const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
+    r = answerConversational(spec, context || {}, { scenario }); // rutea por turn_type · el seam valida/degrada honesto (local)
+  } catch (e) {
+    // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
+    const _last = context && context.lastEvidence;
+    const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
+    r = _fu || answerADI(q, context || {}, { scenario });
   }
   // NARRACIÓN LLM #2 · aplica al follow-up Y al spec · sub-flag ADI_LLM_NARRATE_ENABLED (false = parse-only) · PASA por el
   // number-guard (pickNarratedText): guard OK → narración · guard falla / gateway cae → texto determinístico. Nunca inventa.
@@ -388,7 +387,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       const adiId = ++idRef.current;
       setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
       setSuggestionsVisible(false);
-      buildAdiTurnLLM(q, context, scenario).then((turn) => {
+      buildAdiTurnLLM(q, context, scenario, messages).then((turn) => {   // messages = historial previo → conversationContext
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
       });
