@@ -13,9 +13,9 @@
 
 // intención de MARGEN (amplia · dispara el foco). Nota: las preguntas de proveedor/vendedor/caída SIEMPRE dicen "margen",
 // así que 'margen' las cubre; 'lista de precios'/'subir precio'/'costo creciente' cubren las que no nombran margen.
-export const MARGIN_INTENT_RE = /\b(margen|rebate|carga\s+comercial|benchmark|rentab\w*|lista\s+de\s+precios|subir\s+(el\s+)?precio|precio\s+insuficient\w*|costo\s+alto|costo\s+crecient\w*|precio\s+estancad\w*|subpenetrad\w*)\b/iu;
-// simulación de NIVEL (delta %) — "subí el margen 2 puntos" · no es lectura de margen
-const SIM_PCT_RE = /\b(sub[ei]\w*|baj[ae]\w*|aument\w*|increment\w*|proyect\w*)\b.*\d|[+\-]\s?\d+\s?%|\d+\s?%/i;
+export const MARGIN_INTENT_RE = /\b(margen|rebate\w*|carga\s+comercial|benchmark|rentab\w*|rind\w*|lista\s+de\s+precios|subir\s+(el\s+)?precio|cobrar\s+m[aá]s|precio\s+insuficient\w*|precio\s+[^.?!]*(bajo|abajo|pelad|barat)|costo\s+(alto|car\w*|dispar\w*)|car\w*\s+(de|para)\s+comprar|costo\s+crecient\w*|precio\s+estancad\w*|subpenetrad\w*|penetraci[oó]n|deja\w*\s+[^.?!]*(poc[oa]|nada|migu|miseria|migaja)|bajo\s+la\s+(raya|l[ií]nea)|mal\s+cotizad\w*|regalando|alza\s+de\s+precio|ajustar\s+(el\s+)?precio|meterle\s+mano\s+al\s+precio|espacio\s+[^.?!]*precio|bonificaci\w*|descuento\w*\s+.*(margen|doy|dar))/iu;
+// simulación: VERBO + %-número, o % con signo · "30% de margen" (referencia) NO es simulación
+const SIM_PCT_RE = /\b(sub\w*|baj\w*|aument\w*|increment\w*|reduc\w*|proyect\w*)\b[^?.!]*\d+\s*%|[+\-]\s?\d+\s?%/i;
 
 // dimensión atómica que pide la pregunta (sku/producto gana si aparece · luego familia/marca/canal · si no, cliente)
 function _dim(t) {
@@ -38,16 +38,16 @@ export function detectMarginFocus(q) {
   if (/proveedor\w*/i.test(t)) return { isMargin: true, gap: "proveedor", dimension: "marca" };   // pivot = margen por MARCA (aprox. línea de suministro)
   if (/vendedor\w*/i.test(t)) return { isMargin: true, gap: "vendedor", dimension: dim };
   if (/mix\s+cliente[\s-]*sku|cliente[\s-]*sku|combinaci[oó]n\s+cliente/i.test(t)) return { isMargin: true, gap: "mix_cliente_sku", dimension: "sku" };
-  // ── FOCOS reales (específico → general) ──
-  if (/subpenetrad\w*|alto\s+margen\s+.*(subpenetrad\w*|baja\s+(venta|penetr))/i.test(t)) return { isMargin: true, focus: "alto_margen_subpenetrado", dimension: "sku" };
-  if (/subir\s+(el\s+)?precio|deber[ií]an?\s+subir|aumentar\s+(el\s+)?precio/i.test(t)) return { isMargin: true, focus: "subir_precio", dimension: "sku" };
-  if (/por\s+costo|costo\s+alto|margen\s+bajo\s+por\s+costo/i.test(t)) return { isMargin: true, focus: "causa_costo", dimension: dim };
-  if (/por\s+precio|precio\s+insuficient\w*|revisar\s+(la\s+)?lista\s+de\s+precios|lista\s+de\s+precios/i.test(t)) return { isMargin: true, focus: "causa_precio", dimension: dim };
-  if (/(alto\s+)?stock\s+.*bajo\s+margen|bodegas?\s+.*bajo\s+margen|stock\s+en\s+productos?\s+de\s+bajo\s+margen/i.test(t)) return { isMargin: true, focus: "stock_bajo_margen", dimension: "sku" };
-  if (/palanca\w*|acci[oó]n\w*\s+comercial|recuperar\s+(el\s+)?margen|qu[eé]\s+decisiones|deterioran?\s+.*margen|comprim\w*\s+.*margen/i.test(t)) return { isMargin: true, focus: "palancas", dimension: dim };
-  if (/venden?\s+much\w*.*(bajo|poco)\s+margen|alto\s+volumen.*bajo\s+margen|vende\w*\s+m[aá]s.*margen|generan?\s+volumen.*bajo\s+margen|volumen.*bajo\s+margen/i.test(t)) return { isMargin: true, focus: "alto_volumen_bajo_margen", dimension: dim };
+  // ── FOCOS reales (específico → general) · el orden importa: los de causa antes que el genérico bajo_benchmark ──
+  if (/(stock|bodega\w*|inventario|mercader[ií]a|parad\w*)\s+.*((bajo|mal|poco|floj\w*)\s+margen|rind\w*\s+poc|casi\s+no.*(deja|da).*margen)|(dormid\w*|parad\w*)\s+.*(bajo|mal|floj\w*)\s+margen|productos?\s+(floj\w*|malos?)\s+de\s+margen/i.test(t)) return { isMargin: true, focus: "stock_bajo_margen", dimension: "sku" };
+  if (/subpenetrad\w*|(buen|alto|rico|harta?)\s+(margen|rentab\w*).*(poco|casi\s+no|baja?|poco\s+explotad\w*|se\s+vende?n?\s+poco)|(margen|rentab\w*)\s+.*(rico|alto?|buen).*(poco|baja|penetraci|explotad)|(poco\s+explotad\w*|baja\s+penetraci[oó]n|subpenetr).*(margen|rentab)|joyita\w*.*(margen|rentab|no\s+.*vend)|buena\s+plata\s+por\s+unidad.*(poco|baj)/i.test(t)) return { isMargin: true, focus: "alto_margen_subpenetrado", dimension: "sku" };
+  if (/subir\s+(el\s+)?precio|deber[ií]an?\s+subir|aumentar\s+(el\s+)?precio|cobrar\s+m[aá]s|alza\s+de\s+precio|ajustar\s+(el\s+)?precio\w*\s+(hacia\s+)?(arriba|para\s+arriba)|precios?\s+(hacia\s+)?(arriba|para\s+arriba)|aguantan?\s+.*(alza|precio)|meterle\s+mano\s+al\s+precio|espacio\s+[^.?!]*precio/i.test(t)) return { isMargin: true, focus: "subir_precio", dimension: "sku" };
+  if (/por\s+(el\s+)?costo|costo\s+(alto|car\w*|dispar\w*|se\s+.*(sub|dispar)|para\s+arriba)|car\w*\s+(de|para)\s+comprar|margen\s+.*(culpa|por)\s+.*costo|costo\s+.*(apriet|come|pega|fue\s+(para\s+)?arriba)/i.test(t)) return { isMargin: true, focus: "causa_costo", dimension: dim };
+  if (/por\s+(el\s+)?precio|precio\s+insuficient\w*|precio\s+[^.?!]*(bajo|abajo|pelad|barat)|vend\w*\s+(muy\s+)?barat\w*|mal\s+cotizad\w*|regalando|revisar\s+(la\s+)?lista\s+de\s+precios|lista\s+de\s+precios|margen\s+.*(por|lado)\s+.*precio/i.test(t)) return { isMargin: true, focus: "causa_precio", dimension: dim };
+  if (/palanca\w*|acci[oó]n\w*\s+comercial|acciones?\s+.*(margen|rentab)|recuperar\s+(el\s+)?margen|qu[eé]\s+decisiones|deterioran?\s+.*margen|comprim\w*\s+.*margen|(rebate\w*|descuento\w*|\bcargas?\b|flete\w*|bonificaci\w*|acuerdo\w*).*(margen|rentab|chup|pican?|come|achic|doy|dar)|(margen|rentab\w*)\s+.*(en|por|con)\s+.*(rebate\w*|descuento\w*|\bcargas?\b|flete\w*|bonificaci\w*|acuerdo\w*)|(chup|pican?|come|achic)\w*\s+.*(margen|rentab)/i.test(t)) return { isMargin: true, focus: "palancas", dimension: dim };
+  if (/venden?\s+much\w*.*(bajo|poco)\s+margen|alto\s+volumen.*bajo\s+margen|vende\w*\s+m[aá]s.*margen|generan?\s+volumen.*bajo\s+margen|volumen.*(bajo\s+margen|rentab\w*\s+chic)|(vende|factura|mueve)\w*\s+(harto|much\w*|caleta|un\s+mont[oó]n|grande|plata|pan\s+caliente).*(migu\w*|miseria|migaja|poquit|casi\s+no.*(deja|rind)|nada|poc[oa]\s+(margen|rentab)|rind\w*\s+poc|puras?\s+migu)|(vende|se\s+vende)\w*\s+.*pan\s+caliente.*(nada|poco|migu|casi\s+no)/i.test(t)) return { isMargin: true, focus: "alto_volumen_bajo_margen", dimension: dim };
   const negativo = /negativ\w*/i.test(t);
   const pct = /porcentaje|qu[eé]\s+%|cu[aá]nt[oa]\s+.*(venta|del\s+total)/i.test(t);
-  if (negativo || pct || /bajo\s+(el\s+)?margen\s+m[ií]nimo|margen\s+m[ií]nimo|bajo\s+benchmark|debajo\s+.*(benchmark|m[ií]nimo)|bajo\s+margen\b/i.test(t)) return { isMargin: true, focus: "bajo_benchmark", dimension: dim, negativo, pct };
+  if (negativo || pct || /bajo\s+(el\s+)?margen\s+m[ií]nimo|margen\s+m[ií]nimo|bajo\s+benchmark|debajo\s+.*(benchmark|m[ií]nimo|\d+\s*%\s+de\s+margen)|bajo\s+margen\b|bajo\s+la\s+(raya|l[ií]nea)|no\s+.*llega\w*\s+al\s+(m[ií]nimo|margen)|por\s+debajo\s+del?\s+\d/i.test(t)) return { isMargin: true, focus: "bajo_benchmark", dimension: dim, negativo, pct };
   return { isMargin: true, focus: "bajo_benchmark", dimension: dim };   // default útil (nivel vs benchmark)
 }

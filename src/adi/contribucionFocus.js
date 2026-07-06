@@ -8,7 +8,8 @@
  * FOCOS: concentracion (quién sostiene · 80/20) · origen (volumen vs calidad) · no_capturada (vs benchmark) ·
  *        alta_venta_baja_contribucion · rank (top por contribución). */
 
-export const CONTRIB_INTENT_RE = /\bcontribuci[oó]n\w*\b/iu;
+// contribución colloquial: aporta/sostiene/banca/plata-en-el-bolsillo/concentración/80-20/sobre-la-mesa/lo-que-me-deja.
+export const CONTRIB_INTENT_RE = /\b(contribuci[oó]n\w*|aporta\w*|sostien\w*|banca\w*|plata\s+en\s+el\s+bolsillo|(concentr\w*|amarrad\w*|pegad\w*|depend\w*)\s+.*(cliente|cuenta|plata|negocio|poc|par|grande|todo)|80\s*[\/\-]\s*20|el\s+80\s*%|sobre\s+la\s+mesa|se\s+me\s+.*(escap|va\s).*(plata|entrar|manos)|dejando\s+ir|me\s+da\s+plata|regal\w*\s+.*(plata|sin\s+darme|descuento)|mueve\w*\s+la\s+aguja|casi\s+toda\s+(la\s+)?plata|pa\s+la\s+escoba|me\s+(queda|deja|pone|mete)\s+.*(de\s+cada|por\s+cada|cada\s+uno|al\s+final|m[aá]s\s+plata|bolsillo)|lo\s+(poco\s+)?que\s+(dejan|aportan|me\s+deja\w*|me\s+queda\w*)|no\s+se\s+justific\w*.*(poco|dejan))/iu;
 // simulación: un VERBO (subo/bajá/aumentá…) seguido de un %-número, o un % con signo. Un "80%" pelado (referencia
 // Pareto) o "baja contribución" (sin %) NO son simulación → no ceden.
 const SIM_PCT_RE = /\b(sub\w*|baj\w*|aument\w*|increment\w*|reduc\w*|proyect\w*)\b[^?.!]*\d+\s*%|[+\-]\s?\d+\s?%/i;
@@ -35,14 +36,16 @@ export function detectContribucionFocus(q) {
   const t = String(q || "");
   if (!CONTRIB_INTENT_RE.test(t)) return { isContrib: false };
   if (SIM_PCT_RE.test(t)) return { isContrib: false };   // simulación de contribución → la maneja el path de simulación
+  // CEDE a inventario: "plata pegada en stock/bodega" es capital inmovilizado, no contribución (salvo que diga contribución/aporta/…)
+  if (/\b(stock|inventario|bodeg\w*|mercader)\b/i.test(t) && !/contribuci|aporta|sostien|banca|concentr|80\s*[\/\-%]/i.test(t)) return { isContrib: false };
   const dim = _dim(t);
   // concentración / quién sostiene / 80-20
-  if (/qui[eé]n\s+(la\s+)?sostiene|concentr\w*|\b80\s*%|el\s+80\b|mayor\s+parte|pareto|de\s+qui[eé]n\s+depende/i.test(t)) return { isContrib: true, focus: "concentracion", dimension: dim };
-  // origen: de dónde viene/saca (volumen vs calidad/margen)
-  if (/de\s+d[oó]nde\s+(viene|sale|saca|obtiene|proviene)|\borigen\b|(viene|sale|saca|proviene)\s+(de|por)\s|volumen\s+o\s+(de\s+)?(margen|calidad|precio)|(margen|calidad)\s+o\s+(de\s+)?volumen|por\s+volumen\s+o/i.test(t)) return { isContrib: true, focus: "origen", dimension: "cliente", entity: _entity(t) };
-  // no capturada
-  if (/no\s+(estoy\s+)?captur\w*|no\s+capturad\w*|dejando\s+(sobre|de|en)|sobre\s+la\s+mesa|perd\w*\s+.*contribuci|recuperar\s+contribuci|sin\s+captur\w*/i.test(t)) return { isContrib: true, focus: "no_capturada", dimension: dim };
+  if (/qui[eé]n\s+(la\s+|me\s+)?(sostiene|banca)|banca\w*|sostien\w*|concentr\w*|\b80\s*[\/\-%]|el\s+80\b|mayor\s+parte|pareto|de\s+qui[eé]n\s+depende|amarrad\w*|pegad\w*\s+a\s+(poc|un\s+par)|depend\w*\s+de\s+(poc|un\s+par|cu[aá]ntos)|casi\s+toda\s+(la\s+)?plata|pa\s+la\s+escoba|par\s+de\s+grandes|cu[aá]ntos?\s+(clientes|cuentas).*(banca|sostien|toda|casi)|de\s+cu[aá]ntos/i.test(t)) return { isContrib: true, focus: "concentracion", dimension: dim };
+  // no capturada (antes de origen: "de dónde se me escapa" no es origen)
+  if (/no\s+(estoy\s+)?captur\w*|no\s+capturad\w*|dejando\s+(sobre|de|ir|en)|dej[eé]\s+.*sobre\s+la\s+mesa|sobre\s+la\s+mesa|perd\w*\s+.*contribuci|recuperar\s+contribuci|sin\s+captur\w*|se\s+me\s+.*(escap|va\s).*(plata|entrar|de\s+las\s+manos|entrando)|regal\w*\s+.*(plata|sin\s+darme|descuento)|plata\s+que\s+.*(no\s+cobr|no\s+gan|regal|dej|escap)|pude\s+haber\s+ganado|deber[ií]a\s+estar\s+entrando|dejando\s+ir/i.test(t)) return { isContrib: true, focus: "no_capturada", dimension: dim };
+  // origen: de dónde viene/saca/se arma (volumen vs calidad/margen)
+  if (/de\s+d[oó]nde\s+(me\s+)?(viene|sale|saca|obtiene|proviene|se\s+arma)|se\s+arma\s+lo\s+que|\borigen\b|(viene|sale|saca|proviene)\s+(de|por)\s|volumen\s+o\s+(de\s+)?(margen|calidad|precio)|(margen|calidad)\s+o\s+(de\s+)?volumen|por\s+volumen\s+o|(aporta|da\s+plata|me\s+deja|me\s+da)\w*\s+.*(por|de)\s+(vender|volumen|margen|calidad|pagar|comprar|precio)|porque\s+(compra|vende|paga)\w*\s+.*o\s+(porque|por|de)/i.test(t)) return { isContrib: true, focus: "origen", dimension: "cliente", entity: _entity(t) };
   // alta venta / buen margen pero baja contribución
-  if (/(alta|much[oa])\s+venta.*(baja|poca)\s+contribuci|venden?\s+much\w*.*(baja|poca)\s+contribuci|(buen|alto)\s+margen.*(baja|poca)\s+contribuci|poca\s+contribuci/i.test(t)) return { isContrib: true, focus: "alta_venta_baja_contribucion", dimension: dim };
+  if (/(alta|much[oa])\s+venta.*(baja|poca)\s+contribuci|venden?\s+much\w*.*(baja|poca)\s+contribuci|(buen|alto)\s+margen.*(baja|poca)\s+contribuci|poca\s+contribuci|(compr\w*|vend\w*|factura\w*|mueve\w*)\s+.*(mont[oó]n|harto|much|caleta|bonito|grande).*(casi\s+no\s+.*(deja|aporta)|aporta\w*\s+.*(miseria|poco|nada|humo)|lo\s+que\s+.*(queda|deja|me\s+queda).*(humo|poco|nada|miseria)|no\s+se\s+justific|una\s+miseria|no\s+me\s+sube|puro\s+humo)|grandes?\s+en\s+venta.*(poco|nada|no\s+se\s+justif)/i.test(t)) return { isContrib: true, focus: "alta_venta_baja_contribucion", dimension: dim };
   return { isContrib: true, focus: "rank", dimension: dim };   // default: top por contribución
 }

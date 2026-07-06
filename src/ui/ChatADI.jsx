@@ -11,10 +11,7 @@ import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · 
 import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
 import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
-import { detectInventoryFocus } from "../adi/inventoryFocus.js";   // "la pregunta manda el foco" (frenado/quiebre/sobrestock/stale)
-import { detectMarginFocus } from "../adi/marginFocus.js";         // idem margen (rompe la trampa todo→diagnose genérico)
-import { detectVentasFocus } from "../adi/ventasFocus.js";         // idem ventas (vs ppto/YoY/descomposición/mix + huecos honestos)
-import { detectContribucionFocus } from "../adi/contribucionFocus.js";   // idem contribución (concentración 80/20 · origen · no capturada)
+import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -105,101 +102,6 @@ async function _narrateResult(r) {
   } catch { return { r, narrated: false }; }
 }
 
-// SAFETY NET determinístico del COMPARE (no depender de la clasificación variable del LLM #1 · owner 2026-07-06): si el
-// texto pide comparar ('compará/compáralo/versus/vs/contra X'), forzamos operation=compare + turn_type=followup_compare y,
-// si el LLM no puso el target, lo extraemos del texto ('… con/contra X'). El sujeto lo resuelve composeCompare del contexto.
-const _CMP_INTENT_RE = /\b(compar[aá]\w*|compár\w*|comparemos|versus|vs\.?)\b|\bcontra\s+\p{L}/iu;
-// "ventas CONTRA el presupuesto / año anterior / plan / meta" NO es comparación de entidades → es ventas (vs plan/YoY).
-// Sólo bloquea cuando el ÚNICO indicio es "contra <plan/tiempo>" (si hay "compará/versus/vs" explícito, sí compara).
-const _CMP_PLAN_RE = /\bcontra\s+(el\s+|la\s+|los\s+|las\s+)?(presupuesto|ppto|a[ñn]o(\s+(anterior|pasado))?|per[ií]odo|plan|meta|objetivo|mes(\s+(anterior|pasado))?|benchmark)\b/i;
-function _coerceCompare(q, spec) {
-  if (!q || !spec || !_CMP_INTENT_RE.test(q)) return spec;
-  // "contra el presupuesto/año/plan" NO es comparación de entidades → la maneja ventas. Además LIMPIA un compare que el
-  // LLM ya haya elegido (si no, "contra el año pasado" pide "¿comparar contra qué SKU?" en vez de responder el YoY).
-  if (_CMP_PLAN_RE.test(q) && !/compar[aá]\w*|compár\w*|versus|\bvs\b/i.test(q)) return spec.operation === "compare" ? { ...spec, operation: "overview", comparison: undefined } : spec;
-  const s = { ...spec, operation: "compare", turn_type: "followup_compare" };
-  const ents = (s.comparison && Array.isArray(s.comparison.entities)) ? s.comparison.entities.filter(Boolean) : [];
-  if (!ents.length) {
-    const m = q.match(/\b(?:con|contra|versus|vs\.?)\s+(.+?)\s*[?.!¡¿]*$/i);
-    const t = m && m[1] && m[1].trim();
-    s.comparison = { ...(s.comparison || {}), entities: t ? [t] : [] };
-  }
-  return s;
-}
-
-// SAFETY NET del FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco"): si el texto es de inventario,
-// forzamos operation=inventory con el SUB-FOCO que pide la pregunta (frenado/quiebre/sobrestock/stale · detectInventoryFocus),
-// NO el diagnóstico genérico. Excluye simulaciones de nivel ("sube el capital 3%") y comparaciones (ya ruteadas). Además
-// LIMPIA un transform espurio: el LLM a veces lee "90 días sin vender" como delta:90/unit:days → lo borramos (no es simulación).
-// SAFETY NET del FOCO MARGEN (owner 2026-07-06): el smoke en vivo mostró que el LLM manda casi toda pregunta de margen a
-// operation=diagnose → el "genérico de 3 focos" (responde otra pregunta). Si el texto es de margen, forzamos operation=margin
-// con el SUB-FOCO que pide la pregunta (o el HUECO honesto). NO toca dives/compares de una entidad puntual ni simulaciones.
-// SAFETY NET del FOCO VENTAS (owner 2026-07-06): corre ANTES que margen/inventario pero CEDE a ellos (detectVentasFocus
-// devuelve isVentas:false ante quiebre/stock, y margen/inventario -que corren después- reclaman lo suyo). No toca
-// dives/compares de entidad puntual. Rompe la trampa "todo→diagnose genérico" ruteando al foco de ventas o al hueco honesto.
-// SAFETY NET del FOCO CONTRIBUCIÓN (owner 2026-07-06 · 4º dominio): corre PRIMERO (su palabra "contribución" es el
-// disparador más específico) para que "venta"/"margen" dentro de una pregunta de contribución no la roben ventas/margen.
-function _coerceContribucion(q, spec) {
-  if (!q || !spec || spec.operation === "compare") return spec;
-  const c = detectContribucionFocus(q);
-  if (!c.isContrib) return spec;
-  const s = { ...spec, operation: "contribucion", metric: "contribucion", dimension: c.dimension || "cliente",
-    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
-  if (c.focus) s.focus = c.focus;
-  if (c.entity) s.entity = c.entity;
-  if (s.transform) delete s.transform;
-  return s;
-}
-
-function _coerceVentas(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "margin" || spec.operation === "contribucion" || spec.entity) return spec;
-  const v = detectVentasFocus(q);
-  if (!v.isVentas) return spec;
-  const s = { ...spec, operation: "ventas", metric: "ventas", dimension: v.dimension || "cliente",
-    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
-  if (v.focus) s.focus = v.focus;
-  if (v.gap) s.gap = v.gap;
-  if (v.pivotFocus) s.pivotFocus = v.pivotFocus;
-  if (s.transform) delete s.transform;   // una lectura de ventas no es una simulación
-  return s;
-}
-
-function _coerceMargin(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "contribucion" || spec.entity) return spec;
-  const m = detectMarginFocus(q);
-  if (!m.isMargin) return spec;
-  const s = { ...spec, operation: "margin", metric: "margen", dimension: m.dimension || "cliente",
-    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
-  if (m.focus) s.focus = m.focus;
-  if (m.gap) s.gap = m.gap;
-  if (m.negativo) s.negativo = true;
-  if (m.pct) s.pct = true;
-  if (s.transform) delete s.transform;   // una pregunta de margen no es una simulación (el SIM_PCT ya se filtró en el detector)
-  return s;
-}
-
-function _coerceInventory(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
-  const inv = detectInventoryFocus(q);
-  if (!inv.isInventory) return spec;
-  const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";
-  const s = { ...spec, operation: "inventory", metric: "capital", dimension: dim, focus: inv.focus,
-    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
-  if (inv.staleDays != null) s.staleDays = inv.staleDays;
-  if (s.transform && s.transform.unit !== "pct") delete s.transform;   // "90 días" mal leído como supuesto → no es simulación
-  return s;
-}
-
-// CONTINUIDAD del "por qué" (owner 2026-07-06 · D): un "por qué" GENÉRICO (o sobre el foco de inventario) NO debe
-// re-diagnosticar — sigue el ÚLTIMO foco vía composeExplain. "por qué Falabella cede margen" (entidad puntual) NO cae acá.
-const _BARE_WHY_RE = /^\s*(?:dime\s+|explic[aá]\w*(?:me)?\s+)?(?:el\s+)?por\s?qu[eé](?:\s+(?:ocurre|pasa|sucede|es\s+(?:eso|as[ií])|raz[oó]n|la\s+raz[oó]n))?\s*[?.!¡¿]*$/i;
-const _WHY_CAPITAL_RE = /por\s?qu[eé].*(capital|dormid\w*|inmoviliz\w*|no\s+rot\w*|frenad\w*)/i;
-function _coerceExplain(q, spec, hasLast) {
-  if (!hasLast || !q || !spec) return spec;
-  if (_BARE_WHY_RE.test(q) || _WHY_CAPITAL_RE.test(q)) return { ...spec, turn_type: "followup_explain" };
-  return spec;
-}
-
 export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
   const q = (question || "").trim();
   let r, narrated = false;
@@ -208,7 +110,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
     const _hasLast = !!(context && context.lastEvidence);
-    r = answerConversational(_coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, _coerceCompare(q, spec))))), _hasLast), context || {}, { scenario }); // foco compare→contribución→margen→ventas→inventario (contribución primero: su palabra es la más específica) · el seam valida/degrada honesto
+    r = answerConversational(coerceSpec(q, spec, _hasLast), context || {}, { scenario }); // cadena de coerce (compare→contribución→margen→ventas→inventario→explain) · no depende del LLM · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;
