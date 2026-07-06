@@ -16,6 +16,12 @@ export const POLICY = {
   targetCarga: 3.5,         // target operativo de carga comercial (%)
   rotacionMin: 2,           // diagnose · piso de rotación (x): por debajo, el stock se considera dormido (numérico · portable a ERP real)
   dohMax: 120,              // diagnose · techo de cobertura (días): por encima, el stock se considera dormido
+  // ── diagnóstico de inventario (owner 2026-07-06 · umbrales configurables) · salud de las DOS puntas: sobra y falta ──
+  quiebreRotMin: 6,         // riesgo de quiebre: rotación ALTA (≥) …
+  quiebreDohMax: 20,        // … y cobertura BAJA (DOH ≤ días) → se va a quedar sin stock
+  sobrestockDohMin: 60,     // sobrestock: DOH entre esto y dohMax (vende, pero cobertura excesiva)
+  quiebreMaterialUsd: 20000,// materialidad de la alerta de quiebre: $ mínimo para no secuestrar la respuesta con ruido
+  quiebreMaterialPct: 5,    // … o % del capital del foco
 };
 
 // helper: el benchmark de una entidad, respetando el dato por-fila (el dato manda · POLICY es el piso).
