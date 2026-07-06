@@ -53,6 +53,9 @@ ok("NO hijack · 'bajo margen mínimo' NO es contribución", F("¿Qué clientes 
 ok("NO hijack · 'vs el presupuesto' NO es contribución", F("¿Cómo vamos vs el presupuesto?").isContrib === false);
 ok("NO hijack · 'capital inmovilizado' NO es contribución", F("¿dónde está mi capital inmovilizado?").isContrib === false);
 ok("NO hijack · simulación 'subo precios 3%' NO es lectura de contribución", F("¿qué pasa con la contribución si subo precios 3%?").isContrib === false);
+// robustez del cruce (smoke transversal 2026-07-06): "saca" + entidad en posición de sujeto + "volumen o DE margen"
+ok("cruce · 'Falabella … de dónde saca su contribución, de volumen o de margen' → origen + entidad Falabella", (() => { const r = F("Falabella aparece grande en ventas. ¿De dónde saca su contribución, de volumen o de margen?"); return r.isContrib && r.focus === "origen" && r.entity === "Falabella"; })());
+ok("cruce · entidad de dos palabras 'de Mercado Libre' → origen + entidad Mercado Libre", (() => { const r = F("¿De dónde viene la contribución de Mercado Libre?"); return r.isContrib && r.focus === "origen" && r.entity === "Mercado Libre"; })());
 
 console.log(`\n── _contribucion_focus_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

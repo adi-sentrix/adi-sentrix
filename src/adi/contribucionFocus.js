@@ -21,10 +21,13 @@ function _dim(t) {
   if (/\bmarca/i.test(t)) return "marca";
   return "cliente";
 }
-// entidad nombrada para "origen" ("…contribución de Falabella…") · primer "de <Nombre en Mayúscula>" (salta "de dónde/la…")
+// entidad nombrada para "origen": primer token en Mayúscula que no sea palabra-pregunta (subject "Falabella…" o "de Falabella").
+// Si no es un cliente real, el composer lo valida contra dc[entity] y cae a la lectura general (fallback seguro).
+const _STOP = /^(de|del|d[oó]nde|qu[eé]|c[oó]mo|cu[aá]l|cu[aá]les|cu[aá]nt[oa]s?|y|el|la|los|las|su|mi|en|es|para|con|un|una)$/i;
 function _entity(t) {
-  const m = String(t).match(/\bde\s+([A-ZÁÉÍÓÚ][\wÁÉÍÓÚáéíóúñ.\-]*(?:\s+[A-ZÁÉÍÓÚ][\wÁÉÍÓÚáéíóúñ.\-]*)?)/);
-  return m ? m[1].trim().replace(/[?.!,]+$/, "") : null;
+  const caps = String(t).match(/[A-ZÁÉÍÓÚ][\wáéíóúñ.\-]+(?:\s+[A-ZÁÉÍÓÚ][\wáéíóúñ.\-]+)?/g) || [];
+  for (const w of caps) { const c = w.trim().replace(/[?.!,]+$/, ""); if (!_STOP.test(c)) return c; }
+  return null;
 }
 
 // detectContribucionFocus(texto) → { isContrib, focus?, dimension?, entity? }
@@ -35,8 +38,8 @@ export function detectContribucionFocus(q) {
   const dim = _dim(t);
   // concentración / quién sostiene / 80-20
   if (/qui[eé]n\s+(la\s+)?sostiene|concentr\w*|\b80\s*%|el\s+80\b|mayor\s+parte|pareto|de\s+qui[eé]n\s+depende/i.test(t)) return { isContrib: true, focus: "concentracion", dimension: dim };
-  // origen: de dónde viene (volumen vs calidad)
-  if (/de\s+d[oó]nde\s+(viene|sale)|\borigen\b|viene\s+(de|por)\s|volumen\s+o\s+(margen|calidad)|por\s+volumen\s+o/i.test(t)) return { isContrib: true, focus: "origen", dimension: "cliente", entity: _entity(t) };
+  // origen: de dónde viene/saca (volumen vs calidad/margen)
+  if (/de\s+d[oó]nde\s+(viene|sale|saca|obtiene|proviene)|\borigen\b|(viene|sale|saca|proviene)\s+(de|por)\s|volumen\s+o\s+(de\s+)?(margen|calidad|precio)|(margen|calidad)\s+o\s+(de\s+)?volumen|por\s+volumen\s+o/i.test(t)) return { isContrib: true, focus: "origen", dimension: "cliente", entity: _entity(t) };
   // no capturada
   if (/no\s+(estoy\s+)?captur\w*|no\s+capturad\w*|dejando\s+(sobre|de|en)|sobre\s+la\s+mesa|perd\w*\s+.*contribuci|recuperar\s+contribuci|sin\s+captur\w*/i.test(t)) return { isContrib: true, focus: "no_capturada", dimension: dim };
   // alta venta / buen margen pero baja contribución
