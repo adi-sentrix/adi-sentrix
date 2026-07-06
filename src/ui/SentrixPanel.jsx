@@ -654,6 +654,12 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
   const byBodega = inv.byBodega || [], bySku = inv.bySku || [];
   const estados = inv.estados || [];   // las 4 puntas (sano/quiebre/frenado/sobrestock) · del motor sellado
   const estColor = { capital_frenado: C.amber, riesgo_quiebre: C.red, sobrestock: C.cyan, capital_sano: C.green };
+  const cmap = { amber: C.amber, red: C.red, cyan: C.cyan, green: C.green };
+  const fcolor = cmap[inv.focusColor] || C.amber;   // color del FOCO (la pregunta manda) · barras + header
+  const cp = inv.contrapunta || null;               // la otra punta material (callout)
+  const cpColor = cmap[cp && cp.color] || C.red;
+  const titleParts = String(inv.title || "Capital inmovilizado · dónde está frenada tu plata").split(" · ");
+  const isStale = inv.focus === "stale";
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
   const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
@@ -671,8 +677,8 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
-          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}><span style={{ color:C.textMuted }}>Capital inmovilizado · </span>dónde está frenada tu plata</div>
-          <div style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{_fm(inv.total || 0)}</div>
+          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{titleParts[1] ? <><span style={{ color:C.textMuted }}>{titleParts[0]} · </span>{titleParts[1]}</> : titleParts[0]}</div>
+          <div style={{ fontFamily:MONO, fontSize:16, color:fcolor, fontWeight:700, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{_fm(inv.total || 0)}</div>
         </div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
@@ -683,7 +689,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <span style={{ fontSize:12.5, color:C.textSub, width:96, flexShrink:0 }}>{b.bodega}</span>
                 <div style={{ flex:1, height:7, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
-                  <div style={{ width:`${Math.round(b.usd / maxB * 100)}%`, height:"100%", background:C.amber, opacity:0.85 }}/>
+                  <div style={{ width:`${Math.round(b.usd / maxB * 100)}%`, height:"100%", background:fcolor, opacity:0.85 }}/>
                 </div>
                 <span style={{ fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums", width:52, textAlign:"right", flexShrink:0 }}>{_fm(b.usd)}</span>
                 <span style={{ fontFamily:MONO, fontSize:11, color:C.textMuted, width:34, textAlign:"right", flexShrink:0 }}>{b.pct}%</span>
@@ -707,39 +713,39 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
                 </div>
               ))}
             </div>
-            {inv.quiebre && (
-              <div style={{ marginTop:12, padding:"10px 12px", borderRadius:7, background:"rgba(244,63,94,0.08)", border:"1px solid rgba(244,63,94,0.25)" }}>
+            {cp && (
+              <div style={{ marginTop:12, padding:"10px 12px", borderRadius:7, background:`${cpColor}14`, border:`1px solid ${cpColor}40` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:5 }}>
-                  <span style={{ width:6, height:6, borderRadius:"50%", background:C.red, flexShrink:0 }}/>
-                  <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.red, textTransform:"uppercase" }}>La otra punta · riesgo de quiebre</span>
+                  <span style={{ width:6, height:6, borderRadius:"50%", background:cpColor, flexShrink:0 }}/>
+                  <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:cpColor, textTransform:"uppercase" }}>La otra punta · {cp.label}</span>
                 </div>
                 <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55 }}>
-                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(inv.quiebre.usd)}</span> ({inv.quiebre.pct}%) en {inv.quiebre.count} SKU que rotan rápido con poca cobertura — se van a cortar.
-                  {inv.quiebre.familias && inv.quiebre.familias.length ? <> Sobre todo en {inv.quiebre.familias[0].familia}.</> : null}
+                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(cp.usd)}</span> ({cp.pct}%) en {cp.count} SKU{cp.estado === "riesgo_quiebre" ? " que rotan rápido con poca cobertura — se van a cortar" : " que no rotan y atrapan la plata"}.
+                  {cp.familias && cp.familias.length ? <> Sobre todo en {cp.familias[0].nombre}.</> : null}
                 </div>
               </div>
             )}
           </div>
         )}
         <div>
-          <div style={{ ...head, marginBottom:9 }}>SKU frenados · el detalle</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", gap:"0 16px", alignItems:"center" }}>
-            <div style={head}>SKU</div><div style={{ ...head, textAlign:"right" }}>Capital</div><div style={{ ...head, textAlign:"right" }}>DOH</div><div style={{ ...head, textAlign:"right" }}>Rot.</div>
+          <div style={{ ...head, marginBottom:9 }}>{titleParts[0]} · el detalle</div>
+          <div style={{ display:"grid", gridTemplateColumns: isStale ? "1fr auto auto auto" : "1fr auto auto auto", gap:"0 16px", alignItems:"center" }}>
+            <div style={head}>SKU</div><div style={{ ...head, textAlign:"right" }}>Capital</div><div style={{ ...head, textAlign:"right" }}>{isStale ? "Sin venta" : "DOH"}</div><div style={{ ...head, textAlign:"right" }}>Rot.</div>
             {bySku.map((s, i) => (
               <React.Fragment key={i}>
                 <div style={{ gridColumn:"1 / -1", height:1, background:"rgba(255,255,255,0.05)" }}/>
                 <div style={{ padding:"8px 0", display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
-                  {s.critico && <span style={{ width:5, height:5, borderRadius:"50%", background:C.amber, flexShrink:0 }}/>}
+                  {s.critico && <span style={{ width:5, height:5, borderRadius:"50%", background:fcolor, flexShrink:0 }}/>}
                   <span style={{ fontSize:12, color:C.textSub, fontFamily:MONO, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.sku}</span>
                 </div>
                 <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(s.usd)}</div>
-                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: s.doh > 120 ? C.amber : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{s.doh}d</div>
-                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: s.rotacion < 2 ? C.amber : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{s.rotacion}x</div>
+                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: (isStale ? (s.diasSinVenta > 90) : (s.doh > 120)) ? fcolor : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{isStale ? `${s.diasSinVenta ?? "—"}d` : `${s.doh}d`}</div>
+                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: s.rotacion < 2 ? fcolor : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{s.rotacion}x</div>
               </React.Fragment>
             ))}
           </div>
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>Ámbar = frenado (DOH sobre 120d o rotación bajo 2x). El capital dormido es plata que no rota. Cifras de dato real de tu inventario.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La franja "4 puntas" muestra todo tu inventario: {estados.map((e) => e.label).join(" · ")}. Cifras de dato real; el foco resaltado responde tu pregunta.</div>
       </div>
     </div>
   );

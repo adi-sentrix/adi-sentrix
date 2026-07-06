@@ -11,6 +11,7 @@ import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · 
 import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
 import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
+import { detectInventoryFocus } from "../adi/inventoryFocus.js";   // "la pregunta manda el foco" (frenado/quiebre/sobrestock/stale)
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -117,15 +118,20 @@ function _coerceCompare(q, spec) {
   return s;
 }
 
-// SAFETY NET del FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco"): si el texto es de capital/inventario,
-// forzamos operation=inventory (el contrato de inventario), NO el diagnóstico genérico. Excluye simulaciones de capital
-// ("sube el capital 3%" = transform) y las comparaciones (ya ruteadas por _coerceCompare).
-const _INV_INTENT_RE = /\b(capital|inmoviliz\w*|dormid\w*|inventario|stock\s+(?:frenad\w*|parad\w*|sin\s+rotar|inmovil\w*))\b/iu;
-const _SIM_HINT_RE = /\bsub[ei]\w*|baj[ae]\w*|aument\w*|increment\w*|\+\s?\d|si\s+fuera|y\s+si\b|proyect\w*/i;
+// SAFETY NET del FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco"): si el texto es de inventario,
+// forzamos operation=inventory con el SUB-FOCO que pide la pregunta (frenado/quiebre/sobrestock/stale · detectInventoryFocus),
+// NO el diagnóstico genérico. Excluye simulaciones de nivel ("sube el capital 3%") y comparaciones (ya ruteadas). Además
+// LIMPIA un transform espurio: el LLM a veces lee "90 días sin vender" como delta:90/unit:days → lo borramos (no es simulación).
 function _coerceInventory(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || !_INV_INTENT_RE.test(q)) return spec;
-  if (spec.transform || _SIM_HINT_RE.test(q)) return spec;   // simulación de capital → NO es foco inventario
-  return { ...spec, operation: "inventory", metric: "capital", dimension: "bodega", turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
+  if (!q || !spec || spec.operation === "compare") return spec;
+  const inv = detectInventoryFocus(q);
+  if (!inv.isInventory) return spec;
+  const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";
+  const s = { ...spec, operation: "inventory", metric: "capital", dimension: dim, focus: inv.focus,
+    turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
+  if (inv.staleDays != null) s.staleDays = inv.staleDays;
+  if (s.transform && s.transform.unit !== "pct") delete s.transform;   // "90 días" mal leído como supuesto → no es simulación
+  return s;
 }
 
 // CONTINUIDAD del "por qué" (owner 2026-07-06 · D): un "por qué" GENÉRICO (o sobre el foco de inventario) NO debe

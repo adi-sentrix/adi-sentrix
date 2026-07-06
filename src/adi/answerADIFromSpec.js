@@ -192,9 +192,11 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     return _plain(`El ${_m(spec.metric)} por ${_d(spec.dimension)} no lo tengo como vista propia hoy.`, { route: "spec_explain", intent: "explain_availability", ctx, offer: sib0 });
   }
 
-  // ── #4 · métrica disponible en esa dimensión (dive/diagnose se saltan: dive no usa métrica · diagnose barre cross-eje) ──
+  // ── #4 · métrica disponible en esa dimensión (dive/diagnose/inventory se saltan: dive no usa métrica · diagnose barre
+  //     cross-eje · inventory es HOLÍSTICO — composeSpecInventory usa el motor sellado, no retrieval por eje, y responde
+  //     "la pregunta manda el foco" por SKU/bodega/familia con UNA sola verdad, así que capital@familia NO debe bloquear) ──
   const axes = (METRICS[spec.metric] && METRICS[spec.metric].axes) || [];
-  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && !axes.includes(spec.dimension))
+  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && !axes.includes(spec.dimension))
     return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);
 
   // ── #5 · filtros válidos (clave = una dimensión conocida) ──
@@ -235,7 +237,10 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   try {
     // SIMULACIÓN · un SUPUESTO sobre el dato REAL (transform presente). Base única = real · NO invoca el motor de escenarios.
     // Ortogonal a la operación (operation "table"/"overview"); lo que dispara la proyección es el transform.
-    if (spec.transform && spec.transform.op) {
+    if (spec.transform && spec.transform.op && (spec.transform.unit === "pct" || spec.transform.op === "multi")) {
+      // La ÚNICA simulación soportada es un delta/target en PORCENTAJE sobre un nivel (composeSpecSimulate lo exige). Un
+      // transform con otra unidad (ej. el LLM lee "90 días sin vender" como delta:90 unit:days) NO es una simulación →
+      // cae fuera de este if y sigue a la operación normal (inventory/overview/…), en vez de degradar con "no habilitado".
       // COMPUESTO · el pedido trae 2+ supuestos (el schema v1 lleva UN transform) → el LLM marca op:"multi".
       // Decisión de producto: NO proyectar parcial ni tomar uno en silencio · degradar honesto y sugerir separar.
       if (spec.transform.op === "multi" || spec.transform.compound === true) {
@@ -367,9 +372,12 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     // FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco"): capital inmovilizado por bodega/SKU · NO el
     // diagnóstico genérico. El composer ya trae la estructura (lectura→bodega→SKU→por qué→qué hacer) → finalizo directo.
     if (spec.operation === "inventory") {
-      const resp = composeSpecInventory({ filters: spec.filters, scenario });
-      if (!resp || !resp.opener)
-        return _degrade("inventory-empty", `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
+      // la pregunta manda el foco (frenado|quiebre|sobrestock|stale) · lo infiere el cliente del texto o el LLM
+      const resp = composeSpecInventory({ filters: spec.filters, scenario, focus: spec.focus, staleDays: spec.staleDays });
+      if (!resp || !resp.opener) {
+        const _fMsg = { quiebre: "No veo SKU en riesgo de quiebre material — la cobertura alcanza en lo que rota rápido.", sobrestock: "No veo sobrestock material — la cobertura está dentro de rango.", stale: "No veo SKU parados por ese plazo — todo tuvo movimiento reciente." };
+        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
+      }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory" };
       return r;
