@@ -74,6 +74,8 @@ const TESTS = [
   { n: "44 · diagnose NO se fuerza a cuadro (va al panel de FOCOS · findings es flag-gated · el panel se valida por render-smoke)", spec: S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), ok: (r) => executes(r, "qi_retrieval") && !(r.evidence && r.evidence.lens === "cuadro") },
   { n: "45 · rank → evidence.lens=cuadro (abre el Cuadro)", spec: S({ operation: "rank", metric: "margen", dimension: "cliente", sort: { by: "margen", dir: "asc" }, limit: 5 }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" },
   { n: "46 · dive NO se fuerza a cuadro (op fuera del set · el shell/reading es flag-gated aparte)", spec: S({ operation: "dive", metric: "margen", dimension: "cliente", entity: "Falabella" }), ok: (r) => !(r.evidence && r.evidence.lens === "cuadro") },
+  // ── FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco") · capital inmovilizado por bodega/SKU, NO el diagnóstico ──
+  { n: "47 · inventory EJECUTA foco capital (evidence.inventory · total/byBodega/bySku · NO diagnóstico genérico)", spec: S({ operation: "inventory", metric: "capital", dimension: "bodega" }), ok: (r) => executes(r, "qi_retrieval") && r.evidence && r.evidence.inventory && Array.isArray(r.evidence.inventory.byBodega) && r.evidence.inventory.byBodega.length > 0 && Array.isArray(r.evidence.inventory.bySku) && r.evidence.inventory.bySku.length > 0 && /capital inmovilizado/i.test(r.text) },
 ];
 
 let pass = 0, fail = 0; const lines = [];

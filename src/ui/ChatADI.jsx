@@ -117,6 +117,17 @@ function _coerceCompare(q, spec) {
   return s;
 }
 
+// SAFETY NET del FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco"): si el texto es de capital/inventario,
+// forzamos operation=inventory (el contrato de inventario), NO el diagnóstico genérico. Excluye simulaciones de capital
+// ("sube el capital 3%" = transform) y las comparaciones (ya ruteadas por _coerceCompare).
+const _INV_INTENT_RE = /\b(capital|inmoviliz\w*|dormid\w*|inventario|stock\s+(?:frenad\w*|parad\w*|sin\s+rotar|inmovil\w*))\b/iu;
+const _SIM_HINT_RE = /\bsub[ei]\w*|baj[ae]\w*|aument\w*|increment\w*|\+\s?\d|si\s+fuera|y\s+si\b|proyect\w*/i;
+function _coerceInventory(q, spec) {
+  if (!q || !spec || spec.operation === "compare" || !_INV_INTENT_RE.test(q)) return spec;
+  if (spec.transform || _SIM_HINT_RE.test(q)) return spec;   // simulación de capital → NO es foco inventario
+  return { ...spec, operation: "inventory", metric: "capital", dimension: "bodega", turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
+}
+
 export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
   const q = (question || "").trim();
   let r, narrated = false;
@@ -124,7 +135,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence);   // contexto chico para el LLM #1
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
-    r = answerConversational(_coerceCompare(q, spec), context || {}, { scenario }); // compare-intent forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
+    r = answerConversational(_coerceInventory(q, _coerceCompare(q, spec)), context || {}, { scenario }); // foco compare/inventario forzado (no depende del LLM) · rutea por turn_type · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;
@@ -264,7 +275,8 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   const isCuadro = !!(evidence && evidence.lens === "cuadro" && !evidence.reading);
   const isDiagnose = !!(evidence && Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico
   const isCompare = !!(evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB));   // A vs B → panel Comparación (aunque traiga reading del motor)
-  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare) || !onOpenEvidence) return null;
+  const isInventory = !!(evidence && evidence.inventory && Array.isArray(evidence.inventory.bySku) && evidence.inventory.bySku.length);   // capital por bodega/SKU → panel Inventario
+  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory) || !onOpenEvidence) return null;
   return (
     <div style={{ marginLeft:44, marginTop:2 }}>
       <button
@@ -281,7 +293,7 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
         </svg>
-        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
+        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
       </button>
     </div>
   );

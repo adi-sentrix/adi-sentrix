@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -38,7 +38,7 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
 }
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability", "table"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "why", "recommend", "explain_availability", "table"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -362,6 +362,17 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       }
       // Fase 1 · CONTRATO de respuesta: envolver el productor en el contrato ejecutivo (diagnose_value_leak) antes de finalizar.
       return _finBoleta(composeContract("diagnose_value_leak", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
+    }
+
+    // FOCO INVENTARIO (owner 2026-07-06 · "la pregunta manda el foco"): capital inmovilizado por bodega/SKU · NO el
+    // diagnóstico genérico. El composer ya trae la estructura (lectura→bodega→SKU→por qué→qué hacer) → finalizo directo.
+    if (spec.operation === "inventory") {
+      const resp = composeSpecInventory({ filters: spec.filters, scenario });
+      if (!resp || !resp.opener)
+        return _degrade("inventory-empty", `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
+      const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
+      if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory" };
+      return r;
     }
 
     if (spec.operation === "why") {

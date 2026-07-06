@@ -8,7 +8,7 @@
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 
-const OPERATIONS = ["overview", "rank", "compare", "dive", "diagnose", "why", "recommend", "explain_availability", "table"];
+const OPERATIONS = ["overview", "rank", "compare", "dive", "diagnose", "inventory", "why", "recommend", "explain_availability", "table"];
 const ASSUMPTION_TYPES = ["growth", "price", "margin", "inventory", "custom"];
 
 export function buildSpecTool() {

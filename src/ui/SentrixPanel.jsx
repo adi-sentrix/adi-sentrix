@@ -647,6 +647,71 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
   );
 }
 
+// InventoryPanel · FOCO CAPITAL INMOVILIZADO (owner 2026-07-06 · "la pregunta manda el foco") · evidencia de inventario:
+// total → por bodega (barra) → por SKU (capital · DOH · rotación · crítico). Respalda lo que ADI afirma en el texto.
+function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
+  const inv = (evidence && evidence.inventory) || {};
+  const byBodega = inv.byBodega || [], bySku = inv.bySku || [];
+  const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+  const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
+  const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>INVENTARIO</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
+          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}><span style={{ color:C.textMuted }}>Capital inmovilizado · </span>dónde está frenada tu plata</div>
+          <div style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{_fm(inv.total || 0)}</div>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
+        <div>
+          <div style={{ ...head, marginBottom:9 }}>Por bodega</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {byBodega.map((b, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:12.5, color:C.textSub, width:96, flexShrink:0 }}>{b.bodega}</span>
+                <div style={{ flex:1, height:7, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ width:`${Math.round(b.usd / maxB * 100)}%`, height:"100%", background:C.amber, opacity:0.85 }}/>
+                </div>
+                <span style={{ fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums", width:52, textAlign:"right", flexShrink:0 }}>{_fm(b.usd)}</span>
+                <span style={{ fontFamily:MONO, fontSize:11, color:C.textMuted, width:34, textAlign:"right", flexShrink:0 }}>{b.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", gap:"0 16px", alignItems:"center" }}>
+            <div style={head}>SKU</div><div style={{ ...head, textAlign:"right" }}>Capital</div><div style={{ ...head, textAlign:"right" }}>DOH</div><div style={{ ...head, textAlign:"right" }}>Rot.</div>
+            {bySku.map((s, i) => (
+              <React.Fragment key={i}>
+                <div style={{ gridColumn:"1 / -1", height:1, background:"rgba(255,255,255,0.05)" }}/>
+                <div style={{ padding:"8px 0", display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
+                  {s.critico && <span style={{ width:5, height:5, borderRadius:"50%", background:C.amber, flexShrink:0 }}/>}
+                  <span style={{ fontSize:12, color:C.textSub, fontFamily:MONO, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.sku}</span>
+                </div>
+                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(s.usd)}</div>
+                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: s.doh > 120 ? C.amber : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{s.doh}d</div>
+                <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: s.rotacion < 2 ? C.amber : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{s.rotacion}x</div>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>Ámbar = frenado (DOH sobre 120d o rotación bajo 2x). El capital dormido es plata que no rota. Cifras de dato real de tu inventario.</div>
+      </div>
+    </div>
+  );
+}
+
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
   // COMPARACIÓN · tiene PRIORIDAD sobre el shell de reading: el compare del motor trae `reading` además de `pairs`, pero
   // la evidencia de lo que ADI afirma ("X factura más, Y capta mejor margen") es la tabla A vs B, no la lente de una entidad.
@@ -683,6 +748,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // COMPARACIÓN · evidencia LADO A LADO (A vs B, métrica por métrica) = lo que ADI afirma en el texto · antes del Cuadro.
     if (evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB))
       return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // INVENTARIO · capital inmovilizado por bodega/SKU = la evidencia del foco de inventario · antes del Cuadro.
+    if (evidence && evidence.inventory && Array.isArray(evidence.inventory.bySku))
+      return <InventoryPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
       return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     return null;
