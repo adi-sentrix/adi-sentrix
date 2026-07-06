@@ -83,6 +83,18 @@ async function _fetchNarration(validated) {
 // última evidencia (NO se re-parsea como consulta nueva de eje/métrica). Solo dispara si hay una evidencia accionable previa.
 const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé]\s+recomiend[ao]s|qu[eé]\s+recomend[aá]s|qu[eé]\s+sigue|y\s+ahora|cu[aá]l\s+es\s+la\s+acci[oó]n)\b/i;
 
+// LLM #2 · narra un resultado YA ejecutado (sub-flag NARRATE ON) · pasa por el number-guard (pickNarratedText): guard OK →
+// narración · gateway/guard falla → texto determinístico. COMPARTIDO por el input libre (buildAdiTurnLLM) y los chips del
+// inicio (submitSpec) → misma calidad narrada por CUALQUIER puerta. buildNarrateSystem elige el prompt según evidence.
+async function _narrateResult(r) {
+  if (!(ADI_LLM_NARRATE_ENABLED && r && r.text)) return { r, narrated: false };
+  try {
+    const narration = await _fetchNarration(r);
+    const picked = pickNarratedText(r, narration);
+    return { r: { ...r, text: picked.text }, narrated: picked.narrated };
+  } catch { return { r, narrated: false }; }
+}
+
 export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
   const q = (question || "").trim();
   let r, narrated = false;
@@ -97,17 +109,9 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
     const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
     r = _fu || answerADI(q, context || {}, { scenario });
   }
-  // NARRACIÓN LLM #2 · aplica al follow-up Y al spec · sub-flag ADI_LLM_NARRATE_ENABLED (false = parse-only) · PASA por el
-  // number-guard (pickNarratedText): guard OK → narración · guard falla / gateway cae → texto determinístico. Nunca inventa.
-  // buildNarrateSystem elige el prompt: followup → RECOMENDACIÓN · transform → SIMULACIÓN · resto → general.
-  if (ADI_LLM_NARRATE_ENABLED && r && r.text) {
-    try {
-      const narration = await _fetchNarration(r);
-      const picked = pickNarratedText(r, narration);
-      r = { ...r, text: picked.text };
-      narrated = picked.narrated;
-    } catch { /* narración/gateway falló → r queda con el texto determinístico (r.text intacto) */ }
-  }
+  // NARRACIÓN LLM #2 (helper compartido) · aplica al follow-up Y al spec · guard → si falla, texto determinístico.
+  const _nr = await _narrateResult(r);
+  r = _nr.r; narrated = _nr.narrated;
   return _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
 }
 
@@ -402,13 +406,27 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     _applyTurn(turn, adiMsg.id);
   };
 
-  // INICIO · un chip de plata ejecuta un SPEC FIJO directo por el seam (determinístico · corre en demo Y con LLM · no
-  // necesita al gateway). En modo LLM se marca "determinístico" (el análisis del chip no se narra · es honesto).
+  // INICIO · un chip de plata ejecuta un SPEC CANÓNICO (curado · sin LLM #1 · sin riesgo de mis-parse). En modo LLM el
+  // resultado SÍ se NARRA (LLM #2 · mismo pipeline que el input libre) → misma calidad por CUALQUIER puerta (owner
+  // 2026-07-06). Fallback determinístico si el narrate falla · preserva boleta/guards/SentrixAction (los da answerADIFromSpec).
   const submitSpec = (spec, label) => {
     const q = (label || "").trim();
     if (!q) return;
-    const r = answerADIFromSpec(spec, context, { scenario });
-    const turn = _turnFromResult(q, r, context, ADI_LLM_ENABLED ? "deterministico" : "demo");
+    const r0 = answerADIFromSpec(spec, context, { scenario });
+    if (ADI_LLM_ENABLED) {
+      const userMsg = { role: "user", text: q, id: ++idRef.current };
+      const adiId = ++idRef.current;
+      setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
+      setSuggestionsVisible(false);
+      _narrateResult(r0).then(({ r, narrated }) => {
+        const turn = _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
+        setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
+        _applyTurn(turn, adiId);
+      });
+      return;
+    }
+    // demo (flag OFF · sync · intacto)
+    const turn = _turnFromResult(q, r0, context, "demo");
     const userMsg = { ...turn.userMsg, id: ++idRef.current };
     const adiMsg  = { ...turn.adiMsg,  id: ++idRef.current };
     setMessages(prev => [...prev, userMsg, adiMsg]);
