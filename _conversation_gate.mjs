@@ -37,7 +37,7 @@ const rRec = AC(S({ turn_type: "followup_recommendation" }), { lastEvidence: LAS
 ok("4 · recommendation → texto desde la última evidencia (no vacío · no NOT_YET)", typeof rRec.text === "string" && /No empujaría el \+3%/.test(rRec.text) && rRec.route === "followup_recommendation");
 ok("5 · recommendation sin última evidencia → honesto (no rompe)", /no tengo una lectura reciente/i.test(AC(S({ turn_type: "followup_recommendation" }), {}, {}).text));
 const rExp = AC(S({ turn_type: "followup_explain" }), { lastEvidence: LAST }, {});
-ok("6 · explain → 'Por qué' desde la estructura/concentración", /\*\*Por qué\*\*/.test(rExp.text) && /81%/.test(rExp.text));
+ok("6 · explain → historia fluida (sin header) desde la estructura/concentración", /Lo digo porque/.test(rExp.text) && /81%/.test(rExp.text) && !/\*\*/.test(rExp.text));
 const rMeta = AC(S({ turn_type: "meta_question", meta: "real_o_supuesto" }), { lastEvidence: LAST }, {});
 ok("7 · meta real/supuesto → honesto ('es un supuesto…')", /supuesto/i.test(rMeta.text) && /dato real/i.test(rMeta.text) && rMeta.route === "meta_question");
 

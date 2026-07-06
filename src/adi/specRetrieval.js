@@ -345,40 +345,40 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   const concentrated = !single && blockCount <= Math.ceil(nEnt / 2);   // una minoría explica la mayoría
   const _plural = ent.label.plural || `${ent.label.sing}s`;
   const _fem = new Set(["marca", "familia", "bodega"]).has(dimension);   // concordancia de género (premium · sin "olor a prototipo")
-  const _primeros = _fem ? "las primeras" : "los primeros";
-  const _ninguna = _fem ? "ninguna" : "ninguno";
+  const _esos = _fem ? "esas" : "esos";
 
-  // ── LECTURA EJECUTIVA en BLOQUES (owner 2026-07-06): Lectura → Estructura → Riesgo → Qué hacer (máx 4 · 1-2 frases c/u).
-  //    ADI ORDENA la decisión; Sentrix muestra la tabla. NO enumera entidades (el detalle vive en evidence.projection).
+  // ── HISTORIA EJECUTIVA FLUIDA (owner 2026-07-06): SIN títulos visibles. La estructura (qué cambia → dónde se concentra →
+  //    qué riesgo → qué haría) ordena el razonamiento INTERNAMENTE; el usuario ve UN texto corrido. Sentrix muestra la tabla.
   const _absTotD = Math.abs(totD), _impPct = Math.abs(pct);   // impacto % = |pct| (delta parejo · consistente con el %)
   const _verb = totD >= 0 ? "suma" : "resta";
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
   const _art = { ventas: "las", contribucion: "la", capital: "el" }[metric] || "el";   // artículo del sustantivo métrica
+  const _cambio = metric === "capital" ? "movimiento" : (pct >= 0 ? "crecimiento" : "ajuste");
   const _k = concentrated ? "block" : "spread";
-  // Riesgo/Qué-hacer por métrica × (bloque concentrado / impacto repartido). Framing CONDICIONAL (no computa calidad · eso es B).
+  // Riesgo/Qué-hacer CONDICIONALES por métrica × (bloque concentrado / repartido), como PROSA (no computa calidad · eso es B).
   const _RISK = {
-    ventas:       { block: "Si ese bloque solo suma volumen y no captura margen, crecer puede agrandar una captura débil.",  spread: "Si el crecimiento no captura margen, subir parejo agranda escala sin mejorar la calidad." },
-    contribucion: { block: "Si el bloque que más aporta no sostiene su margen, subir la contribución puede no ser rentable.", spread: "Si el aporte no sostiene su margen, subir la contribución puede no ser rentable." },
-    capital:      { block: "Si ese bloque es stock lento, moverlo no libera plata sana.",                                     spread: "Si el stock que se mueve es lento, no libera plata sana." },
+    ventas:       { block: `Si ${_esos} ${_plural} capturan margen, el crecimiento tiene potencia; si solo agregan volumen, puede agrandar una captura débil.`, spread: "Si el crecimiento cae donde hay margen, suma; si solo agrega volumen, agranda una captura débil sin mejorar la calidad." },
+    contribucion: { block: "Si ese bloque sostiene su margen, subir la contribución rinde; si no, es aporte sin rentabilidad.",                                  spread: "Si el aporte viene con margen, rinde; si no, es más contribución sin rentabilidad." },
+    capital:      { block: `Si ${_esos} ${_plural} son stock que rota, liberar suelta plata sana; si es stock lento, moverlo no libera nada real.`,             spread: "Si el stock que se mueve rota, libera plata sana; si es lento, no libera nada real." },
   };
   const _ACTION = {
-    ventas:       { block: "Antes de empujar a toda la cartera, cruzaría ese bloque con margen, contribución y carga comercial. Si captura margen, priorizar crecimiento ahí; si no, corregir condiciones antes de vender más.", spread: "Cruzaría el crecimiento con margen, contribución y carga comercial, y empujaría solo donde la captura sea sana." },
-    contribucion: { block: "Cruzaría ese bloque con margen y participación. Si el margen acompaña, priorizar ahí; si no, revisar precio y costo antes de escalar.",                                                                 spread: "Cruzaría el aporte con margen y participación, y priorizaría donde sea rentable." },
-    capital:      { block: "Cruzaría ese bloque con DOH y rotación. Si rota sano, liberar; si es stock lento, primero destrabar la rotación.",                                                                                     spread: "Cruzaría el stock con DOH y rotación, y liberaría primero lo que rota sano." },
+    ventas:       { block: "Antes de empujar la cartera completa, revisaría ese bloque contra margen, contribución y carga comercial, y recién ahí decidiría dónde crecer.", spread: "Antes de empujar parejo, cruzaría el crecimiento contra margen, contribución y carga comercial y empujaría donde la captura sea sana." },
+    contribucion: { block: "Revisaría ese bloque contra margen y participación, y priorizaría donde el margen acompañe.",                                                    spread: "Cruzaría el aporte contra margen y participación y priorizaría donde rinda." },
+    capital:      { block: "Cruzaría ese bloque contra DOH y rotación, y liberaría primero lo que rota sano.",                                                              spread: "Cruzaría el stock contra DOH y rotación y liberaría primero lo que rota sano." },
   };
   const _riskT = (_RISK[metric] || _RISK.ventas)[_k];
   const _actionT = (_ACTION[metric] || _ACTION.ventas)[_k];
   const _reading = single ? `El supuesto recae sobre una sola ${ent.label.sing}.`
     : concentrated ? "El supuesto amplifica la estructura actual."
     : `El supuesto reparte el impacto entre ${nEnt} ${_plural}.`;
-  // BLOQUES (sin header de reporte · Sentrix carga el contexto métrica/dimensión/supuesto) · lenguaje de PRODUCTO
-  const _lectura = `**Lectura**\nUn ${_sgn(pct)}${pct}% lleva ${_art} ${m.label.toLowerCase()}${filt ? ` (${filt})` : ""} de ${_f(totA)} a ${_f(totS)}: ${_verb} ${_f(_absTotD)} sobre el dato real.`;
-  const _estructura = `**Estructura**\n${single ? `El supuesto recae sobre una sola ${ent.label.sing}: el impacto es directo.`
-    : concentrated ? `El impacto se concentra: ${_primeros} ${blockCount} ${_plural} explican el ${blockPct}%. El supuesto amplifica la estructura actual.`
-    : `El impacto se reparte entre ${nEnt} ${_plural}: ${_ninguna} concentra el resultado.`}`;
-  const opener = single
-    ? `${_lectura}\n\n${_estructura}`
-    : `${_lectura}\n\n${_estructura}\n\n**Riesgo**\n${_riskT}\n\n**Qué hacer**\n${_actionT}`;
+  // HISTORIA · texto corrido, SIN headers (qué cambia · dónde se concentra · riesgo · qué haría) · lenguaje de PRODUCTO
+  const _s1 = `Un ${_sgn(pct)}${pct}% lleva ${_art} ${m.label.toLowerCase()}${filt ? ` (${filt})` : ""} de ${_f(totA)} a ${_f(totS)} y ${_verb} ${_f(_absTotD)} sobre el dato real.`;
+  const _s2 = single
+    ? `El supuesto recae sobre una sola ${ent.label.sing}, así que el impacto es directo.`
+    : concentrated
+    ? `El punto no es solo el ${_cambio}: el impacto se concentra en ${blockCount} ${_plural} que explican el ${blockPct}%, así que el supuesto amplifica la estructura actual del negocio.`
+    : `El supuesto no se apoya en un bloque: reparte el impacto entre ${nEnt} ${_plural}, así que acompaña al tamaño de cada ${ent.label.sing} más que a una parte puntual.`;
+  const opener = single ? `${_s1} ${_s2}` : `${_s1} ${_s2} ${_riskT} ${_actionT}`;
 
   // BOLETA ESTRUCTURAL · SOLO cifras de estructura (impacto total + concentración). SIN per-entidad → el guard del LLM #2
   // (guardAgainstBoleta) bloquea CUALQUIER cifra por entidad → la enumeración es IMPOSIBLE, no solo desaconsejada. El

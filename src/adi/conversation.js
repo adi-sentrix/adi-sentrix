@@ -56,8 +56,8 @@ export function composeExplain(last) {
     const plural = st.plural || `${last.dimLabel || "entidades"}`;
     const mLow = String(last.metricLabel || last.metrica || "el dato").toLowerCase();
     const text = con.concentrated
-      ? `**Por qué**\nEl ${sgn}${pct}% es parejo, así que el impacto cae igual que la estructura que ya tenés: los mismos ${con.blockCount} ${plural} que concentran ${mLow} explican el ${con.blockPct}% del impacto. Por eso el supuesto amplifica lo que ya existe, no cambia la forma del negocio. No es un cálculo nuevo — es leer dónde cae el Δ.`
-      : `**Por qué**\nEl ${sgn}${pct}% es parejo y el impacto se reparte: ninguna parte concentra el resultado, así que el efecto acompaña al tamaño de cada ${last.dimLabel || "entidad"}. No hay un bloque para mandar a mirar primero.`;
+      ? `Lo digo porque el ${sgn}${pct}% es parejo, así que el impacto cae igual que la estructura que ya tenés: los mismos ${con.blockCount} ${plural} que concentran ${mLow} explican el ${con.blockPct}% del impacto. Por eso el supuesto amplifica lo que ya existe, no cambia la forma del negocio.`
+      : `Lo digo porque el ${sgn}${pct}% es parejo y el impacto se reparte: ninguna parte concentra el resultado, así que el efecto acompaña al tamaño de cada ${last.dimLabel || "entidad"} más que a una parte puntual.`;
     const bol = [fig("Supuesto %", `${Math.abs(pct)}%`, { unit: "pct", raw: Math.abs(pct), source: "computed", context: "explicación" })];
     if (con.concentrated) bol.push(fig("Concentración · bloque", `${con.blockPct}%`, { unit: "pct", raw: con.blockPct, mandatory: true, source: "computed", context: "explicación", formula: `${con.blockCount} ${plural} = ${con.blockPct}%` }));
     return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", transform: last.transform, boleta: bol, metrica: last.metrica, dimLabel: last.dimLabel }, route: "followup_explain" };

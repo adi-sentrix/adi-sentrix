@@ -16,6 +16,7 @@ ok("1 · ventas@cliente +3% produce tabla (no degrade)", r.route === "qi_retriev
 ok("2 · evidence.transform = {op:delta, value:3, base:real}",
   !!(r.evidence && r.evidence.transform && r.evidence.transform.op === "delta" && r.evidence.transform.value === 3 && r.evidence.transform.base === "real"));
 ok("3 · lenguaje de PRODUCTO (dato real · supuesto · impacto · voz ejecutiva sin Δ en el texto)", /dato real/.test(r.text) && /supuesto/.test(r.text) && /impacto/i.test(r.text));
+ok("3b · HISTORIA fluida · SIN títulos visibles (nada de **Lectura**/**Estructura**/**Riesgo**/**Qué hacer** ni encabezados)", !/\*\*(Lectura|Estructura|Riesgo|Qu[eé] hacer)\*\*/i.test(r.text) && !/^\s*(Lectura|Estructura|Riesgo|Qu[eé] hacer)\s*:/im.test(r.text));
 ok("4 · SIN lenguaje de escenario (bonanza/tensión/crisis/escenario)", !/bonanza|tensi[oó]n|crisis|escenario/i.test(r.text));
 ok("5 · el texto de ADI pasa su propia boleta (self-consistente)", guardAgainstBoleta(r.text, (r.evidence && r.evidence.boleta) || []).ok);
 
