@@ -348,35 +348,37 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   const _primeros = _fem ? "las primeras" : "los primeros";
   const _ninguna = _fem ? "ninguna" : "ninguno";
 
-  // ── LECTURA ESTRUCTURAL + puntero de calidad (el VEREDICTO de calidad computado = incremento B) ──────────────────────
-  const _absTotD = Math.abs(totD), _impPct = Math.abs(pct);   // impacto % = |pct| (delta parejo · consistente con el header)
+  // ── LECTURA ESTRUCTURAL · voz EJECUTIVA (tesis, no reporte · owner 2026-07-05): impacto total → 80/20 → tesis → siguiente
+  //    análisis. NO enumera (el detalle por entidad vive en la mesa de Sentrix). El VEREDICTO de calidad computado = incr. B.
+  const _absTotD = Math.abs(totD), _impPct = Math.abs(pct);   // impacto % = |pct| (delta parejo · consistente con el %)
   const _verb = totD >= 0 ? "suma" : "resta";
-  const _estr = single ? `El supuesto recae sobre una sola ${ent.label.sing} (Δ ${_sgn(totD)}${_f(totD)}).`
-    : concentrated ? "El supuesto amplifica la estructura actual: el resultado depende del bloque que ya concentra el negocio."
-    : `El impacto (Δ) está repartido entre ${nEnt} ${_plural} — ${_ninguna} concentra el resultado.`;
-  const _cross = metric === "ventas" ? "si el crecimiento captura margen o solo suma volumen"
-    : metric === "contribucion" ? "quién captura mejor la contribución"
-    : "si libera capital sano o mueve stock lento";
-  const _accion = single ? ""
-    : concentrated ? ` Antes de empujar a toda la cartera, el foco es ese bloque: mirá ${_cross}.`
-    : ` El foco no es un bloque puntual; conviene igual chequear ${_cross}.`;
-
-  // TEXTO · LECTURA ESTRUCTURAL (NO enumera · el detalle por entidad vive en la mesa de Sentrix) · lenguaje de PRODUCTO
   const filt = [filters.marca, filters.familia, filters.bodega].filter(Boolean).join("/");
-  const head = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · dato real vs supuesto (${_sgn(pct)}${pct}%).`;
-  const impLine = `Un ${_sgn(pct)}${pct}% parejo ${_verb} ${_f(_absTotD)} sobre el dato real (${_f(totA)} → ${_f(totS)})`;
-  const body = concentrated
-    ? `${impLine}, pero el impacto no se reparte igual: ${_primeros} ${blockCount} ${_plural} explican el ${blockPct}% del Δ. ${_estr}${_accion}`
-    : `${impLine}. ${_estr}${_accion}`;
-  const opener = `${head}\n\n${body}`;
+  const _art = { ventas: "las", contribucion: "la", capital: "el" }[metric] || "el";   // artículo del sustantivo métrica
+  const impLine = `Un ${_sgn(pct)}${pct}% parejo lleva ${_art} ${m.label.toLowerCase()}${filt ? ` (${filt})` : ""} de ${_f(totA)} a ${_f(totS)}: ${_verb} ${_f(_absTotD)} sobre el dato real.`;
+  const _subj = concentrated ? "ese bloque" : (metric === "capital" ? "ese movimiento" : "ese crecimiento");
+  const _nextObj = metric === "ventas" ? `si ${_subj} captura margen o solo volumen`
+    : metric === "contribucion" ? (concentrated ? "quién dentro del bloque captura mejor la contribución" : "quién captura mejor la contribución")
+    : `si ${_subj} libera capital sano o mueve stock lento`;
+  const _reading = single ? `El supuesto recae sobre una sola ${ent.label.sing}.`
+    : concentrated ? "El supuesto amplifica la estructura actual."
+    : `El supuesto reparte el impacto entre ${nEnt} ${_plural}.`;
+  // TEXTO · TESIS (sin header de reporte · Sentrix carga el contexto métrica/dimensión/supuesto) · lenguaje de PRODUCTO
+  const body = single
+    ? `${impLine} El supuesto recae sobre una sola ${ent.label.sing}: el impacto es directo.`
+    : concentrated
+    ? `${impLine} El impacto se concentra: ${_primeros} ${blockCount} ${_plural} explican el ${blockPct}%. El supuesto amplifica la estructura actual; el siguiente análisis es revisar ${_nextObj}.`
+    : `${impLine} El supuesto reparte el impacto entre ${nEnt} ${_plural}: ${_ninguna} concentra el resultado. El siguiente análisis es revisar ${_nextObj}.`;
+  const opener = body;
 
   // BOLETA · estructural (impacto total + concentración) MANDATORY · per-entidad AUTORIZADA (habilita nombrar el bloque, NO obliga a enumerar)
   const _ctx = `supuesto ${m.label} ${_sgn(pct)}${pct}% sobre el dato real`;
   const bol = [];
-  bol.push(fig("Total · actual",       _f(totA),      { unit: m.unit, raw: totA,     mandatory: true, context: _ctx, source: "actual" }));
-  bol.push(fig("Total · supuesto",     _f(totS),      { unit: m.unit, raw: totS,     mandatory: true, context: _ctx, source: "computed", formula: `total actual × ${factor}` }));
+  // total actual/supuesto AUTORIZADAS (no mandatory) → NARRATE ON puede usar el before/after sin que el guard obligue a citarlas
+  bol.push(fig("Total · actual",       _f(totA),      { unit: m.unit, raw: totA,     context: _ctx, source: "actual" }));
+  bol.push(fig("Total · supuesto",     _f(totS),      { unit: m.unit, raw: totS,     context: _ctx, source: "computed", formula: `total actual × ${factor}` }));
+  // MANDATORY: impacto total + impacto % + (bloque 80/20 cuando concentra) → la tesis SIEMPRE los cita
   bol.push(fig("Impacto absoluto",     _f(_absTotD),  { unit: m.unit, raw: _absTotD, mandatory: true, context: _ctx, source: "computed", formula: "|supuesto − actual|" }));
-  bol.push(fig("Impacto %",            `${_impPct}%`, { unit: "pct",  raw: _impPct,  context: _ctx, source: "computed", formula: "impacto / total actual" }));
+  bol.push(fig("Impacto %",            `${_impPct}%`, { unit: "pct",  raw: _impPct,  mandatory: true, context: _ctx, source: "computed", formula: "impacto / total actual" }));
   if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, context: _ctx, source: "computed", formula: `${blockCount} ${_plural} acumulan el ${blockPct}% del Δ` }));
   for (const it of items) {
     bol.push(fig(`${it.name} · actual`,   it.aFmt, { unit: m.unit, raw: it.actual,   context: _ctx, source: "actual" }));
@@ -395,7 +397,7 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
       total: { actual: totA, supuesto: totS, delta: totD, aFmt: _f(totA), sFmt: _f(totS), dFmt: _f(totD) },
       // 80/20 DEL IMPACTO (para el panel Sentrix · barras + acumulado + bloque) + la lectura estructural
       concentration: { bars, blockCount, blockPct, n: nEnt, concentrated, single, impactTotal: impTot, impactTotalFmt: _f(_absTotD) },
-      structural: { reading: _estr, action: _accion.trim(), blockCount, blockPct, plural: _plural, cross: _cross } },
+      structural: { reading: _reading, action: `revisar ${_nextObj}`, blockCount, blockPct, plural: _plural } },
   };
 }
 
