@@ -114,10 +114,23 @@ export function diagnoseInventarioSku(s, opts = {}) {
   if (typeof doh === "number" && doh >= soDoh && doh <= dohMax) return "sobrestock";                                   // vende, pero cobertura excesiva
   return "capital_sano";
 }
-// skus: [{sku, bodega, stockUSD, rotacion, doh, diasSinVenta}] · devuelve per-SKU + distribución + materialidad del quiebre
+// distribución de estados dentro de un grupo (bodega/familia) · A+B: cada grupo trae su total y su breakdown por estado
+function _groupDist(perSku, key) {
+  const g = {};
+  for (const s of perSku) {
+    const k = s[key] || "—";
+    const gg = (g[k] = g[k] || { nombre: k, total: 0, estados: {} });
+    gg.total += s.capital;
+    (gg.estados[s.estado] = gg.estados[s.estado] || { usd: 0, count: 0 }).usd += s.capital;
+    gg.estados[s.estado].count++;
+  }
+  for (const k in g) for (const e in g[k].estados) g[k].estados[e].pct = g[k].total ? Math.round((g[k].estados[e].usd / g[k].total) * 100) : 0;
+  return Object.values(g).sort((a, b) => b.total - a.total);
+}
+// skus: [{sku, bodega, sfamilia, stockUSD, rotacion, doh, diasSinVenta}] · per-SKU + distribución por estado + POR BODEGA + POR FAMILIA (A+B) + materialidad del quiebre
 export function diagnoseInventario(skus, opts = {}) {
   const capF = opts.capitalField || "stockUSD";
-  const perSku = (skus || []).map((s) => ({ sku: s.sku, bodega: s.bodega, capital: s[capF] || 0, doh: s.doh, rotacion: s.rotacion, estado: diagnoseInventarioSku(s, opts) }));
+  const perSku = (skus || []).map((s) => ({ sku: s.sku, bodega: s.bodega, familia: s.sfamilia, capital: s[capF] || 0, doh: s.doh, rotacion: s.rotacion, diasSinVenta: s.diasSinVenta, estado: diagnoseInventarioSku(s, opts) }));
   const total = perSku.reduce((a, s) => a + s.capital, 0);
   const dist = {};
   for (const s of perSku) { (dist[s.estado] = dist[s.estado] || { usd: 0, count: 0 }).usd += s.capital; dist[s.estado].count++; }
@@ -127,5 +140,27 @@ export function diagnoseInventario(skus, opts = {}) {
   const topSkus = perSku.slice().sort((a, b) => b.capital - a.capital).slice(0, 3).map((s) => s.sku);
   const quiebreTocaTop = perSku.some((s) => s.estado === "riesgo_quiebre" && topSkus.includes(s.sku));
   const quiebreMaterial = q.usd >= (opts.quiebreMaterialUsd ?? POLICY.quiebreMaterialUsd) || q.pct >= (opts.quiebreMaterialPct ?? POLICY.quiebreMaterialPct) || quiebreTocaTop;
-  return { perSku, total, dist, quiebreMaterial };
+  return { perSku, total, dist, byBodega: _groupDist(perSku, "bodega"), byFamilia: _groupDist(perSku, "familia"), quiebreMaterial };
+}
+
+// C · diagnóstico ECONÓMICO a nivel SKU (vende mucho/poco × margen alto/bajo) — desbloquea "SKU alta venta bajo margen",
+// "alto margen subpenetrado", etc. Margen vs PROMEDIO interno de SKU (no hay benchmark externo de SKU declarado).
+export function diagnoseSkus(skus, opts = {}) {
+  const salesF = opts.salesField || "vendidoMes", marginF = opts.marginField || "margenPct";
+  const vBy = {}; for (const s of skus || []) vBy[s.sku] = s[salesF] || 0;
+  const ms = (skus || []).map((s) => s[marginF]).filter((m) => typeof m === "number");
+  const promM = ms.length ? ms.reduce((a, m) => a + m, 0) / ms.length : 0;
+  const out = {};
+  for (const s of skus || []) {
+    const vE = _tercil(vBy, s.sku), m = s[marginF];
+    const mC = typeof m !== "number" ? "medio" : m >= promM * 1.1 ? "alto" : m >= promM * 0.9 ? "medio" : "bajo";
+    let patron;
+    if (vE === "alta" && mC === "bajo") patron = "alto_volumen_bajo_margen";
+    else if (mC === "alto" && vE === "baja") patron = "alto_margen_subpenetrado";
+    else if (vE === "alta" && mC === "alto") patron = "producto_estrella";
+    else if (vE === "baja" && mC === "bajo") patron = "bajo_impacto";
+    else patron = "producto_mixto";
+    out[s.sku] = { ventaEscala: vE, margenCalidad: mC, margenPct: m, patron, estadoInventario: diagnoseInventarioSku(s, opts), promedioMargen: +promM.toFixed(1) };
+  }
+  return out;
 }
