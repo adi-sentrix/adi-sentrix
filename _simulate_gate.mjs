@@ -63,6 +63,8 @@ const _qCap = composeSpecSimulate({ metric: "capital", dimension: "bodega", filt
 ok("18 · capital → cruce rotación vs mínimo declarado (2x) · basis both", _qCap.crossMetric === "rotacion" && _qCap.declared === 2 && _qCap.basis === "both");
 ok("19 · HONESTIDAD: métrica sin cruce → 'sin_benchmark' (NUNCA juzga bueno/malo sin benchmark)",
   computeQualityVerdict({ metric: "margen", dimension: "cliente", items: [{ name: "x", actual: 1 }], blockCount: 1 }).verdict === "sin_benchmark");
+ok("20 · concentrado → el opener TEJE el veredicto (cita margen del bloque + benchmark) · self-consistente con su boleta",
+  _qv.verdict !== "sin_benchmark" && cs.opener.includes(_qv.blockValueFmt) && cs.opener.includes(_qv.declaredFmt) && guardAgainstBoleta(cs.opener, cs.evidence.boleta).ok);
 
 console.log(`\n── simulate-gate: ${pass} PASS · ${fail} FAIL ──`);
 process.exit(fail ? 1 : 0);

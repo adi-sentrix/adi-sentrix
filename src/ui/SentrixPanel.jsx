@@ -426,6 +426,15 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
   const barByName = {}; conBars.forEach((b) => { barByName[b.name] = b; });
   const maxPct = conBars.length ? (conBars[0].pct || 1) : 1;
   const plural = (evidence.structural && evidence.structural.plural) || `${dLabel}s`;
+  // VEREDICTO DE CALIDAD (B) · chip que respalda lo que ADI narra (misma fuente · sin cifra sin respaldo). color por veredicto.
+  const qv = (evidence && evidence.quality_verdict) || null;
+  const _QVMAP = {
+    buena_captura: { label: qv && qv.crossMetric === "rotacion" ? "Rota sano" : "Captura sana", fg: C.green,     bg: "rgba(124,207,144,0.10)", bd: "rgba(124,207,144,0.35)" },
+    captura_debil: { label: qv && qv.crossMetric === "rotacion" ? "Rota lento" : "Captura débil", fg: C.amber,   bg: "rgba(217,154,90,0.10)",  bd: "rgba(217,154,90,0.35)" },
+    mixta:         { label: qv && qv.crossMetric === "rotacion" ? "Rotación media" : "Captura media", fg: C.textMuted, bg: "rgba(255,255,255,0.04)", bd: C.border },
+  };
+  // el chip aparece SOLO cuando hay bloque concentrado (= cuando la narración de ADI también dice el veredicto) → coherencia
+  const _qvm = qv && qv.verdict !== "sin_benchmark" && con && con.concentrated ? _QVMAP[qv.verdict] : null;
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -451,6 +460,12 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
           <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6 }}>Ese supuesto no está habilitado para esta métrica. Hoy puedo proyectar <b>ventas</b>, <b>contribución</b> o <b>capital</b> con un +/−X% sobre el dato real.</div>
         ) : (
           <div style={{ overflowX:"auto" }}>
+            {_qvm && (
+              <div style={{ display:"inline-flex", alignItems:"center", gap:8, marginBottom:12, padding:"5px 11px", borderRadius:999, background:_qvm.bg, border:`1px solid ${_qvm.bd}` }}>
+                <span style={{ fontSize:10.5, fontWeight:600, color:_qvm.fg, textTransform:"uppercase", letterSpacing:"0.5px" }}>{_qvm.label}</span>
+                <span style={{ fontSize:11, color:C.textSub, fontFamily:MONO }}>{qv.crossLabel.toLowerCase()} {qv.blockValueFmt} vs {qv.declaredFmt}</span>
+              </div>
+            )}
             {con && (
               <div style={{ fontSize:12.5, color:C.text, lineHeight:1.5, marginBottom:14, paddingLeft:10, borderLeft:`2px solid ${sup}` }}>
                 {con.concentrated

@@ -426,14 +426,38 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   const _reading = single ? `El supuesto recae sobre una sola ${ent.label.sing}.`
     : concentrated ? "El supuesto amplifica la estructura actual."
     : `El supuesto reparte el impacto entre ${nEnt} ${_plural}.`;
-  // HISTORIA · texto corrido, SIN headers (qué cambia · dónde se concentra · riesgo · qué haría) · lenguaje de PRODUCTO
+  // VEREDICTO DE CALIDAD (B · increment 2): cruza el bloque 80% con margen/rotación · reemplaza el riesgo CONDICIONAL por
+  // el veredicto COMPUTADO (ADI ya juzgó). Si no hay cruce/benchmark (sin_benchmark) o el impacto está repartido → cae al
+  // framing condicional (no hay bloque nítido que juzgar). El LLM NO juzga: ADI calcula, el LLM narra desde la boleta.
+  const quality = computeQualityVerdict({ metric, dimension, items, blockCount });
+  const _qOk = concentrated && quality && quality.verdict && quality.verdict !== "sin_benchmark";
+  let _verdictS = "", _verdictA = "";
+  if (_qOk) {
+    const bF = quality.blockValueFmt, iF = quality.internalAvgFmt, dF = quality.declaredFmt, aI = quality.aboveInternal, aD = quality.aboveDeclared;
+    if (quality.crossMetric === "margen") {
+      _verdictS = quality.verdict === "buena_captura" ? `Y ese bloque captura buen margen —${bF} contra ${dF} del benchmark—, así que el crecimiento rinde.`
+        : quality.verdict === "captura_debil" ? `Pero ese bloque captura poco margen —${bF} contra ${dF} del benchmark—, así que crecer ahí suma volumen, no rentabilidad.`
+        : `Ese bloque captura margen medio —${bF}, ${aI ? "sobre" : "bajo"} la cartera (${iF}) pero ${aD ? "sobre" : "bajo"} el benchmark (${dF})—, así que conviene mirar caso a caso.`;
+      _verdictA = quality.verdict === "buena_captura" ? "Priorizaría crecer ahí, donde la plata efectivamente se convierte."
+        : quality.verdict === "captura_debil" ? "Antes de empujar parejo, priorizaría dónde el margen acompaña." : "Empujaría selectivo, donde el margen acompañe.";
+    } else {
+      _verdictS = quality.verdict === "buena_captura" ? `Y ese bloque rota sano —${bF} contra un mínimo de ${dF}—, así que liberar ahí suelta plata real.`
+        : quality.verdict === "captura_debil" ? `Pero ese bloque rota lento —${bF} contra un mínimo de ${dF}—, así que mover ese stock no libera plata real.`
+        : `Ese bloque rota a ${bF} —${aI ? "sobre" : "bajo"} el promedio (${iF}), sobre el mínimo (${dF})—, así que conviene mirar caso a caso.`;
+      _verdictA = quality.verdict === "buena_captura" ? "Priorizaría liberar ese capital."
+        : quality.verdict === "captura_debil" ? "Antes de moverlo, destrabaría la rotación." : "Liberaría selectivo, donde rote sano.";
+    }
+  }
+  // HISTORIA · texto corrido, SIN headers (qué cambia · dónde se concentra · VEREDICTO/riesgo · qué haría) · producto
   const _s1 = `Un ${_sgn(pct)}${pct}% lleva ${_art} ${m.label.toLowerCase()}${filt ? ` (${filt})` : ""} de ${_f(totA)} a ${_f(totS)} y ${_verb} ${_f(_absTotD)} sobre el dato real.`;
   const _s2 = single
     ? `El supuesto recae sobre una sola ${ent.label.sing}, así que el impacto es directo.`
     : concentrated
     ? `El punto no es solo el ${_cambio}: el impacto se concentra en ${blockCount} ${_plural} que explican el ${blockPct}%, así que el supuesto amplifica la estructura actual del negocio.`
     : `El supuesto no se apoya en un bloque: reparte el impacto entre ${nEnt} ${_plural}, así que acompaña al tamaño de cada ${ent.label.sing} más que a una parte puntual.`;
-  const opener = single ? `${_s1} ${_s2}` : `${_s1} ${_s2} ${_riskT} ${_actionT}`;
+  const opener = single ? `${_s1} ${_s2}`
+    : _qOk ? `${_s1} ${_s2} ${_verdictS} ${_verdictA}`
+    : `${_s1} ${_s2} ${_riskT} ${_actionT}`;
 
   // BOLETA ESTRUCTURAL · SOLO cifras de estructura (impacto total + concentración). SIN per-entidad → el guard del LLM #2
   // (guardAgainstBoleta) bloquea CUALQUIER cifra por entidad → la enumeración es IMPOSIBLE, no solo desaconsejada. El
@@ -448,6 +472,14 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   bol.push(fig("Impacto absoluto",     _f(_absTotD),  { unit: m.unit, raw: _absTotD, mandatory: true, context: _ctx, source: "computed", formula: "|supuesto − actual|" }));
   bol.push(fig("Impacto %",            `${_impPct}%`, { unit: "pct",  raw: _impPct,  context: _ctx, source: "computed", formula: "impacto / total actual" }));
   if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, context: _ctx, source: "computed", formula: `${blockCount} ${_plural} acumulan el ${blockPct}% del Δ` }));
+  // CALIDAD (B) · autoriza las cifras del veredicto (margen/rotación del bloque · promedio de cartera · benchmark declarado)
+  // → la narración puede citarlas y el chip de Sentrix las respalda (misma fuente · coherencia por construcción).
+  if (_qOk) {
+    const _qu = METRICS[quality.crossMetric].unit;
+    bol.push(fig(`Calidad · ${quality.crossLabel.toLowerCase()} del bloque`, quality.blockValueFmt, { unit: _qu, raw: quality.blockValue, context: _ctx, source: "computed", formula: "promedio ponderado del bloque 80%" }));
+    bol.push(fig("Calidad · promedio de cartera",  quality.internalAvgFmt, { unit: _qu, raw: quality.internalAvg, context: _ctx, source: "computed", formula: "promedio ponderado de la cartera" }));
+    if (quality.declaredFmt != null) bol.push(fig("Calidad · benchmark declarado", quality.declaredFmt, { unit: _qu, raw: quality.declared, context: _ctx, source: "actual", formula: "POLICY (no inventado)" }));
+  }
 
   return {
     opener, suggestions: null, sentrixAction: null,
@@ -462,7 +494,7 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
       concentration: { bars, blockCount, blockPct, n: nEnt, concentrated, single, impactTotal: impTot, impactTotalFmt: _f(_absTotD) },
       structural: { reading: _reading, risk: _riskT, action: _actionT, concentrated, blockCount, blockPct, plural: _plural },
       // VEREDICTO DE CALIDAD (B) · cruza el bloque 80% con margen/rotación vs promedio interno + benchmark declarado
-      quality_verdict: computeQualityVerdict({ metric, dimension, items, blockCount }) },
+      quality_verdict: quality },
   };
 }
 
