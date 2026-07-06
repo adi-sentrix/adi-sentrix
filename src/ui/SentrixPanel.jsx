@@ -420,6 +420,12 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
   const sup = C.celeste;
   const sgn = (v) => (v >= 0 ? "+" : "");
   const cell = { padding: "7px 10px", borderBottom: `1px solid ${C.border}`, fontVariantNumeric: "tabular-nums" };
+  // 80/20 DEL IMPACTO (opción B · tabla-evidencia): participación + acumulado + bloque resaltado + corte 80% · dato ya computado.
+  const con = (evidence && evidence.concentration) || null;
+  const conBars = (con && con.bars) || [];
+  const barByName = {}; conBars.forEach((b) => { barByName[b.name] = b; });
+  const maxPct = conBars.length ? (conBars[0].pct || 1) : 1;
+  const plural = (evidence.structural && evidence.structural.plural) || `${dLabel}s`;
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -438,42 +444,69 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
         <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
           <span style={{ color:C.textMuted }}>Proyección · </span>{mLabel} por {dLabel} · <b>dato real</b> vs <b style={{ color:sup }}>supuesto ({sgn(pct)}{pct}%)</b>.
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, fontFamily:MONO, marginTop:6 }}>Supuesto = Actual × {factor} · Δ = Supuesto − Actual · sobre el dato real</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, fontFamily:MONO, marginTop:6 }}>Supuesto = Actual × {factor} · Impacto = Supuesto − Actual · sobre el dato real</div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
         {proj.length === 0 ? (
           <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6 }}>Ese supuesto no está habilitado para esta métrica. Hoy puedo proyectar <b>ventas</b>, <b>contribución</b> o <b>capital</b> con un +/−X% sobre el dato real.</div>
         ) : (
           <div style={{ overflowX:"auto" }}>
+            {con && (
+              <div style={{ fontSize:12.5, color:C.text, lineHeight:1.5, marginBottom:14, paddingLeft:10, borderLeft:`2px solid ${sup}` }}>
+                {con.concentrated
+                  ? <>El impacto se concentra: <b style={{ color:sup }}>{con.blockCount} {plural} explican el {con.blockPct}%</b></>
+                  : <>El impacto se reparte: hacen falta <b style={{ color:sup }}>{con.blockCount} de {con.n} {plural}</b> para llegar al 80%</>}
+              </div>
+            )}
             <table style={{ borderCollapse:"collapse", width:"100%", fontFamily:MONO, fontSize:12 }}>
               <thead>
                 <tr style={{ color:C.textMuted, fontSize:9.5, letterSpacing:"0.6px", textTransform:"uppercase" }}>
                   <th style={{ textAlign:"left", padding:"0 10px 8px 0", borderBottom:`1px solid ${C.border}` }}>{dLabel}</th>
                   <th style={{ textAlign:"right", padding:"0 10px 8px", borderBottom:`1px solid ${C.border}` }}>Actual</th>
                   <th style={{ textAlign:"right", padding:"0 10px 8px", borderBottom:`1px solid ${C.border}`, color:sup }}>Supuesto</th>
-                  <th style={{ textAlign:"right", padding:"0 0 8px 10px", borderBottom:`1px solid ${C.border}` }}>Δ</th>
+                  <th style={{ textAlign:"right", padding:"0 10px 8px", borderBottom:`1px solid ${C.border}` }}>Impacto</th>
+                  <th style={{ textAlign:"left", padding:"0 10px 8px", borderBottom:`1px solid ${C.border}` }}>Participación</th>
+                  <th style={{ textAlign:"right", padding:"0 0 8px 10px", borderBottom:`1px solid ${C.border}` }}>Acum%</th>
                 </tr>
               </thead>
               <tbody>
-                {proj.map((it, i) => (
-                  <tr key={i}>
-                    <td style={{ ...cell, padding:"7px 10px 7px 0", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", color:C.textSub }}>{it.name}</td>
-                    <td style={{ ...cell, textAlign:"right", color:C.text }}>{it.aFmt}</td>
-                    <td title={it.formula} style={{ ...cell, textAlign:"right", color:sup, cursor:"help" }}>{it.sFmt}</td>
-                    <td style={{ ...cell, padding:"7px 0 7px 10px", textAlign:"right", color: it.delta >= 0 ? C.green : C.amber }}>{sgn(it.delta)}{it.dFmt}</td>
-                  </tr>
-                ))}
+                {proj.flatMap((it, i) => {
+                  const b = barByName[it.name] || { pct: 0, cumPct: 0, inBlock: false };
+                  const inB = !!b.inBlock;
+                  const bw = Math.max(3, Math.round((b.pct / (maxPct || 1)) * 54));
+                  const showCut = con && con.concentrated && con.blockCount < proj.length && i === con.blockCount - 1;
+                  return [
+                    <tr key={i} style={{ background: inB ? "rgba(95,201,214,0.06)" : "transparent" }}>
+                      <td style={{ ...cell, padding:"7px 10px 7px 0", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", color: inB ? C.text : C.textSub, boxShadow: inB ? `inset 2px 0 0 ${sup}` : "none" }}>{it.name}</td>
+                      <td style={{ ...cell, textAlign:"right", color:C.text }}>{it.aFmt}</td>
+                      <td title={it.formula} style={{ ...cell, textAlign:"right", color:sup, cursor:"help" }}>{it.sFmt}</td>
+                      <td style={{ ...cell, textAlign:"right", color: it.delta >= 0 ? C.green : C.amber }}>{sgn(it.delta)}{it.dFmt}</td>
+                      <td style={{ ...cell, textAlign:"left", whiteSpace:"nowrap" }}>
+                        <span style={{ color: inB ? C.text : C.textMuted }}>{Math.round(b.pct)}%</span>
+                        <span style={{ display:"inline-block", height:6, borderRadius:2, background: inB ? sup : C.textMuted, opacity: inB ? 0.9 : 0.45, width:bw, marginLeft:7, verticalAlign:"middle" }}/>
+                      </td>
+                      <td style={{ ...cell, padding:"7px 0 7px 10px", textAlign:"right", color: inB ? C.text : C.textMuted }}>{Math.round(b.cumPct)}%</td>
+                    </tr>,
+                    showCut && (
+                      <tr key={`${i}-cut`}><td colSpan={6} style={{ borderTop:`1px dashed ${C.amber}`, padding:"3px 0" }}>
+                        <span style={{ fontSize:9.5, color:C.amber, textTransform:"uppercase", letterSpacing:"0.6px" }}>corte 80% — el bloque que explica el impacto</span>
+                      </td></tr>
+                    ),
+                  ].filter(Boolean);
+                })}
               </tbody>
               {tot && (
                 <tfoot><tr style={{ fontWeight:700 }}>
                   <td style={{ padding:"9px 10px 0 0", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", color:C.text }}>Total</td>
                   <td style={{ padding:"9px 10px 0", textAlign:"right", fontVariantNumeric:"tabular-nums", color:C.text }}>{tot.aFmt}</td>
                   <td style={{ padding:"9px 10px 0", textAlign:"right", fontVariantNumeric:"tabular-nums", color:sup }}>{tot.sFmt}</td>
-                  <td style={{ padding:"9px 0 0 10px", textAlign:"right", fontVariantNumeric:"tabular-nums", color: tot.delta >= 0 ? C.green : C.amber }}>{sgn(tot.delta)}{tot.dFmt}</td>
+                  <td style={{ padding:"9px 10px 0", textAlign:"right", fontVariantNumeric:"tabular-nums", color: tot.delta >= 0 ? C.green : C.amber }}>{sgn(tot.delta)}{tot.dFmt}</td>
+                  <td style={{ padding:"9px 10px 0" }}/>
+                  <td style={{ padding:"9px 0 0 10px", textAlign:"right", color:C.textMuted }}>100%</td>
                 </tr></tfoot>
               )}
             </table>
-            <div style={{ fontSize:10.5, color:C.textMuted, marginTop:14, lineHeight:1.5 }}>Pasá el mouse sobre un valor de <span style={{ color:sup }}>Supuesto</span> para ver su fórmula. Las cifras de Actual son dato real; el Supuesto es una proyección, no un dato observado.</div>
+            <div style={{ fontSize:10.5, color:C.textMuted, marginTop:14, lineHeight:1.5 }}>Participación = peso de cada {dLabel} en el impacto · Acum% = acumulado (corte al 80%). Actual es dato real; el Supuesto es una proyección, no un dato observado. Hover en <span style={{ color:sup }}>Supuesto</span> para la fórmula.</div>
           </div>
         )}
       </div>
