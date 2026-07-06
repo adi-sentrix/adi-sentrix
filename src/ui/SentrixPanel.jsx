@@ -529,6 +529,56 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
   );
 }
 
+// ── DIAGNÓSTICO · los FOCOS de dónde se va/inmoviliza plata (evidence.findings) · la evidencia de LO QUE ADI DICE en el
+// texto (contribución no capturada · carga · capital dormido), no una grilla genérica. Portfolio-wide → no es el shell de
+// lentes (que es por foco de UNA entidad) · panel propio. Owner 2026-07-06: la evidencia de Sentrix = la del texto. ──────
+function DiagnosePanel({ evidence, onClose, onToggleMax, maximized }) {
+  const foci = (evidence && evidence.findings) || [];
+  const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>DIAGNÓSTICO</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
+          <span style={{ color:C.textMuted }}>Diagnóstico · </span>dónde se te va o se te inmoviliza plata — los focos ordenados por impacto.
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:12 }}>
+        {foci.length === 0 ? (
+          <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6 }}>No encontré focos materiales en el dato actual.</div>
+        ) : (<>
+          {foci.map((f, i) => (
+            <div key={i} style={{ border:`1px solid ${C.border}`, borderRadius:12, padding:"13px 15px", background:"rgba(255,255,255,0.02)" }}>
+              <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginBottom:9 }}>
+                <span style={{ fontSize:13, color:C.text, fontWeight:600 }}>{f.titulo}</span>
+                <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{_fm(f.subtotal_usd)}</span>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                {(f.items || []).slice(0, 4).map((it, j) => (
+                  <div key={j} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, fontSize:12 }}>
+                    <span style={{ color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif" }}>{it.entidad}</span>
+                    <span style={{ fontFamily:MONO, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(it.usd)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2, lineHeight:1.5 }}>Cada foco es plata que se te va (contribución no capturada, carga) o se te inmoviliza (capital). Cifras de dato real de tu cartera.</div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
   const baseRd = evidence && evidence.reading;
   const baseFocus = baseRd && baseRd.focus;
@@ -555,6 +605,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // SIMULACIÓN · un supuesto sobre el dato real (transform) → la mesa Actual/Supuesto/Δ. Va ANTES que el Cuadro genérico.
     if (evidence && evidence.transform && Array.isArray(evidence.projection))
       return <SimulationPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // DIAGNÓSTICO · los FOCOS (evidence.findings) = la evidencia de lo que el texto dice · va ANTES del Cuadro genérico.
+    if (evidence && Array.isArray(evidence.findings) && evidence.findings.length)
+      return <DiagnosePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
       return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     return null;

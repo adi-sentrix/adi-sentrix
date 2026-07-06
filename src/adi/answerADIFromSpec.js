@@ -145,9 +145,11 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {
   // cartera (owner 2026-07-06). El camino LLM no cableaba esto (solo dive→shell e inventario→cuadro lo hacían) → el
   // usuario no veía la evidencia. El CuadroOnlyPanel es genérico (carga la grilla por entityType). Post-proceso del seam:
   // NO toca el motor/composers ni la vía determinística · el spec_gate valida rutas, no lens.
+  // overview/rank = evidencia de DIMENSIÓN → el Cuadro (la grilla ES lo que dice el texto). diagnose NO va acá: su evidencia
+  // son los FOCOS (evidence.findings · contribución no capturada/carga/capital) → panel de focos (SentrixPanel los rutea).
   const e = r && r.evidence;
   const _op = spec && spec.operation, _dim = (e && e.dimension) || (spec && spec.dimension) || null;
-  if (e && _dim && !e.reading && !e.transform && !e.followup && e.lens !== "cuadro" && (_op === "overview" || _op === "rank" || _op === "diagnose")) {
+  if (e && _dim && !e.reading && !e.transform && !e.followup && e.lens !== "cuadro" && (_op === "overview" || _op === "rank")) {
     r.evidence = { ...e, lens: "cuadro", dimension: _dim, entityType: e.entityType || _dim };
   }
   return r;

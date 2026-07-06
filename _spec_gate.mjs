@@ -71,7 +71,7 @@ const TESTS = [
   { n: "42 · transform op:multi degrada honesto (un supuesto a la vez)", spec: S({ operation: "table", metric: "ventas", dimension: "cliente", transform: { kind: "assumption", op: "multi", base: "real" } }), ok: (r) => blocked(r, "simulate-compound") && /un supuesto a la vez/.test(r.text) },
   // ── SENTRIX · overview/rank/diagnose abren el CUADRO de la cartera (el camino LLM cablea la evidencia · owner 2026-07-06) ──
   { n: "43 · overview → evidence.lens=cuadro + dimensión (abre el Cuadro)", spec: S({ operation: "overview", metric: "ventas", dimension: "cliente" }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" && r.evidence.dimension === "cliente" },
-  { n: "44 · diagnose → evidence.lens=cuadro (abre el Cuadro de la cartera)", spec: S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" },
+  { n: "44 · diagnose NO se fuerza a cuadro (va al panel de FOCOS · findings es flag-gated · el panel se valida por render-smoke)", spec: S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), ok: (r) => executes(r, "qi_retrieval") && !(r.evidence && r.evidence.lens === "cuadro") },
   { n: "45 · rank → evidence.lens=cuadro (abre el Cuadro)", spec: S({ operation: "rank", metric: "margen", dimension: "cliente", sort: { by: "margen", dir: "asc" }, limit: 5 }), ok: (r) => r.evidence && r.evidence.lens === "cuadro" },
   { n: "46 · dive NO se fuerza a cuadro (op fuera del set · el shell/reading es flag-gated aparte)", spec: S({ operation: "dive", metric: "margen", dimension: "cliente", entity: "Falabella" }), ok: (r) => !(r.evidence && r.evidence.lens === "cuadro") },
 ];
