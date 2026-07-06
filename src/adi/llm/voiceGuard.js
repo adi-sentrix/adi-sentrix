@@ -1,36 +1,43 @@
 /* === src/adi/llm/voiceGuard.js · ADI Core · GUARD DE VOZ (determinístico) ===
- * La narración LLM (#2) debe sonar a controller / CFO senior: directa, ejecutiva, sin muletillas ni aperturas de
- * plantilla. gpt-4o-mini NO obedece el prompt de forma consistente (a veces abre con "He revisado tus datos…" o
- * "Las proyecciones indican que…", a veces no · owner 2026-07-06). Este guard es el BACKSTOP determinístico:
- * limpia aperturas robóticas y muletillas conectoras SIN tocar cifras. Corre DESPUÉS del number-guard, sobre el
- * texto ya validado → no puede alterar una cifra autorizada (no toca dígitos). Puro string → testeable (_voice_gate).
- * NO toca el motor ni el seam · vive en la capa UI de narración (_narrateResult). Idempotente.
+ * La narración LLM (#2) debe entrar DIRECTO al negocio (controller/CFO senior): "Falabella cede margen por carga alta…",
+ * no "Estuve revisando los números de Falabella y…". gpt-4o-mini no obedece el prompt de forma consistente (whack-a-mole
+ * por conjugación · owner 2026-07-06). Este guard es el BACKSTOP determinístico: mata aperturas de PLANTILLA y muletillas
+ * conectoras SIN tocar cifras (corre DESPUÉS del number-guard, sobre el texto ya validado). Puro string → testeable
+ * (_voice_gate). NO toca el motor ni el seam · vive en la capa UI de narración (_narrateResult). Idempotente.
  */
 
 const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+// Familia "revisé/analicé/miré <OBJETO-DE-DATOS> (de X)? y (encontré) que…" ROBUSTA a conjugación. El ancla SEGURA es el
+// OBJETO-DE-DATOS (los números / los datos / la información / las cifras…) JUSTO tras el verbo → el contenido real jamás
+// abre así (sólo la muletilla de informe). Consume hasta el hallazgo (deja "hay un par de cosas…"/"tres áreas…") y, si
+// sigue un verbo de hallazgo + "que", lo consume. No toca cifras.
+const _REVIEW_VERB = String.raw`(?:revis\p{L}+|analiz\p{L}+|analic\p{L}+|mir\p{L}+|examin\p{L}+|repas\p{L}+|estudi\p{L}+|evalu\p{L}+)`;
+const _DATA_OBJ = String.raw`(?:tus\s+datos|la\s+informaci[oó]n|los\s+datos|la\s+data|los\s+n[uú]meros|las\s+cifras|el\s+detalle|la\s+situaci[oó]n|el\s+negocio|la\s+cartera|el\s+panorama|tu\s+(?:cartera|negocio|informaci[oó]n))`;
+const _FOUND_VERB = String.raw`(?:encontr\p{L}+|detect\p{L}+|not\p{L}+|identific\p{L}+|hall\p{L}+|vist\p{L}+|observ\p{L}+|cuent\p{L}+|ve\p{L}*)`;
+const REVIEW_PREAMBLE = new RegExp(
+  String.raw`^\s*(?:tras\s+|luego\s+de\s+|despu[eé]s\s+de\s+)?(?:he\s+|hemos\s+|estuve\s+|estoy\s+|estuvimos\s+)?(?:estado\s+)?` +
+  _REVIEW_VERB + String.raw`\s+` + _DATA_OBJ +
+  String.raw`(?:\s+de\s+\p{L}+(?:\s+\p{L}+)?)?\s*[,.:]?\s*(?:y\s+)?(?:(?:he\s+|te\s+|hemos\s+)?` + _FOUND_VERB + String.raw`\s*(?:que\s+)?)?`,
+  "iu",
+);
 // Aperturas de PLANTILLA al inicio del mensaje → se borran; la frase real arranca y se capitaliza. Una sola vez.
-// Familia "revisé/analicé TUS DATOS y encontré…" ROBUSTA a conjugación (he/he estado/estuve/tras · revis*/analiz*/
-// mir*/examin*/repas* · encontr*/detect*/cuent*…). El ancla SEGURA es "tus datos/la información/los datos" JUSTO tras
-// el verbo → el contenido real jamás abre así (sólo la muletilla). Consume hasta el hallazgo (deja "algunos puntos…"/
-// "tres áreas…") y, si sigue "que", lo consume (deja la cláusula). No toca cifras.
-const REVIEW_PREAMBLE = /^\s*(?:tras\s+|luego\s+de\s+|despu[eé]s\s+de\s+)?(?:he\s+|hemos\s+|estuve\s+|estoy\s+|estuvimos\s+)?(?:estado\s+)?(?:revis\p{L}+|analiz\p{L}+|analic\p{L}+|mir\p{L}+|examin\p{L}+|repas\p{L}+)\s+(?:tus\s+datos|la\s+informaci[oó]n|los\s+datos|la\s+data|tu\s+(?:cartera|negocio|informaci[oó]n))\s*[,.:]?\s*(?:y\s+)?(?:he\s+|te\s+|hemos\s+)?(?:encontr\p{L}+|detect\p{L}+|not\p{L}+|identific\p{L}+|hall\p{L}+|vist\p{L}+|observ\p{L}+|cuent\p{L}+)?\s*(?:que\s+|lo\s+siguiente[:,]?\s*)?/iu;
 const OPENERS = [
   REVIEW_PREAMBLE,
-  /^\s*las\s+proyecciones\s+(?:indican|muestran|sugieren|reflejan|se[ñn]alan)\s+que\s+/i,
-  /^\s*(?:los\s+datos|las\s+cifras|los\s+n[uú]meros)\s+(?:indican|muestran|sugieren|reflejan|se[ñn]alan)\s+que\s+/i,
-  /^\s*seg[uú]n\s+(?:los\s+datos|el\s+an[aá]lisis|la\s+informaci[oó]n|las\s+cifras)\s*[,]?\s*/i,
+  /^\s*las\s+proyecciones\s+(?:indican|muestran|sugieren|reflejan|se[ñn]alan)\s+que\s+/iu,
+  /^\s*(?:estos\s+datos|los\s+datos|las\s+cifras|los\s+n[uú]meros|estas\s+cifras)\s+(?:indican|muestran|sugieren|reflejan|se[ñn]alan)\s+que\s+/iu,
+  /^\s*seg[uú]n\s+(?:los\s+datos|el\s+an[aá]lisis|la\s+informaci[oó]n|las\s+cifras)\s*[,]?\s*/iu,
 ];
 
-// Muletillas CONECTORAS al inicio de frase (arranque o tras . ; : ! ?) → se borran, la palabra siguiente se capitaliza.
-// OJO: "es importante NOTAR/destacar que" (observación · muletilla) — NO "es importante que <acción>" (recomendación real).
-const CONNECTOR = /(^|[.;:!?]\s+)(?:sin\s+embargo|no\s+obstante|dicho\s+esto|es\s+importante\s+(?:notar|destacar|mencionar)\s+que|cabe\s+(?:destacar|notar|mencionar)\s+que)\s*[,]?\s+(\p{L})/giu;
+// Muletillas CONECTORAS a inicio de frase (arranque o tras . ; : ! ?) → se borran, la palabra siguiente se capitaliza.
+// Incluye "estos/los datos indican que" (informe) y fillers ("Claramente,"). OJO: "es importante NOTAR que" (muletilla),
+// NO "es importante que <acción>" (recomendación real).
+const CONNECTOR = /(^|[.;:!?]\s+)(?:sin\s+embargo|no\s+obstante|dicho\s+esto|claramente|obviamente|evidentemente|en\s+resumen|en\s+conclusi[oó]n|es\s+importante\s+(?:notar|destacar|mencionar)\s+que|cabe\s+(?:destacar|notar|mencionar)\s+que|(?:estos\s+datos|los\s+datos|las\s+cifras|los\s+n[uú]meros)\s+(?:indican|muestran|sugieren|reflejan|se[ñn]alan)\s+que)\s*[,]?\s+(\p{L})/giu;
 
-// stripRoboticVoice(text) → text sin apertura de plantilla ni muletillas conectoras. Idempotente · number-safe.
+// stripRoboticVoice(text) → sin apertura de plantilla ni muletillas conectoras. Idempotente · number-safe.
 export function stripRoboticVoice(text) {
   if (typeof text !== "string" || !text.trim()) return text;
   let s = text;
-  // 1) apertura de plantilla (una sola vez, al inicio)
   for (const re of OPENERS) {
     if (re.test(s)) {
       const stripped = _cap(s.replace(re, "").replace(/^\s+/, ""));
@@ -38,7 +45,11 @@ export function stripRoboticVoice(text) {
       break;
     }
   }
-  // 2) muletillas conectoras (todas)
-  s = s.replace(CONNECTOR, (_m, pre, ch) => pre + ch.toUpperCase());
+  // muletillas conectoras · loop hasta estable (atrapa encadenadas: "Claramente, estos datos indican que…")
+  for (let i = 0; i < 4; i++) {
+    const prev = s;
+    s = s.replace(CONNECTOR, (_m, pre, ch) => pre + ch.toUpperCase());
+    if (s === prev) break;
+  }
   return s;
 }

@@ -15,7 +15,7 @@
  *   V6 · conversación libre controlada (help · navigate · meta ampliado)
  */
 import { answerADIFromSpec } from "./answerADIFromSpec.js";
-import { composeFollowupRecommendation } from "./specRetrieval.js";
+import { composeFollowupRecommendation, sampleEntities } from "./specRetrieval.js";
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 
@@ -126,10 +126,13 @@ export function composeCompare(spec, ctx, state) {
   if (cmpEnts.length >= 2) { subject = cmpEnts[0]; target = cmpEnts[1]; }  // dos entidades EXPLÍCITAS ('compará A con B')
   else { subject = _lastEntity(last); target = _compareTarget(spec, subject); }  // elíptico: sujeto del contexto, target del LLM
   if (!dim) return _clarify("¿Sobre qué eje comparo? Decime cliente, marca, familia o bodega.");
-  if (target && /^(el |la |los |las )?(promedio|media|benchmark|mercado|cartera)$/i.test(String(target).trim()))
-    return _clarify(`Contra otra ${dLabel} puntual sí puedo cruzarlo; el promedio de cartera lo tenés en el panel. ¿Contra qué ${dLabel} lo comparo?`);
-  if (!target) return _clarify(`¿Contra qué ${dLabel} lo comparo?`);
-  if (!subject) return _clarify(`Tengo ${target}, pero veníamos de una lectura general. ¿Qué ${dLabel} comparo con ${target}?`);
+  const _egs = (excl) => { const xs = sampleEntities(dim, 4).filter((e) => _low(e) !== _low(excl)).slice(0, 3); return xs.length ? xs.join(", ") : null; };
+  if (target && /^(el |la |los |las )?(promedio|media|benchmark|mercado|cartera)$/i.test(String(target).trim())) {
+    const eg = _egs(subject); const sj = subject ? `${subject}` : `un ${dLabel}`;
+    return _clarify(`El promedio de cartera lo tenés en el panel. Para cruzar puntual, decime contra qué ${dLabel} comparo ${sj}${eg ? ` — ej. ${eg}` : ""}.`);
+  }
+  if (!target) { const eg = _egs(subject); const sj = subject ? ` ${subject}` : ""; return _clarify(`¿Contra qué ${dLabel} comparo${sj}?${eg ? ` Puedo cruzarlo contra ${eg} u otro ${dLabel}.` : ""}`); }
+  if (!subject) { const eg = _egs(target); return _clarify(`¿Qué ${dLabel} querés comparar con ${target}?${eg ? ` Puedo cruzar ${target} contra ${eg} u otro ${dLabel}.` : ""}`); }
   const cmpSpec = {
     schemaVersion: 1, operation: "compare",
     metric: (spec && spec.metric) || (last && last.metrica) || "contribucion",

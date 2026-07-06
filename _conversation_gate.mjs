@@ -43,8 +43,8 @@ ok("7 · meta real/supuesto → honesto ('es un supuesto…')", /supuesto/i.test
 
 // ── V1 · followup_compare repregunta ESPECÍFICO cuando falta sujeto/target (last general · sin adivinar) ───────────
 ok("8 · compare sin target (last general) → repregunta por el target", /contra qu[eé] cliente/i.test(AC(S({ turn_type: "followup_compare" }), { lastEvidence: LAST }, {}).text));
-ok("9 · compare con target pero last general (sin sujeto) → repregunta por el sujeto",
-  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST }, {}); return /qu[eé] cliente comparo con Lider/i.test(r.text) && r.route === "clarification_needed"; })());
+ok("9 · compare con target pero last general (sin sujeto) → repregunta CRISP con opciones concretas (no vaga)",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { dimension: "cliente", entities: ["Lider"] } }), { lastEvidence: LAST }, {}); return /comparar con Lider/i.test(r.text) && /u otro cliente|Puedo cruzar/i.test(r.text) && !/tienes algunos|podr[ií]amos hacer un an[aá]lisis/i.test(r.text) && r.route === "clarification_needed"; })());
 
 // ── V1 · clarification + desconocido (Condición 1 del owner) ──────────────────────────────────────────────────────
 ok("10 · clarification_needed → devuelve la repregunta", AC(S({ turn_type: "clarification_needed", clarify: "¿por cliente o por marca?" }), {}, {}).text === "¿por cliente o por marca?");

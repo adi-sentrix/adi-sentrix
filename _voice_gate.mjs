@@ -23,6 +23,10 @@ const cases = [
   { n: "5b · 'He estado revisando… he encontrado algunos puntos donde' (embebido → frase válida)", in: "He estado revisando tus datos y he encontrado algunos puntos donde se te va plata: Falabella $1.6M.", out: "Algunos puntos donde se te va plata: Falabella $1.6M." },
   { n: "5c · 'Tras revisar tus datos,'", in: "Tras revisar tus datos, hay tres focos de pérdida.", out: "Hay tres focos de pérdida." },
   { n: "5d · 'Estuve analizando la información y detecté que'", in: "Estuve analizando la información y detecté que Falabella cede $1.6M.", out: "Falabella cede $1.6M." },
+  { n: "5e · flow3: 'Estuve revisando los números de X y hay…' (ancla en 'los números de')", in: "Estuve revisando los números de Falabella y hay un par de cosas que afectan tu margen. Primero, $1.6M en Falabella.", out: "Hay un par de cosas que afectan tu margen. Primero, $1.6M en Falabella." },
+  { n: "5f · 'He estado analizando la situación y detecté que'", in: "He estado analizando la situación y detecté que Falabella pierde $1.6M.", out: "Falabella pierde $1.6M." },
+  { n: "5g · 'Claramente, estos datos indican que' encadenado al inicio", in: "Claramente, estos datos indican que se debe actuar en Falabella.", out: "Se debe actuar en Falabella." },
+  { n: "5h · 'Claramente,' + 'estos datos indican que' mid-texto", in: "Falabella pierde $1.6M. Claramente, estos datos indican que hay que actuar.", out: "Falabella pierde $1.6M. Hay que actuar." },
   // 2 · muletillas conectoras mid-texto
   { n: "6 · 'Sin embargo,' mid-frase", in: "El bloque suma $5.0M. Sin embargo, este crecimiento se concentra en 7 clientes.", out: "El bloque suma $5.0M. Este crecimiento se concentra en 7 clientes." },
   { n: "7 · 'Es importante notar que'", in: "Genera $3.0M. Es importante notar que este incremento se concentra en 7 clientes.", out: "Genera $3.0M. Este incremento se concentra en 7 clientes." },

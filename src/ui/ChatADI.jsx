@@ -89,6 +89,9 @@ const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé
 // inicio (submitSpec) → misma calidad narrada por CUALQUIER puerta. buildNarrateSystem elige el prompt según evidence.
 async function _narrateResult(r) {
   if (!(ADI_LLM_NARRATE_ENABLED && r && r.text)) return { r, narrated: false };
+  // REPREGUNTA CRISP: las clarificaciones NO se narran con el LLM (las volvía vagas · "si tenés algunos clientes en
+  // mente…"). El texto determinístico ya es directo y ofrece opciones concretas → se muestra crudo. (owner 2026-07-06)
+  if (r.route === "clarification_needed") return { r, narrated: false };
   try {
     const narration = await _fetchNarration(r);
     const picked = pickNarratedText(r, narration);
@@ -244,7 +247,8 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   const isSim = !!(evidence && evidence.transform);
   const isCuadro = !!(evidence && evidence.lens === "cuadro" && !evidence.reading);
   const isDiagnose = !!(evidence && Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico
-  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose) || !onOpenEvidence) return null;
+  const isCompare = !!(evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB) && !evidence.reading);   // A vs B → panel Comparación
+  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare) || !onOpenEvidence) return null;
   return (
     <div style={{ marginLeft:44, marginTop:2 }}>
       <button
@@ -261,7 +265,7 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
         </svg>
-        <span>{isSim ? "Ver la proyección en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
+        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
       </button>
     </div>
   );

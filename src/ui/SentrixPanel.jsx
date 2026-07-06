@@ -579,6 +579,74 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized }) {
   );
 }
 
+// ComparePanel · evidencia de COMPARACIÓN lado a lado (A vs B) · lo que ADI afirma en el texto ("factura más pero capta
+// mejor margen") queda PROBADO acá: métrica por métrica, ganador resaltado, gap principal, lectura escala-vs-calidad.
+function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
+  const a = evidence.compareA || evidence.entidad || "A";
+  const b = evidence.compareB || evidence.entityB || "B";
+  const pairs = (evidence && evidence.pairs) || [];
+  const lowerBetter = (p) => /low|menor|down|inv|neg|cost|carga/i.test(String(p || ""));
+  const winner = (pr) => {
+    if (typeof pr.aVal !== "number" || typeof pr.bVal !== "number" || pr.aVal === pr.bVal) return null;
+    return (lowerBetter(pr.polarity) ? pr.aVal < pr.bVal : pr.aVal > pr.bVal) ? "a" : "b";
+  };
+  let gapIdx = -1, gapMax = -1;
+  pairs.forEach((pr, i) => {
+    if (typeof pr.aVal === "number" && typeof pr.bVal === "number") {
+      const den = Math.max(Math.abs(pr.aVal), Math.abs(pr.bVal)) || 1;
+      const rel = Math.abs(pr.aVal - pr.bVal) / den;
+      if (rel > gapMax) { gapMax = rel; gapIdx = i; }
+    }
+  });
+  const byLabel = (rx) => pairs.find((pr) => rx.test(pr.label));
+  const ventas = byLabel(/venta|participaci/i), margen = byLabel(/margen/i);
+  const num = (pr) => pr && typeof pr.aVal === "number" && typeof pr.bVal === "number";
+  const escala = num(ventas) ? (ventas.aVal >= ventas.bVal ? a : b) : null;
+  const calidad = num(margen) ? (margen.aVal >= margen.bVal ? a : b) : null;
+  const reading = (escala && calidad)
+    ? (escala === calidad ? `${escala} gana en escala y en calidad de margen — domina en ambos frentes.` : `${escala} gana escala (más volumen); ${calidad} captura mejor margen. Ahí está la palanca: escala vs. calidad.`)
+    : null;
+  const cell = (val, side, pr) => { const w = winner(pr), on = w === side; return <span style={{ fontFamily:MONO, fontSize:13, fontVariantNumeric:"tabular-nums", color: w ? (on ? C.green : C.textMuted) : C.text, fontWeight: on ? 700 : 500 }}>{val}</span>; };
+  const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>COMPARACIÓN</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
+          <span style={{ color:C.textMuted }}>Comparación · </span><b>{a}</b> vs <b>{b}</b> — dónde gana escala y dónde gana calidad.
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:0 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto", gap:"0 22px", alignItems:"center" }}>
+          <div style={head}></div><div style={{ ...head, textAlign:"right" }}>{a}</div><div style={{ ...head, textAlign:"right" }}>{b}</div>
+          {pairs.map((pr, i) => (
+            <React.Fragment key={i}>
+              <div style={{ gridColumn:"1 / -1", height:1, background: i === 0 ? "transparent" : "rgba(255,255,255,0.05)" }}/>
+              <div style={{ padding:"9px 0", display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontSize:12.5, color:C.textSub }}>{pr.label}</span>
+                {i === gapIdx && <span style={{ fontFamily:MONO, fontSize:8.5, letterSpacing:"0.5px", color:C.amber, border:`1px solid ${C.amber}`, borderRadius:4, padding:"1px 4px", textTransform:"uppercase", opacity:0.9 }}>gap</span>}
+              </div>
+              <div style={{ padding:"9px 0", textAlign:"right" }}>{cell(pr.aFmt, "a", pr)}</div>
+              <div style={{ padding:"9px 0", textAlign:"right" }}>{cell(pr.bFmt, "b", pr)}</div>
+            </React.Fragment>
+          ))}
+        </div>
+        {reading && <div style={{ marginTop:16, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(255,255,255,0.02)", fontSize:12.5, color:C.text, lineHeight:1.55 }}>{reading}</div>}
+        <div style={{ fontSize:10.5, color:C.textMuted, marginTop:12, lineHeight:1.5 }}>Verde = quién gana cada métrica (mayor es mejor · en carga, menor). "Gap" = la diferencia más grande. Cifras de dato real de tu cartera.</div>
+      </div>
+    </div>
+  );
+}
+
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false }) {
   const baseRd = evidence && evidence.reading;
   const baseFocus = baseRd && baseRd.focus;
@@ -608,6 +676,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // DIAGNÓSTICO · los FOCOS (evidence.findings) = la evidencia de lo que el texto dice · va ANTES del Cuadro genérico.
     if (evidence && Array.isArray(evidence.findings) && evidence.findings.length)
       return <DiagnosePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // COMPARACIÓN · evidencia LADO A LADO (A vs B, métrica por métrica) = lo que ADI afirma en el texto · antes del Cuadro.
+    if (evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB))
+      return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     if (ADI_SENTRIX_CUADRO_ENABLED && evidence && evidence.lens === "cuadro")
       return <CuadroOnlyPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     return null;

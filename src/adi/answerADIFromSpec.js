@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · data-driven del contrato)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -314,7 +314,13 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         const out = dispatchIntent(mk(cmp.entities[0], cmp.entities[1]), "", scenario, ctx);
         // BOLETA (ruta del MOTOR · increment 2): el composer sellado no emite boleta → la derivamos de SU texto (unit-aware).
         // Cierra el garble de marca (1.3× → "13 veces"): el guard del LLM #2 autoriza SOLO las cifras que ADI ya dijo, con su unidad.
-        if (out && out.text) out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `${cmp.entities[0]} vs ${cmp.entities[1]}` }) };
+        if (out && out.text) {
+          out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `${cmp.entities[0]} vs ${cmp.entities[1]}` }) };
+          // PANEL COMPARATIVO de Sentrix: adjunto los pairs A vs B (si AMBAS entidades existen · si falta una, cp=null y el
+          // texto del composer ya degradó honesto → sin panel roto). El texto no cambia; esto sólo alimenta la evidencia.
+          const cp = comparePairs(cdim, cmp.entities, scenario);
+          if (cp) out.evidence = { ...out.evidence, pairs: cp.pairs, compareA: cp.a, compareB: cp.b, entityType: cdim, dimension: cdim, lens: "compare" };
+        }
         return out || _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]}. ¿Están bien escritos?`, [], ctx);
       }
       if (cdim === "sku" || cdim === "familia") {   // sku/familia → productor spec-driven (data-driven del contrato)

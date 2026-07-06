@@ -105,6 +105,20 @@ function _entityValue(name, m, dimension, scenario) {
   return row && typeof row[sba.field] === "number" ? row[sba.field] : null;
 }
 
+// sampleEntities(dimension, n, scenario) → hasta n nombres reales del eje (data-driven · para repreguntas de comparación
+// con opciones concretas · nada hardcodeado). Excluye duplicados; primeros del source. Vacío si el eje no existe.
+export function sampleEntities(dimension, n = 3, scenario = "actual") {
+  const ent = ENTITIES[dimension]; if (!ent) return [];
+  const src = SOURCES[ent.source]; if (!src) return [];
+  const seen = [];
+  for (const r of _load(ent.source, scenario)) {
+    const name = r[src.keyField];
+    if (name && !seen.includes(name)) seen.push(name);
+    if (seen.length >= n) break;
+  }
+  return seen;
+}
+
 // composeSpecDive({dimension, entity, scenario}) → perfil de UNA entidad (todas sus métricas del contrato) | null (no está)
 export function composeSpecDive({ dimension, entity, scenario }) {
   const ent = ENTITIES[dimension];
@@ -123,6 +137,32 @@ export function composeSpecDive({ dimension, entity, scenario }) {
   // BOLETA (primera clase): cada métrica del perfil es una cifra autorizada · value == fmt del texto (una sola verdad)
   const bol = metrics.map((mm) => fig(`${entity} · ${mm.label}`, mm.fmt, { unit: mm.unit, raw: mm.value, context: `${entity} (${ent.label.sing})` }));
   return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro", metrics, boleta: bol } };
+}
+
+// comparePairs(dimension, entities, scenario) → pairs A vs B (métrica por métrica) + participación (share de ventas) para
+// el PANEL COMPARATIVO de Sentrix. null si falta una entidad (→ el texto del motor degrada honesto, sin panel roto).
+export function comparePairs(dimension, entities, scenario = "actual") {
+  const ent = ENTITIES[dimension];
+  if (!ent || !Array.isArray(entities) || entities.length !== 2) return null;
+  const [a, b] = entities; const pairs = []; let aAny = false, bAny = false;
+  for (const [, m] of _metricsFor(dimension)) {
+    const va = _entityValue(a, m, dimension, scenario), vb = _entityValue(b, m, dimension, scenario);
+    if (va != null) aAny = true; if (vb != null) bAny = true;
+    if (va == null && vb == null) continue;
+    const _sc = m.scale && m.scale[dimension];
+    pairs.push({ label: m.label, aFmt: va == null ? "—" : _fmt(va, m.unit, _sc), bFmt: vb == null ? "—" : _fmt(vb, m.unit, _sc), aVal: va, bVal: vb, unit: m.unit, polarity: m.polarity });
+  }
+  if (!aAny || !bAny || !pairs.length) return null;   // una entidad ausente → sin panel comparativo
+  // participación (share de ventas) = señal de ESCALA · se computa contra el total del eje
+  const vm = METRICS.ventas, vsba = vm && vm.sourceByAxis && vm.sourceByAxis[dimension];
+  if (vsba) {
+    const rows = _load(vsba.source, scenario);
+    const total = rows.reduce((s, r) => s + (typeof r[vsba.field] === "number" ? r[vsba.field] : 0), 0);
+    const av = _entityValue(a, vm, dimension, scenario), bv = _entityValue(b, vm, dimension, scenario);
+    if (total > 0 && av != null && bv != null)
+      pairs.unshift({ label: "Participación", aFmt: (av / total * 100).toFixed(1) + "%", bFmt: (bv / total * 100).toFixed(1) + "%", aVal: +(av / total * 100).toFixed(1), bVal: +(bv / total * 100).toFixed(1), unit: "pct", polarity: "higher" });
+  }
+  return { a, b, pairs };
 }
 
 // composeSpecCompare({dimension, entities:[a,b], scenario}) → dos entidades lado a lado, métrica por métrica | null
