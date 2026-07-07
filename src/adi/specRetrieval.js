@@ -357,10 +357,10 @@ function _contrapunta(D, focusEst) {
   return null;
 }
 
-export function composeSpecInventory({ filters = {}, scenario, focus = "frenado", staleDays = null } = {}) {
+export function composeSpecInventory({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null } = {}) {
   const kSF = _sf("capital", "sku"), rSF = _sf("rotacion", "sku"), dSF = _sf("doh", "sku");
   if (!kSF || !rSF || !dSF) return null;
-  const rows = _scopeRows(_load(kSF.source, scenario), filters);
+  const rows = _scopeRows(_load(kSF.source, scenario), filters, entityScope);   // "de esos SKU, ¿cuáles frenados?" respeta el alcance heredado
   if (!rows.length) return null;
   const key = (SOURCES[kSF.source] && SOURCES[kSF.source].keyField) || "sku";
   // DIAGNÓSTICO COMPLETO por el motor sellado (las 4 puntas + por bodega + por familia + materialidad) · UNA verdad.

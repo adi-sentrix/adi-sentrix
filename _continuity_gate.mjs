@@ -102,6 +102,13 @@ const g3 = run("de esos, ¿cuál es el que más se vende?", { lastEvidence: f1.e
 const g3rows = names(g3.evidence && g3.evidence.ventas && g3.evidence.ventas.panel && g3.evidence.ventas.panel.rows);
 ok("rank_venta scopeado a los SKU heredados", g3._spec.operation === "ventas" && g3rows.length > 0 && g3rows.length <= F.entities.length && subset(g3rows, F.entities));
 
+console.log("\n── H · INVENTARIO como destino del alcance (cierra los 4 dominios) ──");
+// margen@sku (los 3 heredados de la cadena F) → "de esos, ¿alguno sigue frenado en bodega?"
+const h1 = run("y de esos, ¿alguno sigue frenado en bodega?", { lastEvidence: f2.evidence }, true);
+const h1sku = ((h1.evidence && h1.evidence.inventory && h1.evidence.inventory.bySku) || []).map((x) => x.sku);
+ok("inventory scopeado a los SKU heredados", h1._spec.operation === "inventory" && h1._spec._deictic === true && h1sku.length > 0 && subset(h1sku, F.entities));
+ok("inventory scopeado lleva la marca de voz", /De los que veníamos mirando/.test(h1.text || ""));
+
 console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
 ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
 ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);

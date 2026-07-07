@@ -106,8 +106,8 @@ const _DEICTIC_RE = /\b(?:de\s+(?:[eé]sos|[eé]sas|ellos|ellas|[eé]stos|[eé]s
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia) → spec ruteado al dominio+foco correcto (o el spec original).
 export function coerceSpec(q, spec, hasLast) {
   const s = _coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, _coerceCompare(q, spec))))), hasLast);
-  // marca el turno deíctico SÓLO si además ruteó a un dominio comercial que sabe filtrar por nombre (margin/contribucion/ventas)
-  if (hasLast && q && s && _DEICTIC_RE.test(q) && (s.operation === "margin" || s.operation === "contribucion" || s.operation === "ventas"))
+  // marca el turno deíctico SÓLO si además ruteó a un dominio que sabe filtrar por nombre (margin/contribucion/ventas/inventory)
+  if (hasLast && q && s && _DEICTIC_RE.test(q) && (s.operation === "margin" || s.operation === "contribucion" || s.operation === "ventas" || s.operation === "inventory"))
     return { ...s, _deictic: true };
   return s;
 }

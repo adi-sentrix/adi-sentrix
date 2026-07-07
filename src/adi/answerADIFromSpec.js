@@ -409,7 +409,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     // diagnóstico genérico. El composer ya trae la estructura (lectura→bodega→SKU→por qué→qué hacer) → finalizo directo.
     if (spec.operation === "inventory") {
       // la pregunta manda el foco (frenado|quiebre|sobrestock|stale) · lo infiere el cliente del texto o el LLM
-      const resp = composeSpecInventory({ filters: spec.filters, scenario, focus: spec.focus, staleDays: spec.staleDays });
+      const resp = composeSpecInventory({ filters: spec.filters, scenario, focus: spec.focus, staleDays: spec.staleDays, entityScope: spec.entityScope });
       if (!resp || !resp.opener) {
         const _fMsg = { quiebre: "No veo SKU en riesgo de quiebre material — la cobertura alcanza en lo que rota rápido.", sobrestock: "No veo sobrestock material — la cobertura está dentro de rango.", stale: "No veo SKU parados por ese plazo — todo tuvo movimiento reciente." };
         return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
