@@ -705,7 +705,7 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = 
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
               {rows.map((r, i) => { const inTop = i < p.cutoff; const named = nm(r.nombre); return (
                 <AskRow key={i} onAsk={onAsk} q={`¿De dónde saca ${r.nombre} su contribución?`} style={{ display:"flex", alignItems:"center", gap:9 }}>
-                  <span style={{ display:"flex", alignItems:"center", gap:5, width:104, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : inTop ? C.textSub : C.textMuted, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:118, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : inTop ? C.textSub : C.textMuted, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${Math.max(2, r.part / maxV * 100)}%`, height:"100%", background: inTop ? C.blue : "rgba(255,255,255,0.2)", opacity:0.85 }}/>
                   </div>
@@ -797,7 +797,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               {rows.map((r, i) => { const named = nm(r.nombre); return (
                 <AskRow key={i} onAsk={onAsk} q={`¿Cómo viene ${r.nombre} vs el año pasado?`} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ display:"flex", alignItems:"center", gap:5, width:150, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:118, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ position:"relative", flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${r.sNow}%`, height:"100%", background:C.blue, opacity:0.8 }}/>
                     <div style={{ position:"absolute", left:`${r.sAnt}%`, top:-1, bottom:-1, width:1.5, background:C.textMuted }}/>
@@ -816,7 +816,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
             <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
               {rows.map((r, i) => { const col = kind === "rank" ? C.blue : (r.pos ? C.green : C.red); const named = nm(r.nombre); return (
                 <AskRow key={i} onAsk={onAsk} q={kind === "rank" ? `Profundiza en ${r.nombre}` : `¿Cómo viene ${r.nombre} vs el año pasado?`} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ display:"flex", alignItems:"center", gap:5, width:110, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:118, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${Math.max(2, Math.abs(r.val || 0) / maxAbs * 100)}%`, height:"100%", background:col, opacity:0.85 }}/>
                   </div>
@@ -844,6 +844,9 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const decomp = rows.filter((r) => typeof r.costShare === "number" && r.below).slice(0, 5);
   const nm = _named(evidence);   // espejo: lo que ADI nombró
+  // B.3 · número PROTAGONISTA (unificación con ventas/inventario): el $ de la palanca ("cuánto vale") de la boleta —
+  // misma fuente de verdad que el texto, cero recalculo. Sin palanca (huecos) → cae al conteo como antes.
+  const lever = ((evidence && evidence.boleta) || []).find((f) => f && /^Palanca · /.test(f.label));
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -859,7 +862,9 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
         </div>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Margen"}</div><ScopeChip evidence={evidence}/></div>
-          <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.text}>{p.belowCount}</Num>/{p.total} bajo benchmark</div>
+          {lever
+            ? <div title={`${lever.label} — cuánto vale la palanca`} style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{lever.value}<span style={{ fontSize:10.5, color:C.textMuted, fontWeight:400 }}> · {p.belowCount}/{p.total} bajo benchmark</span></div>
+            : <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.text}>{p.belowCount}</Num>/{p.total} bajo benchmark</div>}
         </div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
@@ -868,7 +873,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
             {rows.map((r, i) => { const named = nm(r.nombre); return (
               <AskRow key={i} onAsk={onAsk} q={`¿Por qué ${r.nombre} cede margen?`} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ display:"flex", alignItems:"center", gap:5, width:104, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
+                <span style={{ display:"flex", alignItems:"center", gap:5, width:118, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                 <div style={{ position:"relative", flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                   <div style={{ width:`${Math.min(100, (r.margen || 0) / scale * 100)}%`, height:"100%", background: r.below ? C.amber : C.green, opacity:0.85 }}/>
                   <div style={{ position:"absolute", left:`${benchPct}%`, top:-1, bottom:-1, width:1.5, background:C.amber, opacity:0.9 }}/>
@@ -898,7 +903,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
             <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:9 }}>Gris = costo sobre el precio de lista · color = markup. Markup fino (bajo {p1(bench)}%) = el precio no cubre el margen objetivo.</div>
           </div>
         )}
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark. {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark.{lever ? " El monto del encabezado es cuánto vale la palanca (lo que ganás si la ejecutás)." : ""} {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real.</div>
       </div>
     </div>
   );
@@ -945,7 +950,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {byBodega.map((b, i) => (
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:12.5, color:C.textSub, width:96, flexShrink:0 }}>{b.bodega}</span>
+                <span style={{ fontSize:12.5, color:C.textSub, width:118, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.bodega}</span>
                 <div style={{ flex:1, height:7, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                   <div style={{ width:`${Math.round(b.usd / maxB * 100)}%`, height:"100%", background:fcolor, opacity:0.85 }}/>
                 </div>
@@ -998,8 +1003,8 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
                   onMouseEnter={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.07)"; } : undefined}
                   onMouseLeave={onAsk ? (e) => { e.currentTarget.style.background = "transparent"; } : undefined}>
                   {nm(s.sku) ? <NamedDot/> : null}
-                  {s.critico && <span style={{ width:5, height:5, borderRadius:"50%", background:fcolor, flexShrink:0 }}/>}
-                  <span style={{ fontSize:12, color: nm(s.sku) ? C.text : C.textSub, fontWeight: nm(s.sku) ? 600 : 400, fontFamily:MONO, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.sku}</span>
+                  {/* B.3 · crítico = COLOR del texto (un solo marcador por fila; antes era un 2º punto pegado al celeste) */}
+                  <span style={{ fontSize:12, color: s.critico ? fcolor : nm(s.sku) ? C.text : C.textSub, fontWeight: nm(s.sku) ? 600 : 400, fontFamily:MONO, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.sku}</span>
                 </div>
                 <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(s.usd)}</div>
                 <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: (isStale ? (s.diasSinVenta > 90) : (s.doh > 120)) ? fcolor : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{isStale ? `${s.diasSinVenta ?? "—"}d` : `${s.doh}d`}</div>
@@ -1008,7 +1013,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
             ))}
           </div>
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La franja "4 puntas" muestra todo tu inventario: {estados.map((e) => e.label).join(" · ")}. {MIRROR_LEGEND}{onAsk ? " Click en un SKU para pedirle a ADI que profundice." : ""} Cifras de dato real; el foco resaltado responde tu pregunta.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La franja "4 puntas" muestra todo tu inventario: {estados.map((e) => e.label).join(" · ")}. SKU en color = crítico. {MIRROR_LEGEND}{onAsk ? " Click en un SKU para pedirle a ADI que profundice." : ""} Cifras de dato real; el foco resaltado responde tu pregunta.</div>
       </div>
     </div>
   );
