@@ -706,10 +706,15 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   const bol = [];
 
   if (focus === "vs_presupuesto") {
-    // el TOTAL viene de la KPI autoritativa (100K vs 97K = +3.1%); el desglose por eje = roll-up de clientesVentas
-    const tp = _pctChg(_vKPI.totalActual, _vKPI.totalPresupuesto);
-    const totLine = `La venta va ${_sgnp(tp)}${_p1(tp)}% ${tp >= 0 ? "sobre" : "bajo"} presupuesto (${_m(_vKPI.totalActual)} vs ${_m(_vKPI.totalPresupuesto)}).`;
-    const rowsP = _pptoByDim(dim);
+    // el TOTAL viene de la KPI autoritativa (100K vs 97K = +3.1%); el desglose por eje = roll-up de clientesVentas.
+    // Con ENTITYSCOPE ("de esos, ¿cómo van contra el plan?") el total honesto es el del SUBCONJUNTO (roll-up), no la KPI.
+    const allP = _pptoByDim(dim);
+    const rowsP = _scopeRows(allP, {}, entityScope);
+    const scoped = rowsP.length > 0 && rowsP.length < allP.length;
+    const totA = scoped ? rowsP.reduce((a, r) => a + (r.actual || 0), 0) : _vKPI.totalActual;
+    const totP = scoped ? rowsP.reduce((a, r) => a + (r.presupuesto || 0), 0) : _vKPI.totalPresupuesto;
+    const tp = _pctChg(totA, totP);
+    const totLine = `La venta va ${_sgnp(tp)}${_p1(tp)}% ${tp >= 0 ? "sobre" : "bajo"} presupuesto (${_m(totA)} vs ${_m(totP)}).`;
     if (!rowsP.length) {   // sku → sin ppto propio
       return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual * 1000, mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" })] };
     }
@@ -722,9 +727,9 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       `**Qué hacer:** el foco de recuperación son los que quedan cortos; los de arriba marcan qué está funcionando.`,
     ];
     for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${L.s} · ${r.nombre} vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
-    bol.push(fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual * 1000, mandatory: true, context: "vs presupuesto" }));
-    bol.push(fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" }));
-    const panel = { kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(_vKPI.totalActual)} vs ${_m(_vKPI.totalPresupuesto)}`, rows: withDev.map((r) => ({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 })) };
+    bol.push(fig(scoped ? "Venta del grupo" : "Venta total", _m(totA), { unit: "money", raw: totA * 1000, mandatory: true, context: "vs presupuesto" }));
+    bol.push(fig(scoped ? "Presupuesto del grupo" : "Presupuesto total", _m(totP), { unit: "money", raw: totP * 1000, mandatory: false, context: "vs presupuesto" }));
+    const panel = { kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(totA)} vs ${_m(totP)}`, rows: withDev.map((r) => ({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 })) };
     return { lines, suggestions: ["Cómo vamos vs el año anterior", "Es por volumen o por precio"], bol, panel };
   }
 
@@ -769,7 +774,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   }
 
   if (focus === "caida_clientes") {
-    const conA = _cVentas.filter((r) => typeof r.anterior === "number");
+    const conA = _scopeRows(_cVentas, {}, entityScope).filter((r) => typeof r.anterior === "number");   // "de esos, ¿cuáles se cayeron?" respeta el alcance heredado
     const down = conA.map((r) => ({ nombre: r.nombre, d: (r.actual || 0) - (r.anterior || 0), p: _pctChg(r.actual || 0, r.anterior || 0), du: (r.unidades || 0) - (r.unidadesAnt || 0) })).filter((r) => r.d < 0).sort((a, b) => a.d - b.d);
     if (!down.length) return { lines: [`Ningún cliente redujo su compra vs el año anterior — todos crecen o se mantienen. No te invento una fuga que no existe.`], suggestions: ["Crecimiento YoY por cliente", "Cómo vamos vs presupuesto"], bol: [] };
     const lines = [
@@ -799,7 +804,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   }
 
   if (focus === "mix_familia") {
-    const rowsF = _fVentas.filter((r) => typeof r.anterior === "number");
+    const rowsF = _scopeRows(_fVentas, {}, entityScope).filter((r) => typeof r.anterior === "number");   // scope heredado (sólo intersecta si lo heredado son familias)
     const tot = rowsF.reduce((a, r) => a + (r.actual || 0), 0), totA0 = rowsF.reduce((a, r) => a + (r.anterior || 0), 0);
     const mix = rowsF.map((r) => ({ nombre: r.nombre, sNow: tot ? (r.actual || 0) / tot * 100 : 0, sAnt: totA0 ? (r.anterior || 0) / totA0 * 100 : 0 })).map((r) => ({ ...r, dpp: r.sNow - r.sAnt })).sort((a, b) => b.dpp - a.dpp);
     const gan = mix[0], per = mix[mix.length - 1];
@@ -814,10 +819,11 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   }
 
   if (focus === "rank_venta") {
-    const ranked = _skusM.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0));
+    const ranked = _scopeRows(_skusM.slice(), {}, entityScope).sort((a, b) => (b.venta || 0) - (a.venta || 0));   // "de esos SKU, ¿cuál vende más?" respeta el alcance
+    if (!ranked.length) return null;
     const lines = [
       `Los SKU que más venden: ${ranked.slice(0, 5).map((s) => `${s.nombre} (${_m(s.venta)})`).join(" · ")}.`,
-      `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}, seguido de ${ranked[1].nombre} (${_m(ranked[1].venta)}).`,
+      ranked[1] ? `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}, seguido de ${ranked[1].nombre} (${_m(ranked[1].venta)}).` : `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}.`,
       `**Ojo:** no tengo presupuesto ni año anterior POR SKU (sólo por cliente/marca/familia), así que no puedo comparar cada SKU contra plan ni contra el año pasado — eso te lo doy a nivel cliente o familia.`,
     ];
     for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "ranking de venta" }));

@@ -86,6 +86,22 @@ const f3rows = names(f3.evidence && f3.evidence.contribucion && f3.evidence.cont
 ok("turno3 contribución@sku sigue scopeada a la MISMA cadena", f3._spec.operation === "contribucion" && f3rows.length > 0 && subset(f3rows, F.entities));
 ok("turno1 (sin herencia) NO lleva la marca de voz", !/De los que veníamos mirando/.test(f1.text || ""));
 
+console.log("\n── G · VENTAS como destino del alcance (los focos que leían fuentes crudas) ──");
+// margen(below · clientes) → "de esos, ¿quiénes redujeron su compra?" (caida_clientes scopeada)
+const g1 = run("y de esos, ¿quiénes redujeron su compra?", { lastEvidence: t1b.evidence }, true);
+const g1rows = names(g1.evidence && g1.evidence.ventas && g1.evidence.ventas.panel && g1.evidence.ventas.panel.rows);
+ok("caida_clientes scopeada al bloque heredado", g1._spec.operation === "ventas" && g1._spec._deictic === true && g1rows.length > 0 && subset(g1rows, Sb));
+// margen(below) → "de esos, ¿cómo vamos contra el presupuesto?" (vs_presupuesto con TOTAL del subconjunto)
+const g2 = run("y de esos, ¿cómo vamos contra el presupuesto?", { lastEvidence: t1b.evidence }, true);
+const g2rows = names(g2.evidence && g2.evidence.ventas && g2.evidence.ventas.panel && g2.evidence.ventas.panel.rows);
+const g2bol = (g2.evidence && g2.evidence.boleta) || [];
+ok("vs_presupuesto scopeado (desglose ⊆ heredado)", g2._spec.operation === "ventas" && g2rows.length > 0 && subset(g2rows, Sb));
+ok("vs_presupuesto scopeado usa el TOTAL del grupo (no la KPI de cartera)", g2bol.some((f) => /Venta del grupo/.test(f.label)));
+// inventario(3 SKU) → "de esos, ¿cuál es el que más se vende?" (rank_venta scopeado)
+const g3 = run("de esos, ¿cuál es el que más se vende?", { lastEvidence: f1.evidence }, true);
+const g3rows = names(g3.evidence && g3.evidence.ventas && g3.evidence.ventas.panel && g3.evidence.ventas.panel.rows);
+ok("rank_venta scopeado a los SKU heredados", g3._spec.operation === "ventas" && g3rows.length > 0 && g3rows.length <= F.entities.length && subset(g3rows, F.entities));
+
 console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
 ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
 ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);
