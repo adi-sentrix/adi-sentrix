@@ -243,37 +243,49 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
 }
 
 // ── Botón "Ver evidencia en Sentrix" · Etapa 5 · aparece SOLO cuando el mensaje trae una lectura ejecutiva
-// (msg.evidence.reading) y el shell pasó el handler. Flags Sentrix OFF → sin reading → sin botón (inerte). ──
-function EvidenceButton({ evidence, onOpenEvidence, active }) {
-  // Aparece con una lectura ejecutiva (evidence.reading) O con un ranking panorámico (lens=cuadro · sin foco único → el Cuadro).
-  const isSim = !!(evidence && evidence.transform);
-  const isCuadro = !!(evidence && evidence.lens === "cuadro" && !evidence.reading);
-  const isDiagnose = !!(evidence && Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico
-  const isCompare = !!(evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB));   // A vs B → panel Comparación (aunque traiga reading del motor)
-  const isInventory = !!(evidence && evidence.inventory && Array.isArray(evidence.inventory.bySku) && evidence.inventory.bySku.length);   // capital por bodega/SKU → panel Inventario
-  const isMargin = !!(evidence && evidence.margin && evidence.margin.panel && Array.isArray(evidence.margin.panel.rows) && evidence.margin.panel.rows.length);   // margen vs benchmark → panel Margen
-  const _vp = evidence && evidence.ventas && evidence.ventas.panel;
+// (msg.evidence.reading) y el shell pasó el handler. Flags Sentrix OFF → sin reading → sin botón (inerte).
+// MULTI-ANÁLISIS (V3 · Frente C.1): si la evidencia trae `multi: [evidencias extra]`, se muestra UN botón por lente. ──
+function _evLabel(evidence) {
+  if (!evidence) return null;
+  const isSim = !!evidence.transform;
+  const isCuadro = !!(evidence.lens === "cuadro" && !evidence.reading);
+  const isDiagnose = !!(Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico
+  const isCompare = !!(Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB));   // A vs B → panel Comparación
+  const isInventory = !!(evidence.inventory && Array.isArray(evidence.inventory.bySku) && evidence.inventory.bySku.length);   // capital → panel Inventario
+  const isMargin = !!(evidence.margin && evidence.margin.panel && Array.isArray(evidence.margin.panel.rows) && evidence.margin.panel.rows.length);   // margen → panel Margen
+  const _vp = evidence.ventas && evidence.ventas.panel;
   const isVentas = !!(_vp && (_vp.kind === "decomp" || (Array.isArray(_vp.rows) && _vp.rows.length)));   // movers/decomp/mix/rank → panel Ventas
-  const isContrib = !!(evidence && evidence.contribucion && evidence.contribucion.panel && Array.isArray(evidence.contribucion.panel.rows) && evidence.contribucion.panel.rows.length);   // pareto/gap/rank → panel Contribución
-  if (!evidence || (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas && !isContrib) || !onOpenEvidence) return null;
+  const isContrib = !!(evidence.contribucion && evidence.contribucion.panel && Array.isArray(evidence.contribucion.panel.rows) && evidence.contribucion.panel.rows.length);   // pareto/gap/rank → panel Contribución
+  if (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas && !isContrib) return null;
+  return isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isContrib ? "Ver la contribución en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix";
+}
+function EvidenceButton({ evidence, onOpenEvidence, active }) {
+  if (!evidence || !onOpenEvidence) return null;
+  // primaria + las lentes extra del multi-análisis (cada una abre SU panel; deduplicadas por label)
+  const evs = [evidence, ...(Array.isArray(evidence.multi) ? evidence.multi : [])];
+  const seen = new Set();
+  const items = evs.map((ev) => ({ ev, label: _evLabel(ev) })).filter((x) => x.label && !seen.has(x.label) && seen.add(x.label));
+  if (!items.length) return null;
   return (
-    <div style={{ marginLeft:44, marginTop:2 }}>
-      <button
-        onClick={() => onOpenEvidence(evidence)}
-        style={{
-          display:"flex", alignItems:"center", gap:7, padding:"7px 14px",
-          background: active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)",
-          border:`1px solid ${active ? "rgba(47,184,218,0.6)" : "rgba(255,255,255,0.14)"}`,
-          borderRadius:6, color: active ? C.celeste : C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif",
-          fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.2)" : "rgba(255,255,255,0.08)"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)"; }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
-        </svg>
-        <span>{isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isContrib ? "Ver la contribución en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix"}</span>
-      </button>
+    <div style={{ marginLeft:44, marginTop:2, display:"flex", gap:8, flexWrap:"wrap" }}>
+      {items.map((x, i) => (
+        <button key={i}
+          onClick={() => onOpenEvidence(x.ev)}
+          style={{
+            display:"flex", alignItems:"center", gap:7, padding:"7px 14px",
+            background: active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)",
+            border:`1px solid ${active ? "rgba(47,184,218,0.6)" : "rgba(255,255,255,0.14)"}`,
+            borderRadius:6, color: active ? C.celeste : C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif",
+            fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.2)" : "rgba(255,255,255,0.08)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)"; }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
+          </svg>
+          <span>{x.label}</span>
+        </button>
+      ))}
     </div>
   );
 }

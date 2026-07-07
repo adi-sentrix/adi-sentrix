@@ -604,8 +604,10 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       ];
       pushMarginFigs(below);
     }
-    // CUÁNTO VALE (asesor): cliente → la cuenta gated del diagnóstico (una verdad) · otros ejes → 1pp sobre la venta del peor
-    const lever = dim === "cliente" ? _leverFoco(scenario, "margen", entityScope) : null;
+    // CUÁNTO VALE (asesor): cliente → la cuenta gated del diagnóstico (una verdad) · otros ejes → 1pp sobre la venta del peor.
+    // El scope de la palanca respeta TAMBIÉN filters.cliente (una lectura de UN cliente no muestra la palanca de cartera).
+    const _lvScope = entityScope || (filters.cliente ? { entities: [filters.cliente] } : null);
+    const lever = dim === "cliente" ? _leverFoco(scenario, "margen", _lvScope) : null;
     if (lever && lever.top.length) {
       lines.push(`**Cuánto vale:** si los ${lever.count} que están materialmente bajo el piso llegan al benchmark, son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
       bol.push(_figLever("Palanca · cerrar brecha al piso", lever.subtotal, "Σ venta × benchmark − contribución (≥4pp · ≥ piso)", true));
@@ -706,7 +708,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     ];
     for (const r of cargaHigh) bol.push(fig(`${L.s} · ${_mNombre(r)} carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
     // CUÁNTO VALE: la MISMA cuenta del detector de carga del diagnóstico ((carga − target) × venta · gated) — una verdad
-    const cargaLever = dim === "cliente" ? _leverFoco(scenario, "carga", entityScope) : null;
+    const cargaLever = dim === "cliente" ? _leverFoco(scenario, "carga", entityScope || (filters.cliente ? { entities: [filters.cliente] } : null)) : null;
     if (cargaLever && cargaLever.top.length) {
       lines.push(`**Cuánto vale:** llevar la carga al target de ${_p1(target)}% libera +${_money(cargaLever.subtotal)} al año — solo ${cargaLever.top[0].entidad} devuelve +${_money(cargaLever.top[0].usd)}.`);
       bol.push(_figLever("Palanca · carga al target", cargaLever.subtotal, "Σ (carga − target) × venta (≥ piso)", true));

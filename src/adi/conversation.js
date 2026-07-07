@@ -176,6 +176,41 @@ export function composeCompare(spec, ctx, state) {
   return answerADIFromSpec(cmpSpec, ctx, state);   // seam: comparación real + boleta fresca · degrada honesto si no cierra
 }
 
+// ── V3 · MULTI-ANÁLISIS (Frente C.1 · owner 2026-07-07): una pregunta que cruza DOS O MÁS lentes ("Lider en margen y
+// rotación") se responde con UNA respuesta de secciones — cada sección la produce SU composer vía el seam (misma honestidad,
+// mismos degrades, misma boleta) y las boletas se MERGEAN (el guard autoriza las cifras de ambas). La evidencia primaria
+// lleva `multi: [evidencias extra]` → la UI muestra un botón de Sentrix por lente. NADA se recalcula acá: solo se orquesta. ──
+const _MULTI_LENS = {
+  margen:       (d, f) => ({ schemaVersion: 1, operation: "margin", metric: "margen", dimension: d, focus: "bajo_benchmark", filters: f, scenario: "actual" }),
+  ventas:       (d, f) => ({ schemaVersion: 1, operation: "ventas", metric: "ventas", dimension: d === "bodega" ? "cliente" : d, focus: "vs_anterior", filters: f, scenario: "actual" }),
+  contribucion: (d, f) => ({ schemaVersion: 1, operation: "contribucion", metric: "contribucion", dimension: d, focus: "rank", filters: f, scenario: "actual" }),
+  // rotación/capital: por sku/bodega/familia el foco de inventario responde entero; por cliente/canal NO existe el eje →
+  // overview deja que el SEAM degrade honesto ("no lo tengo por cliente; sí por SKU/bodega") — la honestidad ya construida.
+  rotacion:     (d, f) => (d === "cliente" || d === "canal" || d === "marca") ? ({ schemaVersion: 1, operation: "overview", metric: "rotacion", dimension: d, filters: f, scenario: "actual" }) : ({ schemaVersion: 1, operation: "inventory", metric: "capital", dimension: d, focus: "frenado", filters: f, scenario: "actual" }),
+  capital:      (d, f) => (d === "cliente" || d === "canal" || d === "marca") ? ({ schemaVersion: 1, operation: "overview", metric: "capital", dimension: d, filters: f, scenario: "actual" }) : ({ schemaVersion: 1, operation: "inventory", metric: "capital", dimension: d, focus: "frenado", filters: f, scenario: "actual" }),
+  carga:        (d, f) => ({ schemaVersion: 1, operation: "margin", metric: "margen", dimension: "cliente", focus: "palancas", filters: f, scenario: "actual" }),
+};
+const _MULTI_LABEL = { margen: "Margen", ventas: "Ventas", contribucion: "Contribución", rotacion: "Rotación", capital: "Capital en inventario", carga: "Carga comercial" };
+export function composeMulti(spec, ctx, state) {
+  const m = spec && spec.multi;
+  if (!m || !Array.isArray(m.metrics) || m.metrics.length < 2)
+    return _clarify("¿Qué dos métricas querés cruzar? Ej: margen y rotación de los SKU.");
+  const dim = m.dimension || "cliente";
+  const filters = { ...(spec.filters || {}), ...(m.entity && dim === "cliente" ? { cliente: m.entity } : {}) };
+  const parts = [], evs = [], bol = [];
+  for (const met of m.metrics.slice(0, 3)) {
+    const mk = _MULTI_LENS[met];
+    if (!mk) continue;
+    const r = answerADIFromSpec(mk(dim, filters), ctx, state);
+    if (!r || !r.text) continue;
+    parts.push(`**${_MULTI_LABEL[met] || met}** — ${r.text}`);
+    if (r.evidence) { evs.push(r.evidence); for (const f of (r.evidence.boleta || [])) bol.push(f); }
+  }
+  if (!parts.length) return _clarify("No pude armar ese cruce. Decime las métricas (margen, ventas, contribución, rotación) y el eje.");
+  const primary = evs[0] ? { ...evs[0], boleta: bol, multi: evs.slice(1) } : { boleta: bol };
+  return { text: parts.join("\n\n"), suggestions: null, sentrixAction: null, evidence: primary, route: "multi_analysis" };
+}
+
 // ── REGISTRY · turn_type → resolver. Sumar una fase = sumar una entrada (V2-V6), NO reestructurar. ───────────────────
 const TURN_RESOLVERS = {
   new_query:                  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1
@@ -186,7 +221,7 @@ const TURN_RESOLVERS = {
   meta_question:              (spec, ctx) => composeMeta(spec && spec.meta, ctx.last),                    // V1
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)
-  // ── V3 · multi_analysis: (spec, ctx, state) => composeMulti(spec, ctx, state)  → evidences[] (shape reservado)
+  multi_analysis:             (spec, ctx, state) => composeMulti(spec, ctx, state),                        // V3 · cruce de lentes (Frente C.1 · secciones por composer · boletas mergeadas · evidence.multi)
   // ── V4 · recall_analysis: (spec, ctx) => composeRecall(spec, ctx.history)
   // ── V5 · session_resume / apply_criteria: (spec, ctx) => ... (ctx.session / ctx.criteria · con permiso)
   // ── V6 · help / navigate / meta ampliado

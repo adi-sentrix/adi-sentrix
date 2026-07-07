@@ -11,6 +11,7 @@ import { detectContribucionFocus } from "./contribucionFocus.js";
 import { detectMarginFocus } from "./marginFocus.js";
 import { detectVentasFocus } from "./ventasFocus.js";
 import { detectInventoryFocus } from "./inventoryFocus.js";
+import { detectMultiAnalysis } from "./multiFocus.js";
 
 // COMPARE · verbo explícito de comparación o "contra X". "contra <plan/tiempo>" se desvía a ventas (ver abajo).
 const _CMP_INTENT_RE = /\b(compar[aá]\w*|compár\w*|comparemos|versus|vs\.?)\b|\bcontra\s+\p{L}/iu;
@@ -103,9 +104,24 @@ function _coerceExplain(q, spec, hasLast) {
 // "esos mismos", "de ese grupo/lista", "de los que me mostraste", "de esos que…". NO dispara con genéricos ("de los clientes").
 const _DEICTIC_RE = /\b(?:de\s+(?:[eé]sos|[eé]sas|ellos|ellas|[eé]stos|[eé]stas)\b|entre\s+(?:[eé]sos|[eé]sas|ellos|ellas)\b|(?:[eé]sos|[eé]sas)\s+mismos?\b|de\s+(?:ese|esa)\s+(?:grupo|lista|listado|conjunto|selecci[oó]n)|de\s+(?:esa|esas)\s+cuentas?\b|de\s+(?:los|las)\s+(?:mismos|mismas|anteriores)\b|de\s+(?:los|las)\s+que\s+(?:me\s+)?(?:mostr\w*|dij\w*|nombr\w*|sali\w*|apareci\w*|list\w*)|de\s+(?:esos|esas)\s+que\b)/iu;
 
+// MULTI-ANÁLISIS (V3 · Frente C.1): "¿cómo está Lider en margen y rotación?" cruza DOS lentes → turn_type multi_analysis
+// (lo resuelve composeMulti reusando los composers vía el seam). CORTA la cadena: si no, el primer coerce de dominio que
+// matchee una de las dos métricas se la roba. Corre DESPUÉS de compare (un "compará A y B" es de entidades, no de métricas).
+function _coerceMulti(q, spec) {
+  if (!q || !spec || spec.operation === "compare") return null;
+  const m = detectMultiAnalysis(q);
+  if (!m.isMulti) return null;
+  const s = { ...spec, turn_type: "multi_analysis", multi: { metrics: m.metrics, dimension: m.dimension, entity: m.entity } };
+  if (s.transform) delete s.transform;
+  return s;
+}
+
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia) → spec ruteado al dominio+foco correcto (o el spec original).
 export function coerceSpec(q, spec, hasLast) {
-  const s = _coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, _coerceCompare(q, spec))))), hasLast);
+  const afterCompare = _coerceCompare(q, spec);
+  const multi = _coerceMulti(q, afterCompare);
+  if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)
+  const s = _coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, afterCompare)))), hasLast);
   // marca el turno deíctico SÓLO si además ruteó a un dominio que sabe filtrar por nombre (margin/contribucion/ventas/inventory)
   if (hasLast && q && s && _DEICTIC_RE.test(q) && (s.operation === "margin" || s.operation === "contribucion" || s.operation === "ventas" || s.operation === "inventory"))
     return { ...s, _deictic: true };
