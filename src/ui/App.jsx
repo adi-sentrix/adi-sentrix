@@ -2,7 +2,7 @@
  * Raíz de la app. Por ahora: header (logo + LIVE + escenario) + ChatADI corriendo como app real.
  * SIN panel de datos / módulos todavía (entran en el próximo paso de Fase 5).
  * Estado UI mínimo: escenario. La UI no calcula nada · el chat consume answerADI. */
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { C } from "./theme.js";
 import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
@@ -26,6 +26,9 @@ export default function App({ animate = true }) {
   const [maxed, setMaxed]     = useState(false);  // agrandado
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
+  // B.2 · BIDIRECCIONAL (la mesa habla): Sentrix pre-carga una pregunta en el input de ADI (click en una fila del panel).
+  // ChatADI registra su handler acá; el panel lo invoca. Prefill + focus — el usuario confirma con Enter (sin gasto por misclick).
+  const askRef = useRef(null);
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
@@ -96,7 +99,8 @@ export default function App({ animate = true }) {
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate}
               onOpenEvidence={(ev, id) => { setOpenEv(ev); setOpenId(id); }}
-              openEvidenceId={openId}/>
+              openEvidenceId={openId}
+              registerAsk={(fn) => { askRef.current = fn; }}/>
           </div>
           {openEv && (
             <>
@@ -106,7 +110,7 @@ export default function App({ animate = true }) {
                 onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.25)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
               <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0 }}>
-                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed}/>
+                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q) => { if (askRef.current) askRef.current(q); }}/>
               </div>
             </>
           )}

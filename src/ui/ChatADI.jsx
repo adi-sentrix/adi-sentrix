@@ -394,7 +394,7 @@ function HeroInicio({ scenario, onChip }) {
   );
 }
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null }) {
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [context, setContext]   = useState(initialContext || (modulo ? { activeModule: modulo } : {}));
@@ -414,6 +414,12 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     const ta = inputRef.current;
     if (ta) { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 160) + "px"; }
   }, [input]);
+
+  // B.2 · BIDIRECCIONAL (la mesa habla): Sentrix pre-carga una pregunta acá (click en una fila del panel) → prefill +
+  // focus. El usuario confirma con Enter — sin auto-envío (cero gasto por misclick, la decisión sigue siendo del usuario).
+  useEffect(() => {
+    if (typeof registerAsk === "function") registerAsk((q) => { setInput(String(q || "")); const ta = inputRef.current; if (ta) ta.focus(); });
+  }, [registerAsk]);
 
   // aplica el estado de un turno YA resuelto (idéntico para piso y LLM)
   const _applyTurn = (turn, adiId) => {
