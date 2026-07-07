@@ -159,6 +159,14 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {
     const el = _deriveEntityList(e2);
     if (el && el.entities.length) e2.entityList = el;
   }
+  // VOZ de continuidad: si un "de esos…" heredó alcance y el filtro REALMENTE aplicó (todo lo nombrado ⊆ scope), la
+  // respuesta lo reconoce — sin la marca, "los que más aportan… $X totales" se leería como cartera entera (deshonesto).
+  // Si el scope se ignoró (cruce sin intersección), NO se marca (la respuesta ES general). Sin cifras → guard-safe.
+  if (r && typeof r.text === "string" && spec && spec.entityScope && Array.isArray(spec.entityScope.entities) && e2 && e2.entityList) {
+    const scopeSet = new Set(spec.entityScope.entities.map(String));
+    if (e2.entityList.entities.length && e2.entityList.entities.every((n) => scopeSet.has(String(n))))
+      r.text = "De los que veníamos mirando:\n\n" + r.text;
+  }
   return r;
 }
 
@@ -407,7 +415,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
       }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
-      if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory" };
+      if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory", dimension: resp.evidence.dimension };
       return r;
     }
 
@@ -419,8 +427,10 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       const resp = composeSpecMargin({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, negativo: spec.negativo, pct: spec.pct, gap: spec.gap, entityScope: spec.entityScope });
       if (!resp || !resp.opener)
         return _degrade("margin-empty", `No veo ${_m("margen")} material bajo el benchmark en este corte — la cartera está sobre el mínimo.`, [], ctx);
+      // dimension: la del composer (p.ej. margen@sku heredado de un "de esos" sobre inventario) — _finalize no la arrastra,
+      // y sin ella el entityList del turno diría "cliente" con nombres de SKU (rompería el TERCER encadenamiento).
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
-      if (r && r.evidence && resp.evidence && resp.evidence.margin) r.evidence = { ...r.evidence, margin: resp.evidence.margin, lens: "margin" };
+      if (r && r.evidence && resp.evidence && resp.evidence.margin) r.evidence = { ...r.evidence, margin: resp.evidence.margin, lens: "margin", dimension: resp.evidence.dimension };
       return r;
     }
 
@@ -432,7 +442,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       if (!resp || !resp.opener)
         return _degrade("ventas-empty", `No pude armar la lectura de ventas para ese corte. Te puedo mostrar la venta vs presupuesto o vs el año anterior por cliente.`, [], ctx);
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
-      if (r && r.evidence && resp.evidence && resp.evidence.ventas) r.evidence = { ...r.evidence, ventas: resp.evidence.ventas, lens: "ventas" };
+      if (r && r.evidence && resp.evidence && resp.evidence.ventas) r.evidence = { ...r.evidence, ventas: resp.evidence.ventas, lens: "ventas", dimension: resp.evidence.dimension };
       return r;
     }
 
@@ -444,7 +454,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       if (!resp || !resp.opener)
         return _degrade("contribucion-empty", `No pude armar la lectura de contribución para ese corte. Te puedo mostrar quién sostiene la contribución o el ranking por cliente.`, [], ctx);
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
-      if (r && r.evidence && resp.evidence && resp.evidence.contribucion) r.evidence = { ...r.evidence, contribucion: resp.evidence.contribucion, lens: "contribucion" };
+      if (r && r.evidence && resp.evidence && resp.evidence.contribucion) r.evidence = { ...r.evidence, contribucion: resp.evidence.contribucion, lens: "contribucion", dimension: resp.evidence.dimension };
       return r;
     }
 

@@ -72,6 +72,20 @@ for (const [q, dom] of dcases) {
   ok(`[${s.operation}${s._deictic ? "·deíctico" : ""}] ${q.slice(0, 42)}…`, s._deictic === true && s.operation === dom);
 }
 
+console.log("\n── F · cadena de 3 TURNOS cruzando dominios · inventario → margen@sku → contribución@sku ──");
+const f1 = run("¿qué SKU están frenados?", {}, false);
+const F = (f1.evidence && f1.evidence.entityList) || {};
+ok("turno1 inventario/frenado emite entityList dimension sku", f1._spec.operation === "inventory" && F.dimension === "sku" && (F.entities || []).length > 0);
+const f2 = run("y de esos, ¿cuáles tienen mal margen?", { lastEvidence: f1.evidence }, true);
+const f2rows = names(f2.evidence && f2.evidence.margin && f2.evidence.margin.panel && f2.evidence.margin.panel.rows);
+ok("turno2 margen@sku scopeado a los SKU heredados", f2._spec.operation === "margin" && f2rows.length > 0 && subset(f2rows, F.entities));
+ok("turno2 re-emite entityList dimension sku (el fix de _finalize·dimension)", f2.evidence && f2.evidence.entityList && f2.evidence.entityList.dimension === "sku");
+ok("turno2 VOZ: reconoce el alcance heredado («De los que veníamos mirando»)", /De los que veníamos mirando/.test(f2.text || ""));
+const f3 = run("y de esos, ¿cuánto me aportan a la contribución?", { lastEvidence: f2.evidence }, true);
+const f3rows = names(f3.evidence && f3.evidence.contribucion && f3.evidence.contribucion.panel && f3.evidence.contribucion.panel.rows);
+ok("turno3 contribución@sku sigue scopeada a la MISMA cadena", f3._spec.operation === "contribucion" && f3rows.length > 0 && subset(f3rows, F.entities));
+ok("turno1 (sin herencia) NO lleva la marca de voz", !/De los que veníamos mirando/.test(f1.text || ""));
+
 console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
 ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
 ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);
