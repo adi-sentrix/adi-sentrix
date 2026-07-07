@@ -533,8 +533,15 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
 // ── DIAGNÓSTICO · los FOCOS de dónde se va/inmoviliza plata (evidence.findings) · la evidencia de LO QUE ADI DICE en el
 // texto (contribución no capturada · carga · capital dormido), no una grilla genérica. Portfolio-wide → no es el shell de
 // lentes (que es por foco de UNA entidad) · panel propio. Owner 2026-07-06: la evidencia de Sentrix = la del texto. ──────
-function DiagnosePanel({ evidence, onClose, onToggleMax, maximized }) {
+// pregunta que abre cada fila del diagnóstico (B.2 · por detector · la que la narración misma sugiere)
+const _DIAG_ASK = {
+  margen:  (e) => `¿Por qué ${e} cede margen?`,
+  carga:   (e) => `¿Cómo recupero la carga de ${e}?`,
+  capital: (e) => `Profundiza en ${e}`,
+};
+function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const foci = (evidence && evidence.findings) || [];
+  const nm = _named(evidence);   // espejo (B.1): lo que ADI nombró con cifra propia
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
@@ -563,17 +570,17 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized }) {
                 <span style={{ fontSize:13, color:C.text, fontWeight:600 }}>{f.titulo}</span>
                 <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{_fm(f.subtotal_usd)}</span>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                {(f.items || []).slice(0, 4).map((it, j) => (
-                  <div key={j} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, fontSize:12 }}>
-                    <span style={{ color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif" }}>{it.entidad}</span>
+              <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                {(f.items || []).slice(0, 4).map((it, j) => { const named = nm(it.entidad); const q = (_DIAG_ASK[f.detector] || _DIAG_ASK.margen)(it.entidad); return (
+                  <AskRow key={j} onAsk={onAsk} q={q} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, fontSize:12 }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:5, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, fontFamily:"'DM Sans', system-ui, sans-serif", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.entidad}</span></span>
                     <span style={{ fontFamily:MONO, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(it.usd)}</span>
-                  </div>
-                ))}
+                  </AskRow>
+                ); })}
               </div>
             </div>
           ))}
-          <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2, lineHeight:1.5 }}>Cada foco es plata que se te va (contribución no capturada, carga) o se te inmoviliza (capital). Cifras de dato real de tu cartera.</div>
+          <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2, lineHeight:1.5 }}>Cada foco es plata que se te va (contribución no capturada, carga) o se te inmoviliza (capital). {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real de tu cartera.</div>
         </>)}
       </div>
     </div>
@@ -1101,7 +1108,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
       return <SimulationPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     // DIAGNÓSTICO · los FOCOS (evidence.findings) = la evidencia de lo que el texto dice · va ANTES del Cuadro genérico.
     if (evidence && Array.isArray(evidence.findings) && evidence.findings.length)
-      return <DiagnosePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+      return <DiagnosePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
     // COMPARACIÓN · evidencia LADO A LADO (A vs B, métrica por métrica) = lo que ADI afirma en el texto · antes del Cuadro.
     if (evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB))
       return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
