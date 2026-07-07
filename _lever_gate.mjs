@@ -9,6 +9,7 @@ fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
+  'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -59,6 +60,20 @@ const t1 = AC(C("¿quién sostiene mi contribución?", { ...base }, false), {}, 
 const t2 = AC(C("y de esos, ¿cuáles quedan bajo el margen mínimo?", { ...base }, true), { lastEvidence: t1.evidence }, {});
 const leverScoped = figOf(t2, /Palanca · cerrar brecha al piso/);
 ok("la palanca scopeada ≤ la palanca de cartera (recortó al bloque)", leverScoped && leverBrecha && leverScoped.raw <= leverBrecha.raw && leverScoped.raw > 0);
+
+console.log("\n── guard × palanca · mandatory bien calibrado (el bug del 30.1% fantasma) ──");
+const G = M.guardAgainstBoleta;
+// una narración de PALANCAS correcta que NO cita el benchmark (su lectura no lo usa) debe PASAR — antes caía al piso
+const narrPal = `Hay +$655K al año si llevás la carga al target del 3.5%: Easy (5.5%), Sodimac (5.4%), Ripley (4.8%) y Falabella (4.5%) están sobre el target. Solo Falabella devuelve +$194K. Yo arrancaría por ahí.`;
+const gPal = G(narrPal, bol(mPal));
+ok("narración de palancas SIN benchmark pasa el guard (30.1% ya no es obligatoria ahí)", gPal.ok);
+// el benchmark SIGUE siendo obligatorio donde la lectura lo cita (bajo_benchmark)
+const benchFig = figOf(mBench, /Benchmark de margen/);
+ok("bajo_benchmark mantiene el benchmark como obligatorio (su lectura lo cita)", benchFig && benchFig.mandatory === true);
+// una narración que OMITE la plata de la palanca cae al piso (la palanca titular es mandatory)
+const narrSinPlata = `Ocho de trece clientes están bajo el margen mínimo de 30.1%. El más lejos es Lider con 21.5% (8.6pp).`;
+const gSin = G(narrSinPlata, bol(mBench));
+ok("narración que omite el $ de la palanca NO pasa (mejor el piso, que la tiene)", !gSin.ok && gSin.missing.length > 0);
 
 console.log(`\n── _lever_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

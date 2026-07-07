@@ -49,6 +49,21 @@ for (const c of cases) {
   if (ok && idem && numsafe) { pass++; console.log(`  ✓ ${c.n}`); }
   else { fail++; console.log(`  ✗ ${c.n}\n     in : ${JSON.stringify(c.in)}\n     out: ${JSON.stringify(got)}\n     exp: ${JSON.stringify(c.out)}${!idem ? "\n     (NO idempotente)" : ""}${!numsafe ? "\n     (cifra alterada!)" : ""}`); }
 }
-// idempotencia global + number-safety ya chequeados por caso.
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length}) ──`);
+// ── JERARQUÍA DEL ASESOR en el prompt del narrador (Frente A.2): lockear las directivas clave contra regresiones ──
+const entry2 = path.join(root, "_vge2.js"), out2 = path.join(root, "_vgb2.mjs");
+fs.writeFileSync(entry2, 'export { NARRATE_GENERAL } from "./src/adi/llm/narratePrompt.js";\n');
+await esbuild.build({ entryPoints: [entry2], bundle: true, outfile: out2, format: "esm", platform: "node", logLevel: "silent" });
+const M2 = await import(pathToFileURL(out2).href + "?t=" + Math.random());
+try { fs.unlinkSync(entry2); } catch {} try { fs.unlinkSync(out2); } catch {}
+const NG = M2.NARRATE_GENERAL;
+const pOk = (n, c) => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fail++; console.log(`  ✗ ${n}`); } };
+console.log("\n── prompt del narrador · jerarquía del asesor ──");
+pOk("P1 · LA PLATA PRIMERO (el $ de la palanca abre el consejo)", /LA PLATA PRIMERO/.test(NG));
+pOk("P2 · POSTURA (opinión de asesor, no catálogo)", /POSTURA/.test(NG) && /no un cat[aá]logo/.test(NG));
+pOk("P3 · CIERRE con UNA acción (sin moraleja genérica)", /CIERRE/.test(NG) && /moraleja gen[eé]rica/.test(NG));
+pOk("P4 · 'Cuánto vale:' listado como andamio prohibido (se narra, no se titula)", /'Cuánto vale:'/.test(NG));
+pOk("P5 · el impacto de la palanca es cifra obligatoria", /impacto en \$ de la palanca va SIEMPRE/.test(NG));
+pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuniones, llamadas/.test(NG));
+
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 6}) ──`);
 process.exit(fail ? 1 : 0);
