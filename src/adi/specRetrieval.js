@@ -1323,13 +1323,16 @@ export function buildResumenEjecutivo(scenario) {
   const diag = composeSpecDiagnose({ filters: {}, scenario });
   let lectura = "Todo lo que veo está sobre su benchmark y con el capital rotando — sin fugas materiales por ahora.";
   const F = diag && diag.evidence && diag.evidence.findings;
+  // APERTURA PROACTIVA (asesor · Frente A.3): los focos también salen ESTRUCTURADOS (detector + $ + entidad) para que el
+  // hero los vuelva BOTONES de arranque ("¿por cuál empezamos?") — mismos subtotales del diagnose (una verdad, cero recalculo).
+  const focos = [];
   if (F && F.length) {
     const by = (d) => F.find((x) => x.detector === d);
     const mg = by("margen"), cg = by("carga"), cap = by("capital"), parts = [];
-    if (mg && mg.items[0]) parts.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (arrancá por ${mg.items[0].entidad})`);
-    if (cg) parts.push(`${_money(cg.subtotal_usd)} recuperable en carga comercial`);
-    if (cap) parts.push(`${_money(cap.subtotal_usd)} de capital dormido en ${cap.items.length} SKU`);
-    lectura = `${F.length} ${F.length === 1 ? "foco" : "focos"} donde se te va o inmoviliza plata: ${parts.join(" · ")}.`;
+    if (mg && mg.items[0]) { parts.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (arrancá por ${mg.items[0].entidad})`); focos.push({ detector: "margen", usd: mg.subtotal_usd, usdFmt: _money(mg.subtotal_usd), label: "sobre la mesa en margen", entidad: mg.items[0].entidad }); }
+    if (cg) { parts.push(`${_money(cg.subtotal_usd)} recuperable en carga comercial`); focos.push({ detector: "carga", usd: cg.subtotal_usd, usdFmt: _money(cg.subtotal_usd), label: "recuperable en carga", entidad: cg.items[0] && cg.items[0].entidad }); }
+    if (cap) { parts.push(`${_money(cap.subtotal_usd)} de capital dormido en ${cap.items.length} SKU`); focos.push({ detector: "capital", usd: cap.subtotal_usd, usdFmt: _money(cap.subtotal_usd), label: `dormido en ${cap.items.length} SKU`, entidad: null }); }
+    lectura = `${F.length} ${F.length === 1 ? "foco" : "focos"} donde se te va o inmoviliza plata: ${parts.join(" · ")}. ¿Por cuál empezamos?`;
   }
-  return { kpis, lectura };
+  return { kpis, lectura, focos };
 }

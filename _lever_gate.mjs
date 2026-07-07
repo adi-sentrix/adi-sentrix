@@ -10,6 +10,7 @@ fs.writeFileSync(entry, [
   'export { answerConversational } from "./src/adi/conversation.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
+  'export { buildResumenEjecutivo } from "./src/adi/specRetrieval.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -74,6 +75,13 @@ ok("bajo_benchmark mantiene el benchmark como obligatorio (su lectura lo cita)",
 const narrSinPlata = `Ocho de trece clientes están bajo el margen mínimo de 30.1%. El más lejos es Lider con 21.5% (8.6pp).`;
 const gSin = G(narrSinPlata, bol(mBench));
 ok("narración que omite el $ de la palanca NO pasa (mejor el piso, que la tiene)", !gSin.ok && gSin.missing.length > 0);
+
+console.log("\n── apertura proactiva · los focos del hero = los subtotales del diagnose (una verdad) ──");
+const res = M.buildResumenEjecutivo("bonanza");
+ok("el resumen emite focos estructurados (detector + $ + label)", Array.isArray(res.focos) && res.focos.length >= 2 && res.focos.every((f) => f.detector && f.usd > 0 && f.usdFmt && f.label));
+const resMg = res.focos.find((f) => f.detector === "margen");
+ok("foco margen del hero == subtotal del diagnose (mismo raw)", resMg && diagMargen && resMg.usd === diagMargen.raw);
+ok("la lectura invita a arrancar («¿Por cuál empezamos?»)", /¿Por cuál empezamos\?/.test(res.lectura));
 
 console.log(`\n── _lever_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

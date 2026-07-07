@@ -308,6 +308,12 @@ function SourceBadge({ source }) {
 // (los chips no necesitan al LLM para ejecutar) · sólo el texto libre pasa por el LLM para traducirse a spec.
 // El flagship es el `diagnose` (barrido completo de focos) · los otros 3 son ángulos de plata puntuales.
 const _SPEC = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o });
+// foco del diagnose → la conversación que abre (pregunta real + spec con el FOCO correcto · las cifras las pone el composer)
+const _FOCO_CHIP = {
+  margen:  () => ({ q: "¿Quiénes están bajo el margen mínimo?",  spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "bajo_benchmark" }) }),
+  carga:   () => ({ q: "¿Cuánto me come la carga comercial?",    spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "palancas" }) }),
+  capital: () => ({ q: "¿Dónde está frenada mi plata?",          spec: _SPEC({ operation: "inventory", metric: "capital", dimension: "bodega", focus: "frenado" }) }),
+};
 const HERO_CHIPS = [
   { q: "¿Dónde estoy perdiendo dinero?",     spec: _SPEC({ operation: "diagnose", dimension: "cliente", metric: "contribucion" }) },
   { q: "¿Qué clientes ceden más margen?",    spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "margen", sort: { by: "margen", dir: "asc" }, limit: 5 }) },
@@ -349,6 +355,26 @@ function HeroInicio({ scenario, onChip }) {
       <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:12, background:"rgba(47,184,218,0.03)" }}>
         <span style={{ color:C.celeste, fontWeight:600 }}>Lectura · </span>{resumen.lectura}
       </div>
+      {/* APERTURA PROACTIVA (asesor · Frente A.3): los focos del diagnose como BOTONES de arranque — la plata visible en
+          cada uno, un click y ADI abre esa conversación con el foco correcto (no un chip enlatado). */}
+      {(resumen.focos || []).length > 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:10 }}>
+          {resumen.focos.map((f, i) => {
+            const chip = _FOCO_CHIP[f.detector];
+            if (!chip) return null;
+            const c = chip(f);
+            return (
+              <button key={i} onClick={() => onChip(c.spec, c.q)}
+                style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, border:"1px solid rgba(240,185,11,0.32)", background:"rgba(240,185,11,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
+                onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(240,185,11,0.10)"; e.currentTarget.style.borderColor = "rgba(240,185,11,0.55)"; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background = "rgba(240,185,11,0.05)"; e.currentTarget.style.borderColor = "rgba(240,185,11,0.32)"; }}>
+                <span style={{ fontSize:17, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{f.usdFmt}</span>
+                <span style={{ fontSize:12, color:C.textSub, lineHeight:1.35 }}>{f.label} <span style={{ color:"rgba(240,185,11,0.9)" }}>→</span></span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* preguntas de plata (chips enlatados) */}
       <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
         <div style={{ fontSize:12, color:C.textMuted, marginBottom:11 }}>Preguntame algo puntual</div>
