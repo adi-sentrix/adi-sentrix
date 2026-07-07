@@ -18,6 +18,7 @@ import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Co
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
+import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 const _isDev = ADI_PROFILE === "dev";
 
@@ -1076,6 +1077,108 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   );
 }
 
+/* ── MESA DE CONTROL · Sentrix EN OPERACIÓN (owner 2026-07-07) ────────────────────────────────────────────────────────
+ * No es la evidencia de una respuesta: es el lugar donde el dueño VIVE sus cifras — ventas, márgenes, capital a la mano —
+ * con ADI al lado. Anti-BI por diseño: cada bloque lleva la LECTURA de ADI (no cifras mudas), los FOCOS del día con su $,
+ * el 80/20 SIEMPRE visible (el principio del owner: pocos explican la mayor parte), y cada fila es una PREGUNTA (click →
+ * ADI lo desglosa al lado). Reusa todo lo construido: resumen ejecutivo, diagnose, buildConcentration, CuadroMando. */
+const _MESA_FOCO_ASK = {
+  margen:  "¿Quiénes están bajo el margen mínimo?",
+  carga:   "¿Cuánto me come la carga comercial?",
+  capital: "¿Dónde está frenada mi plata?",
+};
+function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
+  const scenario = (evidence && evidence.periodo) || "bonanza";
+  const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
+  const [conDim, setConDim] = useState("cliente");
+  const con = React.useMemo(() => buildConcentration(conDim, scenario, "ventas"), [conDim, scenario]);
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const bars = (con.bars || []).slice(0, 6);
+  const maxPct = bars.length ? bars[0].pct : 1;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span style={{ color:C.celeste }}>MESA DE CONTROL</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· ADI al lado — cada fila es una pregunta</span></div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
+        {/* KPIs del período (misma verdad que el hero) */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))", gap:9 }}>
+          {resumen.kpis.map((k, i) => (
+            <div key={i} style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ fontSize:10.5, color:C.textMuted, marginBottom:4 }}>{k.label}</div>
+              <div style={{ fontSize:16, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{k.value}</div>
+            </div>
+          ))}
+        </div>
+        {/* la LECTURA de ADI + los focos del día (el diagnóstico vivo · click abre esa conversación) */}
+        <div>
+          <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
+            <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{resumen.lectura}
+          </div>
+          {(resumen.focos || []).length > 0 && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
+              {resumen.focos.map((f, i) => (
+                <button key={i} onClick={onAsk ? () => onAsk(_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?") : undefined}
+                  title={onAsk ? `Preguntale a ADI: ${_MESA_FOCO_ASK[f.detector]}` : undefined}
+                  style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:"1px solid rgba(240,185,11,0.32)", background:"rgba(240,185,11,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(240,185,11,0.10)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(240,185,11,0.05)"; }}>
+                  <span style={{ fontSize:14.5, fontWeight:600, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
+                  <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{f.label} <span style={{ color:"rgba(240,185,11,0.9)" }}>→</span></span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* el 80/20 · el principio del owner SIEMPRE visible (data-driven: el % real, nunca forzado) */}
+        <div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
+            <div style={head}>El 80/20 · cómo se compone tu venta</div>
+            <div style={{ display:"flex", gap:3 }}>
+              {CONCENTRATION_DIMS.map((d) => (
+                <button key={d.key} onClick={() => setConDim(d.key)}
+                  style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${conDim === d.key ? "rgba(47,184,218,0.5)" : C.border}`, background: conDim === d.key ? "rgba(47,184,218,0.10)" : "transparent", color: conDim === d.key ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{d.label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize:12.5, color:C.text, lineHeight:1.5, marginBottom:9, paddingLeft:10, borderLeft:`2px solid ${C.celeste}` }}>
+            <b style={{ color:C.celeste }}>{con.blockCount} de {con.n} {con.plural}</b> explican el <b>{con.blockPct}%</b> de tu venta.
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+            {bars.map((b, i) => (
+              <AskRow key={i} onAsk={onAsk} q={`Profundiza en ${b.name}`} style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <span style={{ fontSize:12, color: b.inBlock ? C.text : C.textMuted, fontWeight: b.inBlock ? 600 : 400, width:118, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.name}</span>
+                <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ width:`${Math.max(2, b.pct / maxPct * 100)}%`, height:"100%", background: b.inBlock ? C.blue : "rgba(255,255,255,0.2)", opacity:0.85 }}/>
+                </div>
+                <span style={{ fontFamily:MONO, fontSize:11, color: b.inBlock ? C.text : C.textMuted, width:40, textAlign:"right", flexShrink:0 }}>{p1(b.pct)}%</span>
+                <span style={{ fontFamily:MONO, fontSize:10.5, color: b.cumPct <= 80 ? C.green : C.textMuted, width:42, textAlign:"right", flexShrink:0 }}>{p1(b.cumPct)}%</span>
+              </AskRow>
+            ))}
+          </div>
+          {con.n > bars.length ? <div style={{ fontSize:10.5, color:C.textMuted, marginTop:6 }}>+{con.n - bars.length} más en el cuadro de abajo.</div> : null}
+        </div>
+        {/* el CUADRO DE MANDO · la grilla operable que ya existía (ordenar · filtrar · top-N · seleccionar) */}
+        <div>
+          <div style={{ ...head, marginBottom:9 }}>Cuadro de mando · todas tus cifras, operables</div>
+          <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente"/>
+        </div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa es tu negocio en vivo: la lectura y los focos son de ADI (mismas cuentas que sus respuestas — una sola verdad), el 80/20 muestra el % real de tu dato (nunca forzado), y el cuadro se ordena y filtra. Click en una fila o un foco y ADI te lo desglosa al lado. Cifras de dato real.</div>
+      </div>
+    </div>
+  );
+}
+
 export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false, onAsk = null }) {
   // COMPARACIÓN · tiene PRIORIDAD sobre el shell de reading: el compare del motor trae `reading` además de `pairs`, pero
   // la evidencia de lo que ADI afirma ("X factura más, Y capta mejor margen") es la tabla A vs B, no la lente de una entidad.
@@ -1112,6 +1215,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // COMPARACIÓN · evidencia LADO A LADO (A vs B, métrica por métrica) = lo que ADI afirma en el texto · antes del Cuadro.
     if (evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB))
       return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // MESA DE CONTROL · Sentrix EN OPERACIÓN (botón del header · no atada a una respuesta) — el modo "vivo mi negocio acá".
+    if (evidence && evidence.lens === "mesa")
+      return <MesaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
     // TU CRITERIO (C.2) · la memoria de criterio visible/borrable ("¿qué recordás?" · tras un set/forget).
     if (evidence && Array.isArray(evidence.criteriaList))
       return <CriteriaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;

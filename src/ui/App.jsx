@@ -65,6 +65,21 @@ export default function App({ animate = true }) {
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+          {/* MESA DE CONTROL · Sentrix en operación (owner 2026-07-07): el modo "vivo mi negocio acá" — todas las cifras a
+              la mano (KPIs · focos con $ · el 80/20 · el cuadro operable) con ADI al lado. Toggle: abre/cierra el panel. */}
+          <button onClick={() => { if (openEv && openEv.lens === "mesa") closePanel(); else { setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
+            title="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"
+            style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 12px", borderRadius:999, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
+              border:`1px solid ${openEv && openEv.lens === "mesa" ? "rgba(47,184,218,0.55)" : C.border}`,
+              background: openEv && openEv.lens === "mesa" ? "rgba(47,184,218,0.12)" : C.surface,
+              color: openEv && openEv.lens === "mesa" ? "#2fb8da" : C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, transition:"all 0.15s" }}
+            onMouseEnter={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}
+            onMouseLeave={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.borderColor = C.border; }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            Mesa de control
+          </button>
           {/* Escenarios (bonanza/tensión/crisis) SOLO en dev (ADI_SCENARIO_SWITCHER_ENABLED) · por defecto un chip neutro "Datos actuales" */}
           {ADI_SCENARIO_SWITCHER_ENABLED ? (
             <ScenarioSelector scenario={scenario} onChange={setScenario}/>
