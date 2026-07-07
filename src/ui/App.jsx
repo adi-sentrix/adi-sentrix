@@ -8,6 +8,9 @@ import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
 import { SentrixPanel } from "./SentrixPanel.jsx";   // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura)
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
+import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
+
+initCriteria();   // ANTES del primer render: el hero/resumen ya miden contra la vara del owner si hay criterios guardados
 
 const getCurrentDateString = () => {
   const now = new Date();

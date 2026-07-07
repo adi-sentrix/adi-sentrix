@@ -18,6 +18,7 @@ import { answerADIFromSpec } from "./answerADIFromSpec.js";
 import { composeFollowupRecommendation, sampleEntities } from "./specRetrieval.js";
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
+import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
 
 // ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia) ─────────────────────────────────────────
 export function buildConversationContext(recentTurns, lastEvidence) {
@@ -211,6 +212,49 @@ export function composeMulti(spec, ctx, state) {
   return { text: parts.join("\n\n"), suggestions: null, sentrixAction: null, evidence: primary, route: "multi_analysis" };
 }
 
+// ── V5 · MEMORIA DE CRITERIO (Frente C.2 · owner 2026-07-07): metas y benchmarks PROPIOS del owner. set aplica al punto
+// único de verdad (POLICY/benchmarkOf) → todas las lecturas, palancas y paneles usan SU vara desde el próximo turno.
+// propose = ADI detectó un criterio pero NO guarda solo (regla del owner): pregunta y sugiere la frase exacta.
+// La evidencia lleva `criteriaList` → panel "Lo que sé de tu negocio" (ver/borrar por ítem). Fuera de rango → honesto. ──
+function _criteriaEvidence() {
+  const list = activeCriteria();
+  return { followup: true, kind: "criteria", criteriaList: list, boleta: list.map((c) => fig(`Criterio · ${c.label}`, c.valueFmt, { unit: c.valueFmt.endsWith("%") ? "pct" : "count", raw: c.value, mandatory: false, source: "computed", context: "criterio del negocio" })) };
+}
+export function composeCriteria(ci) {
+  if (!ci) return _clarify("¿Qué criterio querés que recuerde? Ej: 'recordá que mi margen mínimo es 28%'.");
+  const c = CRITERIA[ci.key];
+  if (ci.action === "recall") {
+    const list = activeCriteria();
+    const text = list.length
+      ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y palancas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
+      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(30.1)}, carga ${CRITERIA.target_carga.fmt(3.5)}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`;
+    return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
+  }
+  if (ci.action === "forget") {
+    const r = forgetCriterion(ci.key);
+    const text = !r.ok
+      ? `No tengo guardado ese criterio — estás usando los estándares.`
+      : r.all
+      ? `Listo, olvidé todos tus criterios: vuelvo a los estándares en todas las lecturas.`
+      : `Listo, olvidé tu ${c ? c.label.toLowerCase() : ci.key}: vuelvo al estándar desde ahora.`;
+    return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
+  }
+  if (ci.action === "propose") {
+    const text = `Eso suena a un criterio tuyo: ${c.label.toLowerCase()} ${c.fmt(ci.value)}. No lo guardo sin tu OK — si querés que lo use como TU vara en todas las lecturas, decime: "recordá que mi ${c.label.toLowerCase()} es ${ci.value}".`;
+    return { text, suggestions: [`Recordá que mi ${c.label.toLowerCase()} es ${ci.value}`], sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
+  }
+  // set
+  const r = setCriterion(ci.key, ci.value);
+  if (!r.ok) {
+    const text = r.reason === "rango"
+      ? `Ese valor no me cierra como ${c.label.toLowerCase()}: tiene que estar entre ${c.fmt(r.min)} y ${c.fmt(r.max)}. No lo guardo — decímelo de nuevo con un valor en ese rango.`
+      : `No reconozco ese criterio. Hoy puedo recordar: ${Object.values(CRITERIA).map((x) => x.label.toLowerCase()).join(", ")}.`;
+    return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
+  }
+  const text = `Listo — desde ahora tu ${c.label.toLowerCase()} es ${c.fmt(r.value)} (antes usaba ${c.fmt(r.prev)}). Todas las lecturas, palancas y paneles miden contra TU vara. Para volver al estándar: "olvidá el ${c.label.toLowerCase()}".`;
+  return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
+}
+
 // ── REGISTRY · turn_type → resolver. Sumar una fase = sumar una entrada (V2-V6), NO reestructurar. ───────────────────
 const TURN_RESOLVERS = {
   new_query:                  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1
@@ -222,6 +266,7 @@ const TURN_RESOLVERS = {
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)
   multi_analysis:             (spec, ctx, state) => composeMulti(spec, ctx, state),                        // V3 · cruce de lentes (Frente C.1 · secciones por composer · boletas mergeadas · evidence.multi)
+  apply_criteria:             (spec) => composeCriteria(spec && spec.criteria),                            // V5 · memoria de criterio (Frente C.2 · metas/benchmarks del owner · una verdad vía POLICY)
   // ── V4 · recall_analysis: (spec, ctx) => composeRecall(spec, ctx.history)
   // ── V5 · session_resume / apply_criteria: (spec, ctx) => ... (ctx.session / ctx.criteria · con permiso)
   // ── V6 · help / navigate / meta ampliado

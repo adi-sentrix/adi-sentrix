@@ -672,6 +672,56 @@ const AskRow = ({ onAsk, q, style, children }) => (
   </div>
 );
 
+// ── CriteriaPanel · "Lo que sé de tu negocio" (C.2 · owner 2026-07-07): la memoria de criterio VISIBLE y borrable por
+// ítem. El borrar reusa el plumbing bidireccional (onAsk precarga "olvidá el …" — el usuario confirma con Enter: la
+// memoria solo cambia por la conversación, una sola vía de mutación). ──
+function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
+  const list = (evidence && evidence.criteriaList) || [];
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span>TU CRITERIO</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Lo que sé de tu negocio</div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
+        {list.length === 0 ? (
+          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Podés fijar tu vara desde el chat: <span style={{ color:C.celeste }}>"recordá que mi margen mínimo es 28%"</span>.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+            <div style={{ ...head, marginBottom:2 }}>Tus varas · reemplazan al estándar en TODAS las lecturas</div>
+            {list.map((c, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 13px", border:`1px solid rgba(47,184,218,0.25)`, borderRadius:10, background:"rgba(47,184,218,0.04)" }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12.5, color:C.text, fontWeight:600 }}>{c.label}</div>
+                  <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>estándar: {c.standard}</div>
+                </div>
+                <div style={{ fontFamily:MONO, fontSize:15, color:C.celeste, fontWeight:700, whiteSpace:"nowrap" }}>{c.valueFmt}</div>
+                {onAsk ? (
+                  <button onClick={() => onAsk(`Olvidá el ${c.label.toLowerCase()}`)} title={`Preguntale a ADI: Olvidá el ${c.label.toLowerCase()}`}
+                    style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:11, cursor:"pointer", flexShrink:0 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "#f87171"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>olvidar</button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:14 }}>Tu criterio vive solo en este navegador (no sale de tu máquina). "Olvidar" precarga el pedido en el chat — vos confirmás con Enter. También podés preguntar "¿qué recordás?" cuando quieras.</div>
+      </div>
+    </div>
+  );
+}
+
 function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const p = (evidence && evidence.contribucion && evidence.contribucion.panel) || {};
   const kind = p.kind, rows = p.rows || [];
@@ -1055,6 +1105,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // COMPARACIÓN · evidencia LADO A LADO (A vs B, métrica por métrica) = lo que ADI afirma en el texto · antes del Cuadro.
     if (evidence && Array.isArray(evidence.pairs) && evidence.pairs.length && (evidence.compareB || evidence.entityB))
       return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // TU CRITERIO (C.2) · la memoria de criterio visible/borrable ("¿qué recordás?" · tras un set/forget).
+    if (evidence && Array.isArray(evidence.criteriaList))
+      return <CriteriaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
     // INVENTARIO · capital inmovilizado por bodega/SKU = la evidencia del foco de inventario · antes del Cuadro.
     if (evidence && evidence.inventory && Array.isArray(evidence.inventory.bySku))
       return <InventoryPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;

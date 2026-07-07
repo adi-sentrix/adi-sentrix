@@ -24,5 +24,13 @@ export const POLICY = {
   quiebreMaterialPct: 5,    // … o % del capital del foco
 };
 
-// helper: el benchmark de una entidad, respetando el dato por-fila (el dato manda · POLICY es el piso).
-export const benchmarkOf = (entity) => (entity && typeof entity.benchmark === "number" ? entity.benchmark : POLICY.benchmark);
+// ── CRITERIO DEL OWNER (C.2 · 2026-07-07) · "mi piso de margen es 28%, no el estándar" ──────────────────────────────
+// El usuario puede fijar SU vara ("recordá que mi margen mínimo es 28%") → override del benchmark en el PUNTO ÚNICO:
+// pisa tanto el fallback de POLICY como el benchmark embebido por-fila (las filas del demo traen 30.1 — sin esto, mutar
+// POLICY no alcanzaría). null = sin criterio → precedencia original intacta (byte-exacto · los gates corren en default).
+let _benchmarkOverride = null;
+export const setBenchmarkOverride = (v) => { _benchmarkOverride = (typeof v === "number" && isFinite(v)) ? v : null; };
+export const getBenchmarkOverride = () => _benchmarkOverride;
+
+// helper: el benchmark de una entidad — el CRITERIO del usuario manda; si no hay, el dato por-fila; si no, POLICY.
+export const benchmarkOf = (entity) => (_benchmarkOverride != null ? _benchmarkOverride : (entity && typeof entity.benchmark === "number" ? entity.benchmark : POLICY.benchmark));

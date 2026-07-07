@@ -470,7 +470,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
  * diagnoseClientes/diagnoseSkus (patrón económico, gate-probado) + benchmark (POLICY 30.1) + descomposición precio/costo
  * (precioLista/costoMedio) + carga/rebates. Boleta rica (cifras autorizadas). Data-driven vía el contrato (_sf+_load). */
 const _p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
-const _benchOf = (r) => (r && typeof r.benchmark === "number" ? r.benchmark : POLICY.benchmark);
+const _benchOf = benchmarkOf;   // C.2 · UNA verdad: respeta el CRITERIO del owner (override) → fila → POLICY (antes duplicaba la lógica sin el override)
 const _markup = (r) => (r && r.precioLista > 0 ? (r.precioLista - r.costoMedio) / r.precioLista * 100 : null);   // markup sobre lista (%)
 const _costShare = (r) => (r && r.precioLista > 0 ? r.costoMedio / r.precioLista * 100 : null);                  // costo como % de la lista
 const _mVenta = (v) => _money(v * 1000);   // venta/contribucion en MILES -> $ real (escala del contrato · consistente con ventas y el resumen ejecutivo · NO para stockUSD, que es crudo)

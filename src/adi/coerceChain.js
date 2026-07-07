@@ -12,6 +12,18 @@ import { detectMarginFocus } from "./marginFocus.js";
 import { detectVentasFocus } from "./ventasFocus.js";
 import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
+import { detectCriteriaIntent } from "./criteria.js";
+import { ENTITIES } from "../config/contract/entityRegistry.js";
+
+// SANEO de filters (safety-net): el LLM #1 a veces emite claves-ruido ("filters:{margen:'mínimo'}") que NO son ejes del
+// contrato → el seam degradaba con "no reconozco el filtro" una pregunta YA bien ruteada. Al coercer a un dominio, solo
+// sobreviven los filtros por ejes REALES (cliente/marca/familia/bodega/sku); el ruido se descarta, la respuesta responde.
+function _cleanFilters(s) {
+  if (!s || !s.filters) return s;
+  const f = {};
+  for (const k of Object.keys(s.filters)) if (ENTITIES[k] && s.filters[k] != null) f[k] = s.filters[k];
+  return { ...s, filters: Object.keys(f).length ? f : undefined };
+}
 
 // COMPARE · verbo explícito de comparación o "contra X". "contra <plan/tiempo>" se desvía a ventas (ver abajo).
 const _CMP_INTENT_RE = /\b(compar[aá]\w*|compár\w*|comparemos|versus|vs\.?)\b|\bcontra\s+\p{L}/iu;
@@ -44,7 +56,7 @@ function _coerceContribucion(q, spec) {
   if (c.focus) s.focus = c.focus;
   if (c.entity) s.entity = c.entity;
   if (s.transform) delete s.transform;
-  return s;
+  return _cleanFilters(s);
 }
 
 // MARGEN · rompe la trampa "todo→diagnose genérico" con el sub-foco. No toca dives/compares de entidad puntual.
@@ -59,7 +71,7 @@ function _coerceMargin(q, spec) {
   if (m.negativo) s.negativo = true;
   if (m.pct) s.pct = true;
   if (s.transform) delete s.transform;
-  return s;
+  return _cleanFilters(s);
 }
 
 // VENTAS · fallback general de lo comercial (vs ppto/YoY/descomposición/mix). Cede el dominio inventario (dentro del detector).
@@ -73,7 +85,7 @@ function _coerceVentas(q, spec) {
   if (v.gap) s.gap = v.gap;
   if (v.pivotFocus) s.pivotFocus = v.pivotFocus;
   if (s.transform) delete s.transform;
-  return s;
+  return _cleanFilters(s);
 }
 
 // INVENTARIO · capital/quiebre/sobrestock/stale. Corre último de los dominios (ventas ya le cedió lo suyo).
@@ -86,7 +98,7 @@ function _coerceInventory(q, spec) {
     turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
   if (inv.staleDays != null) s.staleDays = inv.staleDays;
   if (s.transform && s.transform.unit !== "pct") delete s.transform;
-  return s;
+  return _cleanFilters(s);
 }
 
 // CONTINUIDAD del "por qué": un "por qué" genérico (o sobre el foco de inventario) sigue el ÚLTIMO foco vía composeExplain.
@@ -113,11 +125,17 @@ function _coerceMulti(q, spec) {
   if (!m.isMulti) return null;
   const s = { ...spec, turn_type: "multi_analysis", multi: { metrics: m.metrics, dimension: m.dimension, entity: m.entity } };
   if (s.transform) delete s.transform;
-  return s;
+  return _cleanFilters(s);
 }
 
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia) → spec ruteado al dominio+foco correcto (o el spec original).
 export function coerceSpec(q, spec, hasLast) {
+  // MEMORIA DE CRITERIO (V5 · Frente C.2): "recordá que mi margen mínimo es 28%" / "¿qué recordás?" / "olvidá X" corre
+  // PRIMERO y CORTA la cadena — si no, el coerce de margen roba "margen mínimo" y responde una lectura en vez de guardar.
+  if (q && spec) {
+    const ci = detectCriteriaIntent(q);
+    if (ci) return { ...spec, turn_type: "apply_criteria", criteria: ci };
+  }
   const afterCompare = _coerceCompare(q, spec);
   const multi = _coerceMulti(q, afterCompare);
   if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)

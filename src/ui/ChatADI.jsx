@@ -247,6 +247,7 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
 // MULTI-ANÁLISIS (V3 · Frente C.1): si la evidencia trae `multi: [evidencias extra]`, se muestra UN botón por lente. ──
 function _evLabel(evidence) {
   if (!evidence) return null;
+  if (Array.isArray(evidence.criteriaList)) return "Ver lo que sé de tu negocio";   // C.2 · panel de criterio
   const isSim = !!evidence.transform;
   const isCuadro = !!(evidence.lens === "cuadro" && !evidence.reading);
   const isDiagnose = !!(Array.isArray(evidence.findings) && evidence.findings.length && !evidence.reading);   // focos → panel Diagnóstico

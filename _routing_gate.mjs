@@ -76,6 +76,8 @@ ok("compare-hijack · 'vs el año pasado' NO pide comparar-vs-entidad (va a vent
 ok("compare-hijack · 'compárame la venta con el año pasado' → ventas (no compare de entidades)", C("compárame la venta con el año pasado", { schemaVersion: 1, operation: "compare", metric: "ventas", dimension: "cliente", comparison: { entities: ["X"] } }, false).operation === "ventas");
 ok("SIM_PCT · '30% de margen' NO es simulación (rutea a margen)", C("qué productos estan por debajo del 30% de margen", base(""), false).operation === "margin");
 ok("SIM_PCT · '80% de la contribución' NO es simulación (rutea a contribución)", C("en cuántos clientes está el 80% de mi contribución", base(""), false).operation === "contribucion");
+ok("SANEO · filtro-ruido del LLM ({margen:'mínimo'}) se descarta al coercer (no degrada)", (() => { const s = C("¿quiénes están bajo el margen mínimo?", { ...base(""), filters: { margen: "mínimo" } }, false); return s.operation === "margin" && (!s.filters || !s.filters.margen); })());
+ok("SANEO · un filtro REAL (cliente) sobrevive al coercer", (() => { const s = C("¿cómo viene el margen de la cartera?", { ...base(""), filters: { cliente: "Lider" } }, false); return s.operation === "margin" && s.filters && s.filters.cliente === "Lider"; })());
 
 console.log(`\n── _routing_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

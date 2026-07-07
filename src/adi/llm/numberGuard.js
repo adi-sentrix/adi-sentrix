@@ -90,6 +90,10 @@ const _PROHIBITED = /\b(bonanza|tensi[oó]n|crisis)\b/i;
 
 export function pickNarratedText(validated, narration) {
   const det = (validated && validated.text) || "";
+  // MEMORIA DE CRITERIO (C.2): las confirmaciones administrativas van VERBATIM — traen frases-instrucción exactas
+  // ("olvidá el margen mínimo") que el narrador podría parafrasear y romper. El texto de ADI ya es la voz correcta acá.
+  if (validated && validated.evidence && validated.evidence.kind === "criteria")
+    return { text: det, narrated: false, verdict: "verbatim-criteria", reason: "confirmación administrativa — texto exacto de ADI" };
   if (!narration || typeof narration !== "string" || !narration.trim())
     return { text: det, narrated: false, verdict: "sin-narración", reason: "narración vacía" };
   let narr = narration;
