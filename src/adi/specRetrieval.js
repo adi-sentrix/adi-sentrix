@@ -433,6 +433,13 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       };
     }
   }
+  // ── CUÁNTO VALE (asesor): liberar los 2 más frenados = $ que vuelve a caja (suma directa de su capital) ──
+  let lever2 = null;
+  if (B.focusEst === "capital_frenado" && B.skus.length >= 1) {
+    const t2 = B.skus.slice(0, 2);
+    lever2 = { skus: t2.map((s) => s.sku), usd: t2.reduce((a, s) => a + s.usd, 0) };
+    B.lines.push(`**Cuánto vale:** liberar ${lever2.skus.join(" y ")} devuelve ${_money(lever2.usd)} a caja — plata que hoy no trabaja.`);
+  }
   // ── CONTRApunta honesta: la otra punta material (sin esto la respuesta es media historia) ──
   const cp = _contrapunta(D, B.focusEst);
   if (cp) B.lines.push(`**No es lo único — hay otra punta:** ${_money(cp.usd)} (${cp.pct}% del inventario) en ${cp.label}${cp.familias && cp.familias.length ? `, sobre todo en ${cp.familias[0].nombre}` : ""} — ${cp.estado === "riesgo_quiebre" ? "SKU que rotan rápido con poca cobertura y se van a cortar" : "SKU que no rotan y te atrapan la plata"}. Es plata mal repartida: sobra donde no vende y falta donde sí.`);
@@ -443,6 +450,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   for (const f of (B.byFam || []).slice(0, 3)) bol.push(fig(`Familia · ${f.nombre}`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: B.ctx }));
   for (const s of B.skus.slice(0, 4)) bol.push(fig(`SKU · ${s.sku}`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
   for (const e of estados) bol.push(fig(`Inventario · ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
+  if (lever2) bol.push(fig(`Palanca · liberar ${lever2.skus.join(" y ")}`, _money(lever2.usd), { unit: "money", raw: lever2.usd, mandatory: false, source: "computed", formula: "Σ capital top 2", context: "cuánto vale la palanca" }));
   return {
     opener: B.lines.filter(Boolean).join("\n\n"),
     suggestions: B.suggestions,
@@ -493,6 +501,25 @@ function _marginRows(dim, scenario) {
   return (_load(sf.source, scenario) || []).filter(Boolean);
 }
 
+/* ── PALANCA CUANTIFICADA (asesor · owner 2026-07-06 · Frente A): ponerle $ a cada consejo ────────────────────
+ * UNA VERDAD: el "cuánto vale" reusa los DETECTORES del diagnóstico (_diagComercial · mismas cuentas y mismos gates de
+ * materialidad ≥4pp / ≥piso $) — el mismo número del resumen ejecutivo y del diagnose, no una segunda fórmula.
+ * Para ejes sin detector (sku/marca/familia) el valor es el de 1pp de margen sobre la venta (venta K × 1% × 1000). */
+function _leverFoco(scenario, detector, entityScope) {
+  const focos = _diagComercial({}, scenario);
+  let f = focos.find((x) => x.detector === detector);
+  if (!f || !f.items.length) return null;
+  if (entityScope && Array.isArray(entityScope.entities) && entityScope.entities.length) {   // "de esos…" → la palanca del subconjunto
+    const set = new Set(entityScope.entities.map(String));
+    const items = f.items.filter((it) => set.has(String(it.entidad)));
+    if (!items.length) return null;
+    f = { ...f, items, count: items.length, top: items.slice(0, _DIAG_TOPN), subtotal: items.reduce((s, it) => s + it.usd, 0) };
+  }
+  return f;
+}
+const _pp1 = (r) => (r && typeof r.venta === "number" && r.venta > 0 ? Math.round(r.venta * 10) : null);   // 1pp de margen en $ (venta K × 1000 × 1%)
+const _figLever = (label, usd, formula) => fig(label, _money(usd), { unit: "money", raw: usd, mandatory: false, source: "computed", formula, context: "cuánto vale la palanca" });
+
 export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchmark", dimension = "cliente", negativo = false, pct = false, gap = null, entityScope = null } = {}) {
   const dim = _MLBL[dimension] ? dimension : "cliente";
   const L = _MLBL[dim];
@@ -540,6 +567,10 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       `**Por qué importa:** el volumen amplifica el margen bajo — es donde una corrección chica de precio o rebate rinde más en $.`,
       `**Qué hacer:** priorizá ${lead.slice(0, 2).map(_mNombre).join(" y ")} para revisar lista/rebate; ahí está la mayor recuperación por punto.`,
     ];
+    if (_pp1(lead[0])) {
+      lines.push(`**Cuánto vale:** 1pp de margen en ${_mNombre(lead[0])} son +${_money(_pp1(lead[0]))} al año — por eso va primero.`);
+      bol.push(_figLever(`Palanca · 1pp en ${_mNombre(lead[0])}`, _pp1(lead[0]), "venta × 1%"));
+    }
     pushMarginFigs(lead);
     suggestions = ["Es por precio o por costo", "Palancas para recuperar margen"];
   } else if (focus === "bajo_benchmark") {
@@ -573,6 +604,16 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       ];
       pushMarginFigs(below);
     }
+    // CUÁNTO VALE (asesor): cliente → la cuenta gated del diagnóstico (una verdad) · otros ejes → 1pp sobre la venta del peor
+    const lever = dim === "cliente" ? _leverFoco(scenario, "margen", entityScope) : null;
+    if (lever && lever.top.length) {
+      lines.push(`**Cuánto vale:** si los ${lever.count} que están materialmente bajo el piso llegan al benchmark, son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
+      bol.push(_figLever("Palanca · cerrar brecha al piso", lever.subtotal, "Σ venta × benchmark − contribución (≥4pp · ≥ piso)"));
+      bol.push(_figLever(`Palanca · ${lever.top[0].entidad}`, lever.top[0].usd, "venta × benchmark − contribución"));
+    } else if (below.length && _pp1(below[0])) {
+      lines.push(`**Cuánto vale:** un solo punto de margen en ${_mNombre(below[0])} son +${_money(_pp1(below[0]))} al año.`);
+      bol.push(_figLever(`Palanca · 1pp en ${_mNombre(below[0])}`, _pp1(below[0]), "venta × 1%"));
+    }
     suggestions = ["Es por precio o por costo", "Cuánta venta está bajo el mínimo"];
   } else if (focus === "causa_precio" || focus === "causa_costo") {
     const cand = below.filter((r) => _markup(r) != null);
@@ -585,6 +626,10 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
         `${_mNombre(byThin[0])} deja apenas ${_p1(_markup(byThin[0]))}% de markup sobre lista vs el ${_p1(bench)}% de referencia — el precio no alcanza a cubrir el margen objetivo.`,
         `**Qué hacer:** la palanca es la lista de precios, no el costo. Subir lista en ${byThin.slice(0, 2).map(_mNombre).join(" y ")} recupera margen directo (si la demanda aguanta).`,
       ];
+      if (_pp1(byThin[0])) {
+        lines.push(`**Cuánto vale:** recuperar 1pp vía precio en ${_mNombre(byThin[0])} son +${_money(_pp1(byThin[0]))} al año.`);
+        bol.push(_figLever(`Palanca · 1pp en ${_mNombre(byThin[0])}`, _pp1(byThin[0]), "venta × 1%"));
+      }
       pushMarginFigs(byThin);
       suggestions = ["Cuáles ceden por costo", "Candidatos a subir precio"];
     } else {
@@ -594,6 +639,10 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
         `En ${_mNombre(byCost[0])} el costo es el ${Math.round(_costShare(byCost[0]))}% de la lista — queda poco para el margen aunque el precio esté en regla.`,
         `**Qué hacer:** la palanca acá es la compra/costo, no el precio. Negociar costo en ${byCost.slice(0, 2).map(_mNombre).join(" y ")} es lo que mueve el margen.`,
       ];
+      if (_pp1(byCost[0])) {
+        lines.push(`**Cuánto vale:** recuperar 1pp vía costo en ${_mNombre(byCost[0])} son +${_money(_pp1(byCost[0]))} al año.`);
+        bol.push(_figLever(`Palanca · 1pp en ${_mNombre(byCost[0])}`, _pp1(byCost[0]), "venta × 1%"));
+      }
       pushMarginFigs(byCost);
       suggestions = ["Cuáles ceden por precio", "Palancas para recuperar margen"];
     }
@@ -608,6 +657,11 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       `${_mNombre(lead[0])} vende ${lead[0].unidades || "—"}u con markup de sólo ${_p1(_markup(lead[0]))}% — hay espacio de lista sin que el volumen sea frágil.`,
       `**Ojo:** son candidatos por SEÑAL (margen bajo + volumen sano), no una prueba de elasticidad. Conviene testear una corrección chica antes de mover todo.`,
     ];
+    if (_pp1(lead[0])) {
+      lines.push(`**Cuánto vale:** cada punto de precio en ${_mNombre(lead[0])} vale +${_money(_pp1(lead[0]))} al año${lead[1] && _pp1(lead[1]) ? `; en ${_mNombre(lead[1])}, +${_money(_pp1(lead[1]))}` : ""} — corrección chica, plata directa.`);
+      bol.push(_figLever(`Palanca · 1pp en ${_mNombre(lead[0])}`, _pp1(lead[0]), "venta × 1%"));
+      if (lead[1] && _pp1(lead[1])) bol.push(_figLever(`Palanca · 1pp en ${_mNombre(lead[1])}`, _pp1(lead[1]), "venta × 1%"));
+    }
     pushMarginFigs(lead);
     suggestions = ["Es por precio o por costo", "Productos de alto margen subpenetrados"];
   } else if (focus === "alto_margen_subpenetrado") {
@@ -651,6 +705,13 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       `**Qué hacer (volumen-safe):** arrancá por la carga de los ${L.p} con más poder de compra tuyo y por la lista donde la demanda aguanta — así recuperás margen sin resignar volumen.`,
     ];
     for (const r of cargaHigh) bol.push(fig(`${L.s} · ${_mNombre(r)} carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
+    // CUÁNTO VALE: la MISMA cuenta del detector de carga del diagnóstico ((carga − target) × venta · gated) — una verdad
+    const cargaLever = dim === "cliente" ? _leverFoco(scenario, "carga", entityScope) : null;
+    if (cargaLever && cargaLever.top.length) {
+      lines.push(`**Cuánto vale:** llevar la carga al target de ${_p1(target)}% libera +${_money(cargaLever.subtotal)} al año — solo ${cargaLever.top[0].entidad} devuelve +${_money(cargaLever.top[0].usd)}.`);
+      bol.push(_figLever("Palanca · carga al target", cargaLever.subtotal, "Σ (carga − target) × venta (≥ piso)"));
+      bol.push(_figLever(`Palanca · ${cargaLever.top[0].entidad}`, cargaLever.top[0].usd, "(carga − target) × venta"));
+    }
     suggestions = ["Los que más venden y peor margen", "Es por precio o por costo"];
   } else {
     return null;
@@ -720,12 +781,15 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     }
     const withDev = rowsP.map((r) => ({ ...r, dev: (r.actual || 0) - r.presupuesto, devp: _pctChg(r.actual || 0, r.presupuesto) })).sort((a, b) => b.dev - a.dev);
     const over = withDev.filter((r) => r.dev > 0), under = withDev.filter((r) => r.dev < 0).sort((a, b) => a.dev - b.dev);
+    const short = Math.abs(under.reduce((a, r) => a + r.dev, 0));   // lo que falta al plan (K) — la palanca del período
     const lines = [
       `${totLine}${dim !== "cliente" ? ` Por ${L.s} el presupuesto es un agregado de los clientes.` : ""}`,
       over.length ? `Los que más se despegan sobre plan: ${over.slice(0, 3).map((r) => `${r.nombre} (${_sgnp(r.dev)}${_m(r.dev)}, ${_sgnp(r.devp)}${_p1(r.devp)}%)`).join(" · ")}.` : "",
       under.length ? `Los que quedan cortos: ${under.slice(0, 3).map((r) => `${r.nombre} (${_m(r.dev)}, ${_p1(r.devp)}%)`).join(" · ")}.` : `Ningún ${L.s} quedó bajo presupuesto.`,
+      under.length ? `**Cuánto vale:** cerrar lo que falta al plan vale +${_m(short)} este período — el que más pesa es ${under[0].nombre} (${_m(under[0].dev)}).` : "",
       `**Qué hacer:** el foco de recuperación son los que quedan cortos; los de arriba marcan qué está funcionando.`,
     ];
+    if (under.length) bol.push(fig("Palanca · cerrar el plan", _m(short), { unit: "money", raw: short * 1000, mandatory: false, source: "computed", formula: "Σ déficit vs presupuesto", context: "cuánto vale la palanca" }));
     for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${L.s} · ${r.nombre} vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
     bol.push(fig(scoped ? "Venta del grupo" : "Venta total", _m(totA), { unit: "money", raw: totA * 1000, mandatory: true, context: "vs presupuesto" }));
     bol.push(fig(scoped ? "Presupuesto del grupo" : "Presupuesto total", _m(totP), { unit: "money", raw: totP * 1000, mandatory: false, context: "vs presupuesto" }));
