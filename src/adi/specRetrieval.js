@@ -213,12 +213,19 @@ const _DIAG_TOPN = 5;
 // fuente+campo declarados por el CONTRATO para una métrica@eje (si el ERP remapea la fuente, el diagnose la sigue)
 function _sf(metric, dim) { const m = METRICS[metric]; return (m && m.sourceByAxis && m.sourceByAxis[dim]) || null; }
 
-// acota el barrido a una marca/familia/bodega/cliente (los `filters` del spec)
-function _scopeRows(rows, filters) {
+// acota el barrido a una marca/familia/bodega/cliente (los `filters` del spec) y, si viene, al ENTITYSCOPE heredado de un
+// follow-up deíctico ("de esos…"): un set de nombres/SKU de la última evidencia. Si el set NO intersecta (cruce de dimensión),
+// se ignora y devuelve las filas del filtro (nunca vacía por un alcance incompatible → la respuesta general en vez de mentir).
+function _scopeRows(rows, filters, entityScope) {
   if (filters.marca)   rows = rows.filter((r) => r && r.marca === filters.marca);
   if (filters.familia) rows = rows.filter((r) => r && r.sfamilia === filters.familia);
   if (filters.bodega)  rows = rows.filter((r) => r && r.bodega === filters.bodega);
   if (filters.cliente) rows = rows.filter((r) => r && r.nombre === filters.cliente);
+  if (entityScope && Array.isArray(entityScope.entities) && entityScope.entities.length) {
+    const set = new Set(entityScope.entities.map((s) => String(s)));
+    const scoped = rows.filter((r) => r && set.has(String(r.nombre != null ? r.nombre : r.sku)));
+    if (scoped.length) rows = scoped;
+  }
   return rows;
 }
 
@@ -486,10 +493,10 @@ function _marginRows(dim, scenario) {
   return (_load(sf.source, scenario) || []).filter(Boolean);
 }
 
-export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchmark", dimension = "cliente", negativo = false, pct = false, gap = null } = {}) {
+export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchmark", dimension = "cliente", negativo = false, pct = false, gap = null, entityScope = null } = {}) {
   const dim = _MLBL[dimension] ? dimension : "cliente";
   const L = _MLBL[dim];
-  let rows = _scopeRows(_marginRows(dim, scenario), filters);
+  let rows = _scopeRows(_marginRows(dim, scenario), filters, entityScope);
   if (!rows.length) return null;
   const bench = _benchOf(rows[0]);
   const totVenta = rows.reduce((a, r) => a + (r.venta || 0), 0);
@@ -691,9 +698,9 @@ function _pptoByDim(dim) {
   return Object.values(g);
 }
 // bloque de un foco REAL → { lines, suggestions, bol } · reusable como pivot de un hueco
-function _ventasFocusBlock(focus, dim, filters) {
+function _ventasFocusBlock(focus, dim, filters, entityScope) {
   const L = _VLBL[dim] || _VLBL.cliente;
-  let rows = _scopeRows(_ventasRows(dim), filters);
+  let rows = _scopeRows(_ventasRows(dim), filters, entityScope);
   if (!rows.length) return null;
   const _m = (v) => _money(v * 1000);   // ventas en MILES → $ real (escala del contrato · el total de cartera es ~$100M · consistente con el resumen ejecutivo)
   const bol = [];
@@ -827,7 +834,7 @@ const _VGAP = {
   sin_ticket: { no: "dar el TICKET promedio, el tráfico o la conversión", falta: "transacciones (el ticket real necesita nº de operaciones; lo que hay es venta/unidades = precio realizado)" },
 };
 
-export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null } = {}) {
+export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null } = {}) {
   const dim = _VLBL[dimension] ? dimension : "cliente";
   if (gap) {
     const g = _VGAP[gap] || _VGAP.sin_sucursal;
@@ -842,7 +849,7 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
     return { opener: lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions.length ? block.suggestions : ["Cómo vamos vs el año anterior", "Cómo vamos vs presupuesto"], sentrixAction: null,
       evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf, gapLabel: g.no, panel: block.panel || null } } };
   }
-  const block = _ventasFocusBlock(focus, dim, filters);
+  const block = _ventasFocusBlock(focus, dim, filters, entityScope);
   if (!block) return null;
   return { opener: block.lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions, sentrixAction: null,
     evidence: { lens: "ventas", metrica: "ventas", dimension: dim, boleta: block.bol, ventas: { focus, dimension: dim, panel: block.panel || null } } };
@@ -855,10 +862,10 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
  * Escala ×1000 (_mVenta) consistente con el resumen. Corre ANTES de margen/ventas (evita que "venta"/"margen" lo secuestren). */
 const _ORIGEN_TXT = { volumen: "del VOLUMEN — es una cuenta grande, pero con margen bajo el promedio (plata por tamaño, no por calidad)", calidad: "de la CALIDAD — buen margen, aunque no sea la cuenta más grande", mix_balanceado: "de un mix equilibrado — buen tamaño y buen margen a la vez", bajo_impacto: "de poco — ni el volumen ni el margen la sostienen" };
 
-export function composeSpecContribucion({ filters = {}, scenario, focus = "rank", dimension = "cliente", entity = null } = {}) {
+export function composeSpecContribucion({ filters = {}, scenario, focus = "rank", dimension = "cliente", entity = null, entityScope = null } = {}) {
   const dim = _MLBL[dimension] ? dimension : "cliente";
   const L = _MLBL[dim];
-  const rows = _scopeRows(_marginRows(dim, scenario), filters).filter((r) => typeof r.contribucion === "number");
+  const rows = _scopeRows(_marginRows(dim, scenario), filters, entityScope).filter((r) => typeof r.contribucion === "number");
   if (!rows.length) return null;
   const bench = _benchOf(rows[0]);
   const totC = rows.reduce((a, r) => a + (r.contribucion || 0), 0) || 1;
@@ -884,7 +891,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     // MISMA verdad que el diagnóstico del resumen (~$4.9M): venta(clientesVentas.actual)×benchmark/100 − contribución, con
     // los gates de materialidad (≥4pp bajo benchmark · ≥ piso $). Cliente-level (donde vive el gap). `gap` ya está en $ real.
     const vBy = {}; for (const v of _cVentas) vBy[v.nombre] = v;
-    const mRows = _marginRows("cliente", scenario);
+    const mRows = _scopeRows(_marginRows("cliente", scenario), {}, entityScope);
     const withGap = [];
     for (const r of mRows) {
       const v = vBy[r.nombre]; if (!v || typeof v.actual !== "number") continue;

@@ -152,7 +152,35 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {
   if (e && _dim && !e.reading && !e.transform && !e.followup && e.lens !== "cuadro" && (_op === "overview" || _op === "rank")) {
     r.evidence = { ...e, lens: "cuadro", dimension: _dim, entityType: e.entityType || _dim };
   }
+  // CONTINUIDAD DE ALCANCE: adjunto a la evidencia de los dominios comerciales el `entityList` = el conjunto que ADI nombró
+  // (el que un "de esos…" hereda como entityScope). Central acá (una verdad · no toca los composers ni el motor sellado).
+  const e2 = r && r.evidence;
+  if (e2 && !e2.entityList && (_op === "inventory" || _op === "margin" || _op === "ventas" || _op === "contribucion")) {
+    const el = _deriveEntityList(e2);
+    if (el && el.entities.length) e2.entityList = el;
+  }
   return r;
+}
+
+// _deriveEntityList(evidence) → { dimension, entities:[...] } · el conjunto DESTACADO de la respuesta (lo que un "de esos…"
+// referencia). Concentración honra el corte 80/20 (cutoff); margen usa los `below`; el resto, el top del panel. Central: una
+// sola definición del "de esos" para los 4 dominios · no reimplementa nada de los composers.
+function _deriveEntityList(e) {
+  if (!e) return null;
+  const take = (rows, n) => rows.slice(0, n).map((x) => x && (x.nombre != null ? x.nombre : x.sku)).filter(Boolean);
+  if (e.contribucion && e.contribucion.panel && Array.isArray(e.contribucion.panel.rows) && e.contribucion.panel.rows.length) {
+    const p = e.contribucion.panel, n = (p.kind === "pareto" && p.cutoff) ? p.cutoff : Math.min(p.rows.length, 8);
+    return { dimension: e.dimension || "cliente", entities: take(p.rows, n) };
+  }
+  if (e.margin) {
+    if (Array.isArray(e.margin.below) && e.margin.below.length) return { dimension: e.dimension || "cliente", entities: e.margin.below.map((x) => x.nombre).filter(Boolean) };
+    if (e.margin.panel && Array.isArray(e.margin.panel.rows) && e.margin.panel.rows.length) return { dimension: e.dimension || "cliente", entities: take(e.margin.panel.rows, 8) };
+  }
+  if (e.ventas && e.ventas.panel && Array.isArray(e.ventas.panel.rows) && e.ventas.panel.rows.length)
+    return { dimension: e.dimension || "cliente", entities: take(e.ventas.panel.rows, 8) };
+  if (e.inventory && Array.isArray(e.inventory.bySku) && e.inventory.bySku.length)
+    return { dimension: "sku", entities: e.inventory.bySku.map((x) => x.sku).filter(Boolean) };
+  return null;
 }
 
 function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-disable-line no-unused-vars
@@ -388,7 +416,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     // subpenetrado/stock_bajo_margen/palancas) o marca el HUECO honesto (caida/sin_serie/proveedor/mix/vendedor) → responde
     // lo específico o avisa + pivotea, NUNCA los "3 focos" genéricos.
     if (spec.operation === "margin") {
-      const resp = composeSpecMargin({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, negativo: spec.negativo, pct: spec.pct, gap: spec.gap });
+      const resp = composeSpecMargin({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, negativo: spec.negativo, pct: spec.pct, gap: spec.gap, entityScope: spec.entityScope });
       if (!resp || !resp.opener)
         return _degrade("margin-empty", `No veo ${_m("margen")} material bajo el benchmark en este corte — la cartera está sobre el mínimo.`, [], ctx);
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
@@ -400,7 +428,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     // caida_clientes/precio_realizado/mix_familia/rank_venta o el HUECO honesto (sin_sucursal/sin_serie_mensual/sin_frecuencia/
     // sin_ticket) con pivot a la lente más cercana. Rompe la trampa "todo→diagnose genérico".
     if (spec.operation === "ventas") {
-      const resp = composeSpecVentas({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, gap: spec.gap, pivotFocus: spec.pivotFocus });
+      const resp = composeSpecVentas({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, gap: spec.gap, pivotFocus: spec.pivotFocus, entityScope: spec.entityScope });
       if (!resp || !resp.opener)
         return _degrade("ventas-empty", `No pude armar la lectura de ventas para ese corte. Te puedo mostrar la venta vs presupuesto o vs el año anterior por cliente.`, [], ctx);
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
@@ -412,7 +440,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     // no capturada · alta-venta-baja-contribución · rank. El motor ya tiene las piezas (concentracion/origenContribucion);
     // acá se rutean en vez de caer al genérico. Rompe la trampa "todo→diagnose" para las preguntas de contribución.
     if (spec.operation === "contribucion") {
-      const resp = composeSpecContribucion({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, entity: spec.entity });
+      const resp = composeSpecContribucion({ filters: spec.filters, scenario, focus: spec.focus, dimension: spec.dimension, entity: spec.entity, entityScope: spec.entityScope });
       if (!resp || !resp.opener)
         return _degrade("contribucion-empty", `No pude armar la lectura de contribución para ese corte. Te puedo mostrar quién sostiene la contribución o el ranking por cliente.`, [], ctx);
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);

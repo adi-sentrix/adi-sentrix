@@ -217,5 +217,13 @@ export function answerConversational(spec, context = {}, state = {}) {
     const ents = (spec.comparison && Array.isArray(spec.comparison.entities)) ? spec.comparison.entities.filter(Boolean) : [];
     if (ents.length < 2) tt = "followup_compare";
   }
+  // CONTINUIDAD DE ALCANCE (owner 2026-07-06 · "la mesa viva"): un follow-up deíctico ("y de esos, ¿cuáles…?") — marcado por
+  // el coerce (spec._deictic) — HEREDA el conjunto de entidades que ADI nombró en la última evidencia (last.entityList) como
+  // spec.entityScope. El composer filtra por nombre; si el alcance no intersecta (cruce de dimensión), lo IGNORA y responde
+  // general (nunca miente). Para margin/contribucion (que honran spec.dimension) alineo la dimensión al set heredado.
+  if (spec && spec._deictic && last && last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) {
+    spec = { ...spec, entityScope: last.entityList };
+    if ((spec.operation === "margin" || spec.operation === "contribucion") && last.entityList.dimension) spec.dimension = last.entityList.dimension;
+  }
   return resolveTurn(tt, spec, { ...context, last }, state);
 }

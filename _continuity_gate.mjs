@@ -1,0 +1,80 @@
+/* === _continuity_gate.mjs · GATE de CONTINUIDAD DE ALCANCE ("la mesa viva" · owner 2026-07-06) ===
+ * Un follow-up DEÍCTICO ("y de esos, ¿cuáles…?") debe HEREDAR el conjunto que ADI acaba de nombrar y re-lensarlo, no
+ * responder standalone. Prueba el camino real end-to-end: coerceSpec detecta el deíctico → answerConversational hereda
+ * last.entityList como entityScope → el composer FILTRA por nombre. Verificaciones data-independientes (intersección exacta,
+ * subconjunto, y control negativo de que un follow-up NO deíctico no scopea). Protege que la continuidad no se degrade. */
+import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
+const root = process.cwd(); const entry = path.join(root, "_coe.js"), out = path.join(root, "_cob.mjs");
+fs.writeFileSync(entry, [
+  'export { coerceSpec } from "./src/adi/coerceChain.js";',
+  'export { answerConversational } from "./src/adi/conversation.js";',
+].join("\n"));
+await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
+const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
+const { coerceSpec: C, answerConversational: AC } = M;
+
+let pass = 0, fail = 0;
+const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
+const base = (q) => ({ schemaVersion: 1, operation: "overview", metric: "ventas", dimension: "cliente" });
+const run = (q, ctx, hasLast) => { const s = C(q, base(q), !!hasLast); let r; try { r = AC(s, ctx || {}, {}); } catch (e) { r = { text: "THROW:" + e.message, _spec: s }; } r._spec = s; return r; };
+const names = (arr) => (arr || []).map((x) => x && (x.nombre != null ? x.nombre : x.sku)).filter(Boolean);
+const setEq = (a, b) => { const A = new Set(a), B = new Set(b); return A.size === B.size && [...A].every((x) => B.has(x)); };
+const subset = (a, b) => { const B = new Set(b); return a.every((x) => B.has(x)); };
+
+console.log("── A · contribución(concentración) → «de esos, ¿cuáles bajo el margen mínimo?» (el cruce estrella) ──");
+// turno 1: quién sostiene la contribución (nombra el bloque 80/20)
+const t1a = run("¿quién sostiene mi contribución?", {}, false);
+const S = (t1a.evidence && t1a.evidence.entityList && t1a.evidence.entityList.entities) || [];
+ok("turno1 rutea a contribución/concentración", t1a._spec.operation === "contribucion" && t1a._spec.focus === "concentracion");
+ok("turno1 EMITE entityList (dim cliente · = corte 80/20)", t1a.evidence && t1a.evidence.entityList && t1a.evidence.entityList.dimension === "cliente" && S.length > 0 && S.length === t1a.evidence.contribucion.panel.cutoff);
+// turno 2 deíctico: hereda el bloque y lo filtra a margen
+const q2 = "y de esos, ¿cuáles quedan bajo el margen mínimo?";
+const t2s = run(q2, { lastEvidence: t1a.evidence }, true);   // scoped (hay última evidencia)
+const t2u = run(q2, {}, false);                               // unscoped (sin contexto)
+ok("turno2 marca _deictic + rutea a margen", t2s._spec._deictic === true && t2s._spec.operation === "margin");
+const belowS = names(t2s.evidence && t2s.evidence.margin && t2s.evidence.margin.below);
+const belowU = names(t2u.evidence && t2u.evidence.margin && t2u.evidence.margin.below);
+const expected = belowU.filter((n) => S.includes(n));
+ok("scoped ⊆ el bloque heredado (no nombra a nadie de afuera)", subset(belowS, S));
+ok("scoped = (unscoped ∩ heredado) EXACTO (filtró justo lo correcto)", setEq(belowS, expected));
+// el recorte se prueba en el UNIVERSO de filas del panel (below puede coincidir si todos los bajo-margen ya estaban en el 80/20)
+const panelSlen = ((t2s.evidence && t2s.evidence.margin && t2s.evidence.margin.panel && t2s.evidence.margin.panel.rows) || []).length;
+const panelUlen = ((t2u.evidence && t2u.evidence.margin && t2u.evidence.margin.panel && t2u.evidence.margin.panel.rows) || []).length;
+ok("scoping real: el universo del panel se recorta al bloque heredado", panelSlen > 0 && panelSlen < panelUlen && panelSlen === S.length);
+
+console.log("\n── B · margen(bajo_benchmark) → «de esos, ¿de dónde sacan la contribución?» ──");
+const t1b = run("¿quiénes están bajo el margen mínimo?", {}, false);
+const Sb = (t1b.evidence && t1b.evidence.entityList && t1b.evidence.entityList.entities) || [];
+ok("turno1 rutea a margen/bajo_benchmark + emite entityList", t1b._spec.operation === "margin" && Sb.length > 0);
+const t2b = run("y de esos, ¿de dónde sacan su contribución?", { lastEvidence: t1b.evidence }, true);
+ok("turno2 _deictic + rutea a contribución/origen", t2b._spec._deictic === true && t2b._spec.operation === "contribucion");
+const panelB = names(t2b.evidence && t2b.evidence.contribucion && t2b.evidence.contribucion.panel && t2b.evidence.contribucion.panel.rows);
+ok("el panel scopeado SÓLO contiene entidades del bloque heredado", panelB.length > 0 && subset(panelB, Sb));
+
+console.log("\n── C · control negativo · un follow-up NO deíctico NO scopea (responde toda la cartera) ──");
+const t2n = run("¿quiénes están bajo el margen mínimo?", { lastEvidence: t1a.evidence }, true);   // hay contexto, pero SIN palabra deíctica
+ok("sin deíctico → NO _deictic (aunque haya última evidencia)", !t2n._spec._deictic);
+const belowN = names(t2n.evidence && t2n.evidence.margin && t2n.evidence.margin.below);
+ok("sin deíctico → mismo below que unscoped (no heredó alcance)", setEq(belowN, belowU));
+
+console.log("\n── D · detección deíctica robusta (varios fraseos) + ruteo del dominio intacto ──");
+const dcases = [
+  ["de esos, ¿cuánto me aportan?", "contribucion"],
+  ["de esas cuentas, ¿cuál vende más?", "ventas"],
+  ["y de esos cuáles están bajo el margen", "margin"],
+  ["entre esos, ¿quién sostiene la contribución?", "contribucion"],
+  ["de esos que caen, ¿cuánto cayeron vs el año pasado?", "ventas"],
+  ["esos mismos, ¿cómo vienen vs el año anterior?", "ventas"],
+];
+for (const [q, dom] of dcases) {
+  const s = C(q, base(q), true);
+  ok(`[${s.operation}${s._deictic ? "·deíctico" : ""}] ${q.slice(0, 42)}…`, s._deictic === true && s.operation === dom);
+}
+
+console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
+ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
+ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);
+
+console.log(`\n── _continuity_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
+process.exit(fail ? 1 : 0);
