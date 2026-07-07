@@ -1171,7 +1171,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         {/* el CUADRO DE MANDO · la grilla operable que ya existía (ordenar · filtrar · top-N · seleccionar) */}
         <div>
           <div style={{ ...head, marginBottom:9 }}>Cuadro de mando · todas tus cifras, operables</div>
-          <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente"/>
+          <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk}/>
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa es tu negocio en vivo: la lectura y los focos son de ADI (mismas cuentas que sus respuestas — una sola verdad), el 80/20 muestra el % real de tu dato (nunca forzado), y el cuadro se ordena y filtra. Click en una fila o un foco y ADI te lo desglosa al lado. Cifras de dato real.</div>
       </div>
@@ -1651,7 +1651,7 @@ function ControlRing({ ring, rd }) {
 // ── CUADRO DE MANDO (4ª lente) · la GRILLA operable · cockpit: ver y manejar TODO el dato ──
 // Dimensiones (clientes/SKU/marcas/bodegas) × columnas del catálogo · ordenar · top-N · en-alerta · seleccionar y
 // comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
-function CuadroMando({ scenario, initialDim, initialSort }) {
+function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = null }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
@@ -1760,6 +1760,12 @@ function CuadroMando({ scenario, initialDim, initialSort }) {
                 <span style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
                   {r.alert && <span style={{ width:6, height:6, borderRadius:"50%", background:C.red, flexShrink:0 }}/>}
                   <span style={{ color:"#eef2f6", fontWeight:600, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                  {mesa && onAsk ? (
+                    <button onClick={(e) => { e.stopPropagation(); onAsk(`Profundiza en ${r.name}`); }} title={`Preguntale a ADI: Profundiza en ${r.name}`}
+                      style={{ padding:"1px 7px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:8.5, fontFamily:MONO, letterSpacing:"0.5px", cursor:"pointer", flexShrink:0, transition:"all 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = C.celeste; e.currentTarget.style.borderColor = "rgba(47,184,218,0.45)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>ADI</button>
+                  ) : null}
                 </span>
                 {cols.map((c) => c.key === "accion" ? (
                   <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
@@ -1790,10 +1796,12 @@ function CuadroMando({ scenario, initialDim, initialSort }) {
           )}
         </div>
       </div>
-      {/* al seleccionar EXACTAMENTE 2 clientes → el dumbbell (comparación controlada) además del filtro */}
-      {dim === "cliente" && sel.length === 2 && <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/>}
+      {/* al seleccionar EXACTAMENTE 2 clientes → en la MESA el Perfil comparado (líneas · arriba=mejor); en la lente, el dumbbell */}
+      {dim === "cliente" && sel.length === 2 && (mesa
+        ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} scenario={scenario} onAsk={onAsk}/>
+        : <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/>)}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar y comparar{dim === "cliente" ? " (2 → gráfico)" : ""} · ordená por cualquier columna · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar y comparar{dim === "cliente" ? " (2 → gráfico)" : ""} · ordená por cualquier columna{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2013,6 +2021,107 @@ function ComparacionChart({ a, b, scenario }) {
       </svg>
       <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
         <span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>.
+      </div>
+    </Card>
+  );
+}
+
+/* ── PERFIL COMPARADO · el gráfico de líneas de la MESA (owner 2026-07-07 · reemplaza al dumbbell SOLO en la Mesa) ──
+ * Dos clientes = dos LÍNEAS que recorren las 5 estaciones (Ventas → Contribución → Margen → Carga → Costo). UNA regla de
+ * lectura: ARRIBA = MEJOR (en carga y costo la escala se invierte para que estar arriba siempre sea ganar). Donde las
+ * líneas se CRUZAN está la historia (uno pone el volumen, el otro la calidad). Cada estación con su cifra real y un aro
+ * en el que gana. Vínculo con ADI: "Que ADI los compare a fondo" precarga la comparación completa (boleta + panel). */
+function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
+  const dA = buildMarginDecomposition(a, scenario), dB = buildMarginDecomposition(b, scenario);
+  if (!dA || !dB || !rowA || !rowB) return null;
+  const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  const fp = (v) => p1(v) + "%";
+  const axes = [
+    { label: "Ventas",       va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
+    { label: "Contribución", va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
+    { label: "Margen",       va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true },
+    { label: "Carga",        va: dA.cargaPct,       vb: dB.cargaPct,       fmt: fp, hiBetter: false },
+    { label: "Costo",        va: dA.costoPct,       vb: dB.costoPct,       fmt: fp, hiBetter: false },
+  ].filter((ax) => typeof ax.va === "number" && typeof ax.vb === "number");
+  const W = 620, H = 216, padT = 30, padB = 42, padL = 52, padR = 34;
+  const n = axes.length;
+  const xs = axes.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, n - 1));
+  const yOf = (ax, v) => {
+    const lo = Math.min(ax.va, ax.vb), hi = Math.max(ax.va, ax.vb);
+    const rng = Math.max(hi - lo, Math.abs(hi) * 0.06, 0.5);           // escala del PAR (la diferencia real siempre se ve)
+    const axLo = lo - rng * 0.55, axHi = hi + rng * 0.55;
+    let t = (v - axLo) / (axHi - axLo);
+    if (!ax.hiBetter) t = 1 - t;                                        // menos carga/costo = mejor → ARRIBA
+    return padT + (1 - t) * (H - padT - padB);
+  };
+  const colA = C.elec, colB = C.teal;
+  const ptsA = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.va) }));
+  const ptsB = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.vb) }));
+  const path = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const winA = axes.map((ax) => (ax.va === ax.vb ? null : ax.hiBetter ? ax.va > ax.vb : ax.va < ax.vb));
+  const scoreA = winA.filter((w) => w === true).length, scoreB = winA.filter((w) => w === false).length;
+  const bWins = dB.margen >= dA.margen;
+  const lever = Math.abs(dA.costoPct - dB.costoPct) >= Math.abs(dA.cargaPct - dB.cargaPct) ? "estructura de costo" : "carga comercial";
+  return (
+    <Card>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+        <Eyebrow def={METRIC_DEFS["Comparación controlada"]}>Perfil comparado · arriba = mejor</Eyebrow>
+        <span style={{ fontFamily:MONO, fontSize:10, color:C.textMuted }}>
+          <span style={{ color:colA, fontWeight:600 }}>{a}</span> gana {scoreA} · <span style={{ color:colB, fontWeight:600 }}>{b}</span> gana {scoreB} de {n}
+        </span>
+      </div>
+      <div style={{ display:"flex", gap:16, margin:"6px 0 2px" }}>
+        {[[a, colA], [b, colB]].map(([nm, col]) => (
+          <span key={nm} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
+            <span style={{ width:14, height:3, borderRadius:2, background:col, boxShadow:`0 0 6px ${col}88` }}/>{nm}
+          </span>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        {/* estaciones (ejes verticales suaves) + labels */}
+        {axes.map((ax, i) => (
+          <g key={i}>
+            <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
+            <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600">{ax.label}</text>
+            {!ax.hiBetter && <text x={xs[i]} y={H - padB + 38} textAnchor="middle" fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>menos = mejor</text>}
+          </g>
+        ))}
+        {/* guía de lectura */}
+        <text x={padL - 40} y={padT + 2} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>mejor</text>
+        <text x={padL - 40} y={H - padB} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>peor</text>
+        {/* las dos líneas (el perfil) · glow premium BARATO (doble trazo, sin filtros SVG — no cuelga compositores lentos) */}
+        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
+        <path d={path(ptsB)} fill="none" stroke={colB} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
+        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="2.2" strokeLinejoin="round" opacity="0.95"/>
+        <path d={path(ptsB)} fill="none" stroke={colB} strokeWidth="2.2" strokeLinejoin="round" opacity="0.95"/>
+        {/* puntos + aro del ganador + cifras reales (el de arriba etiqueta arriba · el de abajo, abajo — sin choques) */}
+        {axes.map((ax, i) => {
+          const pa = ptsA[i], pb = ptsB[i];
+          const aTop = pa.y <= pb.y;
+          return (
+            <g key={"p" + i}>
+              {winA[i] === true  && <circle cx={pa.x} cy={pa.y} r="8.5" fill="none" stroke={colA} strokeWidth="1" opacity="0.5"/>}
+              {winA[i] === false && <circle cx={pb.x} cy={pb.y} r="8.5" fill="none" stroke={colB} strokeWidth="1" opacity="0.5"/>}
+              <circle cx={pa.x} cy={pa.y} r="4.5" fill={colA} stroke="#000" strokeWidth="1.5"/>
+              <circle cx={pb.x} cy={pb.y} r="4.5" fill={colB} stroke="#000" strokeWidth="1.5"/>
+              <text x={pa.x} y={aTop ? pa.y - 13 : pa.y + 21} textAnchor="middle" fill={colA} fontSize="10" fontFamily={MONO} fontWeight="600">{ax.fmt(ax.va)}</text>
+              <text x={pb.x} y={aTop ? pb.y + 21 : pb.y - 13} textAnchor="middle" fill={colB} fontSize="10" fontFamily={MONO} fontWeight="600">{ax.fmt(ax.vb)}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginTop:8, paddingTop:9, borderTop:`1px solid ${C.border}` }}>
+        <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, minWidth:0 }}>
+          <span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>. Donde las líneas se cruzan, cambia quién gana.
+        </div>
+        {onAsk ? (
+          <button onClick={() => onAsk(`Compará ${a} vs ${b}`)} title={`Preguntale a ADI: Compará ${a} vs ${b}`}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:8, border:"1px solid rgba(47,184,218,0.45)", background:"rgba(47,184,218,0.08)", color:C.celeste, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap", flexShrink:0, transition:"background 0.15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.15)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
+            Que ADI los compare a fondo →
+          </button>
+        ) : null}
       </div>
     </Card>
   );
