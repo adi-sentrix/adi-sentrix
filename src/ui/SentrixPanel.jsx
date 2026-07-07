@@ -17,6 +17,7 @@ import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el 
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
+import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 const _isDev = ADI_PROFILE === "dev";
 
@@ -649,12 +650,23 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
 
 // ContribucionPanel · FOCO CONTRIBUCIÓN (owner 2026-07-06) · pareto (quién sostiene · 80/20 con acumulado) · gap
 // (contribución no capturada · plata sobre la mesa) · rank (top por contribución). Respalda el texto de ADI.
+// ── ESPEJO Sentrix↔ADI (Frente B · owner 2026-07-07): el panel pinta EXACTAMENTE lo que ADI nombró, no solo el dominio ──
+// _named(evidence) → predicado por nombre (la boleta = la fuente de verdad de lo dicho) · NamedDot = el punto celeste sobre
+// la fila nombrada · ScopeChip = el alcance heredado de un "de esos…" (evidence.scopedInherited, lo setea el seam).
+const _named = (evidence) => { const bol = (evidence && evidence.boleta) || []; return (nombre) => isNamedInBoleta(bol, nombre); };
+const NamedDot = () => <span title="ADI lo nombró en su respuesta" style={{ width:5, height:5, borderRadius:"50%", background:C.celeste, flexShrink:0, boxShadow:"0 0 5px rgba(47,184,218,0.8)" }}/>;
+const ScopeChip = ({ evidence }) => (evidence && evidence.scopedInherited)
+  ? <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.4px", color:C.celeste, border:"1px solid rgba(47,184,218,0.35)", borderRadius:5, padding:"2px 6px", whiteSpace:"nowrap", flexShrink:0 }}>los que veníamos mirando</span>
+  : null;
+const MIRROR_LEGEND = "El punto celeste marca lo que ADI nombró en su respuesta.";
+
 function ContribucionPanel({ evidence, onClose, onToggleMax, maximized }) {
   const p = (evidence && evidence.contribucion && evidence.contribucion.panel) || {};
   const kind = p.kind, rows = p.rows || [];
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const maxV = Math.max(1, ...rows.map((r) => Math.abs(r.val != null ? r.val : (r.part || 0))));
+  const nm = _named(evidence);   // espejo: lo que ADI nombró
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -669,7 +681,7 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
-          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Contribución"}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Contribución"}</div><ScopeChip evidence={evidence}/></div>
           {kind === "pareto" ? <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.green}>{p1(p.totalPct)}%</Num> en {p.cutoff}/{p.of}</div>
             : p.headline ? <div style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{p.headline}</div> : null}
         </div>
@@ -679,9 +691,9 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized }) {
           <div>
             <div style={{ ...head, marginBottom:11, display:"flex", justifyContent:"space-between" }}><span>Contribución acumulada</span><span style={{ textTransform:"none", letterSpacing:0, color:C.green }}>corte 80%</span></div>
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {rows.map((r, i) => { const inTop = i < p.cutoff; return (
+              {rows.map((r, i) => { const inTop = i < p.cutoff; const named = nm(r.nombre); return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:9 }}>
-                  <span style={{ fontSize:12, color: inTop ? C.textSub : C.textMuted, width:104, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:104, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : inTop ? C.textSub : C.textMuted, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${Math.max(2, r.part / maxV * 100)}%`, height:"100%", background: inTop ? C.blue : "rgba(255,255,255,0.2)", opacity:0.85 }}/>
                   </div>
@@ -690,25 +702,25 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized }) {
                 </div>
               ); })}
             </div>
-            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:11 }}>Azul = las cuentas que hacen el 80% de tu contribución (las de arriba del corte). La última columna es el acumulado. Cifras de dato real.</div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:11 }}>Azul = las cuentas que hacen el 80% de tu contribución (las de arriba del corte). La última columna es el acumulado. {MIRROR_LEGEND} Cifras de dato real.</div>
           </div>
         )}
         {(kind === "gap" || kind === "rank") && (
           <div>
             <div style={{ ...head, marginBottom:11 }}>{kind === "gap" ? "Plata sobre la mesa, por cliente" : "Contribución, por cuenta"}</div>
             <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-              {rows.map((r, i) => (
+              {rows.map((r, i) => { const named = nm(r.nombre); return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontSize:12, color: r.hi ? C.text : C.textSub, fontWeight: r.hi ? 600 : 400, width:118, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:118, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: (r.hi || named) ? C.text : C.textSub, fontWeight: (r.hi || named) ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${Math.max(2, Math.abs(r.val || 0) / maxV * 100)}%`, height:"100%", background: kind === "gap" ? C.amber : (r.hi ? C.violet : C.blue), opacity:0.85 }}/>
                   </div>
                   <span style={{ fontFamily:MONO, fontSize:12, color:C.text, fontVariantNumeric:"tabular-nums", width:60, textAlign:"right", flexShrink:0 }}>{r.valFmt}</span>
                   {r.sub ? <span style={{ fontFamily:MONO, fontSize:10.5, color:C.textMuted, width:42, textAlign:"right", flexShrink:0 }}>{r.sub}</span> : null}
                 </div>
-              ))}
+              ); })}
             </div>
-            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>{kind === "gap" ? "Ámbar = contribución no capturada (si el margen llegara al benchmark). Cifras de dato real." : "Contribución en $ por cuenta, ordenada. Cifras de dato real."}</div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>{kind === "gap" ? `Ámbar = contribución no capturada (si el margen llegara al benchmark). ${MIRROR_LEGEND} Cifras de dato real.` : `Contribución en $ por cuenta, ordenada. ${MIRROR_LEGEND} Cifras de dato real.`}</div>
           </div>
         )}
       </div>
@@ -725,6 +737,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized }) {
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.val || 0)));
+  const nm = _named(evidence);   // espejo: lo que ADI nombró
   const hl = p.headline || "";
   const hlColor = hl.startsWith("-") ? C.red : hl.startsWith("+") ? C.green : C.text;
   return (
@@ -741,7 +754,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
-          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Ventas"}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Ventas"}</div><ScopeChip evidence={evidence}/></div>
           {hl ? <div style={{ fontFamily:MONO, fontSize:16, color:hlColor, fontWeight:700, whiteSpace:"nowrap" }}>{hl}{p.headlineSub ? <span style={{ fontSize:10.5, color:C.textMuted, fontWeight:400 }}> · {p.headlineSub}</span> : null}</div>
             : p.headlineSub ? <div style={{ fontFamily:MONO, fontSize:11, color:C.textMuted }}>{p.headlineSub}</div> : null}
         </div>
@@ -770,9 +783,9 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized }) {
           <div>
             <div style={{ ...head, marginBottom:11 }}>Participación en el mix · hoy vs año anterior</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {rows.map((r, i) => (
+              {rows.map((r, i) => { const named = nm(r.nombre); return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontSize:12, color:C.textSub, width:150, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:150, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ position:"relative", flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${r.sNow}%`, height:"100%", background:C.blue, opacity:0.8 }}/>
                     <div style={{ position:"absolute", left:`${r.sAnt}%`, top:-1, bottom:-1, width:1.5, background:C.textMuted }}/>
@@ -780,18 +793,18 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized }) {
                   <span style={{ fontFamily:MONO, fontSize:12, color:C.text, width:42, textAlign:"right", flexShrink:0 }}>{p1(r.sNow)}%</span>
                   <span style={{ fontFamily:MONO, fontSize:11, color: r.dpp >= 0 ? C.green : C.red, width:44, textAlign:"right", flexShrink:0 }}>{r.dpp >= 0 ? "+" : ""}{p1(r.dpp)}pp</span>
                 </div>
-              ))}
+              ); })}
             </div>
-            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>La barra es el share de hoy; la línea gris marca el share del año anterior. Verde/rojo = puntos ganados/perdidos.</div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>La barra es el share de hoy; la línea gris marca el share del año anterior. Verde/rojo = puntos ganados/perdidos. {MIRROR_LEGEND}</div>
           </div>
         )}
         {(kind === "movers" || kind === "rank") && (
           <div>
             <div style={{ ...head, marginBottom:11 }}>{kind === "rank" ? "Ranking de venta" : "Quién mueve la aguja"}</div>
             <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-              {rows.map((r, i) => { const col = kind === "rank" ? C.blue : (r.pos ? C.green : C.red); return (
+              {rows.map((r, i) => { const col = kind === "rank" ? C.blue : (r.pos ? C.green : C.red); const named = nm(r.nombre); return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontSize:12, color:C.textSub, width:110, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                  <span style={{ display:"flex", alignItems:"center", gap:5, width:110, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                   <div style={{ flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                     <div style={{ width:`${Math.max(2, Math.abs(r.val || 0) / maxAbs * 100)}%`, height:"100%", background:col, opacity:0.85 }}/>
                   </div>
@@ -800,7 +813,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized }) {
                 </div>
               ); })}
             </div>
-            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>{kind === "rank" ? "SKU ordenados por venta del período. Cifras de dato real." : "Verde = suma, rojo = resta. Ordenado por impacto en $. Cifras de dato real."}</div>
+            <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:10 }}>{kind === "rank" ? `SKU ordenados por venta del período. ${MIRROR_LEGEND} Cifras de dato real.` : `Verde = suma, rojo = resta. Ordenado por impacto en $. ${MIRROR_LEGEND} Cifras de dato real.`}</div>
           </div>
         )}
       </div>
@@ -818,6 +831,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized }) {
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const decomp = rows.filter((r) => typeof r.costShare === "number" && r.below).slice(0, 5);
+  const nm = _named(evidence);   // espejo: lo que ADI nombró
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -832,7 +846,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
-          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Margen"}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Margen"}</div><ScopeChip evidence={evidence}/></div>
           <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.text}>{p.belowCount}</Num>/{p.total} bajo benchmark</div>
         </div>
       </div>
@@ -840,16 +854,16 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized }) {
         <div>
           <div style={{ ...head, marginBottom:11, display:"flex", justifyContent:"space-between" }}><span>Margen vs benchmark</span><span style={{ textTransform:"none", letterSpacing:0, color:C.amber }}>línea = {p1(bench)}%</span></div>
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-            {rows.map((r, i) => (
+            {rows.map((r, i) => { const named = nm(r.nombre); return (
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:12, color:C.textSub, width:104, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span>
+                <span style={{ display:"flex", alignItems:"center", gap:5, width:104, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : C.textSub, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
                 <div style={{ position:"relative", flex:1, height:9, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                   <div style={{ width:`${Math.min(100, (r.margen || 0) / scale * 100)}%`, height:"100%", background: r.below ? C.amber : C.green, opacity:0.85 }}/>
                   <div style={{ position:"absolute", left:`${benchPct}%`, top:-1, bottom:-1, width:1.5, background:C.amber, opacity:0.9 }}/>
                 </div>
                 <span style={{ fontFamily:MONO, fontSize:12, color: r.below ? C.amber : C.textSub, fontVariantNumeric:"tabular-nums", width:44, textAlign:"right", flexShrink:0 }}>{p1(r.margen)}%</span>
               </div>
-            ))}
+            ); })}
           </div>
         </div>
         {decomp.length > 0 && (
@@ -872,7 +886,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized }) {
             <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:9 }}>Gris = costo sobre el precio de lista · color = markup. Markup fino (bajo {p1(bench)}%) = el precio no cubre el margen objetivo.</div>
           </div>
         )}
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark. Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark. {MIRROR_LEGEND} Cifras de dato real.</div>
       </div>
     </div>
   );
@@ -894,6 +908,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
   const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
+  const nm = _named(evidence);   // espejo: lo que ADI nombró
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -908,7 +923,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
-          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{titleParts[1] ? <><span style={{ color:C.textMuted }}>{titleParts[0]} · </span>{titleParts[1]}</> : titleParts[0]}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{titleParts[1] ? <><span style={{ color:C.textMuted }}>{titleParts[0]} · </span>{titleParts[1]}</> : titleParts[0]}</div><ScopeChip evidence={evidence}/></div>
           <div style={{ fontFamily:MONO, fontSize:16, color:fcolor, fontWeight:700, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{_fm(inv.total || 0)}</div>
         </div>
       </div>
@@ -966,8 +981,9 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
               <React.Fragment key={i}>
                 <div style={{ gridColumn:"1 / -1", height:1, background:"rgba(255,255,255,0.05)" }}/>
                 <div style={{ padding:"8px 0", display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
+                  {nm(s.sku) ? <NamedDot/> : null}
                   {s.critico && <span style={{ width:5, height:5, borderRadius:"50%", background:fcolor, flexShrink:0 }}/>}
-                  <span style={{ fontSize:12, color:C.textSub, fontFamily:MONO, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.sku}</span>
+                  <span style={{ fontSize:12, color: nm(s.sku) ? C.text : C.textSub, fontWeight: nm(s.sku) ? 600 : 400, fontFamily:MONO, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.sku}</span>
                 </div>
                 <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12.5, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fm(s.usd)}</div>
                 <div style={{ padding:"8px 0", textAlign:"right", fontFamily:MONO, fontSize:12, color: (isStale ? (s.diasSinVenta > 90) : (s.doh > 120)) ? fcolor : C.textMuted, fontVariantNumeric:"tabular-nums" }}>{isStale ? `${s.diasSinVenta ?? "—"}d` : `${s.doh}d`}</div>
@@ -976,7 +992,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized }) {
             ))}
           </div>
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La franja "4 puntas" muestra todo tu inventario: {estados.map((e) => e.label).join(" · ")}. Cifras de dato real; el foco resaltado responde tu pregunta.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La franja "4 puntas" muestra todo tu inventario: {estados.map((e) => e.label).join(" · ")}. {MIRROR_LEGEND} Cifras de dato real; el foco resaltado responde tu pregunta.</div>
       </div>
     </div>
   );

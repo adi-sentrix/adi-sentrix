@@ -31,6 +31,15 @@ export function fig(label, value, { unit = "money", raw = null, mandatory = fals
   return { label, value: String(value), unit, raw, mandatory, source, formula, context, canon: `${unit}:${String(value).replace(/\s/g, "")}` };
 }
 
+// isNamedInBoleta(boleta, nombre) → true si ADI NOMBRÓ esa entidad (una cifra de la boleta lleva su nombre en el label).
+// Es el ESPEJO Sentrix↔ADI (Frente B · owner 2026-07-06): el panel pinta EXACTAMENTE lo que ADI dijo, y la boleta es la
+// fuente de verdad de lo dicho (cada cifra autorizada lleva su entidad en el label). Puro · sin estado · gate-testable.
+export function isNamedInBoleta(boleta, nombre) {
+  const n = String(nombre == null ? "" : nombre).trim();
+  if (n.length < 3 || !Array.isArray(boleta)) return false;
+  return boleta.some((f) => f && typeof f.label === "string" && f.label.includes(n));
+}
+
 // parseFigures(text) → [{ unit, raw, text, canon }] · extrae las figuras de la narración CON su unidad (unit-aware).
 // Cada figura se re-formatea a su forma canónica (mismo formateador) → "money:$31.6M" ≠ "money:$31.6K" (atrapa drift de escala).
 export function parseFigures(text) {

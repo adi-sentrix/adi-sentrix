@@ -164,8 +164,10 @@ export function answerADIFromSpec(spec, context = {}, state = {}) {
   // Si el scope se ignoró (cruce sin intersección), NO se marca (la respuesta ES general). Sin cifras → guard-safe.
   if (r && typeof r.text === "string" && spec && spec.entityScope && Array.isArray(spec.entityScope.entities) && e2 && e2.entityList) {
     const scopeSet = new Set(spec.entityScope.entities.map(String));
-    if (e2.entityList.entities.length && e2.entityList.entities.every((n) => scopeSet.has(String(n))))
+    if (e2.entityList.entities.length && e2.entityList.entities.every((n) => scopeSet.has(String(n)))) {
       r.text = "De los que veníamos mirando:\n\n" + r.text;
+      e2.scopedInherited = true;   // ESPEJO Sentrix (Frente B): el panel muestra el chip "los que veníamos mirando"
+    }
   }
   return r;
 }
