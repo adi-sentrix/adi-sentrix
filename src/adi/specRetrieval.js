@@ -1091,6 +1091,37 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
   // LA DECISIÓN · la palanca y por dónde empezar (más venta = cada punto rinde más)
   const first = (rA.venta || 0) >= (rB.venta || 0) ? a : b;
   if (hasPlata) lines.push(`**La decisión:** la palanca ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empezá por ${first}: mueve más venta, cada punto recuperado rinde más.`);
+  // EL PERFIL (owner 2026-07-08 · "que ADI lea el gráfico, no solo la tabla"): la película de las dos líneas — quién
+  // parte arriba, dónde se cruzan, desde qué estación cambia el ganador y qué variable lo explica. MISMO dato y MISMA
+  // semántica que el Perfil comparado de la Mesa (arriba = mejor · carga/costo invertidos). Abre el bloque causal.
+  const stations = [
+    { l: "ventas", va: rA.venta, vb: rB.venta, hi: true },
+    { l: "contribución", va: rA.contribucion, vb: rB.contribucion, hi: true },
+    { l: "margen", va: rA.margen, vb: rB.margen, hi: true },
+    gA != null && gB != null ? { l: "carga", va: gA, vb: gB, hi: false } : null,
+    cA != null && cB != null ? { l: "costo", va: cA, vb: cB, hi: false } : null,
+  ].filter((s) => s && typeof s.va === "number" && typeof s.vb === "number");
+  const wins = stations.map((s) => (s.va === s.vb ? null : (s.hi ? s.va > s.vb : s.va < s.vb) ? a : b));
+  const seqIdx = wins.map((w, i) => ({ w, i })).filter((x) => x.w);
+  if (seqIdx.length >= 2 && stations.length >= 3) {
+    const lead = seqIdx[0].w, otherName = lead === a ? b : a;
+    const nA = wins.filter((w) => w === a).length, nB = wins.filter((w) => w === b).length;
+    const flips = [];
+    for (let k = 1; k < seqIdx.length; k++) if (seqIdx[k].w !== seqIdx[k - 1].w) flips.push(seqIdx[k].i);
+    const stationsOf = (who) => stations.filter((_, i) => wins[i] === who).map((s) => s.l);
+    const score = ` ${a} gana ${nA} estaciones · ${b} ${nB} de ${stations.length}.`;
+    let peli;
+    if (!flips.length) {
+      peli = `${lead} domina el perfil de punta a punta — la línea de ${otherName} nunca lo cruza.${score}`;
+    } else if (Math.min(nA, nB) === 1) {
+      const quiebre = stationsOf(nA < nB ? a : b)[0];
+      peli = `${lead} parte arriba y domina casi todo el perfil; el ÚNICO quiebre es ${quiebre.toUpperCase()}, donde la línea de ${nA < nB ? a : b} lo cruza — ahí vive su única ventaja.${score}`;
+    } else {
+      const cierre = seqIdx[seqIdx.length - 1].w;
+      peli = `${lead} parte arriba (${stationsOf(lead).slice(0, 2).join(" y ")}); las líneas se cruzan en ${stations[flips[0]].l.toUpperCase()} y de ahí manda ${cierre} (${stationsOf(cierre).join(", ")}). El cambio lo explica la ${lever}.${score}`;
+    }
+    lines.unshift(`**El perfil:** ${peli}`);
+  }
   if (!lines.length) return null;
   return { lines, bol };
 }

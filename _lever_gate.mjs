@@ -11,6 +11,7 @@ fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { buildResumenEjecutivo } from "./src/adi/specRetrieval.js";',
+  'export { pickNarratedText } from "./src/adi/llm/numberGuard.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -98,6 +99,18 @@ ok("aritmética honesta: carga sobre target + precio/costo ≈ brecha (mismos pp
 const diveTop = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "La Polar" }, {}, {});
 ok("cuenta SOBRE el piso → historia de DEFENDER (no inventa pérdida)", /\*\*Por qué gana:\*\*/.test(diveTop.text) && /defiende|cuidala/i.test(diveTop.text));
 const cmpMarca = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "marca", comparison: { dimension: "marca", entities: ["Samsung", "LG"] } }, {}, {});
+console.log("\n── EL PERFIL · ADI lee el gráfico (owner 2026-07-08: quién parte arriba · dónde se cruzan · qué explica el cambio) ──");
+ok("Falabella vs Lider (dominio con 1 quiebre) → 'único quiebre es CARGA'", /\*\*El perfil:\*\*/.test(cmp.text) && /parte arriba/.test(cmp.text) && /ÚNICO quiebre es CARGA/.test(cmp.text));
+ok("el perfil trae el score de estaciones", /gana \d+ estaciones/.test(cmp.text) && /de 5\./.test(cmp.text));
+const cmpCross = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["ABC", "Unimarc"] } }, {}, {});
+ok("ABC vs Unimarc (cruce clásico) → 'las líneas se cruzan en MARGEN' + quién manda después", /las líneas se cruzan en MARGEN/.test(cmpCross.text) && /de ahí manda Unimarc/.test(cmpCross.text));
+ok("…y nombra la variable que explica el cambio (la palanca)", /El cambio lo explica la (estructura de costo|carga comercial)/.test(cmpCross.text));
+// GARANTÍA 100%: si el narrador omite la trayectoria, la lectura del piso se ANTEPONE (no se ruega al LLM — se asegura)
+const narrSin = "Unimarc es más eficiente que ABC: margen 32.5% vs 31%, con carga 3% vs 3.5% y costo 64.5% vs 65.5% de la lista. Yo revisaría los costos de ABC.";
+const picked = M.pickNarratedText(cmpCross, narrSin);
+ok("narración SIN trayectoria → se antepone 'El perfil:' del piso (narrated, verdict fiel+perfil)", picked.narrated && picked.verdict === "fiel+perfil" && /^\*\*El perfil:\*\*/.test(picked.text) && /se cruzan en MARGEN/.test(picked.text));
+const narrCon = "ABC parte arriba en ventas pero las líneas se cruzan en margen: de ahí manda Unimarc por su costo (64.5% vs 65.5%), con margen 32.5% vs 31% y carga 3% vs 3.5%.";
+ok("narración QUE SÍ lee el gráfico → queda intacta (sin duplicar el bloque)", (() => { const p = M.pickNarratedText(cmpCross, narrCon); return p.narrated && p.verdict === "fiel" && !/\*\*El perfil:\*\*/.test(p.text); })());
 ok("compare de MARCA también trae causa (estructura precio/costo del eje)", /\*\*Por qué ocurre:\*\*/.test(cmpMarca.text));
 ok("compare de MARCA honesto: plata por valor del punto (sin detector gated)", /\*\*Dónde está tu plata:\*\*/.test(cmpMarca.text) && /cada punto de margen vale/i.test(cmpMarca.text) && !/sobre la mesa/.test(cmpMarca.text.split("**Dónde está tu plata:**")[1].split("**")[0]));
 

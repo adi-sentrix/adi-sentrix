@@ -115,7 +115,12 @@ export function pickNarratedText(validated, narration) {
   } else {
     g = numberGuard(narr, validated);
   }
-  return g.ok
-    ? { text: narr, narrated: true, verdict: "fiel", reason: g.reason }
-    : { text: det, narrated: false, verdict: g.verdict, reason: g.reason };
+  if (!g.ok) return { text: det, narrated: false, verdict: g.verdict, reason: g.reason };
+  // EL PERFIL (owner 2026-07-08 · "que ADI lea el gráfico"): la lectura de trayectoria NO se pierde por parafraseo del
+  // narrador — si el piso la trae y la narración la omitió (sin palabras de trayectoria), se ANTEPONE la del piso
+  // (determinística · cifras ya autorizadas · abre la respuesta como pide la regla "abrí leyendo el gráfico").
+  const detPerfil = det.match(/\*\*El perfil:\*\*[^\n]*/);
+  if (detPerfil && !/parte arriba|se cruzan|quiebre|de ah[ií] manda|punta a punta/i.test(narr))
+    return { text: detPerfil[0] + "\n\n" + narr, narrated: true, verdict: "fiel+perfil", reason: "narración fiel · lectura del gráfico del piso antepuesta (el narrador la había omitido)" };
+  return { text: narr, narrated: true, verdict: "fiel", reason: g.reason };
 }
