@@ -6,6 +6,7 @@
  * vs presupuesto, vs año anterior), todo DERIVADO del dato, nunca inventado. Pura · client-side · el motor no la llama
  * (igual que buildComparisonReading) → motor sellado. La regla madre: cada cifra del gráfico cierra con su serie. */
 import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
+import { historialMargen } from "../../data/demoData.js";
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
@@ -52,5 +53,59 @@ export function buildGlobalEvolution() {
     meses, actual, anterior, presupuesto, seq24, n, nSeq: seq24.length,
     max, min, maxMes, minMes, drop, growth,
     totAct, totAnt, totPpto, vsAnterior, vsPresupuesto,
+  };
+}
+
+/* === Evolutivo POR ENTIDAD (owner 2026-07-08: "si está comparando, deberían ser dos curvas") ===
+ * Fuente: historialMargen — la tabla mensual por entidad DEL DATASET (la misma que alimenta la película de la
+ * brecha). Solo se exponen las métricas cuya serie mensual existe de verdad: venta y contribución. El margen
+ * mensual del dataset viene plano (sintético) → sigue bloqueado honesto. Solo 12 meses del año en curso: el
+ * "año anterior" mensualizado del historial (÷1.081 uniforme) NO cierra con el KPI anual anterior del cuadro
+ * → mostrarlo crearía dos cifras en conflicto; el 24m queda solo en la película global (dato real). */
+const _ENTITY_METRICS = {
+  venta:        (m) => Number(m.venta),
+  contribucion: (m) => Number(m.contribucion),
+};
+
+// La serie mensual de UNA entidad + su análisis (pico/valle, mayor alza/caída, trayectoria) — todo derivado.
+export function buildEntityEvolution(name, metric = "venta") {
+  const H = historialMargen && historialMargen[name];
+  const get = _ENTITY_METRICS[metric];
+  if (!H || !H.length || !get) return null;
+  const meses = H.map((m) => m.mes);
+  const serie = H.map(get);
+  if (serie.some((v) => !Number.isFinite(v))) return null;
+  const n = serie.length;
+  const max = Math.max(...serie), min = Math.min(...serie);
+  const maxMes = meses[serie.indexOf(max)], minMes = meses[serie.indexOf(min)];
+  let drop = { delta: 0, mes: null, from: null }, growth = { delta: 0, mes: null, from: null };
+  for (let i = 1; i < n; i++) {
+    const d = serie[i] - serie[i - 1];
+    if (d < drop.delta) drop = { delta: d, mes: meses[i], from: meses[i - 1] };
+    if (d > growth.delta) growth = { delta: d, mes: meses[i], from: meses[i - 1] };
+  }
+  const first = serie[0], last = serie[n - 1];
+  const pct = first ? _round1(((last - first) / first) * 100) : null;
+  return { name, metric, meses, serie, n, max, min, maxMes, minMes, drop, growth, first, last, pct, sinCaidas: drop.mes == null };
+}
+
+// Las DOS curvas de una comparación + el análisis del PAR: brecha (dónde se abre/cierra) y cruces (quién pasa arriba).
+export function buildCompareEvolution(aName, bName, metric = "venta") {
+  const A = buildEntityEvolution(aName, metric), B = buildEntityEvolution(bName, metric);
+  if (!A || !B || A.n !== B.n || A.n < 2) return null;
+  const gap = A.serie.map((v, i) => v - B.serie[i]);
+  const absGap = gap.map(Math.abs);
+  const iWide = absGap.indexOf(Math.max(...absGap)), iNarrow = absGap.indexOf(Math.min(...absGap));
+  const cruces = [];
+  for (let i = 1; i < gap.length; i++) {
+    if (gap[i] !== 0 && gap[i - 1] !== 0 && Math.sign(gap[i]) !== Math.sign(gap[i - 1]))
+      cruces.push({ mes: A.meses[i], arriba: gap[i] > 0 ? aName : bName });
+  }
+  const aArribaTodo = gap.every((g) => g > 0), bArribaTodo = gap.every((g) => g < 0);
+  return {
+    a: A, b: B, metric, meses: A.meses, n: A.n, gap,
+    gapInicio: gap[0], gapHoy: gap[gap.length - 1],
+    wideMes: A.meses[iWide], wideGap: gap[iWide], narrowMes: A.meses[iNarrow], narrowGap: gap[iNarrow],
+    cruces, aArribaTodo, bArribaTodo,
   };
 }

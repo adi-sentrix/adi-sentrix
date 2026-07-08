@@ -9,7 +9,7 @@ import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
-import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real)
+import { buildGlobalEvolution, buildCompareEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + dos curvas por entidad)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
 import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt, buildBrechaFilm } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6/2c · tira + descomposición + recibo + película de la brecha
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
@@ -2051,6 +2051,94 @@ function ComparacionChart({ a, b, scenario }) {
 // ── StationPeriodo · la estación VENTAS en el tiempo (owner 2026-07-08 · "período que elija el usuario") ──
 // Serie GLOBAL mensual REAL (buildGlobalEvolution · misma verdad que La Historia) con selector 12/24 meses. El corte
 // mensual POR ENTIDAD no existe todavía (se enciende con el ERP) → se dice, no se dibuja (regla madre: no fingir series).
+// ── StationCompareFilm · las DOS curvas de la comparación (owner 2026-07-08: "son datos y clientes diferentes") ──
+// Serie mensual POR ENTIDAD desde historialMargen (el dato del dataset, mismo origen que la película de la brecha).
+// Mismos colores que el Perfil (A elec · B teal), puntito por mes, pico verde / valle rojo parpadeando, hover con
+// mes + ambos datos, y abajo la LECTURA del período: meses de alzas/caídas, dónde se abre la brecha, cruces.
+function StationCompareFilm({ cmp }) {
+  const [hov, setHov] = useState(null);
+  const { a: A, b: B, meses, n } = cmp;
+  const colA = C.elec, colB = C.teal;
+  const W = 560, H = 118, padL = 8, padR = 8, padT = 14, padB = 18;
+  const all = [...A.serie, ...B.serie];
+  const lo = Math.min(...all), hi = Math.max(...all), rng = Math.max(hi - lo, 1);
+  const x = (i) => padL + i * (W - padL - padR) / Math.max(1, n - 1);
+  const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
+  const dOf = (s) => s.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
+  const fmV = (v) => Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" : "$" + Math.round(v) + "K";
+  const tipW = 128, tipH = 38;
+  const tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
+  const tipY = hov == null ? 0 : (Math.min(y(A.serie[hov]), y(B.serie[hov])) < tipH + 16 ? H - padB - tipH - 2 : padT - 4);
+  // trayectoria de cada curva: sostenida (sin caídas) o con quiebres (pico/valle/mayor caída con sus MESES)
+  const tray = (E, col) => (
+    <span>
+      <span style={{ color: col, fontWeight: 600 }}>{E.name}</span> va de {fmV(E.first)} ({meses[0]}) a {fmV(E.last)} ({meses[n - 1]}){E.pct != null ? ` — ${E.pct > 0 ? "+" : ""}${E.pct}%` : ""}{E.sinCaidas
+        ? ", sube sostenido sin caídas"
+        : `; pico en ${E.maxMes} (${fmV(E.max)}), valle en ${E.minMes} (${fmV(E.min)}), la caída más fuerte ${E.drop.from}→${E.drop.mes} (−${fmV(Math.abs(E.drop.delta))})`}.
+    </span>
+  );
+  const lider = cmp.aArribaTodo ? A : cmp.bArribaTodo ? B : null;
+  const brechaAbre = Math.abs(cmp.gapHoy) > Math.abs(cmp.gapInicio);
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7 }}>
+        <span style={{ fontFamily:MONO, fontSize:10, color:C.textMuted }}>12 meses · mes a mes del dataset</span>
+        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>
+          brecha hoy <span style={{ color: cmp.gapHoy >= 0 ? colA : colB }}>{fmV(Math.abs(cmp.gapHoy))}</span> · más ancha en {cmp.wideMes}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        <path d={dOf(A.serie)} fill="none" stroke={colA} strokeWidth="5" strokeLinejoin="round" opacity="0.14"/>
+        <path d={dOf(B.serie)} fill="none" stroke={colB} strokeWidth="5" strokeLinejoin="round" opacity="0.14"/>
+        <path d={dOf(A.serie)} fill="none" stroke={colA} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95"/>
+        <path d={dOf(B.serie)} fill="none" stroke={colB} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95"/>
+        {A.serie.map((v, i) => <circle key={"a" + i} cx={x(i)} cy={y(v)} r="2" fill={colA} stroke="#000" strokeWidth="0.8" opacity="0.9"/>)}
+        {B.serie.map((v, i) => <circle key={"b" + i} cx={x(i)} cy={y(v)} r="2" fill={colB} stroke="#000" strokeWidth="0.8" opacity="0.9"/>)}
+        {/* pico VERDE y valle ROJO de cada curva, parpadeando (SMIL · sin filtros) */}
+        {[A, B].map((E, k) => (
+          <g key={"pv" + k}>
+            <circle cx={x(E.serie.indexOf(E.max))} cy={y(E.max)} r="3.4" fill={C.green} stroke="#000" strokeWidth="1">
+              <animate attributeName="opacity" values="1;0.25;1" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx={x(E.serie.indexOf(E.min))} cy={y(E.min)} r="3.4" fill={C.red} stroke="#000" strokeWidth="1">
+              <animate attributeName="opacity" values="1;0.25;1" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+          </g>
+        ))}
+        <text x={padL} y={H - 4} fill={C.textMuted} fontSize="8" fontFamily={MONO}>{meses[0]}</text>
+        <text x={W - padR} y={H - 4} textAnchor="end" fill={C.textMuted} fontSize="8" fontFamily={MONO}>{meses[n - 1]}</text>
+        <rect x={padL - 4} y={0} width={W - padL - padR + 8} height={H} fill="transparent"
+          onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - r.left) / Math.max(1, r.width); const i = Math.round(rel * (n - 1)); setHov(Math.max(0, Math.min(n - 1, i))); }}
+          onMouseLeave={() => setHov(null)}/>
+        {hov != null && (
+          <g pointerEvents="none">
+            <line x1={x(hov)} x2={x(hov)} y1={padT - 6} y2={H - padB + 4} stroke="rgba(255,255,255,0.22)" strokeWidth="1"/>
+            <circle cx={x(hov)} cy={y(A.serie[hov])} r="4" fill={colA} stroke="#000" strokeWidth="1.3"/>
+            <circle cx={x(hov)} cy={y(B.serie[hov])} r="4" fill={colB} stroke="#000" strokeWidth="1.3"/>
+            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="6" fill="#181715" stroke={C.borderLight} strokeWidth="1"/>
+            <text x={tipX + 8} y={tipY + 11} fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{meses[hov]}</text>
+            <text x={tipX + 8} y={tipY + 22} fill={colA} fontSize="9" fontWeight="600" fontFamily={MONO}>{A.name.slice(0, 10)} {fmV(A.serie[hov])}</text>
+            <text x={tipX + 8} y={tipY + 33} fill={colB} fontSize="9" fontWeight="600" fontFamily={MONO}>{B.name.slice(0, 10)} {fmV(B.serie[hov])}</text>
+          </g>
+        )}
+      </svg>
+      {/* LECTURA DEL PERÍODO (owner: "debería decir los puntos o meses donde desvíos, alzas, etc.") — derivada de la serie */}
+      <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
+        {tray(A, colA)} {tray(B, colB)}{" "}
+        La brecha va de {fmV(Math.abs(cmp.gapInicio))} ({meses[0]}) a {fmV(Math.abs(cmp.gapHoy))} ({meses[n - 1]}) — {brechaAbre ? "se abre" : "se cierra"} con el año, más ancha en {cmp.wideMes} ({fmV(Math.abs(cmp.wideGap))}).{" "}
+        {lider
+          ? <>Sin cruces: <span style={{ color: lider === A ? colA : colB, fontWeight:600 }}>{lider.name}</span> va arriba los {n} meses.</>
+          : cmp.cruces.length
+          ? <>Cruces: {cmp.cruces.map((c) => `${c.arriba} pasa arriba en ${c.mes}`).join(" · ")}.</>
+          : null}
+      </div>
+      <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
+        Mensualización del histórico del dataset (año en curso). El mes a mes del año anterior por entidad se enciende con el ERP — no te muestro cifras que no cierran.
+      </div>
+    </div>
+  );
+}
+
 function StationPeriodo({ a, b }) {
   const [per, setPer] = useState("12");
   const [hov, setHov] = useState(null);   // índice bajo el cursor → tooltip mes + dato (owner 2026-07-08)
@@ -2064,6 +2152,13 @@ function StationPeriodo({ a, b }) {
   const d = serie.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
   const iMax = serie.indexOf(hi), iMin = serie.indexOf(lo);
   const fmV = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  // lectura del período: mayor alza / mayor caída CON SUS MESES, derivada de la serie MOSTRADA (12 o 24) — cierra con la curva
+  let gDrop = { delta: 0, i: 0 }, gRise = { delta: 0, i: 0 };
+  for (let i = 1; i < serie.length; i++) {
+    const dd = serie[i] - serie[i - 1];
+    if (dd < gDrop.delta) gDrop = { delta: dd, i };
+    if (dd > gRise.delta) gRise = { delta: dd, i };
+  }
   // tooltip clampeado al viewBox (no se corta en los extremos)
   const tipW = 108, tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
   const tipY = hov == null ? 0 : (y(serie[hov]) < 42 ? y(serie[hov]) + 12 : y(serie[hov]) - 34);
@@ -2104,6 +2199,12 @@ function StationPeriodo({ a, b }) {
           </g>
         )}
       </svg>
+      {/* LECTURA DEL PERÍODO (owner: los MESES de alzas/desvíos) — derivada de la serie mostrada */}
+      <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
+        Pico en <span style={{ color:C.green }}>{labels[iMax]}</span> ({fmV(hi)}) · valle en <span style={{ color:C.red }}>{labels[iMin]}</span> ({fmV(lo)}).
+        {gRise.delta > 0 && <> La alza más fuerte: {labels[gRise.i - 1]}→{labels[gRise.i]} (+{fmV(gRise.delta)}).</>}
+        {gDrop.delta < 0 && <> La caída más fuerte: {labels[gDrop.i - 1]}→{labels[gDrop.i]} (−{fmV(Math.abs(gDrop.delta))}).</>}
+      </div>
       <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
         La película GLOBAL de tu venta ({per} meses · dato real mensual) — pasá el cursor por la curva para ver cada mes. El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.
       </div>
@@ -2243,11 +2344,18 @@ function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenar
             <div style={{ fontSize:12, color:C.textSub, marginBottom:8 }}>
               Hoy (dato real): <span style={{ color:colA, fontFamily:MONO, fontWeight:600 }}>{a} {ax.fmt(ax.va)}</span> · <span style={{ color:colB, fontFamily:MONO, fontWeight:600 }}>{b} {ax.fmt(ax.vb)}</span>
             </div>
-            {/venta/i.test(ax.label) ? <StationPeriodo a={a} b={b}/> : (
-              <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-                El histórico mensual de {ax.label.toLowerCase()} se enciende con el ERP — hoy tengo el período actual (arriba, dato real). No te dibujo una serie que no existe.
-              </div>
-            )}
+            {(() => {
+              // dos curvas cuando la serie mensual POR ENTIDAD existe en el dataset (venta/contribución) — owner 2026-07-08
+              const metric = /venta/i.test(ax.label) ? "venta" : /contribuci/i.test(ax.label) ? "contribucion" : null;
+              const cmp = metric ? buildCompareEvolution(a, b, metric) : null;
+              if (cmp) return <StationCompareFilm cmp={cmp}/>;
+              if (metric === "venta") return <StationPeriodo a={a} b={b}/>;   // sin historial por entidad (p.ej. bodegas) → película GLOBAL
+              return (
+                <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
+                  El histórico mensual de {ax.label.toLowerCase()} se enciende con el ERP — hoy tengo el período actual (arriba, dato real). No te dibujo una serie que no existe.
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
