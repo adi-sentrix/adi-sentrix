@@ -1131,11 +1131,11 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
               {resumen.focos.map((f, i) => (
                 <button key={i} onClick={onAsk ? () => onAsk(_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?") : undefined}
                   title={onAsk ? `Preguntale a ADI: ${_MESA_FOCO_ASK[f.detector]}` : undefined}
-                  style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:"1px solid rgba(240,185,11,0.32)", background:"rgba(240,185,11,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(240,185,11,0.10)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(240,185,11,0.05)"; }}>
-                  <span style={{ fontSize:14.5, fontWeight:600, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
-                  <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{f.label} <span style={{ color:"rgba(240,185,11,0.9)" }}>→</span></span>
+                  style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
+                  <span style={{ fontSize:14.5, fontWeight:600, color:C.amber, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
+                  <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
                 </button>
               ))}
             </div>

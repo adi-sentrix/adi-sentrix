@@ -3,13 +3,13 @@
  * Presentación pura · cero cálculo. La única diferencia con el monolito es DÓNDE vive el estilo. */
 import { clientesMargen } from "../data/demoData.js";   // hardening prep-LLM · KNOWN_ENTITIES derivado del dato (no lista hardcodeada)
 
-// Paleta SOBRIA + CÁLIDA (Etapa 5 · look de Code · owner 2026-06-29): charcoal cálido (sutil, no sepia),
-// texto off-white cálido, cero brillo de ambiente. Cyan SOLO como acento funcional frío (cifras/logo/activo ·
-// identidad de ADI) → contraste premium frío-sobre-cálido. Bordes con una pizca de calidez.
+// Paleta SOBRIA + CÁLIDA (Etapa 5 · look de Code · owner 2026-06-29 · RECALIBRADA 2026-07-08: "el gris más cálido,
+// más clarito"): charcoal cálido con grises PIEDRA más luminosos (sutil, no sepia), texto off-white cálido, cero
+// brillo de ambiente. Cyan SOLO como acento funcional frío (cifras/logo/activo · identidad de ADI). Bordes cálidos.
 export const C = {
-  bg: "#0e0d0c", surface: "#181715", surfaceAlt: "#221f1d", surfaceHover: "#292623",
-  border: "rgba(255,251,245,0.06)", borderLight: "rgba(255,251,245,0.09)",
-  text: "#ecebe8", textSub: "#bcbab5", textMuted: "#8d8a84",
+  bg: "#0e0d0c", surface: "#1c1a17", surfaceAlt: "#262320", surfaceHover: "#2d2a26",
+  border: "rgba(255,246,235,0.09)", borderLight: "rgba(255,246,235,0.13)",
+  text: "#f0eeea", textSub: "#cdc8bf", textMuted: "#a09a90",
   blue: "#00b0d4", indigo: "#0e7fa8", green: "#10b981",
   red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
   celeste: "#2fb8da",   // celeste · acumulada del Pareto (la línea que cruza)
