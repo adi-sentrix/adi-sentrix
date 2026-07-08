@@ -67,6 +67,7 @@ pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuni
 pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de cifras)", /CAUSA/.test(NG) && /controller senior/.test(NG) && /causa→consecuencia→movida/.test(NG));
 pOk("P8 · NOMBRES sagrados (el garble 'Falcon' por 'Falabella', cazado en vivo)", /NOMBRES \(sagrados/.test(NG) && /'Falcon' por 'Falabella' NO/.test(NG));
 pOk("P9 · DIRECCIONES sagradas (inversión 'sobre'→'debajo' cazada en vivo)", /DIRECCIONES \(sagradas\)/.test(NG) && /NUNCA las inviertas/.test(NG));
+pOk("P10 · LA FORMA, NO EL DATO (regla del owner 2026-07-08: no recitar el panel · 3-5 cifras · cómo/dónde se gana y pierde)", /LA FORMA, NO EL DATO/.test(NG) && /NO recites lo que el panel ya enseña/.test(NG) && /SOLO las 3-5/.test(NG) && /C[OÓ]MO se gana la plata/.test(NG));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 9}) ──`);
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 10}) ──`);
 process.exit(fail ? 1 : 0);
