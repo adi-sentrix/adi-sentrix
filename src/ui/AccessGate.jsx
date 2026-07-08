@@ -41,6 +41,7 @@ export function AccessGate({ onGranted, reason = null, expiresAt = null }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(reason);   // "invalid" | "expired" | "network" | null
+  const [copied, setCopied] = useState(false);
 
   const entrar = async () => {
     const c = code.trim();
@@ -55,9 +56,14 @@ export function AccessGate({ onGranted, reason = null, expiresAt = null }) {
     setBusy(false);
   };
 
+  // SOLICITAR DEMO · 3 canales sin depender del cliente de correo del sistema (owner 2026-07-08: mailto abría
+  // Outlook y rompía la experiencia): WhatsApp (principal · wa.me abre app/Web con el mensaje armado) · Gmail
+  // (compose en el navegador, nueva pestaña) · el email visible con copiar (red de seguridad universal).
+  const mailSubject = encodeURIComponent("Solicitud demo ADI · Sentrix");
   const mailBody = encodeURIComponent(`Hola, quiero probar la demo de ADI · Sentrix (${DEMO_CONTACT.demoDays} días).\n\nNombre:\nEmpresa:\nRol:`);
-  const mailHref = `mailto:${DEMO_CONTACT.email}?subject=${encodeURIComponent("Solicitud demo ADI · Sentrix")}&body=${mailBody}`;
-  const waHref = DEMO_CONTACT.whatsapp ? `https://wa.me/${DEMO_CONTACT.whatsapp}?text=${encodeURIComponent("Hola, quiero probar la demo de ADI · Sentrix")}` : null;
+  const gmailHref = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(DEMO_CONTACT.email)}&su=${mailSubject}&body=${mailBody}`;
+  const waHref = DEMO_CONTACT.whatsapp ? `https://wa.me/${DEMO_CONTACT.whatsapp}?text=${encodeURIComponent(`Hola, quiero probar la demo de ADI · Sentrix (${DEMO_CONTACT.demoDays} días). Soy `)}` : null;
+  const copiarMail = () => { try { navigator.clipboard.writeText(DEMO_CONTACT.email); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* selección manual */ } };
 
   const msgs = {
     invalid: "Ese código no abre — revisá que esté completo (empieza con ADI-) o pedí uno nuevo.",
@@ -99,15 +105,23 @@ export function AccessGate({ onGranted, reason = null, expiresAt = null }) {
 
       <div style={{ marginTop:22, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
         <div style={{ fontSize:12.5, color:C.textSub, marginBottom:10 }}>¿Sin código? Solicitá tu demo de {DEMO_CONTACT.demoDays} días:</div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          <a href={mailHref} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 14px", borderRadius:9, border:`1px solid ${C.borderLight}`, background:C.surface, color:C.textSub, fontSize:12, fontWeight:600, textDecoration:"none" }}>
-            ✉ Por email
-          </a>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
           {waHref && (
-            <a href={waHref} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 14px", borderRadius:9, border:`1px solid ${C.borderLight}`, background:C.surface, color:C.textSub, fontSize:12, fontWeight:600, textDecoration:"none" }}>
-            ◦ Por WhatsApp
+            <a href={waHref} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 15px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.10)", color:C.celeste, fontSize:12.5, fontWeight:600, textDecoration:"none" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.4l.9 2.2c.1.2.1.4 0 .6l-.4.6-.4.5c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1.1 2.2 1.4 2.5 1.5.3.1.5.1.7-.1l1-1.2c.2-.3.4-.2.7-.1l2.1 1c.3.1.5.2.6.4 0 .1 0 .7-.3 1.4z"/></svg>
+              Solicitar por WhatsApp
             </a>
           )}
+          <a href={gmailHref} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 14px", borderRadius:9, border:`1px solid ${C.borderLight}`, background:C.surface, color:C.textSub, fontSize:12, fontWeight:600, textDecoration:"none" }}>
+            ✉ Abrir en Gmail
+          </a>
+        </div>
+        <div style={{ marginTop:11, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11.5, color:C.textMuted }}>o escribinos a</span>
+          <span style={{ fontFamily:MONO, fontSize:11.5, color:C.textSub }}>{DEMO_CONTACT.email}</span>
+          <button onClick={copiarMail} style={{ padding:"3px 10px", borderRadius:7, border:`1px solid ${copied ? "rgba(16,185,129,0.5)" : C.borderLight}`, background:"transparent", color: copied ? C.green : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+            {copied ? "Copiado ✓" : "Copiar"}
+          </button>
         </div>
         <div style={{ marginTop:14, fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>
           Respondemos con tu código el mismo día. Datos de demostración — tu información no se usa para nada más.
