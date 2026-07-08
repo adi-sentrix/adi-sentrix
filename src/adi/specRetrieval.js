@@ -1042,6 +1042,51 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
   };
 }
 
+/* ── compareCauses · la CAPA CAUSAL del compare (owner 2026-07-07: "un controller senior da causas, no lee datos") ──
+ * El composer del motor (sellado) entrega la lectura estructurada de A vs B; esta capa agrega LO QUE FALTABA para la
+ * historia: POR QUÉ ocurre la brecha (costo vs carga, del mismo dato), DÓNDE está la plata (la no-capturada GATED de
+ * cada uno — misma cuenta del diagnose, una verdad) y LA DECISIÓN (la palanca compartida + por cuál empezar y cuánto
+ * vale el punto). Se APPENDEA en el seam — el motor no se toca. Cliente-only (los ejes con estructura precio/costo). */
+export function compareCauses(a, b, scenario) {
+  const rows = _marginRows("cliente", scenario);
+  const rA = rows.find((r) => _mNombre(r) === a), rB = rows.find((r) => _mNombre(r) === b);
+  if (!rA || !rB || typeof rA.margen !== "number" || typeof rB.margen !== "number") return null;
+  const bench = _benchOf(rA);
+  const costo = (r) => (_costShare(r) != null ? +_costShare(r).toFixed(1) : null);
+  const cA = costo(rA), cB = costo(rB);
+  const gA = typeof rA.pctRebate === "number" ? rA.pctRebate : null, gB = typeof rB.pctRebate === "number" ? rB.pctRebate : null;
+  const bol = [], lines = [];
+  // POR QUÉ OCURRE · la brecha de margen se descompone en costo vs carga (mismo dato del que salen los %)
+  const dCosto = cA != null && cB != null ? Math.abs(cA - cB) : 0;
+  const dCarga = gA != null && gB != null ? Math.abs(gA - gB) : 0;
+  const lever = dCosto >= dCarga ? "estructura de costo" : "carga comercial";
+  if (cA != null && cB != null) {
+    lines.push(`**Por qué ocurre:** la diferencia de margen viene de la ${lever === "estructura de costo" ? `ESTRUCTURA DE COSTO — a ${a} el costo se le lleva el ${_p1(cA)}% del precio de lista y a ${b} el ${_p1(cB)}%` : `CARGA COMERCIAL — ${a} entrega ${_p1(gA)}% en rebates/descuentos y ${b} ${_p1(gB)}%`}; ${lever === "estructura de costo" ? `la carga casi no separa (${_p1(gA)}% vs ${_p1(gB)}%)` : `el costo casi no separa (${_p1(cA)}% vs ${_p1(cB)}%)`}.`);
+    bol.push(fig(`Causa · ${a} costo/lista`, `${_p1(cA)}%`, { unit: "pct", raw: cA, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
+    bol.push(fig(`Causa · ${b} costo/lista`, `${_p1(cB)}%`, { unit: "pct", raw: cB, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
+  }
+  // DÓNDE ESTÁ TU PLATA · la no-capturada GATED de cada uno (misma cuenta del diagnose · una verdad) + el valor del punto
+  const foco = _leverFoco(scenario, "margen", { entities: [a, b] });
+  const items = (foco && foco.items) || [];
+  const iA = items.find((x) => x.entidad === a), iB = items.find((x) => x.entidad === b);
+  const p1A = _pp1(rA), p1B = _pp1(rB);
+  if (iA || iB) {
+    const parts = [];
+    if (iA) { parts.push(`con ${a} estás dejando ${_money(iA.usd)} al año sobre la mesa (margen ${_p1(rA.margen)}% vs tu piso ${_p1(bench)}%)`); bol.push(_figLever(`Plata en juego · ${a}`, iA.usd, "venta × benchmark − contribución")); }
+    if (iB) { parts.push(`con ${b}, ${_money(iB.usd)}`); bol.push(_figLever(`Plata en juego · ${b}`, iB.usd, "venta × benchmark − contribución")); }
+    lines.push(`**Dónde está tu plata:** ${parts.join("; ")}.${p1A && p1B ? ` Cada punto de margen recuperado vale +${_money(p1A)}/año en ${a} y +${_money(p1B)} en ${b}.` : ""}`);
+    if (p1A) bol.push(_figLever(`Palanca · 1pp en ${a}`, p1A, "venta × 1%"));
+    if (p1B) bol.push(_figLever(`Palanca · 1pp en ${b}`, p1B, "venta × 1%"));
+  } else if (rA.margen >= bench && rB.margen >= bench) {
+    lines.push(`**Dónde está tu plata:** los dos capturan sobre tu piso de ${_p1(bench)}% — acá no se pierde, se defiende: el riesgo es ceder margen para crecer volumen.`);
+  }
+  // LA DECISIÓN · la palanca y por dónde empezar (más venta = cada punto rinde más)
+  const first = (rA.venta || 0) >= (rB.venta || 0) ? a : b;
+  if (iA || iB) lines.push(`**La decisión:** la palanca ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empezá por ${first}: mueve más venta, cada punto recuperado rinde más.`);
+  if (!lines.length) return null;
+  return { lines, bol };
+}
+
 /* ── composeSpecSimulate · SIMULACIÓN = un SUPUESTO aplicado sobre el dato REAL (base única = real) ─────────────
  * NO es un escenario del negocio (nada de bonanza/tensión/crisis · no invoca el motor de escenarios). Lee la base real
  * (_loadReal), aplica el transform explícito, y arma la tabla ACTUAL vs SUPUESTO vs Δ con FÓRMULA por celda. La boleta

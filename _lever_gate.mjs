@@ -76,6 +76,17 @@ const narrSinPlata = `Ocho de trece clientes están bajo el margen mínimo de 30
 const gSin = G(narrSinPlata, bol(mBench));
 ok("narración que omite el $ de la palanca NO pasa (mejor el piso, que la tiene)", !gSin.ok && gSin.missing.length > 0);
 
+console.log("\n── capa CAUSAL del compare · el motor lee, la capa explica (controller senior) ──");
+const cmp = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }, {}, {});
+ok("el compare trae POR QUÉ ocurre (causa de la brecha: costo vs carga)", /\*\*Por qué ocurre:\*\*/.test(cmp.text));
+ok("el compare trae DÓNDE ESTÁ TU PLATA (la no-capturada de cada uno)", /\*\*Dónde está tu plata:\*\*/.test(cmp.text) && /sobre la mesa/.test(cmp.text));
+ok("el compare trae LA DECISIÓN (palanca + por cuál empezar)", /\*\*La decisión:\*\*/.test(cmp.text) && /Empezá por/.test(cmp.text));
+const cmpFal = figOf(cmp, /Plata en juego · Falabella/);
+const diagFal = bol(diag).find((f) => /Contribución no capturada · Falabella/.test(f.label));
+ok("una verdad: la plata en juego de Falabella == el ítem del diagnose (mismo raw)", cmpFal && diagFal && cmpFal.raw === diagFal.raw);
+ok("las cifras causales son computed + formula auditable", cmpFal && cmpFal.source === "computed" && !!cmpFal.formula);
+ok("el valor del punto por entidad está (palanca 1pp en ambos)", !!figOf(cmp, /Palanca · 1pp en Falabella/) && !!figOf(cmp, /Palanca · 1pp en Lider/));
+
 console.log("\n── apertura proactiva · los focos del hero = los subtotales del diagnose (una verdad) ──");
 const res = M.buildResumenEjecutivo("bonanza");
 ok("el resumen emite focos estructurados (detector + $ + label)", Array.isArray(res.focos) && res.focos.length >= 2 && res.focos.every((f) => f.detector && f.usd > 0 && f.usdFmt && f.label));

@@ -64,6 +64,7 @@ pOk("P3 · CIERRE con UNA acción (sin moraleja genérica)", /CIERRE/.test(NG) &
 pOk("P4 · 'Cuánto vale:' listado como andamio prohibido (se narra, no se titula)", /'Cuánto vale:'/.test(NG));
 pOk("P5 · el impacto de la palanca es cifra obligatoria", /impacto en \$ de la palanca va SIEMPRE/.test(NG));
 pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuniones, llamadas/.test(NG));
+pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de cifras)", /CAUSA/.test(NG) && /controller senior/.test(NG) && /causa→consecuencia→movida/.test(NG));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 6}) ──`);
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 7}) ──`);
 process.exit(fail ? 1 : 0);

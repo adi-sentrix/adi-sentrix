@@ -19,6 +19,7 @@ import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
+import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // Perfil comparado · la línea de benchmark/target (criterio-aware: si el owner fijó su vara, ES su vara)
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 const _isDev = ADI_PROFILE === "dev";
 
@@ -2039,8 +2040,8 @@ function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
   const axes = [
     { label: "Ventas",       va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
     { label: "Contribución", va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
-    { label: "Margen",       va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true },
-    { label: "Carga",        va: dA.cargaPct,       vb: dB.cargaPct,       fmt: fp, hiBetter: false },
+    { label: "Margen",       va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true,  ref: benchmarkOf(null),    refLabel: "piso" },
+    { label: "Carga",        va: dA.cargaPct,       vb: dB.cargaPct,       fmt: fp, hiBetter: false, ref: POLICY.targetCarga,   refLabel: "target" },
     { label: "Costo",        va: dA.costoPct,       vb: dB.costoPct,       fmt: fp, hiBetter: false },
   ].filter((ax) => typeof ax.va === "number" && typeof ax.vb === "number");
   const W = 620, H = 216, padT = 30, padB = 42, padL = 52, padR = 34;
@@ -2070,12 +2071,15 @@ function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
           <span style={{ color:colA, fontWeight:600 }}>{a}</span> gana {scoreA} · <span style={{ color:colB, fontWeight:600 }}>{b}</span> gana {scoreB} de {n}
         </span>
       </div>
-      <div style={{ display:"flex", gap:16, margin:"6px 0 2px" }}>
+      <div style={{ display:"flex", gap:16, margin:"6px 0 2px", flexWrap:"wrap" }}>
         {[[a, colA], [b, colB]].map(([nm, col]) => (
           <span key={nm} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
             <span style={{ width:14, height:3, borderRadius:2, background:col, boxShadow:`0 0 6px ${col}88` }}/>{nm}
           </span>
         ))}
+        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.textMuted }}>
+          <span style={{ width:14, height:0, borderTop:`1.5px dashed ${C.amber}`, opacity:0.9 }}/>tu piso / target
+        </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
         {/* estaciones (ejes verticales suaves) + labels */}
@@ -2089,6 +2093,20 @@ function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
         {/* guía de lectura */}
         <text x={padL - 40} y={padT + 2} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>mejor</text>
         <text x={padL - 40} y={H - padB} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>peor</text>
+        {/* la LÍNEA DE BENCHMARK/TARGET por estación (owner 2026-07-07) · criterio-aware · si queda fuera del rango del
+            par se ancla al borde con flecha ("piso 30.1% ↑" = el piso está aún más arriba que ambos → los dos abajo) */}
+        {axes.map((ax, i) => {
+          if (ax.ref == null) return null;
+          const rawY = yOf(ax, ax.ref);
+          const cTop = rawY < padT - 4, cBot = rawY > H - padB + 4;
+          const y = Math.max(padT - 4, Math.min(H - padB + 4, rawY));
+          return (
+            <g key={"ref" + i}>
+              <line x1={xs[i] - 17} x2={xs[i] + 17} y1={y} y2={y} stroke={C.amber} strokeWidth="1.4" strokeDasharray="3 3" opacity="0.9"/>
+              <text x={xs[i] + 21} y={y + 3} fill={C.amber} fontSize="8.5" fontFamily={MONO} opacity="0.95">{ax.refLabel} {ax.fmt(ax.ref)}{cTop ? " ↑" : cBot ? " ↓" : ""}</text>
+            </g>
+          );
+        })}
         {/* las dos líneas (el perfil) · glow premium BARATO (doble trazo, sin filtros SVG — no cuelga compositores lentos) */}
         <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
         <path d={path(ptsB)} fill="none" stroke={colB} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>

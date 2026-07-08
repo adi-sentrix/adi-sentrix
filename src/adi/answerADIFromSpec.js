@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion } from "./specRetrieval.js";   // productores spec-driven genéricos (retrieval/rank · dive · compare · diagnose · simulate · inventory · margin · ventas · contribucion · data-driven del contrato)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, compareCauses } from "./specRetrieval.js";   // productores spec-driven genéricos + capa causal del compare (el motor lee; la capa explica)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -358,7 +358,15 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         // BOLETA (ruta del MOTOR · increment 2): el composer sellado no emite boleta → la derivamos de SU texto (unit-aware).
         // Cierra el garble de marca (1.3× → "13 veces"): el guard del LLM #2 autoriza SOLO las cifras que ADI ya dijo, con su unidad.
         if (out && out.text) {
-          out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `${cmp.entities[0]} vs ${cmp.entities[1]}` }) };
+          // CAPA CAUSAL (owner 2026-07-07 · "un controller senior da causas, no lee datos"): el motor entrega la lectura
+          // estructurada; acá se APPENDEA el por qué ocurre + dónde está la plata + la decisión (mismo dato · una verdad
+          // con el diagnose). Se agrega ANTES de derivar la boleta → toda cifra causal queda autorizada para el narrador.
+          let causesBol = [];
+          if (cdim === "cliente") {
+            const causes = compareCauses(cmp.entities[0], cmp.entities[1], scenario);
+            if (causes) { out.text = out.text + "\n\n" + causes.lines.join("\n\n"); causesBol = causes.bol; }
+          }
+          out.evidence = { ...(out.evidence || {}), boleta: [...boletaFromText(out.text, { context: `${cmp.entities[0]} vs ${cmp.entities[1]}` }), ...causesBol] };
           // PANEL COMPARATIVO de Sentrix: adjunto los pairs A vs B (si AMBAS entidades existen · si falta una, cp=null y el
           // texto del composer ya degradó honesto → sin panel roto). El texto no cambia; esto sólo alimenta la evidencia.
           const cp = comparePairs(cdim, cmp.entities, scenario);
