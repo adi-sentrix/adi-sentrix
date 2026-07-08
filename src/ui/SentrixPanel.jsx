@@ -653,6 +653,16 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
         </div>
         {reading && <div style={{ marginTop:16, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(255,255,255,0.02)", fontSize:12.5, color:C.text, lineHeight:1.55 }}>{reading}</div>}
         <div style={{ fontSize:10.5, color:C.textMuted, marginTop:12, lineHeight:1.5 }}>Verde = quién gana cada métrica (mayor es mejor · en carga, menor). "Gap" = la diferencia más grande. Cifras de dato real de tu cartera.</div>
+        {/* EL PERFIL (owner 2026-07-08): el mismo gráfico de líneas de la Mesa, acá abajo con LOS MISMOS DOS —
+            la tabla prueba, el perfil cuenta la trayectoria. Sin botón de re-preguntar (ya estamos EN la comparación). */}
+        {(() => {
+          const dim = ({ client: "cliente", cliente: "cliente", clientes: "cliente", marca: "marca", bodega: "bodega", sucursal: "bodega", sku: "sku" })[String(evidence.entityType || "cliente").toLowerCase()] || "cliente";
+          if (!CUADRO_DIMS.some((d) => d.key === dim)) return null;
+          const cm = buildCuadroMando(dim, evidence.periodo);
+          const rowA = cm.rows.find((r) => r.name === a), rowB = cm.rows.find((r) => r.name === b);
+          if (!rowA || !rowB) return null;
+          return <div style={{ marginTop: 14 }}><MesaCompare a={a} b={b} rowA={rowA} rowB={rowB} columns={cm.columns} dim={dim} scenario={evidence.periodo} onAsk={null}/></div>;
+        })()}
       </div>
     </div>
   );
@@ -2043,16 +2053,20 @@ function ComparacionChart({ a, b, scenario }) {
 // mensual POR ENTIDAD no existe todavía (se enciende con el ERP) → se dice, no se dibuja (regla madre: no fingir series).
 function StationPeriodo({ a, b }) {
   const [per, setPer] = useState("12");
+  const [hov, setHov] = useState(null);   // índice bajo el cursor → tooltip mes + dato (owner 2026-07-08)
   const ev = buildGlobalEvolution();
   const serie = per === "24" ? ev.seq24.map((x) => x.v) : ev.actual;
-  const labels = per === "24" ? ev.seq24.map((x) => x.mes) : ev.meses;
-  const W = 560, H = 92, padL = 8, padR = 8, padT = 10, padB = 18;
+  const labels = per === "24" ? ev.seq24.map((x) => x.mes + (x.anio === "anterior" ? " (año ant.)" : "")) : ev.meses;
+  const W = 560, H = 98, padL = 8, padR = 8, padT = 14, padB = 18;
   const lo = Math.min(...serie), hi = Math.max(...serie), rng = Math.max(hi - lo, 1);
   const x = (i) => padL + i * (W - padL - padR) / Math.max(1, serie.length - 1);
   const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
   const d = serie.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
   const iMax = serie.indexOf(hi), iMin = serie.indexOf(lo);
   const fmV = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  // tooltip clampeado al viewBox (no se corta en los extremos)
+  const tipW = 108, tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
+  const tipY = hov == null ? 0 : (y(serie[hov]) < 42 ? y(serie[hov]) + 12 : y(serie[hov]) - 34);
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7 }}>
@@ -2060,18 +2074,38 @@ function StationPeriodo({ a, b }) {
           <button key={k} onClick={() => setPer(k)} style={{ padding:"3px 9px", borderRadius:6, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
             border:`1px solid ${per === k ? "rgba(47,184,218,0.5)" : C.border}`, background: per === k ? "rgba(47,184,218,0.10)" : "transparent", color: per === k ? C.celeste : C.textMuted }}>{l}</button>
         ))}
-        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>pico {ev.maxMes} {fmV(ev.max)} · valle {ev.minMes} {fmV(ev.min)}</span>
+        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>pico <span style={{ color:C.green }}>{ev.maxMes} {fmV(ev.max)}</span> · valle <span style={{ color:C.red }}>{ev.minMes} {fmV(ev.min)}</span></span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
         <path d={d} fill="none" stroke={C.celeste} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
         <path d={d} fill="none" stroke={C.celeste} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95"/>
-        <circle cx={x(iMax)} cy={y(hi)} r="3" fill={C.green} stroke="#000" strokeWidth="1"/>
-        <circle cx={x(iMin)} cy={y(lo)} r="3" fill={C.amber} stroke="#000" strokeWidth="1"/>
-        <text x={padL} y={H - 4} fill={C.textMuted} fontSize="8" fontFamily={MONO}>{labels[0]}</text>
-        <text x={W - padR} y={H - 4} textAnchor="end" fill={C.textMuted} fontSize="8" fontFamily={MONO}>{labels[labels.length - 1]}{per === "24" ? " (actual)" : ""}</text>
+        {/* puntito en CADA mes de la curva (owner 2026-07-08) */}
+        {serie.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="2" fill={C.celeste} stroke="#000" strokeWidth="0.8" opacity="0.9"/>)}
+        {/* pico en VERDE y valle en ROJO, parpadeando (SMIL · sin filtros) */}
+        <circle cx={x(iMax)} cy={y(hi)} r="3.6" fill={C.green} stroke="#000" strokeWidth="1">
+          <animate attributeName="opacity" values="1;0.25;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx={x(iMin)} cy={y(lo)} r="3.6" fill={C.red} stroke="#000" strokeWidth="1">
+          <animate attributeName="opacity" values="1;0.25;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <text x={padL} y={H - 4} fill={C.textMuted} fontSize="8" fontFamily={MONO}>{per === "24" ? "Ene (año ant.)" : labels[0]}</text>
+        <text x={W - padR} y={H - 4} textAnchor="end" fill={C.textMuted} fontSize="8" fontFamily={MONO}>{per === "24" ? "Dic (actual)" : labels[labels.length - 1]}</text>
+        {/* HOVER: mes + dato del punto bajo el cursor (owner 2026-07-08 · "pasá por la curva y aparece el mes con el dato") */}
+        <rect x={padL - 4} y={0} width={W - padL - padR + 8} height={H} fill="transparent"
+          onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - r.left) / Math.max(1, r.width); const i = Math.round(rel * (serie.length - 1)); setHov(Math.max(0, Math.min(serie.length - 1, i))); }}
+          onMouseLeave={() => setHov(null)}/>
+        {hov != null && (
+          <g pointerEvents="none">
+            <line x1={x(hov)} x2={x(hov)} y1={padT - 6} y2={H - padB + 4} stroke="rgba(255,255,255,0.22)" strokeWidth="1"/>
+            <circle cx={x(hov)} cy={y(serie[hov])} r="4.2" fill={C.celeste} stroke="#000" strokeWidth="1.3"/>
+            <rect x={tipX} y={tipY} width={tipW} height={26} rx="6" fill="#181715" stroke={C.borderLight} strokeWidth="1"/>
+            <text x={tipX + 8} y={tipY + 11} fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{labels[hov]}</text>
+            <text x={tipX + 8} y={tipY + 21} fill={C.celeste} fontSize="9.5" fontWeight="600" fontFamily={MONO}>{fmV(serie[hov])}</text>
+          </g>
+        )}
       </svg>
       <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
-        La película GLOBAL de tu venta ({per} meses · dato real mensual). El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.
+        La película GLOBAL de tu venta ({per} meses · dato real mensual) — pasá el cursor por la curva para ver cada mes. El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.
       </div>
     </div>
   );
