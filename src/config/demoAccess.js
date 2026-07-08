@@ -3,6 +3,6 @@
  * `whatsapp`: número con código de país SIN "+" ni espacios (ej. "56912345678") — vacío = el botón no aparece. */
 export const DEMO_CONTACT = {
   email: "jc.navsil@gmail.com",
-  whatsapp: "",          // ← poné tu número acá y el botón de WhatsApp aparece solo
+  whatsapp: "56990705021",   // código de país + número, sin "+" ni espacios · el botón de WhatsApp aparece solo
   demoDays: 3,
 };
