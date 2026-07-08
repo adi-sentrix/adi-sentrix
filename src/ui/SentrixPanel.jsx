@@ -2069,12 +2069,12 @@ function StationCompareFilm({ cmp }) {
   const tipW = 128, tipH = 38;
   const tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
   const tipY = hov == null ? 0 : (Math.min(y(A.serie[hov]), y(B.serie[hov])) < tipH + 16 ? H - padB - tipH - 2 : padT - 4);
-  // trayectoria de cada curva: sostenida (sin caídas) o con quiebres (pico/valle/mayor caída con sus MESES)
+  // trayectoria de cada curva: pico/valle y mayor alza/caída CON SUS MESES (owner: "los puntos o meses donde desvíos, alzas")
   const tray = (E, col) => (
     <span>
-      <span style={{ color: col, fontWeight: 600 }}>{E.name}</span> va de {fmV(E.first)} ({meses[0]}) a {fmV(E.last)} ({meses[n - 1]}){E.pct != null ? ` — ${E.pct > 0 ? "+" : ""}${E.pct}%` : ""}{E.sinCaidas
-        ? ", sube sostenido sin caídas"
-        : `; pico en ${E.maxMes} (${fmV(E.max)}), valle en ${E.minMes} (${fmV(E.min)}), la caída más fuerte ${E.drop.from}→${E.drop.mes} (−${fmV(Math.abs(E.drop.delta))})`}.
+      <span style={{ color: col, fontWeight: 600 }}>{E.name}</span>{E.sinCaidas
+        ? <> sube sostenido de {fmV(E.first)} ({meses[0]}) a {fmV(E.last)} ({meses[n - 1]}), sin caídas.</>
+        : <>: pico en <span style={{ color:C.green }}>{E.maxMes}</span> ({fmV(E.max)}), valle en <span style={{ color:C.red }}>{E.minMes}</span> ({fmV(E.min)}); la alza más fuerte {E.growth.from}→{E.growth.mes} (+{fmV(E.growth.delta)}), la caída más fuerte {E.drop.from}→{E.drop.mes} (−{fmV(Math.abs(E.drop.delta))}).</>}{" "}
     </span>
   );
   const lider = cmp.aArribaTodo ? A : cmp.bArribaTodo ? B : null;
@@ -2133,7 +2133,7 @@ function StationCompareFilm({ cmp }) {
           : null}
       </div>
       <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
-        Mensualización del histórico del dataset (año en curso). El mes a mes del año anterior por entidad se enciende con el ERP — no te muestro cifras que no cierran.
+        Tendencia del historial de cada cuenta con la estacionalidad real del negocio (curva global de ventas) — el total del año cierra exacto. El mes a mes fino por entidad y el año anterior se afinan con el histórico del ERP.
       </div>
     </div>
   );

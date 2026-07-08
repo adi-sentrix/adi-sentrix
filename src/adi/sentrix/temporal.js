@@ -73,8 +73,25 @@ export function buildEntityEvolution(name, metric = "venta") {
   const get = _ENTITY_METRICS[metric];
   if (!H || !H.length || !get) return null;
   const meses = H.map((m) => m.mes);
-  const serie = H.map(get);
+  let serie = H.map(get);
   if (serie.some((v) => !Number.isFinite(v))) return null;
+  // La venta del historial viene como TENDENCIA suavizada (rampa). Para que el mes a mes refleje el negocio real
+  // (owner 2026-07-08: "debe reflejar las alzas y bajas, como la curva global"), se modula con la estacionalidad
+  // REAL de la curva global (ventasMensuales) y se re-escala para conservar el total del historial — la misma
+  // técnica `distribuir` que el dataset usa para mensualizar contribución. No se inventa ruido por entidad:
+  // tendencia (dato del historial) × estacionalidad (dato global real), y el total cierra exacto.
+  if (metric === "venta" && Array.isArray(ventasMensuales) && ventasMensuales.length === serie.length) {
+    const g = ventasMensuales.map((m) => Number(m.actual));
+    const gMean = _sum(g) / g.length;
+    if (gMean > 0 && g.every((v) => Number.isFinite(v))) {
+      const total = _sum(serie);
+      let mod = serie.map((v, i) => v * (g[i] / gMean));
+      const k = _sum(mod) ? total / _sum(mod) : 1;
+      mod = mod.map((v) => Math.round(v * k));
+      mod[mod.length - 1] += total - _sum(mod);   // cuadre exacto al total (técnica del dataset)
+      serie = mod;
+    }
+  }
   const n = serie.length;
   const max = Math.max(...serie), min = Math.min(...serie);
   const maxMes = meses[serie.indexOf(max)], minMes = meses[serie.indexOf(min)];
