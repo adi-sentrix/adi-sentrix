@@ -1141,10 +1141,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             </div>
           )}
         </div>
-        {/* el 80/20 · el principio del owner SIEMPRE visible (data-driven: el % real, nunca forzado) */}
+        {/* el 80/20 · el principio del owner SIEMPRE visible (data-driven: el % real, nunca forzado) · EXPLICADO (2026-07-08) */}
         <div>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
-            <div style={head}>El 80/20 · cómo se compone tu venta</div>
+            <div style={{ ...head, display:"flex", alignItems:"center", gap:4 }}>El 80/20 · cómo se compone tu venta<InfoDot def={"El principio de Pareto: pocas cuentas explican la mayor parte del resultado. El corte muestra el % REAL de tu dato (nunca se fuerza el 80). Para qué sirve: saber a quién blindar (el bloque que sostiene la venta) y qué decidir con la cola (crecerla o simplificarla)."} align="left"/></div>
             <div style={{ display:"flex", gap:3 }}>
               {CONCENTRATION_DIMS.map((d) => (
                 <button key={d.key} onClick={() => setConDim(d.key)}
@@ -1168,6 +1168,13 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             ))}
           </div>
           {con.n > bars.length ? <div style={{ fontSize:10.5, color:C.textMuted, marginTop:6 }}>+{con.n - bars.length} más en el cuadro de abajo.</div> : null}
+          {/* la LECTURA del 80/20 (owner 2026-07-08: "si muestra el 80% también debe ser explicado") · qué significa y qué decisión habilita */}
+          <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55, marginTop:9, padding:"9px 11px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(47,184,218,0.03)" }}>
+            <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>
+            {con.blockCount <= Math.ceil(con.n / 2)
+              ? <>Tu venta por {con.label.toLowerCase()} está <b>concentrada</b>: {con.blockCount} de {con.n} {con.plural} cargan el {con.blockPct}% — blindarlos es prioridad (perder uno pega directo), y la cola ({con.n - con.blockCount} {con.plural}) aporta solo el {100 - con.blockPct}%: decidí si la crecés o la simplificás.</>
+              : <>Tu venta por {con.label.toLowerCase()} está <b>repartida</b>: hacen falta {con.blockCount} de {con.n} {con.plural} para juntar el {con.blockPct}% — el riesgo está distribuido; acá pesan más las palancas por {con.label.toLowerCase()} que el blindaje de unos pocos.</>}
+          </div>
         </div>
         {/* el CUADRO DE MANDO · la grilla operable que ya existía (ordenar · filtrar · top-N · seleccionar) */}
         <div>
@@ -1797,12 +1804,13 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           )}
         </div>
       </div>
-      {/* al seleccionar EXACTAMENTE 2 clientes → en la MESA el Perfil comparado (líneas · arriba=mejor); en la lente, el dumbbell */}
-      {dim === "cliente" && sel.length === 2 && (mesa
-        ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} scenario={scenario} onAsk={onAsk}/>
-        : <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/>)}
+      {/* al seleccionar EXACTAMENTE 2 → en la MESA el Perfil comparado para CUALQUIER dimensión (owner 2026-07-08: "en su
+          plenitud" — las estaciones salen de las columnas del eje); en la lente Control, el dumbbell original (cliente). */}
+      {sel.length === 2 && (mesa
+        ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
+        : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar y comparar{dim === "cliente" ? " (2 → gráfico)" : ""} · ordená por cualquier columna{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar y comparar{mesa || dim === "cliente" ? " (2 → gráfico)" : ""} · ordená por cualquier columna{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2027,23 +2035,77 @@ function ComparacionChart({ a, b, scenario }) {
   );
 }
 
-/* ── PERFIL COMPARADO · el gráfico de líneas de la MESA (owner 2026-07-07 · reemplaza al dumbbell SOLO en la Mesa) ──
- * Dos clientes = dos LÍNEAS que recorren las 5 estaciones (Ventas → Contribución → Margen → Carga → Costo). UNA regla de
- * lectura: ARRIBA = MEJOR (en carga y costo la escala se invierte para que estar arriba siempre sea ganar). Donde las
- * líneas se CRUZAN está la historia (uno pone el volumen, el otro la calidad). Cada estación con su cifra real y un aro
- * en el que gana. Vínculo con ADI: "Que ADI los compare a fondo" precarga la comparación completa (boleta + panel). */
-function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
-  const dA = buildMarginDecomposition(a, scenario), dB = buildMarginDecomposition(b, scenario);
-  if (!dA || !dB || !rowA || !rowB) return null;
+// ── StationPeriodo · la estación VENTAS en el tiempo (owner 2026-07-08 · "período que elija el usuario") ──
+// Serie GLOBAL mensual REAL (buildGlobalEvolution · misma verdad que La Historia) con selector 12/24 meses. El corte
+// mensual POR ENTIDAD no existe todavía (se enciende con el ERP) → se dice, no se dibuja (regla madre: no fingir series).
+function StationPeriodo({ a, b }) {
+  const [per, setPer] = useState("12");
+  const ev = buildGlobalEvolution();
+  const serie = per === "24" ? ev.seq24.map((x) => x.v) : ev.actual;
+  const labels = per === "24" ? ev.seq24.map((x) => x.mes) : ev.meses;
+  const W = 560, H = 92, padL = 8, padR = 8, padT = 10, padB = 18;
+  const lo = Math.min(...serie), hi = Math.max(...serie), rng = Math.max(hi - lo, 1);
+  const x = (i) => padL + i * (W - padL - padR) / Math.max(1, serie.length - 1);
+  const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
+  const d = serie.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
+  const iMax = serie.indexOf(hi), iMin = serie.indexOf(lo);
+  const fmV = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7 }}>
+        {[["12", "12 meses"], ["24", "24 meses"]].map(([k, l]) => (
+          <button key={k} onClick={() => setPer(k)} style={{ padding:"3px 9px", borderRadius:6, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
+            border:`1px solid ${per === k ? "rgba(47,184,218,0.5)" : C.border}`, background: per === k ? "rgba(47,184,218,0.10)" : "transparent", color: per === k ? C.celeste : C.textMuted }}>{l}</button>
+        ))}
+        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>pico {ev.maxMes} {fmV(ev.max)} · valle {ev.minMes} {fmV(ev.min)}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        <path d={d} fill="none" stroke={C.celeste} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
+        <path d={d} fill="none" stroke={C.celeste} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95"/>
+        <circle cx={x(iMax)} cy={y(hi)} r="3" fill={C.green} stroke="#000" strokeWidth="1"/>
+        <circle cx={x(iMin)} cy={y(lo)} r="3" fill={C.amber} stroke="#000" strokeWidth="1"/>
+        <text x={padL} y={H - 4} fill={C.textMuted} fontSize="8" fontFamily={MONO}>{labels[0]}</text>
+        <text x={W - padR} y={H - 4} textAnchor="end" fill={C.textMuted} fontSize="8" fontFamily={MONO}>{labels[labels.length - 1]}{per === "24" ? " (actual)" : ""}</text>
+      </svg>
+      <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
+        La película GLOBAL de tu venta ({per} meses · dato real mensual). El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.
+      </div>
+    </div>
+  );
+}
+
+/* ── PERFIL COMPARADO · el gráfico de líneas de la MESA (owner 2026-07-07/08 · EN PLENITUD: todas las dimensiones) ──
+ * Dos entidades = dos LÍNEAS que recorren las estaciones del EJE. UNA regla de lectura: ARRIBA = MEJOR (donde menos es
+ * mejor, la escala se invierte y lo dice). CLIENTE usa las 5 estaciones estructurales (venta→contribución→margen→carga→
+ * costo); SKU/MARCA/BODEGA derivan sus estaciones de LAS COLUMNAS DEL CUADRO (data-driven: mismo fmt, misma dirección —
+ * el gráfico espeja la tabla que el usuario ve). Estación CLICKEABLE → detalle por período (la serie global real cuando
+ * existe; el corte por entidad se enciende con el ERP — honesto). "Que ADI los compare a fondo" precarga la comparación. */
+function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenario, onAsk }) {
+  const [selSt, setSelSt] = useState(null);   // estación seleccionada (detalle por período) · hook SIEMPRE primero
   const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  const fmk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
   const fp = (v) => p1(v) + "%";
-  const axes = [
-    { label: "Ventas",       va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
-    { label: "Contribución", va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
-    { label: "Margen",       va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true,  ref: benchmarkOf(null),    refLabel: "piso" },
-    { label: "Carga",        va: dA.cargaPct,       vb: dB.cargaPct,       fmt: fp, hiBetter: false, ref: POLICY.targetCarga,   refLabel: "target" },
-    { label: "Costo",        va: dA.costoPct,       vb: dB.costoPct,       fmt: fp, hiBetter: false },
-  ].filter((ax) => typeof ax.va === "number" && typeof ax.vb === "number");
+  const fmtOf = { money: fm, moneyk: fmk, pct: fp, x: (v) => r1(v) + "x", int: (v) => Math.round(v).toLocaleString("es-CL"), pp: (v) => p1(v) + "pp" };
+  let axes = [], dA = null, dB = null;
+  if (dim === "cliente") {
+    dA = buildMarginDecomposition(a, scenario); dB = buildMarginDecomposition(b, scenario);
+    if (dA && dB && rowA && rowB) axes = [
+      { label: "Ventas",       va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
+      { label: "Contribución", va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
+      { label: "Margen",       va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true,  ref: benchmarkOf(null),    refLabel: "piso" },
+      { label: "Carga",        va: dA.cargaPct,       vb: dB.cargaPct,       fmt: fp, hiBetter: false, ref: POLICY.targetCarga,   refLabel: "target" },
+      { label: "Costo",        va: dA.costoPct,       vb: dB.costoPct,       fmt: fp, hiBetter: false },
+    ];
+  } else if (rowA && rowB) {
+    // estaciones = las COLUMNAS del cuadro de ese eje (sin acción/gap) · sort "asc" = menos es mejor · refs de POLICY donde aplican
+    axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap").map((c) => ({
+      label: c.label, va: rowA[c.key], vb: rowB[c.key], fmt: fmtOf[c.fmt] || ((v) => String(v)), hiBetter: c.sort !== "asc",
+      ...(c.key === "margen" ? { ref: benchmarkOf(null), refLabel: "piso" } : {}),
+      ...(c.key === "rotacion" ? { ref: POLICY.rotacionMin, refLabel: "piso" } : {}),
+    }));
+  }
+  axes = axes.filter((ax) => typeof ax.va === "number" && typeof ax.vb === "number");
+  if (axes.length < 2) return null;
   const W = 620, H = 216, padT = 30, padB = 42, padL = 52, padR = 34;
   const n = axes.length;
   const xs = axes.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, n - 1));
@@ -2061,8 +2123,9 @@ function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
   const path = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
   const winA = axes.map((ax) => (ax.va === ax.vb ? null : ax.hiBetter ? ax.va > ax.vb : ax.va < ax.vb));
   const scoreA = winA.filter((w) => w === true).length, scoreB = winA.filter((w) => w === false).length;
-  const bWins = dB.margen >= dA.margen;
-  const lever = Math.abs(dA.costoPct - dB.costoPct) >= Math.abs(dA.cargaPct - dB.cargaPct) ? "estructura de costo" : "carga comercial";
+  // veredicto · cliente: la palanca estructural (margen/costo/carga) · otros ejes: el líder del perfil (genérico honesto)
+  const bWins = dim === "cliente" && dA && dB ? dB.margen >= dA.margen : scoreB > scoreA;
+  const lever = dim === "cliente" && dA && dB ? (Math.abs(dA.costoPct - dB.costoPct) >= Math.abs(dA.cargaPct - dB.cargaPct) ? "estructura de costo" : "carga comercial") : null;
   return (
     <Card>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
@@ -2082,11 +2145,11 @@ function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
-        {/* estaciones (ejes verticales suaves) + labels */}
+        {/* estaciones (ejes verticales suaves) + labels · CLICKEABLES → detalle por período (owner 2026-07-08: vida) */}
         {axes.map((ax, i) => (
-          <g key={i}>
-            <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
-            <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600">{ax.label}</text>
+          <g key={i} onClick={() => setSelSt(selSt === ax.label ? null : ax.label)} style={{ cursor: "pointer" }}>
+            <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke={selSt === ax.label ? "rgba(47,184,218,0.35)" : "rgba(255,255,255,0.07)"} strokeWidth={selSt === ax.label ? 1.5 : 1}/>
+            <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={selSt === ax.label ? C.celeste : C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600" style={{ textDecoration: selSt === ax.label ? "underline" : "none" }}>{ax.label}</text>
             {!ax.hiBetter && <text x={xs[i]} y={H - padB + 38} textAnchor="middle" fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>menos = mejor</text>}
           </g>
         ))}
@@ -2128,9 +2191,36 @@ function MesaCompare({ a, b, rowA, rowB, scenario, onAsk }) {
           );
         })}
       </svg>
+      <div style={{ fontSize:10, color:C.textMuted, fontFamily:MONO, marginTop:2 }}>tocá una estación para ver su período ↓</div>
+      {/* DETALLE POR PERÍODO (owner 2026-07-08 · "darle vida al gráfico"): la estación elegida en el tiempo — la serie
+          GLOBAL real cuando existe (ventas mensuales); el corte por entidad se enciende con el ERP (honesto, sin fingir). */}
+      {selSt && (() => {
+        const ax = axes.find((x) => x.label === selSt);
+        if (!ax) return null;
+        return (
+          <div style={{ marginTop:10, padding:"11px 13px", border:"1px solid rgba(47,184,218,0.25)", borderRadius:10, background:"rgba(47,184,218,0.04)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
+              <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.6px", color:C.celeste, textTransform:"uppercase" }}>{ax.label} · por período</span>
+              <button onClick={() => setSelSt(null)} style={{ background:"transparent", border:"none", color:C.textMuted, cursor:"pointer", fontSize:12 }}>✕</button>
+            </div>
+            <div style={{ fontSize:12, color:C.textSub, marginBottom:8 }}>
+              Hoy (dato real): <span style={{ color:colA, fontFamily:MONO, fontWeight:600 }}>{a} {ax.fmt(ax.va)}</span> · <span style={{ color:colB, fontFamily:MONO, fontWeight:600 }}>{b} {ax.fmt(ax.vb)}</span>
+            </div>
+            {/venta/i.test(ax.label) ? <StationPeriodo a={a} b={b}/> : (
+              <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
+                El histórico mensual de {ax.label.toLowerCase()} se enciende con el ERP — hoy tengo el período actual (arriba, dato real). No te dibujo una serie que no existe.
+              </div>
+            )}
+          </div>
+        );
+      })()}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginTop:8, paddingTop:9, borderTop:`1px solid ${C.border}` }}>
         <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, minWidth:0 }}>
-          <span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>. Donde las líneas se cruzan, cambia quién gana.
+          {lever
+            ? <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>. Donde las líneas se cruzan, cambia quién gana.</>
+            : scoreA === scoreB
+            ? <>Perfil parejo — <span style={{ color:colA, fontWeight:600 }}>{a}</span> y <span style={{ color:colB, fontWeight:600 }}>{b}</span> ganan las mismas estaciones. Donde las líneas se cruzan, cambia quién gana.</>
+            : <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> domina el perfil ({Math.max(scoreA, scoreB)} de {n} estaciones). Donde las líneas se cruzan, cambia quién gana.</>}
         </div>
         {onAsk ? (
           <button onClick={() => onAsk(`Compará ${a} vs ${b}`)} title={`Preguntale a ADI: Compará ${a} vs ${b}`}
