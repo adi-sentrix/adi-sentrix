@@ -202,9 +202,10 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   if (spec.schemaVersion !== SCHEMA_VERSION)
     return _degrade("version", `Este pedido viene en un formato que no reconozco (schemaVersion ${spec.schemaVersion}). Hoy soporto la versión ${SCHEMA_VERSION}.`, [], ctx);
 
-  // ── #1 · operación soportada ──
+  // ── #1 · operación soportada · el degrade habla en VOCABULARIO DE PRODUCTO (bug cazado por el owner 2026-07-07:
+  //     el enum interno "overview, rank, compare…" se filtraba al usuario cuando el LLM emitía una operación inválida) ──
   if (!OPERATIONS.has(spec.operation))
-    return _degrade("unsupported-op", `No sé hacer "${spec.operation}". Hoy puedo: ${[...OPERATIONS].join(", ")}.`, [], ctx);
+    return _degrade("unsupported-op", `Eso todavía no lo tengo como análisis directo. Lo que sí puedo: mirar tus ventas, margen, contribución o inventario · comparar dos cuentas · profundizar en una ("profundiza en…") · o diagnosticar dónde se te va la plata ("¿dónde estoy perdiendo dinero?").`, [], ctx);
 
   // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
   if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && (!spec.metric || !METRICS[spec.metric]))

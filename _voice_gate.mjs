@@ -66,6 +66,7 @@ pOk("P5 · el impacto de la palanca es cifra obligatoria", /impacto en \$ de la 
 pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuniones, llamadas/.test(NG));
 pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de cifras)", /CAUSA/.test(NG) && /controller senior/.test(NG) && /causa→consecuencia→movida/.test(NG));
 pOk("P8 · NOMBRES sagrados (el garble 'Falcon' por 'Falabella', cazado en vivo)", /NOMBRES \(sagrados/.test(NG) && /'Falcon' por 'Falabella' NO/.test(NG));
+pOk("P9 · DIRECCIONES sagradas (inversión 'sobre'→'debajo' cazada en vivo)", /DIRECCIONES \(sagradas\)/.test(NG) && /NUNCA las inviertas/.test(NG));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 8}) ──`);
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 9}) ──`);
 process.exit(fail ? 1 : 0);

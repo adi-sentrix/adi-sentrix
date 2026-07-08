@@ -255,6 +255,30 @@ export function composeCriteria(ci) {
   return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
 }
 
+// ── ACEPTACIÓN · "sí" pelado tras una oferta de ADI (bug cazado por el owner 2026-07-07): EJECUTA la continuación
+// natural de la última evidencia — tras un COMPARE, el dive CAUSAL de la cuenta floja (la que pierde margen: la que la
+// oferta proponía trabajar); tras una lectura de dominio, el dive de la primera entidad nombrada; tras un diagnóstico,
+// la recomendación. Nunca vuelve al LLM a adivinar, nunca degrada con vocabulario interno. ──────────────────────────
+export function composeAccept(spec, ctx, state) {
+  const last = ctx && ctx.last;
+  if (!last) return _needLast();
+  const a = last.compareA || last.entidad, b = last.compareB || last.entityB;
+  if (a && b && Array.isArray(last.pairs) && last.pairs.length) {
+    const mp = last.pairs.find((p) => /margen/i.test(String(p.label)));
+    const target = (mp && typeof mp.aVal === "number" && typeof mp.bVal === "number") ? (mp.aVal <= mp.bVal ? a : b) : a;
+    const dim = (last.entityType && ENTITIES[last.entityType]) ? last.entityType : "cliente";
+    return answerADIFromSpec({ schemaVersion: 1, operation: "dive", dimension: dim, entity: target, scenario: "actual" }, ctx, state);
+  }
+  const el = last.entityList;
+  if (el && Array.isArray(el.entities) && el.entities.length) {
+    const dim = (el.dimension && ENTITIES[el.dimension]) ? el.dimension : "cliente";
+    return answerADIFromSpec({ schemaVersion: 1, operation: "dive", dimension: dim, entity: el.entities[0], scenario: "actual" }, ctx, state);
+  }
+  const rec = composeFollowupRecommendation(last);
+  if (rec) return rec;
+  return _clarify("Dale — ¿seguimos con lo último o miramos otra cosa? Decime la cuenta o el foco y arranco.");
+}
+
 // ── REGISTRY · turn_type → resolver. Sumar una fase = sumar una entrada (V2-V6), NO reestructurar. ───────────────────
 const TURN_RESOLVERS = {
   new_query:                  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1
@@ -267,6 +291,7 @@ const TURN_RESOLVERS = {
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)
   multi_analysis:             (spec, ctx, state) => composeMulti(spec, ctx, state),                        // V3 · cruce de lentes (Frente C.1 · secciones por composer · boletas mergeadas · evidence.multi)
   apply_criteria:             (spec) => composeCriteria(spec && spec.criteria),                            // V5 · memoria de criterio (Frente C.2 · metas/benchmarks del owner · una verdad vía POLICY)
+  followup_accept:            (spec, ctx, state) => composeAccept(spec, ctx, state),                       // "sí" pelado → ejecutar la oferta (dive causal de la cuenta floja / primera nombrada / recomendación)
   // ── V4 · recall_analysis: (spec, ctx) => composeRecall(spec, ctx.history)
   // ── V5 · session_resume / apply_criteria: (spec, ctx) => ... (ctx.session / ctx.criteria · con permiso)
   // ── V6 · help / navigate / meta ampliado
@@ -290,6 +315,13 @@ export function resolveTurn(turnType, spec, ctx, state) {
 export function answerConversational(spec, context = {}, state = {}) {
   const last = (context && context.lastEvidence) || null;
   let tt = spec && spec.turn_type;
+  // BLINDAJE del campo operation (bug cazado por el owner 2026-07-07): el LLM #1 a veces pone un TURN_TYPE en OPERATION
+  // ("operation":"followup_compare") → el seam lo rechazaba y el degrade filtraba vocabulario interno al usuario. Un
+  // operation con forma de turn_type ES un turn_type: se migra de campo (resolver conocido) o cae a recomendación contextual.
+  if (spec && /^(followup_|recall_|session_|apply_|meta_|multi_)/.test(String(spec.operation || ""))) {
+    tt = TURN_RESOLVERS[spec.operation] ? spec.operation : (tt && TURN_RESOLVERS[tt] ? tt : "followup_recommendation");
+    spec = { ...spec, operation: undefined };
+  }
   // ROBUSTEZ V2 (no depender de la clasificación del LLM): "compáralo con X" a veces llega como new_query + operation
   // compare con UNA sola entidad (el target). Un compare con <2 entidades es un followup ELÍPTICO → composeCompare
   // rellena el sujeto desde el contexto (o degrada honesto si no hay). Un compare con 2 entidades explícitas sigue normal.

@@ -109,6 +109,25 @@ const h1sku = ((h1.evidence && h1.evidence.inventory && h1.evidence.inventory.by
 ok("inventory scopeado a los SKU heredados", h1._spec.operation === "inventory" && h1._spec._deictic === true && h1sku.length > 0 && subset(h1sku, F.entities));
 ok("inventory scopeado lleva la marca de voz", /De los que veníamos mirando/.test(h1.text || ""));
 
+console.log("\n── I · ACEPTACIÓN («sí» pelado ejecuta la oferta) + blindaje anti-leak (bug del owner 2026-07-07) ──");
+// tras un COMPARE, "sí" → el dive CAUSAL de la cuenta floja (la que pierde margen — la que la oferta proponía trabajar)
+const cmpEv = AC({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] }, turn_type: "new_query" }, {}, {}).evidence;
+const si1 = run("sí", { lastEvidence: cmpEv }, true);
+ok("«sí» tras compare → turn_type followup_accept", si1._spec.turn_type === "followup_accept");
+ok("…y ejecuta el DIVE CAUSAL del que pierde margen (Lider 21.5 < Falabella 22)", /Lider/.test(si1.text) && /\*\*Por qué está donde está:\*\*/.test(si1.text) && !/No sé hacer|followup/.test(si1.text));
+// tras una lectura de dominio, "dale" → profundiza la primera entidad nombrada
+const mEv = AC({ schemaVersion: 1, operation: "margin", metric: "margen", dimension: "cliente", focus: "bajo_benchmark", turn_type: "new_query" }, {}, {}).evidence;
+const si2 = run("dale", { lastEvidence: mEv }, true);
+ok("«dale» tras margen → dive de la primera nombrada (con su capa causal)", si2._spec.turn_type === "followup_accept" && /\*\*Por qué (está donde está|gana):\*\*/.test(si2.text));
+ok("«sí» SIN contexto NO es aceptación (no hay oferta que ejecutar)", C("sí", base("sí"), false).turn_type !== "followup_accept");
+ok("una pregunta larga que empieza con «sí» NO es aceptación", C("sí pero mostrame el margen de los clientes primero", base(""), true).turn_type !== "followup_accept");
+// BLINDAJE · el LLM pone un turn_type en OPERATION → se migra de campo (nunca el degrade con enum interno)
+const leak1 = AC({ schemaVersion: 1, operation: "followup_compare", metric: "margen", dimension: "cliente", comparison: { entities: ["Falabella"] }, turn_type: "new_query" }, { lastEvidence: mEv }, {});
+ok("operation:'followup_compare' → se trata como turn_type (no degrada)", !/No sé hacer|overview, rank|followup_compare/.test(leak1.text));
+// NO-LEAK · una operación basura degrada en VOCABULARIO DE PRODUCTO (sin el enum interno)
+const leak2 = AC({ schemaVersion: 1, operation: "hacer_magia", metric: "margen", dimension: "cliente", turn_type: "new_query" }, {}, {});
+ok("degrade de operación desconocida SIN vocabulario interno (enum/turn_types)", !/overview, rank|followup|schemaVersion/.test(leak2.text) && /profundizar|diagnosticar/i.test(leak2.text));
+
 console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
 ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
 ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);

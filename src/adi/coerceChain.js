@@ -128,6 +128,11 @@ function _coerceMulti(q, spec) {
   return _cleanFilters(s);
 }
 
+// ACEPTACIÓN ("sí" / "dale" / "hazlo" pelado · bug cazado por el owner 2026-07-07): tras una oferta de ADI ("¿te gustaría
+// que profundizara?"), un "sí" debe EJECUTAR la oferta — no volver al LLM a adivinar (clasificaba turn_types como
+// operations y el seam degradaba con vocabulario interno). Solo mensajes CORTOS que son pura afirmación.
+const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de una|h[aá]z?lo|hacelo|adelante|me parece( bien)?|por ?favor|porfa|s[ií],?\s+(dale|claro|porfa|por ?favor|profundiz[aá]|hazlo|hacelo|adelante))[\s.!…]*$/i;
+
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia) → spec ruteado al dominio+foco correcto (o el spec original).
 export function coerceSpec(q, spec, hasLast) {
   // MEMORIA DE CRITERIO (V5 · Frente C.2): "recordá que mi margen mínimo es 28%" / "¿qué recordás?" / "olvidá X" corre
@@ -135,6 +140,7 @@ export function coerceSpec(q, spec, hasLast) {
   if (q && spec) {
     const ci = detectCriteriaIntent(q);
     if (ci) return { ...spec, turn_type: "apply_criteria", criteria: ci };
+    if (hasLast && String(q).length <= 28 && _AFFIRM_RE.test(q)) return { ...spec, turn_type: "followup_accept" };
   }
   const afterCompare = _coerceCompare(q, spec);
   const multi = _coerceMulti(q, afterCompare);
