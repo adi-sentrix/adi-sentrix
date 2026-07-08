@@ -27,6 +27,15 @@ export default function App({ animate = true }) {
   // ── DEMO PRIVADA (owner 2026-07-08): con ADI_TOKEN_SECRET en el server la app pide código de 3 días. Sin secret
   // (dev/backcompat) el status dice required:false y no cambia nada. El server es LA verdad (el cliente solo pregunta).
   const [access, setAccess] = useState({ checked: false, required: false, granted: null, reason: null, expiresAt: null });
+  // MOBILE (owner 2026-07-08: "la primera impresión desde el celular"): en pantallas chicas el panel Sentrix
+  // pasa de columna lateral a OVERLAY a pantalla completa (460px fijos no entran en un viewport de 375).
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 760px)");
+    const on = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -72,7 +81,7 @@ export default function App({ animate = true }) {
   if (access.required && !access.granted) return <AccessGate onGranted={(g) => setAccess((a) => ({ ...a, granted: g }))} reason={access.reason} expiresAt={access.expiresAt}/>;
 
   return (
-    <div style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+    <div className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* ── HEADER ── */}
       <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
@@ -88,7 +97,7 @@ export default function App({ animate = true }) {
           </div>
           <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
             <span style={{ fontWeight:700, fontSize:14, letterSpacing:"-0.3px", color:C.text }}>ADI</span>
-            <span style={{ fontWeight:500, fontSize:10.5, color:C.textMuted, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
+            <span className="hdr-sub" style={{ fontWeight:500, fontSize:10.5, color:C.textMuted, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
           </div>
         </div>
 
@@ -112,7 +121,7 @@ export default function App({ animate = true }) {
           {ADI_SCENARIO_SWITCHER_ENABLED ? (
             <ScenarioSelector scenario={scenario} onChange={setScenario}/>
           ) : (
-            <div title="Estás viendo los datos actuales del negocio"
+            <div title="Estás viendo los datos actuales del negocio" className="hdr-datos"
               style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:`1px solid ${C.border}`, background:C.surface, flexShrink:0, whiteSpace:"nowrap" }}>
               <span style={{ width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}/>
               <span style={{ fontSize:11, fontWeight:600, color:C.textSub, letterSpacing:"-0.005em" }}>Datos actuales</span>
@@ -122,7 +131,7 @@ export default function App({ animate = true }) {
           {access.granted && access.granted.expiresAt && (() => {
             const dias = Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000));
             return (
-              <div title={`Hola ${access.granted.name} — tu demo vence el ${new Date(access.granted.expiresAt).toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`}
+              <div title={`Hola ${access.granted.name} — tu demo vence el ${new Date(access.granted.expiresAt).toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`} className="hdr-demo"
                 style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap", border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.03)" }}>
                 <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase" }}>
                   Demo · {dias <= 1 ? "último día" : `quedan ${dias} días`}
@@ -160,7 +169,12 @@ export default function App({ animate = true }) {
               openEvidenceId={openId}
               registerAsk={(fn) => { askRef.current = fn; }}/>
           </div>
-          {openEv && (
+          {openEv && (isMobile ? (
+            /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */
+            <div style={{ position:"fixed", inset:0, zIndex:60, background:C.bg, display:"flex", flexDirection:"column" }}>
+              <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={null} maximized={true} onAsk={(q) => { closePanel(); if (askRef.current) askRef.current(q); }}/>
+            </div>
+          ) : (
             <>
               {/* divisor arrastrable (estilo Code) */}
               <div onMouseDown={startResize} title="Arrastrar para redimensionar"
@@ -171,7 +185,7 @@ export default function App({ animate = true }) {
                 <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q) => { if (askRef.current) askRef.current(q); }}/>
               </div>
             </>
-          )}
+          ))}
         </div>
       </main>
 
@@ -194,7 +208,20 @@ export default function App({ animate = true }) {
         /* responsive del header · ocultar progresivamente lo menos esencial (deja escenario + badge de modo) */
         @media (max-width: 1040px) { .hdr-date { display:none !important; } }
         @media (max-width: 900px)  { .hdr-live-text { display:none !important; } }
-        @media (max-width: 620px)  { .hdr-esc-label, .hdr-esc-word, .hdr-live { display:none !important; } }
+        @media (max-width: 620px)  { .hdr-esc-label, .hdr-esc-word, .hdr-live, .hdr-datos { display:none !important; } }
+        /* MOBILE (owner 2026-07-08 · primera impresión desde el celular): header lean (logo + Mesa + IA) ·
+           inputs a 16px para que iOS no haga zoom-jump al tocar el campo */
+        @media (max-width: 480px)  {
+          .hdr-demo, .hdr-sub { display:none !important; }
+          header { padding: 0 12px !important; }
+        }
+        @media (max-width: 760px)  {
+          input, textarea { font-size: 16px !important; }
+        }
+        /* Safari/Chrome móvil: 100vh incluye la barra de URL y esconde el input — dvh mide el viewport REAL */
+        @supports (height: 100dvh) {
+          .app-root { height: 100dvh !important; }
+        }
         @keyframes auroraBreathe { 0%,100%{opacity:0.6} 50%{opacity:1} }
         @keyframes livePulse {
           0%  { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); transform:scale(1); }
