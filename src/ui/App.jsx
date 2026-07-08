@@ -2,11 +2,13 @@
  * Raíz de la app. Por ahora: header (logo + LIVE + escenario) + ChatADI corriendo como app real.
  * SIN panel de datos / módulos todavía (entran en el próximo paso de Fase 5).
  * Estado UI mínimo: escenario. La UI no calcula nada · el chat consume answerADI. */
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { C } from "./theme.js";
 import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
 import { SentrixPanel } from "./SentrixPanel.jsx";   // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura)
+import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
+import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 
@@ -22,6 +24,25 @@ const getCurrentDateString = () => {
 
 export default function App({ animate = true }) {
   const [scenario, setScenario] = useState("bonanza");
+  // ── DEMO PRIVADA (owner 2026-07-08): con ADI_TOKEN_SECRET en el server la app pide código de 3 días. Sin secret
+  // (dev/backcompat) el status dice required:false y no cambia nada. El server es LA verdad (el cliente solo pregunta).
+  const [access, setAccess] = useState({ checked: false, required: false, granted: null, reason: null, expiresAt: null });
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/adi-access", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "check", access: getAccessCode() }) });
+        const d = await res.json();
+        if (!alive) return;
+        if (!d || d.required === false) setAccess({ checked: true, required: false, granted: null, reason: null, expiresAt: null });
+        else if (d.ok) setAccess({ checked: true, required: true, granted: { name: d.name, expiresAt: d.expiresAt }, reason: null, expiresAt: d.expiresAt });
+        else { const had = !!getAccessCode(); clearAccessCode(); setAccess({ checked: true, required: true, granted: null, reason: had ? d.reason : null, expiresAt: d.expiresAt || null }); }
+      } catch { if (alive) setAccess({ checked: true, required: false, granted: null, reason: null, expiresAt: null }); }   // gateway caído → no bloquear el piso
+    })();
+    const onDenied = (ev) => { clearAccessCode(); setAccess({ checked: true, required: true, granted: null, reason: (ev && ev.detail) || "expired", expiresAt: null }); };
+    window.addEventListener("adi-access-denied", onDenied);
+    return () => { alive = false; window.removeEventListener("adi-access-denied", onDenied); };
+  }, []);
   // Etapa 5 · Sentrix · estado del panel de evidencia (la "mesa de trabajo" estilo Code, a la derecha).
   const [openEv, setOpenEv]   = useState(null);   // la boleta abierta (con reading{}) · null = panel cerrado
   const [openId, setOpenId]   = useState(null);   // id del mensaje cuya evidencia está abierta (highlight del botón)
@@ -42,6 +63,13 @@ export default function App({ animate = true }) {
     window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
     document.body.style.userSelect = "none";
   };
+
+  // DEMO PRIVADA · returns condicionales DESPUÉS de todos los hooks (rules of hooks): puerta/admin/splash.
+  const _hash = typeof window !== "undefined" ? window.location.hash : "";
+  if (_hash === "#admin") return <AdminAccess/>;                        // el owner emite códigos (la clave la valida el server)
+  if (_hash === "#acceso" && !access.granted) return <AccessGate onGranted={(g) => { setAccess((a) => ({ ...a, checked: true, granted: g })); window.location.hash = ""; }} reason={access.reason} expiresAt={access.expiresAt}/>;   // vista previa de la puerta
+  if (!access.checked) return <div style={{ height:"100vh", background:C.bg }}/>;   // sin flash del producto antes del veredicto
+  if (access.required && !access.granted) return <AccessGate onGranted={(g) => setAccess((a) => ({ ...a, granted: g }))} reason={access.reason} expiresAt={access.expiresAt}/>;
 
   return (
     <div style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
@@ -90,6 +118,18 @@ export default function App({ animate = true }) {
               <span style={{ fontSize:11, fontWeight:600, color:C.textSub, letterSpacing:"-0.005em" }}>Datos actuales</span>
             </div>
           )}
+          {/* Demo privada · saludo + vencimiento del código (solo cuando el acceso está activo) */}
+          {access.granted && access.granted.expiresAt && (() => {
+            const dias = Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000));
+            return (
+              <div title={`Hola ${access.granted.name} — tu demo vence el ${new Date(access.granted.expiresAt).toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`}
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap", border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.03)" }}>
+                <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase" }}>
+                  Demo · {dias <= 1 ? "último día" : `quedan ${dias} días`}
+                </span>
+              </div>
+            );
+          })()}
           {/* Modo demo vs IA · lee ADI_LLM_ENABLED (build-time) · nunca expone la key */}
           <div title={ADI_LLM_ENABLED ? "Modo IA · el LLM traduce tu pregunta a un spec; ADI calcula, valida y decide (no inventa cifras)" : "Modo demo · motor determinístico, sin LLM ni gasto"}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap",

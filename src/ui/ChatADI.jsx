@@ -13,6 +13,7 @@ import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · 
 import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
 import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
+import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -63,12 +64,22 @@ export function buildAdiTurn(question, context, scenario) {
 
 // CAMINO LLM (ADI_LLM_ENABLED ON · ASYNC): texto → gateway (server-side, tiene la key) → spec → answerADIFromSpec LOCAL.
 // Regla: el LLM SOLO traduce a spec · ADI valida y ejecuta/degrada honesto. Si el gateway falla → CAE AL PISO (answerADI).
+// DEMO PRIVADA: si el server niega el acceso (código vencido/ausente con ADI_TOKEN_SECRET activo), se avisa a App
+// (evento → pantalla de acceso) y este turno cae al piso. Sin secret en el server, `access` viaja null y no pasa nada.
+function _accessDenied(data) {
+  if (data && data.access === "denied") {
+    try { window.dispatchEvent(new CustomEvent("adi-access-denied", { detail: data.reason || "invalid" })); } catch { /* headless */ }
+    return true;
+  }
+  return false;
+}
 async function _fetchSpec(text, scenario, context) {
   const res = await fetch("/api/adi-spec", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, scenario, context: context || null }),   // conversationContext → el LLM #1 clasifica turn_type
+    body: JSON.stringify({ text, scenario, context: context || null, access: getAccessCode() }),   // conversationContext → el LLM #1 clasifica turn_type
   });
   const data = await res.json();
+  if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin spec");
   return data.spec;
 }
@@ -76,9 +87,10 @@ async function _fetchSpec(text, scenario, context) {
 async function _fetchNarration(validated) {
   const res = await fetch("/api/adi-narrate", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text: _sanitizeScenario(validated.text), evidence: validated.evidence || null }),
+    body: JSON.stringify({ text: _sanitizeScenario(validated.text), evidence: validated.evidence || null, access: getAccessCode() }),
   });
   const data = await res.json();
+  if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
   return data.narration;
 }

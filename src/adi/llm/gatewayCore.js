@@ -12,21 +12,62 @@ import { buildContractMenu, buildParseUserMessage } from "./contractMenu.js";
 import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
+import { verifyAccessCode, makeAccessCode } from "./accessToken.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
 // `env` inyectable para runtimes que no exponen process.env global (ej. Cloudflare Workers) · default process.env.
+function _env(env) {
+  return env || (typeof process !== "undefined" ? process.env : {}) || {};
+}
 function _config(env) {
-  const e = env || (typeof process !== "undefined" ? process.env : {}) || {};
+  const e = _env(env);
   const provider = e.LLM_PROVIDER || "anthropic";
   const model = e.LLM_MODEL_PARSE || e.OPENAI_MODEL || e.ANTHROPIC_MODEL || "gpt-4o-mini";
   const narrateModel = e.LLM_MODEL_NARRATE || model;
   return { provider, model, narrateModel };
 }
 
+// ── ACCESO DEMO PRIVADA (owner 2026-07-08) ──────────────────────────────────────────────────────────────────────
+// Con ADI_TOKEN_SECRET seteado, TODA llamada al LLM exige un código firmado vigente (body.access) — es lo que
+// protege la key del proveedor cuando el link circula. Sin secret → gateway abierto (dev/backcompat intactos).
+// La denegación viaja como {ok:false, access:"denied"} → el cliente muestra la pantalla de acceso (no rompe el piso).
+async function _access(accessCode, env) {
+  const secret = _env(env).ADI_TOKEN_SECRET;
+  if (!secret) return { ok: true, open: true };
+  const r = await verifyAccessCode(accessCode, secret);
+  return r.ok ? { ok: true } : { ok: false, reason: r.reason, expiresAt: r.expiresAt || null };
+}
+
+// /api/adi-access · status (¿la demo exige código?) · check (validar un código) · mint (emitir uno · solo admin)
+export async function handleAccess(body = {}, env) {
+  const e = _env(env);
+  const secret = e.ADI_TOKEN_SECRET || "";
+  const op = body.op || "status";
+  if (op === "status") return { ok: true, required: !!secret };
+  if (op === "check") {
+    if (!secret) return { ok: true, required: false };
+    const r = await verifyAccessCode(body.access, secret);
+    return r.ok
+      ? { ok: true, required: true, name: r.name, expiresAt: r.expiresAt }
+      : { ok: false, required: true, reason: r.reason, expiresAt: r.expiresAt || null };
+  }
+  if (op === "mint") {
+    const adminKey = e.ADI_ADMIN_KEY;
+    if (!secret || !adminKey || !body.adminKey || body.adminKey !== adminKey) return { ok: false, error: "sin autorización" };
+    const name = String(body.name || "").trim().slice(0, 40) || "invitado";
+    const hours = Math.min(Math.max(Number(body.hours) || 72, 1), 24 * 14);   // 1h a 14 días · default 3 días
+    const { code, expiresAt } = await makeAccessCode(name, hours, secret);
+    return { ok: true, code, expiresAt, name };
+  }
+  return { ok: false, error: "op desconocida" };
+}
+
 // LLM #1 · texto (+ contexto de conversación) → spec · devuelve {ok, spec, usage} | {ok:false, error}
 // El `context` (conversationContext · turnos + última evidencia) viaja al LLM #1 vía buildParseUserMessage → clasifica
 // turn_type y resuelve referencias. El motor/seam sigue validando; el contexto NO habilita saltar guards.
-export async function handleSpec({ text, context } = {}, env) {
+export async function handleSpec({ text, context, access } = {}, env) {
+  const acc = await _access(access, env);
+  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
   if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
   const { provider, model } = _config(env);
   const userMessage = buildParseUserMessage(context, text);
@@ -35,7 +76,9 @@ export async function handleSpec({ text, context } = {}, env) {
 }
 
 // LLM #2 · output validado → narración · el number-guard corre en el CLIENTE (si falla → texto determinístico)
-export async function handleNarrate({ text, evidence } = {}, env) {
+export async function handleNarrate({ text, evidence, access } = {}, env) {
+  const acc = await _access(access, env);
+  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
   if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
   const { provider, narrateModel } = _config(env);
   const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
@@ -47,4 +90,5 @@ export async function handleNarrate({ text, evidence } = {}, env) {
 export const GATEWAY_ROUTES = {
   "/api/adi-spec": handleSpec,
   "/api/adi-narrate": handleNarrate,
+  "/api/adi-access": handleAccess,   // demo privada · status/check/mint (owner 2026-07-08)
 };

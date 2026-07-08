@@ -5,7 +5,7 @@
  * Reversible: sacar el plugin de vite.config = como si no existiera.
  */
 import fs from "fs";
-import { handleSpec, handleNarrate } from "./gatewayCore.js";
+import { handleSpec, handleNarrate, handleAccess } from "./gatewayCore.js";
 
 // carga el .env local a process.env (server-side, SOLO dev) · la key vive acá, jamás en el cliente ni en logs.
 // En prod las env vars las setea la plataforma (no hay .env) → el server de prod NO usa esto.
@@ -38,6 +38,7 @@ export function adiGatewayPlugin() {
 
       mount("/api/adi-spec", handleSpec);       // LLM #1 · texto → spec
       mount("/api/adi-narrate", handleNarrate); // LLM #2 · output validado → narración
+      mount("/api/adi-access", handleAccess);   // demo privada · status/check/mint (sin ADI_TOKEN_SECRET = abierto)
 
       const provider = process.env.LLM_PROVIDER || "anthropic";
       console.log(`[adi-gateway dev] montado · /api/adi-spec + /api/adi-narrate · provider=${provider} (key del .env · server-side · lógica en gatewayCore)`);
