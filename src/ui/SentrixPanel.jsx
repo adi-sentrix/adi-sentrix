@@ -1145,7 +1145,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
                   style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
-                  <span style={{ fontSize:14.5, fontWeight:600, color:C.amber, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
+                  <span style={{ fontSize:14.5, fontWeight:600, color:C.celeste, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
                   <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
                 </button>
               ))}
@@ -2069,13 +2069,13 @@ function StationCompareFilm({ cmp }) {
   const tipW = 128, tipH = 38;
   const tipX = hov == null ? 0 : Math.max(padL, Math.min(W - padR - tipW, x(hov) - tipW / 2));
   const tipY = hov == null ? 0 : (Math.min(y(A.serie[hov]), y(B.serie[hov])) < tipH + 16 ? H - padB - tipH - 2 : padT - 4);
-  // trayectoria de cada curva: pico/valle y mayor alza/caída CON SUS MESES (owner: "los puntos o meses donde desvíos, alzas")
+  // las alzas y bajas de cada curva, en PUNTOS SEPARADOS y en lenguaje de negocio (owner 2026-07-08: sin "pico/valle")
   const tray = (E, col) => (
-    <span>
+    <div style={{ marginBottom: 4 }}>
       <span style={{ color: col, fontWeight: 600 }}>{E.name}</span>{E.sinCaidas
-        ? <> sube sostenido de {fmV(E.first)} ({meses[0]}) a {fmV(E.last)} ({meses[n - 1]}), sin caídas.</>
-        : <>: pico en <span style={{ color:C.green }}>{E.maxMes}</span> ({fmV(E.max)}), valle en <span style={{ color:C.red }}>{E.minMes}</span> ({fmV(E.min)}); la alza más fuerte {E.growth.from}→{E.growth.mes} (+{fmV(E.growth.delta)}), la caída más fuerte {E.drop.from}→{E.drop.mes} (−{fmV(Math.abs(E.drop.delta))}).</>}{" "}
-    </span>
+        ? <> — sube sostenido de {fmV(E.first)} ({meses[0]}) a {fmV(E.last)} ({meses[n - 1]}), sin retrocesos.</>
+        : <> — la subida fuerte llega {E.growth.from}→{E.growth.mes} (+{fmV(E.growth.delta)}) y el freno {E.drop.from}→{E.drop.mes} (−{fmV(Math.abs(E.drop.delta))}); su mejor mes es <span style={{ color:C.green }}>{E.maxMes}</span> ({fmV(E.max)}) y el más flojo <span style={{ color:C.red }}>{E.minMes}</span> ({fmV(E.min)}).</>}
+    </div>
   );
   const lider = cmp.aArribaTodo ? A : cmp.bArribaTodo ? B : null;
   const brechaAbre = Math.abs(cmp.gapHoy) > Math.abs(cmp.gapInicio);
@@ -2122,15 +2122,18 @@ function StationCompareFilm({ cmp }) {
           </g>
         )}
       </svg>
-      {/* LECTURA DEL PERÍODO (owner: "debería decir los puntos o meses donde desvíos, alzas, etc.") — derivada de la serie */}
+      {/* LECTURA DEL PERÍODO (owner: alzas y bajas por cliente en puntos separados · la brecha en punto aparte) */}
       <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
-        {tray(A, colA)} {tray(B, colB)}{" "}
-        La brecha va de {fmV(Math.abs(cmp.gapInicio))} ({meses[0]}) a {fmV(Math.abs(cmp.gapHoy))} ({meses[n - 1]}) — {brechaAbre ? "se abre" : "se cierra"} con el año, más ancha en {cmp.wideMes} ({fmV(Math.abs(cmp.wideGap))}).{" "}
-        {lider
-          ? <>Sin cruces: <span style={{ color: lider === A ? colA : colB, fontWeight:600 }}>{lider.name}</span> va arriba los {n} meses.</>
-          : cmp.cruces.length
-          ? <>Cruces: {cmp.cruces.map((c) => `${c.arriba} pasa arriba en ${c.mes}`).join(" · ")}.</>
-          : null}
+        {tray(A, colA)}
+        {tray(B, colB)}
+        <div>
+          La brecha va de {fmV(Math.abs(cmp.gapInicio))} ({meses[0]}) a {fmV(Math.abs(cmp.gapHoy))} ({meses[n - 1]}) — {brechaAbre ? "se abre" : "se cierra"} con el año, más ancha en {cmp.wideMes} ({fmV(Math.abs(cmp.wideGap))}).{" "}
+          {lider
+            ? <>Sin cruces: <span style={{ color: lider === A ? colA : colB, fontWeight:600 }}>{lider.name}</span> va arriba los {n} meses.</>
+            : cmp.cruces.length
+            ? <>Cruces: {cmp.cruces.map((c) => `${c.arriba} pasa arriba en ${c.mes}`).join(" · ")}.</>
+            : null}
+        </div>
       </div>
       <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
         Tendencia del historial de cada cuenta con la estacionalidad real del negocio (curva global de ventas) — el total del año cierra exacto. El mes a mes fino por entidad y el año anterior se afinan con el histórico del ERP.
@@ -2169,7 +2172,7 @@ function StationPeriodo({ a, b }) {
           <button key={k} onClick={() => setPer(k)} style={{ padding:"3px 9px", borderRadius:6, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
             border:`1px solid ${per === k ? "rgba(47,184,218,0.5)" : C.border}`, background: per === k ? "rgba(47,184,218,0.10)" : "transparent", color: per === k ? C.celeste : C.textMuted }}>{l}</button>
         ))}
-        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>pico <span style={{ color:C.green }}>{ev.maxMes} {fmV(ev.max)}</span> · valle <span style={{ color:C.red }}>{ev.minMes} {fmV(ev.min)}</span></span>
+        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>mejor mes <span style={{ color:C.green }}>{ev.maxMes} {fmV(ev.max)}</span> · más flojo <span style={{ color:C.red }}>{ev.minMes} {fmV(ev.min)}</span></span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
         <path d={d} fill="none" stroke={C.celeste} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
@@ -2199,11 +2202,11 @@ function StationPeriodo({ a, b }) {
           </g>
         )}
       </svg>
-      {/* LECTURA DEL PERÍODO (owner: los MESES de alzas/desvíos) — derivada de la serie mostrada */}
+      {/* LECTURA DEL PERÍODO (owner: los MESES de alzas/desvíos, en lenguaje de negocio) — derivada de la serie mostrada */}
       <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
-        Pico en <span style={{ color:C.green }}>{labels[iMax]}</span> ({fmV(hi)}) · valle en <span style={{ color:C.red }}>{labels[iMin]}</span> ({fmV(lo)}).
-        {gRise.delta > 0 && <> La alza más fuerte: {labels[gRise.i - 1]}→{labels[gRise.i]} (+{fmV(gRise.delta)}).</>}
-        {gDrop.delta < 0 && <> La caída más fuerte: {labels[gDrop.i - 1]}→{labels[gDrop.i]} (−{fmV(Math.abs(gDrop.delta))}).</>}
+        El mejor mes es <span style={{ color:C.green }}>{labels[iMax]}</span> ({fmV(hi)}) y el más flojo <span style={{ color:C.red }}>{labels[iMin]}</span> ({fmV(lo)}).
+        {gRise.delta > 0 && <> La subida más fuerte llega {labels[gRise.i - 1]}→{labels[gRise.i]} (+{fmV(gRise.delta)}).</>}
+        {gDrop.delta < 0 && <> El freno más fuerte, {labels[gDrop.i - 1]}→{labels[gDrop.i]} (−{fmV(Math.abs(gDrop.delta))}).</>}
       </div>
       <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
         La película GLOBAL de tu venta ({per} meses · dato real mensual) — pasá el cursor por la curva para ver cada mes. El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.

@@ -120,7 +120,19 @@ export function pickNarratedText(validated, narration) {
   // narrador — si el piso la trae y la narración la omitió (sin palabras de trayectoria), se ANTEPONE la del piso
   // (determinística · cifras ya autorizadas · abre la respuesta como pide la regla "abrí leyendo el gráfico").
   const detPerfil = det.match(/\*\*El perfil:\*\*[^\n]*/);
-  if (detPerfil && !/parte arriba|se cruzan|quiebre|de ah[ií] manda|punta a punta/i.test(narr))
-    return { text: detPerfil[0] + "\n\n" + narr, narrated: true, verdict: "fiel+perfil", reason: "narración fiel · lectura del gráfico del piso antepuesta (el narrador la había omitido)" };
-  return { text: narr, narrated: true, verdict: "fiel", reason: g.reason };
+  let out = narr, verdict = "fiel", reason = g.reason;
+  if (detPerfil && !/parte arriba|se cruzan|quiebre|de ah[ií] manda|punta a punta/i.test(out)) {
+    out = detPerfil[0] + "\n\n" + out;
+    verdict = "fiel+perfil"; reason = "narración fiel · lectura del gráfico del piso antepuesta (el narrador la había omitido)";
+  }
+  // EL AÑO, MES A MES (owner 2026-07-08 · "al profundizar, que diga el porqué — costos, acciones, cuándo subieron"):
+  // misma garantía estructural que El perfil — si el piso trae la historia del año y el narrador la omitió, se
+  // APPENDEA al cierre (determinística · cifras ya autorizadas por la boleta del piso).
+  const detAnio = det.match(/\*\*El año, mes a mes:\*\*[^\n]*/);
+  if (detAnio && !/mejor mes|acciones de precios|mes m[aá]s flojo/i.test(out)) {
+    out = out + "\n\n" + detAnio[0];
+    verdict = verdict + "+año";
+    reason = reason + " · la historia del año del piso appendeada (el narrador la había omitido)";
+  }
+  return { text: out, narrated: true, verdict, reason };
 }

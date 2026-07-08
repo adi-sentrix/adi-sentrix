@@ -12,7 +12,8 @@ import { SOURCES } from "../config/contract/sourceManifest.js";
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
 import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
-import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas } from "../data/demoData.js";   // ventas con YoY+ppto (marca/familia NO están en el contrato → carga directa)
+import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas, historialMargen as _histM } from "../data/demoData.js";   // ventas con YoY+ppto (marca/familia NO están en el contrato → carga directa) + historial mensual (el año de cada cuenta)
+import { buildCompareEvolution as _cmpEvolution } from "./sentrix/temporal.js";   // las dos curvas del año (tendencia × estacionalidad real) para el causal temporal del compare
 import { skusMargen as _skusM } from "../data/skusMargen.js";   // SKU: venta+unidades (sin anterior/ppto)
 import { ventasKPI as _vKPI } from "../data/baseKpis.js";       // totales de cartera (100K vs 92.9K vs 97K)
 
@@ -1091,6 +1092,45 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
   // LA DECISIÓN · la palanca y por dónde empezar (más venta = cada punto rinde más)
   const first = (rA.venta || 0) >= (rB.venta || 0) ? a : b;
   if (hasPlata) lines.push(`**La decisión:** la palanca ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empezá por ${first}: mueve más venta, cada punto recuperado rinde más.`);
+  // EL AÑO, MES A MES (owner 2026-07-08: "al profundizar, que diga el porqué — si fue costos, si fue acciones, cuándo
+  // subieron"): la curva del año de cada uno (la MISMA que dibuja la película: tendencia del historial × estacionalidad
+  // real) + lo que se movió DEBAJO en el año — acciones de precios, costo medio, ticket — del mismo historial. Solo si
+  // la serie mensual existe (cliente/marca/familia/SKU); sin historial (bodega) la sección no aparece — honesto.
+  const filmCmp = _cmpEvolution(a, b, "venta");
+  if (filmCmp) {
+    const dPct = (x0, x1) => (x0 ? +(((x1 - x0) / x0) * 100).toFixed(1) : null);
+    const yearOf = (E) => {
+      const H = _histM[E.name] || [];
+      const f = H[0], l = H[H.length - 1];
+      let s = `${E.name} hace su mejor mes en ${E.maxMes} (${_money(E.max * 1000)}) y el más flojo en ${E.minMes} (${_money(E.min * 1000)})`;
+      const drivers = [];
+      if (f && l && typeof f.rebates === "number" && typeof l.rebates === "number") {
+        const d = dPct(f.rebates, l.rebates);
+        if (d != null) {
+          drivers.push(`las acciones de precios ${d >= 0 ? "suben" : "bajan"} de ${_money(f.rebates * 1000)} a ${_money(l.rebates * 1000)} al mes${d > 0 ? " empujando la temporada alta" : ""}`);
+          bol.push(fig(`El año · acciones de ${E.name} (inicio)`, _money(f.rebates * 1000), { unit: "money", raw: f.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Ene)", context: "el año, mes a mes" }));
+          bol.push(fig(`El año · acciones de ${E.name} (cierre)`, _money(l.rebates * 1000), { unit: "money", raw: l.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Dic)", context: "el año, mes a mes" }));
+        }
+      }
+      if (f && l && typeof f.costoMedio === "number" && typeof l.costoMedio === "number") {
+        const d = dPct(f.costoMedio, l.costoMedio);
+        if (d != null && d !== 0) drivers.push(`el costo medio ${d < 0 ? "baja" : "sube"} ${Math.abs(d)}% en el año`);
+      }
+      if (f && l && typeof f.ticket === "number" && typeof l.ticket === "number") {
+        const d = dPct(f.ticket, l.ticket);
+        if (d != null && d !== 0) drivers.push(`el ticket ${d >= 0 ? "sube" : "baja"} ${Math.abs(d)}%`);
+      }
+      if (drivers.length) s += `; detrás del año: ${drivers.join(", ")}`;
+      bol.push(fig(`Mejor mes · ${E.name}`, _money(E.max * 1000), { unit: "money", raw: E.max * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.maxMes}` }));
+      bol.push(fig(`Mes más flojo · ${E.name}`, _money(E.min * 1000), { unit: "money", raw: E.min * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.minMes}` }));
+      return s + ".";
+    };
+    const eA = filmCmp.a, eB = filmCmp.b;
+    const shared = eA.growth.mes && eA.growth.mes === eB.growth.mes && eA.drop.mes && eA.drop.mes === eB.drop.mes
+      ? ` La subida fuerte de los dos llega ${eA.growth.from}→${eA.growth.mes} y el freno ${eA.drop.from}→${eA.drop.mes} — la estacionalidad de tu negocio los mueve a ambos.`
+      : "";
+    lines.push(`**El año, mes a mes:** ${yearOf(eA)} ${yearOf(eB)}${shared}`);
+  }
   // EL PERFIL (owner 2026-07-08 · "que ADI lea el gráfico, no solo la tabla"): la película de las dos líneas — quién
   // parte arriba, dónde se cruzan, desde qué estación cambia el ganador y qué variable lo explica. MISMO dato y MISMA
   // semántica que el Perfil comparado de la Mesa (arriba = mejor · carga/costo invertidos). Abre el bloque causal.

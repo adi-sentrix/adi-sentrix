@@ -105,12 +105,15 @@ ok("el perfil trae el score de estaciones", /gana \d+ estaciones/.test(cmp.text)
 const cmpCross = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["ABC", "Unimarc"] } }, {}, {});
 ok("ABC vs Unimarc (cruce clásico) → 'las líneas se cruzan en MARGEN' + quién manda después", /las líneas se cruzan en MARGEN/.test(cmpCross.text) && /de ahí manda Unimarc/.test(cmpCross.text));
 ok("…y nombra la variable que explica el cambio (la palanca)", /El cambio lo explica la (estructura de costo|carga comercial)/.test(cmpCross.text));
-// GARANTÍA 100%: si el narrador omite la trayectoria, la lectura del piso se ANTEPONE (no se ruega al LLM — se asegura)
+// GARANTÍA 100%: si el narrador omite la trayectoria, la lectura del piso se ANTEPONE; si omite la historia del año
+// (owner 2026-07-08: "al profundizar, que diga el porqué — costos, acciones, cuándo"), se APPENDEA (código, no prompt)
 const narrSin = "Unimarc es más eficiente que ABC: margen 32.5% vs 31%, con carga 3% vs 3.5% y costo 64.5% vs 65.5% de la lista. Yo revisaría los costos de ABC.";
 const picked = M.pickNarratedText(cmpCross, narrSin);
-ok("narración SIN trayectoria → se antepone 'El perfil:' del piso (narrated, verdict fiel+perfil)", picked.narrated && picked.verdict === "fiel+perfil" && /^\*\*El perfil:\*\*/.test(picked.text) && /se cruzan en MARGEN/.test(picked.text));
+ok("narración SIN trayectoria → 'El perfil:' antepuesto Y 'El año' appendeado (verdict fiel+perfil+año)", picked.narrated && picked.verdict === "fiel+perfil+año" && /^\*\*El perfil:\*\*/.test(picked.text) && /se cruzan en MARGEN/.test(picked.text) && /\*\*El año, mes a mes:\*\*/.test(picked.text));
 const narrCon = "ABC parte arriba en ventas pero las líneas se cruzan en margen: de ahí manda Unimarc por su costo (64.5% vs 65.5%), con margen 32.5% vs 31% y carga 3% vs 3.5%.";
-ok("narración QUE SÍ lee el gráfico → queda intacta (sin duplicar el bloque)", (() => { const p = M.pickNarratedText(cmpCross, narrCon); return p.narrated && p.verdict === "fiel" && !/\*\*El perfil:\*\*/.test(p.text); })());
+ok("narración QUE SÍ lee el gráfico → sin duplicar el perfil; el año del piso se appendea (fiel+año)", (() => { const p = M.pickNarratedText(cmpCross, narrCon); return p.narrated && p.verdict === "fiel+año" && !/^\*\*El perfil:\*\*/.test(p.text) && /\*\*El año, mes a mes:\*\*/.test(p.text); })());
+ok("narración que SÍ cuenta el año (mejor mes/acciones) → no se duplica el bloque del año", (() => { const p = M.pickNarratedText(cmpCross, narrCon + " El mejor mes de los dos llega en la temporada alta y las acciones de precios suben hacia el cierre."); return p.narrated && p.verdict === "fiel" && !/\*\*El año, mes a mes:\*\*/.test(p.text); })());
+ok("piso SIN historia del año (dive) → no se appendea nada", (() => { const p = M.pickNarratedText(dive, "A Falabella le faltan 8.1pp para tu piso de 30.1% — la palanca es la estructura de costo y cada punto vale plata."); return p.narrated && !/\*\*El año, mes a mes:\*\*/.test(p.text); })());
 ok("compare de MARCA también trae causa (estructura precio/costo del eje)", /\*\*Por qué ocurre:\*\*/.test(cmpMarca.text));
 ok("compare de MARCA honesto: plata por valor del punto (sin detector gated)", /\*\*Dónde está tu plata:\*\*/.test(cmpMarca.text) && /cada punto de margen vale/i.test(cmpMarca.text) && !/sobre la mesa/.test(cmpMarca.text.split("**Dónde está tu plata:**")[1].split("**")[0]));
 

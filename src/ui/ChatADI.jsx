@@ -387,7 +387,7 @@ function HeroInicio({ scenario, onChip }) {
                 style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
                 onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderLeftColor = C.celeste; e.currentTarget.style.borderRightColor = C.celeste; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderLeftColor = "rgba(47,184,218,0.6)"; e.currentTarget.style.borderRightColor = "rgba(47,184,218,0.6)"; }}>
-                <span style={{ fontSize:17, fontWeight:600, color:C.amber, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{f.usdFmt}</span>
+                <span style={{ fontSize:17, fontWeight:600, color:C.celeste, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{f.usdFmt}</span>
                 <span style={{ fontSize:12, color:C.textSub, lineHeight:1.35 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
               </button>
             );
