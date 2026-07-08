@@ -65,6 +65,7 @@ pOk("P4 · 'Cuánto vale:' listado como andamio prohibido (se narra, no se titul
 pOk("P5 · el impacto de la palanca es cifra obligatoria", /impacto en \$ de la palanca va SIEMPRE/.test(NG));
 pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuniones, llamadas/.test(NG));
 pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de cifras)", /CAUSA/.test(NG) && /controller senior/.test(NG) && /causa→consecuencia→movida/.test(NG));
+pOk("P8 · NOMBRES sagrados (el garble 'Falcon' por 'Falabella', cazado en vivo)", /NOMBRES \(sagrados/.test(NG) && /'Falcon' por 'Falabella' NO/.test(NG));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 7}) ──`);
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 8}) ──`);
 process.exit(fail ? 1 : 0);

@@ -87,6 +87,20 @@ ok("una verdad: la plata en juego de Falabella == el ítem del diagnose (mismo r
 ok("las cifras causales son computed + formula auditable", cmpFal && cmpFal.source === "computed" && !!cmpFal.formula);
 ok("el valor del punto por entidad está (palanca 1pp en ambos)", !!figOf(cmp, /Palanca · 1pp en Falabella/) && !!figOf(cmp, /Palanca · 1pp en Lider/));
 
+console.log("\n── capa CAUSAL del DIVE (Profundiza en X) · la brecha en pp + la plata gated + la decisión ──");
+const dive = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "Falabella" }, {}, {});
+ok("el dive trae POR QUÉ está donde está (brecha en pp descompuesta)", /\*\*Por qué está donde está:\*\*/.test(dive.text) && /pp/.test(dive.text));
+ok("el dive trae DÓNDE está la plata + valor del punto", /\*\*Dónde está tu plata:\*\*/.test(dive.text) && /cada punto de margen vale/i.test(dive.text));
+ok("el dive trae LA DECISIÓN (palanca dominante)", /\*\*La decisión:\*\*/.test(dive.text) && /palanca/i.test(dive.text));
+const divePlata = figOf(dive, /Plata en juego · Falabella/);
+ok("una verdad: la plata del dive == el ítem del diagnose (mismo raw)", divePlata && diagFal && divePlata.raw === diagFal.raw);
+ok("aritmética honesta: carga sobre target + precio/costo ≈ brecha (mismos pp)", (() => { const g = figOf(dive, /Causa · brecha al piso/), c = figOf(dive, /Causa · carga sobre target/), r = figOf(dive, /Causa · precio\/costo/); return g && r && Math.abs((c ? c.raw : 0) + r.raw - g.raw) < 0.15; })());
+const diveTop = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "La Polar" }, {}, {});
+ok("cuenta SOBRE el piso → historia de DEFENDER (no inventa pérdida)", /\*\*Por qué gana:\*\*/.test(diveTop.text) && /defiende|cuidala/i.test(diveTop.text));
+const cmpMarca = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "marca", comparison: { dimension: "marca", entities: ["Samsung", "LG"] } }, {}, {});
+ok("compare de MARCA también trae causa (estructura precio/costo del eje)", /\*\*Por qué ocurre:\*\*/.test(cmpMarca.text));
+ok("compare de MARCA honesto: plata por valor del punto (sin detector gated)", /\*\*Dónde está tu plata:\*\*/.test(cmpMarca.text) && /cada punto de margen vale/i.test(cmpMarca.text) && !/sobre la mesa/.test(cmpMarca.text.split("**Dónde está tu plata:**")[1].split("**")[0]));
+
 console.log("\n── apertura proactiva · los focos del hero = los subtotales del diagnose (una verdad) ──");
 const res = M.buildResumenEjecutivo("bonanza");
 ok("el resumen emite focos estructurados (detector + $ + label)", Array.isArray(res.focos) && res.focos.length >= 2 && res.focos.every((f) => f.detector && f.usd > 0 && f.usdFmt && f.label));

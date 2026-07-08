@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, compareCauses } from "./specRetrieval.js";   // productores spec-driven genéricos + capa causal del compare (el motor lee; la capa explica)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, compareCauses, diveCauses } from "./specRetrieval.js";   // productores spec-driven genéricos + capa causal (el motor lee; la capa explica)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -362,8 +362,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
           // estructurada; acá se APPENDEA el por qué ocurre + dónde está la plata + la decisión (mismo dato · una verdad
           // con el diagnose). Se agrega ANTES de derivar la boleta → toda cifra causal queda autorizada para el narrador.
           let causesBol = [];
-          if (cdim === "cliente") {
-            const causes = compareCauses(cmp.entities[0], cmp.entities[1], scenario);
+          {
+            const causes = compareCauses(cmp.entities[0], cmp.entities[1], scenario, cdim);   // cliente/marca/… · null-safe si el eje no trae estructura
             if (causes) { out.text = out.text + "\n\n" + causes.lines.join("\n\n"); causesBol = causes.bol; }
           }
           out.evidence = { ...(out.evidence || {}), boleta: [...boletaFromText(out.text, { context: `${cmp.entities[0]} vs ${cmp.entities[1]}` }), ...causesBol] };
@@ -390,7 +390,16 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
         const out = dispatchIntent(mk(ent), "", scenario, ctx);
         // BOLETA (ruta del MOTOR · dive cliente/marca/bodega): el composer sellado no emite boleta → la derivamos de SU texto
-        if (out && out.text) out.evidence = { ...(out.evidence || {}), boleta: boletaFromText(out.text, { context: `${ent} (${_d(spec.dimension)})` }) };
+        if (out && out.text) {
+          // CAPA CAUSAL del dive (owner 2026-07-07): el motor perfila; acá se APPENDEA por qué está donde está (la brecha
+          // en pp), dónde está la plata (cuentas gated del diagnose) y la decisión. ANTES de la boleta → cifras autorizadas.
+          let causesBol = [];
+          if (spec.dimension === "cliente") {
+            const causes = diveCauses(ent, scenario);
+            if (causes) { out.text = out.text + "\n\n" + causes.lines.join("\n\n"); causesBol = causes.bol; }
+          }
+          out.evidence = { ...(out.evidence || {}), boleta: [...boletaFromText(out.text, { context: `${ent} (${_d(spec.dimension)})` }), ...causesBol] };
+        }
         return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
       }
       if (spec.dimension === "sku" || spec.dimension === "familia") {   // sku/familia → productor spec-driven

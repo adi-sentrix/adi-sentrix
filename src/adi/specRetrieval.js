@@ -1047,8 +1047,8 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
  * historia: POR QUÉ ocurre la brecha (costo vs carga, del mismo dato), DÓNDE está la plata (la no-capturada GATED de
  * cada uno — misma cuenta del diagnose, una verdad) y LA DECISIÓN (la palanca compartida + por cuál empezar y cuánto
  * vale el punto). Se APPENDEA en el seam — el motor no se toca. Cliente-only (los ejes con estructura precio/costo). */
-export function compareCauses(a, b, scenario) {
-  const rows = _marginRows("cliente", scenario);
+export function compareCauses(a, b, scenario, dim = "cliente") {
+  const rows = _marginRows(dim, scenario);
   const rA = rows.find((r) => _mNombre(r) === a), rB = rows.find((r) => _mNombre(r) === b);
   if (!rA || !rB || typeof rA.margen !== "number" || typeof rB.margen !== "number") return null;
   const bench = _benchOf(rA);
@@ -1065,11 +1065,13 @@ export function compareCauses(a, b, scenario) {
     bol.push(fig(`Causa · ${a} costo/lista`, `${_p1(cA)}%`, { unit: "pct", raw: cA, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
     bol.push(fig(`Causa · ${b} costo/lista`, `${_p1(cB)}%`, { unit: "pct", raw: cB, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
   }
-  // DÓNDE ESTÁ TU PLATA · la no-capturada GATED de cada uno (misma cuenta del diagnose · una verdad) + el valor del punto
-  const foco = _leverFoco(scenario, "margen", { entities: [a, b] });
+  // DÓNDE ESTÁ TU PLATA · cliente: la no-capturada GATED de cada uno (misma cuenta del diagnose · una verdad) + el valor
+  // del punto. Otros ejes (marca/familia): SIN detector gated → la plata visible honesta es el valor del punto (venta×1%).
+  const foco = dim === "cliente" ? _leverFoco(scenario, "margen", { entities: [a, b] }) : null;
   const items = (foco && foco.items) || [];
   const iA = items.find((x) => x.entidad === a), iB = items.find((x) => x.entidad === b);
   const p1A = _pp1(rA), p1B = _pp1(rB);
+  let hasPlata = false;
   if (iA || iB) {
     const parts = [];
     if (iA) { parts.push(`con ${a} estás dejando ${_money(iA.usd)} al año sobre la mesa (margen ${_p1(rA.margen)}% vs tu piso ${_p1(bench)}%)`); bol.push(_figLever(`Plata en juego · ${a}`, iA.usd, "venta × benchmark − contribución")); }
@@ -1077,13 +1079,62 @@ export function compareCauses(a, b, scenario) {
     lines.push(`**Dónde está tu plata:** ${parts.join("; ")}.${p1A && p1B ? ` Cada punto de margen recuperado vale +${_money(p1A)}/año en ${a} y +${_money(p1B)} en ${b}.` : ""}`);
     if (p1A) bol.push(_figLever(`Palanca · 1pp en ${a}`, p1A, "venta × 1%"));
     if (p1B) bol.push(_figLever(`Palanca · 1pp en ${b}`, p1B, "venta × 1%"));
+    hasPlata = true;
+  } else if ((rA.margen < bench || rB.margen < bench) && p1A && p1B) {
+    lines.push(`**Dónde está tu plata:** ${a} captura ${_p1(rA.margen)}% y ${b} ${_p1(rB.margen)}% contra tu piso de ${_p1(bench)}% — cada punto de margen vale +${_money(p1A)}/año en ${a} y +${_money(p1B)} en ${b}.`);
+    bol.push(_figLever(`Palanca · 1pp en ${a}`, p1A, "venta × 1%"));
+    bol.push(_figLever(`Palanca · 1pp en ${b}`, p1B, "venta × 1%"));
+    hasPlata = true;
   } else if (rA.margen >= bench && rB.margen >= bench) {
     lines.push(`**Dónde está tu plata:** los dos capturan sobre tu piso de ${_p1(bench)}% — acá no se pierde, se defiende: el riesgo es ceder margen para crecer volumen.`);
   }
   // LA DECISIÓN · la palanca y por dónde empezar (más venta = cada punto rinde más)
   const first = (rA.venta || 0) >= (rB.venta || 0) ? a : b;
-  if (iA || iB) lines.push(`**La decisión:** la palanca ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empezá por ${first}: mueve más venta, cada punto recuperado rinde más.`);
+  if (hasPlata) lines.push(`**La decisión:** la palanca ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empezá por ${first}: mueve más venta, cada punto recuperado rinde más.`);
   if (!lines.length) return null;
+  return { lines, bol };
+}
+
+/* ── diveCauses · la CAPA CAUSAL del DIVE de cliente (owner 2026-07-07 · mismo principio que compareCauses) ──────────
+ * "Profundiza en X" del motor entrega el perfil; esta capa agrega la HISTORIA del controller para UNA cuenta:
+ * POR QUÉ está donde está (la brecha al piso DESCOMPUESTA en pp: cuánto se va en carga sobre target y cuánto en la
+ * estructura precio/costo — aritmética del mismo dato) · DÓNDE está la plata (no-capturada y carga GATED de esa cuenta,
+ * las cuentas del diagnose · una verdad) · LA DECISIÓN (la palanca dominante + el valor del punto). Cliente-only. */
+export function diveCauses(entity, scenario) {
+  const rows = _marginRows("cliente", scenario);
+  const r = rows.find((x) => _mNombre(x) === entity);
+  if (!r || typeof r.margen !== "number") return null;
+  const bench = _benchOf(r), gap = +(bench - r.margen).toFixed(1);
+  const lines = [], bol = [];
+  const cShare = _costShare(r) != null ? +_costShare(r).toFixed(1) : null;
+  const p1v = _pp1(r);
+  if (gap > 0) {
+    // POR QUÉ · la brecha al piso, partida en pp (carga sobre target + estructura precio/costo — mismo dato, pura aritmética)
+    const cargaExc = typeof r.pctRebate === "number" ? +Math.max(0, r.pctRebate - POLICY.targetCarga).toFixed(1) : 0;
+    const resto = +(gap - cargaExc).toFixed(1);
+    lines.push(`**Por qué está donde está:** a ${entity} le faltan ${_p1(gap)}pp para tu piso de ${_p1(bench)}%. De esos, ${cargaExc > 0 ? `${_p1(cargaExc)}pp se van en carga sobre el target (${_p1(r.pctRebate)}% vs ${_p1(POLICY.targetCarga)}%) y ` : ""}${_p1(resto)}pp vienen de la estructura precio/costo${cShare != null ? ` — el costo se lleva el ${_p1(cShare)}% del precio de lista` : ""}.`);
+    bol.push(fig(`Causa · brecha al piso`, `${_p1(gap)}pp`, { unit: "pp", raw: gap, mandatory: false, source: "computed", formula: "benchmark − margen", context: "causa" }));
+    if (cargaExc > 0) bol.push(fig(`Causa · carga sobre target`, `${_p1(cargaExc)}pp`, { unit: "pp", raw: cargaExc, mandatory: false, source: "computed", formula: "carga − target", context: "causa" }));
+    bol.push(fig(`Causa · precio/costo`, `${_p1(resto)}pp`, { unit: "pp", raw: resto, mandatory: false, source: "computed", formula: "brecha − exceso de carga", context: "causa" }));
+    // DÓNDE ESTÁ TU PLATA · las cuentas GATED del diagnose para ESTA cuenta (una verdad)
+    const fm = _leverFoco(scenario, "margen", { entities: [entity] });
+    const fc = _leverFoco(scenario, "carga", { entities: [entity] });
+    const im = fm && fm.items.find((x) => x.entidad === entity), ic = fc && fc.items.find((x) => x.entidad === entity);
+    const parts = [];
+    if (im) { parts.push(`${_money(im.usd)} al año de contribución sobre la mesa si llega a tu piso`); bol.push(_figLever(`Plata en juego · ${entity}`, im.usd, "venta × benchmark − contribución")); }
+    if (ic) { parts.push(`${_money(ic.usd)} recuperables llevando la carga al target`); bol.push(_figLever(`Carga recuperable · ${entity}`, ic.usd, "(carga − target) × venta")); }
+    if (p1v) { parts.push(`cada punto de margen vale +${_money(p1v)}/año`); bol.push(_figLever(`Palanca · 1pp en ${entity}`, p1v, "venta × 1%")); }
+    if (parts.length) lines.push(`**Dónde está tu plata:** ${parts.join(" · ")}.`);
+    // LA DECISIÓN · la palanca dominante en pp
+    lines.push(`**La decisión:** ${cargaExc >= resto ? `la carga es la palanca dominante — renegociar rebates/condiciones es lo primero` : `la palanca dominante es precio/costo — revisar lista y costo de compra rinde más que tocar la carga`}; después medí el punto recuperado contra ${p1v ? `los +${_money(p1v)} que vale` : "su valor anual"}.`);
+  } else {
+    // sobre el piso: la historia es DEFENDER (y si la carga igual está sobre target, es plata recuperable extra)
+    const fc = _leverFoco(scenario, "carga", { entities: [entity] });
+    const ic = fc && fc.items.find((x) => x.entidad === entity);
+    lines.push(`**Por qué gana:** ${entity} captura ${_p1(r.margen)}% — ${_p1(Math.abs(gap))}pp SOBRE tu piso de ${_p1(bench)}%. Acá no se pierde: se defiende ese margen mientras crece.`);
+    if (ic) { lines.push(`**Plata extra igual disponible:** su carga está sobre el target — ${_money(ic.usd)} al año recuperables sin tocar el precio.`); bol.push(_figLever(`Carga recuperable · ${entity}`, ic.usd, "(carga − target) × venta")); }
+    lines.push(`**La decisión:** cuidala — es de las cuentas que sostienen tu contribución; el riesgo real es cederle margen para crecer volumen.`);
+  }
   return { lines, bol };
 }
 
