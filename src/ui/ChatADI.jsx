@@ -12,6 +12,7 @@ import { answerConversational, buildConversationContext } from "../adi/conversat
 import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
 import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
 import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
+import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -106,11 +107,12 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   const q = (question || "").trim();
   let r, narrated = false;
   // ── PRECEDENCIA (V1 · owner): CONVERSACIONAL → REGEX (fallback) → UN-TURNO. El regex NO se elimina hasta probar el conversacional.
-  const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence);   // contexto chico para el LLM #1
+  const ui = getUISignals();   // memoria UI (owner 2026-07-08) · lo que el usuario está haciendo en la Mesa/paneles
+  const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence, ui);   // contexto chico para el LLM #1
   try {
-    const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto → clasifica turn_type
+    const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto (incl. señales de UI) → clasifica turn_type
     const _hasLast = !!(context && context.lastEvidence);
-    r = answerConversational(coerceSpec(q, spec, _hasLast), context || {}, { scenario }); // cadena de coerce (compare→contribución→margen→ventas→inventario→explain) · no depende del LLM · el seam valida/degrada honesto
+    r = answerConversational(coerceSpec(q, spec, _hasLast, ui), context || {}, { scenario }); // cadena de coerce (UI→criteria→sí→compare→dominios) · no depende del LLM · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex sobre la última evidencia; si no matchea → un-turno determinístico.
     const _last = context && context.lastEvidence;
@@ -291,11 +293,15 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   );
 }
 
-// UX · estado "pensando" del modo LLM (mientras el gateway traduce texto→spec y ADI ejecuta) · puntos animados
+// UX · estado "pensando" CON VIDA (owner 2026-07-08 · percepción de velocidad): fases HONESTAS del pipeline real
+// (LLM #1 entiende → motor calcula → narrador redacta → guard verifica). No inventa progreso: nombra lo que pasa.
+const _THINK_PHASES = ["Entendiendo la pregunta", "Leyendo tu cartera", "Armando la cuenta", "Verificando cada cifra"];
 function ThinkingIndicator() {
+  const [ph, setPh] = useState(0);
+  useEffect(() => { const t = setInterval(() => setPh((p) => Math.min(p + 1, _THINK_PHASES.length - 1)), 2200); return () => clearInterval(t); }, []);
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, color:C.textSub, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-      <span>Pensando</span>
+      <span style={{ transition:"opacity 0.3s" }}>{_THINK_PHASES[ph]}</span>
       <span className="adi-think"><span className="adi-dot"/><span className="adi-dot"/><span className="adi-dot"/></span>
     </div>
   );
@@ -410,6 +416,7 @@ function HeroInicio({ scenario, onChip }) {
 export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
+  const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
   const [context, setContext]   = useState(initialContext || (modulo ? { activeModule: modulo } : {}));
   const [pendingId, setPendingId] = useState(null); // id del mensaje ADI animándose (typewriter)
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
@@ -574,6 +581,18 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                         </button>
                       );
                     })}
+                  </div>
+                )}
+                {/* HINT DE PRIMER USO (owner 2026-07-08 · el primer minuto): una sola vez, tras la primera respuesta —
+                    lo mejor del producto no se descubre solo. Descartable · persiste el visto en localStorage. */}
+                {isLastAdi && !isTyping && showHint && messages.filter((m) => m.role === "adi" && !m.pending).length === 1 && (
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginLeft:44, marginTop:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.5)", background:C.surface, maxWidth:560 }}>
+                    <span style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55, flex:1 }}>
+                      <span style={{ color:C.celeste, fontWeight:600 }}>Tip · </span>
+                      abrí la <b>Mesa de control</b> (arriba) para ver todas tus cifras · tocá cualquier <b>fila de Sentrix</b> y ADI la desglosa · seguí el hilo con <b>"y de esos…"</b> · fijá tu vara: <b>"recordá que mi margen mínimo es 28%"</b>.
+                    </span>
+                    <button onClick={() => { setShowHint(false); try { localStorage.setItem("adi_hint_v1", "1"); } catch {} }}
+                      style={{ background:"transparent", border:"none", color:C.textMuted, cursor:"pointer", fontSize:12, padding:0, flexShrink:0 }}>✕</button>
                   </div>
                 )}
               </div>

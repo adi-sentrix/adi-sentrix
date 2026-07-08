@@ -20,6 +20,7 @@ import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_S
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // Perfil comparado · la línea de benchmark/target (criterio-aware: si el owner fijó su vara, ES su vara)
+import { setUISignal } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · lo que el usuario hace en la Mesa informa el contexto de ADI
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 const _isDev = ADI_PROFILE === "dev";
 
@@ -1662,6 +1663,8 @@ function ControlRing({ ring, rd }) {
 function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = null }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
+  // memoria UI (owner 2026-07-08): la selección de la Mesa es contexto de ADI ("compará estos dos" la referencia)
+  useEffect(() => { if (mesa) setUISignal({ mesaSel: sel, mesaDim: dim }); }, [mesa, sel, dim]);
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
   const [mode, setMode] = useState("all");            // all | top | bottom | alert
   const [scope, setScope] = useState("global");       // global | fecha (honesto)
@@ -2147,7 +2150,7 @@ function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenar
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
         {/* estaciones (ejes verticales suaves) + labels · CLICKEABLES → detalle por período (owner 2026-07-08: vida) */}
         {axes.map((ax, i) => (
-          <g key={i} onClick={() => setSelSt(selSt === ax.label ? null : ax.label)} style={{ cursor: "pointer" }}>
+          <g key={i} onClick={() => { const next = selSt === ax.label ? null : ax.label; setSelSt(next); setUISignal({ station: next }); }} style={{ cursor: "pointer" }}>
             <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke={selSt === ax.label ? "rgba(47,184,218,0.35)" : "rgba(255,255,255,0.07)"} strokeWidth={selSt === ax.label ? 1.5 : 1}/>
             <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={selSt === ax.label ? C.celeste : C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600" style={{ textDecoration: selSt === ax.label ? "underline" : "none" }}>{ax.label}</text>
             {!ax.hiBetter && <text x={xs[i]} y={H - padB + 38} textAnchor="middle" fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>menos = mejor</text>}

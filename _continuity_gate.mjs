@@ -128,6 +128,18 @@ ok("operation:'followup_compare' → se trata como turn_type (no degrada)", !/No
 const leak2 = AC({ schemaVersion: 1, operation: "hacer_magia", metric: "margen", dimension: "cliente", turn_type: "new_query" }, {}, {});
 ok("degrade de operación desconocida SIN vocabulario interno (enum/turn_types)", !/overview, rank|followup|schemaVersion/.test(leak2.text) && /profundizar|diagnosticar/i.test(leak2.text));
 
+console.log("\n── J · DEÍCTICO DE UI («compará estos dos» mirando la Mesa · owner 2026-07-08) ──");
+const uiSel = { mesaSel: ["Falabella", "Lider"], mesaDim: "cliente" };
+const j1 = C("compará estos dos", base(""), false, uiSel);
+ok("«compará estos dos» + selección de la Mesa → compare con ESAS entidades", j1.operation === "compare" && j1.comparison.entities[0] === "Falabella" && j1.comparison.entities[1] === "Lider");
+const j2 = AC(j1, {}, {});
+ok("…y ejecuta la comparación real (con perfil y causas)", /Falabella/.test(j2.text) && /Lider/.test(j2.text) && /\*\*El perfil:\*\*/.test(j2.text));
+ok("«compará estos dos» SIN selección → NO inventa referente (cae a la cadena normal)", (() => { const s = C("compará estos dos", base(""), false, { mesaSel: [] }); return !(s.comparison && s.comparison.entities && s.comparison.entities.length === 2); })());
+ok("selección de SKU → compara por el eje de la Mesa", (() => { const s = C("compará esos dos", base(""), false, { mesaSel: ["LG-DRYER8KG", "BOS-SANDER"], mesaDim: "sku" }); return s.operation === "compare" && s.comparison.dimension === "sku"; })());
+ok("una pregunta normal con la Mesa abierta NO se secuestra", C("¿quiénes están bajo el margen mínimo?", base(""), false, uiSel).operation === "margin");
+ok("«dame un resumen del negocio» → el diagnóstico ejecutivo (no un ranking suelto)", C("ahora dame un resumen del negocio", base(""), true).operation === "diagnose");
+ok("«¿cómo está mi negocio?» → diagnose", C("¿cómo está mi negocio?", base(""), false).operation === "diagnose");
+
 console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
 ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
 ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);

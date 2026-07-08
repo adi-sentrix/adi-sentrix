@@ -20,15 +20,21 @@ import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
 
-// ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia) ─────────────────────────────────────────
-export function buildConversationContext(recentTurns, lastEvidence) {
+// ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia + señales de UI) ────────────────────────
+export function buildConversationContext(recentTurns, lastEvidence, uiSignals = null) {
   const turns = (recentTurns || []).slice(-3).map((t) =>
     t.role === "user"
       ? { role: "user", text: String(t.text || "").slice(0, 200) }
       : { role: "adi", gist: String(t.gist || t.text || "").replace(/\s+/g, " ").slice(0, 160), route: t.route || null });
+  // SEÑALES DE UI (owner 2026-07-08 · "memoria en todos los grados"): lo que el usuario está HACIENDO en Sentrix —
+  // selección de la Mesa, estación tocada — para que "compará esto"/"esto que estoy viendo" tenga referente. Chico.
+  const ui = uiSignals && ((Array.isArray(uiSignals.mesaSel) && uiSignals.mesaSel.length) || uiSignals.station)
+    ? { mesaSel: (uiSignals.mesaSel || []).slice(0, 4), mesaDim: uiSignals.mesaDim || null, station: uiSignals.station || null }
+    : null;
   return {
     turns,
     last: lastEvidence ? _digestLast(lastEvidence) : null,
+    ui,             // qué está mirando/seleccionando el usuario en Sentrix AHORA (null si nada)
     history: [],    // V4 · reservado (historial corto etiquetado) · NO usado en V1
     session: null,  // V5 · reservado (memoria entre sesiones · con permiso)
     criteria: null, // V5 · reservado (perfil/criterio)

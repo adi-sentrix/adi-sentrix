@@ -68,6 +68,8 @@ pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de 
 pOk("P8 · NOMBRES sagrados (el garble 'Falcon' por 'Falabella', cazado en vivo)", /NOMBRES \(sagrados/.test(NG) && /'Falcon' por 'Falabella' NO/.test(NG));
 pOk("P9 · DIRECCIONES sagradas (inversión 'sobre'→'debajo' cazada en vivo)", /DIRECCIONES \(sagradas\)/.test(NG) && /NUNCA las inviertas/.test(NG));
 pOk("P10 · LA FORMA, NO EL DATO (regla del owner 2026-07-08: no recitar el panel · 3-5 cifras · cómo/dónde se gana y pierde)", /LA FORMA, NO EL DATO/.test(NG) && /NO recites lo que el panel ya enseña/.test(NG) && /SOLO las 3-5/.test(NG) && /C[OÓ]MO se gana la plata/.test(NG));
+pOk("P11 · GUÍA DE LECTURA (negritas ejecutivas sobre conceptos · 3-6 · owner 2026-07-08)", /GUÍA DE LECTURA/.test(NG) && /\*\*negritas\*\*/.test(NG) && /3 a 6 por respuesta/.test(NG));
+pOk("P12 · DOS CAPAS (principios con libertad · invariantes duras — no pautear)", /PRINCIPIOS \(criterio, no guión\)/.test(NG) && /INVARIANTES \(no se negocian\)/.test(NG) && /libertad total de fraseo/.test(NG));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 10}) ──`);
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 12}) ──`);
 process.exit(fail ? 1 : 0);

@@ -133,8 +133,16 @@ function _coerceMulti(q, spec) {
 // operations y el seam degradaba con vocabulario interno). Solo mensajes CORTOS que son pura afirmación.
 const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de una|h[aá]z?lo|hacelo|adelante|me parece( bien)?|por ?favor|porfa|s[ií],?\s+(dale|claro|porfa|por ?favor|profundiz[aá]|hazlo|hacelo|adelante))[\s.!…]*$/i;
 
-// coerceSpec(texto, spec del LLM, hayÚltimaEvidencia) → spec ruteado al dominio+foco correcto (o el spec original).
-export function coerceSpec(q, spec, hasLast) {
+// coerceSpec(texto, spec del LLM, hayÚltimaEvidencia, señalesUI) → spec ruteado al dominio+foco correcto (o el original).
+export function coerceSpec(q, spec, hasLast, ui = null) {
+  // DEÍCTICO DE UI (owner 2026-07-08 · "compará estos dos" mirando la Mesa): la SELECCIÓN de la Mesa es el referente —
+  // determinístico, sin que el LLM adivine. Solo con 2 seleccionados + intención de comparar + referencial plural.
+  if (q && spec && ui && Array.isArray(ui.mesaSel) && ui.mesaSel.length === 2
+      && /(compar|versus|\bvs\b|diferenc|enfrent)/i.test(q) && /\b(estos|esos|estas|esas)\s*(dos|2)?\b/i.test(q)) {
+    const d = ui.mesaDim || "cliente";
+    return { ...spec, operation: "compare", metric: spec.metric || "margen", dimension: d,
+      comparison: { dimension: d, entities: [...ui.mesaSel] }, turn_type: "new_query" };
+  }
   // MEMORIA DE CRITERIO (V5 · Frente C.2): "recordá que mi margen mínimo es 28%" / "¿qué recordás?" / "olvidá X" corre
   // PRIMERO y CORTA la cadena — si no, el coerce de margen roba "margen mínimo" y responde una lectura en vez de guardar.
   if (q && spec) {
@@ -142,6 +150,10 @@ export function coerceSpec(q, spec, hasLast) {
     if (ci) return { ...spec, turn_type: "apply_criteria", criteria: ci };
     if (hasLast && String(q).length <= 28 && _AFFIRM_RE.test(q)) return { ...spec, turn_type: "followup_accept" };
   }
+  // RESUMEN DEL NEGOCIO (owner 2026-07-08): "dame un resumen del negocio / panorama general / cómo está mi negocio"
+  // → el DIAGNÓSTICO ejecutivo (los focos con su $), no un ranking suelto. Determinístico, antes de los dominios.
+  if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio/i.test(q))
+    return _cleanFilters({ ...spec, operation: "diagnose", metric: spec.metric || "contribucion", dimension: "cliente", turn_type: "new_query" });
   const afterCompare = _coerceCompare(q, spec);
   const multi = _coerceMulti(q, afterCompare);
   if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)
