@@ -485,7 +485,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       };
     } else {   // frenado (default) — capital inmovilizado, plata atrapada
       B = {
-        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está frenada tu plata", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega",
+        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está detenido tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega",
         lines: [
           `Tenés ${_money(total)} de capital inmovilizado en ${skus.length} SKU sin rotar. Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
           `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.`,

@@ -107,8 +107,8 @@ export function composeMeta(topic, last) {
   // PRIMERA impresión del invitado): bienvenida cálida determinística + orientación concreta. Va VERBATIM (sin narrar).
   if (t === "saludo") {
     return {
-      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganás, dónde cedés margen y qué mover primero.\n\nProbá preguntarme: «¿dónde estoy perdiendo plata?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
-      suggestions: ["¿Dónde estoy perdiendo plata?", "Margen por cliente", "¿Qué SKU rota peor?"],
+      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganás, dónde cedés margen y qué mover primero.\n\nProbá preguntarme: «¿dónde estoy perdiendo dinero?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
+      suggestions: ["¿Dónde estoy perdiendo dinero?", "Margen por cliente", "¿Qué SKU rota peor?"],
       sentrixAction: null,
       evidence: { followup: true, kind: "saludo", boleta: [] },
       route: "meta_saludo",
@@ -121,8 +121,8 @@ export function composeMeta(topic, last) {
   if (t === "fuera_de_dato") {
     const ent = last && typeof last.entity === "string" && last.entity.trim() ? ` de ${last.entity}` : "";
     return {
-      text: `Campañas, marketing y publicidad no los tengo como dato — ese análisis no te lo voy a inventar. Lo que sí tengo para empujar la venta${ent}: la **carga comercial** (cuánta plata retiene y cómo se recupera) · la **causa del margen** (si cede por precio o por costo) · el espacio para **subir precio** · y el **capital frenado** en inventario para liberar y reinvertir. ¿Por cuál arranco?`,
-      suggestions: ["Cuánto me come la carga comercial", "Cuáles ceden por precio", "Qué SKU libero primero"],
+      text: `Campañas, marketing y publicidad no los tengo como dato — ese análisis no te lo voy a inventar. Lo que sí tengo para empujar la venta${ent}: la **carga comercial** (cuánto margen retiene y cómo se recupera) · la **causa del margen** (si cede por precio o por costo) · el espacio para **subir precio** · y el **capital detenido** en inventario para liberar y reinvertir. ¿Por cuál arranco?`,
+      suggestions: ["¿Cuánta carga comercial puedo recuperar?", "Cuáles ceden por precio", "Qué SKU libero primero"],
       sentrixAction: null,
       evidence: { followup: true, kind: "fuera_de_dato", boleta: [] },
       route: "meta_fuera_de_dato",

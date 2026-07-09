@@ -998,7 +998,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   const fcolor = cmap[inv.focusColor] || C.amber;   // color del FOCO (la pregunta manda) · barras + header
   const cp = inv.contrapunta || null;               // la otra punta material (callout)
   const cpColor = cmap[cp && cp.color] || C.red;
-  const titleParts = String(inv.title || "Capital inmovilizado · dónde está frenada tu plata").split(" · ");
+  const titleParts = String(inv.title || "Capital inmovilizado · dónde está detenido tu capital").split(" · ");
   const isStale = inv.focus === "stale";
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
@@ -1102,10 +1102,12 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
  * con ADI al lado. Anti-BI por diseño: cada bloque lleva la LECTURA de ADI (no cifras mudas), los FOCOS del día con su $,
  * el 80/20 SIEMPRE visible (el principio del owner: pocos explican la mayor parte), y cada fila es una PREGUNTA (click →
  * ADI lo desglosa al lado). Reusa todo lo construido: resumen ejecutivo, diagnose, buildConcentration, CuadroMando. */
+// registro EJECUTIVO (owner 2026-07-09): las preguntas que ADI ofrece van en lenguaje de directorio — nada de
+// "plata"/"me come"; el usuario puede ser coloquial, lo emitido por ADI no.
 const _MESA_FOCO_ASK = {
   margen:  "¿Quiénes están bajo el margen mínimo?",
-  carga:   "¿Cuánto me come la carga comercial?",
-  capital: "¿Dónde está frenada mi plata?",
+  carga:   "¿Cuánta carga comercial puedo recuperar?",
+  capital: "¿Dónde está detenido mi capital?",
 };
 function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const scenario = (evidence && evidence.periodo) || "bonanza";

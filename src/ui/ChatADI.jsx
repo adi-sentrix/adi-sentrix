@@ -350,8 +350,10 @@ const _SPEC = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o 
 // foco del diagnose → la conversación que abre (pregunta real + spec con el FOCO correcto · las cifras las pone el composer)
 const _FOCO_CHIP = {
   margen:  () => ({ q: "¿Quiénes están bajo el margen mínimo?",  spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "bajo_benchmark" }) }),
-  carga:   () => ({ q: "¿Cuánto me come la carga comercial?",    spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "palancas" }) }),
-  capital: () => ({ q: "¿Dónde está frenada mi plata?",          spec: _SPEC({ operation: "inventory", metric: "capital", dimension: "bodega", focus: "frenado" }) }),
+  // registro EJECUTIVO en lo que ADI ofrece (owner 2026-07-09: "hay que dejar eso como ejecutivo" — nada de
+  // "plata"/"me come" en las preguntas emitidas; el usuario puede ser coloquial, ADI no)
+  carga:   () => ({ q: "¿Cuánta carga comercial puedo recuperar?", spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "palancas" }) }),
+  capital: () => ({ q: "¿Dónde está detenido mi capital?",         spec: _SPEC({ operation: "inventory", metric: "capital", dimension: "bodega", focus: "frenado" }) }),
 };
 const HERO_CHIPS = [
   { q: "¿Dónde estoy perdiendo dinero?",     spec: _SPEC({ operation: "diagnose", dimension: "cliente", metric: "contribucion" }) },
