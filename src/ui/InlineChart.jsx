@@ -78,9 +78,18 @@ function MiniBarras({ rows, polarity }) {
 function MiniMovers({ panel }) {
   const rows = panel.rows;
   const max = Math.max(...rows.map((r) => Math.abs(r.val || 0)), 1);
+  const conPct = rows.some((r) => typeof r.pct === "number");
+  // títulos de columna (owner 2026-07-09: "el usuario no sabe de qué son los números")
+  const valHdr = panel.pctMode ? "YOY %" : "VARIACIÓN $";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
       {panel.headlineSub && <div style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, marginBottom: 2 }}>{panel.headlineSub}</div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 104, flexShrink: 0 }}/>
+        <div style={{ flex: 1 }}/>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase", width: 66, textAlign: "right", flexShrink: 0 }}>{valHdr}</span>
+        {conPct && <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase", width: 46, textAlign: "right", flexShrink: 0 }}>VAR %</span>}
+      </div>
       {rows.map((r, i) => (
         <div key={r.nombre} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 104, flexShrink: 0, fontSize: 11, color: i === 0 ? C.text : C.textSub, fontWeight: i === 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</span>
