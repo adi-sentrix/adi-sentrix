@@ -68,10 +68,22 @@ const rTop = ans(sTop);
 ok("responde el CRUCE (top por venta con su stock) y NO el foco de capital frenado", /que m[aá]s venden/i.test(rTop) && /stock \d+ unidades/i.test(rTop) && !/capital inmovilizado/i.test(rTop));
 ok("el top-1 por venta es SAM-TV55 con su venta real ($13.3M) y su estado del motor (Lento)", /SAM-TV55: vende \$13\.3M/.test(rTop) && /Lento/.test(rTop));
 ok("los 5 del ranking real están (TV55 · WASH11KG · SHAVER9 · REF500L · HAIR-PRO)", ["SAM-TV55", "LG-WASH11KG", "PHI-SHAVER9", "SAM-REF500L", "PHI-HAIR-PRO"].every((s) => rTop.includes(s)));
-ok("lectura con voz: el top vendedor frenado se marca (plata parada donde más duele)", /donde m[aá]s duele/i.test(rTop));
+ok("lectura con voz EJECUTIVA: el top vendedor frenado se marca (capital detenido donde más pesa)", /donde m[aá]s pesa/i.test(rTop) && /capital/i.test(rTop));
 const sTop3 = CC("stock de mis 3 productos más vendidos", S({ operation: "inventory", metric: "capital", dimension: "sku" }), false);
 ok("variante '3 productos más vendidos' → top_sellers · limit 3", sTop3.focus === "top_sellers" && sTop3.limit === 3);
 ok("sin frase de ranking ('capital inmovilizado') NO roba el foco", (() => { const s = CC("¿Qué SKU tienen capital inmovilizado?", S({ operation: "inventory", metric: "capital", dimension: "sku" }), false); return s.focus !== "top_sellers"; })());
+
+// MÁS VENDIDOS DEL MES (invitado 2026-07-09: pedía el ÚLTIMO MES y ADI daba el año sin declarar)
+const sMes = CC("cuales son los 5 sku mas vendidos en el ultimo mes", S({ operation: "ventas", metric: "ventas", dimension: "sku", focus: "rank_venta", limit: 5 }), false);
+ok("coerce · 'más vendidos en el último mes' → focus mas_vendidos_mes · limit 5", sMes.focus === "mas_vendidos_mes" && sMes.limit === 5);
+const rMes = ans(sMes);
+ok("responde el MES en unidades reales (PHI-SHAVER9 195u lidera) + límite declarado del $ mensual", /195 unidades vendidas el [uú]ltimo mes/i.test(rMes) && /PHI-SHAVER9/.test(rMes) && /se enciende con el hist[oó]rico del ERP/i.test(rMes));
+ok("el ranking del MES difiere del anual (PHI-SHAVER9 arriba, no SAM-TV55)", rMes.indexOf("PHI-SHAVER9") < rMes.indexOf("SAM-REF500L"));
+
+// SCOPE DECLARADO (invitado 2026-07-09: "stock inmovilizado en Concepción" respondía el GLOBAL en silencio)
+const rConce = ans(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "frenado", filters: { bodega: "Concepción" } }));
+ok("bodega sin frenado → respuesta SOBRE ESE ALCANCE (nombra Concepción), jamás el global en silencio", /En Concepción/i.test(rConce) && !/Valpara[ií]so \$25K/.test(rConce));
+ok("…y declara la vara (rotación/120 días) con oferta de seguir", /rotaci[oó]n bajo 2x|120 d[ií]as/i.test(rConce) && /estado completo/i.test(rConce));
 
 console.log(`\n── _inventory_focus_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

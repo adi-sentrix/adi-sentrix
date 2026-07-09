@@ -35,7 +35,7 @@ ok("palanca de margen == subtotal del diagnose (mismo raw)", leverBrecha && diag
 ok("la palanca es computed + formula auditable", leverBrecha && leverBrecha.source === "computed" && /benchmark/.test(leverBrecha.formula || ""));
 const mPal = A(spec({ operation: "margin", focus: "palancas" }), {}, {});
 const leverCarga = figOf(mPal, /Palanca · carga al target/);
-ok("palancas lleva la carga cuantificada al target", /llevar la carga al target/i.test(mPal.text) && !!leverCarga);
+ok("palancas lleva la carga cuantificada al target Y la plata LIDERA (registro ejecutivo 2026-07-09)", /la carga sobre el target retiene/i.test(mPal.text) && !!leverCarga && mPal.text.indexOf("Cuánto vale") < mPal.text.indexOf("Carga/rebates"));
 ok("palanca de carga == subtotal del diagnose (mismo raw)", leverCarga && diagCarga && leverCarga.raw === diagCarga.raw);
 
 console.log("\n── 1pp = venta × 1% en focos por entidad ──");

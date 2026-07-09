@@ -50,8 +50,8 @@ const CASES = [
   ["¿Qué bodegas tienen alto stock en productos de bajo margen?", "focus:stock_bajo_margen", [/stock parado en productos de bajo margen/i, /Santiago/]],
   ["¿Qué canales generan volumen con bajo margen?", "focus:alto_volumen_bajo_margen", [/m[aá]s venden y peor margen/i, /Retail/]],
   ["¿Qué vendedores venden más, pero reducen margen?", "gap:vendedor", [/vendedor/i, /No lo invento/i, /Lo m[aá]s cercano/i]],
-  ["¿Qué acciones comerciales deterioran más el margen?", "focus:palancas", [/palancas que m[aá]s comen margen/i, /Carga\/rebates/i]],
-  ["¿Qué decisiones permitirían recuperar margen sin sacrificar demasiado volumen?", "focus:palancas", [/palancas que m[aá]s comen margen/i, /volumen-safe|sin resignar volumen/i]],
+  ["¿Qué acciones comerciales deterioran más el margen?", "focus:palancas", [/palancas que m[aá]s consumen margen/i, /Carga\/rebates/i]],
+  ["¿Qué decisiones permitirían recuperar margen sin sacrificar demasiado volumen?", "focus:palancas", [/palancas que m[aá]s consumen margen/i, /volumen-safe|sin resignar volumen/i]],
 ];
 
 console.log("── (1) detectMarginFocus + answerADIFromSpec · las 25 responden LO ESPECÍFICO (nunca el genérico de 3 focos) ──");

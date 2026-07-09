@@ -435,6 +435,10 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       const resp = composeSpecInventory({ filters: spec.filters, scenario, focus: spec.focus, staleDays: spec.staleDays, entityScope: spec.entityScope, limit: spec.limit });
       if (!resp || !resp.opener) {
         const _fMsg = { quiebre: "No veo SKU en riesgo de quiebre material — la cobertura alcanza en lo que rota rápido.", sobrestock: "No veo sobrestock material — la cobertura está dentro de rango.", stale: "No veo SKU parados por ese plazo — todo tuvo movimiento reciente." };
+        // SCOPE DECLARADO (invitado 2026-07-09: "stock inmovilizado en Concepción" respondía el GLOBAL en silencio):
+        // con filtro de alcance, el vacío se responde SOBRE ESE ALCANCE — nunca se sustituye por el global sin avisar.
+        const _sc = spec.filters && (spec.filters.bodega || spec.filters.familia || spec.filters.marca || spec.filters.cliente);
+        if (_sc) return _degrade("inventory-empty", `En ${_sc} no veo ${({ quiebre: "riesgo de quiebre material", sobrestock: "sobrestock material", stale: "SKU parados por ese plazo" })[spec.focus] || "capital frenado según tu vara (rotación bajo 2x o más de 120 días)"} — lo que hay ahí se está moviendo dentro de rango. ¿Te muestro el estado completo de ese alcance?`, [], ctx);
         return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
       }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);

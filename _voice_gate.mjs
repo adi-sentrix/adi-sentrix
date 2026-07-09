@@ -1,4 +1,4 @@
-/* === _voice_gate.mjs · GATE del GUARD DE VOZ determinístico (stripRoboticVoice) ===
+﻿/* === _voice_gate.mjs · GATE del GUARD DE VOZ determinístico (stripRoboticVoice) ===
  * Lockea: (1) mata aperturas de plantilla ("He revisado tus datos…", "Las proyecciones indican que…").
  * (2) mata muletillas conectoras ("Sin embargo,", "Es importante notar que"). (3) NO toca voz natural ("Mirá,…").
  * (4) idempotente (aplicar 2x = 1x). (5) number-safe (ninguna cifra cambia). (6) preserva recomendaciones reales
@@ -71,5 +71,7 @@ pOk("P10 · LA FORMA, NO EL DATO (regla del owner 2026-07-08: no recitar el pane
 pOk("P11 · GUÍA DE LECTURA (negritas ejecutivas sobre conceptos · 3-6 · owner 2026-07-08)", /GUÍA DE LECTURA/.test(NG) && /\*\*negritas\*\*/.test(NG) && /3 a 6 por respuesta/.test(NG));
 pOk("P12 · DOS CAPAS (principios con libertad · invariantes duras — no pautear)", /PRINCIPIOS \(criterio, no guión\)/.test(NG) && /INVARIANTES \(no se negocian\)/.test(NG) && /libertad total de fraseo/.test(NG));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 12}) ──`);
+pOk("P13 · REGISTRO EJECUTIVO (owner 2026-07-09: el usuario habla coloquial, ADI responde de directorio — capital, no plata · sin spanglish)", /REGISTRO EJECUTIVO/.test(NG) && /jam[aá]s slang ni spanglish/.test(NG));
+
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 13}) ──`);
 process.exit(fail ? 1 : 0);

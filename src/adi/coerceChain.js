@@ -14,6 +14,22 @@ import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
 import { detectCriteriaIntent } from "./criteria.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
+import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
+
+// ── CANON DE ENTIDADES (invitado en prod 2026-07-09): el LLM emite entidades en minúscula/sin tilde y a veces en el
+// campo equivocado ("concepcion" como entity de inventario · "cuidado personal" como entity de un recommend@sku) →
+// el filtro no matcheaba y ADI respondía GLOBAL en silencio. Acá se canonicalizan contra el DATASET (una verdad):
+// el nombre queda con su forma real y, si el TIPO no coincide con la dimensión pedida, viaja como filters[tipo]. ──
+const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+const _CANON = (() => {
+  const m = new Map();
+  for (const r of _cCanon) m.set(_norm(r.nombre), { tipo: "cliente", nombre: r.nombre });
+  for (const r of _mCanon) m.set(_norm(r.nombre), { tipo: "marca", nombre: r.nombre });
+  for (const r of _fCanon) m.set(_norm(r.nombre), { tipo: "familia", nombre: r.nombre });
+  for (const r of _iCanon) { m.set(_norm(r.sku), { tipo: "sku", nombre: r.sku }); if (r.bodega && !m.has(_norm(r.bodega))) m.set(_norm(r.bodega), { tipo: "bodega", nombre: r.bodega }); }
+  return m;
+})();
+const _canonEntity = (name) => _CANON.get(_norm(name)) || null;
 
 // SANEO de filters (safety-net): el LLM #1 a veces emite claves-ruido ("filters:{margen:'mínimo'}") que NO son ejes del
 // contrato → el seam degradaba con "no reconozco el filtro" una pregunta YA bien ruteada. Al coercer a un dominio, solo
@@ -96,12 +112,23 @@ function _coerceVentas(q, spec) {
 // palabra de inventario + frase de top-vendedores en la misma pregunta → focus top_sellers (venta × stock por SKU).
 const _TOPSELL_INV_RE = /(inventario|stock|disponib\w*|cobertura|unidades)[^]*\b(principal\w*|top\b|m[aá]s\s+vendid\w*|que\s+m[aá]s\s+vend\w*|mayores?\s+venta\w*)|\b(principal\w*|top\b|m[aá]s\s+vendid\w*|que\s+m[aá]s\s+vend\w*|mayores?\s+venta\w*)[^]*\b(inventario|stock|disponib\w*|cobertura)/i;
 function _coerceInventory(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
-  if (_TOPSELL_INV_RE.test(q) && /(sku|producto)/i.test(q)) {
+  if (!q || !spec) return spec;
+  // Los CRUCES de SKU corren ANTES del guard de dominios: son más específicos y pueden ganarle al claim de ventas
+  // ("los 5 más vendidos del mes" no tiene palabra de inventario → ventas lo reclamaba y el mes se perdía).
+  const _crossOk = spec.operation !== "compare" && spec.operation !== "margin" && spec.operation !== "contribucion";
+  // MÁS VENDIDOS DEL MES (invitado 2026-07-09): unidades reales del mes (vendidoMes), no el año en $ sin declarar.
+  if (_crossOk && /(sku|producto)/i.test(q) && /(m[aá]s\s+vendid|que\s+m[aá]s\s+vend|principal\w*|top\b)/i.test(q) && /(([uú]ltimo|este)\s+mes|mensual\b)/i.test(q)) {
+    const nM = String(q).match(/\b(\d{1,2})\b/);
+    return _cleanFilters({ ...spec, operation: "inventory", metric: "capital", dimension: "sku", focus: "mas_vendidos_mes",
+      limit: nM ? Number(nM[1]) : 5, turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") });
+  }
+  // CRUCE top vendedores × inventario ("inventario disponible de los 5 principales SKU de ventas")
+  if (_crossOk && _TOPSELL_INV_RE.test(q) && /(sku|producto)/i.test(q)) {
     const nM = String(q).match(/\b(\d{1,2})\b/);
     return _cleanFilters({ ...spec, operation: "inventory", metric: "capital", dimension: "sku", focus: "top_sellers",
       limit: nM ? Number(nM[1]) : 5, turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") });
   }
+  if (spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
   const inv = detectInventoryFocus(q);
   if (!inv.isInventory) return spec;
   const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";
@@ -149,6 +176,26 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // SANEO DE ENTRADA (crash en prod 2026-07-09): filters:null explícito del LLM rompe composers con default {} —
   // se normaliza acá para TODOS los caminos (haya o no _cleanFilters después en la cadena).
   if (spec && spec.filters === null) spec = { ...spec, filters: undefined };
+  // CANON DE ENTIDADES (invitado en prod 2026-07-09): "concepcion"→bodega Concepción (filters.bodega) ·
+  // "cuidado personal" en un recommend@sku → filters.familia · "falabella"→Falabella. El tipo real manda:
+  // si no coincide con la dimensión pedida viaja como filtro; si coincide, la entidad queda con su forma canónica.
+  if (spec && typeof spec.entity === "string" && spec.entity.trim()) {
+    const c = _canonEntity(spec.entity);
+    if (c && c.tipo === "bodega" && spec.dimension !== "bodega") spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), bodega: c.nombre } };
+    else if (c && c.tipo === "bodega" && spec.dimension === "bodega" && (spec.operation === "inventory" || spec.operation === "overview")) spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), bodega: c.nombre } };
+    else if (c && c.tipo === "familia" && spec.dimension !== "familia") spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), familia: c.nombre } };
+    else if (c && c.tipo === "marca" && spec.dimension !== "marca") spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), marca: c.nombre } };
+    else if (c) spec = { ...spec, entity: c.nombre };   // forma canónica (mayúsculas/tildes del dataset)
+  }
+  // …y los VALORES de filtros también se canonicalizan (mismo bug: "concepcion" no matcheaba el === del scope)
+  if (spec && spec.filters && typeof spec.filters === "object") {
+    let ch = null;
+    for (const k of ["cliente", "marca", "familia", "bodega", "sku"]) {
+      const v = spec.filters[k];
+      if (typeof v === "string" && v.trim()) { const c = _canonEntity(v); if (c && c.tipo === k && c.nombre !== v) { ch = ch || { ...spec.filters }; ch[k] = c.nombre; } }
+    }
+    if (ch) spec = { ...spec, filters: ch };
+  }
   // DEÍCTICO DE UI (owner 2026-07-08 · "compará estos dos" mirando la Mesa): la SELECCIÓN de la Mesa es el referente —
   // determinístico, sin que el LLM adivine. Solo con 2 seleccionados + intención de comparar + referencial plural.
   if (q && spec && ui && Array.isArray(ui.mesaSel) && ui.mesaSel.length === 2
@@ -177,6 +224,18 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.
   if (spec && typeof spec.entity === "string" && /^(t[uú]|yo|vos|usted|mi|m[ií]o|nuestro|ese|esa|eso|este|esta|esto|[eé]l|ella)$/i.test(spec.entity.trim()))
     spec = { ...spec, entity: null };
+  // RECOMENDACIÓN explícita (invitado 2026-07-09: "invierto en cuidado personal, ¿qué me recomendás?" caía en una
+  // lectura global de ventas): sin hilo previo, "qué me recomendás" → recommend y CORTA la cadena (los coerces de
+  // dominio le robaban el claim al LLM cuando la pregunta olía a ventas/margen). Ancla: los filtros del spec (el
+  // canon ya los normalizó) o, si faltan, las entidades NOMBRADAS en la pregunta (familia/marca/cliente del dataset).
+  if (q && spec && !hasLast && /(qu[eé]\s+(me\s+)?recomiend|qu[eé]\s+(me\s+)?recomend[aá]s|recomendaci[oó]n\b)/i.test(q)) {
+    let f = { ...(spec.filters || {}) };
+    if (!f.familia && !f.marca && !f.cliente && !f.bodega) {
+      const nq = _norm(q);
+      for (const [k, c] of _CANON) if ((c.tipo === "familia" || c.tipo === "marca" || c.tipo === "cliente") && nq.includes(k)) { f[c.tipo] = c.nombre; break; }
+    }
+    return _cleanFilters({ ...spec, operation: "recommend", entity: null, filters: Object.keys(f).length ? f : undefined, turn_type: "new_query" });
+  }
   const afterCompare = _coerceCompare(q, spec);
   const multi = _coerceMulti(q, afterCompare);
   if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)

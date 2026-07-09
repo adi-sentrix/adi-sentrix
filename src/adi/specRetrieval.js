@@ -399,11 +399,31 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       if (iv.alerta !== "ok" || (iv.estado && iv.estado !== "Activo")) alertas.push({ sku: s.nombre, estado: iv.estado, doh: Math.round(iv.doh) });
     }
     const lectura = alertas.length
-      ? `Ojo acá: ${alertas.map((a) => `${a.sku} está ${a.estado} (${a.doh} días de inventario para lo que vende)`).join(" · ")} — cuando un top vendedor se frena, la plata queda parada justo donde más duele.`
+      ? `Ojo acá: ${alertas.map((a) => `${a.sku} está ${a.estado} (${a.doh} días de inventario para lo que vende)`).join(" · ")} — cuando tu producto de mayor venta se frena, el capital queda detenido justo donde más pesa.`
       : `Los ${ventaRows.length} tienen stock sano para su ritmo de venta — sin quiebres ni frenos a la vista.`;
     return {
       opener: `Tus ${ventaRows.length} SKU que más venden, con su inventario disponible:\n\n${lines.join("\n")}\n\n${lectura}`,
       suggestions: ["¿Qué SKU está en riesgo de quiebre?", "El capital dormido en detalle", "Margen por SKU"],
+      sentrixAction: null,
+      evidence: { metrica: "ventas", dimension: "sku", boleta: bol },
+    };
+  }
+  // ── LOS MÁS VENDIDOS DEL MES (invitado en prod 2026-07-09: "los 5 SKU más vendidos en el último mes" respondía
+  // el AÑO sin declarar el cambio de período — y el movimiento del mes SÍ existe en unidades). Honesto: unidades
+  // reales del mes + stock actual; el corte en $ mensual por SKU se declara como límite (ERP). ──
+  if (focus === "mas_vendidos_mes") {
+    const N = Math.min(Math.max(Number(limit) || 5, 3), 10);
+    const byMes = rows.filter((r) => typeof r.vendidoMes === "number").sort((a, b) => b.vendidoMes - a.vendidoMes).slice(0, N);
+    if (!byMes.length) return null;
+    const lines = [], bol = [];
+    for (const r of byMes) {
+      lines.push(`• ${r[key]}: ${r.vendidoMes} unidades vendidas el último mes — stock ${r.stockUnd} unidades (${_money(r.stockUSD)}), ${Math.round(r.doh)} días de inventario`);
+      bol.push(fig(`Vendido en el mes · ${r[key]}`, String(r.vendidoMes), { unit: "count", raw: r.vendidoMes, mandatory: false, context: "más vendidos del mes (unidades)" }));
+      bol.push(fig(`Stock · ${r[key]}`, _money(r.stockUSD), { unit: "money", raw: r.stockUSD, mandatory: false, context: "más vendidos del mes" }));
+    }
+    return {
+      opener: `Tus ${byMes.length} SKU más vendidos del último mes (movimiento real, en unidades):\n\n${lines.join("\n")}\n\nEl corte en $ del mes por SKU se enciende con el histórico del ERP — no lo estimo. Lo que SÍ tengo completo es la venta anual por SKU en $, si te sirve ese ángulo.`,
+      suggestions: ["Los SKU que más venden en el año", "¿Qué SKU está en riesgo de quiebre?", "Margen por SKU"],
       sentrixAction: null,
       evidence: { metrica: "ventas", dimension: "sku", boleta: bol },
     };
@@ -745,17 +765,20 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     const target = POLICY.targetCarga;
     const cargaHigh = rows.filter((r) => typeof r.pctRebate === "number" && r.pctRebate > target).sort((a, b) => b.pctRebate - a.pctRebate).slice(0, 4);
     const thinPrice = rows.filter((r) => _markup(r) != null && r.margen < _benchOf(r)).sort((a, b) => _markup(a) - _markup(b)).slice(0, 3);
+    // CUÁNTO VALE (misma cuenta del detector de carga del diagnóstico · una verdad) — y LIDERA la respuesta:
+    // "¿cuánto me come la carga?" se contesta con el $ primero, el ranking después (invitado en prod 2026-07-09).
+    const cargaLever = dim === "cliente" ? _leverFoco(scenario, "carga", entityScope || (filters.cliente ? { entities: [filters.cliente] } : null)) : null;
     lines = [
-      `Las palancas que más comen margen, en orden:`,
+      cargaLever && cargaLever.top.length
+        ? `**Cuánto vale:** la carga sobre el target retiene ${_money(cargaLever.subtotal)} de margen al año — llevarla al ${_p1(target)}% lo libera; solo ${cargaLever.top[0].entidad} devuelve +${_money(cargaLever.top[0].usd)}.`
+        : "",
+      `Las palancas que más consumen margen, en orden:`,
       `**1 · Carga/rebates** — ${cargaHigh.length ? `${cargaHigh.map((r) => `${_mNombre(r)} (${_p1(r.pctRebate)}%)`).join(" · ")} están sobre el target de ${_p1(target)}%` : `todos dentro del target de ${_p1(target)}%`}. Es margen que se entrega en descuento; recortable donde el poder de negociación lo permite.`,
       thinPrice.length ? `**2 · Precio de lista** — ${thinPrice.map((r) => `${_mNombre(r)} (markup ${_p1(_markup(r))}%)`).join(" · ")}: la lista está pegada al costo, subir precio recupera margen directo.` : "",
       `**Qué hacer (volumen-safe):** arrancá por la carga de los ${L.p} con más poder de compra tuyo y por la lista donde la demanda aguanta — así recuperás margen sin resignar volumen.`,
     ];
     for (const r of cargaHigh) bol.push(fig(`${L.s} · ${_mNombre(r)} carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
-    // CUÁNTO VALE: la MISMA cuenta del detector de carga del diagnóstico ((carga − target) × venta · gated) — una verdad
-    const cargaLever = dim === "cliente" ? _leverFoco(scenario, "carga", entityScope || (filters.cliente ? { entities: [filters.cliente] } : null)) : null;
     if (cargaLever && cargaLever.top.length) {
-      lines.push(`**Cuánto vale:** llevar la carga al target de ${_p1(target)}% libera +${_money(cargaLever.subtotal)} al año — solo ${cargaLever.top[0].entidad} devuelve +${_money(cargaLever.top[0].usd)}.`);
       bol.push(_figLever("Palanca · carga al target", cargaLever.subtotal, "Σ (carga − target) × venta (≥ piso)", true));
       bol.push(_figLever(`Palanca · ${cargaLever.top[0].entidad}`, cargaLever.top[0].usd, "(carga − target) × venta"));
     }
