@@ -27,8 +27,10 @@ const _fmtC = (raw, unit) =>
   String(raw);
 
 // fig(label, value, opts) → figura de boleta normalizada. `value` es el string YA formateado por el composer.
-export function fig(label, value, { unit = "money", raw = null, mandatory = false, source = "actual", formula = null, context = null } = {}) {
-  return { label, value: String(value), unit, raw, mandatory, source, formula, context, canon: `${unit}:${String(value).replace(/\s/g, "")}` };
+// `gancho`: cifra AUTORIZADA que NO está en el texto determinístico (owner 2026-07-09 · fuera la muletilla) —
+// contexto opcional para que el narrador la use SOLO si viene al caso. Exenta del check "verbatim en el texto".
+export function fig(label, value, { unit = "money", raw = null, mandatory = false, source = "actual", formula = null, context = null, gancho = false } = {}) {
+  return { label, value: String(value), unit, raw, mandatory, source, formula, context, ...(gancho ? { gancho: true } : {}), canon: `${unit}:${String(value).replace(/\s/g, "")}` };
 }
 
 // isNamedInBoleta(boleta, nombre) → true si ADI NOMBRÓ esa entidad (una cifra de la boleta lleva su nombre en el label).

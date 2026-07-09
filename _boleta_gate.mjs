@@ -15,9 +15,11 @@ const diag = composeSpecDiagnose({ filters: {}, scenario: "bonanza" });
 ok("1 · diagnose emite evidence.boleta no vacía", !!(diag && Array.isArray(diag.evidence.boleta) && diag.evidence.boleta.length));
 ok("2 · figuras con value/unit/mandatory + campos reservados source/formula/context",
   diag.evidence.boleta.every((f) => f.value && f.unit && "mandatory" in f && f.source === "actual" && "formula" in f && "context" in f));
-ok("3 · cada value de la boleta aparece VERBATIM en el texto (una sola verdad)",
-  diag.evidence.boleta.every((f) => diag.opener.includes(f.value)));
+ok("3 · cada value de la boleta aparece VERBATIM en el texto (una sola verdad · los GANCHOS declarados quedan exentos)",
+  diag.evidence.boleta.every((f) => f.gancho === true || diag.opener.includes(f.value)));
 ok("4 · diagnose tiene al menos una figura mandatory (subtotal)", diag.evidence.boleta.some((f) => f.mandatory));
+ok("4b · gancho declarado (owner 2026-07-09): opcional (nunca mandatory) y con contexto para el narrador",
+  diag.evidence.boleta.filter((f) => f.gancho).every((f) => f.mandatory === false && f.context) && diag.evidence.boleta.some((f) => f.gancho));
 
 const cmp = composeSpecCompare({ dimension: "marca", entities: ["Samsung", "LG"], scenario: "bonanza" });
 ok("5 · compare (si compone) emite boleta con values en el texto",

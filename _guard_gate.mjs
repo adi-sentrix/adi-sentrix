@@ -3,6 +3,7 @@
  * Uso: node _guard_gate.mjs   (exit 1 si algún test falla)
  */
 import { numberGuard, pickNarratedText, shouldNarrate } from "./src/adi/llm/numberGuard.js";
+import { stripProactiveSuffix } from "./src/adi/llm/voiceGuard.js";
 
 // output validado de ADI (ejemplo real · rank de contribución) · obligatorias = evidence.ranking_values
 const V = {
@@ -82,6 +83,16 @@ const T = [
       { text: "Mercado Libre crece 25.3% con carga 1.8%.", evidence: { boleta: [{ label: "Carga · Mercado Libre", value: "1.8%" }, { label: "Crecimiento · Mercado Libre", value: "25.3%" }] } },
       "Mercado Libre viene creciendo 25.3% con una carga de apenas 1.8%."),
     ok: (r) => r.narrated === true },
+  // ── muletilla proactiva (owner 2026-07-09: "no deberíamos tener muletillas") ──
+  { n: "21 · muletilla: el suffix 'Un punto que no saliste a buscar…' se elimina y el resto queda intacto",
+    run: () => stripProactiveSuffix("La venta va +7.6% vs el año anterior.\n\nUn punto que no saliste a buscar: Mercado Libre viene creciendo 25.3% — y casi nadie la mira."),
+    ok: (r) => r === "La venta va +7.6% vs el año anterior." },
+  { n: "22 · muletilla: texto sin suffix queda idéntico (idempotente)",
+    run: () => stripProactiveSuffix("La venta va +7.6% vs el año anterior."),
+    ok: (r) => r === "La venta va +7.6% vs el año anterior." },
+  { n: "23 · muletilla: nunca deja el texto vacío (suffix solo → se conserva)",
+    run: () => stripProactiveSuffix("Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3%."),
+    ok: (r) => typeof r === "string" && r.trim().length > 0 },
 ];
 
 let pass = 0, fail = 0; const lines = [];

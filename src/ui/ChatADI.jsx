@@ -10,7 +10,7 @@ import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
 import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   // Paso 5 · number-guard + política de narración (degrades honestos van crudos)
-import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
+import { stripRoboticVoice, stripProactiveSuffix } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva fuera del camino LLM (owner 2026-07-09)
 import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
@@ -132,6 +132,9 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
     const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
     r = _fu || answerADI(q, context || {}, { scenario });
   }
+  // MULETILLA PROACTIVA fuera (owner 2026-07-09): el suffix enlatado no viaja en el camino LLM — el insight vive
+  // como gancho en la boleta del diagnóstico y el narrador decide si viene al caso. El piso demo queda byte-exacto.
+  if (r && typeof r.text === "string") r = { ...r, text: stripProactiveSuffix(r.text) };
   // NARRACIÓN LLM #2 (helper compartido) · aplica al follow-up Y al spec · guard → si falla, texto determinístico.
   const _nr = await _narrateResult(r);
   r = _nr.r; narrated = _nr.narrated;

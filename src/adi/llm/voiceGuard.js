@@ -53,3 +53,15 @@ export function stripRoboticVoice(text) {
   }
   return s;
 }
+
+// ── MULETILLA PROACTIVA (owner 2026-07-09: "no deberíamos tener muletillas — si el LLM interpreta el dato, debe
+// decir la realidad") · el suffix enlatado "Un punto que no saliste a buscar: …" se pegaba a CUALQUIER respuesta
+// (hasta degradas). Se elimina del texto en el camino LLM; el insight (real, calculado) viaja como GANCHO en la
+// boleta del diagnóstico — el narrador decide si viene al caso, con cifras autorizadas. Idempotente · number-safe
+// (el piso demo byte-exacto no pasa por acá).
+const _PROACTIVE_SUFFIX = /\n*\s*Un punto que no saliste a buscar:[^\n]*/g;
+export function stripProactiveSuffix(text) {
+  if (typeof text !== "string" || !text.trim()) return text;
+  const s = text.replace(_PROACTIVE_SUFFIX, "").replace(/\s+$/, "");
+  return s.trim() ? s : text;   // seguridad: nunca dejar vacío
+}

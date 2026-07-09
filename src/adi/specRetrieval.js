@@ -14,6 +14,8 @@ import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera cl
 import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
 import { clientesVentas as _cVentas, marcasVentas as _mVentas, sfamiliasVentas as _fVentas, historialMargen as _histM } from "../data/demoData.js";   // ventas con YoY+ppto (marca/familia NO están en el contrato → carga directa) + historial mensual (el año de cada cuenta)
 import { buildCompareEvolution as _cmpEvolution } from "./sentrix/temporal.js";   // las dos curvas del año (tendencia × estacionalidad real) para el causal temporal del compare
+import { detectVirtuousException } from "./proactive.js";   // gancho opcional del diagnóstico (fuera la muletilla · owner 2026-07-09)
+import { deriveBusinessThesis } from "./composers/thesis.js";
 import { skusMargen as _skusM } from "../data/skusMargen.js";   // SKU: venta+unidades (sin anterior/ppto)
 import { ventasKPI as _vKPI } from "../data/baseKpis.js";       // totales de cartera (100K vs 92.9K vs 97K)
 
@@ -315,6 +317,19 @@ export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
   for (const f of focos) {
     bol.push(fig(`${f.titulo} · subtotal`, _money(f.subtotal), { unit: "money", raw: f.subtotal, mandatory: true, context: _ctx }));
     for (const it of f.top.slice(0, 3)) bol.push(fig(`${f.titulo} · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
+  }
+  // GANCHO OPCIONAL (owner 2026-07-09: fuera la muletilla — "si el LLM interpreta el dato, debe decir la realidad"):
+  // la excepción virtuosa (cuenta que crece a contramano con carga baja · calculada, no enlatada) viaja AUTORIZADA
+  // en la boleta SOLO acá (el diagnóstico es su lugar); el narrador decide si viene al caso. Sin filtros (es cartera).
+  if (!scope) {
+    try {
+      const _vx = detectVirtuousException(scenario, deriveBusinessThesis(scenario));
+      if (_vx && _vx.evidencia) {
+        const _ve = _vx.evidencia;
+        if (_ve.variacion != null) bol.push(fig(`Oportunidad silenciosa · ${_vx.cuenta} crecimiento`, `${_ve.variacion}%`, { unit: "pct", raw: _ve.variacion, mandatory: false, gancho: true, context: "cuenta que crece a contramano — mencionala solo si viene al caso" }));
+        if (_ve.pctRebate != null) bol.push(fig(`Oportunidad silenciosa · ${_vx.cuenta} carga`, `${_ve.pctRebate}%`, { unit: "pct", raw: _ve.pctRebate, mandatory: false, gancho: true, context: "una de las cargas más bajas de la cartera — gancho opcional" }));
+      }
+    } catch { /* detector legacy sin datos → silencio */ }
   }
   return {
     opener: `${header}\n\n${blocks}`,

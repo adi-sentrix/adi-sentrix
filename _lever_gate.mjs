@@ -117,6 +117,13 @@ ok("piso SIN historia del año (dive) → no se appendea nada", (() => { const p
 ok("compare de MARCA también trae causa (estructura precio/costo del eje)", /\*\*Por qué ocurre:\*\*/.test(cmpMarca.text));
 ok("compare de MARCA honesto: plata por valor del punto (sin detector gated)", /\*\*Dónde está tu plata:\*\*/.test(cmpMarca.text) && /cada punto de margen vale/i.test(cmpMarca.text) && !/sobre la mesa/.test(cmpMarca.text.split("**Dónde está tu plata:**")[1].split("**")[0]));
 
+console.log("\n── gancho opcional del diagnóstico (fuera la muletilla · owner 2026-07-09) ──");
+const diagFull = A({ schemaVersion: 1, operation: "diagnose", metric: "contribucion", dimension: "cliente" }, {}, {});
+const _gFigs = ((diagFull.evidence && diagFull.evidence.boleta) || []).filter((f) => f.gancho === true);
+ok("diagnose de cartera trae el gancho AUTORIZADO en boleta (opcional · el suffix del texto lo limpia la UI)", _gFigs.length >= 1 && _gFigs.every((f) => f.mandatory !== true) && !/Oportunidad silenciosa/.test(diagFull.text || ""));
+const diagScoped = A({ schemaVersion: 1, operation: "diagnose", metric: "contribucion", dimension: "cliente", filters: { marca: "Samsung" } }, {}, {});
+ok("diagnose FILTRADO no trae el gancho (contexto global no aplica a respuesta scopeada)", !(((diagScoped.evidence && diagScoped.evidence.boleta) || []).some((f) => /Oportunidad silenciosa/.test(f.label || ""))));
+
 console.log("\n── apertura proactiva · los focos del hero = los subtotales del diagnose (una verdad) ──");
 const res = M.buildResumenEjecutivo("bonanza");
 ok("el resumen emite focos estructurados (detector + $ + label)", Array.isArray(res.focos) && res.focos.length >= 2 && res.focos.every((f) => f.detector && f.usd > 0 && f.usdFmt && f.label));
