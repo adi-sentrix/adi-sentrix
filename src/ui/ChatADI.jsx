@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
-import { pickNarratedText } from "../adi/llm/numberGuard.js";      // Paso 5 · number-guard de la narración LLM #2
+import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   // Paso 5 · number-guard + política de narración (degrades honestos van crudos)
 import { stripRoboticVoice } from "../adi/llm/voiceGuard.js";      // guard de voz determinístico (mata aperturas de plantilla + muletillas)
 import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
@@ -103,9 +103,10 @@ const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé
 // inicio (submitSpec) → misma calidad narrada por CUALQUIER puerta. buildNarrateSystem elige el prompt según evidence.
 async function _narrateResult(r) {
   if (!(ADI_LLM_NARRATE_ENABLED && r && r.text)) return { r, narrated: false };
-  // REPREGUNTA CRISP: las clarificaciones NO se narran con el LLM (las volvía vagas · "si tenés algunos clientes en
-  // mente…"). El texto determinístico ya es directo y ofrece opciones concretas → se muestra crudo. (owner 2026-07-06)
-  if (r.route === "clarification_needed") return { r, narrated: false };
+  // POLÍTICA DE NARRACIÓN (sweep 2026-07-09 · incluye la regla de clarificaciones del 2026-07-06): las repreguntas,
+  // los bloqueos del seam y los degrades honestos ("No tengo a X…") NO se narran — el determinístico ya declara el
+  // límite con voz de producto y el narrador demostró fabular sobre ellos (Walmart · "estoy proyectando…" · jerga).
+  if (!shouldNarrate(r)) return { r, narrated: false };
   try {
     const narration = await _fetchNarration(r);
     const picked = pickNarratedText(r, narration);

@@ -88,6 +88,66 @@ function _scrubNarrationLang(s) {
 }
 const _PROHIBITED = /\b(bonanza|tensi[oó]n|crisis)\b/i;
 
+// ── POLÍTICA DE NARRACIÓN (sweep de calidad 2026-07-09) ─────────────────────────────────────────────────────────
+// Los DEGRADES HONESTOS no se narran: el texto determinístico ya declara el límite con voz de producto, y el
+// narrador demostró FABULAR sobre ellos (Walmart "clave en el portafolio" · "estoy proyectando ventas…" ·
+// "extrapolar bodegas" · jerga interna). Lo innegociable se asegura en código, no en prompt. Mismo patrón que
+// la regla existente de clarificaciones (2026-07-06).
+const _DEGRADE_OPENER = /^(No tengo a |No te puedo atribuir|No encuentro |Esa vista todav[ií]a no la tengo)/;
+export function shouldNarrate(r) {
+  if (!r || !r.text) return false;
+  if (r.route === "clarification_needed") return false;            // regla existente: la repregunta va cruda
+  if (/^spec_blocked_/.test(r.route || "")) return false;          // bloqueos del seam · límite declarado honesto
+  if (_DEGRADE_OPENER.test(r.text.trim())) return false;           // degrades de composers (entidad/dimensión inexistente)
+  return true;
+}
+
+// GUARD DE ESCALA (sweep: "$31.6K" narrado donde ADI dijo "$31.6M" — el guard de dígitos no ve el sufijo):
+// todo token de plata de la narración cuyos DÍGITOS existan en lo autorizado debe conservar el MISMO sufijo K/M/B.
+function _moneyMap(text, acc) {
+  for (const m of String(text || "").matchAll(/\$\s?([\d.,]+)\s*([KMB])?/gi)) {
+    const key = m[1].replace(/[.,]$/, "");
+    if (!acc.has(key)) acc.set(key, new Set());
+    acc.get(key).add((m[2] || "").toUpperCase());
+  }
+  return acc;
+}
+function _scaleGuard(narr, det, evidence) {
+  const auth = _moneyMap(det, new Map());
+  const walk = (v) => { if (v == null) return; if (typeof v === "string") _moneyMap(v, auth); else if (Array.isArray(v)) v.forEach(walk); else if (typeof v === "object") Object.values(v).forEach(walk); };
+  walk(evidence);
+  for (const m of String(narr || "").matchAll(/\$\s?([\d.,]+)\s*([KMB])?/gi)) {
+    const key = m[1].replace(/[.,]$/, ""), suf = (m[2] || "").toUpperCase();
+    const allowed = auth.get(key);
+    if (allowed && !allowed.has(suf)) return { ok: false, reason: `escala alterada: $${key}${suf || ""} — ADI la emitió como $${key}${[...allowed].join("/")}` };
+  }
+  return { ok: true };
+}
+
+// GUARD DE ETIQUETA (sweep: la carga 1.8% de Mercado Libre narrada como "uno de los márgenes más bajos" — cifra
+// real, etiqueta falsa): un % adyacente a la palabra "margen" no puede corresponder a una fig de la boleta cuyo
+// label sea de CARGA (y viceversa). Solo falla si TODAS las figs que traen ese valor son de la métrica opuesta.
+function _labelGuard(narr, boleta) {
+  if (!Array.isArray(boleta) || !boleta.length) return { ok: true };
+  const figsPct = boleta.filter((f) => /%/.test(String(f.value || "")));
+  const valOf = (s) => { const m = String(s).match(/([\d.,]+)\s*%/); return m ? m[1].replace(",", ".") : null; };
+  const isCarga = (f) => /carga|rebate/i.test(String(f.label || "")), isMargen = (f) => /margen/i.test(String(f.label || ""));
+  const checks = [
+    { re: /\bm[aá]rgen(?:es)?\b[^.\n]{0,60}?([\d.,]+)\s*%|([\d.,]+)\s*%[^.\n]{0,35}?\bde\s+margen\b/gi, wrongIf: isCarga, rightIf: isMargen, palabra: "margen" },
+    { re: /\bcargas?\b[^.\n]{0,60}?([\d.,]+)\s*%|([\d.,]+)\s*%[^.\n]{0,35}?\bde\s+carga\b/gi, wrongIf: isMargen, rightIf: isCarga, palabra: "carga" },
+  ];
+  for (const c of checks) {
+    for (const m of String(narr || "").matchAll(c.re)) {
+      const num = (m[1] || m[2] || "").replace(",", ".");
+      if (!num) continue;
+      const figs = figsPct.filter((f) => valOf(f.value) === num);
+      if (figs.length && figs.every(c.wrongIf) && !figs.some(c.rightIf))
+        return { ok: false, reason: `etiqueta corrupta: ${num}% narrado como "${c.palabra}" pero la boleta lo emite como ${figs[0].label}` };
+    }
+  }
+  return { ok: true };
+}
+
 export function pickNarratedText(validated, narration) {
   const det = (validated && validated.text) || "";
   // MEMORIA DE CRITERIO (C.2): las confirmaciones administrativas van VERBATIM — traen frases-instrucción exactas
@@ -116,6 +176,11 @@ export function pickNarratedText(validated, narration) {
     g = numberGuard(narr, validated);
   }
   if (!g.ok) return { text: det, narrated: false, verdict: g.verdict, reason: g.reason };
+  // GUARDS ESTRUCTURALES post-cifras (sweep 2026-07-09): escala $K/$M conservada · etiqueta margen↔carga fiel.
+  const sc = _scaleGuard(narr, det, validated && validated.evidence);
+  if (!sc.ok) return { text: det, narrated: false, verdict: "escala-alterada", reason: sc.reason };
+  const lg = _labelGuard(narr, _bol);
+  if (!lg.ok) return { text: det, narrated: false, verdict: "etiqueta-corrupta", reason: lg.reason };
   // EL PERFIL (owner 2026-07-08 · "que ADI lea el gráfico"): la lectura de trayectoria NO se pierde por parafraseo del
   // narrador — si el piso la trae y la narración la omitió (sin palabras de trayectoria), se ANTEPONE la del piso
   // (determinística · cifras ya autorizadas · abre la respuesta como pide la regla "abrí leyendo el gráfico").

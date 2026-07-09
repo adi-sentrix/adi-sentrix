@@ -74,6 +74,10 @@ const ETLG_THESIS_TEMPLATES = {
         const rows = applyScenarioToClientesMargen(scenario);
         const sorted = [...rows].sort((a,b) => b.venta - a.venta);
         const rank = sorted.findIndex(r => r.nombre === clientName);
+        // HONESTIDAD (sweep 2026-07-09): entidad que NO está en la cartera (rank -1) → SIN tesis. La plantilla
+        // afirmaba propiedades ("la más cara · el margen no compensa") de cuentas inexistentes (Walmart/Corona)
+        // ANTES del degrade honesto — fabricación de piso que el narrador después amplificaba.
+        if (rank === -1) return { clientName: null };
         let sizeDesc = "del Tier 1";
         if (rank === 0) sizeDesc = "más grande";
         else if (rank === 1) sizeDesc = "segunda más grande";

@@ -2,7 +2,7 @@
  * numberGuard/pickNarratedText son puros (sin imports del motor) → node los importa directo, sin esbuild.
  * Uso: node _guard_gate.mjs   (exit 1 si algún test falla)
  */
-import { numberGuard, pickNarratedText } from "./src/adi/llm/numberGuard.js";
+import { numberGuard, pickNarratedText, shouldNarrate } from "./src/adi/llm/numberGuard.js";
 
 // output validado de ADI (ejemplo real · rank de contribución) · obligatorias = evidence.ranking_values
 const V = {
@@ -51,6 +51,37 @@ const T = [
   { n: "12 · pick: narración vacía / gateway sin texto → texto determinístico",
     run: () => pickNarratedText(V, ""),
     ok: (r) => r.narrated === false && r.text === V.text },
+  // ── sweep de calidad 2026-07-09 · política de narración (los degrades honestos van crudos) ──
+  { n: "13 · política: bloqueo del seam (spec_blocked_*) NO se narra",
+    run: () => shouldNarrate({ route: "spec_blocked_simulate-compound", text: "Eso no lo puedo proyectar." }),
+    ok: (r) => r === false },
+  { n: "14 · política: degrade honesto ('No tengo a X…') NO se narra (Walmart fabricado)",
+    run: () => shouldNarrate({ route: "client_dive", text: "No tengo a Walmart en el detalle de la cartera de este escenario. ¿Cuál querés revisar?" }),
+    ok: (r) => r === false },
+  { n: "15 · política: dimensión inexistente ('No te puedo atribuir…') NO se narra",
+    run: () => shouldNarrate({ route: "qi_retrieval", text: "No te puedo atribuir margen a un vendedor: falta la dimensión." }),
+    ok: (r) => r === false },
+  { n: "16 · política: respuesta normal SÍ se narra",
+    run: () => shouldNarrate({ route: "qi_retrieval", text: "8 de 13 clientes están bajo tu piso de 30.1%." }),
+    ok: (r) => r === true },
+  // ── guard de ESCALA (drift $M→$K cazado por los jueces en brand_comparison) ──
+  { n: "17 · escala: '$31.6K' narrado donde ADI dijo '$31.6M' → descartada (escala-alterada)",
+    run: () => pickNarratedText({ text: "Samsung vende $31.6M y Philips $28.0M.", evidence: {} }, "Samsung genera más volumen, con ventas de $31.6K frente a $28.0M de Philips."),
+    ok: (r) => r.narrated === false && r.verdict === "escala-alterada" },
+  { n: "18 · escala: sufijo CONSERVADO → narración pasa",
+    run: () => pickNarratedText({ text: "Samsung vende $31.6M y Philips $28.0M.", evidence: {} }, "Samsung genera más volumen: $31.6M en ventas frente a $28.0M de Philips."),
+    ok: (r) => r.narrated === true },
+  // ── guard de ETIQUETA (la carga 1.8% narrada como "margen" — cifra real, etiqueta falsa) ──
+  { n: "19 · etiqueta: boleta dice CARGA 1.8% y la narración lo llama 'margen' → descartada",
+    run: () => pickNarratedText(
+      { text: "Mercado Libre crece 25.3% con carga 1.8%.", evidence: { boleta: [{ label: "Carga · Mercado Libre", value: "1.8%" }, { label: "Crecimiento · Mercado Libre", value: "25.3%" }] } },
+      "Mercado Libre crece 25.3% con uno de los márgenes más bajos de la cartera, solo 1.8%."),
+    ok: (r) => r.narrated === false && r.verdict === "etiqueta-corrupta" },
+  { n: "20 · etiqueta: la misma cifra bien etiquetada ('carga 1.8%') → narración pasa",
+    run: () => pickNarratedText(
+      { text: "Mercado Libre crece 25.3% con carga 1.8%.", evidence: { boleta: [{ label: "Carga · Mercado Libre", value: "1.8%" }, { label: "Crecimiento · Mercado Libre", value: "25.3%" }] } },
+      "Mercado Libre viene creciendo 25.3% con una carga de apenas 1.8%."),
+    ok: (r) => r.narrated === true },
 ];
 
 let pass = 0, fail = 0; const lines = [];

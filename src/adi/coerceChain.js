@@ -152,8 +152,13 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   }
   // RESUMEN DEL NEGOCIO (owner 2026-07-08): "dame un resumen del negocio / panorama general / cómo está mi negocio"
   // → el DIAGNÓSTICO ejecutivo (los focos con su $), no un ranking suelto. Determinístico, antes de los dominios.
-  if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio/i.test(q))
+  // + "¿cómo vengo/venimos/vamos?" pelado (sweep 2026-07-09: el LLM lo parseaba como dive sin entidad — o con entidad "tú").
+  if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio|^\s*¿?\s*c[oó]mo\s+(vengo|venimos|vamos|voy|andamos|ando)\s*\??\s*$/i.test(q))
     return _cleanFilters({ ...spec, operation: "diagnose", metric: spec.metric || "contribucion", dimension: "cliente", turn_type: "new_query" });
+  // ENTIDAD-PRONOMBRE (sweep 2026-07-09): el LLM #1 a veces "resuelve" un pronombre como entidad ("tú"/"mi"/"eso")
+  // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.
+  if (spec && typeof spec.entity === "string" && /^(t[uú]|yo|vos|usted|mi|m[ií]o|nuestro|ese|esa|eso|este|esta|esto|[eé]l|ella)$/i.test(spec.entity.trim()))
+    spec = { ...spec, entity: null };
   const afterCompare = _coerceCompare(q, spec);
   const multi = _coerceMulti(q, afterCompare);
   if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)

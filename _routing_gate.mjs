@@ -78,6 +78,11 @@ ok("SIM_PCT · '30% de margen' NO es simulación (rutea a margen)", C("qué prod
 ok("SIM_PCT · '80% de la contribución' NO es simulación (rutea a contribución)", C("en cuántos clientes está el 80% de mi contribución", base(""), false).operation === "contribucion");
 ok("SANEO · filtro-ruido del LLM ({margen:'mínimo'}) se descarta al coercer (no degrada)", (() => { const s = C("¿quiénes están bajo el margen mínimo?", { ...base(""), filters: { margen: "mínimo" } }, false); return s.operation === "margin" && (!s.filters || !s.filters.margen); })());
 ok("SANEO · un filtro REAL (cliente) sobrevive al coercer", (() => { const s = C("¿cómo viene el margen de la cartera?", { ...base(""), filters: { cliente: "Lider" } }, false); return s.operation === "margin" && s.filters && s.filters.cliente === "Lider"; })());
+// sweep de calidad 2026-07-09 · panorama pelado + entidad-pronombre del LLM
+ok("PANORAMA · '¿cómo vengo?' → diagnose (no dive sin entidad)", C("¿cómo vengo?", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: null }, false).operation === "diagnose");
+ok("PANORAMA · 'cómo vamos' → diagnose", C("cómo vamos", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "tú" }, false).operation === "diagnose");
+ok("PRONOMBRE · entity 'tú' del LLM se anula (el seam repregunta, no degrada raro)", (() => { const s = C("¿cómo viene ese tema?", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "tú" }, false); return s.entity == null; })());
+ok("PRONOMBRE · entidad REAL no se toca", (() => { const s = C("profundiza en Jumbo", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "Jumbo" }, false); return s.entity === "Jumbo"; })());
 
 console.log(`\n── _routing_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
