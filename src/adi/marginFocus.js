@@ -13,7 +13,7 @@
 
 // intención de MARGEN (amplia · dispara el foco). Nota: las preguntas de proveedor/vendedor/caída SIEMPRE dicen "margen",
 // así que 'margen' las cubre; 'lista de precios'/'subir precio'/'costo creciente' cubren las que no nombran margen.
-export const MARGIN_INTENT_RE = /\b(margen|rebate\w*|carga\s+comercial|benchmark|rentab\w*|rind\w*|lista\s+de\s+precios|subir\s+(el\s+)?precio|cobrar\s+m[aá]s|precio\s+insuficient\w*|precio\s+[^.?!]*(bajo|abajo|pelad|barat)|costo\s+(alto|car\w*|dispar\w*)|car\w*\s+(de|para)\s+comprar|costo\s+crecient\w*|precio\s+estancad\w*|subpenetrad\w*|penetraci[oó]n|deja\w*\s+[^.?!]*(poc[oa]|nada|migu|miseria|migaja)|bajo\s+la\s+(raya|l[ií]nea)|mal\s+cotizad\w*|regalando|alza\s+de\s+precio|ajustar\s+(el\s+)?precio|meterle\s+mano\s+al\s+precio|espacio\s+[^.?!]*precio|bonificaci\w*|descuento\w*\s+.*(margen|doy|dar))/iu;
+export const MARGIN_INTENT_RE = /\b(margen|rebate\w*|carga\s+comercial|benchmark|rentab\w*|rind\w*|lista\s+de\s+precios|subir\s+(el\s+)?precio|cobrar\s+m[aá]s|precio\s+insuficient\w*|precio\s+[^.?!]*(bajo|abajo|pelad|barat)|costo\s+(alto|car\w*|dispar\w*)|car\w*\s+(de|para)\s+comprar|costo\s+crecient\w*|precio\s+estancad\w*|subpenetrad\w*|penetraci[oó]n|deja\w*\s+[^.?!]*(poc[oa]|nada|migu|miseria|migaja)|bajo\s+la\s+(raya|l[ií]nea)|mal\s+cotizad\w*|regalando|alza\s+de\s+precio|ajustar\s+(el\s+)?precio|meterle\s+mano\s+al\s+precio|espacio\s+[^.?!]*precio|bonificaci\w*|descuento\w*\s+.*(margen|doy|dar)|ced\w*\s+(\w+\s+)?por\s+(el\s+)?(precio|costo)s?\b)/iu;
 // simulación: VERBO + %-número, o % con signo · "30% de margen" (referencia) NO es simulación
 const SIM_PCT_RE = /\b(sub\w*|baj\w*|aument\w*|increment\w*|reduc\w*|proyect\w*)\b[^?.!]*\d+\s*%|[+\-]\s?\d+\s?%/i;
 

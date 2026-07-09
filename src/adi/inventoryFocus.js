@@ -7,7 +7,7 @@
  * (2) gate-testable (módulo puro, sin React ni seam). El LLM también puede setear `focus` en el spec; el coerce lo refuerza. */
 
 // intención de INVENTARIO (amplia · dispara el foco) — capital/stock/reposición/quiebre/sobrestock/rotación/sin-venta
-export const INV_INTENT_RE = /\b(capital|inmoviliz\w*|dormid\w*|congelad\w*|pegad\w*|inventario|stock|mercader[ií]a|bodeg\w*|reposici\w*|repon\w*|reabastec\w*|pedir|quiebr\w*|se\s+(me\s+)?(acab|agot)|agotar\w*|quedar?\s+en\s+cero|sobre[-\s]?stock|exceso|excedent\w*|sobrad\w*|cerros?\b|apila\w*|rotaci\w*|d[ií]as?\s+sin\s+vend\w*|sin\s+vend\w*|sin\s+rotar|no\s+se\s+mueve\w*|muerto\w*|polvo|botad\w*|estancad\w*|sin\s+movimiento|frenad\w*|parad\w*|liquid\w*|cobertura)\b/iu;
+export const INV_INTENT_RE = /\b(capital|inmoviliz\w*|dormid\w*|congelad\w*|pegad\w*|inventario|stock|mercader[ií]a|bodeg\w*|reposici\w*|repon\w*|reabastec\w*|pedir|quiebr\w*|se\s+(me\s+)?(acab|agot)|agotar\w*|quedar?\s+en\s+cero|sobre[-\s]?stock|exceso|excedent\w*|sobrad\w*|cerros?\b|apila\w*|rotaci\w*|d[ií]as?\s+sin\s+vend\w*|sin\s+vend\w*|sin\s+rotar|no\s+se\s+mueve\w*|muerto\w*|polvo|botad\w*|estancad\w*|sin\s+movimiento|frenad\w*|parad\w*|liquid\w*|liber\w*|cobertura)\b/iu;
 // simulación: VERBO + %-número, o % con signo · "baja disponibilidad"/"90 días" NO son simulación
 const SIM_PCT_RE = /\b(sub\w*|baj\w*|aument\w*|increment\w*|reduc\w*|proyect\w*)\b[^?.!]*\d+\s*%|[+\-]\s?\d+\s?%/i;
 // sub-focos (la pregunta manda cuál lidera)

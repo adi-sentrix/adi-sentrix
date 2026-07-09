@@ -335,7 +335,9 @@ export function answerConversational(spec, context = {}, state = {}) {
   // BLINDAJE del campo operation (bug cazado por el owner 2026-07-07): el LLM #1 a veces pone un TURN_TYPE en OPERATION
   // ("operation":"followup_compare") → el seam lo rechazaba y el degrade filtraba vocabulario interno al usuario. Un
   // operation con forma de turn_type ES un turn_type: se migra de campo (resolver conocido) o cae a recomendación contextual.
-  if (spec && /^(followup_|recall_|session_|apply_|meta_|multi_)/.test(String(spec.operation || ""))) {
+  // + clarification_needed (gate de promesas 2026-07-09): en operation llegaba al seam como op desconocida → "Eso todavía
+  // no lo tengo como análisis directo" (mentira — no es un límite del contrato, es una repregunta). Migra a su resolver.
+  if (spec && /^(followup_|recall_|session_|apply_|meta_|multi_|clarification_)/.test(String(spec.operation || ""))) {
     tt = TURN_RESOLVERS[spec.operation] ? spec.operation : (tt && TURN_RESOLVERS[tt] ? tt : "followup_recommendation");
     spec = { ...spec, operation: undefined };
   }

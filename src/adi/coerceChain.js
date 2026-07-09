@@ -223,6 +223,16 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     }
     if (ch) spec = { ...spec, filters: ch };
   }
+  // COMPARE FABRICADO (gate de promesas 2026-07-09): el LLM a veces clasifica el CLICK de una sugerencia como COMPARE
+  // de "entidades" inventadas (["x","y"] · ["volumen","precio"]) → "No tengo a x" — ADI ofreció y luego negó (promesa
+  // rota). Un claim de comparación solo sobrevive ANCLADO: alguna entidad existe en el canon o aparece textual en la
+  // pregunta (las de contexto legítimo SON del canon; las que el usuario nombró están en q — aunque no existan, el
+  // degrade honesto corresponde). Sin ancla, el claim se limpia y la cadena re-rutea desde el texto (la pregunta manda).
+  if (q && spec && spec.comparison && Array.isArray(spec.comparison.entities) && spec.comparison.entities.length) {
+    const nq = _norm(q);
+    const anclada = spec.comparison.entities.some((e) => typeof e === "string" && _norm(e).length >= 2 && (_canonEntity(e) || nq.includes(_norm(e))));
+    if (!anclada) spec = { ...spec, operation: spec.operation === "compare" ? "overview" : spec.operation, comparison: undefined };
+  }
   // DEÍCTICO DE UI (owner 2026-07-08 · "compará estos dos" mirando la Mesa): la SELECCIÓN de la Mesa es el referente —
   // determinístico, sin que el LLM adivine. Solo con 2 seleccionados + intención de comparar + referencial plural.
   if (q && spec && ui && Array.isArray(ui.mesaSel) && ui.mesaSel.length === 2
@@ -267,6 +277,21 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   const multi = _coerceMulti(q, afterCompare);
   if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)
   const s = _coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, afterCompare)))), hasLast);
+  // RESCATE DE CLARIFICACIÓN (gate de promesas 2026-07-09): el LLM a veces responde clarification_needed a una pregunta
+  // AUTOSUFICIENTE ("costo por cliente" — sugerencia de la propia ADI). Si el texto nombra una métrica del contrato, no
+  // se repregunta: se reescribe a overview métrica@eje y el contrato ejecuta o declara su límite. Sin métrica nombrada,
+  // la clarificación sigue su curso honesto (conversation.js la resuelve como pregunta de vuelta, no como "no lo tengo").
+  if (q && s && s.operation === "clarification_needed") {
+    const met = /\bventas?\b/i.test(q) ? "ventas" : /margen/i.test(q) ? "margen" : /contribuci[oó]n/i.test(q) ? "contribucion"
+      : /\bcostos?\b/i.test(q) ? "costo" : /\bcarga\b/i.test(q) ? "carga" : /(capital|stock|inventari)/i.test(q) ? "capital"
+      : /rotaci[oó]n/i.test(q) ? "rotacion" : /(\bdoh\b|cobertura)/i.test(q) ? "doh" : null;
+    if (met) {
+      const eje = q.match(/\b(?:por|del?)\s+(?:los\s+|las\s+|cada\s+|mis\s+)?(clientes?|skus?|productos?|marcas?|familias?|bodegas?)\b/i);
+      const dim = eje ? { cliente: "cliente", sku: "sku", producto: "sku", marca: "marca", familia: "familia", bodega: "bodega" }[eje[1].toLowerCase().replace(/s$/, "")]
+        : (met === "capital" || met === "rotacion" || met === "doh" ? "sku" : "cliente");
+      return _cleanFilters({ ...s, operation: "overview", metric: met, dimension: dim, focus: undefined, turn_type: "new_query" });
+    }
+  }
   // marca el turno deíctico SÓLO si además ruteó a un dominio que sabe filtrar por nombre (margin/contribucion/ventas/inventory)
   if (hasLast && q && s && _DEICTIC_RE.test(q) && (s.operation === "margin" || s.operation === "contribucion" || s.operation === "ventas" || s.operation === "inventory"))
     return { ...s, _deictic: true };
