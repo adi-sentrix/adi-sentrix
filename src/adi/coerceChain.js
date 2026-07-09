@@ -103,12 +103,18 @@ function _coerceMargin(q, spec) {
 
 // VENTAS · fallback general de lo comercial (vs ppto/YoY/descomposición/mix). Cede el dominio inventario (dentro del detector).
 function _coerceVentas(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "margin" || spec.operation === "contribucion" || spec.entity) return spec;
+  if (!q || !spec || spec.operation === "margin" || spec.operation === "contribucion") return spec;
+  // PROMESA ROTA (owner 2026-07-09): "¿es por volumen o por precio?" es una SUGERENCIA de ADI, pero el LLM a veces
+  // la clasifica como COMPARE de las "entidades" volumen/precio → "No tengo a volumen". Con ambas palabras en la
+  // pregunta, la descomposición de ventas MANDA por sobre el claim de compare/dive/entity (nadie compara "precio").
+  const _volPrecio = /\bvolumen\b[^]*\bprecios?\b|\bprecios?\b[^]*\bvolumen\b/i.test(q);
+  if (!_volPrecio && (spec.operation === "compare" || spec.operation === "dive" || spec.entity)) return spec;
   if (_PIDE_BODEGA.test(q)) return spec;       // ventas@bodega no existe → que el contrato lo declare
   if (_PIDE_COSTO_PURO(q)) return spec;        // "top 3 de costo" es del CONTRATO (costo@eje), no una lectura de ventas
   const v = detectVentasFocus(q);
   if (!v.isVentas) return spec;
   const s = { ...spec, operation: "ventas", metric: "ventas", dimension: v.dimension || "cliente",
+    entity: null, comparison: null,   // limpia el claim de compare/dive robado (volumen/precio no son entidades)
     turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
   if (v.focus) s.focus = v.focus;
   if (v.gap) s.gap = v.gap;
