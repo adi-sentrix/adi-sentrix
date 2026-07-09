@@ -2240,107 +2240,107 @@ function StationPeriodo({ a, b }) {
  * costo); SKU/MARCA/BODEGA derivan sus estaciones de LAS COLUMNAS DEL CUADRO (data-driven: mismo fmt, misma dirección —
  * el gráfico espeja la tabla que el usuario ve). Estación CLICKEABLE → detalle por período (la serie global real cuando
  * existe; el corte por entidad se enciende con el ERP — honesto). "Que ADI los compare a fondo" precarga la comparación. */
-// ── MESA PERFIL (owner 2026-07-09: "cuando seleccionás dos aparece el gráfico, pero también debería individual") ·
-// la entidad SOLA contra el PROMEDIO de su eje, misma gramática del Perfil comparado: estaciones = columnas del
-// cuadro, arriba = mejor, la vara (piso/target de POLICY) en ámbar. Responde "¿cómo está parado ESTE?" de un golpe. ──
+// ── MESA PERFIL (owner 2026-07-09: "también debería individual" + "como el modelo del chat — se entiende mejor") ·
+// la entidad SOLA contra el PROMEDIO de su eje, en la GRAMÁTICA de los gráficos del chat (card negra premium +
+// eje central estilo movers): el spine ES el promedio; derecha (verde) = mejor, izquierda (rojo) = peor — la
+// geometría dice la calidad aunque la métrica sea "menos = mejor". La vara (piso/target de POLICY) queda declarada. ──
+const _KF_MESA = `@media (prefers-reduced-motion: no-preference){
+@keyframes adiRise{from{transform:scaleX(0)}}
+@keyframes adiFade{from{opacity:0}}
+}`;
+if (typeof document !== "undefined" && !document.getElementById("adi-chart-kf")) {
+  const _s = document.createElement("style"); _s.id = "adi-chart-kf"; _s.textContent = _KF_MESA; document.head.appendChild(_s);
+}
 function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", onAsk }) {
   const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
   const fmk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
   const fp = (v) => p1(v) + "%";
   const fmtOf = { money: fm, moneyk: fmk, pct: fp, x: (v) => r1(v) + "x", int: (v) => Math.round(v).toLocaleString("es-CL"), pp: (v) => p1(v) + "pp" };
   if (!row) return null;
-  // estaciones = columnas numéricas del cuadro (sin acción/gap/pp — el "vs prom" es redundante acá: el promedio ES la otra línea)
+  // filas = columnas numéricas del cuadro (sin acción/gap/pp — el "vs prom" es redundante: el promedio ES el eje)
   const axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap" && c.fmt !== "pp").map((c) => {
     const vs = allRows.map((r) => r[c.key]).filter((v) => typeof v === "number");
-    return { label: c.label, va: row[c.key], vp: vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null,
+    return { key: c.key, label: c.label, va: row[c.key], vp: vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null,
       fmt: fmtOf[c.fmt] || ((v) => String(v)), hiBetter: c.sort !== "asc",
       ...(c.key === "margen" ? { ref: benchmarkOf(null), refLabel: "piso" } : {}),
       ...(c.key === "rotacion" ? { ref: POLICY.rotacionMin, refLabel: "piso" } : {}) };
-  }).filter((ax) => typeof ax.va === "number" && typeof ax.vp === "number");
+  }).filter((ax) => typeof ax.va === "number" && typeof ax.vp === "number" && Math.abs(ax.vp) > 0);
   if (axes.length < 2) return null;
-  const W = 620, H = 200, padT = 30, padB = 42, padL = 52, padR = 34;
-  const n = axes.length;
-  const xs = axes.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, n - 1));
-  const yOf = (ax, v) => {
-    const lo = Math.min(ax.va, ax.vp), hi = Math.max(ax.va, ax.vp);
-    const rng = Math.max(hi - lo, Math.abs(hi) * 0.06, 0.5);
-    const axLo = lo - rng * 0.55, axHi = hi + rng * 0.55;
-    let t = (v - axLo) / (axHi - axLo);
-    if (!ax.hiBetter) t = 1 - t;
-    return padT + (1 - t) * (H - padT - padB);
-  };
-  const colA = C.elec, colP = C.teal;
-  const ptsA = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.va) }));
-  const ptsP = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.vp) }));
-  const path = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
-  const winA = axes.map((ax) => (ax.va === ax.vp ? null : ax.hiBetter ? ax.va > ax.vp : ax.va < ax.vp));
-  const score = winA.filter((w) => w === true).length;
+  const filas = axes.map((ax) => {
+    const dev = ((ax.va - ax.vp) / Math.abs(ax.vp)) * 100;      // % de desvío vs promedio
+    const mejor = ax.hiBetter ? dev >= 0 : dev <= 0;            // geometría normalizada a CALIDAD
+    return { ...ax, dev, mejor, mag: Math.abs(dev) };
+  });
+  const maxMag = Math.max(...filas.map((f) => f.mag), 1);
+  const score = filas.filter((f) => f.mejor && f.dev !== 0).length;
+  const varas = filas.filter((f) => f.ref != null);
+  const MONOF = "'JetBrains Mono', ui-monospace, monospace";
+  const hdr = { fontFamily: MONOF, fontSize: 8.5, letterSpacing: "0.8px", color: C.textMuted, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,246,235,0.08)", paddingBottom: 3 };
   return (
-    <Card>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-        <Eyebrow def={"El perfil de la entidad contra el PROMEDIO de su eje: cada estación es una columna del cuadro, arriba = mejor. Las marcas ámbar son tu vara (piso/target). Para qué sirve: ver de un golpe dónde está parado y dónde pega la palanca. Seleccioná una segunda fila y pasa a la comparación A vs B."}>Perfil vs promedio · arriba = mejor</Eyebrow>
-        <span style={{ fontFamily:MONO, fontSize:10, color:C.textMuted }}>
-          <span style={{ color:colA, fontWeight:600 }}>{name}</span> sobre el promedio en {score} de {n}
+    <div style={{ padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(47,184,218,0.25)",
+      background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
+      boxShadow: "inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: MONOF, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center" }}>
+          <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+          Perfil vs promedio
+          <InfoDot def={"El perfil de la entidad contra el PROMEDIO de su eje. El eje central es el promedio: barra a la derecha (verde) = mejor que el promedio, a la izquierda (rojo) = peor — vale también para métricas donde menos es mejor (la geometría ya lo considera). Tu vara (piso/target) queda declarada abajo. Seleccioná una segunda fila y pasa a la comparación A vs B."} align="left"/>
+        </span>
+        <span style={{ fontFamily: MONOF, fontSize: 10, color: C.textMuted }}>
+          <span style={{ color: C.elec, fontWeight: 600 }}>{name}</span> sobre el promedio en {score} de {filas.length}
         </span>
       </div>
-      <div style={{ display:"flex", gap:16, margin:"6px 0 2px", flexWrap:"wrap" }}>
-        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
-          <span style={{ width:14, height:3, borderRadius:2, background:colA, boxShadow:`0 0 6px ${colA}88` }}/>{name}
-        </span>
-        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.textSub }}>
-          <span style={{ width:14, height:0, borderTop:`2px dotted ${colP}`, opacity:0.9 }}/>promedio del eje
-        </span>
-        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.textMuted }}>
-          <span style={{ width:14, height:0, borderTop:`1.5px dashed ${C.amber}`, opacity:0.9 }}/>tu piso / target
-        </span>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(80px, 128px) minmax(40px, 1fr) auto auto", columnGap: 8, rowGap: 5, alignItems: "center", marginTop: 6 }}>
+        <span style={hdr}/>
+        <span style={{ ...hdr, textAlign: "center" }}>← peor · prom · mejor →</span>
+        <span style={hdr}>{name.length > 10 ? "Valor" : name}</span>
+        <span style={hdr}>Prom</span>
+        {filas.map((f, i) => {
+          const w = Math.max(1.5, (f.mag / maxMag) * 50);
+          const grad = f.mejor
+            ? "linear-gradient(90deg, rgba(16,185,129,0.6), rgba(16,185,129,0.18))"
+            : "linear-gradient(270deg, rgba(244,63,94,0.6), rgba(244,63,94,0.18))";
+          return (
+            <React.Fragment key={f.key}>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 11.5, color: C.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.label}</span>
+                {!f.hiBetter && <span style={{ display: "block", fontFamily: MONOF, fontSize: 8, color: C.textMuted, whiteSpace: "nowrap" }}>menos = mejor</span>}
+              </span>
+              <div style={{ position: "relative", alignSelf: "stretch", minHeight: 17 }}>
+                <div style={{ position: "absolute", left: "50%", top: -3, bottom: -3, width: 1, background: "rgba(255,246,235,0.18)" }}/>
+                <div style={{ position: "absolute", top: "50%", marginTop: -4, height: 8, borderRadius: 2,
+                  width: `${w}%`, left: f.mejor ? "50%" : `${50 - w}%`, background: grad,
+                  transformOrigin: f.mejor ? "left center" : "right center", animation: `adiRise 420ms cubic-bezier(.2,.7,.3,1) ${i * 40}ms both` }}/>
+              </div>
+              <span style={{ fontFamily: MONOF, fontSize: 11, fontWeight: 600, color: f.dev === 0 ? C.text : f.mejor ? C.green : C.red, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{f.fmt(f.va)}</span>
+              <span style={{ fontFamily: MONOF, fontSize: 10, color: C.textMuted, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{f.fmt(f.vp)}</span>
+            </React.Fragment>
+          );
+        })}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
-        {axes.map((ax, i) => (
-          <g key={i}>
-            <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
-            <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600">{ax.label}</text>
-            {!ax.hiBetter && <text x={xs[i]} y={H - padB + 38} textAnchor="middle" fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>menos = mejor</text>}
-          </g>
-        ))}
-        <text x={padL - 40} y={padT + 2} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>mejor</text>
-        <text x={padL - 40} y={H - padB} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>peor</text>
-        {axes.map((ax, i) => {
-          if (ax.ref == null) return null;
-          const rawY = yOf(ax, ax.ref);
-          const cTop = rawY < padT - 4, cBot = rawY > H - padB + 4;
-          const y = Math.max(padT - 4, Math.min(H - padB + 4, rawY));
-          const ultima = i === axes.length - 1;   // en la última estación el label va hacia adentro (no se recorta)
-          return (
-            <g key={"ref" + i}>
-              <line x1={xs[i] - 17} x2={xs[i] + 17} y1={y} y2={y} stroke={C.amber} strokeWidth="1.4" strokeDasharray="3 3" opacity="0.9"/>
-              <text x={ultima ? xs[i] - 21 : xs[i] + 21} y={y + 3} textAnchor={ultima ? "end" : "start"} fill={C.amber} fontSize="8.5" fontFamily={MONO} opacity="0.95">{ax.refLabel} {ax.fmt(ax.ref)}{cTop ? " ↑" : cBot ? " ↓" : ""}</text>
-            </g>
-          );
-        })}
-        {/* promedio en perlas (misma voz visual del "año anterior" del evolutivo) · la entidad con glow doble trazo */}
-        <path d={path(ptsP)} fill="none" stroke={colP} strokeWidth="1.8" strokeDasharray="0.1 6" strokeLinecap="round" opacity="0.7"/>
-        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
-        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="2.2" strokeLinejoin="round" opacity="0.95"/>
-        {axes.map((ax, i) => {
-          const pa = ptsA[i], pp = ptsP[i];
-          const aTop = pa.y <= pp.y;
-          return (
-            <g key={"p" + i}>
-              {winA[i] === true && <circle cx={pa.x} cy={pa.y} r="8.5" fill="none" stroke={colA} strokeWidth="1" opacity="0.5"/>}
-              <circle cx={pa.x} cy={pa.y} r="4.5" fill={colA} stroke="#0b0a09" strokeWidth="1.5"/>
-              <circle cx={pp.x} cy={pp.y} r="3" fill={colP} stroke="#0b0a09" strokeWidth="1.5" opacity="0.85"/>
-              <text x={pa.x} y={aTop ? pa.y - 13 : pa.y + 21} textAnchor="middle" fill={colA} fontSize="10" fontFamily={MONO} fontWeight="600">{ax.fmt(ax.va)}</text>
-              <text x={pp.x} y={aTop ? pp.y + 21 : pp.y - 13} textAnchor="middle" fill={colP} fontSize="9" fontFamily={MONO} opacity="0.9">{ax.fmt(ax.vp)}</text>
-            </g>
-          );
-        })}
-      </svg>
-      {onAsk ? (
-        <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2 }}>
-          seleccioná una segunda fila para compararlo · o <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:10.5, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>pedile a ADI que profundice en {name} →</button>
+      {/* la VARA del owner declarada (POLICY · una verdad) — el promedio no reemplaza tu piso */}
+      {varas.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 7, fontSize: 10.5, color: C.textMuted, flexWrap: "wrap" }}>
+          {varas.map((f) => (
+            <span key={"v" + f.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 12, height: 0, borderTop: `1.5px dashed ${C.amber}`, opacity: 0.9 }}/>
+              <span style={{ color: C.amber }}>{f.label.toLowerCase()} {f.refLabel} {f.fmt(f.ref)}</span>
+              <span>· {name} {(f.hiBetter ? f.va >= f.ref : f.va <= f.ref) ? "sobre" : "bajo"} la vara</span>
+            </span>
+          ))}
         </div>
-      ) : null}
-    </Card>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 10.5, color: C.textMuted }}>
+          el eje central es el promedio del eje · <span style={{ color: C.green }}>derecha = mejor</span> · <span style={{ color: C.red }}>izquierda = peor</span>
+        </span>
+        {onAsk ? (
+          <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 10.5, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+            Pedile a ADI que profundice en {name} →
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
