@@ -18,7 +18,8 @@ const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 
 const rVen = A(S({ operation: "ventas", metric: "ventas", dimension: "cliente", focus: "vs_anterior" }), {}, {});
-ok("ventas vs anterior → EVOLUTIVO (12 meses · misma verdad que Sentrix)", (() => { const c = CH(rVen.evidence); return c && c.tipo === "evolutivo"; })());
+ok("ventas vs anterior (por cliente) → MOVERS divergentes: responde LO PREGUNTADO por entidad (owner 2026-07-09)", (() => { const c = CH(rVen.evidence); return c && c.tipo === "movers" && c.panel.rows.length >= 2 && c.panel.rows.every((r) => typeof r.pos === "boolean" && r.valFmt); })());
+ok("ventas SIN desglose por entidad → EVOLUTIVO global (12 meses)", (() => { const c = CH({ lens: "ventas", ventas: { focus: "global", panel: null }, boleta: [] }); return c && c.tipo === "evolutivo"; })());
 
 const rCon = A(S({ operation: "contribucion", metric: "contribucion", dimension: "cliente", focus: "concentracion" }), {}, {});
 ok("contribución concentración → PARETO con corte real", (() => { const c = CH(rCon.evidence); return c && c.tipo === "pareto" && c.panel.cutoff > 0 && c.panel.rows.length >= 3 && typeof c.panel.rows[0].acum === "number"; })());

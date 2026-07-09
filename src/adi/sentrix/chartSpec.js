@@ -14,7 +14,12 @@ export function chartForEvidence(e) {
   if (cp && cp.kind === "pareto" && Array.isArray(cp.rows) && cp.rows.length >= 3)
     return { tipo: "pareto", titulo: cp.title || "Quién sostiene la contribución", panel: { totalPct: cp.totalPct, cutoff: cp.cutoff, of: cp.of, rows: cp.rows.slice(0, 10) } };
 
-  // 2 · VENTAS · evolutivo global (12 meses reales · misma verdad que La Historia de Sentrix)
+  // 2 · VENTAS con panel de MOVERS (vs anterior/ppto · caída · precio realizado) → barras divergentes "quién mueve
+  // la aguja" — responde LO PREGUNTADO por entidad (owner 2026-07-09: "ventas por cliente vs año anterior" mostraba
+  // la película global). El evolutivo queda para la lectura global sin desglose.
+  const vp = e.lens === "ventas" && e.ventas && e.ventas.panel;
+  if (vp && vp.kind === "movers" && Array.isArray(vp.rows) && vp.rows.length >= 2)
+    return { tipo: "movers", titulo: `${vp.title || "Quién mueve la aguja"}${vp.headline ? ` · ${vp.headline}` : ""}`, panel: { ...vp, rows: vp.rows.slice(0, 10) } };
   if (e.lens === "ventas" && e.ventas)
     return { tipo: "evolutivo", titulo: "Venta · 12 meses vs año anterior" };
 

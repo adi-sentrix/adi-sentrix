@@ -74,6 +74,28 @@ function MiniBarras({ rows, polarity }) {
   );
 }
 
+// ── mini movers · barras divergentes "quién mueve la aguja" (verde suma · rojo resta · como en Sentrix) ──
+function MiniMovers({ panel }) {
+  const rows = panel.rows;
+  const max = Math.max(...rows.map((r) => Math.abs(r.val || 0)), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {panel.headlineSub && <div style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, marginBottom: 2 }}>{panel.headlineSub}</div>}
+      {rows.map((r, i) => (
+        <div key={r.nombre} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 104, flexShrink: 0, fontSize: 11, color: i === 0 ? C.text : C.textSub, fontWeight: i === 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</span>
+          <div style={{ position: "relative", flex: 1, height: 9, background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ width: `${Math.max(2, Math.abs(r.val || 0) / max * 100)}%`, height: "100%", borderRadius: 4, background: r.pos ? C.green : C.red, opacity: 0.8 }}/>
+          </div>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: r.pos ? C.green : C.red, fontVariantNumeric: "tabular-nums", width: 66, textAlign: "right", flexShrink: 0 }}>{r.valFmt}</span>
+          {typeof r.pct === "number" && <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", width: 46, textAlign: "right", flexShrink: 0 }}>{r.pct >= 0 ? "+" : ""}{r.pct}%</span>}
+        </div>
+      ))}
+      <div style={{ fontSize: 9.5, color: C.textMuted, fontFamily: MONO, marginTop: 2 }}>verde = suma · rojo = resta</div>
+    </div>
+  );
+}
+
 // ── mini pareto · barras de participación + acumulada + corte 80/20 real ──
 function MiniPareto({ panel }) {
   const rows = panel.rows;
@@ -113,17 +135,20 @@ function MiniPareto({ panel }) {
 // ── contenedor: eyebrow + gráfico + "Ampliar en Sentrix" (deep-link a la evidencia que ya existe) ──
 export function InlineChart({ spec, onAmpliar }) {
   if (!spec) return null;
+  // PREMIUM Sentrix (owner 2026-07-09: "fondo negro, como los de Sentrix"): negro profundo + borde celeste suave —
+  // el mismo lenguaje del detalle por período de la Mesa.
   return (
-    <div style={{ marginTop: 12, padding: "11px 13px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(0,0,0,0.18)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase" }}>{spec.titulo}</span>
+    <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(47,184,218,0.25)", background: "#0b0a09" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 9 }}>
+        <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase" }}>{spec.titulo}</span>
         {onAmpliar && (
-          <button onClick={onAmpliar} style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", padding: 0, whiteSpace: "nowrap" }}>
+          <button onClick={onAmpliar} style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", padding: 0, whiteSpace: "nowrap", opacity: 0.9 }}>
             Ampliar en Sentrix →
           </button>
         )}
       </div>
       {spec.tipo === "evolutivo" && <MiniEvolutivo/>}
+      {spec.tipo === "movers" && <MiniMovers panel={spec.panel}/>}
       {spec.tipo === "barras" && <MiniBarras rows={spec.rows} polarity={spec.polarity}/>}
       {spec.tipo === "pareto" && <MiniPareto panel={spec.panel}/>}
     </div>
