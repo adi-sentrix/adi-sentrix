@@ -773,6 +773,13 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = 
           <div>
             <div style={{ ...head, marginBottom:11, display:"flex", justifyContent:"space-between" }}><span>Contribución acumulada</span><span style={{ textTransform:"none", letterSpacing:0, color:C.green }}>corte 80%</span></div>
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {/* títulos de columna (owner 2026-07-09: el usuario no sabe de qué son los números) */}
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <span style={{ width:118, flexShrink:0 }}/>
+                <div style={{ flex:1 }}/>
+                <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase", width:52, textAlign:"right", flexShrink:0 }}>Contrib.</span>
+                <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase", width:42, textAlign:"right", flexShrink:0 }}>Acum</span>
+              </div>
               {rows.map((r, i) => { const inTop = i < p.cutoff; const named = nm(r.nombre); return (
                 <AskRow key={i} onAsk={onAsk} q={`¿De dónde saca ${r.nombre} su contribución?`} style={{ display:"flex", alignItems:"center", gap:9 }}>
                   <span style={{ display:"flex", alignItems:"center", gap:5, width:118, flexShrink:0, minWidth:0 }}>{named ? <NamedDot/> : null}<span style={{ fontSize:12, color: named ? C.text : inTop ? C.textSub : C.textMuted, fontWeight: named ? 600 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.nombre}</span></span>
@@ -1167,14 +1174,22 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <b style={{ color:C.celeste }}>{con.blockCount} de {con.n} {con.plural}</b> explican el <b>{con.blockPct}%</b> de tu venta.
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+            {/* títulos de columna (owner 2026-07-09: "faltan los títulos y uno debería ser plata y el otro %") —
+                la PLATA de cada cuenta + el % acumulado: así el 80/20 se lee de un golpe */}
+            <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:1 }}>
+              <span style={{ width:118, flexShrink:0 }}/>
+              <div style={{ flex:1 }}/>
+              <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase", width:52, textAlign:"right", flexShrink:0 }}>Venta</span>
+              <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase", width:42, textAlign:"right", flexShrink:0 }}>Acum</span>
+            </div>
             {bars.map((b, i) => (
               <AskRow key={i} onAsk={onAsk} q={`Profundiza en ${b.name}`} style={{ display:"flex", alignItems:"center", gap:9 }}>
                 <span style={{ fontSize:12, color: b.inBlock ? C.text : C.textMuted, fontWeight: b.inBlock ? 600 : 400, width:118, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.name}</span>
                 <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
                   <div style={{ width:`${Math.max(2, b.pct / maxPct * 100)}%`, height:"100%", background: b.inBlock ? C.blue : "rgba(255,255,255,0.2)", opacity:0.85 }}/>
                 </div>
-                <span style={{ fontFamily:MONO, fontSize:11, color: b.inBlock ? C.text : C.textMuted, width:40, textAlign:"right", flexShrink:0 }}>{p1(b.pct)}%</span>
-                <span style={{ fontFamily:MONO, fontSize:10.5, color: b.cumPct <= 80 ? C.green : C.textMuted, width:42, textAlign:"right", flexShrink:0 }}>{p1(b.cumPct)}%</span>
+                <span style={{ fontFamily:MONO, fontSize:11, color: b.inBlock ? C.text : C.textMuted, width:52, textAlign:"right", flexShrink:0, fontVariantNumeric:"tabular-nums" }}>{"$" + (b.value / 1000).toFixed(1) + "M"}</span>
+                <span style={{ fontFamily:MONO, fontSize:10.5, color: b.cumPct <= 80 ? C.green : C.textMuted, width:42, textAlign:"right", flexShrink:0, fontVariantNumeric:"tabular-nums" }}>{p1(b.cumPct)}%</span>
               </AskRow>
             ))}
           </div>
@@ -1817,13 +1832,17 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           )}
         </div>
       </div>
-      {/* al seleccionar EXACTAMENTE 2 → en la MESA el Perfil comparado para CUALQUIER dimensión (owner 2026-07-08: "en su
+      {/* al seleccionar UNA fila → el perfil de ESA entidad vs el promedio del eje (owner 2026-07-09: "también debería
+          individual"); con EXACTAMENTE 2 → el Perfil comparado para CUALQUIER dimensión (owner 2026-07-08: "en su
           plenitud" — las estaciones salen de las columnas del eje); en la lente Control, el dumbbell original (cliente). */}
+      {sel.length === 1 && mesa && (
+        <MesaPerfil name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} onAsk={onAsk}/>
+      )}
       {sel.length === 2 && (mesa
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
         : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar y comparar{mesa || dim === "cliente" ? " (2 → gráfico)" : ""} · ordená por cualquier columna{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2221,6 +2240,110 @@ function StationPeriodo({ a, b }) {
  * costo); SKU/MARCA/BODEGA derivan sus estaciones de LAS COLUMNAS DEL CUADRO (data-driven: mismo fmt, misma dirección —
  * el gráfico espeja la tabla que el usuario ve). Estación CLICKEABLE → detalle por período (la serie global real cuando
  * existe; el corte por entidad se enciende con el ERP — honesto). "Que ADI los compare a fondo" precarga la comparación. */
+// ── MESA PERFIL (owner 2026-07-09: "cuando seleccionás dos aparece el gráfico, pero también debería individual") ·
+// la entidad SOLA contra el PROMEDIO de su eje, misma gramática del Perfil comparado: estaciones = columnas del
+// cuadro, arriba = mejor, la vara (piso/target de POLICY) en ámbar. Responde "¿cómo está parado ESTE?" de un golpe. ──
+function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", onAsk }) {
+  const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
+  const fmk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
+  const fp = (v) => p1(v) + "%";
+  const fmtOf = { money: fm, moneyk: fmk, pct: fp, x: (v) => r1(v) + "x", int: (v) => Math.round(v).toLocaleString("es-CL"), pp: (v) => p1(v) + "pp" };
+  if (!row) return null;
+  // estaciones = columnas numéricas del cuadro (sin acción/gap/pp — el "vs prom" es redundante acá: el promedio ES la otra línea)
+  const axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap" && c.fmt !== "pp").map((c) => {
+    const vs = allRows.map((r) => r[c.key]).filter((v) => typeof v === "number");
+    return { label: c.label, va: row[c.key], vp: vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null,
+      fmt: fmtOf[c.fmt] || ((v) => String(v)), hiBetter: c.sort !== "asc",
+      ...(c.key === "margen" ? { ref: benchmarkOf(null), refLabel: "piso" } : {}),
+      ...(c.key === "rotacion" ? { ref: POLICY.rotacionMin, refLabel: "piso" } : {}) };
+  }).filter((ax) => typeof ax.va === "number" && typeof ax.vp === "number");
+  if (axes.length < 2) return null;
+  const W = 620, H = 200, padT = 30, padB = 42, padL = 52, padR = 34;
+  const n = axes.length;
+  const xs = axes.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, n - 1));
+  const yOf = (ax, v) => {
+    const lo = Math.min(ax.va, ax.vp), hi = Math.max(ax.va, ax.vp);
+    const rng = Math.max(hi - lo, Math.abs(hi) * 0.06, 0.5);
+    const axLo = lo - rng * 0.55, axHi = hi + rng * 0.55;
+    let t = (v - axLo) / (axHi - axLo);
+    if (!ax.hiBetter) t = 1 - t;
+    return padT + (1 - t) * (H - padT - padB);
+  };
+  const colA = C.elec, colP = C.teal;
+  const ptsA = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.va) }));
+  const ptsP = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.vp) }));
+  const path = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const winA = axes.map((ax) => (ax.va === ax.vp ? null : ax.hiBetter ? ax.va > ax.vp : ax.va < ax.vp));
+  const score = winA.filter((w) => w === true).length;
+  return (
+    <Card>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+        <Eyebrow def={"El perfil de la entidad contra el PROMEDIO de su eje: cada estación es una columna del cuadro, arriba = mejor. Las marcas ámbar son tu vara (piso/target). Para qué sirve: ver de un golpe dónde está parado y dónde pega la palanca. Seleccioná una segunda fila y pasa a la comparación A vs B."}>Perfil vs promedio · arriba = mejor</Eyebrow>
+        <span style={{ fontFamily:MONO, fontSize:10, color:C.textMuted }}>
+          <span style={{ color:colA, fontWeight:600 }}>{name}</span> sobre el promedio en {score} de {n}
+        </span>
+      </div>
+      <div style={{ display:"flex", gap:16, margin:"6px 0 2px", flexWrap:"wrap" }}>
+        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
+          <span style={{ width:14, height:3, borderRadius:2, background:colA, boxShadow:`0 0 6px ${colA}88` }}/>{name}
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.textSub }}>
+          <span style={{ width:14, height:0, borderTop:`2px dotted ${colP}`, opacity:0.9 }}/>promedio del eje
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.textMuted }}>
+          <span style={{ width:14, height:0, borderTop:`1.5px dashed ${C.amber}`, opacity:0.9 }}/>tu piso / target
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+        {axes.map((ax, i) => (
+          <g key={i}>
+            <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
+            <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600">{ax.label}</text>
+            {!ax.hiBetter && <text x={xs[i]} y={H - padB + 38} textAnchor="middle" fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>menos = mejor</text>}
+          </g>
+        ))}
+        <text x={padL - 40} y={padT + 2} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>mejor</text>
+        <text x={padL - 40} y={H - padB} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>peor</text>
+        {axes.map((ax, i) => {
+          if (ax.ref == null) return null;
+          const rawY = yOf(ax, ax.ref);
+          const cTop = rawY < padT - 4, cBot = rawY > H - padB + 4;
+          const y = Math.max(padT - 4, Math.min(H - padB + 4, rawY));
+          const ultima = i === axes.length - 1;   // en la última estación el label va hacia adentro (no se recorta)
+          return (
+            <g key={"ref" + i}>
+              <line x1={xs[i] - 17} x2={xs[i] + 17} y1={y} y2={y} stroke={C.amber} strokeWidth="1.4" strokeDasharray="3 3" opacity="0.9"/>
+              <text x={ultima ? xs[i] - 21 : xs[i] + 21} y={y + 3} textAnchor={ultima ? "end" : "start"} fill={C.amber} fontSize="8.5" fontFamily={MONO} opacity="0.95">{ax.refLabel} {ax.fmt(ax.ref)}{cTop ? " ↑" : cBot ? " ↓" : ""}</text>
+            </g>
+          );
+        })}
+        {/* promedio en perlas (misma voz visual del "año anterior" del evolutivo) · la entidad con glow doble trazo */}
+        <path d={path(ptsP)} fill="none" stroke={colP} strokeWidth="1.8" strokeDasharray="0.1 6" strokeLinecap="round" opacity="0.7"/>
+        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
+        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="2.2" strokeLinejoin="round" opacity="0.95"/>
+        {axes.map((ax, i) => {
+          const pa = ptsA[i], pp = ptsP[i];
+          const aTop = pa.y <= pp.y;
+          return (
+            <g key={"p" + i}>
+              {winA[i] === true && <circle cx={pa.x} cy={pa.y} r="8.5" fill="none" stroke={colA} strokeWidth="1" opacity="0.5"/>}
+              <circle cx={pa.x} cy={pa.y} r="4.5" fill={colA} stroke="#0b0a09" strokeWidth="1.5"/>
+              <circle cx={pp.x} cy={pp.y} r="3" fill={colP} stroke="#0b0a09" strokeWidth="1.5" opacity="0.85"/>
+              <text x={pa.x} y={aTop ? pa.y - 13 : pa.y + 21} textAnchor="middle" fill={colA} fontSize="10" fontFamily={MONO} fontWeight="600">{ax.fmt(ax.va)}</text>
+              <text x={pp.x} y={aTop ? pp.y + 21 : pp.y - 13} textAnchor="middle" fill={colP} fontSize="9" fontFamily={MONO} opacity="0.9">{ax.fmt(ax.vp)}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {onAsk ? (
+        <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2 }}>
+          seleccioná una segunda fila para compararlo · o <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:10.5, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>pedile a ADI que profundice en {name} →</button>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenario, onAsk }) {
   const [selSt, setSelSt] = useState(null);   // estación seleccionada (detalle por período) · hook SIEMPRE primero
   const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
