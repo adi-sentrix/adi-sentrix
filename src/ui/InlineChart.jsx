@@ -225,7 +225,11 @@ function MiniMovers({ panel }) {
 
 // ── mini pareto · el bloque que importa en gradiente, la cola ghost · acumulada step (la suma es discreta) ·
 //    corte en ÁMBAR (donde está la plata — el rojo queda reservado a "resta") · takeaway arriba, no censo abajo ──
-function MiniPareto({ panel }) {
+// EXPORTADO (owner 2026-07-09: "el 80% de Sentrix cambialo por el de columnas") — la Mesa reusa ESTA pieza (una
+// sola verdad visual). Props opcionales: showTakeaway=false cuando el shell ya trae el titular · onPick(nombre)
+// hace cada columna clickeable (la Mesa pregunta "Profundiza en X") · rows[i].sub reemplaza el "part%" bajo el
+// nombre (la Mesa pone la PLATA). El uso del chat queda byte-igual con los defaults.
+export function MiniPareto({ panel, showTakeaway = true, onPick = null }) {
   const uid = useSvgId();
   const rows = panel.rows;
   const n = rows.length;
@@ -240,9 +244,11 @@ function MiniPareto({ panel }) {
   const iCut = Math.min(Math.max(panel.cutoff, 1), n) - 1;
   return (
     <>
-      <div style={{ fontFamily: SANS, fontSize: 11, color: C.textSub, marginBottom: 8 }}>
-        <b style={kAmber}>{panel.cutoff}</b> de <b style={kAmber}>{panel.of}</b> explican el <b style={kAmber}>{Math.round(panel.totalPct)}%</b>
-      </div>
+      {showTakeaway && (
+        <div style={{ fontFamily: SANS, fontSize: 11, color: C.textSub, marginBottom: 8 }}>
+          <b style={kAmber}>{panel.cutoff}</b> de <b style={kAmber}>{panel.of}</b> explican el <b style={kAmber}>{Math.round(panel.totalPct)}%</b>
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
         <defs>
           <linearGradient id={`${uid}pb`} x1="0" y1="0" x2="0" y2="1">
@@ -254,7 +260,10 @@ function MiniPareto({ panel }) {
         {rows.map((r, i) => (
           <rect key={r.nombre} x={xc(i) - bw / 2} y={yBar(r.part)} width={bw} height={(H - padB) - yBar(r.part)} rx="2"
             fill={i < panel.cutoff ? `url(#${uid}pb)` : "rgba(47,184,218,0.16)"}
-            style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both` }}/>
+            onClick={onPick ? () => onPick(r.nombre) : undefined}
+            style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both`, cursor: onPick ? "pointer" : "default" }}>
+            {onPick ? <title>{`Preguntale a ADI: Profundiza en ${r.nombre}`}</title> : null}
+          </rect>
         ))}
         <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="3.5" opacity="0.12" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
         <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="1.5" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
@@ -265,11 +274,12 @@ function MiniPareto({ panel }) {
       </svg>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, padding: "0 1.8%", marginTop: 4, columnGap: 2 }}>
         {rows.map((r, i) => (
-          <div key={r.nombre} style={{ textAlign: "center", overflow: "hidden" }}>
+          <div key={r.nombre} onClick={onPick && i < panel.cutoff ? () => onPick(r.nombre) : undefined}
+            style={{ textAlign: "center", overflow: "hidden", cursor: onPick && i < panel.cutoff ? "pointer" : "default" }}>
             {i < panel.cutoff && (
               <>
                 <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</div>
-                <div style={{ fontFamily: MONO, fontSize: 9, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{r.part}%</div>
+                <div style={{ fontFamily: MONO, fontSize: 9, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{r.sub || `${r.part}%`}</div>
               </>
             )}
           </div>

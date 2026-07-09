@@ -7,6 +7,7 @@
  * es común. Regla madre: cada card sale de un claim de la lectura, y cada claim del dato. Presentación pura. */
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
+import { MiniPareto } from "./InlineChart.jsx";   // el 80/20 de la Mesa = la MISMA pieza del chat (owner 2026-07-09) · su import inyecta los keyframes adi*
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution, buildCompareEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + dos curvas por entidad)
@@ -1112,8 +1113,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   const [conDim, setConDim] = useState("cliente");
   const con = React.useMemo(() => buildConcentration(conDim, scenario, "ventas"), [conDim, scenario]);
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
-  const bars = (con.bars || []).slice(0, 6);
-  const maxPct = bars.length ? bars[0].pct : 1;
+  const bars = (con.bars || []).slice(0, 10);   // columnas compactas (modelo del chat) → entran 10, como el MiniPareto
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -1173,25 +1173,16 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ fontSize:12.5, color:C.text, lineHeight:1.5, marginBottom:9, paddingLeft:10, borderLeft:`2px solid ${C.celeste}` }}>
             <b style={{ color:C.celeste }}>{con.blockCount} de {con.n} {con.plural}</b> explican el <b>{con.blockPct}%</b> de tu venta.
           </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-            {/* títulos de columna (owner 2026-07-09: "faltan los títulos y uno debería ser plata y el otro %") —
-                la PLATA de cada cuenta + el % acumulado: así el 80/20 se lee de un golpe */}
-            <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:1 }}>
-              <span style={{ width:118, flexShrink:0 }}/>
-              <div style={{ flex:1 }}/>
-              <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase", width:52, textAlign:"right", flexShrink:0 }}>Venta</span>
-              <span style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase", width:42, textAlign:"right", flexShrink:0 }}>Acum</span>
-            </div>
-            {bars.map((b, i) => (
-              <AskRow key={i} onAsk={onAsk} q={`Profundiza en ${b.name}`} style={{ display:"flex", alignItems:"center", gap:9 }}>
-                <span style={{ fontSize:12, color: b.inBlock ? C.text : C.textMuted, fontWeight: b.inBlock ? 600 : 400, width:118, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{b.name}</span>
-                <div style={{ flex:1, height:8, background:"rgba(255,255,255,0.05)", borderRadius:4, overflow:"hidden" }}>
-                  <div style={{ width:`${Math.max(2, b.pct / maxPct * 100)}%`, height:"100%", background: b.inBlock ? C.blue : "rgba(255,255,255,0.2)", opacity:0.85 }}/>
-                </div>
-                <span style={{ fontFamily:MONO, fontSize:11, color: b.inBlock ? C.text : C.textMuted, width:52, textAlign:"right", flexShrink:0, fontVariantNumeric:"tabular-nums" }}>{"$" + (b.value / 1000).toFixed(1) + "M"}</span>
-                <span style={{ fontFamily:MONO, fontSize:10.5, color: b.cumPct <= 80 ? C.green : C.textMuted, width:42, textAlign:"right", flexShrink:0, fontVariantNumeric:"tabular-nums" }}>{p1(b.cumPct)}%</span>
-              </AskRow>
-            ))}
+          {/* PARETO DE COLUMNAS (owner 2026-07-09: "cambialo por el de columnas") — la MISMA pieza del chat
+              (MiniPareto exportado · una sola verdad visual), en la card negra premium: columnas en gradiente,
+              cola ghost, acumulada en escalones, corte en ámbar, y la PLATA bajo cada columna (pedido previo). */}
+          <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
+            background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
+            boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+            <MiniPareto showTakeaway={false} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
+              panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
+                rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
+            {onAsk ? <div style={{ fontSize:10, color:C.textMuted, marginTop:2 }}>tocá una columna y ADI la profundiza</div> : null}
           </div>
           {con.n > bars.length ? <div style={{ fontSize:10.5, color:C.textMuted, marginTop:6 }}>+{con.n - bars.length} más en el cuadro de abajo.</div> : null}
           {/* la LECTURA del 80/20 (owner 2026-07-08: "si muestra el 80% también debe ser explicado") · qué significa y qué decisión habilita */}
@@ -2244,13 +2235,7 @@ function StationPeriodo({ a, b }) {
 // la entidad SOLA contra el PROMEDIO de su eje, en la GRAMÁTICA de los gráficos del chat (card negra premium +
 // eje central estilo movers): el spine ES el promedio; derecha (verde) = mejor, izquierda (rojo) = peor — la
 // geometría dice la calidad aunque la métrica sea "menos = mejor". La vara (piso/target de POLICY) queda declarada. ──
-const _KF_MESA = `@media (prefers-reduced-motion: no-preference){
-@keyframes adiRise{from{transform:scaleX(0)}}
-@keyframes adiFade{from{opacity:0}}
-}`;
-if (typeof document !== "undefined" && !document.getElementById("adi-chart-kf")) {
-  const _s = document.createElement("style"); _s.id = "adi-chart-kf"; _s.textContent = _KF_MESA; document.head.appendChild(_s);
-}
+// (los keyframes adi* los inyecta el import de InlineChart.jsx — set completo, una sola fuente)
 function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", onAsk }) {
   const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
   const fmk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
