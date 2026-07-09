@@ -149,6 +149,10 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     return { ...spec, operation: "compare", metric: spec.metric || "margen", dimension: d,
       comparison: { dimension: d, entities: [...ui.mesaSel] }, turn_type: "new_query" };
   }
+  // SALUDO / AYUDA (sweep simple 2026-07-09 · primera impresión): "hola"/"buenas"/"ayuda" pelado → bienvenida
+  // determinística con orientación (composeMeta saludo · verbatim). Antes lo agarraba una lectura random del LLM.
+  if (q && spec && /^\s*¿?(hola+|buenas(\s+(tardes|noches))?|buen(os)?\s+d[ií]as|hey|hi|hello|qu[eé] tal|c[oó]mo andas|c[oó]mo and[aá]s|ayuda|help|no s[eé] por d[oó]nde empezar|por d[oó]nde empiezo)[\s!.,?]*$/i.test(q))
+    return { ...spec, turn_type: "meta_question", meta: "saludo" };
   // MEMORIA DE CRITERIO (V5 · Frente C.2): "recordá que mi margen mínimo es 28%" / "¿qué recordás?" / "olvidá X" corre
   // PRIMERO y CORTA la cadena — si no, el coerce de margen roba "margen mínimo" y responde una lectura en vez de guardar.
   if (q && spec) {

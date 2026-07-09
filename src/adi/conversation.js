@@ -103,6 +103,17 @@ export function composeExplain(last) {
 // ── composeMeta · preguntas meta HONESTAS (real vs supuesto · fuente · capacidades) · ancladas al contrato, sin inventar ──
 export function composeMeta(topic, last) {
   const t = String(topic || "").toLowerCase();
+  // SALUDO / AYUDA (sweep simple 2026-07-09: "hola" caía en una lectura random y "ayuda" en repregunta seca — es la
+  // PRIMERA impresión del invitado): bienvenida cálida determinística + orientación concreta. Va VERBATIM (sin narrar).
+  if (t === "saludo") {
+    return {
+      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganás, dónde se te va plata y qué mover primero.\n\nProbá preguntarme: «¿dónde estoy perdiendo plata?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
+      suggestions: ["¿Dónde estoy perdiendo plata?", "Margen por cliente", "¿Qué SKU rota peor?"],
+      sentrixAction: null,
+      evidence: { followup: true, kind: "saludo", boleta: [] },
+      route: "meta_saludo",
+    };
+  }
   const mLow = last && (last.metricLabel || last.metrica) ? String(last.metricLabel || last.metrica).toLowerCase() : "el dato";
   const pct = last && last.transform ? last.transform.value : null;
   const sgn = pct != null && pct >= 0 ? "+" : "";

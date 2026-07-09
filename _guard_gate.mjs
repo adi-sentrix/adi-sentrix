@@ -93,6 +93,13 @@ const T = [
   { n: "23 · muletilla: nunca deja el texto vacío (suffix solo → se conserva)",
     run: () => stripProactiveSuffix("Un punto que no saliste a buscar: Mercado Libre viene creciendo 25.3%."),
     ok: (r) => typeof r === "string" && r.trim().length > 0 },
+  // ── saludo (primera impresión 2026-07-09): verbatim, sin gastar gateway ──
+  { n: "24 · saludo: NO se narra (shouldNarrate false — ni gastar el gateway)",
+    run: () => shouldNarrate({ route: "meta_saludo", text: "¡Hola! Soy ADI…", evidence: { kind: "saludo" } }),
+    ok: (r) => r === false },
+  { n: "25 · saludo: pickNarratedText lo devuelve VERBATIM aunque llegue narración",
+    run: () => pickNarratedText({ text: "¡Hola! Soy ADI, tu asesor.", evidence: { kind: "saludo", boleta: [] } }, "Hola! Encantado de saludarte, veo números interesantes."),
+    ok: (r) => r.narrated === false && r.text === "¡Hola! Soy ADI, tu asesor." },
 ];
 
 let pass = 0, fail = 0; const lines = [];

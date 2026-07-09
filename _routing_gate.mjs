@@ -83,6 +83,10 @@ ok("PANORAMA · '¿cómo vengo?' → diagnose (no dive sin entidad)", C("¿cómo
 ok("PANORAMA · 'cómo vamos' → diagnose", C("cómo vamos", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "tú" }, false).operation === "diagnose");
 ok("PRONOMBRE · entity 'tú' del LLM se anula (el seam repregunta, no degrada raro)", (() => { const s = C("¿cómo viene ese tema?", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "tú" }, false); return s.entity == null; })());
 ok("PRONOMBRE · entidad REAL no se toca", (() => { const s = C("profundiza en Jumbo", { schemaVersion: 1, operation: "dive", metric: "margen", dimension: "cliente", entity: "Jumbo" }, false); return s.entity === "Jumbo"; })());
+// saludo/ayuda (primera impresión · sweep simple 2026-07-09): pelados → bienvenida meta, no lectura random
+ok("SALUDO · 'hola' → meta saludo (bienvenida determinística)", (() => { const s = C("hola", base(""), false); return s.turn_type === "meta_question" && s.meta === "saludo"; })());
+ok("SALUDO · 'ayuda' → meta saludo", (() => { const s = C("ayuda", base(""), false); return s.turn_type === "meta_question" && s.meta === "saludo"; })());
+ok("SALUDO · 'hola, cómo viene el margen' NO es saludo pelado (rutea a margen)", C("hola, cómo viene el margen", base(""), false).operation === "margin");
 // crash en PROD 2026-07-09 · filters:null explícito del LLM (default {} no aplica con null → "null (reading 'marca')")
 ok("FILTERS:NULL · coerceSpec lo normaliza a undefined", (() => { const s = C("ventas", { schemaVersion: 1, operation: "overview", metric: "ventas", dimension: "cliente", entity: null, filters: null }, false); return s.filters === undefined; })());
 ok("FILTERS:NULL · el spec EJECUTA la lectura (no executor-error, no crash)", (() => { const s = C("ventas", { schemaVersion: 1, operation: "overview", metric: "ventas", dimension: "cliente", entity: null, filters: null }, false); const r = A(s, {}, { scenario: "bonanza" }); return r.route !== "spec_blocked_executor-error" && /vs el año anterior/.test(r.text || ""); })());

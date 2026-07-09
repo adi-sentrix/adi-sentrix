@@ -99,6 +99,7 @@ export function shouldNarrate(r) {
   if (r.route === "clarification_needed") return false;            // regla existente: la repregunta va cruda
   if (/^spec_blocked_/.test(r.route || "")) return false;          // bloqueos del seam · límite declarado honesto
   if (_DEGRADE_OPENER.test(r.text.trim())) return false;           // degrades de composers (entidad/dimensión inexistente)
+  if (r.evidence && (r.evidence.kind === "saludo" || r.evidence.kind === "criteria")) return false;   // verbatim por diseño — ni gastar el gateway
   return true;
 }
 
@@ -154,6 +155,9 @@ export function pickNarratedText(validated, narration) {
   // ("olvidá el margen mínimo") que el narrador podría parafrasear y romper. El texto de ADI ya es la voz correcta acá.
   if (validated && validated.evidence && validated.evidence.kind === "criteria")
     return { text: det, narrated: false, verdict: "verbatim-criteria", reason: "confirmación administrativa — texto exacto de ADI" };
+  // SALUDO (2026-07-09): la bienvenida es determinística y exacta (primera impresión) — el narrador no la toca.
+  if (validated && validated.evidence && validated.evidence.kind === "saludo")
+    return { text: det, narrated: false, verdict: "verbatim-saludo", reason: "bienvenida — texto exacto de ADI" };
   if (!narration || typeof narration !== "string" || !narration.trim())
     return { text: det, narrated: false, verdict: "sin-narración", reason: "narración vacía" };
   let narr = narration;
