@@ -14,6 +14,8 @@ import { stripRoboticVoice, stripProactiveSuffix } from "../adi/llm/voiceGuard.j
 import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
+import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
+import { InlineChart } from "./InlineChart.jsx";
 import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
@@ -571,6 +573,12 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                     ) : (
                       <AdiMessageBody text={msg.text}/>
                     )}
+                    {/* GRÁFICO EN LA RESPUESTA (I1 · owner 2026-07-09): la plantilla la elige el DATO (chartSpec
+                        determinístico sobre la evidencia) — pregunta → respuesta → gráfico → ampliar en Sentrix. */}
+                    {!isPending && !isTyping && (() => {
+                      const _cs = chartForEvidence(msg.evidence);
+                      return _cs ? <InlineChart spec={_cs} onAmpliar={msg.evidence && onOpenEvidence ? () => onOpenEvidence(msg.evidence, msg.id) : null}/> : null;
+                    })()}
                   </div>
                 </div>
                 {!isPending && !isTyping && <SourceBadge source={msg._source}/>}

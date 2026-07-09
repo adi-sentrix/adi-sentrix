@@ -32,7 +32,9 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
   const r = _finalize(contractResp, route, intentLabel, ctx, scenario, null);
   if (r && r.text) {
     const base = (composerResp && composerResp.evidence && composerResp.evidence.boleta) || [];
-    r.evidence = { ...(r.evidence || {}), boleta: ensureBoletaCoversText(base, r.text) };
+    // La evidencia del COMPOSER es la base (trae rows/metricLabel/unit — las alimenta el gráfico de la respuesta,
+    // I1 2026-07-09); la del contrato la pisa donde ambas hablan. Antes el contrato la reemplazaba y las filas se perdían.
+    r.evidence = { ...((composerResp && composerResp.evidence) || {}), ...(r.evidence || {}), boleta: ensureBoletaCoversText(base, r.text) };
   }
   return r;
 }
