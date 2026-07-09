@@ -373,12 +373,41 @@ function _contrapunta(D, focusEst) {
   return null;
 }
 
-export function composeSpecInventory({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null } = {}) {
+export function composeSpecInventory({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null } = {}) {
   const kSF = _sf("capital", "sku"), rSF = _sf("rotacion", "sku"), dSF = _sf("doh", "sku");
   if (!kSF || !rSF || !dSF) return null;
   const rows = _scopeRows(_load(kSF.source, scenario), filters, entityScope);   // "de esos SKU, ¿cuáles frenados?" respeta el alcance heredado
   if (!rows.length) return null;
   const key = (SOURCES[kSF.source] && SOURCES[kSF.source].keyField) || "sku";
+  // ── CRUCE ranking×inventario (owner 2026-07-09: "inventario disponible de los 5 principales SKU de ventas" caía
+  // en el foco default de capital frenado — respuesta coherente pero de OTRA pregunta). Los top-N vendedores CON su
+  // stock: venta (skusMargen) × inventario (skuInventario) unidos por SKU. La lectura usa el ESTADO del motor
+  // (Activo/Lento/90d…), no umbrales nuevos — una verdad. ──
+  if (focus === "top_sellers") {
+    const N = Math.min(Math.max(Number(limit) || 5, 3), 10);
+    const ventaRows = _scopeRows([..._skusM], filters, entityScope).sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, N);
+    if (!ventaRows.length) return null;
+    const invBy = {}; for (const r of rows) invBy[r[key]] = r;
+    const lines = [], bol = [], alertas = [];
+    for (const s of ventaRows) {
+      const iv = invBy[s.nombre];
+      if (!iv) { lines.push(`• ${s.nombre}: vende ${_money(s.venta * 1000)} — sin registro de inventario en este dataset.`); continue; }
+      const flag = iv.alerta === "crit" ? " · CRÍTICO" : (iv.estado && iv.estado !== "Activo" ? ` · ${iv.estado}` : "");
+      lines.push(`• ${s.nombre}: vende ${_money(s.venta * 1000)} — stock ${iv.stockUnd} unidades (${_money(iv.stockUSD)}), ${Math.round(iv.doh)} días de inventario${flag}`);
+      bol.push(fig(`Venta · ${s.nombre}`, _money(s.venta * 1000), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "top vendedores × inventario" }));
+      bol.push(fig(`Stock · ${s.nombre}`, _money(iv.stockUSD), { unit: "money", raw: iv.stockUSD, mandatory: false, context: "top vendedores × inventario" }));
+      if (iv.alerta !== "ok" || (iv.estado && iv.estado !== "Activo")) alertas.push({ sku: s.nombre, estado: iv.estado, doh: Math.round(iv.doh) });
+    }
+    const lectura = alertas.length
+      ? `Ojo acá: ${alertas.map((a) => `${a.sku} está ${a.estado} (${a.doh} días de inventario para lo que vende)`).join(" · ")} — cuando un top vendedor se frena, la plata queda parada justo donde más duele.`
+      : `Los ${ventaRows.length} tienen stock sano para su ritmo de venta — sin quiebres ni frenos a la vista.`;
+    return {
+      opener: `Tus ${ventaRows.length} SKU que más venden, con su inventario disponible:\n\n${lines.join("\n")}\n\n${lectura}`,
+      suggestions: ["¿Qué SKU está en riesgo de quiebre?", "El capital dormido en detalle", "Margen por SKU"],
+      sentrixAction: null,
+      evidence: { metrica: "ventas", dimension: "sku", boleta: bol },
+    };
+  }
   // DIAGNÓSTICO COMPLETO por el motor sellado (las 4 puntas + por bodega + por familia + materialidad) · UNA verdad.
   const D = diagnoseInventario(rows, { capitalField: kSF.field });
   const critById = {}; for (const r of rows) critById[r[key]] = r.alerta === "crit";

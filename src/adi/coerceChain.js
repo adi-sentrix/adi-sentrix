@@ -92,8 +92,16 @@ function _coerceVentas(q, spec) {
 }
 
 // INVENTARIO · capital/quiebre/sobrestock/stale. Corre último de los dominios (ventas ya le cedió lo suyo).
+// CRUCE ranking×inventario (owner 2026-07-09): "inventario disponible de los 5 principales SKU de ventas" —
+// palabra de inventario + frase de top-vendedores en la misma pregunta → focus top_sellers (venta × stock por SKU).
+const _TOPSELL_INV_RE = /(inventario|stock|disponib\w*|cobertura|unidades)[^]*\b(principal\w*|top\b|m[aá]s\s+vendid\w*|que\s+m[aá]s\s+vend\w*|mayores?\s+venta\w*)|\b(principal\w*|top\b|m[aá]s\s+vendid\w*|que\s+m[aá]s\s+vend\w*|mayores?\s+venta\w*)[^]*\b(inventario|stock|disponib\w*|cobertura)/i;
 function _coerceInventory(q, spec) {
   if (!q || !spec || spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
+  if (_TOPSELL_INV_RE.test(q) && /(sku|producto)/i.test(q)) {
+    const nM = String(q).match(/\b(\d{1,2})\b/);
+    return _cleanFilters({ ...spec, operation: "inventory", metric: "capital", dimension: "sku", focus: "top_sellers",
+      limit: nM ? Number(nM[1]) : 5, turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") });
+  }
   const inv = detectInventoryFocus(q);
   if (!inv.isInventory) return spec;
   const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";

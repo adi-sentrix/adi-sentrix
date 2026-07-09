@@ -7,11 +7,12 @@ const root = process.cwd(); const entry = path.join(root, "_ife.js"), out = path
 fs.writeFileSync(entry, [
   'export { detectInventoryFocus } from "./src/adi/inventoryFocus.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
+  'export { coerceSpec } from "./src/adi/coerceChain.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { detectInventoryFocus: F, answerADIFromSpec: A } = M;
+const { detectInventoryFocus: F, answerADIFromSpec: A, coerceSpec: CC } = M;
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
@@ -57,6 +58,20 @@ ok("Q4 con transform espurio {unit:days} → NO cae en simulación · responde s
 // regresión: una simulación REAL (unit:pct) sigue proyectando (no la rompimos)
 const rSim = ans(S({ operation: "table", metric: "capital", dimension: "bodega", transform: { kind: "assumption", op: "delta", value: -10, unit: "pct", base: "real" } }));
 ok("regresión · simulación real (capital -10% unit:pct) sigue ejecutando (Actual/Supuesto/Δ)", /supuesto|proyec|Δ|delta|-10/i.test(rSim) && !/no est[aá] habilitado/i.test(rSim));
+
+// CRUCE ranking×inventario (owner 2026-07-09: "inventario disponible de los 5 principales SKU de ventas"
+// respondía el foco default de capital frenado — coherente pero de OTRA pregunta)
+console.log("\n── (3) cruce top-vendedores × inventario ──");
+const sTop = CC("cuál es mi inventario disponible de los 5 principales sku de ventas", S({ operation: "inventory", metric: "capital", dimension: "sku" }), false);
+ok("coerce · la pregunta del owner → focus top_sellers · limit 5", sTop.focus === "top_sellers" && sTop.limit === 5);
+const rTop = ans(sTop);
+ok("responde el CRUCE (top por venta con su stock) y NO el foco de capital frenado", /que m[aá]s venden/i.test(rTop) && /stock \d+ unidades/i.test(rTop) && !/capital inmovilizado/i.test(rTop));
+ok("el top-1 por venta es SAM-TV55 con su venta real ($13.3M) y su estado del motor (Lento)", /SAM-TV55: vende \$13\.3M/.test(rTop) && /Lento/.test(rTop));
+ok("los 5 del ranking real están (TV55 · WASH11KG · SHAVER9 · REF500L · HAIR-PRO)", ["SAM-TV55", "LG-WASH11KG", "PHI-SHAVER9", "SAM-REF500L", "PHI-HAIR-PRO"].every((s) => rTop.includes(s)));
+ok("lectura con voz: el top vendedor frenado se marca (plata parada donde más duele)", /donde m[aá]s duele/i.test(rTop));
+const sTop3 = CC("stock de mis 3 productos más vendidos", S({ operation: "inventory", metric: "capital", dimension: "sku" }), false);
+ok("variante '3 productos más vendidos' → top_sellers · limit 3", sTop3.focus === "top_sellers" && sTop3.limit === 3);
+ok("sin frase de ranking ('capital inmovilizado') NO roba el foco", (() => { const s = CC("¿Qué SKU tienen capital inmovilizado?", S({ operation: "inventory", metric: "capital", dimension: "sku" }), false); return s.focus !== "top_sellers"; })());
 
 console.log(`\n── _inventory_focus_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
