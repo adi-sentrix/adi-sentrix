@@ -8,6 +8,9 @@ import { clientesMargen } from "../data/demoData.js";   // hardening prep-LLM ·
 // brillo de ambiente. Cyan SOLO como acento funcional frío (cifras/logo/activo · identidad de ADI). Bordes cálidos.
 export const C = {
   bg: "#0e0d0c", surface: "#1c1a17", surfaceAlt: "#262320", surfaceHover: "#2d2a26",
+  // CARDS DEL DIÁLOGO (owner 2026-07-09: "las cards de ADI y el diálogo en un gris clarito elegante — aún muy oscuro"):
+  // gris piedra claramente más luminoso SOLO para el chat (burbujas + cards del hero); los paneles Sentrix quedan en surface.
+  card: "#33302b", cardUser: "#3b3833", cardBorder: "rgba(255,246,235,0.14)",
   border: "rgba(255,246,235,0.09)", borderLight: "rgba(255,246,235,0.13)",
   text: "#f0eeea", textSub: "#cdc8bf", textMuted: "#a09a90",
   blue: "#00b0d4", indigo: "#0e7fa8", green: "#10b981",

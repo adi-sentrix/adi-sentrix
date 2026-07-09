@@ -400,9 +400,9 @@ function HeroInicio({ scenario, onChip }) {
             const c = chip(f);
             return (
               <button key={i} onClick={() => onChip(c.spec, c.q)}
-                style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
-                onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderLeftColor = C.celeste; e.currentTarget.style.borderRightColor = C.celeste; }}
-                onMouseLeave={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderLeftColor = "rgba(47,184,218,0.6)"; e.currentTarget.style.borderRightColor = "rgba(47,184,218,0.6)"; }}>
+                style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, border:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.card, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
+                onMouseEnter={e=>{ e.currentTarget.style.background = C.cardUser; e.currentTarget.style.borderLeftColor = C.celeste; e.currentTarget.style.borderRightColor = C.celeste; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background = C.card; e.currentTarget.style.borderLeftColor = "rgba(47,184,218,0.6)"; e.currentTarget.style.borderRightColor = "rgba(47,184,218,0.6)"; }}>
                 <span style={{ fontSize:17, fontWeight:600, color:C.celeste, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{f.usdFmt}</span>
                 <span style={{ fontSize:12, color:C.textSub, lineHeight:1.35 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
               </button>
@@ -416,7 +416,7 @@ function HeroInicio({ scenario, onChip }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:10 }}>
           {HERO_CHIPS.map((c, i) => (
             <button key={i} onClick={() => onChip(c.spec, c.q)}
-              style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 14px", borderRadius:11, border:`1px solid ${C.border}`, background:C.surface, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13, fontWeight:500, textAlign:"left", cursor:"pointer", lineHeight:1.35, transition:"background 0.15s, border-color 0.15s" }}
+              style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 14px", borderRadius:11, border:`1px solid ${C.cardBorder}`, background:C.card, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13, fontWeight:500, textAlign:"left", cursor:"pointer", lineHeight:1.35, transition:"background 0.15s, border-color 0.15s" }}
               onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}
               onMouseLeave={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; }}>
               <span style={{ width:6, height:6, borderRadius:"50%", background:C.celeste, flexShrink:0 }}/>
@@ -537,10 +537,10 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
               return (
                 <div key={msg.id} style={{ display:"flex", justifyContent:"flex-end" }}>
                   <div style={{
-                    maxWidth:"75%", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.06)",
+                    maxWidth:"75%", background:C.cardUser, border:`1px solid ${C.cardBorder}`,
                     padding:"10px 16px", borderRadius:10, fontFamily:"'DM Sans', system-ui, sans-serif",
                     fontSize:14, lineHeight:1.55, letterSpacing:"-0.01em", color:C.text, fontWeight:400,
-                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.02)"
+                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)"
                   }}>
                     {msg.text}
                   </div>
@@ -555,11 +555,11 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                 <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
                   <AdiAvatar spark={isTyping || isPending}/>
                   <div data-testid="adi-bubble" style={{
-                    flex:1, minWidth:0, background:"rgba(255,255,255,0.032)", padding:"16px 20px",
-                    borderRadius:10, border:"1px solid rgba(255,255,255,0.07)",
+                    flex:1, minWidth:0, background:C.card, padding:"16px 20px",
+                    borderRadius:10, border:`1px solid ${C.cardBorder}`,
                     fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, lineHeight:1.65,
                     letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line",
-                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.03)"
+                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)"
                   }}>
                     {isPending ? (
                       <ThinkingIndicator/>
@@ -602,7 +602,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                 {/* HINT DE PRIMER USO (owner 2026-07-08 · el primer minuto): una sola vez, tras la primera respuesta —
                     lo mejor del producto no se descubre solo. Descartable · persiste el visto en localStorage. */}
                 {isLastAdi && !isTyping && showHint && messages.filter((m) => m.role === "adi" && !m.pending).length === 1 && (
-                  <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginLeft:44, marginTop:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.5)", background:C.surface, maxWidth:560 }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginLeft:44, marginTop:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.5)", background:C.card, maxWidth:560 }}>
                     <span style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55, flex:1 }}>
                       <span style={{ color:C.celeste, fontWeight:600 }}>Tip · </span>
                       abrí la <b>Mesa de control</b> (arriba) para ver todas tus cifras · tocá cualquier <b>fila de Sentrix</b> y ADI la desglosa · seguí el hilo con <b>"y de esos…"</b> · fijá tu vara: <b>"recordá que mi margen mínimo es 28%"</b>.
