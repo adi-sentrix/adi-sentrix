@@ -19,7 +19,10 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 // contrato → el seam degradaba con "no reconozco el filtro" una pregunta YA bien ruteada. Al coercer a un dominio, solo
 // sobreviven los filtros por ejes REALES (cliente/marca/familia/bodega/sku); el ruido se descarta, la respuesta responde.
 function _cleanFilters(s) {
-  if (!s || !s.filters) return s;
+  if (!s) return s;
+  // filters:null EXPLÍCITO del LLM (crash en prod 2026-07-09: los composers usan default `filters = {}` que NO
+  // aplica con null → "Cannot read properties of null (reading 'marca')") → se normaliza a undefined SIEMPRE.
+  if (!s.filters) return s.filters === undefined ? s : { ...s, filters: undefined };
   const f = {};
   for (const k of Object.keys(s.filters)) if (ENTITIES[k] && s.filters[k] != null) f[k] = s.filters[k];
   return { ...s, filters: Object.keys(f).length ? f : undefined };
@@ -135,6 +138,9 @@ const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de un
 
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia, señalesUI) → spec ruteado al dominio+foco correcto (o el original).
 export function coerceSpec(q, spec, hasLast, ui = null) {
+  // SANEO DE ENTRADA (crash en prod 2026-07-09): filters:null explícito del LLM rompe composers con default {} —
+  // se normaliza acá para TODOS los caminos (haya o no _cleanFilters después en la cadena).
+  if (spec && spec.filters === null) spec = { ...spec, filters: undefined };
   // DEÍCTICO DE UI (owner 2026-07-08 · "compará estos dos" mirando la Mesa): la SELECCIÓN de la Mesa es el referente —
   // determinístico, sin que el LLM adivine. Solo con 2 seleccionados + intención de comparar + referencial plural.
   if (q && spec && ui && Array.isArray(ui.mesaSel) && ui.mesaSel.length === 2

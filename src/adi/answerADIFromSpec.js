@@ -139,6 +139,9 @@ function _scrubScenario(text) {
  * WRAPPER: llama al impl y aplica _scrubScenario al texto de salida (choke point único · gate-safe · no toca el motor).
  * ═══════════════════════════════════════════════════════════════════════════════════════════════════ */
 export function answerADIFromSpec(spec, context = {}, state = {}) {
+  // SANEO (crash en prod 2026-07-09): filters:null explícito rompe composers con default {} — se normaliza
+  // también acá (cinturón para specs que llegan sin pasar por coerceSpec, ej. chips del inicio).
+  if (spec && spec.filters === null) spec = { ...spec, filters: undefined };
   const r = _answerADIFromSpecImpl(spec, context, state);
   if (r && typeof r.text === "string") r.text = _scrubScenario(r.text);
   // SENTRIX · overview/rank/diagnose (evidencia de DIMENSIÓN · sin reading/transform/followup) → abren el CUADRO de la
@@ -514,7 +517,10 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       return _finBoleta(composeContract("recommend_action", resp, resp.evidence, ctx, scenario), resp, "recommend_action", "recommend_action", ctx, scenario);
     }
   } catch (e) {
-    return _degrade("executor-error", `Algo falló al ejecutar el pedido (${e && e.message}). No inventé un número: mejor te lo digo.`, [], ctx);
+    // El mensaje CRUDO de la excepción jamás llega al usuario (en prod se narró un "Cannot read properties of
+    // null…" como si fuera asesoría técnica — 2026-07-09). Voz de producto + honestidad; el detalle va a consola.
+    try { console.error("[adi executor-error]", e); } catch { /* headless sin console */ }
+    return _degrade("executor-error", 'Se me trabó ese pedido y prefiero no inventarte un número. Probá de nuevo o pedímelo de otra forma — por ejemplo: "¿cómo vienen las ventas?" o "margen por cliente".', [], ctx);
   }
 
   return _degrade("unhandled", "No supe cómo resolver ese pedido.", [], ctx);
