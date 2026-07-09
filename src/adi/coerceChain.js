@@ -14,6 +14,7 @@ import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
 import { detectCriteriaIntent } from "./criteria.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
+import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
 import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
 
 // ── CANON DE ENTIDADES (invitado en prod 2026-07-09): el LLM emite entidades en minúscula/sin tilde y a veces en el
@@ -243,8 +244,16 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   }
   // SALUDO / AYUDA (sweep simple 2026-07-09 · primera impresión): "hola"/"buenas"/"ayuda" pelado → bienvenida
   // determinística con orientación (composeMeta saludo · verbatim). Antes lo agarraba una lectura random del LLM.
+  // (los claims meta LIMPIAN operation: si el LLM trajo "clarification_needed" ahí, el blindaje de conversation.js
+  // migraría ese operation por sobre el turn_type coercido y el redirect se perdería en una repregunta)
   if (q && spec && /^\s*¿?(hola+|buenas(\s+(tardes|noches))?|buen(os)?\s+d[ií]as|hey|hi|hello|qu[eé] tal|c[oó]mo andas|c[oó]mo and[aá]s|ayuda|help|no s[eé] por d[oó]nde empezar|por d[oó]nde empiezo)[\s!.,?]*$/i.test(q))
-    return { ...spec, turn_type: "meta_question", meta: "saludo" };
+    return { ...spec, operation: undefined, turn_type: "meta_question", meta: "saludo" };
+  // FUERA DE DATO (owner 2026-07-09 · "¿analizamos las campañas de marketing?" — promesa rota del narrador): si el
+  // usuario pregunta por data que NO existe (marketing/campañas/publicidad/competencia/…), nada de clarificar como
+  // si existiera ni dejar que el LLM fabule — ADI se adueña: declara el límite y CONVIERTE hacia las palancas
+  // disponibles (composeMeta "fuera_de_dato" · chips probadas por el gate de promesas). Corta la cadena.
+  if (q && spec && OUT_OF_DATA_RE.test(q))
+    return { ...spec, operation: undefined, turn_type: "meta_question", meta: "fuera_de_dato" };
   // MEMORIA DE CRITERIO (V5 · Frente C.2): "recordá que mi margen mínimo es 28%" / "¿qué recordás?" / "olvidá X" corre
   // PRIMERO y CORTA la cadena — si no, el coerce de margen roba "margen mínimo" y responde una lectura en vez de guardar.
   if (q && spec) {

@@ -5,11 +5,11 @@
  * ("es importante que revises…"). Puro string · sin key · no toca motor/seam. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_vge.js"), out = path.join(root, "_vgb.mjs");
-fs.writeFileSync(entry, 'export { stripRoboticVoice } from "./src/adi/llm/voiceGuard.js";\n');
+fs.writeFileSync(entry, 'export { stripRoboticVoice, stripOutOfDataOffers } from "./src/adi/llm/voiceGuard.js";\n');
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { stripRoboticVoice: SV } = M;
+const { stripRoboticVoice: SV, stripOutOfDataOffers: SOD } = M;
 
 const _nums = (s) => (String(s).match(/\$?\d[\d.,]*[%MK]?/g) || []).join("|");
 
@@ -49,9 +49,31 @@ for (const c of cases) {
   if (ok && idem && numsafe) { pass++; console.log(`  ✓ ${c.n}`); }
   else { fail++; console.log(`  ✗ ${c.n}\n     in : ${JSON.stringify(c.in)}\n     out: ${JSON.stringify(got)}\n     exp: ${JSON.stringify(c.out)}${!idem ? "\n     (NO idempotente)" : ""}${!numsafe ? "\n     (cifra alterada!)" : ""}`); }
 }
+// ── OFERTA FUERA DE DATO (owner 2026-07-09: el narrador ofreció "campañas de marketing" — data inexistente) ──
+// scrub por oración: elimina COMPLETA la que mencione data fuera del universo · nunca vacío · idempotente
+const sodCases = [
+  { n: "S1 · el caso real: oferta de campañas/promociones se elimina entera (el resto queda)",
+    in: "El problema está en el SAM-TV55: 58 días de inventario. Ahora, ¿qué tal si analizamos las campañas de marketing o promociones que podrías implementar para el SAM-TV55? Revisemos la carga comercial.",
+    out: "El problema está en el SAM-TV55: 58 días de inventario. Revisemos la carga comercial." },
+  { n: "S2 · lenguaje de negocio DISPONIBLE no se toca (descuentos/bonificaciones son del universo)",
+    in: "Los descuentos y bonificaciones que das consumen $655K de margen. Revisá la carga de Falabella.",
+    out: "Los descuentos y bonificaciones que das consumen $655K de margen. Revisá la carga de Falabella." },
+  { n: "S3 · texto todo-marketing → jamás vacío (fallback al original)",
+    in: "Lanzá campañas de marketing en Instagram.",
+    out: "Lanzá campañas de marketing en Instagram." },
+  { n: "S4 · 'competencia' en oferta del narrador también cae",
+    in: "Falabella cede $1.6M por carga. Podríamos comparar tus precios contra la competencia del retail. La palanca está en la carga.",
+    out: "Falabella cede $1.6M por carga. La palanca está en la carga." },
+];
+for (const c of sodCases) {
+  const got = SOD(c.in);
+  const okc = got === c.out && SOD(got) === got;
+  if (okc) { pass++; console.log(`  ✓ ${c.n}`); }
+  else { fail++; console.log(`  ✗ ${c.n}\n     out: ${JSON.stringify(got)}\n     exp: ${JSON.stringify(c.out)}`); }
+}
 // ── JERARQUÍA DEL ASESOR en el prompt del narrador (Frente A.2): lockear las directivas clave contra regresiones ──
 const entry2 = path.join(root, "_vge2.js"), out2 = path.join(root, "_vgb2.mjs");
-fs.writeFileSync(entry2, 'export { NARRATE_GENERAL } from "./src/adi/llm/narratePrompt.js";\n');
+fs.writeFileSync(entry2, 'export { NARRATE_GENERAL, buildNarrateSystem } from "./src/adi/llm/narratePrompt.js";\n');
 await esbuild.build({ entryPoints: [entry2], bundle: true, outfile: out2, format: "esm", platform: "node", logLevel: "silent" });
 const M2 = await import(pathToFileURL(out2).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry2); } catch {} try { fs.unlinkSync(out2); } catch {}
@@ -72,6 +94,13 @@ pOk("P11 · GUÍA DE LECTURA (negritas ejecutivas sobre conceptos · 3-6 · owne
 pOk("P12 · DOS CAPAS (principios con libertad · invariantes duras — no pautear)", /PRINCIPIOS \(criterio, no guión\)/.test(NG) && /INVARIANTES \(no se negocian\)/.test(NG) && /libertad total de fraseo/.test(NG));
 
 pOk("P13 · REGISTRO EJECUTIVO (owner 2026-07-09: el usuario habla coloquial, ADI responde de directorio — capital, no plata · sin spanglish)", /REGISTRO EJECUTIVO/.test(NG) && /jam[aá]s slang ni spanglish/.test(NG));
+pOk("P14 · ORDEN NUMERADO (owner 2026-07-09: 3+ entidades → una por punto · apertura y cierre en prosa)", /ORDEN NUMERADO/.test(NG) && /punto numerado/.test(NG) && /FUERA de la lista/.test(NG));
+pOk("P15 · CIERRE dentro del universo (owner 2026-07-09: jamás ofrecer data inexistente — campañas/marketing)", /universo DISPONIBLE/.test(NG) && /campañas, marketing, publicidad/.test(NG) && /convert[ií] hacia la palanca disponible/.test(NG));
+// el universo DISPONIBLE viaja en TODO prompt de narración (derivado del contrato · capabilities.js)
+const _sysGen = M2.buildNarrateSystem({ kind: "resumen" });
+const _sysSim = M2.buildNarrateSystem({ transform: { value: 3 } });
+pOk("P16 · buildNarrateSystem appendea DISPONIBLE (métricas del contrato + focos reales) en general y simulación",
+  /DISPONIBLE — todo lo que ADI puede analizar/.test(_sysGen) && /Ventas por cliente/.test(_sysGen) && /Pareto 80\/20/.test(_sysGen) && /DISPONIBLE — todo lo que ADI puede analizar/.test(_sysSim));
 
-console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${cases.length + 13}) ──`);
+console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

@@ -114,6 +114,20 @@ export function composeMeta(topic, last) {
       route: "meta_saludo",
     };
   }
+  // FUERA DE DATO (owner 2026-07-09 · el narrador ofreció "campañas de marketing" y el hilo murió en un callejón):
+  // ADI se adueña del término — declara el límite SIN inventar y convierte hacia las palancas que SÍ puede correr.
+  // VERBATIM (no se narra · kind "fuera_de_dato" en shouldNarrate): es una declaración de frontera, el narrador
+  // demostró fabular sobre estos límites. Las 3 chips están probadas por el gate de promesas (emisor meta).
+  if (t === "fuera_de_dato") {
+    const ent = last && typeof last.entity === "string" && last.entity.trim() ? ` de ${last.entity}` : "";
+    return {
+      text: `Campañas, marketing y publicidad no los tengo como dato — ese análisis no te lo voy a inventar. Lo que sí tengo para empujar la venta${ent}: la **carga comercial** (cuánta plata retiene y cómo se recupera) · la **causa del margen** (si cede por precio o por costo) · el espacio para **subir precio** · y el **capital frenado** en inventario para liberar y reinvertir. ¿Por cuál arranco?`,
+      suggestions: ["Cuánto me come la carga comercial", "Cuáles ceden por precio", "Qué SKU libero primero"],
+      sentrixAction: null,
+      evidence: { followup: true, kind: "fuera_de_dato", boleta: [] },
+      route: "meta_fuera_de_dato",
+    };
+  }
   const mLow = last && (last.metricLabel || last.metrica) ? String(last.metricLabel || last.metrica).toLowerCase() : "el dato";
   const pct = last && last.transform ? last.transform.value : null;
   const sgn = pct != null && pct >= 0 ? "+" : "";

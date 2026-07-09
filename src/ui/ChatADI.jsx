@@ -10,7 +10,7 @@ import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
 import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   // Paso 5 · number-guard + política de narración (degrades honestos van crudos)
-import { stripRoboticVoice, stripProactiveSuffix } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva fuera del camino LLM (owner 2026-07-09)
+import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato fuera del camino LLM (owner 2026-07-09)
 import { coerceSpec } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" (compare→contribución→margen→ventas→inventario→explain · pura · gate-testable)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
@@ -114,7 +114,9 @@ async function _narrateResult(r) {
     const picked = pickNarratedText(r, narration);
     // GUARD DE VOZ (determinístico) · corre DESPUÉS del number-guard (no toca cifras) · aplica al texto final elegido
     // (narrado LLM o determinístico de fallback) → mata "He revisado tus datos…"/"Las proyecciones indican…"/"Sin embargo…".
-    return { r: { ...r, text: stripRoboticVoice(picked.text) }, narrated: picked.narrated };
+    // + OFERTA FUERA DE DATO (owner 2026-07-09): oración que ofrezca data inexistente (campañas/marketing/…)
+    // se elimina completa — el universo DISPONIBLE viaja en el prompt; esto es la garantía en código.
+    return { r: { ...r, text: stripOutOfDataOffers(stripRoboticVoice(picked.text)) }, narrated: picked.narrated };
   } catch { return { r, narrated: false }; }
 }
 

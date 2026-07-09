@@ -45,6 +45,13 @@ for (const spec of EMISORES) {
     if (typeof s === "string" && s.trim() && !promesas.has(s)) promesas.set(s, { lastEv, emisor: `${spec.operation}${spec.focus ? ":" + spec.focus : ""}@${spec.dimension}` });
   }
 }
+// + el redirect FUERA-DE-DATO (owner 2026-07-09: "campañas de marketing" → convierte a palancas): sus chips
+// también son promesas — se cosechan del composeMeta real vía la ruta conversacional.
+try {
+  const rMeta = AC(S({ turn_type: "meta_question", meta: "fuera_de_dato" }), {}, {});
+  if (rMeta && Array.isArray(rMeta.suggestions))
+    for (const s of rMeta.suggestions) if (typeof s === "string" && s.trim() && !promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "meta:fuera_de_dato" });
+} catch { /* */ }
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·
 // compare-basura — la forma exacta que rompió "¿es por volumen o por precio?" el 2026-07-09). La red

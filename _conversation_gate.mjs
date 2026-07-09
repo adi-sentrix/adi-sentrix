@@ -67,9 +67,12 @@ ok("18 · campos de fases futuras reservados (history/session/criteria)", Array.
 const um = BPUM(BCC([{ role: "user", text: "sube las ventas 3% por cliente" }], LAST), "dime qué hacemos");
 ok("19 · buildParseUserMessage antepone el CONTEXTO + el mensaje", /CONTEXTO DE CONVERSACIÓN/.test(um) && /MENSAJE DEL USUARIO/.test(um) && /dime qué hacemos/.test(um) && /"kind":"supuesto"/.test(um));
 ok("20 · sin contexto → solo el texto (turno aislado)", BPUM(null, "ventas por cliente") === "ventas por cliente" && BPUM({ turns: [], last: null }, "hola") === "hola");
-ok("21 · narrate: explain → prompt EXPLAIN (simple)", BNS({ followup: true, kind: "explain" }) === NARRATE_EXPLAIN);
-ok("22 · narrate: meta/compare → GENERAL (fiel, no distorsiona)", BNS({ followup: true, kind: "meta" }) === NARRATE_GENERAL && BNS({ followup: true, kind: "compare_pending" }) === NARRATE_GENERAL);
-ok("23 · narrate: recommendation → RECOMENDACIÓN · simulación → SIMULACIÓN", BNS({ followup: true, transform: {} }) === NARRATE_RECOMMENDATION && BNS({ transform: {} }) === NARRATE_SIMULATION);
+// buildNarrateSystem = prompt del TIPO + universo DISPONIBLE appendeado (owner 2026-07-09: "que considere solo
+// lo que le damos como disponible" — la boleta autoriza cifras, DISPONIBLE autoriza capacidades · en TODO prompt)
+const _conDisp = (s, base) => s.startsWith(base) && /DISPONIBLE — todo lo que ADI puede analizar/.test(s);
+ok("21 · narrate: explain → prompt EXPLAIN (simple) + DISPONIBLE", _conDisp(BNS({ followup: true, kind: "explain" }), NARRATE_EXPLAIN));
+ok("22 · narrate: meta/compare → GENERAL (fiel, no distorsiona) + DISPONIBLE", _conDisp(BNS({ followup: true, kind: "meta" }), NARRATE_GENERAL) && _conDisp(BNS({ followup: true, kind: "compare_pending" }), NARRATE_GENERAL));
+ok("23 · narrate: recommendation → RECOMENDACIÓN · simulación → SIMULACIÓN (ambos + DISPONIBLE)", _conDisp(BNS({ followup: true, transform: {} }), NARRATE_RECOMMENDATION) && _conDisp(BNS({ transform: {} }), NARRATE_SIMULATION));
 
 // ══ V2 · followup_compare — COMPARACIÓN CONVERSACIONAL REAL (sujeto del contexto · target del LLM · seam ejecuta) ══
 const LAST_ENT = { entidad: "Falabella", entityType: "cliente", dimension: "cliente", metrica: "margen", lens: "cuadro" };  // última = foco sobre UNA cuenta

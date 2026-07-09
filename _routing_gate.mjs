@@ -5,11 +5,11 @@
  * "80% de cuántos" · "plata pegada en stock" · SIM_PCT con "30%"/"80%"). Protege que el ruteo no se degrade. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_roe.js"), out = path.join(root, "_rob.mjs");
-fs.writeFileSync(entry, ['export { coerceSpec } from "./src/adi/coerceChain.js";', 'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";'].join("\n"));
+fs.writeFileSync(entry, ['export { coerceSpec } from "./src/adi/coerceChain.js";', 'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";', 'export { answerConversational } from "./src/adi/conversation.js";'].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { coerceSpec: C, answerADIFromSpec: A } = M;
+const { coerceSpec: C, answerADIFromSpec: A, answerConversational: AC } = M;
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
@@ -103,5 +103,12 @@ ok("VOL/PRECIO · aunque el LLM diga compare de 'entidades' volumen/precio → d
 ok("VOL/PRECIO · la sugerencia textual también ('Es por volumen o por precio')", (() => { const s = C("Es por volumen o por precio", { schemaVersion: 1, operation: "clarification_needed", metric: null, dimension: null }, true); return s.operation === "ventas" && s.focus === "descomposicion_vol_precio"; })());
 ok("VOL/PRECIO · un compare REAL de entidades no se toca ('compará Falabella vs Lider')", (() => { const s = C("compará Falabella vs Lider", { schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }, false); return s.operation === "compare"; })());
 
+// FUERA DE DATO (owner 2026-07-09: el narrador ofrecio "campanas de marketing" y el hilo murio en clarify+callejon):
+// preguntas por data INEXISTENTE -> redirect honesto que convierte a palancas (jamas clarificar como si existiera)
+ok("FUERA-DE-DATO · 'hablame de esas campañas de marketing' → meta fuera_de_dato (con hilo)", (() => { const s = C("hablame de esas campañas de marketing", { schemaVersion: 1, operation: "clarification_needed", metric: null, dimension: null }, true); return s.turn_type === "meta_question" && s.meta === "fuera_de_dato"; })());
+ok("FUERA-DE-DATO · 'qué promociones puedo hacer para vender más' → redirect (sin hilo)", (() => { const s = C("qué promociones puedo hacer para vender más", base("qué promociones puedo hacer para vender más"), false); return s.turn_type === "meta_question" && s.meta === "fuera_de_dato"; })());
+ok("FUERA-DE-DATO · 'cómo estoy contra la competencia' → redirect", (() => { const s = C("cómo estoy contra la competencia", base(""), false); return s.turn_type === "meta_question" && s.meta === "fuera_de_dato"; })());
+ok("FUERA-DE-DATO · el redirect RESPONDE con chips (no clarifica ni degrada)", (() => { const s = C("hablame de esas campañas de marketing", { schemaVersion: 1, operation: "clarification_needed" }, false); const r = AC(s, {}, {}); return /no los tengo como dato/.test(r.text || "") && Array.isArray(r.suggestions) && r.suggestions.length === 3; })());
+ok("FUERA-DE-DATO · 'cuánto me come la carga comercial' NO se redirige (palanca disponible → margen)", C("cuánto me come la carga comercial", base(""), false).operation === "margin");
 console.log(`\n── _routing_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

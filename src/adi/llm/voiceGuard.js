@@ -65,3 +65,23 @@ export function stripProactiveSuffix(text) {
   const s = text.replace(_PROACTIVE_SUFFIX, "").replace(/\s+$/, "");
   return s.trim() ? s : text;   // seguridad: nunca dejar vacío
 }
+
+// ── OFERTA FUERA DE DATO (owner 2026-07-09: "asegurarnos que considere solo lo que le damos como disponible") ·
+// el narrador ofreció "¿analizamos las campañas de marketing?" — data que NO existe (promesa rota en el cierre
+// libre). El prompt lleva el universo DISPONIBLE (capabilities.js) para que interprete adentro; este scrub es la
+// GARANTÍA de última línea: toda ORACIÓN de la narración que mencione data inexistente se elimina completa (el
+// piso determinístico jamás la contiene — solo corre en el camino LLM). Sin lookbehind (Safari viejo de invitados
+// mobile). Nunca deja el texto vacío. Idempotente · number-safe (borra oraciones enteras, no toca cifras).
+import { OUT_OF_DATA_RE } from "./capabilities.js";
+export function stripOutOfDataOffers(text) {
+  if (typeof text !== "string" || !text.trim() || !OUT_OF_DATA_RE.test(text)) return text;
+  const parts = String(text).split(/([.!?]+["»)]*\s+|\n+)/);   // oración + su delimitador (pares)
+  let out = "";
+  for (let i = 0; i < parts.length; i += 2) {
+    const sent = parts[i] || "", delim = parts[i + 1] || "";
+    if (OUT_OF_DATA_RE.test(sent)) continue;
+    out += sent + delim;
+  }
+  out = out.replace(/\s+$/, "");
+  return out.trim() ? out : text;   // seguridad: nunca dejar vacío (el caso todo-marketing lo cubre el redirect)
+}
