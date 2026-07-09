@@ -25,9 +25,13 @@ const TESTS = [
   { n: "6 · dimensión inválida bloquea",  spec: S({ operation: "rank", metric: "ventas", dimension: "vendedor" }), ok: (r) => blocked(r, "unknown-dimension") },
   { n: "7 · métrica no en dimensión",     spec: S({ operation: "overview", metric: "margen", dimension: "bodega" }), ok: (r) => blocked(r, "metric-not-in-dim") },
   { n: "8 · SKU margen en simulación (base-only) bloquea honesto", spec: S({ operation: "overview", metric: "margen", dimension: "sku", scenario: "simulation", assumption: { type: "margin", value: -5, unit: "pct" } }), ok: (r) => blocked(r, "scenario-blind") },
-  { n: "9 · cruce marca×cliente bloquea",  spec: S({ operation: "overview", metric: "margen", dimension: "cliente", filters: { marca: "Bosch" } }), ok: (r) => blocked(r, "blocked-cross") },
+  // 9 EVOLUCIONADO (matriz 2026-07-09): overview/rank con filtro marca responde por atributo DOMINANTE con la
+  // salvedad DECLARADA (antes bloqueaba entero pudiendo responder); el dive con ese cruce SIGUE bloqueando.
+  { n: "9 · cruce marca×cliente (overview) responde por DOMINANTE con salvedad declarada", spec: S({ operation: "overview", metric: "margen", dimension: "cliente", filters: { marca: "Bosch" } }), ok: (r) => executes(r, "qi_retrieval") && /salvedad/i.test(r.text) && /DOMINANTE/i.test(r.text) && /Sodimac|Easy/.test(r.text) },
+  { n: "9b · cruce marca×cliente en DIVE sigue bloqueando honesto", spec: S({ operation: "dive", metric: "margen", dimension: "cliente", entity: "Falabella", filters: { marca: "Bosch" } }), ok: (r) => blocked(r, "blocked-cross") },
   { n: "10 · operación no soportada ofrece", spec: S({ operation: "forecast", metric: "ventas", dimension: "cliente" }), ok: (r) => blocked(r, "unsupported-op") },
-  { n: "11 · costo (declarado, no cableado) degrada", spec: S({ operation: "overview", metric: "costo", dimension: "cliente" }), ok: (r) => blocked(r, "metric-not-wired") },
+  // 11 EVOLUCIONADO (matriz 2026-07-09): costo está DECLARADO en el contrato → el retrieval genérico lo sirve.
+  { n: "11 · costo@cliente EJECUTA vía retrieval del contrato (celda ROTA cableada)", spec: S({ operation: "overview", metric: "costo", dimension: "cliente" }), ok: (r) => executes(r, "qi_retrieval") && /Costo por cliente/i.test(r.text) && /Falabella/.test(r.text) },
   { n: "12 · schemaVersion desconocida bloquea", spec: { schemaVersion: 2, operation: "overview", metric: "ventas", dimension: "cliente" }, ok: (r) => blocked(r, "version") },
   // fix #2 (hallado en el experimento LLM): explain_availability EXPLICA (no cae en el bloqueo genérico metric-not-in-dim)
   { n: "13 · explain_availability(margen@bodega) explica, no bloquea", spec: S({ operation: "explain_availability", metric: "margen", dimension: "bodega" }), ok: (r) => r.route === "spec_explain" && typeof r.text === "string" && /bodega/i.test(r.text) },
@@ -48,7 +52,9 @@ const TESTS = [
   { n: "25 · rank margen@marca EJECUTA (agregado spec-driven)", spec: S({ operation: "rank", metric: "margen", dimension: "marca", limit: 3, sort: { by: "margen", dir: "desc" } }), ok: (r) => executes(r, "qi_retrieval") && /%/.test(r.text) },
   { n: "26 · rank contribucion@familia EJECUTA", spec: S({ operation: "rank", metric: "contribucion", dimension: "familia", limit: 3, sort: { by: "contribucion", dir: "desc" } }), ok: (r) => executes(r, "qi_retrieval") && /\$/.test(r.text) },
   { n: "27 · rank ventas@marca EJECUTA", spec: S({ operation: "rank", metric: "ventas", dimension: "marca" }), ok: (r) => executes(r, "qi_retrieval") },
-  { n: "28 · rank con métrica NO soportada en el eje degrada honesto (carga@familia)", spec: S({ operation: "rank", metric: "carga", dimension: "familia" }), ok: (r) => blocked(r, "metric-not-in-dim") },
+  // 28 EVOLUCIONADO (matriz 2026-07-09): carga@familia se EXPANDIÓ en el contrato (sfamiliasMargen.pctRebate existe).
+  { n: "28 · rank carga@familia EJECUTA (contrato expandido)", spec: S({ operation: "rank", metric: "carga", dimension: "familia" }), ok: (r) => executes(r, "qi_retrieval") && /%/.test(r.text) },
+  { n: "28b · métrica de verdad NO disponible en el eje degrada honesto (rotación@marca)", spec: S({ operation: "rank", metric: "rotacion", dimension: "marca" }), ok: (r) => /^spec_blocked_/.test(r.route || "") },
   // dive/compare para SKU y familia (productores spec-driven · el motor no tiene composer para estos)
   { n: "29 · dive SKU EJECUTA (perfil comercial + inventario)", spec: S({ operation: "dive", metric: null, dimension: "sku", entity: "SAM-REF500L" }), ok: (r) => executes(r, "qi_retrieval") && /SAM-REF500L/.test(r.text) },
   { n: "30 · dive familia EJECUTA", spec: S({ operation: "dive", metric: null, dimension: "familia", entity: "Electrodomésticos" }), ok: (r) => executes(r, "qi_retrieval") },

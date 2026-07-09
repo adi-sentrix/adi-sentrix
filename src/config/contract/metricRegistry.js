@@ -10,7 +10,9 @@
  * y el resolver del LLM las ven sin tocar el motor. */
 export const METRICS = {
   ventas: {
-    label: "Ventas", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "raw" },
+    // scale sku: "raw"→"K" (matriz 2026-07-09): skusMargen.venta viene en MILES (SAM-TV55 13300 = $13.3M) — el
+    // "raw" hacía que el retrieval del contrato imprimiera "$13K" donde el motor dice $13.3M (dos verdades).
+    label: "Ventas", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "K" },
     polarity: "higherIsBetter", formula: null,   // dato primario
     axes: ["cliente", "marca", "familia", "sku"],
     scenarioAware: { cliente: true, marca: false, familia: true, sku: false },
@@ -34,7 +36,7 @@ export const METRICS = {
     },
   },
   contribucion: {
-    label: "Contribución", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "raw" },
+    label: "Contribución", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "K" },   // sku "raw"→"K" (matriz 2026-07-09 · skusMargen en miles)
     polarity: "higherIsBetter",
     formula: "venta * margen / 100",                    // ← METADATA · el validador chequea que el campo almacenado cierre
     axes: ["cliente", "sku", "marca", "familia"],
@@ -47,24 +49,29 @@ export const METRICS = {
     },
   },
   costo: {  // costo de la venta (dato del ERP) · en tu enum del spec
-    label: "Costo", unit: "money", scale: { cliente: "K", sku: "raw" },
+    // EXPANSIÓN (auditoría de la matriz 2026-07-09): marcasMargen y sfamiliasMargen SÍ traen campo costo — el
+    // contrato no lo declaraba y esas celdas degradaban pudiendo responder. + scale sku "raw"→"K" (miles).
+    label: "Costo", unit: "money", scale: { cliente: "K", sku: "K", marca: "K", familia: "K" },
     polarity: "lowerIsBetter", formula: null,   // dato primario almacenado
-    axes: ["cliente", "sku"],                    // marca/familia no traen campo costo (ver sourceManifest)
-    scenarioAware: { cliente: true, sku: false },
+    axes: ["cliente", "sku", "marca", "familia"],
+    scenarioAware: { cliente: true, sku: false, marca: false, familia: true },
     sourceByAxis: {
-      cliente: { source: "clientesMargen", field: "costo" },
-      sku:     { source: "skusMargen",     field: "costo" },
+      cliente: { source: "clientesMargen",  field: "costo" },
+      sku:     { source: "skusMargen",      field: "costo" },
+      marca:   { source: "marcasMargen",    field: "costo" },
+      familia: { source: "sfamiliasMargen", field: "costo" },
     },
   },
   carga: {  // carga comercial = pctRebate
     label: "Carga comercial", unit: "pct", polarity: "lowerIsBetter",
     target: "targetCarga", bestPractice: "bestPracticeCarga",   // → businessPolicy
-    formula: null, axes: ["cliente", "sku", "marca"],
-    scenarioAware: { cliente: true, sku: false, marca: false },
+    formula: null, axes: ["cliente", "sku", "marca", "familia"],   // familia EXPANDIDA (matriz 2026-07-09 · sfamiliasMargen.pctRebate existe)
+    scenarioAware: { cliente: true, sku: false, marca: false, familia: true },
     sourceByAxis: {
-      cliente: { source: "clientesMargen", field: "pctRebate" },
-      sku:     { source: "skusMargen",     field: "pctRebate" },
-      marca:   { source: "marcasMargen",   field: "pctRebate" },
+      cliente: { source: "clientesMargen",  field: "pctRebate" },
+      sku:     { source: "skusMargen",      field: "pctRebate" },
+      marca:   { source: "marcasMargen",    field: "pctRebate" },
+      familia: { source: "sfamiliasMargen", field: "pctRebate" },
     },
   },
   capital: {  // capital inmovilizado = stockUSD (inventario)

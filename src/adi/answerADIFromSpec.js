@@ -246,8 +246,17 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     if (!ENTITIES[k]) return _degrade("bad-filter", `No reconozco el filtro "${k}". Filtrá por ${Object.keys(ENTITIES).map(_d).join(", ")}.`, [], ctx);
 
   // ── #8 (cruce) · no cruzar mundos sin granularidad atómica ──
+  // RECETA PARCIAL (matriz de cobertura 2026-07-09): para overview/rank con filtro marca/familia/bodega, el dato del
+  // atributo DOMINANTE sí existe en las filas → se responde con la salvedad DECLARADA en vez de bloquear entero.
+  // El resto de operaciones (dive/compare/…) mantiene el bloqueo honesto.
   const cross = _crossBlocked(spec.dimension, spec.filters);
-  if (cross) return _degrade("blocked-cross", `${_cap(cross.reason)}. Te muestro lo disponible en su lugar.`, cross.offer, ctx);
+  if (cross) {
+    const _fk = Object.keys(spec.filters || {});
+    const _partial = (spec.operation === "overview" || spec.operation === "rank")
+      && _fk.length && _fk.every((k) => k === "marca" || k === "familia" || k === "bodega");
+    if (!_partial) return _degrade("blocked-cross", `${_cap(cross.reason)}. Te muestro lo disponible en su lugar.`, cross.offer, ctx);
+    ctx.__crossDominant = { cross, filtro: _fk[0] };
+  }
 
   // ── #6 · escenario / supuesto ──
   const specScn = spec.scenario || "actual";
@@ -305,8 +314,22 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         // Fase 2 · contrato overview_domain (lectura → volumen → concentración → señal → cruce · data-driven, sin cifras nuevas)
         return _finBoleta(composeContract("overview_domain", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
+      // CRUCE POR ATRIBUTO DOMINANTE (matriz 2026-07-09): con la salvedad declarada, el retrieval del contrato
+      // filtra por la marca/familia dominante de cada fila — nunca el QI del motor (que bloquearía o fabularía).
+      if (ctx.__crossDominant) {
+        const respD = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
+        if (respD && respD.opener) {
+          respD.opener = `Una salvedad primero: te lo doy por ${_d(ctx.__crossDominant.filtro)} DOMINANTE de cada ${_d(spec.dimension)} — el mix atómico no está en los datos (se enciende con el ERP).\n\n${respD.opener}`;
+          return _finBoleta(composeContract("overview_domain", respD, respD.evidence, ctx, scenario), respD, "qi_retrieval", "qi_retrieval", ctx, scenario);
+        }
+        return _degrade("blocked-cross", `${_cap(ctx.__crossDominant.cross.reason)}. Te muestro lo disponible en su lugar.`, ctx.__crossDominant.cross.offer, ctx);
+      }
       const qm = _QIM[spec.metric];
       if (!qm) {   // ej. costo: declarado en el registro (tu enum) pero sin productor de tabla → honesto
+        // MATRIZ 2026-07-09 (celda ROTA costo@cliente/sku): métrica DECLARADA en el contrato sin productor QI →
+        // el retrieval genérico del contrato la sirve (misma vía que inventario) antes de degradar.
+        const resp0 = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
+        if (resp0 && resp0.opener) return _finBoleta(composeContract("overview_domain", resp0, resp0.evidence, ctx, scenario), resp0, "qi_retrieval", "qi_retrieval", ctx, scenario);
         const sibs = ["ventas", "margen", "contribucion"].filter((x) => (METRICS[x].axes || []).includes(spec.dimension)).map((x) => `${x}@${spec.dimension}`);
         return _degrade("metric-not-wired", `El ${_m(spec.metric)} por ${_d(spec.dimension)} todavía no lo tengo como tabla. Te puedo mostrar ${sibs.map(_offerLabel).join(", ")}.`, sibs, ctx);
       }
@@ -338,7 +361,15 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       if (!entityType)
         return _degrade("rank-dim-not-wired", `El ranking por ${_d(spec.dimension)} todavía no está conectado. Lo tengo por cliente, SKU, marca, familia y bodega.`, [], ctx);
       const rm = (_RANK[spec.dimension] || {})[spec.metric];
-      if (!rm || !RANKING_EXTREMES_METRICS[rm] || RANKING_EXTREMES_METRICS[rm].entityType !== entityType) {
+      if (!rm || !RANKING_EXTREMES_METRICS[rm] || RANKING_EXTREMES_METRICS[rm].entityType !== entityType || ctx.__crossDominant) {
+        // MATRIZ 2026-07-09 (celdas ROTAS ventas@sku · costo · carga@sku): el motor ranking_extremes no cubre la
+        // métrica → el retrieval del contrato rankea CUALQUIER métrica declarada (misma vía que marca/familia/bodega).
+        // También el cruce por atributo dominante (rank@cliente con filtro marca) baja por acá con su salvedad.
+        const respR = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: Math.max(1, spec.limit || 5), sort: spec.sort || { dir: "desc" } });
+        if (respR && respR.opener) {
+          if (ctx.__crossDominant) respR.opener = `Una salvedad primero: te lo doy por ${_d(ctx.__crossDominant.filtro)} DOMINANTE de cada ${_d(spec.dimension)} — el mix atómico no está en los datos (se enciende con el ERP).\n\n${respR.opener}`;
+          return _finBoleta(composeContract("rank_business_entity", respR, respR.evidence, ctx, scenario), respR, "qi_retrieval", "qi_retrieval", ctx, scenario);
+        }
         const sibs = Object.keys(_RANK[spec.dimension] || {}).map((x) => `${x}@${spec.dimension}`);
         return _degrade("rank-metric-not-wired", `El ranking de ${_m(spec.metric)} por ${_d(spec.dimension)} todavía no está conectado. Probá ${sibs.map(_offerLabel).join(", ")}.`, sibs, ctx);
       }

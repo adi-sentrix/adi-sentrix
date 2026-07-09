@@ -66,8 +66,15 @@ function _coerceCompare(q, spec) {
 }
 
 // CONTRIBUCIÓN · corre PRIMERO (su palabra es la más específica) para que "venta"/"margen" en la pregunta no la roben.
+// CEDER EL CLAIM (matriz fase 2 · 2026-07-09): si la pregunta nombra un EJE que el dominio comercial no soporta
+// ("margen por bodega") o una MÉTRICA de otro mundo ("top 3 de costo"), el coerce NO reclama — el spec del LLM
+// fluye al CONTRATO, que ejecuta (costo) o DECLARA el límite ("no lo tengo por bodega; sí por…"). Antes el dominio
+// respondía su lectura GLOBAL en silencio — pregunta de bodega contestada con clientes.
+const _PIDE_BODEGA = /\b(por|en|de)\s+(la\s+|las\s+)?bodegas?\b/i;
+const _PIDE_COSTO_PURO = (q) => /\bcostos?\b/i.test(q) && !/\bventas?\b/i.test(q) && !/margen/i.test(q);
 function _coerceContribucion(q, spec) {
   if (!q || !spec || spec.operation === "compare") return spec;
+  if (_PIDE_BODEGA.test(q)) return spec;   // contribución@bodega no existe → que el contrato lo declare
   const c = detectContribucionFocus(q);
   if (!c.isContrib) return spec;
   const s = { ...spec, operation: "contribucion", metric: "contribucion", dimension: c.dimension || "cliente",
@@ -81,6 +88,7 @@ function _coerceContribucion(q, spec) {
 // MARGEN · rompe la trampa "todo→diagnose genérico" con el sub-foco. No toca dives/compares de entidad puntual.
 function _coerceMargin(q, spec) {
   if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "contribucion" || spec.entity) return spec;
+  if (_PIDE_BODEGA.test(q)) return spec;   // margen/carga@bodega no existen → que el contrato lo declare
   const m = detectMarginFocus(q);
   if (!m.isMargin) return spec;
   const s = { ...spec, operation: "margin", metric: "margen", dimension: m.dimension || "cliente",
@@ -96,6 +104,8 @@ function _coerceMargin(q, spec) {
 // VENTAS · fallback general de lo comercial (vs ppto/YoY/descomposición/mix). Cede el dominio inventario (dentro del detector).
 function _coerceVentas(q, spec) {
   if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "margin" || spec.operation === "contribucion" || spec.entity) return spec;
+  if (_PIDE_BODEGA.test(q)) return spec;       // ventas@bodega no existe → que el contrato lo declare
+  if (_PIDE_COSTO_PURO(q)) return spec;        // "top 3 de costo" es del CONTRATO (costo@eje), no una lectura de ventas
   const v = detectVentasFocus(q);
   if (!v.isVentas) return spec;
   const s = { ...spec, operation: "ventas", metric: "ventas", dimension: v.dimension || "cliente",
@@ -129,6 +139,17 @@ function _coerceInventory(q, spec) {
       limit: nM ? Number(nM[1]) : 5, turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") });
   }
   if (spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
+  // REESCRIBIR HACIA EL CONTRATO (matriz fase 2 · 2026-07-09): pedir inventario POR CLIENTE/MARCA (ejes que no
+  // tiene) o una métrica COMERCIAL "por bodega" no es una lectura de inventario — se fuerza overview del contrato
+  // para que el #4 DECLARE el límite ("no lo tengo por X; sí por…"). Ceder pasivo no alcanza: si el propio LLM
+  // vino con operation inventory, la respuesta global de frenado se colaba igual.
+  const _mInvQ = /(capital|stock|inventari)/i.test(q) ? "capital" : /rotaci[oó]n/i.test(q) ? "rotacion" : /(\bdoh\b|cobertura|d[ií]as de inventario)/i.test(q) ? "doh" : null;
+  const _ejeCM = q.match(/\b(?:por|de)\s+(?:los\s+|las\s+|cada\s+)?(clientes?|marcas?)\b/i);
+  if (_mInvQ && _ejeCM)
+    return _cleanFilters({ ...spec, operation: "overview", metric: _mInvQ, dimension: /marca/i.test(_ejeCM[1]) ? "marca" : "cliente", focus: undefined, turn_type: "new_query" });
+  const _mComQ = /\bventas?\b/i.test(q) ? "ventas" : /margen/i.test(q) ? "margen" : /contribuci[oó]n/i.test(q) ? "contribucion" : /\bcostos?\b/i.test(q) ? "costo" : /\bcarga\b/i.test(q) ? "carga" : null;
+  if (_mComQ && /\bbodegas?\b/i.test(q) && !/(stock|inventari|capital|rotaci[oó]n|\bdoh\b|cobertura|quiebre|sobrestock|frenad\w*|dormid\w*|inmoviliz\w*|repon\w*|liquid\w*)/i.test(q))
+    return _cleanFilters({ ...spec, operation: "overview", metric: _mComQ, dimension: "bodega", focus: undefined, turn_type: "new_query" });
   const inv = detectInventoryFocus(q);
   if (!inv.isInventory) return spec;
   const dim = (spec.dimension === "sku" || spec.dimension === "familia" || spec.dimension === "bodega") ? spec.dimension : "bodega";
