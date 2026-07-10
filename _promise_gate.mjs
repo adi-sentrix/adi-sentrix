@@ -68,6 +68,9 @@ for (const s of [
   "¿Cuáles son los SKU que más venden?",
   "¿Cuáles son los SKU que más venden de Samsung?",
   "Top SKU por contribución de Samsung",
+  // composición de cliente/SKU (matriz 2026-07-10): ADI cuenta TODO de la entidad en ventas y contribución (multi C.1)
+  "¿Cómo está ABC en ventas y contribución?",
+  "¿Cómo está SAM-TV55 en ventas y contribución?",
 ]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:ficha" });
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·

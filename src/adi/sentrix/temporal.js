@@ -26,7 +26,7 @@ const _PERIOD = (() => {
   }
   for (const x of marcasMargen)    m.set(x.nombre, { venta: x.venta, contribucion: x.contribucion, margen: x.margen, acciones: x.rebates });
   for (const f of sfamiliasMargen) m.set(f.nombre, { venta: f.venta, contribucion: f.contribucion, margen: f.margen, acciones: f.rebates });
-  for (const s of skusMargen)      m.set(s.sku,    { venta: s.venta, contribucion: s.contribucion, margen: s.margen, acciones: s.rebates });
+  for (const s of skusMargen)      m.set(s.nombre, { venta: s.venta, contribucion: s.contribucion, margen: s.margen, acciones: s.rebates });   // OJO: la clave es `nombre` (el gate de conexión cazó que con `sku` los SKU quedaban SIN ancla)
   return m;
 })();
 // re-ancla una serie a un total del período (forma intacta · total exacto · cuadre en el último mes)

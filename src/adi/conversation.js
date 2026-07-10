@@ -352,7 +352,11 @@ export function answerConversational(spec, context = {}, state = {}) {
   // + clarification_needed (gate de promesas 2026-07-09): en operation llegaba al seam como op desconocida → "Eso todavía
   // no lo tengo como análisis directo" (mentira — no es un límite del contrato, es una repregunta). Migra a su resolver.
   if (spec && /^(followup_|recall_|session_|apply_|meta_|multi_|clarification_)/.test(String(spec.operation || ""))) {
-    tt = TURN_RESOLVERS[spec.operation] ? spec.operation : (tt && TURN_RESOLVERS[tt] ? tt : "followup_recommendation");
+    // un turn_type ESPECÍFICO ya coercido (multi_analysis/apply_criteria/…) MANDA sobre la migración — el blindaje
+    // nació para el caso tt="new_query" espurio; si lo dejáramos migrar siempre, operation:"clarification_needed"
+    // del LLM le robaba el turno al multi de la Ficha (cazado por el gate de promesas 2026-07-10).
+    tt = (tt && tt !== "new_query" && TURN_RESOLVERS[tt]) ? tt
+      : (TURN_RESOLVERS[spec.operation] ? spec.operation : (tt && TURN_RESOLVERS[tt] ? tt : "followup_recommendation"));
     spec = { ...spec, operation: undefined };
   }
   // ROBUSTEZ V2 (no depender de la clasificación del LLM): "compáralo con X" a veces llega como new_query + operation

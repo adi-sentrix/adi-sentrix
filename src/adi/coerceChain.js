@@ -189,7 +189,21 @@ function _coerceMulti(q, spec) {
   if (!q || !spec || spec.operation === "compare") return null;
   const m = detectMultiAnalysis(q);
   if (!m.isMulti) return null;
-  const s = { ...spec, turn_type: "multi_analysis", multi: { metrics: m.metrics, dimension: m.dimension, entity: m.entity } };
+  // ENTIDAD DESDE EL CANON (botón de la Ficha 2026-07-10: "¿Cómo está ABC en ventas y contribución?" — el detector
+  // no resuelve nombres TODO-MAYÚSCULAS como ABC/SAM-TV55 → composeMulti repreguntaba). Borde de palabra y claves
+  // ≥3 chars para no pescar "lg" adentro de "algo".
+  let ent = m.entity;
+  if (!ent) {
+    const nq = _norm(q);
+    for (const [k, c] of _CANON) {
+      if (k.length < 3) continue;
+      const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) { ent = c.nombre; break; }
+    }
+  }
+  // multi es un TURNO, no una operación — se limpia operation para que el blindaje de conversation.js no migre
+  // un "clarification_needed" del LLM por encima del claim (mismo patrón que los claims meta del coerce).
+  const s = { ...spec, operation: undefined, turn_type: "multi_analysis", multi: { metrics: m.metrics, dimension: m.dimension, entity: ent } };
   if (s.transform) delete s.transform;
   return _cleanFilters(s);
 }
