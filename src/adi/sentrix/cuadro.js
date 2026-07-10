@@ -6,6 +6,7 @@
  * fina por-entidad es el límite honesto (se enciende con el ERP). Puro · client-side · el panel solo renderiza. */
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToMarcasVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
+import { marcasMargen } from "../../data/demoData.js";   // margen/contribución/rebates de MARCA (la grilla mostraba 0.0% — bug cazado 2026-07-10)
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
@@ -46,8 +47,10 @@ const COLS = {
     { key: "accion", label: "Acción", fmt: "accion" },
   ],
   marca: [
-    { key: "ventas", label: "Ventas", fmt: "moneyk", sort: "desc" },
-    { key: "contribucion", label: "Contribución", fmt: "moneyk", sort: "desc" },
+    // fmt "money" (el dato viene en $K → $M, igual que clientes) — el "moneyk" pintaba $33.2K donde son $33.2M
+    { key: "ventas", label: "Ventas", fmt: "money", sort: "desc" },
+    { key: "acciones", label: "Acciones de precios", fmt: "money", sort: "asc" },
+    { key: "contribucion", label: "Contribución", fmt: "money", sort: "desc" },
     { key: "margen", label: "Margen", fmt: "pct", sort: "desc", tone: "margen" },
     { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap" },
     { key: "accion", label: "Acción", fmt: "accion" },
@@ -108,11 +111,14 @@ function _skus(s) {
 }
 
 function _marcas(s) {
+  // JOIN con marcasMargen (una verdad): margen/contribución/rebates viven ahí — antes se leía solo marcasVentas
+  // (que no los trae) y la grilla mostraba contribución $0 y margen 0.0% (bug cazado en vivo 2026-07-10).
   const V = applyScenarioToMarcasVentas(s) || [];
-  const avgM = _mean(V, (x) => x.margen || 0);
-  const rows = V.map((x) => {
-    const gap = _r1((x.margen || 0) - avgM);
-    return { name: x.nombre, ventas: x.actual, contribucion: x.contribucion || 0, margen: _r1(x.margen || 0), gap, accion: gap <= -3 ? "revisar mix" : "sostener", alert: false };
+  const avgM = _mean(marcasMargen, (x) => x.margen || 0);
+  const rows = marcasMargen.map((m) => {
+    const v = V.find((x) => x.nombre === m.nombre);
+    const gap = _r1((m.margen || 0) - avgM);
+    return { name: m.nombre, ventas: v ? v.actual : m.venta, acciones: m.rebates, contribucion: m.contribucion || 0, margen: _r1(m.margen || 0), gap, accion: gap <= -3 ? "revisar mix" : "sostener", alert: false };
   });
   const tV = _sum(rows, (r) => r.ventas), tC = _sum(rows, (r) => r.contribucion);
   const total = { name: "Total", ventas: tV, contribucion: tC, margen: tV ? _r1(tC / tV * 100) : _r1(avgM), gap: null, accion: "", _total: true };

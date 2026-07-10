@@ -62,6 +62,12 @@ for (const s of [
   "Profundiza en Falabella", "Profundiza en Samsung", "Profundiza en SAM-TV55",
   "¿De dónde saca Falabella su contribución?", "¿De dónde saca SAM-TV55 su contribución?",
   "¿Por qué Falabella cede margen?", "¿Por qué SAM-TV55 cede margen?",
+  // Pareto reflejo de la tabla (owner 2026-07-10): negocio por métrica + composición de marca/familia por SKU
+  "¿Quiénes son mis principales clientes por venta?",
+  "¿Cuáles son mis principales marcas por venta?",
+  "¿Cuáles son los SKU que más venden?",
+  "¿Cuáles son los SKU que más venden de Samsung?",
+  "Top SKU por contribución de Samsung",
 ]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:ficha" });
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·

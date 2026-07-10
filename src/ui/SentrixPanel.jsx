@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
 import { MiniPareto } from "./InlineChart.jsx";   // el 80/20 de la Mesa = la MISMA pieza del chat (owner 2026-07-09) · su import inyecta los keyframes adi*
+import { skusMargen } from "../data/skusMargen.js";   // composición de marca/familia por sus SKU (cruce REAL · Pareto reflejo de la tabla 2026-07-10)
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · la Ficha usa la serie de UNA entidad)
@@ -1800,11 +1801,13 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           )}
         </div>
       </div>
-      {/* al seleccionar UNA fila → el perfil de ESA entidad vs el promedio del eje (owner 2026-07-09: "también debería
-          individual"); con EXACTAMENTE 2 → el Perfil comparado para CUALQUIER dimensión (owner 2026-07-08: "en su
-          plenitud" — las estaciones salen de las columnas del eje); en la lente Control, el dumbbell original (cliente). */}
+      {/* EL PARETO SIEMPRE, como REFLEJO de la tabla (owner 2026-07-10): eje del cuadro + filtro ventas/contribución ·
+          sin selección = el negocio · 1 seleccionado = la composición (marca/familia) o dónde pesa (cliente/SKU). */}
+      {mesa && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
+      {/* al seleccionar UNA fila → la FICHA (perfil vs promedio + evolutivo por estación); con EXACTAMENTE 2 → el
+          Perfil comparado para CUALQUIER dimensión; en la lente Control, el dumbbell original (cliente). */}
       {sel.length === 1 && mesa && (
-        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} scenario={scenario} onAsk={onAsk}/>
+        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} onAsk={onAsk}/>
       )}
       {sel.length === 2 && (mesa
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
@@ -2232,11 +2235,90 @@ const _FICHA_STORY_Q = {
   margen:       (name) => `¿Por qué ${name} cede margen?`,               // causa del margen
   acciones:     (name) => `Profundiza en ${name}`,                       // la palanca de carga vive en el dive causal
 };
-const _PARETO_STORY_Q = { cliente: "¿En cuántos clientes se concentra mi contribución?", marca: "¿En cuántas marcas se concentra mi contribución?", familia: "¿En cuántas familias se concentra mi contribución?", sku: "¿En cuántos SKU se concentra mi contribución?" };
+// EL PARETO ES REFLEJO DE LA TABLA (owner 2026-07-10): eje = el del cuadro · filtro Ventas/Contribución · sin
+// selección = el 80/20 del negocio · con selección = la COMPOSICIÓN de esa entidad cuando el cruce existe
+// (marca/familia → sus SKU, dato real); cliente/SKU no tienen matriz transaccional → dónde pesa + se declara.
+// El botón ADI (esquina derecha) interpreta EXACTAMENTE lo que el gráfico muestra en ese momento.
+const _PARETO_PLURAL = { cliente: "clientes", marca: "marcas", familia: "familias", sku: "SKU" };
+const _PARETO_NEG_Q = {
+  ventas:       { cliente: "¿Quiénes son mis principales clientes por venta?", marca: "¿Cuáles son mis principales marcas por venta?", familia: "¿Cuáles son mis principales familias por venta?", sku: "¿Cuáles son los SKU que más venden?" },
+  contribucion: { cliente: "¿En cuántos clientes se concentra mi contribución?", marca: "¿En cuántas marcas se concentra mi contribución?", familia: "¿En cuántas familias se concentra mi contribución?", sku: "¿En cuántos SKU se concentra mi contribución?" },
+};
 const _btnADI = (onClick, label) => (
   <button onClick={onClick} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:10.5, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>{label}</button>
 );
 const _fmDin = (v) => (Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" : "$" + Math.round(v) + "K");
+
+function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
+  const [met, setMet] = useState("ventas");
+  if (!_PARETO_PLURAL[dim]) return null;   // bodega: sin pareto comercial (su historia es de inventario)
+  const metLabel = met === "ventas" ? "venta" : "contribución";
+  // COMPOSICIÓN de la entidad cuando el cruce EXISTE (marca/familia → sus SKU · dato real de skusMargen)
+  const compRows = sel && (dim === "marca" || dim === "familia")
+    ? skusMargen.filter((s) => (dim === "marca" ? s.marca : s.sfamilia) === sel)
+        .map((s) => ({ name: s.nombre, value: Number(met === "ventas" ? s.venta : s.contribucion) || 0 }))
+        .filter((r) => r.value > 0).sort((a, b) => b.value - a.value)
+    : null;
+  let con, modo;
+  if (compRows && compRows.length >= 2) {
+    const total = compRows.reduce((s, r) => s + r.value, 0) || 1;
+    let cum = 0;
+    const allBars = compRows.map((r) => { cum += r.value; return { name: r.name, value: r.value, pct: (r.value / total) * 100, cumPct: (cum / total) * 100 }; });
+    let bc = allBars.findIndex((b) => b.cumPct >= 80) + 1; if (bc <= 0) bc = allBars.length;
+    con = { bars: allBars, n: allBars.length, blockCount: bc, blockPct: Math.round(allBars[bc - 1].cumPct), plural: "SKU" };
+    modo = "composicion";
+  } else {
+    con = buildConcentration(dim, scenario, met);
+    modo = sel ? "posicion" : "negocio";
+  }
+  const bars = (con.bars || []).slice(0, 10);
+  if (bars.length < 2) return null;
+  const idxEnt = sel && modo === "posicion" ? (con.bars || []).findIndex((b) => b.name === sel) : -1;
+  const entBar = idxEnt >= 0 ? con.bars[idxEnt] : null;
+  // el botón ADI interpreta EL ESTADO del gráfico (cada pregunta = promesa del gate · emisor ui:ficha)
+  const q = modo === "composicion"
+    ? (met === "ventas" ? `¿Cuáles son los SKU que más venden de ${sel}?` : `Top SKU por contribución de ${sel}`)
+    : modo === "posicion"
+      ? (met === "ventas" ? `Profundiza en ${sel}` : `¿De dónde saca ${sel} su contribución?`)
+      : _PARETO_NEG_Q[met][dim];
+  const titulo = modo === "composicion" ? `Cómo se compone ${sel}` : modo === "posicion" ? `Dónde pesa ${sel} en el 80/20` : "El 80/20 · cómo se compone";
+  const pill = (k, label) => (
+    <button key={k} onClick={() => setMet(k)}
+      style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${met === k ? "rgba(47,184,218,0.5)" : C.border}`, background: met === k ? "rgba(47,184,218,0.10)" : "transparent", color: met === k ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{label}</button>
+  );
+  return (
+    <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
+      background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
+      boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap", marginBottom:6 }}>
+        <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
+          <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{titulo}</span>
+          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio; seleccionando una marca o familia ves CÓMO SE COMPONE por sus SKU (dato real); para un cliente o SKU no existe la matriz transaccional — se muestra dónde pesa en el total y se declara. El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando."} align="left"/>
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ display:"flex", gap:3 }}>{pill("ventas", "Ventas")}{pill("contribucion", "Contribución")}</span>
+          {onAsk ? _btnADI(() => onAsk(q), "Que ADI lo explique →") : null}
+        </span>
+      </div>
+      <div style={{ fontSize:12, color:C.text, lineHeight:1.5, marginBottom:8, paddingLeft:10, borderLeft:`2px solid ${C.celeste}` }}>
+        <b style={{ color:C.celeste }}>{con.blockCount} de {con.n} {con.plural || _PARETO_PLURAL[dim]}</b> explican el <b>{con.blockPct}%</b> de {modo === "composicion" ? <>la {metLabel} de <b>{sel}</b></> : <>tu {metLabel}</>}.
+      </div>
+      <MiniPareto showTakeaway={false} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
+        panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
+          rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
+      {modo === "posicion" && entBar && (
+        <div style={{ fontSize:11, color:C.textSub, marginTop:4 }}>
+          {entBar.inBlock !== false && idxEnt < con.blockCount
+            ? <>{sel} está en el <b style={{ color:C.text }}>bloque que sostiene la {metLabel}</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total.</>
+            : <>{sel} está en la <b style={{ color:C.text }}>cola</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total{idxEnt >= bars.length ? " (fuera de las 10 columnas de arriba)" : ""}.</>}
+          {(dim === "cliente" || dim === "sku") && <span style={{ color:C.textMuted }}> Su desglose interno (la matriz transaccional) se enciende con el ERP — no se dibuja lo que no existe.</span>}
+        </div>
+      )}
+      {con.n > bars.length ? <div style={{ fontSize:10.5, color:C.textMuted, marginTop:4 }}>+{con.n - bars.length} más en el cuadro.</div> : null}
+    </div>
+  );
+}
 
 function FichaEvolutivo({ name, onAsk = null }) {
   const [est, setEst] = useState("venta");
@@ -2363,12 +2445,8 @@ function _mono(xs, ys) {
   return d;
 }
 
-function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk }) {
-  // el 80/20 del EJE con la entidad destacada · si la entidad quedó en la cola (más allá del top 10), se declara
-  const con = React.useMemo(() => (CONCENTRATION_DIMS.some((d) => d.key === dim) ? buildConcentration(dim, scenario, "ventas") : null), [dim, scenario]);
-  const bars = con ? (con.bars || []).slice(0, 10) : [];
-  const idxEnt = con ? (con.bars || []).findIndex((b) => b.name === name) : -1;
-  const entBar = idxEnt >= 0 ? con.bars[idxEnt] : null;
+function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
+  // el Pareto vive AFUERA (MesaPareto · reflejo de la tabla, owner 2026-07-10) — la ficha suma perfil + evolutivo
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
@@ -2381,30 +2459,6 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk
           </button>
         ) : null}
       </div>
-      {con && bars.length >= 3 && (
-        <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
-          background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
-          boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
-          <div style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", marginBottom:8 }}>
-            <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
-            Dónde pesa en el 80/20
-            <InfoDot def={"El 80/20 de este eje (pocas cuentas explican la mayor parte de la venta) con la columna de la entidad DESTACADA en ámbar: te dice si estás mirando una cuenta del bloque que sostiene la venta o de la cola. El punto ámbar sobre la línea marca el corte real."} align="left"/>
-          </div>
-          <MiniPareto showTakeaway={false} highlight={name} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
-            panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
-              rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
-          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginTop:4, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:C.textSub }}>
-              {entBar
-                ? (entBar.inBlock
-                  ? <>{name} está en el <b style={{ color:C.text }}>bloque que sostiene la venta</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total.</>
-                  : <>{name} está en la <b style={{ color:C.text }}>cola</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total{idxEnt >= bars.length ? " (fuera de las 10 columnas de arriba)" : ""}.</>)
-                : null}
-            </span>
-            {onAsk && _PARETO_STORY_Q[dim] ? _btnADI(() => onAsk(_PARETO_STORY_Q[dim]), "Que ADI lo explique →") : null}
-          </div>
-        </div>
-      )}
       <MesaPerfil name={name} row={row} columns={columns} allRows={allRows} dim={dim} onAsk={onAsk}/>
       <FichaEvolutivo name={name} onAsk={onAsk}/>
     </div>
