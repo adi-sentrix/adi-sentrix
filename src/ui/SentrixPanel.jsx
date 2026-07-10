@@ -2228,16 +2228,16 @@ const _fmDin = (v) => (Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" :
 function FichaEvolutivo({ name }) {
   const [est, setEst] = useState("venta");
   const [hov, setHov] = useState(null);
-  const ev = est === "margen" ? null : buildEntityEvolution(name, est);
+  // MARGEN CONECTADO (owner 2026-07-10: "si hay contribución debe tener — deben quedar todos conectados"):
+  // margen del mes = contribución ÷ venta de las mismas dos curvas de esta ficha; el año cierra exacto con el
+  // margen del período del perfil/cuadro (una sola verdad · el cálculo vive en buildEntityEvolution).
+  const ev = buildEntityEvolution(name, est);
+  const isPct = est === "margen";
+  const fmtV = isPct ? (v) => p1(v) + "%" : _fmDin;
+  const fmtD = isPct ? (v) => p1(v) + "pp" : _fmDin;
   const W = 620, H = 120, padL = 12, padR = 12, padT = 14, padB = 10;
   let body = null;
-  if (est === "margen") {
-    body = (
-      <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.6, padding:"14px 4px" }}>
-        El margen mensual de {name} no existe como dato en este set (el histórico trae el margen del período, no el corte por mes) — no te dibujo una curva que no es real. Lo que sí: el margen del período está en el <b style={{ color:C.text }}>Perfil vs promedio</b> de arriba, contra tu piso.
-      </div>
-    );
-  } else if (!ev || ev.n < 2) {
+  if (!ev || ev.n < 2) {
     body = <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.6, padding:"14px 4px" }}>El corte mensual de {name} se enciende con el histórico del ERP — hoy este set no lo trae para esta entidad.</div>;
   } else {
     const lo = Math.min(...ev.serie), hi = Math.max(...ev.serie), rng = Math.max(hi - lo, 1);
@@ -2251,7 +2251,7 @@ function FichaEvolutivo({ name }) {
         <div style={{ display:"flex", alignItems:"baseline", gap:8, margin:"8px 0 6px", flexWrap:"wrap" }}>
           {/* sin pill "+% Ene→Dic": el punta-a-punta ENGAÑA con estacionalidad (Ene es mes débil — regla 2026-07-08);
               la historia honesta la cuenta la lectura de abajo (mejor mes · más flojo · subida/freno más fuerte) */}
-          <span style={{ fontFamily:MONO, fontSize:14, fontWeight:600, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fmDin(ev.last)}</span>
+          <span style={{ fontFamily:MONO, fontSize:14, fontWeight:600, color:C.text, fontVariantNumeric:"tabular-nums" }}>{fmtV(ev.last)}</span>
           <span style={{ fontSize:10, color:C.textMuted }}>último mes ({ev.meses[ev.n - 1]})</span>
         </div>
         <div style={{ position:"relative", touchAction:"pan-y" }}>
@@ -2283,7 +2283,7 @@ function FichaEvolutivo({ name }) {
             <div style={{ position:"absolute", top:-2, left:`${(xs[hov] / W) * 100}%`, transform: hov > ev.n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
               pointerEvents:"none", background:"#161513", border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"3px 9px",
               fontFamily:MONO, fontSize:10.5, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", color:C.textMuted }}>
-              <span style={{ color:C.textSub }}>{ev.meses[hov]}</span> <b style={{ color:C.text }}>{_fmDin(ev.serie[hov])}</b>
+              <span style={{ color:C.textSub }}>{ev.meses[hov]}</span> <b style={{ color:C.text }}>{fmtV(ev.serie[hov])}</b>
             </div>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", marginTop:2, fontFamily:MONO, fontSize:9.5, color:C.textMuted }}>
@@ -2291,10 +2291,15 @@ function FichaEvolutivo({ name }) {
           </div>
         </div>
         <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:6 }}>
-          El mejor mes es <span style={{ color:C.green }}>{ev.maxMes}</span> ({_fmDin(ev.max)}) y el más flojo <span style={{ color:C.red }}>{ev.minMes}</span> ({_fmDin(ev.min)}).
-          {ev.growth.mes && ev.growth.delta > 0 && <> La subida más fuerte llega {ev.growth.from}→{ev.growth.mes} (+{_fmDin(ev.growth.delta)}).</>}
-          {ev.drop.mes && <> El freno más fuerte, {ev.drop.from}→{ev.drop.mes} (−{_fmDin(Math.abs(ev.drop.delta))}).</>}
+          El mejor mes es <span style={{ color:C.green }}>{ev.maxMes}</span> ({fmtV(ev.max)}) y el más flojo <span style={{ color:C.red }}>{ev.minMes}</span> ({fmtV(ev.min)}).
+          {ev.growth.mes && ev.growth.delta > 0 && <> La subida más fuerte llega {ev.growth.from}→{ev.growth.mes} (+{fmtD(ev.growth.delta)}).</>}
+          {ev.drop.mes && <> El freno más fuerte, {ev.drop.from}→{ev.drop.mes} (−{fmtD(Math.abs(ev.drop.delta))}).</>}
         </div>
+        {isPct && (
+          <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.5, marginTop:4 }}>
+            margen del mes = contribución ÷ venta del mes (las dos curvas de esta ficha) · el agregado del año cierra con el margen del período del perfil.
+          </div>
+        )}
       </>
     );
   }
@@ -2306,7 +2311,7 @@ function FichaEvolutivo({ name }) {
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center" }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
           Evolutivo · 12 meses
-          <InfoDot def={"La película mensual de la entidad, estación por estación: elegí Ventas, Contribución, Margen o Acciones de precios. Pasá el cursor por la curva para ver cada mes. El punto verde es el mejor mes y el rojo el más flojo. Serie del histórico real; donde el corte mensual no existe, se declara (no se dibuja)."} align="left"/>
+          <InfoDot def={"La película mensual de la entidad, estación por estación: Ventas, Contribución, Margen o Acciones de precios. Pasá el cursor por la curva para ver cada mes; el punto verde es el mejor mes y el rojo el más flojo. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
         </span>
         <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
           {_FICHA_ESTACIONES.map((e) => (

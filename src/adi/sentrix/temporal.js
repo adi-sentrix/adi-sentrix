@@ -6,10 +6,38 @@
  * vs presupuesto, vs año anterior), todo DERIVADO del dato, nunca inventado. Pura · client-side · el motor no la llama
  * (igual que buildComparisonReading) → motor sellado. La regla madre: cada cifra del gráfico cierra con su serie. */
 import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
-import { historialMargen } from "../../data/demoData.js";
+import { historialMargen, clientesMargen, clientesVentas, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
+import { skusMargen } from "../../data/skusMargen.js";
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
+
+// ── ANCLA DEL PERÍODO (owner 2026-07-10: "deben quedar todos conectados — fijate bien en eso"): el total anual de
+// cada serie mensual del historial NO cerraba con el dato del período que muestran el cuadro y el perfil (venta
+// −3.4%…+5% según entidad — dos verdades). Cada serie se RE-ANCLA a su valor del período (la forma mes a mes viene
+// del historial; el total cierra EXACTO — la misma técnica `distribuir` del dataset). Una sola verdad por métrica:
+// venta → clientesVentas.actual / venta de la tabla del eje · contribución → contribución almacenada · margen del
+// período → para normalizar la curva derivada c/v · acciones → rebates almacenados. ──
+const _PERIOD = (() => {
+  const m = new Map();
+  for (const c of clientesMargen) {
+    const cv = clientesVentas.find((x) => x.nombre === c.nombre);
+    m.set(c.nombre, { venta: cv ? cv.actual : c.venta, contribucion: c.contribucion, margen: c.margen, acciones: c.rebates });
+  }
+  for (const x of marcasMargen)    m.set(x.nombre, { venta: x.venta, contribucion: x.contribucion, margen: x.margen, acciones: x.rebates });
+  for (const f of sfamiliasMargen) m.set(f.nombre, { venta: f.venta, contribucion: f.contribucion, margen: f.margen, acciones: f.rebates });
+  for (const s of skusMargen)      m.set(s.sku,    { venta: s.venta, contribucion: s.contribucion, margen: s.margen, acciones: s.rebates });
+  return m;
+})();
+// re-ancla una serie a un total del período (forma intacta · total exacto · cuadre en el último mes)
+const _anchor = (serie, total) => {
+  const sHist = _sum(serie);
+  if (!Number.isFinite(total) || total <= 0 || !sHist) return serie;
+  const k = total / sHist;
+  const out = serie.map((v) => Math.round(v * k));
+  out[out.length - 1] += total - _sum(out);
+  return out;
+};
 
 // Construye el evolutivo GLOBAL de ventas desde la serie real. Devuelve datos + análisis (sin render).
 export function buildGlobalEvolution() {
@@ -74,8 +102,23 @@ const _ENTITY_METRICS = {
 // La serie mensual de UNA entidad + su análisis (pico/valle, mayor alza/caída, trayectoria) — todo derivado.
 export function buildEntityEvolution(name, metric = "venta") {
   const H = historialMargen && historialMargen[name];
+  if (!H || !H.length) return null;
+  const P = _PERIOD.get(name) || {};
+  // MARGEN DERIVADO (owner 2026-07-10: "si hay contribución debe tener"): margen del mes = contribución ÷ venta de
+  // las MISMAS dos series de la ficha, normalizado para que el agregado del año cierre EXACTO con el margen del
+  // período (el del perfil y el cuadro) — conectado por construcción, no una serie aparte. El campo margen plano
+  // del historial (sintético) sigue sin usarse.
+  if (metric === "margen") {
+    const V = buildEntityEvolution(name, "venta");
+    const Cc = buildEntityEvolution(name, "contribucion");
+    if (!V || !Cc || V.n !== Cc.n || V.serie.some((v) => v <= 0)) return null;
+    let serie = V.serie.map((v, i) => (Cc.serie[i] / v) * 100);
+    const agg = (_sum(Cc.serie) / Math.max(_sum(V.serie), 1)) * 100;
+    serie = serie.map((v) => _round1(Number.isFinite(P.margen) && agg > 0 ? v * (P.margen / agg) : v));
+    return _entityAnalysis(name, metric, V.meses, serie);
+  }
   const get = _ENTITY_METRICS[metric];
-  if (!H || !H.length || !get) return null;
+  if (!get) return null;
   const meses = H.map((m) => m.mes);
   let serie = H.map(get);
   if (serie.some((v) => !Number.isFinite(v))) return null;
@@ -96,6 +139,15 @@ export function buildEntityEvolution(name, metric = "venta") {
       serie = mod;
     }
   }
+  // ANCLA AL PERÍODO (owner 2026-07-10 · "todos conectados"): el total del año cierra EXACTO con el dato que
+  // muestran el cuadro y el perfil — una sola verdad por métrica, la forma mensual la pone el historial.
+  const anchorTotal = metric === "venta" ? P.venta : metric === "contribucion" ? P.contribucion : metric === "acciones" ? P.acciones : null;
+  if (anchorTotal != null) serie = _anchor(serie, anchorTotal);
+  return _entityAnalysis(name, metric, meses, serie);
+}
+
+// análisis de una serie mensual (pico/valle · mayor alza/caída · trayectoria) — compartido por todas las métricas
+function _entityAnalysis(name, metric, meses, serie) {
   const n = serie.length;
   const max = Math.max(...serie), min = Math.min(...serie);
   const maxMes = meses[serie.indexOf(max)], minMes = meses[serie.indexOf(min)];
