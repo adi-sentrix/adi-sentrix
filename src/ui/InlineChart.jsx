@@ -228,9 +228,12 @@ function MiniMovers({ panel }) {
 // EXPORTADO (owner 2026-07-09: "el 80% de Sentrix cambialo por el de columnas") — la Mesa reusa ESTA pieza (una
 // sola verdad visual). Props opcionales: showTakeaway=false cuando el shell ya trae el titular · onPick(nombre)
 // hace cada columna clickeable (la Mesa pregunta "Profundiza en X") · rows[i].sub reemplaza el "part%" bajo el
-// nombre (la Mesa pone la PLATA). El uso del chat queda byte-igual con los defaults.
-export function MiniPareto({ panel, showTakeaway = true, onPick = null }) {
+// nombre (la Mesa pone la PLATA) · highlight=nombre destaca ESA columna (la Ficha de entidad). El uso del chat
+// queda byte-igual con los defaults. HOVER CON DATO (owner 2026-07-10: "cuando paso por la curva del 80% debe
+// mostrar el dato — eso con todos los gráficos"): overlay de puntero → tooltip HTML con nombre · $ · part · acum.
+export function MiniPareto({ panel, showTakeaway = true, onPick = null, highlight = null }) {
   const uid = useSvgId();
+  const [hov, setHov] = useState(null);
   const rows = panel.rows;
   const n = rows.length;
   const W = 560, H = 96, padL = 10, padR = 10, padT = 8, padB = 6;
@@ -249,43 +252,58 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null }) {
           <b style={kAmber}>{panel.cutoff}</b> de <b style={kAmber}>{panel.of}</b> explican el <b style={kAmber}>{Math.round(panel.totalPct)}%</b>
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-        <defs>
-          <linearGradient id={`${uid}pb`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.celeste} stopOpacity="0.8"/>
-            <stop offset="100%" stopColor={C.celeste} stopOpacity="0.35"/>
-          </linearGradient>
-        </defs>
-        <line x1={padL} x2={W - padR} y1={yCum(80)} y2={yCum(80)} stroke={C.amber} strokeWidth="1" strokeDasharray="5 3" opacity="0.35"/>
-        {rows.map((r, i) => (
-          <rect key={r.nombre} x={xc(i) - bw / 2} y={yBar(r.part)} width={bw} height={(H - padB) - yBar(r.part)} rx="2"
-            fill={i < panel.cutoff ? `url(#${uid}pb)` : "rgba(47,184,218,0.16)"}
-            onClick={onPick ? () => onPick(r.nombre) : undefined}
-            style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both`, cursor: onPick ? "pointer" : "default" }}>
-            {onPick ? <title>{`Preguntale a ADI: Profundiza en ${r.nombre}`}</title> : null}
-          </rect>
-        ))}
-        <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="3.5" opacity="0.12" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
-        <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="1.5" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
-        <g style={{ animation: "adiFade 300ms 800ms both" }}>
-          <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="5.5" fill={C.amber} opacity="0.2"/>
-          <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="2.8" fill={C.amber}/>
-        </g>
-      </svg>
+      <div style={{ position: "relative", touchAction: "pan-y" }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+          <defs>
+            <linearGradient id={`${uid}pb`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.celeste} stopOpacity="0.8"/>
+              <stop offset="100%" stopColor={C.celeste} stopOpacity="0.35"/>
+            </linearGradient>
+          </defs>
+          <line x1={padL} x2={W - padR} y1={yCum(80)} y2={yCum(80)} stroke={C.amber} strokeWidth="1" strokeDasharray="5 3" opacity="0.35"/>
+          {rows.map((r, i) => (
+            <rect key={r.nombre} x={xc(i) - bw / 2} y={yBar(r.part)} width={bw} height={(H - padB) - yBar(r.part)} rx="2"
+              fill={i < panel.cutoff ? `url(#${uid}pb)` : "rgba(47,184,218,0.16)"}
+              stroke={r.nombre === highlight ? C.amber : "none"} strokeWidth={r.nombre === highlight ? 1.5 : 0}
+              opacity={hov == null || hov === i ? 1 : 0.55}
+              style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both` }}/>
+          ))}
+          <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="3.5" opacity="0.12" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+          <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="1.5" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+          <g style={{ animation: "adiFade 300ms 800ms both" }}>
+            <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="5.5" fill={C.amber} opacity="0.2"/>
+            <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="2.8" fill={C.amber}/>
+          </g>
+          {hov != null && (
+            <circle cx={xc(hov)} cy={yCum(rows[hov].acum)} r="3.4" fill={C.celeste} stroke={KO} strokeWidth="1.5" pointerEvents="none"/>
+          )}
+          <rect x="0" y="0" width={W} height={H} fill="transparent" style={{ cursor: onPick ? "pointer" : "default" }}
+            onPointerMove={(e) => { const b = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - b.left) / Math.max(1, b.width); setHov(Math.max(0, Math.min(n - 1, Math.floor((rel * W - padL) / ((W - padL - padR) / n))))); }}
+            onPointerLeave={() => setHov(null)}
+            onClick={onPick && hov != null ? () => onPick(rows[hov].nombre) : undefined}/>
+        </svg>
+        {hov != null && (
+          <div style={{ position: "absolute", top: -2, left: `${(xc(hov) / W) * 100}%`, transform: hov > n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+            pointerEvents: "none", background: "#161513", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "3px 9px",
+            fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: C.textMuted }}>
+            <b style={{ color: C.text }}>{rows[hov].nombre}</b>{rows[hov].sub ? <> · <span style={{ color: C.textSub }}>{rows[hov].sub}</span></> : null} · {rows[hov].part}% · <span style={{ color: rows[hov].acum <= 80 ? C.green : C.textMuted }}>acum {rows[hov].acum}%</span>
+          </div>
+        )}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, padding: "0 1.8%", marginTop: 4, columnGap: 2 }}>
         {rows.map((r, i) => (
-          <div key={r.nombre} onClick={onPick && i < panel.cutoff ? () => onPick(r.nombre) : undefined}
-            style={{ textAlign: "center", overflow: "hidden", cursor: onPick && i < panel.cutoff ? "pointer" : "default" }}>
-            {i < panel.cutoff && (
+          <div key={r.nombre} onClick={onPick && (i < panel.cutoff || r.nombre === highlight) ? () => onPick(r.nombre) : undefined}
+            style={{ textAlign: "center", overflow: "hidden", cursor: onPick && (i < panel.cutoff || r.nombre === highlight) ? "pointer" : "default" }}>
+            {(i < panel.cutoff || r.nombre === highlight) && (
               <>
-                <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.textSub, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</div>
+                <div style={{ fontFamily: MONO, fontSize: 9.5, color: r.nombre === highlight ? C.amber : C.textSub, fontWeight: r.nombre === highlight ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</div>
                 <div style={{ fontFamily: MONO, fontSize: 9, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{r.sub || `${r.part}%`}</div>
               </>
             )}
           </div>
         ))}
       </div>
-      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>el punto marca el corte real · la línea punteada, el 80% acumulado</div>
+      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>el punto marca el corte real · la línea punteada, el 80% acumulado · pasá el cursor para ver cada dato</div>
     </>
   );
 }

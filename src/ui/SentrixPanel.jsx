@@ -10,7 +10,7 @@ import { C } from "./theme.js";
 import { MiniPareto } from "./InlineChart.jsx";   // el 80/20 de la Mesa = la MISMA pieza del chat (owner 2026-07-09) · su import inyecta los keyframes adi*
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
-import { buildGlobalEvolution, buildCompareEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + dos curvas por entidad)
+import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · la Ficha usa la serie de UNA entidad)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
 import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt, buildBrechaFilm } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6/2c · tira + descomposición + recibo + película de la brecha
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
@@ -1112,10 +1112,7 @@ const _MESA_FOCO_ASK = {
 function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const scenario = (evidence && evidence.periodo) || "bonanza";
   const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
-  const [conDim, setConDim] = useState("cliente");
-  const con = React.useMemo(() => buildConcentration(conDim, scenario, "ventas"), [conDim, scenario]);
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
-  const bars = (con.bars || []).slice(0, 10);   // columnas compactas (modelo del chat) → entran 10, como el MiniPareto
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -1161,46 +1158,15 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             </div>
           )}
         </div>
-        {/* el 80/20 · el principio del owner SIEMPRE visible (data-driven: el % real, nunca forzado) · EXPLICADO (2026-07-08) */}
+        {/* ORDEN ÚNICO (owner 2026-07-10 · "un panel de Sentrix único"): cards → cuadro → click en una fila abre la
+            FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
+            El 80/20 suelto se fue de acá: ahora vive CONTEXTUALIZADO adentro de la ficha — el principio no se
+            pierde, gana foco (se ve exactamente dónde pesa la cuenta que estás mirando). */}
         <div>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
-            <div style={{ ...head, display:"flex", alignItems:"center", gap:4 }}>El 80/20 · cómo se compone tu venta<InfoDot def={"El principio de Pareto: pocas cuentas explican la mayor parte del resultado. El corte muestra el % REAL de tu dato (nunca se fuerza el 80). Para qué sirve: saber a quién blindar (el bloque que sostiene la venta) y qué decidir con la cola (crecerla o simplificarla)."} align="left"/></div>
-            <div style={{ display:"flex", gap:3 }}>
-              {CONCENTRATION_DIMS.map((d) => (
-                <button key={d.key} onClick={() => setConDim(d.key)}
-                  style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${conDim === d.key ? "rgba(47,184,218,0.5)" : C.border}`, background: conDim === d.key ? "rgba(47,184,218,0.10)" : "transparent", color: conDim === d.key ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{d.label}</button>
-              ))}
-            </div>
-          </div>
-          <div style={{ fontSize:12.5, color:C.text, lineHeight:1.5, marginBottom:9, paddingLeft:10, borderLeft:`2px solid ${C.celeste}` }}>
-            <b style={{ color:C.celeste }}>{con.blockCount} de {con.n} {con.plural}</b> explican el <b>{con.blockPct}%</b> de tu venta.
-          </div>
-          {/* PARETO DE COLUMNAS (owner 2026-07-09: "cambialo por el de columnas") — la MISMA pieza del chat
-              (MiniPareto exportado · una sola verdad visual), en la card negra premium: columnas en gradiente,
-              cola ghost, acumulada en escalones, corte en ámbar, y la PLATA bajo cada columna (pedido previo). */}
-          <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
-            background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
-            boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
-            <MiniPareto showTakeaway={false} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
-              panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
-                rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
-            {onAsk ? <div style={{ fontSize:10, color:C.textMuted, marginTop:2 }}>tocá una columna y ADI la profundiza</div> : null}
-          </div>
-          {con.n > bars.length ? <div style={{ fontSize:10.5, color:C.textMuted, marginTop:6 }}>+{con.n - bars.length} más en el cuadro de abajo.</div> : null}
-          {/* la LECTURA del 80/20 (owner 2026-07-08: "si muestra el 80% también debe ser explicado") · qué significa y qué decisión habilita */}
-          <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55, marginTop:9, padding:"9px 11px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(47,184,218,0.03)" }}>
-            <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>
-            {con.blockCount <= Math.ceil(con.n / 2)
-              ? <>Tu venta por {con.label.toLowerCase()} está <b>concentrada</b>: {con.blockCount} de {con.n} {con.plural} cargan el {con.blockPct}% — blindarlos es prioridad (perder uno pega directo), y la cola ({con.n - con.blockCount} {con.plural}) aporta solo el {100 - con.blockPct}%: decidí si la crecés o la simplificás.</>
-              : <>Tu venta por {con.label.toLowerCase()} está <b>repartida</b>: hacen falta {con.blockCount} de {con.n} {con.plural} para juntar el {con.blockPct}% — el riesgo está distribuido; acá pesan más las palancas por {con.label.toLowerCase()} que el blindaje de unos pocos.</>}
-          </div>
-        </div>
-        {/* el CUADRO DE MANDO · la grilla operable que ya existía (ordenar · filtrar · top-N · seleccionar) */}
-        <div>
-          <div style={{ ...head, marginBottom:9 }}>Cuadro de mando · todas tus cifras, operables</div>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica (el 80/20 donde pesa, su perfil contra el promedio y su evolutivo mensual). Con DOS filas seleccionadas, la comparación A vs B."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk}/>
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa es tu negocio en vivo: la lectura y los focos son de ADI (mismas cuentas que sus respuestas — una sola verdad), el 80/20 muestra el % real de tu dato (nunca forzado), y el cuadro se ordena y filtra. Click en una fila o un foco y ADI te lo desglosa al lado. Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa es tu negocio en vivo: la lectura y los focos son de ADI (mismas cuentas que sus respuestas — una sola verdad), y el cuadro se ordena, se busca y se filtra. Tocá una fila y se abre su ficha gráfica; tocá un foco y ADI te lo desglosa al lado. Cifras de dato real.</div>
       </div>
     </div>
   );
@@ -1710,8 +1676,13 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
     if (col.fmt === "money" || col.fmt === "moneyk") return C.text;
     return C.textSub;
   };
+  // BÚSQUEDA (owner 2026-07-10 · "datas con muchos más SKU/familias — todo debe sentirse ordenado"): filtra por
+  // nombre, insensible a mayúsculas y tildes. Aparece cuando el eje tiene más filas de las que se leen de un golpe.
+  const [busca, setBusca] = useState("");
+  const _normB = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const sortCol = cols.find((c) => c.key === sortKey) || primary;
   let rows = cm.rows.slice().sort((a, b) => (sortCol.sort === "asc" ? -1 : 1) * ((b[sortKey] || 0) - (a[sortKey] || 0)));
+  if (busca.trim()) rows = rows.filter((r) => _normB(r.name).includes(_normB(busca)));
   if (onlySel && sel.length) rows = rows.filter((r) => sel.includes(r.name));   // el filtro ES una acción aparte (no al seleccionar)
   else if (mode === "top") rows = rows.slice(0, 10);
   else if (mode === "bottom") rows = rows.slice(-10);
@@ -1757,6 +1728,10 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         {pill(mode === "top" && !onlySel, "Top 10", () => { setMode("top"); setOnlySel(false); }, "top")}
         {pill(mode === "bottom" && !onlySel, "Peores 10", () => { setMode("bottom"); setOnlySel(false); }, "bot")}
         {pill(mode === "alert" && !onlySel, "En alerta", () => { setMode("alert"); setOnlySel(false); }, "al")}
+        {cm.rows.length > 12 && (
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`buscar ${cm.plural}…`}
+            style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${busca ? "rgba(47,184,218,0.5)" : C.border}`, background:"transparent", color:C.text, fontSize:11.5, fontFamily:"'DM Sans', system-ui, sans-serif", outline:"none", width:130 }}/>
+        )}
         {sel.length > 0 && (
           <span style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.celeste }}>
             {sel.length} seleccionado{sel.length > 1 ? "s" : ""}
@@ -1829,7 +1804,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           individual"); con EXACTAMENTE 2 → el Perfil comparado para CUALQUIER dimensión (owner 2026-07-08: "en su
           plenitud" — las estaciones salen de las columnas del eje); en la lente Control, el dumbbell original (cliente). */}
       {sel.length === 1 && mesa && (
-        <MesaPerfil name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} onAsk={onAsk}/>
+        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} scenario={scenario} onAsk={onAsk}/>
       )}
       {sel.length === 2 && (mesa
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
@@ -2237,6 +2212,179 @@ function StationPeriodo({ a, b }) {
 // la entidad SOLA contra el PROMEDIO de su eje, en la GRAMÁTICA de los gráficos del chat (card negra premium +
 // eje central estilo movers): el spine ES el promedio; derecha (verde) = mejor, izquierda (rojo) = peor — la
 // geometría dice la calidad aunque la métrica sea "menos = mejor". La vara (piso/target de POLICY) queda declarada. ──
+// ── FICHA DE ENTIDAD (owner 2026-07-10 · "panel de Sentrix único"): click en UNA fila del cuadro → TODO lo de esa
+// entidad, gráfico: (1) el 80/20 de su eje con SU columna destacada · (2) el Perfil vs promedio · (3) el evolutivo
+// de líneas por estación (Ventas · Contribución · Margen · Acciones de precios — decisión del owner: acciones
+// engloba carga, y costo sobra si ya está margen+contribución). Modelo del chat en todo · hover con dato en todo ·
+// explicativo "i" en cada bloque · honesto donde la serie no existe (margen mensual plano → se dice, no se dibuja). ──
+const _FICHA_ESTACIONES = [
+  { key: "venta",        label: "Ventas" },
+  { key: "contribucion", label: "Contribución" },
+  { key: "margen",       label: "Margen" },
+  { key: "acciones",     label: "Acciones de precios" },
+];
+const _fmDin = (v) => (Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" : "$" + Math.round(v) + "K");
+
+function FichaEvolutivo({ name }) {
+  const [est, setEst] = useState("venta");
+  const [hov, setHov] = useState(null);
+  const ev = est === "margen" ? null : buildEntityEvolution(name, est);
+  const W = 620, H = 120, padL = 12, padR = 12, padT = 14, padB = 10;
+  let body = null;
+  if (est === "margen") {
+    body = (
+      <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.6, padding:"14px 4px" }}>
+        El margen mensual de {name} no existe como dato en este set (el histórico trae el margen del período, no el corte por mes) — no te dibujo una curva que no es real. Lo que sí: el margen del período está en el <b style={{ color:C.text }}>Perfil vs promedio</b> de arriba, contra tu piso.
+      </div>
+    );
+  } else if (!ev || ev.n < 2) {
+    body = <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.6, padding:"14px 4px" }}>El corte mensual de {name} se enciende con el histórico del ERP — hoy este set no lo trae para esta entidad.</div>;
+  } else {
+    const lo = Math.min(...ev.serie), hi = Math.max(...ev.serie), rng = Math.max(hi - lo, 1);
+    const xs = ev.serie.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, ev.n - 1));
+    const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
+    const ys = ev.serie.map(y);
+    const dPath = _mono(xs, ys);
+    const iMax = ev.serie.indexOf(ev.max), iMin = ev.serie.indexOf(ev.min);
+    body = (
+      <>
+        <div style={{ display:"flex", alignItems:"baseline", gap:8, margin:"8px 0 6px", flexWrap:"wrap" }}>
+          {/* sin pill "+% Ene→Dic": el punta-a-punta ENGAÑA con estacionalidad (Ene es mes débil — regla 2026-07-08);
+              la historia honesta la cuenta la lectura de abajo (mejor mes · más flojo · subida/freno más fuerte) */}
+          <span style={{ fontFamily:MONO, fontSize:14, fontWeight:600, color:C.text, fontVariantNumeric:"tabular-nums" }}>{_fmDin(ev.last)}</span>
+          <span style={{ fontSize:10, color:C.textMuted }}>último mes ({ev.meses[ev.n - 1]})</span>
+        </div>
+        <div style={{ position:"relative", touchAction:"pan-y" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
+            <defs>
+              <linearGradient id={`fev-${est}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={C.elec} stopOpacity="0.18"/><stop offset="100%" stopColor={C.elec} stopOpacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d={`${dPath} L${xs[ev.n - 1]},${H - padB} L${xs[0]},${H - padB} Z`} fill={`url(#fev-${est})`}/>
+            <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="rgba(255,246,235,0.08)" strokeWidth="1"/>
+            <path d={dPath} fill="none" stroke={C.elec} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
+            <path d={dPath} fill="none" stroke={C.elec} strokeWidth="2" strokeLinejoin="round" opacity="0.95"/>
+            <circle cx={xs[iMax]} cy={ys[iMax]} r="3.2" fill={C.green} stroke="#0b0a09" strokeWidth="2"/>
+            <circle cx={xs[iMin]} cy={ys[iMin]} r="3.2" fill={C.red} stroke="#0b0a09" strokeWidth="2"/>
+            <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="5" fill={C.elec} opacity="0.22"/>
+            <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="2.6" fill={C.elec}/>
+            {hov != null && (
+              <g pointerEvents="none">
+                <line x1={xs[hov]} x2={xs[hov]} y1={padT - 5} y2={H - padB} stroke="rgba(255,246,235,0.18)" strokeWidth="1"/>
+                <circle cx={xs[hov]} cy={ys[hov]} r="3.6" fill={C.elec} stroke="#0b0a09" strokeWidth="2"/>
+              </g>
+            )}
+            <rect x="0" y="0" width={W} height={H} fill="transparent"
+              onPointerMove={(e) => { const b = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - b.left) / Math.max(1, b.width); setHov(Math.max(0, Math.min(ev.n - 1, Math.round(rel * (ev.n - 1))))); }}
+              onPointerLeave={() => setHov(null)}/>
+          </svg>
+          {hov != null && (
+            <div style={{ position:"absolute", top:-2, left:`${(xs[hov] / W) * 100}%`, transform: hov > ev.n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+              pointerEvents:"none", background:"#161513", border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"3px 9px",
+              fontFamily:MONO, fontSize:10.5, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", color:C.textMuted }}>
+              <span style={{ color:C.textSub }}>{ev.meses[hov]}</span> <b style={{ color:C.text }}>{_fmDin(ev.serie[hov])}</b>
+            </div>
+          )}
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:2, fontFamily:MONO, fontSize:9.5, color:C.textMuted }}>
+            <span>{ev.meses[0]}</span><span>{ev.meses[ev.n - 1]}</span>
+          </div>
+        </div>
+        <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:6 }}>
+          El mejor mes es <span style={{ color:C.green }}>{ev.maxMes}</span> ({_fmDin(ev.max)}) y el más flojo <span style={{ color:C.red }}>{ev.minMes}</span> ({_fmDin(ev.min)}).
+          {ev.growth.mes && ev.growth.delta > 0 && <> La subida más fuerte llega {ev.growth.from}→{ev.growth.mes} (+{_fmDin(ev.growth.delta)}).</>}
+          {ev.drop.mes && <> El freno más fuerte, {ev.drop.from}→{ev.drop.mes} (−{_fmDin(Math.abs(ev.drop.delta))}).</>}
+        </div>
+      </>
+    );
+  }
+  return (
+    <div style={{ padding:"14px 16px 12px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
+      background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
+      boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+        <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center" }}>
+          <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
+          Evolutivo · 12 meses
+          <InfoDot def={"La película mensual de la entidad, estación por estación: elegí Ventas, Contribución, Margen o Acciones de precios. Pasá el cursor por la curva para ver cada mes. El punto verde es el mejor mes y el rojo el más flojo. Serie del histórico real; donde el corte mensual no existe, se declara (no se dibuja)."} align="left"/>
+        </span>
+        <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
+          {_FICHA_ESTACIONES.map((e) => (
+            <button key={e.key} onClick={() => { setEst(e.key); setHov(null); }}
+              style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${est === e.key ? "rgba(47,184,218,0.5)" : C.border}`, background: est === e.key ? "rgba(47,184,218,0.10)" : "transparent", color: est === e.key ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{e.label}</button>
+          ))}
+        </div>
+      </div>
+      {body}
+    </div>
+  );
+}
+
+// curva monotónica local (Fritsch–Carlson · misma técnica del chat: suave SIN overshoot — la forma no fabrica)
+function _mono(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return xs.map((x, i) => `${i ? "L" : "M"}${x},${ys[i]}`).join(" ");
+  const dx = [], m = [];
+  for (let i = 0; i < n - 1; i++) { dx.push(xs[i + 1] - xs[i]); m.push((ys[i + 1] - ys[i]) / dx[i]); }
+  const t = [m[0]];
+  for (let i = 1; i < n - 1; i++) t.push(m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2);
+  t.push(m[n - 2]);
+  for (let i = 0; i < n - 1; i++) {
+    if (!m[i]) { t[i] = 0; t[i + 1] = 0; continue; }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], h = Math.hypot(a, b);
+    if (h > 3) { t[i] = 3 * (a / h) * m[i]; t[i + 1] = 3 * (b / h) * m[i]; }
+  }
+  let d = `M${xs[0]},${ys[0]}`;
+  for (let i = 0; i < n - 1; i++)
+    d += ` C${(xs[i] + dx[i] / 3).toFixed(2)},${(ys[i] + t[i] * dx[i] / 3).toFixed(2)} ${(xs[i + 1] - dx[i] / 3).toFixed(2)},${(ys[i + 1] - t[i + 1] * dx[i] / 3).toFixed(2)} ${xs[i + 1]},${ys[i + 1]}`;
+  return d;
+}
+
+function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk }) {
+  // el 80/20 del EJE con la entidad destacada · si la entidad quedó en la cola (más allá del top 10), se declara
+  const con = React.useMemo(() => (CONCENTRATION_DIMS.some((d) => d.key === dim) ? buildConcentration(dim, scenario, "ventas") : null), [dim, scenario]);
+  const bars = con ? (con.bars || []).slice(0, 10) : [];
+  const idxEnt = con ? (con.bars || []).findIndex((b) => b.name === name) : -1;
+  const entBar = idxEnt >= 0 ? con.bars[idxEnt] : null;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+        <div style={{ fontFamily:MONO, fontSize:10, letterSpacing:"0.8px", color:C.text, textTransform:"uppercase" }}>
+          <span style={{ color:C.celeste }}>Ficha</span> · {name} <span style={{ color:C.textMuted }}>({dimLabel})</span>
+        </div>
+        {onAsk ? (
+          <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:11, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+            Pedile a ADI que profundice en {name} →
+          </button>
+        ) : null}
+      </div>
+      {con && bars.length >= 3 && (
+        <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
+          background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
+          boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+          <div style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", marginBottom:8 }}>
+            <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
+            Dónde pesa en el 80/20
+            <InfoDot def={"El 80/20 de este eje (pocas cuentas explican la mayor parte de la venta) con la columna de la entidad DESTACADA en ámbar: te dice si estás mirando una cuenta del bloque que sostiene la venta o de la cola. El punto ámbar sobre la línea marca el corte real."} align="left"/>
+          </div>
+          <MiniPareto showTakeaway={false} highlight={name} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
+            panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
+              rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
+          <div style={{ fontSize:11, color:C.textSub, marginTop:4 }}>
+            {entBar
+              ? (entBar.inBlock
+                ? <>{name} está en el <b style={{ color:C.text }}>bloque que sostiene la venta</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total.</>
+                : <>{name} está en la <b style={{ color:C.text }}>cola</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total{idxEnt >= bars.length ? " (fuera de las 10 columnas de arriba)" : ""}.</>)
+              : null}
+          </div>
+        </div>
+      )}
+      <MesaPerfil name={name} row={row} columns={columns} allRows={allRows} dim={dim} onAsk={onAsk}/>
+      <FichaEvolutivo name={name}/>
+    </div>
+  );
+}
+
 // (los keyframes adi* los inyecta el import de InlineChart.jsx — set completo, una sola fuente)
 function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", onAsk }) {
   const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
@@ -2340,12 +2488,13 @@ function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenar
   let axes = [], dA = null, dB = null;
   if (dim === "cliente") {
     dA = buildMarginDecomposition(a, scenario); dB = buildMarginDecomposition(b, scenario);
+    // ESTACIONES (owner 2026-07-10): Carga → ACCIONES DE PRECIOS ("eso engloba todo") y COSTO afuera ("si ya
+    // tenés margen y contribución no es necesario"). El veredicto causal de abajo sigue usando la descomposición.
     if (dA && dB && rowA && rowB) axes = [
-      { label: "Ventas",       va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
-      { label: "Contribución", va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
-      { label: "Margen",       va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true,  ref: benchmarkOf(null),    refLabel: "piso" },
-      { label: "Carga",        va: dA.cargaPct,       vb: dB.cargaPct,       fmt: fp, hiBetter: false, ref: POLICY.targetCarga,   refLabel: "target" },
-      { label: "Costo",        va: dA.costoPct,       vb: dB.costoPct,       fmt: fp, hiBetter: false },
+      { label: "Ventas",              va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
+      { label: "Contribución",        va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
+      { label: "Margen",              va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true,  ref: benchmarkOf(null), refLabel: "piso" },
+      { label: "Acciones de precios", va: rowA.acciones,     vb: rowB.acciones,     fmt: fm, hiBetter: false },
     ];
   } else if (rowA && rowB) {
     // estaciones = las COLUMNAS del cuadro de ese eje (sin acción/gap) · sort "asc" = menos es mejor · refs de POLICY donde aplican

@@ -65,6 +65,10 @@ export function buildGlobalEvolution() {
 const _ENTITY_METRICS = {
   venta:        (m) => Number(m.venta),
   contribucion: (m) => Number(m.contribucion),
+  // ACCIONES DE PRECIOS (owner 2026-07-10 · Ficha de entidad): rebates/descuentos $ del mes — serie REAL del
+  // historial (la misma que alimenta "qué se movió debajo" del compare a fondo). Se modula con la estacionalidad
+  // global igual que la venta (van atadas a la venta · el total del historial se conserva exacto).
+  acciones:     (m) => Number(m.rebates),
 };
 
 // La serie mensual de UNA entidad + su análisis (pico/valle, mayor alza/caída, trayectoria) — todo derivado.
@@ -80,7 +84,7 @@ export function buildEntityEvolution(name, metric = "venta") {
   // REAL de la curva global (ventasMensuales) y se re-escala para conservar el total del historial — la misma
   // técnica `distribuir` que el dataset usa para mensualizar contribución. No se inventa ruido por entidad:
   // tendencia (dato del historial) × estacionalidad (dato global real), y el total cierra exacto.
-  if (metric === "venta" && Array.isArray(ventasMensuales) && ventasMensuales.length === serie.length) {
+  if ((metric === "venta" || metric === "acciones") && Array.isArray(ventasMensuales) && ventasMensuales.length === serie.length) {
     const g = ventasMensuales.map((m) => Number(m.actual));
     const gMean = _sum(g) / g.length;
     if (gMean > 0 && g.every((v) => Number.isFinite(v))) {
