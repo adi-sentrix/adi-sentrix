@@ -157,6 +157,25 @@ export function AdminAccess() {
   const shareText = (o) => `Hola ${o.name}! Acá va tu acceso a la demo de ADI · Sentrix (${DEMO_CONTACT.demoDays} días, vence el ${_fecha(o.expiresAt)}):\n\n${window.location.origin}\n\nTu código:\n${o.code}\n\nPegalo en la pantalla de entrada y listo.`;
   const copiar = (t) => { try { navigator.clipboard.writeText(t); } catch { /* selección manual */ } };
 
+  // ── ACCESO DE OWNER (owner 2026-07-10: "que yo no tenga que estar creando un usuario — me pide el código cada
+  // vez") · un código de 1 AÑO que se emite con la misma clave admin y queda ACTIVADO en este navegador al toque.
+  // Sigue siendo un código firmado normal: rotar ADI_TOKEN_SECRET lo mata igual que a todos (botón de pánico intacto).
+  const [ownerBusy, setOwnerBusy] = useState(false);
+  const [ownerOut, setOwnerOut] = useState(null);
+  const accesoOwner = async () => {
+    if (ownerBusy || !adminKey.trim()) return;
+    setOwnerBusy(true); setOwnerOut(null);
+    try { sessionStorage.setItem("adi_admin_key", adminKey.trim()); } catch { /* opcional */ }
+    try {
+      const res = await fetch("/api/adi-access", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), name: "Owner", hours: 24 * 365, owner: true }) });
+      const d = await res.json();
+      if (d && d.ok) { setAccessCode(d.code); setOwnerOut(d); }
+      else setOwnerOut({ error: (d && d.error) || "no se pudo emitir" });
+    } catch { setOwnerOut({ error: "sin conexión con el servidor" }); }
+    setOwnerBusy(false);
+  };
+
   const inp = { width:"100%", padding:"9px 11px", borderRadius:8, border:`1px solid ${C.borderLight}`, background:C.bg, color:C.text, fontFamily:MONO, fontSize:12, outline:"none", boxSizing:"border-box" };
   const lbl = { display:"block", fontFamily:MONO, fontSize:9, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", marginBottom:5 };
 
@@ -193,6 +212,27 @@ export function AdminAccess() {
         {hist.length > 1 && (
           <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.6 }}>
             Emitidos en esta sesión: {hist.map((h) => `${h.name} (${_fecha(h.expiresAt)})`).join(" · ")}
+          </div>
+        )}
+      </div>
+      {/* ACCESO DE OWNER · 1 año, activado en este navegador (no vuelve a pedir código acá) */}
+      <div style={{ marginTop:12, border:`1px solid ${C.border}`, borderRadius:12, background:C.surface, padding:16, display:"flex", flexDirection:"column", gap:10 }}>
+        <div style={{ fontFamily:MONO, fontSize:9, letterSpacing:"0.8px", color:C.celeste, textTransform:"uppercase" }}>Tu acceso de owner</div>
+        <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55 }}>
+          Un código de <b style={{ color:C.text }}>1 año</b> que queda activado en <b style={{ color:C.text }}>este navegador</b> — no te pide entrada de nuevo. Para el celular, emitilo ahí mismo (misma clave) o copiá este código y pegalo una vez.
+        </div>
+        <button onClick={accesoOwner} disabled={ownerBusy || !adminKey.trim()}
+          style={{ padding:"10px 16px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: adminKey.trim() ? 1 : 0.55 }}>
+          {ownerBusy ? "Activando…" : "Activar mi acceso en este navegador (1 año) →"}
+        </button>
+        {ownerOut && ownerOut.error && <div style={{ fontSize:11.5, color:C.red }}>{ownerOut.error}</div>}
+        {ownerOut && ownerOut.code && (
+          <div style={{ border:`1px solid rgba(16,185,129,0.35)`, borderRadius:10, background:"rgba(16,185,129,0.05)", padding:12 }}>
+            <div style={{ fontSize:11.5, color:C.textSub, marginBottom:8 }}>Listo — activado acá, vence el <b style={{ color:C.text }}>{_fecha(ownerOut.expiresAt)}</b>.</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <a href="/" style={{ padding:"6px 12px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:11.5, fontWeight:600, textDecoration:"none" }}>Entrar a ADI →</a>
+              <button onClick={() => copiar(ownerOut.code)} style={{ padding:"6px 12px", borderRadius:8, border:`1px solid ${C.borderLight}`, background:"transparent", color:C.textSub, fontSize:11.5, fontWeight:600, cursor:"pointer" }}>Copiar código (para el celular)</button>
+            </div>
           </div>
         )}
       </div>

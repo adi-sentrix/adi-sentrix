@@ -55,7 +55,10 @@ export async function handleAccess(body = {}, env) {
     const adminKey = e.ADI_ADMIN_KEY;
     if (!secret || !adminKey || !body.adminKey || body.adminKey !== adminKey) return { ok: false, error: "sin autorización" };
     const name = String(body.name || "").trim().slice(0, 40) || "invitado";
-    const hours = Math.min(Math.max(Number(body.hours) || 72, 1), 24 * 14);   // 1h a 14 días · default 3 días
+    // invitados: 1h a 14 días (default 3) · OWNER (owner:true — intención explícita con la MISMA clave admin):
+    // hasta 1 año, para no re-emitir su propio acceso cada 3 días (owner 2026-07-10) sin estirar el techo de invitados.
+    const cap = body.owner === true ? 24 * 366 : 24 * 14;
+    const hours = Math.min(Math.max(Number(body.hours) || 72, 1), cap);
     const { code, expiresAt } = await makeAccessCode(name, hours, secret);
     return { ok: true, code, expiresAt, name };
   }

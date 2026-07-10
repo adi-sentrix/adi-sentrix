@@ -41,6 +41,13 @@ ok("mint: adminKey equivocada → sin autorización", !mintBad.ok);
 ok("mint: sin ADI_ADMIN_KEY en el server → sin autorización (nunca abierto por accidente)", !(await handleAccess({ op: "mint", adminKey: "x", name: "Y" }, { ADI_TOKEN_SECRET: SECRET })).ok);
 const mint = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Cliente Z", hours: 72 }, ENV);
 ok("mint: con la clave del owner → emite código verificable", mint.ok && (await verifyAccessCode(mint.code, SECRET)).ok && (await verifyAccessCode(mint.code, SECRET)).name === "Cliente Z");
+// ACCESO DE OWNER (2026-07-10: "que no me pida el código cada vez") · owner:true con la MISMA clave → hasta 1 año;
+// el techo de INVITADOS queda intacto (pedir 365 días sin owner:true → recorta a 14).
+const mintOwner = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Owner", hours: 24 * 365, owner: true }, ENV);
+ok("mint owner: 1 año permitido y verificable", mintOwner.ok && mintOwner.expiresAt - Date.now() > 300 * 24 * 3600 * 1000 && (await verifyAccessCode(mintOwner.code, SECRET)).ok);
+const mintCap = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Invitado L", hours: 24 * 365 }, ENV);
+ok("mint invitado: pedir 365 días SIN owner:true → recorta al techo de 14", mintCap.ok && mintCap.expiresAt - Date.now() <= 14 * 24 * 3600 * 1000 + 60000);
+ok("mint owner: SIN la clave admin → sin autorización (owner:true no abre nada solo)", !(await handleAccess({ op: "mint", adminKey: "equivocada", owner: true, hours: 24 * 365 }, ENV)).ok);
 
 console.log("── negación del gateway (la protección de la key) ──");
 const den1 = await handleSpec({ text: "cómo va mi margen" }, ENV);
