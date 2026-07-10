@@ -291,6 +291,12 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // se repregunta: se reescribe a overview métrica@eje y el contrato ejecuta o declara su límite. Sin métrica nombrada,
   // la clarificación sigue su curso honesto (conversation.js la resuelve como pregunta de vuelta, no como "no lo tengo").
   if (q && s && s.operation === "clarification_needed") {
+    // "Profundiza en X" (botón de la Ficha 2026-07-10) — autosuficiente si X está en el canon → dive directo
+    const mProf = q.match(/\bprofundiz\w*\s+(?:en\s+)?(.+?)[?.!\s]*$/i);
+    if (mProf) {
+      const c = _canonEntity(mProf[1].replace(/^(las?\s+ventas?\s+de|el\s+margen\s+de|la\s+)\s*/i, ""));
+      if (c) return _cleanFilters({ ...s, operation: "dive", entity: c.nombre, dimension: c.tipo, metric: s.metric || "margen", focus: undefined, turn_type: "new_query" });
+    }
     const met = /\bventas?\b/i.test(q) ? "ventas" : /margen/i.test(q) ? "margen" : /contribuci[oó]n/i.test(q) ? "contribucion"
       : /\bcostos?\b/i.test(q) ? "costo" : /\bcarga\b/i.test(q) ? "carga" : /(capital|stock|inventari)/i.test(q) ? "capital"
       : /rotaci[oó]n/i.test(q) ? "rotacion" : /(\bdoh\b|cobertura)/i.test(q) ? "doh" : null;

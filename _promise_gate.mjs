@@ -52,6 +52,17 @@ try {
   if (rMeta && Array.isArray(rMeta.suggestions))
     for (const s of rMeta.suggestions) if (typeof s === "string" && s.trim() && !promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "meta:fuera_de_dato" });
 } catch { /* */ }
+// + PROMESAS DE LA UI (owner 2026-07-10: cada gráfico de la Ficha lleva su botón "que ADI lo explique" — esas
+// preguntas TAMBIÉN son promesas: deben contar la historia de contratos, jamás degradar). Instanciadas con
+// entidades reales de cada eje (cliente · marca · SKU) — si un botón deja de responder, este gate lo caza.
+for (const s of [
+  "¿En cuántos clientes se concentra mi contribución?",
+  "¿En cuántas marcas se concentra mi contribución?",
+  "¿En cuántos SKU se concentra mi contribución?",
+  "Profundiza en Falabella", "Profundiza en Samsung", "Profundiza en SAM-TV55",
+  "¿De dónde saca Falabella su contribución?", "¿De dónde saca SAM-TV55 su contribución?",
+  "¿Por qué Falabella cede margen?", "¿Por qué SAM-TV55 cede margen?",
+]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:ficha" });
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·
 // compare-basura — la forma exacta que rompió "¿es por volumen o por precio?" el 2026-07-09). La red

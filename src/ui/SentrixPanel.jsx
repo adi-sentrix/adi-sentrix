@@ -2223,9 +2223,22 @@ const _FICHA_ESTACIONES = [
   { key: "margen",       label: "Margen" },
   { key: "acciones",     label: "Acciones de precios" },
 ];
+// BOTÓN "QUE ADI LO EXPLIQUE" (owner 2026-07-10: cada gráfico lleva a ADI para que cuente LA HISTORIA de contratos
+// —lectura→porqué→palanca—, no una lectura de datos). Cada pregunta es una PROMESA: está en el gate de promesas
+// (emisor ui:ficha) — garantizado que responde su historia bajo cualquier parse del LLM.
+const _FICHA_STORY_Q = {
+  venta:        (name) => `Profundiza en ${name}`,                       // dive causal: tesis + brecha + palanca
+  contribucion: (name) => `¿De dónde saca ${name} su contribución?`,     // origen: volumen vs calidad
+  margen:       (name) => `¿Por qué ${name} cede margen?`,               // causa del margen
+  acciones:     (name) => `Profundiza en ${name}`,                       // la palanca de carga vive en el dive causal
+};
+const _PARETO_STORY_Q = { cliente: "¿En cuántos clientes se concentra mi contribución?", marca: "¿En cuántas marcas se concentra mi contribución?", familia: "¿En cuántas familias se concentra mi contribución?", sku: "¿En cuántos SKU se concentra mi contribución?" };
+const _btnADI = (onClick, label) => (
+  <button onClick={onClick} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:10.5, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>{label}</button>
+);
 const _fmDin = (v) => (Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" : "$" + Math.round(v) + "K");
 
-function FichaEvolutivo({ name }) {
+function FichaEvolutivo({ name, onAsk = null }) {
   const [est, setEst] = useState("venta");
   const [hov, setHov] = useState(null);
   // MARGEN CONECTADO (owner 2026-07-10: "si hay contribución debe tener — deben quedar todos conectados"):
@@ -2298,6 +2311,11 @@ function FichaEvolutivo({ name }) {
         {isPct && (
           <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.5, marginTop:4 }}>
             margen del mes = contribución ÷ venta del mes (las dos curvas de esta ficha) · el agregado del año cierra con el margen del período del perfil.
+          </div>
+        )}
+        {onAsk && (
+          <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6 }}>
+            {_btnADI(() => onAsk(_FICHA_STORY_Q[est](name)), "Que ADI te cuente esta historia →")}
           </div>
         )}
       </>
@@ -2375,17 +2393,20 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk
           <MiniPareto showTakeaway={false} highlight={name} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
             panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
               rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
-          <div style={{ fontSize:11, color:C.textSub, marginTop:4 }}>
-            {entBar
-              ? (entBar.inBlock
-                ? <>{name} está en el <b style={{ color:C.text }}>bloque que sostiene la venta</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total.</>
-                : <>{name} está en la <b style={{ color:C.text }}>cola</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total{idxEnt >= bars.length ? " (fuera de las 10 columnas de arriba)" : ""}.</>)
-              : null}
+          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginTop:4, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, color:C.textSub }}>
+              {entBar
+                ? (entBar.inBlock
+                  ? <>{name} está en el <b style={{ color:C.text }}>bloque que sostiene la venta</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total.</>
+                  : <>{name} está en la <b style={{ color:C.text }}>cola</b>: puesto #{idxEnt + 1} de {con.n}, {p1(entBar.pct)}% del total{idxEnt >= bars.length ? " (fuera de las 10 columnas de arriba)" : ""}.</>)
+                : null}
+            </span>
+            {onAsk && _PARETO_STORY_Q[dim] ? _btnADI(() => onAsk(_PARETO_STORY_Q[dim]), "Que ADI lo explique →") : null}
           </div>
         </div>
       )}
       <MesaPerfil name={name} row={row} columns={columns} allRows={allRows} dim={dim} onAsk={onAsk}/>
-      <FichaEvolutivo name={name}/>
+      <FichaEvolutivo name={name} onAsk={onAsk}/>
     </div>
   );
 }
