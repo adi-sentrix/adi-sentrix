@@ -66,6 +66,26 @@ export function stripProactiveSuffix(text) {
   return s.trim() ? s : text;   // seguridad: nunca dejar vacío
 }
 
+// ── LEAKS DE IDIOMA Y SLANG (owner 2026-07-10: "esas correcciones son vitales") · el narrador soltó en vivo
+// "¿Qué te parece if profundizamos?" (inglés) y "la pasta" (slang de España — P6: registro de directorio, jamás
+// slang). El prompt ya lo prohíbe; esto es la GARANTÍA. Solo sustituciones INEQUÍVOCAS y gramaticalmente seguras
+// (palabra completa · ninguna es palabra española válida · "so" se excluye por "so pena"). Preserva la mayúscula
+// inicial. Idempotente · number-safe (no toca dígitos ni nombres propios — \b no corta SKUs/marcas). ──
+const _LEAKS = [
+  [/\bif\b/gi, "si"], [/\band\b/gi, "y"], [/\bbut\b/gi, "pero"], [/\bwith\b/gi, "con"], [/\bfor\b/gi, "para"],
+  [/\bdeep dive\b/gi, "análisis a fondo"], [/\bdive into\b/gi, "análisis a fondo de"],
+  [/\binsights\b/gi, "hallazgos"], [/\binsight\b/gi, "hallazgo"],
+  [/\bla pasta\b(?!\s+de)/gi, "la plata"], [/\bguita\b/gi, "plata"],
+];
+export function stripLanguageLeaks(text) {
+  if (typeof text !== "string" || !text.trim()) return text;
+  let s = text;
+  for (const [re, rep] of _LEAKS) {
+    s = s.replace(re, (m) => (m[0] === m[0].toUpperCase() && /[a-záéíóú]/i.test(m[0]) ? rep.charAt(0).toUpperCase() + rep.slice(1) : rep));
+  }
+  return s.trim() ? s : text;   // seguridad: nunca dejar vacío
+}
+
 // ── OFERTA FUERA DE DATO (owner 2026-07-09: "asegurarnos que considere solo lo que le damos como disponible") ·
 // el narrador ofreció "¿analizamos las campañas de marketing?" — data que NO existe (promesa rota en el cierre
 // libre). El prompt lleva el universo DISPONIBLE (capabilities.js) para que interprete adentro; este scrub es la

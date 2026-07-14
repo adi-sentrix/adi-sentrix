@@ -5,11 +5,11 @@
  * ("es importante que revises…"). Puro string · sin key · no toca motor/seam. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_vge.js"), out = path.join(root, "_vgb.mjs");
-fs.writeFileSync(entry, 'export { stripRoboticVoice, stripOutOfDataOffers } from "./src/adi/llm/voiceGuard.js";\n');
+fs.writeFileSync(entry, 'export { stripRoboticVoice, stripOutOfDataOffers, stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";\n');
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { stripRoboticVoice: SV, stripOutOfDataOffers: SOD } = M;
+const { stripRoboticVoice: SV, stripOutOfDataOffers: SOD, stripLanguageLeaks: SLL } = M;
 
 const _nums = (s) => (String(s).match(/\$?\d[\d.,]*[%MK]?/g) || []).join("|");
 
@@ -68,6 +68,33 @@ const sodCases = [
 for (const c of sodCases) {
   const got = SOD(c.in);
   const okc = got === c.out && SOD(got) === got;
+  if (okc) { pass++; console.log(`  ✓ ${c.n}`); }
+  else { fail++; console.log(`  ✗ ${c.n}\n     out: ${JSON.stringify(got)}\n     exp: ${JSON.stringify(c.out)}`); }
+}
+// ── LEAKS DE IDIOMA Y SLANG (owner 2026-07-10: "vitales") · cazados en vivo: "if" y "la pasta" ──
+const leakCases = [
+  { n: "L1 · leak de inglés 'if' (cazado en vivo) → 'si'",
+    in: "¿Qué te parece if profundizamos en la estructura de costos de Falabella?",
+    out: "¿Qué te parece si profundizamos en la estructura de costos de Falabella?" },
+  { n: "L2 · slang 'la pasta' (España, cazado en vivo) → 'la plata'",
+    in: "Esto es la pasta que no estás aprovechando de tus ventas.",
+    out: "Esto es la plata que no estás aprovechando de tus ventas." },
+  { n: "L3 · 'deep dive' / 'insights' → español de directorio",
+    in: "Hagamos un deep dive: los insights apuntan a la carga.",
+    out: "Hagamos un análisis a fondo: los hallazgos apuntan a la carga." },
+  { n: "L4 · 'pasta de dientes' (producto real) NO se toca",
+    in: "La pasta de dientes rota bien en Cuidado Personal.",
+    out: "La pasta de dientes rota bien en Cuidado Personal." },
+  { n: "L5 · texto limpio con entidades y cifras → intacto byte-igual",
+    in: "Easy vende $3.4M con margen 32.0% — sobre tu piso de 30.1%.",
+    out: "Easy vende $3.4M con margen 32.0% — sobre tu piso de 30.1%." },
+  { n: "L6 · mayúscula inicial preservada ('If' → 'Si')",
+    in: "If la carga baja al target, recuperás $194K.",
+    out: "Si la carga baja al target, recuperás $194K." },
+];
+for (const c of leakCases) {
+  const got = SLL(c.in);
+  const okc = got === c.out && SLL(got) === got && _nums(got) === _nums(c.in);
   if (okc) { pass++; console.log(`  ✓ ${c.n}`); }
   else { fail++; console.log(`  ✗ ${c.n}\n     out: ${JSON.stringify(got)}\n     exp: ${JSON.stringify(c.out)}`); }
 }
