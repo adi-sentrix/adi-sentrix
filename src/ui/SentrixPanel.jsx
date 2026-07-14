@@ -2106,7 +2106,7 @@ function StationCompareFilm({ cmp }) {
             <line x1={x(hov)} x2={x(hov)} y1={padT - 6} y2={H - padB + 4} stroke="rgba(255,255,255,0.22)" strokeWidth="1"/>
             <circle cx={x(hov)} cy={y(A.serie[hov])} r="4" fill={colA} stroke="#000" strokeWidth="1.3"/>
             <circle cx={x(hov)} cy={y(B.serie[hov])} r="4" fill={colB} stroke="#000" strokeWidth="1.3"/>
-            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="6" fill="#181715" stroke={C.borderLight} strokeWidth="1"/>
+            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="6" fill="#181818" stroke={C.borderLight} strokeWidth="1"/>
             <text x={tipX + 8} y={tipY + 11} fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{meses[hov]}</text>
             <text x={tipX + 8} y={tipY + 22} fill={colA} fontSize="9" fontWeight="600" fontFamily={MONO}>{A.name.slice(0, 10)} {fmV(A.serie[hov])}</text>
             <text x={tipX + 8} y={tipY + 33} fill={colB} fontSize="9" fontWeight="600" fontFamily={MONO}>{B.name.slice(0, 10)} {fmV(B.serie[hov])}</text>
@@ -2187,7 +2187,7 @@ function StationPeriodo({ a, b }) {
           <g pointerEvents="none">
             <line x1={x(hov)} x2={x(hov)} y1={padT - 6} y2={H - padB + 4} stroke="rgba(255,255,255,0.22)" strokeWidth="1"/>
             <circle cx={x(hov)} cy={y(serie[hov])} r="4.2" fill={C.celeste} stroke="#000" strokeWidth="1.3"/>
-            <rect x={tipX} y={tipY} width={tipW} height={26} rx="6" fill="#181715" stroke={C.borderLight} strokeWidth="1"/>
+            <rect x={tipX} y={tipY} width={tipW} height={26} rx="6" fill="#181818" stroke={C.borderLight} strokeWidth="1"/>
             <text x={tipX + 8} y={tipY + 11} fill={C.textSub} fontSize="8.5" fontFamily={MONO}>{labels[hov]}</text>
             <text x={tipX + 8} y={tipY + 21} fill={C.celeste} fontSize="9.5" fontWeight="600" fontFamily={MONO}>{fmV(serie[hov])}</text>
           </g>
@@ -2299,8 +2299,8 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
   );
   return (
     <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
-      background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
-      boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
+      boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05)" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap", marginBottom:6 }}>
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
@@ -2367,17 +2367,17 @@ function FichaEvolutivo({ name, onAsk = null }) {
               </linearGradient>
             </defs>
             <path d={`${dPath} L${xs[ev.n - 1]},${H - padB} L${xs[0]},${H - padB} Z`} fill={`url(#fev-${est})`}/>
-            <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="rgba(255,246,235,0.08)" strokeWidth="1"/>
+            <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
             <path d={dPath} fill="none" stroke={C.elec} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
             <path d={dPath} fill="none" stroke={C.elec} strokeWidth="2" strokeLinejoin="round" opacity="0.95"/>
-            <circle cx={xs[iMax]} cy={ys[iMax]} r="3.2" fill={C.green} stroke="#0b0a09" strokeWidth="2"/>
-            <circle cx={xs[iMin]} cy={ys[iMin]} r="3.2" fill={C.red} stroke="#0b0a09" strokeWidth="2"/>
+            <circle cx={xs[iMax]} cy={ys[iMax]} r="3.2" fill={C.green} stroke="#0b0b0b" strokeWidth="2"/>
+            <circle cx={xs[iMin]} cy={ys[iMin]} r="3.2" fill={C.red} stroke="#0b0b0b" strokeWidth="2"/>
             <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="5" fill={C.elec} opacity="0.22"/>
             <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="2.6" fill={C.elec}/>
             {hov != null && (
               <g pointerEvents="none">
-                <line x1={xs[hov]} x2={xs[hov]} y1={padT - 5} y2={H - padB} stroke="rgba(255,246,235,0.18)" strokeWidth="1"/>
-                <circle cx={xs[hov]} cy={ys[hov]} r="3.6" fill={C.elec} stroke="#0b0a09" strokeWidth="2"/>
+                <line x1={xs[hov]} x2={xs[hov]} y1={padT - 5} y2={H - padB} stroke="rgba(255,255,255,0.18)" strokeWidth="1"/>
+                <circle cx={xs[hov]} cy={ys[hov]} r="3.6" fill={C.elec} stroke="#0b0b0b" strokeWidth="2"/>
               </g>
             )}
             <rect x="0" y="0" width={W} height={H} fill="transparent"
@@ -2386,7 +2386,7 @@ function FichaEvolutivo({ name, onAsk = null }) {
           </svg>
           {hov != null && (
             <div style={{ position:"absolute", top:-2, left:`${(xs[hov] / W) * 100}%`, transform: hov > ev.n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
-              pointerEvents:"none", background:"#161513", border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"3px 9px",
+              pointerEvents:"none", background:"#161616", border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"3px 9px",
               fontFamily:MONO, fontSize:10.5, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", color:C.textMuted }}>
               <span style={{ color:C.textSub }}>{ev.meses[hov]}</span> <b style={{ color:C.text }}>{fmtV(ev.serie[hov])}</b>
             </div>
@@ -2415,8 +2415,8 @@ function FichaEvolutivo({ name, onAsk = null }) {
   }
   return (
     <div style={{ padding:"14px 16px 12px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
-      background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
-      boxShadow:"inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
+      boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05)" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center" }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
@@ -2500,11 +2500,11 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
   const score = filas.filter((f) => f.mejor && f.dev !== 0).length;
   const varas = filas.filter((f) => f.ref != null);
   const MONOF = "'JetBrains Mono', ui-monospace, monospace";
-  const hdr = { fontFamily: MONOF, fontSize: 8.5, letterSpacing: "0.8px", color: C.textMuted, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,246,235,0.08)", paddingBottom: 3 };
+  const hdr = { fontFamily: MONOF, fontSize: 8.5, letterSpacing: "0.8px", color: C.textMuted, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 3 };
   return (
     <div style={{ padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(47,184,218,0.25)",
-      background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0a09",
-      boxShadow: "inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
         <span style={{ fontFamily: MONOF, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center" }}>
           <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
@@ -2532,7 +2532,7 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
                 {!f.hiBetter && <span style={{ display: "block", fontFamily: MONOF, fontSize: 8, color: C.textMuted, whiteSpace: "nowrap" }}>menos = mejor</span>}
               </span>
               <div style={{ position: "relative", alignSelf: "stretch", minHeight: 17 }}>
-                <div style={{ position: "absolute", left: "50%", top: -3, bottom: -3, width: 1, background: "rgba(255,246,235,0.18)" }}/>
+                <div style={{ position: "absolute", left: "50%", top: -3, bottom: -3, width: 1, background: "rgba(255,255,255,0.18)" }}/>
                 <div style={{ position: "absolute", top: "50%", marginTop: -4, height: 8, borderRadius: 2,
                   width: `${w}%`, left: f.mejor ? "50%" : `${50 - w}%`, background: grad,
                   transformOrigin: f.mejor ? "left center" : "right center", animation: `adiRise 420ms cubic-bezier(.2,.7,.3,1) ${i * 40}ms both` }}/>

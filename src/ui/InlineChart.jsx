@@ -17,7 +17,7 @@ import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 const SANS = "'DM Sans', system-ui, sans-serif";
-const KO = "#0b0a09";   // knockout = el material del card (nunca #000: el negro absoluto delata calcomanía)
+const KO = "#0b0b0b";   // knockout = el material del card (nunca #000: el negro absoluto delata calcomanía)
 
 // keyframes globales UNA vez (no un <style> por instancia) · dentro de reduced-motion:no-preference → si la
 // animación no existe, el estado base (final) queda y el gráfico jamás se ve vacío.
@@ -97,7 +97,7 @@ function MiniEvolutivo() {
               </linearGradient>
             </defs>
             <path d={`${dAct} L${xs[ev.n - 1]},${H - padB} L${xs[0]},${H - padB} Z`} fill={`url(#${uid}a)`} style={{ animation: "adiFade 500ms 200ms both" }}/>
-            <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="rgba(255,246,235,0.08)" strokeWidth="1"/>
+            <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
             <path d={dAnt} fill="none" stroke={C.teal} strokeWidth="1.6" strokeDasharray="0.1 6" strokeLinecap="round" opacity="0.55" style={{ animation: "adiFade 400ms 250ms both" }}/>
             <path d={dAct} fill="none" stroke={C.elec} strokeWidth="4.5" strokeLinejoin="round" opacity="0.15" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 700ms ${EASE} both` }}/>
             <path d={dAct} fill="none" stroke={C.elec} strokeWidth="1.9" strokeLinejoin="round" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 700ms ${EASE} both` }}/>
@@ -109,7 +109,7 @@ function MiniEvolutivo() {
             </g>
             {hov != null && (
               <g pointerEvents="none">
-                <line x1={xs[hov]} x2={xs[hov]} y1={padT - 4} y2={H - padB} stroke="rgba(255,246,235,0.18)" strokeWidth="1"/>
+                <line x1={xs[hov]} x2={xs[hov]} y1={padT - 4} y2={H - padB} stroke="rgba(255,255,255,0.18)" strokeWidth="1"/>
                 <circle cx={xs[hov]} cy={yA[hov]} r="3.6" fill={C.elec} stroke={KO} strokeWidth="2"/>
               </g>
             )}
@@ -119,7 +119,7 @@ function MiniEvolutivo() {
           </svg>
           {hov != null && (
             <div style={{ position: "absolute", top: -2, left: `${(xs[hov] / W) * 100}%`, transform: hov > ev.n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
-              pointerEvents: "none", background: "#161513", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "3px 9px",
+              pointerEvents: "none", background: "#161616", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "3px 9px",
               fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: C.textMuted }}>
               <span style={{ color: C.textSub }}>{ev.meses[hov]}</span> <b style={{ color: C.text }}>{fmV(ev.actual[hov])}</b> · ant {fmV(ev.anterior[hov])}
             </div>
@@ -148,7 +148,7 @@ function MiniBarras({ rows, polarity, unit }) {
         {rows.map((r, i) => (
           <React.Fragment key={r.name}>
             <span style={{ fontFamily: SANS, fontSize: 11, color: i === 0 ? C.text : C.textSub, fontWeight: i === 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-            <div style={{ position: "relative", alignSelf: "stretch", minHeight: 16, borderLeft: "1px solid rgba(255,246,235,0.12)" }}>
+            <div style={{ position: "relative", alignSelf: "stretch", minHeight: 16, borderLeft: "1px solid rgba(255,255,255,0.12)" }}>
               <div style={{ position: "absolute", top: "50%", marginTop: -4, left: 0, height: 8, borderRadius: 2,
                 width: `${Math.max(2, Math.abs(r.value) / max * 100)}%`,
                 background: "linear-gradient(90deg, rgba(47,184,218,0.9), rgba(47,184,218,0.3))",
@@ -179,7 +179,7 @@ function MiniMovers({ panel }) {
   const X0 = maxNeg / span * 100;   // todo-positivo → 0 (el spine es el rail izquierdo) · todo-negativo → 100
   // títulos de columna (owner 2026-07-09: "el usuario no sabe de qué son los números") — thead intencional
   const valHdr = panel.pctMode ? "YOY %" : "VARIACIÓN $";
-  const hdr = { fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.8px", color: C.textMuted, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,246,235,0.08)", paddingBottom: 3 };
+  const hdr = { fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.8px", color: C.textMuted, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 3 };
   const dot = (c) => <span style={{ width: 5, height: 5, borderRadius: 3, background: c, display: "inline-block", marginRight: 4 }}/>;
   return (
     <>
@@ -204,7 +204,7 @@ function MiniMovers({ panel }) {
             <React.Fragment key={r.nombre}>
               <span style={{ fontFamily: SANS, fontSize: 11, color: i === 0 ? C.text : C.textSub, fontWeight: i === 0 ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</span>
               <div style={{ position: "relative", alignSelf: "stretch", minHeight: 16 }}>
-                <div style={{ position: "absolute", left: `${X0}%`, top: -3, bottom: -3, width: 1, background: "rgba(255,246,235,0.16)" }}/>
+                <div style={{ position: "absolute", left: `${X0}%`, top: -3, bottom: -3, width: 1, background: "rgba(255,255,255,0.16)" }}/>
                 <div style={{ position: "absolute", top: "50%", marginTop: -4, height: 8, borderRadius: 2,
                   width: `${w}%`, left: r.pos ? `${X0}%` : `${X0 - w}%`, background: grad,
                   transformOrigin: r.pos ? "left center" : "right center", animation: `adiRise 420ms ${EASE} ${i * 40}ms both` }}/>
@@ -284,7 +284,7 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
         </svg>
         {hov != null && (
           <div style={{ position: "absolute", top: -2, left: `${(xc(hov) / W) * 100}%`, transform: hov > n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
-            pointerEvents: "none", background: "#161513", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "3px 9px",
+            pointerEvents: "none", background: "#161616", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "3px 9px",
             fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: C.textMuted }}>
             <b style={{ color: C.text }}>{rows[hov].nombre}</b>{rows[hov].sub ? <> · <span style={{ color: C.textSub }}>{rows[hov].sub}</span></> : null} · {rows[hov].part}% · <span style={{ color: rows[hov].acum <= 80 ? C.green : C.textMuted }}>acum {rows[hov].acum}%</span>
           </div>
@@ -316,7 +316,7 @@ export function InlineChart({ spec, onAmpliar }) {
   return (
     <div style={{ marginTop: 12, padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(47,184,218,0.25)",
       background: `radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), ${KO}`,
-      boxShadow: "inset 0 1px 0 rgba(255,246,235,0.05)" }}>
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
         <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center", minWidth: 0 }}>
           <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
