@@ -62,6 +62,7 @@ export default function App({ animate = true }) {
   // B.2 · BIDIRECCIONAL (la mesa habla): Sentrix pre-carga una pregunta en el input de ADI (click en una fila del panel).
   // ChatADI registra su handler acá; el panel lo invoca. Prefill + focus — el usuario confirma con Enter (sin gasto por misclick).
   const askRef = useRef(null);
+  const resetRef = useRef(null);   // el cubo del header = volver al halo central (resetea el chat al inicio)
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
@@ -87,7 +88,11 @@ export default function App({ animate = true }) {
           espejo de adiai.cl: blanco glass 0.94 · borde inferior rgba(17,17,17,0.09) · marca en negro · CTA celeste ── */}
       <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:"1px solid rgba(17,17,17,0.09)", background:"rgba(255,255,255,0.96)", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-          <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"#131313", border:"1px solid rgba(17,17,17,0.15)" }}>
+          {/* el cubo = VOLVER AL HALO CENTRAL (owner 2026-07-14): click → cierra paneles + diálogo al inicio */}
+          <button onClick={() => { closePanel(); if (resetRef.current) resetRef.current(); }} title="Volver al inicio"
+            style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"#131313", border:"1px solid rgba(17,17,17,0.15)", cursor:"pointer", padding:0, transition:"background 0.15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#242424"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#131313"; }}>
             {/* el cubo EXACTO de la landing (una sola elipse · punto r7 · trazo 3) */}
             <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
@@ -95,7 +100,7 @@ export default function App({ animate = true }) {
               <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
               <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
             </svg>
-          </div>
+          </button>
           <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
             <span style={{ fontWeight:700, fontSize:14, letterSpacing:"-0.3px", color:"#131313" }}>ADI</span>
             <span className="hdr-sub" style={{ fontWeight:500, fontSize:10.5, color:"#565656", fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
@@ -170,7 +175,8 @@ export default function App({ animate = true }) {
             <ChatADI scenario={scenario} animate={animate}
               onOpenEvidence={(ev, id) => { setOpenEv(ev); setOpenId(id); }}
               openEvidenceId={openId}
-              registerAsk={(fn) => { askRef.current = fn; }}/>
+              registerAsk={(fn) => { askRef.current = fn; }}
+              registerReset={(fn) => { resetRef.current = fn; }}/>
           </div>
           {openEv && (isMobile ? (
             /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */

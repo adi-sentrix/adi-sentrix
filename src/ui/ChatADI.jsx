@@ -367,30 +367,12 @@ function HeroInicio({ scenario, onChip }) {
   const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20, padding:"8px 0", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-      {/* encabezado */}
-      <div style={{ display:"flex", alignItems:"center", gap:13 }}>
-        {/* el cubo de la landing, DESNUDO (owner: sin borde reflectante ni marco) */}
-        <div style={{ width:46, height:46, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <svg width="34" height="34" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
-            <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
-            <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-            <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
-          </svg>
-        </div>
-        <div>
-          <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em" }}>Tu negocio hoy</div>
-          <div style={{ fontSize:12.5, color:C.textMuted }}>Resumen ejecutivo · datos actuales</div>
-        </div>
-      </div>
-      {/* KPIs (wrap en pantallas angostas) */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:10 }}>
-        {resumen.kpis.map((k, i) => (
-          <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px" }}>
-            <div style={{ fontSize:11.5, color:C.textMuted, marginBottom:5 }}>{k.label}</div>
-            <div style={{ fontSize:19, fontWeight:600, color:C.text, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{k.value}</div>
-          </div>
-        ))}
+      {/* encabezado · UN solo cubo en pantalla (owner 2026-07-14: "hay dos, no tienen sentido — deja el de la
+          barra"); las CARDS de KPI también murieron ("están en Sentrix, no tiene sentido repetirlas — ADI es el
+          diálogo"): las cifras viven en la Mesa, acá vive la conversación. */}
+      <div>
+        <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em" }}>Tu negocio hoy</div>
+        <div style={{ fontSize:12.5, color:C.textMuted }}>Datos actuales</div>
       </div>
       {/* Lectura (el diferencial · sale del diagnose) */}
       <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:12, background:"rgba(47,184,218,0.03)" }}>
@@ -416,6 +398,19 @@ function HeroInicio({ scenario, onChip }) {
           })}
         </div>
       )}
+      {/* RESUMEN EJECUTIVO como BOTÓN (owner 2026-07-14: "agregaría el botón de resumen ejecutivo, eso irá
+          cambiando con los datos") — la historia de valor en 8 movimientos siempre VIVA: ADI la arma con el dato
+          del momento, no una foto estática. Mismo spec que el coerce de "hazme un resumen ejecutivo" (gate-proven). */}
+      <button onClick={() => onChip(_SPEC({ operation:"diagnose", focus:"resumen_ejecutivo", metric:"contribucion", dimension:"cliente" }), "Hazme un resumen ejecutivo")}
+        style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"13px 16px", borderRadius:12, border:"1px solid rgba(47,184,218,0.4)", background:"rgba(47,184,218,0.07)", fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
+        onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.12)"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
+        onMouseLeave={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.07)"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}>
+        <span>
+          <span style={{ fontSize:13.5, fontWeight:600, color:C.celeste }}>Resumen ejecutivo</span>
+          <span style={{ fontSize:12, color:C.textSub, display:"block", marginTop:2, lineHeight:1.4 }}>La foto completa de hoy: dónde estás ganando, dónde estás perdiendo y la primera acción.</span>
+        </span>
+        <span style={{ color:C.celeste, fontSize:16, flexShrink:0 }}>→</span>
+      </button>
       {/* preguntas de plata (chips enlatados) */}
       <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
         <div style={{ fontSize:12, color:C.textMuted, marginBottom:11 }}>Preguntame algo puntual</div>
@@ -435,7 +430,7 @@ function HeroInicio({ scenario, onChip }) {
   );
 }
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null }) {
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -462,6 +457,16 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   useEffect(() => {
     if (typeof registerAsk === "function") registerAsk((q) => { setInput(String(q || "")); const ta = inputRef.current; if (ta) ta.focus(); });
   }, [registerAsk]);
+
+  // el CUBO del header (App) = VOLVER AL HALO CENTRAL (owner 2026-07-14): resetea el diálogo al inicio —
+  // conversación nueva, contexto fresco, el hero de vuelta. El logo es el "home" del producto.
+  useEffect(() => {
+    if (typeof registerReset === "function") registerReset(() => {
+      const fresh = initialContext || (modulo ? { activeModule: modulo } : {});
+      ctxRef.current = fresh;
+      setMessages([]); setInput(""); setPendingId(null); setSuggestionsVisible(false); setContext(fresh);
+    });
+  }, [registerReset]);
 
   // aplica el estado de un turno YA resuelto (idéntico para piso y LLM)
   const _applyTurn = (turn, adiId) => {
