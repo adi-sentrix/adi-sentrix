@@ -83,10 +83,11 @@ export default function App({ animate = true }) {
   return (
     <div className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
-      {/* ── HEADER ── */}
-      <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:`1px solid ${C.border}`, background:C.surface, flexShrink:0 }}>
+      {/* ── HEADER · BARRA BLANCA (owner 2026-07-10: "los colores de la página — la barra superior es blanca") ·
+          espejo de adiai.cl: blanco glass 0.94 · borde inferior rgba(17,17,17,0.09) · marca en negro · CTA celeste ── */}
+      <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:"1px solid rgba(17,17,17,0.09)", background:"rgba(255,255,255,0.96)", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-          <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))", border:"1px solid rgba(255,255,255,0.12)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(255,255,255,0.04), 0 4px 12px -3px rgba(0,0,0,0.4)" }}>
+          <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"#131313", border:"1px solid rgba(17,17,17,0.15)" }}>
             <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3.2"/>
               <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
@@ -96,22 +97,23 @@ export default function App({ animate = true }) {
             </svg>
           </div>
           <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
-            <span style={{ fontWeight:700, fontSize:14, letterSpacing:"-0.3px", color:C.text }}>ADI</span>
-            <span className="hdr-sub" style={{ fontWeight:500, fontSize:10.5, color:C.textMuted, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
+            <span style={{ fontWeight:700, fontSize:14, letterSpacing:"-0.3px", color:"#131313" }}>ADI</span>
+            <span className="hdr-sub" style={{ fontWeight:500, fontSize:10.5, color:"#565656", fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
           </div>
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
           {/* MESA DE CONTROL · Sentrix en operación (owner 2026-07-07): el modo "vivo mi negocio acá" — todas las cifras a
               la mano (KPIs · focos con $ · el 80/20 · el cuadro operable) con ADI al lado. Toggle: abre/cierra el panel. */}
+          {/* CTA como en la landing: celeste sólido, texto blanco, radio 9 · activo = celeste más profundo */}
           <button onClick={() => { if (openEv && openEv.lens === "mesa") closePanel(); else { setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
             title="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"
-            style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 12px", borderRadius:999, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
-              border:`1px solid ${openEv && openEv.lens === "mesa" ? "rgba(47,184,218,0.55)" : C.border}`,
-              background: openEv && openEv.lens === "mesa" ? "rgba(47,184,218,0.12)" : C.surface,
-              color: openEv && openEv.lens === "mesa" ? "#2fb8da" : C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, transition:"all 0.15s" }}
-            onMouseEnter={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}
-            onMouseLeave={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.borderColor = C.border; }}>
+            style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 13px", borderRadius:9, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
+              border:"none",
+              background: openEv && openEv.lens === "mesa" ? "#1e97b6" : "#2fb8da",
+              color:"#ffffff", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, transition:"all 0.15s" }}
+            onMouseEnter={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.background = "#28a9c9"; }}
+            onMouseLeave={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.background = "#2fb8da"; }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
             </svg>
@@ -122,9 +124,9 @@ export default function App({ animate = true }) {
             <ScenarioSelector scenario={scenario} onChange={setScenario}/>
           ) : (
             <div title="Estás viendo los datos actuales del negocio" className="hdr-datos"
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:`1px solid ${C.border}`, background:C.surface, flexShrink:0, whiteSpace:"nowrap" }}>
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:"1px solid rgba(17,17,17,0.12)", background:"#ffffff", flexShrink:0, whiteSpace:"nowrap" }}>
               <span style={{ width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}/>
-              <span style={{ fontSize:11, fontWeight:600, color:C.textSub, letterSpacing:"-0.005em" }}>Datos actuales</span>
+              <span style={{ fontSize:11, fontWeight:600, color:"#454545", letterSpacing:"-0.005em" }}>Datos actuales</span>
             </div>
           )}
           {/* Demo privada · saludo + vencimiento del código (solo cuando el acceso está activo) */}
@@ -132,8 +134,8 @@ export default function App({ animate = true }) {
             const dias = Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000));
             return (
               <div title={`Hola ${access.granted.name} — tu demo vence el ${new Date(access.granted.expiresAt).toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`} className="hdr-demo"
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap", border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.03)" }}>
-                <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap", border:"1px solid rgba(17,17,17,0.12)", background:"rgba(17,17,17,0.03)" }}>
+                <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color:"#6f6f6f", textTransform:"uppercase" }}>
                   Demo · {dias <= 1 ? "último día" : `quedan ${dias} días`}
                 </span>
               </div>
@@ -142,18 +144,19 @@ export default function App({ animate = true }) {
           {/* Modo demo vs IA · lee ADI_LLM_ENABLED (build-time) · nunca expone la key */}
           <div title={ADI_LLM_ENABLED ? "Modo IA · el LLM traduce tu pregunta a un spec; ADI calcula, valida y decide (no inventa cifras)" : "Modo demo · motor determinístico, sin LLM ni gasto"}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap",
-              border:`1px solid ${ADI_LLM_ENABLED ? "rgba(47,184,218,0.45)" : C.border}`, background: ADI_LLM_ENABLED ? "rgba(47,184,218,0.10)" : "rgba(255,255,255,0.03)" }}>
-            <span style={{ width:5, height:5, borderRadius:"50%", background: ADI_LLM_ENABLED ? "#2fb8da" : "rgba(255,255,255,0.35)", flexShrink:0 }}/>
-            <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color: ADI_LLM_ENABLED ? "#2fb8da" : C.textMuted, textTransform:"uppercase" }}>
+              border:`1px solid ${ADI_LLM_ENABLED ? "rgba(47,184,218,0.55)" : "rgba(17,17,17,0.15)"}`, background: ADI_LLM_ENABLED ? "rgba(47,184,218,0.10)" : "rgba(17,17,17,0.03)" }}>
+            <span style={{ width:5, height:5, borderRadius:"50%", background: ADI_LLM_ENABLED ? "#2fb8da" : "rgba(17,17,17,0.3)", flexShrink:0 }}/>
+            {/* celeste PROFUNDO para el texto sobre blanco (el #2fb8da puro no contrasta en fondo claro) */}
+            <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color: ADI_LLM_ENABLED ? "#1791b4" : "#6f6f6f", textTransform:"uppercase" }}>
               {ADI_LLM_ENABLED ? "IA" : "Demo"}
             </span>
           </div>
-          <div className="hdr-live" style={{ display:"flex", alignItems:"center", gap:7, paddingLeft:14, borderLeft:`1px solid ${C.border}`, flexShrink:0, whiteSpace:"nowrap" }}>
+          <div className="hdr-live" style={{ display:"flex", alignItems:"center", gap:7, paddingLeft:14, borderLeft:"1px solid rgba(17,17,17,0.12)", flexShrink:0, whiteSpace:"nowrap" }}>
             <span style={{ position:"relative", width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}>
               <span style={{ position:"absolute", inset:-3, borderRadius:"50%", border:"1px solid rgba(16,185,129,0.5)", animation:"livePulse 1.8s ease-out infinite" }}/>
             </span>
-            <span className="hdr-live-text" style={{ fontSize:9.5, color:C.textMuted, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1px" }}>LIVE</span>
-            <span className="hdr-date" style={{ fontSize:10.5, color:C.text, fontWeight:500, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.3px" }}>{getCurrentDateString()}</span>
+            <span className="hdr-live-text" style={{ fontSize:9.5, color:"#979797", fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1px" }}>LIVE</span>
+            <span className="hdr-date" style={{ fontSize:10.5, color:"#131313", fontWeight:500, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.3px" }}>{getCurrentDateString()}</span>
           </div>
         </div>
       </header>

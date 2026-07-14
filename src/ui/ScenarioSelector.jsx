@@ -7,16 +7,17 @@ import { SCENARIOS } from "../config/scenarios.js";
 
 export function ScenarioSelector({ scenario, onChange }) {
   return (
+    // Vive en el header BLANCO (espejo de la landing) → clave clara, no los tokens oscuros del tema
     <div style={{
       display:"flex", alignItems:"center", gap:6,
       padding:"4px 8px",
       borderRadius:999,
-      background:C.surface,
-      border:`1px solid ${C.border}`
+      background:"#ffffff",
+      border:"1px solid rgba(17,17,17,0.12)"
     }}>
       <span className="hdr-esc-label" style={{
         fontSize:9, fontWeight:700,
-        color:C.textMuted, letterSpacing:"0.08em",
+        color:"#979797", letterSpacing:"0.08em",
         marginRight:4, textTransform:"uppercase"
       }}>
         Escenario
@@ -34,11 +35,11 @@ export function ScenarioSelector({ scenario, onChange }) {
               fontSize:11, fontWeight: active ? 700 : 600,
               border:"none", cursor:"pointer",
               background: active ? `${s.color}22` : "transparent",
-              color: active ? s.color : C.textSub,
+              color: active ? s.color : "#565656",
               transition:"all 0.18s ease"
             }}
             onMouseEnter={e=>{ if(!active){ e.currentTarget.style.color = s.color; } }}
-            onMouseLeave={e=>{ if(!active){ e.currentTarget.style.color = C.textSub; } }}>
+            onMouseLeave={e=>{ if(!active){ e.currentTarget.style.color = "#565656"; } }}>
             <span style={{
               width:7, height:7, borderRadius:"50%",
               background:s.dotColor,

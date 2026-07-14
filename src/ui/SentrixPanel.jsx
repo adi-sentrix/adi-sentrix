@@ -404,7 +404,7 @@ function CuadroOnlyPanel({ evidence, onClose, onToggleMax, maximized }) {
       </div>
       {ADI_SENTRIX_SHELL_ENABLED && (
         <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:"#000000" }}>
-          <button style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${C.text}`, color:C.text, fontSize:12.5, fontWeight:600, cursor:"default", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>Cuadro de mando</button>
+          <button style={{ padding:"9px 13px", background:"transparent", borderTop:"none", borderLeft:"none", borderRight:"none", borderBottom:`2px solid ${C.text}`, color:C.text, fontSize:12.5, fontWeight:600, cursor:"default", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>Cuadro de mando</button>
         </div>
       )}
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
@@ -1315,7 +1315,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         <div style={{ flexShrink:0, display:"flex", gap:2, padding:"0 14px", borderBottom:`1px solid ${C.border}`, background:"#000000" }}>
           {[["diagnostico", "Diagnóstico"], ["evidencia", "Evidencia"], ...(showControl ? [["control", "Control"]] : []), ...(ADI_SENTRIX_CUADRO_ENABLED ? [["cuadro", "Cuadro de mando"]] : [])].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              style={{ padding:"9px 13px", background:"transparent", border:"none", borderBottom:`2px solid ${effTab === k ? C.text : "transparent"}`, color: effTab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: effTab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+              style={{ padding:"9px 13px", background:"transparent", borderTop:"none", borderLeft:"none", borderRight:"none", borderBottom:`2px solid ${effTab === k ? C.text : "transparent"}`, color: effTab === k ? C.text : C.textMuted, fontSize:12.5, fontWeight: effTab === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
               {label}
             </button>
           ))}

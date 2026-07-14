@@ -407,7 +407,7 @@ function HeroInicio({ scenario, onChip }) {
             const c = chip(f);
             return (
               <button key={i} onClick={() => onChip(c.spec, c.q)}
-                style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, border:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.card, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
+                style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, borderTop:`1px solid ${C.cardBorder}`, borderBottom:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.card, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
                 onMouseEnter={e=>{ e.currentTarget.style.background = C.cardUser; e.currentTarget.style.borderLeftColor = C.celeste; e.currentTarget.style.borderRightColor = C.celeste; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = C.card; e.currentTarget.style.borderLeftColor = "rgba(47,184,218,0.6)"; e.currentTarget.style.borderRightColor = "rgba(47,184,218,0.6)"; }}>
                 <span style={{ fontSize:17, fontWeight:600, color:C.celeste, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{f.usdFmt}</span>
@@ -617,7 +617,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                 {/* HINT DE PRIMER USO (owner 2026-07-08 · el primer minuto): una sola vez, tras la primera respuesta —
                     lo mejor del producto no se descubre solo. Descartable · persiste el visto en localStorage. */}
                 {isLastAdi && !isTyping && showHint && messages.filter((m) => m.role === "adi" && !m.pending).length === 1 && (
-                  <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginLeft:44, marginTop:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.5)", background:C.card, maxWidth:560 }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginLeft:44, marginTop:2, padding:"9px 12px", borderRadius:10, borderTop:`1px solid ${C.cardBorder}`, borderBottom:`1px solid ${C.cardBorder}`, borderRight:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.5)", background:C.card, maxWidth:560 }}>
                     <span style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55, flex:1 }}>
                       <span style={{ color:C.celeste, fontWeight:600 }}>Tip · </span>
                       abrí la <b>Mesa de control</b> (arriba) para ver todas tus cifras · tocá cualquier <b>fila de Sentrix</b> y ADI la desglosa · seguí el hilo con <b>"y de esos…"</b> · fijá tu vara: <b>"recordá que mi margen mínimo es 28%"</b>.
