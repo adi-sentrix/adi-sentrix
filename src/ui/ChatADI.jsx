@@ -16,7 +16,7 @@ import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
-import { buildResumenEjecutivo, composeFollowupRecommendation } from "../adi/specRetrieval.js";   // INICIO · resumen ejecutivo + follow-up (fallback regex)
+import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
@@ -347,14 +347,6 @@ function SourceBadge({ source }) {
 // (los chips no necesitan al LLM para ejecutar) · sólo el texto libre pasa por el LLM para traducirse a spec.
 // El flagship es el `diagnose` (barrido completo de focos) · los otros 3 son ángulos de plata puntuales.
 const _SPEC = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o });
-// foco del diagnose → la conversación que abre (pregunta real + spec con el FOCO correcto · las cifras las pone el composer)
-const _FOCO_CHIP = {
-  margen:  () => ({ q: "¿Quiénes están bajo el margen mínimo?",  spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "bajo_benchmark" }) }),
-  // registro EJECUTIVO en lo que ADI ofrece (owner 2026-07-09: "hay que dejar eso como ejecutivo" — nada de
-  // "plata"/"me come" en las preguntas emitidas; el usuario puede ser coloquial, ADI no)
-  carga:   () => ({ q: "¿Cuánta carga comercial puedo recuperar?", spec: _SPEC({ operation: "margin", metric: "margen", dimension: "cliente", focus: "palancas" }) }),
-  capital: () => ({ q: "¿Dónde está detenido mi capital?",         spec: _SPEC({ operation: "inventory", metric: "capital", dimension: "bodega", focus: "frenado" }) }),
-};
 const HERO_CHIPS = [
   { q: "¿Dónde estoy perdiendo dinero?",     spec: _SPEC({ operation: "diagnose", dimension: "cliente", metric: "contribucion" }) },
   { q: "¿Qué clientes ceden más margen?",    spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "margen", sort: { by: "margen", dir: "asc" }, limit: 5 }) },
@@ -362,42 +354,17 @@ const HERO_CHIPS = [
   { q: "¿Quién sostiene mi contribución?",   spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "contribucion", sort: { by: "contribucion", dir: "desc" }, limit: 5 }) },
 ];
 
-// ── INICIO · hero con el RESUMEN EJECUTIVO (KPIs + lectura data-driven) + las preguntas de plata ──
-function HeroInicio({ scenario, onChip }) {
-  const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
+// ── INICIO · el asesor abre la conversación: título-promesa + resumen ejecutivo + las preguntas de plata ──
+function HeroInicio({ onChip }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20, padding:"8px 0", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-      {/* encabezado · UN solo cubo en pantalla (owner 2026-07-14: "hay dos, no tienen sentido — deja el de la
-          barra"); las CARDS de KPI también murieron ("están en Sentrix, no tiene sentido repetirlas — ADI es el
-          diálogo"): las cifras viven en la Mesa, acá vive la conversación. */}
+      {/* título-PROMESA (owner 2026-07-14: "contamos la historia de dónde, cómo y por qué ganamos y perdemos
+          dinero — en ADI tú te asesoras; debemos tener un título así"). La Lectura y los focos con $ también
+          murieron del inicio ("eso también se va"): las cifras viven en la Mesa, acá arranca el diálogo. */}
       <div>
-        <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em" }}>Tu negocio hoy</div>
-        <div style={{ fontSize:12.5, color:C.textMuted }}>Datos actuales</div>
+        <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em", lineHeight:1.3 }}>Dónde, cómo y por qué ganás y perdés dinero</div>
+        <div style={{ fontSize:12.5, color:C.textMuted, marginTop:4 }}>Asesorate con ADI · datos actuales</div>
       </div>
-      {/* Lectura (el diferencial · sale del diagnose) */}
-      <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:12, background:"rgba(47,184,218,0.03)" }}>
-        <span style={{ color:C.celeste, fontWeight:600 }}>Lectura · </span>{resumen.lectura}
-      </div>
-      {/* APERTURA PROACTIVA (asesor · Frente A.3): los focos del diagnose como BOTONES de arranque — la plata visible en
-          cada uno, un click y ADI abre esa conversación con el foco correcto (no un chip enlatado). */}
-      {(resumen.focos || []).length > 0 && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:10 }}>
-          {resumen.focos.map((f, i) => {
-            const chip = _FOCO_CHIP[f.detector];
-            if (!chip) return null;
-            const c = chip(f);
-            return (
-              <button key={i} onClick={() => onChip(c.spec, c.q)}
-                style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, padding:"12px 14px", borderRadius:12, borderTop:`1px solid ${C.cardBorder}`, borderBottom:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.card, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
-                onMouseEnter={e=>{ e.currentTarget.style.background = C.cardUser; e.currentTarget.style.borderLeftColor = C.celeste; e.currentTarget.style.borderRightColor = C.celeste; }}
-                onMouseLeave={e=>{ e.currentTarget.style.background = C.card; e.currentTarget.style.borderLeftColor = "rgba(47,184,218,0.6)"; e.currentTarget.style.borderRightColor = "rgba(47,184,218,0.6)"; }}>
-                <span style={{ fontSize:17, fontWeight:600, color:C.celeste, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.2px" }}>{f.usdFmt}</span>
-                <span style={{ fontSize:12, color:C.textSub, lineHeight:1.35 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
-              </button>
-            );
-          })}
-        </div>
-      )}
       {/* RESUMEN EJECUTIVO como BOTÓN (owner 2026-07-14: "agregaría el botón de resumen ejecutivo, eso irá
           cambiando con los datos") — la historia de valor en 8 movimientos siempre VIVA: ADI la arma con el dato
           del momento, no una foto estática. Mismo spec que el coerce de "hazme un resumen ejecutivo" (gate-proven). */}
@@ -416,10 +383,12 @@ function HeroInicio({ scenario, onChip }) {
         <div style={{ fontSize:12, color:C.textMuted, marginBottom:11 }}>Preguntame algo puntual</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:10 }}>
           {HERO_CHIPS.map((c, i) => (
+            /* borde CELESTE en toda card de pregunta (owner 2026-07-14: "las preguntas o cada card que
+               tengamos deben tener los bordes celestes" — el toque de la landing) */
             <button key={i} onClick={() => onChip(c.spec, c.q)}
-              style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 14px", borderRadius:11, border:`1px solid ${C.cardBorder}`, background:C.card, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13, fontWeight:500, textAlign:"left", cursor:"pointer", lineHeight:1.35, transition:"background 0.15s, border-color 0.15s" }}
-              onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; }}>
+              style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 14px", borderRadius:11, border:"1px solid rgba(47,184,218,0.35)", background:C.card, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13, fontWeight:500, textAlign:"left", cursor:"pointer", lineHeight:1.35, transition:"background 0.15s, border-color 0.15s" }}
+              onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background = C.card; e.currentTarget.style.borderColor = "rgba(47,184,218,0.35)"; }}>
               <span style={{ width:6, height:6, borderRadius:"50%", background:C.celeste, flexShrink:0 }}/>
               {c.q}
             </button>
@@ -540,7 +509,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       <div ref={scrollRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
         <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 24px 24px 24px", display:"flex", flexDirection:"column", gap:24 }}>
           {messages.length === 0 && (
-            <HeroInicio scenario={scenario} onChip={submitSpec} />
+            <HeroInicio onChip={submitSpec} />
           )}
 
           {messages.map((msg) => {
@@ -602,16 +571,18 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                     {msg.suggestions.map((sug, i) => {
                       const sugText = typeof sug === "string" ? sug : (sug?.text || "");
                       return (
+                        /* borde CELESTE también acá (owner 2026-07-14: "las preguntas o cada card que tengamos
+                           deben tener los bordes celestes") */
                         <button key={i} onClick={() => submit(sugText)}
                           style={{
                             padding:"10px 14px", textAlign:"left", background:"transparent",
-                            border:`1px solid ${C.border}`, borderRadius:8,
+                            border:"1px solid rgba(47,184,218,0.35)", borderRadius:8,
                             fontFamily:"'DM Sans', system-ui, sans-serif", color:C.text,
                             fontSize:13, fontWeight:500, letterSpacing:"-0.005em",
                             cursor:"pointer", transition:"all 0.15s ease"
                           }}
-                          onMouseEnter={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.borderLight; }}
-                          onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.border; }}>
+                          onMouseEnter={e=>{ e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
+                          onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.35)"; }}>
                           {sugText}
                         </button>
                       );
