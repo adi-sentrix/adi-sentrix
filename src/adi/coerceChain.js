@@ -213,6 +213,17 @@ function _coerceMulti(q, spec) {
 // operations y el seam degradaba con vocabulario interno). Solo mensajes CORTOS que son pura afirmación.
 const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de una|h[aá]z?lo|hacelo|adelante|me parece( bien)?|por ?favor|porfa|s[ií],?\s+(dale|claro|porfa|por ?favor|profundiz[aá]|hazlo|hacelo|adelante))[\s.!…]*$/i;
 
+// PREGUNTA-OBJETIVO (owner 2026-07-14): metas de crecimiento/mejora → recommend. Tres señales:
+// · _GOAL_PCT_RE: verbo de meta con un % objetivo cerca ("subir un 3% el ingreso…") — la más fuerte.
+// · _GOAL_INTENT_RE + _GOAL_VERB_RE: intención de plan ("qué tengo que hacer" / "cómo hago" / "dame
+//   alternativas" / "quiero…") COMBINADA con un verbo de meta — ninguna sola alcanza ("quiero ver el
+//   margen" no es meta · "bajemos al detalle" no trae intención de plan).
+// (1ª persona incluida: "cómo mejoro/subo/reduzco…" — pero "bajo" 1sg SOLO tras "cómo": suelto es preposición
+// ("bajo el benchmark"); y "quiero/necesito" NO cuentan si siguen con ver/mirar/saber — eso es pedir una vista)
+const _GOAL_VERB_RE = /\b(sub(?:ir|a|o|amos)|aument(?:ar|e|o|emos)|increment(?:ar|e|o|emos)|crec(?:er|zco|amos)|levant(?:ar|e|o|emos)|mejor(?:ar|e|o|emos)|baj(?:ar|e|emos)|reduc(?:ir|za|zco|zcamos)|recort(?:ar|e|o|emos)|recuper(?:ar|e|o|emos)|duplic(?:ar|que|o|uemos)|potenci(?:ar|e|o|emos)|vender\s+m[aá]s|ganar\s+m[aá]s)\b/i;
+const _GOAL_INTENT_RE = /\b(qu[eé]\s+(tengo\s+que|hay\s+que|debo|puedo|necesito|podr[ií]a)\s+hacer|c[oó]mo\s+(puedo|hago|hacemos|logro|le\s+hago|subo|bajo|mejoro|aumento|reduzco|crezco|recupero|levanto|recorto)|qu[eé]\s+hago\s+para|dame\s+(alternativas|opciones|caminos|un\s+plan)|qu[eé]\s+alternativas|(quiero|necesito|busco|me\s+gustar[ií]a)\s+(?!ver\b|mirar\b|revisar\b|saber\b|conocer\b|entender\b))\b/i;
+const _GOAL_PCT_RE = /\b(sub(?:ir|a)|aument(?:ar|e)|increment(?:ar|e)|crec(?:er)|levant(?:ar|e)|mejor(?:ar|e)|baj(?:ar|e)|reduc(?:ir|za)|recort(?:ar|e))\w*[^.?!]{0,60}?\d+(?:[.,]\d+)?\s*%/i;
+
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia, señalesUI) → spec ruteado al dominio+foco correcto (o el original).
 export function coerceSpec(q, spec, hasLast, ui = null) {
   // SANEO DE ENTRADA (crash en prod 2026-07-09): filters:null explícito del LLM rompe composers con default {} —
@@ -286,6 +297,28 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.
   if (spec && typeof spec.entity === "string" && /^(t[uú]|yo|vos|usted|mi|m[ií]o|nuestro|ese|esa|eso|este|esta|esto|[eé]l|ella)$/i.test(spec.entity.trim()))
     spec = { ...spec, entity: null };
+  // PREGUNTA-OBJETIVO (owner 2026-07-14: «dime qué tengo que hacer para subir un 3% el ingreso de mis ventas,
+  // dame alternativas» cayó UNA vez en meta_question y el narrador fabuló un menú con "no tengo datos frescos"):
+  // toda META de crecimiento/mejora sobre una métrica del dato ("cómo subo/bajo/mejoro X" · "quiero crecer N% en X"
+  // · "dame alternativas para…") es un pedido de PALANCAS → recommend, determinístico, para CUALQUIER métrica
+  // (ventas/margen/contribución/capital). La pregunta manda — se acaba la ruleta del traductor. CORTA la cadena.
+  if (q && spec && (_GOAL_PCT_RE.test(q) || (_GOAL_INTENT_RE.test(q) && _GOAL_VERB_RE.test(q)))) {
+    const gm = /\b(inventarios?|stock|capital|rotaci[oó]n|bodegas?)\b/i.test(q) ? ["capital", "bodega"]
+      : /\b(margen|rentabilidad)\b/i.test(q) ? ["margen", "cliente"]
+      : /\b(contribuci[oó]n|utilidad|ganancias?|plata|dinero)\b/i.test(q) ? ["contribucion", "cliente"]
+      : /\b(ventas?|ingresos?|facturaci[oó]n|vender)\b/i.test(q) ? ["ventas", "cliente"]
+      : /\b(carga|rebates?|descuentos?)\b/i.test(q) ? ["margen", "cliente"] : null;
+    if (gm) {
+      let f = { ...(spec.filters || {}) };
+      if (!f.familia && !f.marca && !f.cliente && !f.bodega) {
+        const nq = _norm(q);
+        for (const [k, c] of _CANON) if ((c.tipo === "familia" || c.tipo === "marca" || c.tipo === "cliente") && nq.includes(k)) { f[c.tipo] = c.nombre; break; }
+      }
+      // transform/simulate FUERA (dist real 2026-07-14: el LLM a veces ancla el "3%" como supuesto target → el
+      // seam bifurca a proyección o a simulate-bloqueado según la forma; una META pide PALANCAS, no un supuesto)
+      return _cleanFilters({ ...spec, operation: "recommend", entity: null, metric: gm[0], dimension: gm[1], focus: undefined, comparison: undefined, meta: undefined, transform: undefined, simulate: undefined, filters: Object.keys(f).length ? f : undefined, turn_type: "new_query" });
+    }
+  }
   // RECOMENDACIÓN explícita (invitado 2026-07-09: "invierto en cuidado personal, ¿qué me recomendás?" caía en una
   // lectura global de ventas): sin hilo previo, "qué me recomendás" → recommend y CORTA la cadena (los coerces de
   // dominio le robaban el claim al LLM cuando la pregunta olía a ventas/margen). Ancla: los filtros del spec (el

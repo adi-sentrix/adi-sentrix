@@ -5,11 +5,11 @@
  * "80% de cuántos" · "plata pegada en stock" · SIM_PCT con "30%"/"80%"). Protege que el ruteo no se degrade. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_roe.js"), out = path.join(root, "_rob.mjs");
-fs.writeFileSync(entry, ['export { coerceSpec } from "./src/adi/coerceChain.js";', 'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";', 'export { answerConversational } from "./src/adi/conversation.js";'].join("\n"));
+fs.writeFileSync(entry, ['export { coerceSpec } from "./src/adi/coerceChain.js";', 'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";', 'export { answerConversational, composeMeta } from "./src/adi/conversation.js";', 'export { shouldNarrate } from "./src/adi/llm/numberGuard.js";'].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { coerceSpec: C, answerADIFromSpec: A, answerConversational: AC } = M;
+const { coerceSpec: C, answerADIFromSpec: A, answerConversational: AC, composeMeta: CM, shouldNarrate: SN } = M;
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
@@ -131,5 +131,22 @@ ok("RESUMEN · '¿dónde pierdo dinero?' sigue en el diagnose CLÁSICO (foco pun
   const r = A(s, {}, { scenario: "bonanza" });
   return s.focus !== "resumen_ejecutivo" && !((r && r.text) || "").includes("Foto general");
 })());
+// PREGUNTA-OBJETIVO (owner 2026-07-14: «subir un 3% el ingreso de mis ventas — dame alternativas» cayó UNA vez
+// en meta_question y el narrador fabuló "no tengo datos frescos" + un menú): toda META de crecimiento/mejora
+// → recommend, para CUALQUIER métrica, sin importar qué haya dicho el LLM. Y el meta genérico va VERBATIM.
+const Q3 = "dime que tengo que hacer para poder subir un 3% el ingreso de mis ventas, dame alternativas yo escojo una.";
+ok("OBJETIVO · la pregunta del 3% → recommend/ventas AUNQUE el LLM diga meta_question", (() => { const s = C(Q3, { schemaVersion: 1, operation: "recommend", metric: "ventas", turn_type: "meta_question", meta: "capacidades" }, false); return s.operation === "recommend" && s.metric === "ventas" && s.turn_type === "new_query"; })());
+ok("OBJETIVO · la pregunta del 3% → recommend AUNQUE el LLM clarifique", (() => { const s = C(Q3, { schemaVersion: 1, operation: "clarification_needed" }, false); return s.operation === "recommend" && s.metric === "ventas"; })());
+ok("OBJETIVO · el motor RESPONDE con la recomendación real (no menú, no degrade)", (() => { const r = AC(C(Q3, { schemaVersion: 1, operation: "clarification_needed" }, false), {}, { scenario: "bonanza" }); return r.route === "recommend_action" && /Recomendaci[oó]n/i.test(r.text || ""); })());
+ok("OBJETIVO · 'cómo mejoro el margen?' → recommend/margen", (() => { const s = C("cómo mejoro el margen?", base(""), false); return s.operation === "recommend" && s.metric === "margen"; })());
+ok("OBJETIVO · 'dame alternativas para reducir el inventario' → recommend/capital (no 'ventas' por inVENTArio)", (() => { const s = C("dame alternativas para reducir el inventario", base(""), false); return s.operation === "recommend" && s.metric === "capital"; })());
+ok("OBJETIVO · 'quiero crecer un 5% en contribución, qué hago' → recommend/contribucion", (() => { const s = C("quiero crecer un 5% en contribución, qué hago", base(""), false); return s.operation === "recommend" && s.metric === "contribucion"; })());
+ok("OBJETIVO · 'qué tengo que hacer para vender más?' → recommend/ventas", (() => { const s = C("qué tengo que hacer para vender más?", base(""), false); return s.operation === "recommend" && s.metric === "ventas"; })());
+ok("OBJETIVO · 'quiero ver el margen por cliente' NO es meta (pide una vista → margin)", C("quiero ver el margen por cliente", base(""), false).operation !== "recommend");
+ok("OBJETIVO · 'la venta subió un 12% este mes?' NO es meta de crecimiento (dato pasado — queda en su lectura)", C("la venta subió un 12% este mes?", base(""), false).operation !== "recommend");
+ok("OBJETIVO · '¿Cuánta carga comercial puedo recuperar?' sigue en margen/palancas (promesa del hero)", C("¿Cuánta carga comercial puedo recuperar?", base(""), false).operation === "margin");
+ok("META VERBATIM · el meta genérico (sin cifras) NO se narra (el narrador fabuló 'no tengo datos frescos')", (() => { const r = CM("cualquier_tema_generico", null); return r.evidence.kind === "meta" && SN(r) === false; })());
+ok("META VERBATIM · 'real o supuesto' tampoco se narra (declaración de doctrina)", SN(CM("real_o_supuesto", null)) === false);
+
 console.log(`\n── _routing_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

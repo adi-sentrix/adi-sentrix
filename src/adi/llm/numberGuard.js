@@ -11,6 +11,12 @@ import { guardAgainstBoleta } from "../boleta.js";   // guard v2 · valida la na
 // tokens numéricos de un texto (con separadores · el % y $ se sacan al normalizar)
 function _tokens(text) { return String(text == null ? "" : text).match(/\d[\d.,]*\d|\d/g) || []; }
 
+// marcadores de LISTA ("1. **SKU** — …" · principio 7 del narrador, owner 2026-07-09): son ESTRUCTURA, no cifras —
+// se quitan antes de tokenizar para que el guard v1 no bloquee la numeración como "cifra no autorizada". Solo al
+// inicio de línea, 1-2 dígitos + "." o ")" + espacio (una cifra real ahí llega con $/%/unidad y no matchea).
+// El guard v2 (boleta) ya es inmune: parseFigures solo lee figuras CON unidad.
+const _stripEnum = (s) => String(s == null ? "" : s).replace(/^\s{0,3}\d{1,2}[.)]\s+/gm, "");
+
 // candidatos de valor normalizado de UN token · maneja miles/decimal ambiguos:
 //   "4271"→{4271} · "4.271"→{4271,4.271} · "4,271"→{4271,4.271} · "34.0"→{34} · "34"→{34}
 function _cands(tok) {
@@ -46,14 +52,14 @@ function _mandatory(validated) {
   if (Array.isArray(ev.mandatoryFigures)) for (const n of ev.mandatoryFigures) nums.push(String(n));
   if (nums.length) return nums;
   // sin figuras estructuradas → TODAS las cifras del texto determinístico son obligatorias (no perder ninguna · seguro)
-  return _tokens(validated && validated.text);
+  return _tokens(_stripEnum(validated && validated.text));
 }
 
 // numberGuard(narration, validated) → { ok, verdict, reason, unauthorized[], missing[] }
 export function numberGuard(narration, validated) {
   const authTokens = [..._tokens(validated && validated.text), ..._evidenceNumbers(validated && validated.evidence, [])];
   const authCands = authTokens.map(_cands);
-  const narrTokens = _tokens(narration);
+  const narrTokens = _tokens(_stripEnum(narration));
   const narrCands = narrTokens.map(_cands);
 
   // Regla A · toda cifra de la narración debe estar AUTORIZADA (no alterada, no inventada, no derivada)
@@ -99,7 +105,7 @@ export function shouldNarrate(r) {
   if (r.route === "clarification_needed") return false;            // regla existente: la repregunta va cruda
   if (/^spec_blocked_/.test(r.route || "")) return false;          // bloqueos del seam · límite declarado honesto
   if (_DEGRADE_OPENER.test(r.text.trim())) return false;           // degrades de composers (entidad/dimensión inexistente)
-  if (r.evidence && (r.evidence.kind === "saludo" || r.evidence.kind === "criteria")) return false;   // verbatim por diseño — ni gastar el gateway
+  if (r.evidence && (r.evidence.kind === "saludo" || r.evidence.kind === "criteria" || r.evidence.kind === "fuera_de_dato" || r.evidence.kind === "meta")) return false;   // verbatim por diseño — ni gastar el gateway ("meta" 2026-07-14: sin cifras no hay guardia y el narrador fabuló "no tengo datos frescos" + un menú inventado)
   return true;
 }
 
