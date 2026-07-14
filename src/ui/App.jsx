@@ -88,12 +88,12 @@ export default function App({ animate = true }) {
       <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:"1px solid rgba(17,17,17,0.09)", background:"rgba(255,255,255,0.96)", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
           <div style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"#131313", border:"1px solid rgba(17,17,17,0.15)" }}>
-            <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3.2"/>
+            {/* el cubo EXACTO de la landing (una sola elipse · punto r7 · trazo 3) */}
+            <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
               <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
               <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-              <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.5" opacity="0.5"/>
-              <circle cx="100" cy="100" r="6" fill="#2fb8da" stroke="none"/>
+              <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
             </svg>
           </div>
           <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
@@ -237,9 +237,10 @@ export default function App({ animate = true }) {
           50%      { transform: scale(1.1)  translate(2%, -2%);  opacity: 1; }
           75%      { transform: scale(1.04) translate(3%, 3%);   opacity: 0.8; }
         }
-        @keyframes adiSpark {
-          0%, 100% { transform: scale(1);   box-shadow: 0 0 0 1px rgba(47,184,218,0.4), 0 0 16px rgba(47,184,218,0.55), 0 0 32px rgba(47,184,218,0.2); }
-          50%      { transform: scale(1.1); box-shadow: 0 0 0 1px rgba(47,184,218,0.7), 0 0 28px rgba(47,184,218,0.85), 0 0 56px rgba(47,184,218,0.4); }
+        /* el cubo solo GIRA cuando ADI responde (owner 2026-07-14: sin brillo ni borde reflectante) */
+        @keyframes adiGiro {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
         @keyframes sentrixSweep {
           0%   { transform: translateX(-220px) skewX(-14deg); opacity: 0; }

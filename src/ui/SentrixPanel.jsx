@@ -1118,17 +1118,19 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
-      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+      {/* encabezado BLANCO (owner 2026-07-14: "la mesa de control, el encabezado deberia ser blanco tambien") ·
+          la misma barra de la landing/header del app · celeste PROFUNDO para el texto sobre blanco */}
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:"1px solid rgba(17,17,17,0.09)", background:"rgba(255,255,255,0.96)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
-            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span style={{ color:C.celeste }}>MESA DE CONTROL</span>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:"#979797", textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:"#131313", fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span style={{ color:"#1791b4" }}>MESA DE CONTROL</span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
-            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
-            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+            <IconBtn light onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn light onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
           </div>
         </div>
-        <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· ADI al lado — cada fila es una pregunta</span></div>
+        <div style={{ fontSize:13, color:"#131313", fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:"#565656", fontWeight:400 }}>· ADI al lado — cada fila es una pregunta</span></div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* KPIs del período (misma verdad que el hero) */}
@@ -2992,15 +2994,16 @@ function TemporalSlot({ evidence }) {
   );
 }
 
-function IconBtn({ children, onClick, title }) {
+function IconBtn({ children, onClick, title, light = false }) {
   if (!onClick) return null;
+  // light = vive sobre un encabezado BLANCO (Mesa) → clave oscura; el resto de paneles sigue en clave oscura-sobre-negro
   return (
     <button onClick={onClick} title={title} style={{
-      width:26, height:26, borderRadius:6, border:`1px solid ${C.border}`, background:"transparent",
-      color:C.textMuted, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s",
+      width:26, height:26, borderRadius:6, border:`1px solid ${light ? "rgba(17,17,17,0.15)" : C.border}`, background:"transparent",
+      color: light ? "#565656" : C.textMuted, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s",
     }}
-      onMouseEnter={e=>{ e.currentTarget.style.background=C.surfaceAlt; e.currentTarget.style.color=C.text; }}
-      onMouseLeave={e=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=C.textMuted; }}>
+      onMouseEnter={e=>{ e.currentTarget.style.background = light ? "rgba(17,17,17,0.06)" : C.surfaceAlt; e.currentTarget.style.color = light ? "#131313" : C.text; }}
+      onMouseLeave={e=>{ e.currentTarget.style.background="transparent"; e.currentTarget.style.color = light ? "#565656" : C.textMuted; }}>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
     </button>
   );

@@ -17,12 +17,12 @@ const _fecha = (ms) => { try { return new Date(ms).toLocaleDateString("es-CL", {
 function LogoMark() {
   return (
     <div style={{ width:44, height:44, borderRadius:11, display:"flex", alignItems:"center", justifyContent:"center", background:"linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))", border:"1px solid rgba(255,255,255,0.12)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 12px -3px rgba(0,0,0,0.4)" }}>
-      <svg width="27" height="27" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3.2"/>
+      {/* el cubo EXACTO de la landing (una sola elipse · punto r7 · trazo 3) */}
+      <svg width="27" height="27" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
         <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
         <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-        <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.5" opacity="0.5"/>
-        <circle cx="100" cy="100" r="6" fill="#2fb8da" stroke="none"/>
+        <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
       </svg>
     </div>
   );

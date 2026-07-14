@@ -146,21 +146,20 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   return _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
 }
 
-// ── Logo ADI inline (verbatim del piso) ──
+// ── Logo ADI inline · el CUBO de la landing (owner 2026-07-14): la misma pieza de adiai.cl, sin brillo ni
+// borde reflectante — solo GIRA mientras ADI responde ("pierde elegancia" el encendido). ──
 function AdiAvatar({ spark = false }) {
   return (
     <div style={{
       width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center",
       flexShrink:0, marginTop:4, transformOrigin:"center center",
-      animation: spark ? "adiSpark 1.4s ease-in-out infinite" : "none",
-      filter:"drop-shadow(0 0 5px rgba(47,184,218,0.3))"
+      animation: spark ? "adiGiro 2.6s linear infinite" : "none"
     }}>
-      <svg width="18" height="18" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3.2"/>
-        <circle cx="100" cy="100" r="55" strokeWidth="1.8" opacity="0.65"/>
-        <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.6" opacity="0.5"/>
-        <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.6" opacity="0.5"/>
-        <circle cx="100" cy="100" r="6" fill="#2fb8da" stroke="none"/>
+      <svg width="18" height="18" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
+        <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
+        <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
+        <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
       </svg>
     </div>
   );
@@ -370,12 +369,12 @@ function HeroInicio({ scenario, onChip }) {
     <div style={{ display:"flex", flexDirection:"column", gap:20, padding:"8px 0", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
       {/* encabezado */}
       <div style={{ display:"flex", alignItems:"center", gap:13 }}>
-        <div style={{ width:46, height:46, borderRadius:13, display:"flex", alignItems:"center", justifyContent:"center", border:"1px solid rgba(47,184,218,0.28)", background:"rgba(47,184,218,0.07)", flexShrink:0 }}>
-          <svg width="27" height="27" viewBox="0 0 200 200" fill="none" stroke="#dfe3e8" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" strokeWidth="3"/>
-            <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.6"/>
+        {/* el cubo de la landing, DESNUDO (owner: sin borde reflectante ni marco) */}
+        <div style={{ width:46, height:46, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <svg width="34" height="34" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
+            <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
             <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-            <ellipse cx="100" cy="100" rx="22" ry="55" strokeWidth="1.5" opacity="0.5"/>
             <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
           </svg>
         </div>
