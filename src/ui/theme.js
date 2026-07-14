@@ -49,7 +49,9 @@ export const FINANCIAL_HIGHLIGHT = {
   pp:    { ...NUM_BASE, color:"#fde047", background:"rgba(253,224,71,0.06)", border:"1px solid rgba(253,224,71,0.1)" },
   up:    { ...NUM_BASE, color:"#10b981", background:"rgba(16,185,129,0.06)", border:"1px solid rgba(16,185,129,0.1)" },
   down:  { ...NUM_BASE, color:"#f43f5e", background:"rgba(244,63,94,0.06)", border:"1px solid rgba(244,63,94,0.1)" },
-  entity:{ color:"#eef2f6", fontWeight:600 },
+  // ENTIDADES con su propio toque (owner 2026-07-10: "resaltar el Lider… le dará un toque diferente"): blanco pleno
+  // + subrayado celeste sutil — distintivo sin competir con el celeste de las cifras.
+  entity:{ color:"#ffffff", fontWeight:700, borderBottom:"1px solid rgba(47,184,218,0.45)", paddingBottom:"0.5px" },
 };
 
 // Estilos "plain" sin chip: usados en contexto tabular para no romper alineación columnar.
@@ -62,7 +64,7 @@ export const FINANCIAL_PLAIN = {
   pp:    { color:"#fde047", fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:"0.94em", fontFeatureSettings:"'tnum'" },
   up:    { color:"#10b981", fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:"0.94em", fontFeatureSettings:"'tnum'" },
   down:  { color:"#f43f5e", fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:"0.94em", fontFeatureSettings:"'tnum'" },
-  entity:{ color:"#eef2f6", fontWeight:600 },
+  entity:{ color:"#ffffff", fontWeight:700, borderBottom:"1px solid rgba(47,184,218,0.45)", paddingBottom:"0.5px" },
 };
 
 // Estilos TABULAR · SOLO color/peso · SIN font-family ni font-size → heredan del contenedor monoespaciado →
@@ -76,7 +78,7 @@ export const FINANCIAL_TABULAR = {
   pp:    { color:"#fde047", fontWeight:600 },
   up:    { color:"#10b981", fontWeight:600 },
   down:  { color:"#f43f5e", fontWeight:600 },
-  entity:{ color:"#eef2f6", fontWeight:600 },
+  entity:{ color:"#ffffff", fontWeight:700 },   // tabular: sin subrayado (la grilla queda limpia)
 };
 
 // DERIVADO del dato (hardening prep-LLM): antes era una lista literal de 14 nombres → si el owner (o el LLM) agrega

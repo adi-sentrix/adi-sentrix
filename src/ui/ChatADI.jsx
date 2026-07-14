@@ -563,7 +563,9 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                   <AdiAvatar spark={isTyping || isPending}/>
                   <div data-testid="adi-bubble" style={{
                     flex:1, minWidth:0, background:C.card, padding:"16px 20px",
-                    borderRadius:10, border:`1px solid ${C.cardBorder}`,
+                    // el borde con TOQUE (owner 2026-07-10, referencia de la landing): celeste sutil en las burbujas
+                    // de ADI — la misma familia de las cards de gráficos; la del usuario queda neutra.
+                    borderRadius:10, border:"1px solid rgba(47,184,218,0.22)",
                     fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, lineHeight:1.65,
                     letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line",
                     boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)"
