@@ -116,15 +116,20 @@ ok("RESUMEN · 'hazme un resumen ejecutivo' → diagnose + foco resumen_ejecutiv
 ok("RESUMEN · 'resumen' pelado → diagnose + foco", (() => { const s = C("resumen", base(""), false); return s.operation === "diagnose" && s.focus === "resumen_ejecutivo"; })());
 ok("RESUMEN · 'dame un panorama' → diagnose + foco", (() => { const s = C("dame un panorama", base(""), false); return s.operation === "diagnose" && s.focus === "resumen_ejecutivo"; })());
 ok("RESUMEN · 'resumen de ventas por cliente' NO es diagnose (pide una lectura puntual)", C("resumen de ventas por cliente", base(""), false).operation !== "diagnose");
-ok("RESUMEN · el composer cuenta los 5 movimientos del owner (ganando · margen · perdiendo · porqué · recuperamos)", (() => {
+ok("RESUMEN · el composer cuenta los 8 movimientos del owner (foto · dónde · cómo · margen · perdiendo · porqué · recuperamos · decisión)", (() => {
   const r = A(C("hazme un resumen ejecutivo", base(""), false), {}, { scenario: "bonanza" });
   const t = (r && r.text) || "";
-  return ["Cómo estamos ganando", "Cómo se comporta el margen", "Dónde estamos perdiendo", "Por qué está pasando", "Cómo recuperamos"].every((s) => t.includes(s));
+  return ["Foto general", "Dónde estamos ganando", "Cómo estamos ganando", "Cómo se comporta el margen", "Dónde estamos perdiendo", "Por qué está pasando", "Cómo recuperamos", "Próxima decisión"].every((s) => t.includes(s));
 })());
-ok("RESUMEN · '¿dónde pierdo dinero?' sigue en el diagnose CLÁSICO (foco puntual, sin los 5 bloques)", (() => {
+ok("RESUMEN · cierra con la PRÓXIMA DECISIÓN (pregunta ejecutiva '¿partimos por…?')", (() => {
+  const r = A(C("hazme un resumen ejecutivo", base(""), false), {}, { scenario: "bonanza" });
+  const t = (r && r.text) || "";
+  return /¿partimos por .+\?/i.test(t);
+})());
+ok("RESUMEN · '¿dónde pierdo dinero?' sigue en el diagnose CLÁSICO (foco puntual, sin los 8 bloques)", (() => {
   const s = C("¿dónde estoy perdiendo dinero?", base(""), false);
   const r = A(s, {}, { scenario: "bonanza" });
-  return s.focus !== "resumen_ejecutivo" && !((r && r.text) || "").includes("Cómo estamos ganando");
+  return s.focus !== "resumen_ejecutivo" && !((r && r.text) || "").includes("Foto general");
 })());
 console.log(`\n── _routing_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

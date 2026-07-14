@@ -373,31 +373,56 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   const mg = by("margen"), cg = by("carga"), cap = by("capital");
   const cgTopRow = cg && cg.items[0] ? cm.find((r) => r.nombre === cg.items[0].entidad) : null;
 
-  const b1 = `**Cómo estamos ganando:** vendiste ${_money(ventasK * 1000)}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, con ${_money(contribK * 1000)} de contribución y margen promedio ${margenProm}%. La venta la sostienen ${conV.cantidadEntidades} de ${cv.length} clientes (${conV.totalCubiertoPct}%); la contribución la lideran ${topC.map((r) => `${r.nombre} (${_money(r.contribucion * 1000)})`).join(", ")}.`;
-  const b2 = `**Cómo se comporta el margen:** el promedio (${margenProm}%) ${margenProm < bench ? "corre bajo" : "está sobre"} tu piso (${bench}%). Los que más venden dejan menos: ${grandes.map((r) => `${r.nombre} ${r.margen}%`).join(", ")} — ${bajoVara.length} de ${cm.length} clientes están bajo la vara. El margen sano vive en ${sanos.map((r) => `${r.nombre} (${r.margen}%)`).join(" y ")}.`;
+  // (3) CÓMO ganamos: la COMPOSICIÓN — bloque de volumen (top-3 por venta) vs el resto de la cartera (calidad):
+  // contribución y margen ponderado de cada bloque, todo derivado de las mismas filas (una verdad).
+  const gNames = new Set(grandes.map((r) => r.nombre));
+  const resto = cm.filter((r) => !gNames.has(r.nombre));
+  const cGr = _s(grandes, "contribucion"), vGr = _s(grandes, "venta");
+  const cRe = _s(resto, "contribucion"), vRe = _s(resto, "venta");
+  const pctGr = contribK ? Math.round((cGr / contribK) * 100) : 0, pctRe = contribK ? 100 - Math.round((cGr / contribK) * 100) : 0;
+  const mGr = vGr ? +((cGr / vGr) * 100).toFixed(1) : 0, mRe = vRe ? +((cRe / vRe) * 100).toFixed(1) : 0;
+
+  const b1 = `**Foto general:** vendiste ${_money(ventasK * 1000)}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, generaste ${_money(contribK * 1000)} de contribución y cerraste con ${margenProm}% de margen — cartera de ${cm.length} clientes, ${F.length ? `${F.length} ${F.length === 1 ? "foco" : "focos"} de fuga abiertos` : "sin fugas materiales"}.`;
+  const b2 = `**Dónde estamos ganando:** la venta la sostienen ${conV.cantidadEntidades} de ${cv.length} clientes (${conV.totalCubiertoPct}%); la contribución la lideran ${topC.map((r) => `${r.nombre} (${_money(r.contribucion * 1000)})`).join(", ")}.`;
+  const b3 = `**Cómo estamos ganando:** no es solo volumen — los tres grandes (${grandes.map((r) => r.nombre).join(", ")}) ponen el ${pctGr}% de la contribución con margen ${mGr}%; el resto de la cartera pone el ${pctRe}% con margen ${mRe}%. ${mRe > mGr ? "La calidad vive en las cuentas medianas: el mix es lo que sostiene el margen." : "El volumen de los grandes también trae la calidad."}`;
+  const b4 = `**Cómo se comporta el margen:** el promedio (${margenProm}%) ${margenProm < bench ? "corre bajo" : "está sobre"} tu piso (${bench}%). Los que más venden dejan menos: ${grandes.map((r) => `${r.nombre} ${r.margen}%`).join(", ")} — ${bajoVara.length} de ${cm.length} clientes están bajo la vara. El margen sano vive en ${sanos.map((r) => `${r.nombre} (${r.margen}%)`).join(" y ")}: la cartera crece, pero parte del margen se diluye en los grandes.`;
   const fugas = [];
   if (mg) fugas.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (top: ${mg.items.slice(0, 3).map((i) => `${i.entidad} ${_money(i.usd)}`).join(", ")})`);
   if (cg) fugas.push(`${_money(cg.subtotal_usd)} de carga comercial sobre el target`);
   if (cap) fugas.push(`${_money(cap.subtotal_usd)} de capital dormido en ${cap.items.length} SKU`);
-  const b3 = fugas.length
+  const b5 = fugas.length
     ? `**Dónde estamos perdiendo:** ${fugas.join(" · ")}.`
     : `**Dónde estamos perdiendo:** sin fugas materiales en este corte — todo sobre benchmark y con el capital rotando.`;
   const causas = [];
   if (mg) causas.push("la contribución se escapa porque los grandes venden bajo el piso (precio/mix, no un costo puntual)");
   if (cg) causas.push(`la carga corre sobre el target de ${POLICY.targetCarga}% (rebates y descuentos${cgTopRow ? ` — ${cgTopRow.nombre} carga ${cgTopRow.pctRebate}%` : ""})`);
   if (cap) causas.push("el capital está detenido en SKU que no rotan");
-  const b4 = causas.length ? `**Por qué está pasando:** ${causas.join("; ")}.` : "";
+  const b6 = causas.length ? `**Por qué está pasando:** ${causas.join("; ")}.` : "";
   const f1 = F[0], f2 = F[1];
-  let b5 = "";
+  // (7) recuperación con IMPACTO CUANTIFICADO por acción (el ejemplo del owner: "bajar de 4.5% a 3.5% recupera ~$194K")
+  const cargaDetalle = cg && cg.items[0] && cgTopRow
+    ? `bajar la carga de ${cg.items[0].entidad} (${cgTopRow.pctRebate}%) al target (${POLICY.targetCarga}%) recupera ${_money(cg.items[0].usd)} al año`
+    : null;
+  let b7 = "";
   if (f1) {
     const acc = f1.detector === "carga"
-      ? `renegociar la carga${f1.items[0] ? ` empezando por ${f1.items[0].entidad} (${_money(f1.items[0].usd)})` : ""} — recuperás margen sin resignar venta`
+      ? (cargaDetalle || "renegociar la carga comercial — recuperás margen sin resignar venta")
       : f1.detector === "margen"
-        ? `revisar precio y mix de ${f1.items[0] ? f1.items[0].entidad : "los grandes"}${f1.items[0] ? ` (${_money(f1.items[0].usd)} en juego)` : ""}`
+        ? `revisar precio y mix de ${f1.items[0] ? f1.items[0].entidad : "los grandes"}${f1.items[0] ? ` (${_money(f1.items[0].usd)} en juego de los ${_money(f1.subtotal_usd)})` : ""}`
         : "liberar los SKU sin rotar (liquidación puntual)";
-    b5 = `**Cómo recuperamos:** primero ${acc}, con ${_money(f1.subtotal_usd)} sobre la mesa${f2 ? `; después revisá ${f2.titulo.toLowerCase()} (${_money(f2.subtotal_usd)})` : ""}.`;
+    const despues = f2
+      ? (f2.detector === "carga" && cargaDetalle ? `; después la carga: ${cargaDetalle} (${_money(f2.subtotal_usd)} el total)` : `; después revisá ${f2.titulo.toLowerCase()} (${_money(f2.subtotal_usd)})`)
+      : "";
+    b7 = `**Cómo recuperamos:** primero ${acc}${despues}.`;
   }
-  const opener = [b1, b2, b3, b4, b5].filter(Boolean).join("\n\n");
+  // (8) la PRÓXIMA DECISIÓN: el cierre ejecutivo (pregunta accionable desde los dos focos que más pesan)
+  const _dec = (f) => !f ? null
+    : f.detector === "margen" ? `recuperar margen en ${f.items[0] ? f.items[0].entidad : "los grandes"}`
+    : f.detector === "carga" ? "renegociar la carga comercial"
+    : "liberar el capital inmovilizado";
+  const d1 = _dec(f1), d2 = _dec(f2);
+  const b8 = d1 ? `**Próxima decisión:** ¿partimos por ${d1}${d2 ? ` o por ${d2}` : ""}?` : "";
+  const opener = [b1, b2, b3, b4, b5, b6, b7, b8].filter(Boolean).join("\n\n");
   // BOLETA rica: el núcleo obligatorio (KPIs + subtotales de foco vía la boleta del diagnose) + el resto autorizado
   const bol = [
     fig("Ventas del período", _money(ventasK * 1000), { unit: "money", raw: ventasK * 1000, mandatory: true, context: "resumen ejecutivo" }),
@@ -411,6 +436,11 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   for (const r of grandes) bol.push(fig(`Margen · ${r.nombre}`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "los grandes" }));
   for (const r of sanos) bol.push(fig(`Margen · ${r.nombre}`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "margen sano" }));
   if (cgTopRow) bol.push(fig(`Carga · ${cgTopRow.nombre}`, `${cgTopRow.pctRebate}%`, { unit: "pct", raw: cgTopRow.pctRebate, mandatory: false, context: "causa de carga" }));
+  // la COMPOSICIÓN (cómo ganamos): los bloques volumen vs calidad, autorizados
+  bol.push(fig("Contribución de los grandes", `${pctGr}%`, { unit: "pct", raw: pctGr, mandatory: false, context: "composición" }));
+  bol.push(fig("Contribución del resto", `${pctRe}%`, { unit: "pct", raw: pctRe, mandatory: false, context: "composición" }));
+  bol.push(fig("Margen de los grandes", `${mGr}%`, { unit: "pct", raw: mGr, mandatory: false, context: "composición" }));
+  bol.push(fig("Margen del resto", `${mRe}%`, { unit: "pct", raw: mRe, mandatory: false, context: "composición" }));
   if (diag && diag.evidence && Array.isArray(diag.evidence.boleta)) bol.push(...diag.evidence.boleta);
   return {
     opener,
