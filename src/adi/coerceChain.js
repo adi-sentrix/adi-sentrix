@@ -278,7 +278,9 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // RESUMEN DEL NEGOCIO (owner 2026-07-08): "dame un resumen del negocio / panorama general / cómo está mi negocio"
   // → el DIAGNÓSTICO ejecutivo (los focos con su $), no un ranking suelto. Determinístico, antes de los dominios.
   // + "¿cómo vengo/venimos/vamos?" pelado (sweep 2026-07-09: el LLM lo parseaba como dive sin entidad — o con entidad "tú").
-  if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio|^\s*¿?\s*c[oó]mo\s+(vengo|venimos|vamos|voy|andamos|ando)\s*\??\s*$/i.test(q))
+  // + "resumen ejecutivo" pelado y "resumen/panorama" a secas (owner probó 2026-07-10: "hazme un resumen ejecutivo"
+  //   caía en un ranking de ventas narrado — el detector exigía "del negocio").
+  if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|(resumen|panorama)\s+ejecutiv[oa]\b|^\s*¿?\s*(hazme\s+|dame\s+|hac[eé]me\s+|quiero\s+)?(un\s+)?(resumen|panorama)\s*[?.!]*\s*$|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio|^\s*¿?\s*c[oó]mo\s+(vengo|venimos|vamos|voy|andamos|ando)\s*\??\s*$/i.test(q))
     return _cleanFilters({ ...spec, operation: "diagnose", metric: spec.metric || "contribucion", dimension: "cliente", turn_type: "new_query" });
   // ENTIDAD-PRONOMBRE (sweep 2026-07-09): el LLM #1 a veces "resuelve" un pronombre como entidad ("tú"/"mi"/"eso")
   // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.

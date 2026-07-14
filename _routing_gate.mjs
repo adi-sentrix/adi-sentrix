@@ -110,5 +110,10 @@ ok("FUERA-DE-DATO · 'qué promociones puedo hacer para vender más' → redirec
 ok("FUERA-DE-DATO · 'cómo estoy contra la competencia' → redirect", (() => { const s = C("cómo estoy contra la competencia", base(""), false); return s.turn_type === "meta_question" && s.meta === "fuera_de_dato"; })());
 ok("FUERA-DE-DATO · el redirect RESPONDE con chips (no clarifica ni degrada)", (() => { const s = C("hablame de esas campañas de marketing", { schemaVersion: 1, operation: "clarification_needed" }, false); const r = AC(s, {}, {}); return /no los tengo como dato/.test(r.text || "") && Array.isArray(r.suggestions) && r.suggestions.length === 3; })());
 ok("FUERA-DE-DATO · 'cuánto me come la carga comercial' NO se redirige (palanca disponible → margen)", C("cuánto me come la carga comercial", base(""), false).operation === "margin");
+// RESUMEN EJECUTIVO pelado (owner probó 2026-07-10: caía en un ranking de ventas narrado)
+ok("RESUMEN · 'hazme un resumen ejecutivo' → diagnose", C("hazme un resumen ejecutivo", base(""), false).operation === "diagnose");
+ok("RESUMEN · 'resumen' pelado → diagnose", C("resumen", base(""), false).operation === "diagnose");
+ok("RESUMEN · 'dame un panorama' → diagnose", C("dame un panorama", base(""), false).operation === "diagnose");
+ok("RESUMEN · 'resumen de ventas por cliente' NO es diagnose (pide una lectura puntual)", C("resumen de ventas por cliente", base(""), false).operation !== "diagnose");
 console.log(`\n── _routing_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
