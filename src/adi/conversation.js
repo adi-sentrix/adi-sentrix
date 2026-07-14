@@ -257,7 +257,7 @@ export function composeCriteria(ci) {
   if (ci.action === "recall") {
     const list = activeCriteria();
     const text = list.length
-      ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y palancas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
+      ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y medidas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
       : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(30.1)}, carga ${CRITERIA.target_carga.fmt(3.5)}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
@@ -282,7 +282,7 @@ export function composeCriteria(ci) {
       : `No reconozco ese criterio. Hoy puedo recordar: ${Object.values(CRITERIA).map((x) => x.label.toLowerCase()).join(", ")}.`;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
-  const text = `Listo — desde ahora tu ${c.label.toLowerCase()} es ${c.fmt(r.value)} (antes usaba ${c.fmt(r.prev)}). Todas las lecturas, palancas y paneles miden contra TU vara. Para volver al estándar: "olvidá el ${c.label.toLowerCase()}".`;
+  const text = `Listo — desde ahora tu ${c.label.toLowerCase()} es ${c.fmt(r.value)} (antes usaba ${c.fmt(r.prev)}). Todas las lecturas, medidas y paneles miden contra TU vara. Para volver al estándar: "olvidá el ${c.label.toLowerCase()}".`;
   return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
 }
 

@@ -41,7 +41,7 @@ ok("multi@sku: margen@sku + inventario, ambas secciones REALES", /\*\*Margen\*\*
 
 console.log("\n── boleta mergeada + evidencias múltiples (un botón por lente) ──");
 const bol2 = (r2.evidence && r2.evidence.boleta) || [];
-ok("la boleta mergeada trae cifras de AMBAS lentes", bol2.some((f) => /margen|Palanca/i.test(f.label)) && bol2.some((f) => /Capital|SKU · |Inventario/i.test(f.label)));
+ok("la boleta mergeada trae cifras de AMBAS lentes", bol2.some((f) => /margen|Medida|Palanca/i.test(f.label)) && bol2.some((f) => /Capital|SKU · |Inventario/i.test(f.label)));
 ok("las mandatorias de ambas secciones sobreviven el merge", bol2.filter((f) => f.mandatory).length >= 2);
 ok("evidence.multi trae la evidencia de la 2ª lente (botón propio)", Array.isArray(r2.evidence.multi) && r2.evidence.multi.length >= 1 && !!r2.evidence.multi[0].inventory);
 ok("la evidencia primaria es la 1ª lente (margen)", !!(r2.evidence.margin && r2.evidence.margin.panel));

@@ -22,7 +22,7 @@ const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildControlRing, METRIC_DEFS, buildDisponibleMenu } = M;
 
-const BANNED = /\b(plata|dormid[oa]s?|guita)\b/i;
+const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa")
 let pass = 0, fail = 0; const rotos = [];
 const check = (origen, texto) => {
   if (typeof texto !== "string" || !texto.trim()) return;
@@ -30,9 +30,19 @@ const check = (origen, texto) => {
   if (m) { fail++; rotos.push({ origen, palabra: m[0], gist: texto.replace(/\s+/g, " ").slice(Math.max(0, m.index - 40), m.index + 40) }); }
   else pass++;
 };
+// PISO SELLADO (paridad byte-exact del oráculo · triage [39]): las rutas RICAS del motor todavía dicen "palanca";
+// no se tocan — en prod corren SIEMPRE narradas y el prompt (P6) prohíbe el eco. La palabra 'palanca' se exime SOLO
+// en esas rutas; plata/dormido/guita NO se eximen en ninguna.
+const SEALED_ROUTES = /^(client_dive|client_comparison|comparison|compare_|cross_domain|qi_compare)/;
 const checkResp = (origen, r) => {
   if (!r) return;
-  check(origen, r.text || r.opener || "");
+  const sealed = SEALED_ROUTES.test(r.route || "");
+  const t = r.text || r.opener || "";
+  if (sealed) {
+    const hard = t.match(/\b(plata|dormid[oa]s?|guita)\b/i);
+    if (hard) { fail++; rotos.push({ origen: `${origen} [${r.route}]`, palabra: hard[0], gist: t.replace(/\s+/g, " ").slice(Math.max(0, hard.index - 40), hard.index + 40) }); }
+    else pass++;
+  } else check(`${origen} [${r.route || "-"}]`, t);
   for (const s of (r.suggestions || [])) check(`${origen} · sugerencia`, s);
 };
 

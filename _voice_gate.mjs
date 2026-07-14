@@ -62,8 +62,8 @@ const sodCases = [
     in: "Lanzá campañas de marketing en Instagram.",
     out: "Lanzá campañas de marketing en Instagram." },
   { n: "S4 · 'competencia' en oferta del narrador también cae",
-    in: "Falabella cede $1.6M por carga. Podríamos comparar tus precios contra la competencia del retail. La palanca está en la carga.",
-    out: "Falabella cede $1.6M por carga. La palanca está en la carga." },
+    in: "Falabella cede $1.6M por carga. Podríamos comparar tus precios contra la competencia del retail. La medida está en la carga.",
+    out: "Falabella cede $1.6M por carga. La medida está en la carga." },
 ];
 for (const c of sodCases) {
   const got = SOD(c.in);
@@ -111,7 +111,7 @@ pOk("P1 · EL VALOR PRIMERO (el $ de la palanca abre el consejo · registro ejec
 pOk("P2 · POSTURA (opinión de asesor, no catálogo)", /POSTURA/.test(NG) && /no un cat[aá]logo/.test(NG));
 pOk("P3 · CIERRE con UNA acción (sin moraleja genérica)", /CIERRE/.test(NG) && /moraleja gen[eé]rica/.test(NG));
 pOk("P4 · 'Cuánto vale:' listado como andamio prohibido (se narra, no se titula)", /'Cuánto vale:'/.test(NG));
-pOk("P5 · el impacto de la palanca es cifra obligatoria", /impacto en \$ de la palanca va SIEMPRE/.test(NG));
+pOk("P5 · el impacto de la medida es cifra obligatoria", /impacto en \$ de la medida va SIEMPRE/.test(NG));
 pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuniones, llamadas/.test(NG));
 pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de cifras)", /CAUSA/.test(NG) && /controller senior/.test(NG) && /causa→consecuencia→movida/.test(NG));
 pOk("P8 · NOMBRES sagrados (el garble 'Falcon' por 'Falabella', cazado en vivo)", /NOMBRES \(sagrados/.test(NG) && /'Falcon' por 'Falabella' NO/.test(NG));
@@ -121,9 +121,9 @@ pOk("P11 · GUÍA DE LECTURA (negritas ejecutivas sobre conceptos · 3-6 · owne
 pOk("P12 · DOS CAPAS (principios con libertad · invariantes duras — no pautear)", /PRINCIPIOS \(criterio, no guión\)/.test(NG) && /INVARIANTES \(no se negocian\)/.test(NG) && /libertad total de fraseo/.test(NG));
 
 pOk("P13 · REGISTRO EJECUTIVO (owner 2026-07-09: el usuario habla coloquial, ADI responde de directorio — capital, no plata · sin spanglish)", /REGISTRO EJECUTIVO/.test(NG) && /jam[aá]s slang ni spanglish/.test(NG));
-pOk("P13b · registro con PROHIBICIÓN explícita (owner 2026-07-14: 'nada de dormido, plata' — siempre como un ejecutivo)", /PROHIBIDO 'plata'/.test(NG) && /PROHIBIDO 'dormido'/.test(NG) && /capital detenido o inmovilizado/.test(NG));
+pOk("P13b · registro con PROHIBICIÓN explícita (owner 2026-07-14: 'nada de dormido, plata, palanca' — siempre como un ejecutivo)", /PROHIBIDO 'plata'/.test(NG) && /PROHIBIDO 'dormido'/.test(NG) && /capital detenido o inmovilizado/.test(NG) && /PROHIBIDO 'palanca'/.test(NG));
 pOk("P14 · ORDEN NUMERADO (owner 2026-07-09: 3+ entidades → una por punto · apertura y cierre en prosa)", /ORDEN NUMERADO/.test(NG) && /punto numerado/.test(NG) && /FUERA de la lista/.test(NG));
-pOk("P15 · CIERRE dentro del universo (owner 2026-07-09: jamás ofrecer data inexistente — campañas/marketing)", /universo DISPONIBLE/.test(NG) && /campañas, marketing, publicidad/.test(NG) && /convert[ií] hacia la palanca disponible/.test(NG));
+pOk("P15 · CIERRE dentro del universo (owner 2026-07-09: jamás ofrecer data inexistente — campañas/marketing)", /universo DISPONIBLE/.test(NG) && /campañas, marketing, publicidad/.test(NG) && /convert[ií] hacia el an[aá]lisis disponible/.test(NG));
 // el universo DISPONIBLE viaja en TODO prompt de narración (derivado del contrato · capabilities.js)
 const _sysGen = M2.buildNarrateSystem({ kind: "resumen" });
 const _sysSim = M2.buildNarrateSystem({ transform: { value: 3 } });

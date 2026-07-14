@@ -42,7 +42,7 @@ const rr2 = A(S({ operation: "recommend", dimension: "cliente", entity: "Mercado
 const td=rd.text||"", to=ro.text||"", tr=rr.text||"", tv=rv.text||"", tc=rc.text||"", tq=rq.text||"", tm=rm.text||"", tw=rw.text||"", twc=rwc.text||"", tr1=rr1.text||"";
 
 // diagnose (Fase 1)
-push("1 · diagnose · 6 slots ejecutivos", has(td,/Diagn[oó]stico|foco/i)&&has(td,/\$/)&&has(td,/Porqu[eé]/i)&&has(td,/Palanca/i)&&has(td,/Prioridad/i)&&has(td,/Pr[oó]ximo paso/i), td.slice(0,60));
+push("1 · diagnose · 6 slots ejecutivos", has(td,/Diagn[oó]stico|foco/i)&&has(td,/\$/)&&has(td,/Porqu[eé]/i)&&has(td,/Acci[oó]n:/i)&&has(td,/Prioridad/i)&&has(td,/Pr[oó]ximo paso/i), td.slice(0,60));
 push("2 · diagnose · gradúa (no inventa causa)", has(td,/necesita el detalle|no puedo cerrar la causa|la se[ñn]al apunta/i), "");
 push("3 · diagnose · number-safe", numSafe(rd), "");
 // overview inventario (Fase 2a)

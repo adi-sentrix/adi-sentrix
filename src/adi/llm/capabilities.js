@@ -13,7 +13,7 @@ import { METRICS } from "../../config/contract/metricRegistry.js";
 // análisis con foco propio — cada línea es un composer/focus REAL del producto (el gate de promesas prueba
 // las sugerencias que los emiten; nada de esta lista es aspiracional)
 const FOCOS = [
-  "palancas de margen y carga comercial (cuánto margen retiene y cómo se recupera)",
+  "margen y carga comercial (cuánto margen retiene cada cuenta y cómo se recupera)",
   "causa del margen: ¿cede por precio o por costo? · candidatos a subir precio",
   "descomposición del crecimiento: ¿volumen o precio?",
   "ventas vs año anterior y vs presupuesto (quién suma, quién resta) · clientes que redujeron su compra",

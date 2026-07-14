@@ -297,7 +297,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       // COMPUESTO · el pedido trae 2+ supuestos (el schema v1 lleva UN transform) → el LLM marca op:"multi".
       // Decisión de producto: NO proyectar parcial ni tomar uno en silencio · degradar honesto y sugerir separar.
       if (spec.transform.op === "multi" || spec.transform.compound === true) {
-        return _degrade("simulate-compound", "Puedo proyectar un supuesto a la vez sobre el dato real. Hoy simulo ventas, contribución o capital con un +/-X%. Tu pedido combina dos supuestos — separémoslo: probá primero el que ya está habilitado y el otro cuando esa palanca lo esté.", [], ctx);
+        return _degrade("simulate-compound", "Puedo proyectar un supuesto a la vez sobre el dato real. Hoy simulo ventas, contribución o capital con un +/-X%. Tu pedido combina dos supuestos — separémoslo: probá primero el que ya está habilitado y el otro cuando esté disponible.", [], ctx);
       }
       const sim = composeSpecSimulate({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters || {}, transform: spec.transform });
       if (sim && sim.opener) {
@@ -551,7 +551,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       const dim = spec.dimension, ent = spec.entity || (spec.filters && spec.filters[dim]);
       const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
       const resp = composeSpecDiagnose({ filters, scenario });
-      if (!resp || !resp.opener) return _degrade("recommend-empty", `No tengo una palanca accionable probada para recomendar${ent ? ` en ${ent}` : ""}. Para recomendar necesito un foco material con causa probada.`, [], ctx);
+      if (!resp || !resp.opener) return _degrade("recommend-empty", `No tengo una medida probada para recomendar${ent ? ` en ${ent}` : ""}. Para recomendar necesito un foco material con causa probada.`, [], ctx);
       return _finBoleta(composeContract("recommend_action", resp, resp.evidence, ctx, scenario), resp, "recommend_action", "recommend_action", ctx, scenario);
     }
   } catch (e) {

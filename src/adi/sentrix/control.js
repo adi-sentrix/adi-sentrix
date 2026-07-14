@@ -43,7 +43,7 @@ function _skuRing(focus) {
   const par = better.length ? better.slice().sort((a, b) => Math.abs(a.pctRebate - sku.pctRebate) - Math.abs(b.pctRebate - sku.pctRebate))[0] : null;
   const avgRow = { name: `Promedio ${fam.length >= 3 ? sku.sfamilia : "catálogo"}`, role: "avg", margen: _r1(avgM), costo: _r1(100 - avgM - avgCarga), contribucion: Math.round(avgContrib), gap: 0, note: null };
   const rows = [_rowSku(sku, "focus", avgM)];
-  if (par && par.nombre !== best.nombre) rows.push(_rowSku(par, "peer", avgM, "≈ misma carga, mejor margen → la palanca es el costo"));
+  if (par && par.nombre !== best.nombre) rows.push(_rowSku(par, "peer", avgM, "≈ misma carga, mejor margen → la diferencia está en el costo"));
   rows.push(avgRow);
   if (best.nombre !== sku.nombre) rows.push(_rowSku(best, "best", avgM, "mejor en clase · el objetivo"));
   const costoTechoK = Math.max(0, Math.round(((100 - sku.margen - sku.pctRebate) - (100 - avgM - avgCarga)) * sku.venta / 100));
@@ -86,7 +86,7 @@ function _marcaRing(focus) {
   const par = better.length ? better.slice().sort((a, b) => Math.abs(a.carga - c.carga) - Math.abs(b.carga - c.carga))[0] : null;
   const avgRow = { name: "Promedio marcas", role: "avg", margen: _r1(avgM), carga: _r1(avgCarga), contribucion: Math.round(avgContrib), gap: 0, note: null };
   const rows = [_rowMarca(c, "focus", avgM)];
-  if (par && par.name !== best.name) rows.push(_rowMarca(par, "peer", avgM, "≈ misma carga, mejor margen → la palanca es el costo"));
+  if (par && par.name !== best.name) rows.push(_rowMarca(par, "peer", avgM, "≈ misma carga, mejor margen → la diferencia está en el costo"));
   rows.push(avgRow);
   if (best.name !== c.name) rows.push(_rowMarca(best, "best", avgM, "mejor en clase · el objetivo"));
   const costoTechoK = Math.max(0, Math.round(((100 - c.margen - c.carga) - (100 - avgM - avgCarga)) * c.venta / 100));
@@ -133,8 +133,8 @@ function _clientRing(focus, scenario) {
   const lever = d ? d.dominant : "carga";
   const leverLabel = lever === "costo" ? "estructura de costo" : "carga comercial";
   const par = _instructiveParClient(c, all, lever);
-  const parNote = lever === "costo" ? "≈ misma carga, mejor margen → la palanca es el costo"
-                                    : "≈ mismo costo, mejor margen → la palanca es la carga";
+  const parNote = lever === "costo" ? "≈ misma carga, mejor margen → la diferencia está en el costo"
+                                    : "≈ mismo costo, mejor margen → la diferencia está en la carga";
   const avgContrib = all.reduce((a, x) => a + (x.contribucion || 0), 0) / all.length;
   const avgRow = { name: "Promedio interno", role: "avg", margen: _r1(avgM), carga: _r1(avgCarga), contribucion: Math.round(avgContrib), gap: 0, note: null };
   const rows = [_rowClient(c, "focus", avgM)];
@@ -195,7 +195,7 @@ function _bodegaRing(focus, scenario) {
 
   const avgRow = { name: "Promedio interno", role: "avg", capital: Math.round(avgCap), inmovilizado: Math.round(avgInmovCap), rotacion: _r1(avgRot), gap: 0, note: null };
   const rows = [_rowBodega(c, "focus", avgInmovPct)];
-  if (par && par.name !== best.name) rows.push(_rowBodega(par, "peer", avgInmovPct, "≈ mismo capital, menos inmovilizado → la palanca es rotar el stock lento"));
+  if (par && par.name !== best.name) rows.push(_rowBodega(par, "peer", avgInmovPct, "≈ mismo capital, menos inmovilizado → la diferencia está en rotar el stock lento"));
   rows.push(avgRow);
   if (best.name !== c.name) rows.push(_rowBodega(best, "best", avgInmovPct, "mejor en clase · el objetivo"));
 

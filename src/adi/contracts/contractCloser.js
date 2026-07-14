@@ -86,7 +86,7 @@ function _closeDiagnose(resp) {
   if (dets.has("carga"))   pal.push("la carga comercial es lo más accionable rápido: recuperás margen sin resignar venta");
   if (dets.has("capital")) pal.push("el capital detenido se libera revisando esos SKU sin rotar");
   if (dets.has("margen") && !dets.has("carga")) pal.push("el margen bajo benchmark pide mirar precio/costo o la carga por cliente");
-  const palanca = "**Palanca:** " + (pal.length ? pal.join("; ") + "." : "atacá primero el foco de mayor impacto.");
+  const palanca = "**Acción:** " + (pal.length ? pal.join("; ") + "." : "atacá primero el foco de mayor impacto.");
 
   // PRÓXIMO PASO: la guía que ya generó el productor (texto, sin cifras)
   const proximo = (resp.suggestions && resp.suggestions[0]) ? `**Próximo paso:** ${resp.suggestions[0]}.` : "**Próximo paso:** profundizá en el foco que más pesa.";
@@ -239,14 +239,14 @@ function _whyFromDive(resp) {
   let mech, certeza, palanca, tKind = null;
   if (mRot && typeof mRot.value === "number" && mRot.value < POLICY.rotacionMin) {
     mech = "stock que no rota → capital inmovilizado";
-    certeza = "**Certeza:** probado por el dato."; palanca = "**Palanca:** el capital se libera moviendo o liquidando ese stock."; tKind = "inv";
+    certeza = "**Certeza:** probado por el dato."; palanca = "**Acción:** el capital se libera moviendo o liquidando ese stock."; tKind = "inv";
   } else if (mDoh && typeof mDoh.value === "number" && mDoh.value > POLICY.dohMax) {
     mech = "cobertura alta → capital inmovilizado";
-    certeza = "**Certeza:** probado por el dato."; palanca = "**Palanca:** el capital se libera bajando el stock a su rotación real."; tKind = "inv";
+    certeza = "**Certeza:** probado por el dato."; palanca = "**Acción:** el capital se libera bajando el stock a su rotación real."; tKind = "inv";
   } else if (mMargen && typeof mMargen.value === "number" && mMargen.value < POLICY.benchmark) {
     mech = "margen bajo su benchmark de cartera";
     certeza = "**Certeza:** la señal apunta a margen bajo benchmark; la causa raíz (precio, costo o carga) queda abierta — para cerrarla necesito el detalle por SKU o canal.";
-    palanca = "**Palanca / siguiente cruce:** cruzá precio, costo y carga por SKU o canal."; tKind = "margen";
+    palanca = "**Acción / siguiente cruce:** cruzá precio, costo y carga por SKU o canal."; tKind = "margen";
   } else {
     mech = "sin una señal fuerte, no afirmo un mecanismo";
     certeza = "**Certeza:** con este dato no puedo afirmar causa; para cerrarla necesito el detalle por período o canal.";
@@ -276,7 +276,7 @@ function _whyFromDiagnose(resp) {
   const certeza = proven
     ? "**Certeza:** probado por el dato."
     : "**Certeza:** la señal apunta ahí; la causa raíz queda abierta — para cerrarla necesito el detalle por SKU o canal.";
-  const palanca = (resp.suggestions && resp.suggestions[0]) ? `**Palanca:** ${resp.suggestions[0]}.` : "**Palanca:** cruzá con carga/precio/costo para cerrar la causa.";
+  const palanca = (resp.suggestions && resp.suggestions[0]) ? `**Acción:** ${resp.suggestions[0]}.` : "**Acción:** cruzá con carga/precio/costo para cerrar la causa.";
   return _guardWrap(resp, [header, mecanismo, evidencia, certeza, palanca].join("\n\n"), "why_mechanism");
 }
 
@@ -298,7 +298,7 @@ function _closeRecommend(resp) {
   if (!actionable) {
     // sólo hay margen (causa raíz abierta) o nada probado → NO inventa una recomendación · recomienda diagnosticar
     const exec = [header,
-      "**Recomendación:** todavía no tengo una palanca accionable *probada* para recomendar una acción concreta.",
+      "**Recomendación:** todavía no tengo una medida *probada* para recomendar una acción concreta.",
       `**Fundamento:** el foco material es margen bajo benchmark, y su causa raíz (precio, costo o mezcla) el dato no la cierra:\n${focoLines.join("\n")}`,
       "**Trade-off / riesgo:** recomendar una acción sin la causa raíz sería inventar una solución que el dato no sostiene.",
       "**Primer paso:** un diagnóstico de causa raíz por SKU o canal — recién con eso hay una acción que recomendar.",

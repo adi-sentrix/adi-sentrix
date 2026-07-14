@@ -27,9 +27,9 @@ export const METRIC_DEFS = {
   // — gráficos (el "i" de cada gráfico) —
   "Evolución del negocio": "La película de las ventas mes a mes: este año, año anterior y presupuesto. Dato REAL. Pasá el cursor por la curva para ver cada mes.",
   "Concentración": "El principio 80/20: pocos elementos explican la mayor parte del total. El bloque azul es el que cruza el 80.0% · el % es el REAL del dato, no forzado.",
-  "La brecha en el tiempo": "Cómo se movió el margen y sus palancas (costo/carga) en el año. VISTA DE EJEMPLO: el hoy es real, la trayectoria es ilustrativa hasta que el ERP traiga el histórico.",
-  "La brecha descompuesta": "El gap de margen partido en sus dos palancas — estructura de costo vs carga comercial — para ver cuál pesa más. La cuenta cierra.",
-  "Comparación controlada": "Los dos clientes en cada métrica (margen/carga/costo) sobre una escala ajustada — la distancia entre los puntos es la diferencia REAL. Revela qué palanca los separa.",
+  "La brecha en el tiempo": "Cómo se movió el margen y sus componentes (costo/carga) en el año. VISTA DE EJEMPLO: el hoy es real, la trayectoria es ilustrativa hasta que el ERP traiga el histórico.",
+  "La brecha descompuesta": "El gap de margen partido en sus dos componentes — estructura de costo vs carga comercial — para ver cuál pesa más. La cuenta cierra.",
+  "Comparación controlada": "Los dos clientes en cada métrica (margen/carga/costo) sobre una escala ajustada — la distancia entre los puntos es la diferencia REAL. Revela qué componente los separa.",
 };
 
 export const defOf = (label) => METRIC_DEFS[label] || null;

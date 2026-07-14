@@ -618,7 +618,7 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
   const escala = num(ventas) ? (ventas.aVal >= ventas.bVal ? a : b) : null;
   const calidad = num(margen) ? (margen.aVal >= margen.bVal ? a : b) : null;
   const reading = (escala && calidad)
-    ? (escala === calidad ? `${escala} gana en escala y en calidad de margen — domina en ambos frentes.` : `${escala} gana escala (más volumen); ${calidad} captura mejor margen. Ahí está la palanca: escala vs. calidad.`)
+    ? (escala === calidad ? `${escala} gana en escala y en calidad de margen — domina en ambos frentes.` : `${escala} gana escala (más volumen); ${calidad} captura mejor margen. Ahí está la decisión: escala vs. calidad.`)
     : null;
   const cell = (val, side, pr) => { const w = winner(pr), on = w === side; return <span style={{ fontFamily:MONO, fontSize:13, fontVariantNumeric:"tabular-nums", color: w ? (on ? C.green : C.textMuted) : C.text, fontWeight: on ? 700 : 500 }}>{val}</span>; };
   const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
@@ -926,7 +926,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
   const nm = _named(evidence);   // espejo: lo que ADI nombró
   // B.3 · número PROTAGONISTA (unificación con ventas/inventario): el $ de la palanca ("cuánto vale") de la boleta —
   // misma fuente de verdad que el texto, cero recalculo. Sin palanca (huecos) → cae al conteo como antes.
-  const lever = ((evidence && evidence.boleta) || []).find((f) => f && /^Palanca · /.test(f.label));
+  const lever = ((evidence && evidence.boleta) || []).find((f) => f && /^Medida · /.test(f.label));
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -943,7 +943,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
         <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{p.title || "Margen"}</div><ScopeChip evidence={evidence}/></div>
           {lever
-            ? <div title={`${lever.label} — cuánto vale la palanca`} style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{lever.value}<span style={{ fontSize:10.5, color:C.textMuted, fontWeight:400 }}> · {p.belowCount}/{p.total} bajo benchmark</span></div>
+            ? <div title={`${lever.label} — cuánto vale la medida`} style={{ fontFamily:MONO, fontSize:16, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{lever.value}<span style={{ fontSize:10.5, color:C.textMuted, fontWeight:400 }}> · {p.belowCount}/{p.total} bajo benchmark</span></div>
             : <div style={{ fontFamily:MONO, fontSize:12, color:C.textMuted, whiteSpace:"nowrap" }}><Num color={C.text}>{p.belowCount}</Num>/{p.total} bajo benchmark</div>}
         </div>
       </div>
@@ -983,7 +983,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
             <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:9 }}>Gris = costo sobre el precio de lista · color = markup. Markup fino (bajo {p1(bench)}%) = el precio no cubre el margen objetivo.</div>
           </div>
         )}
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark.{lever ? " El monto del encabezado es cuánto vale la palanca (lo que ganás si la ejecutás)." : ""} {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark.{lever ? " El monto del encabezado es cuánto vale la medida (lo que ganás si la ejecutás)." : ""} {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real.</div>
       </div>
     </div>
   );
@@ -1605,7 +1605,7 @@ function ControlRing({ ring, rd }) {
       <div>
         <Eyebrow>ADI · elegí un camino</Eyebrow>
         <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.5, marginBottom:10 }}>
-          {ring.focus} {ring.framingVerb || "pierde por"} <span style={{ color:C.text, fontWeight:600 }}>{ring.leverLabel}</span>. Dos palancas, distinto esfuerzo:
+          {ring.focus} {ring.framingVerb || "pierde por"} <span style={{ color:C.text, fontWeight:600 }}>{ring.leverLabel}</span>. Dos caminos, distinto esfuerzo:
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
           {ring.entityType === "bodega" ? (
@@ -1620,7 +1620,7 @@ function ControlRing({ ring, rd }) {
                 <PathCard tag="Estructural" tagColor={C.amber}
                   title="Rotar / transferir el stock lento"
                   value={`hasta +${money(ring.estructuralK)}`}
-                  detail="todo el capital inmovilizado · mover lo lento a donde se vende o rebajar · la palanca dominante, más lenta"/>
+                  detail="todo el capital inmovilizado · mover lo lento a donde se vende o rebajar · la medida de fondo, más lenta"/>
               )}
             </>
           ) : (
@@ -1635,7 +1635,7 @@ function ControlRing({ ring, rd }) {
                 <PathCard tag="Estructural" tagColor={C.amber}
                   title={`Cerrar la brecha de ${ring.leverLabel}`}
                   value={`hasta +${money(ring.costoTechoK)}`}
-                  detail="si el costo llegara al promedio interno · la palanca dominante, la más difícil (proveedores · mix · volumen)"/>
+                  detail="si el costo llegara al promedio interno · la medida de fondo, la más difícil (proveedores · mix · volumen)"/>
               )}
             </>
           )}
@@ -1983,7 +1983,7 @@ function BrechaFilm({ film }) {
         </>)}
       </svg>
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
-        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; sumá <span style={{ color:C.teal }}>Costo</span> y <span style={{ color:C.lav }}>Carga</span> y vas a ver la palanca dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
+        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; sumá <span style={{ color:C.teal }}>Costo</span> y <span style={{ color:C.lav }}>Carga</span> y vas a ver el componente dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
       </div>
     </Card>
   );
@@ -2035,7 +2035,7 @@ function ComparacionChart({ a, b, scenario }) {
         })}
       </svg>
       <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
-        <span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>.
+        <span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — lo que los separa es la <span style={{ color:C.textSub }}>{lever}</span>.
       </div>
     </Card>
   );
@@ -2716,7 +2716,7 @@ function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenar
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginTop:8, paddingTop:9, borderTop:`1px solid ${C.border}` }}>
         <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, minWidth:0 }}>
           {lever
-            ? <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — la palanca que los separa es la <span style={{ color:C.textSub }}>{lever}</span>. Donde las líneas se cruzan, cambia quién gana.</>
+            ? <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — lo que los separa es la <span style={{ color:C.textSub }}>{lever}</span>. Donde las líneas se cruzan, cambia quién gana.</>
             : scoreA === scoreB
             ? <>Perfil parejo — <span style={{ color:colA, fontWeight:600 }}>{a}</span> y <span style={{ color:colB, fontWeight:600 }}>{b}</span> ganan las mismas estaciones. Donde las líneas se cruzan, cambia quién gana.</>
             : <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> domina el perfil ({Math.max(scoreA, scoreB)} de {n} estaciones). Donde las líneas se cruzan, cambia quién gana.</>}
