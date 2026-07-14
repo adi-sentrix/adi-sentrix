@@ -200,7 +200,7 @@ function _bodegaRing(focus, scenario) {
   if (best.name !== c.name) rows.push(_rowBodega(best, "best", avgInmovPct, "mejor en clase · el objetivo"));
 
   return {
-    entityType: "bodega", focus, lever: "rotación", leverLabel: "stock inmovilizado", framingVerb: "traba plata en",
+    entityType: "bodega", focus, lever: "rotación", leverLabel: "stock inmovilizado", framingVerb: "retiene capital en",
     columns: [
       { key: "capital",      label: "Capital",      fmt: "money", defKey: "Capital" },
       { key: "inmovilizado", label: "Inmovilizado", fmt: "money", defKey: "Inmovilizado" },

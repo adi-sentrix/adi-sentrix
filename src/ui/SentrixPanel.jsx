@@ -563,7 +563,7 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
           </div>
         </div>
         <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
-          <span style={{ color:C.textMuted }}>Diagnóstico · </span>dónde se te va o se te inmoviliza plata — los focos ordenados por impacto.
+          <span style={{ color:C.textMuted }}>Diagnóstico · </span>dónde se pierde margen o se inmoviliza capital — los focos ordenados por impacto.
         </div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:12 }}>
@@ -586,7 +586,7 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
               </div>
             </div>
           ))}
-          <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2, lineHeight:1.5 }}>Cada foco es plata que se te va (contribución no capturada, carga) o se te inmoviliza (capital). {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real de tu cartera.</div>
+          <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2, lineHeight:1.5 }}>Cada foco es margen que no se captura (contribución, carga) o capital que se inmoviliza (inventario). {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real de tu cartera.</div>
         </>)}
       </div>
     </div>
@@ -799,7 +799,7 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = 
         )}
         {(kind === "gap" || kind === "rank") && (
           <div>
-            <div style={{ ...head, marginBottom:11 }}>{kind === "gap" ? "Plata sobre la mesa, por cliente" : "Contribución, por cuenta"}</div>
+            <div style={{ ...head, marginBottom:11 }}>{kind === "gap" ? "Valor sobre la mesa, por cliente" : "Contribución, por cuenta"}</div>
             <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
               {rows.map((r, i) => { const named = nm(r.nombre); return (
                 <AskRow key={i} onAsk={onAsk} q={`¿De dónde saca ${r.nombre} su contribución?`} style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -1063,7 +1063,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
                   <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:cpColor, textTransform:"uppercase" }}>La otra punta · {cp.label}</span>
                 </div>
                 <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55 }}>
-                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(cp.usd)}</span> ({cp.pct}%) en {cp.count} SKU{cp.estado === "riesgo_quiebre" ? " que rotan rápido con poca cobertura — se van a cortar" : " que no rotan y atrapan la plata"}.
+                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(cp.usd)}</span> ({cp.pct}%) en {cp.count} SKU{cp.estado === "riesgo_quiebre" ? " que rotan rápido con poca cobertura — se van a cortar" : " que no rotan y retienen el capital"}.
                   {cp.familias && cp.familias.length ? <> Sobre todo en {cp.familias[0].nombre}.</> : null}
                 </div>
               </div>

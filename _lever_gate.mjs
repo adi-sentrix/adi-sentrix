@@ -80,9 +80,9 @@ ok("narración que omite el $ de la palanca NO pasa (mejor el piso, que la tiene
 console.log("\n── capa CAUSAL del compare · el motor lee, la capa explica (controller senior) ──");
 const cmp = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }, {}, {});
 ok("el compare trae POR QUÉ ocurre (causa de la brecha: costo vs carga)", /\*\*Por qué ocurre:\*\*/.test(cmp.text));
-ok("el compare trae DÓNDE ESTÁ TU PLATA (la no-capturada de cada uno)", /\*\*Dónde está tu plata:\*\*/.test(cmp.text) && /sobre la mesa/.test(cmp.text));
+ok("el compare trae DÓNDE ESTÁ EL VALOR (la no-capturada de cada uno)", /\*\*Dónde está el valor:\*\*/.test(cmp.text) && /sobre la mesa/.test(cmp.text));
 ok("el compare trae LA DECISIÓN (palanca + por cuál empezar)", /\*\*La decisión:\*\*/.test(cmp.text) && /Empezá por/.test(cmp.text));
-const cmpFal = figOf(cmp, /Plata en juego · Falabella/);
+const cmpFal = figOf(cmp, /Valor en juego · Falabella/);
 const diagFal = bol(diag).find((f) => /Contribución no capturada · Falabella/.test(f.label));
 ok("una verdad: la plata en juego de Falabella == el ítem del diagnose (mismo raw)", cmpFal && diagFal && cmpFal.raw === diagFal.raw);
 ok("las cifras causales son computed + formula auditable", cmpFal && cmpFal.source === "computed" && !!cmpFal.formula);
@@ -91,10 +91,10 @@ ok("el valor del punto por entidad está (palanca 1pp en ambos)", !!figOf(cmp, /
 console.log("\n── capa CAUSAL del DIVE (Profundiza en X) · la brecha en pp + la plata gated + la decisión ──");
 const dive = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "Falabella" }, {}, {});
 ok("el dive trae POR QUÉ está donde está (brecha en pp descompuesta)", /\*\*Por qué está donde está:\*\*/.test(dive.text) && /pp/.test(dive.text));
-ok("el dive trae DÓNDE está la plata + valor del punto", /\*\*Dónde está tu plata:\*\*/.test(dive.text) && /cada punto de margen vale/i.test(dive.text));
+ok("el dive trae DÓNDE está el valor + valor del punto", /\*\*Dónde está el valor:\*\*/.test(dive.text) && /cada punto de margen vale/i.test(dive.text));
 ok("el dive trae LA DECISIÓN (palanca dominante)", /\*\*La decisión:\*\*/.test(dive.text) && /palanca/i.test(dive.text));
-const divePlata = figOf(dive, /Plata en juego · Falabella/);
-ok("una verdad: la plata del dive == el ítem del diagnose (mismo raw)", divePlata && diagFal && divePlata.raw === diagFal.raw);
+const divePlata = figOf(dive, /Valor en juego · Falabella/);
+ok("una verdad: el valor en juego del dive == el ítem del diagnose (mismo raw)", divePlata && diagFal && divePlata.raw === diagFal.raw);
 ok("aritmética honesta: carga sobre target + precio/costo ≈ brecha (mismos pp)", (() => { const g = figOf(dive, /Causa · brecha al piso/), c = figOf(dive, /Causa · carga sobre target/), r = figOf(dive, /Causa · precio\/costo/); return g && r && Math.abs((c ? c.raw : 0) + r.raw - g.raw) < 0.15; })());
 const diveTop = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "La Polar" }, {}, {});
 ok("cuenta SOBRE el piso → historia de DEFENDER (no inventa pérdida)", /\*\*Por qué gana:\*\*/.test(diveTop.text) && /defiende|cuidala/i.test(diveTop.text));
@@ -115,7 +115,7 @@ ok("narración QUE SÍ lee el gráfico → sin duplicar el perfil; el año del p
 ok("narración que SÍ cuenta el año (mejor mes/acciones) → no se duplica el bloque del año", (() => { const p = M.pickNarratedText(cmpCross, narrCon + " El mejor mes de los dos llega en la temporada alta y las acciones de precios suben hacia el cierre."); return p.narrated && p.verdict === "fiel" && !/\*\*El año, mes a mes:\*\*/.test(p.text); })());
 ok("piso SIN historia del año (dive) → no se appendea nada", (() => { const p = M.pickNarratedText(dive, "A Falabella le faltan 8.1pp para tu piso de 30.1% — la palanca es la estructura de costo y cada punto vale plata."); return p.narrated && !/\*\*El año, mes a mes:\*\*/.test(p.text); })());
 ok("compare de MARCA también trae causa (estructura precio/costo del eje)", /\*\*Por qué ocurre:\*\*/.test(cmpMarca.text));
-ok("compare de MARCA honesto: plata por valor del punto (sin detector gated)", /\*\*Dónde está tu plata:\*\*/.test(cmpMarca.text) && /cada punto de margen vale/i.test(cmpMarca.text) && !/sobre la mesa/.test(cmpMarca.text.split("**Dónde está tu plata:**")[1].split("**")[0]));
+ok("compare de MARCA honesto: valor por punto (sin detector gated)", /\*\*Dónde está el valor:\*\*/.test(cmpMarca.text) && /cada punto de margen vale/i.test(cmpMarca.text) && !/sobre la mesa/.test(cmpMarca.text.split("**Dónde está el valor:**")[1].split("**")[0]));
 
 console.log("\n── gancho opcional del diagnóstico (fuera la muletilla · owner 2026-07-09) ──");
 const diagFull = A({ schemaVersion: 1, operation: "diagnose", metric: "contribucion", dimension: "cliente" }, {}, {});

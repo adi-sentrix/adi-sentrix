@@ -17,7 +17,7 @@ import { POLICY } from "../../config/businessPolicy.js";   // umbrales para LEER
 // GRADUACIÓN · porqué por detector: carga/capital = mecanismo PROBADO (condición del detector) → afirma ·
 // margen = brecha OBSERVADA pero causa raíz ABIERTA → lo dice honesto (no inventa el precio/costo/mezcla).
 const _PORQUE = {
-  carga:   "la carga comercial está sobre el target interno — es plata que no llega al margen.",
+  carga:   "la carga comercial está sobre el target interno — es valor que no llega al margen.",
   capital: "son SKU que dejaron de rotar; ahí queda el capital inmovilizado.",
   margen:  "el margen cede frente a su benchmark de cartera; la causa raíz (precio, costo o mezcla) necesita el detalle por SKU o canal.",
 };
@@ -84,7 +84,7 @@ function _closeDiagnose(resp) {
   const dets = new Set(F.map((f) => f.detector));
   const pal = [];
   if (dets.has("carga"))   pal.push("la carga comercial es lo más accionable rápido: recuperás margen sin resignar venta");
-  if (dets.has("capital")) pal.push("el capital dormido se libera revisando esos SKU sin rotar");
+  if (dets.has("capital")) pal.push("el capital detenido se libera revisando esos SKU sin rotar");
   if (dets.has("margen") && !dets.has("carga")) pal.push("el margen bajo benchmark pide mirar precio/costo o la carga por cliente");
   const palanca = "**Palanca:** " + (pal.length ? pal.join("; ") + "." : "atacá primero el foco de mayor impacto.");
 
@@ -118,19 +118,23 @@ function _closeOverviewCommercial(resp) {
   return _guardWrap(resp, `${lead}\n\n${resp.opener}`, "overview_domain");
 }
 
-// overview_domain INVENTARIO: lectura general → volumen → concentración → señal → siguiente cruce. SIN tendencia (el
-// inventario no trae período · honesto). Reusa header + lista VERBATIM + líder/cola (cifras del opener) · marco cualitativo.
+// overview_domain INVENTARIO: lectura general → volumen → concentración → señal → QUÉ HACER PRIMERO (sello: la señal
+// que merece atención + la acción con su $, no un cruce explorador). SIN tendencia (el inventario no trae período ·
+// honesto). Reusa header + lista VERBATIM + líder/cola (cifras del opener) · marco cualitativo.
 function _closeOverviewInventory(resp) {
   const R = _readRows(resp); if (!R) return resp;
   const concentracion = `**Concentración:** el grueso del ${R.metricLabel} está en ${R.leader.name} (${R.leader.fmt}); el más bajo es ${R.tail.name} (${R.tail.fmt}).`;
   const senal = R.lowerBetter
     ? `**Señal:** ${R.leader.name} es donde más se acumula — el punto a vigilar.`
     : `**Señal:** ${R.leader.name} es el más fuerte; ${R.tail.name} el que más lejos quedó.`;
-  const cruce = `**Siguiente cruce:** ¿querés ver qué lo explica dentro de ${R.leader.name}?`;
-  return _guardWrap(resp, [R.header, R.listLine, concentracion, senal, cruce].join("\n\n"), "overview_domain");
+  const accion = R.lowerBetter
+    ? `**Qué hacer primero:** abrí ${R.leader.name} — concentra ${R.leader.fmt} de ${R.metricLabel} y es donde más hay para destrabar. ¿Lo desglosamos?`
+    : `**Qué hacer primero:** abrí ${R.leader.name} — con ${R.leader.fmt} es el bloque que más pesa en ${R.metricLabel}; ahí está el movimiento más grande. ¿Lo desglosamos?`;
+  return _guardWrap(resp, [R.header, R.listLine, concentracion, senal, accion].join("\n\n"), "overview_domain");
 }
 
-// rank_business_entity: ranking → patrón → brecha/concentración → advertencia (polaridad) → siguiente cruce.
+// rank_business_entity: ranking → patrón → brecha/concentración → advertencia (polaridad) → QUÉ HACER PRIMERO
+// (sello: la señal que merece atención + la acción con su $, no un cruce explorador).
 function _closeRank(resp) {
   const R = _readRows(resp); if (!R) return resp;
   const patron = `**Patrón:** ${R.leader.name} (${R.leader.fmt}) está en la punta; ${R.tail.name} (${R.tail.fmt}) en la otra.`;
@@ -141,8 +145,10 @@ function _closeRank(resp) {
   const advertencia = R.lowerBetter
     ? `**Ojo:** en ${R.metricLabel} lo más bajo es lo mejor — el que encabeza es el que más pesa, no el que mejor está.`
     : `**Lectura:** cuanto más arriba, mejor en ${R.metricLabel}.`;
-  const cruce = `**Siguiente cruce:** ¿abrimos ${R.leader.name} para ver qué lo sostiene?`;
-  return _guardWrap(resp, [R.header, R.listLine, patron, brecha, advertencia, cruce].join("\n\n"), "rank_business_entity");
+  const accion = R.lowerBetter
+    ? `**Qué hacer primero:** la señal que merece atención es ${R.leader.name}: ${R.leader.fmt} de ${R.metricLabel}, lo que más pesa de la lista. Abrilo y vemos qué lo explica y cuánto se recupera. ¿Lo desgloso?`
+    : `**Qué hacer primero:** la señal está en ${R.leader.name}: con ${R.leader.fmt} es el bloque que sostiene el resultado — defenderlo o crecerlo es la primera jugada. ¿Lo abro en detalle?`;
+  return _guardWrap(resp, [R.header, R.listLine, patron, brecha, advertencia, accion].join("\n\n"), "rank_business_entity");
 }
 
 // dive_entity: perfil → tensión → mecanismo (graduado por umbral · probado/abierto) → impacto → siguiente análisis.
@@ -304,9 +310,9 @@ function _closeRecommend(resp) {
   const topEntity = actionable.items && actionable.items[0] ? actionable.items[0].entidad : null;
   const recomendacion = isCarga
     ? `**Recomendación:** llevá la carga comercial hacia el target interno${topEntity ? `, empezando por ${topEntity}` : ""}.`
-    : `**Recomendación:** liberá el capital dormido de los SKU que no rotan${topEntity ? ` (arrancá por ${topEntity})` : ""}.`;
+    : `**Recomendación:** liberá el capital detenido de los SKU que no rotan${topEntity ? ` (arrancá por ${topEntity})` : ""}.`;
   const fundamento = isCarga
-    ? "**Fundamento:** la carga está sobre el target interno — es plata que hoy no llega al margen (probado por el dato)."
+    ? "**Fundamento:** la carga está sobre el target interno — es valor que hoy no llega al margen (probado por el dato)."
     : "**Fundamento:** son SKU que dejaron de rotar; su capital queda inmovilizado (probado por el dato).";
   // impacto = el $ YA computado por el diagnose (líneas de foco VERBATIM · nada nuevo)
   const impacto = `**Impacto esperado:** lo que está en juego, por foco:\n${focoLines.join("\n")}`;

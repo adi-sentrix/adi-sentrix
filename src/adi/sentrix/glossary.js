@@ -8,7 +8,7 @@ export const METRIC_DEFS = {
   // — comercial / cliente —
   "Ventas": "El total facturado en el período (ventas netas).",
   "Margen": "Lo que queda de la venta después del costo y la carga comercial. Más alto = mejor.",
-  "Contribución": "La plata ($) que aporta la entidad después de costo y carga comercial.",
+  "Contribución": "El valor ($) que aporta la entidad después de costo y carga comercial.",
   "Carga comercial": "El % de la venta que se va en acciones comerciales (rebates, descuentos). Más alta = menos margen.",
   "Ticket prom.": "Venta promedio por unidad vendida.",
   "Costo unitario": "Lo que cuesta cada unidad, y su peso sobre la venta.",
@@ -16,8 +16,8 @@ export const METRIC_DEFS = {
   "vs benchmark": "Distancia del margen contra el benchmark de la industria.",
   "vs promedio": "La distancia del margen contra el promedio interno de tus clientes (en puntos porcentuales).",
   // — inventario / bodega —
-  "Capital": "La plata inmovilizada en stock (valor del inventario).",
-  "Inmovilizado": "El stock que no rota (en alerta o rotación < 2): plata atrapada.",
+  "Capital": "El valor del inventario: lo que tenés invertido en stock.",
+  "Inmovilizado": "El stock que no rota (en alerta o rotación < 2): capital detenido.",
   "Rotación": "Cuántas veces el stock se vende y se repone en el período. Más alta = mejor.",
   "DOH": "Días de cobertura: cuántos días dura el stock al ritmo de venta actual. Más alto = más lento.",
   "SKUs en alerta": "Cantidad de SKUs marcados crítico o de cuidado (lento o sin venta).",

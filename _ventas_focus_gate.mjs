@@ -17,7 +17,7 @@ const { detectVentasFocus: FV, detectInventoryFocus: FI, answerADIFromSpec: A } 
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
-const GENERIC = /3 focos donde se te va|Diagn[oó]stico · (base real|escenario)/;
+const GENERIC = /3 focos donde se pierde|Diagn[oó]stico · (base real|escenario)/;
 // coerce (replica el orden de la cadena: ventas primero; si cede, inventario)
 function coerce(q) {
   const v = FV(q);

@@ -15,18 +15,18 @@ const _nums = (s) => (String(s).match(/\$?\d[\d.,]*[%MK]?/g) || []).join("|");
 
 const cases = [
   // 1 · aperturas de plantilla
-  { n: "1 · 'He revisado tus datos y te cuento que'", in: "He revisado tus datos y te cuento que hay tres áreas donde se te va plata.", out: "Hay tres áreas donde se te va plata." },
+  { n: "1 · 'He revisado tus datos y te cuento que'", in: "He revisado tus datos y te cuento que hay tres áreas donde se pierde margen.", out: "Hay tres áreas donde se pierde margen." },
   { n: "2 · 'He revisado tus datos.' + frase", in: "He revisado tus datos. Primero, los $4.9M de contribución no capturada.", out: "Primero, los $4.9M de contribución no capturada." },
   { n: "3 · 'Las proyecciones indican que'", in: "Las proyecciones indican que un crecimiento del 3% llevaría el total a $103.0M.", out: "Un crecimiento del 3% llevaría el total a $103.0M." },
   { n: "4 · 'He analizado tus datos:'", in: "He analizado tus datos: Falabella cede margen.", out: "Falabella cede margen." },
   { n: "5 · 'Según los datos,'", in: "Según los datos, Lider deja 21.5% de margen.", out: "Lider deja 21.5% de margen." },
-  { n: "5b · 'He estado revisando… he encontrado algunos puntos donde' (embebido → frase válida)", in: "He estado revisando tus datos y he encontrado algunos puntos donde se te va plata: Falabella $1.6M.", out: "Algunos puntos donde se te va plata: Falabella $1.6M." },
+  { n: "5b · 'He estado revisando… he encontrado algunos puntos donde' (embebido → frase válida)", in: "He estado revisando tus datos y he encontrado algunos puntos donde se pierde margen: Falabella $1.6M.", out: "Algunos puntos donde se pierde margen: Falabella $1.6M." },
   { n: "5c · 'Tras revisar tus datos,'", in: "Tras revisar tus datos, hay tres focos de pérdida.", out: "Hay tres focos de pérdida." },
   { n: "5d · 'Estuve analizando la información y detecté que'", in: "Estuve analizando la información y detecté que Falabella cede $1.6M.", out: "Falabella cede $1.6M." },
   { n: "5e · flow3: 'Estuve revisando los números de X y hay…' (ancla en 'los números de')", in: "Estuve revisando los números de Falabella y hay un par de cosas que afectan tu margen. Primero, $1.6M en Falabella.", out: "Hay un par de cosas que afectan tu margen. Primero, $1.6M en Falabella." },
   { n: "5f · 'He estado analizando la situación y detecté que'", in: "He estado analizando la situación y detecté que Falabella pierde $1.6M.", out: "Falabella pierde $1.6M." },
-  { n: "5f2 · 'He estado revisando TUS números y hay…' (variante tus/mis/sus)", in: "He estado revisando tus números y hay tres áreas donde se te va plata. Primero, $4.9M.", out: "Hay tres áreas donde se te va plata. Primero, $4.9M." },
-  { n: "5f3 · 'Revisé tus cifras y encontré que'", in: "Revisé tus cifras y encontré que el capital dormido suma $33K.", out: "El capital dormido suma $33K." },
+  { n: "5f2 · 'He estado revisando TUS números y hay…' (variante tus/mis/sus)", in: "He estado revisando tus números y hay tres áreas donde se pierde margen. Primero, $4.9M.", out: "Hay tres áreas donde se pierde margen. Primero, $4.9M." },
+  { n: "5f3 · 'Revisé tus cifras y encontré que'", in: "Revisé tus cifras y encontré que el capital detenido suma $33K.", out: "El capital detenido suma $33K." },
   { n: "5g · 'Claramente, estos datos indican que' encadenado al inicio", in: "Claramente, estos datos indican que se debe actuar en Falabella.", out: "Se debe actuar en Falabella." },
   { n: "5h · 'Claramente,' + 'estos datos indican que' mid-texto", in: "Falabella pierde $1.6M. Claramente, estos datos indican que hay que actuar.", out: "Falabella pierde $1.6M. Hay que actuar." },
   // 2 · muletillas conectoras mid-texto
@@ -76,9 +76,9 @@ const leakCases = [
   { n: "L1 · leak de inglés 'if' (cazado en vivo) → 'si'",
     in: "¿Qué te parece if profundizamos en la estructura de costos de Falabella?",
     out: "¿Qué te parece si profundizamos en la estructura de costos de Falabella?" },
-  { n: "L2 · slang 'la pasta' (España, cazado en vivo) → 'la plata'",
+  { n: "L2 · slang 'la pasta' (España, cazado en vivo) → 'el capital' (registro ejecutivo · jamás 'plata')",
     in: "Esto es la pasta que no estás aprovechando de tus ventas.",
-    out: "Esto es la plata que no estás aprovechando de tus ventas." },
+    out: "Esto es el capital que no estás aprovechando de tus ventas." },
   { n: "L3 · 'deep dive' / 'insights' → español de directorio",
     in: "Hagamos un deep dive: los insights apuntan a la carga.",
     out: "Hagamos un análisis a fondo: los hallazgos apuntan a la carga." },
@@ -100,14 +100,14 @@ for (const c of leakCases) {
 }
 // ── JERARQUÍA DEL ASESOR en el prompt del narrador (Frente A.2): lockear las directivas clave contra regresiones ──
 const entry2 = path.join(root, "_vge2.js"), out2 = path.join(root, "_vgb2.mjs");
-fs.writeFileSync(entry2, 'export { NARRATE_GENERAL, buildNarrateSystem } from "./src/adi/llm/narratePrompt.js";\n');
+fs.writeFileSync(entry2, 'export { NARRATE_GENERAL, NARRATE_SELLO, NARRATE_RESUMEN_ARC, buildNarrateSystem } from "./src/adi/llm/narratePrompt.js";\n');
 await esbuild.build({ entryPoints: [entry2], bundle: true, outfile: out2, format: "esm", platform: "node", logLevel: "silent" });
 const M2 = await import(pathToFileURL(out2).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry2); } catch {} try { fs.unlinkSync(out2); } catch {}
 const NG = M2.NARRATE_GENERAL;
 const pOk = (n, c) => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fail++; console.log(`  ✗ ${n}`); } };
 console.log("\n── prompt del narrador · jerarquía del asesor ──");
-pOk("P1 · LA PLATA PRIMERO (el $ de la palanca abre el consejo)", /LA PLATA PRIMERO/.test(NG));
+pOk("P1 · EL VALOR PRIMERO (el $ de la palanca abre el consejo · registro ejecutivo 2026-07-14)", /EL VALOR PRIMERO/.test(NG));
 pOk("P2 · POSTURA (opinión de asesor, no catálogo)", /POSTURA/.test(NG) && /no un cat[aá]logo/.test(NG));
 pOk("P3 · CIERRE con UNA acción (sin moraleja genérica)", /CIERRE/.test(NG) && /moraleja gen[eé]rica/.test(NG));
 pOk("P4 · 'Cuánto vale:' listado como andamio prohibido (se narra, no se titula)", /'Cuánto vale:'/.test(NG));
@@ -116,11 +116,12 @@ pOk("P6 · sin reuniones/llamadas (asesor digital: analiza al instante)", /reuni
 pOk("P7 · CAUSA (controller senior: por qué ocurre → decisión, no lista de cifras)", /CAUSA/.test(NG) && /controller senior/.test(NG) && /causa→consecuencia→movida/.test(NG));
 pOk("P8 · NOMBRES sagrados (el garble 'Falcon' por 'Falabella', cazado en vivo)", /NOMBRES \(sagrados/.test(NG) && /'Falcon' por 'Falabella' NO/.test(NG));
 pOk("P9 · DIRECCIONES sagradas (inversión 'sobre'→'debajo' cazada en vivo)", /DIRECCIONES \(sagradas\)/.test(NG) && /NUNCA las inviertas/.test(NG));
-pOk("P10 · LA FORMA, NO EL DATO (regla del owner 2026-07-08: no recitar el panel · 3-5 cifras · cómo/dónde se gana y pierde)", /LA FORMA, NO EL DATO/.test(NG) && /NO recites lo que el panel ya enseña/.test(NG) && /SOLO las 3-5/.test(NG) && /C[OÓ]MO se gana la plata/.test(NG));
+pOk("P10 · LA FORMA, NO EL DATO (regla del owner 2026-07-08: no recitar el panel · 3-5 cifras · cómo/dónde se gana y pierde)", /LA FORMA, NO EL DATO/.test(NG) && /NO recites lo que el panel ya enseña/.test(NG) && /SOLO las 3-5/.test(NG) && /C[OÓ]MO se gana el margen/.test(NG));
 pOk("P11 · GUÍA DE LECTURA (negritas ejecutivas sobre conceptos · 3-6 · owner 2026-07-08)", /GUÍA DE LECTURA/.test(NG) && /\*\*negritas\*\*/.test(NG) && /3 a 6 por respuesta/.test(NG));
 pOk("P12 · DOS CAPAS (principios con libertad · invariantes duras — no pautear)", /PRINCIPIOS \(criterio, no guión\)/.test(NG) && /INVARIANTES \(no se negocian\)/.test(NG) && /libertad total de fraseo/.test(NG));
 
 pOk("P13 · REGISTRO EJECUTIVO (owner 2026-07-09: el usuario habla coloquial, ADI responde de directorio — capital, no plata · sin spanglish)", /REGISTRO EJECUTIVO/.test(NG) && /jam[aá]s slang ni spanglish/.test(NG));
+pOk("P13b · registro con PROHIBICIÓN explícita (owner 2026-07-14: 'nada de dormido, plata' — siempre como un ejecutivo)", /PROHIBIDO 'plata'/.test(NG) && /PROHIBIDO 'dormido'/.test(NG) && /capital detenido o inmovilizado/.test(NG));
 pOk("P14 · ORDEN NUMERADO (owner 2026-07-09: 3+ entidades → una por punto · apertura y cierre en prosa)", /ORDEN NUMERADO/.test(NG) && /punto numerado/.test(NG) && /FUERA de la lista/.test(NG));
 pOk("P15 · CIERRE dentro del universo (owner 2026-07-09: jamás ofrecer data inexistente — campañas/marketing)", /universo DISPONIBLE/.test(NG) && /campañas, marketing, publicidad/.test(NG) && /convert[ií] hacia la palanca disponible/.test(NG));
 // el universo DISPONIBLE viaja en TODO prompt de narración (derivado del contrato · capabilities.js)
@@ -128,6 +129,17 @@ const _sysGen = M2.buildNarrateSystem({ kind: "resumen" });
 const _sysSim = M2.buildNarrateSystem({ transform: { value: 3 } });
 pOk("P16 · buildNarrateSystem appendea DISPONIBLE (métricas del contrato + focos reales) en general y simulación",
   /DISPONIBLE — todo lo que ADI puede analizar/.test(_sysGen) && /Ventas por cliente/.test(_sysGen) && /Pareto 80\/20/.test(_sysGen) && /DISPONIBLE — todo lo que ADI puede analizar/.test(_sysSim));
+
+// ── EL SELLO (owner 2026-07-14, desde la landing): entender→explicar→actuar como arco UNIVERSAL, proporcional ──
+const SELLO = M2.NARRATE_SELLO;
+pOk("P17 · SELLO con los 3 movimientos del owner (qué está pasando · por qué pasa · qué hacer primero)",
+  /EL SELLO DE ADI/.test(SELLO) && /QUÉ ESTÁ PASANDO/.test(SELLO) && /POR QUÉ PASA/.test(SELLO) && /QUÉ HACER PRIMERO/.test(SELLO));
+pOk("P18 · SELLO graduado (PROBADO/INDICADO/ABIERTO — jamás inventar la causa) y PROPORCIONAL a la pregunta",
+  /PROBADO/.test(SELLO) && /INDICADO/.test(SELLO) && /ABIERTO/.test(SELLO) && /jamás la inventes/.test(SELLO) && /PROPORCIONAL A LA PREGUNTA/.test(SELLO) && /no un formulario/.test(SELLO));
+pOk("P19 · el SELLO viaja en TODA narración (general · simulación · explain · recommendation) SALVO el resumen (arco de 8 intacto)",
+  (() => { const gen = M2.buildNarrateSystem({}), sim = M2.buildNarrateSystem({ transform: {} }), exp = M2.buildNarrateSystem({ followup: true, kind: "explain" }),
+    rec = M2.buildNarrateSystem({ followup: true }), res = M2.buildNarrateSystem({ kind: "resumen_ejecutivo" });
+  return [gen, sim, exp, rec].every((s) => /EL SELLO DE ADI/.test(s)) && !/EL SELLO DE ADI/.test(res) && /ESTRUCTURA DEL RESUMEN EJECUTIVO/.test(res); })());
 
 console.log(`\n── _voice_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

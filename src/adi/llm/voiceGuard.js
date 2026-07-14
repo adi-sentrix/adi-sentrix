@@ -75,7 +75,7 @@ const _LEAKS = [
   [/\bif\b/gi, "si"], [/\band\b/gi, "y"], [/\bbut\b/gi, "pero"], [/\bwith\b/gi, "con"], [/\bfor\b/gi, "para"],
   [/\bdeep dive\b/gi, "análisis a fondo"], [/\bdive into\b/gi, "análisis a fondo de"],
   [/\binsights\b/gi, "hallazgos"], [/\binsight\b/gi, "hallazgo"],
-  [/\bla pasta\b(?!\s+de)/gi, "la plata"], [/\bguita\b/gi, "plata"],
+  [/\bla pasta\b(?!\s+de)/gi, "el capital"], [/\bguita\b/gi, "caja"],
 ];
 export function stripLanguageLeaks(text) {
   if (typeof text !== "string" || !text.trim()) return text;

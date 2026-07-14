@@ -64,7 +64,7 @@ export function composeExplain(last) {
   if (last.inventory && Array.isArray(last.inventory.bySku) && last.inventory.bySku.length) {
     const inv = last.inventory, _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
     const top = inv.bySku.slice(0, 2).map((s) => s.sku).join(" y ");
-    const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más frenados (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está frenado el capital, todavía no por qué dejó de venderse.`;
+    const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más detenidos (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está detenido el capital, todavía no por qué dejó de venderse.`;
     // boleta = total + capital POR SKU (money · para que el narrador pueda ser rico) · SIN DOH/rotación sueltas (evitan el
     // guard) · sin `inventory` pesado en la evidencia → la narración pasa el guard (NARRADO), no cae a tabla cruda.
     const bol = [fig("Capital inmovilizado · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital inmovilizado" })];
@@ -77,7 +77,7 @@ export function composeExplain(last) {
     const _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
     const f = last.findings[0], topE = (f.items && f.items[0] && f.items[0].entidad) || null;
     const mech = f.detector === "carga"
-      ? "la carga comercial está por encima del target interno — es plata que se va en condiciones/rebate y no llega al margen."
+      ? "la carga comercial está por encima del target interno — es valor que se va en condiciones/rebate y no llega al margen."
       : f.detector === "capital"
       ? "esos SKU dejaron de rotar (DOH alto, rotación baja): el stock no sale y ahí queda el capital atrapado."
       : `${topE ? topE + " y compañía ceden" : "el margen cede"} frente al benchmark de la cartera; la causa raíz —precio, costo o mezcla— hay que verla por SKU o canal.`;

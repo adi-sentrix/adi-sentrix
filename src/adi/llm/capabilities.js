@@ -19,7 +19,7 @@ const FOCOS = [
   "ventas vs año anterior y vs presupuesto (quién suma, quién resta) · clientes que redujeron su compra",
   "mix de ventas y participación por familia",
   "concentración de la contribución (Pareto 80/20 real) · contribución no capturada vs benchmark",
-  "inventario: capital frenado · riesgo de quiebre · sobrestock · SKU sin rotar · stock de los más vendidos",
+  "inventario: capital detenido · riesgo de quiebre · sobrestock · SKU sin rotar · stock de los más vendidos",
   "profundizar en una cuenta/SKU/marca/familia (perfil completo) · comparar dos entidades",
   "proyección con supuesto +/-X% sobre el dato real",
 ];

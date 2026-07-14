@@ -15,7 +15,7 @@ const { detectContribucionFocus: F, answerADIFromSpec: A } = M;
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
-const GENERIC = /3 focos donde se te va|Diagn[oó]stico · (base real|escenario)/;
+const GENERIC = /3 focos donde se pierde|Diagn[oó]stico · (base real|escenario)/;
 const answer = (q) => {
   const c = F(q);
   const spec = { schemaVersion: 1, scenario: "actual", operation: "contribucion", metric: "contribucion", dimension: c.dimension || "cliente", focus: c.focus, entity: c.entity };

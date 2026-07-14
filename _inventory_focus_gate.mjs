@@ -39,7 +39,7 @@ const rQ = ans(S({ operation: "inventory", metric: "capital", dimension: "famili
 ok("quiebre@familia NO degrada por eje ('no lo tengo por familia' ausente)", !/no lo tengo por/i.test(rQ));
 ok("quiebre → lede de reposición ('reposición' o 'se van a cortar')", /reposici[oó]n|se van a cortar|al l[íi]mite/i.test(rQ));
 ok("quiebre → nombra la familia del quiebre (Electrodomésticos)", /Electrodom/i.test(rQ));
-ok("quiebre → contrapunta menciona 'capital frenado'", /capital frenado/i.test(rQ));
+ok("quiebre → contrapunta menciona 'capital detenido'", /capital detenido/i.test(rQ));
 
 // sobrestock (exceso)
 const rS = ans(S({ operation: "inventory", metric: "capital", dimension: "bodega", focus: "sobrestock" }));

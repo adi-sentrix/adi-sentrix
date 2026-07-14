@@ -23,7 +23,7 @@ const answer = (q) => {
   const r = A(spec, {}, {});
   return { m, txt: (r && (r.text || r.opener)) || "" };
 };
-const GENERIC = /3 focos donde se te va|Diagn[oó]stico · (base real|escenario)/;   // el marcador de la trampa
+const GENERIC = /3 focos donde se pierde|Diagn[oó]stico · (base real|escenario)/;   // el marcador de la trampa
 
 // [pregunta, foco/gap esperado, [regex que DEBE contener]]
 const CASES = [

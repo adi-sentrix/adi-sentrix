@@ -210,7 +210,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   // ── #1 · operación soportada · el degrade habla en VOCABULARIO DE PRODUCTO (bug cazado por el owner 2026-07-07:
   //     el enum interno "overview, rank, compare…" se filtraba al usuario cuando el LLM emitía una operación inválida) ──
   if (!OPERATIONS.has(spec.operation))
-    return _degrade("unsupported-op", `Eso todavía no lo tengo como análisis directo. Lo que sí puedo: mirar tus ventas, margen, contribución o inventario · comparar dos cuentas · profundizar en una ("profundiza en…") · o diagnosticar dónde se te va la plata ("¿dónde estoy perdiendo dinero?").`, [], ctx);
+    return _degrade("unsupported-op", `Eso todavía no lo tengo como análisis directo. Lo que sí puedo: mirar tus ventas, margen, contribución o inventario · comparar dos cuentas · profundizar en una ("profundiza en…") · o diagnosticar dónde se pierde margen ("¿dónde estoy perdiendo dinero?").`, [], ctx);
 
   // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
   if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && (!spec.metric || !METRICS[spec.metric]))
@@ -472,8 +472,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         // SCOPE DECLARADO (invitado 2026-07-09: "stock inmovilizado en Concepción" respondía el GLOBAL en silencio):
         // con filtro de alcance, el vacío se responde SOBRE ESE ALCANCE — nunca se sustituye por el global sin avisar.
         const _sc = spec.filters && (spec.filters.bodega || spec.filters.familia || spec.filters.marca || spec.filters.cliente);
-        if (_sc) return _degrade("inventory-empty", `En ${_sc} no veo ${({ quiebre: "riesgo de quiebre material", sobrestock: "sobrestock material", stale: "SKU parados por ese plazo" })[spec.focus] || "capital frenado según tu vara (rotación bajo 2x o más de 120 días)"} — lo que hay ahí se está moviendo dentro de rango. ¿Te muestro el estado completo de ese alcance?`, [], ctx);
-        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital dormido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
+        if (_sc) return _degrade("inventory-empty", `En ${_sc} no veo ${({ quiebre: "riesgo de quiebre material", sobrestock: "sobrestock material", stale: "SKU parados por ese plazo" })[spec.focus] || "capital detenido según tu vara (rotación bajo 2x o más de 120 días)"} — lo que hay ahí se está moviendo dentro de rango. ¿Te muestro el estado completo de ese alcance?`, [], ctx);
+        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital detenido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
       }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory", dimension: resp.evidence.dimension };

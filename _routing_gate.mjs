@@ -13,7 +13,7 @@ const { coerceSpec: C, answerADIFromSpec: A, answerConversational: AC, composeMe
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
-const GENERIC = /3 focos donde se te va|Diagn[oó]stico · (base real|escenario)/;
+const GENERIC = /3 focos donde se pierde|Diagn[oó]stico · (base real|escenario)/;
 const base = (q) => { const cmp = /\b(compar|versus|vs\.?)\b|\bcontra\s/i.test(q); return { schemaVersion: 1, operation: cmp ? "compare" : "overview", metric: "ventas", dimension: "cliente", ...(cmp ? { comparison: { entities: ["Lider"] } } : {}) }; };
 // [pregunta coloquial, dominioEsperado, focoEsperado(o null=cualquiera dentro del dominio)]
 const CASES = [

@@ -77,7 +77,7 @@ push("24 · why book-wide REUSA el mecanismo determinístico (route cross_domain
 push("25 · why sin entidad → bloqueo honesto (no fabrica · closer no lo envuelve)", /^spec_blocked/.test(rwn.route||"")&&!wrapped(rwn), `route=${rwn.route}`);
 // recommend_action (Fase 3b · el de mayor riesgo)
 push("26 · recommend · ejecutivo (recomendación + fundamento probado + trade-off)", has(tr1,/Recomendaci[oó]n/i)&&has(tr1,/probado por el dato/i)&&has(tr1,/Trade-off/i)&&!isPelado(tr1), tr1.slice(0,60));
-push("27 · recommend · recomienda palanca PROBADA (carga), no una solución de margen inventada", has(tr1,/carga comercial hacia el target|capital dormido/i)&&!has(tr1,/sub[íi] el margen|baj[áa] el costo/i), tr1.slice(0,60));
+push("27 · recommend · recomienda palanca PROBADA (carga), no una solución de margen inventada", has(tr1,/carga comercial hacia el target|capital detenido/i)&&!has(tr1,/sub[íi] el margen|baj[áa] el costo/i), tr1.slice(0,60));
 push("28 · recommend · trade-off nombra el riesgo que el dato NO predice", has(tr1,/no predice|no dice a qué precio/i), "");
 push("29 · recommend · number-safe", numSafe(rr1), "");
 push("30 · recommend · sin foco material → bloqueo honesto (no inventa solución)", /^spec_blocked/.test(rr2.route||"")&&!wrapped(rr2), `route=${rr2.route}`);

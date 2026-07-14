@@ -97,7 +97,7 @@ const LAST_INV = { inventory: { total: 33200, byBodega: [{ bodega: "Valparaíso"
 ok("31 · D · explain sobre foco INVENTARIO → explica CAPITAL (rotación/DOH · góndola), NO margen · route followup_explain · boleta self-consistente",
   (() => { const r = AC(S({ turn_type: "followup_explain" }), { lastEvidence: LAST_INV }, {}); return r.route === "followup_explain" && /rotaci|DOH|dejaron de rotar|sin salida|g[oó]ndola|capital/i.test(r.text) && !/contribuci[oó]n no capturada|carga comercial/i.test(r.text) && guardAgainstBoleta(r.text, r.evidence.boleta).ok; })());
 
-const LAST_DIAG_EV = { findings: [{ detector: "margen", titulo: "Contribución no capturada", subtotal_usd: 4900000, items: [{ entidad: "Falabella", usd: 1600000 }] }, { detector: "capital", titulo: "Capital dormido", subtotal_usd: 33200, items: [{ entidad: "LG-DRYER8KG", usd: 13600 }] }] };
+const LAST_DIAG_EV = { findings: [{ detector: "margen", titulo: "Contribución no capturada", subtotal_usd: 4900000, items: [{ entidad: "Falabella", usd: 1600000 }] }, { detector: "capital", titulo: "Capital detenido", subtotal_usd: 33200, items: [{ entidad: "LG-DRYER8KG", usd: 13600 }] }] };
 ok("32 · D · explain tras DIAGNÓSTICO → explica el FOCO TOP (contribución/Falabella/benchmark), NO relleno genérico · boleta self-consistente",
   (() => { const r = AC(S({ turn_type: "followup_explain" }), { lastEvidence: LAST_DIAG_EV }, {}); return r.route === "followup_explain" && /contribuci[oó]n no capturada|benchmark|Falabella/i.test(r.text) && !/lectura directa del dato real/i.test(r.text) && guardAgainstBoleta(r.text, r.evidence.boleta).ok; })());
 
