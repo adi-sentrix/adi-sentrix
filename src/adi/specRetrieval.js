@@ -287,7 +287,9 @@ function _diagFoco(detector, titulo, items) {
 }
 
 // composeSpecDiagnose({filters, scenario}) → focos rankeados por $ (contribución/carga/capital) | null (nada material)
-export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
+export function composeSpecDiagnose({ filters = {}, scenario, focus } = {}) {
+  // RESUMEN EJECUTIVO (owner 2026-07-10): "no es un ranking — es la lectura completa" → su propio composer (5 movimientos)
+  if (focus === "resumen_ejecutivo") return composeSpecResumenEjecutivo({ scenario });
   const focos = [..._diagComercial(filters, scenario), ..._diagCapital(filters, scenario)];
   if (!focos.length) return null;                                             // sin focos materiales → el seam degrada honesto
   focos.sort((a, b) => b.subtotal - a.subtotal);
@@ -339,6 +341,82 @@ export function composeSpecDiagnose({ filters = {}, scenario } = {}) {
     evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", boleta: bol,
       findings: focos.map((f) => ({ detector: f.detector, titulo: f.titulo, subtotal_usd: f.subtotal,
         items: f.items.map((it) => ({ entidad: it.entidad, usd: it.usd, ...(it.bodega ? { bodega: it.bodega } : {}), ...(it.critico ? { critico: true } : {}) })) })) },
+  };
+}
+
+/* ── composeSpecResumenEjecutivo · EL RESUMEN EJECUTIVO (definición del owner 2026-07-10) ────────────────────
+ * "No es un ranking: es una lectura completa de desempeño, margen, pérdidas, causas y recuperación." CINCO
+ * movimientos — (1) cómo estamos ganando · (2) cómo se comporta el margen · (3) dónde perdemos · (4) por qué ·
+ * (5) cómo recuperamos — TODO reusado (KPIs de cartera · concentración del MOTOR · focos del diagnose): una
+ * verdad, cero cálculo nuevo. El narrador recibe kind "resumen_ejecutivo" + el arco como directiva (formato
+ * madre: "Estamos ganando por X, pero el margen se comporta así. Perdemos en Y por Z. La primera acción es A,
+ * con impacto B."). El det floor ya cuenta esa historia con etiquetas de negocio. */
+export function composeSpecResumenEjecutivo({ scenario } = {}) {
+  const cv = _load("clientesVentas", scenario), cm = _load("clientesMargen", scenario);
+  if (!cv.length || !cm.length) return null;
+  const _s = (a, f) => a.reduce((s, r) => s + (typeof r[f] === "number" ? r[f] : 0), 0);
+  const ventasK = _s(cv, "actual"), antK = _s(cv, "anterior"), ventaBaseK = _s(cm, "venta"), contribK = _s(cm, "contribucion");
+  const margenProm = ventaBaseK ? +((contribK / ventaBaseK) * 100).toFixed(1) : 0;
+  const varPct = antK ? +(((ventasK - antK) / antK) * 100).toFixed(1) : null;
+  const bench = benchmarkOf(null);
+  // (1) quién sostiene: concentración del MOTOR (80/20 real) + top contribución
+  const conV = concentracion(cv.map((r) => ({ nombre: r.nombre, valor: Number(r.actual) || 0 })), 0.8);
+  const topC = cm.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 3);
+  // (2) el margen de la cartera: los grandes y su margen · cuántos bajo la vara · dónde vive el margen sano
+  const grandes = cm.slice().sort((a, b) => b.venta - a.venta).slice(0, 3);
+  const bajoVara = cm.filter((r) => r.margen < (typeof r.benchmark === "number" ? r.benchmark : bench));
+  const sanos = cm.slice().sort((a, b) => b.margen - a.margen).slice(0, 2);
+  // (3)(4)(5) las fugas, sus causas y la palanca: los focos del diagnose (una verdad)
+  const diag = composeSpecDiagnose({ filters: {}, scenario });
+  const F = (diag && diag.evidence && diag.evidence.findings) || [];
+  const by = (d) => F.find((x) => x.detector === d);
+  const mg = by("margen"), cg = by("carga"), cap = by("capital");
+  const cgTopRow = cg && cg.items[0] ? cm.find((r) => r.nombre === cg.items[0].entidad) : null;
+
+  const b1 = `**Cómo estamos ganando:** vendiste ${_money(ventasK * 1000)}${varPct != null ? ` (${varPct >= 0 ? "+" : ""}${varPct}% vs el año anterior)` : ""}, con ${_money(contribK * 1000)} de contribución y margen promedio ${margenProm}%. La venta la sostienen ${conV.cantidadEntidades} de ${cv.length} clientes (${conV.totalCubiertoPct}%); la contribución la lideran ${topC.map((r) => `${r.nombre} (${_money(r.contribucion * 1000)})`).join(", ")}.`;
+  const b2 = `**Cómo se comporta el margen:** el promedio (${margenProm}%) ${margenProm < bench ? "corre bajo" : "está sobre"} tu piso (${bench}%). Los que más venden dejan menos: ${grandes.map((r) => `${r.nombre} ${r.margen}%`).join(", ")} — ${bajoVara.length} de ${cm.length} clientes están bajo la vara. El margen sano vive en ${sanos.map((r) => `${r.nombre} (${r.margen}%)`).join(" y ")}.`;
+  const fugas = [];
+  if (mg) fugas.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (top: ${mg.items.slice(0, 3).map((i) => `${i.entidad} ${_money(i.usd)}`).join(", ")})`);
+  if (cg) fugas.push(`${_money(cg.subtotal_usd)} de carga comercial sobre el target`);
+  if (cap) fugas.push(`${_money(cap.subtotal_usd)} de capital dormido en ${cap.items.length} SKU`);
+  const b3 = fugas.length
+    ? `**Dónde estamos perdiendo:** ${fugas.join(" · ")}.`
+    : `**Dónde estamos perdiendo:** sin fugas materiales en este corte — todo sobre benchmark y con el capital rotando.`;
+  const causas = [];
+  if (mg) causas.push("la contribución se escapa porque los grandes venden bajo el piso (precio/mix, no un costo puntual)");
+  if (cg) causas.push(`la carga corre sobre el target de ${POLICY.targetCarga}% (rebates y descuentos${cgTopRow ? ` — ${cgTopRow.nombre} carga ${cgTopRow.pctRebate}%` : ""})`);
+  if (cap) causas.push("el capital está detenido en SKU que no rotan");
+  const b4 = causas.length ? `**Por qué está pasando:** ${causas.join("; ")}.` : "";
+  const f1 = F[0], f2 = F[1];
+  let b5 = "";
+  if (f1) {
+    const acc = f1.detector === "carga"
+      ? `renegociar la carga${f1.items[0] ? ` empezando por ${f1.items[0].entidad} (${_money(f1.items[0].usd)})` : ""} — recuperás margen sin resignar venta`
+      : f1.detector === "margen"
+        ? `revisar precio y mix de ${f1.items[0] ? f1.items[0].entidad : "los grandes"}${f1.items[0] ? ` (${_money(f1.items[0].usd)} en juego)` : ""}`
+        : "liberar los SKU sin rotar (liquidación puntual)";
+    b5 = `**Cómo recuperamos:** primero ${acc}, con ${_money(f1.subtotal_usd)} sobre la mesa${f2 ? `; después revisá ${f2.titulo.toLowerCase()} (${_money(f2.subtotal_usd)})` : ""}.`;
+  }
+  const opener = [b1, b2, b3, b4, b5].filter(Boolean).join("\n\n");
+  // BOLETA rica: el núcleo obligatorio (KPIs + subtotales de foco vía la boleta del diagnose) + el resto autorizado
+  const bol = [
+    fig("Ventas del período", _money(ventasK * 1000), { unit: "money", raw: ventasK * 1000, mandatory: true, context: "resumen ejecutivo" }),
+    fig("Contribución", _money(contribK * 1000), { unit: "money", raw: contribK * 1000, mandatory: true, context: "resumen ejecutivo" }),
+    fig("Margen promedio", `${margenProm}%`, { unit: "pct", raw: margenProm, mandatory: true, context: "resumen ejecutivo" }),
+    fig("Piso de margen", `${bench}%`, { unit: "pct", raw: bench, mandatory: false, context: "la vara" }),
+    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la vara" }),
+  ];
+  if (varPct != null) bol.push(fig("Ventas vs año anterior", `${varPct >= 0 ? "+" : ""}${varPct}%`, { unit: "pct", raw: varPct, mandatory: false, context: "resumen ejecutivo" }));
+  for (const r of topC) bol.push(fig(`Contribución · ${r.nombre}`, _money(r.contribucion * 1000), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: "quién sostiene" }));
+  for (const r of grandes) bol.push(fig(`Margen · ${r.nombre}`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "los grandes" }));
+  for (const r of sanos) bol.push(fig(`Margen · ${r.nombre}`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "margen sano" }));
+  if (cgTopRow) bol.push(fig(`Carga · ${cgTopRow.nombre}`, `${cgTopRow.pctRebate}%`, { unit: "pct", raw: cgTopRow.pctRebate, mandatory: false, context: "causa de carga" }));
+  if (diag && diag.evidence && Array.isArray(diag.evidence.boleta)) bol.push(...diag.evidence.boleta);
+  return {
+    opener,
+    suggestions: (diag && diag.suggestions) || null,
+    sentrixAction: null,
+    evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", kind: "resumen_ejecutivo", boleta: bol, findings: F },
   };
 }
 

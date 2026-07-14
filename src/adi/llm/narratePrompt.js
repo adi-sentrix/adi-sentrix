@@ -29,11 +29,17 @@ export const NARRATE_EXPLAIN = "Reformulá esta explicación (el porqué de una 
 import { buildDisponibleMenu } from "./capabilities.js";
 const DISPONIBLE = " DISPONIBLE — todo lo que ADI puede analizar (tu ÚNICO universo de ofertas y próximos pasos): " + buildDisponibleMenu();
 
+// RESUMEN EJECUTIVO · el ARCO del owner (2026-07-10: "es solo darle una estructura — no es un ranking, es una
+// lectura completa de desempeño, margen, pérdidas, causas y recuperación"). El det floor ya trae los 5 bloques;
+// el narrador los teje en prosa ejecutiva SIN los rótulos.
+export const NARRATE_RESUMEN_ARC = " ESTRUCTURA DEL RESUMEN EJECUTIVO (definición del dueño — seguí este arco en CINCO movimientos, prosa fluida, sin títulos ni rótulos): (1) CÓMO ESTAMOS GANANDO — ventas, contribución, margen general y quién sostiene el resultado; (2) CÓMO SE COMPORTA EL MARGEN DE LA CARTERA — quién vende mucho y deja poco, dónde vive el margen sano, cuántos bajo la vara; (3) DÓNDE ESTAMOS PERDIENDO — las fugas con su $; (4) POR QUÉ ESTÁ PASANDO — la causa probable (carga/rebates, precio-mix, capital detenido), no solo el síntoma; (5) CÓMO RECUPERAMOS — la primera acción con su impacto en $ y qué revisar después. Formato madre: 'Estamos ganando por X, pero el margen se está comportando así. Perdemos en Y por Z razón. La primera acción para recuperar es A, con impacto estimado B.'";
+
 // buildNarrateSystem(evidence) → el system prompt correcto por TIPO de respuesta.
 //   explain → explicación simple · meta/compare_pending → fiel (factual, no distorsionar) · recommendation → decisión ·
 //   simulación → 4 bloques · resto → general. TODOS llevan el universo DISPONIBLE al final.
 export function buildNarrateSystem(evidence) {
   const kind = evidence && evidence.kind;
+  if (kind === "resumen_ejecutivo") return NARRATE_GENERAL + NARRATE_RESUMEN_ARC + DISPONIBLE;
   if (kind === "explain") return NARRATE_EXPLAIN + DISPONIBLE;
   if (kind === "meta" || kind === "compare_pending") return NARRATE_GENERAL + DISPONIBLE;
   if (evidence && evidence.followup) return NARRATE_RECOMMENDATION + DISPONIBLE;

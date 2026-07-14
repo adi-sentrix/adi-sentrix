@@ -281,7 +281,7 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // + "resumen ejecutivo" pelado y "resumen/panorama" a secas (owner probó 2026-07-10: "hazme un resumen ejecutivo"
   //   caía en un ranking de ventas narrado — el detector exigía "del negocio").
   if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|(resumen|panorama)\s+ejecutiv[oa]\b|^\s*¿?\s*(hazme\s+|dame\s+|hac[eé]me\s+|quiero\s+)?(un\s+)?(resumen|panorama)\s*[?.!]*\s*$|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio|^\s*¿?\s*c[oó]mo\s+(vengo|venimos|vamos|voy|andamos|ando)\s*\??\s*$/i.test(q))
-    return _cleanFilters({ ...spec, operation: "diagnose", metric: spec.metric || "contribucion", dimension: "cliente", turn_type: "new_query" });
+    return _cleanFilters({ ...spec, operation: "diagnose", focus: "resumen_ejecutivo", metric: spec.metric || "contribucion", dimension: "cliente", turn_type: "new_query" });
   // ENTIDAD-PRONOMBRE (sweep 2026-07-09): el LLM #1 a veces "resuelve" un pronombre como entidad ("tú"/"mi"/"eso")
   // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.
   if (spec && typeof spec.entity === "string" && /^(t[uú]|yo|vos|usted|mi|m[ií]o|nuestro|ese|esa|eso|este|esta|esto|[eé]l|ella)$/i.test(spec.entity.trim()))

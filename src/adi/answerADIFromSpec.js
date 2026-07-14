@@ -452,7 +452,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
 
     if (spec.operation === "diagnose") {
       // barrido data-driven de focos de pérdida/inmovilización (contribución/carga/capital) · el `filters` lo acota
-      const resp = composeSpecDiagnose({ filters: spec.filters, scenario });
+      // · focus "resumen_ejecutivo" (owner 2026-07-10): la LECTURA COMPLETA en 5 movimientos, no solo las fugas
+      const resp = composeSpecDiagnose({ filters: spec.filters, scenario, focus: spec.focus });
       if (!resp || !resp.opener) {
         const sc = [spec.filters && spec.filters.marca, spec.filters && spec.filters.familia, spec.filters && spec.filters.bodega, spec.filters && spec.filters.cliente].filter(Boolean).join("/");
         return _degrade("diagnose-empty", `No encontré fugas materiales${sc ? ` en ${sc}` : ""} en este escenario. Todo lo que veo está sobre su benchmark y con el capital rotando.`, [], ctx);
