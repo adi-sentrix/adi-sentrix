@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
-import { answerConversational, buildConversationContext, extractOffer } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto + la oferta de cierre (el "sí" la ejecuta)
+import { answerConversational, buildConversationContext, updateMemoria } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto + LA BOLETA DE MEMORIA (el "sí"/"compáralo"/"muéstrame más" la consumen)
 import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   // Paso 5 · number-guard + política de narración (degrades honestos van crudos)
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
@@ -54,13 +54,12 @@ function _turnFromResult(q, r, context, source) {
     },
     // CONTINUIDAD · threadeá la última evidencia ACCIONABLE. Los narrativos (recommendation/explain/meta · `followup:true`)
     // NO la reemplazan → "por qué?" / "y si fuera 5%?" siguen refiriendo a la simulación, no a la recomendación. (Cond. 3 del owner.)
-    // + LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): la pregunta final del texto que el
-    // usuario VIO (narrado o det) y las sugerencias del turno viajan en el contexto — el "sí" las ejecuta (composeAccept).
-    // Cada turno de ADI las REEMPLAZA (el "sí" siempre refiere al último cierre); las clarificaciones no dejan oferta.
+    // + LA BOLETA DE MEMORIA (owner 2026-07-15 · "una boleta chica y bien hecha con lo que importa para decidir el
+    // siguiente paso"): entidad en foco (persiste) + oferta de cierre del texto que el usuario VIO + próxima acción +
+    // tema — updateMemoria (una verdad, pura) la arma por turno; el "sí"/"dale"/"compáralo"/"muéstrame más" la consumen.
     context: { ...(r.context || context || {}),
       lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null),
-      lastOffer: (!deferred && r.text && !/clarification|no_context/.test(String(r.route || ""))) ? extractOffer(_sanitizeScenario(r.text)) : null,
-      lastSuggestions: (r.suggestions && r.suggestions.length) ? r.suggestions.slice(0, 3) : null },
+      memoria: updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) }) },
   };
 }
 
@@ -68,9 +67,14 @@ function _turnFromResult(q, r, context, source) {
 // "Ver todo el inventario" clickeado en la Mesa caía al smart-guide genérico y "se pierde la experiencia": las
 // preguntas que la propia UI emite son promesas y deben responder en TODOS los modos). Si ningún detector
 // reclama el texto, answerADI como siempre (texto libre byte-exacto — el techo acordado del demo no se mueve).
+// hay HILO si hay evidencia accionable O una boleta de memoria con contenido (oferta/próxima acción/entidad) —
+// el "sí"/"dale" tras un turno narrativo largo también debe reclamar (review adversarial 2026-07-15).
+const _hasThread = (context) => !!(context && (context.lastEvidence
+  || (context.memoria && (context.memoria.oferta || context.memoria.proximaAccion || (context.memoria.entidad && context.memoria.entidad.nombre)))));
+
 export function buildAdiTurn(question, context, scenario) {
   const q = (question || "").trim();
-  const cs = coerceFloor(q, !!(context && context.lastEvidence), getUISignals());
+  const cs = coerceFloor(q, _hasThread(context), getUISignals());
   const r = cs ? answerConversational(cs, context || {}, { scenario }) : answerADI(q, context || {}, { scenario });
   return _turnFromResult(q, r, context, "demo");
 }
@@ -137,17 +141,16 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   let r, narrated = false;
   // ── PRECEDENCIA (V1 · owner): CONVERSACIONAL → REGEX (fallback) → UN-TURNO. El regex NO se elimina hasta probar el conversacional.
   const ui = getUISignals();   // memoria UI (owner 2026-07-08) · lo que el usuario está haciendo en la Mesa/paneles
-  const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence, ui);   // contexto chico para el LLM #1
+  const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence, ui, context && context.memoria);   // contexto chico para el LLM #1 (+ la boleta de memoria)
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto (incl. señales de UI) → clasifica turn_type
-    const _hasLast = !!(context && context.lastEvidence);
-    r = answerConversational(coerceSpec(q, spec, _hasLast, ui), context || {}, { scenario }); // cadena de coerce (UI→criteria→sí→compare→dominios) · no depende del LLM · el seam valida/degrada honesto
+    r = answerConversational(coerceSpec(q, spec, _hasThread(context), ui), context || {}, { scenario }); // cadena de coerce (UI→criteria→sí→compare→dominios) · no depende del LLM · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex de follow-up sobre la última evidencia → RED DE COERCE determinística (owner
     // 2026-07-15: las promesas de la UI responden también con el gateway caído) → un-turno determinístico.
     const _last = context && context.lastEvidence;
     const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
-    const _cs = _fu ? null : coerceFloor(q, !!_last, ui);
+    const _cs = _fu ? null : coerceFloor(q, _hasThread(context), ui);
     r = _fu || (_cs ? answerConversational(_cs, context || {}, { scenario }) : answerADI(q, context || {}, { scenario }));
   }
   // MULETILLA PROACTIVA fuera (owner 2026-07-09): el suffix enlatado no viaja en el camino LLM — el insight vive

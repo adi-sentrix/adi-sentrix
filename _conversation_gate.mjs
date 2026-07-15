@@ -6,7 +6,8 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_cge.js"), out = path.join(root, "_cgb.mjs");
 fs.writeFileSync(entry, [
-  'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, composeCompareNotYet } from "./src/adi/conversation.js";',
+  'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, composeCompareNotYet, updateMemoria, extractOffer } from "./src/adi/conversation.js";',
+  'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { composeSpecSimulate } from "./src/adi/specRetrieval.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { buildParseUserMessage } from "./src/adi/llm/contractMenu.js";',
@@ -15,7 +16,7 @@ fs.writeFileSync(entry, [
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { answerConversational: AC, resolveTurn, buildConversationContext: BCC, composeExplain, composeMeta, composeCompareNotYet, composeSpecSimulate, guardAgainstBoleta } = M;
+const { answerConversational: AC, resolveTurn, buildConversationContext: BCC, composeExplain, composeMeta, composeCompareNotYet, composeSpecSimulate, guardAgainstBoleta, updateMemoria: UM, coerceSpec: CS } = M;
 const { buildParseUserMessage: BPUM, buildNarrateSystem: BNS, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } = M;
 
 let pass = 0, fail = 0; const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
@@ -115,6 +116,43 @@ ok("37 · digest del LLM #1: la OFERTA de cierre del turno de ADI viaja explíci
   (() => { const c = BCC([{ role: "user", text: "Profundiza en PHI-SHAVER9" }, { role: "adi", text: "Mucho texto de análisis…\n\n¿Te parece que sería útil empezar con el análisis de los costos?", route: "qi_retrieval" }], null, null); const a = c.turns.find((t) => t.role === "adi"); return a && a.offer === "¿Te parece que sería útil empezar con el análisis de los costos?"; })());
 ok("38 · sin hilo reconocible NI oferta → el clarify amable sigue siendo la ÚLTIMA red (no rompe)",
   (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: { foo: 1 } }, {}); return r.route === "clarification_needed" && /seguimos con lo último/i.test(r.text); })());
+
+// ══ LA BOLETA DE MEMORIA (owner 2026-07-15: "última entidad + última pregunta/oferta + última evidencia + próxima
+// acción — eso basta para que 'sí', 'dale', 'compáralo', 'por qué' o 'muéstrame más' tengan sentido") ══
+const R_DIVE = { route: "qi_retrieval", text: "PHI-SHAVER9 rinde 28%. ¿Querés que abra el análisis de costos?", suggestions: null, evidence: { entidad: "PHI-SHAVER9", entityType: "sku", dimension: "sku", metrica: "margen" } };
+const R_GLOBAL = { route: "qi_retrieval", text: "Diagnóstico: 3 focos.", suggestions: ["Por qué Falabella cede margen", "El capital detenido en detalle"], evidence: { metrica: "diagnose", dimension: "cliente", findings: [] } };
+const MEM1 = UM(null, R_DIVE);
+ok("39 · updateMemoria arma la boleta: entidad {nombre,eje} + oferta de cierre + tema",
+  MEM1.entidad && MEM1.entidad.nombre === "PHI-SHAVER9" && MEM1.entidad.eje === "sku" && MEM1.oferta === "¿Querés que abra el análisis de costos?" && MEM1.tema && MEM1.tema.dimension === "sku");
+const MEM2 = UM(MEM1, R_GLOBAL);
+ok("40 · la ENTIDAD PERSISTE tras un turno global; la oferta/próxima acción se REEMPLAZAN (el 'sí' refiere al último cierre)",
+  MEM2.entidad && MEM2.entidad.nombre === "PHI-SHAVER9" && MEM2.oferta === null && MEM2.proximaAccion === "Por qué Falabella cede margen" && MEM2.tema.dimension === "cliente");
+ok("41 · una CLARIFICACIÓN no deja oferta (el 'sí' no acepta una repregunta) y no borra la entidad",
+  (() => { const m = UM(MEM1, { route: "clarification_needed", text: "¿Podés precisar? ¿Contra qué SKU?", suggestions: null }); return m.oferta === null && m.entidad && m.entidad.nombre === "PHI-SHAVER9"; })());
+ok("42 · claims de CONTINUAR: 'muéstrame más' / 'seguí' / 'continuá' / 'dale' → followup_accept (con hilo · mensaje entero)",
+  ["muéstrame más", "mostrame más", "seguí", "continuá", "dale", "ver más"].every((q) => CS(q, S({ operation: "clarification_needed" }), true, null).turn_type === "followup_accept")
+  && CS("ver más ventas de Lider", S({ operation: "clarification_needed" }), true, null).turn_type !== "followup_accept");
+ok("43 · 'sí' SIN lastEvidence pero con memoria (paréntesis largo) → ejecuta la oferta sobre la entidad en foco",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: null, memoria: MEM1 }, {}); return exec(r) && /PHI-SHAVER9/.test(r.text) && r.route !== "clarification_needed"; })());
+ok("44 · 'compáralo con SAM-TV55' tras un paréntesis (sujeto SOLO en la memoria) → compara PHI-SHAVER9 vs SAM-TV55",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { entities: ["SAM-TV55"] } }), { lastEvidence: null, memoria: MEM2 }, {}); return exec(r) && /PHI-SHAVER9/.test(r.text) && /SAM-TV55/.test(r.text); })());
+ok("45 · 'por qué' tras un DIVE → el porqué GRADUADO de la entidad (mecanismo), no el relleno genérico",
+  (() => { const r = AC(S({ turn_type: "followup_explain" }), { lastEvidence: R_DIVE.evidence, memoria: MEM1 }, {}); return exec(r) && /PHI-SHAVER9/.test(r.text) && /Mecanismo|mecanismo/.test(r.text) && !/lectura directa del dato real/i.test(r.text); })());
+ok("46 · el digest del LLM #1 lleva la memoria (BCC 4º arg) y buildParseUserMessage la serializa",
+  (() => { const c = BCC([], null, null, MEM1); if (!c.memoria || c.memoria.entidad.nombre !== "PHI-SHAVER9") return false; const msg = BPUM(c, "si"); return /"memoria"/.test(msg) && /PHI-SHAVER9/.test(msg); })());
+
+// ══ REVIEW ADVERSARIAL 2026-07-15 (24 agentes · 2 jueces c/u) — las reglas que salieron del panel ══
+ok("47 · 'por qué' tras un turno GLOBAL no hereda la entidad VIEJA de la memoria (la lectura global se explica sola, honesto)",
+  (() => { const r = AC(S({ turn_type: "followup_explain" }), { lastEvidence: { metrica: "ventas", dimension: "cliente", lens: "cuadro" }, memoria: MEM1 }, {}); return exec(r) && !/PHI-SHAVER9/.test(r.text); })());
+ok("48 · 'sí' tras un turno global ejecuta LA OFERTA DE ESE TURNO con su alcance — no la reescribe hacia la entidad vieja",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: R_GLOBAL.evidence, memoria: MEM2 }, {}); return exec(r) && !/PHI-SHAVER9/.test(r.text) && r.route !== "clarification_needed"; })());
+ok("49 · COHESIÓN nombre+eje: 'compáralo con SAM-TV55' con last=overview de bodega y sujeto en memoria (SKU) → compara en el eje de la MEMORIA",
+  (() => { const r = AC(S({ turn_type: "followup_compare", comparison: { entities: ["SAM-TV55"] } }), { lastEvidence: { metrica: "capital", dimension: "bodega" }, memoria: MEM1 }, {}); return exec(r) && /PHI-SHAVER9/.test(r.text) && /SAM-TV55/.test(r.text) && !/no tengo a PHI-SHAVER9/i.test(r.text); })());
+ok("50 · 'sí' repetido ESCALA (dive → why → recommend): tras un why ya dado de la misma entidad, el siguiente sí recomienda (no repite)",
+  (() => { const memWhy = { ...MEM1, oferta: null, sugerencias: null, proximaAccion: null, ruta: "why_mechanism" }; const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: { entidad: "PHI-SHAVER9", entityType: "sku", dimension: "sku" }, memoria: memWhy }, {}); return exec(r) && r.route !== "why_mechanism" && /PHI-SHAVER9|recomend|acci[oó]n|medida/i.test(r.text); })());
+ok("51 · 'muéstrame más' NO pisa una traducción RESUELTA del LLM #1 (op concreta sobrevive; el piso sin resolver sí reclama)",
+  CS("muéstrame más", S({ operation: "rank", metric: "ventas", dimension: "cliente", sort: { by: "ventas", dir: "desc" }, limit: 10 }), true, null).turn_type !== "followup_accept"
+  && CS("muéstrame más", S({ operation: "clarification_needed" }), true, null).turn_type === "followup_accept");
 
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══
 // ══ V4 · recall_analysis (ctx.history) — PENDIENTE ══

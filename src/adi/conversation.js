@@ -23,15 +23,44 @@ import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-
 
 // ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
 // con una pregunta-oferta ("¿empezamos con el análisis de costos?"). Esa pregunta es una PROMESA: se captura acá
-// (la ÚLTIMA interrogación del texto que el usuario VIO — narrado o determinístico) y viaja en el contexto como
-// `lastOffer`, para que el "sí" la ejecute y el LLM #1 la vea en el digest. Pura · gate-testable. ──
+// (la ÚLTIMA interrogación del texto que el usuario VIO — narrado o determinístico) y viaja en la memoria, para
+// que el "sí" la ejecute y el LLM #1 la vea en el digest. Pura · gate-testable. ──
 export function extractOffer(text) {
   const qs = String(text || "").match(/¿[^¿?\n]{6,220}\?/g);
   return qs && qs.length ? qs[qs.length - 1].trim() : null;
 }
 
-// ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia + señales de UI) ────────────────────────
-export function buildConversationContext(recentTurns, lastEvidence, uiSignals = null) {
+/* ── LA BOLETA DE MEMORIA (owner 2026-07-15: "no hay que mandarle toda la conversación, sino una boleta chica y
+ * bien hecha con lo que importa para decidir el siguiente paso: última entidad + última pregunta/oferta + última
+ * evidencia + próxima acción sugerida — eso basta para que 'sí', 'dale', 'compáralo', 'por qué' o 'muéstrame más'
+ * tengan sentido"). updateMemoria(prev, r) → la boleta del turno, pura y gate-testable; el cliente la threadea
+ * (ChatADI · context.memoria) y la leen LAS DOS CAPAS: el digest del LLM #1 (campo `memoria`) y los resolvers
+ * determinísticos (composeAccept · composeCompare). La evidencia completa sigue viajando aparte (lastEvidence —
+ * la fuente de verdad para recalcular); la memoria es el ÍNDICE chico de la conversación:
+ *   · entidad  { nombre, eje } — la última entidad EN FOCO (dive/why/compare). PERSISTE en turnos narrativos y
+ *     globales (un "compáralo" después de un paréntesis sigue teniendo sujeto); una entidad nueva la reemplaza.
+ *   · tema     { metrica, dimension } — de qué veníamos hablando (la última evidencia accionable).
+ *   · oferta   — la pregunta de cierre del ÚLTIMO turno (el "sí" siempre refiere al último cierre; las
+ *     clarificaciones no dejan oferta). Se REEMPLAZA (o limpia) en cada turno de ADI.
+ *   · sugerencias / proximaAccion — las chips del último turno · la 1ª es LA próxima acción (promesa gate-proven). */
+export function updateMemoria(prev, r) {
+  const p = prev || {};
+  if (!r || typeof r !== "object") return { entidad: p.entidad || null, tema: p.tema || null, oferta: null, sugerencias: null, proximaAccion: null, ruta: null };
+  const ev = r.evidence || null;
+  const clarifica = /clarification|no_context/.test(String(r.route || ""));
+  let entidad = p.entidad || null;
+  if (ev && ev.entidad) entidad = { nombre: ev.entidad, eje: ev.entityType || ev.dimension || (entidad && entidad.eje) || null };
+  else if (ev && ev.compareA) entidad = { nombre: ev.compareA, eje: ev.entityType || ev.dimension || null };
+  let tema = p.tema || null;
+  if (ev && !ev.followup && (ev.metrica || ev.dimension)) tema = { metrica: ev.metrica || (tema && tema.metrica) || null, dimension: ev.dimension || (tema && tema.dimension) || null };
+  const oferta = (!clarifica && typeof r.text === "string") ? extractOffer(r.text) : null;
+  const sugerencias = (r.suggestions && r.suggestions.length) ? r.suggestions.slice(0, 3) : null;
+  // ruta del turno: le da al "sí" repetido su escalada (why ya dado → recommend) — review adversarial 2026-07-15
+  return { entidad, tema, oferta, sugerencias, proximaAccion: (sugerencias && sugerencias[0]) || null, ruta: r.route || null };
+}
+
+// ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia + señales de UI + LA MEMORIA) ───────────
+export function buildConversationContext(recentTurns, lastEvidence, uiSignals = null, memoria = null) {
   const turns = (recentTurns || []).slice(-3).map((t) => {
     if (t.role === "user") return { role: "user", text: String(t.text || "").slice(0, 200) };
     // OFERTA DE CIERRE en el digest (owner 2026-07-15): el gist trunca el ARRANQUE del texto — la pregunta con que
@@ -49,6 +78,7 @@ export function buildConversationContext(recentTurns, lastEvidence, uiSignals = 
   return {
     turns,
     last: lastEvidence ? _digestLast(lastEvidence) : null,
+    memoria: memoria || null,   // LA BOLETA DE MEMORIA (owner 2026-07-15): entidad en foco · oferta de cierre · próxima acción · tema
     ui,             // qué está mirando/seleccionando el usuario en Sentrix AHORA (null si nada)
     history: [],    // V4 · reservado (historial corto etiquetado) · NO usado en V1
     session: null,  // V5 · reservado (memoria entre sesiones · con permiso)
@@ -71,8 +101,19 @@ const _needLast = () => ({ text: "No tengo una lectura reciente sobre la que rec
 const _specSelfContained = (s) => !!(s && s.operation && s.metric && s.dimension);
 
 // ── composeExplain · el PORQUÉ de la última lectura (reusa estructura/concentración ya computada · sin cifras nuevas) ──
-export function composeExplain(last) {
-  if (!last) return _needLast();
+// ctx/state opcionales (memoria · owner 2026-07-15): "por qué" mirando UNA entidad → su mecanismo graduado, no el relleno.
+export function composeExplain(last, ctx = null, state = {}) {
+  // el porqué de la entidad EN FOCO — de la evidencia si existe; la memoria SOLO cuando no hay evidencia (review
+  // adversarial 2026-07-15: con una lectura global reciente, heredar una entidad de turnos atrás inventa el referente)
+  const _entWhy = () => {
+    const mem = (ctx && ctx.memoria) || null;
+    const e = (last && last.entidad) ? { nombre: last.entidad, eje: last.entityType || last.dimension }
+      : (!last && mem && mem.entidad && mem.entidad.nombre) ? mem.entidad : null;
+    if (!e) return null;
+    const dim = (e.eje && ENTITIES[e.eje]) ? e.eje : "cliente";
+    try { return answerADIFromSpec({ schemaVersion: 1, operation: "why", dimension: dim, entity: e.nombre, metric: "margen", scenario: "actual" }, ctx || {}, state); } catch { return null; }
+  };
+  if (!last) return _entWhy() || _needLast();
   // CONTINUIDAD (D · owner 2026-07-06): el "por qué" sigue el ÚLTIMO foco. Si el foco era CAPITAL inmovilizado, explica
   // capital (rotación/DOH), NO margen. Reusa la evidencia de inventario · cita solo el total (en boleta) · honesto sobre
   // la causa raíz (el dato dice DÓNDE está frenado, no todavía por qué dejó de venderse).
@@ -112,7 +153,9 @@ export function composeExplain(last) {
     if (con.concentrated) bol.push(fig("Concentración · bloque", `${con.blockPct}%`, { unit: "pct", raw: con.blockPct, mandatory: true, source: "computed", context: "explicación", formula: `${con.blockCount} ${plural} = ${con.blockPct}%` }));
     return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", transform: last.transform, boleta: bol, metrica: last.metrica, dimLabel: last.dimLabel }, route: "followup_explain" };
   }
-  return { text: "**Por qué**\nEs la lectura directa del dato real, sin estimaciones: te muestro lo que hay y de dónde sale.", suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: [] }, route: "followup_explain" };
+  // MEMORIA (owner 2026-07-15): antes del relleno genérico, el porqué de la ENTIDAD en foco (dive/why previos) —
+  // el mecanismo graduado siempre responde; el genérico queda solo para lecturas sin entidad ni estructura.
+  return _entWhy() || { text: "**Por qué**\nEs la lectura directa del dato real, sin estimaciones: te muestro lo que hay y de dónde sale.", suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "explain", boleta: [] }, route: "followup_explain" };
 }
 
 // ── composeMeta · preguntas meta HONESTAS (real vs supuesto · fuente · capacidades) · ancladas al contrato, sin inventar ──
@@ -192,16 +235,26 @@ function _compareTarget(spec, subject) {
 }
 export function composeCompare(spec, ctx, state) {
   const last = ctx && ctx.last;
+  const _mem = (ctx && ctx.memoria) || null;   // LA MEMORIA (owner 2026-07-15): "compáralo" mantiene sujeto aunque medie un paréntesis
   const cmpEnts = (spec && spec.comparison && Array.isArray(spec.comparison.entities)) ? spec.comparison.entities.filter(Boolean) : [];
-  const dim0 = (last && (last.dimension || last.entityType)) || (spec && spec.comparison && spec.comparison.dimension) || (spec && spec.dimension) || null;
+  const dim0 = (last && (last.dimension || last.entityType)) || (spec && spec.comparison && spec.comparison.dimension) || (spec && spec.dimension)
+    || (_mem && _mem.entidad && _mem.entidad.eje) || null;
   // dim a prueba de balas: si el contexto/LLM no trae un eje VÁLIDO, caemos al eje primario (cliente) — la mayoría de las
   // comparaciones son cliente-vs-cliente. Así el compare NUNCA cae al genérico "unknown-dimension" del seam; si la entidad
   // no existe en ese eje, el seam degrada HONESTO ("no tengo X"). NADA hardcodeado del dato, sólo el eje por defecto.
-  const dim = (dim0 && ENTITIES[dim0]) ? dim0 : (ENTITIES.cliente ? "cliente" : Object.keys(ENTITIES)[0]);
-  const dLabel = (ENTITIES[dim] && ENTITIES[dim].label.sing) || "eje";
+  let dim = (dim0 && ENTITIES[dim0]) ? dim0 : (ENTITIES.cliente ? "cliente" : Object.keys(ENTITIES)[0]);
   let subject, target;
+  let subjMem = false;
   if (cmpEnts.length >= 2) { subject = cmpEnts[0]; target = cmpEnts[1]; }  // dos entidades EXPLÍCITAS ('compará A con B')
-  else { subject = _lastEntity(last); target = _compareTarget(spec, subject); }  // elíptico: sujeto del contexto, target del LLM
+  else {
+    subject = _lastEntity(last) || null;                                    // elíptico: primero el contexto…
+    if (!subject && _mem && _mem.entidad && _mem.entidad.nombre) { subject = _mem.entidad.nombre; subjMem = true; }   // …después la memoria
+    target = _compareTarget(spec, subject);
+  }
+  // COHESIÓN nombre+eje (review adversarial 2026-07-15): si el sujeto salió de la MEMORIA, el eje también sale de
+  // ella — jamás cruzar el nombre de un cliente con la dimensión de otra evidencia (fabricaba comparaciones vacías).
+  if (subjMem && _mem.entidad.eje && ENTITIES[_mem.entidad.eje]) dim = _mem.entidad.eje;
+  const dLabel = (ENTITIES[dim] && ENTITIES[dim].label.sing) || "eje";
   // NUNCA el _needLast genérico narrado: un compare-intent SIEMPRE devuelve repregunta CRISP (o compara).
   if (!dim) return _clarify("¿Sobre qué eje comparo? Decime cliente, marca, familia o bodega.");
   const _egs = (excl) => { const xs = sampleEntities(dim, 4).filter((e) => _low(e) !== _low(excl)).slice(0, 3); return xs.length ? xs.join(", ") : null; };
@@ -320,21 +373,35 @@ function _execOffer(text, ctx, state) {
   try { s = coerceFloor(t, true, null); } catch { return null; }
   if (!s || s.turn_type === "followup_accept" || s.turn_type === "clarification_needed") return null;
   const last = ctx && ctx.last;
+  const mem = (ctx && ctx.memoria) || null;
   const _dim = (d) => (d && ENTITIES[d] ? d : null);
-  if (last) {
+  // la ENTIDAD EN FOCO — reglas del review adversarial 2026-07-15 (2 jueces c/u):
+  //   · LA OFERTA HEREDA DEL TURNO QUE LA EMITIÓ: si hay última evidencia, la entidad sale SOLO de ella (una oferta
+  //     tras un turno global NO se reescribe con una entidad de 2 turnos atrás — eso era inventar el referente).
+  //   · NOMBRE+EJE DE LA MISMA FUENTE: jamás mezclar el nombre de la memoria con el eje de otra evidencia (comparaba
+  //     un cliente como si fuera bodega). La memoria entra SOLO cuando no hay evidencia (paréntesis largo).
+  const _foco = (last && last.entidad)
+    ? { nombre: last.entidad, eje: _dim(last.entityType) || _dim(last.dimension) }
+    : (!last && mem && mem.entidad && mem.entidad.nombre) ? { nombre: mem.entidad.nombre, eje: _dim(mem.entidad.eje) } : null;
+  const focoNombre = _foco && _foco.nombre, focoEje = _foco && _foco.eje;
+  if (last || focoNombre) {
     // HERENCIA DE ALCANCE: la oferta suele nombrar el ANÁLISIS ("análisis de costos"), no la entidad — la entidad
     // viene de lo que veníamos mirando. dive/why sin entidad → la última entidad; overview genérico mirando UNA
     // entidad → su porqué (mecanismo: margen/costo/carga graduado); dominio sin filtros → entityScope heredado.
-    const lDim = _dim(last.entityType) || _dim(last.dimension);
     const hasFilters = !!(s.filters && Object.values(s.filters).some(Boolean));
-    if ((s.operation === "dive" || s.operation === "why") && !s.entity && last.entidad) {
-      s = { ...s, entity: last.entidad, dimension: _dim(s.dimension) || lDim || "cliente" };
-    } else if (s.operation === "overview" && !s.entity && !hasFilters && last.entidad) {
-      s = { schemaVersion: 1, operation: "why", dimension: lDim || "cliente", entity: last.entidad, metric: "margen", scenario: "actual" };
+    if ((s.operation === "dive" || s.operation === "why") && !s.entity && focoNombre) {
+      s = { ...s, entity: focoNombre, dimension: _dim(s.dimension) || focoEje || "cliente" };
+    } else if (s.operation === "overview" && !s.entity && !hasFilters && focoNombre) {
+      s = { schemaVersion: 1, operation: "why", dimension: focoEje || "cliente", entity: focoNombre, metric: "margen", scenario: "actual" };
     } else if (!s.entity && !hasFilters) {
-      const scope = (last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) ? last.entityList
-        : (last.entidad ? { entities: [last.entidad], dimension: lDim } : null);
-      if (scope) s = { ...s, entityScope: scope };
+      const scope = (last && last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) ? last.entityList
+        : (focoNombre ? { entities: [focoNombre], dimension: focoEje } : null);
+      if (scope) {
+        s = { ...s, entityScope: scope };
+        // misma regla del camino deíctico: los composers que honran spec.dimension se ALINEAN al eje del set
+        // heredado — si no, el alcance de un SKU sobre un claim dim=cliente no intersecta y se ignora (cartera).
+        if ((s.operation === "margin" || s.operation === "contribucion") && scope.dimension && ENTITIES[scope.dimension]) s = { ...s, dimension: scope.dimension };
+      }
     }
   }
   let r = null;
@@ -345,11 +412,21 @@ function _execOffer(text, ctx, state) {
 }
 export function composeAccept(spec, ctx, state) {
   const last = ctx && ctx.last;
-  if (!last) return _needLast();
-  // 1 · la oferta con que ADI cerró (o su primera sugerencia) — lo que el usuario está aceptando LITERALMENTE
-  const viaOferta = _execOffer(ctx && ctx.lastOffer, ctx, state)
-    || _execOffer(ctx && Array.isArray(ctx.lastSuggestions) && ctx.lastSuggestions[0], ctx, state);
+  const mem = (ctx && ctx.memoria) || null;
+  if (!last && !(mem && (mem.oferta || mem.proximaAccion || mem.entidad))) return _needLast();
+  // 1 · la oferta con que ADI cerró (o la próxima acción sugerida) — lo que el usuario está aceptando LITERALMENTE.
+  // La MEMORIA manda (la boleta del owner); lastOffer/lastSuggestions quedan como compat del shape anterior.
+  const viaOferta = _execOffer((mem && mem.oferta) || (ctx && ctx.lastOffer), ctx, state)
+    || _execOffer((mem && mem.proximaAccion) || (ctx && Array.isArray(ctx.lastSuggestions) && ctx.lastSuggestions[0]), ctx, state);
   if (viaOferta) return viaOferta;
+  if (!last) {
+    // sin evidencia pero con ENTIDAD en memoria (paréntesis largo) → su porqué graduado antes que el mensaje vacío
+    if (mem && mem.entidad && mem.entidad.nombre) {
+      const dim = (mem.entidad.eje && ENTITIES[mem.entidad.eje]) ? mem.entidad.eje : "cliente";
+      return answerADIFromSpec({ schemaVersion: 1, operation: "why", dimension: dim, entity: mem.entidad.nombre, metric: "margen", scenario: "actual" }, ctx, state);
+    }
+    return _needLast();
+  }
   // 2 · compare previo → el dive causal de la cuenta floja
   const a = last.compareA || last.entidad, b = last.compareB || last.entityB;
   if (a && b && Array.isArray(last.pairs) && last.pairs.length) {
@@ -364,11 +441,14 @@ export function composeAccept(spec, ctx, state) {
     const dim = (el.dimension && ENTITIES[el.dimension]) ? el.dimension : "cliente";
     return answerADIFromSpec({ schemaVersion: 1, operation: "dive", dimension: dim, entity: el.entities[0], scenario: "actual" }, ctx, state);
   }
-  // 4 · veníamos mirando UNA entidad → su porqué graduado (mecanismo margen/costo/carga · siempre responde)
+  // 4 · veníamos mirando UNA entidad (de LA evidencia — la memoria solo aplica sin evidencia, arriba) → el
+  // siguiente paso ESCALA: si el turno anterior ya fue su porqué (mem.ruta why) el "sí" no lo repite — pasa a
+  // la RECOMENDACIÓN de esa entidad (dive → why → recommend · review adversarial: el "sí" repetido quedaba pegado).
   if (last.entidad) {
     const dim = (last.entityType && ENTITIES[last.entityType]) ? last.entityType
       : (last.dimension && ENTITIES[last.dimension]) ? last.dimension : "cliente";
-    return answerADIFromSpec({ schemaVersion: 1, operation: "why", dimension: dim, entity: last.entidad, metric: "margen", scenario: "actual" }, ctx, state);
+    const yaWhy = mem && mem.ruta && /why/.test(String(mem.ruta)) && mem.entidad && mem.entidad.nombre === last.entidad;
+    return answerADIFromSpec({ schemaVersion: 1, operation: yaWhy ? "recommend" : "why", dimension: dim, entity: last.entidad, metric: "margen", scenario: "actual" }, ctx, state);
   }
   // 5 · tras una simulación → la recomendación de seguimiento
   const rec = composeFollowupRecommendation(last);
@@ -382,7 +462,7 @@ const TURN_RESOLVERS = {
   followup_modify_assumption: (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1 · el LLM emite el spec YA resuelto → seam RECALCULA
   followup_change_dimension:  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1 · idem
   followup_recommendation:    (spec, ctx) => composeFollowupRecommendation(ctx.last) || _needLast(),      // V1
-  followup_explain:           (spec, ctx) => composeExplain(ctx.last),                                    // V1
+  followup_explain:           (spec, ctx, state) => composeExplain(ctx.last, ctx, state),                 // V1 (+ memoria: el porqué de la entidad en foco)
   meta_question:              (spec, ctx) => composeMeta(spec && spec.meta, ctx.last),                    // V1
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)

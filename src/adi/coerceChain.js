@@ -243,6 +243,10 @@ function _coerceMulti(q, spec) {
 // que profundizara?"), un "sí" debe EJECUTAR la oferta — no volver al LLM a adivinar (clasificaba turn_types como
 // operations y el seam degradaba con vocabulario interno). Solo mensajes CORTOS que son pura afirmación.
 const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de una|h[aá]z?lo|hacelo|adelante|me parece( bien)?|por ?favor|porfa|s[ií],?\s+(dale|claro|porfa|por ?favor|profundiz[aá]|hazlo|hacelo|adelante))[\s.!…]*$/i;
+// CONTINUAR (memoria de la conversación · owner 2026-07-15): "muéstrame más / seguí / continuá / sigamos / vamos"
+// aceptan el hilo (la oferta/próxima acción de la memoria) — pero NO pisan una clasificación resuelta del LLM #1
+// (review adversarial: si el LLM ya tradujo "muéstrame más" a una operación concreta, esa intención manda).
+const _CONTINUE_RE = /^\s*((mu[eé]strame|mostrame|ver|dame|quiero)\s+m[aá]s( detalles?| informaci[oó]n)?|m[aá]s detalles?|segu[ií]|seguimos|sigamos|sigue|contin[uú][aá]|continuemos|avanz[aá]|avancemos|vamos)[\s.!…]*$/i;
 
 // ── SIMULATE (S1/S2 · owner 2026-07-14 "sí, continúa") · red del "¿qué pasa si…?" ────────────────────────────
 // El CONDICIONAL es el ancla ("qué pasa(ría) si…" / "cómo queda si…" / "y si…" / "si <verbo>" al inicio) — sin él
@@ -400,6 +404,10 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     const ci = detectCriteriaIntent(q);
     if (ci) return { ...spec, turn_type: "apply_criteria", criteria: ci };
     if (hasLast && String(q).length <= 28 && _AFFIRM_RE.test(q)) return { ...spec, turn_type: "followup_accept" };
+    // "continuar" reclama SOLO si el turno no llegó ya resuelto (op concreta del LLM ≠ clarificación) — el piso
+    // (spec base clarification_needed) siempre entra; una traducción específica del LLM #1 no se pisa.
+    if (hasLast && String(q).length <= 28 && _CONTINUE_RE.test(q) && !(spec.operation && spec.operation !== "clarification_needed"))
+      return { ...spec, turn_type: "followup_accept" };
   }
   // RESUMEN DEL NEGOCIO (owner 2026-07-08): "dame un resumen del negocio / panorama general / cómo está mi negocio"
   // → el DIAGNÓSTICO ejecutivo (los focos con su $), no un ranking suelto. Determinístico, antes de los dominios.

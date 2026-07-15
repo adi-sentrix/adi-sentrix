@@ -60,7 +60,8 @@ export function buildContractMenu() {
   L.push("  · recommend: para '¿qué hago?' / '¿cómo lo corrijo?' · `dimension` = cliente (o el eje del foco) · `entity` = la entidad si la nombran · el motor recomienda SOLO sobre palancas probadas y, si la causa está abierta, recomienda diagnosticar.");
   L.push("  · filtro por marca/familia/cliente/bodega → `filters { marca?, familia?, cliente?, bodega? }`.");
   L.push("");
-  L.push("CONVERSACIÓN — clasificá `turn_type` (V1). Puede venir un bloque CONTEXTO (turnos previos + la última evidencia accionable: metric/dimension/transform/boletaDigest). Usalo para resolver referencias:");
+  L.push("CONVERSACIÓN — clasificá `turn_type` (V1). Puede venir un bloque CONTEXTO (turnos previos + la última evidencia accionable: metric/dimension/transform/boletaDigest + `memoria`). Usalo para resolver referencias:");
+  L.push("  · `memoria` = la boleta de memoria del hilo: `entidad` en foco {nombre, eje} · `oferta` (la pregunta con que ADI cerró) · `proximaAccion` (la siguiente jugada sugerida) · `tema` {metrica, dimension}. Un 'sí/dale/muéstrame más/continuá' ACEPTA la `oferta` (o la `proximaAccion`): emití el turn_type/spec que la ejecute (ej. oferta de comparar → `followup_compare`; oferta de costos sobre la `entidad` → `why` con esa entidad). 'compáralo'/'por qué'/'profundiza' sin nombre refieren a `memoria.entidad` — SALVO que la pregunta sea autónoma o cambie de tema: ahí `new_query` normal, la memoria no fuerza una entidad vieja. Con `oferta`/`proximaAccion` claras evitá responder un 'sí' con `clarification_needed`; si la oferta es genuinamente ambigua (dos caminos), repreguntá corto cuál de los dos.");
   L.push("  · `new_query`: pedido AUTÓNOMO (no depende de lo anterior). Llená metric/dimension/operation normalmente. Ej: 'los 5 mejores clientes por margen'.");
   L.push("  · `followup_modify_assumption`: cambia el SUPUESTO de lo último ('y si fuera 5%', 'subilo a 10%'). Emití el spec YA RESUELTO: mismo metric/dimension/filters que `contexto.last`, con `transform` nuevo (value cambiado). NO calculás — solo el parámetro.");
   L.push("  · `followup_change_dimension`: mismo análisis, OTRO eje ('mostralo por marca', 'y por familia?'). Emití el spec resuelto: mismo metric/transform que `contexto.last`, `dimension` nueva.");
@@ -78,7 +79,7 @@ export function buildContractMenu() {
 // (o sin `last`) → solo el texto (turno aislado). El CONTEXTO es data para interpretar; el pedido real es "MENSAJE".
 export function buildParseUserMessage(conversationContext, text) {
   const c = conversationContext;
-  if (!c || (!c.last && !(c.turns && c.turns.length))) return String(text || "");
-  const compact = { turns: c.turns || [], last: c.last || null };
+  if (!c || (!c.last && !(c.turns && c.turns.length) && !c.memoria)) return String(text || "");
+  const compact = { turns: c.turns || [], last: c.last || null, ...(c.memoria ? { memoria: c.memoria } : {}) };
   return `CONTEXTO DE CONVERSACIÓN (para interpretar · NO es el pedido):\n${JSON.stringify(compact)}\n\nMENSAJE DEL USUARIO:\n${String(text || "")}`;
 }
