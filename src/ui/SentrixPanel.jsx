@@ -721,10 +721,10 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
         {list.length === 0 ? (
-          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Podés fijar tu vara desde el chat: <span style={{ color:C.celeste }}>"recordá que mi margen mínimo es 28%"</span>.</div>
+          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Podés fijar tu benchmark desde el chat: <span style={{ color:C.celeste }}>"recordá que mi margen mínimo es 28%"</span>.</div>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-            <div style={{ ...head, marginBottom:2 }}>Tus varas · reemplazan al estándar en TODAS las lecturas</div>
+            <div style={{ ...head, marginBottom:2 }}>Tus benchmarks · reemplazan al estándar en TODAS las lecturas</div>
             {list.map((c, i) => (
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 13px", border:`1px solid rgba(47,184,218,0.25)`, borderRadius:10, background:"rgba(47,184,218,0.04)" }}>
                 <div style={{ flex:1, minWidth:0 }}>
@@ -1191,7 +1191,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         ) : (<>
         {/* ── 01 · QUÉ ESTÁ PASANDO · la lectura de ADI + los KPIs con su estado contra TU vara (Mesa 2.0) ── */}
         <div>
-          <MovHead num="01" title="Qué está pasando" def={"El pulso del período: la lectura de ADI y los KPIs con su estado contra TU vara (verde = en línea · ámbar = atención · rojo = fuera). La vara es tu criterio: si fijaste tu margen mínimo en la conversación, el semáforo lo respeta. Tocá un KPI y ADI abre ese frente al lado."}/>
+          <MovHead num="01" title="Qué está pasando" def={"El pulso del período: la lectura de ADI y los KPIs con su estado contra TU benchmark (verde = en línea · ámbar = atención · rojo = fuera). El benchmark es tu criterio: si fijaste tu margen mínimo en la conversación, el semáforo lo respeta. Tocá un KPI y ADI abre ese frente al lado."}/>
           <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
             <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{resumen.lectura}
           </div>
@@ -1228,7 +1228,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <span style={{ width:7, height:7, borderRadius:"50%", background: mesa.alertas.n ? C.amber : C.green, boxShadow:`0 0 6px ${mesa.alertas.n ? C.amber : C.green}aa`, flexShrink:0 }}/>
             <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color: mesa.alertas.n ? C.amber : C.textMuted, flexShrink:0 }}>En alerta</span>
             <span style={{ fontSize:12, color: mesa.alertas.n ? C.text : C.textSub, lineHeight:1.4 }}>{mesa.alertas.linea}</span>
-            <InfoDot def={`Las cuentas con brecha material contra tu vara: margen ${POLICY.margenBrechaMaterial} pp o más abajo y monto material — la misma cuenta del diagnóstico y del chevron rojo del cuadro (una sola verdad). El valor en juego es la contribución no capturada anual de esas cuentas. Tocá la tira y ADI abre la lista; "verlas en el cuadro" filtra la grilla.`} align="left"/>
+            <InfoDot def={`Las cuentas con brecha material contra tu benchmark: margen ${POLICY.margenBrechaMaterial} pp o más abajo y monto material — la misma cuenta del diagnóstico y del chevron rojo del cuadro (una sola verdad). El valor en juego es la contribución no capturada anual de esas cuentas. Tocá la tira y ADI abre la lista; "verlas en el cuadro" filtra la grilla.`} align="left"/>
             {mesa.alertas.n > 0 && (
               <span onClick={verEnCuadro} title="Filtrar el cuadro de mando en alerta"
                 style={{ marginLeft:"auto", flexShrink:0, fontSize:11, color:C.celeste, whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, border:"1px solid rgba(47,184,218,0.35)" }}>
@@ -1260,10 +1260,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </div>
         {/* ── LO QUE YO SIGO (PASE 2) · la watchlist del owner: estrella en el cuadro → acá, contra tu vara ── */}
         <div>
-          <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento: marcá la estrella en cualquier fila del cuadro (cliente, SKU, marca o bodega) y queda acá con su cifra clave y su estado contra tu vara — verde en línea, ámbar cerca, rojo abajo; en bodega el estado marca SKU críticos. Tocá un seguido y ADI lo abre al lado; la estrella lo saca de la lista. Se guarda en este navegador."}/>
+          <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento: marcá la estrella en cualquier fila del cuadro (cliente, SKU, marca o bodega) y queda acá con su cifra clave y su estado contra tu benchmark — verde en línea, ámbar cerca, rojo abajo; en bodega el estado marca SKU críticos. Tocá un seguido y ADI lo abre al lado; la estrella lo saca de la lista. Se guarda en este navegador."}/>
           {wl.items.length === 0 ? (
             <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-              Todavía no seguís ninguna cuenta. Marcá la <span style={{ color:C.celeste }}>★</span> en cualquier fila del cuadro de mando y acá queda, con su estado contra tu vara.
+              Todavía no seguís ninguna cuenta. Marcá la <span style={{ color:C.celeste }}>★</span> en cualquier fila del cuadro de mando y acá queda, con su estado contra tu benchmark.
             </div>
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
@@ -1371,7 +1371,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. Debajo, el 80/20 del mismo eje. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu vara), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu benchmark), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
         </>)}
       </div>
     </div>
@@ -2315,7 +2315,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                     <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
                   )
                 ) : c.key === "margen" ? (
-                  // estado contra la vara: tooltip "X pp bajo tu vara" + click = pregunta a ADI por esa cuenta (Mesa 2.0)
+                  // estado contra el benchmark: tooltip "X pp bajo tu benchmark" + click = pregunta a ADI por esa cuenta (Mesa 2.0)
                   <span key={c.key} title={varaTitle(r)}
                     onClick={mesa && onAsk && r.varaGap != null ? (e) => { e.stopPropagation(); onAsk(r.varaGap < 0 ? `¿Por qué ${r.name} cede margen?` : `Profundiza en ${r.name}`); } : undefined}
                     style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, ...(mesa && onAsk && r.varaGap != null ? { cursor:"pointer" } : {}) }}>
@@ -3137,7 +3137,7 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
         <span style={{ fontFamily: MONOF, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center" }}>
           <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
           Perfil vs promedio
-          <InfoDot def={"El perfil de la entidad contra el PROMEDIO de su eje. El eje central es el promedio: barra a la derecha (verde) = mejor que el promedio, a la izquierda (rojo) = peor — vale también para métricas donde menos es mejor (la geometría ya lo considera). Tu vara (piso/target) queda declarada abajo. Seleccioná una segunda fila y pasa a la comparación A vs B."} align="left"/>
+          <InfoDot def={"El perfil de la entidad contra el PROMEDIO de su eje. El eje central es el promedio: barra a la derecha (verde) = mejor que el promedio, a la izquierda (rojo) = peor — vale también para métricas donde menos es mejor (la geometría ya lo considera). Tu benchmark (piso/target) queda declarado abajo. Seleccioná una segunda fila y pasa a la comparación A vs B."} align="left"/>
         </span>
         <span style={{ fontFamily: MONOF, fontSize: 10, color: C.textMuted }}>
           <span style={{ color: C.elec, fontWeight: 600 }}>{name}</span> sobre el promedio en {score} de {filas.length}
@@ -3178,7 +3178,7 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
             <span key={"v" + f.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 12, height: 0, borderTop: `1.5px dashed ${C.amber}`, opacity: 0.9 }}/>
               <span style={{ color: C.amber }}>{f.label.toLowerCase()} {f.refLabel} {f.fmt(f.ref)}</span>
-              <span>· {name} {(f.hiBetter ? f.va >= f.ref : f.va <= f.ref) ? "sobre" : "bajo"} la vara</span>
+              <span>· {name} {(f.hiBetter ? f.va >= f.ref : f.va <= f.ref) ? "sobre" : "bajo"} el benchmark</span>
             </span>
           ))}
         </div>

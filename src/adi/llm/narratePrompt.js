@@ -29,6 +29,11 @@ export const NARRATE_EXPLAIN = "Reformulá esta explicación (el porqué de una 
 import { buildDisponibleMenu } from "./capabilities.js";
 const DISPONIBLE = " DISPONIBLE — todo lo que ADI puede analizar (tu ÚNICO universo de ofertas y próximos pasos): " + buildDisponibleMenu();
 
+// GLOSARIO DEL DATO (coherencia total · owner 2026-07-15): el narrador NO re-expande siglas por su cuenta — en vivo
+// inventaba "días de historial de operación" y "días de venta" para DOH. La definición es UNA (la misma del "i" de
+// Sentrix · glossary.js) o la sigla queda tal cual. Va en TODO prompt de narración, como DISPONIBLE.
+const GLOSARIO = " GLOSARIO DEL DATO (sagrado — las siglas del dato NO se re-expanden por cuenta propia: usá esta definición o dejá la sigla tal cual, jamás inventes otra expansión): DOH = días de cobertura de inventario (cuántos días dura el stock al ritmo de venta actual). Rotación = cuántas veces el stock se vende y repone en el período.";
+
 // EL SELLO (owner 2026-07-14, desde la landing: "debería ser la forma en que ADI responde cualquier cosa pero
 // enfocado en la pregunta"): entender→explicar→actuar como arco UNIVERSAL de toda narración, PROPORCIONAL a la
 // pregunta. Va en TODO prompt de narración SALVO el resumen ejecutivo (ya tiene su arco de 8 — no se pisa).
@@ -45,10 +50,10 @@ export const NARRATE_RESUMEN_ARC = " ESTRUCTURA DEL RESUMEN EJECUTIVO (definici�
 //   y el universo DISPONIBLE al final.
 export function buildNarrateSystem(evidence) {
   const kind = evidence && evidence.kind;
-  if (kind === "resumen_ejecutivo") return NARRATE_GENERAL + NARRATE_RESUMEN_ARC + DISPONIBLE;
-  if (kind === "explain") return NARRATE_EXPLAIN + NARRATE_SELLO + DISPONIBLE;
-  if (kind === "meta" || kind === "compare_pending") return NARRATE_GENERAL + NARRATE_SELLO + DISPONIBLE;
-  if (evidence && evidence.followup) return NARRATE_RECOMMENDATION + NARRATE_SELLO + DISPONIBLE;
-  if (evidence && evidence.transform) return NARRATE_SIMULATION + NARRATE_SELLO + DISPONIBLE;
-  return NARRATE_GENERAL + NARRATE_SELLO + DISPONIBLE;
+  if (kind === "resumen_ejecutivo") return NARRATE_GENERAL + NARRATE_RESUMEN_ARC + GLOSARIO + DISPONIBLE;
+  if (kind === "explain") return NARRATE_EXPLAIN + NARRATE_SELLO + GLOSARIO + DISPONIBLE;
+  if (kind === "meta" || kind === "compare_pending") return NARRATE_GENERAL + NARRATE_SELLO + GLOSARIO + DISPONIBLE;
+  if (evidence && evidence.followup) return NARRATE_RECOMMENDATION + NARRATE_SELLO + GLOSARIO + DISPONIBLE;
+  if (evidence && evidence.transform) return NARRATE_SIMULATION + NARRATE_SELLO + GLOSARIO + DISPONIBLE;
+  return NARRATE_GENERAL + NARRATE_SELLO + GLOSARIO + DISPONIBLE;
 }
