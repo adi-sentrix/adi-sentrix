@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
       __ADI_LLM_NARRATE_ENABLED__: JSON.stringify(llmNarrate),
       __ADI_PROFILE__: JSON.stringify(profile),
     },
-    server: { port: 5173, host: true, open: false },
+    // PORT del entorno si viene (preview multi-sesión asigna uno libre) · fallback 5173 (el de siempre)
+    server: { port: Number(env.PORT) || 5173, host: true, open: false },
   };
 });
