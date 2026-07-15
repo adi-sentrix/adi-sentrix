@@ -191,6 +191,14 @@ export function pickNarratedText(validated, narration) {
   if (!sc.ok) return { text: det, narrated: false, verdict: "escala-alterada", reason: sc.reason };
   const lg = _labelGuard(narr, _bol);
   if (!lg.ok) return { text: det, narrated: false, verdict: "etiqueta-corrupta", reason: lg.reason };
+  // GARANTÍA DE ENTIDAD-SUJETO (revisión de la Mesa 2026-07-14: «¿Por qué Samsung cede margen?» se narró sin
+  // nombrar a Samsung — la lectura era de otra cosa): si la respuesta de ADI declara su entidad-sujeto
+  // (evidence.entidad) y la narración no la menciona, la narración se descarta (mismo patrón que El perfil /
+  // El año: lo estructural se garantiza en código, no en prompt).
+  const _entSubj = validated && validated.evidence && typeof validated.evidence.entidad === "string" ? validated.evidence.entidad.trim() : "";
+  const _normEnt = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (_entSubj && !_normEnt(narr).includes(_normEnt(_entSubj)))
+    return { text: det, narrated: false, verdict: "entidad-ausente", reason: `la narración no menciona a ${_entSubj} (la entidad-sujeto de la respuesta de ADI)` };
   // EL PERFIL (owner 2026-07-08 · "que ADI lea el gráfico"): la lectura de trayectoria NO se pierde por parafraseo del
   // narrador — si el piso la trae y la narración la omitió (sin palabras de trayectoria), se ANTEPONE la del piso
   // (determinística · cifras ya autorizadas · abre la respuesta como pide la regla "abrí leyendo el gráfico").

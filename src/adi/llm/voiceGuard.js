@@ -71,11 +71,18 @@ export function stripProactiveSuffix(text) {
 // slang). El prompt ya lo prohíbe; esto es la GARANTÍA. Solo sustituciones INEQUÍVOCAS y gramaticalmente seguras
 // (palabra completa · ninguna es palabra española válida · "so" se excluye por "so pena"). Preserva la mayúscula
 // inicial. Idempotente · number-safe (no toca dígitos ni nombres propios — \b no corta SKUs/marcas). ──
+// + REGISTRO VETADO POR EL OWNER (revisión de la Mesa 2026-07-14: "Este **upside** es una **palanca** que podemos
+// aprovechar" y "sin que **nos pegue** en las ventas" salieron NARRADOS — el _registro_gate lockea los textos
+// determinísticos, esta tabla es la garantía sobre la narración): palanca→acción · upside→potencial · nos pegue→
+// nos afecte. "Palanca" sí es palabra española, pero está vetada del registro (sello ejecutivo · commit 82e03c7).
 const _LEAKS = [
   [/\bif\b/gi, "si"], [/\band\b/gi, "y"], [/\bbut\b/gi, "pero"], [/\bwith\b/gi, "con"], [/\bfor\b/gi, "para"],
   [/\bdeep dive\b/gi, "análisis a fondo"], [/\bdive into\b/gi, "análisis a fondo de"],
   [/\binsights\b/gi, "hallazgos"], [/\binsight\b/gi, "hallazgo"],
   [/\bla pasta\b(?!\s+de)/gi, "el capital"], [/\bguita\b/gi, "caja"],
+  [/\bpalancas\b/gi, "acciones"], [/\bpalanca\b/gi, "acción"],
+  [/\bupsides\b/gi, "potenciales"], [/\bupside\b/gi, "potencial"],
+  [/\bnos\s+pegue\b/gi, "nos afecte"],
 ];
 export function stripLanguageLeaks(text) {
   if (typeof text !== "string" || !text.trim()) return text;
