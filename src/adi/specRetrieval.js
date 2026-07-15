@@ -1631,6 +1631,125 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   };
 }
 
+/* ── SIMULATE S2 (owner 2026-07-14 "sí, continúa") · el supuesto sobre una ACCIÓN específica ─────────────────────
+ * "¿Qué pasa si llevo la carga al target?" / "¿y si libero el capital detenido?" — acá el supuesto NO es un %:
+ * es LA acción que el detector ya cuantificó. Reusa composeSpecDiagnose (una verdad · cero cálculo nuevo) y presenta
+ * el $ como PROYECCIÓN con honestidad dura: el efecto directo es cálculo probado por el dato; la reacción del
+ * mercado (volumen · precio de salida) NO está en el dato y queda declarada abierta. Los campos source/formula/
+ * context de la boleta (reservados para simulate desde [[adi-llm-premium-boleta]]) se usan acá: cifra auditable. */
+export function composeSpecSimulateCarga({ filters = {}, scenario } = {}) {
+  const diag = composeSpecDiagnose({ filters, scenario });
+  const F = (diag && diag.evidence && diag.evidence.findings) || [];
+  const cg = F.find((f) => f.detector === "carga");
+  if (!cg || !cg.items.length) return null;   // carga en/bajo target en ese alcance → el seam declara el límite honesto
+  const cliente = filters.cliente || null;
+  const top = cg.items.slice(0, 3), t0 = cg.items[0];
+  const _ctx = `supuesto: carga comercial → target (${POLICY.targetCarga}%) sobre el dato real`;
+  const supuesto = `**El supuesto:** llevar la carga comercial${cliente ? ` de ${cliente}` : ""} a tu target (${POLICY.targetCarga}%). Es una proyección sobre el dato real, no un dato observado.`;
+  const efecto = `**El efecto directo:** ${_money(cg.subtotal_usd)} al año vuelven al margen — el cálculo es (carga actual − target) × venta, cuenta por cuenta.`;
+  const dondePega = cliente
+    ? `**Dónde pega:** en ${cliente} — hoy su carga corre sobre el target y ese valor se va en condiciones y descuentos.`
+    : `**Dónde pega:** ${top.map((it) => `${it.entidad} ${_money(it.usd)}`).join(" · ")}${cg.items.length > top.length ? " — y el resto de las cuentas sobre el target completa el total" : ""}.`;
+  const limite = `**El límite:** que esa carga corre sobre tu target está probado por el dato, y el monto es cálculo directo. Lo que el dato NO predice es la reacción del volumen: renegociar condiciones puede presionar la venta — ese riesgo queda abierto y se decide cuenta por cuenta.`;
+  const decision = `**La decisión:** ${cliente ? `¿lo bajamos a plan con ${cliente}?` : `¿armamos el plan cuenta por cuenta, empezando por ${t0.entidad}?`}`;
+  const bol = [
+    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
+    fig("Recuperable · total", _money(cg.subtotal_usd), { unit: "money", raw: cg.subtotal_usd, mandatory: true, source: "computed", formula: "(carga − target) × venta · suma de las cuentas sobre el target", context: _ctx }),
+  ];
+  for (const it of top) bol.push(fig(`Recuperable · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `(carga de ${it.entidad} − target) × su venta`, context: _ctx }));
+  return {
+    opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
+    suggestions: [`Cómo recupero la carga de ${cliente || t0.entidad}`],
+    sentrixAction: null,
+    evidence: { lens: "diagnostico", metrica: "carga", dimension: "cliente", boleta: bol, findings: [cg],
+      simulate: { action: "carga_target", target: POLICY.targetCarga }, ...(cliente ? { entidad: cliente } : {}) },
+  };
+}
+
+export function composeSpecSimulateCapital({ filters = {}, scenario } = {}) {
+  const diag = composeSpecDiagnose({ filters, scenario });
+  const F = (diag && diag.evidence && diag.evidence.findings) || [];
+  const cap = F.find((f) => f.detector === "capital");
+  if (!cap || !cap.items.length) return null;   // sin capital detenido material → el seam declara el límite honesto
+  const top = cap.items.slice(0, 3);
+  const _ctx = "supuesto: liberar el capital detenido (dato real)";
+  const bodega = filters.bodega || null;
+  const supuesto = `**El supuesto:** liberar el capital detenido${bodega ? ` en ${bodega}` : ""}. Es una proyección sobre el dato real, no un dato observado.`;
+  const efecto = `**El efecto directo:** vuelven ${_money(cap.subtotal_usd)} de caja — hoy están inmovilizados en ${cap.items.length} SKU que no rotan según tu vara (rotación bajo ${POLICY.rotacionMin}x o más de ${POLICY.dohMax} días).`;
+  const dondePega = `**Dónde pega:** ${top.map((it) => `${it.entidad} ${_money(it.usd)}`).join(" · ")}${cap.items.length > top.length ? " — y el resto de los SKU detenidos completa el total" : ""}.`;
+  const limite = `**El límite:** qué está detenido y cuánto vale está probado por el dato. Lo que el dato NO fija es el precio real de salida: mover o liquidar stock suele ser a descuento — ese margen queda abierto.`;
+  const decision = "**La decisión:** ¿lo bajamos a lista — qué liquidar y qué reubicar primero?";
+  const bol = [
+    fig("Liberable · total", _money(cap.subtotal_usd), { unit: "money", raw: cap.subtotal_usd, mandatory: true, source: "computed", formula: "suma del capital de los SKU bajo tu vara de rotación", context: _ctx }),
+    fig("Rotación mínima", `${POLICY.rotacionMin.toFixed(1)}x`, { unit: "ratio", raw: POLICY.rotacionMin, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
+    fig("Cobertura máxima", `${POLICY.dohMax}d`, { unit: "days", raw: POLICY.dohMax, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
+  ];
+  for (const it of top) bol.push(fig(`Liberable · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital detenido de ${it.entidad}`, context: _ctx }));
+  return {
+    opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
+    suggestions: ["El capital detenido en detalle"],
+    sentrixAction: null,
+    evidence: { lens: "diagnostico", metrica: "capital", dimension: "sku", boleta: bol, findings: [cap],
+      simulate: { action: "liberar_capital" } },
+  };
+}
+
+/* ── SIMULATE S3 · computeGoalAnchor (recommend META-AWARE) ──────────────────────────────────────────────────────
+ * La pregunta-objetivo trae un % ("subir un 3% las ventas") → el ancla convierte la meta en $ SOBRE EL DATO
+ * ("3% de $100.0M = $3.0M al año") para que el recommend la contraste con los caminos de los detectores.
+ * + el camino de TRACCIÓN: la cuenta que más sube vs el año anterior (dato real · sin predicción).
+ * Devuelve { pct, dir, metaUsd, metaFmt, baseFmt, baseLabel, metricLabel, phrase, mover, bol } — todo autorizado. */
+export function computeGoalAnchor(metric, pct, dir, scenario) {
+  const p = Math.abs(Number(pct));
+  if (!p || !Number.isFinite(p)) return null;
+  const m = METRICS[metric];
+  if (!m) return null;
+  const _sum = (rows, f) => rows.reduce((s, r) => s + (typeof r[f] === "number" ? r[f] : 0), 0);
+  const _sf2 = (met, dim) => (METRICS[met] && METRICS[met].sourceByAxis && METRICS[met].sourceByAxis[dim]) || null;
+  let baseUsd = null, baseLabel = null;
+  if (metric === "ventas") {
+    const s = _sf2("ventas", "cliente"); if (!s) return null;
+    baseUsd = _sum(_load(s.source, scenario), s.field) * 1000; baseLabel = "tus ventas actuales";
+  } else if (metric === "contribucion") {
+    const s = _sf2("contribucion", "cliente"); if (!s) return null;
+    baseUsd = _sum(_load(s.source, scenario), s.field) * 1000; baseLabel = "tu contribución actual";
+  } else if (metric === "margen") {
+    const s = _sf2("margen", "cliente"); if (!s) return null;
+    baseUsd = _sum(_load(s.source, scenario), "venta") * 1000; baseLabel = "tu venta base";
+  } else if (metric === "capital") {
+    const s = _sf2("capital", "sku"); if (!s) return null;
+    baseUsd = _sum(_load(s.source, scenario), s.field); baseLabel = "tu capital en inventario";
+  } else return null;
+  if (!baseUsd) return null;
+  const metaUsd = Math.round((baseUsd * p) / 100);
+  const metaFmt = _money(metaUsd), baseFmt = _money(baseUsd);
+  const _art = { ventas: "las", contribucion: "la", capital: "el", margen: "el" }[metric] || "el";
+  const phrase = metric === "margen"
+    ? `subir el margen un ${p}% vale ${metaFmt} al año sobre ${baseLabel} (${baseFmt})`
+    : metric === "capital"
+    ? `bajar el capital un ${p}% libera ${metaFmt} de caja — sobre ${baseFmt} inmovilizados hoy`
+    : `${dir === "bajar" ? "bajar" : "subir"} ${_art} ${m.label.toLowerCase()} un ${p}% son ${metaFmt} al año — sobre ${baseFmt} de ${baseLabel}`;
+  // TRACCIÓN: la cuenta que YA crece (actual vs anterior del dato real · nada de predicción)
+  let mover = null;
+  const vs = _sf2("ventas", "cliente");
+  if (vs) {
+    const movers = _load(vs.source, scenario)
+      .filter((r) => typeof r.actual === "number" && typeof r.anterior === "number" && r.anterior > 0)
+      .map((r) => ({ nombre: r.nombre, usd: (r.actual - r.anterior) * 1000 }))
+      .filter((x) => x.usd > 0)
+      .sort((a, b) => b.usd - a.usd);
+    if (movers.length) mover = { nombre: movers[0].nombre, usd: movers[0].usd, usdFmt: _money(movers[0].usd) };
+  }
+  const _ctx = `meta del usuario: ${m.label.toLowerCase()} ${dir === "bajar" ? "-" : "+"}${p}% · anclada al dato real`;
+  const bol = [
+    fig(`Meta · ${m.label} ${p}%`, metaFmt, { unit: "money", raw: metaUsd, mandatory: true, source: "computed", formula: `${baseFmt} × ${p}%`, context: _ctx }),
+    fig(`Base · ${m.label}`, baseFmt, { unit: "money", raw: baseUsd, source: "actual", context: _ctx }),
+    fig("Meta %", `${p}%`, { unit: "pct", raw: p, source: "computed", context: _ctx }),
+  ];
+  if (mover) bol.push(fig(`Ya crece · ${mover.nombre}`, mover.usdFmt, { unit: "money", raw: mover.usd, source: "actual", formula: "venta actual − venta del año anterior", context: "la cuenta que más sube vs el año anterior (dato real)" }));
+  return { pct: p, dir: dir === "bajar" ? "bajar" : "subir", metaUsd, metaFmt, baseUsd, baseFmt, baseLabel, metricLabel: m.label, phrase, mover, bol };
+}
+
 /* ── composeFollowupRecommendation · FOLLOW-UP EJECUTIVO sobre la última evidencia (owner 2026-07-06) ─────────────────
  * "dime qué hacemos" DESPUÉS de una simulación → recomendación desde la última evidence.transform (NO re-parsea eje/métrica).
  * Determinística · reusa las cifras/estructura ya computadas (pct + bloque 80/20) · misma boleta estructural (guard duro:

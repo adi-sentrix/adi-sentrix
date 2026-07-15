@@ -37,6 +37,10 @@ export const CONTRACTS = {
     active: true,    // Fase 3b · SOLO recomienda sobre palancas PROBADAS (carga/capital) · si la causa está abierta → recomienda diagnosticar, no una solución inventada
     slots: ["recomendacion", "fundamento", "impacto_esperado", "trade_off", "primer_paso"],
   },
+  simulate_assumption: {
+    active: true,    // SIMULATE S1 (owner 2026-07-14 "sí, continúa") · operación `simulate` · el proyector de transform + marco ejecutivo
+    slots: ["supuesto", "efecto", "donde_pega", "limite", "decision"],
+  },
 };
 
 // SELECTOR · operación del spec → contractId (reusa el if-chain que ya existe · ver answerADIFromSpec)
@@ -48,4 +52,5 @@ export const OPERATION_CONTRACT = {
   compare:   "compare_entities",
   why:       "why_mechanism",
   recommend: "recommend_action",
+  simulate:  "simulate_assumption",
 };

@@ -141,7 +141,7 @@ export function composeMeta(topic, last) {
   } else if (/de d[oó]nde|fuente|sale|origen/.test(t)) {
     text = "Sale del dato real de tu cartera. No estimo ni traigo nada de afuera.";
   } else if (/qu[eé] pod[eé]s|capacidad|hacer|sirv/.test(t)) {
-    text = "Hoy proyecto ventas, contribución y capital con un +/-X% sobre el dato real, y te ordeno la decisión: lectura, estructura, riesgo y acción.";
+    text = "Hoy proyecto ventas, contribución y capital con un +/-X% sobre el dato real («¿qué pasa si las ventas suben 3%?»), y también el supuesto de una acción: llevar la carga comercial al target o liberar el capital detenido. Siempre te ordeno la decisión: lectura, estructura, riesgo y acción.";
   } else {
     text = "Trabajo sobre el dato real de tu cartera y te ordeno la decisión. Decime qué mirar (ventas, contribución o capital, por cliente/marca/familia/bodega) y arranco.";
   }

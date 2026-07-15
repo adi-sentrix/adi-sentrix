@@ -20,7 +20,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
-import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, compareCauses, diveCauses } from "./specRetrieval.js";   // productores spec-driven genéricos + capa causal (el motor lee; la capa explica)
+import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, composeSpecSimulateCarga, composeSpecSimulateCapital, computeGoalAnchor, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, compareCauses, diveCauses } from "./specRetrieval.js";   // productores spec-driven genéricos + capa causal (el motor lee; la capa explica)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -40,7 +40,7 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
 }
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "ventas", "contribucion", "why", "recommend", "explain_availability", "table"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "ventas", "contribucion", "why", "recommend", "explain_availability", "table", "simulate"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -213,6 +213,9 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     return _degrade("unsupported-op", `Eso todavía no lo tengo como análisis directo. Lo que sí puedo: mirar tus ventas, margen, contribución o inventario · comparar dos cuentas · profundizar en una ("profundiza en…") · o diagnosticar dónde se pierde margen ("¿dónde estoy perdiendo dinero?").`, [], ctx);
 
   // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
+  // simulate sin métrica reconocible → repregunta EDUCATIVA (enseña las dos formas del supuesto), no el menú de métricas.
+  if (spec.operation === "simulate" && (!spec.metric || !METRICS[spec.metric]))
+    return _degrade("simulate-shape", `Decime el supuesto que querés probar: un porcentaje sobre una métrica («¿qué pasa si las ventas suben 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
   if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && (!spec.metric || !METRICS[spec.metric]))
     return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);
 
@@ -299,14 +302,51 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       if (spec.transform.op === "multi" || spec.transform.compound === true) {
         return _degrade("simulate-compound", "Puedo proyectar un supuesto a la vez sobre el dato real. Hoy simulo ventas, contribución o capital con un +/-X%. Tu pedido combina dos supuestos — separémoslo: probá primero el que ya está habilitado y el otro cuando esté disponible.", [], ctx);
       }
+      // GUARD DE ABSURDOS (SIMULATE S1 · owner 2026-07-14): 0% no mueve nada · más de ±50% no es un supuesto operable
+      // (a esa escala cambia el negocio y la base actual deja de valer) → repregunta honesta, jamás una tabla absurda.
+      if (spec.transform.op === "delta") {
+        const _v = Number(spec.transform.value);
+        if (!_v)
+          return _degrade("simulate-absurd", "Un 0% deja el dato igual — no hay supuesto que proyectar. Decime un porcentaje con dirección («¿qué pasa si las ventas suben 3%?» · «¿y si el capital baja 10%?») y lo corro sobre el dato real.", [], ctx);
+        if (Math.abs(_v) > 50)
+          return _degrade("simulate-absurd", `Un ${_v > 0 ? "+" : ""}${_v}% ya no es un supuesto operable: a esa escala cambia el negocio entero y el dato actual deja de ser una base válida para proyectar. Probá un rango realista (entre ±1% y ±50%) y lo corro sobre el dato real.`, [], ctx);
+      }
       const sim = composeSpecSimulate({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters || {}, transform: spec.transform });
       if (sim && sim.opener) {
-        const r = _finalize(sim, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
-        if (r && r.text) r.evidence = { ...(r.evidence || {}), ...sim.evidence, boleta: ensureBoletaCoversText(sim.evidence.boleta, r.text) };
+        // SIMULATE S1: la operación explícita sale con su CONTRATO (supuesto → efecto → dónde pega → límite → decisión).
+        // La vía legacy (table/overview + transform · followups) queda intacta → _simulate_gate byte-cómodo.
+        const wrapped = spec.operation === "simulate" ? composeContract("simulate_assumption", sim, sim.evidence, ctx, scenario) : sim;
+        const r = _finalize(wrapped, "qi_retrieval", "qi_retrieval", ctx, scenario, null);
+        if (r && r.text) r.evidence = { ...(r.evidence || {}), ...wrapped.evidence, boleta: ensureBoletaCoversText(wrapped.evidence.boleta, r.text) };
         return r;
       }
-      const _te = `${spec.transform.op} ${spec.transform.value}${spec.transform.unit === "pct" ? "%" : ""}`;
-      return _degrade("simulate-not-supported", `Puedo leer ${_m(spec.metric)} actual, pero ese supuesto (${_te}) todavía no está habilitado para ${_dp(spec.dimension)}. Hoy proyecto ventas/contribución/capital con un +/-X% sobre el dato real.`, [], ctx);
+      // operation simulate + métrica de ACCIÓN (carga/capital): el % no aplica (carga es tasa) → cae al supuesto de
+      // acción de abajo, que responde LA versión que el dato sí sostiene (declarando el supuesto — sin fingir el %).
+      if (spec.operation !== "simulate" || (spec.metric !== "carga" && spec.metric !== "capital")) {
+        const _te = `${spec.transform.op} ${spec.transform.value}${spec.transform.unit === "pct" ? "%" : ""}`;
+        return _degrade("simulate-not-supported", `Puedo leer ${_m(spec.metric)} actual, pero ese supuesto (${_te}) todavía no está habilitado para ${_dp(spec.dimension)}. Hoy proyecto ventas/contribución/capital con un +/-X% sobre el dato real.`, [], ctx);
+      }
+    }
+    // SIMULATE S2 (owner 2026-07-14 "sí, continúa") · el supuesto sobre una ACCIÓN específica: el % ya se resolvió
+    // arriba (transform); acá llega «si llevo la carga al target» / «si libero el capital detenido» — el $ del
+    // detector (probado por dato) presentado como proyección con la reacción del mercado declarada abierta.
+    if (spec.operation === "simulate") {
+      const act = spec.simAction || (spec.metric === "carga" ? "carga_target" : spec.metric === "capital" ? "liberar_capital" : null);
+      if (act === "carga_target") {
+        const resp = composeSpecSimulateCarga({ filters: spec.filters || {}, scenario });
+        if (!resp || !resp.opener) {
+          const _sc = spec.filters && spec.filters.cliente;
+          return _degrade("simulate-empty", `${_sc ? `La carga comercial de ${_sc}` : "La carga comercial"} ya corre en o bajo tu target — con ese supuesto no hay valor adicional que recuperar. Si querés, te muestro dónde sí hay valor: «¿dónde estoy perdiendo dinero?».`, [], ctx);
+        }
+        return _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
+      }
+      if (act === "liberar_capital") {
+        const resp = composeSpecSimulateCapital({ filters: spec.filters || {}, scenario });
+        if (!resp || !resp.opener)
+          return _degrade("simulate-empty", "No veo capital detenido material según tu vara — el inventario está rotando dentro de rango, así que ese supuesto no libera caja adicional. ¿Te muestro el estado del inventario completo?", [], ctx);
+        return _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
+      }
+      return _degrade("simulate-shape", `Decime el supuesto que querés probar sobre ${_m(spec.metric)}: un porcentaje («¿qué pasa si ${_m(spec.metric)} sube 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
     }
     if (spec.operation === "overview") {
       // INVENTARIO (capital/rotación/DOH) → productor spec-driven (data-driven del contrato · sin texto) · sku o bodega
@@ -562,6 +602,16 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
       const resp = composeSpecDiagnose({ filters, scenario });
       if (!resp || !resp.opener) return _degrade("recommend-empty", `No tengo una medida probada para recomendar${ent ? ` en ${ent}` : ""}. Para recomendar necesito un foco material con causa probada.`, [], ctx);
+      // META-AWARE (SIMULATE S3 · owner 2026-07-14): la pregunta-objetivo trae un % (spec.goal · lo emite la red
+      // determinística del coerce, ya no lo descarta) → se ancla al dato ("3% de $100.0M = $3.0M al año") ANTES del
+      // closer; las cifras del ancla van AUTORIZADAS en la boleta (source/formula/context · reservados de simulate).
+      if (spec.goal && spec.goal.pct) {
+        const anchor = computeGoalAnchor(spec.metric || "ventas", spec.goal.pct, spec.goal.dir, scenario);
+        if (anchor && resp.evidence) {
+          resp.evidence.goal = anchor;
+          resp.evidence.boleta = [...(resp.evidence.boleta || []), ...anchor.bol];
+        }
+      }
       return _finBoleta(composeContract("recommend_action", resp, resp.evidence, ctx, scenario), resp, "recommend_action", "recommend_action", ctx, scenario);
     }
   } catch (e) {

@@ -224,6 +224,64 @@ function _coerceMulti(q, spec) {
 // operations y el seam degradaba con vocabulario interno). Solo mensajes CORTOS que son pura afirmación.
 const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de una|h[aá]z?lo|hacelo|adelante|me parece( bien)?|por ?favor|porfa|s[ií],?\s+(dale|claro|porfa|por ?favor|profundiz[aá]|hazlo|hacelo|adelante))[\s.!…]*$/i;
 
+// ── SIMULATE (S1/S2 · owner 2026-07-14 "sí, continúa") · red del "¿qué pasa si…?" ────────────────────────────
+// El CONDICIONAL es el ancla ("qué pasa(ría) si…" / "cómo queda si…" / "y si…" / "si <verbo>" al inicio) — sin él
+// la red NO reclama (protege "30% de margen" / "80% de la contribución" del routing gate, que no son simulación).
+const _SIMQ_RE = /\b(qu[eé]\s+pasa(?:r[ií]a)?\s+si|c[oó]mo\s+queda(?:r[ií]a\w*|mos)?\s+si|y\s+si)\b|^\s*¿?\s*si\s+\p{L}/iu;
+const _SIM_UP_RE = /\b(sub\w*|aument\w*|crec\w*|increment\w*|agreg\w*|levant\w*|mejor\w*|dupli\w*)\b/i;
+const _SIM_DOWN_RE = /\b(baj\w*|ca[eiy]\w*|reduc\w*|recort\w*|disminu\w*|pierd\w*|sac\w*|quit\w*)\b/i;
+// acción · carga → target ("si llevo/bajo la carga al target/objetivo" · "y si recupero la carga")
+const _SIM_CARGA_RE = /\bcargas?\b[^.?!]*\b(?:target|objetivo)\b|\brecuper\w*\b[^.?!]*\bcarga\b/i;
+// acción · liberar el capital detenido ("si libero el capital/stock detenido/inmovilizado/frenado")
+const _SIM_CAPLIB_RE = /\b(?:liber\w*|destrab\w*)\b[^.?!]*\b(?:capital|stock|inventario|caja)\b|\b(?:capital|stock)\b[^.?!]*\bliber\w*/i;
+function _coerceSimulate(q, spec) {
+  if (!_SIMQ_RE.test(q)) return null;
+  const _tt = spec.turn_type === "followup_modify_assumption" ? "followup_modify_assumption" : "new_query";
+  // ACCIÓN · carga → target (el cliente nombrado viaja como filtro · canon)
+  if (_SIM_CARGA_RE.test(q)) {
+    const f = { ...(spec.filters || {}) };
+    if (!f.cliente) {
+      const nq = _norm(q);
+      for (const [k, c] of _CANON) {
+        if (c.tipo !== "cliente" || k.length < 3) continue;
+        const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) { f.cliente = c.nombre; break; }
+      }
+    }
+    return _cleanFilters({ ...spec, operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target",
+      entity: null, comparison: undefined, focus: undefined, transform: undefined, meta: undefined,
+      filters: Object.keys(f).length ? f : undefined, turn_type: _tt });
+  }
+  // ACCIÓN · liberar el capital detenido
+  if (_SIM_CAPLIB_RE.test(q)) {
+    return _cleanFilters({ ...spec, operation: "simulate", metric: "capital", dimension: "sku", simAction: "liberar_capital",
+      entity: null, comparison: undefined, focus: undefined, transform: undefined, meta: undefined, turn_type: _tt });
+  }
+  // % · el proyector (delta sobre una métrica de nivel). Sin % ni acción → la cadena sigue su curso (no reclama).
+  const pm = q.match(/(-?\d+(?:[.,]\d+)?)\s*%/);
+  if (!pm) return null;
+  let v = parseFloat(pm[1].replace(",", "."));
+  if (_SIM_DOWN_RE.test(q) && !_SIM_UP_RE.test(q) && v > 0) v = -v;
+  // followup "y si fuera 5%": el LLM ya resolvió el signo desde el contexto — si coincide en valor absoluto, manda su signo
+  if (spec.transform && spec.transform.op === "delta" && spec.transform.unit === "pct"
+      && Math.abs(Number(spec.transform.value)) === Math.abs(v)) v = Number(spec.transform.value);
+  const met = /\b(ventas?|ingresos?|facturaci[oó]n)\b/i.test(q) ? "ventas"
+    : /contribuci[oó]n/i.test(q) ? "contribucion"
+    : /\b(capital|stock|inventario)\b/i.test(q) ? "capital"
+    : /margen/i.test(q) ? "margen"
+    : (typeof spec.metric === "string" && spec.metric) || null;
+  if (!met) return null;   // ni la pregunta ni el LLM traen métrica → que el camino conversacional resuelva
+  const ejeM = q.match(/\b(?:por|de)\s+(?:las?\s+|los?\s+|cada\s+|mis\s+)?(clientes?|skus?|productos?|marcas?|familias?|bodegas?)\b/i);
+  // eje del texto si lo nombra; si no, uno VÁLIDO para la métrica (capital vive en sku/bodega · lo comercial no vive en bodega)
+  let dim = ejeM ? ({ cliente: "cliente", sku: "sku", producto: "sku", marca: "marca", familia: "familia", bodega: "bodega" })[ejeM[1].toLowerCase().replace(/s$/, "")]
+    : (spec.dimension && ENTITIES[spec.dimension]) ? spec.dimension : null;
+  if (met === "capital" && dim !== "sku" && dim !== "bodega") dim = "bodega";
+  else if (met !== "capital" && (!dim || dim === "bodega")) dim = "cliente";
+  return _cleanFilters({ ...spec, operation: "simulate", metric: met, dimension: dim,
+    transform: { kind: "assumption", op: "delta", value: v, unit: "pct", base: "real" },
+    entity: null, comparison: undefined, focus: undefined, simAction: undefined, meta: undefined, turn_type: _tt });
+}
+
 // PREGUNTA-OBJETIVO (owner 2026-07-14): metas de crecimiento/mejora → recommend. Tres señales:
 // · _GOAL_PCT_RE: verbo de meta con un % objetivo cerca ("subir un 3% el ingreso…") — la más fuerte.
 // · _GOAL_INTENT_RE + _GOAL_VERB_RE: intención de plan ("qué tengo que hacer" / "cómo hago" / "dame
@@ -351,6 +409,15 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.
   if (spec && typeof spec.entity === "string" && /^(t[uú]|yo|vos|usted|mi|m[ií]o|nuestro|ese|esa|eso|este|esta|esto|[eé]l|ella)$/i.test(spec.entity.trim()))
     spec = { ...spec, entity: null };
+  // SIMULATE (S1/S2 · owner 2026-07-14 "sí, continúa") · red del "¿qué pasa si…?": el CONDICIONAL manda. Dos formas —
+  // un % sobre una métrica de nivel → operation simulate + transform delta (el proyector) · una ACCIÓN específica →
+  // carga al target (cliente opcional del canon) / liberar el capital detenido (el $ del detector como proyección).
+  // Corre ANTES de la red goal (el condicional es más específico que la meta) y de los dominios (que borran transform).
+  // NO pisa los SIM_PCT del routing gate ("30% de margen" · "80% de la contribución"): sin condicional no hay red.
+  if (q && spec) {
+    const sim = _coerceSimulate(q, spec);
+    if (sim) return sim;
+  }
   // PREGUNTA-OBJETIVO (owner 2026-07-14: «dime qué tengo que hacer para subir un 3% el ingreso de mis ventas,
   // dame alternativas» cayó UNA vez en meta_question y el narrador fabuló un menú con "no tengo datos frescos"):
   // toda META de crecimiento/mejora sobre una métrica del dato ("cómo subo/bajo/mejoro X" · "quiero crecer N% en X"
@@ -370,7 +437,11 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
       }
       // transform/simulate FUERA (dist real 2026-07-14: el LLM a veces ancla el "3%" como supuesto target → el
       // seam bifurca a proyección o a simulate-bloqueado según la forma; una META pide PALANCAS, no un supuesto)
-      return _cleanFilters({ ...spec, operation: "recommend", entity: null, metric: gm[0], dimension: gm[1], focus: undefined, comparison: undefined, meta: undefined, transform: undefined, simulate: undefined, filters: Object.keys(f).length ? f : undefined, turn_type: "new_query" });
+      // META-AWARE (SIMULATE S3 · 2026-07-15): el % objetivo ya NO se descarta — viaja como spec.goal y el
+      // recommend lo ancla al dato ("3% de $100.0M = $3.0M al año") con los caminos cuantificados.
+      const gp = q.match(/(\d+(?:[.,]\d+)?)\s*%/);
+      const goal = gp ? { pct: parseFloat(gp[1].replace(",", ".")), dir: (/\b(baj\w*|reduc\w*|recort\w*|disminu\w*|liber\w*)\b/i.test(q) ? "bajar" : "subir") } : undefined;
+      return _cleanFilters({ ...spec, operation: "recommend", entity: null, metric: gm[0], dimension: gm[1], focus: undefined, comparison: undefined, meta: undefined, transform: undefined, simulate: undefined, ...(goal ? { goal } : {}), filters: Object.keys(f).length ? f : undefined, turn_type: "new_query" });
     }
   }
   // RECOMENDACIÓN explícita (invitado 2026-07-09: "invierto en cuidado personal, ¿qué me recomendás?" caía en una

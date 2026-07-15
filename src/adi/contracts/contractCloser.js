@@ -36,6 +36,7 @@ export function composeContract(contractId, resp, evidence, ctx, scenario) {   /
   if (contractId === "compare_entities")      return _closeCompare(resp);
   if (contractId === "why_mechanism")         return _closeWhy(resp);
   if (contractId === "recommend_action")      return _closeRecommend(resp);
+  if (contractId === "simulate_assumption")   return _closeSimulate(resp);
   return resp;
 }
 
@@ -280,6 +281,64 @@ function _whyFromDiagnose(resp) {
   return _guardWrap(resp, [header, mecanismo, evidencia, certeza, palanca].join("\n\n"), "why_mechanism");
 }
 
+// simulate_assumption (SIMULATE S1 · owner 2026-07-14): envuelve la proyección del transform (composeSpecSimulate) en el
+// contrato supuesto → efecto → dónde pega → límite → decisión. El efecto reusa el opener VERBATIM (historia fluida · toda
+// cifra ya autorizada por su boleta); los slots nuevos NO agregan cifras (nombres del bloque sí — nombres no son cifras).
+// El límite es la doctrina supuesto≠dato en duro: el cálculo es directo, la reacción del mercado NO se predice.
+function _closeSimulate(resp) {
+  const ev = resp.evidence || {};
+  const t = ev.transform, con = ev.concentration;
+  if (!t || t.op !== "delta" || !con) return resp;   // forma no reconocida → no-op seguro (deja el proyector)
+  const pct = t.value, sgn = pct >= 0 ? "+" : "";
+  const mLabel = String(ev.metricLabel || ev.metrica || "la métrica").toLowerCase();
+  const supuesto = `**El supuesto:** ${mLabel} ${sgn}${pct}% sobre el dato real — es una proyección, no un dato observado.`;
+  const bloque = (con.concentrated && Array.isArray(con.bars))
+    ? con.bars.slice(0, con.blockCount).map((b) => b.name).filter(Boolean)
+    : [];
+  const dondePega = con.single
+    ? null   // una sola entidad: el opener ya lo dice — no repetir
+    : bloque.length
+    ? `**Dónde pega:** el bloque que concentra el impacto — ${bloque.join(", ")}.`
+    : `**Dónde pega:** repartido — ninguna parte concentra el efecto; acompaña al tamaño de cada una.`;
+  const limite = "**El límite:** el cálculo es directo (dato real × el supuesto); la reacción del mercado —volumen, precio, mezcla— no está en el dato y no se predice.";
+  const decision = "**La decisión:** si el supuesto te convence, lo bajamos a plan sobre ese bloque; si no, probamos otro porcentaje o lo cruzamos con margen antes de mover.";
+  const exec = [supuesto, resp.opener, dondePega, limite, decision].filter(Boolean).join("\n\n");
+  return _guardWrap(resp, exec, "simulate_assumption");
+}
+
+// recommend META-AWARE (SIMULATE S3 · owner 2026-07-14): la pregunta trajo un % objetivo → el ancla (evidence.goal,
+// computada por computeGoalAnchor · cifras YA en boleta) abre la respuesta ("3% de $100.0M = $3.0M al año") y los focos
+// del diagnose se presentan como CAMINOS cuantificados (líneas VERBATIM · graduados por detector) + el camino de
+// tracción (la cuenta que ya crece · dato real). La cobertura de la meta se compara en código (raw vs raw · el texto
+// no introduce cifras nuevas). Cierre: "¿Por cuál partimos?".
+const _CAMINO = {
+  carga:   "llevar la carga comercial al target — probado por el dato",
+  margen:  "recuperar el margen de las cuentas bajo tu vara — la brecha está probada; la causa raíz (precio, costo o mezcla) pide el detalle",
+  capital: "liberar el capital detenido y ponerlo a trabajar — probado por el dato",
+};
+function _closeRecommendGoal(resp, goal, F, focoLines) {
+  const letras = ["A", "B", "C", "D"];
+  const meta = `**Tu meta, anclada al dato:** ${goal.phrase}.`;
+  const nF = Math.min(F.length, 3);
+  const caminos = F.slice(0, 3).map((f, i) =>
+    `${letras[i]} · ${_CAMINO[f.detector] || f.titulo}.\n${focoLines[i] || ""}`.trim()).join("\n\n");
+  const traccion = goal.mover
+    ? `${letras[nF]} · empujar donde ya hay tracción: ${goal.mover.nombre} es la cuenta que más sube contra el año anterior (${goal.mover.usdFmt} de crecimiento) — crecer ahí no pide abrir mercado nuevo.`
+    : null;
+  const totalF = F.reduce((s, f) => s + (f.subtotal_usd || 0), 0);
+  const cobertura = totalF >= goal.metaUsd
+    ? "**La lectura:** entre esos caminos hay más valor identificado que la meta — es alcanzable con lo que el dato ya prueba, sin depender de vender más."
+    : "**La lectura:** los caminos probados no cubren la meta por sí solos — conviene combinarlos con crecimiento donde la captura es sana.";
+  const top = F[0];
+  const arranque = top.detector === "margen"
+    ? `**Recomendación:** el mayor valor está en ${top.titulo.toLowerCase()} — partí por ahí, y como la causa raíz está abierta, el primer paso es cerrarla con el detalle por SKU o canal.`
+    : `**Recomendación:** partí por ${top.titulo.toLowerCase()} — es el monto probado más grande y el efecto directo es cálculo, no apuesta.`;
+  const limite = "**El límite:** cada monto es el cálculo directo sobre el dato real; la reacción del mercado (volumen, condiciones) no se predice — ese trade-off se decide camino por camino.";
+  const cierre = "**¿Por cuál partimos?**";
+  const exec = [meta, "**Los caminos que el dato sostiene:**", [caminos, traccion].filter(Boolean).join("\n\n"), cobertura, arranque, limite, cierre].join("\n\n");
+  return _guardWrap(resp, exec, "recommend_action");
+}
+
 // recommend_action (el de MAYOR riesgo de invención). GUARDRAILS DUROS: recomienda SOLO sobre palancas PROBADAS y
 // accionables (carga → $ recuperable · capital → $ liberable). NUNCA recomienda una solución para el margen bajo benchmark
 // (causa raíz abierta) → ahí recomienda DIAGNOSTICAR la causa. Impacto = el $ ya computado (reusado, sin cifra nueva).
@@ -291,6 +350,9 @@ function _closeRecommend(resp) {
   const header = openerLines[0] || "";
   const focoLines = openerLines.filter((l) => l.trim().startsWith("•"));
   if (!F.length || !focoLines.length) return resp;
+  // META-AWARE (S3): la pregunta trajo un % objetivo (evidence.goal · anclado por computeGoalAnchor) → la respuesta
+  // abre con la meta en $ y presenta los focos como caminos cuantificados. Sin goal → el recommend clásico intacto.
+  if (ev.goal && ev.goal.metaUsd) return _closeRecommendGoal(resp, ev.goal, F, focoLines);
   const cargaF = F.find((f) => f.detector === "carga");
   const capF   = F.find((f) => f.detector === "capital");
   const actionable = cargaF || capF;   // palancas PROBADAS y accionables · el margen (causa abierta) NO es accionable
