@@ -116,6 +116,15 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     const wl = buildWatchlistEstado(buildCuadroMando(d, sc).rows.map((r) => ({ dim: d, name: r.name })), sc);
     for (const it of (wl.items || [])) { check(`mesa2 · watch ${d}·${it.nombre} sub (${sc})`, it.sub); if (it.ask) check(`mesa2 · watch ${d}·${it.nombre} ask (${sc})`, it.ask); }
   }
+  // PASE 1 CUADRO 2.0 · la microlectura del detector y la pregunta del chip Acción de CADA fila (4 ejes — los
+  // textos nombran entidades del dato) también van en registro ejecutivo.
+  for (const d of ["cliente", "sku", "marca", "bodega"]) {
+    const cmg = buildCuadroMando(d, sc);
+    for (const r of (cmg.rows || [])) {
+      if (r.lectura) check(`cuadro · ${d}·${r.name} lectura (${sc})`, r.lectura);
+      if (r.accionAsk) check(`cuadro · ${d}·${r.name} ask (${sc})`, r.accionAsk);
+    }
+  }
 }
 for (const [k, v] of Object.entries(METRIC_DEFS)) check(`glosario · ${k}`, v);
 check("narrador · DISPONIBLE", buildDisponibleMenu());

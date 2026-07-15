@@ -96,6 +96,13 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     let wl; try { wl = WB(CMB(d, sc).rows.map((r) => ({ dim: d, name: r.name })), sc); } catch { continue; }
     for (const it of (wl.items || [])) if (it.ask && !promesas.has(it.ask)) promesas.set(it.ask, { lastEv: null, emisor: `mesa2:watch-${d}@${sc}` });
   }
+  // PASE 1 CUADRO 2.0 (owner 2026-07-15) · el chip Acción de CADA fila es una promesa: se cosecha DATA-DRIVEN de
+  // las filas reales del cuadro (4 ejes × 3 escenarios) — si el dato mueve una acción o una entidad, el gate prueba
+  // la pregunta que el chip de verdad va a disparar.
+  for (const d of ["cliente", "sku", "marca", "bodega"]) {
+    let cmq; try { cmq = CMB(d, sc); } catch { continue; }
+    for (const r of (cmq.rows || [])) if (r.accionAsk && !promesas.has(r.accionAsk)) promesas.set(r.accionAsk, { lastEv: null, emisor: `cuadro:accion-${d}@${sc}` });
+  }
 }
 for (const s of [
   "¿Quiénes están bajo el margen mínimo?",

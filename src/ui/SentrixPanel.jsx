@@ -5,7 +5,7 @@
  * cae al pack GENÉRICO (monto + reframe + drivers · sin tarjeta de evidencia vacía) → honesto, nunca en blanco.
  * Agregar una métrica = registrar su pack acá (+ su rama en el renderer). El armazón (header/drivers/lectura/slot)
  * es común. Regla madre: cada card sale de un claim de la lectura, y cada claim del dato. Presentación pura. */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { C } from "./theme.js";
 import { MiniPareto } from "./InlineChart.jsx";   // el 80/20 de la Mesa = la MISMA pieza del chat (owner 2026-07-09) · su import inyecta los keyframes adi*
 import { skusMargen } from "../data/skusMargen.js";   // composición de marca/familia por sus SKU (cruce REAL · Pareto reflejo de la tabla 2026-07-10)
@@ -1313,7 +1313,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
             El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
         <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica (el 80/20 donde pesa, su perfil contra el promedio y su evolutivo mensual). Con DOS filas seleccionadas, la comparación A vs B. El chevron del margen marca tu vara: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. La línea bajo el nombre es la microlectura del detector — aparece solo cuando el dato afirma algo de esa fila. \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La curva de 12 meses es la misma serie anclada de la Ficha (cierra con el dato del período; en pantallas angostas se oculta primero). La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica; con DOS, la comparación A vs B. El chevron del margen marca tu vara: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu vara), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
@@ -1791,9 +1791,43 @@ function ControlRing({ ring, rd }) {
   );
 }
 
+// ── SPARKLINE de fila (PASE 1 Cuadro 2.0) · la trayectoria de 12 meses en una columna delgada ──
+// Reusa la serie ANCLADA de temporal.js (la MISMA de la Ficha — el total del año cierra con el dato del período).
+// Estilo modelo-chat: curva monotone sin ejes + hover con el dato (tooltip al costado — cabe dentro de la fila).
+function RowSpark({ ev, fmtV }) {
+  const [h, setH] = useState(null);
+  if (!ev || ev.n < 2) return <span/>;
+  const W = 58, H = 20, padX = 2, padY = 3;
+  const lo = Math.min(...ev.serie), hi = Math.max(...ev.serie), rng = Math.max(hi - lo, 1e-9);
+  const xs = ev.serie.map((_, i) => padX + i * (W - 2 * padX) / (ev.n - 1));
+  const ys = ev.serie.map((v) => padY + (1 - (v - lo) / rng) * (H - 2 * padY));
+  const d = _mono(xs, ys);
+  return (
+    <span style={{ position:"relative", display:"block", width:W, height:H, justifySelf:"end" }}
+      onPointerMove={(e) => { const b = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - b.left) / Math.max(1, b.width); setH(Math.max(0, Math.min(ev.n - 1, Math.round(rel * (ev.n - 1))))); }}
+      onPointerLeave={() => setH(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display:"block" }}>
+        <path d={d} fill="none" stroke={C.elec} strokeWidth="1.4" strokeLinejoin="round" opacity="0.9"/>
+        <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="1.8" fill={C.elec}/>
+        {h != null && <circle cx={xs[h]} cy={ys[h]} r="2.4" fill={C.elec} stroke="#0b0b0b" strokeWidth="1"/>}
+      </svg>
+      {h != null && (
+        <span style={{ position:"absolute", top:0, ...(h > ev.n / 2 ? { right: W + 6 } : { left: W + 6 }),
+          background:"#161616", border:`1px solid ${C.borderLight}`, borderRadius:5, padding:"1px 7px", zIndex:3,
+          fontFamily:MONO, fontSize:9.5, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", color:C.textMuted, pointerEvents:"none" }}>
+          <span style={{ color:C.textSub }}>{ev.meses[h]}</span> <b style={{ color:C.text }}>{fmtV(ev.serie[h])}</b>
+        </span>
+      )}
+    </span>
+  );
+}
+
 // ── CUADRO DE MANDO (4ª lente) · la GRILLA operable · cockpit: ver y manejar TODO el dato ──
 // Dimensiones (clientes/SKU/marcas/bodegas) × columnas del catálogo · ordenar · top-N · en-alerta · seleccionar y
 // comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
+// PASE 1 Cuadro 2.0 (regla de oro del owner: las columnas clásicas INTACTAS — la voz del asesor se SUMA encima):
+// microlectura del detector bajo el nombre · columna "En juego $" · sparkline de 12 meses (se oculta ANTES que
+// cualquier columna clásica en pantallas angostas) · la Acción como chip que pregunta a ADI · dot de movimiento 80/20.
 function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = null, watch = null, onWatch = null, alertSignal = 0 }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
@@ -1811,10 +1845,12 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
   const [sortKey, setSortKey] = useState(initialSort && cols.some((c) => c.key === initialSort) ? initialSort : primary.key);
   const money = (v) => "$" + (v / 1000).toFixed(1) + "M";       // dato en $K → $M (columnas comerciales)
   const moneyk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";   // dato en $ → $K (inventario)
+  const usd = (v) => { const a = Math.abs(v); return a >= 1e6 ? "$" + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? "$" + Math.round(a / 1e3) + "K" : "$" + Math.round(a); };   // $ crudo del detector (En juego $)
   const fmt = (col, v) => {
     if (v == null) return "—";
     if (col.fmt === "money")  return money(v);
     if (col.fmt === "moneyk") return moneyk(v);
+    if (col.fmt === "usd")    return usd(v);
     if (col.fmt === "pct")    return p1(v) + "%";
     if (col.fmt === "x")      return r1(v) + "x";
     if (col.fmt === "int")    return Math.round(v).toLocaleString("es-CL");
@@ -1822,12 +1858,40 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
     return v;
   };
   const cellColor = (col, r) => {
+    if (col.key === "enJuego") return C.amber;   // el $ del detector = ámbar (vara/atención — mismo código de la Mesa)
     if (col.fmt === "pp")     return r._ref || r[col.key] === 0 ? C.textMuted : (r[col.key] >= 0 ? C.green : C.red);
     if (col.tone === "margen")return r._ref ? C.textSub : (r.gap >= 0 ? C.green : r.gap <= -3 ? C.red : C.amber);
     if (col.tone === "inmov") return r._ref ? C.textSub : (r.gap < 0 ? C.amber : C.textSub);
     if (col.fmt === "money" || col.fmt === "moneyk") return C.text;
     return C.textSub;
   };
+  // SPARKLINE (PASE 1): la serie de 12 meses por fila — la MISMA de la Ficha (buildEntityEvolution · anclada al
+  // período). Memo por eje+escenario (el dato es estático por período); bodega no tiene serie mensual (honesto).
+  const sparks = useMemo(() => {
+    if (dim === "bodega") return {};
+    const m = {};
+    for (const r of cm.rows) {
+      try { const e = buildEntityEvolution(r.name, "venta"); if (e && e.n >= 2) m[r.name] = e; } catch { /* sin serie → sin curva */ }
+    }
+    return m;
+  }, [dim, scenario]);   // el dato es estático por eje+período (cm se rearma por render, su contenido no cambia)
+  const haySpark = Object.keys(sparks).length > 0;
+  // RESPONSIVE (regla de oro): la sparkline se oculta ANTES que cualquier columna clásica — medimos el contenedor
+  // y si no cabe el ancho mínimo CON sparkline, la columna entera desaparece (las clásicas quedan como siempre).
+  const boxRef = useRef(null);
+  const [boxW, setBoxW] = useState(0);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const medir = () => setBoxW(el.clientWidth || 0);
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(medir); ro.observe(el); }
+    window.addEventListener("resize", medir);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", medir); };
+  }, []);
+  // re-mide en CADA render (React descarta el set si no cambió): cubre montaje, cambio de eje y motores donde el
+  // ResizeObserver no entrega la observación inicial — la sparkline aparece/cede apenas el ancho lo permite.
+  useEffect(() => { const el = boxRef.current; if (el) setBoxW(el.clientWidth || 0); });
   // BÚSQUEDA (owner 2026-07-10 · "datas con muchos más SKU/familias — todo debe sentirse ordenado"): filtra por
   // nombre, insensible a mayúsculas y tildes. Aparece cuando el eje tiene más filas de las que se leen de un golpe.
   const [busca, setBusca] = useState("");
@@ -1840,7 +1904,9 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
   else if (mode === "bottom") rows = rows.slice(-10);
   else if (mode === "alert") rows = rows.filter((r) => r.alert);
   const toggleSel = (n) => setSel((s) => (s.includes(n) ? s.filter((x) => x !== n) : [...s, n]));
-  const GRID = `20px 1.4fr ${cols.map(() => "1fr").join(" ")}`;
+  const minWBase = 40 + cols.length * 66 + 120;
+  const showSpark = haySpark && (boxW === 0 || boxW >= minWBase + 66);   // la sparkline cede primero (columnas clásicas intactas)
+  const GRID = `20px 1.4fr ${showSpark ? "58px " : ""}${cols.map(() => "1fr").join(" ")}`;
   const pill = (active, label, onClick, key) => (
     <button key={key} onClick={onClick} style={{ padding:"4px 10px", borderRadius:6, fontSize:11.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap",
       background: active ? "rgba(255,255,255,0.1)" : "transparent", border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, color: active ? C.text : C.textMuted }}>{label}</button>
@@ -1895,11 +1961,12 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         )}
       </div>
       {/* la grilla */}
-      <div style={{ overflowX:"auto" }}>
-        <div style={{ minWidth: 40 + cols.length * 66 + 120 }}>
+      <div ref={boxRef} style={{ overflowX:"auto" }}>
+        <div style={{ minWidth: minWBase + (showSpark ? 66 : 0) }}>
           {/* header */}
           <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", fontSize:9, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.4px", textTransform:"uppercase", padding:"0 8px 7px", borderBottom:`1px solid ${C.border}` }}>
             <span/><span>{cm.label}</span>
+            {showSpark && <span style={{ textAlign:"right", whiteSpace:"nowrap" }}>12 meses</span>}
             {cols.map((c) => (
               <span key={c.key} onClick={() => c.key !== "accion" && setSortKey(c.key)} style={{ textAlign: c.key === "accion" ? "left" : "right", cursor: c.key === "accion" ? "default" : "pointer", color: sortKey === c.key ? C.text : C.textMuted, whiteSpace:"nowrap" }}>
                 {c.label}{sortKey === c.key ? " ↓" : ""}{c.defKey && METRIC_DEFS[c.defKey] ? <InfoDot def={METRIC_DEFS[c.defKey]} align="right"/> : null}
@@ -1926,6 +1993,9 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                       onMouseLeave={(e) => { e.currentTarget.style.color = onW ? C.celeste : "rgba(255,255,255,0.22)"; }}>{onW ? "★" : "☆"}</span>
                   ); })() : null}
                   <span style={{ color:"#eef2f6", fontWeight:600, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                  {/* PASE 1 · dot de MOVIMIENTO 80/20 (solo informa — conecta con "Qué cambió" de la Mesa) */}
+                  {r.mov && <span title={r.mov === "entra" ? "Entró al bloque 80/20 de la venta (vs año anterior)" : "Salió del bloque 80/20 de la venta (vs año anterior)"}
+                    style={{ width:5, height:5, borderRadius:"50%", background: r.mov === "entra" ? C.celeste : C.amber, flexShrink:0, opacity:0.9 }}/>}
                   {mesa && onAsk ? (
                     <button onClick={(e) => { e.stopPropagation(); onAsk(`Profundiza en ${r.name}`); }} title={`Preguntale a ADI: Profundiza en ${r.name}`}
                       style={{ padding:"1px 7px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:8.5, fontFamily:MONO, letterSpacing:"0.5px", cursor:"pointer", flexShrink:0, transition:"all 0.15s" }}
@@ -1933,8 +2003,20 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                       onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>ADI</button>
                   ) : null}
                 </span>
+                {/* PASE 1 · SPARKLINE (la serie de la Ficha · se oculta primero en pantallas angostas) */}
+                {showSpark && <RowSpark ev={sparks[r.name]} fmtV={fMon}/>}
                 {cols.map((c) => c.key === "accion" ? (
-                  <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
+                  // PASE 1 · la Acción como CHIP: click = la pregunta del detector a ADI (anti-BI: pregunta, nunca dispara)
+                  mesa && onAsk && r.accionAsk ? (
+                    <span key={c.key}>
+                      <button onClick={(e) => { e.stopPropagation(); onAsk(r.accionAsk); }} title={`Preguntale a ADI: ${r.accionAsk}`}
+                        style={{ padding:"2px 8px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:actionColor(r.accion), fontSize:10.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap", transition:"all 0.15s" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; e.currentTarget.style.background = "rgba(47,184,218,0.06)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}>{r.accion}</button>
+                    </span>
+                  ) : (
+                    <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
+                  )
                 ) : c.key === "margen" ? (
                   // estado contra la vara: tooltip "X pp bajo tu vara" + click = pregunta a ADI por esa cuenta (Mesa 2.0)
                   <span key={c.key} title={varaTitle(r)}
@@ -1945,6 +2027,11 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                 ) : (
                   <span key={c.key} style={{ textAlign:"right" }}><Num color={cellColor(c, r)}>{fmt(c, r[c.key])}</Num></span>
                 ))}
+                {/* PASE 1 · MICROLECTURA: la historia del detector bajo el nombre — SOLO cuando el detector afirma
+                    algo de esta fila (honesta: sin señal no hay línea) · discreta, la lectura clásica no se ensucia */}
+                {r.lectura && (
+                  <span style={{ gridColumn:"2 / -1", fontSize:10.5, color:C.textMuted, lineHeight:1.4, paddingTop:2, minWidth:0 }}>{r.lectura}</span>
+                )}
               </div>
             );
           })}
@@ -1952,8 +2039,9 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           {!onlySel && cm.total && (
             <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", padding:"10px 8px", marginTop:4, borderTop:`1px solid ${C.borderLight}`, background:"rgba(255,255,255,0.02)" }}>
               <span/><span style={{ fontFamily:MONO, fontSize:9, fontWeight:600, letterSpacing:"0.6px", textTransform:"uppercase", color:C.text }}>Total</span>
+              {showSpark && <span/>}
               {cols.map((c) => c.key === "accion" ? <span key={c.key}/> : (
-                <span key={c.key} style={{ textAlign:"right" }}><Num color={c.key === "margen" ? C.text : c.fmt === "pp" ? C.textMuted : C.text}>{cm.total[c.key] == null ? "—" : fmt(c, cm.total[c.key])}</Num></span>
+                <span key={c.key} style={{ textAlign:"right" }}><Num color={c.key === "enJuego" ? C.amber : c.key === "margen" ? C.text : c.fmt === "pp" ? C.textMuted : C.text}>{cm.total[c.key] == null ? "—" : fmt(c, cm.total[c.key])}</Num></span>
               ))}
             </div>
           )}
@@ -1977,7 +2065,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
         : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu vara (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null}{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu vara (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · la línea bajo el nombre y el "En juego $" son la lectura del detector (solo cuando hay señal){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2645,8 +2733,9 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
   const fp = (v) => p1(v) + "%";
   const fmtOf = { money: fm, moneyk: fmk, pct: fp, x: (v) => r1(v) + "x", int: (v) => Math.round(v).toLocaleString("es-CL"), pp: (v) => p1(v) + "pp" };
   if (!row) return null;
-  // filas = columnas numéricas del cuadro (sin acción/gap/pp — el "vs prom" es redundante: el promedio ES el eje)
-  const axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap" && c.fmt !== "pp").map((c) => {
+  // filas = columnas numéricas del cuadro (sin acción/gap/pp ni la capa del asesor — "En juego $" no es una métrica
+  // de la entidad, es la lectura del detector · el "vs prom" es redundante: el promedio ES el eje)
+  const axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap" && c.fmt !== "pp" && !c.adv).map((c) => {
     const vs = allRows.map((r) => r[c.key]).filter((v) => typeof v === "number");
     return { key: c.key, label: c.label, va: row[c.key], vp: vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null,
       fmt: fmtOf[c.fmt] || ((v) => String(v)), hiBetter: c.sort !== "asc",
@@ -2750,8 +2839,9 @@ function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenar
       { label: "Acciones de precios", va: rowA.acciones,     vb: rowB.acciones,     fmt: fm, hiBetter: false },
     ];
   } else if (rowA && rowB) {
-    // estaciones = las COLUMNAS del cuadro de ese eje (sin acción/gap) · sort "asc" = menos es mejor · refs de POLICY donde aplican
-    axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap").map((c) => ({
+    // estaciones = las COLUMNAS del cuadro de ese eje (sin acción/gap ni la capa del asesor — "En juego $" no es una
+    // métrica de la entidad) · sort "asc" = menos es mejor · refs de POLICY donde aplican
+    axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap" && !c.adv).map((c) => ({
       label: c.label, va: rowA[c.key], vb: rowB[c.key], fmt: fmtOf[c.fmt] || ((v) => String(v)), hiBetter: c.sort !== "asc",
       ...(c.key === "margen" ? { ref: benchmarkOf(null), refLabel: "piso" } : {}),
       ...(c.key === "rotacion" ? { ref: POLICY.rotacionMin, refLabel: "piso" } : {}),
