@@ -26,6 +26,7 @@ const KF = `@media (prefers-reduced-motion: no-preference){
 @keyframes adiRise{from{transform:scaleX(0)}}
 @keyframes adiRiseY{from{transform:scaleY(0)}}
 @keyframes adiFade{from{opacity:0}}
+@keyframes adiBlink{0%,100%{opacity:1}50%{opacity:0.12}}
 }`;
 if (typeof document !== "undefined" && !document.getElementById("adi-chart-kf")) {
   const s = document.createElement("style"); s.id = "adi-chart-kf"; s.textContent = KF; document.head.appendChild(s);

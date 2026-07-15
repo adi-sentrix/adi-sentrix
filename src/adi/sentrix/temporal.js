@@ -6,7 +6,7 @@
  * vs presupuesto, vs año anterior), todo DERIVADO del dato, nunca inventado. Pura · client-side · el motor no la llama
  * (igual que buildComparisonReading) → motor sellado. La regla madre: cada cifra del gráfico cierra con su serie. */
 import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
-import { historialMargen, clientesMargen, clientesVentas, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
+import { historialMargen, clientesMargen, clientesVentas, marcasVentas, marcasMargen, sfamiliasVentas, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
@@ -144,6 +144,51 @@ export function buildEntityEvolution(name, metric = "venta") {
   const anchorTotal = metric === "venta" ? P.venta : metric === "contribucion" ? P.contribucion : metric === "acciones" ? P.acciones : null;
   if (anchorTotal != null) serie = _anchor(serie, anchorTotal);
   return _entityAnalysis(name, metric, meses, serie);
+}
+
+/* === Evolutivo por entidad COMPARADO vs año anterior (owner 2026-07-15 · Cuadro 2.0 pase 1b: "debe ir comparado
+ * contra el año anterior") — la curva del cuadro pasa de evolutiva a comparada, HONESTA por entidad:
+ *   - `actual` = buildEntityEvolution intacto (la MISMA serie anclada de la Ficha — una verdad).
+ *   - `anterior` SOLO donde el dataset DECLARA el total del año anterior de esa entidad (clientesVentas/marcasVentas/
+ *     sfamiliasVentas.anterior · métrica venta). La forma mensual la pone el historial (ventaAnt) modulada con la
+ *     estacionalidad global REAL del año anterior (ventasMensuales.anterior) y se ANCLA a ese total — la misma
+ *     técnica del actual, así el ghost cierra EXACTO con el "vs año anterior" que ya muestran los movers y el 80/20.
+ *   - Sin total declarado NO se fabrica: contribución/margen (el contribucionAnt del historial es ÷1.081 uniforme —
+ *     contradiría el YoY por entidad de la venta: Ripley cae −8% y "crecería" +8%) y los SKU (skusMargen no trae
+ *     `anterior`) devuelven anterior:null → la curva va sola, sin ghost (honesto, como bodega sin serie hoy). */
+const _PERIOD_ANT = (() => {
+  const m = new Map();
+  for (const t of [clientesVentas, marcasVentas, sfamiliasVentas])
+    for (const x of t || []) if (Number.isFinite(Number(x.anterior))) m.set(x.nombre, Number(x.anterior));
+  return m;
+})();
+export function buildEntityEvolutionComparado(name, metric = "venta") {
+  const A = buildEntityEvolution(name, metric);
+  if (!A) return null;
+  let anterior = null;
+  const antTotal = metric === "venta" ? _PERIOD_ANT.get(name) : null;
+  const H = historialMargen && historialMargen[name];
+  if (antTotal != null && H && H.length === A.n) {
+    let serie = H.map((x) => Number(x.ventaAnt));
+    if (serie.every(Number.isFinite)) {
+      // tendencia (historial) × estacionalidad global del AÑO ANTERIOR (dato real) · total conservado — como el actual
+      if (Array.isArray(ventasMensuales) && ventasMensuales.length === serie.length) {
+        const g = ventasMensuales.map((x) => Number(x.anterior));
+        const gMean = _sum(g) / g.length;
+        if (gMean > 0 && g.every(Number.isFinite)) {
+          const total = _sum(serie);
+          let mod = serie.map((v, i) => v * (g[i] / gMean));
+          const k = _sum(mod) ? total / _sum(mod) : 1;
+          mod = mod.map((v) => Math.round(v * k));
+          mod[mod.length - 1] += total - _sum(mod);
+          serie = mod;
+        }
+      }
+      serie = _anchor(serie, antTotal);   // cierra EXACTO con el `anterior` declarado del eje (una verdad con los movers)
+      anterior = { serie, total: antTotal };
+    }
+  }
+  return { ...A, anterior };
 }
 
 // análisis de una serie mensual (pico/valle · mayor alza/caída · trayectoria) — compartido por todas las métricas

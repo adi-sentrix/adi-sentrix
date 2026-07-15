@@ -12,7 +12,7 @@ import { skusMargen } from "../data/skusMargen.js";   // composición de marca/f
 import { composicionCliente, compradoresSku } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (cierra exacto con el cuadro · gate de conexión)
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
-import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · la Ficha usa la serie de UNA entidad)
+import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolution, buildEntityEvolutionComparado } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · la Ficha usa la serie de UNA entidad · el cuadro, la comparada vs año anterior)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
 import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt, buildBrechaFilm } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6/2c · tira + descomposición + recibo + película de la brecha
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
@@ -1313,7 +1313,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
             El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
         <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. La línea bajo el nombre es la microlectura del detector — aparece solo cuando el dato afirma algo de esa fila. \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La curva de 12 meses es la misma serie anclada de la Ficha (cierra con el dato del período; en pantallas angostas se oculta primero). La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica; con DOS, la comparación A vs B. El chevron del margen marca tu vara: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La curva compara este año (celeste) contra el año anterior (perlas) — elegí la métrica en su encabezado (Ventas · Contribución · Margen): el punto rojo parpadea en el mes más bajo, el verde marca el más alto y, en margen, la línea ámbar es la vara de esa entidad con el benchmark de la cartera en el encabezado. El año anterior se dibuja solo donde el dato lo declara (ventas por cliente y por marca) — ADI no lo inventa; en pantallas angostas la curva se oculta primero. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica; con DOS, la comparación A vs B. El chevron del margen marca tu vara: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu vara), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
@@ -1791,31 +1791,50 @@ function ControlRing({ ring, rd }) {
   );
 }
 
-// ── SPARKLINE de fila (PASE 1 Cuadro 2.0) · la trayectoria de 12 meses en una columna delgada ──
-// Reusa la serie ANCLADA de temporal.js (la MISMA de la Ficha — el total del año cierra con el dato del período).
-// Estilo modelo-chat: curva monotone sin ejes + hover con el dato (tooltip al costado — cabe dentro de la fila).
-function RowSpark({ ev, fmtV }) {
+// ── GRÁFICO COMPARADO de fila (PASE 1b Cuadro 2.0 · owner 2026-07-15: reemplaza al evolutivo simple) ──
+// Reusa las series ANCLADAS de temporal.js (buildEntityEvolutionComparado — la MISMA verdad de la Ficha y los movers).
+// Este año en CELESTE (nuestra base) con reflejo premium = doble trazo (sin filtros SVG — doctrina InlineChart) ·
+// año anterior en PERLAS (patrón del MiniEvolutivo del chat) SOLO donde el dato lo declara (sin ancla no se dibuja) ·
+// mes más bajo en ROJO parpadeando (adiBlink vive bajo prefers-reduced-motion: no-preference → con movimiento
+// reducido queda fijo) · más alto en VERDE · la vara DEL CLIENTE en ámbar (margen — entra al rango: la distancia
+// a la vara ES el dato) · hover = tooltip con el dato del mes en AMBAS series (regla de todos los gráficos).
+function RowSpark({ ev, fmtV, bench }) {
   const [h, setH] = useState(null);
   if (!ev || ev.n < 2) return <span/>;
-  const W = 58, H = 20, padX = 2, padY = 3;
-  const lo = Math.min(...ev.serie), hi = Math.max(...ev.serie), rng = Math.max(hi - lo, 1e-9);
+  const W = 100, H = 24, padX = 2.5, padY = 3.5;
+  const ant = ev.anterior && ev.anterior.serie;
+  const all = ant ? [...ev.serie, ...ant] : [...ev.serie];
+  if (bench != null) all.push(bench);
+  const lo = Math.min(...all), hi = Math.max(...all), rng = Math.max(hi - lo, 1e-9);
   const xs = ev.serie.map((_, i) => padX + i * (W - 2 * padX) / (ev.n - 1));
-  const ys = ev.serie.map((v) => padY + (1 - (v - lo) / rng) * (H - 2 * padY));
+  const y = (v) => padY + (1 - (v - lo) / rng) * (H - 2 * padY);
+  const ys = ev.serie.map(y);
   const d = _mono(xs, ys);
+  const dAnt = ant ? _mono(xs, ant.map(y)) : null;
+  const iMin = ev.serie.indexOf(ev.min), iMax = ev.serie.indexOf(ev.max);
   return (
     <span style={{ position:"relative", display:"block", width:W, height:H, justifySelf:"end" }}
       onPointerMove={(e) => { const b = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - b.left) / Math.max(1, b.width); setH(Math.max(0, Math.min(ev.n - 1, Math.round(rel * (ev.n - 1))))); }}
       onPointerLeave={() => setH(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display:"block" }}>
-        <path d={d} fill="none" stroke={C.elec} strokeWidth="1.4" strokeLinejoin="round" opacity="0.9"/>
-        <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="1.8" fill={C.elec}/>
-        {h != null && <circle cx={xs[h]} cy={ys[h]} r="2.4" fill={C.elec} stroke="#0b0b0b" strokeWidth="1"/>}
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display:"block", overflow:"visible" }}>
+        {bench != null && <line x1={padX} x2={W - padX} y1={y(bench)} y2={y(bench)} stroke={C.amber} strokeWidth="1" strokeDasharray="3 2.5" opacity="0.55"/>}
+        {dAnt && <path d={dAnt} fill="none" stroke={C.teal} strokeWidth="1.3" strokeDasharray="0.1 4.5" strokeLinecap="round" opacity="0.6"/>}
+        <path d={d} fill="none" stroke={C.celeste} strokeWidth="3.6" strokeLinejoin="round" opacity="0.16"/>
+        <path d={d} fill="none" stroke={C.celeste} strokeWidth="1.5" strokeLinejoin="round" opacity="0.95"/>
+        <circle cx={xs[iMax]} cy={ys[iMax]} r="2" fill={C.green} stroke="#0b0b0b" strokeWidth="1"/>
+        <circle cx={xs[iMin]} cy={ys[iMin]} r="2" fill={C.red} stroke="#0b0b0b" strokeWidth="1" style={{ animation:"adiBlink 1.5s ease-in-out infinite" }}/>
+        {h != null && (
+          <g pointerEvents="none">
+            {ant && <circle cx={xs[h]} cy={y(ant[h])} r="2" fill={C.teal} stroke="#0b0b0b" strokeWidth="1"/>}
+            <circle cx={xs[h]} cy={ys[h]} r="2.4" fill={C.celeste} stroke="#0b0b0b" strokeWidth="1"/>
+          </g>
+        )}
       </svg>
       {h != null && (
         <span style={{ position:"absolute", top:0, ...(h > ev.n / 2 ? { right: W + 6 } : { left: W + 6 }),
           background:"#161616", border:`1px solid ${C.borderLight}`, borderRadius:5, padding:"1px 7px", zIndex:3,
           fontFamily:MONO, fontSize:9.5, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", color:C.textMuted, pointerEvents:"none" }}>
-          <span style={{ color:C.textSub }}>{ev.meses[h]}</span> <b style={{ color:C.text }}>{fmtV(ev.serie[h])}</b>
+          <span style={{ color:C.textSub }}>{ev.meses[h]}</span> <b style={{ color:C.text }}>{fmtV(ev.serie[h])}</b>{ant ? <> · ant {fmtV(ant[h])}</> : null}
         </span>
       )}
     </span>
@@ -1826,8 +1845,9 @@ function RowSpark({ ev, fmtV }) {
 // Dimensiones (clientes/SKU/marcas/bodegas) × columnas del catálogo · ordenar · top-N · en-alerta · seleccionar y
 // comparar (filtra al resto) · fila promedio de referencia · acción derivada · alerta honesta. NO Power BI: premium.
 // PASE 1 Cuadro 2.0 (regla de oro del owner: las columnas clásicas INTACTAS — la voz del asesor se SUMA encima):
-// microlectura del detector bajo el nombre · columna "En juego $" · sparkline de 12 meses (se oculta ANTES que
-// cualquier columna clásica en pantallas angostas) · la Acción como chip que pregunta a ADI · dot de movimiento 80/20.
+// microlectura del detector bajo el nombre (PASE 1b: visible SOLO en el modo "En alerta") · columna "En juego $" ·
+// gráfico COMPARADO vs año anterior con filtro de métrica en el encabezado (se oculta ANTES que cualquier columna
+// clásica en pantallas angostas) · la Acción como chip que pregunta a ADI · dot de movimiento 80/20.
 function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = null, watch = null, onWatch = null, alertSignal = 0 }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
@@ -1865,16 +1885,19 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
     if (col.fmt === "money" || col.fmt === "moneyk") return C.text;
     return C.textSub;
   };
-  // SPARKLINE (PASE 1): la serie de 12 meses por fila — la MISMA de la Ficha (buildEntityEvolution · anclada al
-  // período). Memo por eje+escenario (el dato es estático por período); bodega no tiene serie mensual (honesto).
+  // GRÁFICO COMPARADO (PASE 1b): la serie del año + el año anterior donde el dato lo declara — la MISMA verdad de
+  // la Ficha y los movers (buildEntityEvolutionComparado · anclada al período). El FILTRO de métrica vive en el
+  // ENCABEZADO de la columna (Ventas · Contribución · Margen — owner 2026-07-15) y aplica a todas las filas.
+  // Memo por eje+escenario+métrica (el dato es estático por período); bodega no tiene serie mensual (honesto).
+  const [sparkMetric, setSparkMetric] = useState("venta");
   const sparks = useMemo(() => {
     if (dim === "bodega") return {};
     const m = {};
     for (const r of cm.rows) {
-      try { const e = buildEntityEvolution(r.name, "venta"); if (e && e.n >= 2) m[r.name] = e; } catch { /* sin serie → sin curva */ }
+      try { const e = buildEntityEvolutionComparado(r.name, sparkMetric); if (e && e.n >= 2) m[r.name] = e; } catch { /* sin serie → sin curva */ }
     }
     return m;
-  }, [dim, scenario]);   // el dato es estático por eje+período (cm se rearma por render, su contenido no cambia)
+  }, [dim, scenario, sparkMetric]);   // el dato es estático por eje+período (cm se rearma por render, su contenido no cambia)
   const haySpark = Object.keys(sparks).length > 0;
   // RESPONSIVE (regla de oro): la sparkline se oculta ANTES que cualquier columna clásica — medimos el contenedor
   // y si no cabe el ancho mínimo CON sparkline, la columna entera desaparece (las clásicas quedan como siempre).
@@ -1905,8 +1928,11 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
   else if (mode === "alert") rows = rows.filter((r) => r.alert);
   const toggleSel = (n) => setSel((s) => (s.includes(n) ? s.filter((x) => x !== n) : [...s, n]));
   const minWBase = 40 + cols.length * 66 + 120;
-  const showSpark = haySpark && (boxW === 0 || boxW >= minWBase + 66);   // la sparkline cede primero (columnas clásicas intactas)
-  const GRID = `20px 1.4fr ${showSpark ? "58px " : ""}${cols.map(() => "1fr").join(" ")}`;
+  const showSpark = haySpark && (boxW === 0 || boxW >= minWBase + 108);   // el gráfico cede primero (columnas clásicas intactas)
+  const GRID = `20px 1.4fr ${showSpark ? "100px " : ""}${cols.map(() => "1fr").join(" ")}`;
+  // formato y vara del gráfico comparado según la métrica activa (venta/contribución en $ · margen en % con la vara)
+  const sparkFmt = sparkMetric === "margen" ? (v) => p1(v) + "%" : fMon;
+  const sparkHayAnt = showSpark && Object.values(sparks).some((e) => e && e.anterior);
   const pill = (active, label, onClick, key) => (
     <button key={key} onClick={onClick} style={{ padding:"4px 10px", borderRadius:6, fontSize:11.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap",
       background: active ? "rgba(255,255,255,0.1)" : "transparent", border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, color: active ? C.text : C.textMuted }}>{label}</button>
@@ -1966,7 +1992,23 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           {/* header */}
           <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", alignItems:"center", fontSize:9, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.4px", textTransform:"uppercase", padding:"0 8px 7px", borderBottom:`1px solid ${C.border}` }}>
             <span/><span>{cm.label}</span>
-            {showSpark && <span style={{ textAlign:"right", whiteSpace:"nowrap" }}>12 meses</span>}
+            {/* PASE 1b · el ENCABEZADO del gráfico: filtro de métrica (aplica a todas las filas) + benchmark de la
+                CARTERA de la métrica activa (ámbar = vara — se diferencia del marcador POR CLIENTE dentro de cada
+                curva) · en ventas el sub-rótulo dice contra qué compara; sin ancla del año anterior no se promete. */}
+            {showSpark && (
+              <span style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, whiteSpace:"nowrap" }}>
+                <span style={{ display:"flex" }}>
+                  {[["venta", "VTAS", "Ventas"], ["contribucion", "CONTR", "Contribución"], ["margen", "MG", "Margen"]].map(([k, lbl, full]) => (
+                    <span key={k} onClick={(e) => { e.stopPropagation(); setSparkMetric(k); }} title={`${full} · 12 meses`}
+                      style={{ cursor:"pointer", padding:"0 3px", color: sparkMetric === k ? C.celeste : C.textMuted,
+                        borderBottom:`1px solid ${sparkMetric === k ? C.celeste : "transparent"}` }}>{lbl}</span>
+                  ))}
+                </span>
+                {sparkMetric === "margen"
+                  ? <span style={{ color:C.amber, opacity:0.9 }} title="El benchmark de margen de la cartera (tu criterio manda si fijaste uno) — la línea ámbar de cada curva es la vara de ESA entidad">cartera {p1(benchmarkOf(null))}%</span>
+                  : <span style={{ opacity:0.8 }}>{sparkHayAnt ? "vs año anterior" : "12 meses"}</span>}
+              </span>
+            )}
             {cols.map((c) => (
               <span key={c.key} onClick={() => c.key !== "accion" && setSortKey(c.key)} style={{ textAlign: c.key === "accion" ? "left" : "right", cursor: c.key === "accion" ? "default" : "pointer", color: sortKey === c.key ? C.text : C.textMuted, whiteSpace:"nowrap" }}>
                 {c.label}{sortKey === c.key ? " ↓" : ""}{c.defKey && METRIC_DEFS[c.defKey] ? <InfoDot def={METRIC_DEFS[c.defKey]} align="right"/> : null}
@@ -2003,8 +2045,9 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                       onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>ADI</button>
                   ) : null}
                 </span>
-                {/* PASE 1 · SPARKLINE (la serie de la Ficha · se oculta primero en pantallas angostas) */}
-                {showSpark && <RowSpark ev={sparks[r.name]} fmtV={fMon}/>}
+                {/* PASE 1b · GRÁFICO COMPARADO (este año vs anterior · métrica del encabezado · se oculta primero
+                    en pantallas angostas) · en margen, la línea ámbar es la vara de ESTA entidad (benchmarkOf · C.2) */}
+                {showSpark && <RowSpark ev={sparks[r.name]} fmtV={sparkFmt} bench={sparkMetric === "margen" && typeof r.varaRef === "number" ? r.varaRef : null}/>}
                 {cols.map((c) => c.key === "accion" ? (
                   // PASE 1 · la Acción como CHIP: click = la pregunta del detector a ADI (anti-BI: pregunta, nunca dispara)
                   mesa && onAsk && r.accionAsk ? (
@@ -2028,8 +2071,10 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                   <span key={c.key} style={{ textAlign:"right" }}><Num color={cellColor(c, r)}>{fmt(c, r[c.key])}</Num></span>
                 ))}
                 {/* PASE 1 · MICROLECTURA: la historia del detector bajo el nombre — SOLO cuando el detector afirma
-                    algo de esta fila (honesta: sin señal no hay línea) · discreta, la lectura clásica no se ensucia */}
-                {r.lectura && (
+                    algo de esta fila (honesta: sin señal no hay línea) · PASE 1b (owner 2026-07-15: "se debería
+                    activar solo cuando el cliente hace click en alerta — así le das sentido al botón alerta"):
+                    visible únicamente en el modo "En alerta"; en Todos/Top/Peores la tabla queda limpia. */}
+                {mode === "alert" && !onlySel && r.lectura && (
                   <span style={{ gridColumn:"2 / -1", fontSize:10.5, color:C.textMuted, lineHeight:1.4, paddingTop:2, minWidth:0 }}>{r.lectura}</span>
                 )}
               </div>
@@ -2065,7 +2110,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
         : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu vara (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · la línea bajo el nombre y el "En juego $" son la lectura del detector (solo cuando hay señal){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu vara (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null}{showSpark ? <> · la curva compara el año (celeste) con el anterior (perlas, donde el dato lo trae) — elegí la métrica en su encabezado · el punto rojo parpadea en el mes más bajo, el verde marca el más alto{sparkMetric === "margen" ? " y la línea ámbar es la vara de esa entidad" : ""}</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura{mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
