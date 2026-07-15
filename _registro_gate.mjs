@@ -13,7 +13,8 @@ fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
   'export { composeSpecSimulate, buildResumenEjecutivo } from "./src/adi/specRetrieval.js";',
-  'export { buildMesaEstado } from "./src/adi/sentrix/mesa.js";',
+  'export { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js";',
+  'export { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";',
   'export { buildControlRing } from "./src/adi/sentrix/control.js";',
   'export { METRIC_DEFS } from "./src/adi/sentrix/glossary.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
@@ -21,7 +22,7 @@ fs.writeFileSync(entry, [
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildControlRing, METRIC_DEFS, buildDisponibleMenu } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa")
 let pass = 0, fail = 0; const rotos = [];
@@ -100,6 +101,13 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const [k, e] of Object.entries(m2.estados || {})) { check(`mesa2 · ${k} línea (${sc})`, e.linea); check(`mesa2 · ${k} ask (${sc})`, e.ask); }
   if (m2.accion) { check(`mesa2 · acción (${sc})`, `${m2.accion.titulo}. ${m2.accion.detalle}`); check(`mesa2 · acción ask (${sc})`, m2.accion.ask); }
   for (const c of (m2.cambios || [])) { check(`mesa2 · cambio ${c.key} (${sc})`, c.texto); check(`mesa2 · cambio ask ${c.key} (${sc})`, c.ask); }
+  // PASE 2 · EN ALERTA + WATCHLIST: la línea del contador y cada seguido (sub + ask) van en registro ejecutivo —
+  // instanciados para TODAS las filas de los 4 ejes (los textos nombran entidades del dato).
+  if (m2.alertas) { check(`mesa2 · alertas línea (${sc})`, m2.alertas.linea); check(`mesa2 · alertas ask (${sc})`, m2.alertas.ask); }
+  for (const d of ["cliente", "sku", "marca", "bodega"]) {
+    const wl = buildWatchlistEstado(buildCuadroMando(d, sc).rows.map((r) => ({ dim: d, name: r.name })), sc);
+    for (const it of (wl.items || [])) { check(`mesa2 · watch ${d}·${it.nombre} sub (${sc})`, it.sub); if (it.ask) check(`mesa2 · watch ${d}·${it.nombre} ask (${sc})`, it.ask); }
+  }
 }
 for (const [k, v] of Object.entries(METRIC_DEFS)) check(`glosario · ${k}`, v);
 check("narrador · DISPONIBLE", buildDisponibleMenu());

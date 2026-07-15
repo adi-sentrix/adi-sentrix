@@ -75,10 +75,12 @@ function _clientes(s) {
     const gap = _r1(c.margen - avgM);
     const carga = _r1(c.pctRebate);
     const costoPct = 100 - c.margen - carga;
-    const alert = c.margen < c.benchmark - 6;
+    // "En alerta" = ROJO contra TU vara (PASE 2 · antes benchmark−6 literal, ajeno al criterio C.2): una verdad con
+    // el chevron y con los items del detector de margen del diagnose — el bloque "En alerta" de la Mesa cuenta lo mismo.
+    const va = _vara(c.margen, c);
     const accion = gap <= -3 ? (costoPct > 100 - avgM - avgCarga ? "revisar costo" : "renegociar carga")
       : gap >= 3 ? "referencia" : "sostener";
-    return { name: c.nombre, ventas: cv ? cv.actual : c.venta, unidades: c.unidades, acciones: c.rebates, margen: c.margen, contribucion: c.contribucion, carga, gap, accion, alert, ..._vara(c.margen, c) };
+    return { name: c.nombre, ventas: cv ? cv.actual : c.venta, unidades: c.unidades, acciones: c.rebates, margen: c.margen, contribucion: c.contribucion, carga, gap, accion, alert: va.vara === "rojo", ...va };
   });
   const tV = _sum(rows, (r) => r.ventas), tC = _sum(rows, (r) => r.contribucion);
   const total = { name: "Total", ventas: tV, unidades: _sum(rows, (r) => r.unidades), acciones: _sum(rows, (r) => r.acciones), contribucion: tC, margen: tV ? _r1(tC / tV * 100) : 0, gap: null, accion: "", _total: true };

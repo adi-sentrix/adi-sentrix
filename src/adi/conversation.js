@@ -27,9 +27,11 @@ export function buildConversationContext(recentTurns, lastEvidence, uiSignals = 
       ? { role: "user", text: String(t.text || "").slice(0, 200) }
       : { role: "adi", gist: String(t.gist || t.text || "").replace(/\s+/g, " ").slice(0, 160), route: t.route || null });
   // SEÑALES DE UI (owner 2026-07-08 · "memoria en todos los grados"): lo que el usuario está HACIENDO en Sentrix —
-  // selección de la Mesa, estación tocada — para que "compará esto"/"esto que estoy viendo" tenga referente. Chico.
-  const ui = uiSignals && ((Array.isArray(uiSignals.mesaSel) && uiSignals.mesaSel.length) || uiSignals.station)
-    ? { mesaSel: (uiSignals.mesaSel || []).slice(0, 4), mesaDim: uiSignals.mesaDim || null, station: uiSignals.station || null }
+  // selección de la Mesa, estación tocada, lo que SIGUE en la watchlist (Mesa 2.0 pase 2) — para que "compará esto"/
+  // "esto que estoy viendo"/"los que sigo" tenga referente. Chico (caps para el presupuesto de tokens).
+  const _wl = Array.isArray(uiSignals && uiSignals.watchlist) && uiSignals.watchlist.length ? uiSignals.watchlist.slice(0, 8) : null;
+  const ui = uiSignals && ((Array.isArray(uiSignals.mesaSel) && uiSignals.mesaSel.length) || uiSignals.station || _wl)
+    ? { mesaSel: (uiSignals.mesaSel || []).slice(0, 4), mesaDim: uiSignals.mesaDim || null, station: uiSignals.station || null, watchlist: _wl }
     : null;
   return {
     turns,

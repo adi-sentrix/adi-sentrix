@@ -11,12 +11,13 @@ fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
-  'export { buildMesaEstado } from "./src/adi/sentrix/mesa.js";',
+  'export { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js";',
+  'export { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, buildMesaEstado: MB } = M;
+const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB } = M;
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 
@@ -82,6 +83,13 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const [k, e] of Object.entries(me.estados || {})) if (e && e.ask && !promesas.has(e.ask)) promesas.set(e.ask, { lastEv: null, emisor: `mesa2:estado-${k}@${sc}` });
   if (me.accion && me.accion.ask && !promesas.has(me.accion.ask)) promesas.set(me.accion.ask, { lastEv: null, emisor: `mesa2:plan@${sc}` });
   for (const c of (me.cambios || [])) if (c.ask && !promesas.has(c.ask)) promesas.set(c.ask, { lastEv: null, emisor: `mesa2:cambio-${c.key}@${sc}` });
+  // PASE 2 · EN ALERTA (la ask del bloque) + WATCHLIST: cualquier fila de cualquier eje es seguible → la ask de
+  // cada seguido se instancia DATA-DRIVEN para TODAS las filas de los 4 ejes del cuadro (× 3 escenarios).
+  if (me.alertas && me.alertas.ask && !promesas.has(me.alertas.ask)) promesas.set(me.alertas.ask, { lastEv: null, emisor: `mesa2:alertas@${sc}` });
+  for (const d of ["cliente", "sku", "marca", "bodega"]) {
+    let wl; try { wl = WB(CMB(d, sc).rows.map((r) => ({ dim: d, name: r.name })), sc); } catch { continue; }
+    for (const it of (wl.items || [])) if (it.ask && !promesas.has(it.ask)) promesas.set(it.ask, { lastEv: null, emisor: `mesa2:watch-${d}@${sc}` });
+  }
 }
 for (const s of [
   "¿Quiénes están bajo el margen mínimo?",

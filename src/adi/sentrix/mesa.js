@@ -1,4 +1,4 @@
-/* === adi/sentrix/mesa.js · MESA DE CONTROL 2.0 · PASE 1 (owner 2026-07-14: "me gusta, comienza") ===
+/* === adi/sentrix/mesa.js · MESA DE CONTROL 2.0 · PASES 1+2 (owner 2026-07-14: "me gusta, comienza" · "ok, me gusta") ===
  * El estado de la Mesa para los 3 movimientos del sello (entender→explicar→actuar):
  *   - estados: semáforo por KPI contra TU vara (POLICY/benchmarkOf · criterio C.2 del owner manda) — CERO cálculo
  *     nuevo: ventas contra el presupuesto del dato · margen contra la vara con la MISMA brecha material del detector
@@ -7,6 +7,10 @@
  *   - cambios: el movimiento del período — quién sube/cede en venta (actual vs anterior del dato) · la trayectoria
  *     de contribución (series ancladas de temporal.js — cierran EXACTO con el cuadro) · entradas/salidas del bloque
  *     80/20 (concentración del MOTOR sobre las mismas filas, hoy vs año anterior).
+ *   - alertas (PASE 2): las cuentas bajo tu vara con su $ en juego = los ITEMS del detector de margen del diagnose
+ *     (misma cuenta que el chevron rojo del cuadro — verificado: mismo set en los 3 escenarios · cero cálculo nuevo).
+ * + buildWatchlistEstado (PASE 2): "lo que yo sigo" — cada seguido con su cifra y su estado contra la vara, TODO
+ *   reusado del cuadro (vara/varaGap/varaRef por fila) · cada uno con su pregunta gate-proven por dimensión.
  * Cada estado, acción y línea lleva su PREGUNTA a ADI (anti-BI: nada mudo) — todas se prueban por _promise_gate.
  * Registro EJECUTIVO en todo texto emitido (lockeado por _registro_gate). Puro · client-side · motor sellado intacto. */
 import { composeSpecDiagnose } from "../specRetrieval.js";
@@ -14,6 +18,7 @@ import { applyScenarioToClientesVentas, applyScenarioToClientesMargen } from "..
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { buildEntityEvolution } from "./temporal.js";
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
+import { buildCuadroMando } from "./cuadro.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0);
@@ -144,5 +149,61 @@ export function buildMesaEstado(scenario) {
     ask: "¿Quiénes son mis principales clientes por venta?",
   });
 
-  return { vara, estados: { ventas, margen, contribucion, capital }, accion, cambios };
+  // ── EN ALERTA (PASE 2) · las cuentas bajo tu vara con su $ en juego · los items del detector de margen del
+  // diagnose (brecha material contra la vara + monto material) — la MISMA cuenta del chevron rojo del cuadro y de
+  // "¿Quiénes están bajo el margen mínimo?" (una verdad · el $ es la contribución no capturada anual). ──
+  const aItems = mg ? mg.items.map((it) => ({ nombre: it.entidad, usd: it.usd, usdFmt: _money(it.usd) })) : [];
+  const alertas = {
+    n: aItems.length,
+    usd: mg ? mg.subtotal_usd : 0,
+    usdFmt: mg ? _money(mg.subtotal_usd) : "$0",
+    linea: aItems.length
+      ? `${aItems.length} cliente${aItems.length > 1 ? "s" : ""} bajo tu vara · ${_money(mg.subtotal_usd)} en juego`
+      : "Sin cuentas bajo tu vara — la cartera corre en línea.",
+    ask: "¿Quiénes están bajo el margen mínimo?",
+    items: aItems,
+  };
+
+  return { vara, estados: { ventas, margen, contribucion, capital }, accion, cambios, alertas };
+}
+
+/* ── WATCHLIST "lo que yo sigo" (PASE 2 · owner 2026-07-14) ──────────────────────────────────────────────────────
+ * buildWatchlistEstado(watchlist, scenario) → { items } · watchlist = [{dim, name}] (persistida por la UI en
+ * localStorage). Cada seguido sale de la MISMA fila del cuadro (vara/varaGap/varaRef ya calculados en cuadro.js —
+ * cero cálculo nuevo) con su cifra clave, su línea contra la vara y su PREGUNTA por dimensión (todas gate-proven:
+ * bajo la vara → el porqué del margen · en línea → la multi de la Ficha (cliente/SKU) o los SKU top (marca) ·
+ * bodega → su capital). Si la entidad no está en el dato del período, el item lo dice honesto (sinDato). */
+const _WL_DIMS = { cliente: "Cliente", sku: "SKU", marca: "Marca", bodega: "Bodega" };
+const _p1 = (v) => (Math.round((Number(v) || 0) * 10) / 10).toFixed(1);
+function _wlItem(dim, r) {
+  const base = { dim, dimLabel: _WL_DIMS[dim], nombre: r.name, sinDato: false };
+  if (dim === "bodega") {
+    const crit = r.alertCount || 0;
+    return { ...base,
+      cifra: _money(r.capital),
+      sub: `inmovilizado ${_p1(r.inmovPct)}%${crit ? ` · ${crit} SKU crítico${crit > 1 ? "s" : ""}` : " · sin SKU críticos"}`,
+      vara: crit ? "rojo" : "verde",
+      ask: `¿Cuánto capital tengo en ${r.name}?` };
+  }
+  const bajo = typeof r.varaGap === "number" && r.varaGap < 0;
+  return { ...base,
+    cifra: `${_p1(r.margen)}%`,
+    sub: r.varaGap == null ? "sin vara declarada para este eje"
+      : bajo ? `${Math.abs(r.varaGap)} pp bajo tu vara (${r.varaRef}%)` : `${Math.abs(r.varaGap)} pp sobre tu vara (${r.varaRef}%)`,
+    vara: r.vara || null,
+    ask: bajo ? `¿Por qué ${r.name} cede margen?`
+      : dim === "marca" ? `¿Cuáles son los SKU que más venden de ${r.name}?`
+      : `¿Cómo está ${r.name} en ventas y contribución?` };
+}
+export function buildWatchlistEstado(watchlist, scenario) {
+  const s = scenario || "bonanza";
+  const list = (Array.isArray(watchlist) ? watchlist : []).filter((w) => w && w.name && _WL_DIMS[w.dim]);
+  if (!list.length) return { items: [] };
+  const grids = {};
+  const rowsOf = (d) => (grids[d] = grids[d] || buildCuadroMando(d, s).rows);
+  return { items: list.map((w) => {
+    const row = rowsOf(w.dim).find((r) => r.name === w.name);
+    return row ? _wlItem(w.dim, row)
+      : { dim: w.dim, dimLabel: _WL_DIMS[w.dim], nombre: w.name, sinDato: true, cifra: "—", sub: "sin dato en este período", vara: null, ask: null };
+  }) };
 }
