@@ -13,11 +13,12 @@ fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js";',
   'export { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";',
+  'export { buildMesaCapital, buildCuadroCapital } from "./src/adi/sentrix/mesaCapital.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB } = M;
+const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB, buildMesaCapital: MCB, buildCuadroCapital: CCB } = M;
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 
@@ -102,6 +103,27 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const d of ["cliente", "sku", "marca", "bodega"]) {
     let cmq; try { cmq = CMB(d, sc); } catch { continue; }
     for (const r of (cmq.rows || [])) if (r.accionAsk && !promesas.has(r.accionAsk)) promesas.set(r.accionAsk, { lastEv: null, emisor: `cuadro:accion-${d}@${sc}` });
+  }
+  // CARA CAPITAL (owner 2026-07-15) · TODO lo que la cara ofrece es promesa: tramos del mapa, KPIs, focos, listas
+  // repongo/liquido (block + por línea), "¿y si…?", la pata de inventario del "En alerta" y el chip Acción / Estado
+  // de cada fila del cuadro de capital (2 ejes) — cosechado DATA-DRIVEN del módulo real × 3 escenarios.
+  let mc; try { mc = MCB(sc); } catch { mc = null; }
+  if (mc) {
+    const put = (ask, tag) => { if (ask && !promesas.has(ask)) promesas.set(ask, { lastEv: null, emisor: `mesacap:${tag}@${sc}` }); };
+    for (const t of (mc.mapa && mc.mapa.tramos) || []) put(t.ask, `tramo-${t.key}`);
+    for (const k of mc.kpis || []) put(k.ask, `kpi-${k.key}`);
+    for (const f of mc.focos || []) put(f.ask, `foco-${f.key}`);
+    for (const [lista, tag] of [[mc.reponer, "reponer"], [mc.liquidar, "liquidar"]]) {
+      if (!lista) continue;
+      put(lista.ask, tag);
+      for (const it of lista.items || []) put(it.ask, `${tag}-item`);
+    }
+    for (const s2 of mc.simulaciones || []) put(s2.ask, `ysi-${s2.key}`);
+    if (mc.alertas) put(mc.alertas.ask, "alertas");
+  }
+  for (const eje of ["sku", "bodega"]) {
+    let ccq; try { ccq = CCB(eje, sc); } catch { continue; }
+    for (const r of (ccq.rows || [])) if (r.accionAsk && !promesas.has(r.accionAsk)) promesas.set(r.accionAsk, { lastEv: null, emisor: `cuadrocap:accion-${eje}@${sc}` });
   }
 }
 for (const s of [

@@ -15,6 +15,7 @@ fs.writeFileSync(entry, [
   'export { composeSpecSimulate, buildResumenEjecutivo } from "./src/adi/specRetrieval.js";',
   'export { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js";',
   'export { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";',
+  'export { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS } from "./src/adi/sentrix/mesaCapital.js";',
   'export { buildControlRing } from "./src/adi/sentrix/control.js";',
   'export { METRIC_DEFS } from "./src/adi/sentrix/glossary.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
@@ -22,7 +23,7 @@ fs.writeFileSync(entry, [
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa")
 let pass = 0, fail = 0; const rotos = [];
@@ -125,7 +126,30 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
       if (r.accionAsk) check(`cuadro · ${d}·${r.name} ask (${sc})`, r.accionAsk);
     }
   }
+  // CARA CAPITAL (owner 2026-07-15) · todo lo que la cara emite (lectura del mapa, tramos, KPIs, focos, listas
+  // repongo/liquido, "¿y si…?", pata de inventario, filas del cuadro de capital) va en registro ejecutivo.
+  const mc = buildMesaCapital(sc);
+  check(`mesacap · mapa lectura (${sc})`, mc.mapa.lectura);
+  for (const t of mc.mapa.tramos) { check(`mesacap · tramo ${t.key} label (${sc})`, t.label); check(`mesacap · tramo ${t.key} ask (${sc})`, t.ask); }
+  for (const k of mc.kpis) { check(`mesacap · kpi ${k.key} línea (${sc})`, `${k.label}. ${k.linea}`); check(`mesacap · kpi ${k.key} ask (${sc})`, k.ask); }
+  for (const f of mc.focos) { check(`mesacap · foco ${f.key} (${sc})`, f.label); check(`mesacap · foco ${f.key} ask (${sc})`, f.ask); }
+  for (const [lista, tag] of [[mc.reponer, "reponer"], [mc.liquidar, "liquidar"]]) {
+    check(`mesacap · ${tag} titulo (${sc})`, lista.titulo); check(`mesacap · ${tag} ask (${sc})`, lista.ask);
+    for (const it of lista.items) { check(`mesacap · ${tag} ${it.sku} línea (${sc})`, it.linea); check(`mesacap · ${tag} ${it.sku} ask (${sc})`, it.ask); }
+  }
+  for (const s of mc.simulaciones) { check(`mesacap · ysi ${s.key} (${sc})`, s.texto); check(`mesacap · ysi ${s.key} ask (${sc})`, s.ask); }
+  check(`mesacap · alertas línea (${sc})`, mc.alertas.linea); check(`mesacap · alertas ask (${sc})`, mc.alertas.ask);
+  for (const eje of ["sku", "bodega"]) {
+    const ccg = buildCuadroCapital(eje, sc);
+    for (const r of (ccg.rows || [])) {
+      check(`cuadrocap · ${eje}·${r.name} estado (${sc})`, r.estadoLabel);
+      if (r.lectura) check(`cuadrocap · ${eje}·${r.name} lectura (${sc})`, r.lectura);
+      if (r.accionAsk) check(`cuadrocap · ${eje}·${r.name} ask (${sc})`, r.accionAsk);
+    }
+  }
 }
+// los rótulos y definiciones de los ESTADOS del capital (la voz del "i" y de la columna Estado) — una sola vez
+for (const [k, e] of Object.entries(CAPITAL_ESTADOS)) { check(`mesacap · estado ${k} label`, e.label); check(`mesacap · estado ${k} def`, e.def); check(`mesacap · estado ${k} ask`, e.ask); }
 for (const [k, v] of Object.entries(METRIC_DEFS)) check(`glosario · ${k}`, v);
 check("narrador · DISPONIBLE", buildDisponibleMenu());
 for (const [tipo, foco] of [["client", "Falabella"], ["sku", "SAM-TV55"], ["marca", "Samsung"], ["bodega", "Valparaíso"]]) {
