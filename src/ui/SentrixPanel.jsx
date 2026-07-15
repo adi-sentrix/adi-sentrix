@@ -12,7 +12,7 @@ import { skusMargen } from "../data/skusMargen.js";   // composición de marca/f
 import { composicionCliente, compradoresSku } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (cierra exacto con el cuadro · gate de conexión)
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
-import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolutionComparado } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · la Ficha usa el COMPARADO vs año anterior de UNA entidad)
+import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolutionComparado, buildNegocioEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · el cuadro usa el COMPARADO: negocio/entidad vs año anterior/dos entidades)
 import { buildConcentration, CONCENTRATION_DIMS } from "../adi/sentrix/concentration.js";   // paso 4b · Pareto 80/20
 import { buildEntityKPIs, buildMarginDecomposition, buildMarginReceipt, buildCapitalReceipt, buildBrechaFilm } from "../adi/sentrix/kpis.js";   // brick 2a/2b/6/2c · tira + descomposición + recibo + película de la brecha
 import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catálogo de definiciones (el "i" de cada card · determinístico)
@@ -1313,7 +1313,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
             El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
         <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra al líder del orden actual; tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. Debajo, el 80/20 del mismo eje. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu vara), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
@@ -1902,16 +1902,19 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           </span>
         )}
       </div>
-      {/* PASE 1c · EL COMPARADO POR ENCIMA de la tabla (owner 2026-07-15): reacciona a la tabla — sin selección,
-          el líder del orden/filtro actual; UNA fila, esa entidad vs su año anterior; DOS, las dos lado a lado.
-          Sirve para cualquier eje con serie (clientes/SKU/marcas); bodega sin serie → sin gráfico (honesto). */}
+      {/* PASE 1c/1d · EL COMPARADO POR ENCIMA de la tabla (owner 2026-07-15): reacciona a la tabla — sin selección,
+          EL NEGOCIO (la suma del eje: cierra con la fila Total); UNA fila, esa entidad vs su año anterior; DOS,
+          las dos lado a lado. Sirve para cualquier eje con serie (clientes/SKU/marcas); bodega sin serie → sin
+          gráfico (honesto). */}
       {(() => {
         const selRows = sel.map((nm) => cm.rows.find((r) => r.name === nm)).filter(Boolean);
-        const aRow = selRows[0] || rows[0];
-        if (!aRow) return null;
+        const aRow = selRows[0] || null;
         const bRow = selRows.length >= 2 ? selRows[1] : null;
-        return <ComparadoCard a={aRow.name} rowA={aRow} b={bRow ? bRow.name : null} rowB={bRow} porDefecto={!selRows.length} onAsk={mesa ? onAsk : null}/>;
+        return <ComparadoCard negocio={!aRow} dim={dim} a={aRow ? aRow.name : null} rowA={aRow} b={bRow ? bRow.name : null} rowB={bRow} onAsk={mesa ? onAsk : null}/>;
       })()}
+      {/* PASE 1d · el 80/20 DEBAJO del comparado, ARRIBA de la tabla (owner: "el gráfico de 80% debe ir bajo el
+          del evolutivo — ese está respondiendo bien a la tabla") — mismo comportamiento: eje + selección. */}
+      {mesa && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
       {/* la grilla */}
       <div style={{ overflowX:"auto" }}>
         <div style={{ minWidth: minWBase }}>
@@ -2003,9 +2006,6 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           )}
         </div>
       </div>
-      {/* EL PARETO SIEMPRE, como REFLEJO de la tabla (owner 2026-07-10): eje del cuadro + filtro ventas/contribución ·
-          sin selección = el negocio · 1 seleccionado = la composición (marca/familia) o dónde pesa (cliente/SKU). */}
-      {mesa && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
       {/* al seleccionar UNA fila → la FICHA (perfil vs promedio + evolutivo por estación); con EXACTAMENTE 2 → el
           Perfil comparado para CUALQUIER dimensión; en la lente Control, el dumbbell original (cliente). */}
       {sel.length === 1 && mesa && (
@@ -2015,7 +2015,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
         : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2542,20 +2542,22 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
 // más alto en VERDE · el benchmark de ESTA entidad en ámbar (margen · benchmarkOf con criterio C.2) con el de
 // CARTERA en la leyenda (se diferencian) · hover = tooltip con el dato del mes en TODAS las series (regla de todos
 // los gráficos). Filtros de métrica en el encabezado: Ventas · Contribución · Margen (sirven igual en todos los ejes).
-function ComparadoCard({ a, rowA = null, b = null, rowB = null, porDefecto = false, onAsk = null }) {
+function ComparadoCard({ a = null, rowA = null, b = null, rowB = null, negocio = false, dim = "cliente", onAsk = null }) {
   const [est, setEst] = useState("venta");
   const [hov, setHov] = useState(null);
   const dual = !!b;
   // MARGEN CONECTADO (owner 2026-07-10): margen del mes = contribución ÷ venta de las mismas curvas; el año cierra
   // exacto con el margen del período del perfil/cuadro (una verdad · el cálculo vive en buildEntityEvolution/Comparado).
-  const ev = dual ? null : buildEntityEvolutionComparado(a, est);
+  // MODO NEGOCIO (pase 1d): sin selección, la suma del eje — cierra con la fila Total de la tabla de abajo.
+  const ev = dual ? null : negocio ? buildNegocioEvolution(dim, est) : buildEntityEvolutionComparado(a, est);
   const cmp = dual ? buildCompareEvolution(a, b, est) : null;
   if (dual ? !cmp : (!ev || ev.n < 2)) return null;   // sin serie → sin gráfico (bodega hoy · honesto)
   const ant = !dual && ev.anterior && ev.anterior.serie;
   const isPct = est === "margen";
-  // el benchmark de la entidad (criterio C.2) · en modo dual solo si AMBAS filas comparten el mismo
+  // el benchmark: por entidad (criterio C.2 · varaRef de la fila) · negocio = el de CARTERA · dual solo si AMBAS lo comparten
   const benchA = rowA && typeof rowA.varaRef === "number" ? rowA.varaRef : null;
-  const bench = isPct ? (dual ? (benchA != null && rowB && rowB.varaRef === benchA ? benchA : null) : benchA) : null;
+  const bench = isPct ? (dual ? (benchA != null && rowB && rowB.varaRef === benchA ? benchA : null) : negocio ? benchmarkOf(null) : benchA) : null;
+  const aLabel = negocio ? "Tu negocio" : a;
   const fmtV = isPct ? (v) => p1(v) + "%" : _fmDin;
   const fmtD = isPct ? (v) => p1(v) + "pp" : _fmDin;
   const colB = C.lav;   // la segunda entidad en lavanda (paleta base de gráficos · el teal queda para "año anterior")
@@ -2599,7 +2601,7 @@ function ComparadoCard({ a, rowA = null, b = null, rowB = null, porDefecto = fal
               )}
             </>
           )}
-          {porDefecto && <span style={{ fontSize:10, color:C.textMuted }}>· el líder del orden actual — tocá una fila para elegir otra, dos para comparar</span>}
+          {negocio && <span style={{ fontSize:10, color:C.textMuted }}>· el negocio completo ({dim === "sku" ? "todos tus SKU" : dim === "marca" ? "todas tus marcas" : "todos tus clientes"}) — tocá una fila para ver una entidad, dos para comparar</span>}
         </div>
         <div style={{ position:"relative", touchAction:"pan-y" }}>
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
@@ -2678,9 +2680,9 @@ function ComparadoCard({ a, rowA = null, b = null, rowB = null, porDefecto = fal
             margen del mes = contribución ÷ venta del mes (las mismas curvas) · el agregado del año cierra con el margen del período del perfil.
           </div>
         )}
-        {onAsk && (
+        {onAsk && !dual && !negocio && (
           <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6 }}>
-            {dual ? null : _btnADI(() => onAsk(_FICHA_STORY_Q[est](a)), "Que ADI te cuente esta historia →")}
+            {_btnADI(() => onAsk(_FICHA_STORY_Q[est](a)), "Que ADI te cuente esta historia →")}
           </div>
         )}
       </>
@@ -2692,8 +2694,8 @@ function ComparadoCard({ a, rowA = null, b = null, rowB = null, porDefecto = fal
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
-          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{dual ? `Comparado · ${a} vs ${b}` : `Comparado · ${a} · 12 meses`}</span>
-          <InfoDot def={"La película mensual comparada, sobre la tabla y conectada a ella: sin selección ves al líder del orden actual; tocá UNA fila y ves esa entidad contra su año anterior (perlas — se dibujan solo donde el dato declara ese total: ventas de clientes y marcas; ADI no lo inventa); tocá DOS y las ves lado a lado. El filtro del encabezado elige la métrica (Ventas · Contribución · Margen) y sirve igual en clientes, SKU y marcas. El punto verde es el mejor mes y el rojo parpadeante el más bajo; en margen, la línea ámbar es el benchmark de esta entidad y la leyenda trae el de cartera para diferenciarlos. Pasá el cursor y ves el dato del mes en todas las series. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, el año anterior suma exacto el que ya usan los movers, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{dual ? `Comparado · ${a} vs ${b}` : `Comparado · ${aLabel} · 12 meses`}</span>
+          <InfoDot def={"La película mensual comparada, sobre la tabla y conectada a ella: sin selección ves TU NEGOCIO — la suma de todas las entidades del eje, que cierra exacto con la fila Total de la tabla; tocá UNA fila y ves esa entidad contra su año anterior (perlas — se dibujan solo donde el dato declara ese total: ventas de clientes y marcas; ADI no lo inventa); tocá DOS y las ves lado a lado. El filtro del encabezado elige la métrica (Ventas · Contribución · Margen) y sirve igual en clientes, SKU y marcas. El punto verde es el mejor mes y el rojo parpadeante el más bajo; en margen, la línea ámbar es el benchmark (el de la entidad, o el de cartera cuando mirás el negocio). Pasá el cursor y ves el dato del mes en todas las series. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, el año anterior suma exacto el que ya usan los movers, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
         </span>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
           {/* leyenda honesta: cada serie se nombra · el benchmark ámbar solo cuando se dibuja · cartera para diferenciar */}
@@ -2701,7 +2703,7 @@ function ComparadoCard({ a, rowA = null, b = null, rowB = null, porDefecto = fal
             <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:2.5, borderRadius:2, background:C.celeste }}/>{dual ? a : "este año"}</span>
             {dual ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:2.5, borderRadius:2, background:colB }}/>{b}</span>
               : ant ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`2px dotted ${C.teal}` }}/>año anterior</span> : null}
-            {bench != null ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`1.5px dashed ${C.amber}` }}/>benchmark {p1(bench)}% <span style={{ color:C.textMuted }}>· cartera {p1(benchmarkOf(null))}%</span></span> : null}
+            {bench != null ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`1.5px dashed ${C.amber}` }}/>{negocio ? <>benchmark cartera {p1(bench)}%</> : <>benchmark {p1(bench)}% <span style={{ color:C.textMuted }}>· cartera {p1(benchmarkOf(null))}%</span></>}</span> : null}
           </span>
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
             {_FICHA_ESTACIONES.map((e) => (

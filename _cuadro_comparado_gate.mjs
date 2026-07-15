@@ -10,8 +10,8 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_ccge.js"), out = path.join(root, "_ccgb.mjs");
 fs.writeFileSync(entry, [
-  'export { buildEntityEvolution, buildEntityEvolutionComparado } from "./src/adi/sentrix/temporal.js";',
-  'export { clientesVentas, marcasVentas } from "./src/data/demoData.js";',
+  'export { buildEntityEvolution, buildEntityEvolutionComparado, buildNegocioEvolution } from "./src/adi/sentrix/temporal.js";',
+  'export { clientesVentas, marcasVentas, clientesMargen } from "./src/data/demoData.js";',
   'export { skusMargen } from "./src/data/skusMargen.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
@@ -64,6 +64,22 @@ const ripEje = M.clientesVentas.find((e) => e.nombre === "Ripley");
 ok("Ripley cayó YoY → su ghost suma MÁS que el actual (queda arriba, la caída se ve)", !!rip && !!rip.anterior && sum(rip.anterior.serie) > sum(rip.serie) && ripEje.anterior > ripEje.actual);
 const fal = M.buildEntityEvolutionComparado("Falabella", "venta");
 ok("Falabella creció YoY → su ghost suma MENOS que el actual", !!fal && !!fal.anterior && sum(fal.anterior.serie) < sum(fal.serie));
+
+console.log("── (5) EL NEGOCIO (pase 1d): la suma del eje cierra con la fila Total de la tabla ──");
+const negV = M.buildNegocioEvolution("cliente", "venta");
+const totalEjeV = sum(M.clientesVentas.map((e) => e.actual));
+ok(`negocio·venta (clientes): la serie suma EXACTO el Total del eje (${totalEjeV})`, !!negV && sum(negV.serie) === totalEjeV);
+const totalEjeAnt = sum(M.clientesVentas.map((e) => e.anterior));
+ok(`negocio·venta: el ghost suma EXACTO el anterior del eje (${totalEjeAnt} — el KPI anual)`, !!negV && !!negV.anterior && sum(negV.anterior.serie) === totalEjeAnt && negV.anterior.total === totalEjeAnt);
+const negC = M.buildNegocioEvolution("cliente", "contribucion");
+const totalEjeC = sum(M.clientesMargen.map((c) => c.contribucion));
+ok(`negocio·contribución: suma EXACTO el Total del eje (${totalEjeC}) · sin ghost (honesto)`, !!negC && sum(negC.serie) === totalEjeC && !negC.anterior);
+const negM = M.buildNegocioEvolution("cliente", "margen");
+const wAgg = negM ? negM.serie.reduce((s, m, i) => s + m * negV.serie[i], 0) / Math.max(sum(negV.serie), 1) : null;
+ok("negocio·margen: mensual = ΣC÷ΣV y el agregado pondera al margen del Total (<0.15pp) · sin ghost", !!negM && Math.abs(wAgg - (totalEjeC / totalEjeV) * 100) < 0.15 && !negM.anterior);
+const negSku = M.buildNegocioEvolution("sku", "venta");
+ok("negocio·SKU: curva sí · ghost no (los SKU no declaran anterior — la suma parcial mentiría)", !!negSku && negSku.n === 12 && !negSku.anterior);
+ok("negocio·bodega: sin serie → sin gráfico", M.buildNegocioEvolution("bodega", "venta") == null);
 
 console.log(`\n── _cuadro_comparado_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

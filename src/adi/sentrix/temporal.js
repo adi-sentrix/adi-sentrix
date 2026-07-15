@@ -191,6 +191,42 @@ export function buildEntityEvolutionComparado(name, metric = "venta") {
   return { ...A, anterior };
 }
 
+/* === El evolutivo DEL NEGOCIO por eje (owner 2026-07-15 · pase 1d: "si no hay nada seleccionado, es el negocio") ===
+ * La suma de las series ancladas de TODAS las entidades del eje del cuadro — cierra EXACTO con la fila Total de la
+ * tabla que vive debajo (una verdad con lo que el usuario está mirando): venta/contribución = Σ de las series por
+ * entidad (cada una anclada a su período → la suma ancla al Total); margen mensual = Σcontribución ÷ Σventa del mes
+ * (el agregado del año = el margen de la fila Total, por construcción). Año anterior: SOLO venta y SOLO si TODAS
+ * las entidades del eje declaran su total (clientes Σ=92.900 = el KPI anual anterior · marcas ídem — una suma
+ * parcial mentiría; los SKU no lo declaran → sin ghost). Bodega sin serie mensual → null (honesto). */
+const _AXIS_NAMES = {
+  cliente: () => clientesMargen.map((c) => c.nombre),
+  marca:   () => marcasMargen.map((m) => m.nombre),
+  sku:     () => skusMargen.map((s) => s.nombre),
+};
+export function buildNegocioEvolution(dim = "cliente", metric = "venta") {
+  const getNames = _AXIS_NAMES[dim];
+  if (!getNames) return null;
+  const names = getNames();
+  if (metric === "margen") {
+    const V = buildNegocioEvolution(dim, "venta"), Cc = buildNegocioEvolution(dim, "contribucion");
+    if (!V || !Cc || V.n !== Cc.n || V.serie.some((v) => v <= 0)) return null;
+    const serie = V.serie.map((v, i) => _round1((Cc.serie[i] / v) * 100));
+    return { ..._entityAnalysis("negocio", metric, V.meses, serie), anterior: null };
+  }
+  let sum = null, meses = null, sumAnt = null, allAnt = true;
+  for (const nm of names) {
+    const e = buildEntityEvolutionComparado(nm, metric);
+    if (!e) return null;   // una entidad sin serie → la suma no sería el negocio (honesto: sin gráfico)
+    if (!sum) { sum = e.serie.slice(); meses = e.meses; }
+    else { if (e.n !== sum.length) return null; e.serie.forEach((v, i) => { sum[i] += v; }); }
+    if (e.anterior) { if (!sumAnt) sumAnt = e.anterior.serie.slice(); else e.anterior.serie.forEach((v, i) => { sumAnt[i] += v; }); }
+    else allAnt = false;
+  }
+  if (!sum) return null;
+  const anterior = metric === "venta" && allAnt && sumAnt ? { serie: sumAnt, total: _sum(sumAnt) } : null;
+  return { ..._entityAnalysis("negocio", metric, meses, sum), anterior };
+}
+
 // análisis de una serie mensual (pico/valle · mayor alza/caída · trayectoria) — compartido por todas las métricas
 function _entityAnalysis(name, metric, meses, serie) {
   const n = serie.length;
