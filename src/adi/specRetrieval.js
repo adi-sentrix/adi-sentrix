@@ -605,7 +605,9 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
         for (const p2 of [["riesgo_quiebre", "En riesgo de quiebre"], ["sobrestock", "Sobrestock"]])
           if (D.dist[p2[0]] && D.dist[p2[0]].usd) bol2.push(fig(`${p2[1]} · ${_scName}`, _money(D.dist[p2[0]].usd), { unit: "money", raw: D.dist[p2[0]].usd, mandatory: false, context: `capital en ${_scName}` }));
         return {
-          opener: `En ${_scName} tenés ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada detenido según tu vara (rotación bajo ${P.rotacionMin}x o más de ${P.dohMax} días): se está moviendo dentro de rango.` +
+          // redacción sin ambigüedad (auditoría de asks 2026-07-15: "nada detenido según tu vara (rotación bajo 2x…)"
+          // se leía como si ESA fuera la razón — el narrador llegó a invertir el criterio) + benchmark, no vara.
+          opener: `En ${_scName} tenés ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada detenido: todo rota dentro de tu benchmark (detenido sería rotación bajo ${P.rotacionMin}x o cobertura sobre ${P.dohMax} días).` +
             (puntas.length ? `\n\n**Ojo igual:** ${puntas.join(" · ")} — no es capital detenido, pero conviene mirarlo.` : `\n\nSin señales de quiebre ni sobrestock en ese alcance.`),
           suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Ver todo el inventario"],
           sentrixAction: null,

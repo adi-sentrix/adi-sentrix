@@ -90,10 +90,12 @@ export function buildMesaCapital(scenario) {
       estado: !quiebre.count ? "verde" : D.quiebreMaterial ? "rojo" : "ambar",
       linea: quiebre.count ? `${_money(quiebre.usd)} rotan rápido con cobertura corta` : "sin quiebres a la vista",
       ask: quiebre.count ? "¿Qué reponer por quiebre?" : "Ver todo el inventario" },
+    // la ask cuenta LO MISMO que la línea (auditoría de asks 2026-07-15: preguntaba los SKU sin venta +90d —
+    // 2 SKU/$22K — mientras la línea habla del criterio de DETENCIÓN — 3 SKU/$33K: dos cifras para un click)
     { key: "rotacion", label: "Rotación media", value: `${rotMedia}x`,
       estado: rotMedia >= POLICY.rotacionMin ? "verde" : "rojo",
       linea: `benchmark ${POLICY.rotacionMin}x — por debajo, el capital se considera detenido`,
-      ask: "¿Qué SKU están sin rotar?" },
+      ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario" },
   ];
 
   // ── 02 · POR QUÉ PASA · los focos de capital con su $ (la dist del motor · solo los materiales) ──

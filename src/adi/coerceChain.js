@@ -349,6 +349,10 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     else if (c && c.tipo === "bodega" && spec.dimension === "bodega" && (spec.operation === "inventory" || spec.operation === "overview")) spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), bodega: c.nombre } };
     else if (c && c.tipo === "familia" && spec.dimension !== "familia") spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), familia: c.nombre } };
     else if (c && c.tipo === "marca" && spec.dimension !== "marca") spec = { ...spec, entity: null, filters: { ...(spec.filters || {}), marca: c.nombre } };
+    // …y para SKU/CLIENTE el tipo real también RETARGETEA la dimensión (auditoría de asks 2026-07-15: "Profundiza
+    // en PHI-HAIR-PRO" y "Profundiza en Mercado Libre" venían del LLM como dive@marca → brand_dive negaba una
+    // entidad que el usuario tenía EN PANTALLA; el nombre es del canon, la vista equivocada no manda).
+    else if (c && (c.tipo === "sku" || c.tipo === "cliente") && spec.dimension !== c.tipo) spec = { ...spec, entity: c.nombre, dimension: c.tipo };
     else if (c) spec = { ...spec, entity: c.nombre };   // forma canónica (mayúsculas/tildes del dataset)
   }
   // …y los VALORES de filtros también se canonicalizan (mismo bug: "concepcion" no matcheaba el === del scope)

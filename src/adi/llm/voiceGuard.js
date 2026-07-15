@@ -84,11 +84,28 @@ const _LEAKS = [
   [/\bupsides\b/gi, "potenciales"], [/\bupside\b/gi, "potencial"],
   [/\bnos\s+pegue\b/gi, "nos afecte"],
 ];
+// + NOTAS INTERNAS DEL ANALISTA (auditoría de asks 2026-07-15: cuando el number-guard bloquea la narración, el
+// texto determinístico de una ruta rica del motor puede traer su cola de notas — "Sin driver interno obvio en
+// los 5. El gap vs benchmark puede ser mix-effect o pricing · sugerir drilldown por cliente." — jerga en spanglish
+// con tono de debug que el dueño no debe leer). La ORACIÓN completa se elimina (el motor sellado no se toca; esto
+// solo corre en el camino LLM — el piso demo byte-exacto no pasa por acá). Nunca deja el texto vacío.
+const _NOTAS_INTERNAS_RE = /\b(mix-?effect|drill\s?-?down|driver\s+interno|sugerir\s+drilldown)\b/i;
 export function stripLanguageLeaks(text) {
   if (typeof text !== "string" || !text.trim()) return text;
   let s = text;
   for (const [re, rep] of _LEAKS) {
     s = s.replace(re, (m) => (m[0] === m[0].toUpperCase() && /[a-záéíóú]/i.test(m[0]) ? rep.charAt(0).toUpperCase() + rep.slice(1) : rep));
+  }
+  if (_NOTAS_INTERNAS_RE.test(s)) {
+    const parts = s.split(/([.!?]+["»)]*\s+|\n+)/);
+    let out = "";
+    for (let i = 0; i < parts.length; i += 2) {
+      const sent = parts[i] || "", delim = parts[i + 1] || "";
+      if (_NOTAS_INTERNAS_RE.test(sent)) continue;
+      out += sent + delim;
+    }
+    out = out.replace(/\s+$/, "");
+    if (out.trim()) s = out;
   }
   return s.trim() ? s : text;   // seguridad: nunca dejar vacío
 }
