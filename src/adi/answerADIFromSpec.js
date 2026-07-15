@@ -435,7 +435,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
             const causes = diveCauses(ent, scenario);
             if (causes) { out.text = out.text + "\n\n" + causes.lines.join("\n\n"); causesBol = causes.bol; }
           }
-          out.evidence = { ...(out.evidence || {}), boleta: [...boletaFromText(out.text, { context: `${ent} (${_d(spec.dimension)})` }), ...causesBol] };
+          // entidad-sujeto declarada (revisión de la Mesa 2026-07-14) → la garantía del narrador exige nombrarla
+          out.evidence = { ...(out.evidence || {}), entidad: (out.evidence && out.evidence.entidad) || ent, boleta: [...boletaFromText(out.text, { context: `${ent} (${_d(spec.dimension)})` }), ...causesBol] };
         }
         return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
       }
@@ -539,10 +540,19 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         if (!resp || !resp.opener) return _degrade("why-empty", `No encontré "${ent}" para explicar su porqué. ¿Está bien escrito?`, [], ctx);
         return _finBoleta(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), resp, "why_mechanism", "why_mechanism", ctx, scenario);
       }
-      // (C) cliente con entidad (o fallback) → diagnose SCOPED al cliente + contrato why (reusa los detectores carga/margen graduados)
-      const filters = { ...(spec.filters || {}), ...(ent && dim === "cliente" ? { cliente: ent } : {}) };
+      // (C) cliente/marca/familia/bodega con entidad (o fallback cartera) → diagnose SCOPED + contrato why.
+      // FOCO DE ENTIDAD (revisión de la Mesa 2026-07-14: «¿Por qué Samsung cede margen?» diagnosticaba la CARTERA
+      // completa y concluía causa de Falabella sin nombrar a Samsung — el filtro solo se armaba para cliente):
+      // la entidad SIEMPRE acota el barrido por su eje (el diagnose ya scopea marca/familia/bodega/cliente).
+      // Marca/familia leen por atributo DOMINANTE de cada cliente → salvedad declarada (misma voz del cruce de
+      // overview/rank). Sin foco material en ESE alcance → el límite honesto nombra a LA entidad, jamás a otra.
+      const _fEje = (dim === "marca" || dim === "familia" || dim === "bodega" || dim === "cliente") ? dim : null;
+      const filters = { ...(spec.filters || {}), ...(ent && _fEje ? { [_fEje]: ent } : {}) };
       const resp = composeSpecDiagnose({ filters, scenario });
       if (!resp || !resp.opener) return _degrade("why-empty", `Con este dato no encontré una causa material que afirmar${ent ? ` en ${ent}` : ""}. Para cerrarla necesito el detalle por SKU o canal.`, [], ctx);
+      if (ent && (dim === "marca" || dim === "familia"))
+        resp.opener = `Una salvedad primero: te lo doy por ${_d(dim)} DOMINANTE de cada cliente — el mix atómico no está en los datos (se enciende con el ERP).\n\n${resp.opener}`;
+      if (ent && resp.evidence && !resp.evidence.entidad) resp.evidence.entidad = ent;   // entidad-sujeto → garantía del narrador
       return _finBoleta(composeContract("why_mechanism", resp, resp.evidence, ctx, scenario), resp, "why_mechanism", "why_mechanism", ctx, scenario);
     }
 

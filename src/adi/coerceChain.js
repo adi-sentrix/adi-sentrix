@@ -164,6 +164,17 @@ function _coerceInventory(q, spec) {
     turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") };
   if (inv.staleDays != null) s.staleDays = inv.staleDays;
   if (s.transform && s.transform.unit !== "pct") delete s.transform;
+  // ALCANCE DESDE EL TEXTO (revisión de la Mesa 2026-07-14: «¿Cuánto capital tengo en Concepción?» con el spec
+  // neutro respondía el GLOBAL en silencio): si la pregunta nombra una bodega del canon y el spec no trae el
+  // filtro, el alcance viaja — la pregunta manda el foco (mismo canon que la entrada de coerceSpec).
+  if (!(s.filters && s.filters.bodega)) {
+    const nq = _norm(q);
+    for (const [k, c] of _CANON) {
+      if (c.tipo !== "bodega" || k.length < 3) continue;
+      const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) { s.filters = { ...(s.filters || {}), bodega: c.nombre }; break; }
+    }
+  }
   return _cleanFilters(s);
 }
 
@@ -223,6 +234,28 @@ const _AFFIRM_RE = /^\s*(s[ií]|dale|ok(ey)?|ya|bueno|claro|obvio|perfecto|de un
 const _GOAL_VERB_RE = /\b(sub(?:ir|a|o|amos)|aument(?:ar|e|o|emos)|increment(?:ar|e|o|emos)|crec(?:er|zco|amos)|levant(?:ar|e|o|emos)|mejor(?:ar|e|o|emos)|baj(?:ar|e|emos)|reduc(?:ir|za|zco|zcamos)|recort(?:ar|e|o|emos)|recuper(?:ar|e|o|emos)|duplic(?:ar|que|o|uemos)|potenci(?:ar|e|o|emos)|vender\s+m[aá]s|ganar\s+m[aá]s)\b/i;
 const _GOAL_INTENT_RE = /\b(qu[eé]\s+(tengo\s+que|hay\s+que|debo|puedo|necesito|podr[ií]a)\s+hacer|c[oó]mo\s+(puedo|hago|hacemos|logro|le\s+hago|subo|bajo|mejoro|aumento|reduzco|crezco|recupero|levanto|recorto)|qu[eé]\s+hago\s+para|dame\s+(alternativas|opciones|caminos|un\s+plan)|qu[eé]\s+alternativas|(quiero|necesito|busco|me\s+gustar[ií]a)\s+(?!ver\b|mirar\b|revisar\b|saber\b|conocer\b|entender\b))\b/i;
 const _GOAL_PCT_RE = /\b(sub(?:ir|a)|aument(?:ar|e)|increment(?:ar|e)|crec(?:er)|levant(?:ar|e)|mejor(?:ar|e)|baj(?:ar|e)|reduc(?:ir|za)|recort(?:ar|e))\w*[^.?!]{0,60}?\d+(?:[.,]\d+)?\s*%/i;
+
+// ── FOCO DE ENTIDAD (revisión de la Mesa 2026-07-14) · redes A1/A2 ──────────────────────────────────────────
+// «cómo viene/va/está/anda X» — el chequeo de salud de UNA entidad (la Mesa lo emite en "Qué cambió").
+const _ENT_COMO_RE = /\bc[oó]mo\s+(?:viene|va|est[aá]|anda|se\s+comporta)\b/i;
+// «X vs/contra el año pasado» — la trayectoria de UNA entidad (no la lectura YoY de cartera).
+const _ENT_VSANIO_RE = /\b(?:vs\.?|versus|contra)\s+(?:el\s+)?(?:mismo\s+per[ií]odo\s+del?\s+)?a[ñn]o\s+(?:pasado|anterior)\b/i;
+// con MÉTRICA nombrada la cadena de dominios manda ("cómo viene el margen" → margin · "en ventas y contribución" → multi)
+const _ENT_METRIC_RE = /\b(margen|contribuci[oó]n|carga|ventas?|capital|stock|inventario\w*|rotaci[oó]n|costos?|doh|cobertura|presupuesto|rebates?|unidades|precios?)\b/i;
+// «principales/mejores/top N clientes|marcas» → ranking (nivel de venta desc), no los movers de crecimiento
+const _ENT_RANK_RE = /\b(?:principales|mejores|mayores|top)\s+(?:\d{1,2}\s+)?(clientes?|marcas?)\b/i;
+// exactamente UNA entidad del canon nombrada en la pregunta (borde de palabra · claves ≥3 chars — mismo criterio
+// que el rescate de entidad de _coerceMulti); con 0 o 2+ no hay sujeto único → la red no reclama.
+function _soloCanonEn(q) {
+  const nq = _norm(q);
+  const found = new Map();
+  for (const [k, c] of _CANON) {
+    if (k.length < 3) continue;
+    const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) found.set(c.nombre, c);
+  }
+  return found.size === 1 ? [...found.values()][0] : null;
+}
 
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia, señalesUI) → spec ruteado al dominio+foco correcto (o el original).
 export function coerceSpec(q, spec, hasLast, ui = null) {
@@ -293,6 +326,27 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   //   caía en un ranking de ventas narrado — el detector exigía "del negocio").
   if (q && spec && /(resumen|panorama|foto|radiograf[ií]a)\s+(ejecutiv[oa]\s+)?(general\s+)?(de(l)?\s+)?(mi\s+|la\s+|el\s+)?(negocio|empresa|cartera|situaci[oó]n)|(resumen|panorama)\s+ejecutiv[oa]\b|^\s*¿?\s*(hazme\s+|dame\s+|hac[eé]me\s+|quiero\s+)?(un\s+)?(resumen|panorama)\s*[?.!]*\s*$|c[oó]mo\s+(est[aá]|va|viene)\s+(mi\s+|el\s+)?negocio|^\s*¿?\s*c[oó]mo\s+(vengo|venimos|vamos|voy|andamos|ando)\s*\??\s*$/i.test(q))
     return _cleanFilters({ ...spec, operation: "diagnose", focus: "resumen_ejecutivo", metric: spec.metric || "contribucion", dimension: "cliente", turn_type: "new_query" });
+  // ── FOCO DE ENTIDAD (revisión de contrato de la Mesa 2026-07-14: «¿Cómo viene Lider vs el año pasado?» respondía
+  // la CARTERA con Lider de bullet, y «¿Quiénes son mis principales clientes por venta?» respondía los movers de
+  // crecimiento): cuando la pregunta nombra UNA entidad del canon como sujeto, la respuesta es de ESA entidad. ──
+  // A1 · «cómo viene/va/está X» o «X vs el año pasado» SIN métrica nombrada → el DIVE de la entidad (perfil +
+  // trayectoria YoY + causas), nunca la lectura de cartera. Con métrica nombrada ("cómo viene el margen") o con
+  // enumeración de métricas (multi C.1) la cadena sigue su curso — el guard de métrica lo asegura.
+  if (q && spec && (_ENT_COMO_RE.test(q) || _ENT_VSANIO_RE.test(q)) && !_ENT_METRIC_RE.test(q)) {
+    const ent = _soloCanonEn(q);
+    if (ent) return _cleanFilters({ ...spec, operation: "dive", entity: ent.nombre, dimension: ent.tipo,
+      metric: spec.metric || "ventas", focus: undefined, comparison: undefined, turn_type: "new_query" });
+  }
+  // A2 · «principales/mejores/top clientes|marcas (por venta)» → RANKING de ventas desc (el nivel, no el movimiento).
+  // Si nombra otra métrica (margen/contribución/…), su dominio la reclama — este net no se la roba.
+  if (q && spec) {
+    const mR = q.match(_ENT_RANK_RE);
+    if (mR && !/(margen|contribuci[oó]n|carga|capital|costo|rotaci[oó]n|doh|cobertura|crecimiento)/i.test(q)) {
+      const nM = q.match(/\b(\d{1,2})\b/);
+      return _cleanFilters({ ...spec, operation: "rank", metric: "ventas", dimension: /marca/i.test(mR[1]) ? "marca" : "cliente",
+        entity: null, focus: undefined, comparison: undefined, sort: { dir: "desc" }, limit: nM ? Number(nM[1]) : 5, turn_type: "new_query" });
+    }
+  }
   // ENTIDAD-PRONOMBRE (sweep 2026-07-09): el LLM #1 a veces "resuelve" un pronombre como entidad ("tú"/"mi"/"eso")
   // → dive de una entidad absurda ("No tengo a tú en el detalle…"). Se anula → el seam repregunta honesto.
   if (spec && typeof spec.entity === "string" && /^(t[uú]|yo|vos|usted|mi|m[ií]o|nuestro|ese|esa|eso|este|esta|esto|[eé]l|ella)$/i.test(spec.entity.trim()))
