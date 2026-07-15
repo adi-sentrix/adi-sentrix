@@ -1313,7 +1313,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
             El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
         <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. Tocá UNA fila y su ficha trae el COMPARADO contra el año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara) con los filtros de métrica en su encabezado; con DOS filas, la comparación A vs B. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu vara: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra al líder del orden actual; tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu vara), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
@@ -1858,7 +1858,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
   // MESA 2.0 (owner 2026-07-14): el semáforo es contra TU VARA (benchmarkOf · criterio C.2 · misma brecha material
   // del detector — viene calculado del módulo cuadro.js, cero cálculo acá) · fallback vs-prom para filas sin vara.
   const statusOf = (r) => (r.vara ? { verde: "g", ambar: "a", rojo: "r" }[r.vara] : r.gap == null ? null : r.gap >= 0 ? "g" : r.gap <= -3 ? "r" : "a");
-  const varaTitle = (r) => (r.varaGap == null ? undefined : `${Math.abs(r.varaGap)} pp ${r.varaGap >= 0 ? "sobre" : "bajo"} tu vara (${r.varaRef}%)${mesa && onAsk ? " · click y ADI lo abre" : ""}`);
+  const varaTitle = (r) => (r.varaGap == null ? undefined : `${Math.abs(r.varaGap)} pp ${r.varaGap >= 0 ? "sobre" : "bajo"} tu benchmark (${r.varaRef}%)${mesa && onAsk ? " · click y ADI lo abre" : ""}`);
   const statusCol = { g: C.green, a: C.amber, r: C.red };
   const MargenIcon = ({ st }) => (st ? (
     <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke={statusCol[st]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter:`drop-shadow(0 0 3px ${statusCol[st]}88)`, flexShrink:0 }}>
@@ -1902,6 +1902,16 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           </span>
         )}
       </div>
+      {/* PASE 1c · EL COMPARADO POR ENCIMA de la tabla (owner 2026-07-15): reacciona a la tabla — sin selección,
+          el líder del orden/filtro actual; UNA fila, esa entidad vs su año anterior; DOS, las dos lado a lado.
+          Sirve para cualquier eje con serie (clientes/SKU/marcas); bodega sin serie → sin gráfico (honesto). */}
+      {(() => {
+        const selRows = sel.map((nm) => cm.rows.find((r) => r.name === nm)).filter(Boolean);
+        const aRow = selRows[0] || rows[0];
+        if (!aRow) return null;
+        const bRow = selRows.length >= 2 ? selRows[1] : null;
+        return <ComparadoCard a={aRow.name} rowA={aRow} b={bRow ? bRow.name : null} rowB={bRow} porDefecto={!selRows.length} onAsk={mesa ? onAsk : null}/>;
+      })()}
       {/* la grilla */}
       <div style={{ overflowX:"auto" }}>
         <div style={{ minWidth: minWBase }}>
@@ -2005,7 +2015,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
         : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu vara (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura{mesa ? <> · tocá una fila y su ficha trae el comparado contra el año anterior</> : null}{mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2256,7 +2266,7 @@ function StationCompareFilm({ cmp }) {
     <div style={{ marginBottom: 4 }}>
       <span style={{ color: col, fontWeight: 600 }}>{E.name}</span>{E.sinCaidas
         ? <> — sube sostenido de {fmV(E.first)} ({meses[0]}) a {fmV(E.last)} ({meses[n - 1]}), sin retrocesos.</>
-        : <> — la subida fuerte llega {E.growth.from}→{E.growth.mes} (+{fmV(E.growth.delta)}) y el freno {E.drop.from}→{E.drop.mes} (−{fmV(Math.abs(E.drop.delta))}); su mejor mes es <span style={{ color:C.green }}>{E.maxMes}</span> ({fmV(E.max)}) y el más flojo <span style={{ color:C.red }}>{E.minMes}</span> ({fmV(E.min)}).</>}
+        : <> — la subida fuerte llega {E.growth.from}→{E.growth.mes} (+{fmV(E.growth.delta)}) y el freno {E.drop.from}→{E.drop.mes} (−{fmV(Math.abs(E.drop.delta))}); su mejor mes es <span style={{ color:C.green }}>{E.maxMes}</span> ({fmV(E.max)}) y el más bajo <span style={{ color:C.red }}>{E.minMes}</span> ({fmV(E.min)}).</>}
     </div>
   );
   const lider = cmp.aArribaTodo ? A : cmp.bArribaTodo ? B : null;
@@ -2354,7 +2364,7 @@ function StationPeriodo({ a, b }) {
           <button key={k} onClick={() => setPer(k)} style={{ padding:"3px 9px", borderRadius:6, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
             border:`1px solid ${per === k ? "rgba(47,184,218,0.5)" : C.border}`, background: per === k ? "rgba(47,184,218,0.10)" : "transparent", color: per === k ? C.celeste : C.textMuted }}>{l}</button>
         ))}
-        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>mejor mes <span style={{ color:C.green }}>{ev.maxMes} {fmV(ev.max)}</span> · más flojo <span style={{ color:C.red }}>{ev.minMes} {fmV(ev.min)}</span></span>
+        <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:10, color:C.textMuted }}>mejor mes <span style={{ color:C.green }}>{ev.maxMes} {fmV(ev.max)}</span> · más bajo <span style={{ color:C.red }}>{ev.minMes} {fmV(ev.min)}</span></span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
         <path d={d} fill="none" stroke={C.celeste} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
@@ -2386,7 +2396,7 @@ function StationPeriodo({ a, b }) {
       </svg>
       {/* LECTURA DEL PERÍODO (owner: los MESES de alzas/desvíos, en lenguaje de negocio) — derivada de la serie mostrada */}
       <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:8 }}>
-        El mejor mes es <span style={{ color:C.green }}>{labels[iMax]}</span> ({fmV(hi)}) y el más flojo <span style={{ color:C.red }}>{labels[iMin]}</span> ({fmV(lo)}).
+        El mejor mes es <span style={{ color:C.green }}>{labels[iMax]}</span> ({fmV(hi)}) y el más bajo <span style={{ color:C.red }}>{labels[iMin]}</span> ({fmV(lo)}).
         {gRise.delta > 0 && <> La subida más fuerte llega {labels[gRise.i - 1]}→{labels[gRise.i]} (+{fmV(gRise.delta)}).</>}
         {gDrop.delta < 0 && <> El freno más fuerte, {labels[gDrop.i - 1]}→{labels[gDrop.i]} (−{fmV(Math.abs(gDrop.delta))}).</>}
       </div>
@@ -2408,16 +2418,17 @@ function StationPeriodo({ a, b }) {
 // eje central estilo movers): el spine ES el promedio; derecha (verde) = mejor, izquierda (rojo) = peor — la
 // geometría dice la calidad aunque la métrica sea "menos = mejor". La vara (piso/target de POLICY) queda declarada. ──
 // ── FICHA DE ENTIDAD (owner 2026-07-10 · "panel de Sentrix único"): click en UNA fila del cuadro → TODO lo de esa
-// entidad, gráfico: (1) el 80/20 de su eje con SU columna destacada · (2) el Perfil vs promedio · (3) el COMPARADO
-// contra el año anterior por estación (Ventas · Contribución · Margen · Acciones de precios — decisión del owner:
-// acciones engloba carga, y costo sobra si ya está margen+contribución; PASE 1b: el evolutivo simple pasó a
-// comparado). Modelo del chat en todo · hover con dato en todo · explicativo "i" en cada bloque · honesto donde la
-// serie no existe (margen mensual plano → se dice, no se dibuja · año anterior sin ancla → no se fabrica). ──
+// entidad, gráfico: (1) el 80/20 de su eje con SU columna destacada · (2) el Perfil vs promedio. El COMPARADO
+// contra el año anterior (ex evolutivo de la ficha) subió ARRIBA de la tabla en el PASE 1c (owner 2026-07-15:
+// "por encima de la tabla, reaccionando a sus filtros") — ComparadoCard, métricas Ventas · Contribución · Margen.
+// Modelo del chat en todo · hover con dato en todo · explicativo "i" en cada bloque · honesto donde la serie no
+// existe (margen mensual plano → se dice, no se dibuja · año anterior sin ancla → no se fabrica). ──
+// PASE 1c (owner 2026-07-15): fuera "Acciones de precios" — con Ventas · Contribución · Margen el comparado sirve
+// para clientes y SKU por igual (las tres existen en todos los ejes con serie).
 const _FICHA_ESTACIONES = [
   { key: "venta",        label: "Ventas" },
   { key: "contribucion", label: "Contribución" },
   { key: "margen",       label: "Margen" },
-  { key: "acciones",     label: "Acciones de precios" },
 ];
 // BOTÓN "QUE ADI LO EXPLIQUE" (owner 2026-07-10: cada gráfico lleva a ADI para que cuente LA HISTORIA de contratos
 // —lectura→porqué→palanca—, no una lectura de datos). Cada pregunta es una PROMESA: está en el gate de promesas
@@ -2426,7 +2437,6 @@ const _FICHA_STORY_Q = {
   venta:        (name) => `Profundiza en ${name}`,                       // dive causal: tesis + brecha + palanca
   contribucion: (name) => `¿De dónde saca ${name} su contribución?`,     // origen: volumen vs calidad
   margen:       (name) => `¿Por qué ${name} cede margen?`,               // causa del margen
-  acciones:     (name) => `Profundiza en ${name}`,                       // la palanca de carga vive en el dive causal
 };
 // EL PARETO ES REFLEJO DE LA TABLA (owner 2026-07-10): eje = el del cuadro · filtro Ventas/Contribución · sin
 // selección = el 80/20 del negocio · con selección = la COMPOSICIÓN de esa entidad cuando el cruce existe
@@ -2522,57 +2532,74 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
   );
 }
 
-// ── EL COMPARADO de la Ficha (PASE 1b · owner 2026-07-15: "el gráfico de evolución de 12 meses, reemplázalo por el
-// de perfil comparado — no en la tabla") ── el evolutivo simple pasa a COMPARADO contra el año anterior, grande y
-// siempre visible al tocar una fila: este año en CELESTE (nuestra base) con reflejo premium (doble trazo, sin
-// filtros SVG) · año anterior en PERLAS (patrón del MiniEvolutivo del chat) SOLO donde el dato declara su total
-// por entidad (ventas de clientes/marcas — sin ancla no se fabrica) · mes más bajo en ROJO parpadeando (adiBlink
-// bajo prefers-reduced-motion: no-preference → fijo con movimiento reducido) · más alto en VERDE · la vara de ESTA
-// entidad en ámbar (margen · benchmarkOf con criterio C.2) con el benchmark de CARTERA en el encabezado (se
-// diferencian) · hover = tooltip con el dato del mes en AMBAS series (regla de todos los gráficos). Los filtros de
-// métrica (Ventas · Contribución · Margen · Acciones) ya viven en el encabezado del gráfico — donde el owner los pidió.
-function FichaEvolutivo({ name, row = null, onAsk = null }) {
+// ── EL COMPARADO (PASE 1b/1c · owner 2026-07-15: "el gráfico debe estar POR ENCIMA de la tabla y reaccionar a sus
+// filtros") ── la card gráfica que vive ARRIBA de la grilla del cuadro y reacciona a la selección: sin selección,
+// el líder del orden actual; UNA fila, esa entidad COMPARADA contra su año anterior; DOS filas, las dos entidades
+// lado a lado (mismo eje: clientes, SKU, marcas — cualquier fila con serie; bodega sin serie → sin gráfico).
+// Este año en CELESTE (nuestra base) con reflejo premium (doble trazo, sin filtros SVG) · año anterior en PERLAS
+// SOLO donde el dato declara su total por entidad (ventas de clientes/marcas — sin ancla no se fabrica) · mes más
+// bajo en ROJO parpadeando (adiBlink bajo prefers-reduced-motion: no-preference → fijo con movimiento reducido) ·
+// más alto en VERDE · el benchmark de ESTA entidad en ámbar (margen · benchmarkOf con criterio C.2) con el de
+// CARTERA en la leyenda (se diferencian) · hover = tooltip con el dato del mes en TODAS las series (regla de todos
+// los gráficos). Filtros de métrica en el encabezado: Ventas · Contribución · Margen (sirven igual en todos los ejes).
+function ComparadoCard({ a, rowA = null, b = null, rowB = null, porDefecto = false, onAsk = null }) {
   const [est, setEst] = useState("venta");
   const [hov, setHov] = useState(null);
-  // MARGEN CONECTADO (owner 2026-07-10: "si hay contribución debe tener — deben quedar todos conectados"):
-  // margen del mes = contribución ÷ venta de las mismas dos curvas de esta ficha; el año cierra exacto con el
-  // margen del período del perfil/cuadro (una sola verdad · el cálculo vive en buildEntityEvolution/Comparado).
-  const ev = buildEntityEvolutionComparado(name, est);
-  const ant = ev && ev.anterior && ev.anterior.serie;
+  const dual = !!b;
+  // MARGEN CONECTADO (owner 2026-07-10): margen del mes = contribución ÷ venta de las mismas curvas; el año cierra
+  // exacto con el margen del período del perfil/cuadro (una verdad · el cálculo vive en buildEntityEvolution/Comparado).
+  const ev = dual ? null : buildEntityEvolutionComparado(a, est);
+  const cmp = dual ? buildCompareEvolution(a, b, est) : null;
+  if (dual ? !cmp : (!ev || ev.n < 2)) return null;   // sin serie → sin gráfico (bodega hoy · honesto)
+  const ant = !dual && ev.anterior && ev.anterior.serie;
   const isPct = est === "margen";
-  const bench = isPct && row && typeof row.varaRef === "number" ? row.varaRef : null;   // la vara de ESTA entidad (C.2)
+  // el benchmark de la entidad (criterio C.2) · en modo dual solo si AMBAS filas comparten el mismo
+  const benchA = rowA && typeof rowA.varaRef === "number" ? rowA.varaRef : null;
+  const bench = isPct ? (dual ? (benchA != null && rowB && rowB.varaRef === benchA ? benchA : null) : benchA) : null;
   const fmtV = isPct ? (v) => p1(v) + "%" : _fmDin;
   const fmtD = isPct ? (v) => p1(v) + "pp" : _fmDin;
+  const colB = C.lav;   // la segunda entidad en lavanda (paleta base de gráficos · el teal queda para "año anterior")
   const W = 620, H = 120, padL = 12, padR = 12, padT = 14, padB = 10;
-  let body = null;
-  if (!ev || ev.n < 2) {
-    body = <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.6, padding:"14px 4px" }}>El corte mensual de {name} se enciende con el histórico del ERP — hoy este set no lo trae para esta entidad.</div>;
-  } else {
-    const all = [...ev.serie, ...(ant || []), ...(bench != null ? [bench] : [])];   // la vara entra al rango: la distancia ES el dato
-    const lo = Math.min(...all), hi = Math.max(...all), rng = Math.max(hi - lo, 1);
-    const xs = ev.serie.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, ev.n - 1));
-    const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
-    const ys = ev.serie.map(y);
-    const dPath = _mono(xs, ys);
-    const dAnt = ant ? _mono(xs, ant.map(y)) : null;
-    const iMax = ev.serie.indexOf(ev.max), iMin = ev.serie.indexOf(ev.min);
-    // el año contra el anterior — dos totales DECLARADOS (la serie anclada suma exacto · el eje puso el anterior)
-    const totAct = ev.serie.reduce((s, v) => s + v, 0);
-    const vsAnt = ant && ev.anterior.total ? Math.round((totAct - ev.anterior.total) / ev.anterior.total * 1000) / 10 : null;
-    const up = vsAnt != null && vsAnt >= 0;
-    body = (
+  const meses = dual ? cmp.meses : ev.meses;
+  const n = dual ? cmp.n : ev.n;
+  const serieA = dual ? cmp.a.serie : ev.serie;
+  const serieB = dual ? cmp.b.serie : (ant || null);
+  const all = [...serieA, ...(serieB || []), ...(bench != null ? [bench] : [])];   // el benchmark entra al rango: la distancia ES el dato
+  const lo = Math.min(...all), hi = Math.max(...all), rng = Math.max(hi - lo, 1);
+  const xs = serieA.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, n - 1));
+  const y = (v) => padT + (1 - (v - lo) / rng) * (H - padT - padB);
+  const ys = serieA.map(y);
+  const dPath = _mono(xs, ys);
+  const dB = serieB ? _mono(xs, serieB.map(y)) : null;
+  const iMax = serieA.indexOf(dual ? cmp.a.max : ev.max), iMin = serieA.indexOf(dual ? cmp.a.min : ev.min);
+  // el año contra el anterior — dos totales DECLARADOS (la serie anclada suma exacto · el eje puso el anterior)
+  const totAct = serieA.reduce((s, v) => s + v, 0);
+  const vsAnt = ant && ev.anterior.total ? Math.round((totAct - ev.anterior.total) / ev.anterior.total * 1000) / 10 : null;
+  const up = vsAnt != null && vsAnt >= 0;
+  const body = (
       <>
         <div style={{ display:"flex", alignItems:"baseline", gap:8, margin:"8px 0 6px", flexWrap:"wrap" }}>
           {/* sin pill "+% Ene→Dic": el punta-a-punta ENGAÑA con estacionalidad (Ene es mes débil — regla 2026-07-08);
               el chip honesto es AÑO contra AÑO (dos totales declarados) — y la historia fina, la lectura de abajo */}
-          <span style={{ fontFamily:MONO, fontSize:14, fontWeight:600, color:C.text, fontVariantNumeric:"tabular-nums" }}>{fmtV(ev.last)}</span>
-          <span style={{ fontSize:10, color:C.textMuted }}>último mes ({ev.meses[ev.n - 1]})</span>
-          {vsAnt != null && (
-            <span style={{ fontFamily:MONO, fontSize:10.5, padding:"1px 7px", borderRadius:4, fontVariantNumeric:"tabular-nums",
-              background: up ? "rgba(16,185,129,0.08)" : "rgba(244,63,94,0.08)", color: up ? C.green : C.red }}>
-              {up ? "+" : ""}{vsAnt}% vs año anterior
-            </span>
+          {dual ? (
+            <>
+              <span style={{ fontFamily:MONO, fontSize:13, fontWeight:600, color:C.celeste, fontVariantNumeric:"tabular-nums" }}>{a} {fmtV(cmp.a.last)}</span>
+              <span style={{ fontFamily:MONO, fontSize:13, fontWeight:600, color:colB, fontVariantNumeric:"tabular-nums" }}>{b} {fmtV(cmp.b.last)}</span>
+              <span style={{ fontSize:10, color:C.textMuted }}>último mes ({meses[n - 1]})</span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontFamily:MONO, fontSize:14, fontWeight:600, color:C.text, fontVariantNumeric:"tabular-nums" }}>{fmtV(ev.last)}</span>
+              <span style={{ fontSize:10, color:C.textMuted }}>último mes ({meses[n - 1]})</span>
+              {vsAnt != null && (
+                <span style={{ fontFamily:MONO, fontSize:10.5, padding:"1px 7px", borderRadius:4, fontVariantNumeric:"tabular-nums",
+                  background: up ? "rgba(16,185,129,0.08)" : "rgba(244,63,94,0.08)", color: up ? C.green : C.red }}>
+                  {up ? "+" : ""}{vsAnt}% vs año anterior
+                </span>
+              )}
+            </>
           )}
+          {porDefecto && <span style={{ fontSize:10, color:C.textMuted }}>· el líder del orden actual — tocá una fila para elegir otra, dos para comparar</span>}
         </div>
         <div style={{ position:"relative", touchAction:"pan-y" }}>
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
@@ -2581,79 +2608,100 @@ function FichaEvolutivo({ name, row = null, onAsk = null }) {
                 <stop offset="0%" stopColor={C.celeste} stopOpacity="0.16"/><stop offset="100%" stopColor={C.celeste} stopOpacity="0"/>
               </linearGradient>
             </defs>
-            <path d={`${dPath} L${xs[ev.n - 1]},${H - padB} L${xs[0]},${H - padB} Z`} fill={`url(#fev-${est})`}/>
+            <path d={`${dPath} L${xs[n - 1]},${H - padB} L${xs[0]},${H - padB} Z`} fill={`url(#fev-${est})`}/>
             <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
-            {/* la vara de ESTA entidad (ámbar · solo margen) — si el benchmark queda lejos, la curva se ve lejos: ESE es el dato */}
+            {/* el benchmark de la entidad (ámbar · solo margen) — si queda lejos, la curva se ve lejos: ESE es el dato */}
             {bench != null && <line x1={padL} x2={W - padR} y1={y(bench)} y2={y(bench)} stroke={C.amber} strokeWidth="1.2" strokeDasharray="4 3" opacity="0.65"/>}
-            {/* año anterior en perlas (solo donde el dato lo declara — sin ancla no se dibuja) */}
-            {dAnt && <path d={dAnt} fill="none" stroke={C.teal} strokeWidth="1.6" strokeDasharray="0.1 6" strokeLinecap="round" opacity="0.55"/>}
+            {/* la segunda serie: en modo entidad, el año anterior en perlas (solo donde el dato lo declara);
+                en modo comparación, la entidad B en lavanda con su propio reflejo */}
+            {dB && (dual
+              ? <>
+                  <path d={dB} fill="none" stroke={colB} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
+                  <path d={dB} fill="none" stroke={colB} strokeWidth="2" strokeLinejoin="round" opacity="0.95"/>
+                </>
+              : <path d={dB} fill="none" stroke={C.teal} strokeWidth="1.6" strokeDasharray="0.1 6" strokeLinecap="round" opacity="0.55"/>)}
             <path d={dPath} fill="none" stroke={C.celeste} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
             <path d={dPath} fill="none" stroke={C.celeste} strokeWidth="2" strokeLinejoin="round" opacity="0.95"/>
-            <circle cx={xs[iMax]} cy={ys[iMax]} r="3.2" fill={C.green} stroke="#0b0b0b" strokeWidth="2"/>
-            <circle cx={xs[iMin]} cy={ys[iMin]} r="3.2" fill={C.red} stroke="#0b0b0b" strokeWidth="2" style={{ animation:"adiBlink 1.5s ease-in-out infinite" }}/>
-            <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="5" fill={C.celeste} opacity="0.22"/>
-            <circle cx={xs[ev.n - 1]} cy={ys[ev.n - 1]} r="2.6" fill={C.celeste}/>
+            {!dual && <>
+              <circle cx={xs[iMax]} cy={ys[iMax]} r="3.2" fill={C.green} stroke="#0b0b0b" strokeWidth="2"/>
+              <circle cx={xs[iMin]} cy={ys[iMin]} r="3.2" fill={C.red} stroke="#0b0b0b" strokeWidth="2" style={{ animation:"adiBlink 1.5s ease-in-out infinite" }}/>
+            </>}
+            <circle cx={xs[n - 1]} cy={ys[n - 1]} r="5" fill={C.celeste} opacity="0.22"/>
+            <circle cx={xs[n - 1]} cy={ys[n - 1]} r="2.6" fill={C.celeste}/>
+            {dual && <circle cx={xs[n - 1]} cy={y(serieB[n - 1])} r="2.6" fill={colB}/>}
             {hov != null && (
               <g pointerEvents="none">
                 <line x1={xs[hov]} x2={xs[hov]} y1={padT - 5} y2={H - padB} stroke="rgba(255,255,255,0.18)" strokeWidth="1"/>
-                {ant && <circle cx={xs[hov]} cy={y(ant[hov])} r="3" fill={C.teal} stroke="#0b0b0b" strokeWidth="2"/>}
+                {serieB && <circle cx={xs[hov]} cy={y(serieB[hov])} r="3" fill={dual ? colB : C.teal} stroke="#0b0b0b" strokeWidth="2"/>}
                 <circle cx={xs[hov]} cy={ys[hov]} r="3.6" fill={C.celeste} stroke="#0b0b0b" strokeWidth="2"/>
               </g>
             )}
             <rect x="0" y="0" width={W} height={H} fill="transparent"
-              onPointerMove={(e) => { const b = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - b.left) / Math.max(1, b.width); setHov(Math.max(0, Math.min(ev.n - 1, Math.round(rel * (ev.n - 1))))); }}
+              onPointerMove={(e) => { const bx = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - bx.left) / Math.max(1, bx.width); setHov(Math.max(0, Math.min(n - 1, Math.round(rel * (n - 1))))); }}
               onPointerLeave={() => setHov(null)}/>
           </svg>
           {hov != null && (
-            <div style={{ position:"absolute", top:-2, left:`${(xs[hov] / W) * 100}%`, transform: hov > ev.n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+            <div style={{ position:"absolute", top:-2, left:`${(xs[hov] / W) * 100}%`, transform: hov > n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
               pointerEvents:"none", background:"#161616", border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"3px 9px",
               fontFamily:MONO, fontSize:10.5, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", color:C.textMuted }}>
-              <span style={{ color:C.textSub }}>{ev.meses[hov]}</span> <b style={{ color:C.text }}>{fmtV(ev.serie[hov])}</b>{ant ? <> · ant {fmtV(ant[hov])}</> : null}
+              <span style={{ color:C.textSub }}>{meses[hov]}</span>{dual
+                ? <> <b style={{ color:C.celeste }}>{fmtV(serieA[hov])}</b> · <b style={{ color:colB }}>{fmtV(serieB[hov])}</b></>
+                : <> <b style={{ color:C.text }}>{fmtV(serieA[hov])}</b>{ant ? <> · ant {fmtV(ant[hov])}</> : null}</>}
             </div>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", marginTop:2, fontFamily:MONO, fontSize:9.5, color:C.textMuted }}>
-            <span>{ev.meses[0]}</span><span>{ev.meses[ev.n - 1]}</span>
+            <span>{meses[0]}</span><span>{meses[n - 1]}</span>
           </div>
         </div>
-        <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:6 }}>
-          El mejor mes es <span style={{ color:C.green }}>{ev.maxMes}</span> ({fmtV(ev.max)}) y el más flojo <span style={{ color:C.red }}>{ev.minMes}</span> ({fmtV(ev.min)}).
-          {ev.growth.mes && ev.growth.delta > 0 && <> La subida más fuerte llega {ev.growth.from}→{ev.growth.mes} (+{fmtD(ev.growth.delta)}).</>}
-          {ev.drop.mes && <> El freno más fuerte, {ev.drop.from}→{ev.drop.mes} (−{fmtD(Math.abs(ev.drop.delta))}).</>}
-        </div>
-        {!ant && (
+        {dual ? (
+          <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:6 }}>
+            {cmp.aArribaTodo ? <><span style={{ color:C.celeste }}>{a}</span> queda arriba los 12 meses</>
+              : cmp.bArribaTodo ? <><span style={{ color:colB }}>{b}</span> queda arriba los 12 meses</>
+              : cmp.cruces.length ? <>Se cruzan en {cmp.cruces[0].mes}{cmp.cruces.length > 1 ? ` (y ${cmp.cruces.length - 1} vez${cmp.cruces.length > 2 ? "es" : ""} más)` : ""} — hoy va arriba <span style={{ color: cmp.gapHoy >= 0 ? C.celeste : colB }}>{cmp.gapHoy >= 0 ? a : b}</span></>
+              : null}
+            {" "}· la brecha más ancha es en {cmp.wideMes} ({fmtD(Math.abs(cmp.wideGap))}) y la más corta en {cmp.narrowMes} ({fmtD(Math.abs(cmp.narrowGap))}).
+          </div>
+        ) : (
+          <div style={{ fontSize:11, color:C.textSub, lineHeight:1.55, marginTop:6 }}>
+            El mejor mes es <span style={{ color:C.green }}>{ev.maxMes}</span> ({fmtV(ev.max)}) y el más bajo <span style={{ color:C.red }}>{ev.minMes}</span> ({fmtV(ev.min)}).
+            {ev.growth.mes && ev.growth.delta > 0 && <> La subida más fuerte llega {ev.growth.from}→{ev.growth.mes} (+{fmtD(ev.growth.delta)}).</>}
+            {ev.drop.mes && <> La caída más fuerte, {ev.drop.from}→{ev.drop.mes} (−{fmtD(Math.abs(ev.drop.delta))}).</>}
+          </div>
+        )}
+        {!dual && !ant && (
           <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.5, marginTop:4 }}>
             El año anterior de esta {est === "venta" ? "entidad" : "métrica"} no viene declarado en el dato — ADI no lo dibuja.
           </div>
         )}
         {isPct && (
           <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.5, marginTop:4 }}>
-            margen del mes = contribución ÷ venta del mes (las dos curvas de esta ficha) · el agregado del año cierra con el margen del período del perfil.
+            margen del mes = contribución ÷ venta del mes (las mismas curvas) · el agregado del año cierra con el margen del período del perfil.
           </div>
         )}
         {onAsk && (
           <div style={{ display:"flex", justifyContent:"flex-end", marginTop:6 }}>
-            {_btnADI(() => onAsk(_FICHA_STORY_Q[est](name)), "Que ADI te cuente esta historia →")}
+            {dual ? null : _btnADI(() => onAsk(_FICHA_STORY_Q[est](a)), "Que ADI te cuente esta historia →")}
           </div>
         )}
       </>
     );
-  }
   return (
     <div style={{ padding:"14px 16px 12px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
       background:"radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
       boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05)" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
-        <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center" }}>
+        <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
-          Comparado · 12 meses
-          <InfoDot def={"La película mensual de la entidad COMPARADA contra el año anterior, estación por estación: Ventas, Contribución, Margen o Acciones de precios. La curva celeste es este año; las perlas, el año anterior — se dibujan solo donde el dato declara ese total por entidad (ventas de clientes y marcas; ADI no lo inventa). El punto verde es el mejor mes, el rojo parpadeante el más flojo, y en margen la línea ámbar es la vara de esta entidad (el encabezado trae la de cartera para diferenciarlas). Pasá el cursor y ves el dato del mes en ambas series. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, el año anterior suma exacto el que ya usan los movers, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{dual ? `Comparado · ${a} vs ${b}` : `Comparado · ${a} · 12 meses`}</span>
+          <InfoDot def={"La película mensual comparada, sobre la tabla y conectada a ella: sin selección ves al líder del orden actual; tocá UNA fila y ves esa entidad contra su año anterior (perlas — se dibujan solo donde el dato declara ese total: ventas de clientes y marcas; ADI no lo inventa); tocá DOS y las ves lado a lado. El filtro del encabezado elige la métrica (Ventas · Contribución · Margen) y sirve igual en clientes, SKU y marcas. El punto verde es el mejor mes y el rojo parpadeante el más bajo; en margen, la línea ámbar es el benchmark de esta entidad y la leyenda trae el de cartera para diferenciarlos. Pasá el cursor y ves el dato del mes en todas las series. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, el año anterior suma exacto el que ya usan los movers, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
         </span>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          {/* leyenda honesta: cada serie se nombra · la vara ámbar solo cuando se dibuja · cartera para diferenciar */}
+          {/* leyenda honesta: cada serie se nombra · el benchmark ámbar solo cuando se dibuja · cartera para diferenciar */}
           <span style={{ display:"flex", alignItems:"center", gap:8, fontSize:10, color:C.textSub }}>
-            <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:2.5, borderRadius:2, background:C.celeste }}/>este año</span>
-            {ant ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`2px dotted ${C.teal}` }}/>año anterior</span> : null}
-            {bench != null ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`1.5px dashed ${C.amber}` }}/>tu vara {p1(bench)}% <span style={{ color:C.textMuted }}>· cartera {p1(benchmarkOf(null))}%</span></span> : null}
+            <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:2.5, borderRadius:2, background:C.celeste }}/>{dual ? a : "este año"}</span>
+            {dual ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:2.5, borderRadius:2, background:colB }}/>{b}</span>
+              : ant ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`2px dotted ${C.teal}` }}/>año anterior</span> : null}
+            {bench != null ? <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:12, height:0, borderTop:`1.5px dashed ${C.amber}` }}/>benchmark {p1(bench)}% <span style={{ color:C.textMuted }}>· cartera {p1(benchmarkOf(null))}%</span></span> : null}
           </span>
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
             {_FICHA_ESTACIONES.map((e) => (
@@ -2702,8 +2750,8 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
           </button>
         ) : null}
       </div>
+      {/* PASE 1c: el comparado (ex FichaEvolutivo) subió ARRIBA de la tabla (owner) — la ficha queda perfil + composición */}
       <MesaPerfil name={name} row={row} columns={columns} allRows={allRows} dim={dim} onAsk={onAsk}/>
-      <FichaEvolutivo name={name} row={row} onAsk={onAsk}/>
     </div>
   );
 }

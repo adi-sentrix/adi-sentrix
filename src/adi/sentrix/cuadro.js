@@ -183,7 +183,7 @@ function _asesor(dimension, s, rows) {
       const m = mg.get(r.name), c = cg.get(r.name);
       if (m) {
         const causa = r.accion === "renegociar carga" ? " por carga comercial" : r.accion === "revisar costo" ? " por estructura de costo" : "";
-        r.lectura = `Cede ${Math.abs(r.varaGap)} pp contra tu vara${causa} · ${_money(m.usd)} en juego`;
+        r.lectura = `Cede ${Math.abs(r.varaGap)} pp contra tu benchmark${causa} · ${_money(m.usd)} en juego`;
         r.enJuego = m.usd;
       } else if (c) {
         r.lectura = `Carga comercial ${r.carga}% sobre tu target (${POLICY.targetCarga}%) · ${_money(c.usd)} recuperable`;
