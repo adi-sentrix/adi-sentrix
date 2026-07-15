@@ -2,14 +2,18 @@
  * Extraído de 41cc33d8 · valores byte-idénticos · cero recálculo (Fase 2 del refactor).
  * La única diferencia con el monolito es DÓNDE vive el dato, nunca QUÉ vale. */
 
+/* PRESUPUESTO UNA VERDAD (coherencia total · owner 2026-07-15): Σ presupuesto por cliente = 97,000 = el
+ * totalPresupuesto global (baseKpis/ventasMensuales) — antes sumaba 92,350 y la Mesa contaba OTRO cumplimiento
+ * (+8.2%) que la respuesta de ADI (+3.1%). El ajuste reparte los +4,650 SOLO entre clientes sobre plan (los que
+ * quedan cortos — Ripley/La Polar/Easy — no se tocan: su brecha al plan y los $271K recuperables son los mismos). */
 export const clientesVentas = [
-  { nombre:"Falabella",     sfamilia:"Electrodomésticos",           marca:"Samsung", canal:"Retail",     actual:19433, anterior:17942, unidades:1040, unidadesAnt:985,  pctRebate:4.5, presupuesto:17500 },
-  { nombre:"Lider",         sfamilia:"Línea Blanca",                marca:"LG",      canal:"Retail",     actual:17857, anterior:15529, unidades:900,  unidadesAnt:810,  pctRebate:4.2, presupuesto:16000 },
-  { nombre:"Jumbo",         sfamilia:"Cuidado Personal",            marca:"Philips", canal:"Retail",     actual:17332, anterior:15424, unidades:1210, unidadesAnt:1100, pctRebate:3.8, presupuesto:15500 },
-  { nombre:"Sodimac",       sfamilia:"Materiales de Construcción",  marca:"Bosch",   canal:"Retail",     actual:8193,  anterior:7764,  unidades:310,  unidadesAnt:298,  pctRebate:5.4, presupuesto:7500  },
-  { nombre:"Tottus",        sfamilia:"Cuidado Personal",            marca:"Philips", canal:"Retail",     actual:6828,  anterior:6243,  unidades:410,  unidadesAnt:380,  pctRebate:3.2, presupuesto:6300  },
-  { nombre:"Paris",         sfamilia:"Electrodomésticos",           marca:"Samsung", canal:"Retail",     actual:6303,  anterior:6138,  unidades:380,  unidadesAnt:370,  pctRebate:4.0, presupuesto:6000  },
-  { nombre:"Mercado Libre", sfamilia:"Línea Blanca",                marca:"LG",      canal:"E-commerce", actual:5462,  anterior:4354,  unidades:275,  unidadesAnt:230,  pctRebate:1.8, presupuesto:4800  },
+  { nombre:"Falabella",     sfamilia:"Electrodomésticos",           marca:"Samsung", canal:"Retail",     actual:19433, anterior:17942, unidades:1040, unidadesAnt:985,  pctRebate:4.5, presupuesto:18900 },
+  { nombre:"Lider",         sfamilia:"Línea Blanca",                marca:"LG",      canal:"Retail",     actual:17857, anterior:15529, unidades:900,  unidadesAnt:810,  pctRebate:4.2, presupuesto:17200 },
+  { nombre:"Jumbo",         sfamilia:"Cuidado Personal",            marca:"Philips", canal:"Retail",     actual:17332, anterior:15424, unidades:1210, unidadesAnt:1100, pctRebate:3.8, presupuesto:16700 },
+  { nombre:"Sodimac",       sfamilia:"Materiales de Construcción",  marca:"Bosch",   canal:"Retail",     actual:8193,  anterior:7764,  unidades:310,  unidadesAnt:298,  pctRebate:5.4, presupuesto:7850  },
+  { nombre:"Tottus",        sfamilia:"Cuidado Personal",            marca:"Philips", canal:"Retail",     actual:6828,  anterior:6243,  unidades:410,  unidadesAnt:380,  pctRebate:3.2, presupuesto:6500  },
+  { nombre:"Paris",         sfamilia:"Electrodomésticos",           marca:"Samsung", canal:"Retail",     actual:6303,  anterior:6138,  unidades:380,  unidadesAnt:370,  pctRebate:4.0, presupuesto:6100  },
+  { nombre:"Mercado Libre", sfamilia:"Línea Blanca",                marca:"LG",      canal:"E-commerce", actual:5462,  anterior:4354,  unidades:275,  unidadesAnt:230,  pctRebate:1.8, presupuesto:5000  },
   { nombre:"Ripley",        sfamilia:"Electrodomésticos",           marca:"Samsung", canal:"Retail",     actual:4727,  anterior:5141,  unidades:245,  unidadesAnt:265,  pctRebate:4.8, presupuesto:4900  },
   { nombre:"Easy",          sfamilia:"Materiales de Construcción",  marca:"Bosch",   canal:"Retail",     actual:3361,  anterior:3536,  unidades:140,  unidadesAnt:150,  pctRebate:5.5, presupuesto:3400  },
   { nombre:"La Polar",      sfamilia:"Cuidado Personal",            marca:"Philips", canal:"Retail",     actual:2941,  anterior:3358,  unidades:185,  unidadesAnt:210,  pctRebate:3.9, presupuesto:3000  },

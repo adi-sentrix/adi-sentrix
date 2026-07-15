@@ -540,6 +540,33 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   const D = diagnoseInventario(rows, { capitalField: kSF.field });
   const critById = {}; for (const r of rows) critById[r[key]] = r.alerta === "crit";
   const P = POLICY;
+  // ── ESTADO GENERAL · la foto completa (auditoría de asks 2026-07-15: "Ver todo el inventario" — el tramo VERDE
+  // del mapa del capital — abría con el capital detenido; el usuario pidió TODO): total → cómo se reparte en las
+  // 4 puntas del motor (suman exacto) → lo sano declarado → qué mirar primero. Misma verdad (D.dist · POLICY). ──
+  if (focus === "estado") {
+    const _ORDEN_E = ["capital_sano", "riesgo_quiebre", "sobrestock", "capital_frenado"];
+    const _LBL_E = { capital_sano: "rotando en rango", riesgo_quiebre: "en riesgo de quiebre", sobrestock: "en sobrestock", capital_frenado: "detenido" };
+    const dd = (e) => D.dist[e] || { usd: 0, count: 0, pct: 0 };
+    const partes = _ORDEN_E.filter((e) => dd(e).usd > 0).map((e) => `${_money(dd(e).usd)} ${_LBL_E[e]} (${dd(e).count} SKU)`);
+    const sano = dd("capital_sano"), fren = dd("capital_frenado"), quie = dd("riesgo_quiebre"), sobre = dd("sobrestock");
+    const scName = filters.bodega || filters.familia || filters.marca || null;
+    const lines = [
+      `${scName ? `En ${scName} tenés` : "Tenés"} ${_money(D.total)} de capital en inventario (${rows.length} SKU): ${partes.join(" · ")}.`,
+      sano.usd ? `**Lo que trabaja:** ${_money(sano.usd)} (${sano.pct}%) rota dentro de tu benchmark (rotación sobre ${P.rotacionMin}x y cobertura bajo ${P.dohMax} días).` : "",
+      fren.usd ? `**Lo primero:** ${_money(fren.usd)} detenidos en ${fren.count} SKU sin rotación — liberarlos devuelve ese capital a caja.` : "",
+      quie.usd ? `**Lo urgente:** ${_money(quie.usd)} en ${quie.count} SKU con riesgo de quiebre — rotan rápido y la cobertura no alcanza hasta la próxima compra; reponer antes del corte.` : "",
+      sobre.usd ? `**Para ajustar:** ${_money(sobre.usd)} en sobrestock — venden, pero con más cobertura de la necesaria; frenar la próxima compra drena el exceso.` : "",
+      !fren.usd && !quie.usd ? `Sin capital detenido ni quiebres a la vista — el inventario corre sano.` : "",
+    ];
+    const bolE = [fig("Capital en inventario · total", _money(D.total), { unit: "money", raw: D.total, mandatory: true, context: "estado del inventario" })];
+    for (const e of _ORDEN_E) if (dd(e).usd > 0) bolE.push(fig(`Inventario · ${_ESTADO_LABEL[e]}`, _money(dd(e).usd), { unit: "money", raw: dd(e).usd, mandatory: false, context: "estado del inventario" }));
+    return {
+      opener: lines.filter(Boolean).join("\n\n"),
+      suggestions: [fren.usd ? "¿Dónde está detenido mi capital?" : null, quie.usd ? "¿Qué reponer por quiebre?" : null, "Los SKU que más venden en el año"].filter(Boolean),
+      sentrixAction: null,
+      evidence: { lens: "inventory", metrica: "capital", dimension: "sku", boleta: bolE },
+    };
+  }
   // ── despacho por FOCO → arma el bloque narrativo (lede + partes + contrapunta) ──
   let B;
   if (focus === "stale") {
@@ -616,24 +643,30 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
         suggestions: ["Qué SKU están detenidos", "Qué reponer por quiebre"],
       };
     } else {   // frenado (default) — capital inmovilizado, plata atrapada
+      // COHERENCIA (owner 2026-07-15): el "arrancá por" y el "cuánto vale" hablan del MISMO par de SKU — antes la
+      // recomendación nombraba los críticos (LG+MAK) y el $ cuantificaba los 2 de más capital (LG+BOS): dos grupos
+      // distintos en una misma respuesta, y el narrador los fundía ("los que más retienen" — falso). El arranque son
+      // los críticos si los hay (la razón se declara: rotación más baja y más días sin venta), si no los de más capital.
+      const arranque = crit.length ? crit.slice(0, 2) : skus.slice(0, 2);
       B = {
-        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está detenido tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega",
+        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está detenido tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega", arranque,
         lines: [
           `Tenés ${_money(total)} de capital inmovilizado en ${skus.length} SKU sin rotar. Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
           `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.`,
           byFam.length ? `Por familia lo carga ${byFam[0].nombre} (${_money(byFam[0].usd)})${byFam[1] ? ` y ${byFam[1].nombre} (${_money(byFam[1].usd)})` : ""}.` : "",
           `Los SKU que lo explican: ${skuList}.`,
           `**Por qué:** dejaron de rotar — rotación bajo ${P.rotacionMin}x o DOH sobre ${P.dohMax}d. Es stock que no sale y deja el capital detenido.`,
-          `**Qué hacer:** arrancá por ${crit.length ? crit.slice(0, 2).map((r) => r.sku).join(" y ") : skus[0].sku} (los más detenidos) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisá la reposición para no repetirlo.`,
+          `**Qué hacer:** arrancá por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital detenido"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisá la reposición para no repetirlo.`,
         ],
         suggestions: ["Por qué el capital está detenido", "Qué SKU libero primero"],
       };
     }
   }
-  // ── CUÁNTO VALE (asesor): liberar los 2 más frenados = $ que vuelve a caja (suma directa de su capital) ──
+  // ── CUÁNTO VALE (asesor): liberar el MISMO par del "arrancá por" = $ que vuelve a caja (suma directa de su
+  // capital · grupos que cierran: el $ cuantifica exactamente los SKU que la recomendación nombra) ──
   let lever2 = null;
   if (B.focusEst === "capital_frenado" && B.skus.length >= 1) {
-    const t2 = B.skus.slice(0, 2);
+    const t2 = (B.arranque && B.arranque.length ? B.arranque : B.skus.slice(0, 2));
     lever2 = { skus: t2.map((s) => s.sku), usd: t2.reduce((a, s) => a + s.usd, 0) };
     B.lines.push(`**Cuánto vale:** liberar ${lever2.skus.join(" y ")} devuelve ${_money(lever2.usd)} a caja — capital que hoy no trabaja.`);
   }
@@ -794,9 +827,15 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
         pushMarginFigs(negatives);
       }
     } else {
+      // COMPLETO Y GRADUADO (owner 2026-07-15): si son 8, los 8 tienen nombre o camino (nada de 5-de-8 sin ruta) ·
+      // la CAUSA se declara con su grado — la brecha y su $ están PROBADOS; el porqué (precio/costo/carga) queda
+      // ABIERTO desde esta vista, con la oferta explícita de confirmarlo.
+      const listedM = below.slice(0, 5), restM = below.slice(5);
       lines = [
-        `${below.length} de ${rows.length} ${L.p} están bajo el margen mínimo de ${_p1(bench)}%: ${below.slice(0, 5).map((r) => `${_mNombre(r)} ${_p1(r.margen)}% (${_p1(_gap(r))}pp)`).join(" · ")}.`,
+        `${below.length} de ${rows.length} ${L.p} están bajo el margen mínimo de ${_p1(bench)}%: ${listedM.map((r) => `${_mNombre(r)} ${_p1(r.margen)}% (${_p1(_gap(r))}pp)`).join(" · ")}.`,
+        restM.length ? `Completan la lista ${restM.map((r) => `${_mNombre(r)} ${_p1(r.margen)}% (${_p1(_gap(r))}pp)`).join(" · ")} — los ${below.length} completos, con su semáforo, están en el cuadro de la Mesa.` : "",
         `El más lejos del piso es ${_mNombre(below[0])} a ${_p1(below[0].margen)}% (${_p1(_gap(below[0]))}pp bajo el benchmark).`,
+        `**La causa, graduada:** lo probado en el dato es la brecha y su $; si pega por precio, por costo o por carga queda abierto desde esta vista — pedime «¿Es por precio o por costo?» y lo confirmo por ${L.s}.`,
         `**Qué hacer:** rankeados por brecha, esos son los que más margen recuperan si corregís precio o costo.`,
       ];
       pushMarginFigs(below);
@@ -806,7 +845,11 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     const _lvScope = entityScope || (filters.cliente ? { entities: [filters.cliente] } : null);
     const lever = dim === "cliente" ? _leverFoco(scenario, "margen", _lvScope) : null;
     if (lever && lever.top.length) {
-      lines.push(`**Cuánto vale:** si los ${lever.count} que están materialmente bajo el piso llegan al benchmark, son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
+      // PUENTE de cuentas (coherencia): cuando el corte material (≥ brecha material) es MENOR que los bajo el piso,
+      // la relación se dice explícita — "de los 8, estos 5" — para que ningún lector (ni el narrador) funda los grupos.
+      lines.push(lever.count === below.length
+        ? `**Cuánto vale:** si los ${lever.count} que están materialmente bajo el piso llegan al benchmark, son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`
+        : `**Cuánto vale:** de los ${below.length} bajo el piso, los ${lever.count} con brecha material (${_DIAG_MARGIN_GAP} pp o más) concentran el valor: si llegan al benchmark son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
       bol.push(_figLever("Medida · cerrar brecha al piso", lever.subtotal, "Σ venta × benchmark − contribución (≥4pp · ≥ piso)", true));
       bol.push(_figLever(`Medida · ${lever.top[0].entidad}`, lever.top[0].usd, "venta × benchmark − contribución"));
     } else if (below.length && _pp1(below[0])) {
@@ -989,7 +1032,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     const lines = [
       `${totLine}${dim !== "cliente" ? ` Por ${L.s} el presupuesto es un agregado de los clientes.` : ""}`,
       over.length ? `Los que más se despegan sobre plan: ${over.slice(0, 3).map((r) => `${r.nombre} (${_sgnp(r.dev)}${_m(r.dev)}, ${_sgnp(r.devp)}${_p1(r.devp)}%)`).join(" · ")}.` : "",
-      under.length ? `Los que quedan cortos: ${under.slice(0, 3).map((r) => `${r.nombre} (${_m(r.dev)}, ${_p1(r.devp)}%)`).join(" · ")}.` : `Ningún ${L.s} quedó bajo presupuesto.`,
+      under.length ? `Los que quedan cortos${under.length > 3 ? ` (${under.length} en total — estos 3 son los que más pesan)` : ""}: ${under.slice(0, 3).map((r) => `${r.nombre} (${_m(r.dev)}, ${_p1(r.devp)}%)`).join(" · ")}.` : `Ningún ${L.s} quedó bajo presupuesto.`,
       under.length ? `**Cuánto vale:** cerrar lo que falta al plan vale +${_m(short)} este período — el que más pesa es ${under[0].nombre} (${_m(under[0].dev)}).` : "",
       `**Qué hacer:** el foco de recuperación son los que quedan cortos; los de arriba marcan qué está funcionando.`,
     ];
@@ -1087,15 +1130,19 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   }
 
   if (focus === "rank_venta") {
-    const ranked = _scopeRows(_skusM.slice(), {}, entityScope).sort((a, b) => (b.venta || 0) - (a.venta || 0));   // "de esos SKU, ¿cuál vende más?" respeta el alcance
+    // EL ALCANCE VIAJA (auditoría de asks 2026-07-15: «¿Cuáles son los SKU que más venden de Samsung?» — chip del
+    // cuadro de marcas — respondía TODOS los SKU en silencio: el scope estaba hardcodeado a {}). skusMargen trae
+    // marca y familia por fila → el filtro del spec aplica; el rótulo declara el alcance (nunca global disfrazado).
+    const ranked = _scopeRows(_skusM.slice(), filters || {}, entityScope).sort((a, b) => (b.venta || 0) - (a.venta || 0));   // "de esos SKU, ¿cuál vende más?" respeta el alcance
     if (!ranked.length) return null;
+    const _scLbl = (filters && (filters.marca || filters.familia)) ? ` de ${filters.marca || filters.familia}` : "";
     const lines = [
-      `Los SKU que más venden: ${ranked.slice(0, 5).map((s) => `${s.nombre} (${_m(s.venta)})`).join(" · ")}.`,
+      `Los SKU que más venden${_scLbl}: ${ranked.slice(0, 5).map((s) => `${s.nombre} (${_m(s.venta)})`).join(" · ")}.`,
       ranked[1] ? `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}, seguido de ${ranked[1].nombre} (${_m(ranked[1].venta)}).` : `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}.`,
       `**Ojo:** no tengo presupuesto ni año anterior POR SKU (sólo por cliente/marca/familia), así que no puedo comparar cada SKU contra plan ni contra el año pasado — eso te lo doy a nivel cliente o familia.`,
     ];
-    for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "ranking de venta" }));
-    const panel = { kind: "rank", title: "SKU por venta", rows: ranked.slice(0, 8).map((s) => ({ nombre: s.nombre, val: s.venta, valFmt: _m(s.venta) })) };
+    for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: `ranking de venta${_scLbl}` }));
+    const panel = { kind: "rank", title: `SKU por venta${_scLbl}`, rows: ranked.slice(0, 8).map((s) => ({ nombre: s.nombre, val: s.venta, valFmt: _m(s.venta) })) };
     return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol, panel };
   }
   return null;
@@ -1154,7 +1201,8 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     const sorted = rows.slice().sort((a, b) => b.contribucion - a.contribucion);
     let acc = 0; const prows = sorted.map((r) => { acc += r.contribucion; return { nombre: _mNombre(r), valFmt: _mVenta(r.contribucion), part: _share(r.contribucion), acum: +(acc / totC * 100).toFixed(1) }; });
     lines = [
-      `El ${_p1(con.totalCubiertoPct)}% de tu contribución la sostienen ${con.cantidadEntidades} de ${rows.length} ${L.p}: ${con.entidades.slice(0, 4).map((e) => `${e.nombre} (${_p1(e.participacionPct)}%)`).join(" · ")}.`,
+      // grupos que cierran: si el bloque tiene más entidades que las nombradas, el corte se declara ("encabezados por")
+      `El ${_p1(con.totalCubiertoPct)}% de tu contribución la sostienen ${con.cantidadEntidades} de ${rows.length} ${L.p}${con.entidades.length > 4 ? `, encabezados por ${con.entidades.slice(0, 4).map((e) => `${e.nombre} (${_p1(e.participacionPct)}%)`).join(" · ")} — el bloque completo está en el panel` : `: ${con.entidades.slice(0, 4).map((e) => `${e.nombre} (${_p1(e.participacionPct)}%)`).join(" · ")}`}.`,
       restN > 0 ? `El resto (${restN} ${L.p}) aporta apenas el ${_p1(restPct)}%.` : "",
       `**Qué significa:** tu contribución está ${con.cantidadEntidades <= rows.length / 2 ? "concentrada en pocas cuentas" : "bastante repartida"} — cuidar a esas ${con.cantidadEntidades} es prioridad, perder una pega directo en la contribución.`,
     ];
@@ -1162,27 +1210,37 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     panel = { kind: "pareto", title: "Quién sostiene la contribución", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rows.length, rows: prows };
     suggestions = ["De dónde viene esa contribución", "Cuánta contribución no capturo"];
   } else if (focus === "no_capturada") {
-    // MISMA verdad que el diagnóstico del resumen (~$4.9M): venta(clientesVentas.actual)×benchmark/100 − contribución, con
-    // los gates de materialidad (≥4pp bajo benchmark · ≥ piso $). Cliente-level (donde vive el gap). `gap` ya está en $ real.
-    const vBy = {}; for (const v of _cVentas) vBy[v.nombre] = v;
+    // MISMA verdad que el diagnóstico (el $ de la card de la Mesa): venta×benchmark/100 − contribución, con los gates
+    // de materialidad (≥4pp bajo benchmark · ≥ piso $). COHERENCIA (owner 2026-07-15): la venta se carga por el
+    // CONTRATO scenario-aware — igual que _diagComercial — porque antes mezclaba venta base con margen del escenario
+    // y abría con OTRA cifra ($5.0M) que la card y el diagnose ($4.9M). Cliente-level (donde vive el gap).
+    const vSF2 = _sf("ventas", "cliente");
+    const vRows = vSF2 ? _load(vSF2.source, scenario) : [];
+    const vBy = {}; for (const v of vRows) vBy[v.nombre] = v;
     const mRows = _scopeRows(_marginRows("cliente", scenario), {}, entityScope);
     const withGap = [];
     for (const r of mRows) {
-      const v = vBy[r.nombre]; if (!v || typeof v.actual !== "number") continue;
+      const v = vBy[r.nombre]; if (!v || typeof v[vSF2.field] !== "number") continue;
       const bmk = _benchOf(r), mg = r.margen, cb = r.contribucion;
       if (typeof mg !== "number" || typeof cb !== "number" || (bmk - mg) < _DIAG_MARGIN_GAP) continue;
-      const usd = Math.round(((v.actual * bmk / 100) - cb) * 1000);
+      const usd = Math.round(((v[vSF2.field] * bmk / 100) - cb) * 1000);
       if (usd >= _DIAG_FLOOR_USD) withGap.push({ nombre: r.nombre, gap: usd, margen: mg });
     }
     withGap.sort((a, b) => b.gap - a.gap);
     const totalGap = withGap.reduce((a, r) => a + r.gap, 0);
+    // GRUPOS QUE CIERRAN: si se nombran N, son N y su suma ES la cifra del grupo — con más de _DIAG_TOPN, el corte
+    // se declara y el camino al resto queda dicho (el cuadro de la Mesa), nunca una lista que no suma lo anunciado.
+    const listedG = withGap.slice(0, _DIAG_TOPN);
     lines = [
       `Estás dejando ${_money(totalGap)} de contribución sobre la mesa: es lo que sumarías si los ${withGap.length} clientes materiales que hoy están bajo el benchmark (${_p1(bench)}%) llegaran al piso.`,
-      `Los que más dejan: ${withGap.slice(0, 4).map((r) => `${r.nombre} (${_money(r.gap)}, margen ${_p1(r.margen)}%)`).join(" · ")}.`,
+      listedG.length === withGap.length
+        ? `Los ${withGap.length}, de mayor a menor: ${listedG.map((r) => `${r.nombre} (${_money(r.gap)}, margen ${_p1(r.margen)}%)`).join(" · ")} — esa lista completa suma el total de arriba.`
+        : `Los ${listedG.length} que más dejan: ${listedG.map((r) => `${r.nombre} (${_money(r.gap)}, margen ${_p1(r.margen)}%)`).join(" · ")} — los ${withGap.length} completos están en el cuadro de la Mesa.`,
       `**Por qué:** es la brecha entre lo que vendés y lo que rinde — no es una pérdida contable, es contribución que el margen delgado te deja capturar.`,
       `**Qué hacer:** cada punto de margen recuperado en los de mayor venta es la medida más directa sobre este valor.`,
     ];
-    for (const r of withGap.slice(0, 4)) bol.push(fig(`${L.s} · ${r.nombre} no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
+    bol.push(fig("Contribución no capturada · total", _money(totalGap), { unit: "money", raw: totalGap, mandatory: true, context: _ctx }));
+    for (const r of listedG) bol.push(fig(`${L.s} · ${r.nombre} no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
     panel = { kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => ({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) })) };
     suggestions = ["Quién sostiene la contribución", "Es por precio o por costo"];
   } else if (focus === "origen") {
@@ -1223,8 +1281,11 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     suggestions = ["De dónde viene la contribución", "Cuánta contribución no capturo"];
   } else {   // rank
     const sorted = rows.slice().sort((a, b) => b.contribucion - a.contribucion);
+    // el ALCANCE se declara (auditoría de asks 2026-07-15): «Top SKU por contribución de Samsung» filtrado debe
+    // decir "de Samsung" — los % son sobre el total de ESE alcance, nunca un global disfrazado.
+    const _scLbl = (filters && (filters.marca || filters.familia || filters.bodega || filters.cliente)) ? ` de ${filters.marca || filters.familia || filters.bodega || filters.cliente}` : "";
     lines = [
-      `Los ${L.p} que más aportan a la contribución: ${sorted.slice(0, 5).map((r) => `${_mNombre(r)} (${_mVenta(r.contribucion)}, ${_share(r.contribucion)}%)`).join(" · ")}.`,
+      `Los ${L.p} que más aportan a la contribución${_scLbl}: ${sorted.slice(0, 5).map((r) => `${_mNombre(r)} (${_mVenta(r.contribucion)}, ${_share(r.contribucion)}%)`).join(" · ")}.`,
       `Entre los primeros ${Math.min(3, sorted.length)} juntan ${_mVenta(sorted.slice(0, 3).reduce((a, r) => a + r.contribucion, 0))} de los ${_mVenta(totC)} totales.`,
       `**Qué mirar:** son las cuentas que hay que blindar; si querés ver qué tan concentrada está, mirá el 80/20.`,
     ];

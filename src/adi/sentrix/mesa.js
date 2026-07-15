@@ -15,6 +15,7 @@
  * Registro EJECUTIVO en todo texto emitido (lockeado por _registro_gate). Puro · client-side · motor sellado intacto. */
 import { composeSpecDiagnose } from "../specRetrieval.js";
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen } from "../../engine/scenarios.js";
+import { getVentasKPI } from "../../engine/metrics.js";   // COHERENCIA (2026-07-15): la card de ventas lee la MISMA KPI que el hero y que la respuesta de ADI — una verdad
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { buildEntityEvolution } from "./temporal.js";
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
@@ -40,7 +41,7 @@ const _ACCION = {
   }),
   margen: (f, top) => ({
     titulo: `Recuperar el margen que cede ${top.entidad}`,
-    detalle: `${_money(f.subtotal_usd)} de contribución no capturada contra tu vara — la brecha más grande está en ${top.entidad} (${_money(top.usd)}).`,
+    detalle: `${_money(f.subtotal_usd)} de contribución no capturada contra tu benchmark — la brecha más grande está en ${top.entidad} (${_money(top.usd)}).`,
     ask: `¿Cómo mejoro el margen?`,
   }),
   capital: (f) => ({
@@ -63,31 +64,34 @@ export function buildMesaEstado(scenario) {
   const by = (d) => F.find((x) => x.detector === d);
   const mg = by("margen"), cg = by("carga"), cap = by("capital");
 
-  // ── ESTADOS · semáforo por KPI (verde/ámbar/rojo) + la línea contra la vara + su pregunta ──
-  // VENTAS · contra el presupuesto del dato (la vara operativa) y el año anterior — ambos vienen por fila.
-  const ventasK = _sum(V, (r) => r.actual), antK = _sum(V, (r) => r.anterior), pptoK = _sum(V, (r) => r.presupuesto);
-  const vsPpto = pptoK ? _r1(((ventasK - pptoK) / pptoK) * 100) : 0;
-  const vsAnt = antK ? _r1(((ventasK - antK) / antK) * 100) : 0;
+  // ── ESTADOS · semáforo por KPI (verde/ámbar/rojo) + la línea contra el benchmark + su pregunta ──
+  // VENTAS · contra el presupuesto — la MISMA KPI del hero y de la respuesta de ADI (getVentasKPI: la base
+  // autoritativa con el override del escenario). COHERENCIA (owner 2026-07-15): antes la card sumaba el
+  // presupuesto POR FILA y contaba otro cumplimiento que la respuesta que abre su click — card y ADI, una verdad.
+  const ventasK = _sum(V, (r) => r.actual);   // total del período por fila (movers/simulaciones — no la línea del KPI)
+  const K = getVentasKPI(null, null, s);
   const ventas = {
-    estado: ventasK >= pptoK ? "verde" : ventasK >= antK ? "ambar" : "rojo",
-    linea: `${_pct(vsPpto)} vs presupuesto · ${_pct(vsAnt)} vs año anterior`,
+    estado: K.totalActual >= K.totalPresupuesto ? "verde" : K.totalActual >= K.totalAnterior ? "ambar" : "rojo",
+    linea: `${_pct(K.vsPresupuesto)} vs presupuesto · ${_pct(K.vsAnterior)} vs año anterior`,
     ask: "¿Cómo van las ventas contra el presupuesto?",
   };
-  // MARGEN · contra TU vara, con la MISMA brecha material del detector (una verdad — no un umbral de UI).
+  // MARGEN · contra TU benchmark, con la MISMA brecha material del detector (una verdad — no un umbral de UI).
   const ventaBaseK = _sum(M, (r) => r.venta), contribK = _sum(M, (r) => r.contribucion);
   const margenProm = ventaBaseK ? (contribK / ventaBaseK) * 100 : 0;
-  const gapVara = _r1(vara - margenProm);   // + = bajo la vara
+  const gapVara = _r1(vara - margenProm);   // + = bajo el benchmark
   const margen = {
     estado: gapVara <= 0 ? "verde" : gapVara < POLICY.margenBrechaMaterial ? "ambar" : "rojo",
-    linea: gapVara <= 0 ? `${Math.abs(gapVara)} pp sobre tu vara (${vara}%)` : `${gapVara} pp bajo tu vara (${vara}%)`,
+    linea: gapVara <= 0 ? `${Math.abs(gapVara)} pp sobre tu benchmark (${vara}%)` : `${gapVara} pp bajo tu benchmark (${vara}%)`,
     ask: "¿Quiénes están bajo el margen mínimo?",
   };
   // CONTRIBUCIÓN · los focos COMERCIALES del diagnose (0 = verde · 1 = ámbar · 2 = rojo — derivado, sin umbral nuevo).
+  // COHERENCIA (2026-07-15): la cifra que ABRE la línea es la del composer de "¿Cuánta contribución no estoy
+  // capturando?" (mg.subtotal — la no capturada); la carga va aparte, nombrada — nunca un agregado que la respuesta no dice.
   const contribucion = {
     estado: !mg && !cg ? "verde" : mg && cg ? "rojo" : "ambar",
-    linea: !mg && !cg ? "sin fugas materiales contra tu vara"
-      : mg && cg ? `${_money(mg.subtotal_usd + cg.subtotal_usd)} de fuga entre margen y carga comercial`
-      : mg ? `${_money(mg.subtotal_usd)} sin capturar contra tu vara`
+    linea: !mg && !cg ? "sin fugas materiales contra tu benchmark"
+      : mg && cg ? `${_money(mg.subtotal_usd)} sin capturar contra tu benchmark · ${_money(cg.subtotal_usd)} de carga sobre el target`
+      : mg ? `${_money(mg.subtotal_usd)} sin capturar contra tu benchmark`
       : `${_money(cg.subtotal_usd)} de carga sobre el target`,
     ask: "¿Cuánta contribución no estoy capturando?",
   };
@@ -158,8 +162,8 @@ export function buildMesaEstado(scenario) {
     usd: mg ? mg.subtotal_usd : 0,
     usdFmt: mg ? _money(mg.subtotal_usd) : "$0",
     linea: aItems.length
-      ? `${aItems.length} cliente${aItems.length > 1 ? "s" : ""} bajo tu vara · ${_money(mg.subtotal_usd)} en juego`
-      : "Sin cuentas bajo tu vara — la cartera corre en línea.",
+      ? `${aItems.length} cliente${aItems.length > 1 ? "s" : ""} bajo tu benchmark · ${_money(mg.subtotal_usd)} en juego`
+      : "Sin cuentas bajo tu benchmark — la cartera corre en línea.",
     ask: "¿Quiénes están bajo el margen mínimo?",
     items: aItems,
   };
@@ -235,8 +239,8 @@ function _wlItem(dim, r, why) {
   const conPorque = bajo && (dim === "sku" || (dim === "cliente" && why.cliente(r.name)) || (dim === "marca" && why.marca(r.name)));
   return { ...base,
     cifra: `${_p1(r.margen)}%`,
-    sub: r.varaGap == null ? "sin vara declarada para este eje"
-      : bajo ? `${Math.abs(r.varaGap)} pp bajo tu vara (${r.varaRef}%)` : `${Math.abs(r.varaGap)} pp sobre tu vara (${r.varaRef}%)`,
+    sub: r.varaGap == null ? "sin benchmark declarado para este eje"
+      : bajo ? `${Math.abs(r.varaGap)} pp bajo tu benchmark (${r.varaRef}%)` : `${Math.abs(r.varaGap)} pp sobre tu benchmark (${r.varaRef}%)`,
     vara: r.vara || null,
     ask: conPorque ? `¿Por qué ${r.name} cede margen?`
       : dim === "marca" ? `¿Cuáles son los SKU que más venden de ${r.name}?`
