@@ -19,13 +19,26 @@ import { composeFollowupRecommendation, sampleEntities } from "./specRetrieval.j
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
+import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
+
+// ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
+// con una pregunta-oferta ("¿empezamos con el análisis de costos?"). Esa pregunta es una PROMESA: se captura acá
+// (la ÚLTIMA interrogación del texto que el usuario VIO — narrado o determinístico) y viaja en el contexto como
+// `lastOffer`, para que el "sí" la ejecute y el LLM #1 la vea en el digest. Pura · gate-testable. ──
+export function extractOffer(text) {
+  const qs = String(text || "").match(/¿[^¿?\n]{6,220}\?/g);
+  return qs && qs.length ? qs[qs.length - 1].trim() : null;
+}
 
 // ── CONTEXTO · lo que ve el LLM #1 (chico · V1: 3 turnos + última evidencia + señales de UI) ────────────────────────
 export function buildConversationContext(recentTurns, lastEvidence, uiSignals = null) {
-  const turns = (recentTurns || []).slice(-3).map((t) =>
-    t.role === "user"
-      ? { role: "user", text: String(t.text || "").slice(0, 200) }
-      : { role: "adi", gist: String(t.gist || t.text || "").replace(/\s+/g, " ").slice(0, 160), route: t.route || null });
+  const turns = (recentTurns || []).slice(-3).map((t) => {
+    if (t.role === "user") return { role: "user", text: String(t.text || "").slice(0, 200) };
+    // OFERTA DE CIERRE en el digest (owner 2026-07-15): el gist trunca el ARRANQUE del texto — la pregunta con que
+    // ADI cerró (lo que un "sí" acepta) quedaba fuera y el LLM #1 no podía resolver la aceptación. Viaja explícita.
+    const off = extractOffer(t.text);
+    return { role: "adi", gist: String(t.gist || t.text || "").replace(/\s+/g, " ").slice(0, 160), ...(off ? { offer: off } : {}), route: t.route || null };
+  });
   // SEÑALES DE UI (owner 2026-07-08 · "memoria en todos los grados"): lo que el usuario está HACIENDO en Sentrix —
   // selección de la Mesa, estación tocada, lo que SIGUE en la watchlist (Mesa 2.0 pase 2) — para que "compará esto"/
   // "esto que estoy viendo"/"los que sigo" tenga referente. Chico (caps para el presupuesto de tokens).
@@ -288,13 +301,56 @@ export function composeCriteria(ci) {
   return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
 }
 
-// ── ACEPTACIÓN · "sí" pelado tras una oferta de ADI (bug cazado por el owner 2026-07-07): EJECUTA la continuación
-// natural de la última evidencia — tras un COMPARE, el dive CAUSAL de la cuenta floja (la que pierde margen: la que la
-// oferta proponía trabajar); tras una lectura de dominio, el dive de la primera entidad nombrada; tras un diagnóstico,
-// la recomendación. Nunca vuelve al LLM a adivinar, nunca degrada con vocabulario interno. ──────────────────────────
+// ── ACEPTACIÓN · "sí" pelado tras una oferta de ADI (bug cazado por el owner 2026-07-07 · rehecho 2026-07-15:
+// "respondo SI y luego se pierde" — tras un dive narrado caía al clarify genérico). El orden de resolución:
+//   1 · LA OFERTA REAL (ctx.lastOffer = la pregunta con que ADI cerró · o la primera sugerencia): se ejecuta por la
+//       MISMA red del piso (coerceFloor — la que responde las promesas de la UI), heredando entidad/alcance de la
+//       última evidencia. El cierre de ADI es una promesa: "sí" la cumple, no la re-pregunta.
+//   2 · tras un COMPARE → el dive causal de la cuenta floja (la que la oferta proponía trabajar).
+//   3 · tras una lectura con LISTA → el dive de la primera entidad nombrada.
+//   4 · veníamos mirando UNA entidad (dive/why) → su PORQUÉ graduado (mecanismo · siempre responde).
+//   5 · tras una simulación → la recomendación de seguimiento.
+// Nunca vuelve al LLM a adivinar, nunca degrada con vocabulario interno. ─────────────────────────────────────────
+function _execOffer(text, ctx, state) {
+  const t = String(text || "").trim();
+  if (!t || t.length > 240) return null;
+  let s = null;
+  // hasLast=true: las ofertas elípticas ("¿Es por precio o por costo?") necesitan el contexto para reclamar su foco;
+  // los claims de turno que no corresponden acá (accept/clarify) se filtran abajo — sin riesgo de recursión.
+  try { s = coerceFloor(t, true, null); } catch { return null; }
+  if (!s || s.turn_type === "followup_accept" || s.turn_type === "clarification_needed") return null;
+  const last = ctx && ctx.last;
+  const _dim = (d) => (d && ENTITIES[d] ? d : null);
+  if (last) {
+    // HERENCIA DE ALCANCE: la oferta suele nombrar el ANÁLISIS ("análisis de costos"), no la entidad — la entidad
+    // viene de lo que veníamos mirando. dive/why sin entidad → la última entidad; overview genérico mirando UNA
+    // entidad → su porqué (mecanismo: margen/costo/carga graduado); dominio sin filtros → entityScope heredado.
+    const lDim = _dim(last.entityType) || _dim(last.dimension);
+    const hasFilters = !!(s.filters && Object.values(s.filters).some(Boolean));
+    if ((s.operation === "dive" || s.operation === "why") && !s.entity && last.entidad) {
+      s = { ...s, entity: last.entidad, dimension: _dim(s.dimension) || lDim || "cliente" };
+    } else if (s.operation === "overview" && !s.entity && !hasFilters && last.entidad) {
+      s = { schemaVersion: 1, operation: "why", dimension: lDim || "cliente", entity: last.entidad, metric: "margen", scenario: "actual" };
+    } else if (!s.entity && !hasFilters) {
+      const scope = (last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) ? last.entityList
+        : (last.entidad ? { entities: [last.entidad], dimension: lDim } : null);
+      if (scope) s = { ...s, entityScope: scope };
+    }
+  }
+  let r = null;
+  const subCtx = { ...(ctx || {}) }; delete subCtx.lastOffer; delete subCtx.lastSuggestions;   // sin re-entrar al accept
+  try { r = answerConversational(s, subCtx, state); } catch { return null; }
+  const bad = !r || !String(r.text || "").trim() || /^(clarification_needed|followup_no_context)$|^spec_blocked/.test(String(r.route || ""));
+  return bad ? null : r;
+}
 export function composeAccept(spec, ctx, state) {
   const last = ctx && ctx.last;
   if (!last) return _needLast();
+  // 1 · la oferta con que ADI cerró (o su primera sugerencia) — lo que el usuario está aceptando LITERALMENTE
+  const viaOferta = _execOffer(ctx && ctx.lastOffer, ctx, state)
+    || _execOffer(ctx && Array.isArray(ctx.lastSuggestions) && ctx.lastSuggestions[0], ctx, state);
+  if (viaOferta) return viaOferta;
+  // 2 · compare previo → el dive causal de la cuenta floja
   const a = last.compareA || last.entidad, b = last.compareB || last.entityB;
   if (a && b && Array.isArray(last.pairs) && last.pairs.length) {
     const mp = last.pairs.find((p) => /margen/i.test(String(p.label)));
@@ -302,11 +358,19 @@ export function composeAccept(spec, ctx, state) {
     const dim = (last.entityType && ENTITIES[last.entityType]) ? last.entityType : "cliente";
     return answerADIFromSpec({ schemaVersion: 1, operation: "dive", dimension: dim, entity: target, scenario: "actual" }, ctx, state);
   }
+  // 3 · lista nombrada → el dive de la primera
   const el = last.entityList;
   if (el && Array.isArray(el.entities) && el.entities.length) {
     const dim = (el.dimension && ENTITIES[el.dimension]) ? el.dimension : "cliente";
     return answerADIFromSpec({ schemaVersion: 1, operation: "dive", dimension: dim, entity: el.entities[0], scenario: "actual" }, ctx, state);
   }
+  // 4 · veníamos mirando UNA entidad → su porqué graduado (mecanismo margen/costo/carga · siempre responde)
+  if (last.entidad) {
+    const dim = (last.entityType && ENTITIES[last.entityType]) ? last.entityType
+      : (last.dimension && ENTITIES[last.dimension]) ? last.dimension : "cliente";
+    return answerADIFromSpec({ schemaVersion: 1, operation: "why", dimension: dim, entity: last.entidad, metric: "margen", scenario: "actual" }, ctx, state);
+  }
+  // 5 · tras una simulación → la recomendación de seguimiento
   const rec = composeFollowupRecommendation(last);
   if (rec) return rec;
   return _clarify("Dale — ¿seguimos con lo último o miramos otra cosa? Decime la cuenta o el foco y arranco.");

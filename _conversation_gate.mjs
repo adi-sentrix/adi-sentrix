@@ -101,6 +101,21 @@ const LAST_DIAG_EV = { findings: [{ detector: "margen", titulo: "Contribución n
 ok("32 · D · explain tras DIAGNÓSTICO → explica el FOCO TOP (contribución/Falabella/benchmark), NO relleno genérico · boleta self-consistente",
   (() => { const r = AC(S({ turn_type: "followup_explain" }), { lastEvidence: LAST_DIAG_EV }, {}); return r.route === "followup_explain" && /contribuci[oó]n no capturada|benchmark|Falabella/i.test(r.text) && !/lectura directa del dato real/i.test(r.text) && guardAgainstBoleta(r.text, r.evidence.boleta).ok; })());
 
+// ══ CONTINUIDAD DE LA OFERTA (owner 2026-07-15 · "respondo SI y luego se pierde"): el "sí" ejecuta el CIERRE de ADI ══
+const LAST_DIVE_SKU = { entidad: "PHI-SHAVER9", entityType: "sku", dimension: "sku", lens: "cuadro" };
+ok("33 · ACEPTACIÓN de la oferta narrada tras un DIVE: 'sí' a «¿análisis de los costos?» → el porqué del SKU (costo/margen/carga), NO el clarify genérico",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: LAST_DIVE_SKU, lastOffer: "¿Te parece que sería útil empezar con el análisis de los costos?" }, {}); return exec(r) && /PHI-SHAVER9/.test(r.text) && /[Cc]osto/.test(r.text) && r.route !== "clarification_needed"; })());
+ok("34 · oferta de cierre INÚTIL ('¿Cómo lo ves?') tras un dive → red del porqué de la entidad (nunca 'Dale — ¿seguimos…?')",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: LAST_DIVE_SKU, lastOffer: "¿Cómo lo ves?" }, {}); return exec(r) && /PHI-SHAVER9/.test(r.text) && r.route !== "clarification_needed"; })());
+ok("35 · 'sí' tras dive de CLIENTE sin oferta ni sugerencias → el porqué graduado de esa cuenta",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: { entidad: "Falabella", entityType: "cliente", dimension: "cliente" } }, {}); return exec(r) && /Falabella/.test(r.text) && r.route !== "clarification_needed"; })());
+ok("36 · la oferta corre por la red del piso: 'sí' a «¿Te sirve ver qué SKU libero primero?» → inventario ejecutado (no clarify)",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: LAST_DIAG_EV, lastOffer: "¿Te sirve ver qué SKU libero primero?" }, {}); return exec(r) && /SKU|capital/i.test(r.text) && r.route !== "clarification_needed"; })());
+ok("37 · digest del LLM #1: la OFERTA de cierre del turno de ADI viaja explícita (el gist trunca el arranque del texto)",
+  (() => { const c = BCC([{ role: "user", text: "Profundiza en PHI-SHAVER9" }, { role: "adi", text: "Mucho texto de análisis…\n\n¿Te parece que sería útil empezar con el análisis de los costos?", route: "qi_retrieval" }], null, null); const a = c.turns.find((t) => t.role === "adi"); return a && a.offer === "¿Te parece que sería útil empezar con el análisis de los costos?"; })());
+ok("38 · sin hilo reconocible NI oferta → el clarify amable sigue siendo la ÚLTIMA red (no rompe)",
+  (() => { const r = AC(S({ turn_type: "followup_accept" }), { lastEvidence: { foo: 1 } }, {}); return r.route === "clarification_needed" && /seguimos con lo último/i.test(r.text); })());
+
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══
 // ══ V4 · recall_analysis (ctx.history) — PENDIENTE ══
 // ══ V5 · session_resume / apply_criteria (ctx.session/criteria · con permiso) — PENDIENTE ══

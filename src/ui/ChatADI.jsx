@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
-import { answerConversational, buildConversationContext } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto
+import { answerConversational, buildConversationContext, extractOffer } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto + la oferta de cierre (el "sí" la ejecuta)
 import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   // Paso 5 · number-guard + política de narración (degrades honestos van crudos)
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
@@ -54,7 +54,13 @@ function _turnFromResult(q, r, context, source) {
     },
     // CONTINUIDAD · threadeá la última evidencia ACCIONABLE. Los narrativos (recommendation/explain/meta · `followup:true`)
     // NO la reemplazan → "por qué?" / "y si fuera 5%?" siguen refiriendo a la simulación, no a la recomendación. (Cond. 3 del owner.)
-    context: { ...(r.context || context || {}), lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null) },
+    // + LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): la pregunta final del texto que el
+    // usuario VIO (narrado o det) y las sugerencias del turno viajan en el contexto — el "sí" las ejecuta (composeAccept).
+    // Cada turno de ADI las REEMPLAZA (el "sí" siempre refiere al último cierre); las clarificaciones no dejan oferta.
+    context: { ...(r.context || context || {}),
+      lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null),
+      lastOffer: (!deferred && r.text && !/clarification|no_context/.test(String(r.route || ""))) ? extractOffer(_sanitizeScenario(r.text)) : null,
+      lastSuggestions: (r.suggestions && r.suggestions.length) ? r.suggestions.slice(0, 3) : null },
   };
 }
 
