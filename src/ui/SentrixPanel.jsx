@@ -1867,6 +1867,20 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
   ) : null);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      {/* PASE 1c/1d/1e · EL COMPARADO ARRIBA DE TODO (owner 2026-07-15): reacciona a la tabla — sin selección,
+          EL NEGOCIO (la suma del eje: cierra con la fila Total); UNA fila, esa entidad vs su año anterior; DOS,
+          las dos lado a lado. Sirve para cualquier eje con serie (clientes/SKU/marcas); bodega sin serie → sin
+          gráfico (honesto). */}
+      {(() => {
+        const selRows = sel.map((nm) => cm.rows.find((r) => r.name === nm)).filter(Boolean);
+        const aRow = selRows[0] || null;
+        const bRow = selRows.length >= 2 ? selRows[1] : null;
+        return <ComparadoCard negocio={!aRow} dim={dim} a={aRow ? aRow.name : null} rowA={aRow} b={bRow ? bRow.name : null} rowB={bRow} onAsk={mesa ? onAsk : null}/>;
+      })()}
+      {/* PASE 1d · el 80/20 DEBAJO del comparado — mismo comportamiento: eje + selección. */}
+      {mesa && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
+      {/* PASE 1e (owner): los FILTROS pertenecen a la TABLA — viven pegados a ella, debajo de los gráficos.
+          Los gráficos igual los siguen (eje + selección): sin filas seleccionadas muestran el negocio. */}
       {/* dimensión + alcance */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
         <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
@@ -1902,19 +1916,6 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           </span>
         )}
       </div>
-      {/* PASE 1c/1d · EL COMPARADO POR ENCIMA de la tabla (owner 2026-07-15): reacciona a la tabla — sin selección,
-          EL NEGOCIO (la suma del eje: cierra con la fila Total); UNA fila, esa entidad vs su año anterior; DOS,
-          las dos lado a lado. Sirve para cualquier eje con serie (clientes/SKU/marcas); bodega sin serie → sin
-          gráfico (honesto). */}
-      {(() => {
-        const selRows = sel.map((nm) => cm.rows.find((r) => r.name === nm)).filter(Boolean);
-        const aRow = selRows[0] || null;
-        const bRow = selRows.length >= 2 ? selRows[1] : null;
-        return <ComparadoCard negocio={!aRow} dim={dim} a={aRow ? aRow.name : null} rowA={aRow} b={bRow ? bRow.name : null} rowB={bRow} onAsk={mesa ? onAsk : null}/>;
-      })()}
-      {/* PASE 1d · el 80/20 DEBAJO del comparado, ARRIBA de la tabla (owner: "el gráfico de 80% debe ir bajo el
-          del evolutivo — ese está respondiendo bien a la tabla") — mismo comportamiento: eje + selección. */}
-      {mesa && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
       {/* la grilla */}
       <div style={{ overflowX:"auto" }}>
         <div style={{ minWidth: minWBase }}>
@@ -3186,7 +3187,8 @@ function ConcentracionCard({ scenario, spec }) {
   const barW = Math.min(bw * 0.62, 32);
   const yBar = (v) => (H - padB) - (v / niceHi) * (H - padT - padB);
   const yCum = (pct) => padT + (1 - pct / 100) * (H - padT - padB);
-  const cumPath = bars.map((b, i) => `${i === 0 ? "M" : "L"}${xC(i).toFixed(1)},${yCum(b.cumPct).toFixed(1)}`).join(" ");
+  // acumulada en curva monotónica (pase 1e · owner: premium, color propio) — pasa EXACTO por cada punto (no fabrica)
+  const cumPath = _mono(bars.map((_, i) => xC(i)), bars.map((b) => yCum(b.cumPct)));
   const trunc = (s) => (s && s.length > 7 ? s.slice(0, 6) + "…" : s);
 
   return (
@@ -3230,8 +3232,9 @@ function ConcentracionCard({ scenario, spec }) {
             fill={fillFor(t)} opacity={hov==null||hov===i?1:0.55}
             style={{ filter: glowFor(t) }} onMouseEnter={()=>setHov(i)}/>
         ); })}
-        <path d={cumPath} fill="none" stroke={C.celeste} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" style={{ filter:`drop-shadow(0 0 3px ${C.celeste}55)` }}/>
-        {bars.map((b,i)=>(<circle key={"c"+i} cx={xC(i)} cy={yCum(b.cumPct)} r={hov===i?3:1.4} fill={hov===i?C.celeste:"#0a0a09"} stroke={C.celeste} strokeWidth="1" opacity="0.9" onMouseEnter={()=>setHov(i)}/>))}
+        <path d={cumPath} fill="none" stroke={C.lav} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" opacity="0.18"/>
+        <path d={cumPath} fill="none" stroke={C.lav} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" opacity="0.95"/>
+        {bars.map((b,i)=>(<circle key={"c"+i} cx={xC(i)} cy={yCum(b.cumPct)} r={hov===i?3:1.4} fill={hov===i?C.lav:"#0a0a09"} stroke={C.lav} strokeWidth="1" opacity="0.9" onMouseEnter={()=>setHov(i)}/>))}
         {con.blockCount>=1 && con.blockCount<=bars.length && (
           <g>
             <circle cx={xC(con.blockCount-1)} cy={yCum(bars[con.blockCount-1].cumPct)} r="5.5" fill="none" stroke={C.red} strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 5px ${C.red}aa)` }}/>
@@ -3252,7 +3255,7 @@ function ConcentracionCard({ scenario, spec }) {
       </svg>
 
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
-        Concentración {sp.byNoun} ($) · escenario {con.scenario} · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80.0% · <span style={{color:C.celeste}}>línea celeste</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80.0%.
+        Concentración {sp.byNoun} ($) · escenario {con.scenario} · <span style={{color:C.elec}}>barras azules</span> = el bloque que explica el 80.0% · <span style={{color:C.lav}}>línea lavanda</span> = acumulado, <span style={{color:C.red}}>punto rojo</span> = corte del 80.0%.
       </div>
     </Card>
   );

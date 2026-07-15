@@ -224,7 +224,9 @@ function MiniMovers({ panel }) {
   );
 }
 
-// ── mini pareto · el bloque que importa en gradiente, la cola ghost · acumulada step (la suma es discreta) ·
+// ── mini pareto · el bloque que importa en gradiente, la cola ghost · acumulada en curva monotónica LAVANDA con
+//    reflejo (owner 2026-07-15: "la línea se ve de dibujo mal hecho — mejorala y dale un color diferente, premium";
+//    la monotónica pasa EXACTO por cada punto acumulado — el hover muestra el dato real, la curva no fabrica) ·
 //    corte en ÁMBAR (donde está la plata — el rojo queda reservado a "resta") · takeaway arriba, no censo abajo ──
 // EXPORTADO (owner 2026-07-09: "el 80% de Sentrix cambialo por el de columnas") — la Mesa reusa ESTA pieza (una
 // sola verdad visual). Props opcionales: showTakeaway=false cuando el shell ya trae el titular · onPick(nombre)
@@ -243,7 +245,7 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
   const maxPart = Math.max(...rows.map((r) => r.part || 0), 1);
   const yBar = (p) => (H - padB) - (p / maxPart) * (H - padT - padB) * 0.82;
   const yCum = (p) => padT + (1 - p / 100) * (H - padT - padB);
-  const dCum = `M${xc(0)},${yCum(rows[0].acum)}` + rows.slice(1).map((r, j) => ` H${xc(j + 1)} V${yCum(r.acum)}`).join("");
+  const dCum = monoPath(rows.map((_, i) => xc(i)), rows.map((r) => yCum(r.acum)));
   const kAmber = { fontFamily: MONO, fontWeight: 600, color: C.amber, fontVariantNumeric: "tabular-nums" };
   const iCut = Math.min(Math.max(panel.cutoff, 1), n) - 1;
   return (
@@ -269,14 +271,14 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
               opacity={hov == null || hov === i ? 1 : 0.55}
               style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both` }}/>
           ))}
-          <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="3.5" opacity="0.12" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
-          <path d={dCum} fill="none" stroke={C.celeste} strokeWidth="1.5" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+          <path d={dCum} fill="none" stroke={C.lav} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+          <path d={dCum} fill="none" stroke={C.lav} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
           <g style={{ animation: "adiFade 300ms 800ms both" }}>
             <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="5.5" fill={C.amber} opacity="0.2"/>
             <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="2.8" fill={C.amber}/>
           </g>
           {hov != null && (
-            <circle cx={xc(hov)} cy={yCum(rows[hov].acum)} r="3.4" fill={C.celeste} stroke={KO} strokeWidth="1.5" pointerEvents="none"/>
+            <circle cx={xc(hov)} cy={yCum(rows[hov].acum)} r="3.4" fill={C.lav} stroke={KO} strokeWidth="1.5" pointerEvents="none"/>
           )}
           <rect x="0" y="0" width={W} height={H} fill="transparent" style={{ cursor: onPick ? "pointer" : "default" }}
             onPointerMove={(e) => { const b = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - b.left) / Math.max(1, b.width); setHov(Math.max(0, Math.min(n - 1, Math.floor((rel * W - padL) / ((W - padL - padR) / n))))); }}
@@ -304,7 +306,7 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
           </div>
         ))}
       </div>
-      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>el punto marca el corte real · la línea punteada, el 80% acumulado · pasá el cursor para ver cada dato</div>
+      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>el punto ámbar marca el corte real · la curva <span style={{ color: C.lav }}>lavanda</span> es el acumulado (la punteada, el umbral del 80%) · pasá el cursor para ver cada dato</div>
     </>
   );
 }

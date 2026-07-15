@@ -16,7 +16,7 @@ export const C = {
   text: "#f5f5f5", textSub: "#c9c9c9", textMuted: "#969696",
   blue: "#00b0d4", indigo: "#0e7fa8", green: "#10b981",
   red: "#f43f5e", amber: "#fde047", cyan: "#219ebc", violet: "#00a8e8",
-  celeste: "#2fb8da",   // celeste · acumulada del Pareto (la línea que cruza)
+  celeste: "#2fb8da",   // celeste · el acento de identidad (cifras · serie actual; la acumulada del Pareto pasó a lav — pase 1e)
   // Paleta PREMIUM de gráficos (owner 2026-06-30 · líneas y barras · 3 tiers/series): vibrante → ahumado → metálico.
   elec: "#3d74f5",      // azul eléctrico vibrante · tier alto / serie actual
   teal: "#5b9ea0",      // turquesa ahumado · tier medio / serie año anterior
