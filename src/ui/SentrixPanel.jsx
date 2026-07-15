@@ -657,15 +657,16 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
         </div>
         {reading && <div style={{ marginTop:16, padding:"12px 14px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(255,255,255,0.02)", fontSize:12.5, color:C.text, lineHeight:1.55 }}>{reading}</div>}
         <div style={{ fontSize:10.5, color:C.textMuted, marginTop:12, lineHeight:1.5 }}>Verde = quién gana cada métrica (mayor es mejor · en carga, menor). "Gap" = la diferencia más grande. Cifras de dato real de tu cartera.</div>
-        {/* EL PERFIL (owner 2026-07-08): el mismo gráfico de líneas de la Mesa, acá abajo con LOS MISMOS DOS —
-            la tabla prueba, el perfil cuenta la trayectoria. Sin botón de re-preguntar (ya estamos EN la comparación). */}
+        {/* EL COMPARADO TEMPORAL (PASE 1f · owner 2026-07-15: el "Perfil comparado" por ejes se ELIMINA): los MISMOS
+            DOS lado a lado en el año — la tabla prueba, la trayectoria cuenta. Sin botón de re-preguntar (ya estamos
+            EN la comparación). */}
         {(() => {
           const dim = ({ client: "cliente", cliente: "cliente", clientes: "cliente", marca: "marca", bodega: "bodega", sucursal: "bodega", sku: "sku" })[String(evidence.entityType || "cliente").toLowerCase()] || "cliente";
           if (!CUADRO_DIMS.some((d) => d.key === dim)) return null;
           const cm = buildCuadroMando(dim, evidence.periodo);
           const rowA = cm.rows.find((r) => r.name === a), rowB = cm.rows.find((r) => r.name === b);
           if (!rowA || !rowB) return null;
-          return <div style={{ marginTop: 14 }}><MesaCompare a={a} b={b} rowA={rowA} rowB={rowB} columns={cm.columns} dim={dim} scenario={evidence.periodo} onAsk={null}/></div>;
+          return <div style={{ marginTop: 14 }}><ComparadoCard a={a} rowA={rowA} b={b} rowB={rowB} dim={dim} onAsk={null}/></div>;
         })()}
       </div>
     </div>
@@ -2007,16 +2008,15 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
           )}
         </div>
       </div>
-      {/* al seleccionar UNA fila → la FICHA (perfil vs promedio + evolutivo por estación); con EXACTAMENTE 2 → el
-          Perfil comparado para CUALQUIER dimensión; en la lente Control, el dumbbell original (cliente). */}
+      {/* al seleccionar UNA fila → la FICHA (perfil vs promedio). PASE 1f (owner): el "Perfil comparado" por ejes
+          se ELIMINÓ — con DOS seleccionadas la comparación es el comparado temporal de ARRIBA (dual); en la lente
+          Control (sin Mesa) sigue el dumbbell original de clientes. */}
       {sel.length === 1 && mesa && (
         <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} onAsk={onAsk}/>
       )}
-      {sel.length === 2 && (mesa
-        ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
-        : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
+      {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -2851,170 +2851,6 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
         ) : null}
       </div>
     </div>
-  );
-}
-
-function MesaCompare({ a, b, rowA, rowB, columns = null, dim = "cliente", scenario, onAsk }) {
-  const [selSt, setSelSt] = useState(null);   // estación seleccionada (detalle por período) · hook SIEMPRE primero
-  const fm = (v) => "$" + (v / 1000).toFixed(1) + "M";
-  const fmk = (v) => "$" + (Math.abs(v) / 1000).toFixed(1) + "K";
-  const fp = (v) => p1(v) + "%";
-  const fmtOf = { money: fm, moneyk: fmk, pct: fp, x: (v) => r1(v) + "x", int: (v) => Math.round(v).toLocaleString("es-CL"), pp: (v) => p1(v) + "pp" };
-  let axes = [], dA = null, dB = null;
-  if (dim === "cliente") {
-    dA = buildMarginDecomposition(a, scenario); dB = buildMarginDecomposition(b, scenario);
-    // ESTACIONES (owner 2026-07-10): Carga → ACCIONES DE PRECIOS ("eso engloba todo") y COSTO afuera ("si ya
-    // tenés margen y contribución no es necesario"). El veredicto causal de abajo sigue usando la descomposición.
-    if (dA && dB && rowA && rowB) axes = [
-      { label: "Ventas",              va: rowA.ventas,       vb: rowB.ventas,       fmt: fm, hiBetter: true },
-      { label: "Contribución",        va: rowA.contribucion, vb: rowB.contribucion, fmt: fm, hiBetter: true },
-      { label: "Margen",              va: dA.margen,         vb: dB.margen,         fmt: fp, hiBetter: true,  ref: benchmarkOf(null), refLabel: "piso" },
-      { label: "Acciones de precios", va: rowA.acciones,     vb: rowB.acciones,     fmt: fm, hiBetter: false },
-    ];
-  } else if (rowA && rowB) {
-    // estaciones = las COLUMNAS del cuadro de ese eje (sin acción/gap ni la capa del asesor — "En juego $" no es una
-    // métrica de la entidad) · sort "asc" = menos es mejor · refs de POLICY donde aplican
-    axes = (columns || []).filter((c) => c.key !== "accion" && c.key !== "gap" && !c.adv).map((c) => ({
-      label: c.label, va: rowA[c.key], vb: rowB[c.key], fmt: fmtOf[c.fmt] || ((v) => String(v)), hiBetter: c.sort !== "asc",
-      ...(c.key === "margen" ? { ref: benchmarkOf(null), refLabel: "piso" } : {}),
-      ...(c.key === "rotacion" ? { ref: POLICY.rotacionMin, refLabel: "piso" } : {}),
-    }));
-  }
-  axes = axes.filter((ax) => typeof ax.va === "number" && typeof ax.vb === "number");
-  if (axes.length < 2) return null;
-  const W = 620, H = 216, padT = 30, padB = 42, padL = 52, padR = 34;
-  const n = axes.length;
-  const xs = axes.map((_, i) => padL + i * (W - padL - padR) / Math.max(1, n - 1));
-  const yOf = (ax, v) => {
-    const lo = Math.min(ax.va, ax.vb), hi = Math.max(ax.va, ax.vb);
-    const rng = Math.max(hi - lo, Math.abs(hi) * 0.06, 0.5);           // escala del PAR (la diferencia real siempre se ve)
-    const axLo = lo - rng * 0.55, axHi = hi + rng * 0.55;
-    let t = (v - axLo) / (axHi - axLo);
-    if (!ax.hiBetter) t = 1 - t;                                        // menos carga/costo = mejor → ARRIBA
-    return padT + (1 - t) * (H - padT - padB);
-  };
-  const colA = C.elec, colB = C.teal;
-  const ptsA = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.va) }));
-  const ptsB = axes.map((ax, i) => ({ x: xs[i], y: yOf(ax, ax.vb) }));
-  const path = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
-  const winA = axes.map((ax) => (ax.va === ax.vb ? null : ax.hiBetter ? ax.va > ax.vb : ax.va < ax.vb));
-  const scoreA = winA.filter((w) => w === true).length, scoreB = winA.filter((w) => w === false).length;
-  // veredicto · cliente: la palanca estructural (margen/costo/carga) · otros ejes: el líder del perfil (genérico honesto)
-  const bWins = dim === "cliente" && dA && dB ? dB.margen >= dA.margen : scoreB > scoreA;
-  const lever = dim === "cliente" && dA && dB ? (Math.abs(dA.costoPct - dB.costoPct) >= Math.abs(dA.cargaPct - dB.cargaPct) ? "estructura de costo" : "carga comercial") : null;
-  return (
-    <Card>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-        <Eyebrow def={METRIC_DEFS["Comparación controlada"]}>Perfil comparado · arriba = mejor</Eyebrow>
-        <span style={{ fontFamily:MONO, fontSize:10, color:C.textMuted }}>
-          <span style={{ color:colA, fontWeight:600 }}>{a}</span> gana {scoreA} · <span style={{ color:colB, fontWeight:600 }}>{b}</span> gana {scoreB} de {n}
-        </span>
-      </div>
-      <div style={{ display:"flex", gap:16, margin:"6px 0 2px", flexWrap:"wrap" }}>
-        {[[a, colA], [b, colB]].map(([nm, col]) => (
-          <span key={nm} style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub }}>
-            <span style={{ width:14, height:3, borderRadius:2, background:col, boxShadow:`0 0 6px ${col}88` }}/>{nm}
-          </span>
-        ))}
-        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.textMuted }}>
-          <span style={{ width:14, height:0, borderTop:`1.5px dashed ${C.amber}`, opacity:0.9 }}/>tu piso / target
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
-        {/* estaciones (ejes verticales suaves) + labels · CLICKEABLES → detalle por período (owner 2026-07-08: vida) */}
-        {axes.map((ax, i) => (
-          <g key={i} onClick={() => { const next = selSt === ax.label ? null : ax.label; setSelSt(next); setUISignal({ station: next }); }} style={{ cursor: "pointer" }}>
-            <line x1={xs[i]} y1={padT - 8} x2={xs[i]} y2={H - padB + 8} stroke={selSt === ax.label ? "rgba(47,184,218,0.35)" : "rgba(255,255,255,0.07)"} strokeWidth={selSt === ax.label ? 1.5 : 1}/>
-            <text x={xs[i]} y={H - padB + 26} textAnchor="middle" fill={selSt === ax.label ? C.celeste : C.textSub} fontSize="11" fontFamily="'DM Sans', system-ui, sans-serif" fontWeight="600" style={{ textDecoration: selSt === ax.label ? "underline" : "none" }}>{ax.label}</text>
-            {!ax.hiBetter && <text x={xs[i]} y={H - padB + 38} textAnchor="middle" fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>menos = mejor</text>}
-          </g>
-        ))}
-        {/* guía de lectura */}
-        <text x={padL - 40} y={padT + 2} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>mejor</text>
-        <text x={padL - 40} y={H - padB} fill={C.textMuted} fontSize="8.5" fontFamily={MONO}>peor</text>
-        {/* la LÍNEA DE BENCHMARK/TARGET por estación (owner 2026-07-07) · criterio-aware · si queda fuera del rango del
-            par se ancla al borde con flecha ("piso 30.1% ↑" = el piso está aún más arriba que ambos → los dos abajo) */}
-        {axes.map((ax, i) => {
-          if (ax.ref == null) return null;
-          const rawY = yOf(ax, ax.ref);
-          const cTop = rawY < padT - 4, cBot = rawY > H - padB + 4;
-          const y = Math.max(padT - 4, Math.min(H - padB + 4, rawY));
-          return (
-            <g key={"ref" + i}>
-              <line x1={xs[i] - 17} x2={xs[i] + 17} y1={y} y2={y} stroke={C.amber} strokeWidth="1.4" strokeDasharray="3 3" opacity="0.9"/>
-              <text x={xs[i] + 21} y={y + 3} fill={C.amber} fontSize="8.5" fontFamily={MONO} opacity="0.95">{ax.refLabel} {ax.fmt(ax.ref)}{cTop ? " ↑" : cBot ? " ↓" : ""}</text>
-            </g>
-          );
-        })}
-        {/* las dos líneas (el perfil) · glow premium BARATO (doble trazo, sin filtros SVG — no cuelga compositores lentos) */}
-        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
-        <path d={path(ptsB)} fill="none" stroke={colB} strokeWidth="7" strokeLinejoin="round" opacity="0.16"/>
-        <path d={path(ptsA)} fill="none" stroke={colA} strokeWidth="2.2" strokeLinejoin="round" opacity="0.95"/>
-        <path d={path(ptsB)} fill="none" stroke={colB} strokeWidth="2.2" strokeLinejoin="round" opacity="0.95"/>
-        {/* puntos + aro del ganador + cifras reales (el de arriba etiqueta arriba · el de abajo, abajo — sin choques) */}
-        {axes.map((ax, i) => {
-          const pa = ptsA[i], pb = ptsB[i];
-          const aTop = pa.y <= pb.y;
-          return (
-            <g key={"p" + i}>
-              {winA[i] === true  && <circle cx={pa.x} cy={pa.y} r="8.5" fill="none" stroke={colA} strokeWidth="1" opacity="0.5"/>}
-              {winA[i] === false && <circle cx={pb.x} cy={pb.y} r="8.5" fill="none" stroke={colB} strokeWidth="1" opacity="0.5"/>}
-              <circle cx={pa.x} cy={pa.y} r="4.5" fill={colA} stroke="#000" strokeWidth="1.5"/>
-              <circle cx={pb.x} cy={pb.y} r="4.5" fill={colB} stroke="#000" strokeWidth="1.5"/>
-              <text x={pa.x} y={aTop ? pa.y - 13 : pa.y + 21} textAnchor="middle" fill={colA} fontSize="10" fontFamily={MONO} fontWeight="600">{ax.fmt(ax.va)}</text>
-              <text x={pb.x} y={aTop ? pb.y + 21 : pb.y - 13} textAnchor="middle" fill={colB} fontSize="10" fontFamily={MONO} fontWeight="600">{ax.fmt(ax.vb)}</text>
-            </g>
-          );
-        })}
-      </svg>
-      <div style={{ fontSize:10, color:C.textMuted, fontFamily:MONO, marginTop:2 }}>tocá una estación para ver su período ↓</div>
-      {/* DETALLE POR PERÍODO (owner 2026-07-08 · "darle vida al gráfico"): la estación elegida en el tiempo — la serie
-          GLOBAL real cuando existe (ventas mensuales); el corte por entidad se enciende con el ERP (honesto, sin fingir). */}
-      {selSt && (() => {
-        const ax = axes.find((x) => x.label === selSt);
-        if (!ax) return null;
-        return (
-          <div style={{ marginTop:10, padding:"11px 13px", border:"1px solid rgba(47,184,218,0.25)", borderRadius:10, background:"rgba(47,184,218,0.04)" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
-              <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.6px", color:C.celeste, textTransform:"uppercase" }}>{ax.label} · por período</span>
-              <button onClick={() => setSelSt(null)} style={{ background:"transparent", border:"none", color:C.textMuted, cursor:"pointer", fontSize:12 }}>✕</button>
-            </div>
-            <div style={{ fontSize:12, color:C.textSub, marginBottom:8 }}>
-              Hoy (dato real): <span style={{ color:colA, fontFamily:MONO, fontWeight:600 }}>{a} {ax.fmt(ax.va)}</span> · <span style={{ color:colB, fontFamily:MONO, fontWeight:600 }}>{b} {ax.fmt(ax.vb)}</span>
-            </div>
-            {(() => {
-              // dos curvas cuando la serie mensual POR ENTIDAD existe en el dataset (venta/contribución) — owner 2026-07-08
-              const metric = /venta/i.test(ax.label) ? "venta" : /contribuci/i.test(ax.label) ? "contribucion" : null;
-              const cmp = metric ? buildCompareEvolution(a, b, metric) : null;
-              if (cmp) return <StationCompareFilm cmp={cmp}/>;
-              if (metric === "venta") return <StationPeriodo a={a} b={b}/>;   // sin historial por entidad (p.ej. bodegas) → película GLOBAL
-              return (
-                <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-                  El histórico mensual de {ax.label.toLowerCase()} se enciende con el ERP — hoy tengo el período actual (arriba, dato real). No te dibujo una serie que no existe.
-                </div>
-              );
-            })()}
-          </div>
-        );
-      })()}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginTop:8, paddingTop:9, borderTop:`1px solid ${C.border}` }}>
-        <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, minWidth:0 }}>
-          {lever
-            ? <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> saca mejor margen — lo que los separa es la <span style={{ color:C.textSub }}>{lever}</span>. Donde las líneas se cruzan, cambia quién gana.</>
-            : scoreA === scoreB
-            ? <>Perfil parejo — <span style={{ color:colA, fontWeight:600 }}>{a}</span> y <span style={{ color:colB, fontWeight:600 }}>{b}</span> ganan las mismas estaciones. Donde las líneas se cruzan, cambia quién gana.</>
-            : <><span style={{ color: bWins ? colB : colA, fontWeight:600 }}>{bWins ? b : a}</span> domina el perfil ({Math.max(scoreA, scoreB)} de {n} estaciones). Donde las líneas se cruzan, cambia quién gana.</>}
-        </div>
-        {onAsk ? (
-          <button onClick={() => onAsk(`Compará ${a} vs ${b}`)} title={`Preguntale a ADI: Compará ${a} vs ${b}`}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:8, border:"1px solid rgba(47,184,218,0.45)", background:"rgba(47,184,218,0.08)", color:C.celeste, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap", flexShrink:0, transition:"background 0.15s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.15)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
-            Que ADI los compare a fondo →
-          </button>
-        ) : null}
-      </div>
-    </Card>
   );
 }
 
