@@ -75,6 +75,12 @@ SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "bodega", f
 SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "frenado", filters: { bodega: "Concepción" } }));
 SPECS.push(S({ operation: "table", metric: "ventas", dimension: "cliente", transform: { kind: "assumption", op: "delta", value: 3, unit: "pct", base: "real" } }));
 SPECS.push(S({ operation: "table", metric: "capital", dimension: "bodega", transform: { kind: "assumption", op: "delta", value: -10, unit: "pct", base: "real" } }));
+// SIMULATE (S1/S2/S3 · 2026-07-15): la operación con contrato + las acciones específicas + el recommend meta-aware
+SPECS.push(S({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: { kind: "assumption", op: "delta", value: 3, unit: "pct", base: "real" } }));
+SPECS.push(S({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target" }));
+SPECS.push(S({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target", filters: { cliente: "Falabella" } }));
+SPECS.push(S({ operation: "simulate", metric: "capital", dimension: "sku", simAction: "liberar_capital" }));
+SPECS.push(S({ operation: "recommend", metric: "ventas", dimension: "cliente", goal: { pct: 3, dir: "subir" } }));
 for (const spec of SPECS) {
   let r; try { r = A(spec, {}, { scenario: "bonanza" }); } catch (e) { fail++; rotos.push({ origen: `${spec.operation}:${spec.focus || spec.metric}@${spec.dimension}`, palabra: "THROW", gist: String(e && e.message).slice(0, 70) }); continue; }
   checkResp(`${spec.operation}${spec.focus ? ":" + spec.focus : ""}@${spec.dimension}`, r);
@@ -101,6 +107,8 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const [k, e] of Object.entries(m2.estados || {})) { check(`mesa2 · ${k} línea (${sc})`, e.linea); check(`mesa2 · ${k} ask (${sc})`, e.ask); }
   if (m2.accion) { check(`mesa2 · acción (${sc})`, `${m2.accion.titulo}. ${m2.accion.detalle}`); check(`mesa2 · acción ask (${sc})`, m2.accion.ask); }
   for (const c of (m2.cambios || [])) { check(`mesa2 · cambio ${c.key} (${sc})`, c.texto); check(`mesa2 · cambio ask ${c.key} (${sc})`, c.ask); }
+  // SIMULATE S4 · el bloque "¿Y si…?" (texto + ask) también va en registro ejecutivo.
+  for (const s of (m2.simulaciones || [])) { check(`mesa2 · ysi ${s.key} (${sc})`, s.texto); check(`mesa2 · ysi ask ${s.key} (${sc})`, s.ask); }
   // PASE 2 · EN ALERTA + WATCHLIST: la línea del contador y cada seguido (sub + ask) van en registro ejecutivo —
   // instanciados para TODAS las filas de los 4 ejes (los textos nombran entidades del dato).
   if (m2.alertas) { check(`mesa2 · alertas línea (${sc})`, m2.alertas.linea); check(`mesa2 · alertas ask (${sc})`, m2.alertas.ask); }

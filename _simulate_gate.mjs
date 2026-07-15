@@ -66,5 +66,76 @@ ok("19 · HONESTIDAD: métrica sin cruce → 'sin_benchmark' (NUNCA juzga bueno/
 ok("20 · concentrado → el opener TEJE el veredicto (cita margen del bloque + benchmark) · self-consistente con su boleta",
   _qv.verdict !== "sin_benchmark" && cs.opener.includes(_qv.blockValueFmt) && cs.opener.includes(_qv.declaredFmt) && guardAgainstBoleta(cs.opener, cs.evidence.boleta).ok);
 
+/* ═══ SIMULATE S1-S3 (owner 2026-07-14 "sí, continúa" · construido 2026-07-15) ═══════════════════════════════
+ * La operación `simulate` REAL en el seam (antes → spec_blocked_unsupported-op): contrato supuesto→efecto→dónde
+ * pega→límite→decisión · guard de absurdos · acciones específicas (carga→target · liberar capital · $ del
+ * detector, graduado probado/abierto) · recommend META-AWARE (ancla "3% = $X" + caminos A/B/C/D). */
+
+// ── 6 · S1 · operation simulate + transform → proyector CON contrato ────────────────────────────────
+const rOp = sim({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: TF });
+ok("21 · operation simulate EJECUTA (no spec_blocked · era unsupported-op)", rOp.route === "qi_retrieval");
+ok("22 · contrato: supuesto → dónde pega → límite → decisión presentes",
+  /\*\*El supuesto:\*\*/.test(rOp.text) && /\*\*Dónde pega:\*\*/.test(rOp.text) && /\*\*El límite:\*\*/.test(rOp.text) && /\*\*La decisión:\*\*/.test(rOp.text));
+ok("23 · el supuesto se declara proyección (no un dato observado) y el límite declara lo que NO se predice",
+  /no un dato observado|no es un dato observado/.test(rOp.text) && /no se predice/.test(rOp.text));
+ok("24 · sin lenguaje de escenario + el texto pasa su propia boleta",
+  !/bonanza|tensi[oó]n|crisis|escenario/i.test(rOp.text) && guardAgainstBoleta(rOp.text, (rOp.evidence && rOp.evidence.boleta) || []).ok);
+ok("25 · evidence completa para Sentrix (transform + projection → SimulationPanel)",
+  !!(rOp.evidence && rOp.evidence.transform && Array.isArray(rOp.evidence.projection) && rOp.evidence.projection.length));
+ok("26 · la vía legacy (table + transform) queda SIN contrato (byte-cómoda · followups intactos)",
+  !/\*\*El supuesto:\*\*/.test(r.text));
+
+// ── 7 · S1 · guard de ABSURDOS (0% · >±50%) → repregunta honesta ────────────────────────────────────
+const r0 = sim({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: { ...TF, value: 0 } });
+ok("27 · 0% → repregunta honesta (no proyecta nada)", /simulate-absurd/.test(r0.route) && /0%/.test(r0.text));
+const r80 = sim({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: { ...TF, value: 80 } });
+ok("28 · +80% → repregunta honesta (rango operable declarado)", /simulate-absurd/.test(r80.route) && /±50%/.test(r80.text));
+const r50 = sim({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: { ...TF, value: 50 } });
+ok("29 · ±50% es el borde INCLUSIVO (ejecuta)", r50.route === "qi_retrieval");
+const rN40 = sim({ operation: "table", metric: "ventas", dimension: "cliente", transform: { ...TF, value: -40 } });
+ok("30 · el guard cubre también la vía legacy (-40% ejecuta · el rango es el mismo)", rN40.route === "qi_retrieval");
+
+// ── 8 · S2 · supuesto sobre ACCIÓN: carga → target ($ del detector · graduación probado/abierto) ────
+const rCg = sim({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target" });
+ok("31 · carga→target ejecuta con el $ del detector (efecto directo + fórmula (carga − target) × venta)",
+  rCg.route === "qi_retrieval" && /\*\*El efecto directo:\*\*/.test(rCg.text) && /\(carga actual − target\) × venta/.test(rCg.text));
+ok("32 · graduación dura: lo probado por el dato Y la reacción del volumen abierta",
+  /probado por el dato/.test(rCg.text) && /reacci[oó]n del volumen/.test(rCg.text) && /(queda abierto|no predice)/i.test(rCg.text));
+const bolCg = (rCg.evidence && rCg.evidence.boleta) || [];
+ok("33 · boleta con los campos RESERVADOS de simulate: source computed + formula auditable en el recuperable",
+  bolCg.some((f) => f.source === "computed" && /carga/.test(f.formula || "") && /Recuperable/.test(f.label)));
+ok("34 · el texto pasa su propia boleta + target de carga autorizado",
+  guardAgainstBoleta(rCg.text, bolCg).ok && bolCg.some((f) => /Target de carga/.test(f.label)));
+const rCgF = sim({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target", filters: { cliente: "Falabella" } });
+ok("35 · scoped a UN cliente: el supuesto nombra a Falabella y evidence.entidad la declara (garantía del narrador)",
+  /Falabella/.test(rCgF.text) && rCgF.evidence && rCgF.evidence.entidad === "Falabella");
+ok("36 · carga + transform % (tasa · no proyectable) NO degrada: cae a la acción (declarando SU supuesto)",
+  (() => { const r2 = sim({ operation: "simulate", metric: "carga", dimension: "cliente", transform: TF }); return r2.route === "qi_retrieval" && /target/.test(r2.text); })());
+
+// ── 9 · S2 · supuesto sobre ACCIÓN: liberar el capital detenido ──────────────────────────────────────
+const rCap = sim({ operation: "simulate", metric: "capital", dimension: "sku", simAction: "liberar_capital" });
+ok("37 · liberar capital ejecuta con el $ del detector + la vara declarada (rotación/DOH de POLICY)",
+  rCap.route === "qi_retrieval" && /\*\*El efecto directo:\*\*/.test(rCap.text) && /rotaci[oó]n bajo/.test(rCap.text));
+ok("38 · límite honesto: el precio real de salida NO está en el dato",
+  /precio real de salida/.test(rCap.text) && /descuento/.test(rCap.text));
+ok("39 · el texto pasa su propia boleta (liberable total mandatory + por SKU computed)",
+  (() => { const b = (rCap.evidence && rCap.evidence.boleta) || []; return guardAgainstBoleta(rCap.text, b).ok && b.some((f) => f.mandatory && /Liberable · total/.test(f.label)); })());
+ok("40 · simulate sin forma reconocible → repregunta EDUCATIVA (enseña % y acción)",
+  (() => { const r2 = sim({ operation: "simulate", metric: "margen", dimension: "cliente" }); return /simulate-shape/.test(r2.route) && /qu[eé] pasa si/i.test(r2.text) && /carga al target/.test(r2.text); })());
+
+// ── 10 · S3 · recommend META-AWARE (la red goal ya no descarta el %) ─────────────────────────────────
+const rG = sim({ operation: "recommend", metric: "ventas", dimension: "cliente", goal: { pct: 3, dir: "subir" } });
+ok("41 · ancla la meta al dato ('Tu meta' + $ de la meta) y cierra con '¿Por cuál partimos?'",
+  /\*\*Tu meta, anclada al dato:\*\*/.test(rG.text) && /¿Por cu[aá]l partimos\?/.test(rG.text));
+ok("42 · caminos cuantificados A/B/C con las líneas del diagnose VERBATIM (cifras autorizadas)",
+  /A · /.test(rG.text) && /B · /.test(rG.text) && /•/.test(rG.text));
+ok("43 · la meta viaja en boleta (mandatory · source computed · formula '× 3%')",
+  (() => { const b = (rG.evidence && rG.evidence.boleta) || []; return b.some((f) => f.mandatory && /Meta · /.test(f.label) && f.source === "computed" && /× 3%/.test(f.formula || "")); })());
+ok("44 · el texto meta-aware pasa su propia boleta + graduación (la causa abierta se declara)",
+  guardAgainstBoleta(rG.text, (rG.evidence && rG.evidence.boleta) || []).ok && /causa ra[ií]z/.test(rG.text));
+const rNoG = sim({ operation: "recommend", metric: "margen", dimension: "cliente" });
+ok("45 · sin goal → el recommend clásico INTACTO (Recomendación + trade-off · cero cambio)",
+  /\*\*Recomendaci[oó]n:\*\*/.test(rNoG.text) && /\*\*Trade-off/.test(rNoG.text) && !/Tu meta/.test(rNoG.text));
+
 console.log(`\n── simulate-gate: ${pass} PASS · ${fail} FAIL ──`);
 process.exit(fail ? 1 : 0);

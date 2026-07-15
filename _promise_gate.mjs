@@ -37,6 +37,10 @@ for (const f of ["vs_anterior", "vs_presupuesto", "descomposicion_vol_precio", "
 for (const f of ["bajo_benchmark", "palancas", "subir_precio", "causa_precio", "causa_costo", "alto_volumen_bajo_margen"]) EMISORES.push(S({ operation: "margin", metric: "margen", dimension: "cliente", focus: f }));
 for (const f of ["concentracion", "no_capturada"]) EMISORES.push(S({ operation: "contribucion", metric: "contribucion", dimension: "cliente", focus: f }));
 for (const f of ["frenado", "quiebre", "sobrestock", "top_sellers", "mas_vendidos_mes"]) EMISORES.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: f }));
+// SIMULATE (S1/S2 · 2026-07-15): las sugerencias de las proyecciones también son promesas
+EMISORES.push(S({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: { kind: "assumption", op: "delta", value: 3, unit: "pct", base: "real" } }));
+EMISORES.push(S({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target" }));
+EMISORES.push(S({ operation: "simulate", metric: "capital", dimension: "sku", simAction: "liberar_capital" }));
 
 const promesas = new Map();   // texto → { deCtx (lastEvidence del emisor), emisor }
 for (const spec of EMISORES) {
@@ -83,6 +87,8 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const [k, e] of Object.entries(me.estados || {})) if (e && e.ask && !promesas.has(e.ask)) promesas.set(e.ask, { lastEv: null, emisor: `mesa2:estado-${k}@${sc}` });
   if (me.accion && me.accion.ask && !promesas.has(me.accion.ask)) promesas.set(me.accion.ask, { lastEv: null, emisor: `mesa2:plan@${sc}` });
   for (const c of (me.cambios || [])) if (c.ask && !promesas.has(c.ask)) promesas.set(c.ask, { lastEv: null, emisor: `mesa2:cambio-${c.key}@${sc}` });
+  // SIMULATE S4 · los asks del bloque "¿Y si…?" son promesas: cada uno debe correr la proyección real, jamás degradar.
+  for (const s2 of (me.simulaciones || [])) if (s2.ask && !promesas.has(s2.ask)) promesas.set(s2.ask, { lastEv: null, emisor: `mesa2:ysi-${s2.key}@${sc}` });
   // PASE 2 · EN ALERTA (la ask del bloque) + WATCHLIST: cualquier fila de cualquier eje es seguible → la ask de
   // cada seguido se instancia DATA-DRIVEN para TODAS las filas de los 4 ejes del cuadro (× 3 escenarios).
   if (me.alertas && me.alertas.ask && !promesas.has(me.alertas.ask)) promesas.set(me.alertas.ask, { lastEv: null, emisor: `mesa2:alertas@${sc}` });
