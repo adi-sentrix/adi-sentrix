@@ -13,6 +13,7 @@ fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
   'export { composeSpecSimulate, buildResumenEjecutivo } from "./src/adi/specRetrieval.js";',
+  'export { buildMesaEstado } from "./src/adi/sentrix/mesa.js";',
   'export { buildControlRing } from "./src/adi/sentrix/control.js";',
   'export { METRIC_DEFS } from "./src/adi/sentrix/glossary.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
@@ -20,7 +21,7 @@ fs.writeFileSync(entry, [
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildControlRing, METRIC_DEFS, buildDisponibleMenu } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildControlRing, METRIC_DEFS, buildDisponibleMenu } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa")
 let pass = 0, fail = 0; const rotos = [];
@@ -92,6 +93,14 @@ checkResp("conv · meta real_o_supuesto", AC(S({ turn_type: "meta_question", met
 const res = buildResumenEjecutivo("bonanza");
 check("resumen · lectura", res.lectura);
 for (const f of (res.focos || [])) check("resumen · foco label", f.label);
+// MESA 2.0 (owner 2026-07-14) · todo lo que la Mesa emite (líneas de estado · acción priorizada · "qué cambió" ·
+// sus preguntas) va en registro ejecutivo — por los 3 escenarios (los textos nombran entidades del dato).
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  const m2 = buildMesaEstado(sc);
+  for (const [k, e] of Object.entries(m2.estados || {})) { check(`mesa2 · ${k} línea (${sc})`, e.linea); check(`mesa2 · ${k} ask (${sc})`, e.ask); }
+  if (m2.accion) { check(`mesa2 · acción (${sc})`, `${m2.accion.titulo}. ${m2.accion.detalle}`); check(`mesa2 · acción ask (${sc})`, m2.accion.ask); }
+  for (const c of (m2.cambios || [])) { check(`mesa2 · cambio ${c.key} (${sc})`, c.texto); check(`mesa2 · cambio ask ${c.key} (${sc})`, c.ask); }
+}
 for (const [k, v] of Object.entries(METRIC_DEFS)) check(`glosario · ${k}`, v);
 check("narrador · DISPONIBLE", buildDisponibleMenu());
 for (const [tipo, foco] of [["client", "Falabella"], ["sku", "SAM-TV55"], ["marca", "Samsung"], ["bodega", "Valparaíso"]]) {

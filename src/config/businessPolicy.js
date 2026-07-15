@@ -16,6 +16,7 @@ export const POLICY = {
   targetCarga: 3.5,         // target operativo de carga comercial (%)
   rotacionMin: 2,           // diagnose · piso de rotación (x): por debajo, el stock se considera dormido (numérico · portable a ERP real)
   dohMax: 120,              // diagnose · techo de cobertura (días): por encima, el stock se considera dormido
+  margenBrechaMaterial: 4,  // diagnose · brecha material de margen (pp bajo la vara) · antes vivía como literal en el detector; ahora UNA verdad (detector + semáforo de la Mesa/cuadro)
   // ── diagnóstico de inventario (owner 2026-07-06 · umbrales configurables) · salud de las DOS puntas: sobra y falta ──
   quiebreRotMin: 6,         // riesgo de quiebre: rotación ALTA (≥) …
   quiebreDohMax: 20,        // … y cobertura BAJA (DOH ≤ días) → se va a quedar sin stock

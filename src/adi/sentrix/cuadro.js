@@ -7,11 +7,20 @@
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToMarcasVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { marcasMargen } from "../../data/demoData.js";   // margen/contribución/rebates de MARCA (la grilla mostraba 0.0% — bug cazado 2026-07-10)
+import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";   // Mesa 2.0 · el semáforo de cada fila contra TU vara (criterio C.2 del owner manda)
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
 const _mean = (a, f) => (a.length ? _sum(a, f) / a.length : 0);
 const _inmov = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
+// SEMÁFORO CONTRA TU VARA (Mesa 2.0 · owner 2026-07-14): cada fila con margen trae su estado contra benchmarkOf
+// (el criterio C.2 pisa todo) con la MISMA brecha material del detector del diagnose (POLICY.margenBrechaMaterial):
+// verde = en o sobre la vara · ámbar = bajo por menos de la brecha · rojo = la brecha completa. El "vs prom" (gap
+// contra el promedio interno) queda intacto — son dos comparaciones distintas y las dos valen.
+const _vara = (margen, row) => {
+  const ref = benchmarkOf(row), gap = _r1((margen || 0) - ref);
+  return { varaRef: ref, varaGap: gap, vara: gap >= 0 ? "verde" : gap > -POLICY.margenBrechaMaterial ? "ambar" : "rojo" };
+};
 
 export const CUADRO_DIMS = [
   { key: "cliente", label: "Clientes", plural: "clientes" },
@@ -69,7 +78,7 @@ function _clientes(s) {
     const alert = c.margen < c.benchmark - 6;
     const accion = gap <= -3 ? (costoPct > 100 - avgM - avgCarga ? "revisar costo" : "renegociar carga")
       : gap >= 3 ? "referencia" : "sostener";
-    return { name: c.nombre, ventas: cv ? cv.actual : c.venta, unidades: c.unidades, acciones: c.rebates, margen: c.margen, contribucion: c.contribucion, carga, gap, accion, alert };
+    return { name: c.nombre, ventas: cv ? cv.actual : c.venta, unidades: c.unidades, acciones: c.rebates, margen: c.margen, contribucion: c.contribucion, carga, gap, accion, alert, ..._vara(c.margen, c) };
   });
   const tV = _sum(rows, (r) => r.ventas), tC = _sum(rows, (r) => r.contribucion);
   const total = { name: "Total", ventas: tV, unidades: _sum(rows, (r) => r.unidades), acciones: _sum(rows, (r) => r.acciones), contribucion: tC, margen: tV ? _r1(tC / tV * 100) : 0, gap: null, accion: "", _total: true };
@@ -104,7 +113,7 @@ function _skus(s) {
     const i = inv.find((y) => y.sku === x.nombre) || {};
     const gap = _r1(x.margen - avgM);
     const accion = (i.rotacion != null && i.rotacion < 2) ? "stock lento" : gap <= -3 ? "revisar precio" : "sostener";
-    return { name: x.nombre, margen: x.margen, capital: i.stockUSD || 0, rotacion: _r1(i.rotacion || 0), gap, accion, alert: i.alerta === "crit" };
+    return { name: x.nombre, margen: x.margen, capital: i.stockUSD || 0, rotacion: _r1(i.rotacion || 0), gap, accion, alert: i.alerta === "crit", ..._vara(x.margen, x) };
   });
   const total = { name: "Total", margen: _r1(avgM), capital: _sum(rows, (r) => r.capital), rotacion: _r1(_mean(rows, (r) => r.rotacion)), gap: null, accion: "", _total: true };
   return { rows, total, avg: { name: "Promedio", margen: _r1(avgM), capital: _mean(rows, (r) => r.capital), rotacion: _r1(_mean(rows, (r) => r.rotacion)), gap: 0, accion: "—", _ref: true } };
@@ -118,7 +127,7 @@ function _marcas(s) {
   const rows = marcasMargen.map((m) => {
     const v = V.find((x) => x.nombre === m.nombre);
     const gap = _r1((m.margen || 0) - avgM);
-    return { name: m.nombre, ventas: v ? v.actual : m.venta, acciones: m.rebates, contribucion: m.contribucion || 0, margen: _r1(m.margen || 0), gap, accion: gap <= -3 ? "revisar mix" : "sostener", alert: false };
+    return { name: m.nombre, ventas: v ? v.actual : m.venta, acciones: m.rebates, contribucion: m.contribucion || 0, margen: _r1(m.margen || 0), gap, accion: gap <= -3 ? "revisar mix" : "sostener", alert: false, ..._vara(m.margen, m) };
   });
   const tV = _sum(rows, (r) => r.ventas), tC = _sum(rows, (r) => r.contribucion);
   const total = { name: "Total", ventas: tV, contribucion: tC, margen: tV ? _r1(tC / tV * 100) : _r1(avgM), gap: null, accion: "", _total: true };

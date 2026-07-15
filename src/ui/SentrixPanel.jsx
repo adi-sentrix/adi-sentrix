@@ -19,6 +19,7 @@ import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catál
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
+import { buildMesaEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" (reusa diagnose/POLICY/temporal · una verdad)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
@@ -1114,7 +1115,17 @@ const _MESA_FOCO_ASK = {
 function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const scenario = (evidence && evidence.periodo) || "bonanza";
   const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
+  // MESA 2.0 · PASE 1 (owner 2026-07-14): el estado contra TU vara + la acción priorizada + el movimiento del
+  // período — todo del módulo (mesa.js reusa diagnose/POLICY/temporal · cero cálculo acá).
+  const mesa = React.useMemo(() => buildMesaEstado(scenario), [scenario]);
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
+  // header de MOVIMIENTO (el sello entender→explicar→actuar): número celeste + título ejecutivo + su "i"
+  const MovHead = ({ num, title, def }) => (
+    <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
+      {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
+    </div>
+  );
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -1133,21 +1144,48 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· ADI al lado — cada fila es una pregunta</span></div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
-        {/* KPIs del período (misma verdad que el hero) */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))", gap:9 }}>
-          {resumen.kpis.map((k, i) => (
-            <div key={i} style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
-              <div style={{ fontSize:10.5, color:C.textMuted, marginBottom:4 }}>{k.label}</div>
-              <div style={{ fontSize:16, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{k.value}</div>
-            </div>
-          ))}
-        </div>
-        {/* la LECTURA de ADI + los focos del día (el diagnóstico vivo · click abre esa conversación) */}
+        {/* ── 01 · QUÉ ESTÁ PASANDO · la lectura de ADI + los KPIs con su estado contra TU vara (Mesa 2.0) ── */}
         <div>
+          <MovHead num="01" title="Qué está pasando" def={"El pulso del período: la lectura de ADI y los KPIs con su estado contra TU vara (verde = en línea · ámbar = atención · rojo = fuera). La vara es tu criterio: si fijaste tu margen mínimo en la conversación, el semáforo lo respeta. Tocá un KPI y ADI abre ese frente al lado."}/>
           <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
             <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{resumen.lectura}
           </div>
-          {(resumen.focos || []).length > 0 && (
+          {/* KPIs del período (misma verdad que el hero) + semáforo y línea contra la vara · cada estado es una pregunta */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9 }}>
+            {resumen.kpis.map((k, i) => { const e = mesa.estados[k.key]; const col = e ? semCol[e.estado] : null; return (
+              <button key={i} onClick={onAsk && e ? () => onAsk(e.ask) : undefined}
+                title={onAsk && e ? `Preguntale a ADI: ${e.ask}` : undefined}
+                style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && e ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
+                onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
+                onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
+                  <span style={{ fontSize:10.5, color:C.textMuted }}>{k.label}</span>
+                  {col && <span style={{ width:7, height:7, borderRadius:"50%", background:col, boxShadow:`0 0 6px ${col}aa`, flexShrink:0 }}/>}
+                </div>
+                <div style={{ fontSize:16, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{k.value}</div>
+                {e && <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.35 }}>{e.linea}</div>}
+              </button>
+            ); })}
+          </div>
+        </div>
+        {/* ── QUÉ CAMBIÓ · el movimiento del período (movers + trayectoria anclada + entradas/salidas del 80/20) ── */}
+        {mesa.cambios.length > 0 && (
+          <div>
+            <MovHead title="Qué cambió" def={"El movimiento del período: quién sube y quién cede en venta contra el año anterior, la trayectoria de contribución del año (la misma serie de la ficha — cierra exacto con el cuadro) y las entradas/salidas del grupo 80/20. Tocá una línea y ADI la abre al lado."}/>
+            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+              {mesa.cambios.map((c, i) => (
+                <AskRow key={i} onAsk={onAsk} q={c.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
+                  <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>›</span>
+                  <span>{c.texto}</span>
+                </AskRow>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* ── 02 · POR QUÉ PASA · los focos del diagnose con su $ (click abre esa conversación) ── */}
+        <div>
+          <MovHead num="02" title="Por qué pasa" def={"Los focos del diagnóstico con su valor: dónde se pierde margen o se inmoviliza capital — las mismas cuentas que las respuestas de ADI (una sola verdad). Tocá un foco y ADI lo desglosa al lado."}/>
+          {(resumen.focos || []).length > 0 ? (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
               {resumen.focos.map((f, i) => (
                 <button key={i} onClick={onAsk ? () => onAsk(_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?") : undefined}
@@ -1160,17 +1198,41 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
                 </button>
               ))}
             </div>
+          ) : (
+            <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin focos materiales en el dato del período — el margen y el capital corren en línea.</div>
           )}
         </div>
-        {/* ORDEN ÚNICO (owner 2026-07-10 · "un panel de Sentrix único"): cards → cuadro → click en una fila abre la
-            FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
-            El 80/20 suelto se fue de acá: ahora vive CONTEXTUALIZADO adentro de la ficha — el principio no se
-            pierde, gana foco (se ve exactamente dónde pesa la cuenta que estás mirando). */}
+        {/* ── 03 · QUÉ HACER PRIMERO · LA acción priorizada del diagnose + "Armame el plan" ── */}
         <div>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica (el 80/20 donde pesa, su perfil contra el promedio y su evolutivo mensual). Con DOS filas seleccionadas, la comparación A vs B."} align="left"/></div>
+          <MovHead num="03" title="Qué hacer primero" def={"LA acción priorizada: el foco más grande del diagnóstico, con su medida y su valor en juego. \"Armame el plan\" le pide a ADI el paso a paso sobre ese frente."}/>
+          {mesa.accion ? (
+            <div style={{ ...CARD_SIDES, borderRadius:12, padding:"13px 15px", background:"rgba(255,255,255,0.025)" }}>
+              <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginBottom:6 }}>
+                <span style={{ fontSize:13, color:C.text, fontWeight:600 }}>{mesa.accion.titulo}</span>
+                <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{mesa.accion.usdFmt}</span>
+              </div>
+              <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, marginBottom:10 }}>{mesa.accion.detalle}</div>
+              {onAsk && (
+                <button onClick={() => onAsk(mesa.accion.ask)} title={`Preguntale a ADI: ${mesa.accion.ask}`}
+                  style={{ padding:"7px 14px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
+                  {mesa.accion.askLabel} <span style={{ color:C.celeste }}>→</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin una acción urgente sobre la mesa — cuando aparezca un foco material, acá va la primera medida.</div>
+          )}
+        </div>
+        {/* ORDEN ÚNICO (owner 2026-07-10 · "un panel de Sentrix único"): movimientos → cuadro → click en una fila abre
+            la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
+            El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
+        <div>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: ordená por cualquier columna, filtrá (Top 10 · Peores 10 · En alerta · buscador) y tocá UNA fila para abrir su ficha gráfica (el 80/20 donde pesa, su perfil contra el promedio y su evolutivo mensual). Con DOS filas seleccionadas, la comparación A vs B. El chevron del margen marca tu vara: verde en línea, ámbar cerca, rojo bajo."} align="left"/></div>
           <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk}/>
         </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa es tu negocio en vivo: la lectura y los focos son de ADI (mismas cuentas que sus respuestas — una sola verdad), y el cuadro se ordena, se busca y se filtra. Tocá una fila y se abre su ficha gráfica; tocá un foco y ADI te lo desglosa al lado. Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu vara), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
       </div>
     </div>
   );
@@ -1699,8 +1761,10 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
   );
   const actionColor = (a) => (/revisar|renegociar|liquidar|acelerar|precio|mix|lento/.test(a) ? C.amber : /referencia/.test(a) ? C.green : C.textMuted);
   // ICONO DE ESTADO del margen (owner: el margen con icono, no color en el número · identifica rojo/ámbar/verde) ·
-  // chevron ↑ verde (sobre el prom) · — ámbar (parejo) · ↓ rojo (bajo el prom) · con glow, premium.
-  const statusOf = (r) => (r.gap == null ? null : r.gap >= 0 ? "g" : r.gap <= -3 ? "r" : "a");
+  // MESA 2.0 (owner 2026-07-14): el semáforo es contra TU VARA (benchmarkOf · criterio C.2 · misma brecha material
+  // del detector — viene calculado del módulo cuadro.js, cero cálculo acá) · fallback vs-prom para filas sin vara.
+  const statusOf = (r) => (r.vara ? { verde: "g", ambar: "a", rojo: "r" }[r.vara] : r.gap == null ? null : r.gap >= 0 ? "g" : r.gap <= -3 ? "r" : "a");
+  const varaTitle = (r) => (r.varaGap == null ? undefined : `${Math.abs(r.varaGap)} pp ${r.varaGap >= 0 ? "sobre" : "bajo"} tu vara (${r.varaRef}%)${mesa && onAsk ? " · click y ADI lo abre" : ""}`);
   const statusCol = { g: C.green, a: C.amber, r: C.red };
   const MargenIcon = ({ st }) => (st ? (
     <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke={statusCol[st]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ filter:`drop-shadow(0 0 3px ${statusCol[st]}88)`, flexShrink:0 }}>
@@ -1778,7 +1842,10 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
                 {cols.map((c) => c.key === "accion" ? (
                   <span key={c.key} style={{ fontSize:11, color:actionColor(r.accion), whiteSpace:"nowrap" }}>{r.accion}</span>
                 ) : c.key === "margen" ? (
-                  <span key={c.key} style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                  // estado contra la vara: tooltip "X pp bajo tu vara" + click = pregunta a ADI por esa cuenta (Mesa 2.0)
+                  <span key={c.key} title={varaTitle(r)}
+                    onClick={mesa && onAsk && r.varaGap != null ? (e) => { e.stopPropagation(); onAsk(r.varaGap < 0 ? `¿Por qué ${r.name} cede margen?` : `Profundiza en ${r.name}`); } : undefined}
+                    style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6, ...(mesa && onAsk && r.varaGap != null ? { cursor:"pointer" } : {}) }}>
                     <MargenIcon st={statusOf(r)}/><Num color={C.text}>{fmt(c, r[c.key])}</Num>
                   </span>
                 ) : (
@@ -1816,7 +1883,7 @@ function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = 
         ? <MesaCompare a={sel[0]} b={sel[1]} rowA={cm.rows.find((r) => r.name === sel[0])} rowB={cm.rows.find((r) => r.name === sel[1])} columns={cm.columns} dim={dim} scenario={scenario} onAsk={onAsk}/>
         : (dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null))}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → comparación)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu vara (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null}{mesa && onAsk ? <> · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );

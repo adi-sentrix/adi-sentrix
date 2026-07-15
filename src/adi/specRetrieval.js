@@ -210,7 +210,7 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
  * (margen/carga @sku/@marca son base-only → NO se tocan acá). Umbrales SIEMPRE desde POLICY (nunca literales) → el
  * diagnose no puede citar un target distinto al resto de ADI. Sin focos materiales → null (el seam degrada honesto). */
 const _DIAG_FLOOR_USD = 50000;   // piso de materialidad de focos comerciales ($ · evita el ruido de clientes chicos)
-const _DIAG_MARGIN_GAP = 4;      // gate del detector de margen (pp bajo benchmark · = gate quality-growth del motor)
+const _DIAG_MARGIN_GAP = POLICY.margenBrechaMaterial;   // gate del detector de margen (pp bajo benchmark · = gate quality-growth del motor) · vive en POLICY (una verdad con el semáforo de la Mesa)
 const _DIAG_TOPN = 5;
 
 // fuente+campo declarados por el CONTRATO para una métrica@eje (si el ERP remapea la fuente, el diagnose la sigue)
@@ -1657,11 +1657,12 @@ export function buildResumenEjecutivo(scenario) {
   const _sum = (arr, f) => arr.reduce((s, r) => s + (typeof r[f] === "number" ? r[f] : 0), 0);
   const ventasK = _sum(cv, "actual"), ventaBaseK = _sum(cm, "venta"), contribK = _sum(cm, "contribucion"), capital = _sum(inv, "stockUSD");
   const margenProm = ventaBaseK ? (contribK / ventaBaseK) * 100 : 0;
+  // `key` (Mesa 2.0 · aditivo): el semáforo de la Mesa (buildMesaEstado) se une por key, no por label ni orden.
   const kpis = [
-    { label: "Ventas del período",    value: _money(ventasK * 1000) },
-    { label: "Margen promedio",       value: `${margenProm.toFixed(1)}%` },
-    { label: "Contribución",          value: _money(contribK * 1000) },
-    { label: "Capital en inventario", value: _money(capital) },
+    { key: "ventas",       label: "Ventas del período",    value: _money(ventasK * 1000) },
+    { key: "margen",       label: "Margen promedio",       value: `${margenProm.toFixed(1)}%` },
+    { key: "contribucion", label: "Contribución",          value: _money(contribK * 1000) },
+    { key: "capital",      label: "Capital en inventario", value: _money(capital) },
   ];
   // LECTURA: sale de los focos del diagnose (mismo motor · data-driven) · si no hay fugas materiales, lo dice honesto
   const diag = composeSpecDiagnose({ filters: {}, scenario });

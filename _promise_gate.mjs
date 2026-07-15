@@ -11,11 +11,12 @@ fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
+  'export { buildMesaEstado } from "./src/adi/sentrix/mesa.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C } = M;
+const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, buildMesaEstado: MB } = M;
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 
@@ -72,6 +73,22 @@ for (const s of [
   "¿Cómo está ABC en ventas y contribución?",
   "¿Cómo está SAM-TV55 en ventas y contribución?",
 ]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:ficha" });
+// + PROMESAS DE LA MESA 2.0 (owner 2026-07-14 · sello + semáforo contra la vara + "qué cambió"): las preguntas que
+// la Mesa ofrece se cosechan del MÓDULO REAL (buildMesaEstado) por escenario — si el dato mueve la entidad nombrada,
+// el gate prueba la pregunta que la UI de verdad va a disparar. + las fijas: los focos (_MESA_FOCO_ASK, en prod
+// desde la Mesa 1.0, ahora lockeadas) y el semáforo del cuadro por eje (cede-margen instanciada por dimensión).
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  let me; try { me = MB(sc); } catch { continue; }
+  for (const [k, e] of Object.entries(me.estados || {})) if (e && e.ask && !promesas.has(e.ask)) promesas.set(e.ask, { lastEv: null, emisor: `mesa2:estado-${k}@${sc}` });
+  if (me.accion && me.accion.ask && !promesas.has(me.accion.ask)) promesas.set(me.accion.ask, { lastEv: null, emisor: `mesa2:plan@${sc}` });
+  for (const c of (me.cambios || [])) if (c.ask && !promesas.has(c.ask)) promesas.set(c.ask, { lastEv: null, emisor: `mesa2:cambio-${c.key}@${sc}` });
+}
+for (const s of [
+  "¿Quiénes están bajo el margen mínimo?",
+  "¿Cuánta carga comercial puedo recuperar?",
+  "¿Dónde está detenido mi capital?",
+  "¿Por qué Samsung cede margen?",
+]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:mesa2" });
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·
 // compare-basura — la forma exacta que rompió "¿es por volumen o por precio?" el 2026-07-09). La red
