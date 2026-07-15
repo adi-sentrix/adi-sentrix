@@ -83,7 +83,8 @@ ok("el ranking del MES difiere del anual (PHI-SHAVER9 arriba, no SAM-TV55)", rMe
 // SCOPE DECLARADO (invitado 2026-07-09: "stock inmovilizado en Concepción" respondía el GLOBAL en silencio)
 const rConce = ans(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "frenado", filters: { bodega: "Concepción" } }));
 ok("bodega sin frenado → respuesta SOBRE ESE ALCANCE (nombra Concepción), jamás el global en silencio", /En Concepción/i.test(rConce) && !/Valpara[ií]so \$25K/.test(rConce));
-ok("…y declara la vara (rotación/120 días) con oferta de seguir", /rotaci[oó]n bajo 2x|120 d[ií]as/i.test(rConce) && /estado completo/i.test(rConce));
+// revisión de la Mesa 2026-07-14: el alcance sano ya no responde solo el vacío — da el MONTO total y su estado
+ok("…y declara la vara (rotación/120 días) CON el monto total del alcance", /rotaci[oó]n bajo 2x|120 d[ií]as/i.test(rConce) && /\$19K de capital/.test(rConce));
 
 console.log(`\n── _inventory_focus_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

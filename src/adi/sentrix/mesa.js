@@ -175,7 +175,32 @@ export function buildMesaEstado(scenario) {
  * bodega → su capital). Si la entidad no está en el dato del período, el item lo dice honesto (sinDato). */
 const _WL_DIMS = { cliente: "Cliente", sku: "SKU", marca: "Marca", bodega: "Bodega" };
 const _p1 = (v) => (Math.round((Number(v) || 0) * 10) / 10).toFixed(1);
-function _wlItem(dim, r) {
+// UMBRAL ≠ MATERIALIDAD (revisión de contrato de la Mesa 2026-07-14: Mercado Libre 1.1 pp bajo la vara → la
+// watchlist ofrecía "¿Por qué cede margen?" y el why respondía VACÍO — el semáforo y el porqué usaban dos varas):
+// el ask del porqué se ofrece SOLO si el detector del diagnose puede afirmarlo sobre ESA cuenta (la misma cuenta,
+// una verdad — cliente: items de los detectores comerciales · marca: el barrido scopeado por su eje · SKU: su
+// mecanismo por dive siempre responde graduado). Bajo la vara pero inmaterial → el ask multi (cliente/SKU) o los
+// SKU top (marca): la foto completa, que siempre responde.
+function _wlWhyCtx(s) {
+  let cli = null; const marca = {};
+  return {
+    cliente(name) {
+      if (!cli) {
+        cli = new Set();
+        try {
+          const d = composeSpecDiagnose({ filters: {}, scenario: s });
+          for (const f of ((d && d.evidence && d.evidence.findings) || [])) if (f.detector !== "capital") for (const it of f.items) cli.add(it.entidad);
+        } catch { /* sin diagnose → sin porqués */ }
+      }
+      return cli.has(name);
+    },
+    marca(name) {
+      if (!(name in marca)) { try { marca[name] = !!composeSpecDiagnose({ filters: { marca: name }, scenario: s }); } catch { marca[name] = false; } }
+      return marca[name];
+    },
+  };
+}
+function _wlItem(dim, r, why) {
   const base = { dim, dimLabel: _WL_DIMS[dim], nombre: r.name, sinDato: false };
   if (dim === "bodega") {
     const crit = r.alertCount || 0;
@@ -186,12 +211,13 @@ function _wlItem(dim, r) {
       ask: `¿Cuánto capital tengo en ${r.name}?` };
   }
   const bajo = typeof r.varaGap === "number" && r.varaGap < 0;
+  const conPorque = bajo && (dim === "sku" || (dim === "cliente" && why.cliente(r.name)) || (dim === "marca" && why.marca(r.name)));
   return { ...base,
     cifra: `${_p1(r.margen)}%`,
     sub: r.varaGap == null ? "sin vara declarada para este eje"
       : bajo ? `${Math.abs(r.varaGap)} pp bajo tu vara (${r.varaRef}%)` : `${Math.abs(r.varaGap)} pp sobre tu vara (${r.varaRef}%)`,
     vara: r.vara || null,
-    ask: bajo ? `¿Por qué ${r.name} cede margen?`
+    ask: conPorque ? `¿Por qué ${r.name} cede margen?`
       : dim === "marca" ? `¿Cuáles son los SKU que más venden de ${r.name}?`
       : `¿Cómo está ${r.name} en ventas y contribución?` };
 }
@@ -201,9 +227,10 @@ export function buildWatchlistEstado(watchlist, scenario) {
   if (!list.length) return { items: [] };
   const grids = {};
   const rowsOf = (d) => (grids[d] = grids[d] || buildCuadroMando(d, s).rows);
+  const why = _wlWhyCtx(s);
   return { items: list.map((w) => {
     const row = rowsOf(w.dim).find((r) => r.name === w.name);
-    return row ? _wlItem(w.dim, row)
+    return row ? _wlItem(w.dim, row, why)
       : { dim: w.dim, dimLabel: _WL_DIMS[w.dim], nombre: w.name, sinDato: true, cifra: "—", sub: "sin dato en este período", vara: null, ask: null };
   }) };
 }

@@ -562,6 +562,30 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   } else {
     const est = _FOCUS_ESTADO[focus] || "capital_frenado";
     const skus = _skusOf(D, est, critById);
+    // EL MONTO AUNQUE NO HAYA DETENIDO (revisión de contrato de la Mesa 2026-07-14: «¿Cuánto capital tengo en
+    // Concepción?» respondía "no veo capital detenido" SIN el monto): con alcance declarado (bodega/familia/
+    // marca/cliente), la pregunta pide el ESTADO del capital de ese alcance — se responde el total y su salud
+    // contra la vara (las puntas del motor, una verdad), no solo el vacío. Sin alcance, el vacío global sigue
+    // degradando honesto en el seam.
+    if (!skus.length && est === "capital_frenado") {
+      const _scName = filters.bodega || filters.familia || filters.marca || filters.cliente;
+      if (_scName) {
+        const totalCap = rows.reduce((a, r) => a + (typeof r[kSF.field] === "number" ? r[kSF.field] : 0), 0);
+        const puntas = [];
+        if (D.dist.riesgo_quiebre && D.dist.riesgo_quiebre.usd) puntas.push(`${_money(D.dist.riesgo_quiebre.usd)} en riesgo de quiebre (rota rápido y la cobertura no alcanza)`);
+        if (D.dist.sobrestock && D.dist.sobrestock.usd) puntas.push(`${_money(D.dist.sobrestock.usd)} en sobrestock (rota, pero con más cobertura de la necesaria)`);
+        const bol2 = [fig(`Capital · ${_scName}`, _money(totalCap), { unit: "money", raw: totalCap, mandatory: true, context: `capital en ${_scName}` })];
+        for (const p2 of [["riesgo_quiebre", "En riesgo de quiebre"], ["sobrestock", "Sobrestock"]])
+          if (D.dist[p2[0]] && D.dist[p2[0]].usd) bol2.push(fig(`${p2[1]} · ${_scName}`, _money(D.dist[p2[0]].usd), { unit: "money", raw: D.dist[p2[0]].usd, mandatory: false, context: `capital en ${_scName}` }));
+        return {
+          opener: `En ${_scName} tenés ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada detenido según tu vara (rotación bajo ${P.rotacionMin}x o más de ${P.dohMax} días): se está moviendo dentro de rango.` +
+            (puntas.length ? `\n\n**Ojo igual:** ${puntas.join(" · ")} — no es capital detenido, pero conviene mirarlo.` : `\n\nSin señales de quiebre ni sobrestock en ese alcance.`),
+          suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Ver todo el inventario"],
+          sentrixAction: null,
+          evidence: { lens: "inventory", metrica: "capital", dimension: filters.bodega ? "bodega" : "sku", entidad: _scName, boleta: bol2 },
+        };
+      }
+    }
     if (!skus.length) return null;
     const dd = D.dist[est] || { usd: 0, pct: 0, count: 0 };
     const total = dd.usd, byBod = _groupBy(skus, "bodega", total), byFam = _groupBy(skus, "familia", total);
