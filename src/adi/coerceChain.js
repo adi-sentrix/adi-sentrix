@@ -45,6 +45,20 @@ function _cleanFilters(s) {
   return { ...s, filters: Object.keys(f).length ? f : undefined };
 }
 
+// ALCANCE DESDE EL TEXTO (auditoría de asks 2026-07-15): si la pregunta nombra una entidad del canon de los tipos
+// pedidos y el spec no trae ese filtro, el alcance viaja — «los SKU que más venden de Samsung» respondía TODOS los
+// SKU en silencio (mismo patrón que la bodega en _coerceInventory · la pregunta manda el foco). Devuelve filters.
+function _scopeCanonFromText(q, filters, tipos) {
+  const nq = _norm(q);
+  for (const [k, c] of _CANON) {
+    if (!tipos.includes(c.tipo) || k.length < 3) continue;
+    if (filters && filters[c.tipo]) continue;
+    const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) return { ...(filters || {}), [c.tipo]: c.nombre };
+  }
+  return filters;
+}
+
 // COMPARE · verbo explícito de comparación o "contra X". "contra <plan/tiempo>" se desvía a ventas (ver abajo).
 const _CMP_INTENT_RE = /\b(compar[aá]\w*|compár\w*|comparemos|versus|vs\.?)\b|\bcontra\s+\p{L}/iu;
 // "contra/vs/versus/con <plan/tiempo>" (presupuesto/año/plan/mes/mismo período/hace un año…) NO es comparación de entidades
@@ -83,6 +97,9 @@ function _coerceContribucion(q, spec) {
   if (c.focus) s.focus = c.focus;
   if (c.entity) s.entity = c.entity;
   if (s.transform) delete s.transform;
+  // «Top SKU por contribución de Samsung» (botón de la Ficha) respondía TODOS los SKU en silencio: en el eje SKU,
+  // la marca/familia nombrada viaja como filtro — el composer ya sabe aplicarlo (auditoría de asks 2026-07-15).
+  if (s.dimension === "sku") s.filters = _scopeCanonFromText(q, s.filters, ["marca", "familia"]);
   return _cleanFilters(s);
 }
 
@@ -121,6 +138,9 @@ function _coerceVentas(q, spec) {
   if (v.gap) s.gap = v.gap;
   if (v.pivotFocus) s.pivotFocus = v.pivotFocus;
   if (s.transform) delete s.transform;
+  // «¿Cuáles son los SKU que más venden de Samsung?» (chip del cuadro de marcas) respondía TODOS los SKU en
+  // silencio: en el ranking de venta por SKU, la marca/familia nombrada viaja como filtro (skusMargen la trae).
+  if (s.focus === "rank_venta") s.filters = _scopeCanonFromText(q, s.filters, ["marca", "familia"]);
   return _cleanFilters(s);
 }
 
@@ -485,4 +505,22 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   if (hasLast && q && s && _DEICTIC_RE.test(q) && (s.operation === "margin" || s.operation === "contribucion" || s.operation === "ventas" || s.operation === "inventory"))
     return { ...s, _deictic: true };
   return s;
+}
+
+/* ── PISO CON RED (owner 2026-07-15: el click "Ver todo el inventario" de la Mesa cayó al smart-guide genérico —
+ * "se pierde la experiencia") ─────────────────────────────────────────────────────────────────────────────────
+ * Las preguntas que la PROPIA UI emite (tramos/KPIs/chips/cards) son promesas gate-proven de ESTA cadena — pero
+ * el camino sin LLM (demo floor y el fallback con gateway caído) iba directo al parse regex de answerADI, que no
+ * las conoce. coerceFloor corre la MISMA cadena con el spec-base "clarification_needed" (la forma exacta que el
+ * gate de promesas prueba): si algún detector/claim RECLAMA el texto, devuelve el spec ruteado para ejecutar por
+ * answerConversational; si nada reclama, null — y el piso sigue con answerADI (texto libre intacto, byte-exacto).
+ * Puro y gate-testable (la forma "piso" del _promise_gate lo lockea). */
+const _FLOOR_BASE = () => ({ schemaVersion: 1, operation: "clarification_needed", metric: null, dimension: null, entity: null, filters: null });
+export function coerceFloor(q, hasLast, ui = null) {
+  let s;
+  try { s = coerceSpec(q, _FLOOR_BASE(), hasLast, ui); } catch { return null; }
+  if (!s) return null;
+  if (s.operation && s.operation !== "clarification_needed") return s;                 // un dominio/red reclamó (inventory/margin/ventas/…)
+  if (!s.operation && s.turn_type && s.turn_type !== "clarification_needed") return s; // un claim de TURNO reclamó (meta/multi/accept/criteria)
+  return null;
 }

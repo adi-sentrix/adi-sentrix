@@ -10,7 +10,7 @@ const root = process.cwd(); const entry = path.join(root, "_pge.js"), out = path
 fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
-  'export { coerceSpec } from "./src/adi/coerceChain.js";',
+  'export { coerceSpec, coerceFloor } from "./src/adi/coerceChain.js";',
   'export { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js";',
   'export { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";',
   'export { buildMesaCapital, buildCuadroCapital } from "./src/adi/sentrix/mesaCapital.js";',
@@ -18,7 +18,7 @@ fs.writeFileSync(entry, [
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB, buildMesaCapital: MCB, buildCuadroCapital: CCB } = M;
+const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, coerceFloor: CF, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB, buildMesaCapital: MCB, buildCuadroCapital: CCB } = M;
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 
@@ -157,8 +157,28 @@ for (const [texto, meta] of promesas) {
   else { pass++; if (clarifico) clarifs.push({ texto, emisor: meta.emisor }); }
 }
 
+// ── 2b · FORMA "PISO" (owner 2026-07-15 · el click "Ver todo el inventario" de la Mesa cayó al smart-guide
+// genérico con el gateway caído — "se pierde la experiencia"): toda promesa responde TAMBIÉN sin LLM (demo
+// floor / fallback). coerceFloor debe RECLAMAR el texto (null = caería al parse regex) y ejecutar sin degradar. ──
+let pisoPass = 0; const pisoRotas = [];
+for (const [texto, meta] of promesas) {
+  let motivo = null;
+  try {
+    const cs = CF(texto, !!meta.lastEv, null);
+    if (!cs) motivo = "coerceFloor null → caería al parse regex (smart-guide genérico)";
+    else {
+      const r = AC(cs, { lastEvidence: meta.lastEv }, { scenario: "bonanza" });
+      const t = (r && r.text) || "";
+      if (!t.trim() || /^spec_blocked_/.test(r.route || "") || ROTA_RE.test(t.trim())) motivo = `[${r.route}] ${t.slice(0, 80)}`;
+    }
+  } catch (e) { motivo = "THROW " + String(e && e.message).slice(0, 60); }
+  if (motivo) pisoRotas.push({ texto, emisor: meta.emisor, motivo }); else pisoPass++;
+}
+
 console.log(`── _promise_gate: ${promesas.size} promesas cosechadas de ${EMISORES.length} respuestas ──`);
-console.log(`   CUMPLIDAS ${pass - clarifs.length} · CLARIFICAN ${clarifs.length} (toleradas) · ROTAS ${rotas.length}\n`);
+console.log(`   CUMPLIDAS ${pass - clarifs.length} · CLARIFICAN ${clarifs.length} (toleradas) · ROTAS ${rotas.length}`);
+console.log(`   FORMA PISO (sin LLM): ${pisoPass} responden · ${pisoRotas.length} rotas\n`);
 if (clarifs.length) { console.log("~ clarifican (revisar a futuro):"); clarifs.forEach((c) => console.log(`   «${c.texto}» (de ${c.emisor})`)); console.log(""); }
 if (rotas.length) { console.log("✗ PROMESAS ROTAS:"); rotas.forEach((c) => console.log(`   «${c.texto}» (de ${c.emisor}) → ${c.motivo}`)); }
-process.exit(rotas.length ? 1 : 0);
+if (pisoRotas.length) { console.log("✗ ROTAS EN EL PISO (sin LLM):"); pisoRotas.forEach((c) => console.log(`   «${c.texto}» (de ${c.emisor}) → ${c.motivo}`)); }
+process.exit(rotas.length || pisoRotas.length ? 1 : 0);
