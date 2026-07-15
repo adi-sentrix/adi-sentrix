@@ -37,7 +37,7 @@ EMISORES.push(S({ operation: "compare", metric: "margen", dimension: "cliente", 
 for (const f of ["vs_anterior", "vs_presupuesto", "descomposicion_vol_precio", "caida_clientes", "rank_venta"]) EMISORES.push(S({ operation: "ventas", metric: "ventas", dimension: "cliente", focus: f }));
 for (const f of ["bajo_benchmark", "palancas", "subir_precio", "causa_precio", "causa_costo", "alto_volumen_bajo_margen"]) EMISORES.push(S({ operation: "margin", metric: "margen", dimension: "cliente", focus: f }));
 for (const f of ["concentracion", "no_capturada"]) EMISORES.push(S({ operation: "contribucion", metric: "contribucion", dimension: "cliente", focus: f }));
-for (const f of ["frenado", "quiebre", "sobrestock", "top_sellers", "mas_vendidos_mes"]) EMISORES.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: f }));
+for (const f of ["frenado", "quiebre", "sobrestock", "top_sellers", "mas_vendidos_mes", "estado"]) EMISORES.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: f }));
 // SIMULATE (S1/S2 · 2026-07-15): las sugerencias de las proyecciones también son promesas
 EMISORES.push(S({ operation: "simulate", metric: "ventas", dimension: "cliente", transform: { kind: "assumption", op: "delta", value: 3, unit: "pct", base: "real" } }));
 EMISORES.push(S({ operation: "simulate", metric: "carga", dimension: "cliente", simAction: "carga_target" }));

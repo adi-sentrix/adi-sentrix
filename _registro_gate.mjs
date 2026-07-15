@@ -70,7 +70,8 @@ SPECS.push(S({ operation: "recommend", metric: "margen", dimension: "cliente" })
 for (const f of ["vs_anterior", "vs_presupuesto", "descomposicion_vol_precio", "caida_clientes", "rank_venta", "precio_realizado", "mix_familia"]) SPECS.push(S({ operation: "ventas", metric: "ventas", dimension: "cliente", focus: f }));
 for (const f of ["bajo_benchmark", "palancas", "subir_precio", "causa_precio", "causa_costo", "alto_margen_subpenetrado", "alto_volumen_bajo_margen", "stock_bajo_margen"]) SPECS.push(S({ operation: "margin", metric: "margen", dimension: "cliente", focus: f }));
 for (const f of ["concentracion", "no_capturada", "origen", "alta_venta_baja_contribucion", "rank"]) SPECS.push(S({ operation: "contribucion", metric: "contribucion", dimension: "cliente", focus: f }));
-for (const f of ["frenado", "quiebre", "sobrestock", "top_sellers", "mas_vendidos_mes"]) SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: f }));
+for (const f of ["frenado", "quiebre", "sobrestock", "top_sellers", "mas_vendidos_mes", "estado"]) SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: f }));
+SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "estado", filters: { bodega: "Concepción" } }));
 SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "stale", staleDays: 90 }));
 SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "bodega", focus: "frenado" }));
 SPECS.push(S({ operation: "inventory", metric: "capital", dimension: "sku", focus: "frenado", filters: { bodega: "Concepción" } }));
