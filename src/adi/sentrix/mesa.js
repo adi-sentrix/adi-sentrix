@@ -164,7 +164,28 @@ export function buildMesaEstado(scenario) {
     items: aItems,
   };
 
-  return { vara, estados: { ventas, margen, contribucion, capital }, accion, cambios, alertas };
+  // ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14 "sí, continúa") · 2-3 supuestos accionables DATA-DRIVEN con su Δ ──
+  // Cada supuesto es una PREGUNTA (anti-BI): el click dispara la proyección real por ADI (la red del "¿qué pasa
+  // si…?" del coerce · gate-proven por _promise_gate). Los Δ salen de los detectores del diagnose y del total de
+  // venta del período — cero cálculo nuevo salvo el 3% ilustrativo (efecto directo · doctrina supuesto ≠ dato).
+  const simulaciones = [];
+  if (cg) simulaciones.push({
+    key: "carga", delta: `+${_money(cg.subtotal_usd)}`,
+    texto: `Si la carga comercial vuelve a tu target (${POLICY.targetCarga}%), ${_money(cg.subtotal_usd)} al año vuelven al margen.`,
+    ask: "¿Qué pasa si llevo la carga comercial al target?",
+  });
+  if (ventasK) simulaciones.push({
+    key: "ventas3", delta: `+${_moneyK(ventasK * 0.03)}`,
+    texto: `Si las ventas suben un 3%, entran ${_moneyK(ventasK * 0.03)} más sobre el dato real.`,
+    ask: "¿Qué pasa si las ventas suben un 3%?",
+  });
+  if (cap) simulaciones.push({
+    key: "capital", delta: _money(cap.subtotal_usd),
+    texto: `Si liberás el capital detenido, ${_money(cap.subtotal_usd)} de caja vuelven a trabajar.`,
+    ask: "¿Qué pasa si libero el capital detenido?",
+  });
+
+  return { vara, estados: { ventas, margen, contribucion, capital }, accion, cambios, alertas, simulaciones: simulaciones.slice(0, 3) };
 }
 
 /* ── WATCHLIST "lo que yo sigo" (PASE 2 · owner 2026-07-14) ──────────────────────────────────────────────────────

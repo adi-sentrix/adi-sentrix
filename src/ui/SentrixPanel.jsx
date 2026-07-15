@@ -1293,6 +1293,22 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin una acción urgente sobre la mesa — cuando aparezca un foco material, acá va la primera medida.</div>
           )}
         </div>
+        {/* ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14): supuestos accionables sobre el dato real — cada línea es una
+            pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo) ── */}
+        {(mesa.simulaciones || []).length > 0 && (
+          <div>
+            <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta una acción sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta, liberar el capital detenido. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado."}/>
+            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+              {mesa.simulaciones.map((s, i) => (
+                <AskRow key={i} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
+                  <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
+                  <span style={{ flex:1 }}>{s.texto}</span>
+                  <span style={{ fontFamily:MONO, fontSize:12, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{s.delta}</span>
+                </AskRow>
+              ))}
+            </div>
+          </div>
+        )}
         {/* ORDEN ÚNICO (owner 2026-07-10 · "un panel de Sentrix único"): movimientos → cuadro → click en una fila abre
             la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
             El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
