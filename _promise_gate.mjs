@@ -70,6 +70,11 @@ for (const s of [
   "¿De dónde saca Falabella su contribución?", "¿De dónde saca SAM-TV55 su contribución?",
   "¿Por qué Falabella cede margen?", "¿Por qué SAM-TV55 cede margen?",
   // Pareto reflejo de la tabla (owner 2026-07-10): negocio por métrica + composición de marca/familia por SKU
+  // + el botón pregunta LO QUE MUESTRA (owner 2026-07-15): la concentración de VENTA por eje (foco nuevo de ventas)
+  "¿Qué clientes explican el 80% de mi venta?",
+  "¿Qué marcas explican el 80% de mi venta?",
+  "¿Qué familias explican el 80% de mi venta?",
+  "¿Qué SKU explican el 80% de mi venta?",
   "¿Quiénes son mis principales clientes por venta?",
   "¿Cuáles son mis principales marcas por venta?",
   "¿Cuáles son los SKU que más venden?",

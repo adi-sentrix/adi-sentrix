@@ -54,6 +54,9 @@ function _focusDim(focus, dim) {
 export function detectVentasFocus(q) {
   const t = String(q || "");
   if (!VENTAS_INTENT_RE.test(t)) return { isVentas: false };
+  // CONCENTRACIÓN DE VENTA (80/20 de la Mesa · owner 2026-07-15: el botón pregunta LO QUE MUESTRA) — corre ANTES
+  // del cede a simulación: "el 80%" acá es la REFERENCIA del Pareto, no un supuesto a proyectar.
+  if (/explica\w*\s+el\s+80|80\s*[\/\-]\s*20.*venta|venta\w*\s+.*concentr\w*|concentr\w*\s+.*venta/i.test(t)) return { isVentas: true, focus: "concentracion", dimension: _dim(t) };
   if (SIM_PCT_RE.test(t)) return { isVentas: false };
   const dim = _dim(t);
   // sucursal como SUJETO ANTES de ceder a inventario (Q10 dice "pese a stock" pero es de sucursal, no de inventario)

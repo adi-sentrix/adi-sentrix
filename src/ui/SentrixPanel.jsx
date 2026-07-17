@@ -1204,7 +1204,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
               return (
               <button key={i} onClick={esCapital ? () => setCara("capital") : onAsk && e ? () => onAsk(e.ask) : undefined}
                 title={esCapital ? "Ver la cara Capital de la Mesa" : onAsk && e ? `Preguntale a ADI: ${e.ask}` : undefined}
-                style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && e ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
+                style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && e ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
                 onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
                 onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
@@ -1427,7 +1427,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         {cap.kpis.map((k) => { const col = semCol[k.estado]; return (
           <button key={k.key} onClick={onAsk && k.ask ? () => onAsk(k.ask) : undefined}
             title={onAsk && k.ask ? `Preguntale a ADI: ${k.ask}` : undefined}
-            style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && k.ask ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
+            style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && k.ask ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
             onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
             onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
@@ -2787,8 +2787,10 @@ const _FICHA_STORY_Q = {
 // (marca/familia → sus SKU, dato real); cliente/SKU no tienen matriz transaccional → dónde pesa + se declara.
 // El botón ADI (esquina derecha) interpreta EXACTAMENTE lo que el gráfico muestra en ese momento.
 const _PARETO_PLURAL = { cliente: "clientes", marca: "marcas", familia: "familias", sku: "SKU" };
+// el botón pregunta LO QUE EL GRÁFICO MUESTRA (owner 2026-07-15: "que ADI explique lo que ve" — el 80/20, no un
+// ranking): en ventas, el foco concentracion del composer de ventas responde con LA MISMA cuenta del gráfico.
 const _PARETO_NEG_Q = {
-  ventas:       { cliente: "¿Quiénes son mis principales clientes por venta?", marca: "¿Cuáles son mis principales marcas por venta?", familia: "¿Cuáles son mis principales familias por venta?", sku: "¿Cuáles son los SKU que más venden?" },
+  ventas:       { cliente: "¿Qué clientes explican el 80% de mi venta?", marca: "¿Qué marcas explican el 80% de mi venta?", familia: "¿Qué familias explican el 80% de mi venta?", sku: "¿Qué SKU explican el 80% de mi venta?" },
   contribucion: { cliente: "¿En cuántos clientes se concentra mi contribución?", marca: "¿En cuántas marcas se concentra mi contribución?", familia: "¿En cuántas familias se concentra mi contribución?", sku: "¿En cuántos SKU se concentra mi contribución?" },
 };
 const _btnADI = (onClick, label) => (

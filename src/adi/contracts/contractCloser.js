@@ -317,13 +317,15 @@ const _CAMINO = {
   capital: "liberar el capital detenido y ponerlo a trabajar — probado por el dato",
 };
 function _closeRecommendGoal(resp, goal, F, focoLines) {
-  const letras = ["A", "B", "C", "D"];
+  // RUTAS NUMERADAS (owner 2026-07-15: "las rutas deberían ir primero en un texto, segundo en otro — eso da orden"):
+  // el DET las numera 1./2./3. una por línea — el narrador ESPEJA la estructura que recibe (la regla del prompt sola
+  // no alcanzaba: 0/3 corridas numeraban). Antes eran letras A/B/C en prosa.
   const meta = `**Tu meta, anclada al dato:** ${goal.phrase}.`;
   const nF = Math.min(F.length, 3);
   const caminos = F.slice(0, 3).map((f, i) =>
-    `${letras[i]} · ${_CAMINO[f.detector] || f.titulo}.\n${focoLines[i] || ""}`.trim()).join("\n\n");
+    `${i + 1}. **${_CAMINO[f.detector] || f.titulo}.**\n${focoLines[i] || ""}`.trim()).join("\n\n");
   const traccion = goal.mover
-    ? `${letras[nF]} · empujar donde ya hay tracción: ${goal.mover.nombre} es la cuenta que más sube contra el año anterior (${goal.mover.usdFmt} de crecimiento) — crecer ahí no pide abrir mercado nuevo.`
+    ? `${nF + 1}. **Empujar donde ya hay tracción:** ${goal.mover.nombre} es la cuenta que más sube contra el año anterior (${goal.mover.usdFmt} de crecimiento) — crecer ahí no pide abrir mercado nuevo.`
     : null;
   const totalF = F.reduce((s, f) => s + (f.subtotal_usd || 0), 0);
   const cobertura = totalF >= goal.metaUsd

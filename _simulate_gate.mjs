@@ -127,8 +127,8 @@ ok("40 · simulate sin forma reconocible → repregunta EDUCATIVA (enseña % y a
 const rG = sim({ operation: "recommend", metric: "ventas", dimension: "cliente", goal: { pct: 3, dir: "subir" } });
 ok("41 · ancla la meta al dato ('Tu meta' + $ de la meta) y cierra con '¿Por cuál partimos?'",
   /\*\*Tu meta, anclada al dato:\*\*/.test(rG.text) && /¿Por cu[aá]l partimos\?/.test(rG.text));
-ok("42 · caminos cuantificados A/B/C con las líneas del diagnose VERBATIM (cifras autorizadas)",
-  /A · /.test(rG.text) && /B · /.test(rG.text) && /•/.test(rG.text));
+ok("42 · caminos cuantificados NUMERADOS (1./2./…, owner 2026-07-15: 'las rutas con orden') con las líneas del diagnose VERBATIM",
+  /^1\. \*\*/m.test(rG.text) && /^2\. \*\*/m.test(rG.text) && /•/.test(rG.text));
 ok("43 · la meta viaja en boleta (mandatory · source computed · formula '× 3%')",
   (() => { const b = (rG.evidence && rG.evidence.boleta) || []; return b.some((f) => f.mandatory && /Meta · /.test(f.label) && f.source === "computed" && /× 3%/.test(f.formula || "")); })());
 ok("44 · el texto meta-aware pasa su propia boleta + graduación (la causa abierta se declara)",

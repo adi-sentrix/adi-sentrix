@@ -1131,6 +1131,29 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     return { lines, suggestions: ["Crecimiento YoY por familia", "Es por volumen o por precio"], bol, panel };
   }
 
+  if (focus === "concentracion") {
+    // EL 80/20 DE LA VENTA (owner 2026-07-15: el botón del gráfico de la Mesa pregunta EXACTAMENTE lo que muestra —
+    // antes contribución secuestraba la pregunta y respondía OTRA cifra que la del gráfico). concentracion() del
+    // MOTOR sobre las mismas filas del eje (la MISMA llamada del 80/20 de la Mesa · una verdad). Grupos que cierran.
+    const rowsC = rows.filter((r) => typeof r.actual === "number" && r.actual > 0).map((r) => ({ nombre: r.nombre, valor: r.actual }));
+    if (rowsC.length < 2) return null;
+    const con = concentracion(rowsC, 0.8);
+    const totV = rowsC.reduce((s, r) => s + r.valor, 0) || 1;
+    const restN = rowsC.length - con.cantidadEntidades, restPct = +(100 - con.totalCubiertoPct).toFixed(1);
+    const cab = con.entidades.slice(0, 4).map((e) => `${e.nombre} (${_p1(e.participacionPct)}%)`).join(" · ");
+    const lines = [
+      `El ${_p1(con.totalCubiertoPct)}% de tu venta lo explican ${con.cantidadEntidades} de ${rowsC.length} ${L.p}${con.entidades.length > 4 ? `, encabezados por ${cab} — el bloque completo está en el panel` : `: ${cab}`}.`,
+      restN > 0 ? `El resto (${restN} ${L.p}) aporta el ${_p1(restPct)}% de la venta.` : "",
+      `**Qué significa:** ${con.cantidadEntidades <= rowsC.length / 2 ? `tu venta está concentrada en pocas cuentas — cuidar a ${con.cantidadEntidades === 1 ? "esa cuenta" : `esos ${con.cantidadEntidades}`} es prioridad: perder una pega directo en la venta` : "tu venta está bastante repartida — el riesgo por cuenta es menor"}.`,
+    ];
+    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${L.s} · ${e.nombre} venta`, _m(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: "concentración de venta" }));
+    bol.push(fig("Venta total", _m(totV), { unit: "money", raw: totV * 1000, mandatory: false, context: "concentración de venta" }));
+    let accC = 0;
+    const prows = rowsC.slice().sort((a, b) => b.valor - a.valor).map((r) => { accC += r.valor; return { nombre: r.nombre, valFmt: _m(r.valor), part: +(r.valor / totV * 100).toFixed(1), acum: +(accC / totV * 100).toFixed(1) }; });
+    const panel = { kind: "pareto", title: "Quién explica la venta", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rowsC.length, rows: prows };
+    return { lines, suggestions: [`Profundiza en ${con.entidades[0].nombre}`, "¿En cuántos clientes se concentra mi contribución?"], bol, panel };
+  }
+
   if (focus === "rank_venta") {
     // EL ALCANCE VIAJA (auditoría de asks 2026-07-15: «¿Cuáles son los SKU que más venden de Samsung?» — chip del
     // cuadro de marcas — respondía TODOS los SKU en silencio: el scope estaba hardcodeado a {}). skusMargen trae

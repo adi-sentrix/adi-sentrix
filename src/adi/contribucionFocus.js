@@ -38,6 +38,10 @@ export function detectContribucionFocus(q) {
   if (SIM_PCT_RE.test(t)) return { isContrib: false };   // simulación de contribución → la maneja el path de simulación
   // CEDE a inventario: "plata pegada en stock/bodega" es capital inmovilizado, no contribución (salvo que diga contribución/aporta/…)
   if (/\b(stock|inventario|bodeg\w*|mercader)\b/i.test(t) && !/contribuci|aporta|sostien|banca|concentr|80\s*[\/\-%]/i.test(t)) return { isContrib: false };
+  // CEDE a VENTAS (coherencia del 80/20 de la Mesa · owner 2026-07-15): "¿qué clientes explican el 80% de mi VENTA?"
+  // es concentración DE VENTA — si el texto nombra la venta y no la contribución, el foco de ventas responde con SU
+  // métrica (antes contribución la secuestraba y contestaba OTRA cifra que la del gráfico que emitió la pregunta).
+  if (/\bventas?\b/i.test(t) && /explica\w*|concentr\w*|80/i.test(t) && !/contribuci|aporta|sostien|banca|deja|margen/i.test(t)) return { isContrib: false };
   const dim = _dim(t);
   // concentración / quién sostiene / 80-20
   if (/qui[eé]n\s+(la\s+|me\s+)?(sostiene|banca)|banca\w*|sostien\w*|concentr\w*|\b80\s*[\/\-%]|el\s+80\b|mayor\s+parte|pareto|de\s+qui[eé]n\s+depende|amarrad\w*|pegad\w*\s+a\s+(poc|un\s+par)|depend\w*\s+de\s+(poc|un\s+par|cu[aá]ntos)|casi\s+toda\s+(la\s+)?plata|pa\s+la\s+escoba|par\s+de\s+grandes|cu[aá]ntos?\s+(clientes|cuentas).*(banca|sostien|toda|casi)|de\s+cu[aá]ntos/i.test(t)) return { isContrib: true, focus: "concentracion", dimension: dim };
