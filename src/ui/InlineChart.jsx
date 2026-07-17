@@ -234,7 +234,9 @@ function MiniMovers({ panel }) {
 // nombre (la Mesa pone la PLATA) · highlight=nombre destaca ESA columna (la Ficha de entidad). El uso del chat
 // queda byte-igual con los defaults. HOVER CON DATO (owner 2026-07-10: "cuando paso por la curva del 80% debe
 // mostrar el dato — eso con todos los gráficos"): overlay de puntero → tooltip HTML con nombre · $ · part · acum.
-export function MiniPareto({ panel, showTakeaway = true, onPick = null, highlight = null }) {
+// showCum=false (la Mesa · owner 2026-07-15): sin la curva acumulada que cruza las barras — queda SOLO el punto
+// ámbar del corte del 80% (el umbral punteado se mantiene). El uso del chat queda byte-igual con el default.
+export function MiniPareto({ panel, showTakeaway = true, onPick = null, highlight = null, showCum = true }) {
   const uid = useSvgId();
   const [hov, setHov] = useState(null);
   const rows = panel.rows;
@@ -271,13 +273,15 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
               opacity={hov == null || hov === i ? 1 : 0.55}
               style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both` }}/>
           ))}
-          <path d={dCum} fill="none" stroke={C.lav} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
-          <path d={dCum} fill="none" stroke={C.lav} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+          {showCum && <>
+            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+          </>}
           <g style={{ animation: "adiFade 300ms 800ms both" }}>
             <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="5.5" fill={C.amber} opacity="0.2"/>
             <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="2.8" fill={C.amber}/>
           </g>
-          {hov != null && (
+          {hov != null && showCum && (
             <circle cx={xc(hov)} cy={yCum(rows[hov].acum)} r="3.4" fill={C.lav} stroke={KO} strokeWidth="1.5" pointerEvents="none"/>
           )}
           <rect x="0" y="0" width={W} height={H} fill="transparent" style={{ cursor: onPick ? "pointer" : "default" }}
@@ -306,7 +310,9 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
           </div>
         ))}
       </div>
-      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>el punto ámbar marca el corte real · la curva <span style={{ color: C.lav }}>lavanda</span> es el acumulado (la punteada, el umbral del 80%) · pasá el cursor para ver cada dato</div>
+      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>{showCum
+        ? <>el punto ámbar marca el corte real · la curva <span style={{ color: C.lav }}>lavanda</span> es el acumulado (la punteada, el umbral del 80%) · pasá el cursor para ver cada dato</>
+        : <>el punto ámbar marca dónde se llega al 80% (la punteada, el umbral) · pasá el cursor para ver cada dato</>}</div>
     </>
   );
 }

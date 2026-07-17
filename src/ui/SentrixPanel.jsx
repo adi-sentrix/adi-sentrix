@@ -2861,7 +2861,7 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
       <div style={{ fontSize:12, color:C.text, lineHeight:1.5, marginBottom:8, paddingLeft:10, borderLeft:`2px solid ${C.celeste}` }}>
         <b style={{ color:C.celeste }}>{con.blockCount} de {con.n} {con.plural || _PARETO_PLURAL[dim]}</b> explican el <b>{con.blockPct}%</b> de {modo === "composicion" ? <>la {metLabel} de <b>{sel}</b></> : <>tu {metLabel}</>}.
       </div>
-      <MiniPareto showTakeaway={false} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
+      <MiniPareto showTakeaway={false} showCum={false} onPick={onAsk ? (nombre) => onAsk(`Profundiza en ${nombre}`) : null}
         panel={{ totalPct: con.blockPct, cutoff: Math.min(con.blockCount, bars.length), of: con.n,
           rows: bars.map((b) => ({ nombre: b.name, part: +b.pct.toFixed(1), acum: +b.cumPct.toFixed(1), sub: "$" + (b.value / 1000).toFixed(1) + "M" })) }}/>
       {modo === "posicion" && entBar && (
@@ -2968,9 +2968,13 @@ function ComparadoCard({ a = null, rowA = null, b = null, rowB = null, negocio =
               : <path d={dB} fill="none" stroke={C.teal} strokeWidth="1.6" strokeDasharray="0.1 6" strokeLinecap="round" opacity="0.55"/>)}
             <path d={dPath} fill="none" stroke={C.celeste} strokeWidth="5" strokeLinejoin="round" opacity="0.15"/>
             <path d={dPath} fill="none" stroke={C.celeste} strokeWidth="2" strokeLinejoin="round" opacity="0.95"/>
+            {/* puntos por mes en las curvas (owner 2026-07-15 · como el gráfico de evidencia · mismos colores) */}
+            {xs.map((x, i) => <circle key={"pma" + i} cx={x} cy={ys[i]} r="2" fill="#0b0b0b" stroke={C.celeste} strokeWidth="1.5"/>)}
+            {dual && serieB && xs.map((x, i) => <circle key={"pmb" + i} cx={x} cy={y(serieB[i])} r="2" fill="#0b0b0b" stroke={colB} strokeWidth="1.5"/>)}
+            {/* mejor/peor mes MÁS GRUESOS, con el glow del gráfico de evidencia (owner 2026-07-15) */}
             {!dual && <>
-              <circle cx={xs[iMax]} cy={ys[iMax]} r="3.2" fill={C.green} stroke="#0b0b0b" strokeWidth="2"/>
-              <circle cx={xs[iMin]} cy={ys[iMin]} r="3.2" fill={C.red} stroke="#0b0b0b" strokeWidth="2" style={{ animation:"adiBlink 1.5s ease-in-out infinite" }}/>
+              <circle cx={xs[iMax]} cy={ys[iMax]} r="4.2" fill={C.green} stroke="#0b0b0b" strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${C.green}88)` }}/>
+              <circle cx={xs[iMin]} cy={ys[iMin]} r="4.2" fill={C.red} stroke="#0b0b0b" strokeWidth="1.5" style={{ filter:`drop-shadow(0 0 4px ${C.red}88)`, animation:"adiBlink 1.5s ease-in-out infinite" }}/>
             </>}
             <circle cx={xs[n - 1]} cy={ys[n - 1]} r="5" fill={C.celeste} opacity="0.22"/>
             <circle cx={xs[n - 1]} cy={ys[n - 1]} r="2.6" fill={C.celeste}/>
