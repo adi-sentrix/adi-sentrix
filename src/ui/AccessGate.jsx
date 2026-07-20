@@ -5,7 +5,7 @@
  *   · AdminAccess — #admin · el owner emite códigos (nombre + días) con su ADI_ADMIN_KEY · copiar/compartir
  * El piso determinístico corre en el cliente, pero la UI completa queda detrás de la puerta; el LLM además
  * se niega server-side sin código vigente (la protección real de la key). Voz del producto: honesta, sin jerga. */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
 import { DEMO_CONTACT } from "../config/demoAccess.js";
 import { setAccessCode } from "../adi/accessClient.js";
@@ -140,13 +140,51 @@ export function AdminAccess() {
   const [out, setOut] = useState(null);    // { code, name, expiresAt } | { error }
   const [hist, setHist] = useState([]);
 
+  // ── HABILITACIÓN TEMPORAL DE EMISIÓN (owner 2026-07-20) · el grant vive SOLO en memoria (jamás localStorage/URL) ──
+  // La emisión está apagada por defecto; "Habilitar" valida la clave admin contra el server y recibe un grant firmado
+  // de 10 min. op:mint exige ese grant + la clave. El contador cuenta hacia atrás; al vencer se apaga solo.
+  const [grant, setGrant] = useState(null);        // string firmado, en memoria únicamente
+  const [grantExp, setGrantExp] = useState(0);     // timestamp de vencimiento
+  const [left, setLeft] = useState(0);             // segundos restantes (para el contador)
+  const [enBusy, setEnBusy] = useState(false);
+  const [enErr, setEnErr] = useState(null);
+
+  useEffect(() => {
+    if (!grant) { setLeft(0); return; }
+    const tick = () => {
+      const s = Math.max(0, Math.round((grantExp - Date.now()) / 1000));
+      setLeft(s);
+      if (s <= 0) { setGrant(null); setGrantExp(0); }   // autoapagado
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [grant, grantExp]);
+
+  const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  const habilitar = async () => {
+    if (enBusy || !adminKey.trim()) return;
+    setEnBusy(true); setEnErr(null);
+    try { sessionStorage.setItem("adi_admin_key", adminKey.trim()); } catch { /* opcional */ }
+    try {
+      const res = await fetch("/api/adi-access", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "mint_enable", adminKey: adminKey.trim() }) });
+      const d = await res.json();
+      if (d && d.ok && d.grant) { setGrant(d.grant); setGrantExp(d.expiresAt || (Date.now() + 10 * 60 * 1000)); }
+      else setEnErr((d && d.error) || "no se pudo habilitar");
+    } catch { setEnErr("sin conexión con el servidor"); }
+    setEnBusy(false);
+  };
+  const deshabilitar = () => { setGrant(null); setGrantExp(0); };
+
   const emitir = async () => {
-    if (busy || !adminKey.trim() || !name.trim()) return;
+    if (busy || !grant || !adminKey.trim() || !name.trim()) return;
     setBusy(true); setOut(null);
     try { sessionStorage.setItem("adi_admin_key", adminKey.trim()); } catch { /* opcional */ }
     try {
       const res = await fetch("/api/adi-access", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), name: name.trim(), hours: (Number(days) || DEMO_CONTACT.demoDays) * 24 }) });
+        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), grant, name: name.trim(), hours: (Number(days) || DEMO_CONTACT.demoDays) * 24 }) });
       const d = await res.json();
       if (d && d.ok) { setOut(d); setHist((h) => [d, ...h].slice(0, 12)); setName(""); }
       else setOut({ error: (d && d.error) || "no se pudo emitir" });
@@ -163,12 +201,12 @@ export function AdminAccess() {
   const [ownerBusy, setOwnerBusy] = useState(false);
   const [ownerOut, setOwnerOut] = useState(null);
   const accesoOwner = async () => {
-    if (ownerBusy || !adminKey.trim()) return;
+    if (ownerBusy || !grant || !adminKey.trim()) return;
     setOwnerBusy(true); setOwnerOut(null);
     try { sessionStorage.setItem("adi_admin_key", adminKey.trim()); } catch { /* opcional */ }
     try {
       const res = await fetch("/api/adi-access", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), name: "Owner", hours: 24 * 365, owner: true }) });
+        body: JSON.stringify({ op: "mint", adminKey: adminKey.trim(), grant, name: "Owner", hours: 24 * 365, owner: true }) });
       const d = await res.json();
       if (d && d.ok) { setAccessCode(d.code); setOwnerOut(d); }
       else setOwnerOut({ error: (d && d.error) || "no se pudo emitir" });
@@ -190,13 +228,30 @@ export function AdminAccess() {
       </div>
       <div style={{ border:`1px solid ${C.border}`, borderRadius:12, background:C.surface, padding:16, display:"flex", flexDirection:"column", gap:12 }}>
         <div><label style={lbl}>Tu clave de admin (ADI_ADMIN_KEY)</label><input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} style={inp} spellCheck={false}/></div>
+
+        {/* HABILITACIÓN TEMPORAL · apagado por defecto · el grant vive solo en memoria */}
+        {!grant ? (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            <button onClick={habilitar} disabled={enBusy || !adminKey.trim()}
+              style={{ padding:"9px 14px", borderRadius:9, border:`1px solid ${C.borderLight}`, background:C.surfaceAlt, color:C.textSub, fontSize:12.5, fontWeight:600, cursor: adminKey.trim() ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: adminKey.trim() ? 1 : 0.55 }}>
+              {enBusy ? "Habilitando…" : "🔒 Habilitar emisión por 10 minutos"}
+            </button>
+            {enErr && <div style={{ fontSize:11, color:C.red }}>{enErr}</div>}
+          </div>
+        ) : (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"9px 12px", borderRadius:9, border:"1px solid rgba(16,185,129,0.4)", background:"rgba(16,185,129,0.06)" }}>
+            <span style={{ fontSize:12, color:C.green, fontWeight:600 }}>Emisión habilitada · <span style={{ fontFamily:MONO }}>{mmss(left)}</span></span>
+            <button onClick={deshabilitar} style={{ padding:"5px 11px", borderRadius:7, border:`1px solid ${C.borderLight}`, background:"transparent", color:C.textSub, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>Deshabilitar ahora</button>
+          </div>
+        )}
+
         <div style={{ display:"flex", gap:10 }}>
           <div style={{ flex:1 }}><label style={lbl}>Para quién (nombre o empresa)</label><input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && emitir()} style={inp} placeholder="Juan · Empresa X"/></div>
           <div style={{ width:86 }}><label style={lbl}>Días</label><input value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ""))} style={inp}/></div>
         </div>
-        <button onClick={emitir} disabled={busy || !adminKey.trim() || !name.trim()}
-          style={{ padding:"10px 16px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: adminKey.trim() && name.trim() ? 1 : 0.55 }}>
-          {busy ? "Emitiendo…" : "Emitir código →"}
+        <button onClick={emitir} disabled={busy || !grant || !adminKey.trim() || !name.trim()}
+          style={{ padding:"10px 16px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:13, fontWeight:600, cursor: grant ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: grant && adminKey.trim() && name.trim() ? 1 : 0.55 }}>
+          {busy ? "Emitiendo…" : grant ? "Emitir código →" : "Habilitá la emisión primero"}
         </button>
         {out && out.error && <div style={{ fontSize:11.5, color:C.red }}>{out.error}</div>}
         {out && out.code && (
@@ -221,9 +276,9 @@ export function AdminAccess() {
         <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55 }}>
           Un código de <b style={{ color:C.text }}>1 año</b> que queda activado en <b style={{ color:C.text }}>este navegador</b> — no te pide entrada de nuevo. Para el celular, emitilo ahí mismo (misma clave) o copiá este código y pegalo una vez.
         </div>
-        <button onClick={accesoOwner} disabled={ownerBusy || !adminKey.trim()}
-          style={{ padding:"10px 16px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: adminKey.trim() ? 1 : 0.55 }}>
-          {ownerBusy ? "Activando…" : "Activar mi acceso en este navegador (1 año) →"}
+        <button onClick={accesoOwner} disabled={ownerBusy || !grant || !adminKey.trim()}
+          style={{ padding:"10px 16px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.12)", color:C.celeste, fontSize:13, fontWeight:600, cursor: grant ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif", opacity: grant && adminKey.trim() ? 1 : 0.55 }}>
+          {ownerBusy ? "Activando…" : grant ? "Activar mi acceso en este navegador (1 año) →" : "Habilitá la emisión primero"}
         </button>
         {ownerOut && ownerOut.error && <div style={{ fontSize:11.5, color:C.red }}>{ownerOut.error}</div>}
         {ownerOut && ownerOut.code && (

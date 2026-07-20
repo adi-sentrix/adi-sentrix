@@ -3,8 +3,10 @@
  * el mint legítimo del owner funciona bajo el límite. Corre contra gatewayFetch con Requests
  * sintéticos (x-forwarded-for) y env de fixture — NO toca red ni el motor. */
 import { gatewayFetch } from "./src/adi/llm/gatewayFetch.js";
+import { makeMintGrant } from "./src/adi/llm/accessToken.js";
 
 const ENV = { ADI_TOKEN_SECRET: "secret-de-gate-ratelimit", ADI_ADMIN_KEY: "clave-admin-gate-ratelimit-larga", ADI_MINT_ENABLED: "true" };
+const GRANT = (await makeMintGrant(ENV.ADI_TOKEN_SECRET)).grant;   // la emisión exige grant; el rate-limit corre igual antes
 let pass = 0, fail = 0;
 const ok = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name); } else { fail++; console.log("  FAIL " + name); } };
 
@@ -17,7 +19,7 @@ const req = (op, ip, extra = {}, spoofXff = null) => {
 };
 
 // ── 1 · mint legítimo del owner bajo el límite: funciona ──
-const legit = await gatewayFetch(req("mint", "10.0.0.1", { adminKey: ENV.ADI_ADMIN_KEY, name: "Owner Gate" }), ENV);
+const legit = await gatewayFetch(req("mint", "10.0.0.1", { adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Owner Gate" }), ENV);
 ok("mint legítimo bajo el límite → ok:true con código", legit.status === 200 && (await legit.json()).ok === true);
 
 // ── 2 · bruteforce desde una IP: intentos 2..5 responden (auth falla), el 6º da 429 ──
@@ -29,7 +31,7 @@ ok("6º intento de la MISMA IP → 429 (incluso con clave correcta: el límite m
 ok("429 trae retry-after", sexto.headers.get("retry-after") === "600");
 
 // ── 3 · otra IP sigue con su propia ventana ──
-const otraIp = await gatewayFetch(req("mint", "10.0.0.2", { adminKey: ENV.ADI_ADMIN_KEY, name: "Owner Gate 2" }), ENV);
+const otraIp = await gatewayFetch(req("mint", "10.0.0.2", { adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Owner Gate 2" }), ENV);
 ok("IP distinta no hereda el límite → mint ok", otraIp.status === 200 && (await otraIp.json()).ok === true);
 
 // ── 4 · check y status NO pasan por el limitador (el flujo del invitado jamás se frena) ──

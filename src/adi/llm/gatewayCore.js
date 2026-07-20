@@ -12,7 +12,7 @@ import { buildContractMenu, buildParseUserMessage } from "./contractMenu.js";
 import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
-import { verifyAccessCode, makeAccessCode } from "./accessToken.js";
+import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
 // `env` inyectable para runtimes que no exponen process.env global (ej. Cloudflare Workers) · default process.env.
@@ -51,13 +51,23 @@ export async function handleAccess(body = {}, env) {
       ? { ok: true, required: true, name: r.name, expiresAt: r.expiresAt }
       : { ok: false, required: true, reason: r.reason, expiresAt: r.expiresAt || null };
   }
-  if (op === "mint") {
-    // KILL-SWITCH FAIL-CLOSED (owner 2026-07-20): la emisión de códigos está APAGADA salvo ADI_MINT_ENABLED==="true".
-    // Ausente/false/cualquier-otro → bloqueado, ANTES de tocar la clave admin (menos superficie: ni se compara).
-    // El owner la enciende solo mientras emite y la vuelve a apagar. check/status/validación/LLM no se tocan.
-    if (String(e.ADI_MINT_ENABLED) !== "true") return { ok: false, error: "emisión deshabilitada" };
+  // HABILITAR EMISIÓN por 10 min (owner 2026-07-20): valida la clave admin y devuelve un grant temporal firmado.
+  // ADI_MINT_ENABLED es el KILL-SWITCH MAESTRO de emergencia (normalmente "true"; ausente/false → nadie puede habilitar).
+  if (op === "mint_enable") {
+    if (String(e.ADI_MINT_ENABLED) !== "true") return { ok: false, error: "emisión bloqueada" };
     const adminKey = e.ADI_ADMIN_KEY;
-    if (!secret || !adminKey || !body.adminKey || body.adminKey !== adminKey) return { ok: false, error: "sin autorización" };
+    if (!secret || !adminKey || !verifyEq(String(body.adminKey || ""), adminKey)) return { ok: false, error: "sin autorización" };
+    const { grant, expiresAt } = await makeMintGrant(secret, 10 * 60 * 1000);
+    return { ok: true, grant, expiresAt };
+  }
+  if (op === "mint") {
+    // Exige TRES capas: maestro armado + grant temporal vigente + clave admin. El grant (10 min, solo en memoria del
+    // cliente) reemplaza el toggle de Vercel como interruptor operativo cotidiano. check/status/validación/LLM no se tocan.
+    if (String(e.ADI_MINT_ENABLED) !== "true") return { ok: false, error: "emisión bloqueada" };
+    const g = await verifyMintGrant(body.grant, secret);
+    if (!g.ok) return { ok: false, error: "emisión no habilitada" };
+    const adminKey = e.ADI_ADMIN_KEY;
+    if (!adminKey || !body.adminKey || !verifyEq(String(body.adminKey), adminKey)) return { ok: false, error: "sin autorización" };
     const name = String(body.name || "").trim().slice(0, 40) || "invitado";
     // invitados: 1h a 14 días (default 3) · OWNER (owner:true — intención explícita con la MISMA clave admin):
     // hasta 1 año, para no re-emitir su propio acceso cada 3 días (owner 2026-07-10) sin estirar el techo de invitados.

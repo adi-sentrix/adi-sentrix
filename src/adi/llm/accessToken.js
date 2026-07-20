@@ -42,9 +42,42 @@ export async function verifyAccessCode(code, secret, now = Date.now()) {
   const m = String(code || "").trim().match(/^ADI-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/);
   if (!m) return { ok: false, reason: "invalid" };
   const expected = await _hmac(m[1], secret);
-  if (expected !== m[2]) return { ok: false, reason: "invalid" };
+  if (!_ctEq(expected, m[2])) return { ok: false, reason: "invalid" };
   const parsed = parseAccessCode(code);
   if (!parsed) return { ok: false, reason: "invalid" };
   if (now > parsed.expiresAt) return { ok: false, reason: "expired", name: parsed.name, expiresAt: parsed.expiresAt };
   return { ok: true, name: parsed.name, expiresAt: parsed.expiresAt };
+}
+
+// Comparación en TIEMPO CONSTANTE (cierra el LOW de timing del audit): no corta al primer byte distinto.
+// Exportada para reusar en la validación de la clave admin del gateway.
+export function constantTimeEqual(a, b) {
+  const A = _te.encode(String(a)), B = _te.encode(String(b));
+  if (A.length !== B.length) return false;
+  let d = 0;
+  for (let i = 0; i < A.length; i++) d |= A[i] ^ B[i];
+  return d === 0;
+}
+const _ctEq = constantTimeEqual;
+
+// ── AUTORIZACIÓN TEMPORAL DE EMISIÓN (mint grant · owner 2026-07-20) ──────────────────────────────────────────────
+// Firmado como los códigos, pero con prefijo MINT- y tipo "mint" → NO intercambiable con un código de acceso (ADI-).
+// Habilita op:mint por una ventana corta (10 min) sin tocar variables de Vercel. Vive solo en memoria del cliente.
+export async function makeMintGrant(secret, ttlMs = 10 * 60 * 1000, now = Date.now()) {
+  if (!secret) throw new Error("makeMintGrant: falta el secret");
+  const payload = _b64u(_te.encode(JSON.stringify({ t: "mint", exp: now + ttlMs })));
+  const sig = await _hmac(payload, secret);
+  return { grant: `MINT-${payload}.${sig}`, expiresAt: now + ttlMs };
+}
+
+export async function verifyMintGrant(grant, secret, now = Date.now()) {
+  if (!secret) return { ok: false, reason: "invalid" };
+  const m = String(grant || "").trim().match(/^MINT-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/);
+  if (!m) return { ok: false, reason: "invalid" };
+  const expected = await _hmac(m[1], secret);
+  if (!_ctEq(expected, m[2])) return { ok: false, reason: "invalid" };       // firma
+  let p; try { p = JSON.parse(_b64uToStr(m[1])); } catch { return { ok: false, reason: "invalid" }; }
+  if (!p || p.t !== "mint") return { ok: false, reason: "invalid" };          // tipo: no confundible con código de acceso
+  if (typeof p.exp !== "number" || now > p.exp) return { ok: false, reason: "expired" };
+  return { ok: true, expiresAt: p.exp };
 }

@@ -37,28 +37,30 @@ const chk = await handleAccess({ op: "check", access: code }, ENV);
 ok("check: código válido → ok + nombre", chk.ok && chk.name === "Empresa X");
 const chkBad = await handleAccess({ op: "check", access: "ADI-xx.yy" }, ENV);
 ok("check: código inválido → reason invalid", !chkBad.ok && chkBad.reason === "invalid");
-const mintBad = await handleAccess({ op: "mint", adminKey: "equivocada", name: "Y" }, ENV);
+// la emisión ahora exige un GRANT temporal (op:mint_enable) además de la clave (owner 2026-07-20)
+const GRANT = (await handleAccess({ op: "mint_enable", adminKey: ENV.ADI_ADMIN_KEY }, ENV)).grant;
+const mintBad = await handleAccess({ op: "mint", adminKey: "equivocada", grant: GRANT, name: "Y" }, ENV);
 ok("mint: adminKey equivocada → sin autorización", !mintBad.ok);
-ok("mint: sin ADI_ADMIN_KEY en el server → sin autorización (nunca abierto por accidente)", !(await handleAccess({ op: "mint", adminKey: "x", name: "Y" }, { ADI_TOKEN_SECRET: SECRET })).ok);
-const mint = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Cliente Z", hours: 72 }, ENV);
-ok("mint: con la clave del owner → emite código verificable", mint.ok && (await verifyAccessCode(mint.code, SECRET)).ok && (await verifyAccessCode(mint.code, SECRET)).name === "Cliente Z");
+ok("mint: sin ADI_ADMIN_KEY en el server → sin autorización (nunca abierto por accidente)", !(await handleAccess({ op: "mint", adminKey: "x", grant: GRANT, name: "Y" }, { ADI_TOKEN_SECRET: SECRET, ADI_MINT_ENABLED: "true" })).ok);
+const mint = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Cliente Z", hours: 72 }, ENV);
+ok("mint: con grant + clave del owner → emite código verificable", mint.ok && (await verifyAccessCode(mint.code, SECRET)).ok && (await verifyAccessCode(mint.code, SECRET)).name === "Cliente Z");
 // ACCESO DE OWNER (2026-07-10: "que no me pida el código cada vez") · owner:true con la MISMA clave → hasta 1 año;
 // el techo de INVITADOS queda intacto (pedir 365 días sin owner:true → recorta a 14).
-const mintOwner = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Owner", hours: 24 * 365, owner: true }, ENV);
+const mintOwner = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Owner", hours: 24 * 365, owner: true }, ENV);
 ok("mint owner: 1 año permitido y verificable", mintOwner.ok && mintOwner.expiresAt - Date.now() > 300 * 24 * 3600 * 1000 && (await verifyAccessCode(mintOwner.code, SECRET)).ok);
-const mintCap = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Invitado L", hours: 24 * 365 }, ENV);
+const mintCap = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Invitado L", hours: 24 * 365 }, ENV);
 ok("mint invitado: pedir 365 días SIN owner:true → recorta al techo de 14", mintCap.ok && mintCap.expiresAt - Date.now() <= 14 * 24 * 3600 * 1000 + 60000);
-ok("mint owner: SIN la clave admin → sin autorización (owner:true no abre nada solo)", !(await handleAccess({ op: "mint", adminKey: "equivocada", owner: true, hours: 24 * 365 }, ENV)).ok);
+ok("mint owner: SIN la clave admin → sin autorización (owner:true no abre nada solo)", !(await handleAccess({ op: "mint", adminKey: "equivocada", grant: GRANT, owner: true, hours: 24 * 365 }, ENV)).ok);
 
-console.log("── kill-switch ADI_MINT_ENABLED (fail-closed · owner 2026-07-20) ──");
-const ENV_OFF = { ADI_TOKEN_SECRET: SECRET, ADI_ADMIN_KEY: "clave-admin-gate" };   // sin ADI_MINT_ENABLED = apagado
-ok("mint AUSENTE el flag → bloqueado aun con la clave CORRECTA (fail-closed por defecto)", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, ENV_OFF)).ok);
-ok("mint flag='false' → bloqueado", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, { ...ENV_OFF, ADI_MINT_ENABLED: "false" })).ok);
-ok("mint flag='1'/'yes' (no exactamente 'true') → bloqueado (solo 'true' abre)", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, { ...ENV_OFF, ADI_MINT_ENABLED: "1" })).ok);
-ok("mint flag='true' + clave correcta → emite (encendido explícito)", (await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, ENV)).ok);
-ok("mint flag='true' + clave INcorrecta → sigue sin autorización (el switch no salta la auth)", !(await handleAccess({ op: "mint", adminKey: "mala", name: "Z" }, ENV)).ok);
-ok("con mint apagado, check SIGUE funcionando (validación de códigos intacta)", (await handleAccess({ op: "check", access: code }, ENV_OFF)).ok);
-ok("con mint apagado, status SIGUE required:true (la puerta no se afecta)", (await handleAccess({ op: "status" }, ENV_OFF)).required === true);
+console.log("── kill-switch MAESTRO ADI_MINT_ENABLED (emergencia · owner 2026-07-20) ──");
+const ENV_OFF = { ADI_TOKEN_SECRET: SECRET, ADI_ADMIN_KEY: "clave-admin-gate" };   // sin ADI_MINT_ENABLED = maestro apagado
+ok("maestro AUSENTE → mint_enable NO entrega grant (nadie puede habilitar)", !(await handleAccess({ op: "mint_enable", adminKey: "clave-admin-gate" }, ENV_OFF)).ok);
+ok("maestro='false' → mint_enable bloqueado", !(await handleAccess({ op: "mint_enable", adminKey: "clave-admin-gate" }, { ...ENV_OFF, ADI_MINT_ENABLED: "false" })).ok);
+ok("maestro='1' (no exactamente 'true') → mint_enable bloqueado (solo 'true' arma)", !(await handleAccess({ op: "mint_enable", adminKey: "clave-admin-gate" }, { ...ENV_OFF, ADI_MINT_ENABLED: "1" })).ok);
+ok("maestro AUSENTE → mint bloqueado aun con clave correcta (fail-closed)", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", grant: GRANT, name: "Z" }, ENV_OFF)).ok);
+ok("maestro='true' pero SIN grant → 'emisión no habilitada' (el toggle ya no es el interruptor operativo)", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, ENV)).ok);
+ok("con maestro apagado, check SIGUE funcionando (validación de códigos intacta)", (await handleAccess({ op: "check", access: code }, ENV_OFF)).ok);
+ok("con maestro apagado, status SIGUE required:true (la puerta no se afecta)", (await handleAccess({ op: "status" }, ENV_OFF)).required === true);
 
 console.log("── negación del gateway (la protección de la key) ──");
 const den1 = await handleSpec({ text: "cómo va mi margen" }, ENV);
