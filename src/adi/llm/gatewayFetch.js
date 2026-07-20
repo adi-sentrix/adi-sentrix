@@ -5,18 +5,21 @@
  * NO toca el motor · la key vive en el env del server. Errores → {ok:false} y el cliente degrada al piso.
  */
 import { GATEWAY_ROUTES } from "./gatewayCore.js";
+import { ipAddress } from "@vercel/functions";
 
 const _json = (obj, status = 200, extraHeaders = null) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...(extraHeaders || {}) } });
 
-// ── RATE LIMIT DEL BORDE para op:mint (auditoría 2026-07-14 · el MEDIO) ────────────────────────────────────────
-// Ventana deslizante EN ESTE WRAPPER (que sí ve el request/IP) — jamás en handleAccess: la lógica pura la llama
-// _access_gate.mjs sin request y se rompería (gate-safe por diseño). Es defensa en profundidad: la barrera
-// primaria es la entropía de ADI_ADMIN_KEY (rotada a 32 bytes); esto encarece el bruteforce online barato y el
-// abuso de costo. Estado por-isolate (se resetea en cold start): suficiente contra ráfagas, documentado y asumido.
+// ── RATE LIMIT DE op:mint (auditoría 2026-07-14 · el MEDIO) ────────────────────────────────────────────────────
+// ⚠️ BEST-EFFORT POR INSTANCIA, NO CONTROL GLOBAL. Este contador vive en memoria del isolate: Vercel corre y
+// recicla múltiples instancias, así que "5/IP" y el techo global NO son garantías a nivel aplicación — un atacante
+// distribuido entre isolates los supera. Es DEFENSA ADICIONAL (blunt de ráfagas dentro de un isolate, costo cero),
+// NUNCA el control principal. El control real que cierra el MEDIO es (a) la entropía del ADI_ADMIN_KEY ya rotado a
+// 32 bytes y (b) un limitador durable pendiente de decisión del owner (Vercel WAF requiere plan Pro · alternativa
+// Upstash Redis). Va en el WRAPPER (que ve el request), jamás en handleAccess: _access_gate.mjs lo llama sin request.
 const MINT_WINDOW_MS = 10 * 60 * 1000;   // ventana de 10 minutos
 const MINT_MAX_PER_IP = 5;               // 5 intentos de mint por IP por ventana (el owner mintea de a uno)
-const MINT_MAX_GLOBAL = 30;              // techo global del isolate por ventana (paranoia barata anti-botnet)
+const MINT_MAX_GLOBAL = 30;              // techo del isolate por ventana (blunt anti-ráfaga, NO global de app)
 const _mintHits = new Map();             // ip → [timestamps dentro de la ventana]
 let _mintGlobal = [];
 
@@ -34,9 +37,11 @@ function _mintLimited(ip, now = Date.now()) {
   return false;
 }
 
-const _clientIp = (request) =>
-  (request.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
-  request.headers.get("x-real-ip") || "sin-ip";
+// IP CONFIABLE: ipAddress() de @vercel/functions lee `x-real-ip`, que Vercel setea con la IP real del cliente y
+// SOBRESCRIBE si el cliente la falsifica. NO usar x-forwarded-for split[0]: Vercel solo lo ANEXA → el primer valor
+// es controlable por el atacante (rotaría IPs falsas y saltaría el límite). Sin IP confiable → no se limita (no se
+// castiga a todos bajo una misma clave "sin-ip", que sería un auto-DoS).
+const _clientIp = (request) => { try { return ipAddress(request) || null; } catch { return null; } };
 
 // gatewayFetch(request, env) → Response · `env` opcional (para runtimes tipo Cloudflare que pasan el env al handler)
 export async function gatewayFetch(request, env) {
@@ -47,8 +52,11 @@ export async function gatewayFetch(request, env) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
   // solo op:mint pasa por el limitador (check/status quedan libres — el flujo del invitado no se toca)
-  if (url.pathname === "/api/adi-access" && body && body.op === "mint" && _mintLimited(_clientIp(request))) {
-    return _json({ ok: false, error: "demasiados intentos — espera unos minutos y prueba de nuevo" }, 429, { "retry-after": "600" });
+  if (url.pathname === "/api/adi-access" && body && body.op === "mint") {
+    const ip = _clientIp(request);
+    if (ip && _mintLimited(ip)) {
+      return _json({ ok: false, error: "demasiados intentos — espera unos minutos y prueba de nuevo" }, 429, { "retry-after": "600" });
+    }
   }
   try { return _json(await handler(body, env)); }
   catch (e) {

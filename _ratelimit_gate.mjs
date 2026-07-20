@@ -8,12 +8,13 @@ const ENV = { ADI_TOKEN_SECRET: "secret-de-gate-ratelimit", ADI_ADMIN_KEY: "clav
 let pass = 0, fail = 0;
 const ok = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name); } else { fail++; console.log("  FAIL " + name); } };
 
-const req = (op, ip, extra = {}) =>
-  new Request("http://gate.local/api/adi-access", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-forwarded-for": ip },
-    body: JSON.stringify({ op, ...extra }),
-  });
+// la IP CONFIABLE viaja en x-real-ip (lo que Vercel setea y ipAddress() lee) · xff = header spoofeable del cliente
+const req = (op, ip, extra = {}, spoofXff = null) => {
+  const h = { "content-type": "application/json" };
+  if (ip) h["x-real-ip"] = ip;
+  if (spoofXff) h["x-forwarded-for"] = spoofXff;   // basura que un atacante inyectaría
+  return new Request("http://gate.local/api/adi-access", { method: "POST", headers: h, body: JSON.stringify({ op, ...extra }) });
+};
 
 // ── 1 · mint legítimo del owner bajo el límite: funciona ──
 const legit = await gatewayFetch(req("mint", "10.0.0.1", { adminKey: ENV.ADI_ADMIN_KEY, name: "Owner Gate" }), ENV);
@@ -48,6 +49,16 @@ ok("techo global alcanzado → 429 para IP nueva (anti-botnet barato)", global.s
 // ── 6 · las otras rutas del gateway no se tocan (spec responde, sin limitador) ──
 const spec = await gatewayFetch(new Request("http://gate.local/api/adi-spec", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }), ENV);
 ok("/api/adi-spec intacta (fuera del alcance del limitador)", spec.status !== 429);
+
+// ── 7 · IP CONFIABLE (owner): x-forwarded-for falsificado NO evade el límite — se keyea por x-real-ip ──
+// misma x-real-ip (10.7.7.7), pero el atacante rota basura en x-forwarded-for cada golpe: igual lo frena
+let ultimo;
+for (let i = 1; i <= 6; i++) ultimo = await gatewayFetch(req("mint", "10.7.7.7", { adminKey: "no", name: "s" }, "1.2.3." + i + ", 9.9.9.9"), ENV);
+ok("xff spoofeado NO evade → 6º golpe con misma x-real-ip da 429 (keyea por IP confiable, no por header)", ultimo.status === 429);
+// y sin NINGUNA IP confiable (ni x-real-ip): no se limita — no castigar a todos bajo una clave común (evita auto-DoS)
+let sinIp = true;
+for (let i = 0; i < 8; i++) { const r = await gatewayFetch(req("mint", null, { adminKey: "no", name: "t" }), ENV); if (r.status === 429) sinIp = false; }
+ok("sin x-real-ip confiable → NO se limita (no auto-DoS de todos bajo 'sin-ip')", sinIp);
 
 console.log(`\n_ratelimit_gate: ${pass} ok · ${fail} fail`);
 process.exit(fail ? 1 : 0);
