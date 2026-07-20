@@ -9,7 +9,8 @@ let pass = 0, fail = 0;
 const ok = (name, cond) => { if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}`); } };
 
 const SECRET = "gate-secret-de-prueba";
-const ENV = { ADI_TOKEN_SECRET: SECRET, ADI_ADMIN_KEY: "clave-admin-gate" };
+// ADI_MINT_ENABLED:"true" para los tests de emisión — refleja el estado "encendido para emitir" (owner 2026-07-20)
+const ENV = { ADI_TOKEN_SECRET: SECRET, ADI_ADMIN_KEY: "clave-admin-gate", ADI_MINT_ENABLED: "true" };
 
 console.log("── _access_gate · códigos firmados ──");
 const t0 = Date.now();
@@ -48,6 +49,16 @@ ok("mint owner: 1 año permitido y verificable", mintOwner.ok && mintOwner.expir
 const mintCap = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, name: "Invitado L", hours: 24 * 365 }, ENV);
 ok("mint invitado: pedir 365 días SIN owner:true → recorta al techo de 14", mintCap.ok && mintCap.expiresAt - Date.now() <= 14 * 24 * 3600 * 1000 + 60000);
 ok("mint owner: SIN la clave admin → sin autorización (owner:true no abre nada solo)", !(await handleAccess({ op: "mint", adminKey: "equivocada", owner: true, hours: 24 * 365 }, ENV)).ok);
+
+console.log("── kill-switch ADI_MINT_ENABLED (fail-closed · owner 2026-07-20) ──");
+const ENV_OFF = { ADI_TOKEN_SECRET: SECRET, ADI_ADMIN_KEY: "clave-admin-gate" };   // sin ADI_MINT_ENABLED = apagado
+ok("mint AUSENTE el flag → bloqueado aun con la clave CORRECTA (fail-closed por defecto)", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, ENV_OFF)).ok);
+ok("mint flag='false' → bloqueado", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, { ...ENV_OFF, ADI_MINT_ENABLED: "false" })).ok);
+ok("mint flag='1'/'yes' (no exactamente 'true') → bloqueado (solo 'true' abre)", !(await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, { ...ENV_OFF, ADI_MINT_ENABLED: "1" })).ok);
+ok("mint flag='true' + clave correcta → emite (encendido explícito)", (await handleAccess({ op: "mint", adminKey: "clave-admin-gate", name: "Z" }, ENV)).ok);
+ok("mint flag='true' + clave INcorrecta → sigue sin autorización (el switch no salta la auth)", !(await handleAccess({ op: "mint", adminKey: "mala", name: "Z" }, ENV)).ok);
+ok("con mint apagado, check SIGUE funcionando (validación de códigos intacta)", (await handleAccess({ op: "check", access: code }, ENV_OFF)).ok);
+ok("con mint apagado, status SIGUE required:true (la puerta no se afecta)", (await handleAccess({ op: "status" }, ENV_OFF)).required === true);
 
 console.log("── negación del gateway (la protección de la key) ──");
 const den1 = await handleSpec({ text: "cómo va mi margen" }, ENV);

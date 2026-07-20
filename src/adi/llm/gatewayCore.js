@@ -52,6 +52,10 @@ export async function handleAccess(body = {}, env) {
       : { ok: false, required: true, reason: r.reason, expiresAt: r.expiresAt || null };
   }
   if (op === "mint") {
+    // KILL-SWITCH FAIL-CLOSED (owner 2026-07-20): la emisión de códigos está APAGADA salvo ADI_MINT_ENABLED==="true".
+    // Ausente/false/cualquier-otro → bloqueado, ANTES de tocar la clave admin (menos superficie: ni se compara).
+    // El owner la enciende solo mientras emite y la vuelve a apagar. check/status/validación/LLM no se tocan.
+    if (String(e.ADI_MINT_ENABLED) !== "true") return { ok: false, error: "emisión deshabilitada" };
     const adminKey = e.ADI_ADMIN_KEY;
     if (!secret || !adminKey || !body.adminKey || body.adminKey !== adminKey) return { ok: false, error: "sin autorización" };
     const name = String(body.name || "").trim().slice(0, 40) || "invitado";

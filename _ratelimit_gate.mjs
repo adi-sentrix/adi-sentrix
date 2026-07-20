@@ -4,7 +4,7 @@
  * sintéticos (x-forwarded-for) y env de fixture — NO toca red ni el motor. */
 import { gatewayFetch } from "./src/adi/llm/gatewayFetch.js";
 
-const ENV = { ADI_TOKEN_SECRET: "secret-de-gate-ratelimit", ADI_ADMIN_KEY: "clave-admin-gate-ratelimit-larga" };
+const ENV = { ADI_TOKEN_SECRET: "secret-de-gate-ratelimit", ADI_ADMIN_KEY: "clave-admin-gate-ratelimit-larga", ADI_MINT_ENABLED: "true" };
 let pass = 0, fail = 0;
 const ok = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name); } else { fail++; console.log("  FAIL " + name); } };
 
