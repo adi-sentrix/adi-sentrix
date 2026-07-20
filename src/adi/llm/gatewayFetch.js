@@ -17,5 +17,10 @@ export async function gatewayFetch(request, env) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
   try { return _json(await handler(body, env)); }
-  catch (e) { return _json({ ok: false, error: String(e && e.message) }); }   // el cliente cae al piso determinístico
+  catch (e) {
+    // El detalle del error puede traer el cuerpo de error del proveedor (modelo/cuota/organización) → NUNCA al cliente.
+    // Va SOLO al log del server (Vercel/host lo captura); el cliente recibe un mensaje genérico y cae al piso determinístico.
+    try { console.log(`[adi-gateway] ERROR ${url.pathname}: ${String(e && e.message).slice(0, 200)}`); } catch { /* runtime sin console */ }
+    return _json({ ok: false, error: "gateway no disponible" });
+  }
 }

@@ -18,7 +18,20 @@ const MIME = {
   ".jpg": "image/jpeg", ".woff2": "font/woff2", ".woff": "font/woff", ".map": "application/json",
 };
 
+// Headers de seguridad · paridad con vercel.json (Vercel los sirve allá; esto cubre el self-host de DEPLOY.md).
+// El CSP está tuneado contra el build real: script-src 'self' (un solo módulo, sin inline ni eval) · style-src
+// 'unsafe-inline' + Google Fonts (estilos inline de React + @import) · connect-src 'self' (los /api/* son same-origin).
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+};
+
 const server = http.createServer(async (req, res) => {
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);   // en TODA respuesta (api · estático · 403/404/500)
   try {
     // ── API · el gateway LLM (envolvemos el req de node en un Request web-estándar) ──
     if (req.url.startsWith("/api/")) {
