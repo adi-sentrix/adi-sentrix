@@ -803,7 +803,6 @@ export function composePnl(pi, ctx = null, state = {}) {
       ? `¿Cuánto tengo que vender en ${nombre} para ganar ${_moneyK(p.resultadoK)} después de gastos?`
       : `¿Cuánto tengo que vender para ganar ${_moneyK(p.resultadoK)} después de gastos?`;
     const cordura = (f >= 5 || f <= 0.2) ? ` Ojo: es una escala muy distinta a la de hoy — a esa distancia, el margen actual es solo una referencia.` : "";
-    const par = (label, a2, b2) => `· ${label}: ${_moneyK(a2)} → ${_moneyK(b2)}`;
     const bol = [
       _fMoneyK("Venta proyectada", vK, { mandatory: true }),
       _fMoneyK(`Ingreso · real`, r0.ventaK), _fMoneyK(`Costo · real`, r0.costoK), _fMoneyK(`Costo · proyectado`, p.costoK),
@@ -814,13 +813,27 @@ export function composePnl(pi, ctx = null, state = {}) {
       _fMoneyK(`Resultado · real`, r0.resultadoK, { mandatory: true }), _fMoneyK(`Resultado · proyectado`, p.resultadoK, { mandatory: true }),
       _fPct("Resultado %", r0.resultadoPct),
     ];
+    // LA TABLA (owner 2026-07-25 · mockup: "así debería verse en el orden, porque si no no se entiende bien"):
+    // el orden de la cascada en columnas Real hoy | Proyectado — data estructurada en la evidencia, la UI la
+    // renderiza (chartSpec → InlineChart, tipo tabla_comparada) · cifras verbatim de la única verdad.
+    const tabla = {
+      titulo: `${nombre || "El negocio"} — Real hoy vs. proyectado`,
+      cols: ["Real hoy", "Proyectado"],
+      rows: [
+        { label: "Ingreso", a: _moneyK(r0.ventaK), b: _moneyK(vK), strong: true },
+        { label: "Costo", a: _moneyK(r0.costoK), b: _moneyK(p.costoK) },
+        { label: "Margen bruto", a: _moneyK(r0.margenBrutoK), b: _moneyK(p.margenBrutoK) },
+        { label: "Carga comercial", a: _moneyK(r0.cargaK), b: _moneyK(p.cargaK) },
+        { label: "Contribución", a: _moneyK(r0.contribK), b: _moneyK(p.contribK), strong: true },
+        { label: `Gastos declarados · ${_fmtPct(c.sumPct)}%`, a: _moneyK(r0.gastoK), b: _moneyK(p.gastoK) },
+        { label: "Resultado", a: _moneyK(r0.resultadoK), b: _moneyK(p.resultadoK), strong: true, resultado: true },
+        { label: "Resultado sobre venta", a: `${_fmtPct(r0.resultadoPct)}%`, b: `${_fmtPct(r0.resultadoPct)}%`, pct: true },
+      ],
+    };
     return _resp(
-      `**Real hoy vs proyectado** — ${quien} con venta ${_moneyK(vK)}, manteniendo ${posesivo} margen, ${posesivo} carga y tus gastos declarados (${_fmtPct(c.sumPct)}%) constantes:\n\n${[
-        par("Ingreso", r0.ventaK, vK), par("Costo", r0.costoK, p.costoK), par("Margen bruto", r0.margenBrutoK, p.margenBrutoK),
-        par("Carga comercial", r0.cargaK, p.cargaK), par("Contribución", r0.contribK, p.contribK), par(`Gastos declarados`, r0.gastoK, p.gastoK),
-      ].join("\n")}\n· **Resultado: ${_moneyK(r0.resultadoK)} → ${_moneyK(p.resultadoK)}** (${_fmtPct(r0.resultadoPct)}% de la venta en los dos — la estructura no cambia, cambia la escala)\n\n**Límite:** es aritmética del supuesto de venta sobre tu P&L real — no es proyección de demanda ni de mix.${cordura} **Decisión:** si el número que buscas es el resultado, invierte la pregunta: «${metaAsk}»`,
+      `**Real hoy vs proyectado** — ${quien} con venta ${_moneyK(vK)}, manteniendo ${posesivo} margen, ${posesivo} carga y tus gastos declarados (${_fmtPct(c.sumPct)}%) constantes. El cuadro lo deja lado a lado; la síntesis: resultado ${_moneyK(r0.resultadoK)} → ${_moneyK(p.resultadoK)} (${_fmtPct(r0.resultadoPct)}% de la venta en los dos — la estructura no cambia, cambia la escala).\n\n**Límite:** es aritmética del supuesto de venta sobre tu P&L real — no es proyección de demanda ni de mix.${cordura} **Decisión:** si el número que buscas es el resultado, invierte la pregunta: «${metaAsk}»`,
       { route: "pnl_reading", suggestions: [metaAsk, ...(nombre ? [`P&L de ${nombre}`] : ["¿Cómo queda mi resultado comercial?"])], bol,
-        ev: nombre ? { entidad: nombre, entityType: eje || _BASE_EJE, dimension: eje || _BASE_EJE } : { dimension: _BASE_EJE } }
+        ev: { proyeccion: tabla, ...(nombre ? { entidad: nombre, entityType: eje || _BASE_EJE, dimension: eje || _BASE_EJE } : { dimension: _BASE_EJE }) } }
     );
   }
   if (a === "resultado_deixis") {

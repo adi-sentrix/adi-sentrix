@@ -9,6 +9,11 @@
 export function chartForEvidence(e) {
   if (!e || e.followup) return null;   // saludo/criteria/explain/meta → sin gráfico
 
+  // 0 · P&L · VENTA PROYECTADA (owner 2026-07-25 · mockup "así debería verse en el orden"): la cascada en
+  // columnas Real hoy | Proyectado — la data viene estructurada del composer (una verdad, cero re-formateo).
+  if (e.proyeccion && Array.isArray(e.proyeccion.rows) && e.proyeccion.rows.length)
+    return { tipo: "tabla_comparada", titulo: e.proyeccion.titulo || "Real hoy vs. proyectado", tabla: e.proyeccion };
+
   // 1 · CONTRIBUCIÓN · Pareto (quién sostiene la plata · corte 80/20 real)
   const cp = e.contribucion && e.contribucion.panel;
   if (cp && cp.kind === "pareto" && Array.isArray(cp.rows) && cp.rows.length >= 3)

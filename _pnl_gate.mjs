@@ -22,6 +22,7 @@ fs.writeFileSync(entry, [
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',
   'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
+  'export { chartForEvidence } from "./src/adi/sentrix/chartSpec.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -185,7 +186,7 @@ ok(/P&L comercial: logística 3%/.test(rRecall.text) && Array.isArray(rRecall.ev
 clearPnl(); resetPnlDraft();
 
 /* ══ PASE 2 (owner 2026-07-25) · P&L POR ALCANCE + CONEXIÓN TOTAL ("nada al azar") ══ */
-const { pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, updateMemoria, METRICS, ENTITIES, buildDisponibleMenu } = M;
+const { pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, updateMemoria, METRICS, ENTITIES, buildDisponibleMenu, chartForEvidence } = M;
 const _norm2 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 
 console.log("[11] DISPONIBILIDAD data-driven == contrato (nada hardcodeado)");
@@ -319,8 +320,15 @@ void go("P&L de Falabella", false);
 const rProy = go("¿y si Falabella vendiera $25M, cuánto me queda con estos gastos?");
 const eFalP = buildPnlCascade("bonanza").porEntidad.find((x) => x.nombre === "Falabella");
 const resProy = (eFalP.contribK * (25000 / eFalP.ventaK)) - (25000 * buildPnlCascade("bonanza").sumPct / 100);
-ok(rProy && /Real hoy vs proyectado/.test(rProy.text) && rProy.text.includes(`Resultado: ${_moneyK(eFalP.resultadoK)} → ${_moneyK(resProy)}`), "proyección de venta: el real AL LADO del proyectado, con el resultado exacto", rProy && rProy.text.slice(0, 90));
-ok(rProy.text.includes(`${_moneyK(eFalP.ventaK)} → ${_moneyK(25000)}`) && /la estructura no cambia, cambia la escala/.test(rProy.text), "cada paso muestra real → proyectado · margen/carga constantes declarado");
+ok(rProy && /Real hoy vs proyectado/.test(rProy.text) && rProy.text.includes(`resultado ${_moneyK(eFalP.resultadoK)} → ${_moneyK(resProy)}`) && /la estructura no cambia, cambia la escala/.test(rProy.text), "proyección de venta: síntesis con el resultado exacto + margen constante declarado", rProy && rProy.text.slice(0, 90));
+// LA TABLA (mockup del owner "así debería verse en el orden"): data estructurada en la evidencia + despacho a la UI
+const tb = rProy.evidence.proyeccion;
+ok(tb && tb.titulo === "Falabella — Real hoy vs. proyectado" && Array.isArray(tb.rows) && tb.rows.length === 8
+  && tb.rows.map((r) => r.label.split(" ·")[0]).join("|") === "Ingreso|Costo|Margen bruto|Carga comercial|Contribución|Gastos declarados|Resultado|Resultado sobre venta",
+  "la evidencia lleva LA TABLA en el orden de la cascada (Concepto · Real hoy · Proyectado)");
+ok(tb.rows[0].a === _moneyK(eFalP.ventaK) && tb.rows[0].b === _moneyK(25000) && tb.rows[6].a === _moneyK(eFalP.resultadoK) && tb.rows[6].b === _moneyK(resProy), "las columnas Real/Proyectado citan la única verdad (Ingreso y Resultado exactos)");
+const cs2p = chartForEvidence(rProy.evidence);
+ok(cs2p && cs2p.tipo === "tabla_comparada" && cs2p.tabla === tb, "chartForEvidence despacha la tabla comparada a la UI (InlineChart la renderiza)");
 ok((() => { const g = guardAgainstBoleta(rProy.text, rProy.evidence.boleta); return g.ok; })(), "guard proyección: cifras == boleta");
 const rProyD = go("¿y si vendiera $25M?");
 ok(rProyD && /Falabella con venta \$25\.0M/.test(rProyD.text), "«¿y si vendiera $25M?» sin nombre hereda el alcance vivo (Falabella)");

@@ -317,6 +317,39 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
   );
 }
 
+// ── TABLA COMPARADA (P&L · venta proyectada · owner 2026-07-25 "así debería verse en el orden") ──────────────
+// Concepto | Real hoy | Proyectado — el orden de la cascada en columnas. Data estructurada del composer
+// (label/a/b ya formateados — acá jamás se re-formatea) · strong = los hitos (Ingreso/Contribución/Resultado).
+function MiniTablaComparada({ tabla }) {
+  const rows = (tabla && tabla.rows) || [];
+  const cols = (tabla && tabla.cols) || ["Real hoy", "Proyectado"];
+  const cell = (v, r, col) => (
+    <span style={{ textAlign: "right", fontFamily: MONO, fontSize: r.resultado ? 13 : 12, fontVariantNumeric: "tabular-nums",
+      fontWeight: r.strong ? 700 : 400,
+      color: r.pct ? C.textMuted : r.resultado ? (col === "b" ? C.celeste : C.text) : r.strong ? C.text : C.textSub }}>{v}</span>
+  );
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 8, padding: "2px 2px 7px", borderBottom: `1px solid ${C.border}` }}>
+        <span style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text }}>Concepto</span>
+        {cols.map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text, textAlign: "right" }}>{h}</span>)}
+      </div>
+      {rows.map((r, i) => (
+        <div key={r.label} style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 8, alignItems: "baseline",
+          padding: "7px 2px", borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+          background: r.resultado ? "rgba(47,184,218,0.04)" : "transparent", animation: "adiFade 0.4s ease both", animationDelay: `${i * 40}ms` }}>
+          <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: r.strong ? 700 : 400, color: r.pct ? C.textMuted : r.strong ? C.text : C.textSub }}>{r.label}</span>
+          {cell(r.a, r, "a")}
+          {cell(r.b, r, "b")}
+        </div>
+      ))}
+      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 6, textAlign: "right" }}>
+        proyectado = tu P&L real a esa venta · margen, carga y porcentajes de hoy constantes
+      </div>
+    </div>
+  );
+}
+
 // ── contenedor: eyebrow con dot de identidad + gráfico + "Ampliar en Sentrix" (deep-link a la evidencia) ──
 export function InlineChart({ spec, onAmpliar }) {
   if (!spec) return null;
@@ -341,6 +374,7 @@ export function InlineChart({ spec, onAmpliar }) {
       {spec.tipo === "movers" && <MiniMovers panel={spec.panel}/>}
       {spec.tipo === "barras" && <MiniBarras rows={spec.rows} polarity={spec.polarity} unit={spec.unit}/>}
       {spec.tipo === "pareto" && <MiniPareto panel={spec.panel}/>}
+      {spec.tipo === "tabla_comparada" && <MiniTablaComparada tabla={spec.tabla}/>}
     </div>
   );
 }
