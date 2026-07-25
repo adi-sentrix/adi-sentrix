@@ -19,13 +19,13 @@ fs.writeFileSync(entry, [
   'export { buildControlRing } from "./src/adi/sentrix/control.js";',
   'export { METRIC_DEFS } from "./src/adi/sentrix/glossary.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
-  'export { composePnl, setPnlLines, clearPnl } from "./src/adi/pnl.js";',
+  'export { composePnl, setPnlLines, clearPnl, resetPnlDraft } from "./src/adi/pnl.js";',
   'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, buildMesaResultado } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, buildMesaResultado } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa")
 let pass = 0, fail = 0; const rotos = [];
@@ -168,6 +168,11 @@ checkResp("pnl · redirect bodega", composePnl({ action: "tabla_eje", eje: "bode
 checkResp("pnl · deixis", composePnl({ action: "resultado_deixis" }, { last: { entityList: { entities: ["Ripley", "La Polar"], dimension: "cliente" } } }, { scenario: "bonanza" }));
 checkResp("pnl · sim scoped", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2, entidad: "Falabella", eje: "cliente" }, null, { scenario: "bonanza" }));
 checkResp("pnl · meta scoped", composePnl({ action: "meta_venta", targetK: 500, entidad: "Falabella", eje: "cliente" }, null, { scenario: "bonanza" }));
+// pase 2b: el rearme guiado (abre draft → se limpia) y la venta proyectada (real vs proyectado)
+checkResp("pnl · rearmar", composePnl({ action: "rearmar" }, null, { scenario: "bonanza" }));
+resetPnlDraft();
+checkResp("pnl · proyección venta", composePnl({ action: "proyeccion_venta", ventaK: 25000, entidad: "Falabella", eje: "cliente" }, null, { scenario: "bonanza" }));
+checkResp("pnl · proyección negocio", composePnl({ action: "proyeccion_venta", ventaK: 120000, negocio: true }, null, { scenario: "bonanza" }));
 const mrg = buildMesaResultado("bonanza");
 check("cara resultado · lectura", mrg.lectura);
 for (const r of mrg.cascada) { check(`cara resultado · ${r.key}`, `${r.label}. ${r.def || ""} ${r.nota || ""}`); check(`cara resultado · ${r.key} ask`, r.ask); }

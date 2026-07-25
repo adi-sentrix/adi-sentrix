@@ -288,14 +288,49 @@ const rBlind = AC(CS("recuerda lo anterior", S({ operation: "pnl_setup", turn_ty
 ok(rBlind && !/^spec_blocked/.test(rBlind.route || "") && /Retomo tu P&L donde lo dejamos/.test(rBlind.text), "operation:'pnl_setup' del LLM + «recuerda lo anterior» → retoma (ni bloqueo ni robo)");
 const sEjeEl = CS("muéstramelo por familia", S({ operation: "pnl_setup" }), true, null);
 ok(sEjeEl.turn_type === "pnl_setup" && sEjeEl.pnl && sEjeEl.pnl.action === "tabla_eje" && sEjeEl.pnl.eje === "familia", "«muéstramelo por familia» (elíptico, hilo vivo) → la tabla del eje");
-// ESPEJO «prorrateo» (owner en vivo 2026-07-25: «quiero nuevos prorrateos» caía en una lectura de ventas):
-// prorrateo/porcentajes es vocabulario que ADI emite — pedir nuevos abre el AJUSTE, jamás otra lectura.
-for (const qEsp of ["quiero nuevos prorrateos", "cambiemos los porcentajes", "¿ajustamos los prorrateos?"]) {
+// RE-ARME GUIADO (owner en vivo 2026-07-25: «quiero nuevos prorrateos» caía en una lectura de ventas — "es el
+// mismo camino dicho de una manera diferente, y ADI debe guiar"): la intención de rehacer, con CUALQUIER
+// palabra, reabre el flujo en la etapa de % con las líneas del usuario — y el camino termina en sello.
+for (const qEsp of ["quiero nuevos prorrateos", "cambiemos los porcentajes", "usemos otros supuestos", "rehagamos los gastos"]) {
+  resetPnlDraft(); void go("P&L de Falabella", false);   // hilo vivo — el rearme no depende de él pero convive
   const rEsp = go(qEsp);
-  ok(rEsp && /Tu P&L comercial ya está armado/.test(rEsp.text) && /¿Quieres ajustarlo\?/.test(rEsp.text), `espejo «${qEsp}» → abre el ajuste de la estructura`, rEsp && `[${rEsp.route}] ${rEsp.text.slice(0, 60)}`);
+  ok(rEsp && /Armemos tus nuevos supuestos/.test(rEsp.text) && /qué % le pongo a cada línea esta vez/.test(rEsp.text)
+    && pnlDraft() && pnlDraft().stage === "pcts" && pnlDraft().lines.every((l) => l.pct === null),
+    `re-arme «${qEsp}» → guía los % de esta vez (draft pcts con TUS líneas)`, rEsp && `[${rEsp.route}] ${rEsp.text.slice(0, 60)}`);
+  resetPnlDraft();
 }
+// …y el rearme completa el MISMO camino: % en orden → sello → una verdad nueva
+void go("quiero nuevos prorrateos");
+const rReP = go("2, 1, 1.5");
+ok(rReP && /¿Lo sello\?/.test(rReP.text), "re-arme: «2, 1, 1.5» → propuesta de sello (mismo camino)");
+const rReS = go("sí");
+ok(rReS && /^Sellado\./.test(rReS.text) && activePnl().find((l) => l.nombre === "Logística").pct === 2, "re-arme sellado: los % nuevos son la verdad");
+// …o una ESTRUCTURA nueva a mitad del rearme (lista ≥2 reemplaza las líneas)
+void go("quiero otros prorrateos");
+const rReL = go("seguros, fletes y comisiones");
+ok(rReL && /¿Qué %/.test(rReL.text) && pnlDraft().lines.map((l) => l.nombre).join("·") === "Seguros·Fletes·Comisiones", "re-arme: lista nueva de gastos reemplaza las líneas y pide sus %");
+const rReC = go("cancela");
+ok(rReC && /no guardé nada/.test(rReC.text) && activePnl().find((l) => l.nombre === "Logística").pct === 2, "cancelar el rearme deja el P&L vigente intacto");
 ok(go("olvida los prorrateos") && activePnl().length === 0, "«olvida los prorrateos» → forget del P&L (mismo espejo)");
 setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+// PROYECCIÓN DE VENTA (owner 2026-07-25: "si vendiera X cuánto me quedaría — el real a un lado y el proyectado
+// al lado, manteniendo el margen del cliente"): monto de venta ($, sin %) → escala lineal honesta.
+void go("P&L de Falabella", false);
+const rProy = go("¿y si Falabella vendiera $25M, cuánto me queda con estos gastos?");
+const eFalP = buildPnlCascade("bonanza").porEntidad.find((x) => x.nombre === "Falabella");
+const resProy = (eFalP.contribK * (25000 / eFalP.ventaK)) - (25000 * buildPnlCascade("bonanza").sumPct / 100);
+ok(rProy && /Real hoy vs proyectado/.test(rProy.text) && rProy.text.includes(`Resultado: ${_moneyK(eFalP.resultadoK)} → ${_moneyK(resProy)}`), "proyección de venta: el real AL LADO del proyectado, con el resultado exacto", rProy && rProy.text.slice(0, 90));
+ok(rProy.text.includes(`${_moneyK(eFalP.ventaK)} → ${_moneyK(25000)}`) && /la estructura no cambia, cambia la escala/.test(rProy.text), "cada paso muestra real → proyectado · margen/carga constantes declarado");
+ok((() => { const g = guardAgainstBoleta(rProy.text, rProy.evidence.boleta); return g.ok; })(), "guard proyección: cifras == boleta");
+const rProyD = go("¿y si vendiera $25M?");
+ok(rProyD && /Falabella con venta \$25\.0M/.test(rProyD.text), "«¿y si vendiera $25M?» sin nombre hereda el alcance vivo (Falabella)");
+const rProyN = go("¿y si el negocio vendiera $120M, cuánto me queda?");
+ok(rProyN && /el negocio con venta \$120\.0M/.test(rProyN.text), "«el negocio» fuerza la proyección global");
+ok(CS("¿qué pasa si las ventas suben 3%?", S({}), false, null).operation === "simulate", "el proyector genérico de % sigue intacto (la proyección de venta exige MONTO)");
+for (const s2 of (rProy.suggestions || [])) {
+  const cs2 = CF(s2, false, null);
+  ok(!!cs2 && cs2.turn_type === "pnl_setup", `chip de la proyección reclama: «${s2}»`);
+}
 const rBlind2 = AC(S({ operation: "pnl_setup", turn_type: "followup_change_dimension", pnl: { dimension: "familia" } }), {}, { scenario: "bonanza" });
 ok(rBlind2 && !/^spec_blocked/.test(rBlind2.route || "") && /Tu P&L por familia/.test(rBlind2.text), "operation pnl_* + turn_type espurio + pnl.dimension → la tabla resuelve por composePnl");
 clearPnl(); resetPnlDraft();
