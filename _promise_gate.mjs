@@ -148,6 +148,19 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     for (const s2 of (mrp.simulaciones || [])) putR(s2.ask, `ysi-${s2.key}`);
     for (const r of mrp.cuadro.rows) putR(r.ask, `cuadro-${r.name}`);
     if (mrp.alerta) putR(mrp.alerta.ask, "alerta");
+    // PASE 2 (owner 2026-07-25) · el ALCANCE también promete: los cuadros por CADA eje del selector (filas
+    // «P&L de X») y la cascada scopeada a una fila (asks scoped, incl. la proyección local por línea).
+    for (const ejeSel of (mrp.cuadro.ejes || []).map((x) => x.key)) {
+      let mrE; try { mrE = MRB(sc, ejeSel); } catch { continue; }
+      if (!mrE || !mrE.defined) continue;
+      for (const r of mrE.cuadro.rows) putR(r.ask, `cuadro-${ejeSel}-${r.name}`);
+      const primera = mrE.cuadro.rows[0];
+      let mrF; try { mrF = MRB(sc, ejeSel, { eje: ejeSel, nombre: primera.name }); } catch { mrF = null; }
+      if (mrF && mrF.alcance) {
+        putR(mrF.alcance.ask, `alcance-${ejeSel}`);
+        for (const r of mrF.cascada) putR(r.ask, `cascfoco-${ejeSel}-${r.key}`);
+      }
+    }
   }
 }
 for (const s of [
@@ -156,6 +169,8 @@ for (const s of [
   "¿Dónde está detenido mi capital?",
   "¿Por qué Samsung cede margen?",
   "Armemos mi P&L",   // el prefill del empty state de la cara Resultado — el flujo guiado también es promesa
+  // PASE 2 · las ofertas del alcance (redirect/tabla/scoped) también son promesas de primera clase
+  "P&L por familia", "P&L por cliente", "P&L por marca", "P&L del negocio", "P&L de Falabella",
 ]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:mesa2" });
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·

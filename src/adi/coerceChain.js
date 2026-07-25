@@ -13,7 +13,7 @@ import { detectVentasFocus } from "./ventasFocus.js";
 import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
 import { detectCriteriaIntent } from "./criteria.js";
-import { detectPnlIntent } from "./pnl.js";
+import { detectPnlIntent, detectPnlEllipsis } from "./pnl.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
 import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
@@ -320,7 +320,9 @@ const _GOAL_PCT_RE = /\b(sub(?:ir|a)|aument(?:ar|e)|increment(?:ar|e)|crec(?:er)
 
 // ── FOCO DE ENTIDAD (revisión de la Mesa 2026-07-14) · redes A1/A2 ──────────────────────────────────────────
 // «cómo viene/va/está/anda X» — el chequeo de salud de UNA entidad (la Mesa lo emite en "Qué cambió").
-const _ENT_COMO_RE = /\bc[oó]mo\s+(?:viene|va|est[aá]|anda|se\s+comporta)\b/i;
+// OJO: lookahead en vez de \b al cierre — "está" termina en vocal acentuada y \b falla silencioso (el bug
+// documentado en criteria.js/pnl.js: «¿cómo está X?» nunca matcheaba; solo viene/va/anda entraban).
+const _ENT_COMO_RE = /\bc[oó]mo\s+(?:viene|va|est[aá]|anda|se\s+comporta)(?=[^\p{L}]|$)/iu;
 // «X vs/contra el año pasado» — la trayectoria de UNA entidad (no la lectura YoY de cartera).
 const _ENT_VSANIO_RE = /\b(?:vs\.?|versus|contra)\s+(?:el\s+)?(?:mismo\s+per[ií]odo\s+del?\s+)?a[ñn]o\s+(?:pasado|anterior)\b/i;
 // con MÉTRICA nombrada la cadena de dominios manda ("cómo viene el margen" → margin · "en ventas y contribución" → multi)
@@ -396,6 +398,15 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   if (q && spec) {
     const pn = detectPnlIntent(q);
     if (pn) return { ...spec, operation: undefined, turn_type: "pnl_setup", pnl: pn };
+    // HERENCIA ELÍPTICA del P&L (pase 2 · «¿y el de Ripley?» · «recuerda lo anterior» · «muéstramelo por familia»):
+    // NO pisa una clasificación ya resuelta del LLM #1 (un «¿y el de Jumbo?» dentro de un hilo de margen ES del
+    // margen — la operación concreta manda, mismo criterio que _CONTINUE_RE) y exige hilo P&L vivo (alcance leído
+    // + líneas selladas). Un operation pnl_* del LLM NO cuenta como resuelto: es el mismo claim, la red lo precisa.
+    const _opResuelta = spec.operation && spec.operation !== "clarification_needed" && !/^pnl_/.test(String(spec.operation));
+    if (!_opResuelta) {
+      const ph = detectPnlEllipsis(q);
+      if (ph) return { ...spec, operation: undefined, turn_type: "pnl_setup", pnl: ph };
+    }
   }
   // SALUDO / AYUDA (sweep simple 2026-07-09 · primera impresión): "hola"/"buenas"/"ayuda" pelado → bienvenida
   // determinística con orientación (composeMeta saludo · verbatim). Antes lo agarraba una lectura random del LLM.

@@ -14,11 +14,14 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_plge.js"), out = path.join(root, "_plgb.mjs");
 fs.writeFileSync(entry, [
-  'export { answerConversational } from "./src/adi/conversation.js";',
+  'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
-  'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk } from "./src/adi/pnl.js";',
+  'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope } from "./src/adi/pnl.js";',
   'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
+  'export { METRICS } from "./src/config/contract/metricRegistry.js";',
+  'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
+  'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -179,6 +182,166 @@ ok(activePnl().length === 0 && /P&L/.test(rTodo.text), "'olvidá todo' (criteria
 setPnlLines([{ nombre: "Logística", pct: 3 }]);
 const rRecall = AC(S({ turn_type: "apply_criteria", criteria: { action: "recall" } }), {}, {});
 ok(/P&L comercial: logística 3%/.test(rRecall.text) && Array.isArray(rRecall.evidence.pnlList) && rRecall.evidence.pnlList.length === 1, "'¿qué sabés de mi negocio?' cuenta también el P&L (texto + pnlList al panel)");
+clearPnl(); resetPnlDraft();
+
+/* ══ PASE 2 (owner 2026-07-25) · P&L POR ALCANCE + CONEXIÓN TOTAL ("nada al azar") ══ */
+const { pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, updateMemoria, METRICS, ENTITIES, buildDisponibleMenu } = M;
+const _norm2 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+
+console.log("[11] DISPONIBILIDAD data-driven == contrato (nada hardcodeado)");
+const disp = pnlDisponibilidad();
+const dOf = (e) => disp.find((d) => d.eje === e);
+ok(disp.length === Object.keys(ENTITIES).length, "la disponibilidad barre TODOS los ejes del contrato");
+for (const d of disp) {
+  const declara = (METRICS.ventas.axes || []).includes(d.eje) && (METRICS.contribucion.axes || []).includes(d.eje);
+  if (!declara) ok(!d.available && /venta desglosada/.test(d.motivo), `${d.eje}: sin venta+contribución en el contrato → NO disponible con motivo honesto`, d.motivo);
+}
+ok(dOf("cliente") && dOf("cliente").available, "cliente (la base) disponible");
+ok(dOf("familia") && dOf("familia").available && dOf("marca") && dOf("marca").available, "familia y marca disponibles (la base trae el desglose)");
+ok(dOf("bodega") && !dOf("bodega").available && /no tengo la venta desglosada por bodega/.test(dOf("bodega").motivo), "bodega NO disponible — el motivo es la palabra del owner");
+ok(dOf("sku") && !dOf("sku").available, "sku NO disponible (el contrato declara venta@sku pero la base del P&L no baja ahí — la cobertura manda)");
+ok(/P&L/.test(buildDisponibleMenu()) && /bodega NO|sin venta desglosada/i.test(buildDisponibleMenu()), "el universo DISPONIBLE del narrador declara el alcance del P&L (una verdad)");
+
+console.log("[12] ALCANCES · Σ eje == negocio EXACTO · cada entidad cierra (3 escenarios × ejes disponibles)");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  for (const d of pnlEjesDisponibles()) {
+    const c = buildPnlCascade(sc, null, { dimension: d.eje });
+    ok(Math.abs(c.porEntidad.reduce((a, e) => a + e.resultadoK, 0) - c.resultadoK) < 1e-6, `${sc}/${d.eje}: Σ resultado de las entidades == resultado del negocio`);
+    ok(c.porEntidad.every((e) => Math.abs((e.ventaK - e.costoK - e.cargaK - e.gastoK) - e.resultadoK) < 1e-9), `${sc}/${d.eje}: la cascada de CADA entidad cierra exacto`);
+    ok(Math.abs(c.porEntidad.reduce((a, e) => a + e.ventaK, 0) - c.ingresoK) < 1e-6 && Math.abs(c.porEntidad.reduce((a, e) => a + e.cargaK, 0) - c.cargaK) < 1e-6, `${sc}/${d.eje}: Σ venta y Σ carga cierran con el negocio (mismas anclas)`);
+  }
+}
+
+console.log("[13] LECTURAS SCOPED · abren con las cifras del alcance · guard limpio · sin cobertura = honesto");
+const _cCli = buildPnlCascade("bonanza"), _cFam = buildPnlCascade("bonanza", null, { dimension: "familia" });
+const eFal = _cCli.porEntidad.find((x) => x.nombre === "Falabella"), eCP = _cFam.porEntidad.find((x) => x.nombre === "Cuidado Personal");
+const rScF = go("P&L de Falabella", false);
+ok(rScF && rScF.text.startsWith(`El P&L de Falabella con tu estructura declarada: ingreso ${_moneyK(eFal.ventaK)}`), "«P&L de Falabella» abre con SU ingreso (ancla del alcance)", rScF && rScF.text.slice(0, 80));
+ok(rScF.text.includes(_moneyK(eFal.resultadoK)) && rScF.text.includes(_moneyK(eFal.contribK)) && rScF.text.includes(_moneyK(eFal.cargaK)), "la cascada scoped cita venta/contribución/carga DE Falabella (costo derivado)");
+const rScCP = go("dame el P&L de Cuidado Personal", false);
+ok(rScCP && rScCP.text.includes(`El P&L de Cuidado Personal`) && rScCP.text.includes(_moneyK(eCP.resultadoK)), "«P&L de Cuidado Personal» (familia) responde con las cifras del grupo");
+const rEntCP = go("¿Cuánto deja Cuidado Personal después de gastos?", false);
+ok(rEntCP && rEntCP.text.startsWith(`Después de gastos, Cuidado Personal deja ${_moneyK(eCP.resultadoK)}`), "resultado_entidad ahora resuelve entidades de CUALQUIER eje disponible");
+const rMak = go("P&L de Makita", false);
+ok(rMak && /no lo puedo armar con rigor/.test(rMak.text) && /ser[ií]a inventar/.test(rMak.text) && !/prorrateados .*=/.test(rMak.text), "entidad del contrato SIN venta desglosada (Makita) → honesto, JAMÁS prorratea");
+const rTabF = go("P&L por familia", false);
+ok(rTabF && _cFam.porEntidad.every((x) => rTabF.text.includes(x.nombre)) && rTabF.text.includes(_moneyK(_cFam.resultadoK)), "la tabla por familia lista TODAS las familias y ancla el resultado del negocio");
+ok(/suman exacto el resultado del negocio/.test(rTabF.text), "la tabla DECLARA la coherencia Σ == negocio");
+const rTabC = go("P&L por cliente", false);
+ok(rTabC && /…y \d+ más que suman/.test(rTabC.text), "la tabla por cliente (13) recorta honesto: top + resto que SUMA exacto");
+const _restoFig = rTabC.evidence.boleta.find((f) => f.label === "Resto · resultado");
+ok(!!_restoFig, "el resto recortado viaja en boleta (toda cifra autorizada)");
+for (const [tag, r] of [["scoped Falabella", rScF], ["scoped CP", rScCP], ["tabla familia", rTabF], ["tabla cliente", rTabC], ["tabla marca", go("P&L por marca", false)],
+  ["meta scoped", go("¿cuánto vender en Falabella para que me deje $500K después de gastos?", false)],
+  ["sim scoped", go("¿qué pasa si bajas logística a 1.5% en Falabella?", false)]]) {
+  const g = r && r.evidence && Array.isArray(r.evidence.boleta) ? guardAgainstBoleta(r.text, r.evidence.boleta) : { ok: false, reason: "sin boleta" };
+  ok(g.ok, `guard ${tag}: cifras == boleta`, g.reason);
+}
+
+console.log("[14] REDIRECT honesto · el eje imposible dice DÓNDE SÍ · chips gate-proven");
+const rPv = go("quiero el P&L por punto de venta", false);
+ok(rPv && /El P&L por punto de venta no lo puedo armar — no tengo la venta desglosada por bodega/.test(rPv.text), "redirect punto de venta: la frase del owner, data-driven", rPv && rPv.text.slice(0, 100));
+ok(/S[ií] puedo d[aá]rtelo por .*negocio/.test(rPv.text) && /¿Cu[aá]l te sirve\?/.test(rPv.text), "el redirect nombra dónde SÍ y cierra con la oferta");
+const rSku = go("muéstrame el P&L por SKU", false);
+ok(rSku && /no lo puedo armar/.test(rSku.text) && /no baja desglosada a SKU/.test(rSku.text), "P&L por SKU → honesto (la muestra no es el desglose de la venta)");
+for (const s2 of (rPv.suggestions || [])) {
+  const cs = CF(s2, false, null);
+  const r2 = cs ? AC(cs, {}, { scenario: "bonanza" }) : null;
+  ok(!!(r2 && String(r2.text || "").trim() && !/^(No tengo a |No encuentro )/.test(r2.text)), `chip del redirect responde: «${s2}»`, r2 && r2.text.slice(0, 60));
+}
+
+console.log("[15] CONEXIÓN TOTAL · herencia · volver · recuerda · deixis · memoria · sin robar turnos");
+void go("P&L de Falabella", false);
+const rHer = go("¿y el de Ripley?");
+const eRip = _cCli.porEntidad.find((x) => x.nombre === "Ripley");
+ok(rHer && rHer.text.includes("El P&L de Ripley") && rHer.text.includes(_moneyK(eRip.resultadoK)), "«¿y el de Ripley?» hereda la operación con la entidad nueva (piso)");
+ok(pnlScope() && pnlScope().entity === "Ripley", "el alcance del hilo quedó en Ripley");
+const sNoPisa = CS("¿y el de Jumbo?", S({ operation: "dive", entity: "Jumbo", dimension: "cliente", turn_type: "new_query" }), true, null);
+ok(sNoPisa.operation === "dive", "la herencia NO pisa una clasificación resuelta del LLM (dive de otro hilo sigue siendo dive)");
+const rVol = go("volvamos al P&L");
+ok(rVol && /^Retomo tu P&L donde lo dejamos — Ripley\./.test(rVol.text), "«volvamos al P&L» retoma el ÚLTIMO alcance con su preámbulo");
+const rRec = go("recuerda lo anterior");
+ok(rRec && /Retomo tu P&L donde lo dejamos — Ripley\./.test(rRec.text), "«recuerda lo anterior» (piso, con hilo P&L vivo) también retoma");
+const rDx = AC(S({ turn_type: "pnl_setup", pnl: { action: "resultado_deixis" } }), { lastEvidence: { entityList: { entities: ["Ripley", "La Polar"], dimension: "cliente" } } }, { scenario: "bonanza" });
+ok(rDx && /^De los que veníamos mirando, después de gastos: Ripley deja /.test(rDx.text) && !/Falabella/.test(rDx.text), "deixis «de esos» hereda EXACTAMENTE el conjunto nombrado (voz C.1)");
+const rDxSku = AC(S({ turn_type: "pnl_setup", pnl: { action: "resultado_deixis" } }), { lastEvidence: { entityList: { entities: ["SAM-TV55"], dimension: "sku" } } }, { scenario: "bonanza" });
+ok(rDxSku && /el P&L no baja/.test(rDxSku.text) && /S[ií] puedo/.test(rDxSku.text), "deixis sobre un eje sin venta desglosada (SKU) → honesto + dónde SÍ");
+const sDxTxt = CF("de esos, ¿cuánto me dejan después de gastos?", true, null);
+ok(sDxTxt && sDxTxt.turn_type === "pnl_setup" && sDxTxt.pnl.action === "resultado_deixis", "la red del piso detecta la deixis P&L en el texto");
+ok(rScF.evidence.followup === false && rScF.evidence.entidad === "Falabella" && rScF.evidence.entityType === "cliente", "la lectura scoped emite evidencia ACCIONABLE (entidad+eje → lastEvidence/memoria)");
+ok(rTabF.evidence.followup === false && rTabF.evidence.entityList && rTabF.evidence.entityList.entities.length === _cFam.porEntidad.length, "la tabla emite entityList (el «de esos…» siguiente hereda el conjunto)");
+const memF = updateMemoria(null, rScF);
+ok(memF.entidad && memF.entidad.nombre === "Falabella" && memF.entidad.eje === "cliente", "updateMemoria captura la entidad del P&L (nombre+eje de la MISMA fuente)");
+const rEd2 = go("cambia logística a 2.5%");
+ok(rEd2 && rEd2.evidence.followup === true, "la edición sigue siendo administrativa (followup) — NO pisa la última lectura del hilo");
+void go("cambia logística a 3%");
+const rSimD = (() => { void go("P&L de Cuidado Personal", false); return go("¿y si en esa familia bajo logística a 2%?"); })();
+ok(rSimD && /solo en Cuidado Personal/.test(rSimD.text) && /declara log[ií]stica global/.test(rSimD.text), "proyección deíctica scoped: local + declara el límite (la línea es global)");
+const rSimM = go("¿y si en esa marca bajo logística a 2%?");
+ok(rSimM && /¿En cuál\?/.test(rSimM.text), "sustantivo deíctico que NO calza con el eje del alcance → clarifica (jamás adivina)");
+const rMeta = go("¿cuánto vender en Falabella para que me deje $500K después de gastos?");
+ok(rMeta && rMeta.text.startsWith("Para que Falabella te deje $500K después de gastos necesita vender "), "meta scoped: la cuenta sobre el % de la entidad");
+// BLINDAJE pnl-en-operation (sweep LLM 2026-07-25): el LLM #1 pone "pnl_setup" en OPERATION → el turno ES del
+// P&L (jamás spec_blocked) — y el rescate elíptico NO lo lee como "op resuelta".
+const rBlind = AC(CS("recuerda lo anterior", S({ operation: "pnl_setup", turn_type: "followup_explain" }), true, null), {}, { scenario: "bonanza" });
+ok(rBlind && !/^spec_blocked/.test(rBlind.route || "") && /Retomo tu P&L donde lo dejamos/.test(rBlind.text), "operation:'pnl_setup' del LLM + «recuerda lo anterior» → retoma (ni bloqueo ni robo)");
+const sEjeEl = CS("muéstramelo por familia", S({ operation: "pnl_setup" }), true, null);
+ok(sEjeEl.turn_type === "pnl_setup" && sEjeEl.pnl && sEjeEl.pnl.action === "tabla_eje" && sEjeEl.pnl.eje === "familia", "«muéstramelo por familia» (elíptico, hilo vivo) → la tabla del eje");
+const rBlind2 = AC(S({ operation: "pnl_setup", turn_type: "followup_change_dimension", pnl: { dimension: "familia" } }), {}, { scenario: "bonanza" });
+ok(rBlind2 && !/^spec_blocked/.test(rBlind2.route || "") && /Tu P&L por familia/.test(rBlind2.text), "operation pnl_* + turn_type espurio + pnl.dimension → la tabla resuelve por composePnl");
+clearPnl(); resetPnlDraft();
+ok(detectPnlEllipsis("¿y el de Ripley?") === null, "sin hilo P&L vivo la elipsis NO reclama (el turno sigue su curso)");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+ok(CS("margen por cliente", S({}), false, null).operation === "margin", "«margen por cliente» sigue siendo del margen (el alcance no roba)");
+ok(CS("¿quiénes son mis principales clientes por venta?", S({}), false, null).operation === "rank", "«principales clientes por venta» sigue siendo el ranking (A2)");
+
+console.log("[16] CARA RESULTADO pase 2 · selector de eje · cascada scopeable · promesas nuevas 0 rotas");
+const mrCli = buildMesaResultado("bonanza"), mrFam = buildMesaResultado("bonanza", "familia"), mrMar = buildMesaResultado("bonanza", "marca");
+ok(mrCli.cuadro.eje === "cliente" && mrCli.cuadro.colLabel === "Cliente" && mrCli.cuadro.n === _cCli.porEntidad.length, "default: el cuadro por cliente intacto");
+ok(mrCli.cuadro.ejes.map((x) => x.key).join(",") === pnlEjesDisponibles().map((d) => d.eje).join(","), "el selector ofrece EXACTAMENTE los ejes disponibles (bodega/sku no aparecen)");
+ok(mrFam.cuadro.n === _cFam.porEntidad.length && mrFam.cuadro.colLabel === "Familia", "cuadro por familia: sus 4 filas con su etiqueta");
+for (const mr2 of [mrCli, mrFam, mrMar]) ok(Math.abs(mr2.cuadro.total.resultado - _cCli.resultadoK) < 1e-6, `Total del cuadro (${mr2.cuadro.eje}) == resultado del negocio`);
+ok(buildMesaResultado("bonanza", "bodega").cuadro.eje === "cliente", "pedir un eje NO disponible cae al primario (nunca una tabla vacía)");
+const mrFoco = buildMesaResultado("bonanza", "familia", { eje: "familia", nombre: "Cuidado Personal" });
+ok(mrFoco.alcance && mrFoco.alcance.nombre === "Cuidado Personal" && /^P&L de Cuidado Personal: de /.test(mrFoco.lectura), "cascadaFoco: la cascada cuenta ESA entidad con su lectura");
+const rowResF = mrFoco.cascada.find((r) => r.key === "resultado");
+const rowCPq = mrFoco.cuadro.rows.find((r) => r.name === "Cuidado Personal");
+ok(rowResF && rowResF.usdFmt === _moneyK(rowCPq.resultado), "la fila Resultado de la cascada scoped == la fila del cuadro (una verdad)");
+ok(mrFoco.resultado.usdFmt === mrCli.resultado.usdFmt, "la card global (resultado del negocio) queda INTACTA con el foco puesto");
+ok(buildMesaResultado("bonanza", "familia", { eje: "familia", nombre: "NoExiste" }).alcance === null, "foco inexistente → cascada global (sin crash)");
+// promesas del pase 2: los asks de los cuadros por eje + la cascada scoped + sugerencias de las lecturas nuevas
+const prom2 = new Map();
+const put2 = (a2, tag) => { if (a2 && !prom2.has(a2)) prom2.set(a2, tag); };
+for (const [mr2, tag] of [[mrFam, "cuadro:familia"], [mrMar, "cuadro:marca"], [mrFoco, "cascadaFoco"]]) {
+  for (const r2 of mr2.cuadro.rows) put2(r2.ask, `${tag}·fila:${r2.name}`);
+  for (const r2 of mr2.cascada) put2(r2.ask, `${tag}·casc:${r2.key}`);
+  if (mr2.alcance) put2(mr2.alcance.ask, `${tag}·alcance`);
+}
+for (const r2 of [rScF, rTabF, rTabC, rPv, rMak, rDxSku]) for (const s2 of (r2.suggestions || [])) put2(s2, "sugerencia");
+let rotas2 = 0;
+for (const [texto, tag] of prom2) {
+  let motivo = null;
+  try {
+    const cs = CF(texto, false, null);
+    if (!cs) motivo = "coerceFloor null";
+    else {
+      const r2 = AC(cs, {}, { scenario: "bonanza" });
+      const t2 = (r2 && r2.text) || "";
+      if (!t2.trim() || /^spec_blocked_/.test(r2.route || "") || ROTA_RE.test(t2.trim())) motivo = `[${r2 && r2.route}] ${t2.slice(0, 70)}`;
+    }
+  } catch (e) { motivo = "THROW " + String(e && e.message).slice(0, 60); }
+  if (motivo) { rotas2++; console.log(`    ✗ promesa ROTA «${texto}» (${tag}) → ${motivo}`); }
+}
+ok(rotas2 === 0, `${prom2.size} promesas del pase 2 cumplen por la cadena (cuadros por eje + cascada scoped + sugerencias)`);
+// registro ejecutivo en lo NUEVO emitido
+let sucios2 = 0;
+const scan2 = (tag, t2) => { if (typeof t2 === "string" && BANNED.test(t2)) { sucios2++; console.log(`    ✗ registro roto en ${tag}: «${t2.match(BANNED)[0]}»`); } };
+for (const [tag, r2] of [["scoped", rScF], ["tabla familia", rTabF], ["tabla cliente", rTabC], ["redirect", rPv], ["makita", rMak], ["deixis", rDx], ["volver", rVol], ["sim deictic", rSimD], ["meta scoped", rMeta]])
+  if (r2) { scan2(tag, r2.text); for (const s2 of (r2.suggestions || [])) scan2(`${tag}·sug`, s2); }
+for (const r2 of mrFoco.cascada) { scan2(`caraFoco:${r2.key}`, r2.label); scan2(`caraFoco:${r2.key}·def`, r2.def); }
+scan2("caraFoco:lectura", mrFoco.lectura);
+ok(sucios2 === 0, "registro ejecutivo limpio en todo lo nuevo del pase 2");
 clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

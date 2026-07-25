@@ -70,6 +70,17 @@ export function buildSpecTool() {
         //    `followup_compare` (V2) ejecuta comparación REAL: poné en `comparison.entities` el/los target(s) que el
         //    usuario nombra (el sujeto lo toma ADI del contexto). Default new_query.
         turn_type: { type: "string", enum: ["new_query", "followup_modify_assumption", "followup_change_dimension", "followup_recommendation", "followup_explain", "meta_question", "clarification_needed", "followup_compare", "pnl_setup"], description: "clasificación del turno en la conversación" },
+        // P&L COMERCIAL · ALCANCE (pase 2): para turn_type pnl_setup, el alcance que el usuario nombra. entity =
+        // la entidad ("Falabella" · "Cuidado Personal" · también la heredada de la memoria en "¿y el de Ripley?");
+        // dimension = el eje de la tabla ("P&L por familia") o "negocio". null/omitido = flujo/edición/negocio.
+        pnl: {
+          type: ["object", "null"],
+          properties: {
+            entity: { type: ["string", "null"], description: "entidad del alcance del P&L si el usuario la nombra o la hereda del hilo" },
+            dimension: { type: ["string", "null"], enum: [...dims, "negocio", null], description: "eje de la tabla del P&L ('P&L por familia') · 'negocio' para el total" },
+          },
+          description: "SOLO para turn_type pnl_setup: el ALCANCE pedido. ADI valida si se puede (disponibilidad del dato) y si no, redirige honesto.",
+        },
         meta: { type: ["string", "null"], description: "para meta_question: el tema ('real_o_supuesto' | 'fuente' | 'capacidades')" },
         clarify: { type: ["string", "null"], description: "para clarification_needed: la repregunta breve a devolver al usuario" },
       },

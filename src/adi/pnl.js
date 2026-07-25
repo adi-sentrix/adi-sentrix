@@ -16,10 +16,25 @@
  *     nunca bloquea silencioso)
  * FUTURO C.3: cada línea guarda origen "supuesto_declarado" — la contabilidad real reemplaza línea a línea.
  * DECISIÓN v1 (declarada en el InfoDot de la cara): % SOBRE LA VENTA (drivers finos quedan para iteración).
- * Puro salvo el estado del módulo · headless-safe (sin localStorage no persiste pero no crashea) · motor sellado intacto. */
+ *
+ * PASE 2 (owner 2026-07-25 · "por familia, por cliente, por punto de venta y del negocio… todo conectado, nada
+ * al azar"): el P&L gana ALCANCE — por entidad ("P&L de Falabella" / "de Cuidado Personal"), por eje (la tabla
+ * "P&L por familia") y del negocio (lo de siempre). DISPONIBILIDAD DATA-DRIVEN del contrato (pnlDisponibilidad):
+ * un eje entra si el contrato declara venta+contribución ahí (METRICS) Y la base del P&L trae la venta
+ * DESGLOSADA hacia ese eje (el campo de rollup vive en cada fila y sus valores son entidades reales del eje) —
+ * bodega/punto de venta queda fuera HONESTO ("no tengo la venta desglosada por bodega") y SKU también (la venta
+ * del P&L no baja desglosada a SKU: el detalle es una muestra). JAMÁS prorratear sobre un eje sin venta.
+ * COHERENCIA por construcción: los alcances agrupan LA MISMA base que la cascada del negocio (mismas anclas
+ * venta/contribución/carga · costo derivado) → Σ P&L de las entidades de un eje == P&L del negocio, EXACTO, en
+ * los 3 escenarios (el gate lo verifica). La CONEXIÓN vive en _scope (el último alcance leído · "volvamos al
+ * P&L" · "¿y el de Ripley?") + evidencia ACCIONABLE en las lecturas (entidad/entityList threadean lastEvidence
+ * y la memoria manteniendo el verbatim — kind criteria manda en pickNarratedText). */
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
 import { clientesMargen } from "../data/demoData.js";
 import { fig } from "./boleta.js";
+import { ENTITIES } from "../config/contract/entityRegistry.js";
+import { METRICS } from "../config/contract/metricRegistry.js";
+import { SOURCES } from "../config/contract/sourceManifest.js";
 
 // ── formato (misma escala que mesa.js: dato comercial en $K → $) ─────────────────────────────────────────────
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -58,7 +73,7 @@ export function setPnlLines(lines) {
   _lines = ok; _persist(); _emitChange();
   return { ok: true, lines: activePnl() };
 }
-export function clearPnl() { const had = _lines.length > 0; _lines = []; _persist(); _emitChange(); return { ok: true, had }; }
+export function clearPnl() { const had = _lines.length > 0; _lines = []; _scope = null; _persist(); _emitChange(); return { ok: true, had }; }
 const _findLine = (name, pool) => { const n = _norm(name); return (pool || _lines).find((l) => _norm(l.nombre) === n) || null; };
 // línea nombrada DENTRO de un texto (para edit/simulate: «cambia logística a 2%») · nombre más largo primero
 function _lineInText(q, pool) {
@@ -71,7 +86,115 @@ function _lineInText(q, pool) {
 // ── DRAFT del flujo guiado (multi-turno · en memoria · el reset del chat lo limpia) ─────────────────────────
 let _draft = null;   // { stage: "gastos" | "pcts" | "sello", lines: [{nombre, pct|null}] }
 export function pnlDraft() { return _draft ? { stage: _draft.stage, lines: _draft.lines.map((l) => ({ ...l })) } : null; }
-export function resetPnlDraft() { _draft = null; }
+export function resetPnlDraft() { _draft = null; _scope = null; }
+
+/* ── ALCANCE (PASE 2 · owner 2026-07-25: "por familia, por cliente, por punto de venta y del negocio") ────────
+ * DISPONIBILIDAD DATA-DRIVEN: nada hardcodeado — se deriva del contrato + el dato. Un eje está disponible si
+ * (a) el CONTRATO declara venta+contribución en ese eje (METRICS) y (b) la BASE del P&L (las filas que anclan
+ * la cascada) trae la venta DESGLOSADA hacia él: el campo de rollup existe en cada fila y sus valores son
+ * entidades reales del eje según SU fuente (SOURCES). Si mañana el dato trae venta por bodega, el eje aparece
+ * solo — este módulo no se toca. El canon del alcance incluye también las entidades del contrato SIN cobertura
+ * en la base (ej. una marca sin venta por cliente): el pedido se ENTIENDE y se responde honesto, sin prorratear. */
+const _BASE_EJE = Object.keys(ENTITIES).find((k) => ENTITIES[k].source === "clientesMargen") || "cliente";
+const _rollField = (eje) => {
+  if (eje === _BASE_EJE) return ENTITIES[eje].keyField;
+  const gf = ENTITIES[eje] && ENTITIES[eje].groupsFrom && Object.values(ENTITIES[eje].groupsFrom)[0];
+  return gf || (ENTITIES[eje] && ENTITIES[eje].keyField) || null;
+};
+const _ejeRows = (eje) => {   // filas de la FUENTE propia del eje (contrato · para nombres canónicos)
+  const E = ENTITIES[eje], S = E && SOURCES[E.source];
+  if (!S) return [];
+  let rows = [];
+  try { rows = S.load() || []; } catch { rows = []; }
+  return S.rowFilter ? rows.filter(S.rowFilter) : rows;
+};
+let _dispoCache = null;
+export function pnlDisponibilidad() {
+  if (_dispoCache) return _dispoCache;
+  const out = [];
+  for (const [eje, E] of Object.entries(ENTITIES)) {
+    const label = E.label || { sing: eje, plur: `${eje}s` };
+    if (eje === _BASE_EJE) { out.push({ eje, label, available: true, field: E.keyField }); continue; }
+    const declara = (METRICS.ventas.axes || []).includes(eje) && (METRICS.contribucion.axes || []).includes(eje);
+    if (!declara) { out.push({ eje, label, available: false, motivo: `no tengo la venta desglosada por ${label.sing}` }); continue; }
+    const f = _rollField(eje);
+    const names = new Set(_ejeRows(eje).map((r) => _norm(r[E.keyField])).filter(Boolean));
+    const cubre = clientesMargen.length > 0 && clientesMargen.every((r) => typeof r[f] === "string" && r[f] && names.has(_norm(r[f])));
+    out.push(cubre ? { eje, label, available: true, field: f }
+      : { eje, label, available: false, motivo: `la venta del P&L no baja desglosada a ${label.sing}` });
+  }
+  return (_dispoCache = out);
+}
+export const pnlEjesDisponibles = () => pnlDisponibilidad().filter((d) => d.available);
+const _dispoDe = (eje) => pnlDisponibilidad().find((d) => d.eje === eje) || null;
+// la frase "sí puedo dártelo por…" del redirect (data-driven · una sola verdad con la disponibilidad)
+const _dondeSi = () => {
+  const ls = pnlEjesDisponibles().map((d) => d.label.sing);
+  return ls.length > 1 ? `${ls.slice(0, -1).join(", ")} o ${ls[ls.length - 1]}` : (ls[0] || "");
+};
+
+// canon del ALCANCE: nombre normalizado → { nombre, eje, covered } (covered=false: entidad del contrato sin
+// venta desglosada en la base — se entiende el pedido, se responde honesto)
+let _canonCache = null;
+function _pnlCanon() {
+  if (_canonCache) return _canonCache;
+  const m = new Map();
+  for (const d of pnlEjesDisponibles()) {
+    if (d.eje === _BASE_EJE) { for (const r of clientesMargen) m.set(_norm(r[d.field]), { nombre: r[d.field], eje: d.eje, covered: true }); continue; }
+    for (const r of clientesMargen) { const v = r[d.field]; if (v && !m.has(_norm(v))) m.set(_norm(v), { nombre: v, eje: d.eje, covered: true }); }
+  }
+  for (const d of pnlEjesDisponibles()) {
+    if (d.eje === _BASE_EJE) continue;
+    for (const r of _ejeRows(d.eje)) { const v = r[ENTITIES[d.eje].keyField]; if (v && !m.has(_norm(v))) m.set(_norm(v), { nombre: v, eje: d.eje, covered: false }); }
+  }
+  return (_canonCache = m);
+}
+function _pnlEntityEn(q) {   // entidad del canon del alcance nombrada en el texto · nombre más largo primero
+  const nq = _norm(q);
+  for (const [k, c] of [..._pnlCanon().entries()].sort((a, b) => b[0].length - a[0].length)) {
+    if (k.length < 2) continue;   // ≥2: "LG" es marca real — el borde de palabra evita pescarla adentro de otra
+    if (new RegExp(`(^|[^a-z0-9])${_esc(k)}([^a-z0-9]|$)`).test(nq)) return c;
+  }
+  return null;
+}
+// eje nombrado en el texto («por familia» · «por punto de venta») → key del contrato + la palabra del usuario
+const _EJE_ALIAS = [
+  [/\bpuntos?\s+de\s+venta\b/i, "bodega"], [/\bbodegas?\b/i, "bodega"], [/\bsucursal\w*\b/i, "bodega"],
+  [/\btiendas?\b/i, "bodega"], [/\blocales\b/i, "bodega"],
+  [/\bfamilias?\b/i, "familia"], [/\bcategor[ií]as?\b/i, "familia"],
+  [/\bmarcas?\b/i, "marca"],
+  [/\bclientes?\b/i, "cliente"], [/\bcuentas?\b/i, "cliente"],
+  [/\bskus?\b/i, "sku"], [/\bproductos?\b/i, "sku"],
+];
+function _ejeEn(q) {
+  for (const [re, k] of _EJE_ALIAS) { const m = re.exec(q); if (m) return { eje: k, pedido: m[0].toLowerCase().replace(/s$/, "").replace(/puntos de venta/, "punto de venta") }; }
+  return null;
+}
+// «P&L por <eje>» exige la preposición pegada a un eje ("los 5 clientes por venta" no es una tabla del P&L)
+const _POR_EJE_RE = /\b(?:por|seg[uú]n|a\s+nivel\s+(?:de\s+)?|para\s+cada|desglosado\s+(?:por|en)|abierto\s+por)\s+((?:cada\s+|la\s+|las\s+|los\s+|el\s+|mis\s+)?[\p{L}][\p{L}\s]{2,26})/iu;
+const _ejePedido = (q) => { const m = _POR_EJE_RE.exec(q); return m ? _ejeEn(m[1]) : null; };
+
+// ── ESTADO DEL HILO (el último alcance leído · "volvamos al P&L" / "¿y el de Ripley?") · en memoria · el
+// reset del chat lo limpia (resetPnlDraft) · forget también (clearPnl) ──
+let _scope = null;   // { dimension, entity|null, entities|null } · null = negocio (o sin lectura aún)
+export function pnlScope() { return _scope ? { ..._scope, entities: _scope.entities ? [..._scope.entities] : null } : null; }
+
+/* detectPnlEllipsis(q) → intent | null · las formas ELÍPTICAS del hilo P&L («¿y el de Ripley?» · «recuerda lo
+ * anterior»). SEPARADO de detectPnlIntent porque NO debe cortar la cadena solo: coerceSpec lo consulta ÚNICAMENTE
+ * si el LLM #1 no resolvió ya el turno a una operación concreta (un «¿y el de Jumbo?» de un hilo de margen es del
+ * margen — la clasificación resuelta manda) y exige hilo P&L vivo (_scope + líneas). */
+export function detectPnlEllipsis(q) {
+  const t = String(q || "").trim();
+  if (!t || !_lines.length || !_scope) return null;
+  const mY = t.match(/^¿?\s*¿?\s*y\s+(?:el|la|los|las)?\s*(?:de\s+)?([\p{L}][\p{L}\s.\-]{2,30}?)\s*\??\s*$/iu);
+  if (mY) { const c = _pnlEntityEn(mY[1]); if (c) return { action: "resultado_scoped", entidad: c.nombre, eje: c.eje, covered: c.covered }; }
+  if (/^¿?\s*(?:recuerda|record[aá]|acord[aá]te\s+de)\s+lo\s+(?:anterior|de\s+antes|[uú]ltimo)\b|qu[eé]\s+me\s+hab[ií]as\s+dicho/i.test(t))
+    return { action: "volver" };
+  // cambio de eje elíptico dentro del hilo («muéstramelo por familia» · «veámoslo por marca» — sweep 2026-07-25)
+  const mP = t.match(/^¿?\s*(?:mu[eé]stra(?:me)?lo|v[eé]a?moslo|d[aá]melo|[aá]brelo|c[aá]mbialo|ll[eé]v[aá]lo|ahora)\s+(?:a\s+|por\s+|en\s+)(.+?)\s*\??\s*$/iu);
+  if (mP) { const ej = _ejeEn(mP[1]); if (ej) return { action: "tabla_eje", eje: ej.eje, pedido: ej.pedido }; }
+  return null;
+}
 
 // ── LA CASCADA (determinística · UNA verdad: la cara Resultado, las lecturas y el cuadro leen de acá) ────────
 // Base = clientesMargen del escenario (venta facturada anual · la MISMA base de margen/contribución de la Mesa).
@@ -80,7 +203,7 @@ export function resetPnlDraft() { _draft = null; }
 // Margen bruto y costo se DERIVAN (margen bruto = contribución + carga · costo = ingreso − margen bruto): así la
 // cascada CIERRA EXACTO en cada paso por construcción — ingreso − costo − carga − Σgastos == resultado — y por
 // entidad, resultado_e = contribución_e − Σ(pct_i × venta_e/100), con Σ entidades == total (el gate lo verifica).
-export function buildPnlCascade(scenario, linesOverride = null) {
+export function buildPnlCascade(scenario, linesOverride = null, opts = null) {
   const lines = linesOverride || _lines;
   const M = applyScenarioToClientesMargen(scenario || "bonanza") || [];
   const sum = (f) => M.reduce((a, r) => a + (typeof f(r) === "number" ? f(r) : 0), 0);
@@ -93,11 +216,30 @@ export function buildPnlCascade(scenario, linesOverride = null) {
   const totalGastosK = gastos.reduce((a, g) => a + g.usdK, 0);
   const resultadoK = contribK - totalGastosK;
   const resultadoPct = ingresoK ? (resultadoK / ingresoK) * 100 : 0;
-  const porEntidad = M.map((r) => {
-    const gK = (r.venta * sumPct) / 100;
-    return { nombre: r.nombre, ventaK: r.venta, contribK: r.contribucion, gastoK: gK, resultadoK: r.contribucion - gK, resultadoPct: r.venta ? ((r.contribucion - gK) / r.venta) * 100 : 0 };
-  });
-  return { defined: lines.length > 0, lines: lines.map((l) => ({ ...l })), ingresoK, costoK, margenBrutoK, cargaK, contribK, gastos, sumPct, totalGastosK, resultadoK, resultadoPct, porEntidad };
+  // ── porEntidad por ALCANCE (pase 2): el eje pedido agrupa LA MISMA base (mismas anclas venta/contribución/
+  // carga por fila · costo derivado) → cada entidad cierra exacto y Σ entidades == negocio POR CONSTRUCCIÓN,
+  // en todo escenario. El eje base = una fila por entidad (byte-igual al pase 1 + carga/costo derivados). ──
+  const dimension = (opts && opts.dimension && opts.dimension !== _BASE_EJE && ENTITIES[opts.dimension]) ? opts.dimension : _BASE_EJE;
+  const _entrada = (nombre, ventaK2, contribK2, cargaK2, n) => {
+    const gK = (ventaK2 * sumPct) / 100;
+    return { nombre, ventaK: ventaK2, contribK: contribK2, cargaK: cargaK2, margenBrutoK: contribK2 + cargaK2,
+      costoK: ventaK2 - (contribK2 + cargaK2), gastoK: gK, resultadoK: contribK2 - gK,
+      resultadoPct: ventaK2 ? ((contribK2 - gK) / ventaK2) * 100 : 0, n };
+  };
+  let porEntidad;
+  if (dimension === _BASE_EJE) {
+    porEntidad = M.map((r) => _entrada(r.nombre, r.venta, r.contribucion, (r.venta * (r.pctRebate || 0)) / 100, 1));
+  } else {
+    const f = _rollField(dimension), by = new Map();
+    for (const r of M) {
+      const k = r[f] || "—";
+      if (!by.has(k)) by.set(k, { ventaK: 0, contribK: 0, cargaK: 0, n: 0 });
+      const g = by.get(k);
+      g.ventaK += r.venta; g.contribK += r.contribucion; g.cargaK += (r.venta * (r.pctRebate || 0)) / 100; g.n++;
+    }
+    porEntidad = [...by.entries()].map(([k, g]) => _entrada(k, g.ventaK, g.contribK, g.cargaK, g.n)).sort((a, b) => b.ventaK - a.ventaK);
+  }
+  return { defined: lines.length > 0, lines: lines.map((l) => ({ ...l })), ingresoK, costoK, margenBrutoK, cargaK, contribK, gastos, sumPct, totalGastosK, resultadoK, resultadoPct, dimension, porEntidad };
 }
 
 // ── DETECCIÓN · la red determinística del claim pnl_setup (corre en coerceSpec ANTES de fuera-de-dato/criteria) ──
@@ -164,16 +306,10 @@ function _parseTargetK(q) {
   return null;
 }
 
-const _CLIENTES = new Map(clientesMargen.map((r) => [_norm(r.nombre), r.nombre]));
-function _clienteEn(q) {
-  const nq = _norm(q);
-  for (const [k, nombre] of _CLIENTES) if (new RegExp(`(^|[^a-z0-9])${_esc(k)}([^a-z0-9]|$)`).test(nq)) return nombre;
-  return null;
-}
-
-/* detectPnlIntent(q) → { action, ... } | null · PURA respecto del texto (lee el estado del módulo: draft + líneas).
- * Acciones: start · recall · forget · edit_set · edit_add · edit_remove · peso · resultado · resultado_entidad ·
- * simulate_line · meta_venta · draft_gastos · draft_pcts · draft_sello · draft_cancel · draft_stay · draft_help */
+/* detectPnlIntent(q) → { action, ... } | null · PURA respecto del texto (lee el estado del módulo: draft + líneas
+ * + alcance). Acciones: start · recall · forget · edit_set · edit_add · edit_remove · peso · resultado ·
+ * resultado_entidad · simulate_line · meta_venta · draft_* · y del PASE 2: resultado_scoped · tabla_eje ·
+ * resultado_deixis · volver (las elípticas del hilo viven en detectPnlEllipsis — no cortan la cadena solas). */
 export function detectPnlIntent(q) {
   const t = String(q || "").trim();
   if (!t) return null;
@@ -207,11 +343,20 @@ export function detectPnlIntent(q) {
   }
   // ── SIN DRAFT ──
   // simulate de una LÍNEA declarada («¿qué pasa si bajo logística a 2%?») · condicional + línea propia + % target
+  // + ALCANCE (pase 2): «…a 2% en Falabella» (canon) o deíctico («¿y si en esa familia bajo logística a 2%?»)
   if (_lines.length && _SIMQ_RE.test(t)) {
     const l = _lineInText(t);
     if (l) {
       const mp = t.match(/(?:\ba(?:l)?\s+)(\d+(?:[.,]\d+)?)\s*%|(\d+(?:[.,]\d+)?)\s*%/);
-      if (mp) return { action: "simulate_line", nombre: l.nombre, pct: parseFloat((mp[1] || mp[2]).replace(",", ".")) };
+      if (mp) {
+        const pi = { action: "simulate_line", nombre: l.nombre, pct: parseFloat((mp[1] || mp[2]).replace(",", ".")) };
+        const ent = _pnlEntityEn(t);
+        const mD = t.match(/\b(?:en|para|de)\s+(?:esa?|este?|esta)\s+(familia|cliente|cuenta|marca|entidad)\b/i);
+        if (ent && ent.covered) { pi.entidad = ent.nombre; pi.eje = ent.eje; }
+        else if (mD) pi.scopeDeictic = mD[1].toLowerCase();   // el sustantivo deíctico (valida el eje al componer)
+        else if (/\bah[ií]\b/i.test(t)) pi.scopeDeictic = "entidad";
+        return pi;
+      }
     }
     return null;   // condicional sin línea propia → la red genérica de simulate resuelve
   }
@@ -233,6 +378,23 @@ export function detectPnlIntent(q) {
   // forget («olvidá mi p&l» / «borrá mis gastos») · ANTES que el forget de criteria (que se lo robaría como recall)
   if (/\b(olvid[aá]|borr[aá]|elimin[aá]|resete[aá])/i.test(t) && (_PNL_WORD.test(t) || /\b(mis|los)\s+gastos\b/i.test(t)))
     return { action: "forget" };
+  // ── ALCANCE (pase 2) · «volvamos al P&L» → retoma el último alcance · ANTES de scoped/recall ──
+  if (/\b(volv(?:amos|emos|é|e[rs]?)|retom(?:emos|[aá]|ar))\b/i.test(t) && _PNL_WORD.test(t))
+    return { action: "volver" };
+  // ── ALCANCE (pase 2) · «P&L de Falabella» / «de Cuidado Personal» / «por familia» / «del negocio» ·
+  // ANTES del recall («muéstrame el P&L de Falabella» no es el recall global) ──
+  if (_PNL_WORD.test(t)) {
+    const entA = _pnlEntityEn(t);
+    if (entA) return { action: "resultado_scoped", entidad: entA.nombre, eje: entA.eje, covered: entA.covered };
+    const ej = _ejePedido(t);
+    if (ej) return { action: "tabla_eje", eje: ej.eje, pedido: ej.pedido };
+    if (/\bdel?\s+negocio(?:\s+completo)?\b|\bnegocio\s+completo\b/i.test(t)) return { action: "resultado" };
+  }
+  // «resultado después de gastos por familia» (sin la palabra P&L) también es la tabla del eje
+  if (/despu[eé]s\s+de\s+(?:los\s+)?gastos/i.test(t)) {
+    const ej = _ejePedido(t);
+    if (ej && !_pnlEntityEn(t)) return { action: "tabla_eje", eje: ej.eje, pedido: ej.pedido };
+  }
   // recall («¿qué gastos tengo configurados?» · «muéstrame mi p&l») · ANTES del start ("configurados" contiene "configura")
   if ((/\bqu[eé]\s+gastos\b/i.test(t) && /(tengo|ten[eé]s|configurad|definid|guardad)/i.test(t))
     || (/(mu[eé]strame|mostrame|ver|c[oó]mo\s+(est[aá]|qued[oó])|cu[aá]l\s+es)\b/i.test(t) && _PNL_WORD.test(t) && !/resultado\s+comercial/i.test(t)))
@@ -243,16 +405,27 @@ export function detectPnlIntent(q) {
   // qué línea pesa más
   if (/\bl[ií]neas?\b[^.?!]*\b(pesa|pesan|consume|se\s+come)\b[^.?!]*\bresultado\b|\bl[ií]nea\s+que\s+m[aá]s\s+pesa\b/i.test(t))
     return { action: "peso" };
-  // resultado por ENTIDAD («¿cuánto deja Falabella después de gastos?»)
+  // DEIXIS (pase 2 · patrón C.1): «de esos, ¿cuánto me dejan después de gastos?» — hereda el conjunto que ADI
+  // acaba de nombrar (composePnl lo resuelve desde la última evidencia/memoria; acá solo se detecta).
+  if (_lines.length
+    && /\b(?:de|entre)\s+(?:esos|esas|ellos|ellas|estos|estas|los\s+mismos|las\s+mismas|los\s+anteriores|los\s+que\s+(?:me\s+)?(?:mostraste|nombraste|dijiste|salieron|aparecieron))\b/i.test(t)
+    && (/despu[eé]s\s+de\s+(?:los\s+)?gastos/i.test(t) || /\bresultado\b/i.test(t))
+    && /\b(dej[oa]n?|queda[n]?|gan[oa]n?|rinden?|aportan?)\b/i.test(t))
+    return { action: "resultado_deixis" };
+  // resultado por ENTIDAD («¿cuánto deja Falabella después de gastos?») · pase 2: cualquier entidad del alcance
   if (/despu[eé]s\s+de\s+(?:los\s+)?gastos/i.test(t)) {
-    const ent = _clienteEn(t);
-    if (ent && /\b(deja|queda|gana|aporta|rinde)\b/i.test(t)) return { action: "resultado_entidad", entidad: ent };
+    const ent = _pnlEntityEn(t);
+    if (ent && /\b(deja|queda|gana|aporta|rinde)\b/i.test(t)) return { action: "resultado_entidad", entidad: ent.nombre, eje: ent.eje, covered: ent.covered };
   }
-  // meta de venta («¿cuánto tengo que vender para ganar $2M después de gastos?»)
-  if (/\bcu[aá]nto\s+(?:tengo\s+que|debo|necesito|tendr[ií]a\s+que|hay\s+que)\s+vender\b/i.test(t)
-    && /(ganar|resultado|despu[eé]s\s+de\s+gastos|utilidad|quedar)/i.test(t)) {
+  // meta de venta («¿cuánto tengo que vender para ganar $2M después de gastos?» · pase 2: scoped — «¿cuánto
+  // vender en Falabella para que me deje $500K después de gastos?»)
+  if (/\bcu[aá]nto\s+(?:tengo\s+que\s+|debo\s+|necesito\s+|tendr[ií]a\s+que\s+|hay\s+que\s+)?vender\b/i.test(t)
+    && /(ganar|resultado|despu[eé]s\s+de\s+gastos|utilidad|quedar|dej[ea])/i.test(t)) {
     const targetK = _parseTargetK(t);
-    if (targetK) return { action: "meta_venta", targetK };
+    if (targetK) {
+      const ent = _pnlEntityEn(t);
+      return { action: "meta_venta", targetK, ...(ent ? { entidad: ent.nombre, eje: ent.eje, covered: ent.covered } : {}) };
+    }
   }
   // resultado («¿cómo queda mi resultado comercial?» · «¿cuánto gano después de gastos?») · sin condicional
   if (!/\bsi\b/i.test(t)
@@ -266,7 +439,7 @@ export function detectPnlIntent(q) {
 
 // ── COMPOSERS · respuestas VERBATIM del flujo y las lecturas (kind "criteria": ni narrador ni gateway) ───────
 import { activeCriteria } from "./criteria.js";
-function _evidence(extraBol = []) {
+function _evidence(extraBol = [], ev = null) {
   const list = activeCriteria();
   const pnl = activePnl();
   const bol = [
@@ -274,10 +447,15 @@ function _evidence(extraBol = []) {
     ...pnl.map((l) => fig(`P&L · ${l.nombre}`, `${_fmtPct(l.pct)}%`, { unit: "pct", raw: l.pct, source: "computed", formula: `${_fmtPct(l.pct)}% sobre la venta`, context: "supuesto declarado" })),
     ...extraBol,
   ];
-  return { followup: true, kind: "criteria", criteriaList: list, pnlList: pnl, boleta: bol };
+  const base = { followup: true, kind: "criteria", criteriaList: list, pnlList: pnl, boleta: bol };
+  // CONEXIÓN TOTAL (pase 2 · "nada al azar"): las LECTURAS con alcance son turnos ACCIONABLES — threadean
+  // lastEvidence y la memoria (entidad/entityList/dimension) manteniendo el verbatim (kind criteria manda en
+  // pickNarratedText). Las administrativas (flujo/edición/recall) siguen followup:true: una edición a mitad de
+  // un hilo scoped NO pisa la última lectura.
+  return ev ? { ...base, followup: false, pnl: true, ...ev } : base;
 }
-const _resp = (text, { route = "pnl_setup", suggestions = null, bol = [] } = {}) =>
-  ({ text, suggestions, sentrixAction: null, evidence: _evidence(bol), route });
+const _resp = (text, { route = "pnl_setup", suggestions = null, bol = [], ev = null } = {}) =>
+  ({ text, suggestions, sentrixAction: null, evidence: _evidence(bol, ev), route });
 const _gPct = (v, label = "Supuesto %") => fig(label, `${_fmtPct(v)}%`, { unit: "pct", raw: _r1(v), source: "computed", gancho: true, context: "P&L comercial" });
 const _fMoneyK = (label, vK, { mandatory = false, gancho = false } = {}) =>
   fig(label, _moneyK(vK), { unit: "money", raw: vK * 1000, mandatory, source: "computed", gancho, context: "P&L comercial" });
@@ -316,9 +494,21 @@ function _proponerSello(scenario) {
  * nada → start). El scenario viaja en state (como el resto del camino conversacional). */
 export function composePnl(pi, ctx = null, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
-  if (!pi) {
+  // claim del LLM #1 CON ALCANCE (specTool: pnl { entity?, dimension? } — sin action): se normaliza acá contra
+  // el canon — el LLM entiende QUÉ quiere el usuario; ADI decide si SE PUEDE y con los nombres reales del dato.
+  if (pi && !pi.action && (pi.entity || pi.dimension)) {
+    if (pi.entity && /\bnegocio\b/i.test(String(pi.entity))) pi = { action: _lines.length ? "resultado" : "start" };
+    else if (pi.entity) {
+      const c = _pnlEntityEn(String(pi.entity));
+      pi = c ? { action: "resultado_scoped", entidad: c.nombre, eje: c.eje, covered: c.covered } : { action: "scoped_missing", pedido: String(pi.entity) };
+    } else if (pi.dimension === "negocio") pi = { action: _lines.length ? "resultado" : "start" };
+    else if (ENTITIES[pi.dimension]) pi = { action: "tabla_eje", eje: pi.dimension };
+    else pi = null;
+  }
+  if (!pi || !pi.action) {
     if (_draft) pi = { action: _draft.stage === "gastos" ? "draft_help" : _draft.stage === "pcts" ? "draft_reask" : "draft_stay" };
-    else pi = { action: _lines.length ? "resultado" : "start" };
+    // con ALCANCE VIVO, la vuelta sin señal retoma el último alcance (pase 2 · "recuerda lo anterior")
+    else pi = { action: _lines.length ? (_scope ? "volver" : "resultado") : "start" };
   }
   const a = pi.action;
 
@@ -443,9 +633,137 @@ export function composePnl(pi, ctx = null, state = {}) {
 
   // ── LECTURAS (cascada determinística · el sello entender→explicar→actuar en una respuesta) ──
   const sinPnl = () => _resp(`Esa cuenta llega hasta la contribución: todavía no tengo tus líneas de gasto, así que no hay resultado después de gastos que afirmar. ¿Armamos tu P&L ahora? Dime qué gastos quieres considerar y los porcentajes los definimos juntos.`, { route: "pnl_reading" });
+  const _EJE_LBL = (eje) => (ENTITIES[eje] && ENTITIES[eje].label) || { sing: String(eje), plur: `${eje}s` };
+
+  // ── ALCANCE (PASE 2) · volver / P&L de una entidad / la tabla del eje / deixis / entidad desconocida ──
+  if (a === "volver") {
+    if (!_lines.length) return sinPnl();
+    if (_scope && _scope.entity) return composePnl({ action: "resultado_scoped", entidad: _scope.entity, eje: _scope.dimension, covered: true, _retoma: true }, ctx, state);
+    if (_scope && _scope.entities && _scope.entities.length) return composePnl({ action: "resultado_deixis", _entities: { entities: _scope.entities, dimension: _scope.dimension }, _retoma: true }, ctx, state);
+    if (_scope && _scope.dimension && !_scope.global) return composePnl({ action: "tabla_eje", eje: _scope.dimension, _retoma: true }, ctx, state);
+    return composePnl({ action: "resultado" }, ctx, state);
+  }
+  if (a === "scoped_missing") {
+    const primero = pnlEjesDisponibles()[0];
+    return _resp(
+      `No tengo a «${String(pi.pedido || "").trim()}» en el alcance del P&L — está armado sobre la venta por ${_dondeSi()}. Dime la entidad como aparece en tu cartera o pídeme la tabla completa: «P&L por ${primero.label.sing}».`,
+      { route: "pnl_reading", suggestions: [`P&L por ${primero.label.sing}`, "P&L del negocio"] }
+    );
+  }
+  if (a === "resultado_scoped") {
+    if (!_lines.length) return sinPnl();
+    const eje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : _BASE_EJE;
+    if (pi.covered === false) {
+      // entidad del CONTRATO sin venta desglosada en la base (ej. una marca que no vende por cliente en el dato):
+      // el pedido se entiende y se responde honesto — JAMÁS prorratear sobre venta que el dato no desglosa.
+      const covered = buildPnlCascade(scenario, null, { dimension: eje }).porEntidad.map((x) => x.nombre);
+      return _resp(
+        `El P&L de ${pi.entidad} no lo puedo armar con rigor: el P&L ancla en la venta desglosada por ${_EJE_LBL(_BASE_EJE).sing}, y ${pi.entidad} no tiene esa venta en el dato — prorratear tus gastos ahí sería inventar. Sí puedo darte su margen o su contribución como siempre, o el P&L de ${covered.length ? covered.slice(0, 3).join(", ") : _dondeSi()}. ¿Cuál te sirve?`,
+        { route: "pnl_reading", suggestions: [`¿Cómo está ${pi.entidad}?`, ...(covered.length ? [`P&L de ${covered[0]}`] : [])] }
+      );
+    }
+    const c = buildPnlCascade(scenario, null, { dimension: eje });
+    const e = c.porEntidad.find((x) => _norm(x.nombre) === _norm(pi.entidad));
+    if (!e) return _resp(`A ${pi.entidad} no lo tengo en el dato vigente del P&L. Hoy puedo armarlo por ${_dondeSi()} o del negocio completo.`, { route: "pnl_reading", suggestions: ["P&L del negocio"] });
+    _scope = { dimension: eje, entity: e.nombre, entities: null };
+    const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+    const simT = top ? _r1(Math.max(top.pct / 2, top.pct - 1)) : null;
+    const simAsk = top ? `¿Qué pasa si bajas ${top.nombre.toLowerCase()} a ${_fmtPct(simT)}% en ${e.nombre}?` : null;
+    const otros = c.porEntidad.filter((x) => x.nombre !== e.nombre);
+    const share = c.resultadoK > 0 && e.resultadoK > 0 ? _r1((e.resultadoK / c.resultadoK) * 100) : null;
+    const bol = [
+      _fMoneyK(`Resultado · ${e.nombre}`, e.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${e.nombre}`, e.resultadoPct),
+      _fMoneyK(`Ingreso · ${e.nombre}`, e.ventaK), _fMoneyK(`Costo · ${e.nombre}`, e.costoK),
+      _fMoneyK(`Margen bruto · ${e.nombre}`, e.margenBrutoK), _fMoneyK(`Carga comercial · ${e.nombre}`, e.cargaK),
+      _fMoneyK(`Contribución · ${e.nombre}`, e.contribK), _fMoneyK(`Gastos prorrateados · ${e.nombre}`, e.gastoK),
+      _fPct("Gastos · total", c.sumPct),
+      ...(share != null ? [_fPct("Peso en el resultado", share), _fMoneyK("Resultado del negocio", c.resultadoK)] : []),
+      ...(top ? [_gPct(simT)] : []),
+    ];
+    return _resp(
+      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}. ` : ""}El P&L de ${e.nombre} con tu estructura declarada: ingreso ${_moneyK(e.ventaK)} − costo ${_moneyK(e.costoK)} = margen bruto ${_moneyK(e.margenBrutoK)} − carga comercial ${_moneyK(e.cargaK)} = contribución ${_moneyK(e.contribK)} − gastos prorrateados ${_moneyK(e.gastoK)} (${_fmtPct(c.sumPct)}% sobre su venta) = resultado ${_moneyK(e.resultadoK)} — ${_fmtPct(e.resultadoPct)}% de su venta.${share != null ? ` Aporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\nHasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${simAsk ? ` ${simAsk}` : ""}`,
+      { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), ...(otros.length ? [`P&L de ${otros[0].nombre}`] : [])], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
+    );
+  }
+  if (a === "tabla_eje") {
+    if (!_lines.length) return sinPnl();
+    const d = _dispoDe(pi.eje);
+    const pedido = String(pi.pedido || (d ? d.label.sing : pi.eje || "ese eje")).replace(/^sku$/i, "SKU");
+    if (!d || !d.available) {
+      // REDIRECT que se adueña (doctrina fuera-de-dato): declara el límite REAL del dato y abre el camino donde SÍ.
+      const si = pnlEjesDisponibles().map((x) => x.label.sing);
+      return _resp(
+        `El P&L por ${pedido} no lo puedo armar — ${d ? d.motivo : "no tengo ese eje en el dato"}. Sí puedo dártelo por ${si.length > 1 ? `${si.slice(0, -1).join(", ")} o ${si[si.length - 1]}` : si[0]}, o del negocio completo. ¿Cuál te sirve?`,
+        { route: "pnl_reading", suggestions: [...si.slice(0, 2).map((x) => `P&L por ${x}`), "P&L del negocio"] }
+      );
+    }
+    const eje = d.eje, lbl = d.label;
+    const c = buildPnlCascade(scenario, null, { dimension: eje });
+    const rows = c.porEntidad.slice().sort((x, y) => y.resultadoK - x.resultadoK);
+    const MAXN = 6;
+    const listadas = rows.length > MAXN ? rows.slice(0, MAXN - 1) : rows;
+    const resto = rows.length > MAXN ? rows.slice(MAXN - 1) : [];
+    const restoK = resto.reduce((acc, x) => acc + x.resultadoK, 0);
+    _scope = { dimension: eje, entity: null, entities: null };
+    const lineas = listadas.map((x) => `· ${x.nombre}: venta ${_moneyK(x.ventaK)} − gastos ${_moneyK(x.gastoK)} → resultado ${_moneyK(x.resultadoK)} (${_fmtPct(x.resultadoPct)}% de su venta)`);
+    if (resto.length) lineas.push(`· …y ${resto.length} más que suman ${_moneyK(restoK)} de resultado (el detalle completo está en la cara Resultado de la Mesa).`);
+    const negs = rows.filter((x) => x.resultadoK < 0);
+    const bol = [
+      _fMoneyK("Resultado del negocio", c.resultadoK, { mandatory: true }), _fPct("Gastos · total", c.sumPct),
+      ...listadas.flatMap((x) => [_fMoneyK(`Venta · ${x.nombre}`, x.ventaK), _fMoneyK(`Gastos · ${x.nombre}`, x.gastoK), _fMoneyK(`Resultado · ${x.nombre}`, x.resultadoK), _fPct(`Resultado % · ${x.nombre}`, x.resultadoPct)]),
+      ...(resto.length ? [_fMoneyK("Resto · resultado", restoK)] : []),
+    ];
+    return _resp(
+      `${pi._retoma ? "Retomo tu P&L donde lo dejamos. " : ""}Tu P&L por ${lbl.sing} — el mismo negocio repartido en ${rows.length} ${lbl.plur}, con tus gastos declarados (${_fmtPct(c.sumPct)}% sobre la venta de cada ${lbl.sing}):\n\n${lineas.join("\n")}\n\nSus ${rows.length} ${lbl.plur} suman exacto el resultado del negocio: ${_moneyK(c.resultadoK)}.${negs.length ? ` Ojo: ${negs.map((x) => x.nombre).join(" y ")} queda${negs.length > 1 ? "n" : ""} en negativo con tus supuestos.` : ""} ¿Profundizo en ${eje === _BASE_EJE ? "una cuenta" : `una ${lbl.sing}`} — «P&L de ${rows[0].nombre}» — o lo vemos por otro eje?`,
+      { route: "pnl_reading", suggestions: [`P&L de ${rows[0].nombre}`, ...pnlEjesDisponibles().filter((x) => x.eje !== eje).slice(0, 2).map((x) => `P&L por ${x.label.sing}`)], bol,
+        ev: { dimension: eje, entityList: { entities: listadas.filter((x) => x.nombre !== "—").map((x) => x.nombre), dimension: eje } } }
+    );
+  }
+  if (a === "resultado_deixis") {
+    if (!_lines.length) return sinPnl();
+    const last = (ctx && (ctx.last || ctx.lastEvidence)) || null;
+    const el = pi._entities || (last && last.entityList) || null;
+    const mem = (ctx && ctx.memoria) || null;
+    if (!el || !Array.isArray(el.entities) || !el.entities.length) {
+      // sin conjunto heredable: la ENTIDAD en foco de la memoria (paréntesis largo) antes que la repregunta
+      if (mem && mem.entidad && mem.entidad.nombre) {
+        const c0 = _pnlEntityEn(mem.entidad.nombre);
+        if (c0) return composePnl({ action: "resultado_scoped", entidad: c0.nombre, eje: c0.eje, covered: c0.covered }, ctx, state);
+      }
+      const primero = pnlEjesDisponibles()[0];
+      return _resp(`¿De cuáles? Nómbralos («¿cuánto dejan Ripley y La Polar después de gastos?») o pídeme la tabla completa: «P&L por ${primero.label.sing}».`, { route: "pnl_reading", suggestions: [`P&L por ${primero.label.sing}`] });
+    }
+    let eje = el.dimension && ENTITIES[el.dimension] ? el.dimension : null;
+    if (!eje) { const c0 = _pnlEntityEn(String(el.entities[0] || "")); eje = c0 ? c0.eje : null; }
+    const d = eje && _dispoDe(eje);
+    if (!d || !d.available) {
+      // el conjunto heredado vive en un eje SIN venta desglosada (ej. SKUs) → honesto + dónde SÍ (nunca prorratear)
+      const lp = (eje && _EJE_LBL(eje).plur) || "entidades de un eje que no está en el P&L";
+      return _resp(
+        `Los que veníamos mirando son ${lp} — y ahí el P&L no baja: ${d ? d.motivo : "no tengo la venta desglosada en ese eje"}. Sí puedo dártelo por ${_dondeSi()} o del negocio completo. ¿Cuál te sirve?`,
+        { route: "pnl_reading", suggestions: [...pnlEjesDisponibles().slice(0, 2).map((x) => `P&L por ${x.label.sing}`), "P&L del negocio"] }
+      );
+    }
+    const c = buildPnlCascade(scenario, null, { dimension: eje });
+    const setN = new Set(el.entities.map(_norm));
+    const es = c.porEntidad.filter((x) => setN.has(_norm(x.nombre)));
+    if (!es.length) return _resp(`A esos no los tengo en el alcance del P&L. Pídeme la tabla y de ahí bajamos: «P&L por ${d.label.sing}».`, { route: "pnl_reading", suggestions: [`P&L por ${d.label.sing}`] });
+    _scope = { dimension: eje, entity: es.length === 1 ? es[0].nombre : null, entities: es.map((x) => x.nombre) };
+    const sumR = es.reduce((acc, x) => acc + x.resultadoK, 0), sumV = es.reduce((acc, x) => acc + x.ventaK, 0);
+    const pctJ = sumV ? (sumR / sumV) * 100 : 0;
+    const bol = [
+      ...es.flatMap((x) => [_fMoneyK(`Resultado · ${x.nombre}`, x.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${x.nombre}`, x.resultadoPct)]),
+      _fMoneyK("Resultado del grupo", sumR), _fPct("Resultado % del grupo", pctJ), _fPct("Gastos · total", c.sumPct),
+    ];
+    return _resp(
+      `${pi._retoma ? "Retomo tu P&L donde lo dejamos. " : ""}De los que veníamos mirando, después de gastos: ${es.map((x) => `${x.nombre} deja ${_moneyK(x.resultadoK)} (${_fmtPct(x.resultadoPct)}% de su venta)`).join(" · ")}.${es.length > 1 ? ` Juntos: ${_moneyK(sumR)} — el ${_fmtPct(pctJ)}% de su venta combinada.` : ""} El prorrateo usa tus porcentajes declarados (${_fmtPct(c.sumPct)}% sobre la venta de cada uno) — supuesto, no contabilidad por ${d.label.sing}.`,
+      { route: "pnl_reading", suggestions: [`P&L de ${es[0].nombre}`], bol, ev: { dimension: eje, entityList: { entities: es.map((x) => x.nombre), dimension: eje } } }
+    );
+  }
   if (a === "resultado") {
     if (!_lines.length) return sinPnl();
     const c = buildPnlCascade(scenario);
+    _scope = { dimension: _BASE_EJE, entity: null, entities: null, global: true };   // hilo vivo: "¿y el de Ripley?" / "volvamos al P&L"
     const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
     const bol = [
       _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct, { mandatory: true }),
@@ -458,7 +776,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     const neg = c.resultadoK < 0 ? ` Ojo: el resultado es negativo con los supuestos declarados — vale revisar las líneas antes que la venta.` : "";
     return _resp(
       `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — ${_fmtPct(c.resultadoPct)}% de la venta.\n\nLa cascada completa sobre el dato real: ingreso ${_moneyK(c.ingresoK)} − costo ${_moneyK(c.costoK)} = margen bruto ${_moneyK(c.margenBrutoK)} − carga comercial ${_moneyK(c.cargaK)} = contribución ${_moneyK(c.contribK)} − tus gastos declarados ${_moneyK(c.totalGastosK)} (${_fmtPct(c.sumPct)}% sobre la venta) = resultado ${_moneyK(c.resultadoK)}. Hasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.${neg}\n\nLa línea que más pesa: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} · ${_fmtPct(top.pct)}%). ${pnlSimAsk(top)}`,
-      { route: "pnl_reading", suggestions: [pnlSimAsk(top), "¿Qué línea pesa más en el resultado?"], bol }
+      { route: "pnl_reading", suggestions: [pnlSimAsk(top), "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE } }
     );
   }
   if (a === "peso") {
@@ -485,6 +803,43 @@ export function composePnl(pi, ctx = null, state = {}) {
     if (!l) return sinPnl();
     if (!(pi.pct >= 0 && pi.pct <= 50)) return _resp(`Ese porcentaje no me sirve como supuesto para ${l.nombre.toLowerCase()} — prueba un valor entre 0% y 50% sobre la venta.`, { route: "pnl_reading", bol: [_gPct(0), _gPct(50)] });
     const t = _r1(pi.pct);
+    // ── PROYECCIÓN SCOPED (pase 2): «…a 2% en Falabella» o «¿y si en esa familia…?» (el alcance vivo/memoria ·
+    // el sustantivo deíctico DEBE calzar con el eje del referente — "esa familia" jamás resuelve a un cliente) ──
+    let sEnt = pi.entidad || null, sEje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : null;
+    if (!sEnt && pi.scopeDeictic) {
+      const _dEje = { familia: "familia", cliente: "cliente", cuenta: "cliente", marca: "marca" }[String(pi.scopeDeictic)] || null;
+      const _calza = (eje) => !_dEje || _dEje === eje;
+      if (_scope && _scope.entity && _calza(_scope.dimension)) { sEnt = _scope.entity; sEje = _scope.dimension; }
+      else if (ctx && ctx.memoria && ctx.memoria.entidad && ctx.memoria.entidad.nombre) {
+        const c0 = _pnlEntityEn(ctx.memoria.entidad.nombre);
+        if (c0 && c0.covered && _calza(c0.eje)) { sEnt = c0.nombre; sEje = c0.eje; }
+      }
+      if (!sEnt) return _resp(`¿En cuál? Dímelo con nombre: «¿y si en Cuidado Personal bajo ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%?»`, { route: "pnl_reading", bol: [_gPct(t)] });
+    }
+    if (sEnt) {
+      const cS = buildPnlCascade(scenario, null, { dimension: sEje || _BASE_EJE });
+      const e = cS.porEntidad.find((x) => _norm(x.nombre) === _norm(sEnt));
+      if (e) {
+        _scope = { dimension: sEje || _BASE_EJE, entity: e.nombre, entities: null };
+        const gA = (e.ventaK * l.pct) / 100, gB = (e.ventaK * t) / 100;
+        const dK = gA - gB;   // gasto que baja = resultado que sube (aritmética local exacta)
+        const resB = e.resultadoK + dK, pctB = e.ventaK ? (resB / e.ventaK) * 100 : 0;
+        const negocioB = cS.resultadoK + dK;
+        const dir = dK >= 0 ? "sube" : "baja";
+        const bol = [
+          _fPct(`Línea · ${l.nombre}`, l.pct), _fPct("Supuesto nuevo", t, { mandatory: true }),
+          _fMoneyK(`Gasto actual en ${e.nombre}`, gA), _fMoneyK(`Gasto con el supuesto en ${e.nombre}`, gB),
+          _fMoneyK("Efecto en su resultado", dK, { mandatory: true }),
+          _fMoneyK(`Resultado actual · ${e.nombre}`, e.resultadoK), _fPct(`Resultado actual % · ${e.nombre}`, e.resultadoPct),
+          _fMoneyK(`Resultado con el supuesto · ${e.nombre}`, resB), _fPct(`Resultado con el supuesto % · ${e.nombre}`, pctB),
+          _fMoneyK("Resultado del negocio con el supuesto", negocioB),
+        ];
+        return _resp(
+          `**Supuesto (local):** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% solo en ${e.nombre}.\n**Efecto directo:** su gasto de ${l.nombre.toLowerCase()} va de ${_moneyK(gA)} a ${_moneyK(gB)}, y su resultado ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(e.resultadoK)} (${_fmtPct(e.resultadoPct)}%) a ${_moneyK(resB)} (${_fmtPct(pctB)}% de su venta). El del negocio queda en ${_moneyK(negocioB)}.\n**Límite:** tu P&L declara ${l.nombre.toLowerCase()} global (${_fmtPct(l.pct)}% en toda la venta) — este supuesto es local y es aritmética, no contabilidad de ${e.nombre}.\n**Decisión:** para moverlo de verdad, global: «cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%».`,
+          { route: "pnl_reading", suggestions: [`Cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%`, `P&L de ${e.nombre}`], bol, ev: { entidad: e.nombre, entityType: sEje || _BASE_EJE, dimension: sEje || _BASE_EJE } }
+        );
+      }
+    }
     const base = buildPnlCascade(scenario);
     const simLines = _lines.map((x) => (x === l ? { ...x, pct: t } : { ...x }));
     const sim = buildPnlCascade(scenario, simLines);
@@ -508,6 +863,36 @@ export function composePnl(pi, ctx = null, state = {}) {
     const c = buildPnlCascade(scenario);
     const targetK = pi.targetK;
     if (!(targetK > 0)) return sinPnl();
+    // ── META SCOPED (pase 2): «¿cuánto vender en Falabella para que me deje $500K después de gastos?» ──
+    if (pi.entidad && pi.covered !== false) {
+      const eje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : _BASE_EJE;
+      const cS = buildPnlCascade(scenario, null, { dimension: eje });
+      const e = cS.porEntidad.find((x) => _norm(x.nombre) === _norm(pi.entidad));
+      if (e) {
+        _scope = { dimension: eje, entity: e.nombre, entities: null };
+        if (e.resultadoPct <= 0) {
+          return _resp(
+            `Con tu estructura actual, ${e.nombre} deja ${_moneyK(e.resultadoK)} (${_fmtPct(e.resultadoPct)}% de su venta) — vender más ahí no lo da vuelta: cada venta adicional entra con el mismo % negativo. Primero revisemos sus números («P&L de ${e.nombre}») o tus líneas de gasto (${_fmtPct(cS.sumPct)}% en total).`,
+            { route: "pnl_reading", suggestions: [`P&L de ${e.nombre}`, "¿Qué línea pesa más en el resultado?"], bol: [_fMoneyK(`Resultado · ${e.nombre}`, e.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${e.nombre}`, e.resultadoPct), _fPct("Gastos · total", cS.sumPct)], ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
+          );
+        }
+        const ventaNecK = (targetK / e.resultadoPct) * 100;
+        const gapK = ventaNecK - e.ventaK;
+        const bol = [
+          _fMoneyK("Meta de resultado", targetK, { mandatory: true }), _fMoneyK("Venta necesaria", ventaNecK, { mandatory: true }),
+          _fPct(`Resultado % · ${e.nombre}`, e.resultadoPct), _fMoneyK(`Venta actual · ${e.nombre}`, e.ventaK),
+          _fMoneyK(`Resultado actual · ${e.nombre}`, e.resultadoK), _fMoneyK(gapK >= 0 ? "Venta adicional" : "Holgura", Math.abs(gapK)),
+          _fPct("Gastos · total", cS.sumPct),
+        ];
+        const cierre = gapK > 0
+          ? `La brecha es ${_moneyK(Math.abs(gapK))} de venta adicional en esa cuenta.`
+          : `Ya está por encima: con su venta actual sobran ${_moneyK(Math.abs(gapK))} de holgura.`;
+        return _resp(
+          `Para que ${e.nombre} te deje ${_moneyK(targetK)} después de gastos necesita vender ${_moneyK(ventaNecK)} al año. La cuenta: con tu estructura, su resultado es el ${_fmtPct(e.resultadoPct)}% de su venta (su margen y su carga del dato − ${_fmtPct(cS.sumPct)}% de gastos declarados). Hoy su venta es ${_moneyK(e.ventaK)} y deja ${_moneyK(e.resultadoK)}. ${cierre} Supuesto: mantiene su mix y tus porcentajes constantes — no es una proyección de demanda.`,
+          { route: "pnl_reading", suggestions: [`P&L de ${e.nombre}`, "¿Qué línea pesa más en el resultado?"], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
+        );
+      }
+    }
     if (c.resultadoPct <= 0) {
       return _resp(
         `Con tu estructura actual el resultado comercial es ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta) — vender más no lo da vuelta: cada venta adicional entra con el mismo % negativo. Primero revisemos las líneas de gasto (${_fmtPct(c.sumPct)}% en total) o el margen.`,
@@ -531,17 +916,22 @@ export function composePnl(pi, ctx = null, state = {}) {
   }
   if (a === "resultado_entidad") {
     if (!_lines.length) return sinPnl();
-    const c = buildPnlCascade(scenario);
+    // pase 2: entidad de CUALQUIER eje del alcance («¿cuánto deja Cuidado Personal después de gastos?») ·
+    // sin cobertura en la base → el mismo camino honesto del scoped (jamás prorratear sin venta desglosada)
+    if (pi.covered === false) return composePnl({ action: "resultado_scoped", entidad: pi.entidad, eje: pi.eje, covered: false }, ctx, state);
+    const eje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : _BASE_EJE;
+    const c = buildPnlCascade(scenario, null, eje === _BASE_EJE ? null : { dimension: eje });
     const e = c.porEntidad.find((x) => x.nombre === pi.entidad);
     if (!e) return sinPnl();
+    _scope = { dimension: eje, entity: e.nombre, entities: null };
     const bol = [
       _fMoneyK(`Resultado · ${e.nombre}`, e.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${e.nombre}`, e.resultadoPct),
       _fMoneyK(`Contribución · ${e.nombre}`, e.contribK), _fMoneyK(`Venta · ${e.nombre}`, e.ventaK),
       _fMoneyK(`Gastos prorrateados · ${e.nombre}`, e.gastoK), _fPct("Gastos · total", c.sumPct),
     ];
     return _resp(
-      `Después de gastos, ${e.nombre} deja ${_moneyK(e.resultadoK)} — ${_fmtPct(e.resultadoPct)}% de su venta. La cuenta: contribución ${_moneyK(e.contribK)} − ${_fmtPct(c.sumPct)}% de gastos prorrateados sobre su venta de ${_moneyK(e.ventaK)} (${_moneyK(e.gastoK)}) = ${_moneyK(e.resultadoK)}. El prorrateo usa tus porcentajes declarados sobre la venta de la cuenta — supuesto, no dato contable de ${e.nombre}.`,
-      { route: "pnl_reading", suggestions: [`Profundiza en ${e.nombre}`, "¿Cómo queda mi resultado comercial?"], bol }
+      `Después de gastos, ${e.nombre} deja ${_moneyK(e.resultadoK)} — ${_fmtPct(e.resultadoPct)}% de su venta. La cuenta: contribución ${_moneyK(e.contribK)} − ${_fmtPct(c.sumPct)}% de gastos prorrateados sobre su venta de ${_moneyK(e.ventaK)} (${_moneyK(e.gastoK)}) = ${_moneyK(e.resultadoK)}. El prorrateo usa tus porcentajes declarados sobre la venta de ${eje === _BASE_EJE ? "la cuenta" : `la ${_EJE_LBL(eje).sing}`} — supuesto, no dato contable de ${e.nombre}.`,
+      { route: "pnl_reading", suggestions: [eje === _BASE_EJE ? `Profundiza en ${e.nombre}` : `P&L de ${e.nombre}`, "¿Cómo queda mi resultado comercial?"], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
     );
   }
   // acción desconocida → estado honesto

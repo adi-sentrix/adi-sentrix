@@ -8,6 +8,16 @@
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 import { BLOCKED_CROSSES } from "../../config/contract/surfaceContract.js";
+import { pnlDisponibilidad } from "../pnl.js";   // P&L pase 2 · disponibilidad DATA-DRIVEN del alcance (una verdad)
+
+// la línea de disponibilidad del P&L para el menú (derivada del contrato+dato · si mañana hay venta por bodega,
+// esta línea cambia sola)
+const _pnlDisponibleLinea = () => {
+  const d = pnlDisponibilidad();
+  const si = d.filter((x) => x.available).map((x) => x.label.sing);
+  const no = d.filter((x) => !x.available).map((x) => x.label.sing);
+  return `${si.join("/")} y del negocio${no.length ? ` — por ${no.join("/")} NO hay venta desglosada` : ""}`;
+};
 
 // descripciones de las operaciones (capa de presentación · el set canónico vive en el seam)
 const OPERATIONS = [
@@ -71,6 +81,7 @@ export function buildContractMenu() {
   L.push("  · `clarification_needed`: si el pedido es ambiguo o cruza mundos, poné la repregunta en `clarify` (no adivines).");
   L.push("  · `followup_compare` ('compará con Lider', 'compáralo con La Polar', 'y versus Jumbo'): comparación conversacional. Poné en `comparison.entities` la(s) entidad(es) que el usuario NOMBRA (el target, ej. ['La Polar']) y `comparison.dimension` = el eje de `contexto.last`. NO repitas el sujeto: ADI lo toma de la última evidencia. Si el usuario nombra dos entidades explícitas, poné las dos.");
   L.push("  · `pnl_setup`: el P&L COMERCIAL del usuario — SUS líneas de gasto (% sobre la venta) que él mismo define conversando. Usalo cuando el usuario: quiere armar/definir su P&L o sus gastos ('armemos mi p&l', 'definamos los gastos'), está EN el flujo (lista nombres de gastos como 'administrativos, logística, marketing' o da porcentajes sueltos tras una pregunta de ADI), edita una línea ('cambia logística a 2%', 'saca promotores', 'agrega bodegaje 1%'), o pregunta por su resultado después de gastos ('¿cómo queda mi resultado comercial?', '¿cuánto deja Falabella después de gastos?', '¿cuánto tengo que vender para ganar $2M después de gastos?'). NO emitas metric/dimension ni cifras: ADI guía el flujo y calcula la cascada. OJO: nombres como 'marketing' o 'publicidad' en este flujo son LÍNEAS DE GASTO del usuario, no análisis de campañas.");
+  L.push(`  · pnl_setup CON ALCANCE (campo \`pnl\`): el P&L también va por entidad y por eje — 'P&L de Falabella' / 'de Cuidado Personal' / '¿cuánto vender en Falabella para que deje $500K después de gastos?' → \`pnl {entity:'Falabella'}\` · 'P&L por familia/cliente/marca' → \`pnl {dimension:'familia'}\` · 'P&L del negocio' → \`pnl {dimension:'negocio'}\`. DISPONIBLE por ${_pnlDisponibleLinea()}; si piden un eje sin venta desglosada (punto de venta/bodega/SKU) EMITÍ IGUAL el pnl con esa dimension — ADI declara el límite y redirige honesto (nunca lo conviertas en otra lectura). CONTINUIDAD: tras un turno P&L (memoria.ruta pnl_*), '¿y el de Ripley?' hereda la operación con la entidad nueva → \`pnl {entity:'Ripley'}\`; 'volvamos al P&L' / 'recuerda lo anterior' sobre un hilo P&L → pnl_setup sin campos (ADI retoma el último alcance); 'de esos, ¿cuánto me dejan después de gastos?' tras una lista → pnl_setup sin campos (ADI hereda el conjunto de la última evidencia).`);
   L.push("  · SIN contexto o pedido autónomo → `new_query`. NUNCA inventes cifras ni entidades que no estén en el contexto o en las listas.");
   return L.join("\n");
 }

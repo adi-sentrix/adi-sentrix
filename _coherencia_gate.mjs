@@ -137,6 +137,18 @@ const rowF = mres.cuadro.rows.find((r) => r.name === "Falabella");
 const rEntF = composePnl({ action: "resultado_entidad", entidad: "Falabella" }, null, { scenario: S });
 ok(rowF && rEntF.text.startsWith(`Después de gastos, Falabella deja ${_money(rowF.resultado * 1000)}`), "la fila del cuadro por entidad == la apertura de su respuesta");
 ok(mres.cascada.filter((r) => r.kind === "supuesto").every((r) => /supuesto declarado/.test(r.nota)), "graduación declarada: cada línea del usuario marcada como supuesto");
+// PASE 2 (owner 2026-07-25) · P&L POR ALCANCE: Σ de las entidades de CADA eje disponible == P&L del negocio, y
+// la tabla conversacional ancla LA MISMA cifra que la card de la cara (una verdad, punta a punta).
+for (const eje of ["familia", "marca"]) {
+  const pcE = buildPnlCascade(S, null, { dimension: eje });
+  ok(Math.abs(pcE.porEntidad.reduce((a, e) => a + e.resultadoK, 0) - pc.resultadoK) < 1e-6, `Σ P&L por ${eje} == P&L del negocio (mismas anclas, group-by de la misma base)`);
+}
+const rTab = composePnl({ action: "tabla_eje", eje: "familia" }, null, { scenario: S });
+ok(rTab.text.includes(mres.resultado.usdFmt), `la tabla por familia ancla la cifra de la card (${mres.resultado.usdFmt})`);
+const rScope = composePnl({ action: "resultado_scoped", entidad: "Falabella", eje: "cliente", covered: true }, null, { scenario: S });
+ok(rScope.text.includes(_money(rowF.resultado * 1000)), "el P&L scoped de Falabella cita la MISMA cifra que su fila del cuadro");
+const mresF = buildMesaResultado(S, "familia");
+ok(Math.abs(mresF.cuadro.total.resultado - pc.resultadoK) < 1e-6, "el Total del cuadro por familia == el resultado del negocio (el selector no rompe la verdad)");
 clearPnl();
 
 console.log(`\n── _coherencia_gate: ${pass} PASA · ${fail} FALLA ──`);

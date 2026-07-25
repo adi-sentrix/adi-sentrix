@@ -12,7 +12,7 @@ fs.writeFileSync(entry, [
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { buildParseUserMessage } from "./src/adi/llm/contractMenu.js";',
   'export { buildNarrateSystem, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } from "./src/adi/llm/narratePrompt.js";',
-  'export { composePnl, activePnl, clearPnl, resetPnlDraft, pnlDraft } from "./src/adi/pnl.js";',
+  'export { composePnl, activePnl, clearPnl, resetPnlDraft, pnlDraft, setPnlLines } from "./src/adi/pnl.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -218,6 +218,46 @@ ok("58 · protecciones: sin señal propia el pnl NO reclama (margen/simulate/cri
     const b = CS("¿qué pasa si las ventas suben 3%?", S({ operation: "clarification_needed" }), false, null).operation === "simulate";
     const c2 = CS("olvidá el margen mínimo", S({ operation: "clarification_needed" }), false, null).turn_type === "apply_criteria";
     return a && b && c2;
+  })());
+
+// ══ P&L PASE 2 (owner 2026-07-25) · alcance + conexión total en el tejido conversacional ══
+const { setPnlLines: PNLSET } = M;
+ok("59 · ALCANCE por la cadena: 'P&L de Falabella' → lectura scoped ACCIONABLE (entidad+eje threadean) · 'P&L por familia' → tabla con entityList",
+  (() => {
+    PNLCLR(); PNLRST();
+    PNLSET([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]);
+    const r1 = _pnlGo("P&L de Falabella", false);
+    if (!(/^El P&L de Falabella/.test(r1.text) && r1.evidence.followup === false && r1.evidence.entidad === "Falabella")) return false;
+    const r2 = _pnlGo("P&L por familia", false);
+    return r2.evidence.entityList && r2.evidence.entityList.dimension === "familia" && r2.evidence.entityList.entities.length === 4;
+  })());
+ok("60 · HERENCIA elíptica: tras un P&L scoped, '¿y el de Ripley?' hereda la operación (piso) — y NO pisa una op resuelta del LLM #1",
+  (() => {
+    const rH = _pnlGo("¿y el de Ripley?");
+    if (!/El P&L de Ripley/.test(rH.text)) return false;
+    const sD = CS("¿y el de Jumbo?", S({ operation: "dive", entity: "Jumbo", dimension: "cliente", turn_type: "new_query" }), true, null);
+    return sD.operation === "dive";
+  })());
+ok("61 · CAMBIO DE TEMA Y VUELTA: margen en el medio no rompe el hilo — 'volvamos al P&L' retoma el último alcance",
+  (() => {
+    const sM = CS("margen por cliente", S({ operation: "clarification_needed" }), true, null);
+    if (sM.turn_type === "pnl_setup") return false;   // el paréntesis es del margen
+    const rV = _pnlGo("volvamos al P&L");
+    return /^Retomo tu P&L donde lo dejamos — Ripley\./.test(rV.text);
+  })());
+ok("62 · DEIXIS cross-dominio: 'de esos, ¿cuánto me dejan después de gastos?' hereda el conjunto de la última evidencia (patrón C.1)",
+  (() => {
+    const s = CS("de esos, ¿cuánto me dejan después de gastos?", S({ operation: "clarification_needed" }), true, null);
+    if (!(s.turn_type === "pnl_setup" && s.pnl && s.pnl.action === "resultado_deixis")) return false;
+    const r = AC(s, { lastEvidence: { entityList: { entities: ["Ripley", "La Polar"], dimension: "cliente" } } }, { scenario: "bonanza" });
+    return /^De los que veníamos mirando, después de gastos: Ripley deja /.test(r.text) && /La Polar deja /.test(r.text);
+  })());
+ok("63 · PROYECCIÓN SCOPED: '¿cuánto vender en Falabella para que me deje $500K después de gastos?' → la meta sobre SU %",
+  (() => {
+    const r = _pnlGo("¿cuánto vender en Falabella para que me deje $500K después de gastos?");
+    const okMeta = /^Para que Falabella te deje \$500K después de gastos necesita vender /.test(r.text);
+    PNLCLR(); PNLRST();
+    return okMeta;
   })());
 
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══

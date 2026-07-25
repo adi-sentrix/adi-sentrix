@@ -9,6 +9,7 @@
  * última línea del guard de voz. Métricas×ejes se DERIVAN del contrato (una verdad, sin lista paralela);
  * los análisis con foco corresponden 1:1 a composers reales (si un foco muere, su línea muere con él). */
 import { METRICS } from "../../config/contract/metricRegistry.js";
+import { pnlDisponibilidad, pnlDefined } from "../pnl.js";   // P&L pase 2 · el alcance disponible es parte del universo
 
 // análisis con foco propio — cada línea es un composer/focus REAL del producto (el gate de promesas prueba
 // las sugerencias que los emiten; nada de esta lista es aspiracional)
@@ -25,11 +26,19 @@ const FOCOS = [
 ];
 
 // menú DISPONIBLE para el prompt del narrador · métricas×ejes derivadas del contrato + focos reales
+// + P&L COMERCIAL (pase 2): el alcance disponible se DERIVA de pnlDisponibilidad (una verdad con el redirect) —
+// el narrador puede ofrecer el P&L por esos ejes y JAMÁS por los que no tienen venta desglosada.
 export function buildDisponibleMenu() {
   const metricas = Object.values(METRICS)
     .map((m) => `${m.label} por ${(m.axes || []).join("/")}`)
     .join(" · ");
-  return `MÉTRICAS (del dato real): ${metricas}. ANÁLISIS: ${FOCOS.join(" · ")}.`;
+  const d = pnlDisponibilidad();
+  const si = d.filter((x) => x.available).map((x) => x.label.sing).join("/");
+  const no = d.filter((x) => !x.available).map((x) => x.label.sing).join("/");
+  const pnlLinea = pnlDefined()
+    ? `P&L comercial del usuario (gastos declarados % sobre la venta): resultado después de gastos por ${si} y del negocio${no ? ` — por ${no} NO (sin venta desglosada)` : ""}`
+    : `P&L comercial: se arma conversando (las líneas de gasto las define el usuario); disponible por ${si} y del negocio${no ? ` — por ${no} NO (sin venta desglosada)` : ""}`;
+  return `MÉTRICAS (del dato real): ${metricas}. ANÁLISIS: ${FOCOS.join(" · ")} · ${pnlLinea}.`;
 }
 
 // DATA QUE NO EXISTE en el producto (ni contrato ni focos) — el narrador jamás la ofrece; si el usuario la pide,

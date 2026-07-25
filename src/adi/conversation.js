@@ -511,6 +511,13 @@ export function answerConversational(spec, context = {}, state = {}) {
   // operation con forma de turn_type ES un turn_type: se migra de campo (resolver conocido) o cae a recomendación contextual.
   // + clarification_needed (gate de promesas 2026-07-09): en operation llegaba al seam como op desconocida → "Eso todavía
   // no lo tengo como análisis directo" (mentira — no es un límite del contrato, es una repregunta). Migra a su resolver.
+  // P&L (pase 2 · sweep 2026-07-25): el LLM #1 también pone "pnl_setup" en OPERATION (misma clase). Un operation
+  // pnl_* es INEQUÍVOCO — el turno es del P&L y manda sobre el turn_type que haya venido (si no, un
+  // followup_change_dimension espurio llegaba al seam sin operación → spec_blocked_unsupported-op).
+  if (spec && /^pnl_/.test(String(spec.operation || ""))) {
+    tt = "pnl_setup";
+    spec = { ...spec, operation: undefined };
+  }
   if (spec && /^(followup_|recall_|session_|apply_|meta_|multi_|clarification_)/.test(String(spec.operation || ""))) {
     // un turn_type ESPECÍFICO ya coercido (multi_analysis/apply_criteria/…) MANDA sobre la migración — el blindaje
     // nació para el caso tt="new_query" espurio; si lo dejáramos migrar siempre, operation:"clarification_needed"

@@ -11,10 +11,14 @@
  *     de venta ("¿cuánto tengo que vender para ganar $X después de gastos?") anclada al dato.
  *   - cuadro: RESULTADO POR ENTIDAD — columnas clásicas (Venta · Contribución · Margen) INTACTAS + Resultado $ y %
  *     (prorrateo de tus % por la venta de la entidad) · cada fila pregunta (anti-BI).
+ *   - PASE 2 (owner 2026-07-25): el cuadro gana SELECTOR DE EJE (patrón CuadroMando · solo los ejes con venta
+ *     desglosada — pnlEjesDisponibles, una verdad con el redirect del chat) · cada fila pregunta «P&L de X» (la
+ *     lectura scoped completa) · la CASCADA puede scopear a una fila (cascadaFoco — espejo del comparado del
+ *     cuadro: mismas anclas de esa entidad, Σ ejes == negocio garantizado por buildPnlCascade).
  *   - empty: sin P&L declarado la cara lo dice honesto y OFRECE armarlo (prefill "Armemos mi P&L" — el flujo guiado).
  * Cada fila, foco, línea y chip lleva su PREGUNTA a ADI — todas por _promise_gate. Registro ejecutivo (_registro_gate).
  * Puro · client-side · CERO cálculo nuevo (formatea lo que buildPnlCascade afirma) · motor sellado intacto. */
-import { buildPnlCascade, pnlSimAsk } from "../pnl.js";
+import { buildPnlCascade, pnlSimAsk, pnlEjesDisponibles } from "../pnl.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _money = (v) => {
@@ -26,8 +30,10 @@ const _money = (v) => {
 const _moneyK = (vK) => _money(vK * 1000);
 const _fmtPct = (v) => String(_r1(v));
 
-/* buildMesaResultado(scenario) → { defined, empty? | cascada, resultado, foco, accion, simulaciones, cuadro, alerta } */
-export function buildMesaResultado(scenario) {
+/* buildMesaResultado(scenario, cuadroEje?, cascadaFoco?) → { defined, empty? | cascada, resultado, foco, accion,
+ * simulaciones, cuadro, alerta, alcance? } · cuadroEje = eje del cuadro por entidad (null → el primario) ·
+ * cascadaFoco = { eje, nombre } → la cascada de arriba scopeada a esa entidad (pase 2 · espejo del comparado). */
+export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = null) {
   const c = buildPnlCascade(scenario || "bonanza");
   if (!c.defined) {
     return {
@@ -65,6 +71,41 @@ export function buildMesaResultado(scenario) {
   ];
   const lectura = `De ${_moneyK(c.ingresoK)} de ingreso, después de costo, carga comercial y tus ${c.lines.length === 1 ? "1 línea" : `${c.lines.length} líneas`} de gasto (${_fmtPct(c.sumPct)}% de la venta), quedan ${_moneyK(c.resultadoK)} de resultado comercial — ${_fmtPct(c.resultadoPct)}% de la venta.`;
 
+  // ── ALCANCE DE LA CASCADA (pase 2 · cascadaFoco = una fila del cuadro): la MISMA cascada contando UNA
+  // entidad — anclas de esa entidad (venta/contribución/carga · costo derivado), gastos prorrateados sobre SU
+  // venta. El negocio queda a un click («× volver al negocio» en la UI). Cero cálculo nuevo: buildPnlCascade. ──
+  let alcance = null, cascadaOut = cascada, lecturaOut = lectura;
+  if (cascadaFoco && cascadaFoco.nombre) {
+    const cF = buildPnlCascade(scenario || "bonanza", null, { dimension: cascadaFoco.eje });
+    const eF = cF.porEntidad.find((x) => x.nombre === cascadaFoco.nombre);
+    if (eF) {
+      alcance = { nombre: eF.nombre, eje: cF.dimension, ask: `P&L de ${eF.nombre}`, volverLabel: "× volver al negocio" };
+      const simSc = (g, t) => `¿Qué pasa si bajas ${g.nombre.toLowerCase()} a ${_fmtPct(t)}% en ${eF.nombre}?`;
+      cascadaOut = [
+        { key: "ingreso", label: "Ingreso", usdFmt: _moneyK(eF.ventaK), kind: "probado",
+          ask: `P&L de ${eF.nombre}`, def: `La venta anual de ${eF.nombre} en el dato — la misma base que citan las respuestas de ADI.` },
+        { key: "costo", label: "Costo", usdFmt: `− ${_moneyK(eF.costoK)}`, kind: "probado",
+          ask: `P&L de ${eF.nombre}`, def: "El costo de lo vendido en este alcance: ingreso menos margen bruto (una sola verdad con la cascada)." },
+        { key: "margen_bruto", label: "Margen bruto", usdFmt: _moneyK(eF.margenBrutoK), kind: "probado", subtotal: true,
+          ask: `P&L de ${eF.nombre}`, def: "Lo que queda de su venta después del costo, antes de las acciones comerciales." },
+        { key: "carga", label: "Acciones comerciales · carga", usdFmt: `− ${_moneyK(eF.cargaK)}`, kind: "probado",
+          ask: "¿Cuánta carga comercial puedo recuperar?", def: "Rebates y condiciones comerciales de este alcance — valor entregado en el canal antes de la contribución." },
+        { key: "contribucion", label: "Contribución", usdFmt: _moneyK(eF.contribK), kind: "probado", subtotal: true,
+          ask: "¿Cuánta contribución no estoy capturando?", def: "Hasta acá todo es dato probado: la misma contribución que ADI cita para esta entidad." },
+        ...cF.lines.map((l) => {
+          const gK = (eF.ventaK * l.pct) / 100, t = _r1(Math.max(l.pct / 2, l.pct - 1));
+          return { key: `gasto:${l.nombre}`, label: l.nombre, usdFmt: `− ${_moneyK(gK)}`, kind: "supuesto",
+            nota: `supuesto declarado · ${_fmtPct(l.pct)}%`, ask: simSc(l, t),
+            def: `Tu línea de gasto prorrateada en este alcance: ${_fmtPct(l.pct)}% sobre la venta de ${eF.nombre}. Supuesto declarado, no contabilidad de la entidad.` };
+        }),
+        { key: "resultado", label: `Resultado · ${eF.nombre}`, usdFmt: _moneyK(eF.resultadoK), pctFmt: `${_fmtPct(eF.resultadoPct)}%`,
+          kind: "resultado", negativo: eF.resultadoK < 0, ask: `P&L de ${eF.nombre}`,
+          def: "Contribución de la entidad menos tus gastos prorrateados sobre su venta. La cascada cierra exacto también acá — y la suma de todas las entidades del eje da el resultado del negocio." },
+      ];
+      lecturaOut = `P&L de ${eF.nombre}: de ${_moneyK(eF.ventaK)} de su venta quedan ${_moneyK(eF.resultadoK)} de resultado — ${_fmtPct(eF.resultadoPct)}% — después de costo, carga y tus gastos prorrateados (${_fmtPct(cF.sumPct)}%). El negocio completo sigue en el cuadro de abajo.`;
+    }
+  }
+
   // ── 02 · POR QUÉ · la línea que más pesa (del propio P&L declarado) ──
   const orden = c.gastos.slice().sort((a, b) => b.usdK - a.usdK);
   const top = orden[0];
@@ -98,13 +139,19 @@ export function buildMesaResultado(scenario) {
     });
   }
 
-  // ── CUADRO · RESULTADO POR ENTIDAD (clásicas intactas + Resultado $ y % · cada fila pregunta) ──
-  const rows = c.porEntidad.map((e) => ({
+  // ── CUADRO · RESULTADO POR ENTIDAD + SELECTOR DE EJE (pase 2 · solo ejes con venta desglosada — una verdad
+  // con el redirect del chat) · cada fila pregunta «P&L de X» (la lectura scoped completa) · Total == negocio
+  // en TODO eje (Σ del group-by cierra por construcción) ──
+  const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  const ejes = pnlEjesDisponibles().map((d) => ({ key: d.eje, label: _cap(d.label.sing) }));
+  const ejeCuadro = (cuadroEje && ejes.some((x) => x.key === cuadroEje)) ? cuadroEje : ejes[0].key;
+  const cE = ejeCuadro === c.dimension ? c : buildPnlCascade(scenario || "bonanza", null, { dimension: ejeCuadro });
+  const rows = cE.porEntidad.map((e) => ({
     name: e.nombre, venta: e.ventaK, contribucion: e.contribK,
     margen: e.ventaK ? _r1((e.contribK / e.ventaK) * 100) : 0,
     gasto: e.gastoK, resultado: e.resultadoK, resultadoPct: _r1(e.resultadoPct),
     negativo: e.resultadoK < 0,
-    ask: `¿Cuánto deja ${e.nombre} después de gastos?`,
+    ask: `P&L de ${e.nombre}`,
   })).sort((a, b) => b.resultado - a.resultado);
   const total = {
     name: "Total", venta: c.ingresoK, contribucion: c.contribK,
@@ -122,7 +169,7 @@ export function buildMesaResultado(scenario) {
     defined: true,
     lines: c.lines, sumPct: c.sumPct, sumPctFmt: `${_fmtPct(c.sumPct)}%`,
     resultado: { usdFmt: _moneyK(c.resultadoK), pctFmt: `${_fmtPct(c.resultadoPct)}%`, negativo: c.resultadoK < 0 },
-    lectura, cascada, foco, accion, simulaciones, alerta,
-    cuadro: { rows, total, n: rows.length },
+    lectura: lecturaOut, cascada: cascadaOut, alcance, foco, accion, simulaciones, alerta,
+    cuadro: { rows, total, n: rows.length, eje: ejeCuadro, ejes, colLabel: (ejes.find((x) => x.key === ejeCuadro) || ejes[0]).label },
   };
 }

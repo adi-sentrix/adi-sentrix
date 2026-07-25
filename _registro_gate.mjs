@@ -159,12 +159,26 @@ for (const a of ["start", "recall", "resultado", "peso"]) checkResp(`pnl · ${a}
 checkResp("pnl · simulate", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2 }, null, { scenario: "bonanza" }));
 checkResp("pnl · entidad", composePnl({ action: "resultado_entidad", entidad: "Falabella" }, null, { scenario: "bonanza" }));
 checkResp("pnl · meta", composePnl({ action: "meta_venta", targetK: 18000 }, null, { scenario: "bonanza" }));
+// PASE 2 (owner 2026-07-25) · el alcance en registro ejecutivo: scoped · tabla · redirect · deixis · sin cobertura
+checkResp("pnl · scoped", composePnl({ action: "resultado_scoped", entidad: "Falabella", eje: "cliente", covered: true }, null, { scenario: "bonanza" }));
+checkResp("pnl · scoped familia", composePnl({ action: "resultado_scoped", entidad: "Cuidado Personal", eje: "familia", covered: true }, null, { scenario: "bonanza" }));
+checkResp("pnl · sin cobertura", composePnl({ action: "resultado_scoped", entidad: "Makita", eje: "marca", covered: false }, null, { scenario: "bonanza" }));
+for (const eje of ["cliente", "familia", "marca"]) checkResp(`pnl · tabla ${eje}`, composePnl({ action: "tabla_eje", eje }, null, { scenario: "bonanza" }));
+checkResp("pnl · redirect bodega", composePnl({ action: "tabla_eje", eje: "bodega", pedido: "punto de venta" }, null, { scenario: "bonanza" }));
+checkResp("pnl · deixis", composePnl({ action: "resultado_deixis" }, { last: { entityList: { entities: ["Ripley", "La Polar"], dimension: "cliente" } } }, { scenario: "bonanza" }));
+checkResp("pnl · sim scoped", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2, entidad: "Falabella", eje: "cliente" }, null, { scenario: "bonanza" }));
+checkResp("pnl · meta scoped", composePnl({ action: "meta_venta", targetK: 500, entidad: "Falabella", eje: "cliente" }, null, { scenario: "bonanza" }));
 const mrg = buildMesaResultado("bonanza");
 check("cara resultado · lectura", mrg.lectura);
 for (const r of mrg.cascada) { check(`cara resultado · ${r.key}`, `${r.label}. ${r.def || ""} ${r.nota || ""}`); check(`cara resultado · ${r.key} ask`, r.ask); }
 if (mrg.foco) check("cara resultado · foco", mrg.foco.label);
 if (mrg.accion) check("cara resultado · accion", `${mrg.accion.titulo}. ${mrg.accion.detalle}`);
 for (const s of mrg.simulaciones) { check(`cara resultado · ysi ${s.key}`, s.texto); check(`cara resultado · ysi ${s.key} ask`, s.ask); }
+// PASE 2 · la cara con selector de eje + cascada scopeada también en registro ejecutivo
+const mrgF = buildMesaResultado("bonanza", "familia", { eje: "familia", nombre: "Cuidado Personal" });
+check("cara resultado · lectura scoped", mrgF.lectura);
+for (const r of mrgF.cascada) { check(`cara resultado foco · ${r.key}`, `${r.label}. ${r.def || ""} ${r.nota || ""}`); check(`cara resultado foco · ${r.key} ask`, r.ask); }
+for (const e of mrgF.cuadro.ejes) check(`cara resultado · selector ${e.key}`, e.label);
 clearPnl();
 const mre = buildMesaResultado("bonanza");
 check("cara resultado · empty", `${mre.empty.titulo}. ${mre.empty.texto} ${mre.empty.cta}`);

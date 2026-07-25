@@ -1162,7 +1162,11 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     const onPnl = () => setPnlTick((t) => t + 1);
     try { window.addEventListener("adi-pnl-changed", onPnl); return () => window.removeEventListener("adi-pnl-changed", onPnl); } catch { /* headless */ }
   }, []);
-  const resultado = React.useMemo(() => buildMesaResultado(scenario), [scenario, pnlTick]);
+  // PASE 2 (owner 2026-07-25): el cuadro por entidad gana SELECTOR DE EJE (solo ejes con venta desglosada) y la
+  // cascada puede scopear a una fila (espejo del comparado del cuadro). Estado local — el click informa, nunca dispara.
+  const [pnlEje, setPnlEje] = useState(null);            // null → el eje primario (cliente)
+  const [pnlFoco, setPnlFoco] = useState(null);          // { eje, nombre } → la cascada scopeada a esa fila
+  const resultado = React.useMemo(() => buildMesaResultado(scenario, pnlEje, pnlFoco), [scenario, pnlTick, pnlEje, pnlFoco]);
   // MESA 2.0 · PASE 2 · WATCHLIST "lo que yo sigo": persistida en este navegador (localStorage · patrón adi_hint_v1)
   // e informada a ADI por uiSignals (el click INFORMA contexto, nunca dispara — regla dura del owner 2026-07-08).
   const [watch, setWatch] = useState(() => {
@@ -1219,7 +1223,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
         {cara === "resultado" ? (
-          <MesaResultadoCara resultado={resultado} onAsk={onAsk}/>
+          <MesaResultadoCara resultado={resultado} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}/>
         ) : cara === "capital" ? (
           <MesaCapitalCara capital={capital} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={toggleWatch} wl={wl}/>
         ) : (<>
@@ -1418,7 +1422,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
  * firme) vs los supuestos declarados (trazo punteado ámbar). TODO de mesaResultado.js/buildPnlCascade (cero cálculo
  * acá — la cascada cierra exacto, una verdad con las lecturas de ADI). Empty state honesto: sin P&L declarado, la
  * cara lo dice y OFRECE armarlo (prefill del flujo guiado — el click informa/precarga, nunca dispara). */
-function MesaResultadoCara({ resultado: mr, onAsk = null }) {
+function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco = null }) {
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const MovHead = ({ num, title, def }) => (
     <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1454,7 +1458,22 @@ function MesaResultadoCara({ resultado: mr, onAsk = null }) {
   return (<>
     {/* ── 01 · QUÉ ESTÁ PASANDO · LA CASCADA (probado vs supuesto declarado · cierra exacto) ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Tocá una línea y ADI abre esa historia al lado."}/>
+      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Tocá una línea y ADI abre esa historia al lado. Con el ⌖ de una fila del cuadro, esta cascada cuenta ESA entidad (mismas anclas, prorrateo sobre su venta)."}/>
+      {/* ── ALCANCE DE LA CASCADA (pase 2): chip del foco + volver al negocio (el click informa, nunca dispara) ── */}
+      {mr.alcance && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9 }}>
+          <button onClick={onAsk ? () => onAsk(mr.alcance.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${mr.alcance.ask}` : undefined}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11.5, fontWeight:600, cursor: onAsk ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+            <span style={{ color:C.celeste, fontFamily:MONO, fontSize:10 }}>⌖</span> P&L de {mr.alcance.nombre} <span style={{ color:C.celeste }}>→</span>
+          </button>
+          {onFoco && (
+            <button onClick={() => onFoco(null)} title="La cascada vuelve a contar el negocio completo"
+              style={{ padding:"5px 10px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:11, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+              {mr.alcance.volverLabel}
+            </button>
+          )}
+        </div>
+      )}
       <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
         <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{mr.lectura}
       </div>
@@ -1537,20 +1556,41 @@ function MesaResultadoCara({ resultado: mr, onAsk = null }) {
         </div>
       </div>
     )}
-    {/* ── CUADRO · RESULTADO POR ENTIDAD (clásicas intactas + Resultado $ y % · cada fila pregunta) ── */}
+    {/* ── CUADRO · RESULTADO POR ENTIDAD + SELECTOR DE EJE (pase 2 · solo ejes con venta desglosada) ── */}
     <div>
-      <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de resultado · qué deja cada cuenta después de gastos<InfoDot def={"Cada cliente con sus columnas clásicas (Venta · Contribución · Margen — intactas, las mismas del cuadro comercial) más lo nuevo: Gastos (el prorrateo de tus % declarados sobre la venta de esa cuenta) y su Resultado en $ y % de su venta. El prorrateo es un supuesto — reparte tus porcentajes por venta, no lee contabilidad por cliente. Tocá una fila y ADI te arma esa cuenta al lado."} align="left"/></div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9, flexWrap:"wrap" }}>
+        <div style={{ ...head, display:"flex", alignItems:"center", gap:4 }}>Cuadro de resultado · qué deja cada {mr.cuadro.colLabel.toLowerCase()} después de gastos<InfoDot def={"Cada entidad con sus columnas clásicas (Venta · Contribución · Margen — intactas, las mismas del cuadro comercial) más lo nuevo: Gastos (el prorrateo de tus % declarados sobre la venta de esa entidad) y su Resultado en $ y % de su venta. El selector cambia el eje — solo los ejes donde el dato trae la venta desglosada (por bodega/punto de venta no está, por eso no aparece). En todo eje la suma cierra exacto con el Total del negocio. El prorrateo es un supuesto — reparte tus porcentajes por venta, no lee contabilidad por entidad. Tocá una fila y ADI arma su P&L al lado; con el ⌖ la cascada de arriba cuenta esa entidad."} align="left"/></div>
+        {/* SELECTOR DE EJE (patrón del selector de cara · el click cambia la vista, nunca dispara a ADI) */}
+        {mr.cuadro.ejes.length > 1 && (
+          <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
+            {mr.cuadro.ejes.map((e) => (
+              <button key={e.key} onClick={onEje ? () => onEje(e.key) : undefined}
+                title={`El cuadro por ${e.label.toLowerCase()} — la suma cierra exacto con el negocio`}
+                style={{ padding:"3px 10px", fontSize:10.5, fontWeight: mr.cuadro.eje === e.key ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
+                  background: mr.cuadro.eje === e.key ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
+                  color: mr.cuadro.eje === e.key ? C.text : C.textMuted, transition:"all 0.15s" }}>{e.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
       <div style={{ overflowX:"auto" }}>
         <div style={{ minWidth:560 }}>
           <div style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, padding:"4px 10px" }}>
-            {["Cliente", "Venta", "Contribución", "Margen", "Gastos", "Resultado", "Res. %"].map((h, i) => (
+            {[mr.cuadro.colLabel, "Venta", "Contribución", "Margen", "Gastos", "Resultado", "Res. %"].map((h, i) => (
               <span key={h} style={{ ...head, fontSize:9, textAlign: i === 0 ? "left" : "right" }}>{h}</span>
             ))}
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
             {mr.cuadro.rows.map((r) => (
               <AskRow key={r.name} onAsk={onAsk} q={r.ask} style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, alignItems:"center", padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)", fontFamily:MONO, fontSize:11.5, fontVariantNumeric:"tabular-nums" }}>
-                <span style={{ fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                <span style={{ display:"flex", alignItems:"center", gap:5, minWidth:0 }}>
+                  {onFoco && (
+                    <button onClick={(ev) => { ev.stopPropagation(); onFoco({ eje: mr.cuadro.eje, nombre: r.name }); }}
+                      title={`Ver ${r.name} en la cascada de arriba (no dispara a ADI)`}
+                      style={{ border:"none", background:"transparent", color: mr.alcance && mr.alcance.nombre === r.name ? C.celeste : C.textMuted, cursor:"pointer", fontFamily:MONO, fontSize:11, padding:"0 2px", flexShrink:0 }}>⌖</button>
+                  )}
+                  <span style={{ fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                </span>
                 <span style={{ textAlign:"right", color:C.textSub }}>{usdK(r.venta)}</span>
                 <span style={{ textAlign:"right", color:C.textSub }}>{usdK(r.contribucion)}</span>
                 <span style={{ textAlign:"right", color:C.textMuted }}>{r.margen}%</span>
