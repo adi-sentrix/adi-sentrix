@@ -320,7 +320,8 @@ void go("P&L de Falabella", false);
 const rProy = go("¿y si Falabella vendiera $25M, cuánto me queda con estos gastos?");
 const eFalP = buildPnlCascade("bonanza").porEntidad.find((x) => x.nombre === "Falabella");
 const resProy = (eFalP.contribK * (25000 / eFalP.ventaK)) - (25000 * buildPnlCascade("bonanza").sumPct / 100);
-ok(rProy && /Real hoy vs proyectado/.test(rProy.text) && rProy.text.includes(`resultado ${_moneyK(eFalP.resultadoK)} → ${_moneyK(resProy)}`) && /la estructura no cambia, cambia la escala/.test(rProy.text), "proyección de venta: síntesis con el resultado exacto + margen constante declarado", rProy && rProy.text.slice(0, 90));
+ok(rProy && /^\*\*¿Qué significa\?\*\*/.test(rProy.text) && rProy.text.includes(`deja un resultado de ${_moneyK(eFalP.resultadoK)}`) && rProy.text.includes(`el resultado subiría a ${_moneyK(resProy)}`), "proyección: el explicativo LLANO del owner con las cifras exactas (hoy vende → si aumenta → subiría)", rProy && rProy.text.slice(0, 90));
+ok(/no asegura que esa venta ocurra/.test(rProy.text) && /Tampoco considera cambios en los productos vendidos, los precios o el comportamiento de los clientes/.test(rProy.text) && /\*\*Pregunta clave:\*\*/.test(rProy.text), "el alcance del cálculo en lenguaje del usuario + la pregunta clave (sin jerga)");
 // LA TABLA (mockup del owner "así debería verse en el orden"): data estructurada en la evidencia + despacho a la UI
 const tb = rProy.evidence.proyeccion;
 ok(tb && tb.titulo === "Falabella — Real hoy vs. proyectado" && Array.isArray(tb.rows) && tb.rows.length === 8
@@ -331,9 +332,11 @@ const cs2p = chartForEvidence(rProy.evidence);
 ok(cs2p && cs2p.tipo === "tabla_comparada" && cs2p.tabla === tb, "chartForEvidence despacha la tabla comparada a la UI (InlineChart la renderiza)");
 ok((() => { const g = guardAgainstBoleta(rProy.text, rProy.evidence.boleta); return g.ok; })(), "guard proyección: cifras == boleta");
 const rProyD = go("¿y si vendiera $25M?");
-ok(rProyD && /Falabella con venta \$25\.0M/.test(rProyD.text), "«¿y si vendiera $25M?» sin nombre hereda el alcance vivo (Falabella)");
+ok(rProyD && /Hoy Falabella vende /.test(rProyD.text) && rProyD.text.includes("$25.0M"), "«¿y si vendiera $25M?» sin nombre hereda el alcance vivo (Falabella)");
 const rProyN = go("¿y si el negocio vendiera $120M, cuánto me queda?");
-ok(rProyN && /el negocio con venta \$120\.0M/.test(rProyN.text), "«el negocio» fuerza la proyección global");
+ok(rProyN && /Hoy el negocio vende /.test(rProyN.text) && rProyN.text.includes("$120.0M"), "«el negocio» fuerza la proyección global");
+const rProyB = go("¿y si Falabella vendiera $10M?");
+ok(rProyB && /el resultado bajaría a /.test(rProyB.text) && /si la venta cae/.test(rProyB.text), "proyección a la baja: el explicativo cambia de dirección honesto");
 ok(CS("¿qué pasa si las ventas suben 3%?", S({}), false, null).operation === "simulate", "el proyector genérico de % sigue intacto (la proyección de venta exige MONTO)");
 for (const s2 of (rProy.suggestions || [])) {
   const cs2 = CF(s2, false, null);

@@ -451,9 +451,11 @@ export function detectPnlIntent(q) {
     if (ent && /\b(deja|queda|gana|aporta|rinde)\b/i.test(t)) return { action: "resultado_entidad", entidad: ent.nombre, eje: ent.eje, covered: ent.covered };
   }
   // meta de venta («¿cuánto tengo que vender para ganar $2M después de gastos?» · pase 2: scoped — «¿cuánto
-  // vender en Falabella para que me deje $500K después de gastos?»)
-  if (/\bcu[aá]nto\s+(?:tengo\s+que\s+|debo\s+|necesito\s+|tendr[ií]a\s+que\s+|hay\s+que\s+)?vender\b/i.test(t)
-    && /(ganar|resultado|despu[eé]s\s+de\s+gastos|utilidad|quedar|dej[ea])/i.test(t)) {
+  // vender en Falabella para que me deje $500K?» · espejo: «¿qué nivel de venta necesito alcanzar…?» es la
+  // pregunta clave que ADI emite en la proyección — si ADI la dice, ADI la entiende)
+  if ((/\bcu[aá]nto\s+(?:tengo\s+que\s+|debo\s+|necesito\s+|tendr[ií]a\s+que\s+|hay\s+que\s+)?vender\b/i.test(t)
+    || /\bqu[eé]\s+nivel\s+de\s+venta\s+(?:necesito|debo|tengo\s+que|me\s+falta|quiero)\b/i.test(t))
+    && /(ganar|resultado|despu[eé]s\s+de\s+gastos|utilidad|quedar|dej[ea]|obtener)/i.test(t)) {
     const targetK = _parseTargetK(t);
     if (targetK) {
       const ent = _pnlEntityEn(t);
@@ -798,11 +800,9 @@ export function composePnl(pi, ctx = null, state = {}) {
     };
     p.resultadoK = p.contribK - p.gastoK;
     const quien = nombre || "el negocio";
-    const posesivo = nombre ? "su" : "la";
-    const metaAsk = nombre
-      ? `¿Cuánto tengo que vender en ${nombre} para ganar ${_moneyK(p.resultadoK)} después de gastos?`
-      : `¿Cuánto tengo que vender para ganar ${_moneyK(p.resultadoK)} después de gastos?`;
-    const cordura = (f >= 5 || f <= 0.2) ? ` Ojo: es una escala muy distinta a la de hoy — a esa distancia, el margen actual es solo una referencia.` : "";
+    // la PREGUNTA CLAVE (palabras del owner 2026-07-25) — invierte la proyección · gate-proven por el espejo
+    const metaAsk = `¿Qué nivel de venta necesito alcanzar${nombre ? ` en ${nombre}` : ""} para obtener un resultado final de ${_moneyK(p.resultadoK)}?`;
+    const cordura = (f >= 5 || f <= 0.2) ? ` Ojo: es una escala muy distinta a la de hoy — a esa distancia, las condiciones actuales son solo una referencia.` : "";
     const bol = [
       _fMoneyK("Venta proyectada", vK, { mandatory: true }),
       _fMoneyK(`Ingreso · real`, r0.ventaK), _fMoneyK(`Costo · real`, r0.costoK), _fMoneyK(`Costo · proyectado`, p.costoK),
@@ -830,8 +830,16 @@ export function composePnl(pi, ctx = null, state = {}) {
         { label: "Resultado sobre venta", a: `${_fmtPct(r0.resultadoPct)}%`, b: `${_fmtPct(r0.resultadoPct)}%`, pct: true },
       ],
     };
+    // EL EXPLICATIVO (palabras del owner 2026-07-25: "aritmética y esas cosas complican al usuario") — llano:
+    // qué significa · qué muestra y qué no asegura · la pregunta clave. Los números viven en la tabla de abajo.
+    const sube = vK >= r0.ventaK;
+    const dirV = sube ? "aumenta" : "baja";
+    const dirR = sube ? (p.resultadoK >= 0 ? "subiría" : "quedaría") : "bajaría";
+    const alcance2 = sube
+      ? `Este cálculo muestra cuánto podría dejar${nombre ? ` ${nombre}` : ""} al vender más, pero no asegura que esa venta ocurra.`
+      : `Este cálculo muestra cómo quedaría el resultado si la venta cae — no anticipa esa caída.`;
     return _resp(
-      `**Real hoy vs proyectado** — ${quien} con venta ${_moneyK(vK)}, manteniendo ${posesivo} margen, ${posesivo} carga y tus gastos declarados (${_fmtPct(c.sumPct)}%) constantes. El cuadro lo deja lado a lado; la síntesis: resultado ${_moneyK(r0.resultadoK)} → ${_moneyK(p.resultadoK)} (${_fmtPct(r0.resultadoPct)}% de la venta en los dos — la estructura no cambia, cambia la escala).\n\n**Límite:** es aritmética del supuesto de venta sobre tu P&L real — no es proyección de demanda ni de mix.${cordura} **Decisión:** si el número que buscas es el resultado, invierte la pregunta: «${metaAsk}»`,
+      `**¿Qué significa?** Hoy ${quien} vende ${_moneyK(r0.ventaK)} y deja un resultado de ${_moneyK(r0.resultadoK)}. Si la venta ${dirV} a ${_moneyK(vK)} y se mantienen las mismas condiciones actuales — margen, carga y tus gastos declarados (${_fmtPct(c.sumPct)}%) — el resultado ${dirR} a ${_moneyK(p.resultadoK)}.\n\n${alcance2} Tampoco considera cambios en los productos vendidos, los precios o el comportamiento de los clientes.${cordura}\n\n**Pregunta clave:** ${metaAsk}`,
       { route: "pnl_reading", suggestions: [metaAsk, ...(nombre ? [`P&L de ${nombre}`] : ["¿Cómo queda mi resultado comercial?"])], bol,
         ev: { proyeccion: tabla, ...(nombre ? { entidad: nombre, entityType: eje || _BASE_EJE, dimension: eje || _BASE_EJE } : { dimension: _BASE_EJE }) } }
     );
