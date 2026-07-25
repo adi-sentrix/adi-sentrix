@@ -243,7 +243,9 @@ export function buildPnlCascade(scenario, linesOverride = null, opts = null) {
 }
 
 // ── DETECCIÓN · la red determinística del claim pnl_setup (corre en coerceSpec ANTES de fuera-de-dato/criteria) ──
-const _PNL_WORD = /\b(?:p\s*&\s*l|pnl|p\s+y\s+l|resultado\s+comercial)\b/i;
+// «prorrateo» es vocabulario que ADI EMITE en cada lectura del P&L ("gastos prorrateados") — espejo (owner
+// 2026-07-25 en vivo: «quiero nuevos prorrateos» caía en una lectura de ventas): si ADI lo dice, ADI lo entiende.
+const _PNL_WORD = /\b(?:p\s*&\s*l|pnl|p\s+y\s+l|resultado\s+comercial|prorrate\w*)\b/i;
 const _GASTOS_WORD = /\b(?:gastos?|l[ií]neas?\s+de\s+gasto)\b/i;
 // OJO: nada de \b después de una vocal acentuada — á/é no son word-chars en JS sin flag u y el boundary falla
 // silencioso ("olvidá"/"armá" no matchean · mismo bug documentado en criteria.js).
@@ -395,6 +397,11 @@ export function detectPnlIntent(q) {
     const ej = _ejePedido(t);
     if (ej && !_pnlEntityEn(t)) return { action: "tabla_eje", eje: ej.eje, pedido: ej.pedido };
   }
+  // «quiero nuevos prorrateos» / «cambiemos los porcentajes» (espejo · owner 2026-07-25 en vivo): pedir la
+  // estructura de nuevo abre el AJUSTE — start con líneas = estado actual + cómo cambiarlo · sin líneas, el flujo.
+  if ((_PNL_WORD.test(t) || (/\bporcentajes?\b/i.test(t) && _lines.length && !_METRIC_WORDS.test(t)))
+    && /\b(nuevos?|otros?|nueva\s+estructura|cambi\w*|redefin\w*|rearm\w*|actualiz\w*|revis\w*|ajust\w*)\b/i.test(t))
+    return { action: "start" };
   // recall («¿qué gastos tengo configurados?» · «muéstrame mi p&l») · ANTES del start ("configurados" contiene "configura")
   if ((/\bqu[eé]\s+gastos\b/i.test(t) && /(tengo|ten[eé]s|configurad|definid|guardad)/i.test(t))
     || (/(mu[eé]strame|mostrame|ver|c[oó]mo\s+(est[aá]|qued[oó])|cu[aá]l\s+es)\b/i.test(t) && _PNL_WORD.test(t) && !/resultado\s+comercial/i.test(t)))

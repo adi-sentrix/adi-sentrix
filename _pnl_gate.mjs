@@ -288,6 +288,14 @@ const rBlind = AC(CS("recuerda lo anterior", S({ operation: "pnl_setup", turn_ty
 ok(rBlind && !/^spec_blocked/.test(rBlind.route || "") && /Retomo tu P&L donde lo dejamos/.test(rBlind.text), "operation:'pnl_setup' del LLM + «recuerda lo anterior» → retoma (ni bloqueo ni robo)");
 const sEjeEl = CS("muéstramelo por familia", S({ operation: "pnl_setup" }), true, null);
 ok(sEjeEl.turn_type === "pnl_setup" && sEjeEl.pnl && sEjeEl.pnl.action === "tabla_eje" && sEjeEl.pnl.eje === "familia", "«muéstramelo por familia» (elíptico, hilo vivo) → la tabla del eje");
+// ESPEJO «prorrateo» (owner en vivo 2026-07-25: «quiero nuevos prorrateos» caía en una lectura de ventas):
+// prorrateo/porcentajes es vocabulario que ADI emite — pedir nuevos abre el AJUSTE, jamás otra lectura.
+for (const qEsp of ["quiero nuevos prorrateos", "cambiemos los porcentajes", "¿ajustamos los prorrateos?"]) {
+  const rEsp = go(qEsp);
+  ok(rEsp && /Tu P&L comercial ya está armado/.test(rEsp.text) && /¿Quieres ajustarlo\?/.test(rEsp.text), `espejo «${qEsp}» → abre el ajuste de la estructura`, rEsp && `[${rEsp.route}] ${rEsp.text.slice(0, 60)}`);
+}
+ok(go("olvida los prorrateos") && activePnl().length === 0, "«olvida los prorrateos» → forget del P&L (mismo espejo)");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
 const rBlind2 = AC(S({ operation: "pnl_setup", turn_type: "followup_change_dimension", pnl: { dimension: "familia" } }), {}, { scenario: "bonanza" });
 ok(rBlind2 && !/^spec_blocked/.test(rBlind2.route || "") && /Tu P&L por familia/.test(rBlind2.text), "operation pnl_* + turn_type espurio + pnl.dimension → la tabla resuelve por composePnl");
 clearPnl(); resetPnlDraft();
