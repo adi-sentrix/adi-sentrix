@@ -13,6 +13,7 @@ import { detectVentasFocus } from "./ventasFocus.js";
 import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
 import { detectCriteriaIntent } from "./criteria.js";
+import { detectPnlIntent } from "./pnl.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
 import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
@@ -385,6 +386,16 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     const d = ui.mesaDim || "cliente";
     return { ...spec, operation: "compare", metric: spec.metric || "margen", dimension: d,
       comparison: { dimension: d, entities: [...ui.mesaSel] }, turn_type: "new_query" };
+  }
+  // P&L COMERCIAL (owner 2026-07-15 "sí, parte por p&l"): el flujo guiado (¿qué gastos? → ¿qué %? → sello), la
+  // edición y las lecturas de resultado corren PRIMERO y CORTAN la cadena — ANTES de fuera-de-dato ("marketing/
+  // publicidad" como LÍNEA DE GASTO del usuario no es una pregunta fuera de dato) y ANTES de criteria ("olvidá mis
+  // gastos" no es un forget de criterio). detectPnlIntent lee el estado del módulo (draft del flujo + líneas
+  // selladas): sin señal propia devuelve null y la cadena sigue intacta. operation se limpia (patrón multi/meta)
+  // para que el blindaje de conversation.js no migre un clarification_needed del LLM por encima del claim.
+  if (q && spec) {
+    const pn = detectPnlIntent(q);
+    if (pn) return { ...spec, operation: undefined, turn_type: "pnl_setup", pnl: pn };
   }
   // SALUDO / AYUDA (sweep simple 2026-07-09 · primera impresión): "hola"/"buenas"/"ayuda" pelado → bienvenida
   // determinística con orientación (composeMeta saludo · verbatim). Antes lo agarraba una lectura random del LLM.

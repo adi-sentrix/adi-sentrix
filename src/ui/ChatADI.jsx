@@ -13,6 +13,7 @@ import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   /
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
+import { resetPnlDraft } from "../adi/pnl.js";   // P&L · el reset del chat también limpia el flujo guiado a medio armar (el sellado persiste)
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
@@ -449,6 +450,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     if (typeof registerReset === "function") registerReset(() => {
       const fresh = initialContext || (modulo ? { activeModule: modulo } : {});
       ctxRef.current = fresh;
+      resetPnlDraft();   // conversación nueva → el P&L a medio armar se descarta (lo sellado queda: es memoria C.2)
       setMessages([]); setInput(""); setPendingId(null); setSuggestionsVisible(false); setContext(fresh);
     });
   }, [registerReset]);

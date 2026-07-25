@@ -11,8 +11,10 @@ import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada ·
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
+import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
 
 initCriteria();   // ANTES del primer render: el hero/resumen ya miden contra la vara del owner si hay criterios guardados
+initPnl();        // ídem: la cara Resultado de la Mesa ya arranca con el P&L declarado del owner (localStorage)
 
 const getCurrentDateString = () => {
   const now = new Date();

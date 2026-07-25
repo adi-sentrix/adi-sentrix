@@ -12,6 +12,7 @@ fs.writeFileSync(entry, [
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { buildParseUserMessage } from "./src/adi/llm/contractMenu.js";',
   'export { buildNarrateSystem, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } from "./src/adi/llm/narratePrompt.js";',
+  'export { composePnl, activePnl, clearPnl, resetPnlDraft, pnlDraft } from "./src/adi/pnl.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -153,6 +154,71 @@ ok("50 · 'sí' repetido ESCALA (dive → why → recommend): tras un why ya dad
 ok("51 · 'muéstrame más' NO pisa una traducción RESUELTA del LLM #1 (op concreta sobrevive; el piso sin resolver sí reclama)",
   CS("muéstrame más", S({ operation: "rank", metric: "ventas", dimension: "cliente", sort: { by: "ventas", dir: "desc" }, limit: 10 }), true, null).turn_type !== "followup_accept"
   && CS("muéstrame más", S({ operation: "clarification_needed" }), true, null).turn_type === "followup_accept");
+
+// ══ P&L COMERCIAL (owner 2026-07-15 "sí, parte por p&l") · territorio conversacional nuevo: flujo guiado multi-turno ══
+const { composePnl, activePnl: PNL, clearPnl: PNLCLR, resetPnlDraft: PNLRST, pnlDraft: PNLDR } = M;
+const _pnlGo = (q, hasLast = true) => AC(CS(q, S({ operation: "clarification_needed", metric: null, dimension: null }), hasLast, null), {}, { scenario: "bonanza" });
+PNLCLR(); PNLRST();
+ok("52 · FLUJO GUIADO punta a punta por la cadena real: armar → listar gastos → % → sello (multi-turno · claim pnl_setup)",
+  (() => {
+    const r1 = _pnlGo("Armemos mi P&L", false);
+    if (!/¿Qué gastos quieres considerar\?/.test(r1.text)) return false;
+    const r2 = _pnlGo("logística, marketing y promotores");
+    if (!/¿Qué %/.test(r2.text)) return false;
+    const r3 = _pnlGo("3, 1.5, 2");
+    if (!/¿Lo sello\?/.test(r3.text)) return false;
+    const r4 = _pnlGo("sí");
+    return /Sellado/.test(r4.text) && PNL().length === 3 && PNL().every((l) => l.origen === "supuesto_declarado");
+  })());
+ok("53 · el claim pnl corre ANTES de fuera-de-dato: en el flujo, 'marketing/publicidad' son LÍNEAS DE GASTO (no campañas)",
+  (() => {
+    PNLCLR(); PNLRST();
+    const r1 = _pnlGo("armemos mi p&l", false); void r1;
+    const s = CS("marketing, publicidad y promotores", S({ operation: "clarification_needed" }), true, null);
+    const claim = s.turn_type === "pnl_setup";
+    const r2 = AC(s, {}, { scenario: "bonanza" });
+    const noCampanias = !/campañas|no los tengo como dato/i.test(r2.text || "");
+    PNLRST();
+    return claim && noCampanias;
+  })());
+ok("54 · 'olvidá mis gastos' → forget del P&L (criteria no se lo roba como recall) · sin P&L → honesto",
+  (() => {
+    PNLCLR(); PNLRST();
+    const s = CS("olvidá mis gastos", S({ operation: "clarification_needed" }), true, null);
+    if (s.turn_type !== "pnl_setup") return false;
+    const r = AC(s, {}, { scenario: "bonanza" });
+    return /No tengo un P&L guardado|olvidé tu P&L/i.test(r.text);
+  })());
+ok("55 · turn_type pnl_setup del LLM #1 SIN red (spec.pnl ausente) → resuelve por estado (no crash · texto útil)",
+  (() => { const r = AC(S({ turn_type: "pnl_setup" }), {}, { scenario: "bonanza" }); return typeof r.text === "string" && r.text.length > 0; })());
+ok("56 · edición conversacional recalcula (una verdad): sellar 2 líneas → 'cambia logística a 2%' → % nuevo + resultado nuevo",
+  (() => {
+    PNLCLR(); PNLRST();
+    _pnlGo("armemos mi p&l", false); _pnlGo("logística 4%, marketing 1%"); _pnlGo("sí");
+    if (PNL().length !== 2) return false;
+    const r = _pnlGo("cambia logística a 2%");
+    const l = PNL().find((x) => x.nombre === "Logística");
+    return l && l.pct === 2 && /resultado comercial/i.test(r.text);
+  })());
+ok("57 · resetPnlDraft limpia el flujo a medio armar · lo SELLADO persiste (memoria C.2, no estado del chat)",
+  (() => {
+    const antes = PNL().length;
+    _pnlGo("armemos mi p&l", false);   // con P&L armado no abre draft (ofrece ajustar) → forzamos uno nuevo
+    PNLCLR(); _pnlGo("armemos mi p&l", false);
+    if (!PNLDR()) return false;
+    PNLRST();
+    const sinDraft = PNLDR() === null;
+    PNLCLR(); PNLRST();
+    return sinDraft && antes === 2;
+  })());
+ok("58 · protecciones: sin señal propia el pnl NO reclama (margen/simulate/criteria intactos)",
+  (() => {
+    PNLCLR(); PNLRST();
+    const a = CS("margen por cliente", S({ operation: "clarification_needed" }), false, null).turn_type !== "pnl_setup";
+    const b = CS("¿qué pasa si las ventas suben 3%?", S({ operation: "clarification_needed" }), false, null).operation === "simulate";
+    const c2 = CS("olvidá el margen mínimo", S({ operation: "clarification_needed" }), false, null).turn_type === "apply_criteria";
+    return a && b && c2;
+  })());
 
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══
 // ══ V4 · recall_analysis (ctx.history) — PENDIENTE ══

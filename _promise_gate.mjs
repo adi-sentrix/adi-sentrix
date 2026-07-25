@@ -14,11 +14,17 @@ fs.writeFileSync(entry, [
   'export { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js";',
   'export { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";',
   'export { buildMesaCapital, buildCuadroCapital } from "./src/adi/sentrix/mesaCapital.js";',
+  'export { setPnlLines } from "./src/adi/pnl.js";',
+  'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, coerceFloor: CF, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB, buildMesaCapital: MCB, buildCuadroCapital: CCB } = M;
+const { answerADIFromSpec: A, answerConversational: AC, coerceSpec: C, coerceFloor: CF, buildMesaEstado: MB, buildWatchlistEstado: WB, buildCuadroMando: CMB, buildMesaCapital: MCB, buildCuadroCapital: CCB, setPnlLines: SPL, buildMesaResultado: MRB } = M;
+
+// CARA RESULTADO (P&L comercial · owner 2026-07-15): el P&L es del USUARIO — el gate declara uno representativo
+// (mismo mecanismo C.2 · en memoria del bundle) para cosechar y PROBAR las promesas de la cara con líneas reales.
+SPL([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 
@@ -130,12 +136,26 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     let ccq; try { ccq = CCB(eje, sc); } catch { continue; }
     for (const r of (ccq.rows || [])) if (r.accionAsk && !promesas.has(r.accionAsk)) promesas.set(r.accionAsk, { lastEv: null, emisor: `cuadrocap:accion-${eje}@${sc}` });
   }
+  // CARA RESULTADO (P&L comercial · owner 2026-07-15) · TODO lo que la cara ofrece es promesa: la cascada (cada
+  // paso pregunta), el foco 02, la acción 03, el "¿y si…?" (incl. la meta de venta data-driven — el $ depende del
+  // escenario) y el cuadro por entidad. Cosechado del módulo real con el P&L declarado arriba.
+  let mrp; try { mrp = MRB(sc); } catch { mrp = null; }
+  if (mrp && mrp.defined) {
+    const putR = (ask, tag) => { if (ask && !promesas.has(ask)) promesas.set(ask, { lastEv: null, emisor: `mesares:${tag}@${sc}` }); };
+    for (const r of mrp.cascada) putR(r.ask, `cascada-${r.key}`);
+    if (mrp.foco) putR(mrp.foco.ask, "foco");
+    if (mrp.accion) putR(mrp.accion.ask, "accion");
+    for (const s2 of (mrp.simulaciones || [])) putR(s2.ask, `ysi-${s2.key}`);
+    for (const r of mrp.cuadro.rows) putR(r.ask, `cuadro-${r.name}`);
+    if (mrp.alerta) putR(mrp.alerta.ask, "alerta");
+  }
 }
 for (const s of [
   "¿Quiénes están bajo el margen mínimo?",
   "¿Cuánta carga comercial puedo recuperar?",
   "¿Dónde está detenido mi capital?",
   "¿Por qué Samsung cede margen?",
+  "Armemos mi P&L",   // el prefill del empty state de la cara Resultado — el flujo guiado también es promesa
 ]) if (!promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "ui:mesa2" });
 
 // ── 2 · PRUEBA · cada promesa se re-entra por la cadena con TRES formas del LLM (neutro · nulo-clarify ·

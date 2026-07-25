@@ -19,6 +19,7 @@ import { composeFollowupRecommendation, sampleEntities } from "./specRetrieval.j
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
+import { composePnl, activePnl, clearPnl } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
 
 // ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
@@ -317,24 +318,36 @@ export function composeMulti(spec, ctx, state) {
 // La evidencia lleva `criteriaList` → panel "Lo que sé de tu negocio" (ver/borrar por ítem). Fuera de rango → honesto. ──
 function _criteriaEvidence() {
   const list = activeCriteria();
-  return { followup: true, kind: "criteria", criteriaList: list, boleta: list.map((c) => fig(`Criterio · ${c.label}`, c.valueFmt, { unit: c.valueFmt.endsWith("%") ? "pct" : "count", raw: c.value, mandatory: false, source: "computed", context: "criterio del negocio" })) };
+  // P&L COMERCIAL (2026-07-25): las líneas de gasto declaradas viajan al MISMO panel "Lo que sé de tu negocio"
+  // (una memoria, una vista). Con el P&L vacío el shape es byte-igual al anterior salvo pnlList: [] (aditivo).
+  const pnl = activePnl();
+  return { followup: true, kind: "criteria", criteriaList: list, pnlList: pnl,
+    boleta: [
+      ...list.map((c) => fig(`Criterio · ${c.label}`, c.valueFmt, { unit: c.valueFmt.endsWith("%") ? "pct" : "count", raw: c.value, mandatory: false, source: "computed", context: "criterio del negocio" })),
+      ...pnl.map((l) => fig(`P&L · ${l.nombre}`, `${l.pct}%`, { unit: "pct", raw: l.pct, mandatory: false, source: "computed", context: "supuesto declarado" })),
+    ] };
 }
 export function composeCriteria(ci) {
   if (!ci) return _clarify("¿Qué criterio querés que recuerde? Ej: 'recordá que mi margen mínimo es 28%'.");
   const c = CRITERIA[ci.key];
   if (ci.action === "recall") {
     const list = activeCriteria();
-    const text = list.length
+    // P&L COMERCIAL: si hay líneas declaradas, el recall las cuenta también (misma memoria) · vacío → texto intacto.
+    const pnl = activePnl();
+    const pnlTxt = pnl.length ? ` También tengo tu P&L comercial: ${pnl.map((l) => `${l.nombre.toLowerCase()} ${l.pct}%`).join(" · ")} sobre la venta (supuestos declarados).` : "";
+    const text = (list.length
       ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y medidas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
-      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(30.1)}, carga ${CRITERIA.target_carga.fmt(3.5)}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`;
+      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(30.1)}, carga ${CRITERIA.target_carga.fmt(3.5)}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`) + pnlTxt;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   if (ci.action === "forget") {
     const r = forgetCriterion(ci.key);
+    // "olvidá todo" también limpia el P&L (una memoria: criterios + líneas declaradas) · sin P&L → texto intacto.
+    const pnlGone = (ci.key === "todo" && r.ok) ? clearPnl() : null;
     const text = !r.ok
       ? `No tengo guardado ese criterio — estás usando los estándares.`
       : r.all
-      ? `Listo, olvidé todos tus criterios: vuelvo a los estándares en todas las lecturas.`
+      ? `Listo, olvidé todos tus criterios: vuelvo a los estándares en todas las lecturas.${pnlGone && pnlGone.had ? " También olvidé tu P&L comercial." : ""}`
       : `Listo, olvidé tu ${c ? c.label.toLowerCase() : ci.key}: vuelvo al estándar desde ahora.`;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
@@ -468,6 +481,7 @@ const TURN_RESOLVERS = {
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)
   multi_analysis:             (spec, ctx, state) => composeMulti(spec, ctx, state),                        // V3 · cruce de lentes (Frente C.1 · secciones por composer · boletas mergeadas · evidence.multi)
   apply_criteria:             (spec) => composeCriteria(spec && spec.criteria),                            // V5 · memoria de criterio (Frente C.2 · metas/benchmarks del owner · una verdad vía POLICY)
+  pnl_setup:                  (spec, ctx, state) => composePnl(spec && spec.pnl, ctx, state),               // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + edición + lecturas de resultado (cascada determinística)
   followup_accept:            (spec, ctx, state) => composeAccept(spec, ctx, state),                       // "sí" pelado → ejecutar la oferta (dive causal de la cuenta floja / primera nombrada / recomendación)
   // ── V4 · recall_analysis: (spec, ctx) => composeRecall(spec, ctx.history)
   // ── V5 · session_resume / apply_criteria: (spec, ctx) => ... (ctx.session / ctx.criteria · con permiso)

@@ -21,6 +21,7 @@ import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Co
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
+import { buildMesaResultado } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
@@ -703,6 +704,7 @@ const AskRow = ({ onAsk, q, style, children }) => (
 // memoria solo cambia por la conversación, una sola vía de mutación). ──
 function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const list = (evidence && evidence.criteriaList) || [];
+  const pnl = (evidence && evidence.pnlList) || [];   // P&L COMERCIAL · las líneas de gasto declaradas (misma memoria C.2)
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
@@ -720,9 +722,9 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
         <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Lo que sé de tu negocio</div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
-        {list.length === 0 ? (
-          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Podés fijar tu benchmark desde el chat: <span style={{ color:C.celeste }}>"recordá que mi margen mínimo es 28%"</span>.</div>
-        ) : (
+        {list.length === 0 && pnl.length === 0 ? (
+          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Podés fijar tu benchmark desde el chat: <span style={{ color:C.celeste }}>"recordá que mi margen mínimo es 28%"</span> — o armar tu P&L comercial: <span style={{ color:C.celeste }}>"armemos mi P&L"</span>.</div>
+        ) : list.length === 0 ? null : (
           <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
             <div style={{ ...head, marginBottom:2 }}>Tus benchmarks · reemplazan al estándar en TODAS las lecturas</div>
             {list.map((c, i) => (
@@ -737,6 +739,28 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
                     style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:11, cursor:"pointer", flexShrink:0 }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = "#f87171"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>olvidar</button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+        {/* P&L COMERCIAL (owner 2026-07-15) · las líneas de gasto declaradas — misma memoria, mismo panel. El botón
+            precarga el pedido en el chat (una sola vía de mutación: la conversación · el usuario confirma con Enter). */}
+        {pnl.length > 0 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:9, marginTop: list.length ? 16 : 0 }}>
+            <div style={{ ...head, marginBottom:2, display:"flex", alignItems:"center", gap:4 }}>Tu P&L comercial · gastos declarados sobre la venta<InfoDot def={"Tus líneas de gasto, con el % que les asignaste sobre la venta. Son supuestos declarados por vos (no dato contable): la cara Resultado de la Mesa las resta después de la contribución para llegar al resultado comercial. Cuando entre la contabilidad real, cada línea se reemplaza por su dato, línea a línea. Editá conversando: \"cambia una línea a otro %\", \"saca una línea\", \"agrega otra con su %\"."} align="left"/></div>
+            {pnl.map((l, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 13px", border:`1px dashed rgba(217,154,90,0.45)`, borderRadius:10, background:"rgba(217,154,90,0.04)" }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12.5, color:C.text, fontWeight:600 }}>{l.nombre}</div>
+                  <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>supuesto declarado · % sobre la venta</div>
+                </div>
+                <div style={{ fontFamily:MONO, fontSize:15, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{l.pct}%</div>
+                {onAsk ? (
+                  <button onClick={() => onAsk(`Saca ${l.nombre.toLowerCase()} del P&L`)} title={`Preguntale a ADI: Saca ${l.nombre.toLowerCase()} del P&L`}
+                    style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:11, cursor:"pointer", flexShrink:0 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "#f87171"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>sacar</button>
                 ) : null}
               </div>
             ))}
@@ -1124,13 +1148,21 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // capital (detectores de inventario existentes · mesaCapital.js · cero cálculo acá). Selector recordado en este
   // navegador (patrón adi_hint_v1) e informado a ADI por uiSignals (el click INFORMA la cara activa, nunca dispara).
   const [cara, setCara] = useState(() => {
-    try { return localStorage.getItem("adi_mesa_cara_v1") === "capital" ? "capital" : "comercial"; } catch { return "comercial"; }
+    try { const v = localStorage.getItem("adi_mesa_cara_v1"); return v === "capital" || v === "resultado" ? v : "comercial"; } catch { return "comercial"; }
   });
   useEffect(() => {
     try { localStorage.setItem("adi_mesa_cara_v1", cara); } catch { /* sin storage → sesión */ }
     setUISignal({ mesaCara: cara });
   }, [cara]);
   const capital = React.useMemo(() => buildMesaCapital(scenario), [scenario]);   // una pasada: la cara Capital + la pata de inventario del "En alerta"
+  // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l"): el P&L se sella CONVERSANDO — cuando ADI lo sella/edita,
+  // pnl.js emite "adi-pnl-changed" y la cara se re-arma con la Mesa abierta (sin cerrar/abrir el panel).
+  const [pnlTick, setPnlTick] = useState(0);
+  useEffect(() => {
+    const onPnl = () => setPnlTick((t) => t + 1);
+    try { window.addEventListener("adi-pnl-changed", onPnl); return () => window.removeEventListener("adi-pnl-changed", onPnl); } catch { /* headless */ }
+  }, []);
+  const resultado = React.useMemo(() => buildMesaResultado(scenario), [scenario, pnlTick]);
   // MESA 2.0 · PASE 2 · WATCHLIST "lo que yo sigo": persistida en este navegador (localStorage · patrón adi_hint_v1)
   // e informada a ADI por uiSignals (el click INFORMA contexto, nunca dispara — regla dura del owner 2026-07-08).
   const [watch, setWatch] = useState(() => {
@@ -1173,9 +1205,9 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· ADI al lado — cada fila es una pregunta</span></div>
           {/* SELECTOR DE CARA (owner 2026-07-15) · segmented discreto: la misma Mesa mirando lo comercial o el capital */}
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
-            {[["comercial", "Comercial"], ["capital", "Capital"]].map(([k, lbl]) => (
+            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
-                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer"}
+                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos"}
                 style={{ padding:"4px 12px", fontSize:11, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
                   background: cara === k ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
                   color: cara === k ? C.text : C.textMuted, transition:"all 0.15s" }}>{lbl}</button>
@@ -1184,9 +1216,11 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </div>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
-        {/* CARA CAPITAL · el mismo sello sobre el inventario (mesaCapital.js · detectores existentes) — la cara
+        {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
-        {cara === "capital" ? (
+        {cara === "resultado" ? (
+          <MesaResultadoCara resultado={resultado} onAsk={onAsk}/>
+        ) : cara === "capital" ? (
           <MesaCapitalCara capital={capital} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={toggleWatch} wl={wl}/>
         ) : (<>
         {/* ── 01 · QUÉ ESTÁ PASANDO · la lectura de ADI + los KPIs con su estado contra TU vara (Mesa 2.0) ── */}
@@ -1376,6 +1410,170 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
       </div>
     </div>
   );
+}
+
+/* ── MESA · CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") ────────────────────────────────────────────────
+ * El mismo sello (entender→explicar→actuar) contando EL RESULTADO: la cascada del P&L comercial con las líneas de
+ * gasto QUE EL USUARIO DECLARÓ conversando (% sobre la venta · v1). GRADUACIÓN A LA VISTA: lo probado (dato, trazo
+ * firme) vs los supuestos declarados (trazo punteado ámbar). TODO de mesaResultado.js/buildPnlCascade (cero cálculo
+ * acá — la cascada cierra exacto, una verdad con las lecturas de ADI). Empty state honesto: sin P&L declarado, la
+ * cara lo dice y OFRECE armarlo (prefill del flujo guiado — el click informa/precarga, nunca dispara). */
+function MesaResultadoCara({ resultado: mr, onAsk = null }) {
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const MovHead = ({ num, title, def }) => (
+    <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
+      {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
+    </div>
+  );
+  const usdK = (vK) => { const v = vK * 1000, a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e6 ? `${s}$${(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${s}$${Math.round(a / 1e3)}K` : `${s}$${Math.round(a)}`; };
+  // ── EMPTY STATE · sin P&L declarado — honesto + la puerta al flujo guiado ──
+  if (!mr.defined) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, padding:"46px 26px", border:`1px dashed ${C.border}`, borderRadius:14, textAlign:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:14.5, color:C.text, fontWeight:600 }}>{mr.empty.titulo}<InfoDot def={"La cara Resultado arma tu P&L comercial: la cascada ingreso → costo → margen bruto → carga → contribución → TUS líneas de gasto → resultado. Las líneas las defines tú conversando con ADI, como % sobre la venta (decisión v1 — drivers más finos llegan con la contabilidad real). Hasta la contribución todo es dato probado; tus gastos entran como supuestos declarados."} align="left"/></div>
+        <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.65, maxWidth:520 }}>{mr.empty.texto}</div>
+        {onAsk ? (
+          <button onClick={() => onAsk(mr.empty.prefill)} title={`Preguntale a ADI: ${mr.empty.prefill}`}
+            style={{ padding:"9px 18px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
+            {mr.empty.cta} <span style={{ color:C.celeste }}>→</span>
+          </button>
+        ) : null}
+        <div style={{ fontSize:10.5, color:C.textMuted }}>El botón precarga «{mr.empty.prefill}» en el chat — tú confirmas con Enter.</div>
+      </div>
+    );
+  }
+  // estilos por graduación de la cascada (probado firme · supuesto punteado ámbar · resultado destacado)
+  const rowStyle = (r) => r.kind === "supuesto"
+    ? { border: "1px dashed rgba(217,154,90,0.45)", background: "rgba(217,154,90,0.04)" }
+    : r.kind === "resultado"
+    ? { border: "1px solid rgba(47,184,218,0.35)", borderLeft: "2px solid rgba(47,184,218,0.7)", borderRight: "2px solid rgba(47,184,218,0.7)", background: "rgba(47,184,218,0.05)" }
+    : { border: `1px solid ${C.border}`, background: r.subtotal ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.015)" };
+  const valColor = (r) => r.kind === "resultado" ? (r.negativo ? C.red : C.celeste) : r.kind === "supuesto" ? C.amber : C.text;
+  return (<>
+    {/* ── 01 · QUÉ ESTÁ PASANDO · LA CASCADA (probado vs supuesto declarado · cierra exacto) ── */}
+    <div>
+      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Tocá una línea y ADI abre esa historia al lado."}/>
+      <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
+        <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{mr.lectura}
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+        {mr.cascada.map((r) => (
+          <AskRow key={r.key} onAsk={onAsk} q={r.ask} style={{ display:"flex", alignItems:"center", gap:9, padding: r.kind === "resultado" ? "10px 12px" : "7px 12px", borderRadius:9, ...rowStyle(r) }}>
+            <span style={{ display:"flex", alignItems:"center", gap:6, minWidth:0, flex:1 }}>
+              <span style={{ fontSize: r.kind === "resultado" ? 12.5 : 12, color: r.kind === "resultado" ? C.text : C.textSub, fontWeight: r.subtotal || r.kind === "resultado" ? 600 : 400 }}>{r.label}</span>
+              {r.nota ? <span style={{ fontSize:9.5, fontFamily:MONO, letterSpacing:"0.4px", color:C.amber, textTransform:"uppercase", whiteSpace:"nowrap" }}>{r.nota}</span> : null}
+              <InfoDot def={r.def} align="left"/>
+            </span>
+            {r.pctFmt ? <span style={{ fontFamily:MONO, fontSize:11, color: r.negativo ? C.red : C.textMuted, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{r.pctFmt} de la venta</span> : null}
+            <span style={{ fontFamily:MONO, fontSize: r.kind === "resultado" ? 16 : 12.5, fontWeight:600, color: valColor(r), whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{r.usdFmt}</span>
+          </AskRow>
+        ))}
+      </div>
+      {/* CORDURA HONESTA · resultado negativo declarado arriba (nunca silencioso) */}
+      {mr.alerta && (
+        <button onClick={onAsk ? () => onAsk(mr.alerta.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${mr.alerta.ask}` : undefined}
+          style={{ display:"flex", alignItems:"center", gap:9, width:"100%", marginTop:9, padding:"9px 12px", borderRadius:10,
+            border:"1px solid rgba(248,113,113,0.4)", background:"rgba(248,113,113,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default" }}>
+          <span style={{ width:7, height:7, borderRadius:"50%", background:C.red, boxShadow:`0 0 6px ${C.red}aa`, flexShrink:0 }}/>
+          <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color:C.red, flexShrink:0 }}>Resultado negativo</span>
+          <span style={{ fontSize:12, color:C.text, lineHeight:1.4 }}>{mr.alerta.linea}</span>
+        </button>
+      )}
+    </div>
+    {/* ── 02 · POR QUÉ · la línea que más pesa en el resultado ── */}
+    <div>
+      <MovHead num="02" title="Por qué pasa" def={"La línea de gasto que más resultado consume, con su valor anual — del propio P&L que declaraste (una sola verdad con la respuesta de ADI). Tocá el foco y ADI ordena todas tus líneas por peso."}/>
+      {mr.foco ? (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:8 }}>
+          <button onClick={onAsk ? () => onAsk(mr.foco.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${mr.foco.ask}` : undefined}
+            style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
+            <span style={{ fontSize:14.5, fontWeight:600, color:C.celeste, fontFamily:MONO, letterSpacing:"0.2px" }}>{mr.foco.usdFmt}</span>
+            <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{mr.foco.label} <span style={{ color:C.celeste }}>→</span></span>
+          </button>
+        </div>
+      ) : (
+        <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin líneas de gasto declaradas todavía.</div>
+      )}
+    </div>
+    {/* ── 03 · QUÉ HACER PRIMERO · probar el ajuste de la línea que más pesa ── */}
+    <div>
+      <MovHead num="03" title="Qué hacer primero" def={"La primera medida sobre el P&L: probar un ajuste de la línea que más pesa — ADI proyecta el efecto directo en el resultado (supuesto, no dato). Si tu % real es otro, actualizarlo conversando deja la cascada honesta."}/>
+      {mr.accion ? (
+        <div style={{ ...CARD_SIDES, borderRadius:12, padding:"13px 15px", background:"rgba(255,255,255,0.025)" }}>
+          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginBottom:6 }}>
+            <span style={{ fontSize:13, color:C.text, fontWeight:600 }}>{mr.accion.titulo}</span>
+            <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{mr.accion.usdFmt}</span>
+          </div>
+          <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, marginBottom:10 }}>{mr.accion.detalle}</div>
+          {onAsk && (
+            <button onClick={() => onAsk(mr.accion.ask)} title={`Preguntale a ADI: ${mr.accion.ask}`}
+              style={{ padding:"7px 14px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
+              {mr.accion.askLabel} <span style={{ color:C.celeste }}>→</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin líneas declaradas no hay ajuste que probar.</div>
+      )}
+    </div>
+    {/* ── ¿Y SI…? · cada línea pregunta su proyección + la meta de venta ── */}
+    {(mr.simulaciones || []).length > 0 && (
+      <div>
+        <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — aritmética directa de la cascada, sin predecir el efecto operativo. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Tocá una línea y ADI corre esa cuenta al lado."}/>
+        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+          {mr.simulaciones.map((s) => (
+            <AskRow key={s.key} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
+              <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
+              <span style={{ flex:1 }}>{s.texto}</span>
+              <span style={{ fontFamily:MONO, fontSize:12, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{s.delta}</span>
+            </AskRow>
+          ))}
+        </div>
+      </div>
+    )}
+    {/* ── CUADRO · RESULTADO POR ENTIDAD (clásicas intactas + Resultado $ y % · cada fila pregunta) ── */}
+    <div>
+      <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de resultado · qué deja cada cuenta después de gastos<InfoDot def={"Cada cliente con sus columnas clásicas (Venta · Contribución · Margen — intactas, las mismas del cuadro comercial) más lo nuevo: Gastos (el prorrateo de tus % declarados sobre la venta de esa cuenta) y su Resultado en $ y % de su venta. El prorrateo es un supuesto — reparte tus porcentajes por venta, no lee contabilidad por cliente. Tocá una fila y ADI te arma esa cuenta al lado."} align="left"/></div>
+      <div style={{ overflowX:"auto" }}>
+        <div style={{ minWidth:560 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, padding:"4px 10px" }}>
+            {["Cliente", "Venta", "Contribución", "Margen", "Gastos", "Resultado", "Res. %"].map((h, i) => (
+              <span key={h} style={{ ...head, fontSize:9, textAlign: i === 0 ? "left" : "right" }}>{h}</span>
+            ))}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+            {mr.cuadro.rows.map((r) => (
+              <AskRow key={r.name} onAsk={onAsk} q={r.ask} style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, alignItems:"center", padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)", fontFamily:MONO, fontSize:11.5, fontVariantNumeric:"tabular-nums" }}>
+                <span style={{ fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                <span style={{ textAlign:"right", color:C.textSub }}>{usdK(r.venta)}</span>
+                <span style={{ textAlign:"right", color:C.textSub }}>{usdK(r.contribucion)}</span>
+                <span style={{ textAlign:"right", color:C.textMuted }}>{r.margen}%</span>
+                <span style={{ textAlign:"right", color:C.amber }}>− {usdK(r.gasto)}</span>
+                <span style={{ textAlign:"right", fontWeight:600, color: r.negativo ? C.red : C.text }}>{usdK(r.resultado)}</span>
+                <span style={{ textAlign:"right", color: r.negativo ? C.red : C.textMuted }}>{r.resultadoPct}%</span>
+              </AskRow>
+            ))}
+            <div style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, alignItems:"center", padding:"6px 10px", borderTop:`1px solid ${C.borderLight || C.border}`, marginTop:2, fontFamily:MONO, fontSize:11.5, fontVariantNumeric:"tabular-nums" }}>
+              <span style={{ fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:700, color:C.text }}>Total</span>
+              <span style={{ textAlign:"right", color:C.text, fontWeight:600 }}>{usdK(mr.cuadro.total.venta)}</span>
+              <span style={{ textAlign:"right", color:C.text, fontWeight:600 }}>{usdK(mr.cuadro.total.contribucion)}</span>
+              <span style={{ textAlign:"right", color:C.textMuted }}>{mr.cuadro.total.margen}%</span>
+              <span style={{ textAlign:"right", color:C.amber }}>− {usdK(mr.cuadro.total.gasto)}</span>
+              <span style={{ textAlign:"right", fontWeight:700, color: mr.cuadro.total.resultado < 0 ? C.red : C.celeste }}>{usdK(mr.cuadro.total.resultado)}</span>
+              <span style={{ textAlign:"right", color:C.textMuted }}>{mr.cuadro.total.resultadoPct}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La cara Resultado cuenta tu P&L comercial: la cascada del ingreso al resultado (probado hasta la contribución · tus gastos como supuestos declarados, % sobre la venta), qué línea pesa más y qué ajuste probar primero. Todo es pregunta: tocá una línea de la cascada o una fila del cuadro y ADI la abre al lado. Editas conversando: «cambia una línea a otro %» · «agrega otra» · «saca una».</div>
+  </>);
 }
 
 /* ── MESA · CARA CAPITAL (owner 2026-07-15 "ok, veamos cómo queda") ──────────────────────────────────────────────

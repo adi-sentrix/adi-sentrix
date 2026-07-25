@@ -12,6 +12,8 @@ import { buildMesaEstado, buildWatchlistEstado } from "./src/adi/sentrix/mesa.js
 import { buildMesaCapital, buildCuadroCapital } from "./src/adi/sentrix/mesaCapital.js";
 import { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";
 import { buildResumenEjecutivo, composeSpecVentas, composeSpecMargin, composeSpecContribucion, composeSpecInventory, composeSpecDiagnose } from "./src/adi/specRetrieval.js";
+import { setPnlLines, clearPnl, buildPnlCascade, composePnl } from "./src/adi/pnl.js";
+import { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";
 import { clientesVentas } from "./src/data/demoData.js";
 import { ventasKPI, ventasMensuales } from "./src/data/baseKpis.js";
 
@@ -119,6 +121,23 @@ const lits = [...src.matchAll(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`((?:[^`\
 const jsxText = [...src.matchAll(/>([^<>{}`]+)</g)].map((m) => m[1]);
 const uiLeaks = [...lits, ...jsxText].filter((s) => /\bvaras?\b/i.test(s));
 ok(uiLeaks.length === 0, "SentrixPanel sin «vara» visible (literales + texto JSX)", uiLeaks.slice(0, 3).join(" | "));
+
+console.log("[7] P&L COMERCIAL · la cascada CIERRA exacto · card == apertura (cara Resultado)");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]);
+const pc = buildPnlCascade(S);
+ok(Math.abs((pc.ingresoK - pc.costoK - pc.cargaK - pc.totalGastosK) - pc.resultadoK) < 1e-9, "ingreso − costo − carga − Σgastos == resultado (exacto)");
+ok(Math.abs(pc.porEntidad.reduce((a, e) => a + e.resultadoK, 0) - pc.resultadoK) < 1e-6, "Σ resultado por entidad == resultado total");
+ok(Math.abs((pc.contribK + pc.cargaK) - pc.margenBrutoK) < 1e-9, "margen bruto == contribución + carga (las anclas que ADI ya cita)");
+const mres = buildMesaResultado(S);
+const rPnl = composePnl({ action: "resultado" }, null, { scenario: S });
+ok(rPnl.text.startsWith(`Tu resultado comercial: ${mres.resultado.usdFmt}`), `la respuesta ABRE con la cifra de la card (${mres.resultado.usdFmt})`, rPnl.text.slice(0, 60));
+ok(mres.lectura.includes(mres.resultado.usdFmt), "la lectura de la cara ancla la misma cifra");
+ok(mres.cascada.find((r) => r.key === "contribucion").usdFmt === _money(pc.contribK * 1000), "la fila Contribución de la cascada == Σ contribución del dato (la misma de las respuestas)");
+const rowF = mres.cuadro.rows.find((r) => r.name === "Falabella");
+const rEntF = composePnl({ action: "resultado_entidad", entidad: "Falabella" }, null, { scenario: S });
+ok(rowF && rEntF.text.startsWith(`Después de gastos, Falabella deja ${_money(rowF.resultado * 1000)}`), "la fila del cuadro por entidad == la apertura de su respuesta");
+ok(mres.cascada.filter((r) => r.kind === "supuesto").every((r) => /supuesto declarado/.test(r.nota)), "graduación declarada: cada línea del usuario marcada como supuesto");
+clearPnl();
 
 console.log(`\n── _coherencia_gate: ${pass} PASA · ${fail} FALLA ──`);
 process.exit(fail ? 1 : 0);
