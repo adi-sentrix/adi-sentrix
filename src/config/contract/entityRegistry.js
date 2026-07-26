@@ -49,4 +49,16 @@ export const ENTITIES = {
     scenarioAware: true,
     parents: {},
   },
+  canal: {
+    // EJE CANAL (mejora 6 · 2026-07-26): el dato SIEMPRE lo trajo (clientesVentas.canal · Retail/E-commerce) —
+    // el contrato no lo declaraba y "ventas por canal" degradaba pudiendo responder. Mismo patrón que bodega:
+    // group-by sobre la fuente de ventas. Las métricas de margen viven en clientesMargen (sin canal) y se
+    // agregan vía el join declarado nombre↔canal (groupVia en el metricRegistry) — agregación exacta, jamás prorrateo.
+    label: { sing: "canal", plur: "canales" },
+    source: "clientesVentas",
+    keyField: "canal",                   // eje de agrupación (group-by) sobre clientesVentas
+    isGroupBy: true,
+    scenarioAware: true,
+    parents: {},
+  },
 };

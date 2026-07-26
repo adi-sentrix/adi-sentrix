@@ -367,9 +367,9 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         return _degrade("blocked-cross", `${_cap(ctx.__crossDominant.cross.reason)}. Te muestro lo disponible en su lugar.`, ctx.__crossDominant.cross.offer, ctx);
       }
       const qm = _QIM[spec.metric];
-      if (!qm) {   // ej. costo: declarado en el registro (tu enum) pero sin productor de tabla → honesto
-        // MATRIZ 2026-07-09 (celda ROTA costo@cliente/sku): métrica DECLARADA en el contrato sin productor QI →
-        // el retrieval genérico del contrato la sirve (misma vía que inventario) antes de degradar.
+      if (!qm || !_QID[spec.dimension]) {   // métrica O EJE declarados sin productor QI (ej. costo · canal) → honesto
+        // MATRIZ 2026-07-09 (celda ROTA costo@cliente/sku) + EJE CANAL (2026-07-26): métrica o eje DECLARADOS en el
+        // contrato sin productor QI → el retrieval genérico del contrato los sirve (misma vía que inventario) antes de degradar.
         const resp0 = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
         if (resp0 && resp0.opener) return _finBoleta(composeContract("overview_domain", resp0, resp0.evidence, ctx, scenario), resp0, "qi_retrieval", "qi_retrieval", ctx, scenario);
         const sibs = ["ventas", "margen", "contribucion"].filter((x) => (METRICS[x].axes || []).includes(spec.dimension)).map((x) => `${x}@${spec.dimension}`);
@@ -392,8 +392,9 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     }
 
     if (spec.operation === "rank") {
-      // ejes que composeRankingExtremes NO cubre (marca/familia/bodega) → productor spec-driven genérico (agregados)
-      if (spec.dimension === "marca" || spec.dimension === "familia" || spec.dimension === "bodega") {
+      // ejes que composeRankingExtremes NO cubre (marca/familia + TODO eje group-by: bodega/canal…) → productor
+      // spec-driven genérico (agregados del contrato · un eje group-by nuevo rankea solo — eje canal 2026-07-26)
+      if (spec.dimension === "marca" || spec.dimension === "familia" || (ENTITIES[spec.dimension] && ENTITIES[spec.dimension].isGroupBy)) {
         const resp = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: Math.max(1, spec.limit || 5), sort: spec.sort || { dir: "desc" } });
         if (!resp || !resp.opener) return _degrade("rank-empty", `No pude rankear ${_m(spec.metric)} por ${_d(spec.dimension)}. Probá otra métrica para ese eje.`, [], ctx);
         // Fase 2 · contrato rank_business_entity (ranking → patrón → brecha → advertencia → cruce)
@@ -451,7 +452,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         }
         return out || _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]}. ¿Están bien escritos?`, [], ctx);
       }
-      if (cdim === "sku" || cdim === "familia") {   // sku/familia → productor spec-driven (data-driven del contrato)
+      if (ENTITIES[cdim]) {   // sku/familia/canal… → productor spec-driven (data-driven del contrato · cualquier eje declarado — eje canal 2026-07-26)
         const resp = composeSpecCompare({ dimension: cdim, entities: cmp.entities, scenario });
         if (!resp || !resp.opener) return _degrade("compare-empty", `No pude comparar ${cmp.entities[0]} y ${cmp.entities[1]} por ${_d(cdim)}. ¿Están bien escritos?`, [], ctx);
         // Fase 2b · contrato compare_entities (diferencia principal → ganador → riesgo → decisión)
@@ -480,7 +481,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         }
         return out || _degrade("dive-empty", `No encontré "${ent}". ¿Está bien escrito?`, [], ctx);
       }
-      if (spec.dimension === "sku" || spec.dimension === "familia") {   // sku/familia → productor spec-driven
+      if (ENTITIES[spec.dimension]) {   // sku/familia/canal… → productor spec-driven (cualquier eje declarado — eje canal 2026-07-26; los group-by agregan por contrato)
         const ent = spec.entity || (spec.filters && spec.filters[spec.dimension]);
         if (!ent) return _degrade("dive-no-entity", `¿En qué ${_d(spec.dimension)} querés que profundice?`, [], ctx);
         const resp = composeSpecDive({ dimension: spec.dimension, entity: ent, scenario });

@@ -49,6 +49,7 @@ export function buildContractMenu() {
   }
   L.push("");
   L.push("EJES disponibles (campo `dimension`): " + Object.keys(ENTITIES).join(", ") + ".");
+  L.push("  · canal = el canal comercial (agrupa los clientes: Retail · E-commerce). 'ventas por canal' → overview/rank ventas@canal · 'cuánto me deja cada canal' → contribucion@canal · 'compara retail con e-commerce' → compare con comparison.entities ['Retail','E-commerce'] y dimension 'canal' · '¿cómo viene el e-commerce?' → dive con dimension 'canal' y entity 'E-commerce'.");
   L.push("");
   L.push("SUPUESTOS / PROYECCIÓN (campo `transform`): ADI proyecta un SUPUESTO sobre el DATO REAL — es 'actual vs supuesto', NO un escenario del negocio (nada de bonanza/tensión/crisis).");
   L.push("  · Si el usuario pide proyectar/simular un cambio (ej. 'sube ventas 3%', 'agregales 3% a la contribución', '¿y si crece 5%?', 'bajá el capital 10%'), emití `transform { kind:'assumption', op:'delta', value:<n>, unit:'pct', base:'real' }`. value negativo = baja (ej. -5). Con el condicional explícito ('¿qué pasa si…?', 'y si…') usá operation:'simulate'.");

@@ -20,9 +20,9 @@ const { answerADIFromSpec: A, METRICS, ENTITIES } = M;
 
 const REP = {
   cliente: ["Falabella", "Lider"], marca: ["Samsung", "LG"], familia: ["Cuidado Personal", "Línea Blanca"],
-  sku: ["SAM-TV55", "LG-WASH11KG"], bodega: ["Santiago", "Valparaíso"],
+  sku: ["SAM-TV55", "LG-WASH11KG"], bodega: ["Santiago", "Valparaíso"], canal: ["Retail", "E-commerce"],
 };
-const FILTRO = { cliente: { marca: "Samsung" }, sku: { marca: "Samsung" }, marca: { familia: "Cuidado Personal" }, familia: { marca: "Philips" }, bodega: { familia: "Línea Blanca" } };
+const FILTRO = { cliente: { marca: "Samsung" }, sku: { marca: "Samsung" }, marca: { familia: "Cuidado Personal" }, familia: { marca: "Philips" }, bodega: { familia: "Línea Blanca" }, canal: { marca: "Samsung" } };
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 const DEGRADE_RE = /^(No tengo|No veo|No te puedo|No encuentro|Esa vista todav[ií]a|En [A-ZÁÉÍÓÚ])/;

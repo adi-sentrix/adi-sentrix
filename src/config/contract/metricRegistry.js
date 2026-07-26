@@ -12,15 +12,16 @@ export const METRICS = {
   ventas: {
     // scale sku: "raw"→"K" (matriz 2026-07-09): skusMargen.venta viene en MILES (SAM-TV55 13300 = $13.3M) — el
     // "raw" hacía que el retrieval del contrato imprimiera "$13K" donde el motor dice $13.3M (dos verdades).
-    label: "Ventas", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "K" },
+    label: "Ventas", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "K", canal: "K" },
     polarity: "higherIsBetter", formula: null,   // dato primario
-    axes: ["cliente", "marca", "familia", "sku"],
-    scenarioAware: { cliente: true, marca: false, familia: true, sku: false },
+    axes: ["cliente", "marca", "familia", "sku", "canal"],
+    scenarioAware: { cliente: true, marca: false, familia: true, sku: false, canal: true },
     sourceByAxis: {
       cliente: { source: "clientesVentas", field: "actual" },
       marca:   { source: "marcasMargen",   field: "venta"  },
       familia: { source: "sfamiliasMargen", field: "venta" },
       sku:     { source: "skusMargen",     field: "venta"  },
+      canal:   { source: "clientesVentas", field: "actual", agg: "sum" },   // eje canal (2026-07-26) · group-by Retail/E-commerce
     },
   },
   margen: {
@@ -36,16 +37,19 @@ export const METRICS = {
     },
   },
   contribucion: {
-    label: "Contribución", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "K" },   // sku "raw"→"K" (matriz 2026-07-09 · skusMargen en miles)
+    label: "Contribución", unit: "money", scale: { cliente: "K", marca: "K", familia: "K", sku: "K", canal: "K" },   // sku "raw"→"K" (matriz 2026-07-09 · skusMargen en miles)
     polarity: "higherIsBetter",
     formula: "venta * margen / 100",                    // ← METADATA · el validador chequea que el campo almacenado cierre
-    axes: ["cliente", "sku", "marca", "familia"],
-    scenarioAware: { cliente: true, sku: false, marca: false, familia: true },
+    axes: ["cliente", "sku", "marca", "familia", "canal"],
+    scenarioAware: { cliente: true, sku: false, marca: false, familia: true, canal: true },
     sourceByAxis: {
       cliente: { source: "clientesMargen", field: "contribucion" },
       sku:     { source: "skusMargen",     field: "contribucion" },
       marca:   { source: "marcasMargen",   field: "contribucion" },
       familia: { source: "sfamiliasMargen", field: "contribucion" },
+      // eje canal (2026-07-26): clientesMargen NO trae canal — el grupo de cada fila sale del JOIN declarado
+      // nombre↔canal contra clientesVentas (groupVia · agregación exacta por suma, jamás prorrateo).
+      canal:   { source: "clientesMargen", field: "contribucion", agg: "sum", groupVia: { source: "clientesVentas", key: "nombre", field: "canal" } },
     },
   },
   costo: {  // costo de la venta (dato del ERP) · en tu enum del spec

@@ -60,9 +60,13 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
   const field = sba.field;
   let result;
   if (ent.isGroupBy) {
-    // eje de agrupación (bodega): agrupar por el keyField y agregar (sum · avg según el contrato)
+    // eje de agrupación (bodega/canal): agrupar por el keyField y agregar (sum · avg según el contrato).
+    // groupVia (eje canal · 2026-07-26): la etiqueta de grupo puede venir de OTRA fuente por join declarado
+    // (clientesMargen no trae canal — el canon nombre↔canal vive en clientesVentas · agregación exacta).
+    const via = sba.groupVia ? new Map(_load(sba.groupVia.source, scenario).map((r) => [String(r[sba.groupVia.key]), r[sba.groupVia.field]])) : null;
+    const srcKey = (SOURCES[sba.source] && SOURCES[sba.source].keyField) || "nombre";
     const groups = {};
-    for (const r of rows) { const k = r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
+    for (const r of rows) { const k = via ? via.get(String(r[srcKey])) : r[ent.keyField]; if (k == null) continue; (groups[k] = groups[k] || []).push(r); }
     const agg = sba.agg || "sum";
     result = Object.entries(groups).map(([name, grp]) => {
       const vals = grp.map((r) => r[field]).filter((v) => typeof v === "number");
@@ -103,12 +107,26 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
 function _metricsFor(dimension) {
   return Object.entries(METRICS).filter(([, m]) => (m.axes || []).includes(dimension) && m.sourceByAxis && m.sourceByAxis[dimension]);
 }
-// valor de una entidad para una métrica en un eje (busca la fila por el keyField de la fuente) · null si no está
+// valor de una entidad para una métrica en un eje (busca la fila por el keyField de la fuente) · null si no está.
+// EJES GROUP-BY (bodega/canal · 2026-07-26): la "entidad" es un GRUPO de filas — se AGREGA según el contrato
+// (sum · avg), jamás la primera fila (antes devolvía null por buscar el nombre del grupo en el keyField de la
+// fuente). groupVia: la etiqueta de grupo viene de otra fuente por join declarado (canal vive en clientesVentas).
 function _entityValue(name, m, dimension, scenario) {
   const sba = m.sourceByAxis[dimension];
   const src = SOURCES[sba.source];
   if (!src) return null;
-  const row = _load(sba.source, scenario).find((r) => String(r[src.keyField]) === String(name));
+  const rows = _load(sba.source, scenario);
+  const ent = ENTITIES[dimension];
+  if (ent && ent.isGroupBy) {
+    const via = sba.groupVia ? new Map(_load(sba.groupVia.source, scenario).map((r) => [String(r[sba.groupVia.key]), r[sba.groupVia.field]])) : null;
+    const vals = rows
+      .filter((r) => String(via ? via.get(String(r[src.keyField])) : r[ent.keyField]) === String(name))
+      .map((r) => r[sba.field]).filter((v) => typeof v === "number");
+    if (!vals.length) return null;
+    const sum = vals.reduce((a, b) => a + b, 0);
+    return (sba.agg || "sum") === "avg" ? sum / vals.length : sum;
+  }
+  const row = rows.find((r) => String(r[src.keyField]) === String(name));
   return row && typeof row[sba.field] === "number" ? row[sba.field] : null;
 }
 

@@ -87,10 +87,14 @@ function _coerceCompare(q, spec) {
 // fluye al CONTRATO, que ejecuta (costo) o DECLARA el límite ("no lo tengo por bodega; sí por…"). Antes el dominio
 // respondía su lectura GLOBAL en silencio — pregunta de bodega contestada con clientes.
 const _PIDE_BODEGA = /\b(por|en|de)\s+(la\s+|las\s+)?bodegas?\b/i;
+// eje CANAL (2026-07-26): "ventas/contribución por canal" es del CONTRATO (group-by Retail/E-commerce) — los
+// dominios comerciales NO lo reescriben a su dimensión default (misma regla de ceder el claim que bodega).
+const _PIDE_CANAL = /\b(por|en|de|cada)\s+(el\s+|los\s+|cada\s+)?canal(?:es)?\b/i;
 const _PIDE_COSTO_PURO = (q) => /\bcostos?\b/i.test(q) && !/\bventas?\b/i.test(q) && !/margen/i.test(q);
 function _coerceContribucion(q, spec) {
   if (!q || !spec || spec.operation === "compare") return spec;
   if (_PIDE_BODEGA.test(q)) return spec;   // contribución@bodega no existe → que el contrato lo declare
+  if (_PIDE_CANAL.test(q)) return spec;    // contribución@canal SÍ existe (join declarado) → que el contrato la ejecute
   const c = detectContribucionFocus(q);
   if (!c.isContrib) return spec;
   const s = { ...spec, operation: "contribucion", metric: "contribucion", dimension: c.dimension || "cliente",
@@ -108,6 +112,7 @@ function _coerceContribucion(q, spec) {
 function _coerceMargin(q, spec) {
   if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "contribucion" || spec.entity) return spec;
   if (_PIDE_BODEGA.test(q)) return spec;   // margen/carga@bodega no existen → que el contrato lo declare
+  if (_PIDE_CANAL.test(q)) return spec;    // margen@canal no está declarado → que el contrato declare el límite (y ofrezca ventas/contribución por canal)
   const m = detectMarginFocus(q);
   if (!m.isMargin) return spec;
   const s = { ...spec, operation: "margin", metric: "margen", dimension: m.dimension || "cliente",
@@ -129,6 +134,7 @@ function _coerceVentas(q, spec) {
   const _volPrecio = /\bvolumen\b[^]*\bprecios?\b|\bprecios?\b[^]*\bvolumen\b/i.test(q);
   if (!_volPrecio && (spec.operation === "compare" || spec.operation === "dive" || spec.entity)) return spec;
   if (_PIDE_BODEGA.test(q)) return spec;       // ventas@bodega no existe → que el contrato lo declare
+  if (_PIDE_CANAL.test(q)) return spec;        // ventas@canal SÍ existe (group-by del contrato) → que el contrato la ejecute
   if (_PIDE_COSTO_PURO(q)) return spec;        // "top 3 de costo" es del CONTRATO (costo@eje), no una lectura de ventas
   const v = detectVentasFocus(q);
   if (!v.isVentas) return spec;
