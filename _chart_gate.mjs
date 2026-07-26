@@ -36,6 +36,19 @@ ok("diagnose → sin gráfico en I1 (sus focos ya viven en el panel)", CH(rDiag.
 const rDeg = A(S({ operation: "overview", metric: "rotacion", dimension: "marca" }), {}, {});
 ok("límite declarado (rotación@marca) → sin gráfico (nunca graficar un degrade)", CH(rDeg.evidence) == null);
 
+// TABLA COMPARADA universal (mejora 4 · 2026-07-26 · regla: dos columnas de números = tabla, siempre)
+const rCmp = A(S({ operation: "compare", metric: "ventas", dimension: "cliente", comparison: { entities: ["Falabella", "Ripley"], dimension: "cliente" } }), {}, {});
+ok("compare A vs B → TABLA COMPARADA métrica por métrica (evidence.pairs de una verdad)", (() => {
+  const c = CH(rCmp.evidence);
+  return c && c.tipo === "tabla_comparada" && c.tabla.cols.join("|") === "Falabella|Ripley" && c.tabla.rows.length >= 2
+    && c.tabla.rows.every((r) => r.label && typeof r.a === "string" && typeof r.b === "string") && c.titulo === "Falabella vs. Ripley";
+})());
+ok("compare con un lado sin nombre → sin tabla (nunca una cabecera rota)", CH({ pairs: [{ label: "Ventas", aFmt: "$1M", bFmt: "$2M" }, { label: "Margen", aFmt: "20%", bFmt: "25%" }], compareA: "A" }) == null);
+ok("el ANTES|AHORA de una edición (followup:true + tabla) SÍ se despacha — el dispatch va antes del guard", (() => {
+  const c = CH({ followup: true, kind: "criteria", tabla: { titulo: "Marketing — antes vs. ahora", cols: ["Antes", "Ahora"], rows: [{ label: "Línea · Marketing", a: "1.5%", b: "2%" }] } });
+  return c && c.tipo === "tabla_comparada" && c.tabla.cols.join("|") === "Antes|Ahora";
+})());
+
 ok("saludo/criteria (followup) → sin gráfico", CH({ kind: "saludo", followup: true, boleta: [] }) == null && CH({ kind: "criteria", followup: true, boleta: [] }) == null);
 ok("evidencia nula/vacía → sin gráfico (sin crash)", CH(null) == null && CH({}) == null && CH({ rows: [] }) == null);
 ok("barras se recortan a 8 filas (compacto)", (() => { const c = CH({ rows: Array.from({ length: 13 }, (_, i) => ({ name: "E" + i, value: 13 - i, fmt: String(13 - i) })), metricLabel: "Ventas", dimLabel: "cliente", unit: "money", polarity: "higherIsBetter" }); return c && c.rows.length === 8; })());

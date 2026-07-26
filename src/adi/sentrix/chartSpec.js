@@ -7,12 +7,18 @@
  * perfil comparado, dos curvas por entidad, inventario con estados.) */
 
 export function chartForEvidence(e) {
-  if (!e || e.followup) return null;   // saludo/criteria/explain/meta → sin gráfico
+  if (!e) return null;
 
-  // 0 · P&L · VENTA PROYECTADA (owner 2026-07-25 · mockup "así debería verse en el orden"): la cascada en
-  // columnas Real hoy | Proyectado — la data viene estructurada del composer (una verdad, cero re-formateo).
-  if (e.proyeccion && Array.isArray(e.proyeccion.rows) && e.proyeccion.rows.length)
-    return { tipo: "tabla_comparada", titulo: e.proyeccion.titulo || "Real hoy vs. proyectado", tabla: e.proyeccion };
+  // 0 · TABLA COMPARADA universal (regla del owner 2026-07-25: dos columnas de números = tabla, siempre) —
+  // la data viene ESTRUCTURADA del composer (una verdad, cero re-formateo). e.proyeccion = la venta proyectada
+  // (Real hoy | Proyectado) · e.tabla = el portador genérico (hoy: el ANTES|AHORA de una edición del P&L).
+  // Va ANTES del guard followup: la edición de una línea es administrativa (followup:true — NO pisa la
+  // última lectura) y aun así su antes/después se muestra como tabla.
+  const tc = e.tabla || e.proyeccion;
+  if (tc && Array.isArray(tc.rows) && tc.rows.length)
+    return { tipo: "tabla_comparada", titulo: tc.titulo || "Comparado", tabla: tc };
+
+  if (e.followup) return null;   // saludo/criteria/explain/meta → sin gráfico
 
   // 1 · CONTRIBUCIÓN · Pareto (quién sostiene la plata · corte 80/20 real)
   const cp = e.contribucion && e.contribucion.panel;
@@ -28,7 +34,14 @@ export function chartForEvidence(e) {
   if (e.lens === "ventas" && e.ventas)
     return { tipo: "evolutivo", titulo: "Venta · 12 meses vs año anterior" };
 
-  // 3 · RANKING/OVERVIEW del contrato · barras horizontales (rows estructuradas con formato de una verdad)
+  // 3 · COMPARE A vs B · métrica por métrica en dos columnas (evidence.pairs de una verdad — el MISMO patrón
+  // tabla_comparada de la venta proyectada; antes el comparado quedaba sin gráfico). aFmt/bFmt vienen
+  // formateados del contrato; "—" cuando un lado no tiene la métrica (honesto, jamás fabricar).
+  const ca = e.compareA || e.entidad, cb = e.compareB || e.entityB;
+  if (Array.isArray(e.pairs) && e.pairs.length >= 2 && ca && cb)
+    return { tipo: "tabla_comparada", titulo: `${ca} vs. ${cb}`, tabla: { titulo: `${ca} vs. ${cb}`, cols: [ca, cb], rows: e.pairs.map((p) => ({ label: p.label, a: p.aFmt, b: p.bFmt })) } };
+
+  // 4 · RANKING/OVERVIEW del contrato · barras horizontales (rows estructuradas con formato de una verdad)
   if (Array.isArray(e.rows) && e.rows.length >= 2 && e.metricLabel && e.rows.every((r) => r && typeof r.value === "number" && r.name))
     return { tipo: "barras", titulo: `${e.metricLabel} por ${e.dimLabel || e.dimension || ""}`.trim(), rows: e.rows.slice(0, 8), unit: e.unit || "money", polarity: e.polarity || "higherIsBetter" };
 

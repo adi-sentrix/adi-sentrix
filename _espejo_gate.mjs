@@ -57,6 +57,10 @@ emit("proyeccion", composePnl({ action: "proyeccion_venta", ventaK: 25000, entid
 emit("proyeccion_negocio", composePnl({ action: "proyeccion_venta", ventaK: 120000, negocio: true }, null, SC));
 emit("explica", pnlExplain({ pnl: true, entidad: "Falabella", entityType: "cliente" }, null, SC));
 emit("decisiones", pnlRecommend({ pnl: true }, null, SC));
+emit("perdiendo_con", composePnl({ action: "perdiendo" }, null, SC));
+clearPnl(); resetPnlDraft();
+emit("perdiendo_sin", composePnl({ action: "perdiendo" }, null, SC));   // abre draft — el reset viene abajo
+resetPnlDraft(); sealed();
 emit("desconocida", composePnl({ action: "zzz" }, null, SC));
 // el flujo guiado (draft) — sus voces también emiten frases
 clearPnl(); resetPnlDraft();

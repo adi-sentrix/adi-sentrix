@@ -172,8 +172,8 @@ export function composeMeta(topic, last) {
   // PRIMERA impresión del invitado): bienvenida cálida determinística + orientación concreta. Va VERBATIM (sin narrar).
   if (t === "saludo") {
     return {
-      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganás, dónde cedés margen y qué mover primero.\n\nProbá preguntarme: «¿dónde estoy perdiendo dinero?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
-      suggestions: ["¿Dónde estoy perdiendo dinero?", "Margen por cliente", "¿Qué SKU rota peor?"],
+      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganás, dónde cedés margen y qué mover primero.\n\nProbá preguntarme: «¿cómo viene el P&L de mi negocio?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
+      suggestions: ["¿Cómo viene el P&L de mi negocio?", "Margen por cliente", "¿Qué SKU rota peor?"],
       sentrixAction: null,
       evidence: { followup: true, kind: "saludo", boleta: [] },
       route: "meta_saludo",

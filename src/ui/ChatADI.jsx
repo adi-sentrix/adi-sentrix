@@ -360,15 +360,16 @@ function SourceBadge({ source }) {
   );
 }
 
-// INICIO · las 4 preguntas de plata → specs ENLATADOS. Corren en demo Y con LLM: el análisis es 100% determinístico
-// (los chips no necesitan al LLM para ejecutar) · sólo el texto libre pasa por el LLM para traducirse a spec.
-// El flagship es el `diagnose` (barrido completo de focos) · los otros 3 son ángulos de plata puntuales.
+// INICIO · las 4 preguntas CLAVE (owner 2026-07-25: "que sean más claves — la primera es el P&L del negocio,
+// con nombre de P&L, y ADI guía los supuestos en el chat") → specs ENLATADOS. Corren en demo Y con LLM: el
+// análisis es 100% determinístico · sólo el texto libre pasa por el LLM. El flagship es la historia del P&L
+// (composePnl "perdiendo": cascada del negocio + fugas · sin gastos declarados ABRE el flujo guiado).
 const _SPEC = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o });
 const HERO_CHIPS = [
-  { q: "¿Dónde estoy perdiendo dinero?",     spec: _SPEC({ operation: "diagnose", dimension: "cliente", metric: "contribucion" }) },
-  { q: "¿Qué clientes ceden más margen?",    spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "margen", sort: { by: "margen", dir: "asc" }, limit: 5 }) },
-  { q: "¿Dónde tengo capital inmovilizado?", spec: _SPEC({ operation: "overview", dimension: "bodega", metric: "capital" }) },
-  { q: "¿Quién sostiene mi contribución?",   spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "contribucion", sort: { by: "contribucion", dir: "desc" }, limit: 5 }) },
+  { q: "¿Cómo viene el P&L de mi negocio?",   spec: { schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "perdiendo" } } },
+  { q: "¿Cuánto me queda después de gastos?", spec: { schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "resultado" } } },
+  { q: "¿Qué clientes ceden más margen?",     spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "margen", sort: { by: "margen", dir: "asc" }, limit: 5 }) },
+  { q: "¿Dónde tengo capital inmovilizado?",  spec: _SPEC({ operation: "overview", dimension: "bodega", metric: "capital" }) },
 ];
 
 // ── INICIO · el asesor abre la conversación: título-promesa + resumen ejecutivo + las preguntas de plata ──
@@ -495,7 +496,9 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const submitSpec = (spec, label) => {
     const q = (label || "").trim();
     if (!q) return;
-    const r0 = answerADIFromSpec(spec, context, { scenario });
+    // answerConversational: byte-igual para specs de operación (new_query → seam) Y habilita chips enlatados
+    // con turn_type (los P&L del inicio · owner 2026-07-25)
+    const r0 = answerConversational(spec, context, { scenario });
     if (ADI_LLM_ENABLED) {
       const userMsg = { role: "user", text: q, id: ++idRef.current };
       const adiId = ++idRef.current;

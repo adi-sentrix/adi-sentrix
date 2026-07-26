@@ -343,9 +343,13 @@ function MiniTablaComparada({ tabla }) {
           {cell(r.b, r, "b")}
         </div>
       ))}
-      <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 6, textAlign: "right" }}>
-        proyectado = tu P&L real a esa venta · margen, carga y porcentajes de hoy constantes
-      </div>
+      {/* la nota al pie viene DEL COMPOSER con la tabla (una verdad — cada tabla comparada declara su propio
+          supuesto: proyección, edición, compare); sin nota, sin pie (el texto de arriba ya cuenta la historia) */}
+      {tabla && tabla.nota ? (
+        <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 6, textAlign: "right" }}>
+          {tabla.nota}
+        </div>
+      ) : null}
     </div>
   );
 }

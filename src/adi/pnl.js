@@ -340,7 +340,9 @@ export function detectPnlIntent(q) {
       if (/^\s*no\b[\s.!…]*$/i.test(t) || /\b(revis|ajust|cambi)/i.test(t)) return { action: "draft_stay" };
     }
     if (_draft.stage === "gastos") {
-      if (/[?¿]/.test(t) && _GASTOS_WORD.test(t)) return { action: "draft_help" };
+      // "¿Armamos tu P&L ahora?" / preguntas de gastos DURANTE la etapa → re-guiar (espejo: la oferta que abrió
+      // el flujo también se entiende adentro del flujo)
+      if (/[?¿]/.test(t) && (_GASTOS_WORD.test(t) || _PNL_WORD.test(t) || _ARMAR_RE.test(t))) return { action: "draft_help" };
       const lines = _parseGastoList(t);
       if (lines) return { action: "draft_gastos", lines };
       return null;   // no parsea como lista → el turno sigue su curso normal (el draft espera)
@@ -364,6 +366,16 @@ export function detectPnlIntent(q) {
   // CRUCE DE LENTES (pase 2c): «margen y resultado de Cuidado Personal» enumera DOS métricas — es del
   // multi-análisis (que ahora tiene la lente resultado), no de un claim P&L single. El P&L no roba el cruce.
   if (detectMultiAnalysis(t).isMulti) return null;
+  // LA PREGUNTA CLAVE DEL INICIO (owner 2026-07-25: "'¿dónde estoy perdiendo dinero?' debe ser el P&L del
+  // negocio, y ADI debe guiar preguntando supuestos — todo en el chat"): la historia del dinero de punta a
+  // punta; sin gastos declarados, ADI abre el flujo guiado ahí mismo. Solo dinero/resultado — "perdiendo
+  // margen" sigue siendo del margen.
+  {
+    const nt0 = _norm(t);
+    if (/donde\s+(?:estoy\s+|me\s+estoy\s+|se\s+(?:me\s+)?(?:esta\s+)?)?(?:perdiendo|pierdo|fugando|escapando)\b[^.?!]*\b(?:dinero|resultado)\b/.test(nt0)
+      || /donde\s+se\s+me\s+(?:va|escapa|fuga)\s+(?:el\s+)?dinero/.test(nt0))
+      return { action: "perdiendo" };
+  }
   // PROYECCIÓN DE VENTA (owner 2026-07-25: "te puede pedir que uses otra venta — si vendiera X cuánto me
   // quedaría con estos gastos — manteniendo el margen del cliente, el real a un lado y el proyectado al lado"):
   // condicional/pregunta de venta + MONTO ($ · sin %) → el P&L real vs proyectado, margen/carga constantes.
@@ -432,6 +444,8 @@ export function detectPnlIntent(q) {
     if (entA) return { action: "resultado_scoped", entidad: entA.nombre, eje: entA.eje, covered: entA.covered };
     const ej = _ejePedido(t);
     if (ej) return { action: "tabla_eje", eje: ej.eje, pedido: ej.pedido };
+    // «¿cómo viene el P&L de mi negocio?» (la pregunta clave del inicio · owner 2026-07-25) → LA HISTORIA
+    if (/c[oó]mo\s+(?:viene|va|est[aá]|anda)/i.test(t) || /\bde\s+mi\s+negocio\b/i.test(t)) return { action: "perdiendo" };
     if (/\bdel?\s+negocio(?:\s+completo)?\b|\bnegocio\s+completo\b/i.test(t)) return { action: "resultado" };
   }
   // «resultado después de gastos por familia» (sin la palabra P&L) también es la tabla del eje
@@ -522,6 +536,27 @@ export function pnlSimAsk(l) {
   return `¿Qué pasa si bajas ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%?`;
 }
 const _listado = (lines) => lines.map((l) => `${l.nombre.toLowerCase()} ${_fmtPct(l.pct)}%`).join(" · ");
+// REGLA DE FORMATO (owner 2026-07-25 · "cada uno una línea, así se ve un orden — debería ser una regla"):
+// toda enumeración de CIFRAS del P&L (líneas, propuestas, cascadas) va UNA POR LÍNEA con "·" — se lee como
+// cuenta, no como párrafo. Los ecos cortos de estado (recall/start) pueden seguir inline.
+const _lineasPct = (lines) => lines.map((l) => `· ${_cap(l.nombre)}: ${l.pct == null ? "(falta el %)" : `${_fmtPct(l.pct)}%`}`).join("\n");
+// ANTES|AHORA de una edición (regla del owner 2026-07-25: dos columnas de números = tabla, siempre): la línea
+// tocada y cómo mueve gastos y resultado — estructurada en la evidencia (mismo patrón tabla_comparada de la
+// venta proyectada). Viaja con followup:true: editar a mitad de un hilo NO pisa la última lectura.
+const _tablaEdicion = (nombreLinea, aPct, bPct, c0, c) => ({
+  titulo: `${_cap(nombreLinea)} — antes vs. ahora`,
+  cols: ["Antes", "Ahora"],
+  rows: [
+    { label: `Línea · ${_cap(nombreLinea)}`, a: aPct == null ? "—" : `${_fmtPct(aPct)}%`, b: bPct == null ? "—" : `${_fmtPct(bPct)}%`, strong: true },
+    { label: "Gastos declarados · % sobre venta", a: `${_fmtPct(c0.sumPct)}%`, b: `${_fmtPct(c.sumPct)}%` },
+    { label: "Gastos declarados", a: _moneyK(c0.totalGastosK), b: _moneyK(c.totalGastosK) },
+    { label: "Resultado comercial", a: _moneyK(c0.resultadoK), b: _moneyK(c.resultadoK), strong: true, resultado: true },
+    { label: "Resultado sobre venta", a: `${_fmtPct(c0.resultadoPct)}%`, b: `${_fmtPct(c.resultadoPct)}%`, pct: true },
+  ],
+  nota: "venta y margen de hoy constantes · lo que cambia son tus gastos declarados",
+});
+// las cifras del ANTES entran a la boleta (toda cifra que la tabla muestra es una cifra autorizada)
+const _bolAntes = (c0) => [_fPct("Gastos · antes", c0.sumPct), _fMoneyK("Resultado · antes", c0.resultadoK), _fPct("Resultado % · antes", c0.resultadoPct)];
 const _lineFigs = (lines) => lines.filter((l) => l.pct != null).map((l) => _fPct(`Línea · ${l.nombre}`, l.pct));
 
 // resumen tipo boleta + sello (la pregunta de cierre ES la oferta que un "sí" acepta)
@@ -538,7 +573,7 @@ function _proponerSello(scenario) {
     _fMoneyK("Gastos declarados", c.totalGastosK), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct),
   ];
   return _resp(
-    `${cordura}Queda así, sobre la venta: ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% en total.\n\nCon tu dato real: ingreso ${_moneyK(c.ingresoK)} − costo ${_moneyK(c.costoK)} − carga comercial ${_moneyK(c.cargaK)} − gastos ${_moneyK(c.totalGastosK)} = resultado comercial ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta).\n\n¿Lo sello?`,
+    `${cordura}Queda así, sobre la venta:\n${_lineasPct(c.lines)}\n· Gastos totales: ${_fmtPct(c.sumPct)}%\n\nCon tu dato real:\n· Ingreso: ${_moneyK(c.ingresoK)}\n· Costo: −${_moneyK(c.costoK)}\n· Carga comercial: −${_moneyK(c.cargaK)}\n· Gastos declarados: −${_moneyK(c.totalGastosK)}\n· **Resultado comercial: ${_moneyK(c.resultadoK)}** — ${_fmtPct(c.resultadoPct)}% de la venta\n\n¿Lo sello?`,
     { suggestions: ["Séllalo"], bol }
   );
 }
@@ -550,6 +585,7 @@ export function composePnl(pi, ctx = null, state = {}) {
   const scenario = (state && state.scenario) || "bonanza";
   // claim del LLM #1 CON ALCANCE (specTool: pnl { entity?, dimension? } — sin action): se normaliza acá contra
   // el canon — el LLM entiende QUÉ quiere el usuario; ADI decide si SE PUEDE y con los nombres reales del dato.
+  if (pi && !pi.action && pi.intent === "perdiendo") pi = { action: "perdiendo" };
   if (pi && !pi.action && (pi.entity || pi.dimension)) {
     if (pi.entity && /\bnegocio\b/i.test(String(pi.entity))) pi = { action: _lines.length ? "resultado" : "start" };
     else if (pi.entity) {
@@ -603,11 +639,10 @@ export function composePnl(pi, ctx = null, state = {}) {
     if (_draft.lines.every((l) => l.pct != null)) return _proponerSello(scenario);
     const conPct = _draft.lines.filter((l) => l.pct != null);
     const sinPct = _draft.lines.filter((l) => l.pct == null);
-    const eco = _draft.lines.map((l) => (l.pct != null ? `${l.nombre.toLowerCase()} ${_fmtPct(l.pct)}%` : l.nombre.toLowerCase())).join(" · ");
     const pide = conPct.length
       ? `Me falta el % de ${sinPct.map((l) => l.nombre.toLowerCase()).join(", ")}.`
       : `¿Qué % le asigno a cada uno, sobre la venta? Puedes dármelos en el mismo orden («3, 1.5, 2») o línea por línea («${sinPct[0].nombre.toLowerCase()} al 2%»).`;
-    return _resp(`Anotado: ${eco}. ${pide}`, { bol: [..._lineFigs(conPct), _gPct(3), _gPct(1.5), _gPct(2)] });
+    return _resp(`Anotado:\n${_lineasPct(_draft.lines)}\n\n${pide}`, { bol: [..._lineFigs(conPct), _gPct(3), _gPct(1.5), _gPct(2)] });
   }
   if (a === "draft_pcts") {
     _draft.lines = pi.lines.map((l) => ({ ...l }));
@@ -652,11 +687,13 @@ export function composePnl(pi, ctx = null, state = {}) {
     if (!l) return _resp(`No tengo una línea «${pi.nombre.toLowerCase()}» en tu P&L. Hoy va: ${_listado(_lines)}.`, { bol: _lineFigs(_lines) });
     if (!_validLine({ nombre: l.nombre, pct: pi.pct })) return _resp(`Ese porcentaje no me cierra para ${l.nombre.toLowerCase()} — dame un valor entre 0.1% y 50%.`, { bol: [_gPct(0.1), _gPct(50)] });
     const prev = l.pct;
+    const c0 = buildPnlCascade(scenario);   // el ANTES (con el % vigente) — para la tabla comparada
     setPnlLines(_lines.map((x) => (x === l ? { ...x, pct: _r1(pi.pct) } : x)));
     const c = buildPnlCascade(scenario);
     return _resp(
       `Listo — ${l.nombre.toLowerCase()} pasa de ${_fmtPct(prev)}% a ${_fmtPct(_r1(pi.pct))}%. Con eso, el resultado comercial queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta) con ${_fmtPct(c.sumPct)}% de gastos totales.`,
-      { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct("Anterior", prev, { gancho: true }), _fPct("Nuevo", _r1(pi.pct)), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), _fPct("Gastos · total", c.sumPct)] }
+      { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct("Anterior", prev, { gancho: true }), _fPct("Nuevo", _r1(pi.pct)), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), _fPct("Gastos · total", c.sumPct), ..._bolAntes(c0)],
+        ev: { tabla: _tablaEdicion(l.nombre, prev, _r1(pi.pct), c0, c), followup: true } }
     );
   }
   if (a === "edit_reask") {
@@ -668,11 +705,13 @@ export function composePnl(pi, ctx = null, state = {}) {
     if (a === "edit_add_nopct") return _resp(`Dímelo con su % sobre la venta y lo agrego: «agrega ${pi.nombre.toLowerCase()} 1.5%».`, { bol: [_gPct(1.5)] });
     if (_findLine(pi.nombre)) return _resp(`${_cap(pi.nombre.toLowerCase())} ya está en tu P&L — si quieres moverla: «cambia ${pi.nombre.toLowerCase()} a ${_fmtPct(pi.pct)}%».`, { bol: [_gPct(pi.pct)] });
     if (!_validLine({ nombre: pi.nombre, pct: pi.pct })) return _resp(`Ese porcentaje no me cierra — dame un valor entre 0.1% y 50%.`, { bol: [_gPct(0.1), _gPct(50)] });
+    const c0 = buildPnlCascade(scenario);   // el ANTES (sin la línea nueva)
     setPnlLines([..._lines, { nombre: pi.nombre, pct: _r1(pi.pct) }]);
     const c = buildPnlCascade(scenario);
     return _resp(
       `Agregada: ${pi.nombre.toLowerCase()} ${_fmtPct(_r1(pi.pct))}% sobre la venta. Tu P&L queda con ${_fmtPct(c.sumPct)}% de gastos y el resultado comercial en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta).`,
-      { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct(`Línea · ${_cap(pi.nombre)}`, _r1(pi.pct)), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct)] }
+      { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct(`Línea · ${_cap(pi.nombre)}`, _r1(pi.pct)), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), ..._bolAntes(c0)],
+        ev: { tabla: _tablaEdicion(pi.nombre, null, _r1(pi.pct), c0, c), followup: true } }
     );
   }
   if (a === "edit_remove") {
@@ -683,11 +722,13 @@ export function composePnl(pi, ctx = null, state = {}) {
       clearPnl();
       return _resp(`Saqué ${l.nombre.toLowerCase()} — era la última línea, así que tu P&L quedó vacío y la cara Resultado vuelve a su punto de partida. Cuando quieras: «armemos mi P&L».`);
     }
+    const c0 = buildPnlCascade(scenario);   // el ANTES (con la línea todavía adentro)
     setPnlLines(rest);
     const c = buildPnlCascade(scenario);
     return _resp(
       `Saqué ${l.nombre.toLowerCase()} (${_fmtPct(l.pct)}%). Tu P&L queda: ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% en total, y el resultado comercial en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta).`,
-      { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct(`Línea · ${l.nombre}`, l.pct, { gancho: true }), ..._lineFigs(c.lines), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct)] }
+      { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct(`Línea · ${l.nombre}`, l.pct, { gancho: true }), ..._lineFigs(c.lines), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), ..._bolAntes(c0)],
+        ev: { tabla: _tablaEdicion(l.nombre, l.pct, null, c0, c), followup: true } }
     );
   }
   if (a === "forget") {
@@ -707,9 +748,43 @@ export function composePnl(pi, ctx = null, state = {}) {
   }
 
   // ── LECTURAS (cascada determinística · el sello entender→explicar→actuar en una respuesta) ──
-  const sinPnl = () => _resp(`Esa cuenta llega hasta la contribución: todavía no tengo tus líneas de gasto, así que no hay resultado después de gastos que afirmar. ¿Armamos tu P&L ahora? Dime qué gastos quieres considerar y los porcentajes los definimos juntos.`, { route: "pnl_reading" });
+  const sinPnl = () => {
+    // GUÍA (owner 2026-07-25 "ADI debe guiar preguntando supuestos, todo en el chat"): la oferta ABRE el flujo —
+    // el próximo mensaje con nombres de gastos ya fluye (gastos→%→sello); cualquier otro tema sigue su curso.
+    _draft = { stage: "gastos", lines: [] };
+    return _resp(`Esa cuenta llega hasta la contribución: todavía no tengo tus líneas de gasto, así que no hay resultado después de gastos que afirmar. ¿Armamos tu P&L ahora? Dime qué gastos quieres considerar y los porcentajes los definimos juntos.`, { route: "pnl_reading" });
+  };
   const _EJE_LBL = (eje) => (ENTITIES[eje] && ENTITIES[eje].label) || { sing: String(eje), plur: `${eje}s` };
 
+  // ── LA PREGUNTA CLAVE DEL INICIO (owner 2026-07-25): "¿dónde estoy perdiendo dinero?" = la historia del
+  // P&L del negocio, de punta a punta — y sin gastos declarados, ADI GUÍA los supuestos ahí mismo. ──
+  if (a === "perdiendo") {
+    const c = buildPnlCascade(scenario);
+    if (!_lines.length) {
+      _draft = { stage: "gastos", lines: [] };
+      const bol = [
+        _fMoneyK("Ingreso", c.ingresoK, { mandatory: true }), _fMoneyK("Costo", c.costoK),
+        _fMoneyK("Carga comercial", c.cargaK), _fMoneyK("Contribución", c.contribK, { mandatory: true }),
+      ];
+      return _resp(
+        `Te muestro dónde está el dinero, con lo que el dato ya me dice:\n· Venta del año: ${_moneyK(c.ingresoK)}\n· Costo de los productos: −${_moneyK(c.costoK)}\n· Carga comercial (lo que se entrega al canal): −${_moneyK(c.cargaK)}\n· Contribución: ${_moneyK(c.contribK)} — hasta aquí, todo es dato real\n\nEn el dato ya se ven dos fugas: parte de esa carga comercial se puede recuperar, y hay cuentas vendiendo con un margen más bajo que el resto.\n\nPara decirte cuánto te queda DE VERDAD me falta un dato tuyo: tus gastos. Armémoslo ahora — dime qué gastos quieres considerar (administrativos, logística, promotores… como los manejes tú) y después te pregunto el porcentaje de cada uno.`,
+        { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?"], bol, ev: { dimension: _BASE_EJE } }
+      );
+    }
+    _scope = { dimension: _BASE_EJE, entity: null, entities: null, global: true };
+    const topP = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+    const bol = [
+      _fMoneyK("Ingreso", c.ingresoK, { mandatory: true }), _fMoneyK("Costo", c.costoK),
+      _fMoneyK("Carga comercial", c.cargaK), _fMoneyK("Contribución", c.contribK),
+      _fMoneyK("Gastos declarados", c.totalGastosK), _fPct("Gastos · total", c.sumPct),
+      _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct),
+      ...(topP ? [_fMoneyK(`Gasto · ${topP.nombre}`, topP.usdK), _fPct(`Línea · ${topP.nombre}`, topP.pct)] : []),
+    ];
+    return _resp(
+      `Tu dinero, de punta a punta:\n· Venta del año: ${_moneyK(c.ingresoK)}\n· Costo de los productos: −${_moneyK(c.costoK)}\n· Carga comercial: −${_moneyK(c.cargaK)}\n· Tus gastos declarados (${_fmtPct(c.sumPct)}%): −${_moneyK(c.totalGastosK)}\n· **Te quedan: ${_moneyK(c.resultadoK)}** — ${_fmtPct(c.resultadoPct)}% de la venta\n\nDónde apretar primero: parte de la carga comercial se puede recuperar, hay cuentas con un margen más bajo que el resto, y de tus gastos la línea que más pesa es ${topP.nombre.toLowerCase()} (${_moneyK(topP.usdK)} · ${_fmtPct(topP.pct)}%). ¿Bajamos a un frente?`,
+      { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?", "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE } }
+    );
+  }
   // ── ALCANCE (PASE 2) · volver / P&L de una entidad / la tabla del eje / deixis / entidad desconocida ──
   if (a === "volver") {
     if (!_lines.length) return sinPnl();
@@ -756,7 +831,7 @@ export function composePnl(pi, ctx = null, state = {}) {
       ...(top ? [_gPct(simT)] : []),
     ];
     return _resp(
-      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}. ` : ""}El P&L de ${e.nombre} con tu estructura declarada: ingreso ${_moneyK(e.ventaK)} − costo ${_moneyK(e.costoK)} = margen bruto ${_moneyK(e.margenBrutoK)} − carga comercial ${_moneyK(e.cargaK)} = contribución ${_moneyK(e.contribK)} − gastos prorrateados ${_moneyK(e.gastoK)} (${_fmtPct(c.sumPct)}% sobre su venta) = resultado ${_moneyK(e.resultadoK)} — ${_fmtPct(e.resultadoPct)}% de su venta.${share != null ? ` Aporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\nHasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${simAsk ? ` ${simAsk}` : ""}`,
+      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}.\n\n` : ""}El P&L de ${e.nombre} con tu estructura declarada:\n· Ingreso: ${_moneyK(e.ventaK)}\n· Costo: −${_moneyK(e.costoK)}\n· Margen bruto: ${_moneyK(e.margenBrutoK)}\n· Carga comercial: −${_moneyK(e.cargaK)}\n· Contribución: ${_moneyK(e.contribK)}\n· Gastos prorrateados (${_fmtPct(c.sumPct)}% sobre su venta): −${_moneyK(e.gastoK)}\n· **Resultado: ${_moneyK(e.resultadoK)}** — ${_fmtPct(e.resultadoPct)}% de su venta${share != null ? `\n\nAporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\nHasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${simAsk ? ` ${simAsk}` : ""}`,
       { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), ...(otros.length ? [`P&L de ${otros[0].nombre}`] : [])], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
     );
   }
@@ -858,6 +933,7 @@ export function composePnl(pi, ctx = null, state = {}) {
         { label: "Resultado", a: _moneyK(r0.resultadoK), b: _moneyK(p.resultadoK), strong: true, resultado: true },
         { label: "Resultado sobre venta", a: `${_fmtPct(r0.resultadoPct)}%`, b: `${_fmtPct(r0.resultadoPct)}%`, pct: true },
       ],
+      nota: "proyectado = tu P&L real a esa venta · margen, carga y porcentajes de hoy constantes",
     };
     // EL EXPLICATIVO (palabras del owner 2026-07-25: "aritmética y esas cosas complican al usuario") — llano:
     // qué significa · qué muestra y qué no asegura · la pregunta clave. Los números viven en la tabla de abajo.
@@ -929,7 +1005,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     ];
     const neg = c.resultadoK < 0 ? ` Ojo: el resultado es negativo con los supuestos declarados — vale revisar las líneas antes que la venta.` : "";
     return _resp(
-      `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — ${_fmtPct(c.resultadoPct)}% de la venta.\n\nLa cascada completa sobre el dato real: ingreso ${_moneyK(c.ingresoK)} − costo ${_moneyK(c.costoK)} = margen bruto ${_moneyK(c.margenBrutoK)} − carga comercial ${_moneyK(c.cargaK)} = contribución ${_moneyK(c.contribK)} − tus gastos declarados ${_moneyK(c.totalGastosK)} (${_fmtPct(c.sumPct)}% sobre la venta) = resultado ${_moneyK(c.resultadoK)}. Hasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.${neg}\n\nLa línea que más pesa: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} · ${_fmtPct(top.pct)}%). ${pnlSimAsk(top)}`,
+      `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — ${_fmtPct(c.resultadoPct)}% de la venta.\n\nLa cascada completa sobre el dato real:\n· Ingreso: ${_moneyK(c.ingresoK)}\n· Costo: −${_moneyK(c.costoK)}\n· Margen bruto: ${_moneyK(c.margenBrutoK)}\n· Carga comercial: −${_moneyK(c.cargaK)}\n· Contribución: ${_moneyK(c.contribK)}\n· Tus gastos declarados (${_fmtPct(c.sumPct)}%): −${_moneyK(c.totalGastosK)}\n· **Resultado: ${_moneyK(c.resultadoK)}**\n\nHasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.${neg}\n\nLa línea que más pesa: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} · ${_fmtPct(top.pct)}%). ${pnlSimAsk(top)}`,
       { route: "pnl_reading", suggestions: [pnlSimAsk(top), "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE } }
     );
   }

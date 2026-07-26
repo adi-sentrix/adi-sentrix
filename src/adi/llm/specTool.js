@@ -78,6 +78,7 @@ export function buildSpecTool() {
           properties: {
             entity: { type: ["string", "null"], description: "entidad del alcance del P&L si el usuario la nombra o la hereda del hilo" },
             dimension: { type: ["string", "null"], enum: [...dims, "negocio", null], description: "eje de la tabla del P&L ('P&L por familia') · 'negocio' para el total" },
+            intent: { type: ["string", "null"], enum: ["perdiendo", null], description: "'perdiendo' = la HISTORIA del dinero del negocio ('¿dónde pierdo/se me va el dinero?' · '¿cómo viene mi P&L?') — la cascada completa + fugas; sin gastos declarados ADI guía los supuestos" },
           },
           description: "SOLO para turn_type pnl_setup: el ALCANCE pedido. ADI valida si se puede (disponibilidad del dato) y si no, redirige honesto.",
         },

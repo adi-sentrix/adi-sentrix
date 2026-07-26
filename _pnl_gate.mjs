@@ -46,7 +46,8 @@ ok(r2 && /¿Qué %/.test(r2.text) && pnlDraft().stage === "pcts", "lista LIBRE a
 ok(pnlDraft().lines.map((l) => l.nombre).join("·") === "Administrativos·Logística·Marketing", "las líneas son LAS DEL USUARIO (dinámicas, no catálogo)");
 const r3 = go("1, 3, 1.5");
 ok(r3 && /Queda así, sobre la venta/.test(r3.text) && /¿Lo sello\?/.test(r3.text), "resumen tipo boleta + oferta de sello");
-ok(/ingreso .* − costo .* − carga comercial .* − gastos .* = resultado comercial/.test(r3.text), "la propuesta muestra la cascada compacta");
+ok(/· Ingreso: .*\n· Costo: .*\n· Carga comercial: .*\n· Gastos declarados: .*\n· \*\*Resultado comercial: /.test(r3.text), "la propuesta muestra la cascada UNA CIFRA POR LÍNEA (regla de formato del owner)");
+ok(/Queda así, sobre la venta:\n· /.test(r3.text) && /· Gastos totales: /.test(r3.text), "las líneas del usuario también van una por línea con su %");
 const r4 = go("sí");
 ok(r4 && /^Sellado\./.test(r4.text) && activePnl().length === 3, "'sí' sella (el claim gana al followup_accept) · 3 líneas persistidas");
 ok(activePnl().every((l) => l.origen === "supuesto_declarado"), "cada línea guarda origen supuesto_declarado (C.3 reemplaza línea a línea)");
@@ -218,7 +219,7 @@ console.log("[13] LECTURAS SCOPED · abren con las cifras del alcance · guard l
 const _cCli = buildPnlCascade("bonanza"), _cFam = buildPnlCascade("bonanza", null, { dimension: "familia" });
 const eFal = _cCli.porEntidad.find((x) => x.nombre === "Falabella"), eCP = _cFam.porEntidad.find((x) => x.nombre === "Cuidado Personal");
 const rScF = go("P&L de Falabella", false);
-ok(rScF && rScF.text.startsWith(`El P&L de Falabella con tu estructura declarada: ingreso ${_moneyK(eFal.ventaK)}`), "«P&L de Falabella» abre con SU ingreso (ancla del alcance)", rScF && rScF.text.slice(0, 80));
+ok(rScF && rScF.text.startsWith(`El P&L de Falabella con tu estructura declarada:\n· Ingreso: ${_moneyK(eFal.ventaK)}`), "«P&L de Falabella» abre con SU ingreso, una cifra por línea (regla de formato)", rScF && rScF.text.slice(0, 80));
 ok(rScF.text.includes(_moneyK(eFal.resultadoK)) && rScF.text.includes(_moneyK(eFal.contribK)) && rScF.text.includes(_moneyK(eFal.cargaK)), "la cascada scoped cita venta/contribución/carga DE Falabella (costo derivado)");
 const rScCP = go("dame el P&L de Cuidado Personal", false);
 ok(rScCP && rScCP.text.includes(`El P&L de Cuidado Personal`) && rScCP.text.includes(_moneyK(eCP.resultadoK)), "«P&L de Cuidado Personal» (familia) responde con las cifras del grupo");
@@ -441,6 +442,72 @@ ok(CS("¿cómo queda mi resultado comercial?", S({}), false, null).turn_type ===
 clearPnl(); resetPnlDraft();
 const rM19c = AC(CS("margen y resultado de Falabella", S({}), false, null), {}, { scenario: "bonanza" });
 ok(rM19c && /Resultado después de gastos/.test(rM19c.text) && /¿Armamos tu P&L ahora\?/i.test(rM19c.text), "sin P&L armado la sección resultado OFRECE armarlo (ownership, no silencio)");
+
+console.log("[20] TABLA COMPARADA universal · el ANTES|AHORA de la edición (dos columnas de números = tabla)");
+clearPnl(); resetPnlDraft();   // [19] cierra con la oferta de armarlo (draft abierto) — esta sección parte limpia
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+const _p20 = (v) => `${String(Math.round(v * 10) / 10)}%`;
+const c20a = buildPnlCascade("bonanza");
+const rEd20 = go("cambia marketing a 2%");
+const c20b = buildPnlCascade("bonanza");
+const tb20 = rEd20 && rEd20.evidence && rEd20.evidence.tabla;
+ok(tb20 && tb20.titulo === "Marketing — antes vs. ahora" && tb20.cols.join("|") === "Antes|Ahora" && tb20.rows.length === 5
+  && tb20.rows.map((r) => r.label).join("|") === "Línea · Marketing|Gastos declarados · % sobre venta|Gastos declarados|Resultado comercial|Resultado sobre venta",
+  "edit_set emite LA TABLA ANTES|AHORA estructurada en la evidencia (línea · gastos % y $ · resultado $ y %)", tb20 && JSON.stringify(tb20.rows.map((r) => r.label)));
+ok(tb20 && tb20.rows[0].a === "1.5%" && tb20.rows[0].b === "2%" && tb20.rows[0].strong === true, "la línea editada: % vigente → % nuevo");
+ok(tb20 && tb20.rows[1].a === _p20(c20a.sumPct) && tb20.rows[1].b === _p20(c20b.sumPct) && tb20.rows[2].a === _moneyK(c20a.totalGastosK) && tb20.rows[2].b === _moneyK(c20b.totalGastosK), "gastos declarados antes/ahora == la única verdad (% y $)");
+ok(tb20 && tb20.rows[3].a === _moneyK(c20a.resultadoK) && tb20.rows[3].b === _moneyK(c20b.resultadoK) && tb20.rows[3].resultado === true && tb20.rows[4].pct === true, "resultado antes/ahora exacto · fila destacada · % muted");
+ok(tb20 && typeof tb20.nota === "string" && tb20.nota.length > 0, "la tabla de edición declara su supuesto al pie (nota data-driven)");
+ok(rEd20.evidence.followup === true, "la edición SIGUE siendo administrativa (followup:true — NO pisa la última lectura)");
+const cs20 = chartForEvidence(rEd20.evidence);
+ok(cs20 && cs20.tipo === "tabla_comparada" && cs20.tabla === tb20, "chartForEvidence despacha el ANTES|AHORA aun con followup:true (el dispatch va antes del guard)");
+ok(guardAgainstBoleta(rEd20.text, rEd20.evidence.boleta).ok, "guard edit_set: cifras del texto == boleta (con las cifras del ANTES adentro)");
+const rAdd20 = go("agrega bodegaje 1%");
+const tbA20 = rAdd20 && rAdd20.evidence && rAdd20.evidence.tabla;
+ok(tbA20 && tbA20.rows[0].a === "—" && tbA20.rows[0].b === "1%" && tbA20.rows[3].a !== tbA20.rows[3].b, "edit_add: la línea nueva entra como — → 1% y el resultado se mueve");
+const rDel20 = go("saca bodegaje");
+const tbD20 = rDel20 && rDel20.evidence && rDel20.evidence.tabla;
+ok(tbD20 && tbD20.rows[0].a === "1%" && tbD20.rows[0].b === "—" && rDel20.evidence.followup === true, "edit_remove: la línea sale como 1% → — (misma tabla, followup administrativo)");
+ok(tb && typeof tb.nota === "string" && /proyectado = tu P&L real a esa venta/.test(tb.nota), "la nota de la VENTA PROYECTADA ahora viaja EN su tabla (data-driven, no hardcodeada en la UI)");
+// registro ejecutivo en lo nuevo emitido por las tablas (labels · títulos · notas)
+let sucios20 = 0;
+for (const tt of [tb20, tbA20, tbD20]) if (tt) for (const s of [tt.titulo, tt.nota, ...tt.rows.map((r) => r.label)]) if (typeof s === "string" && BANNED.test(s)) { sucios20++; console.log(`    ✗ registro roto en tabla: «${s.match(BANNED)[0]}»`); }
+ok(sucios20 === 0, "registro ejecutivo limpio en las tablas ANTES|AHORA");
+clearPnl(); resetPnlDraft();
+
+console.log("[21] PREGUNTAS CLAVE DEL INICIO · la historia del P&L + ADI guía los supuestos en el chat");
+clearPnl(); resetPnlDraft();
+const rPd0 = go("¿dónde estoy perdiendo dinero?", false);
+ok(rPd0 && /Te muestro dónde está el dinero/.test(rPd0.text) && /me falta un dato tuyo: tus gastos/.test(rPd0.text) && /\n· Venta del año: /.test(rPd0.text), "sin P&L: la historia LLANA una cifra por línea + la GUÍA de supuestos", rPd0 && rPd0.text.slice(0, 80));
+ok(pnlDraft() && pnlDraft().stage === "gastos", "…y el flujo guiado queda ABIERTO (el próximo mensaje con gastos fluye)");
+const rPd1 = go("administrativos, logística 3% y promotores 2%");
+ok(rPd1 && /Anotado/.test(rPd1.text), "los gastos nombrados tras la pregunta clave SIGUEN el flujo (guía real)");
+const rPd2 = go("administrativos al 1%");
+ok(rPd2 && /¿Lo sello\?/.test(rPd2.text), "…% completados → propuesta de sello");
+ok(/Sellado/.test((go("sí") || {}).text || ""), "…y sella: la conversación de la pregunta clave termina en P&L armado");
+const rPd3 = go("¿dónde estoy perdiendo dinero?", false);
+const cPd = buildPnlCascade("bonanza");
+ok(rPd3 && /^Tu dinero, de punta a punta/.test(rPd3.text) && rPd3.text.includes(_moneyK(cPd.resultadoK)) && rPd3.text.includes(_moneyK(cPd.ingresoK)), "con P&L: la historia de punta a punta con el resultado exacto");
+ok(guardAgainstBoleta(rPd3.text, rPd3.evidence.boleta).ok, "guard pregunta clave: cifras == boleta");
+for (const s2 of (rPd3.suggestions || [])) { const cs5 = CF(s2, false, null); ok(!!cs5, `chip de la historia reclama: «${s2}»`); }
+const rChip1 = AC({ schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "perdiendo" } }, {}, { scenario: "bonanza" });
+ok(rChip1 && /^Tu dinero, de punta a punta/.test(rChip1.text), "chip «¿Cómo viene el P&L de mi negocio?» (enlatado) → la historia");
+const rChip2 = AC({ schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "resultado" } }, {}, { scenario: "bonanza" });
+ok(rChip2 && /^Tu resultado comercial:/.test(rChip2.text), "chip «¿Cuánto me queda después de gastos?» (enlatado) → el resultado");
+const rChipD = AC({ schemaVersion: 1, scenario: "actual", filters: {}, operation: "diagnose", dimension: "cliente", metric: "contribucion" }, {}, { scenario: "bonanza" });
+ok(rChipD && !/^spec_blocked/.test(rChipD.route || "") && String(rChipD.text || "").length > 0, "los specs de operación enlatados siguen válidos por answerConversational (submitSpec)");
+const sTyped21 = CS("¿cómo viene el p&l de mi negocio?", S({}), false, null);
+ok(sTyped21.pnl && sTyped21.pnl.action === "perdiendo", "tipeado «¿cómo viene el p&l de mi negocio?» → la misma historia");
+clearPnl(); resetPnlDraft();
+void go("¿Cómo queda mi resultado comercial?", false);
+ok(pnlDraft() && pnlDraft().stage === "gastos", "toda lectura sin P&L abre la guía (sinPnl → draft gastos)");
+const rHelp21 = go("¿Armamos tu P&L ahora?");
+ok(rHelp21 && /nombres son tuyos|Nómbralos/.test(rHelp21.text), "«¿armamos tu P&L ahora?» DENTRO del flujo → re-guía (draft_help · espejo)");
+clearPnl(); resetPnlDraft();
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+const sPdM = CS("¿dónde estoy perdiendo margen?", S({}), false, null);
+ok(sPdM.turn_type !== "pnl_setup", "«perdiendo MARGEN» no es del P&L (el margen conserva su dominio)");
+clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

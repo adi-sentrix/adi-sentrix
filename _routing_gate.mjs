@@ -126,10 +126,16 @@ ok("RESUMEN · cierra con la PRÓXIMA DECISIÓN (pregunta ejecutiva '¿partimos 
   const t = (r && r.text) || "";
   return /¿partimos por .+\?/i.test(t);
 })());
-ok("RESUMEN · '¿dónde pierdo dinero?' sigue en el diagnose CLÁSICO (foco puntual, sin los 8 bloques)", (() => {
+// PREGUNTA CLAVE (owner 2026-07-25: "'¿dónde estoy perdiendo dinero?' debe ser el P&L del negocio, y ADI guía
+// los supuestos"): la frase ahora es la HISTORIA del P&L (claim pnl «perdiendo») — el diagnose clásico sigue
+// siendo dueño del resumen ejecutivo (caso anterior) y de sus fraseos propios.
+ok("PREGUNTA CLAVE · '¿dónde estoy perdiendo dinero?' → la historia del P&L (claim pnl 'perdiendo')", (() => {
   const s = C("¿dónde estoy perdiendo dinero?", base(""), false);
-  const r = A(s, {}, { scenario: "bonanza" });
-  return s.focus !== "resumen_ejecutivo" && !((r && r.text) || "").includes("Foto general");
+  return s.turn_type === "pnl_setup" && s.pnl && s.pnl.action === "perdiendo";
+})());
+ok("PREGUNTA CLAVE · 'perdiendo margen' NO es del P&L (el margen conserva su dominio)", (() => {
+  const s = C("¿dónde estoy perdiendo margen?", base(""), false);
+  return s.turn_type !== "pnl_setup";
 })());
 // PREGUNTA-OBJETIVO (owner 2026-07-14: «subir un 3% el ingreso de mis ventas — dame alternativas» cayó UNA vez
 // en meta_question y el narrador fabuló "no tengo datos frescos" + un menú): toda META de crecimiento/mejora
