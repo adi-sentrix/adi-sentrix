@@ -16,7 +16,7 @@
 import { dispatchIntent, _finalize } from "./answerADI.js";               // dispatch sellado (export aditivo · gate 16/0)
 import { composeRetrieval } from "./composers/qiRetrieval.js";            // productor de retrieval (overview) · ya exportado
 import { METRICS } from "../config/contract/metricRegistry.js";
-import { ENTITIES } from "../config/contract/entityRegistry.js";
+import { ENTITIES, axisAvailable } from "../config/contract/entityRegistry.js";
 import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js";
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
@@ -389,6 +389,13 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         // contrato sin productor QI → el retrieval genérico del contrato los sirve (misma vía que inventario) antes de degradar.
         const resp0 = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: spec.limit, sort: spec.sort });
         if (resp0 && resp0.opener) return _finBoleta(composeContract("overview_domain", resp0, resp0.evidence, ctx, scenario), resp0, "qi_retrieval", "qi_retrieval", ctx, scenario);
+        // F1 multiempresa (caza del sweep empresa-2): si el EJE no viene en el dato del tenant (axisAvailable),
+        // no se ofrece nada sobre ese eje — la oferta redirige a la métrica por los ejes que SÍ existen.
+        // Con el demo (todos los ejes disponibles) el mensaje es byte-idéntico al de siempre.
+        if (!axisAvailable(spec.dimension)) {
+          const dims = (METRICS[spec.metric].axes || []).filter(axisAvailable).map((d) => `${spec.metric}@${d}`);
+          return _degrade("metric-not-wired", `El ${_d(spec.dimension)} no viene en los datos de este negocio. Te puedo mostrar ${dims.map(_offerLabel).join(", ")}.`, dims, ctx);
+        }
         const sibs = ["ventas", "margen", "contribucion"].filter((x) => (METRICS[x].axes || []).includes(spec.dimension)).map((x) => `${x}@${spec.dimension}`);
         return _degrade("metric-not-wired", `El ${_m(spec.metric)} por ${_d(spec.dimension)} todavía no lo tengo como tabla. Te puedo mostrar ${sibs.map(_offerLabel).join(", ")}.`, sibs, ctx);
       }
@@ -413,7 +420,11 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       // spec-driven genérico (agregados del contrato · un eje group-by nuevo rankea solo — eje canal 2026-07-26)
       if (spec.dimension === "marca" || spec.dimension === "familia" || (ENTITIES[spec.dimension] && ENTITIES[spec.dimension].isGroupBy)) {
         const resp = composeSpecRetrieval({ metric: spec.metric, dimension: spec.dimension, filters: spec.filters, scenario, limit: Math.max(1, spec.limit || 5), sort: spec.sort || { dir: "desc" } });
-        if (!resp || !resp.opener) return _degrade("rank-empty", `No pude rankear ${_m(spec.metric)} por ${_d(spec.dimension)}. Probá otra métrica para ese eje.`, [], ctx);
+        if (!resp || !resp.opener) {
+          // eje ausente en el dato del tenant → decir la verdad (no "probá otra métrica" sobre un eje que no existe)
+          if (!axisAvailable(spec.dimension)) return _degrade("rank-empty", `No pude rankear ${_m(spec.metric)} por ${_d(spec.dimension)} — ese eje no viene en los datos de este negocio.`, [], ctx);
+          return _degrade("rank-empty", `No pude rankear ${_m(spec.metric)} por ${_d(spec.dimension)}. Probá otra métrica para ese eje.`, [], ctx);
+        }
         // Fase 2 · contrato rank_business_entity (ranking → patrón → brecha → advertencia → cruce)
         return _finBoleta(composeContract("rank_business_entity", resp, resp.evidence, ctx, scenario), resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
