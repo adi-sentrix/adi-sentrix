@@ -173,3 +173,14 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
     cuadro: { rows, total, n: rows.length, eje: ejeCuadro, ejes, colLabel: (ejes.find((x) => x.key === ejeCuadro) || ejes[0]).label },
   };
 }
+
+// ── DEEP-LINK del P&L (mejora 5 · 2026-07-26): decide DEL LADO PURO qué abre «Ampliar en Sentrix» para una
+// evidencia — si la respuesta es del P&L (evidence.pnl), la Mesa arranca en la cara Resultado con SU alcance:
+// el eje de la respuesta al selector del cuadro y la entidad en foco en la cascada. Cualquier otra evidencia
+// devuelve null (sus paneles clásicos siguen intactos). buildMesaResultado valida solo: eje no disponible cae
+// al primario y entidad desconocida deja la cascada global — el deep-link jamás abre una vista rota.
+export function pnlMesaLink(e) {
+  if (!e || !e.pnl) return null;
+  const eje = e.dimension || null;
+  return { cara: "resultado", eje, foco: e.entidad ? { eje, nombre: e.entidad } : null };
+}

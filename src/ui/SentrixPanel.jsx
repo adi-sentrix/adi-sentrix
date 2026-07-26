@@ -21,7 +21,7 @@ import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Co
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
-import { buildMesaResultado } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI
+import { buildMesaResultado, pnlMesaLink } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
@@ -1147,7 +1147,12 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // CARA CAPITAL (owner 2026-07-15 "ok, veamos cómo queda"): la Mesa tiene DOS CARAS — el mismo sello contando el
   // capital (detectores de inventario existentes · mesaCapital.js · cero cálculo acá). Selector recordado en este
   // navegador (patrón adi_hint_v1) e informado a ADI por uiSignals (el click INFORMA la cara activa, nunca dispara).
+  // DEEP-LINK del P&L (2026-07-26): si la Mesa se abre desde una respuesta P&L (evidence.pnl → pnlMesaLink),
+  // arranca en la cara Resultado con SU alcance — el eje de la respuesta al selector del cuadro y la entidad
+  // en foco en la cascada. El click sigue el patrón de la Mesa: informa (uiSignals), nunca dispara.
+  const _pnlLink = pnlMesaLink(evidence);
   const [cara, setCara] = useState(() => {
+    if (_pnlLink) return _pnlLink.cara;
     try { const v = localStorage.getItem("adi_mesa_cara_v1"); return v === "capital" || v === "resultado" ? v : "comercial"; } catch { return "comercial"; }
   });
   useEffect(() => {
@@ -1164,8 +1169,13 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   }, []);
   // PASE 2 (owner 2026-07-25): el cuadro por entidad gana SELECTOR DE EJE (solo ejes con venta desglosada) y la
   // cascada puede scopear a una fila (espejo del comparado del cuadro). Estado local — el click informa, nunca dispara.
-  const [pnlEje, setPnlEje] = useState(null);            // null → el eje primario (cliente)
-  const [pnlFoco, setPnlFoco] = useState(null);          // { eje, nombre } → la cascada scopeada a esa fila
+  const [pnlEje, setPnlEje] = useState(_pnlLink ? _pnlLink.eje : null);            // null → el eje primario (cliente)
+  const [pnlFoco, setPnlFoco] = useState(_pnlLink ? _pnlLink.foco : null);         // { eje, nombre } → la cascada scopeada a esa fila
+  // «Ampliar» sobre OTRA respuesta P&L con la Mesa ya abierta → re-enfoca (la evidencia nueva manda su alcance)
+  useEffect(() => {
+    if (_pnlLink) { setCara(_pnlLink.cara); setPnlEje(_pnlLink.eje); setPnlFoco(_pnlLink.foco); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evidence]);
   const resultado = React.useMemo(() => buildMesaResultado(scenario, pnlEje, pnlFoco), [scenario, pnlTick, pnlEje, pnlFoco]);
   // MESA 2.0 · PASE 2 · WATCHLIST "lo que yo sigo": persistida en este navegador (localStorage · patrón adi_hint_v1)
   // e informada a ADI por uiSignals (el click INFORMA contexto, nunca dispara — regla dura del owner 2026-07-08).
@@ -1942,6 +1952,11 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
       return <ComparePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     // MESA DE CONTROL · Sentrix EN OPERACIÓN (botón del header · no atada a una respuesta) — el modo "vivo mi negocio acá".
     if (evidence && evidence.lens === "mesa")
+      return <MesaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
+    // P&L (deep-link · 2026-07-26): «Ampliar en Sentrix» de una lectura/tabla del P&L abre LA MESA en la cara
+    // Resultado con el alcance de la respuesta (pnlMesaLink puro · el eje al selector del cuadro, la entidad a la
+    // cascada). Antes caía al panel de criterio — el P&L vive en su cara.
+    if (pnlMesaLink(evidence))
       return <MesaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
     // TU CRITERIO (C.2) · la memoria de criterio visible/borrable ("¿qué recordás?" · tras un set/forget).
     if (evidence && Array.isArray(evidence.criteriaList))

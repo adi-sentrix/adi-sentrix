@@ -17,7 +17,7 @@ fs.writeFileSync(entry, [
   'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
   'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope } from "./src/adi/pnl.js";',
-  'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
+  'export { buildMesaResultado, pnlMesaLink } from "./src/adi/sentrix/mesaResultado.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',
   'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
@@ -187,7 +187,7 @@ ok(/P&L comercial: logística 3%/.test(rRecall.text) && Array.isArray(rRecall.ev
 clearPnl(); resetPnlDraft();
 
 /* ══ PASE 2 (owner 2026-07-25) · P&L POR ALCANCE + CONEXIÓN TOTAL ("nada al azar") ══ */
-const { pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, updateMemoria, METRICS, ENTITIES, buildDisponibleMenu, chartForEvidence } = M;
+const { pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, updateMemoria, METRICS, ENTITIES, buildDisponibleMenu, chartForEvidence, pnlMesaLink } = M;
 const _norm2 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 
 console.log("[11] DISPONIBILIDAD data-driven == contrato (nada hardcodeado)");
@@ -507,6 +507,30 @@ clearPnl(); resetPnlDraft();
 setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
 const sPdM = CS("¿dónde estoy perdiendo margen?", S({}), false, null);
 ok(sPdM.turn_type !== "pnl_setup", "«perdiendo MARGEN» no es del P&L (el margen conserva su dominio)");
+clearPnl(); resetPnlDraft();
+
+console.log("[22] DEEP-LINK · «Ampliar en Sentrix» de una respuesta P&L → la Mesa en la cara Resultado con SU alcance");
+clearPnl(); resetPnlDraft();
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+const rSc22 = go("P&L de Falabella", false);
+const lk22 = pnlMesaLink(rSc22.evidence);
+ok(lk22 && lk22.cara === "resultado" && lk22.eje === "cliente" && lk22.foco && lk22.foco.nombre === "Falabella" && lk22.foco.eje === "cliente",
+  "lectura scoped → link a la cara Resultado con la entidad en foco (eje cliente)", JSON.stringify(lk22));
+const mrL22 = buildMesaResultado("bonanza", lk22.eje, lk22.foco);
+ok(mrL22.alcance && mrL22.alcance.nombre === "Falabella" && mrL22.cuadro.eje === "cliente", "…y la Mesa abre ESA cascada (alcance == la entidad de la respuesta)");
+ok(mrL22.cascada.find((r) => r.key === "resultado").usdFmt === _moneyK(buildPnlCascade("bonanza", null, { dimension: "cliente" }).porEntidad.find((x) => x.nombre === "Falabella").resultadoK),
+  "la fila Resultado de la cascada deep-linkeada == la cifra de la lectura (una verdad)");
+const rTab22 = go("P&L por familia", false);
+const lkT22 = pnlMesaLink(rTab22.evidence);
+ok(lkT22 && lkT22.eje === "familia" && lkT22.foco === null, "tabla del eje → link al cuadro por familia SIN foco (el conjunto, no una fila)");
+ok(buildMesaResultado("bonanza", lkT22.eje, lkT22.foco).cuadro.eje === "familia", "…y el cuadro de la Mesa abre en ese eje");
+const rEd22 = go("cambia marketing a 2%");
+const lkE22 = pnlMesaLink(rEd22.evidence);
+ok(lkE22 && lkE22.cara === "resultado" && lkE22.foco === null, "la edición (followup:true + tabla ANTES|AHORA) también deep-linkea — cara Resultado global");
+ok(pnlMesaLink(null) === null && pnlMesaLink({}) === null && pnlMesaLink({ pairs: [{ label: "Ventas" }], compareA: "A", compareB: "B" }) === null && pnlMesaLink({ lens: "mesa", periodo: "bonanza" }) === null,
+  "evidencia NO-P&L (compare · mesa del header · nula) → null: los paneles clásicos intactos");
+const mrBad22 = buildMesaResultado("bonanza", "cliente", { eje: "cliente", nombre: "NoExiste SA" });
+ok(mrBad22.defined && !mrBad22.alcance && mrBad22.cascada.find((r) => r.key === "resultado"), "entidad desconocida en el link → cascada global (jamás una vista rota)");
 clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

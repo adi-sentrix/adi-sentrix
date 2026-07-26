@@ -175,7 +175,7 @@ export default function App({ animate = true }) {
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate}
-              onOpenEvidence={(ev, id) => { setOpenEv(ev); setOpenId(id); }}
+              onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
               openEvidenceId={openId}
               registerAsk={(fn) => { askRef.current = fn; }}
               registerReset={(fn) => { resetRef.current = fn; }}/>
