@@ -260,6 +260,46 @@ ok("63 · PROYECCIÓN SCOPED: '¿cuánto vender en Falabella para que me deje $5
     return okMeta;
   })());
 
+// ── CONTINUIDAD · ENUMERAR LA LISTA (owner 2026-07-26: «que clientes son?» tras nombrar 8 daba una frase genérica
+// — "no sabe lo que dijo antes"). El coerce marca la enumeración; answerConversational lista el conjunto de la
+// última evidencia con su cifra + la TABLA garantía. Las consultas analíticas («qué SKU detenidos») NO se roban. ──
+{
+  const LASTMARGEN = {
+    lens: "margen", metrica: "margen", dimension: "cliente",
+    entityList: { dimension: "cliente", entities: ["Lider", "Falabella", "Sodimac", "Jumbo", "Ripley", "Paris", "Tottus", "Mercado Libre"] },
+    margin: { panel: { rows: [
+      { nombre: "Lider", margen: 21.5, below: true }, { nombre: "Falabella", margen: 22, below: true },
+      { nombre: "Sodimac", margen: 23.5, below: true }, { nombre: "Jumbo", margen: 24, below: true },
+      { nombre: "Ripley", margen: 25, below: true }, { nombre: "Paris", margen: 26.5, below: true },
+      { nombre: "Tottus", margen: 28, below: true }, { nombre: "Mercado Libre", margen: 29, below: true },
+    ] } },
+    boleta: [],
+  };
+  const CLIENTS = ["Lider", "Falabella", "Sodimac", "Jumbo", "Ripley", "Paris", "Tottus", "Mercado Libre"];
+  for (const q of ["que clientes son?", "cuáles son?", "nómbralos", "quiénes son?", "dame la lista"]) {
+    const s = CS(q, S({ operation: "clarification_needed" }), true, null);
+    ok(`64 · «${q}» → el coerce lo marca como enumeración (_enumerate)`, !!(s && s._enumerate));
+    const r = AC(s, { lastEvidence: LASTMARGEN }, { scenario: "bonanza" });
+    ok(`64 · «${q}» → route followup_enumerate + lista los 8 en el texto`,
+      r.route === "followup_enumerate" && CLIENTS.every((c) => r.text.includes(c)));
+    ok(`64 · «${q}» → la TABLA garantía trae los 8 (no se pierde ninguno)`,
+      r.evidence && r.evidence.tablaM && CLIENTS.every((c) => r.evidence.tablaM.rows.some((row) => row.label === c)));
+    ok(`64 · «${q}» → cada cifra OBLIGATORIA (narración incompleta → cae al piso completo)`,
+      r.evidence && Array.isArray(r.evidence.boleta) && r.evidence.boleta.filter((f) => f.mandatory).length === 8);
+  }
+  // el texto abre enumerando con la cifra (piso determinístico · byte-check del arranque)
+  const rE = AC(CS("que clientes son?", S({ operation: "clarification_needed" }), true, null), { lastEvidence: LASTMARGEN }, { scenario: "bonanza" });
+  ok("64 · el piso abre «Son 8 clientes, con su margen:» y numera con la cifra", /^Son 8 clientes, con su margen:/.test(rE.text) && /1\. \*\*Lider\*\* — 21\.5%/.test(rE.text));
+  // SIN lista heredable → el flag no rompe nada (cae a su clasificación honesta, no enumera vacío)
+  const rNo = AC(CS("cuáles son?", S({ operation: "clarification_needed" }), true, null), { lastEvidence: { metrica: "margen" } }, { scenario: "bonanza" });
+  ok("64 · sin entityList heredable → NO enumera vacío (fallback honesto)", rNo.route !== "followup_enumerate" || !/^Son \d+ /.test(rNo.text));
+  // una consulta analítica NO se la roba la enumeración (el dominio la reclama)
+  for (const q of ["qué clientes ceden más margen?", "cuáles venden más?", "Qué SKU están detenidos"]) {
+    const s = CS(q, S({ operation: "clarification_needed" }), true, null);
+    ok(`64 · «${q}» → NO es enumeración (la reclama su dominio)`, !(s && s._enumerate) && s && s.operation && s.operation !== "clarification_needed");
+  }
+}
+
 // ══ V3 · multi_analysis (evidences[]) — PENDIENTE ══
 // ══ V4 · recall_analysis (ctx.history) — PENDIENTE ══
 // ══ V5 · session_resume / apply_criteria (ctx.session/criteria · con permiso) — PENDIENTE ══

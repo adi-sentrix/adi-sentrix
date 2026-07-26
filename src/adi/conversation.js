@@ -102,6 +102,50 @@ const _clarify = (q) => ({ text: q || "¿Podés precisar? Decime el eje (cliente
 const _needLast = () => ({ text: "No tengo una lectura reciente sobre la que recomendar. Arranquemos por una consulta: ¿ventas, contribución o capital, y por qué eje?", suggestions: null, sentrixAction: null, evidence: null, route: "followup_no_context" });
 const _specSelfContained = (s) => !!(s && s.operation && s.metric && s.dimension);
 
+// ── composeEnumerate · ENUMERAR la lista que ADI acaba de nombrar (owner 2026-07-26: «que clientes son?» tras una
+// lectura que nombró 8 daba una frase genérica — "no sabe lo que dijo antes"). Lista last.entityList con su cifra
+// (de la lectura completa · panel.rows · o de la boleta por nombre) + la TABLA como GARANTÍA de que no se pierde
+// ninguno. followup:false → threadea (después «profundizá en el primero» funciona). Puro/gate-testable. ──
+const _normE = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+const _capE = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+export function composeEnumerate(last) {
+  const el = last && last.entityList;
+  if (!el || !Array.isArray(el.entities) || !el.entities.length) return null;
+  const dim = (el.dimension && ENTITIES[el.dimension]) ? el.dimension : "cliente";
+  const lbl = (ENTITIES[dim] && ENTITIES[dim].label) || { sing: dim, plur: `${dim}s` };
+  const ents = el.entities;
+  const metrica = last.metrica || null;
+  const metLbl = metrica === "margen" ? "margen" : metrica === "contribucion" ? "contribución" : metrica === "ventas" ? "venta" : null;
+  // cifra por entidad: panel.rows de la lectura (completo, autoritativo) → boleta por nombre (parcial)
+  const pr = (last.margin && last.margin.panel && Array.isArray(last.margin.panel.rows)) ? last.margin.panel.rows : null;
+  const bol = Array.isArray(last.boleta) ? last.boleta : [];
+  const _r1 = (v) => Math.round(v * 10) / 10;
+  const valOf = (name) => {
+    if (pr) { const row = pr.find((x) => _normE(x.nombre) === _normE(name)); if (row && typeof row.margen === "number") return `${_r1(row.margen)}%`; }
+    const f = bol.find((x) => x.label && x.label.includes(name) && !/^(Medida|Benchmark)|bajo el/i.test(x.label));
+    return f ? f.value : null;
+  };
+  const items = ents.map((n) => ({ nombre: n, valor: valOf(n) }));
+  const listaTxt = items.map((it, i) => `${i + 1}. **${it.nombre}**${it.valor ? ` — ${it.valor}` : ""}`).join("\n");
+  const text = `Son ${ents.length} ${lbl.plur}${metLbl ? `, con su ${metLbl}` : ""}:\n\n${listaTxt}`;
+  const tablaM = {
+    titulo: `Los ${ents.length} ${lbl.plur} que te nombré`, head: _capE(lbl.sing), cols: [metLbl ? _capE(metLbl) : "Valor"],
+    rows: items.map((it) => ({ label: it.nombre, values: [it.valor || "—"] })),
+  };
+  // cada cifra OBLIGATORIA (owner 2026-07-26 "NO NOS PUEDE PASAR"): si el narrador deja una entidad afuera, deja
+  // su cifra afuera → el guard rechaza y cae al PISO (la lista completa de arriba). Con cifras distintas esto
+  // fuerza "narración completa o piso completo" — el usuario nunca ve una lista a la que le falta alguien.
+  const boleta = items.filter((it) => it.valor).map((it) => fig(`${lbl.sing} · ${it.nombre}`, it.valor,
+    { unit: /%/.test(it.valor) ? "pct" : /\$/.test(it.valor) ? "money" : "count", mandatory: true, source: "computed", context: "enumeración de la lista" }));
+  return {
+    text,
+    suggestions: [`Profundiza en ${ents[0]}`, ...(ents[1] ? [`Compara ${ents[0]} y ${ents[1]}`] : [])].slice(0, 3),
+    sentrixAction: null,
+    evidence: { followup: false, entityList: el, dimension: dim, metrica, boleta, tablaM },
+    route: "followup_enumerate",
+  };
+}
+
 // ── composeExplain · el PORQUÉ de la última lectura (reusa estructura/concentración ya computada · sin cifras nuevas) ──
 // ctx/state opcionales (memoria · owner 2026-07-15): "por qué" mirando UNA entidad → su mecanismo graduado, no el relleno.
 export function composeExplain(last, ctx = null, state = {}) {
@@ -504,6 +548,7 @@ const TURN_RESOLVERS = {
   followup_change_dimension:  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1 · idem
   followup_recommendation:    (spec, ctx, state) => (ctx.last && ctx.last.pnl && pnlRecommend(ctx.last, ctx, state)) || composeFollowupRecommendation(ctx.last) || _needLast(),   // V1 (+P&L-aware pase 2: "¿qué decisiones tomo?" sobre el P&L responde las decisiones del P&L)
   followup_explain:           (spec, ctx, state) => composeExplain(ctx.last, ctx, state),                 // V1 (+ memoria: el porqué de la entidad en foco)
+  followup_enumerate:         (spec, ctx, state) => composeEnumerate(ctx.last) || composeExplain(ctx.last, ctx, state),   // CONTINUIDAD (owner 2026-07-26): «que clientes son?» lista el conjunto recién nombrado (fallback: explain, si no hay lista)
   meta_question:              (spec, ctx) => composeMeta(spec && spec.meta, ctx.last),                    // V1
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)
@@ -568,6 +613,12 @@ export function answerConversational(spec, context = {}, state = {}) {
   if (spec && spec._deictic && last && last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) {
     spec = { ...spec, entityScope: last.entityList };
     if ((spec.operation === "margin" || spec.operation === "contribucion") && last.entityList.dimension) spec.dimension = last.entityList.dimension;
+  }
+  // ENUMERAR LA LISTA (owner 2026-07-26): el coerce marcó una pregunta de enumeración (spec._enumerate) — si hay
+  // una lista en la última evidencia, ADI la lista (jamás el "explícame" genérico que perdía el hilo). Sin lista
+  // heredable, el flag no hace nada y el turno sigue su clasificación (fallback honesto).
+  if (spec && spec._enumerate && last && last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) {
+    tt = "followup_enumerate";
   }
   return resolveTurn(tt, spec, { ...context, last }, state);
 }

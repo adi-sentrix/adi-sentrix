@@ -225,6 +225,22 @@ function _coerceExplain(q, spec, hasLast) {
 // "esos mismos", "de ese grupo/lista", "de los que me mostraste", "de esos que…". NO dispara con genéricos ("de los clientes").
 const _DEICTIC_RE = /\b(?:de\s+(?:[eé]sos|[eé]sas|ellos|ellas|[eé]stos|[eé]stas)\b|entre\s+(?:[eé]sos|[eé]sas|ellos|ellas)\b|(?:[eé]sos|[eé]sas)\s+mismos?\b|de\s+(?:ese|esa)\s+(?:grupo|lista|listado|conjunto|selecci[oó]n)|de\s+(?:esa|esas)\s+cuentas?\b|de\s+(?:los|las)\s+(?:mismos|mismas|anteriores)\b|de\s+(?:los|las)\s+que\s+(?:me\s+)?(?:mostr\w*|dij\w*|nombr\w*|sali\w*|apareci\w*|list\w*)|de\s+(?:esos|esas)\s+que\b)/iu;
 
+// ENUMERACIÓN DE LA LISTA (owner 2026-07-26): «que clientes son?» · «cuáles son?» · «nómbralos» · «dame la lista»
+// · «quiénes son?» — pide LISTAR el conjunto que ADI acaba de nombrar, sin un predicado analítico nuevo. Se
+// distingue de una consulta nueva («qué clientes ceden más margen» · «cuáles venden más») por la AUSENCIA de
+// predicado (más/menos/mayor/venden/ceden/…): con predicado es new_query y la cadena sigue su curso.
+// una enumeración EXIGE «son» (o un verbo de listar): «cuáles/qué [clientes] son?» · «quiénes son?» · «nómbralos»
+// · «dame la lista». NO matchea una consulta analítica con predicado propio («qué SKU están detenidos», «cuáles
+// venden más») — ésas tienen su verbo/estado y las reclama el coerce de dominio.
+const _ENUM_RE = /^\s*¿?\s*(?:y\s+)?(?:cu[aá]les|qu[eé]|qui[eé]nes?)\s+(?:(?:clientes?|marcas?|familias?|bodegas?|skus?|productos?|cuentas?|entidades?)\s+)?(?:son|eran|ser[ií]an)\b|^\s*¿?\s*(?:n[oó]mbra\w*|n[oó]mbramelos|list[aá](?:los|melos)?|enum[eé]ra\w*|d[ií]melos|dame\s+(?:la\s+)?lista)\b/i;
+const _ENUM_PRED = /\b(m[aá]s|menos|mayor(?:es)?|menor(?:es)?|mejor(?:es)?|peor(?:es)?|top|primer\w*|[uú]ltim\w*|vend\w*|ced\w*|dej\w*|rota\w*|pierd\w*|gana\w*|aport\w*|car[oa]s?|barat\w*|alt[oa]s?|baj[oa]s?|encabez\w*|arriba|abajo|detenid\w*|dormid\w*|riesgo|quiebre|sobrestock)\b/i;
+function _isEnumQ(q) {
+  const t = String(q || "").trim();
+  if (t.length > 44 || !_ENUM_RE.test(t)) return false;   // una enumeración es corta; un análisis nuevo es más largo
+  const afterSon = t.replace(/^[^]*?\b(?:son|eran|ser[ií]an)\b/i, "");   // lo que sigue a "son" (o todo, si no hay "son")
+  return !_ENUM_PRED.test(afterSon || t);
+}
+
 // MULTI-ANÁLISIS (V3 · Frente C.1): "¿cómo está Lider en margen y rotación?" cruza DOS lentes → turn_type multi_analysis
 // (lo resuelve composeMulti reusando los composers vía el seam). CORTA la cadena: si no, el primer coerce de dominio que
 // matchee una de las dos métricas se la roba. Corre DESPUÉS de compare (un "compará A y B" es de entidades, no de métricas).
@@ -551,6 +567,12 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
   const afterCompare = _coerceCompare(q, spec);
   const multi = _coerceMulti(q, afterCompare);
   if (multi) return multi;   // short-circuit: la enumeración de métricas manda (los coerces de dominio no la roban)
+  // ENUMERAR LA LISTA (owner 2026-07-26 · «que clientes son?» tras nombrar 8 → daba una frase genérica, "no sabe
+  // lo que dijo antes"): una pregunta que SOLO pide enumerar el conjunto recién nombrado — sin predicado
+  // analítico — hereda la lista de la última evidencia. Acá solo se DETECTA (puro/testeable · el piso no depende
+  // del LLM); answerConversational enumera si hay last.entityList (si no, cae a su curso). Va ANTES de los coerces
+  // de dominio: «cuáles son» no es una consulta nueva de margen, es una referencia a lo último.
+  if (hasLast && q && _isEnumQ(q)) return { ...(spec || {}), _enumerate: true };
   const s = _coerceExplain(q, _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q, afterCompare)))), hasLast);
   // RESCATE DE CLARIFICACIÓN (gate de promesas 2026-07-09): el LLM a veces responde clarification_needed a una pregunta
   // AUTOSUFICIENTE ("costo por cliente" — sugerencia de la propia ADI). Si el texto nombra una métrica del contrato, no
