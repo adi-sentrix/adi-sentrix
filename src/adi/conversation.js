@@ -103,9 +103,12 @@ const _needLast = () => ({ text: "No tengo una lectura reciente sobre la que rec
 const _specSelfContained = (s) => !!(s && s.operation && s.metric && s.dimension);
 
 // ── composeEnumerate · ENUMERAR la lista que ADI acaba de nombrar (owner 2026-07-26: «que clientes son?» tras una
-// lectura que nombró 8 daba una frase genérica — "no sabe lo que dijo antes"). Lista last.entityList con su cifra
-// (de la lectura completa · panel.rows · o de la boleta por nombre) + la TABLA como GARANTÍA de que no se pierde
-// ninguno. followup:false → threadea (después «profundizá en el primero» funciona). Puro/gate-testable. ──
+// lectura que nombró 8 daba una frase genérica — "no sabe lo que dijo antes"). NO es un listado de BI: es LA
+// RESPUESTA DEL ASESOR — nombra a todos (completo), pero INTERPRETA (quién se aleja más de la vara, cuánto vale
+// cerrar la brecha, por dónde partir) bajo nuestra estructura (owner: "si ADI no interpreta, no somos asesor;
+// mostrar números lo hace cualquier BI"). Narrable (el LLM le da voz) · el PISO también es del asesor (lead +
+// lista + lectura + decisión), jamás números pelados · la TABLA es la garantía de que no se pierde ninguno.
+// followup:false → threadea (después «profundizá en el primero» funciona). Puro/gate-testable. ──
 const _normE = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 const _capE = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export function composeEnumerate(last) {
@@ -127,16 +130,33 @@ export function composeEnumerate(last) {
   };
   const items = ents.map((n) => ({ nombre: n, valor: valOf(n) }));
   const listaTxt = items.map((it, i) => `${i + 1}. **${it.nombre}**${it.valor ? ` — ${it.valor}` : ""}`).join("\n");
-  const text = `Son ${ents.length} ${lbl.plur}${metLbl ? `, con su ${metLbl}` : ""}:\n\n${listaTxt}`;
+  // el MARCO del asesor: la vara y la brecha a recuperar salen de la propia lectura (no cifras nuevas)
+  const bench = (last.margin && typeof last.margin.bench === "number") ? `${_r1(last.margin.bench)}%` : null;
+  const recFig = bol.find((f) => /cerrar brecha|brecha al piso|no capturada|recuperar/i.test(String(f.label || "")));
+  const recovery = recFig ? recFig.value : null;
+  const first = items[0], ultimo = items[items.length - 1];
+  // LEAD + CIERRE del asesor (owner: interpretar, no listar): quién encabeza la brecha · cuánto vale · por dónde
+  const esMargen = metrica === "margen";
+  const lead = esMargen && bench
+    ? `Son los ${ents.length} ${lbl.plur} que quedan por debajo de tu benchmark de ${bench}, del que más se aleja al que menos:`
+    : `Son los ${ents.length} ${lbl.plur} que veníamos mirando${metLbl ? `, con su ${metLbl}` : ""}:`;
+  const cierre = esMargen
+    ? `${first.nombre} es el que más se aleja del benchmark${first.valor ? ` (${first.valor})` : ""}; ${ultimo.nombre} el que menos.${recovery ? ` Cerrar la brecha de todos vale ${recovery} al año.` : ""} ¿Partimos por ${first.nombre}, que es donde hay más para recuperar?`
+    : `¿Profundizamos en ${first.nombre}, o los comparamos para ubicar dónde está el valor?`;
+  const text = `${lead}\n${listaTxt}\n\n${cierre}`;
   const tablaM = {
-    titulo: `Los ${ents.length} ${lbl.plur} que te nombré`, head: _capE(lbl.sing), cols: [metLbl ? _capE(metLbl) : "Valor"],
-    rows: items.map((it) => ({ label: it.nombre, values: [it.valor || "—"] })),
+    titulo: `Los ${ents.length} ${lbl.plur}${esMargen ? " bajo tu benchmark" : ""}`, head: _capE(lbl.sing), cols: [metLbl ? _capE(metLbl) : "Valor"],
+    rows: items.map((it) => ({ label: it.nombre, values: [it.valor || "—"], negativo: false })),
+    nota: esMargen && bench ? `ordenados del que más se aleja de tu benchmark (${bench}) al que menos` : null,
   };
-  // cada cifra OBLIGATORIA (owner 2026-07-26 "NO NOS PUEDE PASAR"): si el narrador deja una entidad afuera, deja
-  // su cifra afuera → el guard rechaza y cae al PISO (la lista completa de arriba). Con cifras distintas esto
-  // fuerza "narración completa o piso completo" — el usuario nunca ve una lista a la que le falta alguien.
-  const boleta = items.filter((it) => it.valor).map((it) => fig(`${lbl.sing} · ${it.nombre}`, it.valor,
-    { unit: /%/.test(it.valor) ? "pct" : /\$/.test(it.valor) ? "money" : "count", mandatory: true, source: "computed", context: "enumeración de la lista" }));
+  // cada cifra OBLIGATORIA (owner "NO NOS PUEDE PASAR"): si el narrador deja una entidad afuera, deja su cifra
+  // afuera → el guard rechaza y cae al PISO (que también es del asesor: lead + lista + lectura). Nunca números pelados.
+  const boleta = [
+    ...items.filter((it) => it.valor).map((it) => fig(`${lbl.sing} · ${it.nombre}`, it.valor,
+      { unit: /%/.test(it.valor) ? "pct" : /\$/.test(it.valor) ? "money" : "count", mandatory: true, source: "computed", context: "enumeración de la lista" })),
+    ...(bench ? [fig("Benchmark de margen", bench, { unit: "pct", source: "computed", context: "enumeración de la lista" })] : []),
+    ...(recovery ? [fig("Brecha a recuperar", recovery, { unit: "money", source: "computed", context: "enumeración de la lista" })] : []),
+  ];
   return {
     text,
     suggestions: [`Profundiza en ${ents[0]}`, ...(ents[1] ? [`Compara ${ents[0]} y ${ents[1]}`] : [])].slice(0, 3),

@@ -267,7 +267,7 @@ ok("63 · PROYECCIÓN SCOPED: '¿cuánto vender en Falabella para que me deje $5
   const LASTMARGEN = {
     lens: "margen", metrica: "margen", dimension: "cliente",
     entityList: { dimension: "cliente", entities: ["Lider", "Falabella", "Sodimac", "Jumbo", "Ripley", "Paris", "Tottus", "Mercado Libre"] },
-    margin: { panel: { rows: [
+    margin: { bench: 30.1, panel: { rows: [
       { nombre: "Lider", margen: 21.5, below: true }, { nombre: "Falabella", margen: 22, below: true },
       { nombre: "Sodimac", margen: 23.5, below: true }, { nombre: "Jumbo", margen: 24, below: true },
       { nombre: "Ripley", margen: 25, below: true }, { nombre: "Paris", margen: 26.5, below: true },
@@ -287,9 +287,12 @@ ok("63 · PROYECCIÓN SCOPED: '¿cuánto vender en Falabella para que me deje $5
     ok(`64 · «${q}» → cada cifra OBLIGATORIA (narración incompleta → cae al piso completo)`,
       r.evidence && Array.isArray(r.evidence.boleta) && r.evidence.boleta.filter((f) => f.mandatory).length === 8);
   }
-  // el texto abre enumerando con la cifra (piso determinístico · byte-check del arranque)
+  // el PISO es del ASESOR (owner 2026-07-26: "mostrar números lo hace cualquier BI · si ADI no interpreta no somos
+  // asesor"): lead con la vara + lista numerada + LECTURA (quién se aleja más · cuánto vale la brecha · decisión)
   const rE = AC(CS("que clientes son?", S({ operation: "clarification_needed" }), true, null), { lastEvidence: LASTMARGEN }, { scenario: "bonanza" });
-  ok("64 · el piso abre «Son 8 clientes, con su margen:» y numera con la cifra", /^Son 8 clientes, con su margen:/.test(rE.text) && /1\. \*\*Lider\*\* — 21\.5%/.test(rE.text));
+  ok("64 · el piso abre como ASESOR (el benchmark) y numera con la cifra", /quedan por debajo de tu benchmark de 30\.1%/.test(rE.text) && /1\. \*\*Lider\*\* — 21\.5%/.test(rE.text));
+  ok("64 · el piso INTERPRETA: quién se aleja más + decisión (no números pelados)", /Lider es el que más se aleja/.test(rE.text) && /¿Partimos por Lider/.test(rE.text));
+  ok("64 · registro formal (sin 'vara' en lo emitido)", !/\bvara\b/i.test(rE.text));
   // SIN lista heredable → el flag no rompe nada (cae a su clasificación honesta, no enumera vacío)
   const rNo = AC(CS("cuáles son?", S({ operation: "clarification_needed" }), true, null), { lastEvidence: { metrica: "margen" } }, { scenario: "bonanza" });
   ok("64 · sin entityList heredable → NO enumera vacío (fallback honesto)", rNo.route !== "followup_enumerate" || !/^Son \d+ /.test(rNo.text));
