@@ -228,7 +228,10 @@ export function composeSpecCompare({ dimension, entities, scenario }) {
  * (margen/carga @sku/@marca son base-only → NO se tocan acá). Umbrales SIEMPRE desde POLICY (nunca literales) → el
  * diagnose no puede citar un target distinto al resto de ADI. Sin focos materiales → null (el seam degrada honesto). */
 const _DIAG_FLOOR_USD = 50000;   // piso de materialidad de focos comerciales ($ · evita el ruido de clientes chicos)
-const _DIAG_MARGIN_GAP = POLICY.margenBrechaMaterial;   // gate del detector de margen (pp bajo benchmark · = gate quality-growth del motor) · vive en POLICY (una verdad con el semáforo de la Mesa)
+// gate del detector de margen (pp bajo benchmark · = gate quality-growth del motor) · vive en POLICY (una verdad
+// con el semáforo de la Mesa) — LECTURA VIVA (F2 multiempresa: el perfil del tenant la re-resuelve en initTenant;
+// capturarla en import la dejaba stale al cambiar de empresa)
+const _DIAG_MARGIN_GAP = () => POLICY.margenBrechaMaterial;
 const _DIAG_TOPN = 5;
 
 // fuente+campo declarados por el CONTRATO para una métrica@eje (si el ERP remapea la fuente, el diagnose la sigue)
@@ -265,7 +268,7 @@ function _diagComercial(filters, scenario) {
     const actual = v[vSF.field]; if (typeof actual !== "number") continue;    // ventas canónicas (K)
     const bmk = benchmarkOf(r), mg = r[mSF.field], cb = r[cSF.field], cg = r[gSF.field];
     // contribución no capturada = venta×benchmark/100 − contribución (K→$) · gate: ≥4pp bajo benchmark y ≥ piso
-    if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) >= _DIAG_MARGIN_GAP) {
+    if (typeof mg === "number" && typeof cb === "number" && (bmk - mg) >= _DIAG_MARGIN_GAP()) {
       const usd = Math.round(((actual * bmk / 100) - cb) * 1000);
       if (usd >= _DIAG_FLOOR_USD) contrib.push({ entidad: r[mKey], usd, gap: +(bmk - mg).toFixed(1) });
     }
@@ -869,7 +872,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       // la relación se dice explícita — "de los 8, estos 5" — para que ningún lector (ni el narrador) funda los grupos.
       lines.push(lever.count === below.length
         ? `**Cuánto vale:** si los ${lever.count} que están materialmente bajo el piso llegan al benchmark, son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`
-        : `**Cuánto vale:** de los ${below.length} bajo el piso, los ${lever.count} con brecha material (${_DIAG_MARGIN_GAP} pp o más) concentran el valor: si llegan al benchmark son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
+        : `**Cuánto vale:** de los ${below.length} bajo el piso, los ${lever.count} con brecha material (${_DIAG_MARGIN_GAP()} pp o más) concentran el valor: si llegan al benchmark son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
       bol.push(_figLever("Medida · cerrar brecha al piso", lever.subtotal, "Σ venta × benchmark − contribución (≥4pp · ≥ piso)", true));
       bol.push(_figLever(`Medida · ${lever.top[0].entidad}`, lever.top[0].usd, "venta × benchmark − contribución"));
     } else if (below.length && _pp1(below[0])) {
@@ -1265,7 +1268,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     for (const r of mRows) {
       const v = vBy[r.nombre]; if (!v || typeof v[vSF2.field] !== "number") continue;
       const bmk = _benchOf(r), mg = r.margen, cb = r.contribucion;
-      if (typeof mg !== "number" || typeof cb !== "number" || (bmk - mg) < _DIAG_MARGIN_GAP) continue;
+      if (typeof mg !== "number" || typeof cb !== "number" || (bmk - mg) < _DIAG_MARGIN_GAP()) continue;
       const usd = Math.round(((v[vSF2.field] * bmk / 100) - cb) * 1000);
       if (usd >= _DIAG_FLOOR_USD) withGap.push({ nombre: r.nombre, gap: usd, margen: mg });
     }

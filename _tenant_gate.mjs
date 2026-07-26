@@ -17,7 +17,9 @@ fs.writeFileSync(entry, [
   'export { initTenant } from "./src/data/tenantStore.js";',
   'export { TENANTS } from "./src/data/tenants/index.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
-  'export { pnlDisponibilidad, setPnlLines, clearPnl, resetPnlDraft, buildPnlCascade } from "./src/adi/pnl.js";',
+  'export { pnlDisponibilidad, setPnlLines, clearPnl, resetPnlDraft, buildPnlCascade, pnlDefined, activePnl, composePnl } from "./src/adi/pnl.js";',
+  'export { POLICY, benchmarkOf, tenantPolicyDefault } from "./src/config/businessPolicy.js";',
+  'export { setCriterion, forgetCriterion, activeCriteria } from "./src/adi/criteria.js";',
   'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
   'export { axisAvailable } from "./src/config/contract/entityRegistry.js";',
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
@@ -29,7 +31,8 @@ await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: 
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { initTenant, TENANTS, answerADIFromSpec: A, pnlDisponibilidad, setPnlLines, clearPnl, resetPnlDraft,
-        buildPnlCascade, buildMesaResultado, axisAvailable, coerceSpec, buildContractMenu, validateDataset } = M;
+        buildPnlCascade, buildMesaResultado, axisAvailable, coerceSpec, buildContractMenu, validateDataset,
+        pnlDefined, activePnl, composePnl, POLICY, benchmarkOf, setCriterion, forgetCriterion } = M;
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; console.log(`  ✓ ${msg}`); } else { fail++; console.log(`  ✗ ${msg}`); } };
@@ -55,6 +58,15 @@ const menuDemo = buildContractMenu();
 // ── [B] EMPRESA-2 · initTenant y el shape nuevo ──
 console.log("[B] initTenant(empresa2) · Distribuidora Andina");
 initTenant(TENANTS.empresa2);
+
+// [B0] F2 · EL PERFIL DE LA EMPRESA aplicado en init (POLICY resuelto perfil ?? config · ANTES de tocar el P&L)
+console.log("[B0] F2 · perfil de empresa aplicado en init");
+ok(POLICY.targetCarga === 4 && POLICY.bestPracticeCarga === 3.5, "perfil: target de carga 4% · best practice 3.5% (los de ESTA empresa, no 3.5/3.0 del config)");
+ok(POLICY.margenBrechaMaterial === 2 && POLICY.rotacionMin === 2.5 && POLICY.dohMax === 90, "perfil: brecha material 2pp · rotación 2.5x · cobertura 90d");
+ok(POLICY.benchmark === 26 && benchmarkOf({}) === 26, "perfil: benchmark de cartera 26.0 (fallback para filas sin benchmark — una verdad con el por-fila)");
+const pnlPerfil = activePnl();
+ok(pnlDefined() && pnlPerfil.length === 2 && pnlPerfil.every((l) => l.origen === "perfil_empresa"),
+   "perfil: el P&L del rubro viene armado de entrada (2 líneas · origen perfil_empresa)");
 
 // disponibilidad data-driven del P&L: bodega APARECE (venta por bodega en SU base) · canal/sku NO
 const dispo = Object.fromEntries(pnlDisponibilidad().map((d) => [d.eje, d.available]));
@@ -123,10 +135,49 @@ ok(rep.apt === true && rep.counts.blocker === 0,
    `validador del contrato: empresa-2 APTA · 0 blockers (warnings ${rep.counts.warning} · info ${rep.counts.info})`);
 if (rep.counts.blocker) for (const b of rep.findings.blocker.slice(0, 6)) console.log(`      BLOCKER [${b.rule}] ${b.where || ""} ${b.msg}`);
 
+// ── [B2] F2 · el criterio C.2 GANA sobre el perfil · forget vuelve al default DEL TENANT · scope ida-y-vuelta ──
+console.log("[B2] F2 · C.2 sobre el perfil · scope por tenant");
+setCriterion("margen_minimo", 28);
+ok(POLICY.benchmark === 28 && benchmarkOf({ benchmark: 26 }) === 28, "C.2 gana: margen mínimo 28 pisa el perfil (26) y el por-fila");
+setCriterion("target_carga", 5);
+ok(POLICY.targetCarga === 5, "C.2 gana: target de carga 5% pisa el 4% del perfil");
+forgetCriterion("todo");
+ok(POLICY.benchmark === 26 && POLICY.targetCarga === 4 && benchmarkOf({}) === 26,
+   "«olvidá todo» vuelve a la vara DEL TENANT (26 · 4%), no al config (30.1 · 3.5%)");
+// P&L: quitar la declaración vuelve a la base del perfil, con la voz honesta
+setPnlLines(LINES.map((l) => ({ ...l })));
+const rForget = composePnl({ action: "forget" }, null, { scenario: "bonanza" });
+ok(/perfil de tu empresa/.test((rForget && rForget.text) || "") && pnlDefined() && activePnl().every((l) => l.origen === "perfil_empresa"),
+   "«olvida mi P&L» quita TU declaración y vuelve al perfil del rubro — declarado honesto");
+// «armemos mi P&L» sobre el perfil → abre el REARME guiado (no promete un «partir de cero» que el forget no cumple)
+const rStart = composePnl({ action: "start" }, null, { scenario: "bonanza" });
+ok(/perfil de tu empresa/.test((rStart && rStart.text) || "") && /selles el tuyo/.test((rStart && rStart.text) || ""),
+   "«armemos mi P&L» con perfil → rearme guiado sobre esa base (sin promesa falsa de «partir de cero»)");
+resetPnlDraft();
+// la política del perfil en lo EMITIDO (no solo en POLICY): el foco de carga del diagnose sale del TARGET DEL
+// PERFIL — con 4% el único foco material es Aconcagua (5%−4%)×$11.5M = $115K; con el 3.5% del config serían
+// TRES focos y otras cifras ($172K/$70K/$72K). La cifra emitida prueba la vara usada.
+const dg = A(S({ operation: "diagnose", metric: "contribucion", dimension: "cliente" }), {}, {});
+ok(dg && /Carga comercial alta: \$115K/.test(dg.text || "") && /Comercial Aconcagua \$115K/.test(dg.text || ""),
+   "diagnose detecta la carga contra el target del perfil (4%): foco único Aconcagua $115K");
+// IDA-Y-VUELTA · lo del usuario en empresa-2 NO viaja al demo — y vuelve intacto al regresar
+setCriterion("margen_minimo", 27);
+setPnlLines(LINES.map((l) => ({ ...l })));
+initTenant(TENANTS.demo);
+ok(POLICY.benchmark === 30.1 && POLICY.targetCarga === 3.5 && benchmarkOf({}) === 30.1,
+   "demo tras el switch: POLICY con SU perfil (30.1 · 3.5%) — la vara 27 de empresa-2 no arrastra");
+ok(!pnlDefined(), "demo tras el switch: sin líneas — ni la declaración de empresa-2 ni el perfil ajeno");
+initTenant(TENANTS.empresa2);
+ok(POLICY.benchmark === 27 && activePnl().length === 3 && activePnl().every((l) => l.origen === "supuesto_declarado"),
+   "de vuelta en empresa-2: SU criterio (27) y SU declaración (3 líneas) siguen ahí");
+forgetCriterion("todo"); clearPnl(); resetPnlDraft();
+
 // ── [C] REVERSIBILIDAD · el demo vuelve BYTE-IGUAL ──
 console.log("[C] initTenant(demo) · el demo vuelve intacto");
 clearPnl(); resetPnlDraft();
 initTenant(TENANTS.demo);
+ok(POLICY.benchmark === 30.1 && POLICY.targetCarga === 3.5 && POLICY.margenBrechaMaterial === 4 && POLICY.dohMax === 120,
+   "F2: POLICY del demo restaurada completa (30.1 · 3.5% · 4pp · 120d)");
 setPnlLines(LINES.map((l) => ({ ...l })));   // mismo estado P&L que en [A]... el sentinel no usa P&L, pero dejamos simetría
 clearPnl(); resetPnlDraft();
 const after = snap();

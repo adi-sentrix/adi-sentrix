@@ -413,9 +413,25 @@ export const SCENARIO_TRANSFORMS = {
  * ventasKPI · margenKPI · invKPI · ventasMensuales. Perfil estratégico: CLIENTES_STRATEGIC_PROFILE.
  * Catálogos de la UI: SUPERFAMILIAS/MARCAS_ALL/SUCURSALES. Escenarios: SCENARIO_TRANSFORMS (por-tenant:
  * sus transforms nombran SUS entidades — ids bonanza/tension/crisis compartidos con la UI hoy). */
+/* ── PERFIL DE EMPRESA (F2 multiempresa · 2026-07-26) · la POLÍTICA que este negocio declara con su dato ──
+ * POLICY se resuelve `perfil del tenant ?? POLICY_CONFIG` en initTenant (businessPolicy), con el criterio C.2
+ * del usuario SIEMPRE encima (scopeado por empresa). El demo declara LOS MISMOS valores del config → resultado
+ * byte-idéntico; el valor del bloque es el SHAPE: un tenant nuevo declara acá su vara sin tocar el motor.
+ * Llaves opcionales (lo no declarado cae al config): las de POLICY_CONFIG + `pnlLineas` (las líneas de gasto
+ * default del rubro, % sobre la venta — el usuario las pisa declarando las suyas; el demo no trae). */
+export const PERFIL = {
+  benchmark: 30.1,          // margen benchmark de cartera (%) · fallback por-fila (las filas del demo traen 30.1)
+  bestPracticeCarga: 3.0,   // mejor práctica interna de carga comercial (%)
+  targetCarga: 3.5,         // target operativo de carga comercial (%)
+  rotacionMin: 2,           // piso de rotación (x)
+  dohMax: 120,              // techo de cobertura (días)
+  margenBrechaMaterial: 4,  // brecha material de margen (pp bajo la vara)
+};
+
 export const TENANT_DEMO = {
   id: "demo",
   nombre: "ADI Demo",
+  perfil: PERFIL,
   clientesVentas, clientesMargen, marcasVentas, marcasMargen, sfamiliasVentas, sfamiliasMargen,
   skuInventario, skusMargen, historialMargen, CLIENTES_STRATEGIC_PROFILE,
   ventasKPI, margenKPI, invKPI, ventasMensuales,

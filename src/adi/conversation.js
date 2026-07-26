@@ -19,6 +19,7 @@ import { composeFollowupRecommendation, sampleEntities } from "./specRetrieval.j
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
+import { tenantPolicyDefault } from "../config/businessPolicy.js";   // F2 multiempresa · el "estándar" citado es el del TENANT (perfil ?? config)
 import { composePnl, activePnl, clearPnl, pnlExplain, pnlRecommend } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2 · seguidores P&L-aware (pase 2)
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
 
@@ -357,10 +358,14 @@ export function composeCriteria(ci) {
     const list = activeCriteria();
     // P&L COMERCIAL: si hay líneas declaradas, el recall las cuenta también (misma memoria) · vacío → texto intacto.
     const pnl = activePnl();
-    const pnlTxt = pnl.length ? ` También tengo tu P&L comercial: ${pnl.map((l) => `${l.nombre.toLowerCase()} ${l.pct}%`).join(" · ")} sobre la venta (supuestos declarados).` : "";
+    // F2: las líneas pueden venir del PERFIL de la empresa (no declaradas) — el recall lo dice como es
+    const pnlOrigen = pnl.length && pnl.every((l) => l.origen === "perfil_empresa") ? "supuestos del perfil de tu empresa" : "supuestos declarados";
+    const pnlTxt = pnl.length ? ` También tengo tu P&L comercial: ${pnl.map((l) => `${l.nombre.toLowerCase()} ${l.pct}%`).join(" · ")} sobre la venta (${pnlOrigen}).` : "";
+    // F2: el "estándar" que se cita es EL DEL TENANT (perfil ?? config) — con el demo, 30.1/3.5 byte-igual;
+    // antes iban hardcodeados y en otra empresa el recall citaba una vara ajena.
     const text = (list.length
       ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y medidas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
-      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(30.1)}, carga ${CRITERIA.target_carga.fmt(3.5)}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`) + pnlTxt;
+      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(tenantPolicyDefault("benchmark"))}, carga ${CRITERIA.target_carga.fmt(tenantPolicyDefault("targetCarga"))}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`) + pnlTxt;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   if (ci.action === "forget") {
@@ -370,7 +375,7 @@ export function composeCriteria(ci) {
     const text = !r.ok
       ? `No tengo guardado ese criterio — estás usando los estándares.`
       : r.all
-      ? `Listo, olvidé todos tus criterios: vuelvo a los estándares en todas las lecturas.${pnlGone && pnlGone.had ? " También olvidé tu P&L comercial." : ""}`
+      ? `Listo, olvidé todos tus criterios: vuelvo a los estándares en todas las lecturas.${pnlGone && pnlGone.had ? (pnlGone.perfil && pnlGone.perfil.length ? " También olvidé tu P&L declarado — vuelve a medir el del perfil de tu empresa." : " También olvidé tu P&L comercial.") : ""}`
       : `Listo, olvidé tu ${c ? c.label.toLowerCase() : ci.key}: vuelvo al estándar desde ahora.`;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }

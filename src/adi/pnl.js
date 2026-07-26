@@ -31,7 +31,7 @@
  * y la memoria manteniendo el verbatim — kind criteria manda en pickNarratedText). */
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
 import { clientesMargen } from "../data/demoData.js";
-import { onTenantChange } from "../data/tenantStore.js";   // F1 multiempresa · disponibilidad/canon/hilo se re-arman en initTenant
+import { getTenantData, getTenantId, onTenantChange } from "../data/tenantStore.js";   // F1/F2 multiempresa · derivadas + líneas por tenant en initTenant
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { METRICS } from "../config/contract/metricRegistry.js";
@@ -52,30 +52,59 @@ const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀
 const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-// ── PERSISTENCIA (patrón criteria.js · localStorage · guarded para headless/gates) ──────────────────────────
-const _LS_KEY = "adi_pnl_v1";
+// ── PERSISTENCIA (patrón criteria.js · localStorage POR TENANT · guarded para headless/gates) ───────────────
+// F2 multiempresa: la DECLARACIÓN del usuario queda scopeada por empresa (demo = clave histórica adi_pnl_v1,
+// nada guardado se pierde · otros tenants adi_pnl_v1::<id> · espejo en memoria para headless). Si el usuario no
+// declaró, miden los DEFAULTS del PERFIL del tenant (perfil.pnlLineas · origen "perfil_empresa"): el rubro trae
+// su estructura y la cara Resultado arranca armada — la declaración del usuario la pisa ENTERA, y «olvidá mis
+// gastos» vuelve a esa base (como el criterio C.2 vuelve a la vara de la empresa). El demo no declara defaults
+// → byte-idéntico. F3 (tenancy operativa): esta persistencia pasa al server (el gateway resuelve tenant+perfil).
+let _tid = getTenantId();   // el tenant cuyas líneas están cargadas (se mueve en el callback de initTenant)
+const _lsKey = () => (_tid === "demo" ? "adi_pnl_v1" : `adi_pnl_v1::${_tid}`);
 const _hasLS = () => { try { return typeof localStorage !== "undefined" && !!localStorage; } catch { return false; } };
-let _lines = [];   // [{ nombre, pct, origen:"supuesto_declarado" }] · % sobre la venta · vigente en runtime
-const _persist = () => { if (_hasLS()) try { localStorage.setItem(_LS_KEY, JSON.stringify(_lines)); } catch { /* sin storage */ } };
+let _lines = [];   // [{ nombre, pct, origen:"supuesto_declarado"|"perfil_empresa" }] · % sobre la venta · vigente en runtime
+let _declared = false;   // true = declaración del usuario · false = defaults del perfil (o nada)
+const _userByTenant = {};   // espejo en memoria de la DECLARACIÓN por tenant (ida-y-vuelta sin storage no pierde ni arrastra)
+const _persist = () => { if (_hasLS()) try { localStorage.setItem(_lsKey(), JSON.stringify(_lines)); } catch { /* sin storage */ } };
 const _emitChange = () => { try { if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("adi-pnl-changed")); } catch { /* headless */ } };
-export function loadPnl() { if (!_hasLS()) return []; try { const v = JSON.parse(localStorage.getItem(_LS_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
-export function initPnl() {
-  const saved = loadPnl().filter((l) => l && typeof l.nombre === "string" && typeof l.pct === "number" && isFinite(l.pct) && l.pct > 0 && l.pct <= 50);
-  _lines = saved.map((l) => ({ nombre: l.nombre, pct: l.pct, origen: "supuesto_declarado" }));
-  return activePnl();
-}
-export function activePnl() { return _lines.map((l) => ({ ...l })); }
-export function pnlDefined() { return _lines.length > 0; }
+export function loadPnl() { if (!_hasLS()) return []; try { const v = JSON.parse(localStorage.getItem(_lsKey()) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
 const _validLine = (l) => l && typeof l.nombre === "string" && l.nombre.trim().length >= 2 && l.nombre.trim().length <= 30
   && typeof l.pct === "number" && isFinite(l.pct) && l.pct > 0 && l.pct <= 50;
+// las líneas default del PERFIL del tenant (validadas con la MISMA regla que una declaración · defensivo)
+const _perfilLineas = () => {
+  const t = getTenantData();
+  const ls = t && t.perfil && Array.isArray(t.perfil.pnlLineas) ? t.perfil.pnlLineas : [];
+  return ls.filter(_validLine).slice(0, 10).map((l) => ({ nombre: l.nombre.trim(), pct: _r1(l.pct), origen: "perfil_empresa" }));
+};
+// resolución de las líneas vigentes: declaración del usuario (espejo de sesión ?? localStorage) ?? perfil del tenant
+function _resolveLines() {
+  const saved = _userByTenant[_tid] !== undefined
+    ? _userByTenant[_tid]
+    : loadPnl().filter(_validLine).map((l) => ({ nombre: l.nombre.trim(), pct: _r1(l.pct), origen: "supuesto_declarado" }));
+  if (saved.length) { _lines = saved.map((l) => ({ ...l })); _declared = true; }
+  else { _lines = _perfilLineas(); _declared = false; }
+}
+export function initPnl() { _resolveLines(); return activePnl(); }
+export function activePnl() { return _lines.map((l) => ({ ...l })); }
+export function pnlDefined() { return _lines.length > 0; }
+export function pnlDeclared() { return _declared; }   // false = lo que mide viene del perfil de la empresa
 export function setPnlLines(lines) {
   const ok = (Array.isArray(lines) ? lines : []).filter(_validLine).slice(0, 10)
     .map((l) => ({ nombre: l.nombre.trim(), pct: _r1(l.pct), origen: "supuesto_declarado" }));
   if (!ok.length) return { ok: false };
-  _lines = ok; _persist(); _emitChange();
+  _lines = ok; _declared = true;
+  _userByTenant[_tid] = ok.map((l) => ({ ...l }));
+  _persist(); _emitChange();
   return { ok: true, lines: activePnl() };
 }
-export function clearPnl() { const had = _lines.length > 0; _lines = []; _scope = null; _persist(); _emitChange(); return { ok: true, had }; }
+export function clearPnl() {
+  const had = _declared && _lines.length > 0;
+  _userByTenant[_tid] = [];   // "sin declaración" explícito — el espejo no resucita lo borrado
+  if (_hasLS()) try { localStorage.removeItem(_lsKey()); } catch { /* sin storage */ }
+  _lines = _perfilLineas(); _declared = false; _scope = null;
+  _emitChange();
+  return { ok: true, had, perfil: activePnl() };
+}
 const _findLine = (name, pool) => { const n = _norm(name); return (pool || _lines).find((l) => _norm(l.nombre) === n) || null; };
 // línea nombrada DENTRO de un texto (para edit/simulate: «cambia logística a 2%») · nombre más largo primero
 function _lineInText(q, pool) {
@@ -165,6 +194,14 @@ function _pnlEntityEn(q) {   // entidad del canon del alcance nombrada en el tex
   }
   return null;
 }
+function _pnlEntitiesEn(q) {   // TODAS las entidades del canon nombradas en el texto (para el conjunto explícito)
+  const nq = _norm(q), out = [];
+  for (const [k, c] of [..._pnlCanon().entries()].sort((a, b) => b[0].length - a[0].length)) {
+    if (k.length < 2) continue;
+    if (new RegExp(`(^|[^a-z0-9])${_esc(k)}([^a-z0-9]|$)`).test(nq) && !out.some((o) => o.nombre === c.nombre)) out.push(c);
+  }
+  return out;
+}
 // eje nombrado en el texto («por familia» · «por punto de venta») → key del contrato + la palabra del usuario
 const _EJE_ALIAS = [
   [/\bpuntos?\s+de\s+venta\b/i, "bodega"], [/\bbodegas?\b/i, "bodega"], [/\bsucursal\w*\b/i, "bodega"],
@@ -185,10 +222,16 @@ const _ejePedido = (q) => { const m = _POR_EJE_RE.exec(q); return m ? _ejeEn(m[1
 // ── ESTADO DEL HILO (el último alcance leído · "volvamos al P&L" / "¿y el de Ripley?") · en memoria · el
 // reset del chat lo limpia (resetPnlDraft) · forget también (clearPnl) ──
 let _scope = null;   // { dimension, entity|null, entities|null } · null = negocio (o sin lectura aún)
-// F1 multiempresa: al cambiar de tenant caen los DERIVADOS DEL DATO (disponibilidad + canon del alcance) y el
-// hilo de alcance (nombra entidades de la otra empresa). Las líneas declaradas (_lines/_draft) son criterio del
-// usuario (% sobre la venta · no nombran entidades) → se conservan, como el resto del criterio C.2.
-onTenantChange(() => { _dispoCache = null; _canonCache = null; _scope = null; });
+// F2 multiempresa: al cambiar de tenant caen los DERIVADOS DEL DATO (disponibilidad + canon del alcance), el
+// hilo de alcance Y el flujo a medias (nombran cosas de la otra empresa) — y las LÍNEAS se re-resuelven para el
+// tenant que entra: su declaración (espejo de sesión ?? localStorage scopeado) ?? los defaults de SU perfil.
+// La declaración del que sale queda estacionada en el espejo — cambiar de empresa no arrastra ni pierde nada.
+onTenantChange((d) => {
+  if (_declared) _userByTenant[_tid] = _lines.map((l) => ({ ...l }));
+  _tid = (d && d.id) || "demo";
+  _dispoCache = null; _canonCache = null; _scope = null; _draft = null;
+  _resolveLines();
+});
 export function pnlScope() { return _scope ? { ..._scope, entities: _scope.entities ? [..._scope.entities] : null } : null; }
 
 /* detectPnlEllipsis(q) → intent | null · las formas ELÍPTICAS del hilo P&L («¿y el de Ripley?» · «recuerda lo
@@ -501,6 +544,16 @@ export function detectPnlIntent(q) {
     return { action: "resultado_deixis" };
   // resultado por ENTIDAD («¿cuánto deja Falabella después de gastos?») · pase 2: cualquier entidad del alcance
   if (/despu[eé]s\s+de\s+(?:los\s+)?gastos/i.test(t)) {
+    // ESPEJO (F2 · caza del espejo empresa-2): «¿cuánto dejan X y Y después de gastos?» — la repregunta del
+    // deixis enseña esta forma con DOS entidades en plural y el detector singular no la entendía (en el demo
+    // reclamaba de casualidad vía la cortesía del draft en etapa gastos, que con perfil pnlLineas no existe).
+    // 2+ entidades CUBIERTAS del mismo eje + verbo (singular o plural) → el resultado del CONJUNTO explícito
+    // (el mismo composer del deixis, sin herencia de contexto).
+    const ents = _pnlEntitiesEn(t).filter((e) => e.covered);
+    if (ents.length >= 2 && /\b(deja|dejan|queda|quedan|gana|ganan|aporta|aportan|rinde|rinden)\b/i.test(t)) {
+      const eje0 = ents[0].eje, mismos = ents.filter((e) => e.eje === eje0);
+      if (mismos.length >= 2) return { action: "resultado_deixis", _entities: { entities: mismos.map((e) => e.nombre), dimension: eje0 }, _explicit: true };
+    }
     const ent = _pnlEntityEn(t);
     if (ent && /\b(deja|queda|gana|aporta|rinde)\b/i.test(t)) return { action: "resultado_entidad", entidad: ent.nombre, eje: ent.eje, covered: ent.covered };
   }
@@ -533,7 +586,7 @@ function _evidence(extraBol = [], ev = null) {
   const pnl = activePnl();
   const bol = [
     ...list.map((c) => fig(`Criterio · ${c.label}`, c.valueFmt, { unit: c.valueFmt.endsWith("%") ? "pct" : "count", raw: c.value, source: "computed", context: "criterio del negocio" })),
-    ...pnl.map((l) => fig(`P&L · ${l.nombre}`, `${_fmtPct(l.pct)}%`, { unit: "pct", raw: l.pct, source: "computed", formula: `${_fmtPct(l.pct)}% sobre la venta`, context: "supuesto declarado" })),
+    ...pnl.map((l) => fig(`P&L · ${l.nombre}`, `${_fmtPct(l.pct)}%`, { unit: "pct", raw: l.pct, source: "computed", formula: `${_fmtPct(l.pct)}% sobre la venta`, context: l.origen === "perfil_empresa" ? "supuesto del perfil de la empresa" : "supuesto declarado" })),
     ...extraBol,
   ];
   const base = { followup: true, kind: "criteria", criteriaList: list, pnlList: pnl, boleta: bol };
@@ -625,6 +678,17 @@ export function composePnl(pi, ctx = null, state = {}) {
 
   // ── FLUJO GUIADO ──
   if (a === "start") {
+    // F2 · líneas del PERFIL sin declaración del usuario: «armemos mi P&L» abre el REARME guiado sobre esa base
+    // (no el eco "ya está armado" — su «olvida mi P&L para partir de cero» sería promesa falsa: el forget vuelve
+    // al perfil, nunca a cero). El usuario manda sus % o su estructura y al sellar queda SU declaración encima.
+    if (_lines.length && !_declared) {
+      _draft = { stage: "pcts", lines: _lines.map((l) => ({ nombre: l.nombre, pct: null })) };
+      const nombres = _lines.map((l) => l.nombre.toLowerCase());
+      return _resp(
+        `Tu P&L ya mide con los supuestos del perfil de tu empresa: ${_listado(_lines)}. Armemos el tuyo sobre esa base — dime qué % le pongo a cada línea («${nombres[0]} al 2%» o en orden: «2, 1.5»), o nómbrame otra estructura de gastos («administrativos, fletes, comisiones») y parto de esas líneas. El perfil sigue midiendo hasta que selles el tuyo.`,
+        { bol: [..._lineFigs(_lines), _gPct(2), _gPct(1.5)] }
+      );
+    }
     if (_lines.length) {
       const c = buildPnlCascade(scenario);
       return _resp(
@@ -755,6 +819,11 @@ export function composePnl(pi, ctx = null, state = {}) {
   if (a === "forget") {
     const r = clearPnl();
     resetPnlDraft();
+    // F2: si el PERFIL de la empresa trae defaults, «olvidá» quita TU declaración y esa base vuelve a medir —
+    // se declara honesto (con el demo, sin defaults, los textos de siempre byte-iguales).
+    if (r.perfil && r.perfil.length) return _resp(r.had
+      ? `Listo, olvidé tus líneas declaradas. Tu P&L vuelve a los supuestos del perfil de tu empresa: ${_listado(r.perfil)} — sigue midiendo con esos. Para declarar los tuyos: «armemos mi P&L».`
+      : `No tenía una declaración tuya que olvidar: tus líneas vienen del perfil de tu empresa (${_listado(r.perfil)}) y esa base se mantiene. Para declarar las tuyas: «armemos mi P&L».`);
     return _resp(r.had
       ? `Listo, olvidé tu P&L comercial: las líneas de gasto quedaron fuera y la cara Resultado vuelve a su punto de partida. Cuando quieras rearmarlo: «armemos mi P&L».`
       : `No tengo un P&L guardado — estás midiendo hasta la contribución. ¿Armamos tu P&L ahora?`);
@@ -762,8 +831,11 @@ export function composePnl(pi, ctx = null, state = {}) {
   if (a === "recall") {
     if (!_lines.length) return _resp(`Todavía no armamos tu P&L comercial: sin tus líneas de gasto, lo que puedo mostrarte llega hasta la contribución. ¿Armamos tu P&L ahora?`);
     const c = buildPnlCascade(scenario);
+    const _origen = _declared
+      ? "cada línea como supuesto declarado (cuando llegue el dato contable real, se reemplaza línea a línea)"
+      : "las líneas vienen del perfil de tu empresa como supuestos (declara las tuyas y las pisan)";
     return _resp(
-      `Tu P&L comercial: ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% sobre la venta, cada línea como supuesto declarado (cuando llegue el dato contable real, se reemplaza línea a línea). Con el dato de hoy, el resultado comercial queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta). Para ajustar: «cambia ${c.lines[0].nombre.toLowerCase()} a otro %» · «saca una línea» · «agrega una línea con su %».`,
+      `Tu P&L comercial: ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% sobre la venta, ${_origen}. Con el dato de hoy, el resultado comercial queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta). Para ajustar: «cambia ${c.lines[0].nombre.toLowerCase()} a otro %» · «saca una línea» · «agrega una línea con su %».`,
       { suggestions: ["¿Cómo queda mi resultado comercial?", "¿Qué línea pesa más en el resultado?"], bol: [..._lineFigs(c.lines), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct)] }
     );
   }
@@ -982,7 +1054,12 @@ export function composePnl(pi, ctx = null, state = {}) {
         if (c0) return composePnl({ action: "resultado_scoped", entidad: c0.nombre, eje: c0.eje, covered: c0.covered }, ctx, state);
       }
       const primero = pnlEjesDisponibles()[0];
-      return _resp(`¿De cuáles? Nómbralos («¿cuánto dejan Ripley y La Polar después de gastos?») o pídeme la tabla completa: «P&L por ${primero.label.sing}».`, { route: "pnl_reading", suggestions: [`P&L por ${primero.label.sing}`] });
+      // F2 (caza del espejo empresa-2): el ejemplo nombraba «Ripley y La Polar» hardcodeado — fuga del demo en
+      // otro tenant. Data-driven: los dos clientes chicos de la base de ESTE negocio (el tramo que un deixis
+      // suele heredar) — con el demo el ejemplo dice «ABC y Unimarc» (delta deliberado del texto ejemplo).
+      const ejD = clientesMargen.slice(-2).map((r) => r.nombre);
+      const ejemplo = ejD.length === 2 ? `«¿cuánto dejan ${ejD[0]} y ${ejD[1]} después de gastos?»` : `«¿cuánto dejan ${(ejD[0] || primero.label.plur)} después de gastos?»`;
+      return _resp(`¿De cuáles? Nómbralos (${ejemplo}) o pídeme la tabla completa: «P&L por ${primero.label.sing}».`, { route: "pnl_reading", suggestions: [`P&L por ${primero.label.sing}`] });
     }
     let eje = el.dimension && ENTITIES[el.dimension] ? el.dimension : null;
     if (!eje) { const c0 = _pnlEntityEn(String(el.entities[0] || "")); eje = c0 ? c0.eje : null; }
@@ -1006,8 +1083,10 @@ export function composePnl(pi, ctx = null, state = {}) {
       ...es.flatMap((x) => [_fMoneyK(`Resultado · ${x.nombre}`, x.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${x.nombre}`, x.resultadoPct)]),
       _fMoneyK("Resultado del grupo", sumR), _fPct("Resultado % del grupo", pctJ), _fPct("Gastos · total", c.sumPct),
     ];
+    // opener honesto: el conjunto EXPLÍCITO (F2 · el usuario los acaba de nombrar) no dice "veníamos mirando"
+    const _abreD = pi._explicit ? "Después de gastos: " : `${pi._retoma ? "Retomo tu P&L donde lo dejamos. " : ""}De los que veníamos mirando, después de gastos: `;
     return _resp(
-      `${pi._retoma ? "Retomo tu P&L donde lo dejamos. " : ""}De los que veníamos mirando, después de gastos: ${es.map((x) => `${x.nombre} deja ${_moneyK(x.resultadoK)} (${_fmtPct(x.resultadoPct)}% de su venta)`).join(" · ")}.${es.length > 1 ? ` Juntos: ${_moneyK(sumR)} — el ${_fmtPct(pctJ)}% de su venta combinada.` : ""} El prorrateo usa tus porcentajes declarados (${_fmtPct(c.sumPct)}% sobre la venta de cada uno) — supuesto, no contabilidad por ${d.label.sing}.`,
+      `${_abreD}${es.map((x) => `${x.nombre} deja ${_moneyK(x.resultadoK)} (${_fmtPct(x.resultadoPct)}% de su venta)`).join(" · ")}.${es.length > 1 ? ` Juntos: ${_moneyK(sumR)} — el ${_fmtPct(pctJ)}% de su venta combinada.` : ""} El prorrateo usa tus porcentajes declarados (${_fmtPct(c.sumPct)}% sobre la venta de cada uno) — supuesto, no contabilidad por ${d.label.sing}.`,
       { route: "pnl_reading", suggestions: [`P&L de ${es[0].nombre}`], bol, ev: { dimension: eje, entityList: { entities: es.map((x) => x.nombre), dimension: eje } } }
     );
   }

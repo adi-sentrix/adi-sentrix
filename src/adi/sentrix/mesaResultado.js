@@ -59,10 +59,14 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
       ask: "¿Cuánta carga comercial puedo recuperar?", def: "Rebates y condiciones comerciales — el valor que se entrega en el canal antes de llegar a la contribución." },
     { key: "contribucion", label: "Contribución", usdFmt: _moneyK(c.contribK), kind: "probado", subtotal: true,
       ask: "¿Cuánta contribución no estoy capturando?", def: "Hasta acá todo es dato probado: la misma contribución que citan las respuestas y las cards de ADI." },
+    // F2: la línea puede venir del PERFIL de la empresa (no declarada por el usuario) — el chip y la lectura
+    // de ayuda lo dicen como es. Con líneas declaradas (demo siempre), byte-igual.
     ...c.gastos.map((g) => ({
       key: `gasto:${g.nombre}`, label: g.nombre, usdFmt: `− ${_moneyK(g.usdK)}`, kind: "supuesto",
-      nota: `supuesto declarado · ${_fmtPct(g.pct)}%`,
-      ask: pnlSimAsk(g), def: `Tu línea de gasto: ${_fmtPct(g.pct)}% sobre la venta, declarada por ti en la conversación. No es dato contable — cuando entre la contabilidad real, esta línea se reemplaza por su dato.`,
+      nota: `${g.origen === "perfil_empresa" ? "supuesto del perfil" : "supuesto declarado"} · ${_fmtPct(g.pct)}%`,
+      ask: pnlSimAsk(g), def: g.origen === "perfil_empresa"
+        ? `Línea de gasto del perfil de tu empresa: ${_fmtPct(g.pct)}% sobre la venta — un supuesto del rubro, no una declaración tuya. La pisas declarando la tuya («armemos mi P&L»), y cuando entre la contabilidad real se reemplaza por su dato.`
+        : `Tu línea de gasto: ${_fmtPct(g.pct)}% sobre la venta, declarada por ti en la conversación. No es dato contable — cuando entre la contabilidad real, esta línea se reemplaza por su dato.`,
     })),
     { key: "resultado", label: "Resultado comercial", usdFmt: _moneyK(c.resultadoK), pctFmt: `${_fmtPct(c.resultadoPct)}%`,
       kind: "resultado", negativo: c.resultadoK < 0,
@@ -94,9 +98,10 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
           ask: "¿Cuánta contribución no estoy capturando?", def: "Hasta acá todo es dato probado: la misma contribución que ADI cita para esta entidad." },
         ...cF.lines.map((l) => {
           const gK = (eF.ventaK * l.pct) / 100, t = _r1(Math.max(l.pct / 2, l.pct - 1));
+          const _perfil = l.origen === "perfil_empresa";   // F2: origen honesto también en el alcance
           return { key: `gasto:${l.nombre}`, label: l.nombre, usdFmt: `− ${_moneyK(gK)}`, kind: "supuesto",
-            nota: `supuesto declarado · ${_fmtPct(l.pct)}%`, ask: simSc(l, t),
-            def: `Tu línea de gasto prorrateada en este alcance: ${_fmtPct(l.pct)}% sobre la venta de ${eF.nombre}. Supuesto declarado, no contabilidad de la entidad.` };
+            nota: `${_perfil ? "supuesto del perfil" : "supuesto declarado"} · ${_fmtPct(l.pct)}%`, ask: simSc(l, t),
+            def: `${_perfil ? "Línea del perfil de tu empresa" : "Tu línea de gasto"} prorrateada en este alcance: ${_fmtPct(l.pct)}% sobre la venta de ${eF.nombre}. ${_perfil ? "Supuesto del rubro" : "Supuesto declarado"}, no contabilidad de la entidad.` };
         }),
         { key: "resultado", label: `Resultado · ${eF.nombre}`, usdFmt: _moneyK(eF.resultadoK), pctFmt: `${_fmtPct(eF.resultadoPct)}%`,
           kind: "resultado", negativo: eF.resultadoK < 0, ask: `P&L de ${eF.nombre}`,

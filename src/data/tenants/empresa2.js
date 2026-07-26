@@ -340,10 +340,29 @@ export const SCENARIO_TRANSFORMS = {
   },
 };
 
+/* ── PERFIL DE EMPRESA (F2 multiempresa · 2026-07-26) · LA VARA DE ESTA EMPRESA, distinta a propósito ────────
+ * Cada llave difiere del config para que el gate PRUEBE la resolución (perfil ?? config · C.2 del usuario
+ * siempre encima · "olvidá" vuelve a ESTOS valores, no a los del config). pnlLineas = la estructura de gastos
+ * típica del rubro (distribución): el P&L arranca armado con estos supuestos y la declaración del usuario los
+ * pisa entera. El benchmark del perfil coincide con el POR-FILA (26.0) — misma fuente, una verdad. */
+export const PERFIL = {
+  benchmark: BENCHMARK,     // 26.0 · la vara de cartera de esta empresa (fallback para filas sin benchmark)
+  bestPracticeCarga: 3.5,   // mejor práctica de carga del rubro (%)
+  targetCarga: 4.0,         // target operativo de carga (%) — ≠ 3.5 del config
+  rotacionMin: 2.5,         // piso de rotación del rubro (alimentos rota más rápido que electro)
+  dohMax: 90,               // techo de cobertura (días) — perecibilidad manda
+  margenBrechaMaterial: 2,  // brecha material (pp) — con vara 26.0, a 2pp ya duele
+  pnlLineas: [
+    { nombre: "Logística", pct: 3 },        // % sobre la venta · defaults del rubro (origen perfil_empresa)
+    { nombre: "Administración", pct: 1.5 },
+  ],
+};
+
 // ── EL TENANT ARMADO · mismo shape que TENANT_DEMO ───────────────────────────────────────────────────────────
 export const TENANT_EMPRESA2 = {
   id: "empresa2",
   nombre: "Distribuidora Andina",
+  perfil: PERFIL,
   clientesVentas, clientesMargen, marcasVentas, marcasMargen, sfamiliasVentas, sfamiliasMargen,
   skuInventario, skusMargen, historialMargen, CLIENTES_STRATEGIC_PROFILE,
   ventasKPI, margenKPI, invKPI, ventasMensuales,

@@ -5,8 +5,19 @@
  *
  * UNA VERDAD: aplicar un criterio muta el punto único (POLICY / benchmarkOf override) → TODAS las lecturas, palancas,
  * diagnósticos y paneles usan la vara del owner sin recalcular nada acá. Sin criterio → defaults byte-exactos (gates).
- * Headless-safe: sin localStorage no persiste pero no crashea. */
-import { POLICY, setBenchmarkOverride } from "../config/businessPolicy.js";
+ * Headless-safe: sin localStorage no persiste pero no crashea.
+ *
+ * F2 MULTIEMPRESA (2026-07-26): el criterio queda SCOPEADO POR EMPRESA — cambiar de tenant no arrastra la vara.
+ *   · el DEFAULT de cada llave ya no es el config capturado al boot: es tenantPolicyDefault (perfil del tenant ??
+ *     config) — "olvidá el margen mínimo" vuelve a LA VARA DE ESTA EMPRESA (26.0 en empresa-2, no 30.1)
+ *   · persistencia por tenant: el demo conserva la clave histórica `adi_criteria_v1` (nada guardado se pierde ·
+ *     byte-igual); otros tenants usan `adi_criteria_v1::<id>` · espejo en memoria por tenant para headless/gates
+ *   · initTenant → businessPolicy re-resuelve el perfil PRIMERO (registrado antes, criteria importa ese módulo) y
+ *     este callback re-aplica encima lo del usuario DEL tenant activo (C.2 siempre gana)
+ * F3 (tenancy operativa): esta persistencia pasa al server (gateway resuelve tenant+perfil+overrides) — hoy no hay
+ * DB (acceso HMAC sin base) → localStorage por navegador, declarado. */
+import { POLICY, setBenchmarkOverride, tenantPolicyDefault } from "../config/businessPolicy.js";
+import { getTenantId, onTenantChange } from "../data/tenantStore.js";
 
 // ── registro DATA-DRIVEN de criterios soportados (sumar uno = sumar una entrada) ──────────────────────────────────────
 export const CRITERIA = {
@@ -19,16 +30,17 @@ export const CRITERIA = {
   cobertura_maxima: { label: "Cobertura máxima (DOH)",    unit: "days", policyKey: "dohMax",     min: 30,  max: 365, fmt: (v) => `${Math.round(v)} días`,
     re: /((cobertura|doh)\s+m[aá]xim[oa]|techo\s+de\s+(cobertura|doh)|m[aá]ximo\s+de\s+d[ií]as\s+de\s+stock)/i },
 };
-const _DEFAULTS = { benchmark: POLICY.benchmark, targetCarga: POLICY.targetCarga, rotacionMin: POLICY.rotacionMin, dohMax: POLICY.dohMax };   // capturados al boot (para "olvidá")
 
-// ── persistencia (localStorage · guarded para headless/gates) ────────────────────────────────────────────────────────
-const _LS_KEY = "adi_criteria_v1";
+// ── persistencia (localStorage POR TENANT · guarded para headless/gates) ─────────────────────────────────────────────
+let _tid = getTenantId();   // el tenant cuyo criterio está aplicado (se mueve en el callback de initTenant)
+const _lsKey = () => (_tid === "demo" ? "adi_criteria_v1" : `adi_criteria_v1::${_tid}`);   // demo = clave histórica (nada se pierde)
 const _hasLS = () => { try { return typeof localStorage !== "undefined" && !!localStorage; } catch { return false; } };
-export function loadCriteria() { if (!_hasLS()) return {}; try { return JSON.parse(localStorage.getItem(_LS_KEY) || "{}") || {}; } catch { return {}; } }
-function _persist(c) { if (_hasLS()) try { localStorage.setItem(_LS_KEY, JSON.stringify(c)); } catch {} }
+export function loadCriteria() { if (!_hasLS()) return {}; try { return JSON.parse(localStorage.getItem(_lsKey()) || "{}") || {}; } catch { return {}; } }
+function _persist(c) { if (_hasLS()) try { localStorage.setItem(_lsKey(), JSON.stringify(c)); } catch {} }
 
 // ── aplicar / olvidar · MUTA el punto único de verdad (POLICY + override de benchmark) ──────────────────────────────
-let _active = {};   // { key: value } vigente en runtime (espejo de lo persistido)
+let _active = {};   // { key: value } vigente en runtime (espejo de lo persistido · del tenant activo)
+const _byTenant = {};   // espejo en memoria por tenant (headless/gates: ida-y-vuelta sin localStorage no pierde ni arrastra)
 function _applyToPolicy(key, value) {
   const c = CRITERIA[key]; if (!c) return;
   POLICY[c.policyKey] = value;
@@ -36,7 +48,7 @@ function _applyToPolicy(key, value) {
 }
 function _restoreDefault(key) {
   const c = CRITERIA[key]; if (!c) return;
-  POLICY[c.policyKey] = _DEFAULTS[c.policyKey];
+  POLICY[c.policyKey] = tenantPolicyDefault(c.policyKey);   // la vara de ESTA empresa (perfil ?? config), no el config a secas
   if (c.policyKey === "benchmark") setBenchmarkOverride(null);
 }
 export function setCriterion(key, value) {
@@ -44,30 +56,44 @@ export function setCriterion(key, value) {
   if (!c) return { ok: false, reason: "desconocido" };
   if (typeof value !== "number" || !isFinite(value) || value < c.min || value > c.max)
     return { ok: false, reason: "rango", min: c.min, max: c.max };
-  const prev = _active[key] != null ? _active[key] : _DEFAULTS[c.policyKey];
+  const prev = _active[key] != null ? _active[key] : tenantPolicyDefault(c.policyKey);
   _active = { ..._active, [key]: value };
+  _byTenant[_tid] = _active;
   _applyToPolicy(key, value);
   _persist(_active);
   return { ok: true, prev, value };
 }
 export function forgetCriterion(key) {
-  if (key === "todo") { for (const k of Object.keys(_active)) _restoreDefault(k); _active = {}; _persist(_active); return { ok: true, all: true }; }
+  if (key === "todo") { for (const k of Object.keys(_active)) _restoreDefault(k); _active = {}; _byTenant[_tid] = _active; _persist(_active); return { ok: true, all: true }; }
   if (_active[key] == null) return { ok: false, reason: "no-guardado" };
   const { [key]: _gone, ...rest } = _active;
   _active = rest;
+  _byTenant[_tid] = _active;
   _restoreDefault(key);
   _persist(_active);
   return { ok: true };
 }
 export function activeCriteria() {
-  return Object.entries(_active).map(([k, v]) => ({ key: k, label: CRITERIA[k].label, value: v, valueFmt: CRITERIA[k].fmt(v), standard: CRITERIA[k].fmt(_DEFAULTS[CRITERIA[k].policyKey]) }));
+  return Object.entries(_active).map(([k, v]) => ({ key: k, label: CRITERIA[k].label, value: v, valueFmt: CRITERIA[k].fmt(v), standard: CRITERIA[k].fmt(tenantPolicyDefault(CRITERIA[k].policyKey)) }));
 }
 // boot (llamar UNA vez desde la app en el navegador): re-aplica lo persistido
 export function initCriteria() {
   const saved = loadCriteria();
   for (const [k, v] of Object.entries(saved)) { if (CRITERIA[k] && typeof v === "number") { _active[k] = v; _applyToPolicy(k, v); } }
+  _byTenant[_tid] = _active;
   return activeCriteria();
 }
+
+// F2 · cambio de tenant: businessPolicy ya re-resolvió el perfil (su callback registró primero) — acá se estaciona
+// lo del tenant que sale y se re-aplica ENCIMA lo del que entra (espejo de sesión ?? localStorage del tenant).
+onTenantChange((d) => {
+  _byTenant[_tid] = _active;
+  _tid = (d && d.id) || "demo";
+  _active = {};
+  const saved = _byTenant[_tid] !== undefined ? _byTenant[_tid] : loadCriteria();
+  for (const [k, v] of Object.entries(saved)) { if (CRITERIA[k] && typeof v === "number") { _active[k] = v; _applyToPolicy(k, v); } }
+  _byTenant[_tid] = _active;
+});
 
 // ── detección de intención (pura · el coerce la corre ANTES de toda la cadena) ──────────────────────────────────────
 const _num = (t) => { const m = String(t).replace(",", ".").match(/(\d+(?:\.\d+)?)\s*%?/); return m ? parseFloat(m[1]) : null; };
@@ -85,8 +111,9 @@ export function detectCriteriaIntent(q) {
   }
   const key = _keyOf(t), value = key ? _num(t) : null;
   if (!key || value == null) return null;
-  // SET explícito · "recordá que mi margen mínimo es 28%"
-  if (/record[aá]\w*\s+que|guard[aá]\w*\s+(que|esto)|anot[aá]\w*\s+que|fijate?\s+que\s+de\s+ahora/i.test(t)) return { action: "set", key, value };
+  // SET explícito · "recordá que mi margen mínimo es 28%" · también tuteo "recuerda que" (caza del sweep F2:
+  // /record[aá]/ no matchea "recuerda" — la u cambia la raíz — y el set caía a propose sin guardar)
+  if (/record[aá]\w*\s+que|recuerd[ae]\w*\s+que|guard[aá]\w*\s+(que|esto)|anot[aá]\w*\s+que|fijate?\s+que\s+de\s+ahora/i.test(t)) return { action: "set", key, value };
   // PROPONER · lo dijo como criterio propio pero sin pedir guardarlo ("para mí el margen mínimo es 28") → ADI pregunta.
   // OJO: sin \b después de "mí" (la í acentuada no es word-char en JS sin flag u → el boundary fallaba silencioso).
   if (/(\bmi\b|\bmis\b|\bnuestr[oa]\b|para\s+m[ií]|ac[aá]\s+el\b)/i.test(t) && /\b(es|son|de)\s+\d|\bal?\s+\d/.test(t)) return { action: "propose", key, value };

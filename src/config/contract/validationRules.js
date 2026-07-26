@@ -135,6 +135,31 @@ export const RULES = [
       return out;
     },
   },
+  // ── F2 multiempresa · el PERFIL del tenant (la vara que la empresa declara) es parte del shape ──
+  // La resolución de POLICY es defensiva (un valor roto cae al config sin romper nada) — esta regla lo REPORTA:
+  // un perfil mal declarado corre con la vara equivocada en silencio si nadie lo mira.
+  {
+    id: "perfil-valido", severity: "warning", modes: ["ci", "demo", "prod"],
+    desc: "El perfil del tenant declara números finitos en llaves de POLICY y líneas P&L válidas",
+    check: (ctx) => {
+      const p = ctx.tenant && ctx.tenant.perfil;
+      if (!p) return [{ where: "perfil", severity: "info", msg: "el tenant no declara perfil — POLICY corre con los defaults de config (válido; la vara no viene del dato)" }];
+      const out = [];
+      for (const [k, v] of Object.entries(p)) {
+        if (k === "pnlLineas") {
+          if (!Array.isArray(v)) { out.push({ where: "perfil.pnlLineas", msg: "no es un array — se ignora" }); continue; }
+          for (const l of v) {
+            const okL = l && typeof l.nombre === "string" && l.nombre.trim().length >= 2 && l.nombre.trim().length <= 30
+              && typeof l.pct === "number" && isFinite(l.pct) && l.pct > 0 && l.pct <= 50;
+            if (!okL) out.push({ where: "perfil.pnlLineas", msg: `línea inválida (${JSON.stringify(l)}) — nombre 2-30 chars y pct (0, 50] · se ignora` });
+          }
+        }
+        else if (!(k in ctx.POLICY_CONFIG)) out.push({ where: `perfil.${k}`, msg: "llave desconocida — no es una llave de POLICY (se ignora)" });
+        else if (typeof v !== "number" || !isFinite(v)) out.push({ where: `perfil.${k}`, msg: `valor no numérico (${JSON.stringify(v)}) — se ignora y cae al default de config` });
+      }
+      return out;
+    },
+  },
   // ── INFO · limitaciones declaradas ──
   {
     id: "sku-margen-base-only", severity: "info", modes: ["ci", "demo", "prod"],

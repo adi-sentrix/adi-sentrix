@@ -101,8 +101,15 @@ for (const [tag, text] of corpus)
   for (const m of text.matchAll(/«([^«»\n]{3,90})»/g)) { const f = m[1].trim(); if (!frases.has(f)) frases.set(f, tag); }
 
 // ── 3 · PRUEBA · cada frase reclama por la cadena en ALGÚN estado del flujo (sellado · gastos · %) ──
-// EXCUSADAS: frases descriptivas que NO son instrucciones (hoy ninguna — agregar solo con justificación escrita).
-const EXCUSADAS = new Set([]);
+// EXCUSADAS: frases descriptivas que NO son instrucciones (agregar solo con justificación escrita).
+const EXCUSADAS = new Set([
+  // ECO DEL PEDIDO (F2 · 2026-07-26): scoped_missing cita entre guillemets lo que el usuario pidió («Walmart») —
+  // es MENCIÓN de texto ajeno, no vocabulario que ADI sugiera escribir: un pedido arbitrario no puede reclamar
+  // por construcción. En demo reclamaba de casualidad (la etapa gastos lo parseaba como línea nueva); con el
+  // perfil F2 la etapa gastos ya no siempre existe (perfil con pnlLineas → start abre rearme en %) y la
+  // casualidad se cae. El prefijo "No tengo a " sigue vigilado por ROTA_RE en _pnl_gate.
+  "Walmart",
+]);
 let pass = 0, fail = 0;
 const claims = (q) => { try { const s = CF(q, true, null); return !!s; } catch { return false; } };
 for (const [frase, origen] of frases) {
