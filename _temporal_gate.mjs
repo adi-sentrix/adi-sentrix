@@ -21,6 +21,8 @@ fs.writeFileSync(entry, [
   'export { setPnlLines, clearPnl, resetPnlDraft } from "./src/adi/pnl.js";',
   'export { clientesVentas } from "./src/data/demoData.js";',
   'export { ventasKPI } from "./src/data/baseKpis.js";',
+  'export { buildSpecTool } from "./src/adi/llm/specTool.js";',
+  'export { buildContractMenu } from "./src/adi/llm/contractMenu.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -100,6 +102,12 @@ for (const r of [r1, r2, r3, r4, r5, r6, r7]) for (const s of ((r && r.suggestio
   const sc = CF(s, false, null);
   ok(!!sc, `chip del espejo reclama: «${s}»`);
 }
+
+console.log("[7b] CIERRE DE LA DIRECTIVA · enseñanza LLM + deep-link a la Mesa");
+const _tool = M.buildSpecTool();
+ok(_tool.schema.properties.operation.enum.includes("temporal"), "specTool: el LLM #1 puede emitir operation temporal (fraseos libres sin la red)");
+ok(/temporal.*mes a mes|MES A MES/i.test(M.buildContractMenu()), "contractMenu enseña la operación temporal con sus formas y límites");
+ok(r1 && r1.evidence.lens === "temporal" && r3 && r3.evidence.lens === "temporal", "la evidencia temporal declara su lens (SentrixPanel la despacha a LA MESA — la película del año)");
 
 console.log("[7] REGISTRO ejecutivo en todo lo emitido");
 let sucios = 0;

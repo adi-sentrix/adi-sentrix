@@ -1151,8 +1151,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // arranca en la cara Resultado con SU alcance — el eje de la respuesta al selector del cuadro y la entidad
   // en foco en la cascada. El click sigue el patrón de la Mesa: informa (uiSignals), nunca dispara.
   const _pnlLink = pnlMesaLink(evidence);
+  const _tLink = !!(evidence && evidence.lens === "temporal");   // mejora 7b · el mes a mes ampliado abre la cara comercial (la película del año vive ahí)
   const [cara, setCara] = useState(() => {
     if (_pnlLink) return _pnlLink.cara;
+    if (_tLink) return "comercial";
     try { const v = localStorage.getItem("adi_mesa_cara_v1"); return v === "capital" || v === "resultado" ? v : "comercial"; } catch { return "comercial"; }
   });
   useEffect(() => {
@@ -1174,6 +1176,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // «Ampliar» sobre OTRA respuesta P&L con la Mesa ya abierta → re-enfoca (la evidencia nueva manda su alcance)
   useEffect(() => {
     if (_pnlLink) { setCara(_pnlLink.cara); setPnlEje(_pnlLink.eje); setPnlFoco(_pnlLink.foco); }
+    else if (_tLink) setCara("comercial");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evidence]);
   const resultado = React.useMemo(() => buildMesaResultado(scenario, pnlEje, pnlFoco), [scenario, pnlTick, pnlEje, pnlFoco]);
@@ -1994,6 +1997,11 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
     // Resultado con el alcance de la respuesta (pnlMesaLink puro · el eje al selector del cuadro, la entidad a la
     // cascada). Antes caía al panel de criterio — el P&L vive en su cara.
     if (pnlMesaLink(evidence))
+      return <MesaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
+    // TEMPORAL (mejora 7b · directiva del owner: "al ver en Sentrix esté todo como debe estar"): el mes a mes
+    // ampliado abre LA MESA en la cara comercial — la película del año y el cuadro viven ahí (misma verdad que
+    // la serie de la respuesta). Sin esto la evidencia temporal no matcheaba ningún panel (panel vacío).
+    if (evidence && evidence.lens === "temporal")
       return <MesaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
     // TU CRITERIO (C.2) · la memoria de criterio visible/borrable ("¿qué recordás?" · tras un set/forget).
     if (evidence && Array.isArray(evidence.criteriaList))

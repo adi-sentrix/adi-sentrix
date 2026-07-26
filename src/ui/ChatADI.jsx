@@ -287,6 +287,7 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
 function _evLabel(evidence) {
   if (!evidence) return null;
   if (evidence.pnl) return "Ver el P&L en la Mesa";   // deep-link (2026-07-26) · la respuesta P&L abre la cara Resultado con su alcance
+  if (evidence.lens === "temporal") return "Ver el año en la Mesa";   // deep-link 7b · el mes a mes abre la Mesa (la película del año)
   if (Array.isArray(evidence.criteriaList)) return "Ver lo que sé de tu negocio";   // C.2 · panel de criterio
   const isSim = !!evidence.transform;
   const isCuadro = !!(evidence.lens === "cuadro" && !evidence.reading);

@@ -221,8 +221,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);   // temporal exento: "resultado/inventario mes a mes" DECLARAN su límite en su rama
 
   // ── #3 · dimensión existe (margin/ventas holísticos se saltan: manejan su propio eje, incl. "canal" que no es una ENTITY del contrato) ──
-  if (spec.operation !== "margin" && spec.operation !== "ventas" && (!spec.dimension || !ENTITIES[spec.dimension]))
-    return _degrade("unknown-dimension", `¿Por qué eje? Tengo: ${Object.keys(ENTITIES).map(_dp).join(", ")}.`, [], ctx);
+  if (spec.operation !== "margin" && spec.operation !== "ventas" && spec.operation !== "temporal" && (!spec.dimension || !ENTITIES[spec.dimension]))
+    return _degrade("unknown-dimension", `¿Por qué eje? Tengo: ${Object.keys(ENTITIES).map(_dp).join(", ")}.`, [], ctx);   // temporal exento: sin eje = el negocio global (su rama resuelve)
 
   // explain_availability se resuelve ACÁ (antes de #4): su trabajo ES explicar disponibilidad, incluso cuando la
   // métrica NO está en esa dimensión (ese es justo el caso a explicar) → no debe caer en el bloqueo genérico #4.

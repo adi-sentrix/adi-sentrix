@@ -93,7 +93,7 @@ const _PIDE_BODEGA = /\b(por|en|de)\s+(la\s+|las\s+)?bodegas?\b/i;
 const _PIDE_CANAL = /\b(por|en|de|cada)\s+(el\s+|los\s+|cada\s+)?canal(?:es)?\b/i;
 const _PIDE_COSTO_PURO = (q) => /\bcostos?\b/i.test(q) && !/\bventas?\b/i.test(q) && !/margen/i.test(q);
 function _coerceContribucion(q, spec) {
-  if (!q || !spec || spec.operation === "compare") return spec;
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "temporal") return spec;   // temporal del LLM (fraseo libre) → su rama
   if (_PIDE_BODEGA.test(q)) return spec;   // contribución@bodega no existe → que el contrato lo declare
   if (_PIDE_CANAL.test(q)) return spec;    // contribución@canal SÍ existe (join declarado) → que el contrato la ejecute
   const c = detectContribucionFocus(q);
@@ -111,7 +111,7 @@ function _coerceContribucion(q, spec) {
 
 // MARGEN · rompe la trampa "todo→diagnose genérico" con el sub-foco. No toca dives/compares de entidad puntual.
 function _coerceMargin(q, spec) {
-  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "contribucion" || spec.entity) return spec;
+  if (!q || !spec || spec.operation === "compare" || spec.operation === "dive" || spec.operation === "contribucion" || spec.operation === "temporal" || spec.entity) return spec;
   if (_PIDE_BODEGA.test(q)) return spec;   // margen/carga@bodega no existen → que el contrato lo declare
   if (_PIDE_CANAL.test(q)) return spec;    // margen@canal no está declarado → que el contrato declare el límite (y ofrezca ventas/contribución por canal)
   const m = detectMarginFocus(q);
@@ -128,7 +128,7 @@ function _coerceMargin(q, spec) {
 
 // VENTAS · fallback general de lo comercial (vs ppto/YoY/descomposición/mix). Cede el dominio inventario (dentro del detector).
 function _coerceVentas(q, spec) {
-  if (!q || !spec || spec.operation === "margin" || spec.operation === "contribucion") return spec;
+  if (!q || !spec || spec.operation === "margin" || spec.operation === "contribucion" || spec.operation === "temporal") return spec;
   // PROMESA ROTA (owner 2026-07-09): "¿es por volumen o por precio?" es una SUGERENCIA de ADI, pero el LLM a veces
   // la clasifica como COMPARE de las "entidades" volumen/precio → "No tengo a volumen". Con ambas palabras en la
   // pregunta, la descomposición de ventas MANDA por sobre el claim de compare/dive/entity (nadie compara "precio").
@@ -173,7 +173,7 @@ function _coerceInventory(q, spec) {
     return _cleanFilters({ ...spec, operation: "inventory", metric: "capital", dimension: "sku", focus: "top_sellers",
       limit: nM ? Number(nM[1]) : 5, turn_type: spec.turn_type === "followup_compare" ? "new_query" : (spec.turn_type || "new_query") });
   }
-  if (spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion") return spec;
+  if (spec.operation === "compare" || spec.operation === "margin" || spec.operation === "ventas" || spec.operation === "contribucion" || spec.operation === "temporal") return spec;
   // REESCRIBIR HACIA EL CONTRATO (matriz fase 2 · 2026-07-09): pedir inventario POR CLIENTE/MARCA (ejes que no
   // tiene) o una métrica COMERCIAL "por bodega" no es una lectura de inventario — se fuerza overview del contrato
   // para que el #4 DECLARE el límite ("no lo tengo por X; sí por…"). Ceder pasivo no alcanza: si el propio LLM
