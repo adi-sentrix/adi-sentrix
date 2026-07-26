@@ -21,11 +21,12 @@ fs.writeFileSync(entry, [
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
   'export { composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend } from "./src/adi/pnl.js";',
   'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
+  'export { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
 let pass = 0, fail = 0; const rotos = [];
@@ -206,6 +207,49 @@ for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/Inline
   let m, re = new RegExp(BANNED.source, "gi"), n = 0;
   while ((m = re.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") }); }
   if (!n) pass++;
+}
+
+// ── (3) RUNTIME · GARANTÍA SOBRE LA NARRACIÓN VIVA (owner 2026-07-26: "apretado" se coló NARRADO en vivo) ──
+// Los frentes (1)/(2) lockean el texto DETERMINÍSTICO; faltaba atar la NARRACIÓN del LLM al MISMO set. stripLanguageLeaks
+// corre en _narrateResult sobre la voz viva del narrador → toda palabra de BANNED que suelte debe salir NEUTRALIZADA.
+// Se prueba contra el MISMO BANNED de este gate (UNA fuente): si mañana se suma una palabra a BANNED, este check la exige
+// también sobre el camino LLM. Narración con palabra vetada → 0 BANNED · idempotente · registro correcto queda byte-igual.
+const NARRADAS = [
+  "El margen de Falabella viene apretado este trimestre.",
+  "Las cuentas grandes están apretadas frente al benchmark.",
+  "La categoría quedó apretada tras el descuento.",
+  "Los precios se ven apretados contra el costo.",
+  "El costo viene apretando el margen en Lider.",
+  "Conviene apretar la carga comercial de las cuentas top.",
+  "El costo aprieta la contribución de Falabella.",
+  "Los descuentos aprietan el resultado del mes.",
+  "Tienes capital dormido en la bodega de Valparaíso.",
+  "Hay mercadería dormida hace más de 90 días.",
+  "Varios SKU quedaron dormidos sin rotación.",
+  "Quedan referencias dormidas sin salida.",
+  "La plata inmovilizada en inventario es alta.",
+  "Esa plata se libera rebajando el stock crítico.",
+];
+for (const t of NARRADAS) {
+  const out1 = stripLanguageLeaks(t);
+  const m = out1.match(BANNED);
+  if (m) { fail++; rotos.push({ origen: "voiceGuard · narración viva", palabra: m[0], gist: `«${t}» → «${out1}»` }); }
+  else pass++;
+  const out2 = stripLanguageLeaks(out1);   // idempotencia: segunda pasada = igual
+  if (out2 !== out1) { fail++; rotos.push({ origen: "voiceGuard · idempotencia", palabra: "≠", gist: `«${out1}» → «${out2}»` }); }
+  else pass++;
+}
+// registro ejecutivo YA correcto (incluye las réplicas ajustado/detenido/caja) → byte-idéntico (el stripper no lo toca)
+const LIMPIAS = [
+  "El margen ajustado obliga a actuar sobre el precio realizado.",
+  "El capital detenido en Valparaíso se libera con una rebaja puntual.",
+  "La caja inmovilizada suma un monto relevante en inventario.",
+  "Falabella cede margen por carga comercial alta; conviene revisar cuenta por cuenta.",
+];
+for (const t of LIMPIAS) {
+  const out1 = stripLanguageLeaks(t);
+  if (out1 !== t) { fail++; rotos.push({ origen: "voiceGuard · limpio alterado", palabra: "≠", gist: `«${t}» → «${out1}»` }); }
+  else pass++;
 }
 
 console.log(`── _registro_gate: ${pass} textos limpios · ${fail} con registro viejo ──`);

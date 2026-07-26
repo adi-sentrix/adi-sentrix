@@ -83,6 +83,19 @@ const _LEAKS = [
   [/\bpalancas\b/gi, "acciones"], [/\bpalanca\b/gi, "acción"],
   [/\bupsides\b/gi, "potenciales"], [/\bupside\b/gi, "potencial"],
   [/\bnos\s+pegue\b/gi, "nos afecte"],
+  // + IGUALAR EL GATE ESTÁTICO (owner 2026-07-26: "apretado" se coló NARRADO en vivo) · el _registro_gate BANNED ya
+  // lockea el texto determinístico, pero el stripper de la voz viva sólo cubría guita/palanca — faltaban apretar/
+  // dormido/plata. Ahora la GARANTÍA sobre la narración cubre el MISMO set. Formas ENUMERADAS (no \w* — inflexionaría
+  // mal): preservan inflexión, concordancia de género y mayúscula inicial · palabra completa (\b) · number-safe ·
+  // idempotentes (ninguna réplica es palabra vetada). plata→caja: femenino, "la plata"→"la caja" (consistente con
+  // guita→caja); NO "capital" a secas, que en "la plata" daría "la capital"=ciudad. Plurales antes que singulares.
+  [/\bapretados\b/gi, "ajustados"], [/\bapretadas\b/gi, "ajustadas"],
+  [/\bapretado\b/gi, "ajustado"], [/\bapretada\b/gi, "ajustada"],
+  [/\bapretando\b/gi, "ajustando"], [/\bapretar\b/gi, "ajustar"],
+  [/\baprietan\b/gi, "ajustan"], [/\baprieta\b/gi, "ajusta"],
+  [/\bdormidos\b/gi, "detenidos"], [/\bdormidas\b/gi, "detenidas"],
+  [/\bdormido\b/gi, "detenido"], [/\bdormida\b/gi, "detenida"],
+  [/\bplata\b/gi, "caja"],
 ];
 // + NOTAS INTERNAS DEL ANALISTA (auditoría de asks 2026-07-15: cuando el number-guard bloquea la narración, el
 // texto determinístico de una ruta rica del motor puede traer su cola de notas — "Sin driver interno obvio en
