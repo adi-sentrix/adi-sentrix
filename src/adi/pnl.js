@@ -31,6 +31,7 @@
  * y la memoria manteniendo el verbatim — kind criteria manda en pickNarratedText). */
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
 import { clientesMargen } from "../data/demoData.js";
+import { onTenantChange } from "../data/tenantStore.js";   // F1 multiempresa · disponibilidad/canon/hilo se re-arman en initTenant
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { METRICS } from "../config/contract/metricRegistry.js";
@@ -178,6 +179,10 @@ const _ejePedido = (q) => { const m = _POR_EJE_RE.exec(q); return m ? _ejeEn(m[1
 // ── ESTADO DEL HILO (el último alcance leído · "volvamos al P&L" / "¿y el de Ripley?") · en memoria · el
 // reset del chat lo limpia (resetPnlDraft) · forget también (clearPnl) ──
 let _scope = null;   // { dimension, entity|null, entities|null } · null = negocio (o sin lectura aún)
+// F1 multiempresa: al cambiar de tenant caen los DERIVADOS DEL DATO (disponibilidad + canon del alcance) y el
+// hilo de alcance (nombra entidades de la otra empresa). Las líneas declaradas (_lines/_draft) son criterio del
+// usuario (% sobre la venta · no nombran entidades) → se conservan, como el resto del criterio C.2.
+onTenantChange(() => { _dispoCache = null; _canonCache = null; _scope = null; });
 export function pnlScope() { return _scope ? { ..._scope, entities: _scope.entities ? [..._scope.entities] : null } : null; }
 
 /* detectPnlEllipsis(q) → intent | null · las formas ELÍPTICAS del hilo P&L («¿y el de Ripley?» · «recuerda lo

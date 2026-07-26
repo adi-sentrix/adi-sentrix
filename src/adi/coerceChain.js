@@ -18,20 +18,24 @@ import { detectPeriodo } from "./composers/temporalTable.js";   // TIEMPO (mejor
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
 import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
+import { onTenantChange } from "../data/tenantStore.js";
 
 // ── CANON DE ENTIDADES (invitado en prod 2026-07-09): el LLM emite entidades en minúscula/sin tilde y a veces en el
 // campo equivocado ("concepcion" como entity de inventario · "cuidado personal" como entity de un recommend@sku) →
 // el filtro no matcheaba y ADI respondía GLOBAL en silencio. Acá se canonicalizan contra el DATASET (una verdad):
-// el nombre queda con su forma real y, si el TIPO no coincide con la dimensión pedida, viaja como filters[tipo]. ──
+// el nombre queda con su forma real y, si el TIPO no coincide con la dimensión pedida, viaja como filters[tipo].
+// F1 multiempresa: el canon se ARMA EN INIT (initTenant lo re-arma con el dataset activo), no en import. ──
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
-const _CANON = (() => {
+function _buildCanon() {
   const m = new Map();
   for (const r of _cCanon) m.set(_norm(r.nombre), { tipo: "cliente", nombre: r.nombre });
   for (const r of _mCanon) m.set(_norm(r.nombre), { tipo: "marca", nombre: r.nombre });
   for (const r of _fCanon) m.set(_norm(r.nombre), { tipo: "familia", nombre: r.nombre });
   for (const r of _iCanon) { m.set(_norm(r.sku), { tipo: "sku", nombre: r.sku }); if (r.bodega && !m.has(_norm(r.bodega))) m.set(_norm(r.bodega), { tipo: "bodega", nombre: r.bodega }); }
   return m;
-})();
+}
+let _CANON = _buildCanon();
+onTenantChange(() => { _CANON = _buildCanon(); });
 const _canonEntity = (name) => _CANON.get(_norm(name)) || null;
 
 // SANEO de filters (safety-net): el LLM #1 a veces emite claves-ruido ("filters:{margen:'mínimo'}") que NO son ejes del

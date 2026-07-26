@@ -2,6 +2,7 @@
  * Tokens visuales + estilos del highlighter financiero · extraídos de 41cc33d8 · verbatim.
  * Presentación pura · cero cálculo. La única diferencia con el monolito es DÓNDE vive el estilo. */
 import { clientesMargen } from "../data/demoData.js";   // hardening prep-LLM · KNOWN_ENTITIES derivado del dato (no lista hardcodeada)
+import { onTenantChange } from "../data/tenantStore.js";   // F1 multiempresa · KNOWN_ENTITIES se re-arma en initTenant
 
 // Paleta NEUTRA (owner 2026-07-10: "darle vida a ADI — bases blanco/negro/gris claro, y el celeste para resaltar
 // números y textos"): negro y grises NEUTROS (muere el sepia/cálido), texto blanco, y el CELESTE como único acento
@@ -84,7 +85,9 @@ export const FINANCIAL_TABULAR = {
 // DERIVADO del dato (hardening prep-LLM): antes era una lista literal de 14 nombres → si el owner (o el LLM) agrega
 // un cliente, ADI lo nombra pero el highlight no lo resaltaba. Ahora sale de clientesMargen · longest-first para el
 // regex del tokenizer (Mercado Libre antes que Lider · match más largo primero) · presentación pura (byte-safe).
-export const KNOWN_ENTITIES = clientesMargen
+const _knownEntities = () => clientesMargen
   .filter((c) => c.tipo === "cliente")
   .map((c) => c.nombre)
   .sort((a, b) => b.length - a.length);
+export let KNOWN_ENTITIES = _knownEntities();
+onTenantChange(() => { KNOWN_ENTITIES = _knownEntities(); });

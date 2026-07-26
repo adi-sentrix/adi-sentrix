@@ -8,6 +8,7 @@
 import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
 import { historialMargen, clientesMargen, clientesVentas, marcasVentas, marcasMargen, sfamiliasVentas, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
+import { onTenantChange } from "../../data/tenantStore.js";   // F1 multiempresa · las anclas del período se re-arman en initTenant
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
@@ -18,7 +19,7 @@ const _round1 = (n) => Math.round(n * 10) / 10;
 // del historial; el total cierra EXACTO — la misma técnica `distribuir` del dataset). Una sola verdad por métrica:
 // venta → clientesVentas.actual / venta de la tabla del eje · contribución → contribución almacenada · margen del
 // período → para normalizar la curva derivada c/v · acciones → rebates almacenados. ──
-const _PERIOD = (() => {
+function _buildPeriod() {
   const m = new Map();
   for (const c of clientesMargen) {
     const cv = clientesVentas.find((x) => x.nombre === c.nombre);
@@ -28,7 +29,8 @@ const _PERIOD = (() => {
   for (const f of sfamiliasMargen) m.set(f.nombre, { venta: f.venta, contribucion: f.contribucion, margen: f.margen, acciones: f.rebates });
   for (const s of skusMargen)      m.set(s.nombre, { venta: s.venta, contribucion: s.contribucion, margen: s.margen, acciones: s.rebates });   // OJO: la clave es `nombre` (el gate de conexión cazó que con `sku` los SKU quedaban SIN ancla)
   return m;
-})();
+}
+let _PERIOD = _buildPeriod();   // F1 multiempresa · se re-arma en initTenant (nunca más solo en import)
 // re-ancla una serie a un total del período (forma intacta · total exacto · cuadre en el último mes)
 const _anchor = (serie, total) => {
   const sHist = _sum(serie);
@@ -156,12 +158,14 @@ export function buildEntityEvolution(name, metric = "venta") {
  *   - Sin total declarado NO se fabrica: contribución/margen (el contribucionAnt del historial es ÷1.081 uniforme —
  *     contradiría el YoY por entidad de la venta: Ripley cae −8% y "crecería" +8%) y los SKU (skusMargen no trae
  *     `anterior`) devuelven anterior:null → la curva va sola, sin ghost (honesto, como bodega sin serie hoy). */
-const _PERIOD_ANT = (() => {
+function _buildPeriodAnt() {
   const m = new Map();
   for (const t of [clientesVentas, marcasVentas, sfamiliasVentas])
     for (const x of t || []) if (Number.isFinite(Number(x.anterior))) m.set(x.nombre, Number(x.anterior));
   return m;
-})();
+}
+let _PERIOD_ANT = _buildPeriodAnt();
+onTenantChange(() => { _PERIOD = _buildPeriod(); _PERIOD_ANT = _buildPeriodAnt(); });
 export function buildEntityEvolutionComparado(name, metric = "venta") {
   const A = buildEntityEvolution(name, metric);
   if (!A) return null;

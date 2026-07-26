@@ -13,12 +13,17 @@
  * Cuando llegue el ERP (C.3), este módulo se reemplaza por la matriz real — la UI y los helpers no cambian. */
 import { clientesVentas, clientesMargen } from "./demoData.js";
 import { skusMargen } from "./skusMargen.js";
+import { onTenantChange } from "./tenantStore.js";   // F1 multiempresa · la matriz se re-arma en initTenant
 
-const _CLIENTES = clientesMargen.map((c) => {
-  const cv = clientesVentas.find((x) => x.nombre === c.nombre);
-  return { nombre: c.nombre, marca: c.marca, sfamilia: c.sfamilia, venta: cv ? cv.actual : c.venta, contribucion: c.contribucion };
-});
-const _SKUS = skusMargen.map((s) => ({ nombre: s.nombre, marca: s.marca, sfamilia: s.sfamilia, venta: s.venta, contribucion: s.contribucion }));
+let _CLIENTES, _SKUS;
+const _buildBase = () => {
+  _CLIENTES = clientesMargen.map((c) => {
+    const cv = clientesVentas.find((x) => x.nombre === c.nombre);
+    return { nombre: c.nombre, marca: c.marca, sfamilia: c.sfamilia, venta: cv ? cv.actual : c.venta, contribucion: c.contribucion };
+  });
+  _SKUS = skusMargen.map((s) => ({ nombre: s.nombre, marca: s.marca, sfamilia: s.sfamilia, venta: s.venta, contribucion: s.contribucion }));
+};
+_buildBase();
 
 // afinidad determinística: la marca dominante manda, la familia acompaña, el resto es cola de surtido
 const _w = (c, s) => (s.marca === c.marca ? 1 : s.sfamilia === c.sfamilia ? 0.45 : 0.12);
@@ -48,10 +53,15 @@ function _ipf(campo) {
   });
 }
 
-const _VENTA = _ipf("venta");
-const _CONTRIB = _ipf("contribucion");
-const _iC = new Map(_CLIENTES.map((c, i) => [c.nombre, i]));
-const _iS = new Map(_SKUS.map((s, i) => [s.nombre, i]));
+let _VENTA, _CONTRIB, _iC, _iS;
+const _buildMatrix = () => {
+  _VENTA = _ipf("venta");
+  _CONTRIB = _ipf("contribucion");
+  _iC = new Map(_CLIENTES.map((c, i) => [c.nombre, i]));
+  _iS = new Map(_SKUS.map((s, i) => [s.nombre, i]));
+};
+_buildMatrix();
+onTenantChange(() => { _buildBase(); _buildMatrix(); });
 
 // composición de UN cliente (por SKU) · metric "ventas" | "contribucion" → [{ name, value }] desc, sin ceros
 export function composicionCliente(nombre, metric = "ventas") {
