@@ -117,12 +117,18 @@ export function pnlDisponibilidad() {
   for (const [eje, E] of Object.entries(ENTITIES)) {
     const label = E.label || { sing: eje, plur: `${eje}s` };
     if (eje === _BASE_EJE) { out.push({ eje, label, available: true, field: E.keyField }); continue; }
+    // F1 multiempresa (caza del fixture empresa-2): EL DATO MANDA — si la base del P&L cubre el desglose
+    // (cada fila trae el campo del eje con nombre canónico), el eje está DISPONIBLE aunque el registro de
+    // métricas no declare venta@eje (una empresa con venta por bodega en su base lo ve aparecer solo).
+    // Con el demo el resultado es byte-idéntico: los ejes que cubren ya estaban declarados, y los motivos
+    // de los no-cubiertos salen en el mismo orden de siempre (declara → cubre).
     const declara = (METRICS.ventas.axes || []).includes(eje) && (METRICS.contribucion.axes || []).includes(eje);
-    if (!declara) { out.push({ eje, label, available: false, motivo: `no tengo la venta desglosada por ${label.sing}` }); continue; }
     const f = _rollField(eje);
     const names = new Set(_ejeRows(eje).map((r) => _norm(r[E.keyField])).filter(Boolean));
-    const cubre = clientesMargen.length > 0 && clientesMargen.every((r) => typeof r[f] === "string" && r[f] && names.has(_norm(r[f])));
-    out.push(cubre ? { eje, label, available: true, field: f }
+    const cubre = !!f && clientesMargen.length > 0 && clientesMargen.every((r) => typeof r[f] === "string" && r[f] && names.has(_norm(r[f])));
+    if (cubre) { out.push({ eje, label, available: true, field: f }); continue; }
+    out.push(!declara
+      ? { eje, label, available: false, motivo: `no tengo la venta desglosada por ${label.sing}` }
       : { eje, label, available: false, motivo: `la venta del P&L no baja desglosada a ${label.sing}` });
   }
   return (_dispoCache = out);

@@ -12,17 +12,35 @@ fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',
   'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
+  'export { initTenant } from "./src/data/tenantStore.js";',
+  'export { TENANTS } from "./src/data/tenants/index.js";',
+  'export { axisAvailable } from "./src/config/contract/entityRegistry.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { answerADIFromSpec: A, METRICS, ENTITIES } = M;
 
-const REP = {
+// F1 multiempresa: ADI_TENANT=<id> corre la MISMA matriz sobre otro tenant del registro (la promesa: el
+// contrato itera, el dato cambia). Sin la env var el camino demo queda BYTE-IDÉNTICO (REP/FILTRO literales).
+const TN = process.env.ADI_TENANT || "demo";
+if (TN !== "demo") {
+  if (!M.TENANTS[TN]) { console.error(`tenant desconocido: ${TN}`); process.exit(2); }
+  M.initTenant(M.TENANTS[TN]);
+}
+const _t = M.TENANTS[TN];
+const _dos = (rows, f) => { const seen = []; for (const r of rows || []) { const v = f(r); if (v != null && v !== "" && !seen.includes(v)) { seen.push(v); if (seen.length === 2) break; } } return seen; };
+const REP = TN === "demo" ? {
   cliente: ["Falabella", "Lider"], marca: ["Samsung", "LG"], familia: ["Cuidado Personal", "Línea Blanca"],
   sku: ["SAM-TV55", "LG-WASH11KG"], bodega: ["Santiago", "Valparaíso"], canal: ["Retail", "E-commerce"],
+} : {
+  cliente: _dos(_t.clientesMargen, (r) => r.nombre), marca: _dos(_t.marcasMargen, (r) => r.nombre),
+  familia: _dos(_t.sfamiliasMargen, (r) => r.nombre), sku: _dos(_t.skusMargen, (r) => r.nombre),
+  bodega: _dos(_t.skuInventario, (r) => r.bodega), canal: _dos(_t.clientesVentas, (r) => r.canal),
 };
-const FILTRO = { cliente: { marca: "Samsung" }, sku: { marca: "Samsung" }, marca: { familia: "Cuidado Personal" }, familia: { marca: "Philips" }, bodega: { familia: "Línea Blanca" }, canal: { marca: "Samsung" } };
+const FILTRO = TN === "demo"
+  ? { cliente: { marca: "Samsung" }, sku: { marca: "Samsung" }, marca: { familia: "Cuidado Personal" }, familia: { marca: "Philips" }, bodega: { familia: "Línea Blanca" }, canal: { marca: "Samsung" } }
+  : { cliente: { marca: REP.marca[0] }, sku: { marca: REP.marca[0] }, marca: { familia: REP.familia[0] }, familia: { marca: REP.marca[1] }, bodega: { familia: REP.familia[1] }, canal: { marca: REP.marca[0] } };
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", ...o });
 const DEGRADE_RE = /^(No tengo|No veo|No te puedo|No encuentro|Esa vista todav[ií]a|En [A-ZÁÉÍÓÚ])/;
@@ -40,7 +58,9 @@ const rows = [];
 const dims = Object.keys(ENTITIES);
 for (const [mk, m] of Object.entries(METRICS)) {
   for (const dim of dims) {
-    const declarada = !!(m.sourceByAxis && m.sourceByAxis[dim]);
+    // F1 multiempresa: una celda es DECLARADA solo si el eje EXISTE en el dato del tenant activo (axisAvailable
+    // — el contrato declara canal, pero una empresa sin canal en sus ventas no lo tiene: degrade = DECLARADO).
+    const declarada = !!(m.sourceByAxis && m.sourceByAxis[dim]) && M.axisAvailable(dim);
     const celdas = [
       { forma: "overview", spec: S({ operation: "overview", metric: mk, dimension: dim }) },
       { forma: "rank", spec: S({ operation: "rank", metric: mk, dimension: dim, limit: 3 }) },
@@ -56,7 +76,7 @@ for (const [mk, m] of Object.entries(METRICS)) {
     }
   }
 }
-fs.writeFileSync("_matrix_gate.json", JSON.stringify(rows, null, 1));
+fs.writeFileSync(TN === "demo" ? "_matrix_gate.json" : `_matrix_gate.${TN}.json`, JSON.stringify(rows, null, 1));
 
 const tot = { OK: 0, DECLARADO: 0, ROTA: 0, ERROR: 0 };
 rows.forEach((r) => tot[r.cls]++);

@@ -7,7 +7,12 @@
  *
  * `scenarioAware`: si el eje se mueve con el escenario. false = base-only (hoy: sku, marca) → el surfaceContract usa
  * esto para bloquear honesto fuera de bonanza (lo que el guard del hardening hizo a mano, ahora declarado).
- * `parents`: relación de agregación (SKU rollup a marca vía campo "marca", a familia vía "sfamilia"). */
+ * `parents`: relación de agregación (SKU rollup a marca vía campo "marca", a familia vía "sfamilia").
+ *
+ * F1 MULTIEMPRESA (caza del fixture empresa-2 · 2026-07-26): la DISPONIBILIDAD de un eje es del DATO, no de la
+ * declaración — un eje group-by existe solo si el dato del tenant activo trae su campo (el demo trae canal; una
+ * empresa sin canal en sus ventas NO lo tiene y el eje desaparece solo de menú/matriz). axisAvailable es la
+ * verdad única que consultan el menú del LLM, la matriz de cobertura y quien ofrezca ejes. */
 export const ENTITIES = {
   cliente: {
     label: { sing: "cliente", plur: "clientes" },
@@ -62,3 +67,20 @@ export const ENTITIES = {
     parents: {},
   },
 };
+
+// ── DISPONIBILIDAD DATA-DRIVEN del eje (F1 multiempresa · caza del fixture empresa-2) ────────────────────────
+// Un eje de filas propias existe si su fuente trae filas; un eje GROUP-BY existe solo si el dato del tenant
+// activo trae su campo (alguna fila con valor). Se evalúa en CALL-TIME → sigue al tenant activo, sin caches.
+import { SOURCES } from "./sourceManifest.js";
+export function axisAvailable(eje) {
+  const E = ENTITIES[eje];
+  if (!E) return false;
+  const S = SOURCES[E.source];
+  if (!S) return false;
+  let rows = [];
+  try { rows = S.load() || []; } catch { return false; }
+  if (S.rowFilter) rows = rows.filter(S.rowFilter);
+  if (!rows.length) return false;
+  if (!E.isGroupBy) return true;
+  return rows.some((r) => r[E.keyField] != null && r[E.keyField] !== "");
+}
