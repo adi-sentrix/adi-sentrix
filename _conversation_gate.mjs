@@ -227,7 +227,7 @@ ok("59 · ALCANCE por la cadena: 'P&L de Falabella' → lectura scoped ACCIONABL
     PNLCLR(); PNLRST();
     PNLSET([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]);
     const r1 = _pnlGo("P&L de Falabella", false);
-    if (!(/^El P&L de Falabella/.test(r1.text) && r1.evidence.followup === false && r1.evidence.entidad === "Falabella")) return false;
+    if (!(/^\*\*El P&L de Falabella: te deja /.test(r1.text) && r1.evidence.followup === false && r1.evidence.entidad === "Falabella")) return false;
     const r2 = _pnlGo("P&L por familia", false);
     return r2.evidence.entityList && r2.evidence.entityList.dimension === "familia" && r2.evidence.entityList.entities.length === 4;
   })());

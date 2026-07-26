@@ -685,10 +685,38 @@ function _proponerSello(scenario) {
   );
 }
 
+/* ── LA CASCADA COMO TABLA (owner 2026-07-26 en vivo, sobre la captura de la pregunta clave: "ADI es el que
+ * cuenta la historia, ¿dónde está acá? Sentrix muestra el dato en la mesa"): el TEXTO de toda lectura P&L narra
+ * QUÉ SIGNIFICA (asesor · regla madre "ADI no muestra datos, arma decisiones") y la cuenta viaja ESTRUCTURADA
+ * en la evidencia (tabla_matriz — el mismo patrón tabla_comparada que el owner aprobó para la proyección: la UI
+ * la renderiza ordenada bajo el texto). Graduación a la vista: cada gasto lleva su nota de supuesto — el mismo
+ * lenguaje de la cara Resultado. e = una entidad de porEntidad (scoped) · null = el negocio. ── */
+function _tablaCascada(c, e = null, titulo = null) {
+  const V = e || { ventaK: c.ingresoK, costoK: c.costoK, margenBrutoK: c.margenBrutoK, cargaK: c.cargaK, contribK: c.contribK, resultadoK: c.resultadoK, resultadoPct: c.resultadoPct };
+  const gK = (l) => (e ? (e.ventaK * l.pct) / 100 : (c.ingresoK * l.pct) / 100);
+  return {
+    titulo: titulo || (e ? `P&L de ${e.nombre} — gastos prorrateados sobre su venta` : "Tu P&L comercial — la cascada completa"),
+    head: "Concepto", cols: ["USD"],
+    rows: [
+      { label: "Ingreso", values: [_moneyK(V.ventaK)] },
+      { label: "Costo", values: [`− ${_moneyK(V.costoK)}`] },
+      { label: "Margen bruto", values: [_moneyK(V.margenBrutoK)] },
+      { label: "Carga comercial", values: [`− ${_moneyK(V.cargaK)}`] },
+      { label: "Contribución", values: [_moneyK(V.contribK)] },
+      ...c.lines.map((l) => ({ label: l.nombre, values: [`− ${_moneyK(gK(l))}`],
+        nota: `${l.origen === "perfil_empresa" ? "supuesto del perfil" : "supuesto declarado"} · ${_fmtPct(l.pct)}%` })),
+      { label: "Resultado comercial", values: [_moneyK(V.resultadoK)], strong: true, negativo: V.resultadoK < 0 },
+      { label: "Resultado sobre venta", values: [`${_fmtPct(V.resultadoPct)}%`], negativo: V.resultadoK < 0 },
+    ],
+    nota: e ? `prorrateo por la venta de ${e.nombre} — supuesto, no contabilidad de la entidad · cierra exacto`
+      : "probado hasta la contribución · tus gastos, supuestos declarados (% sobre la venta) · cierra exacto",
+  };
+}
+
 /* ── EL ANÁLISIS DEL CONTRATO (owner 2026-07-26 verbatim: "cuando me dice lo sello, debería darme el análisis
- * como lo tenemos en contrato") · UNA verdad para la lectura «resultado» Y para el sello: la cascada completa
- * graduada (dato probado hasta la contribución · gastos como supuestos declarados), la línea que más pesa y la
- * simulación sugerida. El sello lo entrega DE UNA — sin pedir "muéstramelo" aparte. ── */
+ * como lo tenemos en contrato") · UNA verdad para la lectura «resultado» Y para el sello: qué significa, la
+ * graduación, la línea que más pesa y la simulación sugerida — con la cascada completa en la TABLA (historia
+ * en el texto, dato ordenado abajo y editable en la Mesa). El sello lo entrega DE UNA. ── */
 function _analisisResultado(scenario) {
   const c = buildPnlCascade(scenario);
   _scope = { dimension: _BASE_EJE, entity: null, entities: null, global: true };   // hilo vivo: "¿y el de Ripley?" / "volvamos al P&L"
@@ -702,8 +730,10 @@ function _analisisResultado(scenario) {
     _gPct(_r1(Math.max(top.pct / 2, top.pct - 1))),
   ];
   const neg = c.resultadoK < 0 ? ` Ojo: el resultado es negativo con los supuestos declarados — vale revisar las líneas antes que la venta.` : "";
-  const text = `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — ${_fmtPct(c.resultadoPct)}% de la venta.\n\nLa cascada completa sobre el dato real:\n· Ingreso: ${_moneyK(c.ingresoK)}\n· Costo: −${_moneyK(c.costoK)}\n· Margen bruto: ${_moneyK(c.margenBrutoK)}\n· Carga comercial: −${_moneyK(c.cargaK)}\n· Contribución: ${_moneyK(c.contribK)}\n· Tus gastos declarados (${_fmtPct(c.sumPct)}%): −${_moneyK(c.totalGastosK)}\n· **Resultado: ${_moneyK(c.resultadoK)}**\n\nHasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.${neg}\n\nLa línea que más pesa: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} · ${_fmtPct(top.pct)}%). ${pnlSimAsk(top)}`;
-  return { c, top, bol, text };
+  // HISTORIA PRIMERO (owner 2026-07-26: "ADI cuenta la historia, Sentrix muestra el dato"): qué significa →
+  // graduación → la decisión. La cascada completa sale del texto y viaja en la TABLA (ev.tablaM).
+  const text = `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — el ${_fmtPct(c.resultadoPct)}% de tu venta queda contigo después del costo, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\nHasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.${neg}\n\nLa línea que más pesa: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} · ${_fmtPct(top.pct)}%). ${pnlSimAsk(top)}`;
+  return { c, top, bol, text, tablaM: _tablaCascada(c) };
 }
 
 /* composePnl(pi, ctx, state) → respuesta finalizada (shape de la UI). pi = el intent del detector (o null si el
@@ -822,7 +852,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     const an = _analisisResultado(scenario);
     return _resp(
       `Sellado — tus gastos quedaron declarados (${_fmtPct(an.c.sumPct)}% sobre la venta) y miden desde ahora en cada lectura.\n\n${an.text}`,
-      { route: "pnl_setup", suggestions: [pnlSimAsk(an.top), "¿Qué línea pesa más en el resultado?"], bol: an.bol, ev: { dimension: _BASE_EJE } }
+      { route: "pnl_setup", suggestions: [pnlSimAsk(an.top), "¿Qué línea pesa más en el resultado?"], bol: an.bol, ev: { dimension: _BASE_EJE, tablaM: an.tablaM } }
     );
   }
 
@@ -919,23 +949,37 @@ export function composePnl(pi, ctx = null, state = {}) {
         _fMoneyK("Ingreso", c.ingresoK, { mandatory: true }), _fMoneyK("Costo", c.costoK),
         _fMoneyK("Carga comercial", c.cargaK), _fMoneyK("Contribución", c.contribK, { mandatory: true }),
       ];
+      // HISTORIA PRIMERO: el texto cuenta hasta dónde llega el dato y qué falta; la cuenta viaja en la tabla.
+      const tSin = {
+        titulo: "Dónde está el dinero — hasta donde llega el dato", head: "Concepto", cols: ["USD"],
+        rows: [
+          { label: "Venta del año", values: [_moneyK(c.ingresoK)] },
+          { label: "Costo de los productos", values: [`− ${_moneyK(c.costoK)}`] },
+          { label: "Carga comercial", values: [`− ${_moneyK(c.cargaK)}`] },
+          { label: "Contribución", values: [_moneyK(c.contribK)], strong: true },
+        ],
+        nota: "hasta aquí todo es dato real — faltan tus líneas de gasto para llegar al resultado",
+      };
       return _resp(
-        `Te muestro dónde está el dinero, con los datos actuales del negocio:\n· Venta del año: ${_moneyK(c.ingresoK)}\n· Costo de los productos: −${_moneyK(c.costoK)}\n· Carga comercial (lo que se entrega al canal): −${_moneyK(c.cargaK)}\n· Contribución: ${_moneyK(c.contribK)} — hasta aquí, todo es dato real\n\nEn los datos actuales ya se ven dos fugas: parte de esa carga comercial se puede recuperar, y hay cuentas vendiendo con un margen más bajo que el resto.\n\nPara decirte cuánto te queda DE VERDAD me falta un dato tuyo: tus gastos. Armémoslo ahora — dime qué gastos quieres considerar (administrativos, logística, promotores… como los manejes tú) y después te pregunto el porcentaje de cada uno.`,
-        { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?"], bol, ev: { dimension: _BASE_EJE } }
+        `Te muestro dónde está el dinero, con los datos actuales del negocio: de ${_moneyK(c.ingresoK)} de venta quedan ${_moneyK(c.contribK)} de contribución después del costo y la carga comercial — hasta aquí, todo es dato real.\n\nEn los datos actuales ya se ven dos fugas: parte de esa carga comercial se puede recuperar, y hay cuentas vendiendo con un margen más bajo que el resto.\n\nPara decirte cuánto te queda DE VERDAD me falta un dato tuyo: tus gastos. Armémoslo ahora — dime qué gastos quieres considerar (administrativos, logística, promotores… como los manejes tú) y después te pregunto el porcentaje de cada uno.`,
+        { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?"], bol, ev: { dimension: _BASE_EJE, tablaM: tSin } }
       );
     }
     _scope = { dimension: _BASE_EJE, entity: null, entities: null, global: true };
     const topP = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+    // el ingreso dejó de ser obligatorio EN EL TEXTO (historia primero: vive en la tabla y en la boleta)
     const bol = [
-      _fMoneyK("Ingreso", c.ingresoK, { mandatory: true }), _fMoneyK("Costo", c.costoK),
+      _fMoneyK("Ingreso", c.ingresoK), _fMoneyK("Costo", c.costoK),
       _fMoneyK("Carga comercial", c.cargaK), _fMoneyK("Contribución", c.contribK),
       _fMoneyK("Gastos declarados", c.totalGastosK), _fPct("Gastos · total", c.sumPct),
       _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct),
       ...(topP ? [_fMoneyK(`Gasto · ${topP.nombre}`, topP.usdK), _fPct(`Línea · ${topP.nombre}`, topP.pct)] : []),
     ];
+    // HISTORIA PRIMERO (la captura del owner 2026-07-26 era ESTA respuesta): qué te queda y dónde apretar —
+    // la cascada de punta a punta viaja en la tabla, no en el texto.
     return _resp(
-      `Tu dinero, de punta a punta:\n· Venta del año: ${_moneyK(c.ingresoK)}\n· Costo de los productos: −${_moneyK(c.costoK)}\n· Carga comercial: −${_moneyK(c.cargaK)}\n· Tus gastos declarados (${_fmtPct(c.sumPct)}%): −${_moneyK(c.totalGastosK)}\n· **Te quedan: ${_moneyK(c.resultadoK)}** — ${_fmtPct(c.resultadoPct)}% de la venta\n\nDónde apretar primero: parte de la carga comercial se puede recuperar, hay cuentas con un margen más bajo que el resto, y de tus gastos la línea que más pesa es ${topP.nombre.toLowerCase()} (${_moneyK(topP.usdK)} · ${_fmtPct(topP.pct)}%). ¿Bajamos a un frente?`,
-      { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?", "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE } }
+      `**Te quedan ${_moneyK(c.resultadoK)} al año** — el ${_fmtPct(c.resultadoPct)}% de tu venta, después del costo de los productos, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\nDónde apretar primero: parte de la carga comercial (${_moneyK(c.cargaK)}) se puede recuperar, hay cuentas con un margen más bajo que el resto, y de tus gastos la línea que más pesa es ${topP.nombre.toLowerCase()} (${_moneyK(topP.usdK)} · ${_fmtPct(topP.pct)}%). ¿Bajamos a un frente?`,
+      { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?", "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE, tablaM: _tablaCascada(c, null, "Tu dinero, de punta a punta") } }
     );
   }
   // ── ALCANCE (PASE 2) · volver / P&L de una entidad / la tabla del eje / deixis / entidad desconocida ──
@@ -983,9 +1027,10 @@ export function composePnl(pi, ctx = null, state = {}) {
       ...(share != null ? [_fPct("Peso en el resultado", share), _fMoneyK("Resultado del negocio", c.resultadoK)] : []),
       ...(top ? [_gPct(simT)] : []),
     ];
+    // HISTORIA PRIMERO: qué deja y qué aporta; la cascada de la entidad viaja en la tabla.
     return _resp(
-      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}.\n\n` : ""}El P&L de ${e.nombre} con tu estructura declarada:\n· Ingreso: ${_moneyK(e.ventaK)}\n· Costo: −${_moneyK(e.costoK)}\n· Margen bruto: ${_moneyK(e.margenBrutoK)}\n· Carga comercial: −${_moneyK(e.cargaK)}\n· Contribución: ${_moneyK(e.contribK)}\n· Gastos prorrateados (${_fmtPct(c.sumPct)}% sobre su venta): −${_moneyK(e.gastoK)}\n· **Resultado: ${_moneyK(e.resultadoK)}** — ${_fmtPct(e.resultadoPct)}% de su venta${share != null ? `\n\nAporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\nHasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${simAsk ? ` ${simAsk}` : ""}`,
-      { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), ...(otros.length ? [`P&L de ${otros[0].nombre}`] : [])], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
+      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}.\n\n` : ""}**El P&L de ${e.nombre}: te deja ${_moneyK(e.resultadoK)} al año** — el ${_fmtPct(e.resultadoPct)}% de su venta (${_moneyK(e.ventaK)}), con tus gastos prorrateados (${_fmtPct(c.sumPct)}%).${share != null ? ` Aporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\nHasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${simAsk ? ` ${simAsk}` : ""}`,
+      { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), ...(otros.length ? [`P&L de ${otros[0].nombre}`] : [])], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje, tablaM: _tablaCascada(c, e) } }
     );
   }
   if (a === "tabla_eje") {
@@ -1008,18 +1053,29 @@ export function composePnl(pi, ctx = null, state = {}) {
     const resto = rows.length > MAXN ? rows.slice(MAXN - 1) : [];
     const restoK = resto.reduce((acc, x) => acc + x.resultadoK, 0);
     _scope = { dimension: eje, entity: null, entities: null };
-    const lineas = listadas.map((x) => `· ${x.nombre}: venta ${_moneyK(x.ventaK)} − gastos ${_moneyK(x.gastoK)} → resultado ${_moneyK(x.resultadoK)} (${_fmtPct(x.resultadoPct)}% de su venta)`);
-    if (resto.length) lineas.push(`· …y ${resto.length} más que suman ${_moneyK(restoK)} de resultado (el detalle completo está en la cara Resultado de la Mesa).`);
     const negs = rows.filter((x) => x.resultadoK < 0);
+    const restoVK = resto.reduce((acc, x) => acc + x.ventaK, 0), restoGK = resto.reduce((acc, x) => acc + x.gastoK, 0);
+    // HISTORIA PRIMERO: el texto sintetiza (quién encabeza · Σ == negocio · negativos); las filas van en la tabla.
+    const tEje = {
+      titulo: `Tu P&L por ${lbl.sing} — resultado después de gastos`, head: _cap(lbl.sing),
+      cols: ["Venta", "Gastos", "Resultado", "Res. %"],
+      rows: [
+        ...listadas.map((x) => ({ label: x.nombre, values: [_moneyK(x.ventaK), `− ${_moneyK(x.gastoK)}`, _moneyK(x.resultadoK), `${_fmtPct(x.resultadoPct)}%`], negativo: x.resultadoK < 0 })),
+        ...(resto.length ? [{ label: `…y ${resto.length} más`, values: [_moneyK(restoVK), `− ${_moneyK(restoGK)}`, _moneyK(restoK), "—"] }] : []),
+        { label: "Total", values: [_moneyK(c.ingresoK), `− ${_moneyK(c.totalGastosK)}`, _moneyK(c.resultadoK), `${_fmtPct(c.resultadoPct)}%`], strong: true },
+      ],
+      nota: `gastos = tus % declarados (${_fmtPct(c.sumPct)}) prorrateados por la venta de cada ${lbl.sing} · la suma cierra exacto con el negocio`,
+    };
     const bol = [
       _fMoneyK("Resultado del negocio", c.resultadoK, { mandatory: true }), _fPct("Gastos · total", c.sumPct),
+      _fMoneyK("Venta · negocio", c.ingresoK), _fMoneyK("Gastos declarados", c.totalGastosK), _fPct("Resultado %", c.resultadoPct),
       ...listadas.flatMap((x) => [_fMoneyK(`Venta · ${x.nombre}`, x.ventaK), _fMoneyK(`Gastos · ${x.nombre}`, x.gastoK), _fMoneyK(`Resultado · ${x.nombre}`, x.resultadoK), _fPct(`Resultado % · ${x.nombre}`, x.resultadoPct)]),
-      ...(resto.length ? [_fMoneyK("Resto · resultado", restoK)] : []),
+      ...(resto.length ? [_fMoneyK("Resto · resultado", restoK), _fMoneyK("Resto · venta", restoVK), _fMoneyK("Resto · gastos", restoGK)] : []),
     ];
     return _resp(
-      `${pi._retoma ? "Retomo tu P&L donde lo dejamos. " : ""}Tu P&L por ${lbl.sing} — el mismo negocio repartido en ${rows.length} ${lbl.plur}, con tus gastos declarados (${_fmtPct(c.sumPct)}% sobre la venta de cada ${lbl.sing}):\n\n${lineas.join("\n")}\n\nSus ${rows.length} ${lbl.plur} suman exacto el resultado del negocio: ${_moneyK(c.resultadoK)}.${negs.length ? ` Ojo: ${negs.map((x) => x.nombre).join(" y ")} queda${negs.length > 1 ? "n" : ""} en negativo con tus supuestos.` : ""} ¿Profundizo en ${eje === _BASE_EJE ? "una cuenta" : `una ${lbl.sing}`} — «P&L de ${rows[0].nombre}» — o lo vemos por otro eje?`,
+      `${pi._retoma ? "Retomo tu P&L donde lo dejamos. " : ""}Tu P&L por ${lbl.sing} — el mismo negocio repartido en ${rows.length} ${lbl.plur}, con tus gastos declarados (${_fmtPct(c.sumPct)}% sobre la venta de cada ${lbl.sing}). Sus ${rows.length} ${lbl.plur} suman exacto el resultado del negocio: ${_moneyK(c.resultadoK)}.\n\n${rows[0].nombre} encabeza: deja ${_moneyK(rows[0].resultadoK)}, el ${_fmtPct(rows[0].resultadoPct)}% de su venta.${negs.length ? ` Ojo: ${negs.map((x) => x.nombre).join(" y ")} queda${negs.length > 1 ? "n" : ""} en negativo con tus supuestos.` : ""} ¿Profundizo en ${eje === _BASE_EJE ? "una cuenta" : `una ${lbl.sing}`} — «P&L de ${rows[0].nombre}» — o lo vemos por otro eje?`,
       { route: "pnl_reading", suggestions: [`P&L de ${rows[0].nombre}`, ...pnlEjesDisponibles().filter((x) => x.eje !== eje).slice(0, 2).map((x) => `P&L por ${x.label.sing}`)], bol,
-        ev: { dimension: eje, entityList: { entities: listadas.filter((x) => x.nombre !== "—").map((x) => x.nombre), dimension: eje } } }
+        ev: { dimension: eje, entityList: { entities: listadas.filter((x) => x.nombre !== "—").map((x) => x.nombre), dimension: eje }, tablaM: tEje } }
     );
   }
   // ── PROYECCIÓN DE VENTA (owner 2026-07-25): «si vendiera $X, ¿cuánto me queda con estos gastos?» — el REAL
@@ -1155,7 +1211,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     // la lectura y el sello comparten _analisisResultado (una verdad · el gate verifica byte-igual)
     const an = _analisisResultado(scenario);
     return _resp(an.text,
-      { route: "pnl_reading", suggestions: [pnlSimAsk(an.top), "¿Qué línea pesa más en el resultado?"], bol: an.bol, ev: { dimension: _BASE_EJE } }
+      { route: "pnl_reading", suggestions: [pnlSimAsk(an.top), "¿Qué línea pesa más en el resultado?"], bol: an.bol, ev: { dimension: _BASE_EJE, tablaM: an.tablaM } }
     );
   }
   if (a === "peso") {
@@ -1350,7 +1406,7 @@ export function pnlExplain(last, ctx = null, state = {}) {
   return _resp(
     `Te lo cuento simple. ${e ? e.nombre : "El negocio"} vendió ${_moneyK(r0.ventaK)} en el año. De esa venta, ${_moneyK(r0.costoK)} se fueron en el costo de los productos y ${_moneyK(r0.cargaK)} en condiciones comerciales al canal; quedaron ${_moneyK(r0.contribK)} — hasta ahí, todo es dato de tu cartera. Después se restan los gastos que declaraste tú (${_fmtPct(c.sumPct)}% de la venta: ${_moneyK(r0.gastoK)}) y quedan ${_moneyK(r0.resultadoK)}. Eso es el resultado: lo que ${e ? e.nombre : "el negocio"} te deja al año.\n\nLa parte firme llega hasta la contribución; los gastos son los porcentajes que me diste — si cambias un porcentaje, el resultado cambia contigo.${simAsk ? ` ${simAsk}` : ""}`,
     { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), e ? `P&L de ${e.nombre}` : "¿Qué línea pesa más en el resultado?"], bol,
-      ev: e ? { entidad: e.nombre, entityType: eje || _BASE_EJE, dimension: eje || _BASE_EJE } : { dimension: _BASE_EJE } }
+      ev: e ? { entidad: e.nombre, entityType: eje || _BASE_EJE, dimension: eje || _BASE_EJE, tablaM: _tablaCascada(c, e) } : { dimension: _BASE_EJE, tablaM: _tablaCascada(c) } }
   );
 }
 

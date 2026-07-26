@@ -219,8 +219,9 @@ console.log("[13] LECTURAS SCOPED · abren con las cifras del alcance · guard l
 const _cCli = buildPnlCascade("bonanza"), _cFam = buildPnlCascade("bonanza", null, { dimension: "familia" });
 const eFal = _cCli.porEntidad.find((x) => x.nombre === "Falabella"), eCP = _cFam.porEntidad.find((x) => x.nombre === "Cuidado Personal");
 const rScF = go("P&L de Falabella", false);
-ok(rScF && rScF.text.startsWith(`El P&L de Falabella con tu estructura declarada:\n· Ingreso: ${_moneyK(eFal.ventaK)}`), "«P&L de Falabella» abre con SU ingreso, una cifra por línea (regla de formato)", rScF && rScF.text.slice(0, 80));
-ok(rScF.text.includes(_moneyK(eFal.resultadoK)) && rScF.text.includes(_moneyK(eFal.contribK)) && rScF.text.includes(_moneyK(eFal.cargaK)), "la cascada scoped cita venta/contribución/carga DE Falabella (costo derivado)");
+ok(rScF && rScF.text.startsWith(`**El P&L de Falabella: te deja ${_moneyK(eFal.resultadoK)} al año**`), "«P&L de Falabella» abre con LA HISTORIA: qué te deja (historia primero, owner 2026-07-26)", rScF && rScF.text.slice(0, 80));
+const tScF = rScF.evidence.tablaM;
+ok(tScF && tScF.rows.some((r) => r.label === "Ingreso" && r.values[0] === _moneyK(eFal.ventaK)) && tScF.rows.some((r) => r.label === "Contribución" && r.values[0] === _moneyK(eFal.contribK)) && tScF.rows.some((r) => r.label === "Carga comercial" && r.values[0] === `− ${_moneyK(eFal.cargaK)}`), "la cascada scoped viaja EN LA TABLA con venta/contribución/carga DE Falabella (costo derivado)");
 const rScCP = go("dame el P&L de Cuidado Personal", false);
 ok(rScCP && rScCP.text.includes(`El P&L de Cuidado Personal`) && rScCP.text.includes(_moneyK(eCP.resultadoK)), "«P&L de Cuidado Personal» (familia) responde con las cifras del grupo");
 const rEntCP = go("¿Cuánto deja Cuidado Personal después de gastos?", false);
@@ -228,10 +229,10 @@ ok(rEntCP && rEntCP.text.startsWith(`Después de gastos, Cuidado Personal deja $
 const rMak = go("P&L de Makita", false);
 ok(rMak && /no lo puedo armar con rigor/.test(rMak.text) && /ser[ií]a inventar/.test(rMak.text) && !/prorrateados .*=/.test(rMak.text), "entidad del contrato SIN venta desglosada (Makita) → honesto, JAMÁS prorratea");
 const rTabF = go("P&L por familia", false);
-ok(rTabF && _cFam.porEntidad.every((x) => rTabF.text.includes(x.nombre)) && rTabF.text.includes(_moneyK(_cFam.resultadoK)), "la tabla por familia lista TODAS las familias y ancla el resultado del negocio");
+ok(rTabF && _cFam.porEntidad.every((x) => rTabF.evidence.tablaM.rows.some((r) => r.label === x.nombre)) && rTabF.text.includes(_moneyK(_cFam.resultadoK)), "el P&L por familia lista TODAS las familias EN LA TABLA y el texto ancla el resultado del negocio");
 ok(/suman exacto el resultado del negocio/.test(rTabF.text), "la tabla DECLARA la coherencia Σ == negocio");
 const rTabC = go("P&L por cliente", false);
-ok(rTabC && /…y \d+ más que suman/.test(rTabC.text), "la tabla por cliente (13) recorta honesto: top + resto que SUMA exacto");
+ok(rTabC && rTabC.evidence.tablaM.rows.some((r) => /^…y \d+ más$/.test(r.label)), "la tabla por cliente (13) recorta honesto: top + fila resto que SUMA exacto");
 const _restoFig = rTabC.evidence.boleta.find((f) => f.label === "Resto · resultado");
 ok(!!_restoFig, "el resto recortado viaja en boleta (toda cifra autorizada)");
 for (const [tag, r] of [["scoped Falabella", rScF], ["scoped CP", rScCP], ["tabla familia", rTabF], ["tabla cliente", rTabC], ["tabla marca", go("P&L por marca", false)],
@@ -478,7 +479,7 @@ clearPnl(); resetPnlDraft();
 console.log("[21] PREGUNTAS CLAVE DEL INICIO · la historia del P&L + ADI guía los supuestos en el chat");
 clearPnl(); resetPnlDraft();
 const rPd0 = go("¿dónde estoy perdiendo dinero?", false);
-ok(rPd0 && /Te muestro dónde está el dinero/.test(rPd0.text) && /me falta un dato tuyo: tus gastos/.test(rPd0.text) && /\n· Venta del año: /.test(rPd0.text), "sin P&L: la historia LLANA una cifra por línea + la GUÍA de supuestos", rPd0 && rPd0.text.slice(0, 80));
+ok(rPd0 && /Te muestro dónde está el dinero/.test(rPd0.text) && /me falta un dato tuyo: tus gastos/.test(rPd0.text) && rPd0.evidence.tablaM && rPd0.evidence.tablaM.rows[0].label === "Venta del año", "sin P&L: la historia LLANA + la cuenta parcial EN LA TABLA + la GUÍA de supuestos", rPd0 && rPd0.text.slice(0, 80));
 ok(pnlDraft() && pnlDraft().stage === "gastos", "…y el flujo guiado queda ABIERTO (el próximo mensaje con gastos fluye)");
 const rPd1 = go("administrativos, logística 3% y promotores 2%");
 ok(rPd1 && /Anotado/.test(rPd1.text), "los gastos nombrados tras la pregunta clave SIGUEN el flujo (guía real)");
@@ -487,11 +488,11 @@ ok(rPd2 && /¿Lo sello\?/.test(rPd2.text), "…% completados → propuesta de se
 ok(/Sellado/.test((go("sí") || {}).text || ""), "…y sella: la conversación de la pregunta clave termina en P&L armado");
 const rPd3 = go("¿dónde estoy perdiendo dinero?", false);
 const cPd = buildPnlCascade("bonanza");
-ok(rPd3 && /^Tu dinero, de punta a punta/.test(rPd3.text) && rPd3.text.includes(_moneyK(cPd.resultadoK)) && rPd3.text.includes(_moneyK(cPd.ingresoK)), "con P&L: la historia de punta a punta con el resultado exacto");
+ok(rPd3 && /^\*\*Te quedan /.test(rPd3.text) && rPd3.text.includes(_moneyK(cPd.resultadoK)) && rPd3.evidence.tablaM.rows.some((r) => r.label === "Ingreso" && r.values[0] === _moneyK(cPd.ingresoK)), "con P&L: la historia abre con lo que TE QUEDA y la cascada completa va en la tabla");
 ok(guardAgainstBoleta(rPd3.text, rPd3.evidence.boleta).ok, "guard pregunta clave: cifras == boleta");
 for (const s2 of (rPd3.suggestions || [])) { const cs5 = CF(s2, false, null); ok(!!cs5, `chip de la historia reclama: «${s2}»`); }
 const rChip1 = AC({ schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "perdiendo" } }, {}, { scenario: "bonanza" });
-ok(rChip1 && /^Tu dinero, de punta a punta/.test(rChip1.text), "chip «¿Cómo viene el P&L de mi negocio?» (enlatado) → la historia");
+ok(rChip1 && /^\*\*Te quedan /.test(rChip1.text), "chip «¿Cómo viene el P&L de mi negocio?» (enlatado) → la historia");
 const rChip2 = AC({ schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "resultado" } }, {}, { scenario: "bonanza" });
 ok(rChip2 && /^Tu resultado comercial:/.test(rChip2.text), "chip «¿Cuánto me queda después de gastos?» (enlatado) → el resultado");
 const rChipD = AC({ schemaVersion: 1, scenario: "actual", filters: {}, operation: "diagnose", dimension: "cliente", metric: "contribucion" }, {}, { scenario: "bonanza" });
@@ -582,7 +583,7 @@ const rSello24 = go("sí");
 const rRes24 = composePnl({ action: "resultado" }, null, { scenario: "bonanza" });
 ok(rSello24 && /^Sellado — /.test(rSello24.text) && rSello24.text.split("\n")[0].length < 160, "acuse de UNA línea al inicio («Sellado — …»)", rSello24 && rSello24.text.split("\n")[0]);
 ok(rSello24 && rSello24.text.endsWith(rRes24.text), "…y de ahí EL ANÁLISIS COMPLETO, byte-igual a «¿cómo queda mi resultado comercial?» (sin pedir «muéstramelo» aparte)");
-ok(/La cascada completa sobre el dato real:/.test(rSello24.text) && /La línea que más pesa: /.test(rSello24.text) && /¿Qué pasa si bajas /.test(rSello24.text), "el sello trae cascada + línea que más pesa + simulación sugerida — el contrato entero");
+ok(rSello24.evidence.tablaM && rSello24.evidence.tablaM.rows.some((r) => r.label === "Resultado comercial" && r.strong) && /La línea que más pesa: /.test(rSello24.text) && /¿Qué pasa si bajas /.test(rSello24.text), "el sello trae la cascada EN LA TABLA + línea que más pesa + simulación sugerida — el contrato entero");
 ok(/Hasta la contribución es dato probado; los gastos son supuestos declarados/.test(rSello24.text), "la graduación (probado vs supuesto declarado) viaja en el propio sello");
 ok(guardAgainstBoleta(rSello24.text, rSello24.evidence.boleta).ok, "guard sello: cifras == boleta", guardAgainstBoleta(rSello24.text, rSello24.evidence.boleta).reason);
 ok(rSello24.evidence.followup === false && rSello24.evidence.pnl === true, "el sello emite evidencia ACCIONABLE (threadea el hilo como toda lectura)");
@@ -653,6 +654,51 @@ let sucios26 = 0;
 for (const [tag26, t26] of [["sello", rSello24.text], ...(rSello24.suggestions || []).map((s) => ["sello·sug", s])])
   if (typeof t26 === "string" && BANNED.test(t26)) { sucios26++; console.log(`    ✗ registro roto en ${tag26}: «${t26.match(BANNED)[0]}»`); }
 ok(sucios26 === 0, "registro ejecutivo limpio en el sello nuevo");
+clearPnl(); resetPnlDraft();
+
+console.log("[27] HISTORIA PRIMERO (owner 2026-07-26: 'ADI cuenta la historia; Sentrix muestra el dato') · la cascada viaja en la TABLA");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]); resetPnlDraft();
+const c27 = buildPnlCascade("bonanza");
+const r27res = composePnl({ action: "resultado" }, null, { scenario: "bonanza" });
+const r27per = composePnl({ action: "perdiendo" }, null, { scenario: "bonanza" });
+const r27sc = composePnl({ action: "resultado_scoped", entidad: "Falabella", eje: "cliente", covered: true }, null, { scenario: "bonanza" });
+const r27tab = composePnl({ action: "tabla_eje", eje: "familia" }, null, { scenario: "bonanza" });
+const r27ex = pnlExplain({ pnl: true }, null, { scenario: "bonanza" });
+// (a) el TEXTO ya no enumera la cascada — narra qué significa y decide (regla madre)
+for (const [tag27, r27] of [["resultado", r27res], ["perdiendo", r27per], ["scoped", r27sc]])
+  ok(!/\n· (Ingreso|Venta del año):/.test(r27.text), `«${tag27}»: la enumeración de la cascada SALIÓ del texto (historia, no dato)`);
+ok(/queda contigo después del costo, la carga comercial y tus gastos declarados/.test(r27res.text), "«resultado» narra QUÉ SIGNIFICA la cifra (asesor, en llano)");
+ok(/^\*\*Te quedan /.test(r27per.text) && /¿Bajamos a un frente\?/.test(r27per.text), "«perdiendo» abre con lo que te queda y cierra en decisión");
+// (b) la cascada completa viaja ESTRUCTURADA y el despachador la manda a la UI (tabla_matriz)
+for (const [tag27, r27] of [["resultado", r27res], ["perdiendo", r27per], ["scoped", r27sc], ["tabla_eje", r27tab], ["explica", r27ex]]) {
+  const cs27 = chartForEvidence(r27.evidence);
+  ok(!!cs27 && cs27.tipo === "tabla_matriz" && cs27.tabla === r27.evidence.tablaM, `«${tag27}» despacha SU tabla a la UI (tabla_matriz)`);
+}
+const tm27 = r27res.evidence.tablaM;
+ok(tm27.head === "Concepto" && tm27.rows.map((r) => r.label).join("|") === `Ingreso|Costo|Margen bruto|Carga comercial|Contribución|${c27.lines.map((l) => l.nombre).join("|")}|Resultado comercial|Resultado sobre venta`, "la tabla trae la cascada ENTERA en orden (una verdad)", tm27.rows.map((r) => r.label).join("|"));
+ok(tm27.rows.find((r) => r.label === "Ingreso").values[0] === _moneyK(c27.ingresoK) && tm27.rows.find((r) => r.label === "Resultado comercial").values[0] === _moneyK(c27.resultadoK) && tm27.rows.find((r) => r.label === "Resultado comercial").strong === true, "las celdas citan la única verdad · Resultado destacado");
+ok(c27.lines.every((l) => { const r = tm27.rows.find((x) => x.label === l.nombre); return r && /^supuesto (declarado|del perfil) · \d/.test(r.nota || ""); }), "GRADUACIÓN en la tabla: cada gasto lleva su nota de supuesto (mismo lenguaje de la cara)");
+ok(typeof tm27.nota === "string" && /probado hasta la contribución/.test(tm27.nota) && /cierra exacto/.test(tm27.nota), "la tabla declara su graduación al pie");
+// (c) el sello viaja con LA MISMA tabla (una verdad con la lectura)
+ok(JSON.stringify(rSello24.evidence.tablaM ? Object.keys(rSello24.evidence.tablaM) : null) === JSON.stringify(Object.keys(tm27)), "el sello lleva la misma estructura de tabla que la lectura");
+// (d) tabla por eje: filas EN LA TABLA con Total == negocio (Σ exacto visible)
+const tE27 = r27tab.evidence.tablaM;
+const tot27 = tE27.rows.find((r) => r.label === "Total");
+ok(tE27.head === "Familia" && tE27.cols.join("|") === "Venta|Gastos|Resultado|Res. %" && tot27 && tot27.strong && tot27.values[2] === _moneyK(c27.resultadoK), "el cuadro por familia: columnas claras + Total == resultado del negocio");
+// (e) la cascada scoped ancla las cifras DE la entidad (mismas anclas del motor)
+const eF27 = buildPnlCascade("bonanza", null, { dimension: "cliente" }).porEntidad.find((x) => x.nombre === "Falabella");
+ok(r27sc.evidence.tablaM.rows.find((r) => r.label === "Resultado comercial").values[0] === _moneyK(eF27.resultadoK), "la tabla scoped == la cifra de la entidad (una verdad)");
+// (f) el mes a mes (mejora 7) queda intacto: una tablaM sin campos nuevos despacha igual
+ok(chartForEvidence({ tablaM: { titulo: "Mes a mes", cols: ["2026"], rows: [{ label: "Ene", values: ["$1K"] }] } }).tipo === "tabla_matriz", "la tabla matriz clásica (mes a mes) despacha byte-igual (extensión aditiva)");
+// (g) registro ejecutivo en lo nuevo (textos + labels y notas de las tablas)
+let sucios27 = 0;
+const scan27 = (tag, t) => { if (typeof t === "string" && BANNED.test(t)) { sucios27++; console.log(`    ✗ registro roto en ${tag}: «${t.match(BANNED)[0]}»`); } };
+for (const [tag27, r27] of [["resultado", r27res], ["perdiendo", r27per], ["scoped", r27sc], ["tabla_eje", r27tab]]) {
+  scan27(tag27, r27.text);
+  const t27 = r27.evidence.tablaM;
+  if (t27) { scan27(`${tag27}·titulo`, t27.titulo); scan27(`${tag27}·nota`, t27.nota); for (const r of t27.rows) { scan27(`${tag27}·row`, r.label); scan27(`${tag27}·rownota`, r.nota || ""); } }
+}
+ok(sucios27 === 0, "registro ejecutivo limpio en la historia y las tablas");
 clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

@@ -356,7 +356,11 @@ function MiniTablaComparada({ tabla }) {
 
 /* ── TABLA MATRIZ (mejora 7 · 2026-07-26): filas × N columnas — meses × entidades (venta por mes y por cliente),
  * o mes a mes con Año anterior/Presupuesto. Columnas dinámicas; ancho scrollea horizontal (mismo criterio que el
- * cuadro ancho). La fila Total va destacada. La data viene ESTRUCTURADA de la evidencia (una verdad). ── */
+ * cuadro ancho). La fila Total va destacada. La data viene ESTRUCTURADA de la evidencia (una verdad).
+ * EXTENSIÓN P&L (owner 2026-07-26 "ADI cuenta la historia; Sentrix muestra el dato"): la cascada y el cuadro por
+ * eje del P&L viajan por esta MISMA tabla — campos ADITIVOS opcionales (el mes a mes queda byte-igual):
+ * `head` = etiqueta de la primera columna (default "Mes") · `nota` por fila = graduación del supuesto (chip
+ * ámbar, el mismo lenguaje de la cara Resultado) · `negativo` por fila = valores en rojo (cordura visible). ── */
 function MiniTablaMatriz({ tabla }) {
   const cols = (tabla && tabla.cols) || [];
   const rows = (tabla && tabla.rows) || [];
@@ -365,17 +369,20 @@ function MiniTablaMatriz({ tabla }) {
     <div style={{ overflowX: "auto" }}>
       <div style={{ minWidth: cols.length > 3 ? 120 + cols.length * 84 : 0 }}>
         <div style={{ display: "grid", gridTemplateColumns: grid, gap: 8, padding: "2px 2px 7px", borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text }}>Mes</span>
+          <span style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text }}>{(tabla && tabla.head) || "Mes"}</span>
           {cols.map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={h}>{h}</span>)}
         </div>
         {rows.map((r, i) => (
           <div key={`${r.label}-${i}`} style={{ display: "grid", gridTemplateColumns: grid, gap: 8, alignItems: "baseline",
             padding: "6px 2px", borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
             background: r.strong ? "rgba(47,184,218,0.04)" : "transparent" }}>
-            <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: r.strong ? 700 : 400, color: r.strong ? C.text : C.textSub }}>{r.label}</span>
+            <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: r.strong ? 700 : 400, color: r.strong ? C.text : C.textSub }}>
+              {r.label}
+              {r.nota ? <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.4px", color: C.amber, textTransform: "uppercase", marginLeft: 6, whiteSpace: "nowrap" }}>{r.nota}</span> : null}
+            </span>
             {(r.values || []).map((v, j) => (
               <span key={j} style={{ textAlign: "right", fontFamily: MONO, fontSize: 12, fontVariantNumeric: "tabular-nums",
-                fontWeight: r.strong ? 700 : 400, color: r.strong ? C.text : C.textSub }}>{v}</span>
+                fontWeight: r.strong ? 700 : 400, color: r.negativo ? C.red : r.strong ? C.text : C.textSub }}>{v}</span>
             ))}
           </div>
         ))}
