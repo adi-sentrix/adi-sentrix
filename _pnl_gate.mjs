@@ -403,5 +403,29 @@ scan2("caraFoco:lectura", mrFoco.lectura);
 ok(sucios2 === 0, "registro ejecutivo limpio en todo lo nuevo del pase 2");
 clearPnl(); resetPnlDraft();
 
+console.log("[18] SEGUIMIENTO P&L-aware · explica simple · decisiones · real-o-supuesto · cambia la venta");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+const rBase18 = go("P&L de Falabella", false);
+const _eF18 = buildPnlCascade("bonanza").porEntidad.find((x) => x.nombre === "Falabella");
+const rEx18 = AC(S({ turn_type: "followup_explain" }), { lastEvidence: rBase18.evidence }, { scenario: "bonanza" });
+ok(rEx18 && /^Te lo cuento simple\. Falabella vendió /.test(rEx18.text) && rEx18.text.includes(_moneyK(_eF18.resultadoK)), "«explícame esto más sencillo» sobre el P&L → LA MISMA cascada en llano (no el porqué de margen)", rEx18 && rEx18.text.slice(0, 80));
+ok(/La parte firme llega hasta la contribución/.test(rEx18.text) && /los porcentajes que me diste/.test(rEx18.text), "el explica-simple mantiene la graduación (firme vs declarado) sin jerga");
+ok(guardAgainstBoleta(rEx18.text, rEx18.evidence.boleta).ok, "guard explica-simple: cifras == boleta");
+const rRec18 = AC(S({ turn_type: "followup_recommendation" }), { lastEvidence: rBase18.evidence }, { scenario: "bonanza" });
+ok(rRec18 && /las decisiones a la mano/.test(rRec18.text) && !/No tengo una lectura reciente/.test(rRec18.text), "«¿qué decisiones tomo?» sobre el P&L → decisiones DEL P&L (jamás needLast)", rRec18 && rRec18.text.slice(0, 80));
+ok(/1\. Revisar la línea que más pesa/.test(rRec18.text) && /2\. Decidir dónde empujar la venta/.test(rRec18.text) && /3\. Fijar una meta concreta/.test(rRec18.text), "las 3 decisiones: línea top · dónde empujar · meta");
+ok(guardAgainstBoleta(rRec18.text, rRec18.evidence.boleta).ok, "guard decisiones: cifras == boleta");
+for (const s2 of (rRec18.suggestions || [])) {
+  const cs4 = CF(s2, false, null);
+  ok(!!cs4 && cs4.turn_type === "pnl_setup", `chip de decisiones reclama: «${s2}»`);
+}
+const rMq18 = AC(S({ turn_type: "meta_question", meta: "real_o_supuesto" }), { lastEvidence: rBase18.evidence }, { scenario: "bonanza" });
+ok(rMq18 && /conviven los dos/.test(rMq18.text) && /porcentajes que declaraste/.test(rMq18.text) && /firme hasta la contribución/.test(rMq18.text), "«¿es real o supuesto?» sobre el P&L → respuesta GRADUADA (ni 'es real' ni 'es supuesto' secos)");
+const rMq18b = AC(S({ turn_type: "meta_question", meta: "real_o_supuesto" }), {}, { scenario: "bonanza" });
+ok(rMq18b && /Es dato real de tu cartera/.test(rMq18b.text), "sin hilo P&L el meta clásico queda INTACTO");
+const rCv18 = go("cambia la venta de Falabella a $25M");
+ok(rCv18 && /¿Qué significa\?/.test(rCv18.text) && /Hoy Falabella vende/.test(rCv18.text), "«cambia la venta de X a $25M» → la proyección (cambiar un dato = usar otra venta)");
+clearPnl(); resetPnlDraft();
+
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

@@ -355,7 +355,8 @@ export function detectPnlIntent(q) {
   // condicional/pregunta de venta + MONTO ($ · sin %) → el P&L real vs proyectado, margen/carga constantes.
   if (_lines.length && /\b(vend\w+|venta)\b/i.test(t) && !/\d\s*%/.test(t)
     && !/\bcu[aá]nto\s+(?:tengo\s+que\s+|debo\s+|necesito\s+|tendr[ií]a\s+que\s+|hay\s+que\s+)?vender\b/i.test(t)
-    && (_SIMQ_RE.test(t) || /\bcu[aá]nto\s+(?:me\s+)?(?:queda(?:r[ií]a)?|dejar[ií]a)\b/i.test(t) || /\bcon\s+una\s+venta\s+de\b/i.test(t))) {
+    && (_SIMQ_RE.test(t) || /\bcu[aá]nto\s+(?:me\s+)?(?:queda(?:r[ií]a)?|dejar[ií]a)\b/i.test(t) || /\bcon\s+una\s+venta\s+de\b/i.test(t)
+      || /\b(?:cambi[aá]|us[ae]|pon(?:é|e|gamos)?|prueb[aá])\w*\s+(?:una\s+|la\s+|otra\s+)?venta\b/i.test(t))) {
     const vK = _parseTargetK(t);
     if (vK && vK > 0) {
       const pi2 = { action: "proyeccion_venta", ventaK: vK };
@@ -1060,4 +1061,63 @@ export function composePnl(pi, ctx = null, state = {}) {
   return _resp(_lines.length
     ? `Seguimos con tu P&L cuando quieras: «¿cómo queda mi resultado comercial?» · «cambia una línea a otro %» · «olvida mi P&L».`
     : `Todavía no armamos tu P&L comercial. ¿Armamos tu P&L ahora?`);
+}
+
+/* ── SEGUIMIENTO CONVERSACIONAL DEL P&L (owner 2026-07-25: "explícame esto más sencillo · dime qué decisiones
+ * tomar — el LLM debe entender perfecto y responder perfecto") · los resolvers estándar (followup_explain ·
+ * followup_recommendation · meta real-o-supuesto) se vuelven P&L-aware vía evidence.pnl: ADI cuenta LA MISMA
+ * historia — más simple o en modo decisión — con las mismas cifras de la boleta, jamás el relleno genérico. ── */
+
+// «explícame esto más sencillo» sobre una lectura P&L → la cascada contada en llano (alcance de la evidencia/hilo)
+export function pnlExplain(last, ctx = null, state = {}) {
+  if (!_lines.length) return null;
+  const scenario = (state && state.scenario) || "bonanza";
+  const nombre = (last && last.entidad) || (_scope && _scope.entity) || null;
+  const eje = (last && last.entityType && ENTITIES[last.entityType]) ? last.entityType
+    : (_scope && _scope.entity && ENTITIES[_scope.dimension]) ? _scope.dimension : null;
+  const c = buildPnlCascade(scenario, null, nombre && eje ? { dimension: eje } : null);
+  const e = nombre ? c.porEntidad.find((x) => _norm(x.nombre) === _norm(nombre)) : null;
+  const r0 = e || { nombre: "el negocio", ventaK: c.ingresoK, costoK: c.costoK, cargaK: c.cargaK, contribK: c.contribK, gastoK: c.totalGastosK, resultadoK: c.resultadoK };
+  const quien = e ? e.nombre : "el negocio";
+  const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+  const simT = top ? _r1(Math.max(top.pct / 2, top.pct - 1)) : null;
+  const simAsk = top ? (e ? `¿Qué pasa si bajas ${top.nombre.toLowerCase()} a ${_fmtPct(simT)}% en ${e.nombre}?` : pnlSimAsk(top)) : null;
+  const bol = [
+    _fMoneyK(`Venta · ${quien}`, r0.ventaK), _fMoneyK(`Costo · ${quien}`, r0.costoK), _fMoneyK(`Carga · ${quien}`, r0.cargaK),
+    _fMoneyK(`Contribución · ${quien}`, r0.contribK), _fMoneyK(`Gastos · ${quien}`, r0.gastoK),
+    _fMoneyK(`Resultado · ${quien}`, r0.resultadoK, { mandatory: true }), _fPct("Gastos · total", c.sumPct),
+    ...(top ? [_gPct(simT)] : []),
+  ];
+  return _resp(
+    `Te lo cuento simple. ${e ? e.nombre : "El negocio"} vendió ${_moneyK(r0.ventaK)} en el año. De esa venta, ${_moneyK(r0.costoK)} se fueron en el costo de los productos y ${_moneyK(r0.cargaK)} en condiciones comerciales al canal; quedaron ${_moneyK(r0.contribK)} — hasta ahí, todo es dato de tu cartera. Después se restan los gastos que declaraste tú (${_fmtPct(c.sumPct)}% de la venta: ${_moneyK(r0.gastoK)}) y quedan ${_moneyK(r0.resultadoK)}. Eso es el resultado: lo que ${e ? e.nombre : "el negocio"} te deja al año.\n\nLa parte firme llega hasta la contribución; los gastos son los porcentajes que me diste — si cambias un porcentaje, el resultado cambia contigo.${simAsk ? ` ${simAsk}` : ""}`,
+    { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), e ? `P&L de ${e.nombre}` : "¿Qué línea pesa más en el resultado?"], bol }
+  );
+}
+
+// «¿qué decisiones tomo?» sobre una lectura P&L → las decisiones a la mano (línea top · dónde empujar · meta)
+export function pnlRecommend(last, ctx = null, state = {}) {
+  if (!_lines.length) return null;
+  const scenario = (state && state.scenario) || "bonanza";
+  const c = buildPnlCascade(scenario);
+  const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+  if (!top) return null;
+  const simT = _r1(Math.max(top.pct / 2, top.pct - 1));
+  const metaM = c.resultadoK > 0 ? Math.max(1, Math.ceil((c.resultadoK * 1.1) / 1000)) : null;
+  const primero = pnlEjesDisponibles()[0];
+  const neg = c.resultadoK < 0;
+  const bol = [
+    _fMoneyK(`Gasto · ${top.nombre}`, top.usdK, { mandatory: true }), _fPct(`Línea · ${top.nombre}`, top.pct),
+    _fMoneyK("Resultado comercial", c.resultadoK), _fPct("Gastos · total", c.sumPct), _gPct(simT),
+    ...(metaM ? [fig("Meta sugerida", `$${metaM}M`, { unit: "money", raw: metaM * 1e6, source: "computed", gancho: true, context: "P&L comercial" })] : []),
+  ];
+  const simAsk = `¿Qué pasa si bajas ${top.nombre.toLowerCase()} a ${_fmtPct(simT)}%?`;
+  const d1 = `1. Revisar la línea que más pesa: ${top.nombre.toLowerCase()} se lleva ${_moneyK(top.usdK)} al año (${_fmtPct(top.pct)}% de la venta). Si el porcentaje real es otro, actualizarlo deja la cuenta honesta — y si puedes bajarlo, el resultado sube de inmediato. Prueba: «${simAsk}»`;
+  const d2 = `2. Decidir dónde empujar la venta: las cuentas no dejan lo mismo después de gastos — el cuadro por ${primero.label.sing} muestra quién rinde más sobre su venta. «P&L por ${primero.label.sing}»`;
+  const d3 = metaM
+    ? `3. Fijar una meta concreta: dime cuánto quieres que quede y te digo qué venta se necesita. «¿Cuánto tengo que vender para ganar $${metaM}M después de gastos?»`
+    : `3. Revisar los porcentajes completos antes de empujar la venta: con el resultado en negativo, cada venta adicional entra igual de cargada. «¿Qué línea pesa más en el resultado?»`;
+  return _resp(
+    `${neg ? `Primero lo primero: con tus porcentajes el resultado está en negativo (${_moneyK(c.resultadoK)}) — la decisión inicial es revisar las líneas, no la venta.\n\n` : ""}Con tu P&L a la vista, las decisiones a la mano:\n\n${d1}\n\n${d2}\n\n${d3}`,
+    { route: "pnl_reading", suggestions: [simAsk, `P&L por ${primero.label.sing}`, ...(metaM ? [`¿Cuánto tengo que vender para ganar $${metaM}M después de gastos?`] : ["¿Qué línea pesa más en el resultado?"])], bol }
+  );
 }

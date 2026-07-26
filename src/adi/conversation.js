@@ -19,7 +19,7 @@ import { composeFollowupRecommendation, sampleEntities } from "./specRetrieval.j
 import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · label del eje para las repreguntas de comparación
 import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
-import { composePnl, activePnl, clearPnl } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2
+import { composePnl, activePnl, clearPnl, pnlExplain, pnlRecommend } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2 · seguidores P&L-aware (pase 2)
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
 
 // ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
@@ -104,6 +104,12 @@ const _specSelfContained = (s) => !!(s && s.operation && s.metric && s.dimension
 // ── composeExplain · el PORQUÉ de la última lectura (reusa estructura/concentración ya computada · sin cifras nuevas) ──
 // ctx/state opcionales (memoria · owner 2026-07-15): "por qué" mirando UNA entidad → su mecanismo graduado, no el relleno.
 export function composeExplain(last, ctx = null, state = {}) {
+  // P&L (pase 2 · owner 2026-07-25): "explícame esto más sencillo" sobre una lectura P&L cuenta LA MISMA cascada
+  // en llano (alcance de la evidencia) — jamás el porqué de margen ni el relleno genérico.
+  if (last && last.pnl) {
+    const rP = pnlExplain(last, ctx, state);
+    if (rP) return rP;
+  }
   // el porqué de la entidad EN FOCO — de la evidencia si existe; la memoria SOLO cuando no hay evidencia (review
   // adversarial 2026-07-15: con una lectura global reciente, heredar una entidad de turnos atrás inventa el referente)
   const _entWhy = () => {
@@ -192,6 +198,15 @@ export function composeMeta(topic, last) {
   const sgn = pct != null && pct >= 0 ? "+" : "";
   let text;
   if (/real|supuesto|proyec/.test(t)) {
+    // P&L (pase 2 · owner 2026-07-25): sobre una lectura P&L "¿es real o supuesto?" tiene respuesta GRADUADA —
+    // decir "es dato real" sería falso (los gastos son declarados) y decir "es un supuesto" también (la base es dato).
+    if (last && last.pnl) {
+      return {
+        text: "En tu P&L conviven los dos. Hasta la contribución es dato real de tu cartera: la venta, el costo y la carga comercial vienen del dato — no los estimo. Tus gastos son porcentajes que declaraste tú: supuestos, no contabilidad. Y el resultado mezcla ambos: firme hasta la contribución, declarado de ahí para abajo. Cuando entre la contabilidad real, cada línea se reemplaza por su dato sin rehacer nada.",
+        suggestions: null, sentrixAction: null,
+        evidence: { followup: true, kind: "meta", boleta: [] }, route: "meta_question",
+      };
+    }
     text = (last && last.transform)
       ? `Es un supuesto, no un dato observado. Apliqué ${sgn}${pct}% sobre ${mLow} real de tu cartera: el Actual sí es dato real, el Supuesto es la proyección.`
       : `Es dato real de tu cartera — lo que hay, sin estimar.`;
@@ -474,7 +489,7 @@ const TURN_RESOLVERS = {
   new_query:                  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1
   followup_modify_assumption: (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1 · el LLM emite el spec YA resuelto → seam RECALCULA
   followup_change_dimension:  (spec, ctx, state) => answerADIFromSpec(spec, ctx, state),                  // V1 · idem
-  followup_recommendation:    (spec, ctx) => composeFollowupRecommendation(ctx.last) || _needLast(),      // V1
+  followup_recommendation:    (spec, ctx, state) => (ctx.last && ctx.last.pnl && pnlRecommend(ctx.last, ctx, state)) || composeFollowupRecommendation(ctx.last) || _needLast(),   // V1 (+P&L-aware pase 2: "¿qué decisiones tomo?" sobre el P&L responde las decisiones del P&L)
   followup_explain:           (spec, ctx, state) => composeExplain(ctx.last, ctx, state),                 // V1 (+ memoria: el porqué de la entidad en foco)
   meta_question:              (spec, ctx) => composeMeta(spec && spec.meta, ctx.last),                    // V1
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
