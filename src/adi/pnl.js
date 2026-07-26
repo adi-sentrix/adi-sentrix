@@ -410,6 +410,21 @@ function _parseTargetK(q) {
   return null;
 }
 
+// META DE VENTA («¿cuánto vender para que Falabella deje $500K después de gastos?») — detección PURA del texto,
+// extraída para poder consultarla ANTES del guard del draft (regresión 2026-07-26 · abajo). Devuelve el intent o null.
+function _metaVentaIntent(t) {
+  if ((/\bcu[aá]nto\s+(?:tengo\s+que\s+|debo\s+|necesito\s+|tendr[ií]a\s+que\s+|hay\s+que\s+)?vender\b/i.test(t)
+    || /\bqu[eé]\s+nivel\s+de\s+venta\s+(?:necesito|debo|tengo\s+que|me\s+falta|quiero)\b/i.test(t))
+    && /(ganar|resultado|despu[eé]s\s+de\s+gastos|utilidad|quedar|dej[ea]|obtener)/i.test(t)) {
+    const targetK = _parseTargetK(t);
+    if (targetK) {
+      const ent = _pnlEntityEn(t);
+      return { action: "meta_venta", targetK, ...(ent ? { entidad: ent.nombre, eje: ent.eje, covered: ent.covered } : {}) };
+    }
+  }
+  return null;
+}
+
 /* detectPnlIntent(q) → { action, ... } | null · PURA respecto del texto (lee el estado del módulo: draft + líneas
  * + alcance). Acciones: start · recall · forget · edit_set · edit_add · edit_remove · peso · resultado ·
  * resultado_entidad · simulate_line · meta_venta · draft_* · y del PASE 2: resultado_scoped · tabla_eje ·
@@ -417,6 +432,14 @@ function _parseTargetK(q) {
 export function detectPnlIntent(q) {
   const t = String(q || "").trim();
   if (!t) return null;
+  // META DE VENTA scopeada — alcanzable AUNQUE haya un draft de gastos LEAKED abierto (regresión 2026-07-26: la
+  // «perdiendo»/sinPnl deja un draft en etapa gastos que enmascaraba «¿cuánto vender para que Falabella deje $500K?»
+  // → caía a una lectura de ventas genérica, perdiendo la entidad y la meta). Es una LECTURA, no parte del flujo; el
+  // patrón es inequívoco (nunca una lista de gastos ni un acuse). En pcts/sello el usuario está activo → no se escapa.
+  if (!(_draft && (_draft.stage === "pcts" || _draft.stage === "sello"))) {
+    const mv = _metaVentaIntent(t);
+    if (mv) return mv;
+  }
   // ── MID-FLOW · el draft manda (solo claims compatibles con la etapa · un cambio de tema NO se secuestra) ──
   if (_draft) {
     // cancel informal («deja todo como estaba mejor» · sweep 2026-07-25) — sobre texto NORMALIZADO (acentos:
@@ -600,15 +623,10 @@ export function detectPnlIntent(q) {
   }
   // meta de venta («¿cuánto tengo que vender para ganar $2M después de gastos?» · pase 2: scoped — «¿cuánto
   // vender en Falabella para que me deje $500K?» · espejo: «¿qué nivel de venta necesito alcanzar…?» es la
-  // pregunta clave que ADI emite en la proyección — si ADI la dice, ADI la entiende)
-  if ((/\bcu[aá]nto\s+(?:tengo\s+que\s+|debo\s+|necesito\s+|tendr[ií]a\s+que\s+|hay\s+que\s+)?vender\b/i.test(t)
-    || /\bqu[eé]\s+nivel\s+de\s+venta\s+(?:necesito|debo|tengo\s+que|me\s+falta|quiero)\b/i.test(t))
-    && /(ganar|resultado|despu[eé]s\s+de\s+gastos|utilidad|quedar|dej[ea]|obtener)/i.test(t)) {
-    const targetK = _parseTargetK(t);
-    if (targetK) {
-      const ent = _pnlEntityEn(t);
-      return { action: "meta_venta", targetK, ...(ent ? { entidad: ent.nombre, eje: ent.eje, covered: ent.covered } : {}) };
-    }
+  // pregunta clave que ADI emite en la proyección — si ADI la dice, ADI la entiende) · detección en _metaVentaIntent
+  {
+    const mv = _metaVentaIntent(t);
+    if (mv) return mv;
   }
   // resultado («¿cómo queda mi resultado comercial?» · «¿cuánto gano después de gastos?») · sin condicional
   if (!/\bsi\b/i.test(t)
@@ -1131,6 +1149,18 @@ export function composePnl(pi, ctx = null, state = {}) {
     _draft = { stage: "gastos", lines: [] };
     return _resp(`Esa cuenta llega hasta la contribución: todavía no tengo tus líneas de gasto, así que no hay resultado después de gastos que afirmar. ¿Armamos tu P&L ahora? Dime qué gastos quieres considerar y los porcentajes los definimos juntos.`, { route: "pnl_reading" });
   };
+  // META SIN LÍNEAS (regresión 2026-07-26): la meta de venta scopeada RETIENE la entidad y la meta en la respuesta
+  // honesta (nunca cae a una lectura de ventas genérica) — «para decirte cuánto vender en Falabella y que te deje
+  // $500K necesito tus líneas». Abre el flujo como sinPnl (la oferta guía). Sin entidad, es la meta del negocio.
+  const _metaSinPnl = (pi) => {
+    _draft = { stage: "gastos", lines: [] };
+    const ent = pi && pi.entidad;
+    const tgt = pi && pi.targetK > 0 ? ` te deje ${_moneyK(pi.targetK)}` : " tengas un resultado";
+    return _resp(
+      `Para decirte cuánto vender ${ent ? `en ${ent}` : "en el negocio"} y que${tgt} después de gastos necesito tus líneas de gasto — sin ellas solo llego hasta la contribución, no hay resultado que proyectar. ¿Las definimos ahora? Dime qué gastos quieres considerar y los porcentajes los ponemos juntos.`,
+      { route: "pnl_reading" }
+    );
+  };
   const _EJE_LBL = (eje) => (ENTITIES[eje] && ENTITIES[eje].label) || { sing: String(eje), plur: `${eje}s` };
 
   // ── LA PREGUNTA CLAVE DEL INICIO (owner 2026-07-25): "¿dónde estoy perdiendo dinero?" = la historia del
@@ -1504,7 +1534,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     );
   }
   if (a === "meta_venta") {
-    if (!_lines.length) return sinPnl();
+    if (!_lines.length) return _metaSinPnl(pi);   // honesto, RETENIENDO la entidad y la meta (jamás ventas genérico)
     const c = buildPnlCascade(scenario);
     const targetK = pi.targetK;
     if (!(targetK > 0)) return sinPnl();

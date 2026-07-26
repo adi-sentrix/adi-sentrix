@@ -8,11 +8,12 @@ const root = process.cwd(); const entry = path.join(root, "_coe.js"), out = path
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
+  'export { composePnl, resetPnlDraft, detectPnlIntent, pnlDraft } from "./src/adi/pnl.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { coerceSpec: C, answerConversational: AC } = M;
+const { coerceSpec: C, answerConversational: AC, composePnl: CP, resetPnlDraft: RPD, detectPnlIntent: DPI, pnlDraft: PD } = M;
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
@@ -143,6 +144,59 @@ ok("«¿cómo está mi negocio?» → diagnose", C("¿cómo está mi negocio?", 
 console.log("\n── E · el deíctico NO dispara sin contexto (hasLast=false) ni con genéricos ──");
 ok("sin última evidencia (hasLast=false) → NO _deictic", !C("de esos, ¿cuáles bajo margen?", base(""), false)._deictic);
 ok("«de los clientes» (genérico, no referencial) → NO _deictic", !C("dame el margen de los clientes", base(""), true)._deictic);
+
+console.log("\n── K · REGRESIÓN P&L (owner 2026-07-26 · «no quiero que por el P&L se hayan echado a perder otras cosas»):");
+console.log("       el claim pnl quedó GOLOSO tras el flujo guiado — 3 continuidades rotas por PRECEDENCIA ──");
+const SCN = "bonanza";
+// evidencia de hilo margen (lista · Lider primero) y de hilo contribución (top clientes) para los deícticos
+const kMarg = AC({ schemaVersion: 1, operation: "margin", metric: "margen", dimension: "cliente", focus: "bajo_benchmark", turn_type: "new_query" }, {}, { scenario: SCN }).evidence;
+const kContrib = AC({ schemaVersion: 1, operation: "contribucion", metric: "contribucion", dimension: "cliente", focus: "concentracion", turn_type: "new_query" }, {}, { scenario: SCN }).evidence;
+const kEL = (kMarg.entityList && kMarg.entityList.entities) || [];
+
+// #1 · «¿qué hago con el primero?» tras un hilo con lista + un draft de gastos LEAKED abierto (la «perdiendo»
+// sin líneas lo deja en etapa gastos) → NO debe caer en pnl_setup/draft_help; recommend anclado a Lider.
+RPD(); CP({ action: "perdiendo" }, {}, { scenario: SCN });   // abre el draft gastos (condición del hilo real)
+ok("#1a · con draft abierto, detectPnlIntent(«qué hago con el primero») aún dice draft_help (por eso el coerce debe cederle)",
+  DPI("¿qué hago con el primero?") && DPI("¿qué hago con el primero?").action === "draft_help" && PD() && PD().stage === "gastos");
+const k1spec = C("¿qué hago con el primero?", { schemaVersion: 1, operation: "clarification_needed", turn_type: "followup_recommendation" }, true);
+const k1 = AC(k1spec, { lastEvidence: kMarg }, { scenario: SCN });
+ok("#1b · el coerce marca _focoAccion (ordinal 1) y NO deja ganar al claim pnl", k1spec._focoAccion && k1spec._focoAccion.ordinal === 1 && k1spec.turn_type !== "pnl_setup");
+ok("#1c · rutea a recommend anclado a la ENTIDAD del hilo (Lider), NO a pnl_setup/«Los gastos que manejes tú»",
+  k1.route === "recommend_action" && /Lider/.test(k1.text || "") && !/pnl_setup/.test(String(k1.route)) && !/Los gastos que manejes/.test(k1.text || ""));
+// el spec CRUDO que el LLM tiende a emitir (op pnl_setup en OPERATION) tampoco debe robar el hilo de acción
+const k1raw = AC(C("¿qué hago con el primero?", { schemaVersion: 1, operation: "pnl_setup", turn_type: "new_query" }, true), { lastEvidence: kMarg }, { scenario: SCN });
+ok("#1d · aun con el LLM emitiendo operation:pnl_setup, el follow-up de acción se ancla a Lider", k1raw.route === "recommend_action" && /Lider/.test(k1raw.text || ""));
+// control: «qué hago» PELADO (sin referencia al hilo) DENTRO del flujo sigue siendo la guía del draft (no se rompe el flujo)
+RPD(); CP({ action: "perdiendo" }, {}, { scenario: SCN });
+const k1bare = AC(C("¿qué hago?", { schemaVersion: 1, operation: "clarification_needed", turn_type: "followup_recommendation" }, false), {}, { scenario: SCN });
+ok("#1e · «qué hago» pelado (draft abierto, sin referencia) SIGUE siendo draft_help — el flujo P&L no se rompe",
+  k1bare.route === "pnl_setup" && /Los gastos que manejes/.test(k1bare.text || ""));
+
+// #2 · «¿cuánto vender para que Falabella deje $500K?» con draft LEAKED + sin líneas → honesto RETENIENDO la
+// entidad; JAMÁS una lectura de ventas genérica.
+RPD(); CP({ action: "perdiendo" }, {}, { scenario: SCN });   // draft gastos abierto
+const k2spec = C("¿cuánto tendría que vender para que Falabella deje $500K?", { schemaVersion: 1, operation: "ventas", metric: "ventas", dimension: "cliente", turn_type: "new_query" }, false);
+const k2 = AC(k2spec, {}, { scenario: SCN });
+ok("#2a · el claim pnl reclama la meta scopeada (no la enmascara el draft) → turn_type pnl_setup", k2spec.turn_type === "pnl_setup" && k2spec.pnl && k2spec.pnl.action === "meta_venta" && k2spec.pnl.entidad === "Falabella");
+ok("#2b · responde HONESTO reteniendo la entidad (nombra Falabella + pide las líneas), NO un overview de ventas",
+  k2.route === "pnl_reading" && /Falabella/.test(k2.text || "") && /l[ií]neas de gasto/.test(k2.text || "") && !/crecimiento|impulsores|La Polar/.test(k2.text || ""));
+
+// #3 · «de esos, ¿cuánto margen ceden?» tras nombrar el conjunto — el LLM tiende a followup_explain (o le pega
+// otro dominio del hilo): debe RE-LENSAR el entityList a margen, no un followup_explain HUECO.
+RPD();
+const k3EL = (kContrib.entityList && kContrib.entityList.entities) || [];
+for (const [lbl, spec] of [
+  ["LLM followup_explain + op null", { schemaVersion: 1, operation: null, turn_type: "followup_explain" }],
+  ["LLM followup_explain + op contribucion (dominio equivocado)", { schemaVersion: 1, operation: "contribucion", metric: "contribucion", dimension: "cliente", turn_type: "followup_explain" }],
+  ["LLM margin + filters:{marca} ALUCINADO (el vacío del full-run)", { schemaVersion: 1, operation: "margin", metric: "margen", dimension: "cliente", turn_type: "followup_explain", filters: { marca: "Samsung" } }],
+]) {
+  const s3 = C("de esos, ¿cuánto margen ceden?", spec, true);
+  const r3 = AC(s3, { lastEvidence: kContrib }, { scenario: SCN });
+  const rows = ((r3.evidence && r3.evidence.margin && r3.evidence.margin.panel && r3.evidence.margin.panel.rows) || []).map((x) => x && x.nombre).filter(Boolean);
+  ok(`#3 · [${lbl}] re-deriva a margin + _deictic + new_query (no explain hueco)`, s3.operation === "margin" && s3._deictic === true && s3.turn_type === "new_query");
+  ok(`#3 · [${lbl}] scopea el margen al conjunto heredado (⊆) · NO explain/blocked/empty`,
+    r3.route === "qi_retrieval" && rows.length > 0 && subset(rows, k3EL) && /De los que veníamos mirando/.test(r3.text || ""));
+}
 
 console.log(`\n── _continuity_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

@@ -369,6 +369,27 @@ function _soloCanonEn(q) {
   return found.size === 1 ? [...found.values()][0] : null;
 }
 
+// ── FOLLOW-UP DE ACCIÓN SOBRE EL HILO (regresión P&L 2026-07-26) ────────────────────────────────────────────
+// «¿qué hago con el primero/ese/Lider?» tras un hilo con lista/entidad NO es armar el P&L — es pedir la PALANCA
+// sobre la entidad del hilo. El claim pnl (con un draft de gastos abierto capturaba "qué hago" como draft_help)
+// debe CEDER: el coerce marca spec._focoAccion con la referencia (ordinal/deixis/nombre) y answerConversational
+// la resuelve contra last.entityList/entidad → recommend sobre ESA entidad. EXIGE una referencia explícita al
+// hilo — un «qué hago» PELADO dentro del flujo P&L sigue siendo draft_help (la referencia es lo que desambigua:
+// el usuario apunta a la lista que ADI nombró, no pide ayuda del flujo). NO toca «por qué el primero…» (es why).
+const _ACCION_VERB_RE = /\b(qu[eé]\s+hago|qu[eé]\s+hacemos|qu[eé]\s+(?:me\s+)?recomiend\w*|qu[eé]\s+(?:me\s+)?recomend[aá]s|qu[eé]\s+conviene|qu[eé]\s+hacer|qu[eé]\s+medidas?\s+tom\w*|qu[eé]\s+acci[oó]n\w*\s+tom\w*|c[oó]mo\s+(?:lo|la|los|las)\s+(?:trabaj\w*|manej\w*|encar\w*|abord\w*|atac\w*))\b/i;
+const _ACCION_ORD_RE = /\b(?:con|para|en|sobre|de|a)\s+(?:el|la|los|las)?\s*(primer|segund|tercer|cuart|quint)[oa]s?\b/i;
+const _ACCION_DEIXIS_RE = /\b(?:con|para|en|sobre|de|a)\s+(?:ese|esa|eso|este|esta|estos|estas|esos|esas|[eé]l|ella|ellos|ellas|aquel\w*)\b/i;
+const _ORD_N = { primer: 1, segund: 2, tercer: 3, cuart: 4, quint: 5 };
+function _accionFollowup(q) {
+  if (!_ACCION_VERB_RE.test(q)) return null;
+  const mo = q.match(_ACCION_ORD_RE);
+  if (mo) return { ordinal: _ORD_N[mo[1].toLowerCase()] || 1 };
+  const c = _soloCanonEn(q);   // «qué hago con Lider» — exactamente una entidad del canon nombrada
+  if (c) return { name: c.nombre, eje: c.tipo };
+  if (_ACCION_DEIXIS_RE.test(q)) return { deixis: true };
+  return null;
+}
+
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia, señalesUI) → spec ruteado al dominio+foco correcto (o el original).
 export function coerceSpec(q, spec, hasLast, ui = null) {
   // SANEO DE ENTRADA (crash en prod 2026-07-09): filters:null explícito del LLM rompe composers con default {} —
@@ -442,6 +463,14 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
           temporal: { ...per, desglose: !!dim } });
       }
     }
+  }
+  // FOLLOW-UP DE ACCIÓN SOBRE EL HILO (regresión P&L 2026-07-26): «¿qué hago con el primero/ese/X?» tras un hilo
+  // con lista/entidad se ancla a la entidad del hilo — CEDE el claim pnl (que con un draft de gastos abierto
+  // capturaba "qué hago" como draft_help). Corre ANTES del P&L; answerConversational resuelve _focoAccion contra
+  // last.entityList/entidad → recommend. Exige hilo activo (hasLast) + referencia explícita (ordinal/deixis/nombre).
+  if (q && spec && hasLast) {
+    const fa = _accionFollowup(q);
+    if (fa) return { ...spec, _focoAccion: fa };
   }
   // P&L COMERCIAL (owner 2026-07-15 "sí, parte por p&l"): el flujo guiado (¿qué gastos? → ¿qué %? → sello), la
   // edición y las lecturas de resultado corren PRIMERO y CORTAN la cadena — ANTES de fuera-de-dato ("marketing/
@@ -595,9 +624,22 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
       return _cleanFilters({ ...s, operation: "overview", metric: met, dimension: dim, focus: undefined, turn_type: "new_query" });
     }
   }
-  // marca el turno deíctico SÓLO si además ruteó a un dominio que sabe filtrar por nombre (margin/contribucion/ventas/inventory)
-  if (hasLast && q && s && _DEICTIC_RE.test(q) && (s.operation === "margin" || s.operation === "contribucion" || s.operation === "ventas" || s.operation === "inventory"))
-    return { ...s, _deictic: true };
+  // CONTINUIDAD DE ALCANCE · un deíctico ("de esos, ¿cuánto margen ceden?") re-lensa el conjunto que ADI acaba de
+  // nombrar. Se marca _deictic + se FUERZA new_query (answerConversational hereda last.entityList como entityScope).
+  // REGRESIÓN P&L 2026-07-26: el LLM #1 tiende a clasificar el «de esos + <otra métrica>» como followup_explain (o
+  // le pega el op de otro dominio del hilo) → el re-lens se perdía en un explain HUECO. El deíctico es una LECTURA
+  // scopeada, no un porqué: el DOMINIO se re-deriva del TEXTO (neutralizando op/entity/comparison/turn_type del LLM
+  // — la pregunta manda el foco), así «cuánto margen ceden» va a margin aunque el LLM haya dicho contribución.
+  // El alcance de un deíctico ES el conjunto heredado (entityScope) — los `filters` que el LLM ADIVINA («de esos,
+  // ¿cuánto margen ceden?» a veces llega con filters:{marca:"Samsung"}) NO son del usuario y bloqueaban/vaciaban el
+  // re-lens (spec_blocked_blocked-cross / margin-empty en la regresión). Se neutralizan; el eje explícito del TEXTO,
+  // si lo hubiera, lo re-deriva cada coerce de dominio. La pregunta manda el foco; la deixis manda el conjunto.
+  const _dom = (x) => x === "margin" || x === "contribucion" || x === "ventas" || x === "inventory";
+  if (hasLast && q && _DEICTIC_RE.test(q)) {
+    const sT = _coerceInventory(q, _coerceVentas(q, _coerceMargin(q, _coerceContribucion(q,
+      { ...afterCompare, operation: undefined, entity: null, comparison: undefined, transform: undefined, filters: undefined, turn_type: undefined }))));
+    if (_dom(sT.operation)) return { ...sT, _deictic: true, turn_type: "new_query" };
+  }
   return s;
 }
 

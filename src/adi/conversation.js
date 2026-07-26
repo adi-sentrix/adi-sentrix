@@ -599,6 +599,25 @@ export function resolveTurn(turnType, spec, ctx, state) {
 export function answerConversational(spec, context = {}, state = {}) {
   const last = (context && context.lastEvidence) || null;
   let tt = spec && spec.turn_type;
+  // FOLLOW-UP DE ACCIÓN SOBRE EL HILO (regresión P&L 2026-07-26): el coerce marcó «¿qué hago con el primero/ese/X?»
+  // con spec._focoAccion (la referencia al hilo) — acá se resuelve contra la última evidencia (la lista que ADI
+  // nombró / el foco del turno) y se RECOMIENDA sobre ESA entidad (recommend anclado, no el pnl_setup goloso). Sin
+  // entidad resoluble en la última evidencia, el flag no hace nada y el turno sigue su clasificación (degrade honesto).
+  if (spec && spec._focoAccion && last) {
+    const el = last.entityList, fa = spec._focoAccion;
+    const ents = (el && Array.isArray(el.entities)) ? el.entities : [];
+    const dim0 = (el && el.dimension && ENTITIES[el.dimension]) ? el.dimension
+      : (last.entityType && ENTITIES[last.entityType]) ? last.entityType
+      : (last.dimension && ENTITIES[last.dimension]) ? last.dimension : "cliente";
+    let ent = null;
+    if (fa.ordinal && ents.length) ent = ents[Math.min(fa.ordinal, ents.length) - 1];
+    else if (fa.name) ent = fa.name;
+    else ent = last.entidad || ents[0] || null;   // deixis "ese"/"eso" o sin referencia fina → el foco del hilo
+    if (ent) {
+      const dim = (fa.eje && ENTITIES[fa.eje]) ? fa.eje : dim0;
+      return answerADIFromSpec({ schemaVersion: 1, operation: "recommend", dimension: dim, entity: ent, metric: "margen", scenario: "actual" }, { ...context, last }, state);
+    }
+  }
   // BLINDAJE del campo operation (bug cazado por el owner 2026-07-07): el LLM #1 a veces pone un TURN_TYPE en OPERATION
   // ("operation":"followup_compare") → el seam lo rechazaba y el degrade filtraba vocabulario interno al usuario. Un
   // operation con forma de turn_type ES un turn_type: se migra de campo (resolver conocido) o cae a recomendación contextual.
