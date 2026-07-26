@@ -21,7 +21,7 @@ import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Co
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
-import { buildMesaResultado, pnlMesaLink } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance)
+import { buildMesaResultado, pnlMesaLink, pnlExportData } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance) · pnlExportData = copiar/CSV de lo que se está viendo (una verdad)
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
@@ -1233,7 +1233,8 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
         {cara === "resultado" ? (
-          <MesaResultadoCara resultado={resultado} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}/>
+          <MesaResultadoCara resultado={resultado} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}
+            onExport={() => pnlExportData(scenario, pnlEje, pnlFoco)}/>
         ) : cara === "capital" ? (
           <MesaCapitalCara capital={capital} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={toggleWatch} wl={wl}/>
         ) : (<>
@@ -1432,7 +1433,28 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
  * firme) vs los supuestos declarados (trazo punteado ámbar). TODO de mesaResultado.js/buildPnlCascade (cero cálculo
  * acá — la cascada cierra exacto, una verdad con las lecturas de ADI). Empty state honesto: sin P&L declarado, la
  * cara lo dice y OFRECE armarlo (prefill del flujo guiado — el click informa/precarga, nunca dispara). */
-function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco = null }) {
+function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco = null, onExport = null }) {
+  // EXPORT/COPIAR (mejora 8 · 2026-07-26): lo que se está viendo (eje + foco activos) sale a Excel/Sheets —
+  // Copiar = TSV al portapapeles · CSV = descarga. El click exporta, nunca dispara a ADI (patrón de la Mesa).
+  const [copiado, setCopiado] = useState(false);
+  const _copiar = async () => {
+    if (!onExport) return;
+    const d = onExport();
+    if (!d) return;
+    try { await navigator.clipboard.writeText(d.tsv); setCopiado(true); setTimeout(() => setCopiado(false), 1600); } catch { /* clipboard denegado → sin feedback */ }
+  };
+  const _csv = () => {
+    if (!onExport) return;
+    const d = onExport();
+    if (!d) return;
+    try {
+      const blob = new Blob(["﻿" + d.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = d.filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch { /* descarga bloqueada → sin efecto */ }
+  };
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const MovHead = ({ num, title, def }) => (
     <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1570,18 +1592,33 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9, flexWrap:"wrap" }}>
         <div style={{ ...head, display:"flex", alignItems:"center", gap:4 }}>Cuadro de resultado · qué deja cada {mr.cuadro.colLabel.toLowerCase()} después de gastos<InfoDot def={"Cada entidad con sus columnas clásicas (Venta · Contribución · Margen — intactas, las mismas del cuadro comercial) más lo nuevo: Gastos (el prorrateo de tus % declarados sobre la venta de esa entidad) y su Resultado en $ y % de su venta. El selector cambia el eje — solo los ejes donde el dato trae la venta desglosada (por bodega/punto de venta no está, por eso no aparece). En todo eje la suma cierra exacto con el Total del negocio. El prorrateo es un supuesto — reparte tus porcentajes por venta, no lee contabilidad por entidad. Tocá una fila y ADI arma su P&L al lado; con el ⌖ la cascada de arriba cuenta esa entidad."} align="left"/></div>
-        {/* SELECTOR DE EJE (patrón del selector de cara · el click cambia la vista, nunca dispara a ADI) */}
-        {mr.cuadro.ejes.length > 1 && (
-          <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
-            {mr.cuadro.ejes.map((e) => (
-              <button key={e.key} onClick={onEje ? () => onEje(e.key) : undefined}
-                title={`El cuadro por ${e.label.toLowerCase()} — la suma cierra exacto con el negocio`}
-                style={{ padding:"3px 10px", fontSize:10.5, fontWeight: mr.cuadro.eje === e.key ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
-                  background: mr.cuadro.eje === e.key ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
-                  color: mr.cuadro.eje === e.key ? C.text : C.textMuted, transition:"all 0.15s" }}>{e.label}</button>
-            ))}
-          </div>
-        )}
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+          {/* SELECTOR DE EJE (patrón del selector de cara · el click cambia la vista, nunca dispara a ADI) */}
+          {mr.cuadro.ejes.length > 1 && (
+            <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
+              {mr.cuadro.ejes.map((e) => (
+                <button key={e.key} onClick={onEje ? () => onEje(e.key) : undefined}
+                  title={`El cuadro por ${e.label.toLowerCase()} — la suma cierra exacto con el negocio`}
+                  style={{ padding:"3px 10px", fontSize:10.5, fontWeight: mr.cuadro.eje === e.key ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
+                    background: mr.cuadro.eje === e.key ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
+                    color: mr.cuadro.eje === e.key ? C.text : C.textMuted, transition:"all 0.15s" }}>{e.label}</button>
+              ))}
+            </div>
+          )}
+          {/* EXPORT (mejora 8): copiar TSV (pegable en Excel/Sheets) · descargar CSV — exporta LO QUE SE VE (eje+foco) */}
+          {onExport && (
+            <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
+              <button onClick={_copiar} title="Copiar la cascada y el cuadro al portapapeles — se pega directo en Excel o Sheets"
+                style={{ padding:"3px 10px", fontSize:10.5, fontWeight:400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", background:"transparent", border:"none", color: copiado ? C.green : C.textMuted, transition:"all 0.15s" }}>
+                {copiado ? "Copiado ✓" : "Copiar"}
+              </button>
+              <button onClick={_csv} title="Descargar la cascada y el cuadro como CSV (montos en USD, sumables)"
+                style={{ padding:"3px 10px", fontSize:10.5, fontWeight:400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", background:"transparent", border:"none", borderLeft:`1px solid ${C.border}`, color:C.textMuted, transition:"all 0.15s" }}>
+                CSV
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div style={{ overflowX:"auto" }}>
         <div style={{ minWidth:560 }}>

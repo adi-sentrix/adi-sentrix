@@ -17,7 +17,7 @@ fs.writeFileSync(entry, [
   'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
   'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope } from "./src/adi/pnl.js";',
-  'export { buildMesaResultado, pnlMesaLink } from "./src/adi/sentrix/mesaResultado.js";',
+  'export { buildMesaResultado, pnlMesaLink, pnlExportData } from "./src/adi/sentrix/mesaResultado.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',
   'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
@@ -531,6 +531,28 @@ ok(pnlMesaLink(null) === null && pnlMesaLink({}) === null && pnlMesaLink({ pairs
   "evidencia NO-P&L (compare · mesa del header · nula) → null: los paneles clásicos intactos");
 const mrBad22 = buildMesaResultado("bonanza", "cliente", { eje: "cliente", nombre: "NoExiste SA" });
 ok(mrBad22.defined && !mrBad22.alcance && mrBad22.cascada.find((r) => r.key === "resultado"), "entidad desconocida en el link → cascada global (jamás una vista rota)");
+clearPnl(); resetPnlDraft();
+
+console.log("[23] EXPORT/COPIAR de la cara Resultado (mejora 8 · lo que se ve sale a Excel, una verdad)");
+clearPnl(); resetPnlDraft();
+const { pnlExportData } = M;
+ok(pnlExportData("bonanza") === null, "sin P&L sellado no hay export (null honesto)");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+const ex = pnlExportData("bonanza");
+const mrX = buildMesaResultado("bonanza");
+ok(ex && ex.tsv.startsWith("P&L comercial · el negocio completo") && ex.filename === "pnl-comercial-cliente.csv", "cabecera con el alcance + filename por eje", ex && ex.filename);
+const filas = ex.tsv.split("\n");
+const filaFal = filas.find((l) => l.startsWith("Falabella\t"));
+const rowFalX = mrX.cuadro.rows.find((r) => r.name === "Falabella");
+ok(filaFal && filaFal.split("\t")[1] === String(Math.round(rowFalX.venta * 1000)) && filaFal.split("\t")[5] === String(Math.round(rowFalX.resultado * 1000)), "la fila exportada == el cuadro (USD crudos, sumables)");
+const filaTot = filas.find((l) => l.startsWith("Total\t"));
+ok(filaTot && filaTot.split("\t")[5] === String(Math.round(mrX.cuadro.total.resultado * 1000)), "el Total exportado == el resultado del negocio");
+ok(mrX.cascada.every((r) => ex.tsv.includes(r.usdFmt)) && /supuesto declarado/.test(ex.tsv) && /Hasta la contribución todo es dato del negocio/.test(ex.tsv), "la cascada viaja con su graduación declarada (honestidad en el archivo)");
+const exF = pnlExportData("bonanza", "familia", { eje: "familia", nombre: "Cuidado Personal" });
+ok(exF && /alcance: Cuidado Personal/.test(exF.tsv) && exF.filename === "pnl-comercial-cuidado-personal.csv" && /Familia\t/.test(exF.tsv), "export scoped: exporta LO QUE SE VE (foco + eje familia)");
+const exCsv = ex.csv.split("\n").find((l) => l.startsWith("Falabella,"));
+ok(!!exCsv && exCsv.split(",").length === 7, "el CSV separa las 7 columnas del cuadro");
+ok(!BANNED.test(ex.tsv) && !BANNED.test(exF.tsv), "registro ejecutivo también en el archivo exportado");
 clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

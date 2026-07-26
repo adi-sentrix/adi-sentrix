@@ -184,3 +184,31 @@ export function pnlMesaLink(e) {
   const eje = e.dimension || null;
   return { cara: "resultado", eje, foco: e.entidad ? { eje, nombre: e.entidad } : null };
 }
+
+// ── EXPORT/COPIAR de la cara Resultado (mejora 8 · 2026-07-26 · gap premium declarado: "lo primero que pide un
+// cliente pagando"): el MISMO buildMesaResultado (una verdad — se exporta lo que se está viendo: eje y foco
+// activos) serializado para pegar en Excel/Sheets (TSV) o descargar (CSV). La cascada va formateada (narrativa,
+// con su graduación declarada); el cuadro va en USD CRUDOS y % numéricos — sumable, no decorativo. Puro · gate-testable.
+export function pnlExportData(scenario, cuadroEje = null, cascadaFoco = null) {
+  const mr = buildMesaResultado(scenario, cuadroEje, cascadaFoco);
+  if (!mr.defined) return null;
+  const S = "\t";
+  const L = [];
+  L.push(`P&L comercial · ${mr.alcance ? `alcance: ${mr.alcance.nombre}` : "el negocio completo"} · gastos declarados ${mr.sumPctFmt} sobre la venta`);
+  L.push("");
+  L.push(["Concepto", "USD"].join(S));
+  for (const r of mr.cascada) L.push([`${r.label}${r.kind === "supuesto" ? " (supuesto declarado)" : ""}`, r.usdFmt].join(S));
+  L.push("");
+  L.push([mr.cuadro.colLabel, "Venta (USD)", "Contribución (USD)", "Margen %", "Gastos (USD)", "Resultado (USD)", "Resultado %"].join(S));
+  const _usd = (vK) => Math.round(vK * 1000);
+  for (const r of mr.cuadro.rows) L.push([r.name, _usd(r.venta), _usd(r.contribucion), r.margen, _usd(r.gasto), _usd(r.resultado), r.resultadoPct].join(S));
+  const t = mr.cuadro.total;
+  L.push(["Total", _usd(t.venta), _usd(t.contribucion), t.margen != null ? t.margen : "", _usd(t.gasto), _usd(t.resultado), t.resultadoPct != null ? t.resultadoPct : ""].join(S));
+  L.push("");
+  L.push("Hasta la contribución todo es dato del negocio; los gastos son supuestos declarados (% sobre la venta) — cuando entre la contabilidad real, se reemplazan línea a línea. Generado por ADI · Sentrix.");
+  const tsv = L.join("\n");
+  const csv = L.map((l) => l.split(S).map((c) => (/[",;\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(",")).join("\n");
+  const slug = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const filename = `pnl-comercial-${slug(mr.alcance ? mr.alcance.nombre : mr.cuadro.eje)}.csv`;
+  return { tsv, csv, filename, filas: mr.cuadro.rows.length };
+}
