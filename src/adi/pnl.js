@@ -246,7 +246,7 @@ export function buildPnlCascade(scenario, linesOverride = null, opts = null) {
 // ── DETECCIÓN · la red determinística del claim pnl_setup (corre en coerceSpec ANTES de fuera-de-dato/criteria) ──
 // «prorrateo» es vocabulario que ADI EMITE en cada lectura del P&L ("gastos prorrateados") — espejo (owner
 // 2026-07-25 en vivo: «quiero nuevos prorrateos» caía en una lectura de ventas): si ADI lo dice, ADI lo entiende.
-const _PNL_WORD = /\b(?:p\s*&\s*l|pnl|p\s+y\s+l|resultado\s+comercial|prorrate\w*)\b/i;
+const _PNL_WORD = /\b(?:p\s*&\s*l|pnl|pyl|p\s+y\s+l|resultado\s+comercial|prorrate\w*)\b/i;
 const _GASTOS_WORD = /\b(?:gastos?|l[ií]neas?\s+de\s+gasto)\b/i;
 // OJO: nada de \b después de una vocal acentuada — á/é no son word-chars en JS sin flag u y el boundary falla
 // silencioso ("olvidá"/"armá" no matchean · mismo bug documentado en criteria.js).
@@ -270,6 +270,12 @@ function _parseGastoList(q) {
     const name = (mp ? mp[1] : p).replace(/^(?:el|la|los|las|un|una)\s+/i, "").trim();
     if (!/^[\p{L}][\p{L}\s.\-]{1,29}$/u.test(name)) return null;
     if (_METRIC_WORDS.test(name)) return null;
+    // ORACIÓN, no nombre de gasto (sweep informal 2026-07-25: «ya gracias, muéstrame el pyl completo» se volvía
+    // dos líneas): nombres cortos (≤3 palabras) y sin arranque de verbo/muletilla — si una parte huele a frase,
+    // la LISTA entera se descarta y el turno sigue su curso.
+    const nName = _norm(name);
+    if (nName.split(/\s+/).length > 3) return null;
+    if (/^(ya|ok|dale|gracias|listo|bueno|muestr\w*|dame|dime|quiero|hazme|haz|arma\w*|cambi\w*|saca\w*|olvida\w*|recuerda\w*|explica\w*|si|no|deja\w*|pon\w*|vuelv\w*|hola)\b/.test(nName)) return null;
     if (lines.some((l) => _norm(l.nombre) === _norm(name))) continue;
     lines.push({ nombre: _cap(name), pct: mp ? parseFloat(mp[2].replace(",", ".")) : null });
   }
@@ -318,10 +324,13 @@ export function detectPnlIntent(q) {
   if (!t) return null;
   // ── MID-FLOW · el draft manda (solo claims compatibles con la etapa · un cambio de tema NO se secuestra) ──
   if (_draft) {
-    if (_CANCEL_RE.test(t)) return { action: "draft_cancel" };
+    // cancel informal («deja todo como estaba mejor» · sweep 2026-07-25) — sobre texto NORMALIZADO (acentos:
+    // "déjalo" no matchea /dej[aá]/ crudo — el acento va en la primera sílaba, misma clase del bug documentado)
+    if (_CANCEL_RE.test(t) || /\bdej\w*\s+(?:todo\s+)?(?:como|asi)\s+(?:estaba|esta)\b|\bvolvamos\s+a\s+lo\s+de\s+antes\b/.test(_norm(t)))
+      return { action: "draft_cancel" };
     // edición dentro del flujo («cambia logística a 2%» antes de sellar) — misma red del edit, sobre el draft
     const dl = _lineInText(t, _draft.lines);
-    if (dl && /(cambi[aá]|ajust[aá]|dej[aá]|pon[eé]|mejor)/i.test(t)) {
+    if (dl && /(cambi|ajust|dej|pon|mejor|sub|baj)\w*/.test(_norm(t))) {
       const mp = t.match(/(\d+(?:[.,]\d+)?)\s*%?/);
       if (mp) return { action: "draft_edit", nombre: dl.nombre, pct: parseFloat(mp[1].replace(",", ".")) };
       return { action: "draft_edit_reask", nombre: dl.nombre };   // espejo: «cambia X a otro %» sin número → re-pregunta
@@ -391,11 +400,13 @@ export function detectPnlIntent(q) {
     }
     return null;   // condicional sin línea propia → la red genérica de simulate resuelve
   }
-  // edición de líneas guardadas
+  // edición de líneas guardadas · verbos sobre texto NORMALIZADO («bájalo»/«súbela»/«cámbialo»: el acento en la
+  // primera sílaba rompe /baj[aá]/ crudo — clase acentos, cazada por el sweep informal 2026-07-25)
   if (_lines.length) {
     const l = _lineInText(t);
-    if (l && /(sac[aá]|quit[aá]|elimin[aá]|borr[aá])/i.test(t) && !/\d\s*%/.test(t)) return { action: "edit_remove", nombre: l.nombre };
-    if (l && /(cambi[aá]|ajust[aá]|pon[eé]|dej[aá]|sub[ií]|baj[aá])/i.test(t)) {
+    const nt = _norm(t);
+    if (l && /(saca|quita|elimina|borra)\w*/.test(nt) && !/\d\s*%/.test(t)) return { action: "edit_remove", nombre: l.nombre };
+    if (l && /(cambi|ajust|pon|dej|sub|baj)\w*/.test(nt)) {
       const mp = t.match(/(\d+(?:[.,]\d+)?)\s*%?\s*[?.!]*\s*$|(\d+(?:[.,]\d+)?)\s*%/);
       if (mp) return { action: "edit_set", nombre: l.nombre, pct: parseFloat((mp[1] || mp[2]).replace(",", ".")) };
       // espejo (gate 2026-07-25): «cambia logística a otro %» es frase que ADI EMITE — sin número, re-pregunta el %
