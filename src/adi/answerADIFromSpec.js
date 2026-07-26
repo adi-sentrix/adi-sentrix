@@ -21,6 +21,7 @@ import { SURFACE, BLOCKED_CROSSES } from "../config/contract/surfaceContract.js"
 import { assumptionValid } from "../config/contract/assumptionRegistry.js";
 import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";
 import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose, composeSpecSimulate, composeSpecSimulateCarga, composeSpecSimulateCapital, computeGoalAnchor, comparePairs, composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, compareCauses, diveCauses } from "./specRetrieval.js";   // productores spec-driven genéricos + capa causal (el motor lee; la capa explica)
+import { composeSpecTemporal } from "./composers/temporalTable.js";   // TIEMPO (mejora 7 · 2026-07-26) · mes a mes / rangos · historia + tabla_matriz (misma serie del evolutivo)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
 
@@ -40,7 +41,7 @@ function _finBoleta(contractResp, composerResp, route, intentLabel, ctx, scenari
 }
 
 const SCHEMA_VERSION = 1;
-const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "ventas", "contribucion", "why", "recommend", "explain_availability", "table", "simulate"]);
+const OPERATIONS = new Set(["overview", "rank", "compare", "dive", "diagnose", "inventory", "margin", "ventas", "contribucion", "why", "recommend", "explain_availability", "table", "simulate", "temporal"]);
 
 // ── mapeos contrato → identificadores internos del motor ─────────────────────────────────────────────
 // rank (composeRankingExtremes · vía RANKING_EXTREMES_METRICS): cliente = nombres base · sku = prefijo sku_ / stockUSD.
@@ -216,8 +217,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   // simulate sin métrica reconocible → repregunta EDUCATIVA (enseña las dos formas del supuesto), no el menú de métricas.
   if (spec.operation === "simulate" && (!spec.metric || !METRICS[spec.metric]))
     return _degrade("simulate-shape", `Decime el supuesto que querés probar: un porcentaje sobre una métrica («¿qué pasa si las ventas suben 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
-  if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && (!spec.metric || !METRICS[spec.metric]))
-    return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);
+  if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "temporal" && (!spec.metric || !METRICS[spec.metric]))
+    return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);   // temporal exento: "resultado/inventario mes a mes" DECLARAN su límite en su rama
 
   // ── #3 · dimensión existe (margin/ventas holísticos se saltan: manejan su propio eje, incl. "canal" que no es una ENTITY del contrato) ──
   if (spec.operation !== "margin" && spec.operation !== "ventas" && (!spec.dimension || !ENTITIES[spec.dimension]))
@@ -243,8 +244,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   //     cross-eje · inventory es HOLÍSTICO — composeSpecInventory usa el motor sellado, no retrieval por eje, y responde
   //     "la pregunta manda el foco" por SKU/bodega/familia con UNA sola verdad, así que capital@familia NO debe bloquear) ──
   const axes = (METRICS[spec.metric] && METRICS[spec.metric].axes) || [];
-  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && spec.operation !== "margin" && spec.operation !== "ventas" && spec.operation !== "contribucion" && !axes.includes(spec.dimension))
-    return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);
+  if (spec.operation !== "dive" && spec.operation !== "diagnose" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "inventory" && spec.operation !== "margin" && spec.operation !== "ventas" && spec.operation !== "contribucion" && spec.operation !== "temporal" && !axes.includes(spec.dimension))
+    return _degrade("metric-not-in-dim", `El ${_m(spec.metric)} no lo tengo por ${_d(spec.dimension)}. Sí lo tengo por ${axes.map(_d).join(", ")}.`, axes.map((a) => `${spec.metric}@${a}`), ctx);   // temporal exento: su rama DECLARA los límites del mes a mes con redirección propia
 
   // ── #5 · filtros válidos (clave = una dimensión conocida) ──
   for (const k of Object.keys(spec.filters || {}))
@@ -347,6 +348,22 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         return _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
       return _degrade("simulate-shape", `Decime el supuesto que querés probar sobre ${_m(spec.metric)}: un porcentaje («¿qué pasa si ${_m(spec.metric)} sube 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
+    }
+    // TIEMPO/TRAYECTORIA (mejora 7 · owner 2026-07-26): mes a mes · Q1-Q4 · semestres · rangos — LA HISTORIA
+    // primero + la tabla estructurada (tabla_matriz), misma serie del evolutivo de Sentrix (una verdad). Los
+    // límites del dato (resultado anual · inventario foto de hoy · canal sin mes) se DECLARAN con redirección.
+    if (spec.operation === "temporal") {
+      const tl = spec.temporal || { tipo: "mes_a_mes" };
+      const dimT = spec.dimension === "canal" ? "canal" : (tl.desglose ? spec.dimension : null);
+      const resp = composeSpecTemporal({ metric: spec.metric, dimension: dimT, entity: spec.entity || null, periodo: tl.tipo ? tl : null });
+      if (resp && resp.reason === "declarada") {
+        const out0 = _plain(resp.texto, { route: "temporal_declarado", intent: "spec", ctx, offer: [] });
+        out0.suggestions = resp.sugerencias || null;
+        out0.evidence = { lens: "temporal", followup: true, kind: "criteria", boleta: [] };   // verbatim (la declaración no se narra) · administrativa (no pisa la lectura)
+        return out0;
+      }
+      if (!resp || !resp.opener) return _degrade("temporal-empty", `Ese mes a mes no lo pude armar con el dato que tengo. Sí puedo mostrarte la venta mes a mes del negocio, de una cuenta puntual, o por cliente/familia/marca/SKU.`, [], ctx);
+      return _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
     }
     if (spec.operation === "overview") {
       // INVENTARIO (capital/rotación/DOH) → productor spec-driven (data-driven del contrato · sin texto) · sku o bodega

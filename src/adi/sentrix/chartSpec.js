@@ -18,6 +18,12 @@ export function chartForEvidence(e) {
   if (tc && Array.isArray(tc.rows) && tc.rows.length)
     return { tipo: "tabla_comparada", titulo: tc.titulo || "Comparado", tabla: tc };
 
+  // 0b · TABLA MATRIZ (mejora 7 · 2026-07-26): filas × N columnas (meses × entidades · mes a mes con año
+  // anterior/presupuesto) — la data viene estructurada del composer temporal (misma serie del evolutivo).
+  const tm = e.tablaM;
+  if (tm && Array.isArray(tm.rows) && tm.rows.length && Array.isArray(tm.cols) && tm.cols.length)
+    return { tipo: "tabla_matriz", titulo: tm.titulo || "Mes a mes", tabla: tm };
+
   if (e.followup) return null;   // saludo/criteria/explain/meta → sin gráfico
 
   // 1 · CONTRIBUCIÓN · Pareto (quién sostiene la plata · corte 80/20 real)

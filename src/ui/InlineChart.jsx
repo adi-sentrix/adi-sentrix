@@ -354,6 +354,41 @@ function MiniTablaComparada({ tabla }) {
   );
 }
 
+/* ── TABLA MATRIZ (mejora 7 · 2026-07-26): filas × N columnas — meses × entidades (venta por mes y por cliente),
+ * o mes a mes con Año anterior/Presupuesto. Columnas dinámicas; ancho scrollea horizontal (mismo criterio que el
+ * cuadro ancho). La fila Total va destacada. La data viene ESTRUCTURADA de la evidencia (una verdad). ── */
+function MiniTablaMatriz({ tabla }) {
+  const cols = (tabla && tabla.cols) || [];
+  const rows = (tabla && tabla.rows) || [];
+  const grid = `minmax(46px, 0.8fr) repeat(${cols.length}, minmax(62px, 1fr))`;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <div style={{ minWidth: cols.length > 3 ? 120 + cols.length * 84 : 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: grid, gap: 8, padding: "2px 2px 7px", borderBottom: `1px solid ${C.border}` }}>
+          <span style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text }}>Mes</span>
+          {cols.map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.text, textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={h}>{h}</span>)}
+        </div>
+        {rows.map((r, i) => (
+          <div key={`${r.label}-${i}`} style={{ display: "grid", gridTemplateColumns: grid, gap: 8, alignItems: "baseline",
+            padding: "6px 2px", borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+            background: r.strong ? "rgba(47,184,218,0.04)" : "transparent" }}>
+            <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: r.strong ? 700 : 400, color: r.strong ? C.text : C.textSub }}>{r.label}</span>
+            {(r.values || []).map((v, j) => (
+              <span key={j} style={{ textAlign: "right", fontFamily: MONO, fontSize: 12, fontVariantNumeric: "tabular-nums",
+                fontWeight: r.strong ? 700 : 400, color: r.strong ? C.text : C.textSub }}>{v}</span>
+            ))}
+          </div>
+        ))}
+      </div>
+      {tabla && tabla.nota ? (
+        <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 6, textAlign: "right" }}>
+          {tabla.nota}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ── contenedor: eyebrow con dot de identidad + gráfico + "Ampliar en Sentrix" (deep-link a la evidencia) ──
 export function InlineChart({ spec, onAmpliar }) {
   if (!spec) return null;
@@ -379,6 +414,7 @@ export function InlineChart({ spec, onAmpliar }) {
       {spec.tipo === "barras" && <MiniBarras rows={spec.rows} polarity={spec.polarity} unit={spec.unit}/>}
       {spec.tipo === "pareto" && <MiniPareto panel={spec.panel}/>}
       {spec.tipo === "tabla_comparada" && <MiniTablaComparada tabla={spec.tabla}/>}
+      {spec.tipo === "tabla_matriz" && <MiniTablaMatriz tabla={spec.tabla}/>}
     </div>
   );
 }

@@ -13,7 +13,8 @@ import { detectVentasFocus } from "./ventasFocus.js";
 import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
 import { detectCriteriaIntent } from "./criteria.js";
-import { detectPnlIntent, detectPnlEllipsis } from "./pnl.js";
+import { detectPnlIntent, detectPnlEllipsis, pnlDraft } from "./pnl.js";
+import { detectPeriodo } from "./composers/temporalTable.js";   // TIEMPO (mejora 7 · 2026-07-26) · mes a mes / Q1 / rangos
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
 import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
@@ -394,6 +395,33 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     const d = ui.mesaDim || "cliente";
     return { ...spec, operation: "compare", metric: spec.metric || "margen", dimension: d,
       comparison: { dimension: d, entities: [...ui.mesaSel] }, turn_type: "new_query" };
+  }
+  // TIEMPO/TRAYECTORIA (mejora 7 · owner 2026-07-26: "cuando alguien pida el mes a mes, o el primer Q o lo que
+  // sea, debe estar disponible"): mes a mes · trimestres · semestres · rangos "enero a marzo" · un mes — claim
+  // determinístico ANTES del P&L: «resultado mes a mes» se DECLARA como límite del dato (los gastos son % sobre
+  // la venta ANUAL), no responde el anual en silencio. Guards: sin condicional de simulación (el "cada mes" de un
+  // «¿qué pasa si…?» no roba) · sin flujo P&L abierto (una línea de gasto "arriendo mensual" es del flujo).
+  if (q && spec && !spec.transform && !/\b(qu[eé] pasa si|y si)\b/i.test(q) && !pnlDraft()) {
+    const per = detectPeriodo(q);
+    if (per) {
+      const nq = _norm(q);
+      const met = /\bventas?\b|\bvend[eií]\w*|\bfactur\w+/.test(nq) ? "ventas"
+        : /contribuci/.test(nq) ? "contribucion"
+        : /\bmargen\w*\b/.test(nq) ? "margen"
+        : /\bresultado\w*\b|despues de gastos|\bp\s*&?\s*l\b|\bpyl\b|utilidad/.test(nq) ? "resultado"
+        : /capital|stock|inventari|rotaci[oó]n|cobertura|\bdoh\b/.test(nq) ? "inventario"
+        : (["ventas", "contribucion", "margen"].includes(spec.metric) && spec.operation && spec.operation !== "clarification_needed" ? spec.metric : null);
+      if (met) {
+        const desg = nq.match(/\bpor\s+(?:cada\s+)?(cliente|familia|marca|sku|producto|canal)e?s?\b/);
+        const dim = desg ? (desg[1] === "producto" ? "sku" : desg[1]) : null;
+        const entC = !dim && q ? _soloCanonEn(q) : null;
+        return _cleanFilters({ ...spec, operation: "temporal", metric: met,
+          dimension: dim || (entC ? entC.tipo : null) || ((spec.dimension && ENTITIES[spec.dimension]) ? spec.dimension : "cliente"),
+          entity: dim ? null : (entC ? entC.nombre : (typeof spec.entity === "string" && spec.entity ? spec.entity : null)),
+          comparison: undefined, focus: undefined, transform: undefined, turn_type: "new_query",
+          temporal: { ...per, desglose: !!dim } });
+      }
+    }
   }
   // P&L COMERCIAL (owner 2026-07-15 "sí, parte por p&l"): el flujo guiado (¿qué gastos? → ¿qué %? → sello), la
   // edición y las lecturas de resultado corren PRIMERO y CORTAN la cadena — ANTES de fuera-de-dato ("marketing/
