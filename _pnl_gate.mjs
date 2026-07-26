@@ -154,7 +154,7 @@ for (const [texto, tag] of promesas) {
 ok(rotas === 0, `${promesas.size} promesas del P&L cumplen por la cadena (asks de la cara + sugerencias)`);
 
 console.log("[9] REGISTRO ejecutivo en todo texto emitido");
-const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|vara)\b/i;
+const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|vara|apr[ei]et\w*)\b/i;   // + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
 let sucios = 0;
 const scan = (tag, t) => { if (typeof t === "string" && BANNED.test(t)) { sucios++; console.log(`    ✗ registro roto en ${tag}: «${t.match(BANNED)[0]}»`); } };
 for (const a of ["start", "recall", "resultado", "peso"]) { const r = composePnl({ action: a }, null, { scenario: "bonanza" }); scan(`composePnl:${a}`, r.text); for (const s2 of (r.suggestions || [])) scan(`composePnl:${a}·sug`, s2); }

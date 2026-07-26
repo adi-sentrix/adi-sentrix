@@ -975,10 +975,11 @@ export function composePnl(pi, ctx = null, state = {}) {
       _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct),
       ...(topP ? [_fMoneyK(`Gasto · ${topP.nombre}`, topP.usdK), _fPct(`Línea · ${topP.nombre}`, topP.pct)] : []),
     ];
-    // HISTORIA PRIMERO (la captura del owner 2026-07-26 era ESTA respuesta): qué te queda y dónde apretar —
-    // la cascada de punta a punta viaja en la tabla, no en el texto.
+    // HISTORIA PRIMERO (la captura del owner 2026-07-26 era ESTA respuesta): qué te queda y dónde actuar —
+    // la cascada de punta a punta viaja en la tabla, no en el texto. Registro ejecutivo (owner 2026-07-26:
+    // "apretar" es poco ejecutivo — la palabra entró a la lista del _registro_gate).
     return _resp(
-      `**Te quedan ${_moneyK(c.resultadoK)} al año** — el ${_fmtPct(c.resultadoPct)}% de tu venta, después del costo de los productos, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\nDónde apretar primero: parte de la carga comercial (${_moneyK(c.cargaK)}) se puede recuperar, hay cuentas con un margen más bajo que el resto, y de tus gastos la línea que más pesa es ${topP.nombre.toLowerCase()} (${_moneyK(topP.usdK)} · ${_fmtPct(topP.pct)}%). ¿Bajamos a un frente?`,
+      `**Te quedan ${_moneyK(c.resultadoK)} al año** — el ${_fmtPct(c.resultadoPct)}% de tu venta, después del costo de los productos, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\nDónde actuar primero: parte de la carga comercial (${_moneyK(c.cargaK)}) se puede recuperar, hay cuentas con un margen más bajo que el resto, y de tus gastos la línea que más pesa es ${topP.nombre.toLowerCase()} (${_moneyK(topP.usdK)} · ${_fmtPct(topP.pct)}%). ¿Bajamos a un frente?`,
       { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?", "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE, tablaM: _tablaCascada(c, null, "Tu dinero, de punta a punta") } }
     );
   }

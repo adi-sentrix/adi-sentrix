@@ -27,7 +27,7 @@ const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado } = M;
 
-const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa")
+const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
 let pass = 0, fail = 0; const rotos = [];
 const check = (origen, texto) => {
   if (typeof texto !== "string" || !texto.trim()) return;
@@ -155,7 +155,7 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
 for (const [k, e] of Object.entries(CAPITAL_ESTADOS)) { check(`mesacap · estado ${k} label`, e.label); check(`mesacap · estado ${k} def`, e.def); check(`mesacap · estado ${k} ask`, e.ask); }
 // P&L COMERCIAL (owner 2026-07-15) · el flujo guiado, las lecturas y la cara Resultado en registro ejecutivo
 setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
-for (const a of ["start", "recall", "resultado", "peso"]) checkResp(`pnl · ${a}`, composePnl({ action: a }, null, { scenario: "bonanza" }));
+for (const a of ["start", "recall", "resultado", "peso", "perdiendo"]) checkResp(`pnl · ${a}`, composePnl({ action: a }, null, { scenario: "bonanza" }));
 checkResp("pnl · simulate", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2 }, null, { scenario: "bonanza" }));
 checkResp("pnl · entidad", composePnl({ action: "resultado_entidad", entidad: "Falabella" }, null, { scenario: "bonanza" }));
 checkResp("pnl · meta", composePnl({ action: "meta_venta", targetK: 18000 }, null, { scenario: "bonanza" }));
