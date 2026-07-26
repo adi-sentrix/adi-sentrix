@@ -282,7 +282,12 @@ ok(rSimD && /solo en Cuidado Personal/.test(rSimD.text) && /declara log[ií]stic
 const rSimM = go("¿y si en esa marca bajo logística a 2%?");
 ok(rSimM && /¿En cuál\?/.test(rSimM.text), "sustantivo deíctico que NO calza con el eje del alcance → clarifica (jamás adivina)");
 const rMeta = go("¿cuánto vender en Falabella para que me deje $500K después de gastos?");
-ok(rMeta && rMeta.text.startsWith("Para que Falabella te deje $500K después de gastos necesita vender "), "meta scoped: la cuenta sobre el % de la entidad");
+ok(rMeta && rMeta.text.startsWith("Para que Falabella te deje $500K después de gastos, su venta tiene que llegar a "), "meta scoped: explicativo llano (su venta tiene que llegar a)");
+ok(/¿Por qué esa cifra\?/.test(rMeta.text) && /Este cálculo no asegura que esa venta ocurra/.test(rMeta.text), "meta: por qué esa cifra + qué no asegura, sin jerga");
+for (const s2 of (rMeta.suggestions || [])) {
+  const cs3 = CF(s2, false, null);
+  ok(!!cs3 && cs3.turn_type === "pnl_setup", `chip de la meta reclama: «${s2}»`);
+}
 // BLINDAJE pnl-en-operation (sweep LLM 2026-07-25): el LLM #1 pone "pnl_setup" en OPERATION → el turno ES del
 // P&L (jamás spec_blocked) — y el rescate elíptico NO lo lee como "op resuelta".
 const rBlind = AC(CS("recuerda lo anterior", S({ operation: "pnl_setup", turn_type: "followup_explain" }), true, null), {}, { scenario: "bonanza" });

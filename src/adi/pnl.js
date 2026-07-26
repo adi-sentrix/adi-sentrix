@@ -1009,12 +1009,11 @@ export function composePnl(pi, ctx = null, state = {}) {
           _fMoneyK(`Resultado actual · ${e.nombre}`, e.resultadoK), _fMoneyK(gapK >= 0 ? "Venta adicional" : "Holgura", Math.abs(gapK)),
           _fPct("Gastos · total", cS.sumPct),
         ];
-        const cierre = gapK > 0
-          ? `La brecha es ${_moneyK(Math.abs(gapK))} de venta adicional en esa cuenta.`
-          : `Ya está por encima: con su venta actual sobran ${_moneyK(Math.abs(gapK))} de holgura.`;
+        // EXPLICATIVO LLANO (palabras del owner 2026-07-25 · mismo trato que la proyección: sin "la cuenta/
+        // estructura/mix" — hoy vende y deja · cuánto falta · por qué esa cifra · qué no asegura)
         return _resp(
-          `Para que ${e.nombre} te deje ${_moneyK(targetK)} después de gastos necesita vender ${_moneyK(ventaNecK)} al año. La cuenta: con tu estructura, su resultado es el ${_fmtPct(e.resultadoPct)}% de su venta (su margen y su carga del dato − ${_fmtPct(cS.sumPct)}% de gastos declarados). Hoy su venta es ${_moneyK(e.ventaK)} y deja ${_moneyK(e.resultadoK)}. ${cierre} Supuesto: mantiene su mix y tus porcentajes constantes — no es una proyección de demanda.`,
-          { route: "pnl_reading", suggestions: [`P&L de ${e.nombre}`, "¿Qué línea pesa más en el resultado?"], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
+          `Para que ${e.nombre} te deje ${_moneyK(targetK)} después de gastos, su venta tiene que llegar a ${_moneyK(ventaNecK)} al año. Hoy vende ${_moneyK(e.ventaK)} y deja ${_moneyK(e.resultadoK)}${gapK > 0 ? ` — le faltan ${_moneyK(gapK)} de venta adicional` : ` — la meta ya está cubierta, con ${_moneyK(Math.abs(gapK))} de holgura`}.\n\n¿Por qué esa cifra? Hoy el ${_fmtPct(e.resultadoPct)}% de su venta queda como resultado después de gastos. Si eso se mantiene igual — margen, carga y tus gastos declarados (${_fmtPct(cS.sumPct)}%) — esa es la venta que produce ${_moneyK(targetK)}.\n\nEste cálculo no asegura que esa venta ocurra, ni considera cambios en los productos vendidos, los precios o el comportamiento de los clientes.`,
+          { route: "pnl_reading", suggestions: [`¿Y si ${e.nombre} vendiera ${_moneyK(ventaNecK)}?`, "¿Qué línea pesa más en el resultado?"], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
         );
       }
     }
@@ -1031,12 +1030,10 @@ export function composePnl(pi, ctx = null, state = {}) {
       _fPct("Resultado %", c.resultadoPct), _fMoneyK("Venta actual", c.ingresoK), _fMoneyK("Resultado actual", c.resultadoK),
       _fMoneyK(gapK >= 0 ? "Venta adicional" : "Holgura", Math.abs(gapK)), _fPct("Gastos · total", c.sumPct),
     ];
-    const cierre = gapK > 0
-      ? `La brecha es ${_moneyK(Math.abs(gapK))} de venta adicional.`
-      : `Ya estás por encima: con la venta actual te sobran ${_moneyK(Math.abs(gapK))} de holgura.`;
+    // EXPLICATIVO LLANO (palabras del owner 2026-07-25 · mismo trato que la proyección)
     return _resp(
-      `Para un resultado de ${_moneyK(targetK)} después de gastos necesitas vender ${_moneyK(ventaNecK)} al año. La cuenta: con tu estructura actual, el resultado es el ${_fmtPct(c.resultadoPct)}% de la venta (margen y carga del dato − ${_fmtPct(c.sumPct)}% de gastos declarados). Hoy la venta es ${_moneyK(c.ingresoK)} y el resultado ${_moneyK(c.resultadoK)}. ${cierre} Supuesto: mantiene tu mix y tus porcentajes constantes — no es una proyección de demanda.`,
-      { route: "pnl_reading", suggestions: ["¿Qué línea pesa más en el resultado?"], bol }
+      `Para un resultado de ${_moneyK(targetK)} después de gastos, la venta tiene que llegar a ${_moneyK(ventaNecK)} al año. Hoy el negocio vende ${_moneyK(c.ingresoK)} y deja ${_moneyK(c.resultadoK)}${gapK > 0 ? ` — faltan ${_moneyK(gapK)} de venta adicional` : ` — la meta ya está cubierta, con ${_moneyK(Math.abs(gapK))} de holgura`}.\n\n¿Por qué esa cifra? Hoy el ${_fmtPct(c.resultadoPct)}% de la venta queda como resultado después de gastos. Si eso se mantiene igual — margen, carga y tus gastos declarados (${_fmtPct(c.sumPct)}%) — esa es la venta que produce ${_moneyK(targetK)}.\n\nEste cálculo no asegura que esa venta ocurra, ni considera cambios en los productos vendidos, los precios o el comportamiento de los clientes.`,
+      { route: "pnl_reading", suggestions: [`¿Y si el negocio vendiera ${_moneyK(ventaNecK)}?`, "¿Qué línea pesa más en el resultado?"], bol }
     );
   }
   if (a === "resultado_entidad") {

@@ -252,10 +252,10 @@ ok("62 · DEIXIS cross-dominio: 'de esos, ¿cuánto me dejan después de gastos?
     const r = AC(s, { lastEvidence: { entityList: { entities: ["Ripley", "La Polar"], dimension: "cliente" } } }, { scenario: "bonanza" });
     return /^De los que veníamos mirando, después de gastos: Ripley deja /.test(r.text) && /La Polar deja /.test(r.text);
   })());
-ok("63 · PROYECCIÓN SCOPED: '¿cuánto vender en Falabella para que me deje $500K después de gastos?' → la meta sobre SU %",
+ok("63 · PROYECCIÓN SCOPED: '¿cuánto vender en Falabella para que me deje $500K después de gastos?' → la meta sobre SU % (explicativo llano)",
   (() => {
     const r = _pnlGo("¿cuánto vender en Falabella para que me deje $500K después de gastos?");
-    const okMeta = /^Para que Falabella te deje \$500K después de gastos necesita vender /.test(r.text);
+    const okMeta = /^Para que Falabella te deje \$500K después de gastos, su venta tiene que llegar a /.test(r.text);
     PNLCLR(); PNLRST();
     return okMeta;
   })());
