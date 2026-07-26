@@ -324,6 +324,7 @@ export function detectPnlIntent(q) {
     if (dl && /(cambi[aá]|ajust[aá]|dej[aá]|pon[eé]|mejor)/i.test(t)) {
       const mp = t.match(/(\d+(?:[.,]\d+)?)\s*%?/);
       if (mp) return { action: "draft_edit", nombre: dl.nombre, pct: parseFloat(mp[1].replace(",", ".")) };
+      return { action: "draft_edit_reask", nombre: dl.nombre };   // espejo: «cambia X a otro %» sin número → re-pregunta
     }
     if (_draft.stage === "sello") {
       if (_AFFIRM_SELLO.test(t)) return { action: "draft_sello" };
@@ -397,6 +398,8 @@ export function detectPnlIntent(q) {
     if (l && /(cambi[aá]|ajust[aá]|pon[eé]|dej[aá]|sub[ií]|baj[aá])/i.test(t)) {
       const mp = t.match(/(\d+(?:[.,]\d+)?)\s*%?\s*[?.!]*\s*$|(\d+(?:[.,]\d+)?)\s*%/);
       if (mp) return { action: "edit_set", nombre: l.nombre, pct: parseFloat((mp[1] || mp[2]).replace(",", ".")) };
+      // espejo (gate 2026-07-25): «cambia logística a otro %» es frase que ADI EMITE — sin número, re-pregunta el %
+      return { action: "edit_reask", nombre: l.nombre };
     }
   }
   if (/(agreg[aá]|sum[aá]|a[ñn]ad[ií])/i.test(t) && (_lines.length || _PNL_WORD.test(t) || _GASTOS_WORD.test(t))) {
@@ -611,6 +614,11 @@ export function composePnl(pi, ctx = null, state = {}) {
     if (l && _validLine({ nombre: l.nombre, pct: pi.pct })) { l.pct = _r1(pi.pct); return _proponerSello(scenario); }
     return _resp(`Ese porcentaje no me cierra para ${pi.nombre.toLowerCase()} — dame un valor entre 0.1% y 50% y sigo.`, { bol: [_gPct(0.1), _gPct(50)] });
   }
+  if (a === "draft_edit_reask") {
+    const l = _findLine(pi.nombre, _draft ? _draft.lines : null);
+    return _resp(`Dime el porcentaje y lo muevo: «cambia ${String(pi.nombre).toLowerCase()} a 2%».${l && l.pct != null ? ` Hoy ${l.nombre.toLowerCase()} va en ${_fmtPct(l.pct)}%.` : ""}`,
+      { bol: [_gPct(2), ...(l && l.pct != null ? [_fPct(`Línea · ${l.nombre}`, l.pct)] : [])] });
+  }
   if (a === "draft_stay") {
     const c = buildPnlCascade(scenario, _draft.lines);
     return _resp(`Bien — dime qué ajusto («cambia ${c.lines[0].nombre.toLowerCase()} a otro %») o dime «cancelar» y lo dejamos sin guardar. Hoy va: ${_listado(c.lines)}.`, { bol: _lineFigs(c.lines) });
@@ -639,6 +647,11 @@ export function composePnl(pi, ctx = null, state = {}) {
       `Listo — ${l.nombre.toLowerCase()} pasa de ${_fmtPct(prev)}% a ${_fmtPct(_r1(pi.pct))}%. Con eso, el resultado comercial queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta) con ${_fmtPct(c.sumPct)}% de gastos totales.`,
       { suggestions: ["¿Cómo queda mi resultado comercial?"], bol: [_fPct("Anterior", prev, { gancho: true }), _fPct("Nuevo", _r1(pi.pct)), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), _fPct("Gastos · total", c.sumPct)] }
     );
+  }
+  if (a === "edit_reask") {
+    const l = _findLine(pi.nombre);
+    if (!l) return _resp(`No tengo una línea «${String(pi.nombre || "").toLowerCase()}» en tu P&L. Hoy va: ${_listado(_lines)}.`, { bol: _lineFigs(_lines) });
+    return _resp(`Dime el porcentaje y la muevo: «cambia ${l.nombre.toLowerCase()} a 2%». Hoy ${l.nombre.toLowerCase()} va en ${_fmtPct(l.pct)}% sobre la venta.`, { bol: [_fPct(`Línea · ${l.nombre}`, l.pct), _gPct(2)] });
   }
   if (a === "edit_add" || a === "edit_add_nopct") {
     if (a === "edit_add_nopct") return _resp(`Dímelo con su % sobre la venta y lo agrego: «agrega ${pi.nombre.toLowerCase()} 1.5%».`, { bol: [_gPct(1.5)] });
