@@ -507,6 +507,20 @@ clearPnl(); resetPnlDraft();
 setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
 const sPdM = CS("¿dónde estoy perdiendo margen?", S({}), false, null);
 ok(sPdM.turn_type !== "pnl_setup", "«perdiendo MARGEN» no es del P&L (el margen conserva su dominio)");
+// ACUSE EN EL FLUJO (owner cazó en vivo 2026-07-26: «ok. que necesitas» tras abrir la guía → fallback narrado
+// genérico, hilo perdido): dentro del flujo, el acuse re-guía la etapa — JAMÁS suelta.
+clearPnl(); resetPnlDraft();
+void go("¿dónde estoy perdiendo dinero?", false);   // abre la guía (etapa gastos)
+const rAck1 = go("ok. que necesitas");
+ok(rAck1 && /nombres son tuyos|Nómbralos/.test(rAck1.text) && pnlDraft() && pnlDraft().stage === "gastos", "«ok. que necesitas» (sin signo de pregunta) → re-guía los gastos, no suelta el hilo", rAck1 && `[${rAck1.route}] ${rAck1.text.slice(0, 60)}`);
+const rAck2 = go("sí");
+ok(rAck2 && /nombres son tuyos|Nómbralos/.test(rAck2.text), "«sí» pelado en la etapa gastos → re-guía (no followup_accept)");
+void go("seguros, fletes y comisiones");
+const rAck3 = go("ok");
+ok(rAck3 && /me falta el %|Seguimos con tu P&L/.test(rAck3.text) && pnlDraft().stage === "pcts", "«ok» en la etapa de % → re-pregunta los % pendientes");
+void go("2, 1, 1.5");
+const rAck4 = go("listo");
+ok(rAck4 && /^Sellado\./.test(rAck4.text), "«listo» en la etapa de sello → SELLA (el acuse de cierre afirma, no re-guía)");
 clearPnl(); resetPnlDraft();
 
 console.log("[22] DEEP-LINK · «Ampliar en Sentrix» de una respuesta P&L → la Mesa en la cara Resultado con SU alcance");
