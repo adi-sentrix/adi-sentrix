@@ -13,7 +13,7 @@ import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   /
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
-import { resetPnlDraft } from "../adi/pnl.js";   // P&L · el reset del chat también limpia el flujo guiado a medio armar (el sellado persiste)
+import { resetPnlDraft, ensurePnlNarration } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código)
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
@@ -137,7 +137,12 @@ async function _narrateResult(r, onPhase) {
     // + OFERTA FUERA DE DATO (owner 2026-07-09): oración que ofrezca data inexistente (campañas/marketing/…)
     // se elimina completa — el universo DISPONIBLE viaja en el prompt; esto es la garantía en código.
     // + LEAKS DE IDIOMA/SLANG (owner 2026-07-10 · "vitales"): "if"/"and"/"dive into"/"la pasta" → español de directorio.
-    return { r: { ...r, text: stripLanguageLeaks(stripOutOfDataOffers(stripRoboticVoice(picked.text))) }, narrated: picked.narrated };
+    const stripped = stripLanguageLeaks(stripOutOfDataOffers(stripRoboticVoice(picked.text)));
+    // F4 · POST-CHECK P&L (solo narración aprobada · kind "pnl") · corre ÚLTIMO, sobre el texto FINAL: la
+    // GRADUACIÓN probado/supuesto y el acuse del SELLO se aseguran en código si el narrador los omitió — o si un
+    // strip se llevó la frase (cazado por el sweep F4: la graduación venía pegada a la línea "marketing" del
+    // usuario y la oferta fuera-de-dato la eliminó). Frases sin cifras nuevas — la boleta no se toca.
+    return { r: { ...r, text: picked.narrated ? ensurePnlNarration(stripped, r.text, r.evidence) : stripped }, narrated: picked.narrated };
   } catch { return { r, narrated: false }; }
 }
 

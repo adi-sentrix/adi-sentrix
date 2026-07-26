@@ -10,13 +10,16 @@
  *   [7] EMPTY STATE · sin P&L la cara lo dice y el prefill del CTA reclama el flujo
  *   [8] PROMESAS PROPIAS · toda ask/sugerencia que el P&L emite responde por la cadena (0 rotas)
  *   [9] REGISTRO ejecutivo en todo texto emitido (plata/dormido/guita/palanca/vara prohibidos)
- *  [10] PROTECCIONES · el claim no roba turnos ajenos · "olvidá todo" (criteria) también limpia el P&L */
+ *  [10] PROTECCIONES · el claim no roba turnos ajenos · "olvidá todo" (criteria) también limpia el P&L
+ *  [29] F4 · LA VOZ DEL P&L: las LECTURAS declaran kind "pnl" (narrables · el det queda como PISO con sus 3
+ *       movimientos) · las ADMINISTRATIVAS del flujo siguen verbatim kind "criteria" · la boleta autoriza el
+ *       universo completo (texto + tabla) · guard-reject → cae al piso byte-igual · directiva del narrador */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, "_plge.js"), out = path.join(root, "_plgb.mjs");
 fs.writeFileSync(entry, [
   'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
-  'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, editPnlLine, removePnlLine, addPnlLine, pnlExplain, pnlRecommend } from "./src/adi/pnl.js";',
+  'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, editPnlLine, removePnlLine, addPnlLine, pnlExplain, pnlRecommend, ensurePnlNarration } from "./src/adi/pnl.js";',
   'export { buildMesaResultado, pnlMesaLink, pnlExportData } from "./src/adi/sentrix/mesaResultado.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { composeSpecDiagnose } from "./src/adi/specRetrieval.js";',
@@ -24,6 +27,8 @@ fs.writeFileSync(entry, [
   'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
   'export { chartForEvidence } from "./src/adi/sentrix/chartSpec.js";',
+  'export { shouldNarrate, pickNarratedText } from "./src/adi/llm/numberGuard.js";',
+  'export { buildNarrateSystem } from "./src/adi/llm/narratePrompt.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -796,6 +801,102 @@ for (const [texto, { tag, sc }] of asks28) {
 }
 ok(rotas28 === 0, `${asks28.size} asks emitidas por las lecturas del sello responden por la cadena (0 rotas)`);
 clearPnl(); resetPnlDraft();
+
+console.log("[29] F4 · LA VOZ DEL P&L (lecturas narrables kind 'pnl' · piso det intacto · administrativas verbatim)");
+{
+  const { shouldNarrate: SN29, pickNarratedText: PN29, buildNarrateSystem: BNS29 } = M;
+  clearPnl(); resetPnlDraft();
+  setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+  // ── el texto plano de una tablaM (labels + valores + notas) para probar cobertura de boleta ──
+  const tablaTxt = (tm) => !tm ? "" : [tm.titulo, tm.nota, ...(tm.rows || []).flatMap((r) => [r.label, r.nota, ...(r.values || []), r.a, r.b])].filter(Boolean).join(" · ");
+  // ── LAS LECTURAS: kind "pnl" narrable · boleta cubre texto Y tabla · guard-reject cae al piso byte-igual ──
+  const LECTURAS29 = [
+    ["resultado global", () => composePnl({ action: "resultado" }, null, { scenario: "bonanza" })],
+    ["perdiendo (la historia)", () => composePnl({ action: "perdiendo" }, null, { scenario: "bonanza" })],
+    ["scoped cliente", () => composePnl({ action: "resultado_scoped", entidad: "Falabella", eje: "cliente", covered: true }, null, { scenario: "bonanza" })],
+    ["scoped familia", () => composePnl({ action: "resultado_scoped", entidad: "Cuidado Personal", eje: "familia", covered: true }, null, { scenario: "tension" })],
+    ["tabla por eje", () => composePnl({ action: "tabla_eje", eje: "familia" }, null, { scenario: "bonanza" })],
+    ["deixis (conjunto)", () => composePnl({ action: "resultado_deixis", _entities: { entities: ["Falabella", "Ripley"], dimension: "cliente" }, _explicit: true }, null, { scenario: "bonanza" })],
+    ["entidad (forma corta)", () => composePnl({ action: "resultado_entidad", entidad: "Jumbo", eje: "cliente" }, null, { scenario: "bonanza" })],
+    ["peso de líneas", () => composePnl({ action: "peso" }, null, { scenario: "bonanza" })],
+  ];
+  for (const [tag, mk] of LECTURAS29) {
+    const r = mk();
+    ok(r.evidence && r.evidence.kind === "pnl" && r.evidence.pnl === true && r.evidence.followup === false,
+      `${tag}: kind "pnl" narrable (pnl:true · followup:false — threading intacto)`, r.evidence && r.evidence.kind);
+    ok(SN29(r) === true, `${tag}: shouldNarrate la deja pasar (sin tocar numberGuard.js)`);
+    const gT = guardAgainstBoleta(tablaTxt(r.evidence.tablaM), r.evidence.boleta);
+    ok(gT.unauthorized.length === 0, `${tag}: la boleta cubre el UNIVERSO de la tabla renderizada (0 fuera)`, gT.unauthorized.join(","));
+    const pOK = PN29(r, r.text);
+    ok(pOK.narrated === true, `${tag}: el propio piso pasa la cadena de guards (boleta completa · self-consistente)`, pOK.reason);
+    const pBad = PN29(r, "Con estos supuestos el resultado que te queda es $999.9B al año.");
+    ok(pBad.narrated === false && pBad.text === r.text, `${tag}: guard-reject → sale EL PISO determinístico byte-igual (la red)`);
+  }
+  // el análisis post-sello también narra (draft completo → sello → kind "pnl")
+  clearPnl(); resetPnlDraft();
+  const s1 = go("Armemos mi P&L", false); void s1;
+  go("logística 3%, marketing 1.5%");
+  const rSello = go("sí");
+  ok(rSello && /^Sellado — /.test(rSello.text) && rSello.evidence.kind === "pnl" && SN29(rSello) === true,
+    "el análisis post-sello narra (kind 'pnl') y el acuse 'Sellado —' sigue en el piso");
+  const pSello = PN29(rSello, rSello.text);
+  ok(pSello.narrated === true, "post-sello: el piso pasa su propia boleta (self-consistente)", pSello.reason);
+  // ── LA DIRECTIVA: el system del narrador para kind "pnl" trae el arco del sello + la doctrina ──
+  const sys29 = BNS29(rSello.evidence);
+  ok(/ESTRUCTURA DEL P&L COMERCIAL/.test(sys29) && /supuesto declarado/.test(sys29) && /dato probado/.test(sys29),
+    "directiva P&L: arco del sello + graduación probado/supuesto declarada INNEGOCIABLE");
+  ok(/tablaM/.test(sys29) && /NO la recites/.test(sys29), "directiva P&L: la tabla renderizada NO se recita (la historia es del narrador)");
+  ok(/Sellado/.test(sys29) && /REGISTRO FORMAL/.test(sys29), "directiva P&L: el sello se confirma · registro formal");
+  ok(!BANNED.test(""), "sanity BANNED");   // el registro de lo EMITIDO lo barren [9]/[28]; la directiva es prompt, no emisión
+  // ── EL POST-CHECK DE FRASES (F4 · la doctrina en código, no en prompt — patrón "El perfil"/"El año") ──
+  const { ensurePnlNarration: EPN29 } = M;
+  const rL29 = composePnl({ action: "resultado" }, null, { scenario: "bonanza" });
+  const eG = EPN29("Te quedan $18.5M al año — buen resultado.", rL29.text, rL29.evidence);
+  ok(/dato probado/.test(eG) && /supuestos declarados por ti/.test(eG), "post-check: narración SIN graduación → la frase de doctrina se appendea (sin cifras nuevas)");
+  const yaOK = "Te quedan $18.5M — hasta la contribución es dato probado y los gastos son supuestos declarados. ¿Partimos por ahí?";
+  ok(EPN29(yaOK, rL29.text, rL29.evidence) === yaOK, "post-check: narración que YA declara graduación y cierra preguntando queda intacta");
+  const sinQ = EPN29("Te quedan $18.5M y los gastos son supuestos declarados por ti.", rL29.text, rL29.evidence);
+  const qDet29 = rL29.text.trim().match(/[^\n]*\?\s*$/)[0].trim();
+  ok(sinQ.endsWith(qDet29), "post-check (c): narración sin pregunta final → la DECISIÓN del piso se appendea (cierre del contrato)");
+  ok(EPN29("Texto libre.", rL29.text, { kind: "criteria" }) === "Texto libre.", "post-check: fuera del territorio P&L no toca nada");
+  const ePerfil = EPN29("Te quedan $11.9M.", "x", { kind: "pnl", pnlList: [{ nombre: "Logística", pct: 3, origen: "perfil_empresa" }] });
+  ok(/supuestos del perfil de tu empresa/.test(ePerfil), "post-check: con líneas del perfil, la variante honesta del perfil");
+  ok(EPN29("Tu resultado quedó firme y los supuestos miden.", rSello.text, rSello.evidence).startsWith("Sellado — "),
+    "post-check: narración del sello que no lo confirma → el acuse del piso ANTEPUESTO");
+  ok(!EPN29("Sellado quedó tu P&L — tus supuestos ya miden.", rSello.text, rSello.evidence).startsWith("Sellado — tus gastos"),
+    "post-check: narración que SÍ confirma el sello no se duplica");
+  // ── LAS ADMINISTRATIVAS: siguen verbatim kind "criteria" (cada palabra es eco/instrucción exacta) ──
+  clearPnl(); resetPnlDraft();
+  setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]);
+  const ADMIN29 = [
+    ["start (ya armado)", () => composePnl({ action: "start" }, null, { scenario: "bonanza" })],
+    ["recall", () => composePnl({ action: "recall" }, null, { scenario: "bonanza" })],
+    ["edit_set", () => composePnl({ action: "edit_set", nombre: "Logística", pct: 2 }, null, { scenario: "bonanza" })],
+    ["rearmar", () => { const r = composePnl({ action: "rearmar" }, null, { scenario: "bonanza" }); resetPnlDraft(); return r; }],
+    ["simulate de línea", () => composePnl({ action: "simulate_line", nombre: "Marketing", pct: 1 }, null, { scenario: "bonanza" })],
+    ["proyección de venta", () => composePnl({ action: "proyeccion_venta", ventaK: 120000, negocio: true }, null, { scenario: "bonanza" })],
+    ["meta de venta", () => composePnl({ action: "meta_venta", targetK: 2000 }, null, { scenario: "bonanza" })],
+    ["explain P&L-aware", () => pnlExplain({ pnl: true }, null, { scenario: "bonanza" })],
+    ["recommend P&L-aware", () => pnlRecommend({ pnl: true }, null, { scenario: "bonanza" })],
+    ["redirect eje imposible", () => composePnl({ action: "tabla_eje", eje: "bodega" }, null, { scenario: "bonanza" })],
+    ["scoped sin cobertura (Makita)", () => composePnl({ action: "resultado_scoped", entidad: "Makita", eje: "marca", covered: false }, null, { scenario: "bonanza" })],
+    ["scoped_missing", () => composePnl({ action: "scoped_missing", pedido: "Walmart" }, null, { scenario: "bonanza" })],
+    ["forget", () => composePnl({ action: "forget" }, null, { scenario: "bonanza" })],
+  ];
+  for (const [tag, mk] of ADMIN29) {
+    const r = mk();
+    ok(r && r.evidence && r.evidence.kind === "criteria" && SN29(r) === false,
+      `admin «${tag}»: sigue VERBATIM kind "criteria" (shouldNarrate false)`, r && r.evidence && r.evidence.kind);
+  }
+  // el flujo guiado completo también (gastos → % → boleta del sello: cada eco es del usuario)
+  clearPnl(); resetPnlDraft();
+  const f1 = go("Armemos mi P&L", false);
+  const f2 = go("administrativos, fletes");
+  const f3 = go("1, 2");
+  ok([f1, f2, f3].every((r) => r && r.evidence.kind === "criteria" && SN29(r) === false),
+    "el flujo guiado punta a punta (¿qué gastos? → % → ¿lo sello?) sigue verbatim");
+  clearPnl(); resetPnlDraft();
+}
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
