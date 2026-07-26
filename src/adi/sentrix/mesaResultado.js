@@ -61,9 +61,12 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
       ask: "¿Cuánta contribución no estoy capturando?", def: "Hasta acá todo es dato probado: la misma contribución que citan las respuestas y las cards de ADI." },
     // F2: la línea puede venir del PERFIL de la empresa (no declarada por el usuario) — el chip y la lectura
     // de ayuda lo dicen como es. Con líneas declaradas (demo siempre), byte-igual.
+    // EDICIÓN DIRECTA (owner 2026-07-26 "con opción de cambiarlos"): cada supuesto expone `edit` (nombre + %
+    // vigente) — la UI edita con editPnlLine/removePnlLine (las primitivas del chat: una verdad).
     ...c.gastos.map((g) => ({
       key: `gasto:${g.nombre}`, label: g.nombre, usdFmt: `− ${_moneyK(g.usdK)}`, kind: "supuesto",
       nota: `${g.origen === "perfil_empresa" ? "supuesto del perfil" : "supuesto declarado"} · ${_fmtPct(g.pct)}%`,
+      edit: { nombre: g.nombre, pct: g.pct },
       ask: pnlSimAsk(g), def: g.origen === "perfil_empresa"
         ? `Línea de gasto del perfil de tu empresa: ${_fmtPct(g.pct)}% sobre la venta — un supuesto del rubro, no una declaración tuya. La pisas declarando la tuya («armemos mi P&L»), y cuando entre la contabilidad real se reemplaza por su dato.`
         : `Tu línea de gasto: ${_fmtPct(g.pct)}% sobre la venta, declarada por ti en la conversación. No es dato contable — cuando entre la contabilidad real, esta línea se reemplaza por su dato.`,
@@ -101,6 +104,7 @@ export function buildMesaResultado(scenario, cuadroEje = null, cascadaFoco = nul
           const _perfil = l.origen === "perfil_empresa";   // F2: origen honesto también en el alcance
           return { key: `gasto:${l.nombre}`, label: l.nombre, usdFmt: `− ${_moneyK(gK)}`, kind: "supuesto",
             nota: `${_perfil ? "supuesto del perfil" : "supuesto declarado"} · ${_fmtPct(l.pct)}%`, ask: simSc(l, t),
+            edit: { nombre: l.nombre, pct: l.pct },   // el % editado es el criterio GLOBAL (la línea es % sobre la venta)
             def: `${_perfil ? "Línea del perfil de tu empresa" : "Tu línea de gasto"} prorrateada en este alcance: ${_fmtPct(l.pct)}% sobre la venta de ${eF.nombre}. ${_perfil ? "Supuesto del rubro" : "Supuesto declarado"}, no contabilidad de la entidad.` };
         }),
         { key: "resultado", label: `Resultado · ${eF.nombre}`, usdFmt: _moneyK(eF.resultadoK), pctFmt: `${_fmtPct(eF.resultadoPct)}%`,

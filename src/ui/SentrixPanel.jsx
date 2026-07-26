@@ -22,6 +22,7 @@ import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
 import { buildMesaResultado, pnlMesaLink, pnlExportData } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance) · pnlExportData = copiar/CSV de lo que se está viendo (una verdad)
+import { editPnlLine, removePnlLine, addPnlLine } from "../adi/pnl.js";   // EDICIÓN DIRECTA de supuestos en la cara (owner 2026-07-26 "con opción de cambiarlos") · las MISMAS primitivas del chat (una verdad) · emiten adi-pnl-changed (la cara se re-arma) · editan el criterio, JAMÁS disparan a ADI
 import { ADI_SENTRIX_TEMPORAL_ENABLED, ADI_SENTRIX_PARETO_ENABLED, ADI_SENTRIX_SHELL_ENABLED, ADI_SENTRIX_CUADRO_ENABLED } from "../config/voiceFlags.js";
 import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (Frente B) · el panel pinta lo que ADI nombró (la boleta = fuente de verdad de lo dicho)
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
@@ -1440,6 +1441,39 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
   // EXPORT/COPIAR (mejora 8 · 2026-07-26): lo que se está viendo (eje + foco activos) sale a Excel/Sheets —
   // Copiar = TSV al portapapeles · CSV = descarga. El click exporta, nunca dispara a ADI (patrón de la Mesa).
   const [copiado, setCopiado] = useState(false);
+  // SUPUESTOS EDITABLES (owner 2026-07-26 verbatim: "en Sentrix permitirme verlo ordenado y con los supuestos
+  // con opción de cambiarlos — eso fue lo que hablamos"): el % de cada línea punteada abre un campo compacto;
+  // guardar llama editPnlLine — la MISMA primitiva de la edición por chat (una verdad) — y adi-pnl-changed
+  // re-arma la cara en vivo. «sacar» pide un segundo click (confirmación, patrón del panel de criterio) y
+  // «+ agregar línea» suma otra. El control EDITA el criterio; jamás dispara una respuesta de ADI.
+  const [editKey, setEditKey] = useState(null);      // key de la fila en edición
+  const [editVal, setEditVal] = useState("");
+  const [editErr, setEditErr] = useState(false);
+  const [delKey, setDelKey] = useState(null);        // «sacar» confirmado en el segundo click
+  const [addOpen, setAddOpen] = useState(false);
+  const [addNombre, setAddNombre] = useState("");
+  const [addPct, setAddPct] = useState("");
+  const [addErr, setAddErr] = useState(null);
+  const _abrirEdit = (r, ev2) => { ev2.stopPropagation(); setDelKey(null); setEditKey(r.key); setEditVal(String(r.edit.pct)); setEditErr(false); };
+  const _guardarEdit = (r) => {
+    const res = editPnlLine(r.edit.nombre, editVal);
+    if (res.ok) { setEditKey(null); setEditErr(false); } else setEditErr(true);   // ok → adi-pnl-changed re-arma la cara
+  };
+  const _sacar = (r, ev2) => {
+    ev2.stopPropagation(); setEditKey(null);
+    if (delKey !== r.key) { setDelKey(r.key); return; }
+    setDelKey(null); removePnlLine(r.edit.nombre);
+  };
+  const _agregar = () => {
+    const res = addPnlLine(addNombre, addPct);
+    if (res.ok) { setAddOpen(false); setAddNombre(""); setAddPct(""); setAddErr(null); } else setAddErr(res.motivo);
+  };
+  const ADD_ERR_MSG = {
+    nombre: "El nombre del gasto va de 2 a 30 letras — y no puede ser una métrica del dato (ventas, margen…).",
+    pct: "El % va entre 0.1 y 50, sobre la venta.",
+    duplicada: "Esa línea ya está en tu P&L — edita su % en la cascada.",
+    tope: "Tu P&L ya tiene 10 líneas — el tope de esta versión. Saca una primero.",
+  };
   const _copiar = async () => {
     if (!onExport) return;
     const d = onExport();
@@ -1493,7 +1527,7 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
   return (<>
     {/* ── 01 · QUÉ ESTÁ PASANDO · LA CASCADA (probado vs supuesto declarado · cierra exacto) ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Tocá una línea y ADI abre esa historia al lado. Con el ⌖ de una fila del cuadro, esta cascada cuenta ESA entidad (mismas anclas, prorrateo sobre su venta)."}/>
+      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Tocá una línea y ADI abre esa historia al lado. Con el ⌖ de una fila del cuadro, esta cascada cuenta ESA entidad (mismas anclas, prorrateo sobre su venta). Los supuestos se editan aquí mismo: el chip con el % de una línea punteada abre un campo para cambiarlo, «sacar» quita la línea (pide confirmación) y «+ agregar línea de gasto» suma otra — es el mismo criterio que editar conversando (una sola verdad) y no dispara una respuesta de ADI."}/>
       {/* ── ALCANCE DE LA CASCADA (pase 2): chip del foco + volver al negocio (el click informa, nunca dispara) ── */}
       {mr.alcance && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9 }}>
@@ -1517,13 +1551,69 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
           <AskRow key={r.key} onAsk={onAsk} q={r.ask} style={{ display:"flex", alignItems:"center", gap:9, padding: r.kind === "resultado" ? "10px 12px" : "7px 12px", borderRadius:9, ...rowStyle(r) }}>
             <span style={{ display:"flex", alignItems:"center", gap:6, minWidth:0, flex:1 }}>
               <span style={{ fontSize: r.kind === "resultado" ? 12.5 : 12, color: r.kind === "resultado" ? C.text : C.textSub, fontWeight: r.subtotal || r.kind === "resultado" ? 600 : 400 }}>{r.label}</span>
-              {r.nota ? <span style={{ fontSize:9.5, fontFamily:MONO, letterSpacing:"0.4px", color:C.amber, textTransform:"uppercase", whiteSpace:"nowrap" }}>{r.nota}</span> : null}
+              {/* SUPUESTO EDITABLE: el % abre un campo compacto (misma primitiva del chat · no dispara a ADI) */}
+              {r.nota ? (r.edit ? (editKey === r.key ? (
+                <span onClick={(ev2) => ev2.stopPropagation()} style={{ display:"flex", alignItems:"center", gap:4, whiteSpace:"nowrap" }}>
+                  <input autoFocus value={editVal}
+                    onChange={(ev2) => { setEditVal(ev2.target.value); setEditErr(false); }}
+                    onKeyDown={(ev2) => { if (ev2.key === "Enter") _guardarEdit(r); if (ev2.key === "Escape") setEditKey(null); }}
+                    title="El % del supuesto sobre la venta (0.1–50) · Enter guarda · Esc cancela"
+                    style={{ width:52, padding:"2px 6px", borderRadius:6, border:`1px solid ${editErr ? "rgba(248,113,113,0.7)" : "rgba(217,154,90,0.6)"}`, background:"rgba(0,0,0,0.5)", color:C.amber, fontFamily:MONO, fontSize:11, outline:"none" }}/>
+                  <span style={{ fontFamily:MONO, fontSize:10, color:C.textMuted }}>%</span>
+                  <button onClick={() => _guardarEdit(r)} title="Guardar el supuesto — actualiza tu criterio (mismo efecto que editarlo conversando · no dispara a ADI)"
+                    style={{ padding:"2px 8px", borderRadius:5, border:"1px solid rgba(217,154,90,0.55)", background:"rgba(217,154,90,0.1)", color:C.amber, fontSize:10, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>guardar</button>
+                  <button onClick={() => setEditKey(null)} title="Cancelar sin guardar"
+                    style={{ padding:"2px 6px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:10, cursor:"pointer" }}>×</button>
+                  {editErr ? <span style={{ fontSize:9.5, color:"#f87171", fontFamily:MONO }}>0.1–50</span> : null}
+                </span>
+              ) : (
+                <button onClick={(ev2) => _abrirEdit(r, ev2)}
+                  title={`Editar el supuesto: ${r.edit.nombre} hoy va en ${r.edit.pct}% sobre la venta — el click edita tu criterio, no dispara a ADI`}
+                  style={{ fontSize:9.5, fontFamily:MONO, letterSpacing:"0.4px", color:C.amber, textTransform:"uppercase", whiteSpace:"nowrap", background:"transparent", border:"1px dashed rgba(217,154,90,0.45)", borderRadius:5, padding:"1px 6px", cursor:"pointer" }}>
+                  {r.nota} ✎
+                </button>
+              )) : <span style={{ fontSize:9.5, fontFamily:MONO, letterSpacing:"0.4px", color:C.amber, textTransform:"uppercase", whiteSpace:"nowrap" }}>{r.nota}</span>) : null}
               <InfoDot def={r.def} align="left"/>
             </span>
+            {r.edit ? (
+              <button onClick={(ev2) => _sacar(r, ev2)}
+                title={delKey === r.key ? `Confirmar: sacar ${r.edit.nombre.toLowerCase()} del P&L` : `Sacar ${r.edit.nombre.toLowerCase()} del P&L — edita tu criterio, no dispara a ADI`}
+                style={{ padding:"1px 7px", borderRadius:5, border:`1px solid ${delKey === r.key ? "rgba(248,113,113,0.55)" : C.border}`, background: delKey === r.key ? "rgba(248,113,113,0.08)" : "transparent", color: delKey === r.key ? "#f87171" : C.textMuted, fontSize:10, cursor:"pointer", flexShrink:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+                {delKey === r.key ? "¿seguro?" : "sacar"}
+              </button>
+            ) : null}
             {r.pctFmt ? <span style={{ fontFamily:MONO, fontSize:11, color: r.negativo ? C.red : C.textMuted, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{r.pctFmt} de la venta</span> : null}
             <span style={{ fontFamily:MONO, fontSize: r.kind === "resultado" ? 16 : 12.5, fontWeight:600, color: valColor(r), whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{r.usdFmt}</span>
           </AskRow>
         ))}
+        {/* + AGREGAR LÍNEA · suma un supuesto al criterio desde la cara (misma primitiva del chat · no dispara) */}
+        {addOpen ? (
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", padding:"7px 10px", border:"1px dashed rgba(217,154,90,0.45)", borderRadius:9, background:"rgba(217,154,90,0.04)" }}>
+            <input autoFocus value={addNombre} placeholder="nombre del gasto"
+              onChange={(ev2) => { setAddNombre(ev2.target.value); setAddErr(null); }}
+              onKeyDown={(ev2) => { if (ev2.key === "Escape") setAddOpen(false); }}
+              title="El nombre de la línea, como lo manejas tú (administrativos, fletes…)"
+              style={{ width:170, padding:"3px 8px", borderRadius:6, border:"1px solid rgba(217,154,90,0.5)", background:"rgba(0,0,0,0.5)", color:C.text, fontSize:11.5, outline:"none", fontFamily:"'DM Sans', system-ui, sans-serif" }}/>
+            <input value={addPct} placeholder="%"
+              onChange={(ev2) => { setAddPct(ev2.target.value); setAddErr(null); }}
+              onKeyDown={(ev2) => { if (ev2.key === "Enter") _agregar(); if (ev2.key === "Escape") setAddOpen(false); }}
+              title="El % sobre la venta (0.1–50) · Enter guarda"
+              style={{ width:52, padding:"3px 8px", borderRadius:6, border:"1px solid rgba(217,154,90,0.5)", background:"rgba(0,0,0,0.5)", color:C.amber, fontFamily:MONO, fontSize:11, outline:"none" }}/>
+            <button onClick={_agregar} title="Agregar la línea a tu criterio (mismo efecto que «agrega … con su %» en el chat · no dispara a ADI)"
+              style={{ padding:"3px 10px", borderRadius:6, border:"1px solid rgba(217,154,90,0.55)", background:"rgba(217,154,90,0.1)", color:C.amber, fontSize:10.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>guardar</button>
+            <button onClick={() => { setAddOpen(false); setAddErr(null); }} title="Cancelar sin guardar"
+              style={{ padding:"3px 8px", borderRadius:6, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:10.5, cursor:"pointer" }}>×</button>
+            {addErr ? <span style={{ fontSize:10, color:"#f87171", lineHeight:1.4 }}>{ADD_ERR_MSG[addErr] || "No pude guardar la línea."}</span> : null}
+          </div>
+        ) : (
+          <button onClick={() => { setAddOpen(true); setAddErr(null); setEditKey(null); setDelKey(null); }}
+            title="Agregar una línea de gasto a tu P&L — edita tu criterio, no dispara a ADI"
+            style={{ alignSelf:"flex-start", padding:"4px 10px", borderRadius:7, border:"1px dashed rgba(217,154,90,0.4)", background:"transparent", color:C.textMuted, fontSize:10.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}
+            onMouseEnter={(ev2) => { ev2.currentTarget.style.color = C.amber; }}
+            onMouseLeave={(ev2) => { ev2.currentTarget.style.color = C.textMuted; }}>
+            + agregar línea de gasto
+          </button>
+        )}
       </div>
       {/* CORDURA HONESTA · resultado negativo declarado arriba (nunca silencioso) */}
       {mr.alerta && (
@@ -1662,7 +1752,7 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
         </div>
       </div>
     </div>
-    <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La cara Resultado cuenta tu P&L comercial: la cascada del ingreso al resultado (probado hasta la contribución · tus gastos como supuestos declarados, % sobre la venta), qué línea pesa más y qué ajuste probar primero. Todo es pregunta: tocá una línea de la cascada o una fila del cuadro y ADI la abre al lado. Editas conversando: «cambia una línea a otro %» · «agrega otra» · «saca una».</div>
+    <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La cara Resultado cuenta tu P&L comercial: la cascada del ingreso al resultado (probado hasta la contribución · tus gastos como supuestos declarados, % sobre la venta), qué línea pesa más y qué ajuste probar primero. Todo es pregunta: tocá una línea de la cascada o una fila del cuadro y ADI la abre al lado. Los supuestos se editan conversando («cambia una línea a otro %») o directo en la cascada: el % de cada línea punteada se cambia ahí mismo, con «sacar» y «+ agregar línea de gasto» — una sola verdad, sin disparar respuestas de ADI.</div>
   </>);
 }
 

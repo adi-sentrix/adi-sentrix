@@ -16,7 +16,7 @@ const root = process.cwd(); const entry = path.join(root, "_plge.js"), out = pat
 fs.writeFileSync(entry, [
   'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
-  'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope } from "./src/adi/pnl.js";',
+  'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, editPnlLine, removePnlLine, addPnlLine, pnlExplain, pnlRecommend } from "./src/adi/pnl.js";',
   'export { buildMesaResultado, pnlMesaLink, pnlExportData } from "./src/adi/sentrix/mesaResultado.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',
@@ -49,7 +49,7 @@ ok(r3 && /Queda así, sobre la venta/.test(r3.text) && /¿Lo sello\?/.test(r3.te
 ok(/· Ingreso: .*\n· Costo: .*\n· Carga comercial: .*\n· Gastos declarados: .*\n· \*\*Resultado comercial: /.test(r3.text), "la propuesta muestra la cascada UNA CIFRA POR LÍNEA (regla de formato del owner)");
 ok(/Queda así, sobre la venta:\n· /.test(r3.text) && /· Gastos totales: /.test(r3.text), "las líneas del usuario también van una por línea con su %");
 const r4 = go("sí");
-ok(r4 && /^Sellado\./.test(r4.text) && activePnl().length === 3, "'sí' sella (el claim gana al followup_accept) · 3 líneas persistidas");
+ok(r4 && /^Sellado — /.test(r4.text) && activePnl().length === 3, "'sí' sella (el claim gana al followup_accept) · 3 líneas persistidas");
 ok(activePnl().every((l) => l.origen === "supuesto_declarado"), "cada línea guarda origen supuesto_declarado (C.3 reemplaza línea a línea)");
 ok(pnlDraft() === null, "el draft se cierra al sellar");
 
@@ -107,7 +107,7 @@ go("armemos mi p&l", false);
 const rNeg = go("administrativos 20%, logística 12%");
 ok(rNeg && /cordura|negativo/i.test(rNeg.text) && /¿Los revisamos\?/.test(rNeg.text) && /¿Lo sello\?/.test(rNeg.text), "Σ% absurdo → ADI lo declara ANTES de sellar y deja elegir");
 const rNegSello = go("séllalo");
-ok(rNegSello && /^Sellado\./.test(rNegSello.text) && activePnl().length === 2, "sellar igual funciona (declara, no bloquea)");
+ok(rNegSello && /^Sellado — /.test(rNegSello.text) && activePnl().length === 2, "sellar igual funciona (declara, no bloquea)");
 const mrNeg = buildMesaResultado("bonanza");
 ok(mrNeg.alerta && /negativo/i.test(mrNeg.alerta.linea) && mrNeg.resultado.negativo, "la cara declara el resultado negativo arriba (cordura visible)");
 
@@ -311,7 +311,7 @@ void go("quiero nuevos prorrateos");
 const rReP = go("2, 1, 1.5");
 ok(rReP && /¿Lo sello\?/.test(rReP.text), "re-arme: «2, 1, 1.5» → propuesta de sello (mismo camino)");
 const rReS = go("sí");
-ok(rReS && /^Sellado\./.test(rReS.text) && activePnl().find((l) => l.nombre === "Logística").pct === 2, "re-arme sellado: los % nuevos son la verdad");
+ok(rReS && /^Sellado — /.test(rReS.text) && activePnl().find((l) => l.nombre === "Logística").pct === 2, "re-arme sellado: los % nuevos son la verdad");
 // …o una ESTRUCTURA nueva a mitad del rearme (lista ≥2 reemplaza las líneas)
 void go("quiero otros prorrateos");
 const rReL = go("seguros, fletes y comisiones");
@@ -520,7 +520,7 @@ const rAck3 = go("ok");
 ok(rAck3 && /me falta el %|Seguimos con tu P&L/.test(rAck3.text) && pnlDraft().stage === "pcts", "«ok» en la etapa de % → re-pregunta los % pendientes");
 void go("2, 1, 1.5");
 const rAck4 = go("listo");
-ok(rAck4 && /^Sellado\./.test(rAck4.text), "«listo» en la etapa de sello → SELLA (el acuse de cierre afirma, no re-guía)");
+ok(rAck4 && /^Sellado — /.test(rAck4.text), "«listo» en la etapa de sello → SELLA (el acuse de cierre afirma, no re-guía)");
 clearPnl(); resetPnlDraft();
 
 console.log("[22] DEEP-LINK · «Ampliar en Sentrix» de una respuesta P&L → la Mesa en la cara Resultado con SU alcance");
@@ -567,6 +567,92 @@ ok(exF && /alcance: Cuidado Personal/.test(exF.tsv) && exF.filename === "pnl-com
 const exCsv = ex.csv.split("\n").find((l) => l.startsWith("Falabella,"));
 ok(!!exCsv && exCsv.split(",").length === 7, "el CSV separa las 7 columnas del cuadro");
 ok(!BANNED.test(ex.tsv) && !BANNED.test(exF.tsv), "registro ejecutivo también en el archivo exportado");
+clearPnl(); resetPnlDraft();
+
+/* ══ LOS 3 GAPS DEL SELLO (owner 2026-07-26 verbatim: "cuando me dice lo sello, debería darme el análisis como
+ * lo tenemos en contrato, y en Sentrix permitirme verlo ordenado y con los supuestos con opción de cambiarlos") ══ */
+const { editPnlLine, removePnlLine, addPnlLine, pnlExplain, pnlRecommend } = M;
+
+console.log("[24] EL SELLO ENTREGA EL ANÁLISIS · acuse de una línea + la lectura completa (una verdad)");
+clearPnl(); resetPnlDraft();
+void go("armemos mi p&l", false);
+void go("logística, marketing y promotores");
+void go("3, 1.5, 2");
+const rSello24 = go("sí");
+const rRes24 = composePnl({ action: "resultado" }, null, { scenario: "bonanza" });
+ok(rSello24 && /^Sellado — /.test(rSello24.text) && rSello24.text.split("\n")[0].length < 160, "acuse de UNA línea al inicio («Sellado — …»)", rSello24 && rSello24.text.split("\n")[0]);
+ok(rSello24 && rSello24.text.endsWith(rRes24.text), "…y de ahí EL ANÁLISIS COMPLETO, byte-igual a «¿cómo queda mi resultado comercial?» (sin pedir «muéstramelo» aparte)");
+ok(/La cascada completa sobre el dato real:/.test(rSello24.text) && /La línea que más pesa: /.test(rSello24.text) && /¿Qué pasa si bajas /.test(rSello24.text), "el sello trae cascada + línea que más pesa + simulación sugerida — el contrato entero");
+ok(/Hasta la contribución es dato probado; los gastos son supuestos declarados/.test(rSello24.text), "la graduación (probado vs supuesto declarado) viaja en el propio sello");
+ok(guardAgainstBoleta(rSello24.text, rSello24.evidence.boleta).ok, "guard sello: cifras == boleta", guardAgainstBoleta(rSello24.text, rSello24.evidence.boleta).reason);
+ok(rSello24.evidence.followup === false && rSello24.evidence.pnl === true, "el sello emite evidencia ACCIONABLE (threadea el hilo como toda lectura)");
+for (const s2 of (rSello24.suggestions || [])) { const cs6 = CF(s2, false, null); ok(!!cs6 && cs6.turn_type === "pnl_setup", `chip del sello reclama: «${s2}»`); }
+
+console.log("[25] TODA LECTURA P&L lleva evidencia con lens → deep-link a la cara Resultado");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]); resetPnlDraft();
+const SC25 = { scenario: "bonanza" };
+const lecturas25 = [
+  ["sello", rSello24],
+  ["resultado", composePnl({ action: "resultado" }, null, SC25)],
+  ["perdiendo", composePnl({ action: "perdiendo" }, null, SC25)],
+  ["peso", composePnl({ action: "peso" }, null, SC25)],
+  ["scoped", composePnl({ action: "resultado_scoped", entidad: "Falabella", eje: "cliente", covered: true }, null, SC25)],
+  ["tabla_eje", composePnl({ action: "tabla_eje", eje: "familia" }, null, SC25)],
+  ["entidad", composePnl({ action: "resultado_entidad", entidad: "Falabella" }, null, SC25)],
+  ["deixis", composePnl({ action: "resultado_deixis", _entities: { entities: ["Ripley", "La Polar"], dimension: "cliente" }, _explicit: true }, null, SC25)],
+  ["proyección", composePnl({ action: "proyeccion_venta", ventaK: 120000, negocio: true }, null, SC25)],
+  ["simulate global", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2 }, null, SC25)],
+  ["simulate scoped", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2, entidad: "Falabella", eje: "cliente" }, null, SC25)],
+  ["meta global", composePnl({ action: "meta_venta", targetK: 18000 }, null, SC25)],
+  ["meta scoped", composePnl({ action: "meta_venta", targetK: 500, entidad: "Falabella", eje: "cliente" }, null, SC25)],
+  ["explica simple", pnlExplain({ pnl: true, entidad: "Falabella", entityType: "cliente" }, null, SC25)],
+  ["decisiones", pnlRecommend({ pnl: true }, null, SC25)],
+];
+for (const [tag25, r25] of lecturas25) {
+  const lk25 = r25 && pnlMesaLink(r25.evidence);
+  ok(!!lk25 && lk25.cara === "resultado", `lectura «${tag25}» → deep-link a la cara Resultado`, r25 ? JSON.stringify(r25.evidence && { followup: r25.evidence.followup, pnl: r25.evidence.pnl }) : "sin respuesta");
+}
+const lkSc25 = pnlMesaLink(composePnl({ action: "resultado_scoped", entidad: "Falabella", eje: "cliente", covered: true }, null, SC25).evidence);
+ok(lkSc25 && lkSc25.foco && lkSc25.foco.nombre === "Falabella" && lkSc25.eje === "cliente", "…y la scoped viaja con SU foco (la Mesa abre en esa entidad)");
+const lkTb25 = pnlMesaLink(composePnl({ action: "tabla_eje", eje: "familia" }, null, SC25).evidence);
+ok(lkTb25 && lkTb25.eje === "familia" && lkTb25.foco === null, "…y la tabla con SU eje (el cuadro abre por familia, sin foco)");
+
+console.log("[26] EDITAR DESDE LA CARA == EDITAR POR CHAT · misma primitiva, criterio byte-igual");
+const base26 = [{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }];
+setPnlLines(base26); resetPnlDraft();
+void go("cambia logística a 2%");
+const chatSet26 = JSON.stringify(activePnl());
+setPnlLines(base26);
+const rE26 = editPnlLine("Logística", 2);
+ok(rE26.ok && rE26.prev === 3 && JSON.stringify(activePnl()) === chatSet26, "editar el % desde la cara deja el criterio BYTE-IGUAL al del chat");
+ok(editPnlLine("Logística", "2,5").ok && activePnl().find((l) => l.nombre === "Logística").pct === 2.5, "el input acepta coma decimal (2,5 → 2.5)");
+setPnlLines(base26);
+void go("saca marketing");
+const chatDel26 = JSON.stringify(activePnl());
+setPnlLines(base26);
+ok(removePnlLine("Marketing").ok && JSON.stringify(activePnl()) === chatDel26, "sacar desde la cara == sacar por chat (byte-igual)");
+setPnlLines(base26);
+void go("agrega bodegaje 1%");
+const chatAdd26 = JSON.stringify(activePnl());
+setPnlLines(base26);
+ok(addPnlLine("bodegaje", "1").ok && JSON.stringify(activePnl()) === chatAdd26, "agregar desde la cara == agregar por chat (byte-igual, mismo _cap)");
+setPnlLines(base26);
+ok(!editPnlLine("Logística", 80).ok && activePnl().find((l) => l.nombre === "Logística").pct === 3, "% fuera de rango desde la cara → NO guarda (mismo guard del chat)");
+ok(!editPnlLine("Inexistente", 2).ok && !removePnlLine("Inexistente").ok, "línea inexistente → honesto, sin efecto");
+ok(!addPnlLine("ventas", 2).ok && !addPnlLine("Logística", 2).ok && activePnl().length === 3, "métrica del dato y duplicada rechazadas (mismas reglas del chat)");
+setPnlLines([{ nombre: "Única", pct: 2 }]);
+const rDel26 = removePnlLine("Única");
+ok(rDel26.ok && rDel26.vacio === true && activePnl().length === 0, "sacar la última línea vacía el P&L (mismo clearPnl del chat)");
+setPnlLines(base26);
+const mr26 = buildMesaResultado("bonanza");
+ok(mr26.cascada.filter((r) => r.kind === "supuesto").every((r) => r.edit && typeof r.edit.nombre === "string" && typeof r.edit.pct === "number"), "cada línea supuesto de la cascada lleva su `edit` (el contrato de la UI)");
+const mrF26 = buildMesaResultado("bonanza", "cliente", { eje: "cliente", nombre: "Falabella" });
+ok(mrF26.alcance && mrF26.cascada.filter((r) => r.kind === "supuesto").every((r) => r.edit && r.edit.pct > 0), "…también en la cascada scopeada (el % editado es el criterio global)");
+// registro ejecutivo en lo nuevo del sello
+let sucios26 = 0;
+for (const [tag26, t26] of [["sello", rSello24.text], ...(rSello24.suggestions || []).map((s) => ["sello·sug", s])])
+  if (typeof t26 === "string" && BANNED.test(t26)) { sucios26++; console.log(`    ✗ registro roto en ${tag26}: «${t26.match(BANNED)[0]}»`); }
+ok(sucios26 === 0, "registro ejecutivo limpio en el sello nuevo");
 clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
