@@ -347,10 +347,18 @@ export function detectPnlIntent(q) {
       return { action: "draft_edit_reask", nombre: dl.nombre };   // espejo: «cambia X a otro %» sin número → re-pregunta
     }
     if (_draft.stage === "sello") {
-      if (_AFFIRM_SELLO.test(t)) return { action: "draft_sello" };
+      if (_AFFIRM_SELLO.test(t) || /^(vale|listo)[\s.!…]*$/.test(_norm(t))) return { action: "draft_sello" };
       if (/^\s*no\b[\s.!…]*$/i.test(t) || /\b(revis|ajust|cambi)/i.test(t)) return { action: "draft_stay" };
     }
+    // ACUSE/META DEL FLUJO (owner cazó en vivo 2026-07-26: «ok. que necesitas» tras abrir la guía caía al
+    // fallback narrado genérico — hilo perdido en el primer paso): DENTRO del flujo, un acuse pelado («ok»,
+    // «sí», «dale») o un "¿qué necesitas?/cómo seguimos" RE-GUÍA la etapa pendiente, jamás suelta. Sin signo
+    // de pregunta también («ok. que necesitas»). Sobre texto normalizado (clase acentos).
+    const _ntD = _norm(t);
+    const _ackFlujo = /^(ok(ey)?|si|ya|dale|listo|bueno|perfecto|de acuerdo|claro|vale)[\s.!…]*$/.test(_ntD)
+      || /\bque\s+necesitas\b|\bnecesitas\s+de\s+mi\b|\bque\s+te\s+(doy|digo|paso)\b|\bcomo\s+seguimos\b|\bque\s+sigue\b|\bcomo\s+lo\s+hacemos\b|\bayuda\b|\bque\s+hago\b/.test(_ntD);
     if (_draft.stage === "gastos") {
+      if (_ackFlujo) return { action: "draft_help" };
       // "¿Armamos tu P&L ahora?" / preguntas de gastos DURANTE la etapa → re-guiar (espejo: la oferta que abrió
       // el flujo también se entiende adentro del flujo)
       if (/[?¿]/.test(t) && (_GASTOS_WORD.test(t) || _PNL_WORD.test(t) || _ARMAR_RE.test(t))) return { action: "draft_help" };
@@ -359,6 +367,8 @@ export function detectPnlIntent(q) {
       return null;   // no parsea como lista → el turno sigue su curso normal (el draft espera)
     }
     if (_draft.stage === "pcts" || _draft.stage === "sello") {
+      // acuse/meta a mitad de los % («ok» · «¿qué necesitas?») → re-preguntar los % pendientes, jamás soltar
+      if (_draft.stage === "pcts" && _ackFlujo) return { action: "draft_reask" };
       if (/\d/.test(t) && !_SIMQ_RE.test(t)) {
         const lines = _draft.lines.map((l) => ({ ...l }));
         if (_parsePcts(t, lines)) return { action: "draft_pcts", lines };
