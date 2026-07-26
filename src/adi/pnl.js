@@ -35,6 +35,7 @@ import { fig } from "./boleta.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { METRICS } from "../config/contract/metricRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
+import { detectMultiAnalysis } from "./multiFocus.js";   // pase 2c: una enumeración de lentes es del MULTI, no del P&L
 
 // ── formato (misma escala que mesa.js: dato comercial en $K → $) ─────────────────────────────────────────────
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -350,6 +351,9 @@ export function detectPnlIntent(q) {
     return null;
   }
   // ── SIN DRAFT ──
+  // CRUCE DE LENTES (pase 2c): «margen y resultado de Cuidado Personal» enumera DOS métricas — es del
+  // multi-análisis (que ahora tiene la lente resultado), no de un claim P&L single. El P&L no roba el cruce.
+  if (detectMultiAnalysis(t).isMulti) return null;
   // PROYECCIÓN DE VENTA (owner 2026-07-25: "te puede pedir que uses otra venta — si vendiera X cuánto me
   // quedaría con estos gastos — manteniendo el margen del cliente, el real a un lado y el proyectado al lado"):
   // condicional/pregunta de venta + MONTO ($ · sin %) → el P&L real vs proyectado, margen/carga constantes.
@@ -1042,9 +1046,15 @@ export function composePnl(pi, ctx = null, state = {}) {
     // pase 2: entidad de CUALQUIER eje del alcance («¿cuánto deja Cuidado Personal después de gastos?») ·
     // sin cobertura en la base → el mismo camino honesto del scoped (jamás prorratear sin venta desglosada)
     if (pi.covered === false) return composePnl({ action: "resultado_scoped", entidad: pi.entidad, eje: pi.eje, covered: false }, ctx, state);
-    const eje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : _BASE_EJE;
-    const c = buildPnlCascade(scenario, null, eje === _BASE_EJE ? null : { dimension: eje });
-    const e = c.porEntidad.find((x) => x.nombre === pi.entidad);
+    let eje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : _BASE_EJE;
+    let c = buildPnlCascade(scenario, null, eje === _BASE_EJE ? null : { dimension: eje });
+    let e = c.porEntidad.find((x) => _norm(x.nombre) === _norm(pi.entidad));
+    if (!e) {
+      // el eje no vino (ej. la lente del multi): el canon del alcance lo resuelve — familia/marca incluidas
+      const c0 = _pnlEntityEn(String(pi.entidad || ""));
+      if (c0 && !c0.covered) return composePnl({ action: "resultado_scoped", entidad: c0.nombre, eje: c0.eje, covered: false }, ctx, state);
+      if (c0 && c0.eje !== eje) { eje = c0.eje; c = buildPnlCascade(scenario, null, { dimension: eje }); e = c.porEntidad.find((x) => _norm(x.nombre) === _norm(c0.nombre)); }
+    }
     if (!e) return sinPnl();
     _scope = { dimension: eje, entity: e.nombre, entities: null };
     const bol = [

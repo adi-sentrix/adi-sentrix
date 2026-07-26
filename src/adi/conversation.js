@@ -306,7 +306,7 @@ const _MULTI_LENS = {
   capital:      (d, f) => (d === "cliente" || d === "canal" || d === "marca") ? ({ schemaVersion: 1, operation: "overview", metric: "capital", dimension: d, filters: f, scenario: "actual" }) : ({ schemaVersion: 1, operation: "inventory", metric: "capital", dimension: d, focus: "frenado", filters: f, scenario: "actual" }),
   carga:        (d, f) => ({ schemaVersion: 1, operation: "margin", metric: "margen", dimension: "cliente", focus: "palancas", filters: f, scenario: "actual" }),
 };
-const _MULTI_LABEL = { margen: "Margen", ventas: "Ventas", contribucion: "Contribución", rotacion: "Rotación", capital: "Capital en inventario", carga: "Carga comercial" };
+const _MULTI_LABEL = { margen: "Margen", ventas: "Ventas", contribucion: "Contribución", rotacion: "Rotación", capital: "Capital en inventario", carga: "Carga comercial", resultado: "Resultado después de gastos" };
 export function composeMulti(spec, ctx, state) {
   const m = spec && spec.multi;
   if (!m || !Array.isArray(m.metrics) || m.metrics.length < 2)
@@ -315,9 +315,17 @@ export function composeMulti(spec, ctx, state) {
   const filters = { ...(spec.filters || {}), ...(m.entity && dim === "cliente" ? { cliente: m.entity } : {}) };
   const parts = [], evs = [], bol = [];
   for (const met of m.metrics.slice(0, 3)) {
-    const mk = _MULTI_LENS[met];
-    if (!mk) continue;
-    const r = answerADIFromSpec(mk(dim, filters), ctx, state);
+    let r;
+    if (met === "resultado") {
+      // P&L (pase 2c · owner "prueba, cruza datos"): la lente RESULTADO cruza el P&L con las demás — la
+      // entidad nombrada si la hay (composePnl resuelve su eje por el canon), si no el negocio. Sin P&L
+      // armado, la sección es la oferta honesta de armarlo (misma voz de siempre).
+      r = composePnl(m.entity ? { action: "resultado_entidad", entidad: m.entity } : { action: "resultado" }, ctx, state);
+    } else {
+      const mk = _MULTI_LENS[met];
+      if (!mk) continue;
+      r = answerADIFromSpec(mk(dim, filters), ctx, state);
+    }
     if (!r || !r.text) continue;
     parts.push(`**${_MULTI_LABEL[met] || met}** — ${r.text}`);
     if (r.evidence) { evs.push(r.evidence); for (const f of (r.evidence.boleta || [])) bol.push(f); }

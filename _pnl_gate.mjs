@@ -427,5 +427,20 @@ const rCv18 = go("cambia la venta de Falabella a $25M");
 ok(rCv18 && /¿Qué significa\?/.test(rCv18.text) && /Hoy Falabella vende/.test(rCv18.text), "«cambia la venta de X a $25M» → la proyección (cambiar un dato = usar otra venta)");
 clearPnl(); resetPnlDraft();
 
+console.log("[19] CRUCES · la lente RESULTADO en el multi-análisis (P&L × margen/capital/ventas)");
+setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]);
+const sMulti19 = CS("margen y resultado comercial de Cuidado Personal", S({}), false, null);
+ok(sMulti19.turn_type === "multi_analysis" && sMulti19.multi && sMulti19.multi.metrics.includes("resultado"), "la enumeración de lentes va al MULTI — el claim P&L no roba el cruce");
+const rM19 = AC(sMulti19, {}, { scenario: "bonanza" });
+const eCP19 = buildPnlCascade("bonanza", null, { dimension: "familia" }).porEntidad.find((x) => x.nombre === "Cuidado Personal");
+ok(/\*\*Resultado después de gastos\*\*/.test(rM19.text) && rM19.text.includes(_moneyK(eCP19.resultadoK)), "la sección resultado cita las cifras del ALCANCE (familia resuelta por el canon)", rM19.text.slice(0, 90));
+ok(/\*\*Margen\*\*/.test(rM19.text), "la otra lente vive en la MISMA respuesta (secciones · boletas mergeadas)");
+const rM19b = AC(CS("resultado y capital de los SKU", S({}), false, null), {}, { scenario: "bonanza" });
+ok(rM19b && /\*\*Resultado después de gastos\*\*/.test(rM19b.text) && /\*\*Capital en inventario\*\*/.test(rM19b.text), "resultado × capital: el dinero que queda Y el dinero atrapado, en una respuesta");
+ok(CS("¿cómo queda mi resultado comercial?", S({}), false, null).turn_type === "pnl_setup", "una sola lente sigue siendo del P&L (el multi no roba el single)");
+clearPnl(); resetPnlDraft();
+const rM19c = AC(CS("margen y resultado de Falabella", S({}), false, null), {}, { scenario: "bonanza" });
+ok(rM19c && /Resultado después de gastos/.test(rM19c.text) && /¿Armamos tu P&L ahora\?/i.test(rM19c.text), "sin P&L armado la sección resultado OFRECE armarlo (ownership, no silencio)");
+
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

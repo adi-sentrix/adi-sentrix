@@ -11,12 +11,13 @@
 const _FAMS = [
   ["contribucion", /contribuci[oó]n(es)?/i],
   ["rotacion", /rotaci[oó]n/i],
+  ["resultado", /resultado(?:\s+comercial)?|p\s*&\s*l|\bpnl\b/i],   // P&L pase 2c: el resultado después de gastos ES una lente del cruce
   ["margen", /m[aá]rgen(es)?|\bmargen\b|rentabilidad/i],
   ["ventas", /\bventas?\b|facturaci[oó]n/i],
   ["capital", /\bcapital\b|\bstock\b|\binventario\b|cobertura|\bdoh\b/i],
   ["carga", /carga\s+comercial|\bcargas?\b|rebates?/i],
 ];
-const _NOUN = "(contribuci[oó]n(?:es)?|rotaci[oó]n|m[aá]rgen(?:es)?|margen|rentabilidad|ventas?|facturaci[oó]n|capital|stock|inventario|cobertura|doh|cargas?|rebates?)";
+const _NOUN = "(contribuci[oó]n(?:es)?|rotaci[oó]n|resultado(?:\\s+comercial)?|p\\s*&\\s*l|pnl|m[aá]rgen(?:es)?|margen|rentabilidad|ventas?|facturaci[oó]n|capital|stock|inventario|cobertura|doh|cargas?|rebates?)";
 // enumeración: "A y B" / "A, B y C" con artículos opcionales entre medio
 const _PAIR_RE = new RegExp(`\\b${_NOUN}\\b\\s*(?:,\\s*(?:la\\s+|el\\s+|su\\s+)?\\b${_NOUN}\\b\\s*)*(?:y|e)\\s+(?:la\\s+|el\\s+|su\\s+)?\\b${_NOUN}\\b`, "iu");
 // cruces de UN solo foco que mencionan dos métricas → NO multi (tienen dueño en los detectores de dominio)
