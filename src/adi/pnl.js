@@ -620,9 +620,20 @@ export function detectPnlIntent(q) {
   return null;
 }
 
-// ── COMPOSERS · respuestas VERBATIM del flujo y las lecturas (kind "criteria": ni narrador ni gateway) ───────
+/* ── EL CONTRATO DEL P&L (owner 2026-07-26: "no habíamos quedado que ADI iba a guiar? no será mejor hacer un
+ * contrato para el P&L?" · tras ver «armemos mi p&l» → un MENÚ de comandos «cambia X» · «saca una línea»…):
+ * el territorio entero se arma sobre un arco de ASESOR, no un catálogo de sintaxis. Tres estados de respuesta:
+ *   · LECTURA (kind "pnl" · followup:false · tablaM) — la narra el LLM con el arco del sello (F4).
+ *   · GUÍA (kind "pnl" · followup:true · pnl:true · SIN tablaM) — administrativas que CONDUCEN: «ya armado»,
+ *     recall, forget, rearme. El LLM les da voz (situación → qué significa → una pregunta que ayuda a decidir),
+ *     los próximos pasos viajan como CHIPS (no como «comandos entre comillas» en el texto), el guard cuida las
+ *     cifras. El parser ya entiende la respuesta natural del usuario → las comillas eran una muleta.
+ *   · ECO (kind "criteria" · verbatim) — SOLO donde cada palabra es del usuario o una boleta exacta: la
+ *     propuesta del sello con la cascada, las repreguntas del % del flujo, las confirmaciones de edición.
+ * REGLA DE VOZ (owner): ninguna respuesta del P&L LISTA comandos-sintaxis en el texto; guía con una pregunta y
+ * deja los pasos concretos en los chips. ── */
 import { activeCriteria } from "./criteria.js";
-function _evidence(extraBol = [], ev = null) {
+function _evidence(extraBol = [], ev = null, guia = false) {
   const list = activeCriteria();
   const pnl = activePnl();
   const bol = [
@@ -630,16 +641,19 @@ function _evidence(extraBol = [], ev = null) {
     ...pnl.map((l) => fig(`P&L · ${l.nombre}`, `${_fmtPct(l.pct)}%`, { unit: "pct", raw: l.pct, source: "computed", formula: `${_fmtPct(l.pct)}% sobre la venta`, context: l.origen === "perfil_empresa" ? "supuesto del perfil de la empresa" : "supuesto declarado" })),
     ...extraBol,
   ];
-  const base = { followup: true, kind: "criteria", criteriaList: list, pnlList: pnl, boleta: bol };
+  // GUÍA: narrable (kind pnl) pero followup:true (no threadea la última lectura) + pnl:true (botón a la Mesa) ·
+  // sin tablaM (no re-renderiza la cascada — el texto conduce). ECO: verbatim (kind criteria).
+  const base = guia
+    ? { followup: true, pnl: true, kind: "pnl", criteriaList: list, pnlList: pnl, boleta: bol }
+    : { followup: true, kind: "criteria", criteriaList: list, pnlList: pnl, boleta: bol };
   // CONEXIÓN TOTAL (pase 2 · "nada al azar"): las LECTURAS con alcance son turnos ACCIONABLES — threadean
-  // lastEvidence y la memoria (entidad/entityList/dimension). Las administrativas (flujo/edición/recall) siguen
-  // followup:true: una edición a mitad de un hilo scoped NO pisa la última lectura.
-  // F4 · LA VOZ: las lecturas traen `kind: "pnl"` DENTRO de su ev (el spread pisa el "criteria" del base) →
-  // narrables por shouldNarrate SIN tocar numberGuard.js; lo que no lo declara queda verbatim por diseño.
+  // lastEvidence y la memoria (entidad/entityList/dimension). Las administrativas siguen followup:true.
+  // F4 · LA VOZ: las lecturas traen `kind: "pnl"` DENTRO de su ev (el spread pisa el base) → narrables por
+  // shouldNarrate SIN tocar numberGuard.js; el ECO verbatim queda kind criteria por diseño.
   return ev ? { ...base, followup: false, pnl: true, ...ev } : base;
 }
-const _resp = (text, { route = "pnl_setup", suggestions = null, bol = [], ev = null } = {}) =>
-  ({ text, suggestions, sentrixAction: null, evidence: _evidence(bol, ev), route });
+const _resp = (text, { route = "pnl_setup", suggestions = null, bol = [], ev = null, guia = false } = {}) =>
+  ({ text, suggestions, sentrixAction: null, evidence: _evidence(bol, ev, guia), route });
 const _gPct = (v, label = "Supuesto %") => fig(label, `${_fmtPct(v)}%`, { unit: "pct", raw: _r1(v), source: "computed", gancho: true, context: "P&L comercial" });
 const _fMoneyK = (label, vK, { mandatory = false, gancho = false } = {}) =>
   fig(label, _moneyK(vK), { unit: "money", raw: vK * 1000, mandatory, source: "computed", gancho, context: "P&L comercial" });
@@ -681,7 +695,7 @@ function _proponerSello(scenario) {
   _draft.stage = "sello";
   const neg = c.resultadoK < 0;
   const cordura = neg
-    ? `Una cordura primero: con esos porcentajes el resultado queda en ${_fmtPct(c.resultadoPct)}% (${_moneyK(c.resultadoK)}) — negativo. ¿Los revisamos? Puedes ajustar cualquier línea («cambia ${c.lines[0].nombre.toLowerCase()} a otro %») o sellarlo igual si así lo manejas.\n\n`
+    ? `Una cordura primero: con esos porcentajes el resultado queda en ${_fmtPct(c.resultadoPct)}% (${_moneyK(c.resultadoK)}) — negativo. ¿Los revisamos? Puedes bajar el porcentaje de cualquier línea antes de sellar, o sellarlo igual si así lo manejas.\n\n`
     : "";
   const bol = [
     ..._lineFigs(c.lines), _fPct("Gastos · total", c.sumPct),
@@ -938,17 +952,20 @@ export function composePnl(pi, ctx = null, state = {}) {
     // al perfil, nunca a cero). El usuario manda sus % o su estructura y al sellar queda SU declaración encima.
     if (_lines.length && !_declared) {
       _draft = { stage: "pcts", lines: _lines.map((l) => ({ nombre: l.nombre, pct: null })) };
-      const nombres = _lines.map((l) => l.nombre.toLowerCase());
       return _resp(
-        `Tu P&L ya mide con los supuestos del perfil de tu empresa: ${_listado(_lines)}. Armemos el tuyo sobre esa base — dime qué % le pongo a cada línea («${nombres[0]} al 2%» o en orden: «2, 1.5»), o nómbrame otra estructura de gastos («administrativos, fletes, comisiones») y parto de esas líneas. El perfil sigue midiendo hasta que selles el tuyo.`,
+        `Tu P&L ya mide con los supuestos del perfil de tu empresa: ${_listado(_lines)}. Armemos el tuyo sobre esa base: dime qué porcentaje le pongo a cada línea, en orden o una por una — y si prefieres otra estructura de gastos, nómbramela y parto de esas líneas. El perfil sigue midiendo hasta que selles el tuyo.`,
         { bol: [..._lineFigs(_lines), _gPct(2), _gPct(1.5)] }
       );
     }
     if (_lines.length) {
+      // CONTRATO DEL P&L · GUÍA (owner 2026-07-26): «armemos mi P&L» con el P&L ya armado NO devuelve un menú de
+      // comandos — ADI cuenta la situación (tu foto de hoy) y CONDUCE con una pregunta; los pasos concretos son
+      // chips. Narrable (guia:true): el LLM le da voz, el guard cuida las cifras, el parser ya entiende «bajá
+      // logística» o «sacá marketing» sin que copies el comando.
       const c = buildPnlCascade(scenario);
       return _resp(
-        `Tu P&L comercial ya está armado: ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% sobre la venta, y el resultado queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta). ¿Quieres ajustarlo? «cambia ${c.lines[0].nombre.toLowerCase()} a otro %» · «agrega una línea con su %» · «saca una línea» — o «olvida mi P&L» para partir de cero.`,
-        { suggestions: ["¿Cómo queda mi resultado comercial?", "¿Qué línea pesa más en el resultado?"], bol: [_fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), ..._lineFigs(c.lines)] }
+        `Tu P&L ya está armado: hoy te deja ${_moneyK(c.resultadoK)} al año — el ${_fmtPct(c.resultadoPct)}% de tu venta, después de tus gastos declarados (${_fmtPct(c.sumPct)}% en total). Esa es tu foto con los supuestos que fijaste. Si alguno ya no refleja tu realidad, dime qué línea mover y el resultado se recalcula al instante; y si prefieres, te muestro la cascada completa o dónde pesa más cada gasto. ¿La dejamos así o quieres afinar algún supuesto?`,
+        { guia: true, suggestions: ["¿Cómo queda mi resultado comercial?", "¿Qué línea pesa más en el resultado?", "¿Dónde estoy perdiendo dinero?"], bol: [_fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct), ..._lineFigs(c.lines)] }
       );
     }
     _draft = { stage: "gastos", lines: [] };
@@ -962,9 +979,8 @@ export function composePnl(pi, ctx = null, state = {}) {
   if (a === "rearmar") {
     if (!_lines.length) return composePnl({ action: "start" }, ctx, state);
     _draft = { stage: "pcts", lines: _lines.map((l) => ({ nombre: l.nombre, pct: null })) };
-    const nombres = _lines.map((l) => l.nombre.toLowerCase());
     return _resp(
-      `Armemos tus nuevos supuestos — el mismo camino, tú mandas los números. Hoy va: ${_listado(_lines)}. Dime qué % le pongo a cada línea esta vez, en orden («2, 1, 1.5») o línea por línea («${nombres[0]} al 2%»). ¿Prefieres otra estructura? Nómbrame los gastos de nuevo («administrativos, fletes, comisiones») y parto de esas líneas. Tu P&L vigente sigue midiendo hasta que selles el nuevo.`,
+      `Armemos tus nuevos supuestos — el mismo camino, tú mandas los números. Hoy va: ${_listado(_lines)}. Dime qué porcentaje le pongo a cada línea esta vez, en orden o una por una; y si prefieres otra estructura, nómbrame los gastos de nuevo y parto de esas líneas. Tu P&L vigente sigue midiendo hasta que selles el nuevo.`,
       { bol: [..._lineFigs(_lines), _gPct(2), _gPct(1), _gPct(1.5)] }
     );
   }
@@ -972,7 +988,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     return _resp(`Los gastos que manejes tú — los nombres son tuyos, no un catálogo. Ejemplos comunes: administrativos, logística, marketing, promotores, publicidad, bodegaje. Nómbralos (con o sin su %) y seguimos.`);
   if (a === "draft_cancel") {
     _draft = null;
-    return _resp(`Listo, lo dejamos acá — no guardé nada. Cuando quieras lo retomamos: «armemos mi P&L».`);
+    return _resp(`Listo, lo dejamos acá — no guardé nada. Cuando quieras retomarlo, te guío de nuevo desde el principio.`, { suggestions: ["Armemos mi P&L"] });
   }
   if (a === "draft_gastos") {
     _draft = { stage: "pcts", lines: pi.lines.map((l) => ({ ...l })) };
@@ -1002,18 +1018,18 @@ export function composePnl(pi, ctx = null, state = {}) {
   }
   if (a === "draft_edit_reask") {
     const l = _findLine(pi.nombre, _draft ? _draft.lines : null);
-    return _resp(`Dime el porcentaje y lo muevo: «cambia ${String(pi.nombre).toLowerCase()} a 2%».${l && l.pct != null ? ` Hoy ${l.nombre.toLowerCase()} va en ${_fmtPct(l.pct)}%.` : ""}`,
+    return _resp(`¿A qué porcentaje lo muevo?${l && l.pct != null ? ` Hoy ${l.nombre.toLowerCase()} va en ${_fmtPct(l.pct)}%.` : ""} Dime el nuevo valor y lo ajusto.`,
       { bol: [_gPct(2), ...(l && l.pct != null ? [_fPct(`Línea · ${l.nombre}`, l.pct)] : [])] });
   }
   if (a === "draft_stay") {
     const c = buildPnlCascade(scenario, _draft.lines);
-    return _resp(`Bien — dime qué ajusto («cambia ${c.lines[0].nombre.toLowerCase()} a otro %») o dime «cancelar» y lo dejamos sin guardar. Hoy va: ${_listado(c.lines)}.`, { bol: _lineFigs(c.lines) });
+    return _resp(`Bien — dime qué línea ajusto y a qué porcentaje, o dime que lo cancelemos y lo dejamos sin guardar. Hoy va: ${_listado(c.lines)}.`, { bol: _lineFigs(c.lines) });
   }
   if (a === "draft_sello") {
     const lines = _draft.lines.filter((l) => l.pct != null);
     const r = setPnlLines(lines);
     _draft = null;
-    if (!r.ok) return _resp(`No pude sellar el P&L — me faltan líneas válidas. Retomemos: «armemos mi P&L».`);
+    if (!r.ok) return _resp(`No pude sellar el P&L — me faltan líneas válidas. Retomémoslo y te guío de nuevo.`, { suggestions: ["Armemos mi P&L"] });
     // EL SELLO ENTREGA EL ANÁLISIS (owner 2026-07-26 verbatim: "cuando me dice lo sello, debería darme el
     // análisis como lo tenemos en contrato, y en Sentrix permitirme verlo ordenado y con los supuestos con
     // opción de cambiarlos — eso fue lo que hablamos"): una línea de acuse y de ahí la lectura completa —
@@ -1045,13 +1061,13 @@ export function composePnl(pi, ctx = null, state = {}) {
   if (a === "edit_reask") {
     const l = _findLine(pi.nombre);
     if (!l) return _resp(`No tengo una línea «${String(pi.nombre || "").toLowerCase()}» en tu P&L. Hoy va: ${_listado(_lines)}.`, { bol: _lineFigs(_lines) });
-    return _resp(`Dime el porcentaje y la muevo: «cambia ${l.nombre.toLowerCase()} a 2%». Hoy ${l.nombre.toLowerCase()} va en ${_fmtPct(l.pct)}% sobre la venta.`, { bol: [_fPct(`Línea · ${l.nombre}`, l.pct), _gPct(2)] });
+    return _resp(`¿A qué porcentaje la muevo? Hoy ${l.nombre.toLowerCase()} va en ${_fmtPct(l.pct)}% sobre la venta — dime el nuevo valor y la ajusto.`, { bol: [_fPct(`Línea · ${l.nombre}`, l.pct), _gPct(2)] });
   }
   if (a === "edit_add" || a === "edit_add_nopct") {
-    if (a === "edit_add_nopct") return _resp(`Dímelo con su % sobre la venta y lo agrego: «agrega ${pi.nombre.toLowerCase()} 1.5%».`, { bol: [_gPct(1.5)] });
-    if (_findLine(pi.nombre)) return _resp(`${_cap(pi.nombre.toLowerCase())} ya está en tu P&L — si quieres moverla: «cambia ${pi.nombre.toLowerCase()} a ${_fmtPct(pi.pct)}%».`, { bol: [_gPct(pi.pct)] });
+    if (a === "edit_add_nopct") return _resp(`¿Con qué porcentaje sobre la venta la agrego? Dímelo y la sumo a tu P&L.`, { bol: [_gPct(1.5)] });
+    if (_findLine(pi.nombre)) return _resp(`${_cap(pi.nombre.toLowerCase())} ya está en tu P&L. Si quieres moverla, dime a qué porcentaje y la ajusto.`, { bol: [_gPct(pi.pct)] });
     if (!_validLine({ nombre: pi.nombre, pct: pi.pct })) return _resp(`Ese porcentaje no me cierra — dame un valor entre 0.1% y 50%.`, { bol: [_gPct(0.1), _gPct(50)] });
-    if (_lines.length >= 10) return _resp(`Tu P&L ya tiene 10 líneas de gasto — el tope de esta versión. Saca una («saca ${_lines[0].nombre.toLowerCase()}») y agregamos la nueva.`, { bol: _lineFigs(_lines) });
+    if (_lines.length >= 10) return _resp(`Tu P&L ya tiene 10 líneas de gasto — el tope de esta versión. Si quieres sumar otra, saca primero alguna y agregamos la nueva.`, { bol: _lineFigs(_lines) });
     const c0 = buildPnlCascade(scenario);   // el ANTES (sin la línea nueva)
     addPnlLine(pi.nombre, pi.pct);   // la MISMA primitiva que usa la cara Resultado (una verdad)
     const c = buildPnlCascade(scenario);
@@ -1066,7 +1082,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     if (!l) return _resp(`No tengo una línea «${pi.nombre.toLowerCase()}» en tu P&L. Hoy va: ${_listado(_lines)}.`, { bol: _lineFigs(_lines) });
     if (_lines.length === 1) {
       removePnlLine(l.nombre);   // la MISMA primitiva que usa la cara Resultado (una verdad) — era la última: clearPnl
-      return _resp(`Saqué ${l.nombre.toLowerCase()} — era la última línea, así que tu P&L quedó vacío y la cara Resultado vuelve a su punto de partida. Cuando quieras: «armemos mi P&L».`);
+      return _resp(`Saqué ${l.nombre.toLowerCase()} — era la última línea, así que tu P&L quedó vacío y la cara Resultado vuelve a su punto de partida. Cuando quieras rearmarlo, te guío paso a paso.`, { suggestions: ["Armemos mi P&L"] });
     }
     const c0 = buildPnlCascade(scenario);   // el ANTES (con la línea todavía adentro)
     removePnlLine(l.nombre);
@@ -1082,22 +1098,29 @@ export function composePnl(pi, ctx = null, state = {}) {
     resetPnlDraft();
     // F2: si el PERFIL de la empresa trae defaults, «olvidá» quita TU declaración y esa base vuelve a medir —
     // se declara honesto (con el demo, sin defaults, los textos de siempre byte-iguales).
+    // CONTRATO DEL P&L · GUÍA: «olvidá mi P&L» conduce al próximo paso con una pregunta, no con el comando; el
+    // «armemos mi P&L» viaja como chip. Narrable donde queda un P&L midiendo (el perfil); el degrade honesto
+    // «¿Armamos tu P&L ahora?» queda verbatim (es una repregunta de flujo, no se narra).
     if (r.perfil && r.perfil.length) return _resp(r.had
-      ? `Listo, olvidé tus líneas declaradas. Tu P&L vuelve a los supuestos del perfil de tu empresa: ${_listado(r.perfil)} — sigue midiendo con esos. Para declarar los tuyos: «armemos mi P&L».`
-      : `No tenía una declaración tuya que olvidar: tus líneas vienen del perfil de tu empresa (${_listado(r.perfil)}) y esa base se mantiene. Para declarar las tuyas: «armemos mi P&L».`);
+      ? `Listo, olvidé tus líneas declaradas. Tu P&L vuelve a medir con los supuestos del perfil de tu empresa (${_listado(r.perfil)}) — esa base sigue en pie. Cuando quieras declarar los tuyos por encima, armamos el flujo juntos.`
+      : `No tenía una declaración tuya que olvidar: tus líneas vienen del perfil de tu empresa (${_listado(r.perfil)}) y esa base se mantiene. Cuando quieras declarar las tuyas, las definimos juntos.`,
+      { guia: true, suggestions: ["Armemos mi P&L", "¿Cómo queda mi resultado comercial?"] });
     return _resp(r.had
-      ? `Listo, olvidé tu P&L comercial: las líneas de gasto quedaron fuera y la cara Resultado vuelve a su punto de partida. Cuando quieras rearmarlo: «armemos mi P&L».`
-      : `No tengo un P&L guardado — estás midiendo hasta la contribución. ¿Armamos tu P&L ahora?`);
+      ? `Listo, olvidé tu P&L comercial: las líneas de gasto quedaron fuera y la cara Resultado vuelve a su punto de partida. Cuando quieras rearmarlo, te guío paso a paso.`
+      : `No tengo un P&L guardado — estás midiendo hasta la contribución. ¿Armamos tu P&L ahora?`,
+      { guia: r.had, suggestions: r.had ? ["Armemos mi P&L"] : null });
   }
   if (a === "recall") {
     if (!_lines.length) return _resp(`Todavía no armamos tu P&L comercial: sin tus líneas de gasto, lo que puedo mostrarte llega hasta la contribución. ¿Armamos tu P&L ahora?`);
+    // CONTRATO DEL P&L · GUÍA: el recall cuenta QUÉ tienes y CÓMO queda, y conduce con una pregunta; los pasos
+    // de ajuste son chips, no un menú de comandos en el texto. Narrable (el LLM le da voz, el guard cuida cifras).
     const c = buildPnlCascade(scenario);
     const _origen = _declared
-      ? "cada línea como supuesto declarado (cuando llegue el dato contable real, se reemplaza línea a línea)"
-      : "las líneas vienen del perfil de tu empresa como supuestos (declara las tuyas y las pisan)";
+      ? "cada una como supuesto declarado por ti — cuando llegue el dato contable real, se reemplaza línea a línea"
+      : "vienen del perfil de tu empresa como supuestos, y las tuyas las pisan en cuanto las declares";
     return _resp(
-      `Tu P&L comercial: ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% sobre la venta, ${_origen}. Con el dato de hoy, el resultado comercial queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta). Para ajustar: «cambia ${c.lines[0].nombre.toLowerCase()} a otro %» · «saca una línea» · «agrega una línea con su %».`,
-      { suggestions: ["¿Cómo queda mi resultado comercial?", "¿Qué línea pesa más en el resultado?"], bol: [..._lineFigs(c.lines), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct)] }
+      `Tu P&L mide hoy con ${_listado(c.lines)} — ${_fmtPct(c.sumPct)}% sobre la venta, ${_origen}. Con el dato actual, el resultado comercial queda en ${_moneyK(c.resultadoK)} (${_fmtPct(c.resultadoPct)}% de la venta). Si alguna línea ya no refleja tu realidad, dime cuál y la movemos; también puedo abrirte la cascada completa. ¿La revisamos o seguimos con otra cosa?`,
+      { guia: true, suggestions: ["¿Cómo queda mi resultado comercial?", "¿Qué línea pesa más en el resultado?"], bol: [..._lineFigs(c.lines), _fPct("Gastos · total", c.sumPct), _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct)] }
     );
   }
 
@@ -1457,7 +1480,7 @@ export function composePnl(pi, ctx = null, state = {}) {
           _fMoneyK("Resultado del negocio con el supuesto", negocioB),
         ];
         return _resp(
-          `**Supuesto (local):** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% solo en ${e.nombre}.\n**Efecto directo:** su gasto de ${l.nombre.toLowerCase()} va de ${_moneyK(gA)} a ${_moneyK(gB)}, y su resultado ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(e.resultadoK)} (${_fmtPct(e.resultadoPct)}%) a ${_moneyK(resB)} (${_fmtPct(pctB)}% de su venta). El del negocio queda en ${_moneyK(negocioB)}.\n**Límite:** tu P&L declara ${l.nombre.toLowerCase()} global (${_fmtPct(l.pct)}% en toda la venta) — este supuesto es local y es aritmética, no contabilidad de ${e.nombre}.\n**Decisión:** para moverlo de verdad, global: «cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%».`,
+          `**Supuesto (local):** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% solo en ${e.nombre}.\n**Efecto directo:** su gasto de ${l.nombre.toLowerCase()} va de ${_moneyK(gA)} a ${_moneyK(gB)}, y su resultado ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(e.resultadoK)} (${_fmtPct(e.resultadoPct)}%) a ${_moneyK(resB)} (${_fmtPct(pctB)}% de su venta). El del negocio queda en ${_moneyK(negocioB)}.\n**Límite:** tu P&L declara ${l.nombre.toLowerCase()} global (${_fmtPct(l.pct)}% en toda la venta) — este supuesto es local y es aritmética, no contabilidad de ${e.nombre}.\n**Decisión:** si quieres moverlo de verdad en todo tu P&L, dímelo y dejo ${l.nombre.toLowerCase()} en ${_fmtPct(t)}% de forma global.`,
           { route: "pnl_reading", suggestions: [`Cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%`, `P&L de ${e.nombre}`], bol, ev: { entidad: e.nombre, entityType: sEje || _BASE_EJE, dimension: sEje || _BASE_EJE } }
         );
       }
@@ -1476,7 +1499,7 @@ export function composePnl(pi, ctx = null, state = {}) {
       _fMoneyK("Resultado con el supuesto", sim.resultadoK), _fPct("Resultado con el supuesto %", sim.resultadoPct),
     ];
     return _resp(
-      `**Supuesto:** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% sobre la venta.\n**Efecto directo:** el gasto anual de ${l.nombre.toLowerCase()} va de ${_moneyK(gA.usdK)} a ${_moneyK(gB.usdK)}, y el resultado comercial ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(base.resultadoK)} (${_fmtPct(base.resultadoPct)}%) a ${_moneyK(sim.resultadoK)} (${_fmtPct(sim.resultadoPct)}% de la venta).\n**Límite:** es aritmética sobre tu supuesto declarado — no predice el efecto operativo de mover ${l.nombre.toLowerCase()}.\n**Decisión:** si te cierra, confírmalo: «cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%».`,
+      `**Supuesto:** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% sobre la venta.\n**Efecto directo:** el gasto anual de ${l.nombre.toLowerCase()} va de ${_moneyK(gA.usdK)} a ${_moneyK(gB.usdK)}, y el resultado comercial ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(base.resultadoK)} (${_fmtPct(base.resultadoPct)}%) a ${_moneyK(sim.resultadoK)} (${_fmtPct(sim.resultadoPct)}% de la venta).\n**Límite:** es aritmética sobre tu supuesto declarado — no predice el efecto operativo de mover ${l.nombre.toLowerCase()}.\n**Decisión:** si te cierra, solo confírmalo y dejo ${l.nombre.toLowerCase()} en ${_fmtPct(t)}%.`,
       { route: "pnl_reading", suggestions: [`Cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%`], bol, ev: { dimension: _BASE_EJE } }
     );
   }
@@ -1566,10 +1589,11 @@ export function composePnl(pi, ctx = null, state = {}) {
       { route: "pnl_reading", suggestions: [...new Set([...(a1 && a1.ask ? [a1.ask] : []), `P&L de ${e.nombre}`, "¿Cómo queda mi resultado comercial?"])].slice(0, 3), bol, ev: { kind: "pnl", entidad: e.nombre, entityType: eje, dimension: eje } }
     );
   }
-  // acción desconocida → estado honesto
-  return _resp(_lines.length
-    ? `Seguimos con tu P&L cuando quieras: «¿cómo queda mi resultado comercial?» · «cambia una línea a otro %» · «olvida mi P&L».`
-    : `Todavía no armamos tu P&L comercial. ¿Armamos tu P&L ahora?`);
+  // acción desconocida → estado honesto (CONTRATO · GUÍA: conduce con una pregunta, los pasos van en chips)
+  return _lines.length
+    ? _resp(`Tu P&L está armado y midiendo. ¿Seguimos con tu resultado, revisamos alguna línea de gasto, o lo miras por cliente o familia?`,
+        { suggestions: ["¿Cómo queda mi resultado comercial?", "¿Qué línea pesa más en el resultado?", "¿Dónde estoy perdiendo dinero?"] })
+    : _resp(`Todavía no armamos tu P&L comercial. ¿Armamos tu P&L ahora?`, { suggestions: ["Armemos mi P&L"] });
 }
 
 /* ── F4 · POST-CHECK DE FRASES DE LA NARRACIÓN (la doctrina se asegura en CÓDIGO, no en prompt — mismo patrón
@@ -1588,10 +1612,14 @@ export function ensurePnlNarration(narr, det, evidence) {
   let out = narr;
   const acuse = typeof det === "string" ? det.match(/^Sellado — [^\n]*/) : null;
   if (acuse && !/sellad/i.test(out.slice(0, 240))) out = `${acuse[0]}\n\n${out}`;
-  if (!/supuesto/i.test(out)) {
+  // GRADUACIÓN · solo en LECTURAS de la cascada (traen tablaM): la doctrina probado/supuesto es innegociable ahí.
+  // Una GUÍA administrativa (ya armado / recall / forget · sin tablaM) no la fuerza — no es una lectura del resultado.
+  if (evidence.tablaM && !/supuesto/i.test(out)) {
     const delPerfil = Array.isArray(evidence.pnlList) && evidence.pnlList.length > 0 && evidence.pnlList.every((l) => l.origen === "perfil_empresa");
     out += `\n\nHasta la contribución es dato probado; los gastos son ${delPerfil ? "supuestos del perfil de tu empresa" : "supuestos declarados por ti"} — el resultado se mueve con ellos.`;
   }
+  // CIERRE EN DECISIÓN · en toda respuesta P&L (lectura o guía): si el piso cierra preguntando y la narración
+  // quedó sin pregunta, se appendea la decisión del piso (sus cifras ya son de la boleta).
   const qDet = typeof det === "string" ? det.trim().match(/[^\n]*\?\s*$/) : null;
   if (qDet && !/[¿?]/.test(out.slice(-260))) out += `\n\n${qDet[0].trim()}`;
   return out;

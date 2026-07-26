@@ -308,7 +308,7 @@ ok(sEjeEl.turn_type === "pnl_setup" && sEjeEl.pnl && sEjeEl.pnl.action === "tabl
 for (const qEsp of ["quiero nuevos prorrateos", "cambiemos los porcentajes", "usemos otros supuestos", "rehagamos los gastos"]) {
   resetPnlDraft(); void go("P&L de Falabella", false);   // hilo vivo — el rearme no depende de él pero convive
   const rEsp = go(qEsp);
-  ok(rEsp && /Armemos tus nuevos supuestos/.test(rEsp.text) && /qué % le pongo a cada línea esta vez/.test(rEsp.text)
+  ok(rEsp && /Armemos tus nuevos supuestos/.test(rEsp.text) && /qué porcentaje le pongo a cada línea esta vez/.test(rEsp.text)
     && pnlDraft() && pnlDraft().stage === "pcts" && pnlDraft().lines.every((l) => l.pct === null),
     `re-arme «${qEsp}» → guía los % de esta vez (draft pcts con TUS líneas)`, rEsp && `[${rEsp.route}] ${rEsp.text.slice(0, 60)}`);
   resetPnlDraft();
@@ -859,18 +859,36 @@ console.log("[29] F4 · LA VOZ DEL P&L (lecturas narrables kind 'pnl' · piso de
   const qDet29 = rL29.text.trim().match(/[^\n]*\?\s*$/)[0].trim();
   ok(sinQ.endsWith(qDet29), "post-check (c): narración sin pregunta final → la DECISIÓN del piso se appendea (cierre del contrato)");
   ok(EPN29("Texto libre.", rL29.text, { kind: "criteria" }) === "Texto libre.", "post-check: fuera del territorio P&L no toca nada");
-  const ePerfil = EPN29("Te quedan $11.9M.", "x", { kind: "pnl", pnlList: [{ nombre: "Logística", pct: 3, origen: "perfil_empresa" }] });
-  ok(/supuestos del perfil de tu empresa/.test(ePerfil), "post-check: con líneas del perfil, la variante honesta del perfil");
+  const ePerfil = EPN29("Te quedan $11.9M.", "x", { kind: "pnl", tablaM: { rows: [1] }, pnlList: [{ nombre: "Logística", pct: 3, origen: "perfil_empresa" }] });
+  ok(/supuestos del perfil de tu empresa/.test(ePerfil), "post-check: con líneas del perfil (lectura con tablaM), la variante honesta del perfil");
+  // GUÍA sin tablaM (ya armado / recall): la graduación NO se fuerza (no es una lectura de la cascada)
+  const eGuia = EPN29("Tu P&L ya está armado y te deja $20.5M.", "x", { kind: "pnl", pnlList: [{ nombre: "Logística", pct: 3, origen: "supuesto_declarado" }] });
+  ok(!/dato probado/.test(eGuia), "post-check: una GUÍA (sin tablaM) no fuerza la graduación de lectura");
   ok(EPN29("Tu resultado quedó firme y los supuestos miden.", rSello.text, rSello.evidence).startsWith("Sellado — "),
     "post-check: narración del sello que no lo confirma → el acuse del piso ANTEPUESTO");
   ok(!EPN29("Sellado quedó tu P&L — tus supuestos ya miden.", rSello.text, rSello.evidence).startsWith("Sellado — tus gastos"),
     "post-check: narración que SÍ confirma el sello no se duplica");
-  // ── LAS ADMINISTRATIVAS: siguen verbatim kind "criteria" (cada palabra es eco/instrucción exacta) ──
+  // ── LAS GUÍAS: administrativas que CONDUCEN (ya armado / recall / forget-con-resultado) → kind "pnl" NARRABLE
+  // (el LLM les da voz, el guard cuida las cifras) · followup:true (no threadean) · pnl:true (botón a la Mesa) ──
+  clearPnl(); resetPnlDraft();
+  setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]);
+  const GUIA29 = [
+    ["start (ya armado)", () => composePnl({ action: "start" }, null, { scenario: "bonanza" })],
+    ["recall", () => composePnl({ action: "recall" }, null, { scenario: "bonanza" })],
+    ["forget (con perfil/resultado)", () => { setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]); return composePnl({ action: "forget" }, null, { scenario: "bonanza" }); }],
+  ];
+  for (const [tag, mk] of GUIA29) {
+    const r = mk();
+    ok(r && r.evidence && r.evidence.kind === "pnl" && r.evidence.followup === true && r.evidence.pnl === true && SN29(r) === true,
+      `guía «${tag}»: kind "pnl" NARRABLE (followup:true · pnl:true · no threadea)`, r && r.evidence && `${r.evidence.kind}/fu=${r.evidence.followup}`);
+    // el propio piso pasa la cadena de guards (boleta cubre sus cifras · self-consistente)
+    const p = PN29(r, r.text);
+    ok(p.narrated === true, `guía «${tag}»: el piso pasa sus propios guards`, p.reason);
+  }
+  // ── LAS ADMINISTRATIVAS/ECO: siguen verbatim kind "criteria" (cada palabra es eco/instrucción exacta) ──
   clearPnl(); resetPnlDraft();
   setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }]);
   const ADMIN29 = [
-    ["start (ya armado)", () => composePnl({ action: "start" }, null, { scenario: "bonanza" })],
-    ["recall", () => composePnl({ action: "recall" }, null, { scenario: "bonanza" })],
     ["edit_set", () => composePnl({ action: "edit_set", nombre: "Logística", pct: 2 }, null, { scenario: "bonanza" })],
     ["rearmar", () => { const r = composePnl({ action: "rearmar" }, null, { scenario: "bonanza" }); resetPnlDraft(); return r; }],
     ["simulate de línea", () => composePnl({ action: "simulate_line", nombre: "Marketing", pct: 1 }, null, { scenario: "bonanza" })],
@@ -881,12 +899,11 @@ console.log("[29] F4 · LA VOZ DEL P&L (lecturas narrables kind 'pnl' · piso de
     ["redirect eje imposible", () => composePnl({ action: "tabla_eje", eje: "bodega" }, null, { scenario: "bonanza" })],
     ["scoped sin cobertura (Makita)", () => composePnl({ action: "resultado_scoped", entidad: "Makita", eje: "marca", covered: false }, null, { scenario: "bonanza" })],
     ["scoped_missing", () => composePnl({ action: "scoped_missing", pedido: "Walmart" }, null, { scenario: "bonanza" })],
-    ["forget", () => composePnl({ action: "forget" }, null, { scenario: "bonanza" })],
   ];
   for (const [tag, mk] of ADMIN29) {
     const r = mk();
     ok(r && r.evidence && r.evidence.kind === "criteria" && SN29(r) === false,
-      `admin «${tag}»: sigue VERBATIM kind "criteria" (shouldNarrate false)`, r && r.evidence && r.evidence.kind);
+      `admin/eco «${tag}»: sigue VERBATIM kind "criteria" (shouldNarrate false)`, r && r.evidence && r.evidence.kind);
   }
   // el flujo guiado completo también (gastos → % → boleta del sello: cada eco es del usuario)
   clearPnl(); resetPnlDraft();
@@ -895,6 +912,38 @@ console.log("[29] F4 · LA VOZ DEL P&L (lecturas narrables kind 'pnl' · piso de
   const f3 = go("1, 2");
   ok([f1, f2, f3].every((r) => r && r.evidence.kind === "criteria" && SN29(r) === false),
     "el flujo guiado punta a punta (¿qué gastos? → % → ¿lo sello?) sigue verbatim");
+  clearPnl(); resetPnlDraft();
+}
+
+console.log("[30] EL CONTRATO DEL P&L · guía, no menú de comandos (owner 2026-07-26: «ADI iba a guiar»)");
+{
+  const { shouldNarrate: SN30 } = M;
+  // NINGUNA respuesta del P&L LISTA comandos-sintaxis entre comillas en el texto: se barre todo el territorio.
+  // Un «comando» = comillas angulares con un verbo de mutación adentro («cambia…» «saca…» «agrega…» «olvida…»
+  // «armemos…» «séllalo»). Los format-hints de re-pregunta ya no usan esa forma; los chips llevan los pasos.
+  const CMD_RE = /[«"']\s*(cambia|saca|sacá|quita|agrega|agregá|añade|olvida|olvidá|borra|arma|armemos|armamos|sella|séllalo|prueba|baja|bajá|sube|subí)\b[^»"']*[»"']/i;
+  const casos30 = [];
+  clearPnl(); resetPnlDraft();
+  setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 2.5 }]);
+  const push30 = (tag, r) => casos30.push([tag, r]);
+  push30("ya armado", composePnl({ action: "start" }, null, { scenario: "bonanza" }));
+  push30("recall", composePnl({ action: "recall" }, null, { scenario: "bonanza" }));
+  push30("rearmar", (() => { const r = composePnl({ action: "rearmar" }, null, { scenario: "bonanza" }); resetPnlDraft(); return r; })());
+  push30("draft_stay", (() => { composePnl({ action: "rearmar" }, null, { scenario: "bonanza" }); const r = composePnl({ action: "draft_stay" }, null, { scenario: "bonanza" }); resetPnlDraft(); return r; })());
+  push30("edit_reask", composePnl({ action: "edit_reask", nombre: "Logística" }, null, { scenario: "bonanza" }));
+  push30("edit_add_nopct", composePnl({ action: "edit_add_nopct", nombre: "Fletes" }, null, { scenario: "bonanza" }));
+  push30("simulate línea", composePnl({ action: "simulate_line", nombre: "Logística", pct: 2 }, null, { scenario: "bonanza" }));
+  push30("fallback (acción desconocida)", composePnl({ action: "____nada" }, null, { scenario: "bonanza" }));
+  push30("cordura negativo", (() => { setPnlLines([{ nombre: "Logística", pct: 30 }, { nombre: "Marketing", pct: 25 }]); resetPnlDraft(); const r0 = go("Armemos mi P&L", false); void r0; const r = go("logística 30%, marketing 25%"); return r; })());
+  for (const [tag, r] of casos30) {
+    const t = (r && r.text) || "";
+    ok(!CMD_RE.test(t), `contrato «${tag}»: cero comandos-sintaxis entre comillas en el texto`, (t.match(CMD_RE) || [])[0]);
+  }
+  // forget con P&L declarado → guía (chip «Armemos mi P&L», no comando en el texto)
+  setPnlLines([{ nombre: "Logística", pct: 3 }]);
+  const rF30 = composePnl({ action: "forget" }, null, { scenario: "bonanza" });
+  ok(!CMD_RE.test(rF30.text) && Array.isArray(rF30.suggestions) && rF30.suggestions.includes("Armemos mi P&L"),
+    "contrato «forget»: el próximo paso viaja como CHIP, no como comando en el texto", rF30.text.slice(0, 80));
   clearPnl(); resetPnlDraft();
 }
 
