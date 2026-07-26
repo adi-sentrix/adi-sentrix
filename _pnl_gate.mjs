@@ -19,6 +19,7 @@ fs.writeFileSync(entry, [
   'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, editPnlLine, removePnlLine, addPnlLine, pnlExplain, pnlRecommend } from "./src/adi/pnl.js";',
   'export { buildMesaResultado, pnlMesaLink, pnlExportData } from "./src/adi/sentrix/mesaResultado.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
+  'export { composeSpecDiagnose } from "./src/adi/specRetrieval.js";',
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',
   'export { ENTITIES } from "./src/config/contract/entityRegistry.js";',
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
@@ -583,11 +584,18 @@ const rSello24 = go("sí");
 const rRes24 = composePnl({ action: "resultado" }, null, { scenario: "bonanza" });
 ok(rSello24 && /^Sellado — /.test(rSello24.text) && rSello24.text.split("\n")[0].length < 160, "acuse de UNA línea al inicio («Sellado — …»)", rSello24 && rSello24.text.split("\n")[0]);
 ok(rSello24 && rSello24.text.endsWith(rRes24.text), "…y de ahí EL ANÁLISIS COMPLETO, byte-igual a «¿cómo queda mi resultado comercial?» (sin pedir «muéstramelo» aparte)");
-ok(rSello24.evidence.tablaM && rSello24.evidence.tablaM.rows.some((r) => r.label === "Resultado comercial" && r.strong) && /La línea que más pesa: /.test(rSello24.text) && /¿Qué pasa si bajas /.test(rSello24.text), "el sello trae la cascada EN LA TABLA + línea que más pesa + simulación sugerida — el contrato entero");
+// migrado 2026-07-26 (fix del sello): la simulación sugerida vive en los chips; el texto cierra en DECISIÓN
+ok(rSello24.evidence.tablaM && rSello24.evidence.tablaM.rows.some((r) => r.label === "Resultado comercial" && r.strong) && /De cada \$100 de venta/.test(rSello24.text) && /Dónde actuar primero: /.test(rSello24.text) && /¿Partimos por /.test(rSello24.text), "el sello trae la cascada EN LA TABLA + el porqué con drivers + la acción priorizada y el cierre en decisión — el contrato entero");
 ok(/Hasta la contribución es dato probado; los gastos son supuestos declarados/.test(rSello24.text), "la graduación (probado vs supuesto declarado) viaja en el propio sello");
 ok(guardAgainstBoleta(rSello24.text, rSello24.evidence.boleta).ok, "guard sello: cifras == boleta", guardAgainstBoleta(rSello24.text, rSello24.evidence.boleta).reason);
 ok(rSello24.evidence.followup === false && rSello24.evidence.pnl === true, "el sello emite evidencia ACCIONABLE (threadea el hilo como toda lectura)");
-for (const s2 of (rSello24.suggestions || [])) { const cs6 = CF(s2, false, null); ok(!!cs6 && cs6.turn_type === "pnl_setup", `chip del sello reclama: «${s2}»`); }
+// los chips del sello ahora incluyen los frentes del detector (carga/margen) — resuelven por la cadena, no
+// necesariamente como pnl_setup (la ask de carga es del foco de carga: correcto, es el puente al detector)
+for (const s2 of (rSello24.suggestions || [])) {
+  const cs6 = CF(s2, false, null);
+  const r6 = cs6 ? AC(cs6, {}, { scenario: "bonanza" }) : null;
+  ok(!!(r6 && String(r6.text || "").trim() && !/^spec_blocked_/.test(r6.route || "") && !ROTA_RE.test(r6.text.trim())), `chip del sello responde por la cadena: «${s2}»`, r6 && `[${r6.route}] ${String(r6.text || "").slice(0, 60)}`);
+}
 
 console.log("[25] TODA LECTURA P&L lleva evidencia con lens → deep-link a la cara Resultado");
 setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]); resetPnlDraft();
@@ -668,7 +676,8 @@ const r27ex = pnlExplain({ pnl: true }, null, { scenario: "bonanza" });
 for (const [tag27, r27] of [["resultado", r27res], ["perdiendo", r27per], ["scoped", r27sc]])
   ok(!/\n· (Ingreso|Venta del año):/.test(r27.text), `«${tag27}»: la enumeración de la cascada SALIÓ del texto (historia, no dato)`);
 ok(/queda contigo después del costo, la carga comercial y tus gastos declarados/.test(r27res.text), "«resultado» narra QUÉ SIGNIFICA la cifra (asesor, en llano)");
-ok(/^\*\*Te quedan /.test(r27per.text) && /¿Bajamos a un frente\?/.test(r27per.text), "«perdiendo» abre con lo que te queda y cierra en decisión");
+// migrado 2026-07-26 (fix del sello): el cierre vago «¿Bajamos a un frente?» murió — ahora decide entre frentes con $
+ok(/^\*\*Te quedan /.test(r27per.text) && /¿Partimos por /.test(r27per.text), "«perdiendo» abre con lo que te queda y cierra en la decisión ejecutiva del contrato");
 // (b) la cascada completa viaja ESTRUCTURADA y el despachador la manda a la UI (tabla_matriz)
 for (const [tag27, r27] of [["resultado", r27res], ["perdiendo", r27per], ["scoped", r27sc], ["tabla_eje", r27tab], ["explica", r27ex]]) {
   const cs27 = chartForEvidence(r27.evidence);
@@ -699,6 +708,93 @@ for (const [tag27, r27] of [["resultado", r27res], ["perdiendo", r27per], ["scop
   if (t27) { scan27(`${tag27}·titulo`, t27.titulo); scan27(`${tag27}·nota`, t27.nota); for (const r of t27.rows) { scan27(`${tag27}·row`, r.label); scan27(`${tag27}·rownota`, r.nota || ""); } }
 }
 ok(sucios27 === 0, "registro ejecutivo limpio en la historia y las tablas");
+clearPnl(); resetPnlDraft();
+
+/* ══ [28] EL SELLO DEL CONTRATO EN TODA LECTURA P&L (auditoría del owner 2026-07-26: el movimiento 2 había
+ * desaparecido y el 3 no priorizaba · cierre vago vetado) — LO PERMANENTE: ninguna sesión futura puede romper
+ * la estructura sin romper este gate. Por lectura (global y scoped) × 3 escenarios:
+ *   mov 1 · abre con SU cifra (== la card / la fila del cuadro)
+ *   mov 2 · el porqué con los DRIVERS de la cascada («de cada $100…», valores exactos) + graduación
+ *   mov 3 · la acción PRIORIZADA por $ (la mayor entre detector carga · detector margen · línea dominante,
+ *           recomputada acá de la MISMA fuente) + el cierre en decisión («¿Partimos por…?»)
+ *   + registro ejecutivo limpio + guard boleta + toda ask emitida responde por la cadena. ══ */
+console.log("[28] SELLO DEL CONTRATO en toda lectura P&L · 3 movimientos + priorización + registro + guard (×3 escenarios)");
+const { composeSpecDiagnose } = M;
+const _p1 = (v) => String(Math.round(v * 10) / 10);
+const _d100g = (v) => `$${_p1(Math.abs(v))}`;
+const RE_M2G = /¿Qué explica ese resultado\? De cada \$100 de venta/;
+const RE_M2E = /De cada \$100 que factura/;
+const RE_CIERRE = /¿Partimos por /;
+const asks28 = new Map();   // ask → { tag, sc } (dedupe global · cada una se prueba EN EL ESCENARIO que la emitió)
+const put28 = (r, tag, sc) => { for (const s of (r.suggestions || [])) if (s && !asks28.has(s)) asks28.set(s, { tag, sc }); };
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  setPnlLines([{ nombre: "Logística", pct: 3 }, { nombre: "Marketing", pct: 1.5 }, { nombre: "Promotores", pct: 2 }]); resetPnlDraft();
+  const c28 = buildPnlCascade(sc);
+  const mr28 = buildMesaResultado(sc);
+  const F28 = (() => { try { const d = composeSpecDiagnose({ filters: {}, scenario: sc }); return (d && d.evidence && d.evidence.findings) || []; } catch { return []; } })();
+  const cg28 = F28.find((f) => f.detector === "carga") || null, mg28 = F28.find((f) => f.detector === "margen") || null;
+  const top28 = c28.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+  const maxUsd28 = Math.max(cg28 ? cg28.subtotal_usd : 0, mg28 ? mg28.subtotal_usd : 0, top28.usdK * 1000);
+  // ── GLOBAL · resultado + perdiendo (el sello == resultado byte-igual, [24] lo cubre) ──
+  for (const [tag, r] of [["resultado", composePnl({ action: "resultado" }, null, { scenario: sc })], ["perdiendo", composePnl({ action: "perdiendo" }, null, { scenario: sc })]]) {
+    const t = r.text;
+    ok(tag === "resultado" ? t.startsWith(`Tu resultado comercial: ${mr28.resultado.usdFmt}`) : t.startsWith(`**Te quedan ${_moneyK(c28.resultadoK)}`), `${sc}/${tag} · mov 1: abre con la cifra de la card`, t.slice(0, 60));
+    const drivers = [_d100g((c28.costoK / c28.ingresoK) * 100), _d100g((c28.cargaK / c28.ingresoK) * 100), _d100g(c28.sumPct)];
+    ok(RE_M2G.test(t) && drivers.every((d) => t.includes(d)), `${sc}/${tag} · mov 2: el porqué con LOS DRIVERS exactos de la cascada (${drivers.join(" · ")})`, t.slice(0, 200));
+    ok(/dato probado/.test(t) && /supuestos declarados/.test(t), `${sc}/${tag} · mov 2: graduación presente (probado vs supuesto)`);
+    ok(/Dónde actuar primero: /.test(t) && RE_CIERRE.test(t), `${sc}/${tag} · mov 3: acción primero + cierre en decisión`);
+    const cierre28 = t.split("\n").pop();
+    ok(cierre28.includes(`(${_money(maxUsd28)})`), `${sc}/${tag} · mov 3: la decisión cita EL FRENTE MAYOR (${_money(maxUsd28)}) — priorización por $`, cierre28);
+    const g28 = guardAgainstBoleta(t, r.evidence.boleta);
+    ok(g28.ok, `${sc}/${tag} · guard: cifras == boleta`, g28.reason);
+    ok(!BANNED.test(t), `${sc}/${tag} · registro ejecutivo limpio`, (t.match(BANNED) || [])[0]);
+    put28(r, `${sc}/${tag}`, sc);
+  }
+  // ── SCOPED · TODA cuenta de la base + una familia (el sello proporcional: su cifra · sus drivers · SU acción) ──
+  const ents28 = [...c28.porEntidad.map((e) => ({ e, eje: "cliente" })),
+    ...buildPnlCascade(sc, null, { dimension: "familia" }).porEntidad.slice(0, 1).map((e) => ({ e, eje: "familia" }))];
+  for (const { e, eje } of ents28) {
+    const r = composePnl({ action: "resultado_scoped", entidad: e.nombre, eje, covered: true }, null, { scenario: sc });
+    const t = r.text;
+    ok(t.startsWith(`**El P&L de ${e.nombre}: te deja ${_moneyK(e.resultadoK)} al año**`), `${sc}/scoped ${e.nombre} · mov 1: abre con SU cifra`, t.slice(0, 70));
+    ok(RE_M2E.test(t) && t.includes(_d100g((e.costoK / e.ventaK) * 100)) && t.includes(_d100g((e.cargaK / e.ventaK) * 100)), `${sc}/scoped ${e.nombre} · mov 2: sus drivers exactos (por qué rinde distinto al promedio)`);
+    ok(/dato probado/.test(t) && /prorrateados/.test(t), `${sc}/scoped ${e.nombre} · mov 2: graduación del prorrateo`);
+    ok(new RegExp(`Dónde actuar en ${e.nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: `).test(t) && RE_CIERRE.test(t), `${sc}/scoped ${e.nombre} · mov 3: la acción de ESA cuenta + cierre en decisión`);
+    // priorización de la cuenta: el $ citado en el cierre es el MAYOR entre sus detectores y su línea dominante
+    const it28 = (det) => { const f = F28.find((x) => x.detector === det); const it = f && eje === "cliente" && f.items.find((i) => i.entidad === e.nombre); return it ? it.usd : 0; };
+    const maxE28 = Math.max(it28("carga"), it28("margen"), (e.ventaK * top28.pct / 100) * 1000);
+    ok(t.includes(`¿Partimos por ahí (${_money(maxE28)})`), `${sc}/scoped ${e.nombre} · mov 3: prioriza por $ (${_money(maxE28)})`, t.split("\n").pop());
+    const gE28 = guardAgainstBoleta(t, r.evidence.boleta);
+    ok(gE28.ok, `${sc}/scoped ${e.nombre} · guard: cifras == boleta`, gE28.reason);
+    ok(!BANNED.test(t), `${sc}/scoped ${e.nombre} · registro limpio`, (t.match(BANNED) || [])[0]);
+    put28(r, `${sc}/scoped-${e.nombre}`, sc);
+  }
+  // ── ENTIDAD (la forma corta «¿cuánto deja X?») · mismo sello proporcional ──
+  for (const [ent28, eje28] of [["Falabella", "cliente"], ["Cuidado Personal", "familia"]]) {
+    const r = composePnl({ action: "resultado_entidad", entidad: ent28, eje: eje28 }, null, { scenario: sc });
+    const t = r.text;
+    ok(new RegExp(`^Después de gastos, ${ent28} deja `).test(t) && RE_M2E.test(t) && /Dónde actuar en /.test(t) && RE_CIERRE.test(t), `${sc}/entidad ${ent28}: los 3 movimientos en la forma corta`, t.slice(0, 80));
+    const gN28 = guardAgainstBoleta(t, r.evidence.boleta);
+    ok(gN28.ok && !BANNED.test(t), `${sc}/entidad ${ent28}: guard + registro`, gN28.reason || (t.match(BANNED) || [])[0]);
+    put28(r, `${sc}/entidad-${ent28}`, sc);
+  }
+}
+// ── toda ask emitida por las lecturas del sello RESPONDE por la cadena, en SU escenario (0 rotas) ──
+let rotas28 = 0;
+for (const [texto, { tag, sc }] of asks28) {
+  let motivo = null;
+  try {
+    const cs = CF(texto, false, null);
+    if (!cs) motivo = "coerceFloor null";
+    else {
+      const r = AC(cs, {}, { scenario: sc });
+      const t = (r && r.text) || "";
+      if (!t.trim() || /^spec_blocked_/.test(r.route || "") || ROTA_RE.test(t.trim())) motivo = `[${r && r.route}] ${t.slice(0, 70)}`;
+    }
+  } catch (e) { motivo = "THROW " + String(e && e.message).slice(0, 60); }
+  if (motivo) { rotas28++; console.log(`    ✗ ask ROTA «${texto}» (${tag}) → ${motivo}`); }
+}
+ok(rotas28 === 0, `${asks28.size} asks emitidas por las lecturas del sello responden por la cadena (0 rotas)`);
 clearPnl(); resetPnlDraft();
 
 console.log(`\n── _pnl_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

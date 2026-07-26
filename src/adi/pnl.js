@@ -37,6 +37,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { METRICS } from "../config/contract/metricRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 import { detectMultiAnalysis } from "./multiFocus.js";   // pase 2c: una enumeración de lentes es del MULTI, no del P&L
+import { composeSpecDiagnose } from "./specRetrieval.js";   // sello del contrato: los DETECTORES (carga/margen) puentean el porqué de negocio — los mismos de la Mesa (una verdad)
 
 // ── formato (misma escala que mesa.js: dato comercial en $K → $) ─────────────────────────────────────────────
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -713,27 +714,160 @@ function _tablaCascada(c, e = null, titulo = null) {
   };
 }
 
+/* ── EL SELLO DEL CONTRATO EN LAS LECTURAS (auditoría del owner 2026-07-26 sobre «¿Cómo viene el P&L de mi
+ * negocio?»: la lectura saltaba del CUÁNTO al qué-hacer — el movimiento 2 había desaparecido y el 3 listaba
+ * tres frentes sin priorizar, con cierre vago). Los tres movimientos:
+ *   02 · EL PORQUÉ: los drivers de la cascada en una frase («de cada $100 de venta, $X se van en costo…») —
+ *        aritmética probada; los porqués de NEGOCIO (carga sobre target · cuentas bajo benchmark) puentean a
+ *        los DETECTORES del diagnose (probados) y la causa queda ABIERTA con su oferta — jamás se inventa.
+ *   03 · LA ACCIÓN PRIORIZADA: UNA primero con su $ — la mayor entre carga recuperable (detector) · margen no
+ *        capturado (detector) · línea de gasto dominante (supuesto declarado) — las otras como secundarias, y
+ *        el cierre es la decisión ejecutiva del contrato («¿Partimos por X ($N) o prefieres Y?»).
+ * Asks reusadas gate-proven (_promise_gate · _pnl_gate las prueba por la cadena). Registro ejecutivo. ── */
+const _d100 = (v) => `$${_fmtPct(Math.abs(v))}`;   // la parte de cada $100 de venta ("$71.2" · 1 decimal, como todo %)
+const _f100 = (label, v) => fig(label, _d100(v), { unit: "money", raw: _r1(Math.abs(v)), source: "computed", formula: "por cada $100 de venta", context: "P&L comercial" });
+const _fMoney = (label, usd, opts = {}) => fig(label, _money(usd), { unit: "money", raw: usd, source: "computed", context: "P&L comercial", ...opts });
+// misma cifra citada por dos caminos (p.ej. la línea top en el frente y en la boleta base) → una sola entrada
+const _dedupeBol = (figs) => { const seen = new Set(); return figs.filter((f) => { const k = `${f.label}|${f.value}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
+// los findings del diagnose — los MISMOS detectores de la Mesa (una verdad) · [] si no hay focos materiales
+function _findings(scenario) {
+  try {
+    const d = composeSpecDiagnose({ filters: {}, scenario: scenario || "bonanza" });
+    return (d && d.evidence && d.evidence.findings) || [];
+  } catch { return []; }
+}
+// movimiento 2 · los drivers del NEGOCIO (aritmética probada) + la graduación en la misma frase
+function _porqueGlobal(c) {
+  const p = (n) => (c.ingresoK ? _r1((n / c.ingresoK) * 100) : 0);
+  const costoP = p(c.costoK), cargaP = p(c.cargaK), gastoP = _r1(c.sumPct), resP = _r1(c.resultadoPct);
+  const resFrase = c.resultadoK >= 0
+    ? `por eso te quedan ${_d100(resP)}`
+    : `por eso el resultado queda negativo: se pierden ${_d100(resP)} de cada $100`;
+  return {
+    text: `¿Qué explica ese resultado? De cada $100 de venta, ${_d100(costoP)} se van en el costo de los productos, ${_d100(cargaP)} en la carga comercial y ${_d100(gastoP)} en tus gastos declarados — ${resFrase}. Hasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.`,
+    figs: [_f100("Base · cada $100 de venta", 100), _f100("Costo · por $100", costoP), _f100("Carga · por $100", cargaP), _f100("Gastos · por $100", gastoP), _f100("Resultado · por $100", resP)],
+  };
+}
+// movimiento 2 scoped · por qué la entidad rinde distinto al promedio (sus drivers vs los del negocio)
+function _porqueEntidad(e, c) {
+  const p = (n) => (e.ventaK ? _r1((n / e.ventaK) * 100) : 0);
+  const costoP = p(e.costoK), cargaP = p(e.cargaK), contribP = p(e.contribK);
+  const contribNP = c.ingresoK ? _r1((c.contribK / c.ingresoK) * 100) : 0;
+  const gastoP = _r1(c.sumPct);
+  const resFrase = e.resultadoK >= 0
+    ? `por eso su resultado es el ${_fmtPct(e.resultadoPct)}% de su venta (negocio: ${_fmtPct(c.resultadoPct)}%)`
+    : `con tus supuestos, ${e.nombre} queda en negativo — su contribución no cubre los gastos prorrateados`;
+  return {
+    text: `De cada $100 que factura ${e.nombre}, ${_d100(costoP)} se van en costo y ${_d100(cargaP)} en carga comercial — le quedan ${_d100(contribP)} de contribución (${_d100(contribNP)} en el negocio) — y tus gastos prorrateados se llevan ${_d100(gastoP)}; ${resFrase}.`,
+    figs: [_f100("Base · cada $100 de venta", 100), _f100(`Costo por $100 · ${e.nombre}`, costoP), _f100(`Carga por $100 · ${e.nombre}`, cargaP), _f100(`Contribución por $100 · ${e.nombre}`, contribP), _f100("Contribución por $100 · negocio", contribNP), _f100("Gastos · por $100", gastoP), _fPct("Resultado % · negocio", c.resultadoPct)],
+  };
+}
+// movimiento 3 · los frentes del NEGOCIO con su $, ordenados por tamaño (detector probado · línea = supuesto)
+function _frentesNegocio(scenario, c) {
+  const F = _findings(scenario);
+  const cg = F.find((f) => f.detector === "carga") || null;
+  const mg = F.find((f) => f.detector === "margen") || null;
+  const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0] || null;
+  const fs = [];
+  if (cg && cg.subtotal_usd > 0) fs.push({
+    key: "carga", usd: cg.subtotal_usd, nombre: "la carga comercial",
+    accion: `recuperar la carga comercial que corre sobre tu target — el detector marca ${_money(cg.subtotal_usd)} recuperables (probado en el dato)`,
+    corto: `la carga sobre el target (${_money(cg.subtotal_usd)})`,
+    ask: "¿Cuánta carga comercial puedo recuperar?",
+    figs: [_fMoney("Frente · carga recuperable", cg.subtotal_usd)],
+  });
+  if (mg && mg.subtotal_usd > 0) fs.push({
+    key: "margen", usd: mg.subtotal_usd, nombre: "el margen",
+    accion: `bajar a las cuentas que ceden margen — el detector marca ${_money(mg.subtotal_usd)} de contribución no capturada contra tu benchmark (probado); el porqué de negocio se ve cuenta a cuenta`,
+    corto: `el margen no capturado (${_money(mg.subtotal_usd)})`,
+    ask: "¿Cuánta contribución no estoy capturando?",
+    figs: [_fMoney("Frente · margen no capturado", mg.subtotal_usd)],
+  });
+  if (top && top.usdK > 0) fs.push({
+    key: "gasto", usd: top.usdK * 1000, nombre: `la línea ${top.nombre.toLowerCase()}`,
+    accion: `revisar la línea que más pesa de tus gastos: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} al año · ${_fmtPct(top.pct)}%) — es supuesto declarado: si el % real es otro, actualizarlo deja la cuenta honesta`,
+    corto: `la línea que más pesa (${top.nombre.toLowerCase()} · ${_moneyK(top.usdK)})`,
+    ask: pnlSimAsk(top),
+    figs: [_fMoneyK(`Gasto · ${top.nombre}`, top.usdK), _fPct(`Línea · ${top.nombre}`, top.pct), _gPct(_r1(Math.max(top.pct / 2, top.pct - 1)))],
+  });
+  fs.sort((a, b) => b.usd - a.usd);
+  return fs;
+}
+// movimiento 3 armado: la acción mayor abre, las otras quedan nombradas, y el cierre decide
+function _mov3Global(scenario, c) {
+  const fr = _frentesNegocio(scenario, c);
+  if (!fr.length) return { text: "", figs: [], asks: [] };
+  const [f1, ...resto] = fr;
+  const despues = resto.length ? ` Después: ${resto.map((f) => f.corto).join(" y ")}.` : "";
+  const cierre = resto.length
+    ? `¿Partimos por ${f1.nombre} (${_money(f1.usd)}) o prefieres ${resto[0].nombre}?`
+    : `¿Partimos por ${f1.nombre} (${_money(f1.usd)})?`;
+  return { text: `Dónde actuar primero: ${f1.accion}.${despues}\n\n${cierre}`, figs: fr.flatMap((f) => f.figs), asks: fr.map((f) => f.ask) };
+}
+// movimiento 3 scoped · la acción de ESA cuenta, priorizada por $: detector sobre la entidad (probado) > la
+// línea de gasto dominante prorrateada (supuesto). Los detectores miran la base (clientes) — otro eje cae a la línea.
+function _accionCuenta(scenario, e, eje, c) {
+  const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0] || null;
+  const F = eje === _BASE_EJE ? _findings(scenario) : [];
+  const item = (det) => { const f = F.find((x) => x.detector === det); return (f && (f.items || []).find((i) => _norm(i.entidad) === _norm(e.nombre))) || null; };
+  const itC = item("carga"), itM = item("margen");
+  const out = [];
+  if (itC && itC.usd > 0) out.push({
+    key: "carga", usd: itC.usd,
+    texto: `su carga comercial corre sobre tu target — el detector marca ${_money(itC.usd)} recuperables en ${e.nombre} (probado en el dato)`,
+    corto: `la carga (${_money(itC.usd)})`,
+    // la ask GENERAL del detector (gate-proven en todo escenario) — la por-cuenta solo responde para la cuenta
+    // top del foco (el recommend scoped bloquea honesto por materialidad en las chicas · cazado por _pnl_gate [28])
+    ask: "¿Cuánta carga comercial puedo recuperar?",
+    figs: [_fMoney(`Carga recuperable · ${e.nombre}`, itC.usd)],
+  });
+  if (itM && itM.usd > 0) out.push({
+    key: "margen", usd: itM.usd,
+    texto: `está bajo tu benchmark de margen — ${_money(itM.usd)} de contribución no capturada según el detector (probado); el porqué de negocio se ve en la cuenta`,
+    corto: `el margen no capturado (${_money(itM.usd)})`,
+    ask: `¿Por qué ${e.nombre} cede margen?`,
+    figs: [_fMoney(`No capturada · ${e.nombre}`, itM.usd)],
+  });
+  if (top) {
+    const gUsd = (e.ventaK * top.pct / 100) * 1000;
+    const simT = _r1(Math.max(top.pct / 2, top.pct - 1));
+    if (gUsd > 0) out.push({
+      key: "gasto", usd: gUsd,
+      texto: `de tus gastos prorrateados, la línea que más pesa aquí es ${top.nombre.toLowerCase()} (${_money(gUsd)} · supuesto declarado)`,
+      corto: `${top.nombre.toLowerCase()} (${_money(gUsd)})`,
+      ask: `¿Qué pasa si bajas ${top.nombre.toLowerCase()} a ${_fmtPct(simT)}% en ${e.nombre}?`,
+      figs: [_fMoney(`Gasto ${top.nombre} · ${e.nombre}`, gUsd), _gPct(simT)],
+    });
+  }
+  out.sort((a, b) => b.usd - a.usd);
+  return out;
+}
+
 /* ── EL ANÁLISIS DEL CONTRATO (owner 2026-07-26 verbatim: "cuando me dice lo sello, debería darme el análisis
- * como lo tenemos en contrato") · UNA verdad para la lectura «resultado» Y para el sello: qué significa, la
- * graduación, la línea que más pesa y la simulación sugerida — con la cascada completa en la TABLA (historia
- * en el texto, dato ordenado abajo y editable en la Mesa). El sello lo entrega DE UNA. ── */
+ * como lo tenemos en contrato") · UNA verdad para la lectura «resultado» Y para el sello: los TRES movimientos
+ * (cuánto queda → qué lo explica, graduado → dónde actuar primero con su $ y el cierre en decisión) — con la
+ * cascada completa en la TABLA (historia en el texto, dato ordenado abajo y editable en la Mesa). ── */
 function _analisisResultado(scenario) {
   const c = buildPnlCascade(scenario);
   _scope = { dimension: _BASE_EJE, entity: null, entities: null, global: true };   // hilo vivo: "¿y el de Ripley?" / "volvamos al P&L"
   const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
-  const bol = [
+  const pq = _porqueGlobal(c);
+  const m3 = _mov3Global(scenario, c);
+  const bol = _dedupeBol([
     _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct, { mandatory: true }),
     _fMoneyK("Ingreso", c.ingresoK), _fMoneyK("Costo", c.costoK), _fMoneyK("Margen bruto", c.margenBrutoK),
     _fMoneyK("Carga comercial", c.cargaK), _fMoneyK("Contribución", c.contribK), _fMoneyK("Gastos declarados", c.totalGastosK),
     _fPct("Gastos · total", c.sumPct), _fMoneyK(`Gasto · ${top.nombre}`, top.usdK), _fPct(`Línea · ${top.nombre}`, top.pct),
     ..._lineFigs(c.lines.filter((l) => l.nombre !== top.nombre)),
     _gPct(_r1(Math.max(top.pct / 2, top.pct - 1))),
-  ];
+    ...pq.figs, ...m3.figs,
+  ]);
   const neg = c.resultadoK < 0 ? ` Ojo: el resultado es negativo con los supuestos declarados — vale revisar las líneas antes que la venta.` : "";
-  // HISTORIA PRIMERO (owner 2026-07-26: "ADI cuenta la historia, Sentrix muestra el dato"): qué significa →
-  // graduación → la decisión. La cascada completa sale del texto y viaja en la TABLA (ev.tablaM).
-  const text = `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — el ${_fmtPct(c.resultadoPct)}% de tu venta queda contigo después del costo, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\nHasta la contribución es dato probado; los gastos son supuestos declarados por ti, así que el resultado se mueve con ellos.${neg}\n\nLa línea que más pesa: ${top.nombre.toLowerCase()} (${_moneyK(top.usdK)} · ${_fmtPct(top.pct)}%). ${pnlSimAsk(top)}`;
-  return { c, top, bol, text, tablaM: _tablaCascada(c) };
+  // LOS TRES MOVIMIENTOS (historia primero + sello del contrato): cuánto queda → qué lo explica (drivers,
+  // graduado) → dónde actuar primero con su $ y el cierre en decisión. La cascada viaja en la TABLA (ev.tablaM).
+  const text = `Tu resultado comercial: ${_moneyK(c.resultadoK)} al año — el ${_fmtPct(c.resultadoPct)}% de tu venta queda contigo después del costo, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\n${pq.text}${neg}${m3.text ? `\n\n${m3.text}` : ""}`;
+  const asks = [...new Set([...m3.asks, "¿Qué línea pesa más en el resultado?"])].slice(0, 3);
+  return { c, top, bol, text, tablaM: _tablaCascada(c), asks };
 }
 
 /* composePnl(pi, ctx, state) → respuesta finalizada (shape de la UI). pi = el intent del detector (o null si el
@@ -852,7 +986,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     const an = _analisisResultado(scenario);
     return _resp(
       `Sellado — tus gastos quedaron declarados (${_fmtPct(an.c.sumPct)}% sobre la venta) y miden desde ahora en cada lectura.\n\n${an.text}`,
-      { route: "pnl_setup", suggestions: [pnlSimAsk(an.top), "¿Qué línea pesa más en el resultado?"], bol: an.bol, ev: { dimension: _BASE_EJE, tablaM: an.tablaM } }
+      { route: "pnl_setup", suggestions: an.asks, bol: an.bol, ev: { dimension: _BASE_EJE, tablaM: an.tablaM } }
     );
   }
 
@@ -967,20 +1101,23 @@ export function composePnl(pi, ctx = null, state = {}) {
     }
     _scope = { dimension: _BASE_EJE, entity: null, entities: null, global: true };
     const topP = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
+    const pqP = _porqueGlobal(c);
+    const m3P = _mov3Global(scenario, c);
     // el ingreso dejó de ser obligatorio EN EL TEXTO (historia primero: vive en la tabla y en la boleta)
-    const bol = [
+    const bol = _dedupeBol([
       _fMoneyK("Ingreso", c.ingresoK), _fMoneyK("Costo", c.costoK),
       _fMoneyK("Carga comercial", c.cargaK), _fMoneyK("Contribución", c.contribK),
       _fMoneyK("Gastos declarados", c.totalGastosK), _fPct("Gastos · total", c.sumPct),
       _fMoneyK("Resultado comercial", c.resultadoK, { mandatory: true }), _fPct("Resultado %", c.resultadoPct),
       ...(topP ? [_fMoneyK(`Gasto · ${topP.nombre}`, topP.usdK), _fPct(`Línea · ${topP.nombre}`, topP.pct)] : []),
-    ];
-    // HISTORIA PRIMERO (la captura del owner 2026-07-26 era ESTA respuesta): qué te queda y dónde actuar —
-    // la cascada de punta a punta viaja en la tabla, no en el texto. Registro ejecutivo (owner 2026-07-26:
-    // "apretar" es poco ejecutivo — la palabra entró a la lista del _registro_gate).
+      ...pqP.figs, ...m3P.figs,
+    ]);
+    // LOS TRES MOVIMIENTOS (la captura del owner 2026-07-26 era ESTA respuesta · auditoría del sello): qué te
+    // queda → qué lo explica (drivers, graduado) → dónde actuar primero con su $ y el cierre en decisión. La
+    // cascada de punta a punta viaja en la tabla, no en el texto. Registro ejecutivo enforced (_registro_gate).
     return _resp(
-      `**Te quedan ${_moneyK(c.resultadoK)} al año** — el ${_fmtPct(c.resultadoPct)}% de tu venta, después del costo de los productos, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\nDónde actuar primero: parte de la carga comercial (${_moneyK(c.cargaK)}) se puede recuperar, hay cuentas con un margen más bajo que el resto, y de tus gastos la línea que más pesa es ${topP.nombre.toLowerCase()} (${_moneyK(topP.usdK)} · ${_fmtPct(topP.pct)}%). ¿Bajamos a un frente?`,
-      { route: "pnl_reading", suggestions: ["¿Cuánta carga comercial puedo recuperar?", "¿Cuánta contribución no estoy capturando?", "¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE, tablaM: _tablaCascada(c, null, "Tu dinero, de punta a punta") } }
+      `**Te quedan ${_moneyK(c.resultadoK)} al año** — el ${_fmtPct(c.resultadoPct)}% de tu venta, después del costo de los productos, la carga comercial y tus gastos declarados (${_fmtPct(c.sumPct)}%).\n\n${pqP.text}${m3P.text ? `\n\n${m3P.text}` : ""}`,
+      { route: "pnl_reading", suggestions: m3P.asks.length ? m3P.asks.slice(0, 3) : ["¿Qué línea pesa más en el resultado?"], bol, ev: { dimension: _BASE_EJE, tablaM: _tablaCascada(c, null, "Tu dinero, de punta a punta") } }
     );
   }
   // ── ALCANCE (PASE 2) · volver / P&L de una entidad / la tabla del eje / deixis / entidad desconocida ──
@@ -1014,24 +1151,29 @@ export function composePnl(pi, ctx = null, state = {}) {
     const e = c.porEntidad.find((x) => _norm(x.nombre) === _norm(pi.entidad));
     if (!e) return _resp(`A ${pi.entidad} no lo tengo en el dato vigente del P&L. Hoy puedo armarlo por ${_dondeSi()} o del negocio completo.`, { route: "pnl_reading", suggestions: ["P&L del negocio"] });
     _scope = { dimension: eje, entity: e.nombre, entities: null };
-    const top = c.gastos.slice().sort((x, y) => y.usdK - x.usdK)[0];
-    const simT = top ? _r1(Math.max(top.pct / 2, top.pct - 1)) : null;
-    const simAsk = top ? `¿Qué pasa si bajas ${top.nombre.toLowerCase()} a ${_fmtPct(simT)}% en ${e.nombre}?` : null;
     const otros = c.porEntidad.filter((x) => x.nombre !== e.nombre);
     const share = c.resultadoK > 0 && e.resultadoK > 0 ? _r1((e.resultadoK / c.resultadoK) * 100) : null;
-    const bol = [
+    // EL SELLO PROPORCIONAL (auditoría del owner 2026-07-26): su cifra → por qué rinde distinto al promedio
+    // (drivers de la entidad, graduado) → la acción de ESA cuenta priorizada por $ + cierre en decisión.
+    const pqE = _porqueEntidad(e, c);
+    const acc = _accionCuenta(scenario, e, eje, c);
+    const a1 = acc[0] || null;
+    const accTxt = a1 ? `Dónde actuar en ${e.nombre}: ${a1.texto}.${acc[1] ? ` Después: ${acc[1].corto}.` : ""}` : "";
+    const cierre = a1
+      ? (otros.length ? `¿Partimos por ahí (${_money(a1.usd)}) o seguimos con «P&L de ${otros[0].nombre}»?` : `¿Partimos por ahí (${_money(a1.usd)})?`)
+      : (otros.length ? `¿Seguimos con «P&L de ${otros[0].nombre}»?` : "");
+    const bol = _dedupeBol([
       _fMoneyK(`Resultado · ${e.nombre}`, e.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${e.nombre}`, e.resultadoPct),
       _fMoneyK(`Ingreso · ${e.nombre}`, e.ventaK), _fMoneyK(`Costo · ${e.nombre}`, e.costoK),
       _fMoneyK(`Margen bruto · ${e.nombre}`, e.margenBrutoK), _fMoneyK(`Carga comercial · ${e.nombre}`, e.cargaK),
       _fMoneyK(`Contribución · ${e.nombre}`, e.contribK), _fMoneyK(`Gastos prorrateados · ${e.nombre}`, e.gastoK),
       _fPct("Gastos · total", c.sumPct),
       ...(share != null ? [_fPct("Peso en el resultado", share), _fMoneyK("Resultado del negocio", c.resultadoK)] : []),
-      ...(top ? [_gPct(simT)] : []),
-    ];
-    // HISTORIA PRIMERO: qué deja y qué aporta; la cascada de la entidad viaja en la tabla.
+      ...pqE.figs, ...acc.flatMap((x) => x.figs),
+    ]);
     return _resp(
-      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}.\n\n` : ""}**El P&L de ${e.nombre}: te deja ${_moneyK(e.resultadoK)} al año** — el ${_fmtPct(e.resultadoPct)}% de su venta (${_moneyK(e.ventaK)}), con tus gastos prorrateados (${_fmtPct(c.sumPct)}%).${share != null ? ` Aporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\nHasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${simAsk ? ` ${simAsk}` : ""}`,
-      { route: "pnl_reading", suggestions: [...(simAsk ? [simAsk] : []), ...(otros.length ? [`P&L de ${otros[0].nombre}`] : [])], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje, tablaM: _tablaCascada(c, e) } }
+      `${pi._retoma ? `Retomo tu P&L donde lo dejamos — ${e.nombre}.\n\n` : ""}**El P&L de ${e.nombre}: te deja ${_moneyK(e.resultadoK)} al año** — el ${_fmtPct(e.resultadoPct)}% de su venta (${_moneyK(e.ventaK)}), con tus gastos prorrateados (${_fmtPct(c.sumPct)}%).${share != null ? ` Aporta el ${_fmtPct(share)}% del resultado del negocio (${_moneyK(c.resultadoK)}).` : ""}\n\n¿Por qué rinde eso? ${pqE.text} Hasta la contribución es dato probado; los gastos son tus supuestos declarados prorrateados sobre su venta — no contabilidad de ${e.nombre}.${accTxt ? `\n\n${accTxt}\n\n${cierre}` : ""}`,
+      { route: "pnl_reading", suggestions: [...new Set([...(a1 && a1.ask ? [a1.ask] : []), ...(otros.length ? [`P&L de ${otros[0].nombre}`] : []), ...(acc[1] && acc[1].ask ? [acc[1].ask] : [])])].slice(0, 3), bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje, tablaM: _tablaCascada(c, e) } }
     );
   }
   if (a === "tabla_eje") {
@@ -1212,7 +1354,7 @@ export function composePnl(pi, ctx = null, state = {}) {
     // la lectura y el sello comparten _analisisResultado (una verdad · el gate verifica byte-igual)
     const an = _analisisResultado(scenario);
     return _resp(an.text,
-      { route: "pnl_reading", suggestions: [pnlSimAsk(an.top), "¿Qué línea pesa más en el resultado?"], bol: an.bol, ev: { dimension: _BASE_EJE, tablaM: an.tablaM } }
+      { route: "pnl_reading", suggestions: an.asks, bol: an.bol, ev: { dimension: _BASE_EJE, tablaM: an.tablaM } }
     );
   }
   if (a === "peso") {
@@ -1363,14 +1505,21 @@ export function composePnl(pi, ctx = null, state = {}) {
     }
     if (!e) return sinPnl();
     _scope = { dimension: eje, entity: e.nombre, entities: null };
-    const bol = [
+    // EL SELLO PROPORCIONAL (auditoría del owner 2026-07-26): su cifra → por qué rinde distinto al promedio
+    // (drivers de la entidad, graduado) → la acción de ESA cuenta con su $ y el cierre en decisión.
+    const pqE = _porqueEntidad(e, c);
+    const acc = _accionCuenta(scenario, e, eje, c);
+    const a1 = acc[0] || null;
+    const accTxt = a1 ? `Dónde actuar en ${e.nombre}: ${a1.texto}. ¿Partimos por ahí (${_money(a1.usd)}) o lo vemos completo — «P&L de ${e.nombre}»?` : "";
+    const bol = _dedupeBol([
       _fMoneyK(`Resultado · ${e.nombre}`, e.resultadoK, { mandatory: true }), _fPct(`Resultado % · ${e.nombre}`, e.resultadoPct),
       _fMoneyK(`Contribución · ${e.nombre}`, e.contribK), _fMoneyK(`Venta · ${e.nombre}`, e.ventaK),
       _fMoneyK(`Gastos prorrateados · ${e.nombre}`, e.gastoK), _fPct("Gastos · total", c.sumPct),
-    ];
+      ...pqE.figs, ...acc.flatMap((x) => x.figs),
+    ]);
     return _resp(
-      `Después de gastos, ${e.nombre} deja ${_moneyK(e.resultadoK)} — ${_fmtPct(e.resultadoPct)}% de su venta. La cuenta: contribución ${_moneyK(e.contribK)} − ${_fmtPct(c.sumPct)}% de gastos prorrateados sobre su venta de ${_moneyK(e.ventaK)} (${_moneyK(e.gastoK)}) = ${_moneyK(e.resultadoK)}. El prorrateo usa tus porcentajes declarados sobre la venta de ${eje === _BASE_EJE ? "la cuenta" : `la ${_EJE_LBL(eje).sing}`} — supuesto, no dato contable de ${e.nombre}.`,
-      { route: "pnl_reading", suggestions: [eje === _BASE_EJE ? `Profundiza en ${e.nombre}` : `P&L de ${e.nombre}`, "¿Cómo queda mi resultado comercial?"], bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
+      `Después de gastos, ${e.nombre} deja ${_moneyK(e.resultadoK)} — ${_fmtPct(e.resultadoPct)}% de su venta. ¿Por qué rinde eso? ${pqE.text} El prorrateo usa tus porcentajes declarados (${_fmtPct(c.sumPct)}% sobre su venta) — supuesto, no dato contable de ${e.nombre}.${accTxt ? `\n\n${accTxt}` : ""}`,
+      { route: "pnl_reading", suggestions: [...new Set([...(a1 && a1.ask ? [a1.ask] : []), `P&L de ${e.nombre}`, "¿Cómo queda mi resultado comercial?"])].slice(0, 3), bol, ev: { entidad: e.nombre, entityType: eje, dimension: eje } }
     );
   }
   // acción desconocida → estado honesto
