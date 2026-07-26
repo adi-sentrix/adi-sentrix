@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- MEJORA 9 (2026-07-26): la fuente se importa vía @import dentro de un <style> que inyecta React — el browser
+         la descubre tarde. El preconnect abre las conexiones TLS a Google Fonts desde el HTML → el texto asienta antes. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <title>ADI · Sentrix</title>
   </head>
   <body>

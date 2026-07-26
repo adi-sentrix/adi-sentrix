@@ -21,6 +21,11 @@ export default defineConfig(({ mode }) => {
       __ADI_LLM_NARRATE_ENABLED__: JSON.stringify(llmNarrate),
       __ADI_PROFILE__: JSON.stringify(profile),
     },
+    // MEJORA 9 (velocidad percibida · 2026-07-26): el build era UN chunk de 1.26 MB. `vendor` separa las deps de
+    // node_modules (react/react-dom — estables entre deploys → el browser las cachea y solo re-baja el código de la
+    // app) · SentrixPanel se parte solo (React.lazy en App.jsx + prefetch en idle) → primer paint con menos JS delante.
+    // Vite 8/rolldown exige manualChunks como FUNCIÓN (la forma objeto no está soportada).
+    build: { rollupOptions: { output: { manualChunks: (id) => (id.includes("node_modules") ? "vendor" : undefined) } } },
     // PORT del entorno si viene (preview multi-sesión asigna uno libre) · fallback 5173 (el de siempre)
     server: { port: Number(env.PORT) || 5173, host: true, open: false },
   };

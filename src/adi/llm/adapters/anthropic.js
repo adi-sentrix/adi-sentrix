@@ -31,9 +31,13 @@ export const anthropicAdapter = {
   isAvailable() { return !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN); },
 
   // texto → spec · fuerza la tool (JSON garantizado). Traduce la tool NEUTRAL de ADI al formato Anthropic (input_schema).
+  // PROMPT CACHING (mejora 9 · 2026-07-26): el system (contractMenu ~3.5k tokens) + la tool son un prefijo FIJO entre
+  // llamadas — cache_control lo marca reutilizable (TTL ~5 min) → menor latencia por turno en conversación. Lo variable
+  // (pregunta + contexto) viaja en el mensaje de usuario, FUERA del caché. OpenAI cachea prefijos >1k tokens solo.
   async parse(text, { system, tool, model }) {
     const data = await _call({
-      model, max_tokens: 1024, system,
+      model, max_tokens: 1024,
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       tools: [{ name: tool.name, description: tool.description, input_schema: tool.schema }],
       tool_choice: { type: "tool", name: tool.name },
       messages: [{ role: "user", content: text }],
@@ -44,10 +48,11 @@ export const anthropicAdapter = {
   },
 
   // output validado → narración (reformula sin cambiar cifras · el number-guard lo verifica aparte, en ADI)
+  // mismo caching que parse: el system del narrador (~2k tokens) es prefijo fijo · el output validado va fuera del caché
   async narrate(validatedOutput, { model, system }) {
     const data = await _call({
       model, max_tokens: 1024,
-      system: system || NARRATE_GENERAL,
+      system: [{ type: "text", text: system || NARRATE_GENERAL, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");

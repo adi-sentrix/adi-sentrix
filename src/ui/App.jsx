@@ -2,11 +2,14 @@
  * Raíz de la app. Por ahora: header (logo + LIVE + escenario) + ChatADI corriendo como app real.
  * SIN panel de datos / módulos todavía (entran en el próximo paso de Fase 5).
  * Estado UI mínimo: escenario. La UI no calcula nada · el chat consume answerADI. */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react";
 import { C } from "./theme.js";
 import { ScenarioSelector } from "./ScenarioSelector.jsx";
 import { ChatADI } from "./ChatADI.jsx";
-import { SentrixPanel } from "./SentrixPanel.jsx";   // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura)
+// Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura). MEJORA 9 (2026-07-26): LAZY — el panel es la
+// pieza más pesada de la UI y no hace falta para el primer paint del chat; se parte del bundle principal y se
+// PREFETCHEA en idle apenas monta la app (ver useEffect abajo) → cuando el usuario abre la Mesa ya está cargado.
+const SentrixPanel = React.lazy(() => import("./SentrixPanel.jsx"));
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
@@ -15,6 +18,24 @@ import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) �
 
 initCriteria();   // ANTES del primer render: el hero/resumen ya miden contra la vara del owner si hay criterios guardados
 initPnl();        // ídem: la cara Resultado de la Mesa ya arranca con el P&L declarado del owner (localStorage)
+
+// MEJORA 9 · skeleton del panel (percepción sin saltos): bloques que respiran mientras el chunk lazy de
+// SentrixPanel termina de bajar — con el prefetch en idle esto casi nunca se ve, pero si se ve, la Mesa
+// aparece como estructura estable en vez de un hueco en blanco. Sin texto: nada que prometa contenido.
+function PanelSkeleton() {
+  const blk = (h, w) => (
+    <div style={{ height: h, width: w, borderRadius: 8, background: "rgba(255,255,255,0.05)", animation: "auroraBreathe 1.6s ease-in-out infinite" }}/>
+  );
+  return (
+    <div style={{ height: "100%", background: C.bg, borderLeft: `1px solid ${C.border}`, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+      {blk(28, "55%")}
+      <div style={{ display: "flex", gap: 10 }}>{blk(64, "33%")}{blk(64, "33%")}{blk(64, "33%")}</div>
+      {blk(120, "100%")}
+      {blk(88, "100%")}
+      {blk(88, "100%")}
+    </div>
+  );
+}
 
 const getCurrentDateString = () => {
   const now = new Date();
@@ -38,6 +59,10 @@ export default function App({ animate = true }) {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
+  // MEJORA 9 · prefetch del panel en idle: el chunk lazy de SentrixPanel se baja en segundo plano apenas la app
+  // pinta — al abrir la Mesa el panel ya está en memoria (el skeleton de Suspense solo se vería en el caso raro
+  // de un click antes de que termine la descarga).
+  useEffect(() => { import("./SentrixPanel.jsx").catch(() => {}); }, []);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -183,7 +208,9 @@ export default function App({ animate = true }) {
           {openEv && (isMobile ? (
             /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */
             <div style={{ position:"fixed", inset:0, zIndex:60, background:C.bg, display:"flex", flexDirection:"column" }}>
-              <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={null} maximized={true} onAsk={(q) => { closePanel(); if (askRef.current) askRef.current(q); }}/>
+              <Suspense fallback={<PanelSkeleton/>}>
+                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={null} maximized={true} onAsk={(q) => { closePanel(); if (askRef.current) askRef.current(q); }}/>
+              </Suspense>
             </div>
           ) : (
             <>
@@ -193,7 +220,9 @@ export default function App({ animate = true }) {
                 onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.25)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
               <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0 }}>
-                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q) => { if (askRef.current) askRef.current(q); }}/>
+                <Suspense fallback={<PanelSkeleton/>}>
+                  <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q) => { if (askRef.current) askRef.current(q); }}/>
+                </Suspense>
               </div>
             </>
           ))}

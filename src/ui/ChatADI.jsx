@@ -119,14 +119,18 @@ const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé
 // LLM #2 · narra un resultado YA ejecutado (sub-flag NARRATE ON) · pasa por el number-guard (pickNarratedText): guard OK →
 // narración · gateway/guard falla → texto determinístico. COMPARTIDO por el input libre (buildAdiTurnLLM) y los chips del
 // inicio (submitSpec) → misma calidad narrada por CUALQUIER puerta. buildNarrateSystem elige el prompt según evidence.
-async function _narrateResult(r) {
+// `onPhase` (mejora 9 · 2026-07-26): avisa el paso REAL del pipeline al indicador de Pensando (2=redactando · 3=verificando).
+async function _narrateResult(r, onPhase) {
+  const _ph = typeof onPhase === "function" ? onPhase : () => {};
   if (!(ADI_LLM_NARRATE_ENABLED && r && r.text)) return { r, narrated: false };
   // POLÍTICA DE NARRACIÓN (sweep 2026-07-09 · incluye la regla de clarificaciones del 2026-07-06): las repreguntas,
   // los bloqueos del seam y los degrades honestos ("No tengo a X…") NO se narran — el determinístico ya declara el
   // límite con voz de producto y el narrador demostró fabular sobre ellos (Walmart · "estoy proyectando…" · jerga).
   if (!shouldNarrate(r)) return { r, narrated: false };
   try {
+    _ph(2);   // LLM #2 en vuelo · "Redactando la respuesta"
     const narration = await _fetchNarration(r);
+    _ph(3);   // narración recibida · el number-guard y el guard de voz verifican ahora
     const picked = pickNarratedText(r, narration);
     // GUARD DE VOZ (determinístico) · corre DESPUÉS del number-guard (no toca cifras) · aplica al texto final elegido
     // (narrado LLM o determinístico de fallback) → mata "He revisado tus datos…"/"Las proyecciones indican…"/"Sin embargo…".
@@ -137,7 +141,10 @@ async function _narrateResult(r) {
   } catch { return { r, narrated: false }; }
 }
 
-export async function buildAdiTurnLLM(question, context, scenario, recentTurns) {
+// `onPhase` (mejora 9 · 2026-07-26): callback opcional — el pipeline avisa su paso REAL y el "Pensando" lo refleja
+// (0=entendiendo · 1=armando la cuenta · 2=redactando · 3=verificando). Sin callback, todo sigue igual (gates/sweeps intactos).
+export async function buildAdiTurnLLM(question, context, scenario, recentTurns, onPhase) {
+  const _ph = typeof onPhase === "function" ? onPhase : () => {};
   const q = (question || "").trim();
   let r, narrated = false;
   // ── PRECEDENCIA (V1 · owner): CONVERSACIONAL → REGEX (fallback) → UN-TURNO. El regex NO se elimina hasta probar el conversacional.
@@ -145,11 +152,13 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence, ui, context && context.memoria);   // contexto chico para el LLM #1 (+ la boleta de memoria)
   try {
     const spec = await _fetchSpec(q, scenario, convCtx);        // LLM #1 VE el contexto (incl. señales de UI) → clasifica turn_type
+    _ph(1);   // spec recibido · el motor local arma la cuenta ahora
     r = answerConversational(coerceSpec(q, spec, _hasThread(context), ui), context || {}, { scenario }); // cadena de coerce (UI→criteria→sí→compare→dominios) · no depende del LLM · el seam valida/degrada honesto
   } catch (e) {
     // LLM #1 caído → regex de follow-up sobre la última evidencia → RED DE COERCE determinística (owner
     // 2026-07-15: las promesas de la UI responden también con el gateway caído) → un-turno determinístico.
     const _last = context && context.lastEvidence;
+    _ph(1);   // LLM #1 caído · la red determinística arma la cuenta igual
     const _fu = (_last && _FOLLOWUP_RE.test(q)) ? composeFollowupRecommendation(_last) : null;
     const _cs = _fu ? null : coerceFloor(q, _hasThread(context), ui);
     r = _fu || (_cs ? answerConversational(_cs, context || {}, { scenario }) : answerADI(q, context || {}, { scenario }));
@@ -158,7 +167,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns) 
   // como gancho en la boleta del diagnóstico y el narrador decide si viene al caso. El piso demo queda byte-exacto.
   if (r && typeof r.text === "string") r = { ...r, text: stripProactiveSuffix(r.text) };
   // NARRACIÓN LLM #2 (helper compartido) · aplica al follow-up Y al spec · guard → si falla, texto determinístico.
-  const _nr = await _narrateResult(r);
+  const _nr = await _narrateResult(r, _ph);
   r = _nr.r; narrated = _nr.narrated;
   return _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
 }
@@ -332,12 +341,14 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
   );
 }
 
-// UX · estado "pensando" CON VIDA (owner 2026-07-08 · percepción de velocidad): fases HONESTAS del pipeline real
-// (LLM #1 entiende → motor calcula → narrador redacta → guard verifica). No inventa progreso: nombra lo que pasa.
-const _THINK_PHASES = ["Entendiendo la pregunta", "Leyendo tu cartera", "Armando la cuenta", "Verificando cada cifra"];
-function ThinkingIndicator() {
-  const [ph, setPh] = useState(0);
-  useEffect(() => { const t = setInterval(() => setPh((p) => Math.min(p + 1, _THINK_PHASES.length - 1)), 2200); return () => clearInterval(t); }, []);
+// UX · estado "pensando" CON VIDA (owner 2026-07-08 · percepción de velocidad): fases HONESTAS del pipeline real.
+// MEJORA 9 (2026-07-26): las fases ya no avanzan con un timer ciego (2.2s fijos, desacoplado de lo que pasaba) —
+// ahora el pipeline AVISA su paso real (onPhase en buildAdiTurnLLM/_narrateResult) y el indicador lo refleja:
+// LLM #1 en vuelo → motor local ejecuta → LLM #2 redacta → number-guard verifica. Honestidad literal: cada
+// etiqueta se muestra mientras ESO está pasando, y el salto de fase comunica el avance de verdad.
+const _THINK_PHASES = ["Entendiendo la pregunta", "Armando la cuenta", "Redactando la respuesta", "Verificando cada cifra"];
+function ThinkingIndicator({ phase = 0 }) {
+  const ph = Math.min(Math.max(phase, 0), _THINK_PHASES.length - 1);
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, color:C.textSub, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
       <span style={{ transition:"opacity 0.3s" }}>{_THINK_PHASES[ph]}</span>
@@ -425,6 +436,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
   const [context, setContext]   = useState(initialContext || (modulo ? { activeModule: modulo } : {}));
   const [pendingId, setPendingId] = useState(null); // id del mensaje ADI animándose (typewriter)
+  const [thinkPhase, setThinkPhase] = useState(0);  // mejora 9 · fase REAL del pipeline en vuelo (la reporta buildAdiTurnLLM vía onPhase)
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const idRef = useRef(0);
   const ctxRef = useRef(context);   // SIEMPRE el contexto más reciente (evita la stale-closure de React en el camino LLM async · threading de lastEvidence)
@@ -477,7 +489,8 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       const adiId = ++idRef.current;
       setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
       setSuggestionsVisible(false);
-      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messages).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
+      setThinkPhase(0);   // arranca en "Entendiendo la pregunta" (LLM #1 en vuelo) · el pipeline reporta los saltos reales
+      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messages, setThinkPhase).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
       });
@@ -506,7 +519,8 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       const adiId = ++idRef.current;
       setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
       setSuggestionsVisible(false);
-      _narrateResult(r0).then(({ r, narrated }) => {
+      setThinkPhase(1);   // el spec del chip ya se ejecutó local (la cuenta está armada) · _narrateResult reporta 2/3
+      _narrateResult(r0, setThinkPhase).then(({ r, narrated }) => {
         const turn = _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
@@ -567,7 +581,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                     boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)"
                   }}>
                     {isPending ? (
-                      <ThinkingIndicator/>
+                      <ThinkingIndicator phase={thinkPhase}/>
                     ) : isTyping ? (
                       <TypewriterText
                         text={msg.text} speed={8} showCursor={true}
