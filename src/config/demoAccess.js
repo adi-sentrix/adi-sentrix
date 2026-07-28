@@ -4,5 +4,5 @@
 export const DEMO_CONTACT = {
   email: "contacto@adiai.cl",
   whatsapp: "56990705021",   // código de país + número, sin "+" ni espacios · el botón de WhatsApp aparece solo
-  demoDays: 3,
+  demoDays: 7,   // duración de la prueba estándar (owner 2026-07-27) · el copy de la puerta y el default del emisor la leen de acá
 };

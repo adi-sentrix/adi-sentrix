@@ -192,7 +192,12 @@ export function AdminAccess() {
     setBusy(false);
   };
 
-  const shareText = (o) => `Hola ${o.name}! Acá va tu acceso a la demo de ADI · Sentrix (${DEMO_CONTACT.demoDays} días, vence el ${_fecha(o.expiresAt)}):\n\n${window.location.origin}\n\nTu código:\n${o.code}\n\nPegalo en la pantalla de entrada y listo.`;
+  // el "X días" sale del vencimiento REAL del código emitido (no del default fijo) — antes decía "3 días" aunque el
+  // código fuera de 30, un mensaje incoherente (owner 2026-07-27).
+  const shareText = (o) => {
+    const dias = Math.max(1, Math.round((o.expiresAt - Date.now()) / 86400000));
+    return `Hola ${o.name}! Acá va tu acceso a la demo de ADI · Sentrix (${dias} días, vence el ${_fecha(o.expiresAt)}):\n\n${window.location.origin}\n\nTu código:\n${o.code}\n\nPegalo en la pantalla de entrada y listo.`;
+  };
   const copiar = (t) => { try { navigator.clipboard.writeText(t); } catch { /* selección manual */ } };
 
   // ── ACCESO DE OWNER (owner 2026-07-10: "que yo no tenga que estar creando un usuario — me pide el código cada
