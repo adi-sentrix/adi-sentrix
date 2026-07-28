@@ -22,6 +22,7 @@ import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./crite
 import { tenantPolicyDefault } from "../config/businessPolicy.js";   // F2 multiempresa · el "estándar" citado es el del TENANT (perfil ?? config)
 import { composePnl, activePnl, clearPnl, pnlExplain, pnlRecommend } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2 · seguidores P&L-aware (pase 2)
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
+import { CONCEPT_DEFS } from "./sentrix/glossary.js";   // NATURALIDAD (owner 2026-07-27): definiciones de conceptos del negocio (composeDefine)
 
 // ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
 // con una pregunta-oferta ("¿empezamos con el análisis de costos?"). Esa pregunta es una PROMESA: se captura acá
@@ -164,6 +165,44 @@ export function composeEnumerate(last) {
     evidence: { followup: false, entityList: el, dimension: dim, metrica, boleta, tablaM },
     route: "followup_enumerate",
   };
+}
+
+// ── composeDefine · DEFINE un concepto del negocio (owner 2026-07-27 · "se siente como que inventa algo") ─────────
+// "¿a qué te refieres con contribución no capturada?" DEFINE — no repite el $4.9M. VERBATIM (kind "meta" → shouldNarrate
+// false): una definición curada es el antídoto al "inventa algo" (cero deriva del LLM). followup:true → NO reemplaza la
+// última evidencia (la lectura del hilo sigue viva para el próximo "de esos…"). Dos formas: (1) definición directa del
+// concepto · (2) sí/no de identidad ("¿ese 1.6 es rebate?" → NO, es la contribución no capturada · distinción honesta).
+// El sujeto del sí/no se infiere del hilo (contribución/diagnóstico → la no capturada · margen → la brecha de margen).
+function _subjectConcept(last) {
+  const m = String((last && last.metrica) || "").toLowerCase();
+  if (m === "margen" || m === "carga") return "margen";
+  return "no_capturada";   // default: la confusión rebate/carga siempre contrasta con el resultado (la brecha)
+}
+export function composeDefine(spec, ctx = null) {
+  const d = spec && spec._define;
+  const last = ctx && ctx.last;
+  if (!d) return _clarify("¿Qué concepto querés que te explique? Ej: contribución no capturada, carga comercial, benchmark.");
+  // (2) SÍ/NO de identidad: "¿ese 1.6 es rebate?" → NO + la distinción (verbatim · honesto)
+  if (d.yesno) {
+    const subjSlug = _subjectConcept(last);
+    const ent = d.entidad || (last && last.entidad) || null;
+    const cuenta = ent || "esa cuenta";
+    const donde = ent ? ` en ${ent}` : "";
+    const subjFrase = subjSlug === "margen"
+      ? "la **brecha de margen**: la distancia entre el margen que rinde hoy y el benchmark"
+      : "la **contribución no capturada**: la brecha entre lo que ese cliente aporta y lo que aportaría al alcanzar el benchmark de margen";
+    const otraCosa = d.yesno === "carga"
+      ? "La **carga comercial** es otra cosa: los descuentos, rebates y condiciones que retienen margen antes de llegar a la contribución"
+      : "El **rebate** es otra cosa: parte de la **carga comercial**, los descuentos y condiciones que retienen margen antes de llegar a la contribución";
+    const text = `No. Lo que venís mirando${donde} es ${subjFrase} — contribución que dejás de ganar, no un costo que pagaste. ${otraCosa}, y es justamente una de las causas de esa brecha. Son cosas distintas — una es lo que dejás sobre la mesa, la otra una de sus causas. ¿Querés que veamos cuánta carga comercial retiene ${cuenta} hoy?`;
+    return { text, suggestions: [`¿Cuánta carga comercial retiene ${cuenta}?`], sentrixAction: null,
+      evidence: { followup: true, kind: "meta", boleta: [] }, route: "define" };
+  }
+  // (1) definición directa del concepto
+  const c = CONCEPT_DEFS[d.concept];
+  if (!c) return _clarify("¿Qué concepto querés que te explique? Ej: contribución no capturada, carga comercial, benchmark.");
+  const text = `${_capE(c.aka)}: ${c.def}${c.distingue ? ` ${c.distingue}` : ""}`;
+  return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "meta", boleta: [] }, route: "define" };
 }
 
 // ── composeExplain · el PORQUÉ de la última lectura (reusa estructura/concentración ya computada · sin cifras nuevas) ──
@@ -569,6 +608,7 @@ const TURN_RESOLVERS = {
   followup_recommendation:    (spec, ctx, state) => (ctx.last && ctx.last.pnl && pnlRecommend(ctx.last, ctx, state)) || composeFollowupRecommendation(ctx.last) || _needLast(),   // V1 (+P&L-aware pase 2: "¿qué decisiones tomo?" sobre el P&L responde las decisiones del P&L)
   followup_explain:           (spec, ctx, state) => composeExplain(ctx.last, ctx, state),                 // V1 (+ memoria: el porqué de la entidad en foco)
   followup_enumerate:         (spec, ctx, state) => composeEnumerate(ctx.last) || composeExplain(ctx.last, ctx, state),   // CONTINUIDAD (owner 2026-07-26): «que clientes son?» lista el conjunto recién nombrado (fallback: explain, si no hay lista)
+  define:                     (spec, ctx) => composeDefine(spec, ctx),                                     // NATURALIDAD (owner 2026-07-27): "¿qué es X?" DEFINE el concepto (glosario) · "¿ese N es rebate?" responde el sí/no — no repite la lectura
   meta_question:              (spec, ctx) => composeMeta(spec && spec.meta, ctx.last),                    // V1
   clarification_needed:       (spec) => _clarify(spec && spec.clarify),                                   // V1
   followup_compare:           (spec, ctx, state) => composeCompare(spec, ctx, state),                      // V2 · comparación conversacional REAL (target del LLM · sujeto/eje del contexto · seam ejecuta)

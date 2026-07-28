@@ -17,6 +17,7 @@ import { detectPnlIntent, detectPnlEllipsis, pnlDraft } from "./pnl.js";
 import { detectPeriodo } from "./composers/temporalTable.js";   // TIEMPO (mejora 7 · 2026-07-26) · mes a mes / Q1 / rangos
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
+import { matchConcept } from "./sentrix/glossary.js";   // NATURALIDAD (owner 2026-07-27): "¿qué es X?" DEFINE el concepto, no repite la lectura
 import { clientesMargen as _cCanon, marcasMargen as _mCanon, sfamiliasMargen as _fCanon, skuInventario as _iCanon } from "../data/demoData.js";
 import { onTenantChange } from "../data/tenantStore.js";
 
@@ -390,6 +391,35 @@ function _accionFollowup(q) {
   return null;
 }
 
+// ── INTENCIÓN DE DEFINICIÓN (owner 2026-07-27 · "se siente como que inventa algo") ───────────────────────────
+// "¿a qué te refieres con X? / qué es X / qué significa X / explícame el concepto X / qué entendés por X" DEFINE el
+// concepto (composeDefine · glosario del negocio), NO repite la lectura numérica (el bug: el LLM lo ruteaba a why/
+// diagnose y ADI contestaba el mismo $4.9M). Corta la cadena. Exige un TRIGGER de definición + un CONCEPTO del
+// glosario — así "qué es lo que más contribución me da" (predicado, no definición) NO se roba.
+// El TRIGGER "qué es/son" excluye "qué es LO QUE / EL QUE / QUIÉN / CUÁL / ESO / ESTO" (ésas no piden una definición).
+const _DEFINE_TRIGGER_RE = /\ba\s+qu[eé]\s+(?:te\s+)?(?:refier\w*|llam\w*|le\s+(?:dec[ií]s|llam\w*|dices))\b|\bqu[eé]\s+(?:es|son)\s+eso\s+de\b|\bqu[eé]\s+(?:es|son)\b(?!\s+(?:(?:lo|el|la|los|las)\s+que|qui[eé]n|cu[aá]les?|eso\b|esto\b|aquello))|\bqu[eé]\s+significa\w*|\bqu[eé]\s+quiere\s+decir\b|\bqu[eé]\s+entiend\w*\s+por\b|\bqu[eé]\s+entend[eé]s\s+por\b|\bdefin[ií]\w*\b|\bdefinici[oó]n\s+de\b|\b(?:el\s+|un\s+)?(?:concepto|t[eé]rmino)\s+de\b|\bexplic\w*\b[^.?!]*\b(?:concepto|t[eé]rmino|qu[eé]\s+(?:es|significa))\b/i;
+// SÍ/NO de identidad de concepto: "¿ese 1.6 es rebate? / ¿eso es carga comercial?" — el usuario apunta a la cifra
+// del hilo (deixis/número) y pregunta si es un COSTO comercial (rebate/carga). La respuesta es un sí/no directo con
+// la distinción (composeDefine). Solo dispara con predicado rebate/carga (la confusión que el owner vivió), sujeto
+// DEÍCTICO/numérico (no un concepto nombrado — "el rebate es parte de la carga" NO es esto) y sin "parte de/tipo de".
+const _YESNO_PRED_RE = /\bes\b\s+(?:un[ao]?\s+|el\s+|la\s+)?(rebates?|carga(?:\s+comercial)?)\b/i;
+const _YESNO_SUBJ_RE = /\b(?:eso|esto|ese|esa|esos|esas|aquello|aquell[oa]s)\b|\d[\d.,]*\s*[kmb]?\b|^\s*¿?\s*es\s/i;
+const _YESNO_NEG_RE = /\bparte\s+de\b|\bforma\s+parte\b|\btipo\s+de\b|\bdentro\s+de\b|\bincluye\b|\bcompuest\w*\s+por\b/i;
+function _defineIntent(q, hasLast) {
+  if (!q) return null;
+  const concept = matchConcept(q);
+  // DEFINICIÓN directa: trigger + concepto (no depende del hilo — una definición siempre es una definición). PERO si
+  // la pregunta nombra una ENTIDAD del canon ("¿qué es el margen de Falabella?") NO es una definición: es la lectura
+  // de ESA entidad — la deja pasar a su dominio (la definición es abstracta, sobre el concepto, no sobre una cuenta).
+  if (concept && _DEFINE_TRIGGER_RE.test(q) && !_soloCanonEn(q)) return { concept };
+  // SÍ/NO de identidad: predicado costo (rebate/carga) + sujeto deíctico/numérico + hilo activo + sin "parte de"
+  if (hasLast && !_YESNO_NEG_RE.test(q) && _YESNO_SUBJ_RE.test(q)) {
+    const m = q.match(_YESNO_PRED_RE);
+    if (m) { const c = _soloCanonEn(q); return { yesno: /carga/i.test(m[1]) ? "carga" : "rebate", entidad: c ? c.nombre : null }; }
+  }
+  return null;
+}
+
 // coerceSpec(texto, spec del LLM, hayÚltimaEvidencia, señalesUI) → spec ruteado al dominio+foco correcto (o el original).
 export function coerceSpec(q, spec, hasLast, ui = null) {
   // SANEO DE ENTRADA (crash en prod 2026-07-09): filters:null explícito del LLM rompe composers con default {} —
@@ -418,6 +448,14 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
       if (typeof v === "string" && v.trim()) { const c = _canonEntity(v); if (c && c.tipo === k && c.nombre !== v) { ch = ch || { ...spec.filters }; ch[k] = c.nombre; } }
     }
     if (ch) spec = { ...spec, filters: ch };
+  }
+  // INTENCIÓN DE DEFINICIÓN (owner 2026-07-27): "¿qué es X? / a qué te refieres con X" DEFINE el concepto (glosario
+  // del negocio · composeDefine), y "¿ese N es rebate?" responde el SÍ/NO con la distinción — NO repite la lectura
+  // numérica del hilo. Corre PRIMERO (top priority: una definición es una definición pase lo que pase en el hilo) y
+  // CORTA la cadena. operation se limpia (patrón meta/multi) para que el blindaje de conversation.js no la migre.
+  if (q && spec) {
+    const di = _defineIntent(q, hasLast);
+    if (di) return { ...spec, operation: undefined, turn_type: "define", _define: di };
   }
   // COMPARE FABRICADO (gate de promesas 2026-07-09): el LLM a veces clasifica el CLICK de una sugerencia como COMPARE
   // de "entidades" inventadas (["x","y"] · ["volumen","precio"]) → "No tengo a x" — ADI ofreció y luego negó (promesa
