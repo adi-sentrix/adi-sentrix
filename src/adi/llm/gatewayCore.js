@@ -69,9 +69,10 @@ export async function handleAccess(body = {}, env) {
     const adminKey = e.ADI_ADMIN_KEY;
     if (!adminKey || !body.adminKey || !verifyEq(String(body.adminKey), adminKey)) return { ok: false, error: "sin autorización" };
     const name = String(body.name || "").trim().slice(0, 40) || "invitado";
-    // invitados: 1h a 14 días (default 3) · OWNER (owner:true — intención explícita con la MISMA clave admin):
-    // hasta 1 año, para no re-emitir su propio acceso cada 3 días (owner 2026-07-10) sin estirar el techo de invitados.
-    const cap = body.owner === true ? 24 * 366 : 24 * 14;
+    // invitados: 1h a 30 días (default 3 · subido de 14 a 30 el 2026-07-27 para el ciclo de review de 500 LATAM —
+    // un link estable todo el proceso; sigue revocable rotando ADI_TOKEN_SECRET) · OWNER (owner:true — intención
+    // explícita con la MISMA clave admin): hasta 1 año, para no re-emitir su propio acceso cada 3 días (owner 2026-07-10).
+    const cap = body.owner === true ? 24 * 366 : 24 * 30;
     const hours = Math.min(Math.max(Number(body.hours) || 72, 1), cap);
     const { code, expiresAt } = await makeAccessCode(name, hours, secret);
     return { ok: true, code, expiresAt, name };

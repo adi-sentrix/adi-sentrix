@@ -45,11 +45,11 @@ ok("mint: sin ADI_ADMIN_KEY en el server → sin autorización (nunca abierto po
 const mint = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Cliente Z", hours: 72 }, ENV);
 ok("mint: con grant + clave del owner → emite código verificable", mint.ok && (await verifyAccessCode(mint.code, SECRET)).ok && (await verifyAccessCode(mint.code, SECRET)).name === "Cliente Z");
 // ACCESO DE OWNER (2026-07-10: "que no me pida el código cada vez") · owner:true con la MISMA clave → hasta 1 año;
-// el techo de INVITADOS queda intacto (pedir 365 días sin owner:true → recorta a 14).
+// el techo de INVITADOS queda acotado (pedir 365 días sin owner:true → recorta a 30 · subido de 14 el 2026-07-27 para 500 LATAM).
 const mintOwner = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Owner", hours: 24 * 365, owner: true }, ENV);
 ok("mint owner: 1 año permitido y verificable", mintOwner.ok && mintOwner.expiresAt - Date.now() > 300 * 24 * 3600 * 1000 && (await verifyAccessCode(mintOwner.code, SECRET)).ok);
 const mintCap = await handleAccess({ op: "mint", adminKey: ENV.ADI_ADMIN_KEY, grant: GRANT, name: "Invitado L", hours: 24 * 365 }, ENV);
-ok("mint invitado: pedir 365 días SIN owner:true → recorta al techo de 14", mintCap.ok && mintCap.expiresAt - Date.now() <= 14 * 24 * 3600 * 1000 + 60000);
+ok("mint invitado: pedir 365 días SIN owner:true → recorta al techo de 30", mintCap.ok && mintCap.expiresAt - Date.now() <= 30 * 24 * 3600 * 1000 + 60000 && mintCap.expiresAt - Date.now() > 29 * 24 * 3600 * 1000);
 ok("mint owner: SIN la clave admin → sin autorización (owner:true no abre nada solo)", !(await handleAccess({ op: "mint", adminKey: "equivocada", grant: GRANT, owner: true, hours: 24 * 365 }, ENV)).ok);
 
 console.log("── kill-switch MAESTRO ADI_MINT_ENABLED (emergencia · owner 2026-07-20) ──");
