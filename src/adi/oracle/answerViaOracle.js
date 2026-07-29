@@ -103,6 +103,21 @@ function _coerceTensionArgs(text, calls) {
   return arr;
 }
 
+// ── MODO CONVERSACIONAL · capa de rol operativa, Fase 1 (owner 2026-07-29: "no quiero un parche para 'no
+// entendí'... quiero un sistema sofisticado pero controlado") — `mode` es un EJE DISTINTO de `intent`: intent
+// decide QUÉ DATO pedir, mode decide CÓMO NARRARLO (un "qué significa X" es intent=define + mode=clarify a la vez).
+// El plan YA puede elegir mode="clarify" por comprensión (ver planPrompt.js) — esto de acá es el PISO
+// determinístico: frases INEQUÍVOCAS de confusión fuerzan clarify sin depender de que el LLM lo note esa vez
+// (mismo criterio que _coerceTensionArgs arriba — un gate no puede apoyarse solo en que el LLM "generalmente" lo
+// entienda). Si el texto NO matchea, se respeta el mode que el LLM ya eligió (nunca se lo saca — solo se agrega).
+// (2 bugs reales cazados probando la regex antes de wireearla: "explíc" con acento no matcheaba el stem "explic"
+// literal — \w no cubre acentos; y "no entiendo" (presente) no matcheaba, solo "no entendí" (pasado)).
+const _CLARIFY_RE = /\b(no\s+(?:te\s+)?entiend\w*|no\s+entend[ií]\w*|no comprendo|no logro entender|no me qued[oó] claro|no me queda claro|expl[ií]c\w*.{0,20}?\b(?:f[aá]cil|simple|sencill\w*)|en palabras (?:m[aá]s\s+)?simples|m[aá]s simple\b|qu[eé] significa|qu[eé] quiere decir|a qu[eé] te refer[ií]s)/i;
+function _coerceMode(text, plan) {
+  if (_CLARIFY_RE.test(String(text || ""))) return "clarify";
+  return plan && plan.mode === "clarify" ? "clarify" : "default";
+}
+
 // answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls }) → { r, mem } | null
 //   r   = { text, route:"oracle", evidence:{boleta,...} }  (compatible con _turnFromResult)
 //   mem = la memoria de interacción ACTUALIZADA (el llamador la persiste en el context del hilo)
@@ -130,7 +145,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // OJO: `plan` se REEMPLAZA (no solo la variable local `calls`) — buildNarrateUserMessageC recibe `plan` completo
   // más abajo, y si solo corregíamos la variable suelta, el narrador seguía viendo plan.calls SIN corregir (bug real
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
-  plan = { ...plan, calls: _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : []) };
+  plan = { ...plan, calls: _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : []), mode: _coerceMode(q, plan) };
   const calls = plan.calls;
 
   // mecanismo dominante por entidad ESTABLECIDO en turnos ANTERIORES (owner 2026-07-29, residual 3: "si un turno ya

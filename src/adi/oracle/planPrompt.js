@@ -33,6 +33,12 @@ export const PLAN_TOOL = {
     additionalProperties: false,
     properties: {
       intent: { type: "string", enum: ["answer", "define", "redirect", "ack"], description: "answer=responder con datos · define=explicar un concepto (sin volcar números) · redirect=el usuario corrige/reencauza, replanteá · ack=solo reconocer (ej. instrucción de trato, sin pedir datos)" },
+      // MODO conversacional (owner 2026-07-29, capa de rol conversacional Fase 1) — EJE DISTINTO de `intent`: intent
+      // decide QUÉ DATO pedir, mode decide CÓMO NARRARLO. Un "qué significa X" es intent=define + mode=clarify a la
+      // vez (la definición se busca igual, pero se explica simple). answerViaOracle.js tiene además un chequeo
+      // determinístico que FUERZA mode="clarify" ante frases inequívocas ("no entendí", "explícame más fácil", "qué
+      // significa") — esto de acá cubre el resto de los casos por comprensión, no solo esa lista fija.
+      mode: { type: "string", enum: ["default", "clarify"], description: "default=turno normal · clarify=el usuario señaló CONFUSIÓN sobre lo que YA le dijiste (\"no entendí\", \"no me quedó claro\", \"explícame más fácil/simple\", \"qué significa X\", repetir la pregunta casi igual porque la respuesta anterior no aterrizó) — en este modo el narrador NO repite el resumen: baja el nivel, explica el concepto trabado y cierra con una pregunta guía." },
       rationale: { type: "string", description: "En una frase, por qué este plan (para auditoría)." },
       scope: {
         type: "object", additionalProperties: false,
@@ -68,7 +74,7 @@ export const PLAN_TOOL = {
         },
       },
     },
-    required: ["intent", "rationale", "calls"],
+    required: ["intent", "mode", "rationale", "calls"],
   },
 };
 
@@ -99,6 +105,7 @@ Otras reglas:
 · Entendé la intención real, no las palabras sueltas. Corto o largo, formal o informal, con errores — entendé igual.
 · CORRECCIÓN: si el usuario reclama que te enfocaste mal ("te pedí del negocio y me hablás de X", "no me refería a esa cuenta") → intent="redirect", scope al alcance correcto (normalmente global sin filtro), Y ESTA VEZ SÍ incluí las calls que entregan la respuesta corregida (no dejes calls vacío: replanteá y traé el dato bueno). Reconocé breve y entregá.
 · DEFINICIÓN: si pregunta qué significa un concepto ("qué es X", "a qué te referís con X", "explicame X") → intent="define" Y SIEMPRE llamá defineConcept: calls=[{tool:"defineConcept", args:{concept:"<el concepto tal como lo nombra el usuario, ej: contribución no capturada>"}}]. NUNCA dejes calls vacío en una definición — la definición sale del glosario, no de tu memoria.
+· MODO=CLARIFY: elegilo cuando el usuario señala que TU RESPUESTA ANTERIOR no aterrizó — no cuando simplemente hace una pregunta nueva. Señales: "no entendí"/"no me quedó claro"/"no logro entender", pedir la MISMA idea "más fácil"/"más simple"/"en otras palabras", preguntar "qué significa X"/"a qué te referís con X" sobre un término que VOS nombraste, o repetir casi la misma pregunta de antes (señal de que no se entendió, no de que cambió de tema). En calls, seguí pidiendo los datos que hagan falta para la aclaración (ej. si preguntó "qué significa X" → igual defineConcept); el modo NO cambia qué pedís, cambia cómo se va a narrar. Default="default" en cualquier otro turno.
 · TRATO/IDENTIDAD: si da una instrucción de cómo tratarlo → llená memoryUpdate. "llámame X" → nombre:X. "trátame de usted" → trato:usted; "de tú"/"tuteame" → trato:tu. "háblame más directo/sin rodeos/al grano" → verbosidad:directo. "explicame más" → verbosidad:explicativo. "no uses tecnicismos" → tecnicismo:bajo. "no me muestres tablas" → tablas:false. "prioriza lo financiero/el impacto económico" → prioridad:financiero. Si SOLO da la instrucción → intent="ack", calls=[]. Si además pregunta algo → intent="answer" con sus calls.
 · Elegí las tools mínimas que respondan de verdad. Una respuesta "overview"/"resumen"/"insight del negocio" puede pedir varias (ej. executiveSummary, o diagnose + queryMetric) — pero con el alcance correcto.
 · TEMPORAL: para "mes a mes", "mensual", "evolución", "cómo viene mes a mes", un trimestre/Q, un semestre, un mes puntual, un rango de meses, o "esto mismo mes a mes" → usá la tool 'trend' (metric + dimension o entity + period). El dato mensual REAL es VENTAS y CONTRIBUCIÓN (la propia tool declara honesto lo que no: resultado/P&L mensual, inventario mensual, canal mensual, margen en matriz por eje). CONSERVÁ EL ALCANCE DEL TURNO ANTERIOR: si venías hablando de un EJE (los SKU, los clientes, las marcas) y ahora piden "esto mismo mes a mes", pasá ese eje → dimension:"sku"/"cliente"/"marca" (NO el negocio global: cambiarle el alcance al usuario sin avisar es peor que no responder). Si venías de UNA entidad, pasá entity. Si en un seguimiento la métrica anterior no tiene mensual (ej. costo medio), pedí 'trend' de la que SÍ (ventas/contribución) sobre el MISMO eje — no la foto actual. FUTURO/pronóstico NO existe (no hay serie a futuro): eso sí, intent="answer" y el narrador aclara que no proyecta.
