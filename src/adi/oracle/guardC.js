@@ -426,7 +426,13 @@ export function ensurePeriodoDeclared(narration, periodos) {
   const faltan = periodos.filter((fam) => !_periodoDeclarado(text, [fam]));
   if (!faltan.length) return text;
   const clausulas = faltan.map((fam) => _PERIODO_CLAUSULA[fam]).filter(Boolean).join(" ");
-  return clausulas ? `${text} (${clausulas})` : text;
+  if (!clausulas) return text;
+  // BUG real cazado en vivo (owner 2026-07-29, verificando el trabajo de otra sesión — regresión de esta MISMA
+  // función, no del cambio ajeno): modo=clarify DEBE cerrar con "?" (contrato de conversationalContract.js,
+  // verificado por _oracle_provider_certification_gate) — agregar la cláusula AL FINAL le robaba a la última
+  // oración su cierre de pregunta ("¿...ejemplo?" quedaba seguido de "(Datos del año cerrado.)", ya no terminaba
+  // en "?"). Si el texto YA cierra con pregunta, la cláusula va AL PRINCIPIO — nunca después del cierre.
+  return /\?\s*$/.test(text) ? `(${clausulas}) ${text}` : `${text} (${clausulas})`;
 }
 
 // ── ORDEN SELLADO POR LA TOOL (requisito 4: "orden, dirección y ranking deben venir sellados por la tool") — a
