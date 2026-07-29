@@ -4,9 +4,12 @@
  * — todo eso es de ADI (contrato). Si mañana cambiamos de proveedor, se cambia el adapter; el spec/contrato no.
  *
  * parse(text, {system, tool, model})        → { spec, usage }
- * narrate(validatedOutput, {model, system})  → { text, usage }   (system lo inyecta gatewayCore: general vs simulación)
+ * narrate(validatedOutput, {model, system})  → { text, usage }   (system lo arma el caller: el CONTRATO, nunca el adapter)
+ *
+ * CERO imports de módulos de producto (owner 2026-07-29, capa de rol conversacional: "el adaptador solo debe recibir
+ * el contrato, el contexto y la boleta, y devolver una narración estructurada"): si `system` no llega, FALLA fuerte
+ * en vez de narrar en silencio con una voz genérica ajena al contrato vigente — gatewayCore SIEMPRE lo provee.
  */
-import { NARRATE_GENERAL } from "../narratePrompt.js";   // fallback si gatewayCore no inyecta system (siempre lo hace)
 
 const BASE = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/v1/messages";
@@ -50,9 +53,10 @@ export const anthropicAdapter = {
   // output validado → narración (reformula sin cambiar cifras · el number-guard lo verifica aparte, en ADI)
   // mismo caching que parse: el system del narrador (~2k tokens) es prefijo fijo · el output validado va fuera del caché
   async narrate(validatedOutput, { model, system }) {
+    if (!system) throw new Error("narrate() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
     const data = await _call({
       model, max_tokens: 1024,
-      system: [{ type: "text", text: system || NARRATE_GENERAL, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");

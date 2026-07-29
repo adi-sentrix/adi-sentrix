@@ -13,6 +13,7 @@ import { guardC, extractMechanismRows } from "./guardC.js";
 import { stripFiller, normalizeFigures } from "./narratePromptC.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
+import { MODE_KEYS } from "./conversationalContract.js";
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
@@ -103,19 +104,24 @@ function _coerceTensionArgs(text, calls) {
   return arr;
 }
 
-// ── MODO CONVERSACIONAL · capa de rol operativa, Fase 1 (owner 2026-07-29: "no quiero un parche para 'no
-// entendí'... quiero un sistema sofisticado pero controlado") — `mode` es un EJE DISTINTO de `intent`: intent
-// decide QUÉ DATO pedir, mode decide CÓMO NARRARLO (un "qué significa X" es intent=define + mode=clarify a la vez).
-// El plan YA puede elegir mode="clarify" por comprensión (ver planPrompt.js) — esto de acá es el PISO
-// determinístico: frases INEQUÍVOCAS de confusión fuerzan clarify sin depender de que el LLM lo note esa vez
-// (mismo criterio que _coerceTensionArgs arriba — un gate no puede apoyarse solo en que el LLM "generalmente" lo
-// entienda). Si el texto NO matchea, se respeta el mode que el LLM ya eligió (nunca se lo saca — solo se agrega).
-// (2 bugs reales cazados probando la regex antes de wireearla: "explíc" con acento no matcheaba el stem "explic"
+// ── MODO CONVERSACIONAL · capa de rol operativa (Fase 1: default|clarify · Fase 2: + diagnostico/decision/
+// simulacion/seguimiento/evidencia — owner 2026-07-29: "no quiero un parche para 'no entendí'... quiero un sistema
+// sofisticado pero controlado") — `mode` es un EJE DISTINTO de `intent`: intent decide QUÉ DATO pedir, mode decide
+// CÓMO NARRARLO (un "qué significa X" es intent=define + mode=clarify a la vez). El enum vive en
+// conversationalContract.js (fuente ÚNICA versionada, compartida con planPrompt.js/narratePromptC.js). El plan YA
+// puede elegir cualquier mode por comprensión (ver planPrompt.js) — esto de acá es el PISO determinístico SOLO
+// para clarify: frases INEQUÍVOCAS de confusión lo fuerzan sin depender de que el LLM lo note esa vez (mismo
+// criterio que _coerceTensionArgs arriba). Si el texto NO matchea, se respeta CUALQUIER mode válido que el LLM ya
+// eligió (nunca se lo saca — solo se agrega clarify por encima cuando corresponde).
+// (2 bugs reales cazados probando la regex antes de wirearla: "explíc" con acento no matcheaba el stem "explic"
 // literal — \w no cubre acentos; y "no entiendo" (presente) no matcheaba, solo "no entendí" (pasado)).
+// (BUG real cazado en esta pasada — Fase 2: la versión de Fase 1 colapsaba CUALQUIER mode que no fuera "clarify" a
+// "default", lo que habría descartado en silencio diagnostico/decision/simulacion/seguimiento/evidencia apenas se
+// agregaron al enum — ahora preserva cualquier mode VÁLIDO del plan, no solo clarify.)
 const _CLARIFY_RE = /\b(no\s+(?:te\s+)?entiend\w*|no\s+entend[ií]\w*|no comprendo|no logro entender|no me qued[oó] claro|no me queda claro|expl[ií]c\w*.{0,20}?\b(?:f[aá]cil|simple|sencill\w*)|en palabras (?:m[aá]s\s+)?simples|m[aá]s simple\b|qu[eé] significa|qu[eé] quiere decir|a qu[eé] te refer[ií]s)/i;
 function _coerceMode(text, plan) {
   if (_CLARIFY_RE.test(String(text || ""))) return "clarify";
-  return plan && plan.mode === "clarify" ? "clarify" : "default";
+  return plan && MODE_KEYS.includes(plan.mode) ? plan.mode : "default";
 }
 
 // answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls }) → { r, mem } | null
@@ -154,12 +160,21 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // salida desde una lista fija de campos (identidad/preferencias/contexto/estado) y NO preserva claves ajenas,
   // así que leer de `mem2` perdería mechanismByEntity en cualquier turno donde el LLM además emita un memoryUpdate.
   const mechanismMemory = (mem && typeof mem.mechanismByEntity === "object" && mem.mechanismByEntity) || {};
+  // NIVEL DE ACLARACIÓN (Fase 2, capa de rol conversacional): cuenta turnos CONSECUTIVOS en mode=clarify — si el
+  // usuario sigue confundido después de la primera simplificación, el contrato de clarify escala a "cero cifras +
+  // ejemplo concreto" (ver conversationalContract.js). Se lee del `mem` ORIGINAL por la MISMA razón que
+  // mechanismMemory (applyMemoryUpdate no preserva claves ajenas). Se resetea a 0 en cualquier turno que NO sea
+  // clarify — la próxima vez que el usuario pida aclaración, empieza de nuevo en nivel 1, no sigue escalando.
+  const clarifyStreakPrev = (mem && typeof mem.clarifyStreak === "number") ? mem.clarifyStreak : 0;
+  const clarifyStreakNow = plan.mode === "clarify" ? clarifyStreakPrev + 1 : 0;
+  plan = { ...plan, clarifyStreak: clarifyStreakNow };
   // memoria de interacción (trato/identidad) — se aplica ANTES de narrar
   let mem2 = plan.memoryUpdate ? applyMemoryUpdate(mem, plan.memoryUpdate) : mem;
-  // se lo devolvemos explícito a mem2 (no solo a la variable mechanismMemory de arriba): mem2 es lo que ve el
-  // NARRADOR (mem: mem2 más abajo, durante los 3 intentos) — sin esto, un turno con memoryUpdate hacía que el
-  // narrador narrara SIN saber qué mecanismo ya estaba establecido, aunque guardC sí lo chequeara correctamente.
+  // se lo devolvemos explícito a mem2 (no solo a las variables de arriba): mem2 es lo que ve el NARRADOR (mem: mem2
+  // más abajo, durante los 3 intentos) — sin esto, un turno con memoryUpdate hacía que el narrador narrara SIN saber
+  // qué mecanismo/nivel de aclaración ya estaba establecido, aunque guardC sí lo chequeara bien por separado.
   if (Object.keys(mechanismMemory).length) mem2 = { ...mem2, mechanismByEntity: mechanismMemory };
+  mem2 = { ...mem2, clarifyStreak: clarifyStreakNow };
 
   // ── BATCH DETERMINÍSTICO ──
   const { ledger, results, trace } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });

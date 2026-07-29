@@ -4,9 +4,11 @@
  * mapea el usage a la forma común del harness. NO define métricas/entidades/verdad — eso es de ADI (contrato).
  *
  * Esto PRUEBA la regla de oro: cambiar de proveedor = cambiar SOLO el adapter. El spec, el contrato, answerADIFromSpec,
- * el number-guard y los tests no se tocan.
+ * el number-guard y los tests no se tocan. CERO imports de módulos de producto (owner 2026-07-29, capa de rol
+ * conversacional: "el adaptador solo debe recibir el contrato, el contexto y la boleta, y devolver una narración
+ * estructurada — no pongas lógica de producto dentro del adaptador"): si `system` no llega, FALLA fuerte en vez de
+ * narrar en silencio con una voz genérica ajena al contrato vigente — gatewayCore SIEMPRE lo provee.
  */
-import { NARRATE_GENERAL } from "../narratePrompt.js";   // fallback si gatewayCore no inyecta system (siempre lo hace)
 
 const BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/chat/completions";
@@ -47,12 +49,14 @@ export const openaiAdapter = {
     return { spec, usage: _usage(data.usage) };
   },
 
-  // output validado → narración · el system lo elige gatewayCore (general vs simulación) y lo inyecta acá · no cambia cifras
+  // output validado → narración · el system (el CONTRATO) lo elige y arma gatewayCore/el módulo de prompt · el
+  // adapter NUNCA decide ni sustituye esa voz — no cambia cifras
   async narrate(validatedOutput, { model, system }) {
+    if (!system) throw new Error("narrate() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
     const data = await _call({
       model, max_tokens: 1024,
       messages: [
-        { role: "system", content: system || NARRATE_GENERAL },
+        { role: "system", content: system },
         { role: "user", content: JSON.stringify(validatedOutput) },
       ],
     });
