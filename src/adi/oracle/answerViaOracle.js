@@ -15,7 +15,7 @@ import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtim
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { assertTenantContext } from "./requestContext.js";
-import { fieldLabel } from "./entityRecord.js";
+import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
@@ -128,18 +128,81 @@ function _simpleEntityMetric(q, plan, calls, results) {
   if (!r || !r.coverage || r.coverage.supported !== true || !r.facts) return null;
   const tokens = _extractTensionMetrics(q);
   if (tokens.length !== 1) return null;
-  const label = fieldLabel(tokens[0].token);
+  const token = tokens[0].token;
+  const label = fieldLabel(token);
   if (!label || r.facts[label] == null) return null;   // el campo no está en ESTE registro → cede al narrador, no inventa
   const entity = r.facts.entidad || plan.scope.entities[0];
   if (!entity) return null;
-  return { entity, label, value: r.facts[label], periodo: r.facts.periodo || null };
+  const dimension = calls[0].args && calls[0].args.dimension;
+  const rec = dimension ? rawRecordFor(dimension, entity) : null;
+  const rawValue = rec && typeof rec[token] === "number" ? rec[token] : null;
+  return { entity, label, token, value: r.facts[label], periodo: r.facts.periodo || null, rec, rawValue };
 }
-// _rutaDeterministica(hit) → la frase — "Entidad · Etiqueta: valor" es la MISMA convención que usan fig()/boleta en
-// todo el motor (entityRecord.js, temporal.js…): evita el riesgo de concordancia de género/número del español
-// ("el margen es"/"la venta es") con una forma ya establecida en el resto del producto, no una inventada acá.
-function _rutaDeterministica({ entity, label, value, periodo }) {
-  const periodoTxt = periodo ? (/a[nñ]o cerrado/i.test(periodo) ? " (año cerrado)" : ` (${periodo})`) : "";
-  return `${entity} · ${label}: ${value}${periodoTxt}.`;
+
+// ── LECTURA MÍNIMA para la ruta determinística (owner "piensa bien, estás de acuerdo con esta respuesta?"
+// 2026-07-29) — CONTRATO PERMANENTE para TODA respuesta puntual, no una excepción del rebate:
+//   1. oración NATURAL con entidad y período (nunca la forma telegráfica "Entidad · Etiqueta: valor").
+//   2. una lectura mínima SOLO si existe una referencia AUTORIZADA y comparable para ESA métrica.
+//   3. cada métrica declara SU referencia válida (REFERENCIA_CAMPO/REFERENCIA_ANTERIOR en entityRecord.js —
+//      benchmark/target/piso/techo YA establecidos en esta app, o período anterior por fila) — NUNCA un
+//      promedio de cartera genérico inventado para la ocasión.
+//   4. la referencia sale del MISMO registro/misma POLICY → mismo alcance y período, automático por construcción.
+//   5. "significativo" es un umbral FIJO por métrica (ver REFERENCIA_CAMPO/REFERENCIA_ANTERIOR), nunca juicio del LLM.
+//   6. sin referencia válida → dato limpio + oferta de análisis, nunca se fabrica una lectura.
+//   7. "solo dame el dato" desactiva la lectura aunque exista referencia (_SOLO_DATO_RE).
+//   8. MISMA voz que la narración libre — oración ejecutiva, sin jerga, sin dramatizar (no dice "bien"/"mal",
+//      solo la relación factual "por encima/por debajo de").
+const _METRICA_ORACION = {
+  contribucion: { articulo: "la", plural: false, sustantivo: "contribución" },
+  margen:       { articulo: "el", plural: false, sustantivo: "margen" },
+  stockUSD:     { articulo: "el", plural: false, sustantivo: "valor de inventario" },
+  rotacion:     { articulo: "la", plural: false, sustantivo: "rotación" },
+  doh:          { articulo: "la", plural: false, sustantivo: "cobertura" },
+  costoMedio:   { articulo: "el", plural: false, sustantivo: "costo medio" },
+  costo:        { articulo: "el", plural: false, sustantivo: "costo" },
+  precioLista:  { articulo: "el", plural: false, sustantivo: "precio de lista" },
+  venta:        { articulo: "la", plural: false, sustantivo: "venta" },
+  unidades:     { articulo: "las", plural: true, sustantivo: "unidades vendidas" },
+  pctRebate:    { articulo: "el", plural: false, sustantivo: "rebate" },
+};
+const _SOLO_DATO_RE = /\bsolo\s+(?:el\s+|la\s+)?(?:dato|n[uú]mero|cifra)\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bnada\s+m[aá]s\b|\bdame\s+solo\b/i;
+
+// _lecturaMinima(token, rec, rawValue) → la frase de lectura, o null si NO hay referencia autorizada para este
+// campo (el caller degrada a "dato limpio + oferta", nunca inventa una comparación).
+function _lecturaMinima(token, rec, rawValue) {
+  const vara = REFERENCIA_CAMPO[token];
+  if (vara) {
+    const refValue = vara.getRef(rec || {});
+    if (typeof refValue === "number" && isFinite(refValue)) {
+      const diff = rawValue - refValue;
+      const sig = vara.umbralRel != null ? (refValue !== 0 && Math.abs(diff) / Math.abs(refValue) >= vara.umbralRel) : Math.abs(diff) >= vara.umbral;
+      const relacion = diff > 0 ? "por encima de" : diff < 0 ? "por debajo de" : "igual a";
+      const refTxt = `${vara.frase} de ${vara.fmt(refValue)}`;
+      return sig ? `Está ${relacion} ${refTxt}.` : `Está en línea con ${refTxt}.`;
+    }
+  }
+  const ant = REFERENCIA_ANTERIOR[token];
+  if (ant && rec && typeof rec[ant.campo] === "number" && rec[ant.campo] !== 0) {
+    const refValue = rec[ant.campo];
+    const diff = rawValue - refValue;
+    const rel = Math.abs(diff) / Math.abs(refValue);
+    if (rel < ant.umbralRel) return "Se mantiene estable respecto al año anterior.";
+    const pct = Math.round(rel * 1000) / 10;
+    return `${diff > 0 ? "Creció" : "Cayó"} ${pct}% respecto al año anterior.`;
+  }
+  return null;   // sin referencia autorizada — el caller ofrece análisis, no inventa una lectura
+}
+
+function _rutaDeterministica(q, { entity, label, token, value, periodo, rec, rawValue }) {
+  const m = _METRICA_ORACION[token] || { articulo: "el", plural: false, sustantivo: label.toLowerCase() };
+  const verbo = m.plural ? "son" : "es";
+  const art = m.articulo.charAt(0).toUpperCase() + m.articulo.slice(1);
+  const periodoTxt = periodo ? (/a[nñ]o cerrado/i.test(periodo) ? "en el año cerrado" : /foto.*hoy/i.test(periodo) ? "a la fecha de hoy" : null) : null;
+  const oracion = `${art} ${m.sustantivo} de ${entity} ${verbo} ${value}${periodoTxt ? `, ${periodoTxt}` : ""}.`;
+  if (_SOLO_DATO_RE.test(q)) return oracion;   // requisito 7: el usuario pidió SOLO el dato — se respeta, sin análisis
+  if (typeof rawValue !== "number") return oracion;   // defensivo: sin crudo para comparar, no debería pasar
+  const lectura = _lecturaMinima(token, rec, rawValue);
+  return lectura ? `${oracion} ${lectura}` : `${oracion} Si querés, puedo analizarlo con más detalle.`;
 }
 
 // ── MODO CONVERSACIONAL · capa de rol operativa (Fase 1: default|clarify · Fase 2: + diagnostico/decision/
@@ -247,7 +310,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   let deterministic = false;
   const simple = _simpleEntityMetric(q, plan, calls, results);
   if (simple) {
-    const det = ensurePeriodoDeclared(_rutaDeterministica(simple), periodos);
+    const det = ensurePeriodoDeclared(_rutaDeterministica(q, simple), periodos);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 

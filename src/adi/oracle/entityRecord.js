@@ -8,6 +8,7 @@ import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMa
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { fig } from "../boleta.js";
+import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
 
@@ -43,6 +44,35 @@ export function fieldLabel(token) {
 // multi-columna (chartSpec.js, requisito 5: grilla de gridTable) y necesita mostrar solo las columnas NUMÉRICAS,
 // nunca "Nombre" (redundante con la fila) ni "Tipo"/"Marca"/"Familia"/"Canal" (atributos, no la métrica pedida).
 export const TEXT_LABELS = new Set(Object.values(F).filter((m) => m.u === "text").map((m) => m.l));
+
+// rawRecordFor(dimension, entity) → el registro CRUDO (números sin formatear) de UNA entidad, case/acento-
+// insensitive — para el llamador que necesita el VALOR numérico para comparar (nunca para mostrar: lo que se
+// muestra siempre es el fig() ya formateado y autorizado en la boleta, una sola verdad).
+export function rawRecordFor(dimension, entity) {
+  return _rawRecord(dimension, resolveEntity(dimension, entity));
+}
+
+// REFERENCIA_CAMPO — la VARA AUTORIZADA de cada campo comparable (owner "piensa bien, estás de acuerdo con esta
+// respuesta?" 2026-07-29, contrato de LECTURA MÍNIMA para toda respuesta puntual): benchmark/target/piso/techo YA
+// establecidos en esta app — la MISMA vara que ya usan diagnose/marginRead/mechanisms.js (benchmarkOf respeta un
+// override por-fila; POLICY.* respeta la memoria de criterio del owner, C.2) — NUNCA un promedio de cartera
+// inventado para la ocasión. Un campo SIN entrada acá no tiene referencia autorizada: el llamador debe degradar
+// honesto (dato limpio + oferta de análisis), nunca fabricar una lectura.
+// `frase` = cómo se nombra la referencia en una oración ("Está por encima de {frase} de {valor}") — separado de
+// `label` (el nombre del fig en la boleta, más formal/tabular) para que la prosa lea natural sin acoplarse al
+// texto exacto de la boleta.
+export const REFERENCIA_CAMPO = {
+  margen:    { getRef: (rec) => benchmarkOf(rec), unit: "pct", label: "Benchmark de margen", frase: "tu benchmark", umbral: 0.5, fmt: (v) => `${v}%` },
+  pctRebate: { getRef: () => POLICY.targetCarga, unit: "pct", label: "Target de carga comercial", frase: "tu target de carga comercial", umbral: 0.5, fmt: (v) => `${v}%` },
+  rotacion:  { getRef: () => POLICY.rotacionMin, unit: "ratio", label: "Piso de rotación", frase: "tu piso de rotación", umbralRel: 0.10, fmt: (v) => `${(+v).toFixed(1)}x` },
+  doh:       { getRef: () => POLICY.dohMax, unit: "days", label: "Techo de cobertura", frase: "tu techo de cobertura", umbral: 5, fmt: (v) => `${Math.round(v)}d` },
+};
+// REFERENCIA_ANTERIOR — el período anterior, SOLO cuando el dato lo declara por fila (D8: una sola verdad de
+// venta — `anterior`/`unidadesAnt` ya son columnas F-table normales, autorizadas como cualquier otra).
+export const REFERENCIA_ANTERIOR = {
+  venta:    { campo: "anterior", umbralRel: 0.03 },
+  unidades: { campo: "unidadesAnt", umbralRel: 0.03 },
+};
 
 // fuentes por dimensión (fachadas live-binding · multiempresa). Cada fuente trae su PROPIO keyField: skuInventario
 // identifica el SKU por `sku`, pero skusMargen lo identifica por `nombre` (bug corregido: antes se perdían las

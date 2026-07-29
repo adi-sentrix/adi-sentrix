@@ -29,7 +29,7 @@
  */
 import fs from "fs";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
-import { buildEntityRecord, guessDimension } from "./src/adi/oracle/entityRecord.js";
+import { guessDimension } from "./src/adi/oracle/entityRecord.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { handlePlan, handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
@@ -66,8 +66,12 @@ console.log("\n── 2 · entityRecord: auto-corrección de eje (BUG 1 también
   for (const entity of ["Sodimac", "Falabella"]) {
     const bad = TOOLS.entityRecord({ dimension: "marca", entity });
     ok(bad.coverage.supported === true, `entityRecord(dimension:"marca", entity:"${entity}") se AUTOCORRIGE a cliente y responde`);
-    const direct = buildEntityRecord("cliente", entity);
-    ok(bad.facts.Ventas === direct.facts.Ventas && bad.boleta.length === direct.boleta.length, `entityRecord("marca"→autocorregido) es BYTE-IGUAL a buildEntityRecord("cliente", "${entity}") directo (Ventas=${bad.facts.Ventas}, figCount=${bad.boleta.length})`);
+    // comparado contra el MISMO tool (TOOLS.entityRecord), no contra buildEntityRecord crudo: desde el contrato de
+    // lectura mínima (owner "piensa bien" 2026-07-29) el TOOL agrega figs de referencia (vara) que el composer
+    // crudo no tiene — comparar contra el composer directo compararía peras con manzanas (figCount siempre
+    // divergiría, aunque la auto-corrección esté perfecta). El tool-vs-tool sigue exigiendo byte-igual real.
+    const direct = TOOLS.entityRecord({ dimension: "cliente", entity });
+    ok(bad.facts.Ventas === direct.facts.Ventas && bad.boleta.length === direct.boleta.length, `entityRecord("marca"→autocorregido) es BYTE-IGUAL a entityRecord(dimension:"cliente", "${entity}") directo (Ventas=${bad.facts.Ventas}, figCount=${bad.boleta.length})`);
     ok(typeof bad.facts["Unidades vendidas"] === "string", `entityRecord("marca"→autocorregido) trae 'Unidades vendidas' de ${entity} (${bad.facts["Unidades vendidas"]}) — el campo del BUG 2`);
   }
 }

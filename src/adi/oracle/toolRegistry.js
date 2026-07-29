@@ -20,7 +20,7 @@ import {
 import { CONCEPT_DEFS, matchConcept } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo")
 import { fig } from "../boleta.js";                                    // cifra autorizada (para inyectar el benchmark en el perfil)
 import { POLICY } from "../../config/businessPolicy.js";               // la VARA (benchmark de margen) para anclar el juicio
-import { buildEntityRecord, buildGrid, buildTension, guessDimension } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre
+import { buildEntityRecord, buildGrid, buildTension, guessDimension, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
 import { buildGlobalEvolution } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
 
@@ -139,10 +139,24 @@ function entityRecord({ dimension, entity } = {}) {
     if (guessed && guessed !== dim) { dim = guessed; r = buildEntityRecord(dim, entity); }
   }
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
+  // REFERENCIA AUTORIZADA por campo (owner "piensa bien" 2026-07-29, contrato de lectura mínima): si esta fila
+  // trae un campo con vara declarada (margen/carga/rotación/cobertura), autorizamos TAMBIÉN esa vara real —
+  // benchmarkOf/POLICY, la MISMA que ya usan diagnose/marginRead/mechanisms.js — para que cualquier narración
+  // (determinística o libre) pueda citarla sin que el guard la rechace. Nunca un promedio de cartera inventado.
+  const rawRec = rawRecordFor(dim, entity);
+  let boleta = r.boleta;
+  if (rawRec) for (const [token, refDef] of Object.entries(REFERENCIA_CAMPO)) {
+    const lbl = fieldLabel(token);
+    if (lbl == null || r.facts[lbl] == null) continue;   // esta fila no trae ese campo → sin vara que autorizar
+    const refValue = refDef.getRef(rawRec);
+    if (typeof refValue !== "number" || !isFinite(refValue)) continue;
+    if (boleta.some((f) => f.label === refDef.label)) continue;
+    boleta = [...boleta, fig(refDef.label, refDef.fmt(refValue), { unit: refDef.unit, context: "vara" })];
+  }
   // lens:"cuadro" · SENTRIX ES LA EVIDENCIA (owner 2026-07-28): sin esto el panel no tenía forma de saber qué mostrar
   // para esta tool propia (las demás heredan `lens` de su composer wrapeado) → el ranking de ${dimension} se abre con
   // esta entidad ya nombrada en la boleta (el punto celeste del espejo la marca). Mismo patrón que usa `_pack`.
-  return { facts: { ...r.facts, lens: "cuadro" }, boleta: r.boleta, coverage: { supported: true, figCount: r.boleta.length } };
+  return { facts: { ...r.facts, lens: "cuadro" }, boleta, coverage: { supported: true, figCount: boleta.length } };
 }
 
 // tensionRead · TENSIÓN sostener-vs-consumir (turno 14 del veredicto de 18 turnos): cruza DOS métricas del MISMO
