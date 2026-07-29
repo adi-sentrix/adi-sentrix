@@ -385,6 +385,87 @@ function _orderViolation(narration, question) {
   return null;
 }
 
+// ── PERÍODO/FECHA DE CORTE (owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 3: "toda respuesta
+// numérica debe declarar período o fecha de corte") — toolRunner.js estampa `facts.periodo` (o el
+// `facts.marco_temporal.periodo` que trend ya traía) con UNA de dos frases canónicas SIEMPRE que la tool devolvió
+// cifras reales. GARANTÍA DETERMINÍSTICA, no un chequeo que bloquea: medido en vivo (6 preguntas × 2 corridas), un
+// guard BLOQUEANTE acá disparaba ~33% de fallbacks — el LLM omite la frase con más frecuencia de la que un muro
+// puede tolerar sin degradar la confiabilidad que este mismo requisito busca proteger. En vez de exigirle al LLM
+// que se acuerde SIEMPRE, `ensurePeriodoDeclared` (más abajo) se lo agrega DETERMINÍSTICAMENTE si falta — mismo
+// principio que `stripLanguageLeaks`/`stripFiller`: la garantía se construye en el motor, no se le pide de favor
+// al LLM. Las keywords son SOLO para reconocer que el LLM YA lo dijo (evita duplicar la cláusula).
+const _PERIODO_FAMILIAS = {
+  anual: { esDato: /a[nñ]o cerrado/i, keywords: [/a[nñ]o cerrado/i, /a[nñ]o (?:ya )?cerr\w*/i, /12 meses/i, /cierre del a[nñ]o/i, /a[nñ]o (?:completo|fiscal)/i, /ya (?:transcurri|ocurri)\w*/i] },
+  hoy: { esDato: /foto.*hoy|a hoy\b/i, keywords: [/foto de (?:hoy|inventario)/i, /a la fecha/i, /corte de hoy/i, /instant[aá]ne\w*/i, /\bhoy\b/i] },
+};
+function _familiaDePeriodo(texto) {
+  for (const [k, v] of Object.entries(_PERIODO_FAMILIAS)) if (v.esDato.test(String(texto || ""))) return k;
+  return null;
+}
+// periodosEsperados(results) → array de familias ("anual"/"hoy") presentes este turno · [] si ninguna tool trajo
+// cifras (turnos ack/define/redirect sin calls, o tools sin boleta) → ensurePeriodoDeclared no toca nada.
+export function periodosEsperados(results) {
+  const set = new Set();
+  for (const r of results || []) {
+    const p = r && r.facts && (r.facts.periodo || (r.facts.marco_temporal && r.facts.marco_temporal.periodo));
+    if (p) { const fam = _familiaDePeriodo(p); if (fam) set.add(fam); }
+  }
+  return [...set];
+}
+function _periodoDeclarado(narration, familias) {
+  const text = String(narration || "");
+  return familias.some((fam) => (_PERIODO_FAMILIAS[fam] && _PERIODO_FAMILIAS[fam].keywords || []).some((re) => re.test(text)));
+}
+// ensurePeriodoDeclared(narration, periodos) → la GARANTÍA real del requisito 3: si la narración YA declaró el
+// período (por palabra clave, sea la frase del narrador o la nuestra) la deja intacta; si no, le agrega una
+// cláusula corta y canónica. "anual"+"hoy" juntos (un turno con inventario + otra tool) agrega ambas cláusulas.
+const _PERIODO_CLAUSULA = { anual: "Datos del año cerrado.", hoy: "Foto de inventario a hoy." };
+export function ensurePeriodoDeclared(narration, periodos) {
+  const text = String(narration || "").trim();
+  if (!Array.isArray(periodos) || !periodos.length || !text) return text;
+  const faltan = periodos.filter((fam) => !_periodoDeclarado(text, [fam]));
+  if (!faltan.length) return text;
+  const clausulas = faltan.map((fam) => _PERIODO_CLAUSULA[fam]).filter(Boolean).join(" ");
+  return clausulas ? `${text} (${clausulas})` : text;
+}
+
+// ── ORDEN SELLADO POR LA TOOL (requisito 4: "orden, dirección y ranking deben venir sellados por la tool") — a
+// diferencia de `_orderViolation` (que SOLO se activa si la narración hace una promesa explícita de orden en texto),
+// esto verifica DIRECTO contra el `facts.orden`/`ordenA`/`ordenB` que la tool ya declaró (gridTable/tensionRead) —
+// sin importar si el narrador lo dijo en palabras o no: si armó una TABLA con la columna sellada VISIBLE, las
+// filas tienen que respetar el criterio real, punto.
+// A DIFERENCIA de `_orderViolation`: NO usa el fallback de "adiviná la columna que matchee el patrón $/%" — medido
+// en vivo (hallazgo real): el narrador a veces muestra OTRA métrica en la tabla en vez de la sellada (pidieron
+// "top 5 por contribución" y la tabla mostró Ventas en su lugar, con las filas en el orden REAL de contribución
+// igual) — adivinar la columna ahí comparaba la columna EQUIVOCADA y marcaba una violación falsa. Si la columna
+// sellada no aparece LITERAL en el encabezado, no hay nada verificable → no se pronuncia (mismo criterio "sin
+// evidencia estructural suficiente" que ya usa `_orderViolation`). Tampoco cae a listas numeradas (gridTable/
+// tensionRead son tablas por diseño — ver chartSpec.js requisito 5); ese fallback es del otro chequeo, no de este.
+function _sealedOrderBroken(narration, sealedOrders) {
+  if (!Array.isArray(sealedOrders) || !sealedOrders.length) return null;
+  const text = String(narration || "");
+  const table = _tableRowsOrder(text);
+  if (!table) return null;
+  for (const s of sealedOrders) {
+    const sn = _norm(s);
+    const sDir = sn.includes("ascendente") ? "asc" : "desc";
+    const m = sn.match(/por\s+([a-z%]+(?:\s+[a-z%]+){0,2})$/);
+    const keyword = m ? m[1] : null;
+    if (!keyword) continue;
+    const col = _colForKeyword(table.header, keyword);
+    if (col < 0) continue;   // la columna sellada NO aparece literal en esta tabla → no hay nada que verificar acá
+    const isPct = /margen|%|porcentaje/i.test(keyword);
+    const re = isPct ? _PCT_RE : _MONEY_RE;
+    const seq = table.rows.map((r) => { const mm = (r[col] || "").match(re); return mm ? _toNumOrder(mm[0]) : null; }).filter((v) => v != null);
+    if (seq.length < 3) continue;   // sin evidencia estructural suficiente para ESTE campo → no se pronuncia
+    for (let i = 1; i < seq.length; i++) {
+      if (sDir === "desc" && seq[i] > seq[i - 1] * 1.001) return `la tabla no respeta el orden SELLADO por la tool (${s}) — fila ${i + 1} rompe la secuencia`;
+      if (sDir === "asc" && seq[i] < seq[i - 1] * 0.999) return `la tabla no respeta el orden SELLADO por la tool (${s}) — fila ${i + 1} rompe la secuencia`;
+    }
+  }
+  return null;
+}
+
 // ── EL GUARD ────────────────────────────────────────────────────────────────────────────────────────────────────
 // guardC(narration, { ledger, results, trace }) → { ok, verdict, violations[] }
 // verdict: "fiel" | "cifra-no-autorizada" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
@@ -471,7 +552,7 @@ function _isCalc2(raw, unit, authFigs, entityNames) {
   return false;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -506,6 +587,15 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // 5 · TOTAL del negocio atribuido a 1-2 entidades (owner, segunda vuelta: "guard determinístico que bloquee" —
   // a diferencia de la atribución general (aviso), ESTE caso puntual SÍ bloquea: cambia el tamaño real de la oportunidad.
   for (const v of _totalMisattribution(narration, ledger, entityNames)) violations.push({ kind: "total-mal-atribuido", detail: v });
+  // 6 · orden SELLADO por la tool incumplido (requisito 4, pase quirúrgico 2026-07-29) — independiente de si la
+  // narración prometió el orden EN TEXTO (eso ya lo cubre el chequeo 4 de arriba): si gridTable/tensionRead sellaron
+  // un criterio real, la tabla/lista que lo muestra tiene que respetarlo, lo diga o no en palabras.
+  if (sealedOrders) {
+    const sealedViol = _sealedOrderBroken(narration, sealedOrders);
+    if (sealedViol) violations.push({ kind: "orden-sellado-incumplido", detail: sealedViol });
+  }
+  // (el período/fecha de corte — requisito 3 — NO bloquea acá: se GARANTIZA aparte vía ensurePeriodoDeclared,
+  // aplicado a la narración ANTES de llegar a este guard — ver comentario junto a esa función y answerViaOracle.js.)
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // atribución (general) y graduación se dejan a criterio del LLM + prompt (como Claude leyendo el Excel). Se

@@ -11,6 +11,20 @@
 import { createLedger, recordCall } from "./ledger.js";
 import { TOOLS } from "./toolRegistry.js";
 
+// PERÍODO/FECHA DE CORTE (owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 3: "toda respuesta
+// numérica debe declarar período o fecha de corte"): UN solo punto de inyección para TODAS las tools — evita tocar
+// cada composer/tool individual (eso sería el refactor amplio que el owner pidió NO hacer). El dato es un año
+// CERRADO salvo `inventoryStatus` (foto de HOY, no un promedio anual — ver temporal.js). `trend` ya trae su propio
+// `marco_temporal` más específico (mes a mes) → no se pisa. `defineConcept` no es numérico → sin boleta, sin período.
+const _PERIODO_HOY = new Set(["inventoryStatus"]);
+const _PERIODO_ANUAL = "año cerrado — los 12 meses ya ocurrieron";
+const _PERIODO_HOY_TXT = "foto de inventario a hoy — no es un promedio anual";
+function _stampPeriodo(name, res) {
+  if (!res || !res.facts || res.facts.periodo || res.facts.marco_temporal) return;
+  if (!Array.isArray(res.boleta) || !res.boleta.length) return;   // sin cifras reales → no aplica
+  res.facts.periodo = _PERIODO_HOY.has(name) ? _PERIODO_HOY_TXT : _PERIODO_ANUAL;
+}
+
 // runPlan(plan, opts) → { ledger, results, trace, unsupported }
 //   opts.scenario   escenario base de las tools (default "actual")
 //   opts.maxCalls   cap DURO de tool-calls por plan (costo/latencia · plan patológico) · default 8
@@ -50,6 +64,7 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
       res = { facts: null, boleta: [], coverage: { supported: false, reason: `error en tool '${name}': ${String((e && e.message) || e)}` } };
     }
     if (!res || typeof res !== "object") res = { facts: null, boleta: [], coverage: { supported: false, reason: "tool sin resultado" } };
+    _stampPeriodo(name, res);
     recordCall(ledger, { tool: name, callId, scope, args }, res);
     results.push({ callId, tool: name, ...res });
     if (!res.coverage || res.coverage.supported === false) unsupported.push({ callId, tool: name, reason: res.coverage && res.coverage.reason });

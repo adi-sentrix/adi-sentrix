@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
-    "serve": "npm run build && node server.js"
+    "serve": "npm run build && node server.js",
+    "gates": "node scripts/run-gates.mjs"
   },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",

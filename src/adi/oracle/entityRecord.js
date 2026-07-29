@@ -32,6 +32,18 @@ const F = {
 
 const _fmt = (m, v) => m.u === "money" ? _money(m.k ? v * 1000 : v) : m.u === "pct" ? `${v}%` : m.u === "ratio" ? `${(+v).toFixed(1)}x` : m.u === "days" ? `${Math.round(v)}d` : String(v);
 
+// fieldLabel(token) → la etiqueta ("Margen"/"Ventas"/…) de una columna cruda, para el llamador que necesita
+// mapear un token de métrica a la KEY exacta que usa `facts` (requisito "confiabilidad" 2026-07-29, ruta
+// determinística entidad+métrica) — sin exponer la tabla `F` completa, solo el accesor puntual que hace falta.
+export function fieldLabel(token) {
+  return (F[token] && F[token].l) || null;
+}
+
+// TEXT_LABELS → las etiquetas de columnas de TEXTO (u:"text"), no métrica — para el llamador que arma una tabla
+// multi-columna (chartSpec.js, requisito 5: grilla de gridTable) y necesita mostrar solo las columnas NUMÉRICAS,
+// nunca "Nombre" (redundante con la fila) ni "Tipo"/"Marca"/"Familia"/"Canal" (atributos, no la métrica pedida).
+export const TEXT_LABELS = new Set(Object.values(F).filter((m) => m.u === "text").map((m) => m.l));
+
 // fuentes por dimensión (fachadas live-binding · multiempresa). Cada fuente trae su PROPIO keyField: skuInventario
 // identifica el SKU por `sku`, pero skusMargen lo identifica por `nombre` (bug corregido: antes se perdían las
 // columnas comerciales del SKU — costoMedio, precioLista, margen, contribución — por filtrar todo por `sku`).
@@ -178,10 +190,14 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
   const byA = recs.slice().sort((a, b) => sA * (a.rec[metricA] - b.rec[metricA]));
   const byB = recs.slice().sort((a, b) => sB * (a.rec[metricB] - b.rec[metricB]));
   const topA = byA.slice(0, limit), topB = byB.slice(0, limit);
+  const restoA = byA.slice(limit), restoB = byB.slice(limit);   // requisito 2: cuantificar lo que quedó fuera
   const setTopB = new Set(topB.map((x) => x.e)), setTopA = new Set(topA.map((x) => x.e));
   const mA = F[metricA] || { l: metricA, u: "money" }, mB = F[metricB] || { l: metricB, u: "money" };
+  // ORDEN SELLADO por la tool (requisito 4) — una por métrica, ya que tension cruza DOS rankings independientes.
+  const ordenA = `${dirA === "asc" ? "ascendente" : "descendente"} por ${lblA}`;
+  const ordenB = `${dirB === "asc" ? "ascendente" : "descendente"} por ${lblB}`;
   const facts = {
-    metricA: lblA, metricB: lblB, dimension,
+    metricA: lblA, metricB: lblB, dimension, ordenA, ordenB, totalCount: recs.length,
     topA: topA.map((x) => ({ nombre: x.e, valor: _fmt(mA, x.rec[metricA]) })),
     topB: topB.map((x) => ({ nombre: x.e, valor: _fmt(mB, x.rec[metricB]) })),
     enAmbosRankings: topA.filter((x) => setTopB.has(x.e)).map((x) => x.e),
@@ -193,6 +209,8 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
   const addFig = (x, m, metric) => { const key = `${x.e}·${metric}`; if (seen.has(key)) return; seen.add(key); boleta.push(fig(`${x.e} · ${m.l}`, _fmt(m, x.rec[metric]), { unit: m.u })); };
   for (const x of topA) addFig(x, mA, metricA);
   for (const x of topB) addFig(x, mB, metricB);
+  if (restoA.length) { const sum = restoA.reduce((s, x) => s + x.rec[metricA], 0); facts.restoA = { count: restoA.length, campo: lblA, sumaFmt: _fmt(mA, sum) }; boleta.push(fig(`Resto de ${lblA} (${restoA.length} de ${recs.length})`, _fmt(mA, sum), { unit: mA.u })); }
+  if (restoB.length) { const sum = restoB.reduce((s, x) => s + x.rec[metricB], 0); facts.restoB = { count: restoB.length, campo: lblB, sumaFmt: _fmt(mB, sum) }; boleta.push(fig(`Resto de ${lblB} (${restoB.length} de ${recs.length})`, _fmt(mB, sum), { unit: mB.u })); }
   return { facts, boleta };
 }
 
@@ -206,7 +224,25 @@ export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20 }
   const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e) })).filter((x) => x.rec);
   recs.sort((a, b) => { const av = a.rec[field], bv = b.rec[field]; const an = typeof av === "number" ? av : -Infinity, bn = typeof bv === "number" ? bv : -Infinity; return dir === "asc" ? an - bn : bn - an; });
   const top = recs.slice(0, Math.max(1, limit));
+  // RESTO (owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 2: "en todo top-N, informa 'N de total' y
+  // cuantifica el resto") — lo que quedó FUERA del top-N, para que "los 5 mejores" nunca lea como "son todos".
+  const resto = recs.slice(Math.max(1, limit));
   const rows = []; const boleta = [];
   for (const { e, rec } of top) { const fr = _formatRecord(e, rec); rows.push(fr.facts); for (const f of fr.boleta) boleta.push(f); }
-  return { facts: { dimension, sortBy: field, count: rows.length, rows }, boleta };
+  const fm = F[field] || { l: field, u: "money" };
+  // ORDEN SELLADO por la tool (requisito 4: "orden, dirección y ranking deben venir sellados por la tool") — el
+  // narrador CITA esto, no re-infiere ni re-describe el criterio mirando las filas (ahí es donde se equivocaba).
+  const orden = `${dir === "asc" ? "ascendente" : "descendente"} por ${fm.l}`;
+  const facts = { dimension, sortBy: field, orden, count: rows.length, totalCount: recs.length, rows };
+  if (resto.length) {
+    const restoVals = resto.map((x) => x.rec[field]).filter((v) => typeof v === "number");
+    if (restoVals.length === resto.length) {
+      const sum = restoVals.reduce((a, b) => a + b, 0);
+      facts.resto = { count: resto.length, campo: fm.l, sumaFmt: _fmt(fm, sum) };
+      boleta.push(fig(`Resto (${resto.length} de ${recs.length}) · ${fm.l}`, _fmt(fm, sum), { unit: fm.u }));
+    } else {
+      facts.resto = { count: resto.length, campo: fm.l, sumaFmt: null };   // no todos numéricos → no se suma (honesto)
+    }
+  }
+  return { facts, boleta };
 }

@@ -9,12 +9,13 @@
 import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
-import { guardC, extractMechanismRows } from "./guardC.js";
+import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared } from "./guardC.js";
 import { stripFiller, normalizeFigures } from "./narratePromptC.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { assertTenantContext } from "./requestContext.js";
+import { fieldLabel } from "./entityRecord.js";
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
@@ -105,6 +106,42 @@ function _coerceTensionArgs(text, calls) {
   return arr;
 }
 
+// ── RUTA DETERMINÍSTICA · consulta simple entidad+métrica (owner "pase quirúrgico de confiabilidad" 2026-07-29,
+// requisito 1) — "¿cuál es el margen de Falabella?" no necesita que un LLM narre libre: el motor YA tiene la cifra
+// exacta, autorizada, con su período. Saltea la Pasada 2 (narrar) ENTERA para este caso puntual — cero chance de
+// decline/alucinación/variance en la forma MÁS simple y más frecuente de pregunta. Todo lo demás (rankings,
+// diagnósticos, multi-entidad, "por qué", "qué hago") sigue por el narrador de siempre — esto NO reemplaza la
+// Pasada 2, solo la evita en el caso más angosto y más seguro de saltear.
+// Detección 100% DETERMINÍSTICA de plan+resultados (nunca del juicio del LLM sobre su propia respuesta):
+//   · intent=answer · scope.level=entity con EXACTAMENTE 1 entidad (plan.scope, ver planPrompt.js)
+//   · UNA sola call, a entityRecord (el único tool que devuelve una FILA completa direccionable por campo)
+//   · resultado soportado (coverage.supported=true — la entidad/eje existió)
+//   · EXACTAMENTE 1 métrica nombrada en el TEXTO CRUDO de la pregunta (reusa _extractTensionMetrics, ya probado
+//     para tensionRead) — 0 métricas = pide el registro completo (mejor servido por el narrador); 2+ = comparación
+//     o cruce (también mejor servido por el narrador, que puede tejer la relación entre ambas).
+function _simpleEntityMetric(q, plan, calls, results) {
+  if (!plan || plan.intent !== "answer") return null;
+  if (!plan.scope || plan.scope.level !== "entity" || !Array.isArray(plan.scope.entities) || plan.scope.entities.length !== 1) return null;
+  if (!Array.isArray(calls) || calls.length !== 1 || !calls[0] || calls[0].tool !== "entityRecord") return null;
+  if (!Array.isArray(results) || results.length !== 1) return null;
+  const r = results[0];
+  if (!r || !r.coverage || r.coverage.supported !== true || !r.facts) return null;
+  const tokens = _extractTensionMetrics(q);
+  if (tokens.length !== 1) return null;
+  const label = fieldLabel(tokens[0].token);
+  if (!label || r.facts[label] == null) return null;   // el campo no está en ESTE registro → cede al narrador, no inventa
+  const entity = r.facts.entidad || plan.scope.entities[0];
+  if (!entity) return null;
+  return { entity, label, value: r.facts[label], periodo: r.facts.periodo || null };
+}
+// _rutaDeterministica(hit) → la frase — "Entidad · Etiqueta: valor" es la MISMA convención que usan fig()/boleta en
+// todo el motor (entityRecord.js, temporal.js…): evita el riesgo de concordancia de género/número del español
+// ("el margen es"/"la venta es") con una forma ya establecida en el resto del producto, no una inventada acá.
+function _rutaDeterministica({ entity, label, value, periodo }) {
+  const periodoTxt = periodo ? (/a[nñ]o cerrado/i.test(periodo) ? " (año cerrado)" : ` (${periodo})`) : "";
+  return `${entity} · ${label}: ${value}${periodoTxt}.`;
+}
+
 // ── MODO CONVERSACIONAL · capa de rol operativa (Fase 1: default|clarify · Fase 2: + diagnostico/decision/
 // simulacion/seguimiento/evidencia — owner 2026-07-29: "no quiero un parche para 'no entendí'... quiero un sistema
 // sofisticado pero controlado") — `mode` es un EJE DISTINTO de `intent`: intent decide QUÉ DATO pedir, mode decide
@@ -191,13 +228,35 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const { ledger, results, trace } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
   const figs = ledgerBoleta(ledger);
 
+  // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
+  // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
+  const periodos = periodosEsperados(results);
+  const sealedOrders = [];
+  for (const r of results) {
+    if (r && r.facts) {
+      if (r.facts.orden) sealedOrders.push(r.facts.orden);
+      if (r.facts.ordenA) sealedOrders.push(r.facts.ordenA);
+      if (r.facts.ordenB) sealedOrders.push(r.facts.ordenB);
+    }
+  }
+
+  // ── RUTA DETERMINÍSTICA (requisito 1) — se intenta ANTES de gastar la llamada de narrar; si no aplica o el
+  // propio guard no la valida (indicaría un bug de construcción, nunca variance de LLM — reintentar con el MISMO
+  // texto siempre daría el mismo resultado), cae de largo a la Pasada 2 de siempre, sin penalidad.
+  let narration = null;
+  let deterministic = false;
+  const simple = _simpleEntityMetric(q, plan, calls, results);
+  if (simple) {
+    const det = ensurePeriodoDeclared(_rutaDeterministica(simple), periodos);
+    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
+  }
+
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ──
   // Un rechazo del guard suele ser VARIANCE del LLM (una cifra derivada, una atribución yuxtapuesta). Re-muestrear
   // recupera la mayoría de esos turnos SIN debilitar el muro (el guard valida cada intento igual). El 2º reintento
   // solo se dispara cuando los dos primeros fallaron —los casos difíciles (temporal por entidad, cruces)— donde
   // recuperar una respuesta LIMPIA de C vale más que caer al fallback. Solo si los TRES fallan, C se abstiene.
-  let narration = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  if (!narration) for (let attempt = 0; attempt < 3; attempt++) {
     let n;
     try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext }); }
     catch { return null; }
@@ -205,8 +264,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
+    n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     if (!n.trim()) continue;
-    if (guardC(n, { ledger, results, trace, question: q, mechanismMemory }).ok) { narration = n; break; }
+    if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = n; break; }
   }
   if (!narration) return null;   // dos intentos no pasaron el muro → C se abstiene (fallback a la ruta vieja)
 
@@ -227,6 +287,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // trazabilidad multiempresa (owner 2026-07-29): qué tenant/snapshot/esquema respondió este turno — nunca se
       // manda al LLM (no es parte del contrato conversacional), solo viaja en la evidencia para auditoría/debug.
       ...(requestContext ? { requestContext: { tenantId: requestContext.tenantId, dataSnapshotId: requestContext.dataSnapshotId, conversationId: requestContext.conversationId, schemaVersion: requestContext.schemaVersion } } : {}),
+      // marca de la ruta determinística (requisito 1, pase quirúrgico 2026-07-29): la Pasada 2 (LLM) NO corrió este
+      // turno — solo debug/telemetría, nunca condiciona el motor ni el guard.
+      ...(deterministic ? { deterministic: true } : {}),
       suggestions: null,
       sentrixAction: null,
     },
