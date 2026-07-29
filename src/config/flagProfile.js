@@ -36,6 +36,12 @@ const FEATURE = [
   "ADI_SENTRIX_BOLETA_ENABLED", "ADI_SENTRIX_READING_ENABLED", "ADI_SENTRIX_EXPLORE_ENABLED",
   "ADI_SENTRIX_PARETO_ENABLED", "ADI_SENTRIX_SHELL_ENABLED", "ADI_SENTRIX_TEMPORAL_ENABLED",
   "ADI_SENTRIX_CUADRO_ENABLED",
+  // ARQUITECTURA C · ORÁCULO VERIFICADO (owner 2026-07-29, tras verificación en vivo en producción con ?oracle=1 +
+  // los 6 pendientes del veredicto de 18 turnos cerrados con gate + 2 bugs reales de P&L cazados y arreglados en
+  // vivo): pasa de override manual a DEFAULT en demo/prod/dev. `floor` (Node/gates/oráculo) sigue en [] — byte-exacto
+  // intacto, esta lista no lo toca. El override por navegador (localStorage adi_oracle / ?oracle=0) sigue vivo para
+  // comparar con la ruta vieja si hiciera falta.
+  "ADI_ORACLE_ENABLED",
 ];
 
 // DEV-TOOLS · herramientas internas · SOLO dev (nunca demo/prod)
