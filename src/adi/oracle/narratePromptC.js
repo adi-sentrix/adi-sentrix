@@ -4,6 +4,7 @@
  * después. Acá NO hay texto determinístico previo — el narrador escribe la respuesta entera. Aún en sombra.
  */
 import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
+import { isDefaultPref, buildPrefDispatch } from "./responsePreference.js";
 
 // buildNarrateSystemC(persona, memBlock) → system de la Pasada 2. Prompt COMPLETO de narración (owner 2026-07-28:
 // "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada CFO · contá la historia · más
@@ -17,6 +18,8 @@ REGLA INNEGOCIABLE DE CIFRAS: escribí SOLO cifras que estén en "cifras_autoriz
   ⚠ EL ERROR MÁS FRECUENTE — LA PROPORCIÓN DE ADORNO. Al recomendar, NO le cuelgues a la acción un porcentaje que no está en el dato: "los cinco SKU que explican el 70% de las ventas", "los clientes que representan el 60% de la brecha", "recuperar al menos un 10% del margen", "apuntá a mejorar un 5%" — NI reformulada en "puntos porcentuales" para esquivar el "%" ("establecé un objetivo de subir 5 puntos porcentuales" es el MISMO invento con otra ropa). Esas cifras suenan bien y son INVENTADAS — te van a rebotar y el turno se pierde. Una participación (share) o una meta de recuperación SOLO se escriben si vienen en cifras_autorizadas. Si no las tenés, nombrá la acción SIN el porcentaje: "empezá por los cinco SKU de mayor contribución" (no "…que explican el 70%"), "cerrá la brecha con el Cliente A y el Cliente B" (no "…que son el 60%"). La acción bien nombrada no necesita una cifra falsa. Los números dentro de "datos.facts" son para que RAZONES el patrón; si vas a escribir uno, tiene que estar (o derivarse por suma/resta) de cifras_autorizadas.
 
 ${buildModeDispatch()}
+
+${buildPrefDispatch()}
 
 LA ESTRUCTURA — CONTÁS LA HISTORIA, SIEMPRE EN ESTE ARCO (proporcional a la pregunta; EXCEPCIÓN: modo=clarify de arriba lo reemplaza entero, modo=decision arranca directo por el punto 3):
 (1) QUÉ ESTÁ PASANDO — abrí con la lectura, el titular con su cifra (el hallazgo, no un inventario de datos).
@@ -116,7 +119,7 @@ export function stripFiller(text) {
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history }) {
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref }) {
   const datos = (results || []).map((r) => ({
     tool: r.tool,
     disponible: !!(r.coverage && r.coverage.supported),
@@ -136,6 +139,10 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // entendió (cero cifras, ejemplo concreto). Threaded vía plan.clarifyStreak desde answerViaOracle.js.
     ...(modo === "clarify" ? { nivel_aclaracion: (plan && plan.clarifyStreak) || 1 } : {}),
     alcance: (plan && plan.scope) || null,
+    // PREFERENCIA DE RESPUESTA (owner 2026-07-29) — SOLO viaja si es distinta del default (mismo principio de
+    // payload mínimo que nivel_aclaracion arriba): un turno normal, sin pedido de formato, no le agrega NADA nuevo
+    // al prompt del narrador — cero riesgo de drift para el 100% de los turnos que nunca tocan esta feature.
+    ...(!isDefaultPref(pref) ? { preferencia_respuesta: { alcance: pref.contentScope || "full", detalle: pref.detailLevel || "standard" } } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     datos,
     cifras_autorizadas,

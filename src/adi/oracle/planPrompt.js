@@ -5,6 +5,7 @@
  * (tool_choice forzado sobre PLAN_TOOL). NO calcula ni inventa cifras: solo decide qué datos pedir. Aún en sombra.
  */
 import { MODE_KEYS, buildModeDoctrine } from "./conversationalContract.js";
+import { DETAIL_LEVELS, CONTENT_SCOPES, buildPrefDoctrine } from "./responsePreference.js";
 
 // CATÁLOGO que ve el LLM · una línea por tool: qué responde + qué args. Colapsa el `focus` (arg, no regex).
 export const TOOL_CATALOG = `queryMetric{metric,dimension,filters?,limit?} — ranking/lista de una métrica por un eje ENTERO (con filtro opcional de OTRO eje). métricas: ventas, margen, contribucion, costo, capital, rotacion, doh. ejes(dimension): cliente, marca, familia, sku, bodega, canal. Ej: "ventas por cliente" → {metric:"ventas",dimension:"cliente"}. NUNCA la uses para UNA entidad puntual ya nombrada (ej. "unidades vendidas de X", "el margen de Y") aunque suene a "una métrica" — eso es entityRecord/entityProfile con esa entidad; queryMetric es solo para listar/rankear el eje completo, no trae la fila de una sola entidad.
@@ -41,6 +42,20 @@ export const PLAN_TOOL = {
       // answerViaOracle.js tiene además un chequeo determinístico que FUERZA mode="clarify" ante frases inequívocas
       // ("no entendí", "explícame más fácil", "qué significa") — esto de acá cubre el resto por comprensión.
       mode: { type: "string", enum: MODE_KEYS, description: "decide CÓMO se narra la respuesta (ver doctrina de modos en el system prompt) — nunca cambia qué datos pedís." },
+      // PREFERENCIA DE RESPUESTA (owner 2026-07-29) — EJE DISTINTO de `mode`: mode decide QUÉ necesita el usuario
+      // (dato/diagnóstico/decisión/simulación), pref decide CÓMO quiere recibirlo (completo o comprimido). Fuente
+      // única en responsePreference.js (misma arquitectura que MODE_KEYS/conversationalContract.js). Objeto OPCIONAL
+      // y disperso: solo se llena cuando el turno ACTUAL lo pide — un turno sin pedido de formato lo deja vacío, el
+      // motor mantiene la preferencia de sesión si había una (ver answerViaOracle.js, coerción determinística de red).
+      pref: {
+        type: "object", additionalProperties: false,
+        description: "Preferencia de FORMATO de respuesta, SOLO si el usuario la pidió en ESTE turno (ver doctrina 'PREFERENCIA DE RESPUESTA' en el system). No la repitas de un turno anterior — dejala vacía si no dijo nada al respecto ahora.",
+        properties: {
+          detailLevel: { type: "string", enum: DETAIL_LEVELS },
+          contentScope: { type: "string", enum: CONTENT_SCOPES },
+          persist: { type: "boolean", description: "true SOLO si el usuario dijo algo como 'desde ahora'/'de ahora en adelante'/'siempre respondeme así' (la preferencia debe durar más de este turno). Default false: un pedido puntual de brevedad/alcance sin ese marcador aplica SOLO a este turno." },
+        },
+      },
       rationale: { type: "string", description: "En una frase, por qué este plan (para auditoría)." },
       scope: {
         type: "object", additionalProperties: false,
@@ -109,6 +124,7 @@ Otras reglas:
 · DEFINICIÓN: si pregunta qué significa un concepto ("qué es X", "a qué te referís con X", "explicame X") → intent="define" Y SIEMPRE llamá defineConcept: calls=[{tool:"defineConcept", args:{concept:"<el concepto tal como lo nombra el usuario, ej: contribución no capturada>"}}]. NUNCA dejes calls vacío en una definición — la definición sale del glosario, no de tu memoria.
 · MODO (elegí SIEMPRE uno, por comprensión — no cambia QUÉ pedís, solo CÓMO se va a narrar; seguí pidiendo los mismos datos que la pregunta necesita en cualquier modo):
 ${buildModeDoctrine()}
+${buildPrefDoctrine()}
 · TRATO/IDENTIDAD: si da una instrucción de cómo tratarlo → llená memoryUpdate. "llámame X" → nombre:X. "trátame de usted" → trato:usted; "de tú"/"tuteame" → trato:tu. "háblame más directo/sin rodeos/al grano" → verbosidad:directo. "explicame más" → verbosidad:explicativo. "no uses tecnicismos" → tecnicismo:bajo. "no me muestres tablas" → tablas:false. "prioriza lo financiero/el impacto económico" → prioridad:financiero. Si SOLO da la instrucción → intent="ack", calls=[]. Si además pregunta algo → intent="answer" con sus calls.
 · Elegí las tools mínimas que respondan de verdad. Una respuesta "overview"/"resumen"/"insight del negocio" puede pedir varias (ej. executiveSummary, o diagnose + queryMetric) — pero con el alcance correcto.
 · TEMPORAL: para "mes a mes", "mensual", "evolución", "cómo viene mes a mes", un trimestre/Q, un semestre, un mes puntual, un rango de meses, o "esto mismo mes a mes" → usá la tool 'trend' (metric + dimension o entity + period). El dato mensual REAL es VENTAS y CONTRIBUCIÓN (la propia tool declara honesto lo que no: resultado/P&L mensual, inventario mensual, canal mensual, margen en matriz por eje). CONSERVÁ EL ALCANCE DEL TURNO ANTERIOR: si venías hablando de un EJE (los SKU, los clientes, las marcas) y ahora piden "esto mismo mes a mes", pasá ese eje → dimension:"sku"/"cliente"/"marca" (NO el negocio global: cambiarle el alcance al usuario sin avisar es peor que no responder). Si venías de UNA entidad, pasá entity. Si en un seguimiento la métrica anterior no tiene mensual (ej. costo medio), pedí 'trend' de la que SÍ (ventas/contribución) sobre el MISMO eje — no la foto actual. FUTURO/pronóstico NO existe (no hay serie a futuro): eso sí, intent="answer" y el narrador aclara que no proyecta.

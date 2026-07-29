@@ -148,8 +148,8 @@ async function _fetchPlan({ text, history, mem, scenario, requestContext }) {
   return data.plan;
 }
 // Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
-async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext }) {
-  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history });
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref }) {
+  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref });
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId }),

@@ -103,6 +103,8 @@ console.log("\n── 6 · SMOKE LLM REAL — 'solo dame el dato' desactiva el a
   if (r && r.r.deterministic) {
     ok(!/target de carga comercial|por encima de|por debajo de|en l[ií]nea con|analizarlo/i.test(r.r.text), `"solo dame el dato" suprime CUALQUIER lectura/oferta — "${r.r.text}"`);
     ok(/a[nñ]o cerrado/.test(r.r.text), "el período se mantiene aunque se suprima el análisis (requisito 7: oración natural + período, sin análisis adicional)");
+    ok(!/^[A-ZÁÉÍÓÚÑ][\w\sÁÉÍÓÚÑáéíóúñ]*\s·\s/.test(r.r.text), `"solo dame el dato" NO degrada a la forma telegráfica "Entidad · Etiqueta: valor" — sigue siendo la MISMA oración natural (requisito 1), solo sin la lectura — "${r.r.text}"`);
+    ok(/\bes\b|\bson\b/.test(r.r.text), "la oración natural conserva su verbo (es/son) — la estructura del requisito 1 no se pierde al suprimir el análisis");
   } else {
     console.log("  (no disparó la ruta determinística esta corrida — variance de clasificación, no de este contrato)");
   }

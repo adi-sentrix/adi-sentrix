@@ -14,6 +14,7 @@ import { stripFiller, normalizeFigures } from "./narratePromptC.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
+import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -149,9 +150,14 @@ function _simpleEntityMetric(q, plan, calls, results) {
 //   4. la referencia sale del MISMO registro/misma POLICY → mismo alcance y período, automático por construcción.
 //   5. "significativo" es un umbral FIJO por métrica (ver REFERENCIA_CAMPO/REFERENCIA_ANTERIOR), nunca juicio del LLM.
 //   6. sin referencia válida → dato limpio + oferta de análisis, nunca se fabrica una lectura.
-//   7. "solo dame el dato" desactiva la lectura aunque exista referencia (_SOLO_DATO_RE).
+//   7. "solo dame el dato" desactiva la lectura aunque exista referencia.
 //   8. MISMA voz que la narración libre — oración ejecutiva, sin jerga, sin dramatizar (no dice "bien"/"mal",
 //      solo la relación factual "por encima/por debajo de").
+// GENERALIZACIÓN (owner 2026-07-29, "preferencia de respuesta estructurada y neutral al proveedor, separada del
+// modo conversacional"): el requisito 7 de arriba ERA su propio regex de ruta (_SOLO_DATO_RE) — ahora es un caso
+// particular de `pref.contentScope==="data_only"` (ver responsePreference.js + _coercePref más abajo), el MISMO eje
+// que consume la Pasada 2 (narratePromptC.js). Una sola preferencia, dos rutas, ninguna colección de regex propia
+// por ruta — _rutaDeterministica recibe `pref` YA RESUELTO (turno > sesión > default), no vuelve a clasificar nada.
 const _METRICA_ORACION = {
   contribucion: { articulo: "la", plural: false, sustantivo: "contribución" },
   margen:       { articulo: "el", plural: false, sustantivo: "margen" },
@@ -165,8 +171,6 @@ const _METRICA_ORACION = {
   unidades:     { articulo: "las", plural: true, sustantivo: "unidades vendidas" },
   pctRebate:    { articulo: "el", plural: false, sustantivo: "rebate" },
 };
-const _SOLO_DATO_RE = /\bsolo\s+(?:el\s+|la\s+)?(?:dato|n[uú]mero|cifra)\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bnada\s+m[aá]s\b|\bdame\s+solo\b/i;
-
 // _lecturaMinima(token, rec, rawValue) → la frase de lectura, o null si NO hay referencia autorizada para este
 // campo (el caller degrada a "dato limpio + oferta", nunca inventa una comparación).
 function _lecturaMinima(token, rec, rawValue) {
@@ -193,16 +197,18 @@ function _lecturaMinima(token, rec, rawValue) {
   return null;   // sin referencia autorizada — el caller ofrece análisis, no inventa una lectura
 }
 
-function _rutaDeterministica(q, { entity, label, token, value, periodo, rec, rawValue }) {
+function _rutaDeterministica(pref, { entity, label, token, value, periodo, rec, rawValue }) {
   const m = _METRICA_ORACION[token] || { articulo: "el", plural: false, sustantivo: label.toLowerCase() };
   const verbo = m.plural ? "son" : "es";
   const art = m.articulo.charAt(0).toUpperCase() + m.articulo.slice(1);
   const periodoTxt = periodo ? (/a[nñ]o cerrado/i.test(periodo) ? "en el año cerrado" : /foto.*hoy/i.test(periodo) ? "a la fecha de hoy" : null) : null;
   const oracion = `${art} ${m.sustantivo} de ${entity} ${verbo} ${value}${periodoTxt ? `, ${periodoTxt}` : ""}.`;
-  if (_SOLO_DATO_RE.test(q)) return oracion;   // requisito 7: el usuario pidió SOLO el dato — se respeta, sin análisis
+  if (pref.contentScope === "data_only") return oracion;   // requisito 7 generalizado: el usuario pidió SOLO el dato — se respeta, sin análisis
   if (typeof rawValue !== "number") return oracion;   // defensivo: sin crudo para comparar, no debería pasar
   const lectura = _lecturaMinima(token, rec, rawValue);
-  return lectura ? `${oracion} ${lectura}` : `${oracion} Si querés, puedo analizarlo con más detalle.`;
+  if (lectura) return `${oracion} ${lectura}`;
+  // brief: la oferta de análisis es contexto NO indispensable — se recorta. standard: se ofrece, como siempre.
+  return pref.detailLevel === "brief" ? oracion : `${oracion} Si querés, puedo analizarlo con más detalle.`;
 }
 
 // ── MODO CONVERSACIONAL · capa de rol operativa (Fase 1: default|clarify · Fase 2: + diagnostico/decision/
@@ -223,6 +229,61 @@ const _CLARIFY_RE = /\b(no\s+(?:te\s+)?entiend\w*|no\s+entend[ií]\w*|no compren
 function _coerceMode(text, plan) {
   if (_CLARIFY_RE.test(String(text || ""))) return "clarify";
   return plan && MODE_KEYS.includes(plan.mode) ? plan.mode : "default";
+}
+
+// ── PREFERENCIA DE RESPUESTA · coerción determinística (owner 2026-07-29: "el PLAN debe detectarla y devolverla
+// estructurada. Usa coerción determinística únicamente como red para instrucciones explícitas, no como mecanismo
+// principal") — MISMO patrón y MISMA precedencia que _coerceMode arriba: el LLM (plan.pref) es el mecanismo
+// PRINCIPAL (entiende cualquier paráfrasis); estas regexes son la RED que fuerza el valor SOLO ante frases
+// inequívocas, igual de angostas que _CLARIFY_RE — nunca al revés (nunca "adivinan" una preferencia ambigua que el
+// LLM ya haya decidido no marcar). _PREF_DATA_ONLY_RE es un SUPERSET literal del viejo _SOLO_DATO_RE retirado
+// arriba — mismo comportamiento para las frases que YA estaban probadas, más "solo cifras/KPIs/números" (requisito
+// del owner: "resumen ejecutivo... solo cifras").
+const _PREF_DATA_ONLY_RE = /\bsolo\s+(?:el\s+|la\s+|los\s+|las\s+)?(?:dato|datos|n[uú]mero|n[uú]meros|cifras?|kpis?)\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bnada\s+m[aá]s\b|\bdame\s+solo\b/i;
+const _PREF_ACTION_ONLY_RE = /\bsolo\s+la\s+acci[oó]n\b|\bsin\s+(?:el\s+)?diagn[oó]stico\b|\band[aá]\s+al\s+grano\b|\bdirecto\s+a\s+la\s+acci[oó]n\b|\bsin\s+repetir\s+el\s+diagn[oó]stico\b/i;
+// "resultados"/"sin recomendación" SOLO se leen como results_only dentro de una SIMULACIÓN (mode="simulacion") —
+// fuera de ese contexto "sin recomendación" es ambiguo (una decisión SIN recomendación no tiene mucho sentido) y se
+// deja al criterio del LLM (plan.pref), no se fuerza por red.
+const _PREF_RESULTS_ONLY_SIM_RE = /\bsolo\s+(?:los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b/i;
+const _PREF_BRIEF_RE = /\bresponde?(?:me)?\s+breve\b|\bs[eé]\s+breve\b|\brespuesta\s+corta\b|\bmuy\s+resumido\b|\bcorto\s+y\s+concreto\b|\bresum[ií]me\b/i;
+// _PREF_RESET_RE fija los VALORES (full/standard); CUÁLES de esas frases ADEMÁS persisten vive en _PREF_PERSIST_RE
+// (no las dos a la vez acá) — "análisis/respuesta completo"/"como antes" son AMBIGUAS entre "solo esta vez" y
+// "no más brevedad" (se resuelven al default seguro: un turno), mientras que "volvé a lo normal"/"ya no
+// necesito/hace falta que sea breve" SÍ son una cancelación explícita hacia adelante — estas dos últimas están
+// duplicadas en AMBAS listas a propósito (fijan el valor Y marcan persistencia).
+const _PREF_RESET_RE = /\b(?:an[aá]lisis|respuesta)\s+completo?a?\b|\bvolv[eé]\s+a\s+lo\s+normal\b|\bya\s+no\s+(?:necesito|hace\s+falta|quiero)\s+que\s+sea\s+breve\b|\bcomo\s+antes\b/i;
+const _PREF_PERSIST_RE = /\bdesde\s+ahora\b|\bde\s+ahora\s+en\s+adelante\b|\ba\s+partir\s+de\s+ahora\b|\bsiempre\s+respond[eé]me?\b|\ben\s+adelante\b|\bvolv[eé]\s+a\s+lo\s+normal\b|\bya\s+no\s+(?:necesito|hace\s+falta|quiero)\s+que\s+sea\s+breve\b/i;
+const _PREF_ONE_TURN_RE = /\bsolo\s+esta\s+vez\b|\bpor\s+esta\s+vez\b|\bsolo\s+por\s+ahora\b|\bahora\s+solo\b/i;
+
+// _coercePref(text, plan) → { contentScope, detailLevel, persist } | null (null = ninguna señal este turno, ni del
+// LLM ni de la red — el llamador cae a la preferencia de SESIÓN si había una, o al default). `plan.pref` (si el LLM
+// lo llenó) se respeta tal cual salvo que una frase de la red la contradiga de forma inequívoca — la red SIEMPRE
+// puede forzar (igual que _coerceMode fuerza "clarify"), nunca al revés.
+function _coercePref(text, plan) {
+  const t = String(text || "");
+  const llmPref = (plan && plan.pref && typeof plan.pref === "object") ? plan.pref : {};
+  let contentScope = CONTENT_SCOPES.includes(llmPref.contentScope) ? llmPref.contentScope : null;
+  let detailLevel = DETAIL_LEVELS.includes(llmPref.detailLevel) ? llmPref.detailLevel : null;
+  let persist = llmPref.persist === true;
+  const isSim = plan && plan.mode === "simulacion";
+
+  // "volver a lo normal" fija los VALORES (full/standard) pero sigue la MISMA regla de alcance temporal que
+  // cualquier otro pedido (persist solo si ADEMÁS hay un marcador explícito, ver abajo) — "de nuevo"/"como antes"
+  // es genuinamente ambiguo entre "solo esta vez" y "no más brevedad", así que no se asume ninguna de las dos:
+  // si el usuario quiere cancelar la sesión, "desde ahora..."/"ya no hace falta..." ya matchean _PREF_PERSIST_RE.
+  if (_PREF_RESET_RE.test(t)) {
+    contentScope = "full"; detailLevel = "standard";
+  } else {
+    if (_PREF_ACTION_ONLY_RE.test(t)) contentScope = "action_only";
+    else if (isSim && _PREF_RESULTS_ONLY_SIM_RE.test(t)) contentScope = "results_only";
+    else if (_PREF_DATA_ONLY_RE.test(t)) contentScope = "data_only";
+    if (_PREF_BRIEF_RE.test(t)) detailLevel = "brief";
+  }
+  if (_PREF_PERSIST_RE.test(t)) persist = true;
+  if (_PREF_ONE_TURN_RE.test(t)) persist = false;   // marcador explícito de "esta vez" siempre gana sobre persist
+
+  if (contentScope == null && detailLevel == null) return null;   // sin señal este turno → el llamador usa sesión/default
+  return { contentScope, detailLevel, persist };
 }
 
 // answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls }) → { r, mem } | null
@@ -279,6 +340,20 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const clarifyStreakPrev = (mem && typeof mem.clarifyStreak === "number") ? mem.clarifyStreak : 0;
   const clarifyStreakNow = plan.mode === "clarify" ? clarifyStreakPrev + 1 : 0;
   plan = { ...plan, clarifyStreak: clarifyStreakNow };
+
+  // PREFERENCIA DE RESPUESTA (owner 2026-07-29: eje DISTINTO de `mode` — ver responsePreference.js). Se lee la
+  // preferencia de SESIÓN del `mem` ORIGINAL (misma razón que mechanismMemory/clarifyStreak arriba: applyMemoryUpdate
+  // no preserva claves ajenas). `turnPref` es SOLO lo que este turno pidió (LLM + red determinística de arriba) — si
+  // es null, este turno no dijo nada de formato y hereda la sesión. `pref` (efectivo) = turno > sesión > default;
+  // NUNCA se escribe en mem2 salvo que el turno pida persist=true (requisito "no arrastres accidentalmente data_only
+  // al turno siguiente" — el default es no-contaminación, la sesión solo cambia cuando se lo piden explícitamente).
+  const sessionPrefPrev = (mem && mem.responsePref && typeof mem.responsePref === "object") ? mem.responsePref : null;
+  const turnPref = _coercePref(q, plan);
+  const pref = {
+    contentScope: (turnPref && turnPref.contentScope) || (sessionPrefPrev && sessionPrefPrev.contentScope) || "full",
+    detailLevel: (turnPref && turnPref.detailLevel) || (sessionPrefPrev && sessionPrefPrev.detailLevel) || "standard",
+  };
+
   // memoria de interacción (trato/identidad) — se aplica ANTES de narrar
   let mem2 = plan.memoryUpdate ? applyMemoryUpdate(mem, plan.memoryUpdate) : mem;
   // se lo devolvemos explícito a mem2 (no solo a las variables de arriba): mem2 es lo que ve el NARRADOR (mem: mem2
@@ -286,6 +361,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // qué mecanismo/nivel de aclaración ya estaba establecido, aunque guardC sí lo chequeara bien por separado.
   if (Object.keys(mechanismMemory).length) mem2 = { ...mem2, mechanismByEntity: mechanismMemory };
   mem2 = { ...mem2, clarifyStreak: clarifyStreakNow };
+  if (sessionPrefPrev) mem2 = { ...mem2, responsePref: sessionPrefPrev };   // sobrevive applyMemoryUpdate, igual que mechanismByEntity
+  if (turnPref && turnPref.persist) mem2 = { ...mem2, responsePref: { contentScope: pref.contentScope, detailLevel: pref.detailLevel } };
 
   // ── BATCH DETERMINÍSTICO ──
   const { ledger, results, trace } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
@@ -310,7 +387,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   let deterministic = false;
   const simple = _simpleEntityMetric(q, plan, calls, results);
   if (simple) {
-    const det = ensurePeriodoDeclared(_rutaDeterministica(q, simple), periodos);
+    const det = ensurePeriodoDeclared(_rutaDeterministica(pref, simple), periodos);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 
@@ -321,7 +398,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // recuperar una respuesta LIMPIA de C vale más que caer al fallback. Solo si los TRES fallan, C se abstiene.
   if (!narration) for (let attempt = 0; attempt < 3; attempt++) {
     let n;
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref }); }
     catch { return null; }
     if (!n || typeof n !== "string" || !n.trim()) continue;
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
