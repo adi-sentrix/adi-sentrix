@@ -12,7 +12,7 @@
  * foto de hoy · canal mensual sin desglose → cada límite se DECLARA y redirige a donde el dato sí llega.
  * LA HISTORIA primero (tendencia · mejor/peor mes · quién tracciona — registro ejecutivo, cifras una por línea,
  * todas en la boleta) + LA TABLA estructurada en la evidencia (tabla_matriz → InlineChart). */
-import { buildGlobalEvolution, buildEntityEvolutionComparado } from "../sentrix/temporal.js";
+import { buildGlobalEvolution, buildEntityEvolutionComparado, reconcileMonthly } from "../sentrix/temporal.js";
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { fig } from "../boleta.js";
@@ -101,6 +101,14 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
       if (e) series.push({ nombre: nm, serie: e.serie, meses: e.meses });
     }
     if (!series.length) return null;
+    // D1 (auditoría 2026-07-28 "la matriz por eje y la curva del negocio son DOS SERIES DISTINTAS" — medido: un mes
+    // podía diferir ~1000 sobre ~6000, aunque el AÑO cuadraba exacto): reconcilia el MES A MES de cada fila contra la
+    // curva REAL del negocio (ventasMensuales), preservando el total anual de CADA entidad (el mismo que ya citaba el
+    // Total). Solo "venta" tiene esa curva externa propia; degrada honesto (sin tocar) si los universos no cuadran.
+    if (met === "venta") {
+      const rec = reconcileMonthly(series.map((s) => s.serie), buildGlobalEvolution().actual);
+      series.forEach((s, i) => { s.serie = rec[i]; });
+    }
     const meses = _rangoMeses(series[0].meses, p);
     const conSuma = series.map((s) => ({ ...s, rango: _rangoSerie(s.serie, p), total: _sum(_rangoSerie(s.serie, p)) })).sort((a, b) => b.total - a.total);
     const top = conSuma.slice(0, 4), resto = conSuma.slice(4);

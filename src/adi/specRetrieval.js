@@ -361,7 +361,9 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus } = {}) {
     // findings per-item para Sentrix (la boleta/panel los consume · lens diagnostico) · $ ya calculado del dato · + boleta (LLM #2)
     evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", boleta: bol,
       findings: focos.map((f) => ({ detector: f.detector, titulo: f.titulo, subtotal_usd: f.subtotal,
-        items: f.items.map((it) => ({ entidad: it.entidad, usd: it.usd, ...(it.bodega ? { bodega: it.bodega } : {}), ...(it.critico ? { critico: true } : {}) })) })) },
+        // `critico` se emite SIEMPRE que el concepto aplique (los items de capital lo traen como booleano), nunca
+        // solo-si-true: ausente se leía como "no sé" y el narrador llenaba el hueco ("todos con valores críticos").
+        items: f.items.map((it) => ({ entidad: it.entidad, usd: it.usd, ...(it.bodega ? { bodega: it.bodega } : {}), ...("critico" in it ? { critico: !!it.critico } : {}) })) })) },
   };
 }
 
@@ -731,7 +733,17 @@ const _mVenta = (v) => _money(v * 1000);   // venta/contribucion en MILES -> $ r
 const _MFOCUS_TITLE = { bajo_benchmark: "Margen vs benchmark", alto_volumen_bajo_margen: "Volumen vs margen", causa_precio: "Margen · el precio no da", causa_costo: "Margen · el costo aprieta", subir_precio: "Candidatos a subir precio", alto_margen_subpenetrado: "Alto margen subpenetrado", palancas: "Consumo de margen" };
 function _marginPanel(rows, bench, focus) {
   const rr = (rows || []).filter((r) => typeof r.margen === "number")
-    .map((r) => ({ nombre: r.nombre || r.sku, margen: r.margen, venta: typeof r.venta === "number" ? r.venta : null, markup: _markup(r), costShare: _costShare(r), below: r.margen < _benchOf(r) }))
+    .map((r) => {
+      const below = r.margen < _benchOf(r);
+      // MECANISMO DOMINANTE (turno 9 del veredicto de 18 turnos, owner 2026-07-29 — "diagnostica costo, recomienda
+      // precio, sin conectarlos"): solo para entidades BAJO benchmark (sin brecha no hay mecanismo que explicar).
+      // MISMO criterio que el detector "carga alta" de _diagComercial (pctRebate > POLICY.targetCarga) — UNA
+      // verdad, no una segunda fórmula inventada acá. Si la carga/rebate ya está sobre el target, ESE es el
+      // mecanismo que explica la brecha; si no, por eliminación es la relación costo/precio (costo estructural).
+      // Antes el narrador tenía que ADIVINAR entre costo/precio/rebate mirando columnas sueltas sin jerarquía.
+      const mecanismo = below && typeof r.pctRebate === "number" ? (r.pctRebate > POLICY.targetCarga ? "carga comercial/rebate" : "costo estructural") : null;
+      return { nombre: r.nombre || r.sku, margen: r.margen, venta: typeof r.venta === "number" ? r.venta : null, markup: _markup(r), costShare: _costShare(r), below, mecanismo };
+    })
     .sort((a, b) => a.margen - b.margen);
   return { title: _MFOCUS_TITLE[focus] || "Margen", bench, focus, showDecomp: focus === "causa_precio" || focus === "causa_costo" || focus === "subir_precio", rows: rr, belowCount: rr.filter((x) => x.below).length, total: rr.length };
 }
@@ -1798,6 +1810,106 @@ export function composeSpecSimulateCapital({ filters = {}, scenario } = {}) {
     sentrixAction: null,
     evidence: { lens: "diagnostico", metrica: "capital", dimension: "sku", boleta: bol, findings: [cap],
       simulate: { action: "liberar_capital" } },
+  };
+}
+
+/* ── composeSpecSimulateCosto · SIMULACIÓN DE COSTO MEDIO (turno 10 del veredicto de 18 turnos, owner 2026-07-29):
+ * "¿y si bajo el costo medio de mis peores SKU un 3%?" — capacidad AUSENTE hasta esta pasada: composeSpecSimulate
+ * (genérico, arriba) solo soporta un delta-% LINEAL sobre NIVELES (_SIMULABLE_DELTA_PCT: ventas/contribución/
+ * capital); "costo" no escala linealmente sobre el nivel pedido — afecta margen/contribución de forma derivada
+ * (venta − costo − rebates), igual que Carga/Capital ya son composers DEDICADOS y no pasan por el genérico. Reusa
+ * _marginRows/_benchOf/_scopeRows/_mNombre/_MLBL (MISMA fuente que marginRead/diveCauses — una verdad, cero fuente
+ * nueva). SIN TOPE por fila (lección D9 · turno 6 de esta misma auditoría: un tope deja las filas 4+ sin cifra
+ * autorizada y el LLM las inventa) — es aritmética barata sobre filas ya traídas, no trae más datos.
+ * Fórmula (por fila, un solo camino contable, auditable): costoS = costoA × (1+pct/100); dCosto = costoS − costoA;
+ * contribS = contribA − dCosto (costo baja → contribución sube en la MISMA magnitud, rebates/venta constantes);
+ * margenS = contribS / venta × 100. Devuelve null (coverage=false honesto) si no hay filas con costo/venta/
+ * contribución numéricos en el eje/filtro pedido — mismo patrón que el resto de composeSpecSimulate*. */
+export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct, scope = "bajo_benchmark", scenario } = {}) {
+  if (!Number.isFinite(pct)) return null;
+  // GUARD DE ABSURDOS (hallazgo del re-barrido de 17 turnos, owner 2026-07-29): sin tope, un pct grande (ej. -150%)
+  // deja costoSupuesto NEGATIVO y un margen de >100% narrado como recomendación real, con guardC en verde (la
+  // aritmética es internamente consistente, el problema es que el SUPUESTO en sí no es operable). MISMO criterio
+  // que el guard de absurdos ya establecido para el `simulate` genérico (answerADIFromSpec.js: 0% no mueve nada,
+  // más de ±50% deja de ser un supuesto operable) — UNA sola convención de "rango realista" en todo el producto.
+  if (pct === 0) return { unsupported: "Un 0% deja el costo igual — no hay supuesto que proyectar. Decime un porcentaje con dirección (\"¿y si bajo el costo medio 3%?\") y lo corro sobre el dato real." };
+  if (Math.abs(pct) > 50) return { unsupported: `Un ${pct > 0 ? "+" : ""}${pct}% ya no es un supuesto operable sobre el costo: a esa escala el costo se vuelve negativo o el negocio cambia por completo, y el dato actual deja de ser una base válida para proyectar. Probá un rango realista (entre ±1% y ±50%) y lo corro sobre el dato real.` };
+  const dim = _MLBL[dimension] ? dimension : "sku";
+  const L = _MLBL[dim];
+  const rows = _scopeRows(_marginRows(dim, scenario), filters, null)
+    .filter((r) => typeof r.costo === "number" && typeof r.venta === "number" && r.venta > 0 && typeof r.contribucion === "number");
+  if (!rows.length) return null;
+  const candidatos = scope === "all" ? rows : rows.filter((r) => typeof r.margen === "number" && r.margen < _benchOf(r));
+  if (!candidatos.length) return null;
+
+  const factor = 1 + pct / 100;
+  const items = candidatos.map((r) => {
+    const costoS = r.costo * factor;
+    const dCosto = costoS - r.costo;                                       // negativo si el costo baja
+    const contribS = r.contribucion - dCosto;
+    const margenS = r.venta ? +((contribS / r.venta) * 100).toFixed(1) : null;
+    return { name: _mNombre(r), costoA: r.costo, costoS, contribA: r.contribucion, contribS,
+      dContrib: contribS - r.contribucion, margenA: r.margen, margenS, venta: r.venta };
+  });
+  const totCostoA = items.reduce((s, it) => s + it.costoA, 0);
+  const totCostoS = items.reduce((s, it) => s + it.costoS, 0);
+  const totContribA = items.reduce((s, it) => s + it.contribA, 0);
+  const totContribS = items.reduce((s, it) => s + it.contribS, 0);
+  const totVenta = items.reduce((s, it) => s + it.venta, 0);
+  const margenPromA = totVenta ? +((totContribA / totVenta) * 100).toFixed(1) : null;
+  const margenPromS = totVenta ? +((totContribS / totVenta) * 100).toFixed(1) : null;
+  const totDContrib = totContribS - totContribA;
+
+  // concentración 80/20 sobre |Δcontribución| — MISMO principio que composeSpecSimulate (arriba, línea ~1626)
+  const impSorted = items.slice().sort((a, b) => Math.abs(b.dContrib) - Math.abs(a.dContrib));
+  const impTot = impSorted.reduce((s, it) => s + Math.abs(it.dContrib), 0) || 1;
+  let _cum = 0;
+  const bars = impSorted.map((it) => { _cum += Math.abs(it.dContrib); return { name: it.name, value: Math.abs(it.dContrib), pct: Math.round((Math.abs(it.dContrib) / impTot) * 100), cumPct: (_cum / impTot) * 100 }; });
+  let blockCount = bars.findIndex((b) => b.cumPct >= 80) + 1;
+  if (blockCount <= 0) blockCount = bars.length;
+  const blockPct = bars[blockCount - 1] ? Math.round(bars[blockCount - 1].cumPct) : 0;
+  const nEnt = items.length;
+  const single = nEnt === 1;
+  const concentrated = !single && blockCount <= Math.ceil(nEnt / 2);
+  const _plural = L.p, _sing = L.s;
+
+  const _ctx = `supuesto: costo medio ${_sgn(pct)}${pct}% sobre ${scope === "all" ? `todos los ${_plural}` : `los ${_plural} bajo benchmark`} (dato real)`;
+  // dirección: costo BAJA (pct<0) → contribución SUBE ("recuperando"); costo SUBE (pct>0) → contribución BAJA
+  // ("cediendo") — el framing tenía un bug real: usaba |Δ| y "recuperando" SIEMPRE, aunque el supuesto fuera
+  // subir el costo (contribución cayendo) — el texto decía "recuperando" sobre una PÉRDIDA (verificado en repro).
+  const _dSube = totDContrib >= 0;
+  const _verboImpacto = _dSube ? "recuperando" : "cediendo";
+  const _verboBloque = _dSube ? "de la recuperación" : "de la caída";
+  const opener = `${pct < 0 ? "Bajar" : "Subir"} el costo medio un ${Math.abs(pct)}% en ${nEnt} ${_plural}${scope === "bajo_benchmark" ? " bajo benchmark" : ""} mueve el margen promedio de ${margenPromA}% a ${margenPromS}%, ${_verboImpacto} ${_money(Math.abs(totDContrib) * 1000)} de contribución. ${single ? `El supuesto recae sobre un solo ${_sing}.` : concentrated ? `El impacto se concentra en ${blockCount} ${_plural} que explican el ${blockPct}% ${_verboBloque}.` : `El impacto se reparte entre los ${nEnt} ${_plural}.`} El cálculo es la mecánica contable (costo → contribución → margen); si el proveedor acepta ${pct < 0 ? "bajar" : "subir"} costo, o si cambia calidad/volumen de compra, queda fuera del dato — esa negociación real se decide caso a caso.`;
+
+  const bol = [
+    fig("Total · costo actual", _money(totCostoA * 1000), { unit: "money", raw: totCostoA * 1000, source: "actual", context: _ctx }),
+    fig("Total · costo supuesto", _money(totCostoS * 1000), { unit: "money", raw: totCostoS * 1000, source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }),
+    fig("Total · contribución actual", _money(totContribA * 1000), { unit: "money", raw: totContribA * 1000, source: "actual", context: _ctx }),
+    fig("Total · contribución supuesta", _money(totContribS * 1000), { unit: "money", raw: totContribS * 1000, mandatory: true, source: "computed", formula: "contribución + (costo actual − costo supuesto)", context: _ctx }),
+    fig("Impacto · contribución", _money(Math.abs(totDContrib) * 1000), { unit: "money", raw: Math.abs(totDContrib) * 1000, mandatory: true, source: "computed", formula: "Σ costo_i × (−pct%)", context: _ctx }),
+    fig("Margen promedio · actual", `${margenPromA}%`, { unit: "pct", raw: margenPromA, source: "actual", context: _ctx }),
+    fig("Margen promedio · nuevo", `${margenPromS}%`, { unit: "pct", raw: margenPromS, mandatory: true, source: "computed", formula: "contribución supuesta / venta × 100, ponderado", context: _ctx }),
+  ];
+  if (concentrated) bol.push(fig("Concentración · bloque", `${blockPct}%`, { unit: "pct", raw: blockPct, mandatory: true, source: "computed", formula: `${blockCount} ${_plural} acumulan el ${blockPct}% del Δ`, context: _ctx }));
+  // SIN TOPE por fila (lección D9) — cada candidata trae su costo/margen actual-vs-nuevo YA autorizado
+  for (const it of items) {
+    bol.push(fig(`${it.name} · Costo actual`, _money(it.costoA * 1000), { unit: "money", raw: it.costoA * 1000, source: "actual", context: _ctx }));
+    bol.push(fig(`${it.name} · Costo supuesto`, _money(it.costoS * 1000), { unit: "money", raw: it.costoS * 1000, source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }));
+    if (it.margenS != null) bol.push(fig(`${it.name} · Margen nuevo`, `${it.margenS}%`, { unit: "pct", raw: it.margenS, source: "computed", formula: "(contribución + Δcosto) / venta × 100", context: _ctx }));
+    bol.push(fig(`${it.name} · Δ contribución`, _money(Math.abs(it.dContrib) * 1000), { unit: "money", raw: Math.abs(it.dContrib) * 1000, source: "computed", formula: `costo × (${_sgn(pct)}${pct}%)`, context: _ctx }));
+  }
+
+  return {
+    opener,
+    suggestions: [`Bajá el costo con los ${_plural} de mayor impacto`],
+    sentrixAction: null,
+    evidence: { lens: "cuadro", entityType: dim, dimension: dim, metrica: "costo", boleta: bol,
+      transform: { op: "delta", value: pct, unit: "pct", base: "real", metric: "costo" },
+      projection: items.map((it) => ({ name: it.name, costoActual: it.costoA, costoSupuesto: it.costoS, margenActual: it.margenA, margenNuevo: it.margenS, dContrib: it.dContrib })),
+      total: { costoActual: totCostoA, costoSupuesto: totCostoS, contribActual: totContribA, contribSupuesto: totContribS, margenPromActual: margenPromA, margenPromNuevo: margenPromS },
+      concentration: { bars, blockCount, blockPct, n: nEnt, concentrated, single },
+    },
   };
 }
 

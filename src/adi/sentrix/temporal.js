@@ -207,6 +207,43 @@ const _AXIS_NAMES = {
   marca:   () => marcasMargen.map((m) => m.nombre),
   sku:     () => skusMargen.map((s) => s.nombre),
 };
+
+/* === reconcileMonthly (owner 2026-07-28 · auditoría "D1"): "la matriz por eje y la curva global son DOS SERIES
+ * DISTINTAS" — medido: Ene global=6.800 vs Σclientes=5.795 · Dic 9.600 vs 10.834 · el AÑO cuadra (100.000=100.000)
+ * pero NINGÚN MES cuadra. Raíz: cada entidad modula su propia tendencia histórica por la MISMA forma de estacionalidad
+ * y se ancla solo al TOTAL ANUAL propio — nada fuerza que la SUMA de todas por mes reproduzca el mes real del negocio.
+ *
+ * FIX = IPF (ajuste proporcional iterativo / RAS): alterna reescalar cada FILA (entidad) a su propio total anual —
+ * el que ya declaraba, intacto — y cada COLUMNA (mes) al mes real del negocio, hasta converger. Preserva AMBOS
+ * márgenes: el total de cada entidad sigue anclado a su período (por construcción, con el redondeo final CORRIGE
+ * el residuo en el ÚLTIMO mes de cada fila — la misma técnica que ya usa `_anchor`) y la suma mensual queda cerca
+ * del real (redondeo aparte). Si los universos no cuadran a nivel anual (no es una cobertura completa del eje),
+ * degrada SIN TOCAR la serie — nunca fuerza un ajuste que mentiría. Puro · determinístico · gate-testable. */
+export function reconcileMonthly(seriesList, globalSerie, iters = 12) {
+  const n = Array.isArray(seriesList) ? seriesList.length : 0;
+  if (!n || !Array.isArray(globalSerie)) return seriesList;
+  const m = globalSerie.length;
+  if (seriesList.some((s) => !Array.isArray(s) || s.length !== m)) return seriesList;
+  const rowTotals = seriesList.map((s) => _sum(s));
+  const totRow = _sum(rowTotals), totCol = _sum(globalSerie);
+  if (!totRow || !totCol || Math.abs(totRow - totCol) / totCol > 0.005) return seriesList;   // universos distintos → no ajustar (honesto)
+  let M = seriesList.map((s) => s.slice());
+  for (let it = 0; it < iters; it++) {
+    for (let i = 0; i < n; i++) { const s = _sum(M[i]); if (s > 0) { const k = rowTotals[i] / s; M[i] = M[i].map((v) => v * k); } }
+    for (let j = 0; j < m; j++) {
+      const s = M.reduce((a, r) => a + r[j], 0);
+      if (s > 0) { const k = globalSerie[j] / s; for (const r of M) r[j] *= k; }
+    }
+  }
+  // redondeo final: entero por celda, el residuo de CADA FILA se corrige en su último mes (el total de la entidad
+  // queda EXACTO al que ya declaraba · misma técnica de `_anchor`); la suma mensual queda cerca del real (rounding).
+  return M.map((row, i) => {
+    const rounded = row.map((v) => Math.round(v));
+    rounded[rounded.length - 1] += rowTotals[i] - _sum(rounded);
+    return rounded;
+  });
+}
+
 export function buildNegocioEvolution(dim = "cliente", metric = "venta") {
   const getNames = _AXIS_NAMES[dim];
   if (!getNames) return null;
@@ -217,16 +254,22 @@ export function buildNegocioEvolution(dim = "cliente", metric = "venta") {
     const serie = V.serie.map((v, i) => _round1((Cc.serie[i] / v) * 100));
     return { ..._entityAnalysis("negocio", metric, V.meses, serie), anterior: null };
   }
-  let sum = null, meses = null, sumAnt = null, allAnt = true;
+  let meses = null, sumAnt = null, allAnt = true;
+  const rows = [];   // series individuales por entidad (para reconciliar mes-a-mes contra el negocio real)
   for (const nm of names) {
     const e = buildEntityEvolutionComparado(nm, metric);
     if (!e) return null;   // una entidad sin serie → la suma no sería el negocio (honesto: sin gráfico)
-    if (!sum) { sum = e.serie.slice(); meses = e.meses; }
-    else { if (e.n !== sum.length) return null; e.serie.forEach((v, i) => { sum[i] += v; }); }
+    if (!meses) meses = e.meses;
+    else if (e.n !== meses.length) return null;
+    rows.push(e.serie);
     if (e.anterior) { if (!sumAnt) sumAnt = e.anterior.serie.slice(); else e.anterior.serie.forEach((v, i) => { sumAnt[i] += v; }); }
     else allAnt = false;
   }
-  if (!sum) return null;
+  if (!rows.length) return null;
+  // D1 · UNA VERDAD CON LA CURVA REAL: solo "venta" tiene un curva global independiente (ventasMensuales) contra la
+  // que reconciliar — contribución/margen agregados no tienen un ancla externa propia, quedan como antes (honesto).
+  const reconciled = metric === "venta" ? reconcileMonthly(rows, buildGlobalEvolution().actual) : rows;
+  const sum = meses.map((_, i) => reconciled.reduce((a, r) => a + r[i], 0));
   const anterior = metric === "venta" && allAnt && sumAnt ? { serie: sumAnt, total: _sum(sumAnt) } : null;
   return { ..._entityAnalysis("negocio", metric, meses, sum), anterior };
 }

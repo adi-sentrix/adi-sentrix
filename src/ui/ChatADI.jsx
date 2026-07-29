@@ -13,14 +13,16 @@ import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   /
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
-import { resetPnlDraft, ensurePnlNarration } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código)
+import { resetPnlDraft, ensurePnlNarration, detectPnlIntent } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código) + la red que le CEDE el turno del P&L a la ruta vieja (C no tiene el flujo guiado)
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag)
+import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
+import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
 import { C } from "./theme.js";
-import { renderMarkdownLite, isTabularText } from "./markdown.jsx";
+import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
 
 // Cuando answerADI devuelve route="not_yet_extracted" (text null), el motor es honesto: no inventa.
@@ -112,6 +114,49 @@ async function _fetchNarration(validated) {
   if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
   return data.narration;
 }
+// ── ARQUITECTURA C · Fase 3 · el oráculo detrás del flag ────────────────────────────────────────────────────────
+// override SOLO para probar en vivo sin re-buildear: localStorage adi_oracle="1" o ?oracle=1. El default (flag) es OFF.
+function _oracleOn() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      const v = localStorage.getItem("adi_oracle");
+      if (v === "0") return false;   // apagado explícito (para comparar con la ruta vieja)
+      if (v === "1") return true;    // prendido explícito
+    }
+    if (typeof location !== "undefined") {
+      if (/[?&]oracle=0\b/.test(location.search)) return false;
+      if (/[?&]oracle=1\b/.test(location.search)) return true;
+      const h = location.hostname || "";
+      const esProdReal = /(^|\.)adiai\.cl$/i.test(h) || /\.vercel\.app$/i.test(h);   // dominios REALES de producción
+      if (!esProdReal) return true;   // dev / localhost / IP / preview → oráculo ON por defecto (C en construcción)
+    }
+  } catch { /* headless */ }
+  return ADI_ORACLE_ENABLED;   // producción real: solo el flag (OFF salvo que se prenda a propósito)
+}
+// Pasada 1 · PLAN (server-side · la key vive en el gateway)
+async function _fetchPlan({ text, history, mem, scenario }) {
+  const res = await fetch("/api/adi-plan", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode() }),
+  });
+  const data = await res.json();
+  if (_accessDenied(data)) throw new Error("acceso requerido");
+  if (!data || !data.ok || !data.plan) throw new Error((data && data.error) || "gateway sin plan");
+  return data.plan;
+}
+// Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history }) {
+  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history });
+  const res = await fetch("/api/adi-narrate-c", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ payload, mem, access: getAccessCode() }),
+  });
+  const data = await res.json();
+  if (_accessDenied(data)) throw new Error("acceso requerido");
+  if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
+  return data.narration;
+}
+
 // FOLLOW-UP EJECUTIVO · "qué hacemos / qué recomendás / qué sigue / y ahora / cuál es la acción" → recomendación sobre la
 // última evidencia (NO se re-parsea como consulta nueva de eje/métrica). Solo dispara si hay una evidencia accionable previa.
 const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé]\s+recomiend[ao]s|qu[eé]\s+recomend[aá]s|qu[eé]\s+sigue|y\s+ahora|cu[aá]l\s+es\s+la\s+acci[oó]n)\b/i;
@@ -152,6 +197,26 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
   const _ph = typeof onPhase === "function" ? onPhase : () => {};
   const q = (question || "").trim();
   let r, narrated = false;
+  // ── ARQUITECTURA C · Fase 3 · ORÁCULO (detrás del flag · fallback intacto) ──
+  // El LLM PLANEA qué datos pedir → el motor los trae (batch puro client-side) → ADI NARRA con persona bajo guardC.
+  // Si C se abstiene (plan falla / guard rechaza) → o === null → CAE a la ruta vieja de abajo (byte-exacta). Flag OFF = nunca entra.
+  // C CEDE EL PASO AL P&L (owner 2026-07-28): el P&L es un CONTRATO MULTI-TURNO (flujo guiado que arma las líneas de
+  // gasto, recuerda, edita y sella · `_pnl_gate` 725 asserts). C es one-shot y no lo tiene → si interceptara, "¿cuánto
+  // me queda después de gastos?" perdería el flujo y respondería peor. detectPnlIntent es la MISMA red determinística
+  // que usa el coerce → cuando reclama el turno, C no entra y manda la ruta vieja (la buena para este dominio).
+  if (_oracleOn() && !detectPnlIntent(q)) {
+    try {
+      _ph(0);
+      const mem = (context && context.memoriaInteraccion) || {};
+      const history = Array.isArray(recentTurns) ? recentTurns : [];
+      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: _fetchPlan, callNarrate: _fetchNarrateC });
+      if (o && o.r) {
+        _ph(3);
+        const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem } };   // persiste la memoria de interacción en el hilo
+        return _turnFromResult(q, rr, context, "oracle");
+      }
+    } catch { /* el oráculo falló → seguimos a la ruta vieja (fallback intacto) */ }
+  }
   // ── PRECEDENCIA (V1 · owner): CONVERSACIONAL → REGEX (fallback) → UN-TURNO. El regex NO se elimina hasta probar el conversacional.
   const ui = getUISignals();   // memoria UI (owner 2026-07-08) · lo que el usuario está haciendo en la Mesa/paneles
   const convCtx = buildConversationContext(recentTurns, context && context.lastEvidence, ui, context && context.memoria);   // contexto chico para el LLM #1 (+ la boleta de memoria)
@@ -198,9 +263,54 @@ function AdiAvatar({ spark = false }) {
 
 // ── Cuerpo de un mensaje ADI · PURO · bloques con casos especiales Confianza/Recomendación.
 // Verbatim del render del chat del piso (L40229-40282). Mismo split/markdown → mismo texto visible.
+// Tabla markdown (| col | col |) → <table> real, con la paleta del chat. El narrador de C emite tablas así; sin esto
+// se verían los pipes crudos. Encabezado en mono uppercase, cifras en tabular-nums, columnas numéricas alineadas a la
+// derecha, filas con hairline. renderMarkdownLite(cell, true) da el resalte financiero color-only (limpio en celda).
+function MarkdownTable({ table, keyPrefix }) {
+  const { header, rows, align } = table;
+  return (
+    <div style={{ margin:"2px 0 18px 0", overflowX:"auto" }}>
+      <table style={{ borderCollapse:"collapse", width:"100%", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13.5 }}>
+        <thead>
+          <tr>
+            {header.map((h, i) => (
+              <th key={`${keyPrefix}-h${i}`} style={{
+                textAlign: align[i] === "right" ? "right" : "left",
+                padding:"0 14px 8px 0", borderBottom:`1px solid ${C.borderLight}`,
+                fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:10.5, fontWeight:600,
+                color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.7px", whiteSpace:"nowrap"
+              }}>{renderMarkdownLite(h, true)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, ri) => (
+            <tr key={`${keyPrefix}-r${ri}`}>
+              {r.map((cell, ci) => (
+                <td key={`${keyPrefix}-r${ri}c${ci}`} style={{
+                  textAlign: align[ci] === "right" ? "right" : "left",
+                  padding:"9px 14px 9px 0",
+                  borderBottom: ri < rows.length - 1 ? `1px solid ${C.border}` : "none",
+                  color: ci === 0 ? C.text : C.textSub,
+                  fontWeight: ci === 0 ? 600 : 400,
+                  fontVariantNumeric: align[ci] === "right" ? "tabular-nums" : "normal",
+                  whiteSpace: align[ci] === "right" ? "nowrap" : "normal"
+                }}>{renderMarkdownLite(cell, true)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function AdiMessageBody({ text }) {
   return text.split(/\n\n+/).filter(Boolean).map((block, blockIdx) => {
     const trimmed = block.trim();
+    // Tabla markdown de pipes → <table> real (antes que el modo ASCII, que no la reconoce)
+    const mdTable = parseMarkdownTable(trimmed);
+    if (mdTable) return <MarkdownTable key={`block-${blockIdx}`} table={mdTable} keyPrefix={`mdt-${blockIdx}`} />;
     // Cita Confianza · metadata con divider + check verde
     const isConfianza = /^\*[^*]+\*$/.test(trimmed) && /confianza/i.test(trimmed);
     if (isConfianza) {
@@ -516,6 +626,11 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const submitSpec = (spec, label) => {
     const q = (label || "").trim();
     if (!q) return;
+    // ORÁCULO ON (localhost/dev · C) → el chip se comporta como TIPEAR la pregunta: pasa por C (PLAN→BATCH→NARRAR),
+    // igual que el input libre → las preguntas de inicio quedan "bien conectadas al LLM" (owner 2026-07-28), con la
+    // MISMA calidad/estructura/tablas y la tool correcta que elija el plan. Con el oráculo OFF (prod real) sigue el
+    // spec determinístico enlatado + el flujo guiado del P&L intacto (cero regresión donde C no está).
+    if (_oracleOn()) { submit(q); return; }
     // answerConversational: byte-igual para specs de operación (new_query → seam) Y habilita chips enlatados
     // con turn_type (los P&L del inicio · owner 2026-07-25)
     const r0 = answerConversational(spec, context, { scenario });

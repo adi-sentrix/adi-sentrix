@@ -24,6 +24,7 @@ const _fmtC = (raw, unit) =>
   unit === "pct"   ? `${raw}%` :
   unit === "ratio" ? `${(+raw).toFixed(1)}x` :
   unit === "days"  ? `${Math.round(raw)}d` :
+  unit === "pp"    ? `${raw}pp` :
   String(raw);
 
 // fig(label, value, opts) → figura de boleta normalizada. `value` es el string YA formateado por el composer.
@@ -58,6 +59,14 @@ export function parseFigures(text) {
   while ((m = reRatio.exec(s))) push("ratio", num(m[1]), m[0]);
   const reDays = /(\d[\d.,]*\d|\d)\s?(?:d\b|d[ií]as?\b)/gi;       // Xd / X días
   while ((m = reDays.exec(s))) push("days", num(m[1]), m[0]);
+  // pp = PUNTOS PORCENTUALES (turno 18 del veredicto de 18 turnos, owner 2026-07-29): "5 puntos porcentuales"/
+  // "8.1 puntos de margen" son una CIFRA con signo (una brecha) tan real como un "%" — antes eran invisibles a
+  // parseFigures (ni bloqueadas ni autorizadas), así que un número inventado en esta forma pasaba el guard entero
+  // sin que nadie lo mirara. Acotado a "pp"/"puntos porcentuales"/"puntos de margen·brecha·carga" para NO capturar
+  // el uso ya establecido "X puntos por debajo/bajo el benchmark" (frase de brecha ya verificada en producción,
+  // permanece invisible al guard igual que antes — no se toca ese camino que ya funciona).
+  const rePP = /(-?)(\d[\d.,]*\d|\d)\s?(?:pp\b|puntos?\s+porcentuales?|puntos?\s+de\s+(?:margen|brecha|carga))/gi;
+  while ((m = rePP.exec(s))) { let v = num(m[2]); if (m[1] === "-") v = -v; push("pp", v, m[0]); }
   return out;
 }
 

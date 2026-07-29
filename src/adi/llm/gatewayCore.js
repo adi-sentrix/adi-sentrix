@@ -13,6 +13,10 @@ import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
 import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
+// ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
+import { ADI_PERSONA, renderInteractionMemory } from "../oracle/persona.js";
+import { buildPlanSystem, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
+import { buildNarrateSystemC } from "../oracle/narratePromptC.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
 // `env` inyectable para runtimes que no exponen process.env global (ej. Cloudflare Workers) · default process.env.
@@ -104,9 +108,37 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
   return { ok: true, narration, usage };
 }
 
+// ── ARQUITECTURA C · Fase 3 · las dos pasadas del oráculo (detrás del flag · fallback intacto) ──────────────────
+// PLAN (Pasada 1): texto (+ hilo + memoria de interacción) → PLAN estructurado (qué tools llamar, con qué alcance).
+// El BATCH determinístico corre en el CLIENTE (runPlan · puro); solo las 2 llamadas al LLM pasan por acá.
+export async function handlePlan({ text, history, mem, scenario, access } = {}, env) {
+  const acc = await _access(access, env);
+  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
+  if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
+  const { provider, model } = _config(env);
+  const system = buildPlanSystem(ADI_PERSONA, renderInteractionMemory(mem), scenario || "actual");
+  const user = buildPlanUserMessage(history, text);
+  const { spec: plan, usage } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
+  return { ok: true, plan, usage };
+}
+
+// NARRAR-C (Pasada 2): el CLIENTE ya corrió el batch y arma el payload (pregunta + datos + cifras_autorizadas +
+// memoria); acá solo inyectamos la persona + memoria como system y narramos. El guard endurecido corre en el cliente.
+export async function handleNarrateC({ payload, mem, access } = {}, env) {
+  const acc = await _access(access, env);
+  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
+  if (!payload || typeof payload !== "object") return { ok: false, error: "sin payload" };
+  const { provider, narrateModel } = _config(env);
+  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem));
+  const { text: narration, usage } = await getAdapter(provider).narrate(payload, { model: narrateModel, system });
+  return { ok: true, narration, usage };
+}
+
 // path → handler (para los wrappers que enrutan por URL)
 export const GATEWAY_ROUTES = {
   "/api/adi-spec": handleSpec,
   "/api/adi-narrate": handleNarrate,
   "/api/adi-access": handleAccess,   // demo privada · status/check/mint (owner 2026-07-08)
+  "/api/adi-plan": handlePlan,       // Arquitectura C · Pasada 1 (detrás del flag · fallback intacto)
+  "/api/adi-narrate-c": handleNarrateC, // Arquitectura C · Pasada 2
 };

@@ -69,6 +69,34 @@ export function renderWithFinancialHighlight(text, keyPrefix="fh", forcePlain=fa
   });
 }
 
+// parseMarkdownTable(block) → { header:[...], rows:[[...]], align:[...] } | null. Reconoce una tabla markdown de
+// pipes (encabezado + fila separadora `|---|---|` + filas). El narrador de C emite tablas así; el chat las pinta
+// como <table> real (no pipes crudos). align: "right" para columnas numéricas (cifras/%/$), "left" para texto.
+const _NUMCELL = /^[+\-]?[$]?\s?\d[\d.,]*\s?[%KMBxd]?$|^\$\s?\d/;
+export function parseMarkdownTable(block) {
+  const lines = String(block || "").trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return null;
+  if (!lines.every((l) => l.includes("|"))) return null;           // toda línea es una fila de tabla
+  if (!/^\|?[\s:|-]*-[\s:|-]*\|?$/.test(lines[1])) return null;     // 2ª línea = separadora (guiones/pipes/colon)
+  const cells = (l) => {
+    let s = l;
+    if (s.startsWith("|")) s = s.slice(1);
+    if (s.endsWith("|")) s = s.slice(0, -1);
+    return s.split("|").map((c) => c.trim());
+  };
+  const header = cells(lines[0]);
+  const rows = lines.slice(2).map(cells).filter((r) => r.some((c) => c !== ""));
+  if (!header.length || !rows.length) return null;
+  const ncol = header.length;
+  const align = [];
+  for (let c = 0; c < ncol; c++) {
+    let num = 0, tot = 0;
+    for (const r of rows) { const v = (r[c] || "").trim(); if (!v) continue; tot++; if (_NUMCELL.test(v)) num++; }
+    align.push(c > 0 && tot && num / tot >= 0.6 ? "right" : "left");
+  }
+  return { header, rows: rows.map((r) => { const o = r.slice(0, ncol); while (o.length < ncol) o.push(""); return o; }), align };
+}
+
 export function renderMarkdownLite(text, tabular=false) {
   if (!text) return null;
 

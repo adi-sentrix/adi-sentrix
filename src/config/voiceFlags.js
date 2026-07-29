@@ -275,6 +275,13 @@ export const ADI_LLM_ENABLED = (typeof __ADI_LLM_ENABLED__ !== "undefined") ? __
 // default TRUE salvo VITE_ADI_LLM_NARRATE_ENABLED="false" explícito. Mismo guard `typeof` para Node.
 export const ADI_LLM_NARRATE_ENABLED = (typeof __ADI_LLM_NARRATE_ENABLED__ !== "undefined") ? __ADI_LLM_NARRATE_ENABLED__ : true;
 
+// ── ARQUITECTURA C · Fase 3 · ORÁCULO VERIFICADO (PLAN→BATCH→NARRAR) detrás de flag · default FALSE ──
+// FALSE = pipeline vivo intacto byte-exacto (el cliente ni llama al oráculo). TRUE = el turno libre se resuelve por
+// el oráculo (el LLM planea qué datos pedir, el motor los trae, ADI narra con persona bajo guardC); si C se abstiene
+// (plan falla / guard rechaza) CAE a la ruta vieja (fallback intacto). Reversible: flag OFF = como si no existiera.
+// Además del env, ChatADI acepta un override SOLO-dev (localStorage adi_oracle / ?oracle=1) para probar en vivo.
+export const ADI_ORACLE_ENABLED = P("ADI_ORACLE_ENABLED");
+
 // ── ADI Core · Paso 5 · UX pre-prod · selector de escenarios SOLO en dev · default FALSE ──
 // FALSE = chip estático "Datos actuales" (el escenario interno sigue "bonanza"=base · motor/tests/scenarioLoad intactos). TRUE = ScenarioSelector.
 export const ADI_SCENARIO_SWITCHER_ENABLED = P("ADI_SCENARIO_SWITCHER_ENABLED");

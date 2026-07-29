@@ -351,6 +351,11 @@ const _METRIC_WORDS = /\b(ventas?|margen|contribuci[oó]n|capital|stock|inventar
 const _AFFIRM_SELLO = /^\s*(s[ií]|dale|ok(ey)?|s[eé]ll?alo|sella|sellado|confirmo|de una|perfecto|adelante|h[aá]zlo|hacelo|claro|obvio|s[ií],?\s+s[eé]ll?alo)[\s.!…]*$/i;
 const _CANCEL_RE = /^\s*(no(,)?\s+)?(mejor\s+no|cancel[aá]\w*|dej[eé]moslo|despu[eé]s\s+(lo\s+)?(seguimos|vemos)|olv[ií]dalo|par[aá]|no\s+por\s+ahora|ahora\s+no)[\s.!…]*$/i;
 const _SIMQ_RE = /\b(qu[eé]\s+pasa(?:r[ií]a)?\s+si|c[oó]mo\s+queda(?:r[ií]a\w*|mos)?\s+si|y\s+si)\b|^\s*¿?\s*si\s+\p{L}/iu;
+// CUE de arranque multi-línea (turno 16 del veredicto de 18 turnos, owner 2026-07-29): aísla la sublista de
+// gasto+% que sigue a "mis gastos son"/"los gastos son"/"gastos:" — descarta el preámbulo ("quiero armar mi
+// P&L, ") que si no, mata TODO el batch en _parseGastoList (un segmento como "quiero armar mi P&L" no es un
+// nombre válido y el parser aborta la lista entera con un solo segmento inválido).
+const _GASTOS_CUE = /(?:mis\s+gastos(?:\s+son)?|los\s+gastos(?:\s+son)?|gastos?)\s*(?:son)?\s*:?\s*(.+)$/is;
 
 // parse de una LISTA LIBRE de gastos ("administrativos, marketing y promotores" · con % opcional por línea)
 function _parseGastoList(q) {
@@ -494,6 +499,19 @@ export function detectPnlIntent(q) {
   // CRUCE DE LENTES (pase 2c): «margen y resultado de Cuidado Personal» enumera DOS métricas — es del
   // multi-análisis (que ahora tiene la lente resultado), no de un claim P&L single. El P&L no roba el cruce.
   if (detectMultiAnalysis(t).isMulti) return null;
+  // ARRANQUE MULTI-LÍNEA (turno 16 del veredicto de 18 turnos, owner 2026-07-29): el PRIMER mensaje del hilo puede
+  // traer VARIAS líneas de gasto con su % todas juntas ("mis gastos son logística 3%, marketing 1.5% y comisiones
+  // 2%" / "tengo 3 gastos: ..."). _parseGastoList YA sabe segmentar y parsear esto — hasta ahora solo se llamaba
+  // MID-FLOW (líneas 472/486, con `_draft` ya abierto); acá lo activamos también en el arranque. Exige _GASTOS_WORD
+  // (la palabra "gasto(s)" en algún lado) para no ensanchar el parseo de listas libres a CUALQUIER primer mensaje —
+  // _parseGastoList es permisivo con frases cortas de 1-3 palabras sin ese requisito un mensaje ajeno ("hola, cómo
+  // estás") podría, en teoría, leerse como una lista de gastos de 1 línea.
+  if (_GASTOS_WORD.test(t)) {
+    const cue = _GASTOS_CUE.exec(t);
+    const tail = cue ? cue[1] : t;
+    const openLines = _parseGastoList(tail);
+    if (openLines && openLines.length >= 2) return { action: "draft_gastos", lines: openLines };
+  }
   // LA PREGUNTA CLAVE DEL INICIO (owner 2026-07-25: "'¿dónde estoy perdiendo dinero?' debe ser el P&L del
   // negocio, y ADI debe guiar preguntando supuestos — todo en el chat"): la historia del dinero de punta a
   // punta; sin gastos declarados, ADI abre el flujo guiado ahí mismo. Solo dinero/resultado — "perdiendo
