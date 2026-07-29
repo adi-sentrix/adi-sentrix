@@ -85,25 +85,33 @@ export function applyScenarioToSfamiliasVentas(scenarioId) {
 
 export function applyScenarioToClientesMargen(scenarioId, override) {
   const t = resolveTransform(scenarioId, override)?.clientes;
-  if (!t) return clientesMargen;
-  // Indexar ventas del escenario para lookup por nombre
+  // clientesVentas es LA venta OFICIAL por cliente (owner 2026-07-29, D8: clientesMargen.venta es un segundo
+  // número independiente para el MISMO cliente que nunca cuadra con el total del negocio — Σclientesventas.actual=
+  // $100.0M vs Σclientesmargen.venta=$95.2M). Se reconcilia SIEMPRE por nombre, incluso en el escenario "actual"
+  // (sin transform — el default de producción), donde antes `if (!t) return clientesMargen` dejaba pasar la venta
+  // propia SIN TOCAR.
+  // margen% se preserva tal cual clientesMargen lo declara (o + marginErosion si hay transform de escenario) — es
+  // la eficiencia reportada, no depende de qué "base" de venta se use. contribución/costo SÍ se re-derivan de la
+  // venta oficial × ese margen (MISMA fórmula que este archivo ya usaba para escenarios simulados, ahora aplicada
+  // siempre, no solo con transform): probado en vivo que NO hacerlo rompe el P&L — con venta reconciliada pero
+  // contribución sin tocar, los gastos (%×venta) suben mientras la contribución que los financia se queda fija,
+  // apretando el resultado en ~1pp sin ninguna razón de negocio real (puro artefacto de la reconciliación a medias).
   const ventasScn   = applyScenarioToClientesVentas(scenarioId, override);
   const ventaByName = Object.fromEntries(ventasScn.map(v => [v.nombre, v.actual]));
-  // __remove__ · misma remoción que ventas (consistencia · no media-cuenta)
-  const _removed = new Set(Object.keys(t).filter(n => t[n] && t[n].__remove__));
+  const _removed = t ? new Set(Object.keys(t).filter(n => t[n] && t[n].__remove__)) : new Set();
 
   return clientesMargen.filter(c => !_removed.has(c.nombre)).map(c => {
-    const tc = t[c.nombre];
-    if (!tc) return c;
-    const newMargen = Math.max(6, +(c.margen + (tc.marginErosion || 0)).toFixed(1));
-    const newVenta  = ventaByName[c.nombre] ?? c.venta;
-    const newContrib= Math.round(newVenta * (newMargen / 100));
+    const tc = t && t[c.nombre];
+    const newMargen  = tc ? Math.max(6, +(c.margen + (tc.marginErosion || 0)).toFixed(1)) : c.margen;
+    const newVenta   = ventaByName[c.nombre] ?? c.venta;
+    const newContrib = Math.round(newVenta * (newMargen / 100));
     return {
       ...c,
       venta:        newVenta,
+      costo:        newVenta - newContrib,
       contribucion: newContrib,
       margen:       newMargen,
-      pctRebate:    Math.round((c.pctRebate + (tc.rebateDelta || 0)) * 10) / 10,
+      pctRebate:    tc ? Math.round((c.pctRebate + (tc.rebateDelta || 0)) * 10) / 10 : c.pctRebate,
     };
   }).sort((a,b) => b.contribucion - a.contribucion);
 }

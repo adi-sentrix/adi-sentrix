@@ -6,6 +6,7 @@
  */
 import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
+import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { fig } from "../boleta.js";
 
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
@@ -38,7 +39,9 @@ function _sources(dimension) {
   const A = (x) => (Array.isArray(x) ? x : []);
   switch (dimension) {
     case "sku": return [{ rows: A(skuInventario), key: "sku" }, { rows: A(skusMargen), key: "nombre" }];
-    case "cliente": return [{ rows: A(clientesMargen), key: "nombre" }, { rows: A(clientesVentas), key: "nombre" }];
+    // cliente: `venta` viene reconciliada contra clientesVentas.actual (owner 2026-07-29, D8 — una sola verdad de
+    // venta por cliente), NO el import crudo de clientesMargen. margen/costo/contribución quedan tal cual clientesMargen.
+    case "cliente": return [{ rows: A(applyScenarioToClientesMargen("actual")), key: "nombre" }, { rows: A(clientesVentas), key: "nombre" }];
     case "marca": return [{ rows: A(marcasMargen), key: "nombre" }, { rows: A(marcasVentas), key: "nombre" }];
     case "familia": return [{ rows: A(sfamiliasMargen), key: "nombre" }, { rows: A(sfamiliasVentas), key: "nombre" }];
     default: return null;
@@ -64,11 +67,18 @@ function _derived(rec) {
 }
 
 // _rawRecord(dimension, entity) → el registro CRUDO mergeado (todas las columnas) | null
+// `actual` (clientesVentas/marcasVentas/sfamiliasVentas) es ALIAS de `venta` (mismo label "Ventas" en F) — se
+// omite si `venta` ya llegó de la fuente Margen (siempre primera en _sources) para no emitir un fig() duplicado
+// con el mismo label y (antes del fix D8) valores distintos — hallazgo real: los 2 sobrevivían en el boleta array,
+// autorizando cualquiera de los dos números a la narración.
 function _rawRecord(dimension, entity) {
   const srcs = _sources(dimension);
   if (!srcs || entity == null) return null;
   const rec = {};
-  for (const s of srcs) for (const r of s.rows) if (r && String(r[s.key]) === String(entity)) for (const k of Object.keys(r)) if (rec[k] == null) rec[k] = r[k];
+  for (const s of srcs) for (const r of s.rows) if (r && String(r[s.key]) === String(entity)) for (const k of Object.keys(r)) {
+    if (k === "actual" && rec.venta != null) continue;
+    if (rec[k] == null) rec[k] = r[k];
+  }
   return Object.keys(rec).length ? rec : null;
 }
 

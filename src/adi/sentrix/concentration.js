@@ -4,7 +4,7 @@
  * clásica; el "bloque" son los primeros elementos hasta cruzarla. Honesto sin bloqueos: son sumas acumuladas de
  * dato real punto-en-tiempo (no depende de histórico). Scenario-aware (lección GAP 2): cliente/marca/familia se
  * ajustan por escenario; SKU usa base (no hay ajustador · skusMargen no es scenario-adjusted). Puro · client-side. */
-import { applyScenarioToClientesVentas, applyScenarioToMarcasVentas, applyScenarioToSfamiliasVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { applyScenarioToClientesVentas, applyScenarioToMarcasVentas, applyScenarioToSfamiliasVentas, applyScenarioToSkuInventario, applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 
 export const CONCENTRATION_DIMS = [
@@ -37,8 +37,11 @@ function _rows(dimension, scenario) {
 // CONTRIBUCIÓN por dimensión (owner 2026-07-10 · el Pareto de la Mesa con filtro ventas/contribución): la
 // contribución ALMACENADA de cada tabla — el mismo valor que muestra el cuadro (reflejo de la tabla, una verdad).
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
-function _contribRows(dimension) {
-  if (dimension === "cliente") return clientesMargen.map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
+function _contribRows(dimension, scenario) {
+  // cliente: scenario-aware (owner 2026-07-29, D8) — clientesMargen.contribucion ahora se re-deriva de la venta
+  // OFICIAL (applyScenarioToClientesMargen) para cerrar con lo que el Cuadro (mismo dato) ya muestra; el import
+  // crudo quedaría desincronizado del resto de la Mesa apenas hay un escenario activo.
+  if (dimension === "cliente") return applyScenarioToClientesMargen(scenario || "bonanza").map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
   if (dimension === "marca")   return marcasMargen.map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
   if (dimension === "familia") return sfamiliasMargen.map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
   if (dimension === "sku")     return skusMargen.map((x) => ({ name: x.nombre, value: Number(x.contribucion) || 0 }));
@@ -62,7 +65,7 @@ function _invRows(dimension, scenario) {
 // Concentración de una dimensión. metric "ventas" (comercial · default) o "inmovilizado" (inventario). Devuelve
 // barras (desc) + acumulado + el bloque que llega al 80%. El MOTOR elige metric/dims según el foco (ver surface.js).
 export function buildConcentration(dimension = "cliente", scenario = "bonanza", metric = "ventas") {
-  const raw = metric === "inmovilizado" ? _invRows(dimension, scenario) : metric === "contribucion" ? _contribRows(dimension) : _rows(dimension, scenario);
+  const raw = metric === "inmovilizado" ? _invRows(dimension, scenario) : metric === "contribucion" ? _contribRows(dimension, scenario) : _rows(dimension, scenario);
   const rows = raw.filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
   const total = rows.reduce((s, r) => s + r.value, 0) || 1;
   let cum = 0;
