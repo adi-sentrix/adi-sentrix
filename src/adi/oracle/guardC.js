@@ -196,8 +196,11 @@ const _MECH_ACTION_VERB = /\b(deber[íi]as|te recomiendo|te sugiero|conviene|lo 
 const _MECH_COSTO_WORD = /\b(costo|costos|precio|precios)\b/i;
 const _MECH_CARGA_WORD = /\b(carga comercial|rebate|rebates|descuento|descuentos|condiciones comerciales)\b/i;
 const _MECH_CONNECTOR = /\b(as[ií]|por eso|dado que|debido a|ya que|aunque|sin embargo|no es negociable|no se puede|no está disponible)\b/i;
-function _mechanismAdvisory(narration, results) {
-  const text = String(narration || "");
+
+// walk compartido: cualquier resultado con forma {nombre, mecanismo} en cualquier profundidad (marginRead panel rows,
+// hoy; el mismo shape que use cualquier tool futuro entra gratis). Exportado porque answerViaOracle.js necesita la
+// MISMA extracción para decidir qué escribe en mem.mechanismByEntity (una sola verdad, sin fórmula duplicada).
+export function extractMechanismRows(results) {
   const mechRows = [];
   const walk = (v) => {
     if (Array.isArray(v)) v.forEach(walk);
@@ -207,7 +210,11 @@ function _mechanismAdvisory(narration, results) {
     }
   };
   for (const r of (results || [])) walk(r.facts);
+  return mechRows;
+}
+function _mechanismAdvisory(narration, mechRows) {
   if (!mechRows.length) return [];
+  const text = String(narration || "");
   const sentences = text.split(/(?<=[.!?])\s+/);
   const accionSent = sentences.find((s) => _MECH_ACTION_VERB.test(s));
   if (!accionSent) return [];
@@ -223,6 +230,37 @@ function _mechanismAdvisory(narration, results) {
     const tieneIncorrecta = esCosto ? _MECH_CARGA_WORD.test(accionSent) : _MECH_COSTO_WORD.test(accionSent);
     if (tieneIncorrecta && !tieneCorrecta && !_MECH_CONNECTOR.test(accionSent)) {
       out.push(`${nombre}: el mecanismo dominante es "${mecanismo}", pero la acción priorizada nombra ${esCosto ? "carga/rebate" : "costo/precio"} sin conectarlo — "${accionSent.trim().slice(0, 140)}"`);
+    }
+  }
+  return out;
+}
+
+// ── MECANISMO CON MEMORIA ENTRE TURNOS (owner 2026-07-29, 3er residual del punch list post-recon) — "si un turno ya
+// estableció mecanismo dominante por entidad, el siguiente no debe recomendar otro mecanismo sin evidencia nueva o
+// sin explicitar el cambio". Misma AVISO-no-bloqueo que el chequeo de arriba y por la MISMA razón (coherencia
+// semántica vía regex, no una cifra) — acá el "mecRows" de ESTE turno es la evidencia nueva: si la entidad SÍ
+// aparece en los resultados de este turno, no hay nada que objetar aunque contradiga lo memorizado (eso es
+// justamente re-diagnosticar con datos frescos). Solo se activa cuando la entidad NO se re-evaluó este turno.
+const _MECH_CHANGE_FLAG = /\b(a diferencia de (?:antes|lo anterior|lo que ve[ií]amos)|cambi[oó] el mecanismo|ya no es|esto (?:es|resulta) distinto (?:a|de) (?:antes|lo anterior)|distinto a (?:lo )?anterior|nueva evidencia|nuevo dato|cambio de mecanismo|esta vez es distinto)\b/i;
+function _mechanismMemoryAdvisory(narration, mechanismMemory, mechRows) {
+  if (!mechanismMemory || typeof mechanismMemory !== "object") return [];
+  const entries = Object.entries(mechanismMemory);
+  if (!entries.length) return [];
+  const text = String(narration || "");
+  const freshNames = new Set(mechRows.map((r) => r.nombre));
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const accionSent = sentences.find((s) => _MECH_ACTION_VERB.test(s));
+  if (!accionSent) return [];
+  const out = [];
+  for (const [nombre, mecanismo] of entries) {
+    if (freshNames.has(nombre)) continue;   // evidencia nueva este turno → no aplica este chequeo (aplica el de arriba)
+    const re = new RegExp(`\\b${nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (!re.test(text)) continue;
+    const esCosto = mecanismo === "costo estructural";
+    const tieneCorrecta = esCosto ? _MECH_COSTO_WORD.test(accionSent) : _MECH_CARGA_WORD.test(accionSent);
+    const tieneIncorrecta = esCosto ? _MECH_CARGA_WORD.test(accionSent) : _MECH_COSTO_WORD.test(accionSent);
+    if (tieneIncorrecta && !tieneCorrecta && !_MECH_CONNECTOR.test(accionSent) && !_MECH_CHANGE_FLAG.test(text)) {
+      out.push(`${nombre}: un turno anterior había establecido "${mecanismo}" como mecanismo dominante, esta acción prioriza ${esCosto ? "carga/rebate" : "costo/precio"} sin evidencia nueva ni explicitar el cambio — "${accionSent.trim().slice(0, 140)}"`);
     }
   }
   return out;
@@ -433,7 +471,7 @@ function _isCalc2(raw, unit, authFigs, entityNames) {
   return false;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "" } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -477,7 +515,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   const grad = _graduationViolation(narration, trace);
   if (grad) advisories.push({ kind: "graduacion", detail: grad });
   // mecanismo dominante vs acción (turno 9, AVISO — coherencia semántica, no cifra, ver comentario arriba)
-  for (const v of _mechanismAdvisory(narration, results)) advisories.push({ kind: "mecanismo-inconsistente", detail: v });
+  const mechRows = extractMechanismRows(results);
+  for (const v of _mechanismAdvisory(narration, mechRows)) advisories.push({ kind: "mecanismo-inconsistente", detail: v });
+  // mecanismo con memoria ENTRE turnos (residual 3, mismo día — AVISO por la misma razón)
+  for (const v of _mechanismMemoryAdvisory(narration, mechanismMemory, mechRows)) advisories.push({ kind: "mecanismo-memoria-inconsistente", detail: v });
 
   const ok = violations.length === 0;   // solo cifra/conteo/entidad BLOQUEAN
   return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories };

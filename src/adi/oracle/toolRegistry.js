@@ -122,8 +122,8 @@ function entityRecord({ dimension, entity } = {}) {
 // rankings, quién solo en uno) — antes esto disparaba 2 tool-calls de EJES DISTINTOS que el narrador mezclaba sin
 // declarar el mismatch. Si el eje no tiene ambas columnas (cliente/marca/familia no tienen capital), degrada
 // HONESTO con la razón exacta (no hay tabla puente eje↔SKU en el dato) — nunca inventa el cruce.
-function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD", limit = 10 } = {}) {
-  const r = buildTension(dimension, { metricA, metricB, limit });
+function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc" } = {}) {
+  const r = buildTension(dimension, { metricA, metricB, limit, dirA, dirB });
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no puedo cruzar esas dos métricas por '${dimension}'` } };
   if (r.unsupported) return { facts: null, boleta: [], coverage: { supported: false, reason: r.unsupported } };
   return { facts: { ...r.facts, lens: "cuadro", entityType: dimension }, boleta: r.boleta, coverage: { supported: true, figCount: r.boleta.length } };

@@ -132,7 +132,7 @@ export function axisHasField(dimension, field) {
 // top-N por metricA y por metricB YA CALCULADOS + su intersección — el narrador no arma el cruce a mano, lo recibe
 // resuelto y autorizado. Si el eje no tiene AMBAS columnas (hoy: cliente/marca/familia no tienen capital/inventario
 // — no hay tabla puente eje↔SKU en el dato), degrada HONESTO con la razón exacta vía `unsupported`.
-export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10 } = {}) {
+export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc" } = {}) {
   const hasA = axisHasField(dimension, metricA), hasB = axisHasField(dimension, metricB);
   const lblA = (F[metricA] && F[metricA].l) || metricA, lblB = (F[metricB] && F[metricB].l) || metricB;
   if (!hasA || !hasB) {
@@ -143,8 +143,12 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
   const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e) }))
     .filter((x) => x.rec && typeof x.rec[metricA] === "number" && typeof x.rec[metricB] === "number");
   if (recs.length < 2) return null;
-  const byA = recs.slice().sort((a, b) => b.rec[metricA] - a.rec[metricA]);
-  const byB = recs.slice().sort((a, b) => b.rec[metricB] - a.rec[metricB]);
+  // DIRECCIÓN por métrica (owner 2026-07-29, hallazgo en vivo): "quién CEDE más margen" pide el margen más BAJO
+  // primero (el que peor está, no el mejor) — antes siempre ordenaba descendente (mayor primero) sin importar el
+  // verbo, así que "cede más margen" mostraba a los de MEJOR margen, lo opuesto de lo pedido. dirA/dirB="asc" invierte.
+  const sA = dirA === "asc" ? 1 : -1, sB = dirB === "asc" ? 1 : -1;
+  const byA = recs.slice().sort((a, b) => sA * (a.rec[metricA] - b.rec[metricA]));
+  const byB = recs.slice().sort((a, b) => sB * (a.rec[metricB] - b.rec[metricB]));
   const topA = byA.slice(0, limit), topB = byB.slice(0, limit);
   const setTopB = new Set(topB.map((x) => x.e)), setTopA = new Set(topA.map((x) => x.e));
   const mA = F[metricA] || { l: metricA, u: "money" }, mB = F[metricB] || { l: metricB, u: "money" };
