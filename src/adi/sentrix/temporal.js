@@ -13,6 +13,20 @@ import { onTenantChange } from "../../data/tenantStore.js";   // F1 multiempresa
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
 
+// resolveEntityName (owner "estas son preguntas simples", hallazgo en vivo 2026-07-29): historialMargen es una key
+// FLAT (cliente∪marca∪familia∪sku) accedida por igualdad EXACTA — si el plan manda el nombre con otra mayúscula o
+// acento que como lo tipeó el usuario ("falabella" en vez de "Falabella"), `historialMargen[name]` da undefined y
+// el turno entero declina "no tengo esa serie", aunque el dato SÍ existe. Se resuelve contra las keys REALES antes
+// de cualquier acceso — mismo patrón `_norm` ya probado en coerceChain.js/composers/temporalTable.js (duplicado acá
+// a propósito: son módulos de capas distintas del pipeline, no vale la pena acoplarlos por una función de 1 línea).
+const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+export function resolveEntityName(name) {
+  if (name == null || (historialMargen && historialMargen[name])) return name;   // match exacto ya funciona, no tocar
+  const target = _norm(name);
+  for (const k of Object.keys(historialMargen || {})) if (_norm(k) === target) return k;
+  return name;   // sin match → tal cual (el caller declina honesto, no se inventa un nombre)
+}
+
 // ── ANCLA DEL PERÍODO (owner 2026-07-10: "deben quedar todos conectados — fijate bien en eso"): el total anual de
 // cada serie mensual del historial NO cerraba con el dato del período que muestran el cuadro y el perfil (venta
 // −3.4%…+5% según entidad — dos verdades). Cada serie se RE-ANCLA a su valor del período (la forma mes a mes viene
@@ -103,6 +117,7 @@ const _ENTITY_METRICS = {
 
 // La serie mensual de UNA entidad + su análisis (pico/valle, mayor alza/caída, trayectoria) — todo derivado.
 export function buildEntityEvolution(name, metric = "venta") {
+  name = resolveEntityName(name);
   const H = historialMargen && historialMargen[name];
   if (!H || !H.length) return null;
   const P = _PERIOD.get(name) || {};
@@ -167,6 +182,7 @@ function _buildPeriodAnt() {
 let _PERIOD_ANT = _buildPeriodAnt();
 onTenantChange(() => { _PERIOD = _buildPeriod(); _PERIOD_ANT = _buildPeriodAnt(); });
 export function buildEntityEvolutionComparado(name, metric = "venta") {
+  name = resolveEntityName(name);
   const A = buildEntityEvolution(name, metric);
   if (!A) return null;
   let anterior = null;

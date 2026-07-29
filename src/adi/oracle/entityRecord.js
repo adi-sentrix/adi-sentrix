@@ -66,6 +66,21 @@ function _derived(rec) {
   return out;
 }
 
+// resolveEntity(dimension, entity) → nombre CANÓNICO tal como vive en el dato (case/acento-insensitive) | el crudo
+// si no matchea nada (owner "estas son preguntas simples", hallazgo en vivo 2026-07-29): el plan a veces manda el
+// nombre tal cual lo tipeó el usuario ("falabella" en vez de "Falabella") — el lookup EXACTO de abajo
+// (String(r[key])===String(entity)) fallaba en silencio con cualquier diferencia de mayúscula/acento, y el turno
+// declinaba "no encuentro esa entidad" aunque el dato SÍ existe. Se resuelve UNA vez contra el eje pedido antes
+// de cualquier comparación — mismo patrón `_norm` de coerceChain.js/temporalTable.js, duplicado a propósito (capas
+// distintas del pipeline, no vale acoplarlas por una función de 1 línea).
+const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+export function resolveEntity(dimension, entity) {
+  if (entity == null) return entity;
+  const target = _norm(entity);
+  for (const e of _allEntities(dimension)) if (_norm(e) === target) return e;
+  return entity;   // sin match → tal cual (el caller declina honesto, no se inventa un nombre)
+}
+
 // _rawRecord(dimension, entity) → el registro CRUDO mergeado (todas las columnas) | null
 // `actual` (clientesVentas/marcasVentas/sfamiliasVentas) es ALIAS de `venta` (mismo label "Ventas" en F) — se
 // omite si `venta` ya llegó de la fuente Margen (siempre primera en _sources) para no emitir un fig() duplicado
@@ -74,8 +89,9 @@ function _derived(rec) {
 function _rawRecord(dimension, entity) {
   const srcs = _sources(dimension);
   if (!srcs || entity == null) return null;
+  const canon = resolveEntity(dimension, entity);
   const rec = {};
-  for (const s of srcs) for (const r of s.rows) if (r && String(r[s.key]) === String(entity)) for (const k of Object.keys(r)) {
+  for (const s of srcs) for (const r of s.rows) if (r && String(r[s.key]) === String(canon)) for (const k of Object.keys(r)) {
     if (k === "actual" && rec.venta != null) continue;
     if (rec[k] == null) rec[k] = r[k];
   }
@@ -112,16 +128,18 @@ export function guessDimension(entity) {
   if (entity == null) return null;
   for (const dim of ["sku", "cliente", "marca", "familia"]) {
     const srcs = _sources(dim);
-    for (const s of srcs) if (s.rows.some((r) => r && String(r[s.key]) === String(entity))) return dim;
+    const canon = resolveEntity(dim, entity);
+    for (const s of srcs) if (s.rows.some((r) => r && String(r[s.key]) === String(canon))) return dim;
   }
   return null;
 }
 
 // buildEntityRecord(dimension, entity) → { facts, boleta } | null
 export function buildEntityRecord(dimension, entity) {
-  const rec = _rawRecord(dimension, entity);
+  const canon = resolveEntity(dimension, entity);
+  const rec = _rawRecord(dimension, canon);
   if (!rec) return null;
-  const r = _formatRecord(entity, rec);
+  const r = _formatRecord(canon, rec);
   r.facts.entityType = dimension;
   return r;
 }

@@ -12,7 +12,7 @@
  * foto de hoy · canal mensual sin desglose → cada límite se DECLARA y redirige a donde el dato sí llega.
  * LA HISTORIA primero (tendencia · mejor/peor mes · quién tracciona — registro ejecutivo, cifras una por línea,
  * todas en la boleta) + LA TABLA estructurada en la evidencia (tabla_matriz → InlineChart). */
-import { buildGlobalEvolution, buildEntityEvolutionComparado, reconcileMonthly } from "../sentrix/temporal.js";
+import { buildGlobalEvolution, buildEntityEvolutionComparado, resolveEntityName, reconcileMonthly } from "../sentrix/temporal.js";
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { fig } from "../boleta.js";
@@ -143,6 +143,10 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
 
   // ── UNA ENTIDAD (serie anclada de la Ficha · vs año anterior solo si el dato lo declara) ──
   if (entity) {
+    // resolveEntityName (owner "estas son preguntas simples", hallazgo en vivo 2026-07-29): el plan puede mandar
+    // el nombre con otra mayúscula/acento que como lo tipeó el usuario ("falabella") — se resuelve al nombre REAL
+    // del dato ANTES de interpolarlo en la prosa/evidencia de abajo, para no narrar/mostrar el nombre crudo mal escrito.
+    entity = resolveEntityName(entity);
     const e = buildEntityEvolutionComparado(entity, met);
     if (!e) return null;
     const meses = _rangoMeses(e.meses, p), serie = _rangoSerie(e.serie, p);
