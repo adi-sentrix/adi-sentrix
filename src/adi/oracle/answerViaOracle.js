@@ -15,6 +15,7 @@ import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtim
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, MANDATORY_BLOCK } from "./narrationBlocks.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -246,13 +247,13 @@ const _PREF_ACTION_ONLY_RE = /\bsolo\s+la\s+acci[oó]n\b|\bsin\s+(?:el\s+)?diagn
 // deja al criterio del LLM (plan.pref), no se fuerza por red.
 const _PREF_RESULTS_ONLY_SIM_RE = /\bsolo\s+(?:los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b/i;
 const _PREF_BRIEF_RE = /\bresponde?(?:me)?\s+breve\b|\bs[eé]\s+breve\b|\brespuesta\s+corta\b|\bmuy\s+resumido\b|\bcorto\s+y\s+concreto\b|\bresum[ií]me\b/i;
-// _PREF_RESET_RE fija los VALORES (full/standard); CUÁLES de esas frases ADEMÁS persisten vive en _PREF_PERSIST_RE
-// (no las dos a la vez acá) — "análisis/respuesta completo"/"como antes" son AMBIGUAS entre "solo esta vez" y
-// "no más brevedad" (se resuelven al default seguro: un turno), mientras que "volvé a lo normal"/"ya no
-// necesito/hace falta que sea breve" SÍ son una cancelación explícita hacia adelante — estas dos últimas están
-// duplicadas en AMBAS listas a propósito (fijan el valor Y marcan persistencia).
+// _PREF_RESET_RE · "volver a lo normal" CANCELA la preferencia de sesión SIEMPRE, sin condición (owner 2026-07-29,
+// corrigiendo una lectura previa de este mismo mecanismo: "'Volver a lo normal' debe cancelar la preferencia
+// persistente de la sesión. No debe volver a breve en el turno siguiente.") — fija los valores (full/standard) Y
+// persist=true en el mismo paso; ver más abajo. Un "solo esta vez" EXPLÍCITO en la misma frase sigue ganando (regla
+// general: ese marcador siempre acota a un turno, incluso sobre un reset) vía _PREF_ONE_TURN_RE, que se evalúa último.
 const _PREF_RESET_RE = /\b(?:an[aá]lisis|respuesta)\s+completo?a?\b|\bvolv[eé]\s+a\s+lo\s+normal\b|\bya\s+no\s+(?:necesito|hace\s+falta|quiero)\s+que\s+sea\s+breve\b|\bcomo\s+antes\b/i;
-const _PREF_PERSIST_RE = /\bdesde\s+ahora\b|\bde\s+ahora\s+en\s+adelante\b|\ba\s+partir\s+de\s+ahora\b|\bsiempre\s+respond[eé]me?\b|\ben\s+adelante\b|\bvolv[eé]\s+a\s+lo\s+normal\b|\bya\s+no\s+(?:necesito|hace\s+falta|quiero)\s+que\s+sea\s+breve\b/i;
+const _PREF_PERSIST_RE = /\bdesde\s+ahora\b|\bde\s+ahora\s+en\s+adelante\b|\ba\s+partir\s+de\s+ahora\b|\bsiempre\s+respond[eé]me?\b|\ben\s+adelante\b/i;
 const _PREF_ONE_TURN_RE = /\bsolo\s+esta\s+vez\b|\bpor\s+esta\s+vez\b|\bsolo\s+por\s+ahora\b|\bahora\s+solo\b/i;
 
 // _coercePref(text, plan) → { contentScope, detailLevel, persist } | null (null = ninguna señal este turno, ni del
@@ -267,12 +268,9 @@ function _coercePref(text, plan) {
   let persist = llmPref.persist === true;
   const isSim = plan && plan.mode === "simulacion";
 
-  // "volver a lo normal" fija los VALORES (full/standard) pero sigue la MISMA regla de alcance temporal que
-  // cualquier otro pedido (persist solo si ADEMÁS hay un marcador explícito, ver abajo) — "de nuevo"/"como antes"
-  // es genuinamente ambiguo entre "solo esta vez" y "no más brevedad", así que no se asume ninguna de las dos:
-  // si el usuario quiere cancelar la sesión, "desde ahora..."/"ya no hace falta..." ya matchean _PREF_PERSIST_RE.
+  // "volver a lo normal" SIEMPRE cancela la sesión (owner 2026-07-29) — fija los valores Y persist=true juntos.
   if (_PREF_RESET_RE.test(t)) {
-    contentScope = "full"; detailLevel = "standard";
+    contentScope = "full"; detailLevel = "standard"; persist = true;
   } else {
     if (_PREF_ACTION_ONLY_RE.test(t)) contentScope = "action_only";
     else if (isSim && _PREF_RESULTS_ONLY_SIM_RE.test(t)) contentScope = "results_only";
@@ -385,6 +383,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // texto siempre daría el mismo resultado), cae de largo a la Pasada 2 de siempre, sin penalidad.
   let narration = null;
   let deterministic = false;
+  let narrationRepaired = false;
   const simple = _simpleEntityMetric(q, plan, calls, results);
   if (simple) {
     const det = ensurePeriodoDeclared(_rutaDeterministica(pref, simple), periodos);
@@ -404,11 +403,35 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
+    // CUMPLIMIENTO ESTRUCTURAL de contentScope (owner 2026-07-29, residual: verificado en vivo que "solo cifras"
+    // coló una recomendación) — cuando el alcance restringe, el narrador etiquetó sus propios bloques
+    // ([[DATOS]]/[[INTERPRETACION]]/[[ACCION]]/[[SIGUIENTE_PASO]], doctrina en responsePreference.js) y ACÁ un
+    // RENDERER DETERMINÍSTICO (narrationBlocks.js) selecciona cuáles sobreviven — si el LLM coló un bloque de más
+    // (ej. una [[ACCION]] bajo data_only), NUNCA llega al usuario, sin importar lo que haya escrito ahí: la garantía
+    // vive en este código, no en que el LLM haya obedecido la instrucción. Si falta el bloque MANDATORIO para este
+    // alcance, es una falla de FORMATO (no de contenido) — se reintenta con el MISMO loop de guardC de abajo.
+    if (pref.contentScope !== "full") {
+      const parsed = parseBlocks(n);
+      const mandatory = MANDATORY_BLOCK[pref.contentScope];
+      if (!parsed || (mandatory && !parsed[mandatory])) continue;
+      n = renderFromBlocks(parsed, pref.contentScope);
+    }
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = n; break; }
   }
-  if (!narration) return null;   // dos intentos no pasaron el muro → C se abstiene (fallback a la ruta vieja)
+  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — si el alcance restringe Y los 3 intentos de la
+  // Pasada 2 fallaron (formato o guard), componé DETERMINÍSTICAMENTE desde la boleta en vez de abstenerse: el
+  // usuario pidió MENOS que el arco completo, así que sus propias cifras autorizadas, sin narrar, siguen siendo
+  // una respuesta honesta — nunca se inventa una interpretación/acción que el LLM no pudo formatear a tiempo.
+  if (!narration && pref.contentScope !== "full") {
+    const composed = composeFromLedger(figs, pref.contentScope);
+    if (composed) {
+      const c = ensurePeriodoDeclared(composed, periodos);
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
+    }
+  }
+  if (!narration) return null;   // dos intentos no pasaron el muro (y sin datos para reparar) → C se abstiene (fallback a la ruta vieja)
 
   // graba el mecanismo dominante de ESTE turno (si lo hay) para que el PRÓXIMO turno pueda chequear contra él —
   // solo entidades vistas este turno se actualizan; el resto de mechanismMemory persiste tal cual.
@@ -430,6 +453,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // marca de la ruta determinística (requisito 1, pase quirúrgico 2026-07-29): la Pasada 2 (LLM) NO corrió este
       // turno — solo debug/telemetría, nunca condiciona el motor ni el guard.
       ...(deterministic ? { deterministic: true } : {}),
+      // marca de la reparación controlada (owner 2026-07-29, residual de contentScope): la Pasada 2 SÍ corrió (a
+      // diferencia de `deterministic`) pero ninguno de los 3 intentos cumplió el formato de bloques o el guard —
+      // el texto final salió de composeFromLedger, no del narrador libre. Solo debug/telemetría.
+      ...(narrationRepaired ? { narrationRepaired: true } : {}),
       suggestions: null,
       sentrixAction: null,
     },

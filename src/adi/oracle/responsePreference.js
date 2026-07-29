@@ -34,8 +34,8 @@ export function buildPrefDoctrine() {
   - contentScope="action_only": "solo la acción", "sin el diagnóstico", "andá al grano", "directo a qué hacer" → ya tiene el contexto, quiere solo la decisión.
   - contentScope="results_only": en una simulación, "solo los resultados", "sin recomendación" → quiere el efecto del supuesto, no el consejo.
   - detailLevel="brief": "responde breve/corto", "sé breve", "resumime" → más corto que tu forma habitual, en cualquier alcance.
-  - Pedido de VOLVER a lo normal ("dame el análisis completo de nuevo", "como antes", "volvé a lo normal", "ya no hace falta que sea breve") → contentScope="full", detailLevel="standard".
-  - persist=true SOLO si ADEMÁS dice algo que proyecte hacia adelante: "desde ahora"/"de ahora en adelante"/"siempre respondeme así", o una cancelación explícita de una preferencia previa ("volvé a lo normal", "ya no necesito/hace falta que sea breve"). persist=false (default) si dice "solo esta vez"/"por esta vez", o si no aclara nada — incluso un pedido de "volver a lo normal" formulado de forma ambigua ("dame el análisis completo de nuevo", "como antes", sin más) aplica SOLO a este turno: no asumas que cancela una preferencia de sesión salvo que lo diga con esa proyección hacia adelante.
+  - Pedido de VOLVER a lo normal ("dame el análisis completo de nuevo", "como antes", "volvé a lo normal", "ya no hace falta que sea breve") → contentScope="full", detailLevel="standard", persist=true SIEMPRE: cancela cualquier preferencia de sesión que hubiera — el turno siguiente NO debe volver a breve/restringido.
+  - Fuera de un pedido de "volver a lo normal": persist=true SOLO si dice algo que proyecte hacia adelante ("desde ahora"/"de ahora en adelante"/"siempre respondeme así"). persist=false (default) si dice "solo esta vez"/"por esta vez", o si no aclara nada. "Solo esta vez" gana SIEMPRE, incluso sobre un pedido de volver a lo normal (ej. "dame el completo solo por esta vez" → no cancela la sesión).
   - Si el pedido suena contradictorio a primera vista ("resumen ejecutivo sin análisis"), interpretalo como la síntesis de las cifras clave — NUNCA lo uses de excusa para pedir una aclaración.`;
 }
 
@@ -43,11 +43,36 @@ export function buildPrefDoctrine() {
 // Las reglas de CIFRAS/GUARD siguen valiendo SIEMPRE — pref nunca las relaja (regla 1: pesa más que la personalidad
 // por defecto, nunca más que la veracidad/seguridad).
 export function buildPrefDispatch() {
-  return `PREFERENCIA DE RESPUESTA (viene en "preferencia_respuesta" SOLO cuando el usuario pidió algo distinto de tu forma habitual — si no viene, ignorá esta sección y respondé como siempre):
+  return `PREFERENCIA DE RESPUESTA (viene en "preferencia_respuesta" SOLO cuando el usuario pidió algo distinto de tu forma habitual — si NO viene, ignorá esta sección ENTERA y respondé como siempre, en prosa libre, SIN ninguna marca):
+
+⚠ CUANDO "preferencia_respuesta" VIENE CON "alcance" DISTINTO DE "full", ESTO ES OBLIGATORIO Y VA PRIMERO, ANTES DE CUALQUIER OTRA COSA QUE LEAS ABAJO: el motor —no vos— decide qué parte de tu respuesta llega al usuario, y SOLO puede hacerlo si marcás tu texto en bloques. Sin las marcas, tu respuesta ENTERA se descarta y el motor la reemplaza por una versión mecánica y menos rica de las cifras — perdés la oportunidad de narrar bien este turno. Encerrá tu contenido en estas marcas, CADA UNA SOLA EN SU PROPIA LÍNEA, literal, antes del texto de ese bloque (podés seguir usando tablas/negritas/tu voz de siempre DENTRO de cada bloque):
+  [[DATOS]] → el dato/cifra/tabla + entidad + período (el hallazgo, sin causa ni acción).
+  [[INTERPRETACION]] → la causa/lectura, graduada (probado/indicado/abierto).
+  [[ACCION]] → la acción priorizada + su $ SOLO si está autorizado.
+  [[SIGUIENTE_PASO]] → el cierre/pregunta guía/qué mirar después.
+Escribí SOLO los bloques que el alcance de abajo necesita — alcance="data_only"/"results_only" → escribí ÚNICAMENTE [[DATOS]] (nada de [[ACCION]] ni [[INTERPRETACION]], ni siquiera una línea); alcance="action_only" → escribí ÚNICAMENTE [[ACCION]]. Las marcas nunca las ve el usuario, el motor las quita — pero OMITIRLAS significa que el motor no puede leer tu respuesta y la descarta entera.
+
 · Una instrucción explícita del usuario sobre CÓMO recibir la respuesta pesa más que tu personalidad por defecto — pero NUNCA más que la veracidad ni el guard de cifras (nunca inventes un número ni fuerces una cifra no autorizada para cumplir un pedido de brevedad).
-· alcance="data_only": en una consulta puntual, el dato + entidad + período, sin nada más. En un diagnóstico/resumen/decisión, los KPIs o la tabla + período — PARÁ ahí: no avances a la causa (POR QUÉ) ni a la acción (QUÉ HACER). NO CIERRES con una frase de acción/recomendación ("cerrá la brecha…", "trabajá sobre…", "empezá por…") aunque sea una sola línea al final — la tabla/los KPIs son la respuesta COMPLETA, no un preámbulo antes del consejo de siempre.
+· alcance="data_only": en una consulta puntual, el dato + entidad + período, sin nada más. En un diagnóstico/resumen/decisión, los KPIs o la tabla + período — PARÁ ahí: no avances a la causa (POR QUÉ) ni a la acción (QUÉ HACER). NO escribas ninguna frase de acción/recomendación ("cerrá la brecha…", "trabajá sobre…", "empezá por…") — si la escribís, va DENTRO de [[DATOS]] igual, así que directamente no la escribas.
 · alcance="action_only": arrancá DIRECTO por la acción (punto 3 de LA ESTRUCTURA) con su $ SOLO si está autorizado — no reconstruyas el diagnóstico que ya diste antes en la conversación.
 · alcance="results_only" (simulación): supuesto + resultado numérico, sin recomendación — no cierres con un consejo de qué hacer con eso.
 · detalle="brief": respondé directo y sumá como mucho el contexto indispensable — más corto que tu forma habitual, en cualquier alcance.
 · Si el pedido suena contradictorio a primera vista ("resumen ejecutivo sin análisis"), interpretalo como una síntesis de las cifras clave — nunca lo uses de excusa para frenar con una aclaración.`;
+}
+
+// blockInstructionFor(contentScope) → instrucción de marcado REFORZADA A NIVEL DE TURNO (viaja en el payload de la
+// Pasada 2 como "instruccion_formato", no solo en el system prompt) — owner-audit 2026-07-29: la instrucción del
+// system prompt SOLA (buildPrefDispatch, arriba) no bastó — medido en vivo, el narrador ignoraba las marcas 3/3
+// veces y cada turno restringido caía a la reparación determinística (composeFromLedger), perdiendo la narración
+// rica. Repetir la instrucción, ESPECÍFICA para el alcance de ESTE turno, en el payload (lo que el modelo trata
+// como la tarea inmediata, no una regla general de fondo) recuperó el cumplimiento en la primera corrida de prueba.
+// null para contentScope="full" (no aplica ninguna restricción, no hace falta reforzar nada).
+export function blockInstructionFor(contentScope) {
+  if (contentScope === "action_only") {
+    return "Tu respuesta ENTERA debe empezar con la marca [[ACCION]] en su propia línea, seguida de la acción priorizada (con su $ solo si está autorizado). NO escribas ninguna otra marca ([[DATOS]]/[[INTERPRETACION]]/[[SIGUIENTE_PASO]]) ni el diagnóstico que la justifica.";
+  }
+  if (contentScope === "data_only" || contentScope === "results_only") {
+    return "Tu respuesta ENTERA debe empezar con la marca [[DATOS]] en su propia línea, seguida de tu contenido (tabla, dato, o supuesto+resultado si es una simulación). NO escribas ninguna otra marca ([[ACCION]]/[[INTERPRETACION]]/[[SIGUIENTE_PASO]]) ni ningún texto de interpretación o recomendación en esta respuesta.";
+  }
+  return null;
 }

@@ -4,7 +4,7 @@
  * después. Acá NO hay texto determinístico previo — el narrador escribe la respuesta entera. Aún en sombra.
  */
 import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
-import { isDefaultPref, buildPrefDispatch } from "./responsePreference.js";
+import { isDefaultPref, buildPrefDispatch, blockInstructionFor } from "./responsePreference.js";
 
 // buildNarrateSystemC(persona, memBlock) → system de la Pasada 2. Prompt COMPLETO de narración (owner 2026-07-28:
 // "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada CFO · contá la historia · más
@@ -143,6 +143,9 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // payload mínimo que nivel_aclaracion arriba): un turno normal, sin pedido de formato, no le agrega NADA nuevo
     // al prompt del narrador — cero riesgo de drift para el 100% de los turnos que nunca tocan esta feature.
     ...(!isDefaultPref(pref) ? { preferencia_respuesta: { alcance: pref.contentScope || "full", detalle: pref.detailLevel || "standard" } } : {}),
+    // instrucción de marcado REFORZADA a nivel de turno (owner-audit 2026-07-29: el system prompt solo no bastó,
+    // medido en vivo — ver blockInstructionFor en responsePreference.js). null cuando contentScope="full"/default.
+    ...(pref && pref.contentScope && pref.contentScope !== "full" && blockInstructionFor(pref.contentScope) ? { instruccion_formato: blockInstructionFor(pref.contentScope) } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     datos,
     cifras_autorizadas,
