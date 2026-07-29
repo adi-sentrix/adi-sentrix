@@ -79,6 +79,16 @@ const _crossFail = (cov) => ({ facts: null, boleta: [], coverage: cov });
 
 // queryMetric · ranking/lista de una métrica × un eje (ventas por cliente, margen por marca…).
 function queryMetric({ metric, dimension, filters = {}, scenario, limit = null, sort = null } = {}) {
+  // REDIRECT A ENTIDAD PUNTUAL (owner "unidades vendidas por Falabella" 2026-07-29, hallazgo en vivo): si el plan
+  // filtra el EJE por SÍ MISMO (dimension:"cliente", filters:{cliente:"Falabella"}) en realidad pidió LA FILA de
+  // una entidad concreta, no un ranking — es el mismo error de tool que "el costo medio de Sodimac" con
+  // entityProfile/dimension errada, versión queryMetric. composeSpecRetrieval NO filtra por cliente (ranking≠fila
+  // puntual — ver comentario abajo) y el crossGuard rechazaría esto honesto pero FALSO ("no tengo ese cruce")
+  // aunque el dato SÍ existe: solo que en la fila completa. Mismo dato, mejor tool — entityRecord la trae entera
+  // (incluye 'unidades', el campo que motivó este fix) y además se autocorrige de eje si hiciera falta.
+  if (_isObj(filters) && filters[dimension] != null && filters[dimension] !== "") {
+    return entityRecord({ dimension, entity: filters[dimension] });
+  }
   const x = _crossGuard(filters, ["marca", "familia", "bodega"]);   // el retrieval NO filtra por cliente
   if (x) { x.alternativas = [`${metric} por ${dimension}`]; return _crossFail(x); }
   return _pack(composeSpecRetrieval({ metric, dimension, filters: _isObj(filters) ? filters : {}, scenario, limit, sort }),
@@ -88,8 +98,19 @@ function queryMetric({ metric, dimension, filters = {}, scenario, limit = null, 
 // entityProfile · perfil de UNA entidad: todas sus métricas del contrato (el "quién es" de un cliente/marca/SKU).
 // Inyecta el BENCHMARK de margen (la vara) para que el narrador NO adule un margen que está bajo el estándar.
 function entityProfile({ dimension, entity, scenario } = {}) {
-  const r = _pack(composeSpecDive({ dimension, entity, scenario }),
-    `no encuentro a '${entity}' en el eje '${dimension}'`);
+  let dim = dimension;
+  let raw = composeSpecDive({ dimension: dim, entity, scenario });
+  // AUTO-CORRECCIÓN DE EJE (owner "Sodimac es cliente, no marca" 2026-07-29, hallazgo en vivo): el nombre de una
+  // entidad NO revela su tipo por el fraseo de la pregunta — "el costo medio de X" no dice si X es cliente, marca
+  // o SKU, y el plan a veces adivina mal el `dimension` aunque haya entendido bien A QUÉ entidad se refería. Si el
+  // eje declarado no la encuentra, reintentá con guessDimension — el MISMO mecanismo data-driven que ya usa
+  // `trend` para inferir el eje desde el nombre — antes de declinar. El motor se autocorrige; no depende de que el
+  // prompt adivine bien un dato que el LLM del plan no tiene forma de conocer de antemano.
+  if (!raw && entity != null) {
+    const guessed = guessDimension(entity);
+    if (guessed && guessed !== dim) { dim = guessed; raw = composeSpecDive({ dimension: dim, entity, scenario }); }
+  }
+  const r = _pack(raw, `no encuentro a '${entity}' en el eje '${dimension}'`);
   if (r.coverage && r.coverage.supported && POLICY && typeof POLICY.benchmark === "number") {
     r.facts = { ...r.facts, benchmarkMargen: `${POLICY.benchmark}%`, nota: "compará el margen contra el benchmark antes de calificarlo" };
     r.boleta = [...r.boleta, fig("Benchmark de margen", `${POLICY.benchmark}%`, { unit: "pct", context: "la vara" })];
@@ -109,7 +130,14 @@ function entityProfile({ dimension, entity, scenario } = {}) {
 // concretas de campo ("unidades del SKU X", "el rebate de Falabella", "todo de LG-DRYER8KG"). El LLM lee lo que
 // necesita y calcula si hace falta. Cada columna-cifra va autorizada → no inventa.
 function entityRecord({ dimension, entity } = {}) {
-  const r = buildEntityRecord(dimension, entity);
+  let dim = dimension;
+  let r = buildEntityRecord(dim, entity);
+  // AUTO-CORRECCIÓN DE EJE · mismo mecanismo que entityProfile (ver su comentario arriba): el plan puede acertar
+  // la entidad y errar el eje ("Sodimac" con dimension:"marca") — reintentá con guessDimension antes de declinar.
+  if (!r && entity != null) {
+    const guessed = guessDimension(entity);
+    if (guessed && guessed !== dim) { dim = guessed; r = buildEntityRecord(dim, entity); }
+  }
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
   // lens:"cuadro" · SENTRIX ES LA EVIDENCIA (owner 2026-07-28): sin esto el panel no tenía forma de saber qué mostrar
   // para esta tool propia (las demás heredan `lens` de su composer wrapeado) → el ranking de ${dimension} se abre con
