@@ -149,7 +149,7 @@ export function addPnlLine(nombre, pct) {
   const p = typeof pct === "number" ? pct : parseFloat(String(pct).replace(",", "."));
   if (_lines.length >= 10) return { ok: false, motivo: "tope" };
   if (_findLine(nm)) return { ok: false, motivo: "duplicada" };
-  if (!/^[\p{L}][\p{L}\s.\-]{1,29}$/u.test(nm) || _METRIC_WORDS.test(nm)) return { ok: false, motivo: "nombre" };
+  if (!/^[\p{L}][\p{L}\s.\-]{1,29}$/u.test(nm) || _METRIC_WORDS_WHOLE.test(nm)) return { ok: false, motivo: "nombre" };
   if (!_validLine({ nombre: nm, pct: p })) return { ok: false, motivo: "pct" };
   setPnlLines([..._lines, { nombre: nm, pct: _r1(p) }]);
   return { ok: true, nombre: nm, pct: _r1(p) };
@@ -348,6 +348,12 @@ const _GASTOS_WORD = /\b(?:gastos?|l[ií]neas?\s+de\s+gasto)\b/i;
 const _ARMAR_RE = /\b(arm(?:emos|amos|ar|[aá])|constru(?:yamos|ir)|defin(?:amos|ir|[ií])|configur(?:emos|ar|[aá])|hagamos|partamos\s+(?:por|con)|empecemos\s+(?:por|con)|quiero\s+(?:armar|definir|configurar))/i;
 // palabras del dominio del DATO: si el "gasto" nombrado es una de estas, NO es una línea de P&L (protege el claim)
 const _METRIC_WORDS = /\b(ventas?|margen|contribuci[oó]n|capital|stock|inventari\w*|rotaci[oó]n|doh|cobertura|costos?|carga|rebates?|presupuesto|clientes?|sku|marcas?|familias?|bodegas?|benchmark|resultado|unidades|precios?)\b/i;
+// versión ANCLADA (bug real cazado en vivo, owner 2026-07-29: "fuerza de ventas 10%" como línea de gasto real
+// tumbaba TODO el batch de _parseGastoList porque _METRIC_WORDS matcheaba "ventas" como SUBSTRING dentro de la
+// frase compuesta — "fuerza de ventas" es un gasto legítimo, no el usuario nombrando la métrica "ventas" a secas).
+// Usar SOLO para validar un nombre CANDIDATO completo (nunca para escanear una oración libre, ahí sigue sirviendo
+// la versión sin anclar — ver el uso en el guard de "rearme guiado" más abajo, que es intencionalmente amplio).
+const _METRIC_WORDS_WHOLE = /^(?:ventas?|margen|contribuci[oó]n|capital|stock|inventari\w*|rotaci[oó]n|doh|cobertura|costos?|carga|rebates?|presupuesto|clientes?|sku|marcas?|familias?|bodegas?|benchmark|resultado|unidades|precios?)$/i;
 const _AFFIRM_SELLO = /^\s*(s[ií]|dale|ok(ey)?|s[eé]ll?alo|sella|sellado|confirmo|de una|perfecto|adelante|h[aá]zlo|hacelo|claro|obvio|s[ií],?\s+s[eé]ll?alo)[\s.!…]*$/i;
 const _CANCEL_RE = /^\s*(no(,)?\s+)?(mejor\s+no|cancel[aá]\w*|dej[eé]moslo|despu[eé]s\s+(lo\s+)?(seguimos|vemos)|olv[ií]dalo|par[aá]|no\s+por\s+ahora|ahora\s+no)[\s.!…]*$/i;
 const _SIMQ_RE = /\b(qu[eé]\s+pasa(?:r[ií]a)?\s+si|c[oó]mo\s+queda(?:r[ií]a\w*|mos)?\s+si|y\s+si)\b|^\s*¿?\s*si\s+\p{L}/iu;
@@ -366,10 +372,15 @@ function _parseGastoList(q) {
   if (!parts.length || parts.length > 10) return null;
   const lines = [];
   for (const p of parts) {
-    const mp = p.match(/^(.+?)\s*(?:[:=]|\ba(?:l)?\b)?\s*(\d+(?:[.,]\d+)?)\s*%\s*$/);
+    // OJO acentos (bug real cazado en vivo, owner 2026-07-29: "tecnología 3%" → "Tecnologí" — clase YA documentada
+    // en criteria.js/_ARMAR_RE: \b no ve las vocales acentuadas como \w, así que "í" seguida de "a" ya cuenta como
+    // frontera de palabra y el conector opcional "a" se comía la ÚLTIMA LETRA del nombre). Fix: exigir un espacio
+    // LITERAL antes del conector "a"/"al" (`\s+a(?:l)?`, no `\ba(?:l)?\b`) — un conector real SIEMPRE está separado
+    // por un espacio de lo que nombra ("logística a 2%"), nunca pegado al final de la palabra.
+    const mp = p.match(/^(.+?)\s*(?:[:=]|\s+a(?:l)?)?\s*(\d+(?:[.,]\d+)?)\s*%\s*$/);
     const name = (mp ? mp[1] : p).replace(/^(?:el|la|los|las|un|una)\s+/i, "").trim();
     if (!/^[\p{L}][\p{L}\s.\-]{1,29}$/u.test(name)) return null;
-    if (_METRIC_WORDS.test(name)) return null;
+    if (_METRIC_WORDS_WHOLE.test(name)) return null;
     // ORACIÓN, no nombre de gasto (sweep informal 2026-07-25: «ya gracias, muéstrame el pyl completo» se volvía
     // dos líneas): nombres cortos (≤3 palabras) y sin arranque de verbo/muletilla — si una parte huele a frase,
     // la LISTA entera se descarta y el turno sigue su curso.
@@ -573,9 +584,9 @@ export function detectPnlIntent(q) {
   }
   if (/(agreg[aá]|sum[aá]|a[ñn]ad[ií])/i.test(t) && (_lines.length || _PNL_WORD.test(t) || _GASTOS_WORD.test(t))) {
     const ma = t.match(/(?:agreg[aá]\w*|sum[aá]\w*|a[ñn]ad[ií]\w*)\s+(?:la\s+l[ií]nea\s+)?(?:de\s+)?([\p{L}][\p{L}\s.\-]{1,29}?)\s+(?:con\s+|al\s+|a\s+)?(\d+(?:[.,]\d+)?)\s*%/iu);
-    if (ma && !_METRIC_WORDS.test(ma[1])) return { action: "edit_add", nombre: _cap(ma[1].trim()), pct: parseFloat(ma[2].replace(",", ".")) };
+    if (ma && !_METRIC_WORDS_WHOLE.test(ma[1].trim())) return { action: "edit_add", nombre: _cap(ma[1].trim()), pct: parseFloat(ma[2].replace(",", ".")) };
     const mn = t.match(/(?:agreg[aá]\w*|sum[aá]\w*|a[ñn]ad[ií]\w*)\s+(?:la\s+l[ií]nea\s+)?(?:de\s+)?([\p{L}][\p{L}\s.\-]{1,29})\s*$/iu);
-    if (mn && !_METRIC_WORDS.test(mn[1]) && _lines.length) return { action: "edit_add_nopct", nombre: _cap(mn[1].trim()) };
+    if (mn && !_METRIC_WORDS_WHOLE.test(mn[1].trim()) && _lines.length) return { action: "edit_add_nopct", nombre: _cap(mn[1].trim()) };
   }
   // forget («olvidá mi p&l» / «borrá mis gastos») · ANTES que el forget de criteria (que se lo robaría como recall)
   if (/\b(olvid[aá]|borr[aá]|elimin[aá]|resete[aá])/i.test(t) && (_PNL_WORD.test(t) || /\b(mis|los)\s+gastos\b/i.test(t)))
