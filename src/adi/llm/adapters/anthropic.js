@@ -14,6 +14,9 @@
 const BASE = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/v1/messages";
 const VERSION = "2023-06-01";
+// TIMEOUT (owner 2026-07-29, rendimiento/multiempresa): mismo criterio que el adapter de OpenAI — sin esto, un
+// proveedor colgado bloqueaba el request indefinidamente, agotando conexiones bajo carga multi-tenant.
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
 async function _call(body) {
   // Usa la conexión DEL ENTORNO si existe (ANTHROPIC_BASE_URL = proxy que inyecta auth · Claude Code/SDK).
@@ -21,9 +24,18 @@ async function _call(body) {
   const headers = { "content-type": "application/json", "anthropic-version": VERSION };
   if (process.env.ANTHROPIC_API_KEY) headers["x-api-key"] = process.env.ANTHROPIC_API_KEY;
   if (process.env.ANTHROPIC_AUTH_TOKEN) headers["authorization"] = "Bearer " + process.env.ANTHROPIC_AUTH_TOKEN;
-  const res = await fetch(ENDPOINT, { method: "POST", headers, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
-  return res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(ENDPOINT, { method: "POST", headers, body: JSON.stringify(body), signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
+    return await res.json();
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error(`timeout tras ${TIMEOUT_MS}ms esperando a Anthropic`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export const anthropicAdapter = {

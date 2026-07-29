@@ -31,6 +31,24 @@ function _config(env) {
   return { provider, model, narrateModel };
 }
 
+// ── RATE LIMIT básico por tenant (owner 2026-07-29, multiempresa/rendimiento) ───────────────────────────────────
+// In-memory, best-effort: correcto en un proceso PERSISTENTE (server.js/devGateway) — en funciones serverless
+// efímeras cada cold start resetea el contador, así que ahí es una red PARCIAL, no una garantía dura. Una garantía
+// dura entre instancias exige un store distribuido (Redis/Upstash) — decisión de infra que no se puede tomar acá
+// sin elegir un proveedor real; se documenta como el siguiente paso, no se finge tenerlo.
+const _rateBuckets = new Map();   // tenantId → { count, windowStart }
+function _checkRateLimit(tenantId, env) {
+  const e = _env(env);
+  const windowMs = Number(e.LLM_RATE_WINDOW_MS) || 60000;
+  const maxPerWindow = Number(e.LLM_RATE_MAX_PER_WINDOW) || 30;
+  const key = tenantId || "_sin_tenant";
+  const now = Date.now();
+  let b = _rateBuckets.get(key);
+  if (!b || now - b.windowStart > windowMs) { b = { count: 0, windowStart: now }; _rateBuckets.set(key, b); }
+  b.count++;
+  return b.count <= maxPerWindow;
+}
+
 // ── ACCESO DEMO PRIVADA (owner 2026-07-08) ──────────────────────────────────────────────────────────────────────
 // Con ADI_TOKEN_SECRET seteado, TODA llamada al LLM exige un código firmado vigente (body.access) — es lo que
 // protege la key del proveedor cuando el link circula. Sin secret → gateway abierto (dev/backcompat intactos).
@@ -111,10 +129,11 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
 // ── ARQUITECTURA C · Fase 3 · las dos pasadas del oráculo (detrás del flag · fallback intacto) ──────────────────
 // PLAN (Pasada 1): texto (+ hilo + memoria de interacción) → PLAN estructurado (qué tools llamar, con qué alcance).
 // El BATCH determinístico corre en el CLIENTE (runPlan · puro); solo las 2 llamadas al LLM pasan por acá.
-export async function handlePlan({ text, history, mem, scenario, access } = {}, env) {
+export async function handlePlan({ text, history, mem, scenario, access, tenantId } = {}, env) {
   const acc = await _access(access, env);
   if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
   if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
+  if (!_checkRateLimit(tenantId, env)) return { ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" };
   const { provider, model } = _config(env);
   const system = buildPlanSystem(ADI_PERSONA, renderInteractionMemory(mem), scenario || "actual");
   const user = buildPlanUserMessage(history, text);
@@ -124,10 +143,11 @@ export async function handlePlan({ text, history, mem, scenario, access } = {}, 
 
 // NARRAR-C (Pasada 2): el CLIENTE ya corrió el batch y arma el payload (pregunta + datos + cifras_autorizadas +
 // memoria); acá solo inyectamos la persona + memoria como system y narramos. El guard endurecido corre en el cliente.
-export async function handleNarrateC({ payload, mem, access } = {}, env) {
+export async function handleNarrateC({ payload, mem, access, tenantId } = {}, env) {
   const acc = await _access(access, env);
   if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
   if (!payload || typeof payload !== "object") return { ok: false, error: "sin payload" };
+  if (!_checkRateLimit(tenantId, env)) return { ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" };
   const { provider, narrateModel } = _config(env);
   const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem));
   const { text: narration, usage } = await getAdapter(provider).narrate(payload, { model: narrateModel, system });

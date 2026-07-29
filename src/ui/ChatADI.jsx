@@ -20,6 +20,7 @@ import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag)
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
+import { buildRequestContext } from "../adi/oracle/requestContext.js";   // multiempresa (owner 2026-07-29): tenant/conversación/snapshot explícitos, nunca implícitos
 import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
@@ -133,11 +134,13 @@ function _oracleOn() {
   } catch { /* headless */ }
   return ADI_ORACLE_ENABLED;   // producción real: solo el flag (OFF salvo que se prenda a propósito)
 }
-// Pasada 1 · PLAN (server-side · la key vive en el gateway)
-async function _fetchPlan({ text, history, mem, scenario }) {
+// Pasada 1 · PLAN (server-side · la key vive en el gateway). tenantId viaja SOLO para rate-limit por tenant en el
+// gateway (owner 2026-07-29, multiempresa) — nunca decide qué datos trae el plan, eso lo sigue haciendo el motor
+// client-side sobre el tenant activo en tenantStore.js.
+async function _fetchPlan({ text, history, mem, scenario, requestContext }) {
   const res = await fetch("/api/adi-plan", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode() }),
+    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
@@ -145,11 +148,11 @@ async function _fetchPlan({ text, history, mem, scenario }) {
   return data.plan;
 }
 // Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
-async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history }) {
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext }) {
   const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history });
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload, mem, access: getAccessCode() }),
+    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
@@ -209,10 +212,15 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       _ph(0);
       const mem = (context && context.memoriaInteraccion) || {};
       const history = Array.isArray(recentTurns) ? recentTurns : [];
-      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: _fetchPlan, callNarrate: _fetchNarrateC });
+      // conversationId: UNA por hilo de chat — se genera la PRIMERA vez y se persiste en `context` (mismo mecanismo
+      // que memoriaInteraccion), nunca se recalcula a mitad de conversación (owner 2026-07-29, multiempresa: cada
+      // operación transporta explícitamente con qué tenant/conversación/snapshot está trabajando).
+      const conversationId = (context && context.conversationId) || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      const requestContext = buildRequestContext({ conversationId, scenario, mem });
+      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: _fetchPlan, callNarrate: _fetchNarrateC, requestContext });
       if (o && o.r) {
         _ph(3);
-        const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem } };   // persiste la memoria de interacción en el hilo
+        const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
         return _turnFromResult(q, rr, context, "oracle");
       }
     } catch { /* el oráculo falló → seguimos a la ruta vieja (fallback intacto) */ }

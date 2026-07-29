@@ -12,17 +12,31 @@
 
 const BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/chat/completions";
+// TIMEOUT (owner 2026-07-29, rendimiento/multiempresa): sin esto, un proveedor colgado bloqueaba el request
+// indefinidamente — bajo carga con muchos tenants eso agota conexiones/workers. Default 25s (bajo el límite típico
+// de función serverless), configurable por env sin tocar código.
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
 async function _call(body) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("falta OPENAI_API_KEY");
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: { "content-type": "application/json", "authorization": "Bearer " + key },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
-  return res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
+    return await res.json();
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error(`timeout tras ${TIMEOUT_MS}ms esperando a OpenAI`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // OpenAI devuelve usage {prompt_tokens, completion_tokens} → lo mapeamos a la forma común {input_tokens, output_tokens}

@@ -14,6 +14,7 @@ import { stripFiller, normalizeFigures } from "./narratePromptC.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
+import { assertTenantContext } from "./requestContext.js";
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
@@ -127,10 +128,20 @@ function _coerceMode(text, plan) {
 // answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls }) → { r, mem } | null
 //   r   = { text, route:"oracle", evidence:{boleta,...} }  (compatible con _turnFromResult)
 //   mem = la memoria de interacción ACTUALIZADA (el llamador la persiste en el context del hilo)
-export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6 } = {}) {
+export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null } = {}) {
   if (typeof callPlan !== "function" || typeof callNarrate !== "function") return null;
   const q = (text || "").trim();
   if (!q) return null;
+  // GUARD DE TENANT (owner 2026-07-29, multiempresa): `requestContext` es OPCIONAL para no romper compatibilidad
+  // con los ~30 gates/callers existentes que todavía no lo pasan — pero SI viene, se valida ANTES de tocar el
+  // motor. tenantStore.js guarda el tenant activo en una variable global de módulo (correcto para el modelo hoy:
+  // el motor corre client-side, un browser tab = un proceso = un tenant a la vez) — este guard es la red si algún
+  // caller alguna vez queda con un tenantId STALE (ej. el usuario cambió de empresa a mitad de una llamada en
+  // vuelo): abstención limpia, nunca calcular con el dato de la empresa equivocada.
+  if (requestContext) {
+    const t = assertTenantContext(requestContext);
+    if (!t.ok) { console.error(`[answerViaOracle] abstención por tenant mismatch: ${t.reason}`); return null; }
+  }
 
   // ── PASADA 1 · PLAN (con reintentos · 3 intentos máx, MISMO patrón que el retry de NARRAR más abajo) ──
   // hallazgo del re-barrido de 17 turnos (owner 2026-07-29): a diferencia de NARRAR, el plan NO reintentaba — un
@@ -142,7 +153,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   let plan = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     let p;
-    try { p = await callPlan({ text: q, history, mem, scenario }); }
+    try { p = await callPlan({ text: q, history, mem, scenario, requestContext }); }
     catch { continue; }
     if (p && p.intent) { plan = p; break; }
   }
@@ -188,7 +199,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   let narration = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     let n;
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext }); }
     catch { return null; }
     if (!n || typeof n !== "string" || !n.trim()) continue;
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
@@ -213,6 +224,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       text: narration,
       route: "oracle",
       evidence: buildOracleEvidence({ plan, results, figs, scenario }),
+      // trazabilidad multiempresa (owner 2026-07-29): qué tenant/snapshot/esquema respondió este turno — nunca se
+      // manda al LLM (no es parte del contrato conversacional), solo viaja en la evidencia para auditoría/debug.
+      ...(requestContext ? { requestContext: { tenantId: requestContext.tenantId, dataSnapshotId: requestContext.dataSnapshotId, conversationId: requestContext.conversationId, schemaVersion: requestContext.schemaVersion } } : {}),
       suggestions: null,
       sentrixAction: null,
     },

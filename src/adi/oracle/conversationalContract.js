@@ -26,7 +26,7 @@ export const CONTRACT_VERSION = "adi-conversational-contract@1.1.0";
 export const MODES = [
   {
     key: "default",
-    whenToUse: "un pedido de un DATO PUNTUAL sin ángulo especial (\"cuántas unidades tiene el SKU X\", \"el rebate de Falabella\") — cualquier turno que no encaje en los otros modos.",
+    whenToUse: "un pedido de un DATO PUNTUAL sin ángulo especial (\"cuántas unidades tiene el SKU X\", \"el rebate del cliente X\") — cualquier turno que no encaje en los otros modos.",
     narrate: "Dá el dato claro y cerrá con un breve \"qué mirar/hacer\" (ver PEDIDO DE DATO / CAMPO CONCRETO abajo) — nunca el dato pelado sin lectura.",
   },
   {
@@ -52,7 +52,7 @@ export const MODES = [
   {
     key: "evidencia",
     whenToUse: "el usuario pide ver el RESPALDO del número — \"muéstrame la cuenta\", \"de dónde sale eso\", \"cómo se calcula\", \"a ver el detalle\", \"por qué ese monto\" — quiere el CÁLCULO, no una repetición de la conclusión.",
-    narrate: "Abrí el cálculo: nombrá las cifras autorizadas que se combinan y CÓMO (la resta/suma exacta ya permitida — ej. \"18.5% de margen menos el benchmark de 30.1% = 11.6 puntos de brecha\"). Graduá cada afirmación: PROBADO (el dato la confirma directamente) / INDICADO (una señal, no cierra la causa) / ABIERTO (no se puede afirmar con este dato — decilo así, nunca lo inventes). No repitas la conclusión sin mostrar CÓMO se llega a ella — es exactamente lo que están pidiendo.",
+    narrate: "Abrí el cálculo: nombrá las cifras autorizadas que se combinan y CÓMO (la resta/suma exacta ya permitida — ej. \"X% de margen menos tu benchmark de Y% = Z puntos de brecha\"). Graduá cada afirmación: PROBADO (el dato la confirma directamente) / INDICADO (una señal, no cierra la causa) / ABIERTO (no se puede afirmar con este dato — decilo así, nunca lo inventes). No repitas la conclusión sin mostrar CÓMO se llega a ella — es exactamente lo que están pidiendo.",
   },
   {
     key: "clarify",
