@@ -15,7 +15,7 @@ import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtim
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, MANDATORY_BLOCK } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, hasForbiddenContent } from "./narrationBlocks.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -390,7 +390,24 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 
-  // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ──
+  // ── data_only / results_only: GARANTÍA POR CONSTRUCCIÓN (owner 2026-07-29, 2do residual) ──
+  // "[[DATOS]] Ventas: $100M. Te recomiendo renegociar con Falabella." — una etiqueta correcta no garantiza que el
+  // CONTENIDO adentro sea del tipo correcto; el renderer de bloques por sí solo NO cierra ese hueco. La única forma
+  // de que "no puede pasar" sea LITERALMENTE cierta para estos dos alcances es no darle al narrador ninguna
+  // oportunidad de escribir prosa libre: Pasada 2 NUNCA se invoca acá — cero superficie lingüística, compone
+  // SIEMPRE desde la boleta ya autorizada por el batch. Si no hay figs (turno degenerado, ej. intent=define forzado
+  // a data_only), cede al camino normal de abajo como última red — no hay nada que una recomendación pudiera
+  // "colarse en" si tampoco hay datos que mostrar.
+  if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
+    const composed = composeFromLedger(figs, pref.contentScope);
+    if (composed) {
+      const c = ensurePeriodoDeclared(composed, periodos);
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
+    }
+  }
+
+  // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
+  // results_only ya resolvieron arriba (o no tenían datos — ver el fallback final más abajo, misma composición).
   // Un rechazo del guard suele ser VARIANCE del LLM (una cifra derivada, una atribución yuxtapuesta). Re-muestrear
   // recupera la mayoría de esos turnos SIN debilitar el muro (el guard valida cada intento igual). El 2º reintento
   // solo se dispara cuando los dos primeros fallaron —los casos difíciles (temporal por entidad, cruces)— donde
@@ -403,27 +420,24 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
-    // CUMPLIMIENTO ESTRUCTURAL de contentScope (owner 2026-07-29, residual: verificado en vivo que "solo cifras"
-    // coló una recomendación) — cuando el alcance restringe, el narrador etiquetó sus propios bloques
-    // ([[DATOS]]/[[INTERPRETACION]]/[[ACCION]]/[[SIGUIENTE_PASO]], doctrina en responsePreference.js) y ACÁ un
-    // RENDERER DETERMINÍSTICO (narrationBlocks.js) selecciona cuáles sobreviven — si el LLM coló un bloque de más
-    // (ej. una [[ACCION]] bajo data_only), NUNCA llega al usuario, sin importar lo que haya escrito ahí: la garantía
-    // vive en este código, no en que el LLM haya obedecido la instrucción. Si falta el bloque MANDATORIO para este
-    // alcance, es una falla de FORMATO (no de contenido) — se reintenta con el MISMO loop de guardC de abajo.
-    if (pref.contentScope !== "full") {
+    // action_only: DOBLE candado (data_only/results_only ya no llegan acá, ver arriba). (1) el renderer descarta
+    // cualquier bloque que no sea [[ACCION]] — sigue valiendo, cierra la fuga original. (2) hasForbiddenContent
+    // valida el CONTENIDO del bloque permitido — si coló lenguaje de causa/interpretación o de siguiente-paso
+    // DENTRO de [[ACCION]] (el hueco que el owner cazó, generalizado a este alcance), el intento se DESCARTA
+    // ENTERO acá y reintenta — nunca se edita a mano un texto que ya mezcló categorías.
+    if (pref.contentScope === "action_only") {
       const parsed = parseBlocks(n);
-      const mandatory = MANDATORY_BLOCK[pref.contentScope];
-      if (!parsed || (mandatory && !parsed[mandatory])) continue;
-      n = renderFromBlocks(parsed, pref.contentScope);
+      if (!parsed || !parsed.accion) continue;
+      const rendered = renderFromBlocks(parsed, "action_only");
+      if (!rendered || hasForbiddenContent(rendered, "action_only")) continue;
+      n = rendered;
     }
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = n; break; }
   }
-  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — si el alcance restringe Y los 3 intentos de la
-  // Pasada 2 fallaron (formato o guard), componé DETERMINÍSTICAMENTE desde la boleta en vez de abstenerse: el
-  // usuario pidió MENOS que el arco completo, así que sus propias cifras autorizadas, sin narrar, siguen siendo
-  // una respuesta honesta — nunca se inventa una interpretación/acción que el LLM no pudo formatear a tiempo.
+  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — action_only tras 3 intentos fallidos (formato,
+  // contaminación interna, o guard); data_only/results_only SOLO si el intento de arriba no tenía figs.
   if (!narration && pref.contentScope !== "full") {
     const composed = composeFromLedger(figs, pref.contentScope);
     if (composed) {

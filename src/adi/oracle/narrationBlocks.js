@@ -1,29 +1,30 @@
 /* === src/adi/oracle/narrationBlocks.js · CUMPLIMIENTO ESTRUCTURAL DE `pref` (owner 2026-07-29, residual) ===
  * "No quiero resolverlo con un guard duro que produzca fallback. Quiero cumplimiento estructural." La v1 de
  * responsePreference.js dependía 100% de que el narrador OBEDECIERA la doctrina en prosa libre — verificado en vivo:
- * "resumen ejecutivo, solo cifras" salió como tabla limpia PERO con una frase de acción colgada al final. Acá el
- * narrador sigue narrando LIBRE (tablas, negritas, voz — nada de eso cambia), pero ADEMÁS marca su propio texto en
- * bloques ([[DATOS]]/[[INTERPRETACION]]/[[ACCION]]/[[SIGUIENTE_PASO]]) — un RENDERER DETERMINÍSTICO (sin LLM) es
- * quien decide cuáles de esos bloques llegan al usuario según `contentScope`. Si el LLM escribe un bloque que no
- * corresponde, el renderer lo descarta SIEMPRE — la garantía vive en el código, no en la obediencia del prompt.
- *
- * Solo se activa para contentScope !== "full" (data_only/action_only/results_only) — un turno full (la enorme
- * mayoría) nunca ve esta instrucción activarse y su texto no pasa por este parser, cero riesgo para el resto del
- * contrato de narratePromptC.js (tablas, orden sellado, SAGRADO, etc. — nada de eso se toca).
+ * "resumen ejecutivo, solo cifras" salió como tabla limpia PERO con una frase de acción colgada al final. La v2
+ * (bloques + renderer) cerró ESE hueco — pero el owner cazó uno más profundo, con prueba: una etiqueta [[DATOS]]
+ * correcta no garantiza que el CONTENIDO adentro sea del tipo correcto (el LLM puede escribir la recomendación
+ * ENTERA dentro de un bloque bien marcado, sin usar [[ACCION]] en absoluto — el renderer nunca lo vería como algo
+ * que descartar). "Para que 'no puede pasar' sea literalmente cierta":
+ *   - data_only / results_only: GARANTÍA POR CONSTRUCCIÓN. answerViaOracle.js NUNCA invoca al narrador libre para
+ *     estos dos alcances — cero superficie lingüística, compone SIEMPRE desde la boleta (composeFromLedger). No
+ *     hay bloque que parsear ni contenido que validar porque no hay prosa libre en absoluto.
+ *   - action_only: el único alcance que SIGUE narrando libre (la recomendación es juicio, no solo datos — un
+ *     composer determinístico no puede razonar el mecanismo). Doble candado: (1) el renderer de bloques descarta
+ *     cualquier bloque que no sea [[ACCION]] (v2, sin cambios); (2) hasForbiddenContent() valida el CONTENIDO
+ *     mismo del bloque permitido — si coló lenguaje de causa/interpretación o de siguiente-paso, el intento se
+ *     descarta ENTERO (nunca se repara quirúrgicamente) y se reintenta; agotados los intentos, composeFromLedger.
  */
 export const BLOCK_KEYS = ["datos", "interpretacion", "accion", "siguiente_paso"];
 
-// KEEP_BLOCKS[contentScope] → qué bloques sobreviven el render. "results_only" es "data_only" con otro nombre: en
-// una simulación el bloque DATOS ya ES "supuesto + resultado numérico" (así lo pide narratePromptC.js/SIMULACIÓN) —
-// no hace falta un 5º tipo de bloque, es el mismo DATOS aplicado al contenido propio de ese modo.
+// KEEP_BLOCKS[contentScope] → qué bloques sobreviven el render (siguen siendo pure functions testeables solas,
+// aunque en la práctica solo action_only las ejercita hoy — data_only/results_only ya no llegan acá).
 export const KEEP_BLOCKS = {
   full: ["datos", "interpretacion", "accion", "siguiente_paso"],
   data_only: ["datos"],
   results_only: ["datos"],
   action_only: ["accion"],
 };
-// MANDATORY_BLOCK[contentScope] → el bloque que TIENE que estar presente para considerar el parseo estructuralmente
-// válido. Si falta, es una falla de FORMATO (el LLM no lo etiquetó) — se reintenta, nunca se inventa contenido.
 export const MANDATORY_BLOCK = { full: null, data_only: "datos", results_only: "datos", action_only: "accion" };
 
 const _MARK_RE = /\[\[(DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO)\]\]/g;
@@ -47,25 +48,55 @@ export function parseBlocks(text) {
   return Object.keys(out).length ? out : null;
 }
 
-// renderFromBlocks(parsed, contentScope) → el texto FINAL que ve el usuario: SOLO los bloques que ese alcance
-// permite, tags fuera, unidos en el orden canónico. Esta es la garantía estructural — corre SIEMPRE, sin importar
-// qué haya escrito el LLM en los bloques descartados (aunque haya colado una recomendación bajo [[ACCION]] en un
-// turno data_only, nunca llega acá: KEEP_BLOCKS.data_only = ["datos"] la excluye por construcción).
+// renderFromBlocks(parsed, contentScope) → SOLO los bloques que ese alcance permite, tags fuera. Sigue siendo
+// necesario para action_only (KEEP_BLOCKS.action_only descarta [[DATOS]]/[[INTERPRETACION]]/[[SIGUIENTE_PASO]] por
+// construcción) — pero YA NO es, por sí sola, la garantía completa: ver hasForbiddenContent abajo.
 export function renderFromBlocks(parsed, contentScope) {
   const keep = KEEP_BLOCKS[contentScope] || KEEP_BLOCKS.full;
   return keep.map((k) => parsed && parsed[k]).filter(Boolean).join("\n\n").trim();
 }
 
-// composeFromLedger(figs, contentScope) → REPARACIÓN CONTROLADA (owner: "un reintento y después una composición
-// determinística desde la boleta, nunca fallback genérico") — sin LLM, sin invención: arma la respuesta DIRECTO de
-// las cifras ya autorizadas del ledger. "action_only" usa el ORDEN SELLADO de la tool (requisito 4, pase quirúrgico
-// de confiabilidad — la fila 0 ES la prioridad real, no una que este composer decida) y solo templatea la frase;
-// nunca inventa un mecanismo o una causa que no estén en el label/valor ya autorizados.
+// ── CONTAMINACIÓN INTERNA DEL BLOQUE (owner 2026-07-29, 2do residual: "[[DATOS]] Ventas: $100M. Te recomiendo
+// renegociar con Falabella." — la etiqueta es correcta, el CONTENIDO no) ── SOLO aplica a action_only: es el
+// ÚNICO alcance que sigue narrando libre después de este fix (data_only/results_only nunca llegan acá, ver
+// answerViaOracle.js). Detecta lenguaje de OTRA categoría colado dentro del bloque permitido — si lo encuentra,
+// el caller DESCARTA el intento entero (no intenta stripear la oración ofensora: un texto que ya mezcló
+// categorías es más barato de re-generar que de editar a mano sin dejarlo gramaticalmente roto).
+const _CAUSAL_LEAK_RE = /\b(esto se debe a|esto ocurre porque|esto sucede porque|la causa (?:de esto )?es|se debe a que|el motivo es|esto explica por qu[eé]|esto indica que|esto sugiere que|esto refleja que)\b/i;
+const _NEXT_STEP_LEAK_RE = /¿(?:quer[eé]s|te gustar[ií]a|avanzamos|seguimos|profundizamos)\b|si quer[eé]s,? puedo\b/i;
+export function hasForbiddenContent(text, contentScope) {
+  const s = String(text || "");
+  if (contentScope === "action_only") return _CAUSAL_LEAK_RE.test(s) || _NEXT_STEP_LEAK_RE.test(s);
+  return false;   // data_only/results_only: sin narración libre, sin contenido que validar (garantía por construcción)
+}
+
+// ── composeFromLedger(figs, contentScope) ── SIN LLM, sin invención: arma la respuesta DIRECTO de las cifras ya
+// autorizadas. Para data_only/results_only, YA NO es una reparación de último recurso — es la ÚNICA vía (ver
+// answerViaOracle.js). Para action_only, sigue siendo la reparación tras 3 intentos fallidos.
+const _NON_ENTITY_SUFFIX_RE = /^(subtotal|total)$/i;
+// _isEntityAttributed: el ÚLTIMO segmento del label (tras el separador "·") es un nombre real, no "subtotal"/
+// "total" — evita que la "prioridad" de action_only termine siendo un total agregado (bug real cazado en este
+// mismo pase: list[0] a veces ES "Contribución no capturada · subtotal", no una entidad accionable).
+function _isEntityAttributed(fig) {
+  const segs = String(fig.label || "").split("·").map((s) => s.trim());
+  if (segs.length < 2) return false;
+  const last = segs[segs.length - 1];
+  return last.length >= 3 && !_NON_ENTITY_SUFFIX_RE.test(last);
+}
+function _bestByMagnitude(figs) {
+  let best = figs[0], bestAbs = typeof best.raw === "number" && isFinite(best.raw) ? Math.abs(best.raw) : -Infinity;
+  for (const f of figs) {
+    const abs = typeof f.raw === "number" && isFinite(f.raw) ? Math.abs(f.raw) : -Infinity;
+    if (abs > bestAbs) { best = f; bestAbs = abs; }
+  }
+  return best;
+}
 export function composeFromLedger(figs, contentScope) {
   const list = Array.isArray(figs) ? figs.filter((f) => f && typeof f.label === "string" && f.value != null) : [];
   if (!list.length) return null;
   if (contentScope === "action_only") {
-    const top = list[0];
+    const entityFigs = list.filter(_isEntityAttributed);
+    const top = _bestByMagnitude(entityFigs.length ? entityFigs : list);
     return `La prioridad: ${top.label} (${top.value}).`;
   }
   const rows = list.slice(0, 12).map((f) => `| ${f.label} | ${f.value} |`);
