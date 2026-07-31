@@ -380,9 +380,25 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   // cifras fantasma sin la entidad correcta en el label (bug real cazado en este mismo desarrollo). El supuesto YA
   // viaja legible en el `context` de cada fig de la boleta — no hace falta duplicarlo acá con un nombre riesgoso.
   const facts = { entidad: entity, dimension: dim, deltaPrecio: precioVar.pct, deltaVolumen: volumenVar.pct, ventaActual: _moneyK(ventaActual), ventaNueva: _moneyK(ventaNueva) };
+  // Precio/Volumen propuesto COMO FIG DE LA BOLETA (owner 2026-07-31, hallazgo EN VIVO, certificación integral) —
+  // sin esto, el % del supuesto (8%, -2%…) SOLO vivía en `facts`/`context`, nunca como una cifra autorizada
+  // propiamente dicha. guardC SÍ deja citar una cifra que el usuario nombró en SU PROPIA pregunta (parseFigures del
+  // texto de ESTE turno) — pero en un flujo de 2 turnos (precio en el turno 1, volumen en el turno 2, ver
+  // mem.pendingSimulation en answerViaOracle.js) el texto de CADA turno individual solo contiene UNA de las dos
+  // cifras. Reproducido en vivo: el narrador, correctamente, necesita nombrar AMBOS supuestos para que la
+  // simulación se entienda ("si subís el precio a Lider un 8%...") — guardC rechazaba "8%" por no-autorizada en el
+  // turno donde solo se contestó el volumen, los 3 intentos se agotaban, y C ABSTENÍA ENTERO (caía al pipeline
+  // viejo, que no entiende nada de esto). Estas 2 figs cierran el hueco de raíz, para CUALQUIER camino (1 turno o
+  // 2) — no dependen de qué texto haya dicho el usuario en qué turno.
   const boleta = [
     fig(`${entity} · Venta actual`, _moneyK(ventaActual), { unit: "money", raw: ventaActual * 1000, source: "actual", context: _ctx }),
     fig(`${entity} · Venta supuesta`, _moneyK(ventaNueva), { unit: "money", raw: ventaNueva * 1000, mandatory: true, source: "computed", formula: _fVenta, context: _ctx }),
+    // SIN "+" manual en positivos (owner, hallazgo en el propio testing de este fix): boleta.js._fmtC formatea
+    // pct como `${raw}%` sin signo forzado — un value="+8%" acá generaría canon "pct:+8%", que NUNCA matchea el
+    // canon "pct:8%" que parseFigures deriva de la narración real ("un 8%", nunca "un +8%"). Mismo formato que
+    // TODO el resto de figs pct de este archivo (Margen actual/supuesto, más abajo) — ninguna fuerza el "+".
+    fig(`${entity} · Precio propuesto`, `${precioVar.pct}%`, { unit: "pct", raw: precioVar.pct, source: "actual", context: _ctx }),
+    fig(`${entity} · Volumen propuesto`, `${volumenVar.pct}%`, { unit: "pct", raw: volumenVar.pct, source: "actual", context: _ctx }),
   ];
 
   const costModel = costModelOf();
