@@ -18,7 +18,7 @@ import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
-import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
+import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
@@ -110,6 +110,42 @@ function _coerceTensionArgs(text, calls) {
   return arr;
 }
 
+// ── ENTIDAD PUNTUAL → FILTRO OBLIGADO (owner 2026-07-31, auditoría integral) — el catálogo de planPrompt.js YA
+// prohíbe explícitamente mandar una entidad puntual nombrada a una tool de ranking SIN filtro para queryMetric
+// ("el margen de Y" es su ejemplo textual de lo que nunca debe pasar) pero esa prohibición no estaba generalizada
+// a marginRead/contributionRead/diagnose: la Pasada 1 (PLAN) elige intermitentemente estas tools SIN el filtro que
+// las acota a la entidad nombrada — y composeSpecContribucion (focus="rank", su default) IGNORA ESTRUCTURALMENTE
+// el parámetro `entity`, así que cualquier plan que pase {dimension,entity} sin filters a contributionRead queda
+// GARANTIZADO a traer la cartera completa, sin depender del sampling del LLM (marginRead/diagnose no tienen
+// concepto de `entity` en absoluto — solo `filters` los acota, y sin filtro simplemente barren TODO el negocio).
+// Efecto real medido: cifras agregadas de TODA la cartera atribuidas por error a una sola entidad nombrada.
+//
+// Backstop DETERMINÍSTICO (mismo principio que el resto de _coerce* de este archivo — solo para el patrón
+// genuinamente inequívoco): si plan.scope.level="entity" con EXACTAMENTE 1 entidad nombrada (2+ es comparación/
+// lista, terreno de compareEntities/diagnose sin acotar — no se toca acá) y la call es una de estas 4 tools,
+// forzamos el filtro (o el redirect ya existente de queryMetric) ANTES de ejecutar — reemplaza CUALQUIER `filters`
+// que haya traído el plan (inválido, con la clave equivocada, o ausente) por el único filtro correcto: el eje real
+// de esa entidad en el dato (guessDimension — mismo mecanismo data-driven que ya usan entityRecord/entityProfile,
+// NUNCA una lista de regex nueva) → esa entidad. Si guessDimension no la reconoce (nombre no existe en el dato),
+// no se fuerza nada — la tool declina honesto como siempre, sin inventar un eje.
+const _ENTITY_FILTER_TOOLS = new Set(["marginRead", "contributionRead", "diagnose", "queryMetric"]);
+function _coerceEntityScopedFilters(plan, calls) {
+  const arr = Array.isArray(calls) ? calls : [];
+  if (!plan || !plan.scope || plan.scope.level !== "entity") return arr;
+  const entities = Array.isArray(plan.scope.entities) ? plan.scope.entities.filter(Boolean) : [];
+  if (entities.length !== 1) return arr;   // 2+ entidades: comparación/lista, terreno de compareEntities — no se toca
+  const entity = entities[0];
+  const axis = guessDimension(entity);
+  if (!axis) return arr;   // nombre no reconocido en el dato → no se fuerza nada, la tool declina honesto como siempre
+  return arr.map((c) => {
+    if (!c || !_ENTITY_FILTER_TOOLS.has(c.tool)) return c;
+    const args = (c.args && typeof c.args === "object" && !Array.isArray(c.args)) ? c.args : {};
+    if (args.filters && typeof args.filters === "object" && !Array.isArray(args.filters) && args.filters[axis] === entity && Object.keys(args.filters).length === 1) return c;   // ya viene bien acotado, no-op
+    const newArgs = c.tool === "queryMetric" ? { ...args, dimension: axis, filters: { [axis]: entity } } : { ...args, filters: { [axis]: entity } };
+    return { ...c, args: newArgs };
+  });
+}
+
 // ── RUTA DETERMINÍSTICA · consulta simple entidad+métrica (owner "pase quirúrgico de confiabilidad" 2026-07-29,
 // requisito 1) — "¿cuál es el margen de Falabella?" no necesita que un LLM narre libre: el motor YA tiene la cifra
 // exacta, autorizada, con su período. Saltea la Pasada 2 (narrar) ENTERA para este caso puntual — cero chance de
@@ -123,6 +159,19 @@ function _coerceTensionArgs(text, calls) {
 //   · EXACTAMENTE 1 métrica nombrada en el TEXTO CRUDO de la pregunta (reusa _extractTensionMetrics, ya probado
 //     para tensionRead) — 0 métricas = pide el registro completo (mejor servido por el narrador); 2+ = comparación
 //     o cruce (también mejor servido por el narrador, que puede tejer la relación entre ambas).
+// _SNAPSHOT_TOKENS (owner 2026-07-31, hallazgo en vivo, "Inventario y capital inmovilizado") — toolRunner.js
+// (_PERIODO_HOY/_stampPeriodo) solo reconoce 'inventoryStatus' como tool de "foto a hoy"; cuando la MISMA pregunta
+// de negocio (capital inmovilizado / valor de inventario / rotación) se resuelve para un SKU puntual vía
+// entityRecord (porque inventoryStatus no filtra por SKU), el período quedaba estampado "año cerrado" — inconsistente
+// y engañoso para un concepto que es una foto del stock a hoy, no un acumulado anual. entityRecord trae una FILA
+// MIXTA (campos anuales como venta/margen JUNTO a campos de foto como stock/rotación/DOH) — un solo `res.facts.periodo`
+// por tool no puede ser correcto para ambos a la vez. Acá, en la ruta determinística de UN SOLO CAMPO (donde el
+// token exacto que se va a narrar YA se conoce), el criterio deriva del CAMPO pedido, no de la tool que respondió:
+// si el token es un campo de INVENTARIO/FOTO (stock, rotación, cobertura), el período es "hoy" sin importar que la
+// tool haya sido entityRecord y no inventoryStatus.
+const _SNAPSHOT_TOKENS = new Set(["stockUSD", "rotacion", "doh"]);
+const _PERIODO_HOY_TXT = "foto de inventario a hoy — no es un promedio anual";   // mismo texto canónico que toolRunner.js
+
 function _simpleEntityMetric(q, plan, calls, results) {
   if (!plan || plan.intent !== "answer") return null;
   if (!plan.scope || plan.scope.level !== "entity" || !Array.isArray(plan.scope.entities) || plan.scope.entities.length !== 1) return null;
@@ -140,7 +189,8 @@ function _simpleEntityMetric(q, plan, calls, results) {
   const dimension = calls[0].args && calls[0].args.dimension;
   const rec = dimension ? rawRecordFor(dimension, entity) : null;
   const rawValue = rec && typeof rec[token] === "number" ? rec[token] : null;
-  return { entity, label, token, value: r.facts[label], periodo: r.facts.periodo || null, rec, rawValue };
+  const periodo = _SNAPSHOT_TOKENS.has(token) ? _PERIODO_HOY_TXT : (r.facts.periodo || null);
+  return { entity, label, token, value: r.facts[label], periodo, rec, rawValue };
 }
 
 // ── LECTURA MÍNIMA para la ruta determinística (owner "piensa bien, estás de acuerdo con esta respuesta?"
@@ -229,8 +279,20 @@ function _rutaDeterministica(pref, { entity, label, token, value, periodo, rec, 
 // "default", lo que habría descartado en silencio diagnostico/decision/simulacion/seguimiento/evidencia apenas se
 // agregaron al enum — ahora preserva cualquier mode VÁLIDO del plan, no solo clarify.)
 const _CLARIFY_RE = /\b(no\s+(?:te\s+)?entiend\w*|no\s+entend[ií]\w*|no comprendo|no logro entender|no me qued[oó] claro|no me queda claro|expl[ií]c\w*.{0,20}?\b(?:f[aá]cil|simple|sencill\w*)|en palabras (?:m[aá]s\s+)?simples|m[aá]s simple\b|qu[eé] significa|qu[eé] quiere decir|a qu[eé] te refer[ií]s)/i;
-function _coerceMode(text, plan) {
-  if (_CLARIFY_RE.test(String(text || ""))) return "clarify";
+// _SEGUIMIENTO_RE (owner 2026-07-31, hallazgo en vivo, "Orientación, aclaración y continuidad") — reforzar SOLO la
+// doctrina de conversationalContract.js (whenToUse de "seguimiento") NO alcanzó: medido con el LLM real, "Dale,
+// cuéntame un poco más de eso." tras un turno de resumen ejecutivo clasificó mode=diagnostico en 4/4 corridas pese
+// a la doctrina ya reforzada con ejemplos calcados de esta misma frase — un caso de "sistemáticamente mal pese a
+// doctrina clara" (mismo bar que ya cruzó _CLARIFY_RE). Backstop DETERMINÍSTICO angosto, mismo patrón que
+// _CLARIFY_RE: un marcador de continuación/acuerdo (dale/bueno/ok/va/listo) + un verbo de "seguir contando" en la
+// MISMA frase — SOLO cuando YA hay hilo previo (sin hilo, "dale, cuéntame de X" no continúa nada, PLAN decide
+// libre). Nunca compite con isAcceptance (esa bypasea PLAN entero para "dale" A SECAS, un caso distinto).
+const _SEGUIMIENTO_MARKER_RE = /\b(dale|bueno|ok(?:ay)?|va|listo|de\s+una)\b/i;
+const _SEGUIMIENTO_VERB_RE = /\bcu[eé]ntame\b|\bcont[aá]me\b|\bsegu[ií]\b|\bprofundiza\b|\bdame\s+m[aá]s\b|\bm[aá]s\s+detalle\b|\bexplica(?:me)?\s+m[aá]s\b/i;
+function _coerceMode(text, plan, hasThread) {
+  const t = String(text || "");
+  if (_CLARIFY_RE.test(t)) return "clarify";
+  if (hasThread && _SEGUIMIENTO_MARKER_RE.test(t) && _SEGUIMIENTO_VERB_RE.test(t)) return "seguimiento";
   return plan && MODE_KEYS.includes(plan.mode) ? plan.mode : "default";
 }
 
@@ -242,12 +304,15 @@ function _coerceMode(text, plan) {
 // LLM ya haya decidido no marcar). _PREF_DATA_ONLY_RE es un SUPERSET literal del viejo _SOLO_DATO_RE retirado
 // arriba — mismo comportamiento para las frases que YA estaban probadas, más "solo cifras/KPIs/números" (requisito
 // del owner: "resumen ejecutivo... solo cifras").
-const _PREF_DATA_ONLY_RE = /\bsolo\s+(?:el\s+|la\s+|los\s+|las\s+)?(?:dato|datos|n[uú]mero|n[uú]meros|cifras?|kpis?)\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bnada\s+m[aá]s\b|\bdame\s+solo\b/i;
-const _PREF_ACTION_ONLY_RE = /\bsolo\s+la\s+acci[oó]n\b|\bsin\s+(?:el\s+)?diagn[oó]stico\b|\band[aá]\s+al\s+grano\b|\bdirecto\s+a\s+la\s+acci[oó]n\b|\bsin\s+repetir\s+el\s+diagn[oó]stico\b/i;
+// s[oó]lo (owner 2026-07-31, hallazgo en vivo): "\bsolo\b" NUNCA matcheaba la variante acentuada "sólo" (ortografía
+// tradicional española, uso muy común) — confirmado por test de regex aislado, 100% determinístico, sin LLM
+// involucrado. Las 4 regex de preferencia (data_only/action_only/results_only/"solo esta vez") se amplían acá.
+const _PREF_DATA_ONLY_RE = /\bs[oó]lo\s+(?:el\s+|la\s+|los\s+|las\s+)?(?:dato|datos|n[uú]mero|n[uú]meros|cifras?|kpis?)\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bnada\s+m[aá]s\b|\bdame\s+s[oó]lo\b/i;
+const _PREF_ACTION_ONLY_RE = /\bs[oó]lo\s+la\s+acci[oó]n\b|\bsin\s+(?:el\s+)?diagn[oó]stico\b|\band[aá]\s+al\s+grano\b|\bdirecto\s+a\s+la\s+acci[oó]n\b|\bsin\s+repetir\s+el\s+diagn[oó]stico\b/i;
 // "resultados"/"sin recomendación" SOLO se leen como results_only dentro de una SIMULACIÓN (mode="simulacion") —
 // fuera de ese contexto "sin recomendación" es ambiguo (una decisión SIN recomendación no tiene mucho sentido) y se
 // deja al criterio del LLM (plan.pref), no se fuerza por red.
-const _PREF_RESULTS_ONLY_SIM_RE = /\bsolo\s+(?:los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b/i;
+const _PREF_RESULTS_ONLY_SIM_RE = /\bs[oó]lo\s+(?:los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b/i;
 const _PREF_BRIEF_RE = /\bresponde?(?:me)?\s+breve\b|\bs[eé]\s+breve\b|\brespuesta\s+corta\b|\bmuy\s+resumido\b|\bcorto\s+y\s+concreto\b|\bresum[ií]me\b/i;
 // _PREF_DIRECTO_RE/_PREF_STANDARD_RE (owner 2026-07-31, hallazgo "memoria-directo"): antes, "háblame más directo"
 // llenaba memoryUpdate.verbosidad — una SEGUNDA fuente de verdad para lo mismo que ya resuelve detailLevel, y
@@ -265,7 +330,7 @@ const _PREF_STANDARD_RE = /\bexpl[ií]came?(?:lo)?\s+con\s+m[aá]s\s+detalle\b|\
 // general: ese marcador siempre acota a un turno, incluso sobre un reset) vía _PREF_ONE_TURN_RE, que se evalúa último.
 const _PREF_RESET_RE = /\b(?:an[aá]lisis|respuesta)\s+completo?a?\b|\bvolv[eé]\s+a\s+lo\s+normal\b|\bya\s+no\s+(?:necesito|hace\s+falta|quiero)\s+que\s+sea\s+breve\b|\bcomo\s+antes\b/i;
 const _PREF_PERSIST_RE = /\bdesde\s+ahora\b|\bde\s+ahora\s+en\s+adelante\b|\ba\s+partir\s+de\s+ahora\b|\bsiempre\s+respond[eé]me?\b|\ben\s+adelante\b/i;
-const _PREF_ONE_TURN_RE = /\bsolo\s+esta\s+vez\b|\bpor\s+esta\s+vez\b|\bsolo\s+por\s+ahora\b|\bahora\s+solo\b/i;
+const _PREF_ONE_TURN_RE = /\bs[oó]lo\s+esta\s+vez\b|\bpor\s+esta\s+vez\b|\bs[oó]lo\s+por\s+ahora\b|\bahora\s+s[oó]lo\b/i;
 
 // _coercePref(text, plan) → { contentScope, detailLevel, persist } | null (null = ninguna señal este turno, ni del
 // LLM ni de la red — el llamador cae a la preferencia de SESIÓN si había una, o al default). `plan.pref` (si el LLM
@@ -487,11 +552,22 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // toma precedencia entera, sin tocar nada de esto.
   if (!resolvedPendingSim) {
     const scenarioIntent = detectScenarioIntent(q);
-    // "no_entity": campo+% inequívoco, pero NINGÚN cliente conocido nombrado — nunca se asume cartera completa en
-    // silencio (la falla #2, invertida: sin entidad tampoco se adivina, se pregunta).
+    // "no_entity": campo+% inequívoco, pero NINGÚN cliente conocido nombrado EN ESTE TEXTO — nunca se asume cartera
+    // completa en silencio (la falla #2, invertida: sin entidad tampoco se adivina, se pregunta). PERO (owner
+    // 2026-07-31, hallazgo en vivo): esto opera SOLO sobre el texto crudo del turno actual, nunca sobre history/
+    // pendingSimulation — mem.pendingSimulation ya se limpió (sobrevive un único turno) si hubo un tema de por
+    // medio, así que un retorno ELÍPTICO a una simulación cuya entidad quedó establecida turnos atrás (interrumpida
+    // por un desvío de tema) perdía el contexto acá, preguntando algo que el usuario ya había contestado. Antes de
+    // preguntar genérico, consultamos mem.recentSubjects (Fase 3, sobrevive varios turnos, a diferencia de
+    // pendingSimulation): si hay un sujeto reciente recuperable (de dimension "cliente", la única que
+    // simulateGeneral soporta), dejamos pasar el turno a PLAN — el motor YA demostró resolver este tipo de
+    // elipsis por comprensión cuando se le da la oportunidad — en vez de cortar con una pregunta que ignora el hilo.
     if (scenarioIntent.kind === "no_entity") {
-      const out = _composedBypassResult("¿Para qué cliente querés simular este escenario?", mem, recentNarrationsPrev, scenario);
-      if (out) return out;
+      const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || s.dimension === "cliente"));
+      if (!recoverable) {
+        const out = _composedBypassResult("¿Para qué cliente querés simular este escenario?", mem, recentNarrationsPrev, scenario);
+        if (out) return out;
+      }
     }
     // "future": campo+% inequívoco Y una entidad conocida — la falla #1 (nunca entraba a simulateGeneral) y la
     // falla #2 (alcance perdido) son estructuralmente imposibles acá: la entidad la puso este detector determinístico,
@@ -532,7 +608,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       let p;
       try { p = await callPlan({ text: q, history, mem, scenario, requestContext }); }
       catch { continue; }
-      if (p && p.intent) { plan = p; break; }
+      if (!p || !p.intent) continue;
+      // BACKSTOP · calls vacío en un redirect (owner 2026-07-31, hallazgo en vivo, auditoría integral) —
+      // planPrompt.js ya prohíbe esto EXPLÍCITAMENTE ("no dejes calls vacío: replanteá y traé el dato bueno"), pero
+      // medido en ~1/3 de las corridas el LLM lo deja vacío igual. Sin ninguna cifra autorizada, NARRATE a veces
+      // redacta con placeholders sin rellenar ("...un potencial de $X...") — guardC ya los bloquea aparte (ver
+      // _placeholderSinRellenar en guardC.js), pero es mejor evitar el turno roto ANTES: tratamos esto como un
+      // intento fallido y reintentamos (mismo presupuesto de 3, no uno extra) — casi siempre el reintento SÍ
+      // puebla calls (variance de sampling). Si los 3 intentos insisten en calls vacío, seguimos con el ÚLTIMO
+      // plan de todos modos (nunca null acá) — el resto del pipeline (guardC + la reparación de full scope) sigue
+      // siendo la red de seguridad si NARRATE igual redacta algo roto.
+      plan = p;
+      if (p.intent === "redirect" && !(Array.isArray(p.calls) && p.calls.length)) continue;
+      break;
     }
     if (!plan) return null;
   }
@@ -540,7 +628,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // OJO: `plan` se REEMPLAZA (no solo la variable local `calls`) — buildNarrateUserMessageC recibe `plan` completo
   // más abajo, y si solo corregíamos la variable suelta, el narrador seguía viendo plan.calls SIN corregir (bug real
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
-  plan = { ...plan, calls: _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : []), mode: _coerceMode(q, plan) };
+  const hasThread = (Array.isArray(history) && history.length > 0) || recentNarrationsPrev.length > 0 || !!priorOffer;
+  plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread) };
   const calls = plan.calls;
 
   // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido
@@ -651,7 +740,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const simple = _simpleEntityMetric(q, plan, calls, results);
   if (simple) {
     const detRaw = pref.detailLevel === "brief" ? truncateToBriefBudget(_rutaDeterministica(pref, simple)) : _rutaDeterministica(pref, simple);
-    const det = ensurePeriodoDeclared(detRaw, periodos);
+    // periodosEsperados(results) refleja el período estampado POR TOOL (toolRunner.js: entityRecord → "año
+    // cerrado" siempre) — pero `simple.periodo` puede haber sido corregido POR CAMPO (ver _SNAPSHOT_TOKENS arriba:
+    // stockUSD/rotación/DOH de un SKU son una FOTO a hoy, no un acumulado anual, aunque la tool sea entityRecord).
+    // Usar el `periodos` genérico acá agregaría una cláusula "(Datos del año cerrado.)" CONTRADICTORIA al lado de
+    // la oración que ya dice "a la fecha de hoy" — derivamos la familia esperada del MISMO periodo ya resuelto
+    // para esta cita puntual, no del genérico de toda la tool-call.
+    const periodosSimple = /a[nñ]o cerrado/i.test(simple.periodo || "") ? ["anual"] : /foto.*hoy/i.test(simple.periodo || "") ? ["hoy"] : periodos;
+    const det = ensurePeriodoDeclared(detRaw, periodosSimple);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 
@@ -719,20 +815,25 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev }).ok) { narration = n; break; }
   }
-  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — SOLO action_only llega acá normalmente: data_only/
-  // results_only ya se resolvieron arriba, siempre, con o sin datos (nunca caen en este loop, ver la condición de
-  // arriba). EXCEPCIÓN (owner 2026-07-31, #56 "simulate v2", variante c): si ESTE turno trae un simulateGeneral
-  // degradado (costModelAutorizado:false) y el narrador insistió en "conviene" los 3 intentos (guardC lo rechazó
-  // siempre), full scope TAMBIÉN repara desde la boleta — componer una tabla de figs autorizadas es SIEMPRE seguro
-  // acá (no puede accidentalmente decir "conviene", es solo venta actual/supuesta) — la alternativa (abstenerse del
-  // todo y caer al pipeline viejo) sería peor que mostrar la tabla honesta que ya tenemos.
-  const simDegradado = results.some((r) => r && r.tool === "simulateGeneral" && r.facts && r.facts.costModelAutorizado === false);
-  if (!narration && (pref.contentScope === "action_only" || simDegradado)) {
+  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — data_only/results_only ya se resolvieron arriba,
+  // siempre, con o sin datos (nunca caen en este loop, ver la condición de arriba) — acá solo llegan full/action_only.
+  // ORIGEN (owner 2026-07-31, #56 "simulate v2", variante c): si ESTE turno trae un simulateGeneral degradado
+  // (costModelAutorizado:false) y el narrador insistió en "conviene" los 3 intentos (guardC lo rechazó siempre),
+  // full scope reparaba desde la boleta — componer una tabla de figs autorizadas es SIEMPRE seguro (no puede
+  // accidentalmente decir "conviene", son solo las cifras ya autorizadas).
+  // GENERALIZACIÓN (owner 2026-07-31, hallazgo en vivo, auditoría integral): restringir la reparación de full SOLO
+  // al caso simDegradado dejaba SIN NINGÚN camino de reparación a cualquier otro modo/turno donde guardC rechaza
+  // los 3 intentos por otra razón (ej. modo=decision citando una cifra de cartera mal atribuida; modo=clarify
+  // alucinando una cifra del turno anterior) — answerViaOracle devolvía null, es decir SILENCIO TOTAL, el peor
+  // resultado posible de cara al usuario (peor que una tabla de cifras autorizadas sin la prosa ejecutiva). El
+  // mismo argumento de seguridad que ya vale para simDegradado (componer desde figs YA autorizadas nunca puede
+  // inventar ni prometer de más) vale IGUAL para cualquier otro rechazo de full scope — se generaliza la condición.
+  if (!narration && (pref.contentScope === "action_only" || pref.contentScope === "full")) {
     const composed = composeFromLedger(figs, pref.contentScope === "action_only" ? "action_only" : "full") || composeNoDataMessage(results);
     const c = ensurePeriodoDeclared(composed, periodos);
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
-  if (!narration) return null;   // dos intentos no pasaron el muro (y sin datos para reparar) → C se abstiene (fallback a la ruta vieja)
+  if (!narration) return null;   // ni narrar ni reparar desde la boleta autorizada funcionó → C se abstiene (fallback a la ruta vieja)
 
   // ── OFERTA DE SEGUIMIENTO + REPETICIÓN (Fase 3) — lastOffer SIEMPRE recalculada desde CERO (nunca heredada, ver
   // dialogueState.js): esto es lo que hace que cambio de tema/rechazo/ejecución invaliden la oferta anterior SIN

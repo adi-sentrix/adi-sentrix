@@ -237,14 +237,23 @@ const _DIAG_TOPN = 5;
 // fuente+campo declarados por el CONTRATO para una métrica@eje (si el ERP remapea la fuente, el diagnose la sigue)
 function _sf(metric, dim) { const m = METRICS[metric]; return (m && m.sourceByAxis && m.sourceByAxis[dim]) || null; }
 
+// _norm/_eqNorm (owner 2026-07-31, hallazgo por lectura de código, auditoría integral): la normalización de
+// nombres (typos/acentos) era INCONSISTENTE entre rutas — entityRecord.js (resolveEntity)/temporal.js
+// (resolveEntityName) YA normalizan case+acento antes de comparar, pero acá la comparación era EXACTA
+// (String===String) — "santiago"/"Sodimac " (minúscula o con acento distinto al del dato) fallaba en silencio y la
+// tool declinaba "no hay señal" pese a que el dato SÍ existe. Mismo patrón `_norm` YA establecido en esas otras capas
+// (duplicado a propósito, ver sus comentarios: capas distintas del pipeline, no vale acoplarlas por 1 línea).
+const _norm = (s) => String(s == null ? "" : s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+const _eqNorm = (a, b) => a != null && b != null && _norm(a) === _norm(b);
+
 // acota el barrido a una marca/familia/bodega/cliente (los `filters` del spec) y, si viene, al ENTITYSCOPE heredado de un
 // follow-up deíctico ("de esos…"): un set de nombres/SKU de la última evidencia. Si el set NO intersecta (cruce de dimensión),
 // se ignora y devuelve las filas del filtro (nunca vacía por un alcance incompatible → la respuesta general en vez de mentir).
 function _scopeRows(rows, filters, entityScope) {
-  if (filters.marca)   rows = rows.filter((r) => r && r.marca === filters.marca);
-  if (filters.familia) rows = rows.filter((r) => r && r.sfamilia === filters.familia);
-  if (filters.bodega)  rows = rows.filter((r) => r && r.bodega === filters.bodega);
-  if (filters.cliente) rows = rows.filter((r) => r && r.nombre === filters.cliente);
+  if (filters.marca)   rows = rows.filter((r) => r && _eqNorm(r.marca, filters.marca));
+  if (filters.familia) rows = rows.filter((r) => r && _eqNorm(r.sfamilia, filters.familia));
+  if (filters.bodega)  rows = rows.filter((r) => r && _eqNorm(r.bodega, filters.bodega));
+  if (filters.cliente) rows = rows.filter((r) => r && _eqNorm(r.nombre, filters.cliente));
   if (entityScope && Array.isArray(entityScope.entities) && entityScope.entities.length) {
     const set = new Set(entityScope.entities.map((s) => String(s)));
     const scoped = rows.filter((r) => r && set.has(String(r.nombre != null ? r.nombre : r.sku)));

@@ -234,9 +234,21 @@ ok("59 · ALCANCE por la cadena: 'P&L de Falabella' → lectura scoped ACCIONABL
 ok("60 · HERENCIA elíptica: tras un P&L scoped, '¿y el de Ripley?' hereda la operación (piso) — y NO pisa una op resuelta del LLM #1",
   (() => {
     const rH = _pnlGo("¿y el de Ripley?");
-    if (!/El P&L de Ripley/.test(rH.text)) return false;
+    return /El P&L de Ripley/.test(rH.text);
+  })());
+// 60b (owner 2026-07-31, auditoría integral, hallazgo #7 — reemplaza la 2ª mitad ORIGINAL del test 60, que
+// codificaba el bug viejo como esperado): "dive" es la EXCEPCIÓN nueva a "la operación concreta manda" — a
+// diferencia de "margin"/"contribucion"/etc. (señal FUERTE de dominio, esas siguen ganando igual que siempre,
+// sin tocar), "dive" es la clasificación GENÉRICA de LLM#1 para "seguimiento de una entidad" y NO distingue de
+// qué dominio se trata. Medido en vivo: un "dive" sobre un hilo de P&L activo es casi siempre el mismo "¿y el de
+// X?" que detectPnlEllipsis ya resuelve — ANTES de este fix, "dive" pisaba la continuidad P&L 1/3 de las veces
+// reales (el usuario perdía el dominio P&L sin darse cuenta, aunque el propio LLM hubiera resuelto la entidad
+// "Jumbo" correctamente). El mock de abajo es el MISMO texto/spec que la vieja 2ª mitad del test 60 — coerceChain.js
+// ahora SÍ deja que detectPnlEllipsis gane sobre "dive" cuando pnlScope() está activo.
+ok("60b · EXCEPCIÓN 'dive' (post-fix hallazgo #7): con P&L activo, un 'dive' GENÉRICO cede ante la continuidad P&L en vez de pisarla",
+  (() => {
     const sD = CS("¿y el de Jumbo?", S({ operation: "dive", entity: "Jumbo", dimension: "cliente", turn_type: "new_query" }), true, null);
-    return sD.operation === "dive";
+    return sD.operation === undefined && sD.turn_type === "pnl_setup" && sD.pnl && sD.pnl.entidad === "Jumbo";
   })());
 ok("61 · CAMBIO DE TEMA Y VUELTA: margen en el medio no rompe el hilo — 'volvamos al P&L' retoma el último alcance",
   (() => {

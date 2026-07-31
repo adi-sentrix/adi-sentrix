@@ -13,7 +13,7 @@ import { detectVentasFocus } from "./ventasFocus.js";
 import { detectInventoryFocus } from "./inventoryFocus.js";
 import { detectMultiAnalysis } from "./multiFocus.js";
 import { detectCriteriaIntent } from "./criteria.js";
-import { detectPnlIntent, detectPnlEllipsis, pnlDraft } from "./pnl.js";
+import { detectPnlIntent, detectPnlEllipsis, pnlDraft, pnlScope } from "./pnl.js";
 import { detectPeriodo } from "./composers/temporalTable.js";   // TIEMPO (mejora 7 · 2026-07-26) · mes a mes / Q1 / rangos
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { OUT_OF_DATA_RE } from "./llm/capabilities.js";   // universo disponible · data que NO existe → redirect honesto
@@ -523,7 +523,15 @@ export function coerceSpec(q, spec, hasLast, ui = null) {
     // NO pisa una clasificación ya resuelta del LLM #1 (un «¿y el de Jumbo?» dentro de un hilo de margen ES del
     // margen — la operación concreta manda, mismo criterio que _CONTINUE_RE) y exige hilo P&L vivo (alcance leído
     // + líneas selladas). Un operation pnl_* del LLM NO cuenta como resuelto: es el mismo claim, la red lo precisa.
-    const _opResuelta = spec.operation && spec.operation !== "clarification_needed" && !/^pnl_/.test(String(spec.operation));
+    // EXCEPCIÓN "dive" (owner 2026-07-31, hallazgo en vivo, auditoría integral): "dive" es la clasificación
+    // GENÉRICA de LLM#1 para un seguimiento de UNA sola entidad — a diferencia de "margin"/"contribucion"/"ventas"
+    // (SEÑAL FUERTE de que el usuario realmente quiere ESE otro dominio), "dive" no distingue de qué dominio se
+    // trata en absoluto. Si el P&L está genuinamente en curso (pnlScope() activo, turno anterior) y LLM#1 clasificó
+    // "dive", NO lo tratamos como "resuelto" — un "dive" sobre un hilo de P&L vivo es casi siempre el mismo "¿y el
+    // de X?" que detectPnlEllipsis ya sabe resolver; las clasificaciones MÁS específicas (margin/contribucion/
+    // ventas/compare/temporal) siguen ganando igual que antes, sin tocar ese comportamiento.
+    const _opResuelta = spec.operation && spec.operation !== "clarification_needed" && !/^pnl_/.test(String(spec.operation))
+      && !(spec.operation === "dive" && pnlScope());
     if (!_opResuelta) {
       const ph = detectPnlEllipsis(q);
       if (ph) return { ...spec, operation: undefined, turn_type: "pnl_setup", pnl: ph };

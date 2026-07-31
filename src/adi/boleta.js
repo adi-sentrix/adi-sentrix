@@ -53,8 +53,8 @@ export function parseFigures(text) {
   let m;
   const reMoney = /(-?)\$\s?(\d[\d.,]*\d|\d)\s?([KMB])?/gi;   // -?$X · captura el signo → "-$6K" da raw negativo (canon consistente)
   while ((m = reMoney.exec(s))) { let v = num(m[2]); const u = (m[3] || "").toUpperCase(); if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6; else if (u === "B") v *= 1e9; if (m[1] === "-") v = -v; push("money", v, m[0]); }
-  const rePct = /(\d[\d.,]*\d|\d)\s?%/g;                  // X% / X.Y%
-  while ((m = rePct.exec(s))) push("pct", num(m[1]), m[0]);
+  const rePct = /(-?)(\d[\d.,]*\d|\d)\s?%/g;              // -?X% / X.Y% · captura el signo (mismo criterio que reMoney/rePP) → "-2%" canoniza "pct:-2%", igual que toolRegistry.js (simulateGeneral) para deltas negativos
+  while ((m = rePct.exec(s))) { let v = num(m[2]); if (m[1] === "-") v = -v; push("pct", v, m[0]); }
   const reRatio = /(\d[\d.,]*\d|\d)\s?(?:x\b|×|veces\b|vez\b)/gi;   // Xx / X× / X veces (× = U+00D7, el que usa el motor; atrapa "13 veces")
   while ((m = reRatio.exec(s))) push("ratio", num(m[1]), m[0]);
   const reDays = /(\d[\d.,]*\d|\d)\s?(?:d\b|d[ií]as?\b)/gi;       // Xd / X días

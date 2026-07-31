@@ -598,6 +598,20 @@ function _isCalc2(raw, unit, authFigs, entityNames) {
   return false;
 }
 
+// _placeholderSinRellenar(narration) → texto del placeholder | null (owner 2026-07-31, hallazgo en vivo, auditoría
+// integral) — cuando PLAN deja `calls` vacío pese a que la doctrina lo prohíbe (ver
+// answerViaOracle.js/_hasEmptyRedirectCalls), NARRATE a veces redacta la respuesta con placeholders LITERALES sin
+// rellenar ("...con un potencial de $X...", "...alcanzando $Y..."). parseFigures() NUNCA los detecta como "cifra"
+// (no son numéricos) — sin este chequeo, el guard no tiene NADA que comparar/rechazar y deja pasar el texto roto
+// verbatim. Angosto a patrones de placeholder EVIDENTES: un "$" o un "%" pegado a una letra mayúscula SUELTA
+// (X/Y/Z/N…) — nunca una sigla real de 2+ letras ("$USD") ni un número real ("$50", "12%"), gracias al \b inicial
+// (solo dispara en el borde de palabra de esa letra sola) y al lookahead que exige que no siga otro alfanumérico.
+const _PLACEHOLDER_RE = /\$\s?[A-Z]\b(?![a-zA-Z0-9])|\b[A-Z]\s?%/;
+function _placeholderSinRellenar(narration) {
+  const m = _PLACEHOLDER_RE.exec(String(narration || ""));
+  return m ? m[0].trim() : null;
+}
+
 // _simulateGeneralConclusionViolation (owner 2026-07-31, #56 "simulate v2", variante c) → si ALGÚN result de
 // simulateGeneral en este turno degradó honesto a solo-ventas (costModelAutorizado===false, ver toolRegistry.js),
 // la narración no puede usar "conviene"/"no conviene" — solo hay ventas, ninguna base real para esa conclusión.
@@ -656,6 +670,11 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // como una cifra inventada — es una conclusión que el dato no respalda), determinístico, no delegado al prompt.
   const simConclusion = _simulateGeneralConclusionViolation(narration, results);
   if (simConclusion) violations.push({ kind: "simulacion-sin-costo-concluye", detail: simConclusion });
+  // 8 · placeholder literal sin rellenar ("$X", "$Y"…) — owner 2026-07-31, hallazgo en vivo: sin este chequeo, un
+  // texto roto con placeholders pasaba el guard entero (0 violations, nada numérico que comparar) y llegaba tal
+  // cual al usuario final. Tan grave como una cifra inventada — BLOQUEA.
+  const placeholder = _placeholderSinRellenar(narration);
+  if (placeholder) violations.push({ kind: "placeholder-sin-rellenar", detail: placeholder });
   // (el período/fecha de corte — requisito 3 — NO bloquea acá: se GARANTIZA aparte vía ensurePeriodoDeclared,
   // aplicado a la narración ANTES de llegar a este guard — ver comentario junto a esa función y answerViaOracle.js.)
 

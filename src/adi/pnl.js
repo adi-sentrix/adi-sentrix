@@ -227,13 +227,29 @@ function _pnlCanon() {
   }
   return (_canonCache = m);
 }
-function _pnlEntityEn(q) {   // entidad del canon del alcance nombrada en el texto · nombre más largo primero
+// _isNegatedMention(nq, k) → true si la entidad `k` está NEGADA justo antes de nombrarla ("no el de X" / "no X" /
+// "no es X") — owner 2026-07-31, hallazgo en vivo: "no, el de Lider, no el de Falabella" respondía con Falabella
+// (la entidad NEGADA) porque _pnlEntityEn solo miraba el substring más largo, sin arbitraje de negación. El "no,"
+// CON COMA inmediatamente después se EXCLUYE del patrón — es un marcador de discurso ("no, espera") o el "no" de
+// apertura de una corrección ("no, el de Lider…"), no una negación de la entidad que sigue; el "no" SIN coma
+// pegado directo al nombre ("no el de Falabella") sí lo es. Acotado: no interpreta cualquier "no" de la frase como
+// negación (ej. "¿no tienes datos de Falabella?" no debe negar a Falabella — ahí "no" no precede inmediatamente al
+// nombre con solo artículo/"de"/"es" de por medio).
+function _isNegatedMention(nq, k) {
+  return new RegExp(`\\bno\\b(?!\\s*,)\\s*(?:el|la|los|las)?\\s*(?:es\\s+)?(?:de\\s+)?${_esc(k)}\\b`).test(nq);
+}
+function _pnlEntityEn(q) {   // entidad del canon del alcance nombrada en el texto · nombre más largo primero, salvo negación
   const nq = _norm(q);
+  const candidates = [];
   for (const [k, c] of [..._pnlCanon().entries()].sort((a, b) => b[0].length - a[0].length)) {
     if (k.length < 2) continue;   // ≥2: "LG" es marca real — el borde de palabra evita pescarla adentro de otra
-    if (new RegExp(`(^|[^a-z0-9])${_esc(k)}([^a-z0-9]|$)`).test(nq)) return c;
+    if (new RegExp(`(^|[^a-z0-9])${_esc(k)}([^a-z0-9]|$)`).test(nq)) candidates.push({ c, k });
   }
-  return null;
+  if (!candidates.length) return null;
+  // preferí la primera NO negada (en el mismo orden de especificidad de siempre) — si TODAS están negadas (caso
+  // límite sin alternativa), cede al comportamiento previo (la más larga) antes que devolver null sin necesidad.
+  const notNegated = candidates.filter((x) => !_isNegatedMention(nq, x.k));
+  return (notNegated[0] || candidates[0]).c;
 }
 function _pnlEntitiesEn(q) {   // TODAS las entidades del canon nombradas en el texto (para el conjunto explícito)
   const nq = _norm(q), out = [];

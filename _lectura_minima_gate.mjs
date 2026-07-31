@@ -63,20 +63,24 @@ console.log("\n── 4 · SMOKE LLM REAL — ruta determinística: oración nat
   let narrateCalled = false;
   const callNarrate = async (args) => { narrateCalled = true; const nr = await handleNarrateC({ payload: buildNarrateUserMessageC(args), mem: args.mem }); return nr.ok ? nr.narration : null; };
 
+  // periodoRe: rotación/cobertura son campos de FOTO A HOY (owner 2026-07-31, fix de "Inventario y capital
+  // inmovilizado" — toolRunner.js/answerViaOracle.js ya NO los etiqueta "año cerrado" solo porque la tool fue
+  // entityRecord; el período deriva del CAMPO pedido, y stockUSD/rotación/DOH son una foto del stock a hoy, no un
+  // acumulado anual). El rebate SÍ sigue siendo "año cerrado" (campo comercial anual, no de inventario).
   const casos = [
-    { q: "el rebate de Falabella", esperaVara: /target de carga comercial/i },
-    { q: "la rotación del SKU LG-DRYER8KG", esperaVara: /piso de rotaci[oó]n/i },
-    { q: "la cobertura del SKU LG-DRYER8KG", esperaVara: /techo de cobertura/i },
+    { q: "el rebate de Falabella", esperaVara: /target de carga comercial/i, periodoRe: /a[nñ]o cerrado/i },
+    { q: "la rotación del SKU LG-DRYER8KG", esperaVara: /piso de rotaci[oó]n/i, periodoRe: /foto|a la fecha|hoy/i },
+    { q: "la cobertura del SKU LG-DRYER8KG", esperaVara: /techo de cobertura/i, periodoRe: /foto|a la fecha|hoy/i },
   ];
   let disparos = 0;
-  for (const { q, esperaVara } of casos) {
+  for (const { q, esperaVara, periodoRe } of casos) {
     narrateCalled = false;
     const r = await answerViaOracle({ text: q, history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
     if (!r || !r.r.deterministic) { console.log(`  ("${q}" no disparó la ruta determinística esta corrida — variance de clasificación ya documentada)`); continue; }
     disparos++;
     ok(!narrateCalled, `"${q}": NUNCA llama a la Pasada 2`);
     ok(!/^[A-ZÁÉÍÓÚÑ][\w\sÁÉÍÓÚÑáéíóúñ]*\s·\s/.test(r.r.text), `"${q}": NO usa la forma telegráfica "Entidad · Etiqueta: valor" (requisito 1)`);
-    ok(/\bes\b|\bson\b/.test(r.r.text) && /a[nñ]o cerrado/i.test(r.r.text), `"${q}": oración natural con verbo + período en la MISMA frase — "${r.r.text.split(".")[0]}."`);
+    ok(/\bes\b|\bson\b/.test(r.r.text) && periodoRe.test(r.r.text), `"${q}": oración natural con verbo + período CORRECTO en la MISMA frase — "${r.r.text.split(".")[0]}."`);
     ok(esperaVara.test(r.r.text), `"${q}": cita la vara correcta para ESTA métrica (no una genérica) — "${r.r.text}"`);
   }
   ok(disparos > 0, "al menos un caso disparó la ruta determinística (el gate ejercitó el contrato real)");

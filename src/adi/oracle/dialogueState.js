@@ -42,6 +42,20 @@ export function isAcceptance(text) {
 const _CONTINUATION_OFFER_RE = /profundiz|m[aá]s\s+detalle|seguir\s+viendo|ver\s+m[aá]s|el\s+porqu[eé]|el\s+c[aá]lculo|c[oó]mo\s+se\s+compone|desglos/i;
 const _QUESTION_RE = /¿[^?]{4,220}\?/g;
 
+// _singleFilterEntity(calls) → {entidad, dimension} | null — RESPALDO (owner 2026-07-31, hallazgo por lectura de
+// código): planPrompt.js nunca le pide al LLM declarar scope.level="entity" cuando el alcance de una consulta
+// viaja vía `filters` (bodega/marca/familia/cliente — inventoryStatus/marginRead/contributionRead/etc.) — el plan
+// deja scope.level="global" aunque el usuario haya nombrado una bodega/entidad explícita, y esa entidad nunca
+// quedaba registrada en mem.recentSubjects/mem.lastOffer. Genuinamente INEQUÍVOCO (no adivina nada): si `filters`
+// trae EXACTAMENTE UN valor de eje poblado, ESA es la entidad del turno, sin importar qué haya declarado scope.
+const _FILTER_AXES = ["marca", "familia", "bodega", "cliente"];
+function _singleFilterEntity(calls) {
+  const filters = Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.filters;
+  if (!filters || typeof filters !== "object" || Array.isArray(filters)) return null;
+  const present = _FILTER_AXES.filter((k) => filters[k] != null && filters[k] !== "");
+  return present.length === 1 ? { entidad: filters[present[0]], dimension: present[0] } : null;
+}
+
 export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
   if (!pref || pref.contentScope !== "full") return null;
   const parsed = parseBlocks(narration);
@@ -51,8 +65,10 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
     if (matches.length) texto = matches[matches.length - 1][0].trim();
   }
   if (!texto) return null;
-  const entidad = (plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0]) || null;
-  const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || null;
+  const singleFilter = _singleFilterEntity(calls);
+  const entidad = (plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0])
+    || (singleFilter && singleFilter.entidad) || null;
+  const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || (singleFilter && singleFilter.dimension) || null;
   let tool = null, args = null;
   if (Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
     tool = calls[0].tool;
@@ -67,10 +83,16 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
 // antes, nunca como input que lo condicione. Reordena (no duplica) si el tema YA estaba en la lista.
 export function updateRecentSubjects(prev, plan, calls, turno) {
   const list = (Array.isArray(prev) ? prev : []).slice(0, 3);
-  if (!plan || !plan.scope || plan.scope.level !== "entity" || !Array.isArray(plan.scope.entities) || !plan.scope.entities.length) return list;
-  const entidad = plan.scope.entities[0];
+  let entidad = null, dimension = null;
+  if (plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities.length && plan.scope.entities[0]) {
+    entidad = plan.scope.entities[0];
+    dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || null;
+  } else {
+    // RESPALDO vía filters (ver _singleFilterEntity arriba) — solo cuando scope no trajo ya una entidad explícita.
+    const single = _singleFilterEntity(calls);
+    if (single) { entidad = single.entidad; dimension = single.dimension; }
+  }
   if (!entidad) return list;
-  const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || null;
   const idx = list.findIndex((s) => s && s.entidad === entidad);
   if (idx >= 0) list.splice(idx, 1);
   list.unshift({ entidad, dimension, turno: turno == null ? null : turno });

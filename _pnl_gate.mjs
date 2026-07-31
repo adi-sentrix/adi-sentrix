@@ -266,8 +266,18 @@ const rHer = go("¿y el de Ripley?");
 const eRip = _cCli.porEntidad.find((x) => x.nombre === "Ripley");
 ok(rHer && rHer.text.includes("El P&L de Ripley") && rHer.text.includes(_moneyK(eRip.resultadoK)), "«¿y el de Ripley?» hereda la operación con la entidad nueva (piso)");
 ok(pnlScope() && pnlScope().entity === "Ripley", "el alcance del hilo quedó en Ripley");
-const sNoPisa = CS("¿y el de Jumbo?", S({ operation: "dive", entity: "Jumbo", dimension: "cliente", turn_type: "new_query" }), true, null);
-ok(sNoPisa.operation === "dive", "la herencia NO pisa una clasificación resuelta del LLM (dive de otro hilo sigue siendo dive)");
+// operation="margin" (clasificación CONCRETA y fuerte de otro dominio) SIGUE ganando siempre — la herencia P&L
+// nunca pisa una clasificación resuelta y específica del LLM.
+const sNoPisa = CS("¿y el de Jumbo?", S({ operation: "margin", metric: "margen", entity: "Jumbo", dimension: "cliente", turn_type: "new_query" }), true, null);
+ok(sNoPisa.operation === "margin", "la herencia NO pisa una clasificación CONCRETA resuelta del LLM (margin de otro hilo sigue siendo margin)");
+// EXCEPCIÓN "dive" (owner 2026-07-31, fix de auditoría integral, defecto "P&L del pipeline antiguo"): a diferencia
+// de "margin" arriba, "dive" es la clasificación GENÉRICA de LLM#1 (no distingue dominio) — medido con el LLM real,
+// un "¿y el de X?" tras una lectura P&L a veces clasifica "dive" por error y el turno perdía el dominio P&L entero
+// (reproducido 1/3 corridas idénticas). Con el hilo P&L vivo, "dive" YA NO se trata como "resuelto": la red de
+// continuidad P&L gana. Este es el comportamiento CORREGIDO — antes de este fix, esta aserción esperaba "dive"
+// (el mismo bug que el hallazgo reprodujo), ver _pnl_dive_precedencia_gate.mjs para el gate dedicado del fix.
+const sPisaDive = CS("¿y el de Jumbo?", S({ operation: "dive", entity: "Jumbo", dimension: "cliente", turn_type: "new_query" }), true, null);
+ok(sPisaDive.turn_type === "pnl_setup" && sPisaDive.pnl && sPisaDive.pnl.entidad === "Jumbo", `"dive" (clasificación genérica) SÍ cede a la continuidad P&L con el hilo vivo — obtuvo ${JSON.stringify(sPisaDive)}`);
 const rVol = go("volvamos al P&L");
 ok(rVol && /^Retomo tu P&L donde lo dejamos — Ripley\./.test(rVol.text), "«volvamos al P&L» retoma el ÚLTIMO alcance con su preámbulo");
 const rRec = go("recuerda lo anterior");

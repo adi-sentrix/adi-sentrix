@@ -31,7 +31,7 @@ export const MODES = [
   },
   {
     key: "diagnostico",
-    whenToUse: "el usuario pide el PANORAMA — \"qué está pasando\", \"cómo viene el negocio\", \"resumen ejecutivo\", \"un diagnóstico\", \"dame un panorama\" — quiere ENTENDER la foto completa antes de decidir.",
+    whenToUse: "el usuario pide el PANORAMA — \"qué está pasando\", \"cómo viene el negocio\", \"resumen ejecutivo\", \"un diagnóstico\", \"dame un panorama\" — quiere ENTENDER la foto completa antes de decidir. NO es esto un \"contame más\"/\"profundiza\" que sigue un tema YA establecido en el hilo (eso es seguimiento, aunque la frase suene a pedir más información) — diagnostico es para arrancar la foto completa DE CERO, no para seguir ahondando en lo que ya se venía hablando.",
     narrate: "Contá la HISTORIA completa en el arco de 3 movimientos (ver LA ESTRUCTURA abajo): qué pasa, por qué, qué hacer primero. Si además el pedido fue específicamente \"resumen ejecutivo\", seguí el contrato de 8 movimientos (ver RESUMEN EJECUTIVO abajo).",
   },
   {
@@ -46,7 +46,7 @@ export const MODES = [
   },
   {
     key: "seguimiento",
-    whenToUse: "el usuario CONTINÚA la misma conversación sin agregar un ángulo nuevo — \"sí\", \"dale\", \"seguí\", \"profundiza\", \"eso mismo\", \"y\" — quiere MÁS de lo mismo, no un tema nuevo. Si la continuación en realidad trae una pregunta más específica (pide el cálculo → evidencia; pide priorizar → decisión; señala confusión → clarify), usá ESE modo en vez de seguimiento puro.",
+    whenToUse: "el usuario CONTINÚA la misma conversación sin agregar un ángulo nuevo — \"sí\", \"dale\", \"seguí\", \"profundiza\", \"eso mismo\", \"y\" — quiere MÁS de lo mismo, no un tema nuevo. Esto INCLUYE paráfrasis coloquiales COMPLETAS que combinan el marcador de continuación con un pedido de profundizar sobre lo YA dicho — \"dale, contame más de eso\", \"dale, seguí\", \"bueno, profundiza en eso\", \"y, ¿qué más?\" — no busques SOLO la palabra suelta \"dale\": la frase completa (marcador + \"contame/decime más\", \"segui[te]\", \"profundiza\") sigue siendo seguimiento del MISMO tema, NUNCA un pedido de panorama nuevo (eso sería diagnostico, y solo aplica si el usuario cambia de tema o pide explícitamente \"un resumen\"/\"cómo viene el negocio\" desde cero). Si la continuación en realidad trae una pregunta más específica (pide el cálculo → evidencia; pide priorizar → decisión; señala confusión → clarify), usá ESE modo en vez de seguimiento puro.",
     narrate: "NO reinicies el diagnóstico ni cambies de entidad/métrica/acción — mantené EXACTAMENTE la misma del hilo_reciente (ver SEGUIMIENTOS/deixis abajo) y profundizá UN nivel más (el siguiente detalle de la MISMA historia). Nunca vuelvas a explicar el contexto que ya diste ni reformules la respuesta anterior con otras palabras.",
   },
   {
