@@ -19,6 +19,7 @@ import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage,
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
+import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
@@ -303,13 +304,14 @@ function _coercePref(text, plan) {
 // silencio, sin supuestos_faltantes. RED determinística (mismo patrón que el resto de _coerce*): si una call a
 // simulateGeneral trae una variable en delta_pct===0 Y el texto crudo NO menciona un "0%"/"sin cambio" explícito
 // para esa variable, tratalo como si hubiera faltado — nunca confía en que el LLM se acuerde de preguntar solo.
-const _ZERO_EXPLICIT_RE = /\b0\s*%|\bsin\s+cambio|\bno\s+cambia|\bqueda\s+igual|\bse\s+mantiene\b/i;
+// ZERO_EXPLICIT_RE (importado de scenarioIntent.js — 2026-07-31: una sola fuente de verdad compartida con el
+// detector de intención de escenario, en vez de dos regex casi-idénticas que podían divergir).
 function _silentZeroSupuestoFaltante(text, calls) {
   const call = Array.isArray(calls) ? calls.find((c) => c && c.tool === "simulateGeneral" && c.args) : null;
   if (!call) return null;
   const zeroVar = [call.args.variableA, call.args.variableB].find((v) => v && v.delta_pct === 0);
   if (!zeroVar) return null;
-  if (_ZERO_EXPLICIT_RE.test(String(text || ""))) return null;   // el usuario SÍ dijo "0%"/"sin cambio" — respetalo, no es un faltante
+  if (ZERO_EXPLICIT_RE.test(String(text || ""))) return null;   // el usuario SÍ dijo "0%"/"sin cambio" — respetalo, no es un faltante
   // OJO: sin ningún número acá — "0%" en el texto sería una cifra sin autorizar y guardC rechazaría la PROPIA
   // pregunta de aclaración (bug real cazado en el propio testing de este fix).
   const pregunta = zeroVar.campo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
@@ -343,40 +345,16 @@ function _hasCompleteSimulateVars(calls) {
 // SIGUIENTE de forma determinística, sin volver a pedirle a PLAN que reconstruya nada — mismo principio que
 // priorOffer.tool más abajo (bypasea PLAN ENTERO cuando no hay nada que el LLM deba decidir).
 //
-// _extractSignedPct(text) → {delta_pct} | null — un número con "%" en el texto, con signo/dirección YA resuelta.
-// Nunca "adivina" una dirección que el texto no dio: sin signo explícito ("-2%") y sin verbo direccional
-// (baja/sube/cae/aumenta…) es un pedido genuinamente ambiguo → null, el llamador NO debe forzar una interpretación.
-const _PCT_NUM_RE = /(-?\d+(?:[.,]\d+)?)\s*%/;
-// Stems, no formas conjugadas exactas (owner, hallazgo en el propio testing de este fix): "le SUBO el precio"
-// (1a persona, causativo — la frase MÁS natural para plantear el supuesto) no matcheaba una lista de solo 3a
-// persona ("sube"/"suben"). \w* después del stem cubre cualquier conjugación/gerundio (subo/subís/sube/suben/
-// subimos/subiendo, baja/bajan/bajo/bajás/bajando…) sin necesitar el catálogo completo de conjugaciones.
-const _DOWN_WORDS_RE = /\bbaj\w*|\bca[ey]\w*|\bdisminu\w*|\breduc\w*|\breduzc\w*|\bmenos\b|\bmenor\b|\bpierd\w*|\bperd\w*|\bced\w*/i;
-const _UP_WORDS_RE = /\bsub\w*|\baument\w*|\bcrec\w*|\bincrement\w*|\bmayor\b|\bgan\w*/i;
-const _SIM_DELTA_MAX_MIRROR = 50;   // mismo rango operable que simulateGeneral (_SIM_DELTA_MAX, toolRegistry.js) — duplicado a propósito: archivos distintos, sin import cruzado por una sola constante
-function _extractSignedPct(text) {
-  const t = String(text || "");
-  const m = t.match(_PCT_NUM_RE);
-  if (!m) return null;
-  let n = parseFloat(m[1].replace(",", "."));
-  if (!Number.isFinite(n)) return null;
-  if (!/^-/.test(m[1].trim())) {
-    if (_DOWN_WORDS_RE.test(t)) n = -Math.abs(n);
-    else if (_UP_WORDS_RE.test(t)) n = Math.abs(n);
-    else return null;   // ni signo ni verbo direccional → genuinamente ambiguo, no se adivina
-  }
-  if (Math.abs(n) > _SIM_DELTA_MAX_MIRROR) return null;
-  return { delta_pct: n };
-}
-const _PRECIO_WORD_RE = /\bprecio\b/i;
-const _VOLUMEN_WORD_RE = /\bvolumen\b|\bunidades\b/i;
+// extractSignedPct/ZERO_EXPLICIT_RE ahora importados de scenarioIntent.js (2026-07-31: una sola fuente de verdad
+// compartida con el detector de intención de escenario — antes vivían duplicados acá y en el detector nuevo, con
+// riesgo real de divergir, ej. el fix de "cambios" plural o "mantén" solo hubiera quedado en uno de los dos).
 
 // _buildPendingSimulation(text, plan) → {dimension,entity,known:{campo,delta_pct},missingCampo} | null — se arma
 // cuando supuestos_faltantes disparó para una simulación de 2 variables (ver planPrompt.js: ese campo es SOLO
 // para esto). Preferí `plan.calls` si YA trae una simulateGeneral con una variable no-cero (el camino
 // silent-zero-backstop la clasificó estructuralmente — más confiable que re-parsear texto); si `calls` viene
 // vacío (el camino LIMPIO — el diseño pide dejarlo así), extraé la variable nombrada del texto de ESTE turno
-// (frase corta y puntual, no la ventana de 8 mensajes que confunde a PLAN).
+// (frase corta y puntual, no la ventana de 8 mensajes que confunde a PLAN) vía extractScenarioVariable.
 function _buildPendingSimulation(text, plan) {
   const calls = (plan && Array.isArray(plan.calls)) ? plan.calls : [];
   const call = calls.find((c) => c && c.tool === "simulateGeneral" && c.args);
@@ -386,11 +364,7 @@ function _buildPendingSimulation(text, plan) {
     const vars = [call.args.variableA, call.args.variableB].filter(Boolean);
     known = vars.find((v) => v && typeof v.delta_pct === "number" && v.delta_pct !== 0 && (v.campo === "precioLista" || v.campo === "unidades"));
   }
-  if (!known) {
-    const pct = _extractSignedPct(text);
-    const campo = pct && _PRECIO_WORD_RE.test(String(text || "")) ? "precioLista" : pct && _VOLUMEN_WORD_RE.test(String(text || "")) ? "unidades" : null;
-    known = campo ? { campo, delta_pct: pct.delta_pct } : null;
-  }
+  if (!known) known = extractScenarioVariable(text);
   if (!entity && plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0]) {
     entity = plan.scope.entities[0];
   }
@@ -401,16 +375,16 @@ function _buildPendingSimulation(text, plan) {
 
 // _resolvePendingSimulation(text, pending) → {variableA,variableB} | null — intenta resolver la respuesta del
 // usuario contra la simulación pendiente. DISTINCIÓN explícita (owner, punto 2 del pedido de certificación):
-// "0%"/"sin cambio"/"no cambia"/"queda igual"/"se mantiene" → delta_pct=0 LEGÍTIMO (el usuario respondió, y la
-// respuesta es cero). Un número con signo/verbo direccional → ese valor. CUALQUIER OTRA COSA (no numérico, cambio
-// de tema, "no sé") → null — el turno NO contestó la pregunta pendiente, nunca se asume 0 por defecto acá tampoco.
+// "0%"/"sin cambio"/"no cambia"/"queda igual"/"se mantiene"/"mantén" → delta_pct=0 LEGÍTIMO (el usuario respondió,
+// y la respuesta es cero). Un número con signo/verbo direccional → ese valor. CUALQUIER OTRA COSA (no numérico,
+// cambio de tema, "no sé") → null — el turno NO contestó la pregunta pendiente, nunca se asume 0 por defecto acá.
 function _resolvePendingSimulation(text, pending) {
   if (!pending || !pending.missingCampo || !pending.known || !pending.entity) return null;
   const t = String(text || "");
   let missingDelta;
-  if (_ZERO_EXPLICIT_RE.test(t)) missingDelta = 0;
+  if (ZERO_EXPLICIT_RE.test(t)) missingDelta = 0;
   else {
-    const pct = _extractSignedPct(t);
+    const pct = extractSignedPct(t);
     if (!pct) return null;   // no resuelve → el llamador abandona el pendiente, nunca fuerza una interpretación
     missingDelta = pct.delta_pct;
   }
@@ -501,6 +475,40 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const composed = composeSubjectAmbiguity(subjectRecall.options);
     const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
     if (out) return out;
+  }
+
+  // ── COERCIÓN DE INTENCIÓN DE ESCENARIO (owner 2026-07-31, certificación integral, 2 fallas reales de ENTRADA a
+  // simulate v2) ── "Sube 8% el precio de Lider" (imperativo, sin "¿me conviene?") nunca llamaba a simulateGeneral
+  // — PLAN lo leía como pedido de análisis/decisión y respondía con margen/benchmark, sin pedir el volumen. Y una
+  // consulta puntual sobre Jumbo perdió el alcance, produciendo una simulación de CARTERA COMPLETA. "Que el motor
+  // funcione después de reformular no basta. El primer intento natural debe llegar al flujo correcto" (owner).
+  // Ver scenarioIntent.js para el detector — acá SOLO se consume su veredicto. Corre SOLO si esta misma respuesta
+  // no acaba de resolver una simulación YA pendiente (resolvedPendingSim): si el turno actual SÍ la resolvió, esa
+  // toma precedencia entera, sin tocar nada de esto.
+  if (!resolvedPendingSim) {
+    const scenarioIntent = detectScenarioIntent(q);
+    // "no_entity": campo+% inequívoco, pero NINGÚN cliente conocido nombrado — nunca se asume cartera completa en
+    // silencio (la falla #2, invertida: sin entidad tampoco se adivina, se pregunta).
+    if (scenarioIntent.kind === "no_entity") {
+      const out = _composedBypassResult("¿Para qué cliente querés simular este escenario?", mem, recentNarrationsPrev, scenario);
+      if (out) return out;
+    }
+    // "future": campo+% inequívoco Y una entidad conocida — la falla #1 (nunca entraba a simulateGeneral) y la
+    // falla #2 (alcance perdido) son estructuralmente imposibles acá: la entidad la puso este detector determinístico,
+    // nunca el LLM. Arma pendingSimulation directo (mismo shape que el camino existente) y pregunta SOLO lo que falta.
+    if (scenarioIntent.kind === "future") {
+      const { entity, variable } = scenarioIntent;
+      const missingCampo = variable.campo === "precioLista" ? "unidades" : "precioLista";
+      const pregunta = missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
+      const out = _composedBypassResult(`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+      if (out) {
+        out.mem = { ...out.mem, pendingSimulation: { dimension: "cliente", entity, known: variable, missingCampo } };
+        return out;
+      }
+    }
+    // "historical"/"none": nunca se activa una simulación — "historical" es una LECTURA del dato ya ocurrido
+    // ("el precio subió 8%"), "none" es cualquier otro turno normal (incluye el caso YA cubierto por PLAN: precio
+    // Y volumen mencionados en la misma frase). plan sigue null, cae de largo a PLAN normal sin tocar nada.
   }
 
   let plan = (priorOffer && priorOffer.tool && isAcceptance(q))
