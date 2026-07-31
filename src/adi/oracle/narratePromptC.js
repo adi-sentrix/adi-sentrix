@@ -4,7 +4,7 @@
  * después. Acá NO hay texto determinístico previo — el narrador escribe la respuesta entera. Aún en sombra.
  */
 import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
-import { isDefaultPref, buildPrefDispatch, blockInstructionFor } from "./responsePreference.js";
+import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTION } from "./responsePreference.js";
 
 // buildNarrateSystemC(persona, memBlock) → system de la Pasada 2. Prompt COMPLETO de narración (owner 2026-07-28:
 // "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada CFO · contá la historia · más
@@ -41,6 +41,7 @@ CONTRATOS ESPECÍFICOS (referenciados por nombre desde MODO DE CONVERSACIÓN arr
 · RESUMEN EJECUTIVO ("resumen", "cómo viene el negocio") → NO es un ranking, es una historia de valor en ocho movimientos, en prosa fluida sin rótulos: (a) la foto (ventas, contribución, margen, salud); (b) dónde estás ganando (quién sostiene); (c) cómo estás ganando (el mix: volumen vs calidad); (d) cómo se comporta el margen de la cartera (grandes que dejan poco, cuántos bajo la vara, dilución); (e) dónde estás perdiendo (las fugas con su $); (f) por qué (la causa, lo más valioso); (g) cómo recuperás (acciones priorizadas con impacto); (h) cerrá con la próxima decisión ("¿partimos por A o por B?").
 · DEFINICIÓN (llega un dato con "es_definicion":true) → DEFINÍ usando ESA definición autorizada; podés decirla con tu voz pero SIN cambiar el significado ni agregar causas/ejemplos que no estén. Si trae "distingue", sumá de qué se confunde. NUNCA definas de memoria.
 · SIMULACIÓN ("¿y si…?", datos de una tool simulate) → enmarcá SIEMPRE como HIPÓTESIS: "si bajás la carga al target, recuperarías $X (estimado)", nunca como hecho consumado.
+  VENTA/COSTO/CONTRIBUCIÓN DE LA SIMULACIÓN SON SIEMPRE TOTALES de la entidad completa (el agregado, no por unidad) — hallazgo en vivo: una respuesta llamó "costo unitario" a un costo TOTAL de millones, un error de escala/vocabulario (un $ "por unidad" de esa magnitud no tiene sentido). NUNCA los llames "unitario"/"por unidad"/"precio unitario" — esos son campos DISTINTOS (precio de lista, costo medio) que esta simulación no calcula ni te da.
 · PEDIDO DE DATO / CAMPO CONCRETO ("cuántas unidades del SKU X", "el rebate del cliente X") → dá el dato claro y cerrá igual con un breve "qué mirar/hacer". Nunca el dato pelado sin lectura.
 
 FORMATO (indicaciones de forma):
@@ -148,6 +149,11 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // instrucción de marcado REFORZADA a nivel de turno (owner-audit 2026-07-29: el system prompt solo no bastó,
     // medido en vivo — ver blockInstructionFor en responsePreference.js). null cuando contentScope="full"/default.
     ...(pref && pref.contentScope && pref.contentScope !== "full" && blockInstructionFor(pref.contentScope) ? { instruccion_formato: blockInstructionFor(pref.contentScope) } : {}),
+    // BREVEDAD REFORZADA a nivel de turno (owner 2026-07-31, certificación integral — mismo principio que
+    // instruccion_formato arriba: el system prompt solo no bastó para contentScope, medido en vivo que TAMPOCO
+    // basta para detailLevel). El motor igual trunca determinísticamente si no alcanza (truncateToBriefBudget,
+    // narrationBlocks.js) — esto es para que la mayoría de los turnos ya lleguen cortos sin depender del corte.
+    ...(pref && pref.detailLevel === "brief" ? { instruccion_brevedad: BRIEF_INSTRUCTION } : {}),
     // ORIENTACIÓN (Fase 3, owner 2026-07-30) — SOLO viaja cuando answerViaOracle.js detectó un disparador
     // determinístico (pedido explícito o confusión persistente, ver dialogueState.js needsOrientacion). Mismo
     // principio de payload mínimo que preferencia_respuesta: un turno normal no la lleva.

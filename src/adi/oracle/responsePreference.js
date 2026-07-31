@@ -78,3 +78,12 @@ export function blockInstructionFor(contentScope) {
   }
   return null;
 }
+
+// BRIEF_INSTRUCTION → mismo principio que blockInstructionFor de arriba (owner-audit 2026-07-29: reforzar A NIVEL
+// DE TURNO, no solo en el system prompt, es lo que recuperó cumplimiento) — pero para detailLevel="brief", que
+// hasta ahora NO tenía ningún refuerzo de turno (el hallazgo EN VIVO de la certificación integral: 2 turnos
+// consecutivos con brief+persist activo, sin ninguna reducción real de longitud). Viaja en el payload como
+// "instruccion_brevedad" SOLO cuando detailLevel="brief" (ver narratePromptC.js) — el motor igual trunca
+// determinísticamente si no alcanza (truncateToBriefBudget, narrationBlocks.js), esto es para que la MAYORÍA de
+// los turnos ya lleguen cortos por sí solos y no dependan del corte.
+export const BRIEF_INSTRUCTION = "Tu respuesta ENTERA debe entrar en 2-3 oraciones cortas (máximo ~90 palabras): andá directo al dato/causa/acción, sin ejemplos extra, sin repetir contexto que ya diste en este hilo. Si no entra en ese largo, el motor la recorta a la fuerza en la última oración completa que sí entre — mejor que la escribas corta vos.";

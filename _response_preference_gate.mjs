@@ -36,7 +36,7 @@
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, hasForbiddenContent } from "./src/adi/oracle/narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, hasForbiddenContent, truncateToBriefBudget, BRIEF_WORD_CAP } from "./src/adi/oracle/narrationBlocks.js";
 import { applyMemoryUpdate } from "./src/adi/oracle/persona.js";
 import { handlePlan, handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
@@ -402,6 +402,49 @@ console.log("\n── 20 · DETERMINÍSTICO (regresión anti-estado-paralelo) �
   ok(out.preferencias.trato === "usted", "applyMemoryUpdate sigue escribiendo trato normalmente (control positivo)");
   ok(out.preferencias.tecnicismo === "bajo", "applyMemoryUpdate sigue escribiendo tecnicismo normalmente (control positivo)");
   ok(out.preferencias.verbosidad === undefined, `applyMemoryUpdate NUNCA escribe preferencias.verbosidad, ni con un memoryUpdate que la incluya — obtuvo ${JSON.stringify(out.preferencias)}`);
+}
+
+console.log("\n── 21 · CUMPLIMIENTO ESTRUCTURAL de detailLevel=\"brief\" (owner 2026-07-31, certificación integral, riesgo residual #1) ──");
+{
+  // A diferencia de contentScope (bloques [[...]] con enforcement DURO), brief era SOLO doctrina de prosa — medido
+  // en vivo, 2 turnos consecutivos con brief+persist activo no mostraron ninguna compresión real. truncateToBriefBudget
+  // es el tope ESTRUCTURAL: el resultado NO PUEDE exceder el presupuesto, sin importar qué haya escrito el narrador.
+  const s = "Falabella vendió $19.4M este año.";
+  ok(truncateToBriefBudget(s) === s, "21: texto bajo el presupuesto no se toca (cero costo en el caso común)");
+
+  const sentences = Array.from({ length: 20 }, (_, i) => `Esta es la oración número ${i + 1} con contenido de relleno para sumar palabras.`);
+  const long = sentences.join(" ");
+  const cut = truncateToBriefBudget(long, 30);
+  ok(cut.split(/\s+/).length <= 30, `21: el corte respeta el tope pedido — obtuvo ${cut.split(/\s+/).length} palabras (tope 30)`);
+  ok(/[.!?]$/.test(cut), "21: corta en un límite de oración COMPLETO — nunca a mitad de oración");
+  ok(long.startsWith(cut.slice(0, 20)), "21: el contenido cortado es un PREFIJO real del original — nunca inventa texto");
+
+  const oneHugeSentence = Array.from({ length: 50 }, (_, i) => `palabra${i}`).join(" ") + ".";
+  const hardCut = truncateToBriefBudget(oneHugeSentence, 10);
+  ok(hardCut.length > 0 && hardCut.endsWith("…"), "21: si NI la primera oración entra, corte duro con elipsis — nunca vacío, nunca oculta que se recortó");
+
+  // end-to-end (mockeado): el corte pasa ANTES de ensurePeriodoDeclared — la cláusula de período sobrevive intacta,
+  // nunca queda amputada por el truncado (sería una regresión del requisito de período, no solo de brevedad).
+  const longNarration = Array.from({ length: 25 }, (_, i) => `Falabella muestra una tendencia relevante en el punto ${i + 1} de este análisis extendido.`).join(" ");
+  const PLAN = { intent: "answer", mode: "default", scope: { level: "entity", entities: ["Falabella"] }, calls: [{ tool: "entityProfile", args: { dimension: "cliente", entity: "Falabella" } }] };
+  const rBrief = await answerViaOracle({ text: "hablame más directo, sin rodeos, contame de Falabella", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN, callNarrate: async () => longNarration });
+  ok(rBrief && rBrief.r, "21: brief no rompe el turno (no se abstiene)");
+  const wcBrief = rBrief && rBrief.r.text.split(/\s+/).length;
+  ok(wcBrief <= BRIEF_WORD_CAP + 8, `21: el texto FINAL respeta el presupuesto (± cláusula de período) — obtuvo ${wcBrief} palabras`);
+  ok(rBrief && /año cerrado/i.test(rBrief.r.text), "21: la cláusula de período SOBREVIVE el truncado — no queda amputada");
+
+  // control: SIN brief, el mismo narration largo NO se toca — el mecanismo no se dispara de más.
+  const rStd = await answerViaOracle({ text: "contame de Falabella", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN, callNarrate: async () => longNarration });
+  const wcStd = rStd && rStd.r.text.split(/\s+/).length;
+  ok(wcStd > BRIEF_WORD_CAP, `21 control: SIN brief, el texto largo NO se trunca — obtuvo ${wcStd} palabras (nunca se dispara fuera de brief)`);
+
+  // instruccion_brevedad (refuerzo a nivel de turno, mismo patrón que instruccion_formato para contentScope) viaja
+  // en el payload REAL de narrar SOLO cuando detailLevel="brief" — payload mínimo, cero drift para el resto.
+  const base = { text: "contame de Falabella", plan: { intent: "answer", mode: "default" }, results: [], ledgerFigs: [], mem: {}, history: [] };
+  const payloadBrief = buildNarrateUserMessageC({ ...base, pref: { contentScope: "full", detailLevel: "brief" } });
+  const payloadStd = buildNarrateUserMessageC({ ...base, pref: { contentScope: "full", detailLevel: "standard" } });
+  ok(!!payloadBrief.instruccion_brevedad, "21: instruccion_brevedad viaja en el payload cuando detailLevel=\"brief\"");
+  ok(!payloadStd.instruccion_brevedad, "21 control: instruccion_brevedad ausente en detailLevel=\"standard\" (payload mínimo)");
 }
 
 console.log(`\n── _response_preference_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

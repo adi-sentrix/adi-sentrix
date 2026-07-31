@@ -46,6 +46,34 @@ export function stripAllMarks(text) {
   return String(text || "").replace(_MARK_STRIP_RE, "").trim();
 }
 
+// ── truncateToBriefBudget (owner 2026-07-31, certificación integral, riesgo residual #1: "detailLevel=brief no
+// muestra compresión medible") ── contentScope tiene enforcement DURO (los bloques [[...]] de arriba); detailLevel
+// nunca lo tuvo — era SOLO doctrina de prosa ("respondé más corto que tu forma habitual"), y medido en vivo (2
+// turnos consecutivos con brief+persist activo) no mostró NINGUNA reducción real frente al modo estándar. Esto no
+// es un ajuste de prompt: es un TOPE ESTRUCTURAL sobre el TEXTO FINAL, igual de duro que el de contentScope, solo
+// que en el eje de LARGO en vez de CATEGORÍA de contenido — el resultado NO PUEDE exceder el presupuesto, sin
+// importar qué haya escrito el narrador. Corta en el ÚLTIMO límite de oración (.!?) que entre en el presupuesto —
+// nunca a mitad de oración (evita dejar una cifra o un nombre colgando sin cierre gramatical). BRIEF_WORD_CAP es
+// generoso para 2-3 oraciones + un cierre corto — "breve" no es "telegráfico", solo notablemente más corto que el
+// estándar (que en vivo rondaba 120-220 palabras).
+export const BRIEF_WORD_CAP = 90;
+export function truncateToBriefBudget(text, maxWords = BRIEF_WORD_CAP) {
+  const s = String(text || "").trim();
+  if (!s) return s;
+  const words = s.split(/\s+/);
+  if (words.length <= maxWords) return s;   // ya cumple — no toca nada, cero costo en el caso común
+  let cut = null;
+  for (const m of s.matchAll(/[.!?](?=\s|$)/g)) {
+    const upTo = s.slice(0, m.index + 1);
+    if (upTo.split(/\s+/).length <= maxWords) cut = upTo;
+    else break;
+  }
+  if (cut && cut.trim().length > 20) return cut.trim();   // al menos una oración completa entró — gramaticalmente sano
+  // ni la PRIMERA oración entra en el presupuesto (caso raro, oración inicial larga) → corte duro por palabra,
+  // con "…" visual para que quede claro que es un recorte, no el cierre natural del narrador.
+  return `${words.slice(0, maxWords).join(" ").replace(/[,;:]+$/, "")}…`;
+}
+
 // parseBlocks(text) → { datos?, interpretacion?, accion?, siguiente_paso? } | null (null = el narrador NO usó el
 // formato de bloques — falla estructural, el caller reintenta o repara). Cada bloque corre hasta el PRÓXIMO marcador
 // o el fin del texto — no hace falta cierre explícito, más fácil de producir consistentemente para el LLM.

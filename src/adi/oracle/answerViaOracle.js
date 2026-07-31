@@ -15,7 +15,7 @@ import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtim
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
@@ -332,6 +332,93 @@ function _hasCompleteSimulateVars(calls) {
   return !!(a && typeof a.delta_pct === "number" && a.delta_pct !== 0 && b && typeof b.delta_pct === "number" && b.delta_pct !== 0);
 }
 
+// ── mem.pendingSimulation (owner 2026-07-31, certificación integral, riesgo residual #2 de simulate v2) ──
+// El fix de _hasCompleteSimulateVars de arriba resuelve el caso en que el plan ARMA `calls` bien pese a marcar un
+// supuestos_faltantes stale — pero medido en vivo, un turno de confusión ADICIONAL puede hacer que el plan pierda
+// el hilo POR COMPLETO (respondió sobre "carga comercial" de Lider en vez de continuar la simulación precio+volumen
+// pedida). Causa raíz: no había NINGÚN estado estructurado de "simulación pendiente" — a diferencia de lastOffer,
+// el motor confiaba en que PLAN re-derive entidad+variables+campo-faltante del texto crudo de los últimos 8
+// mensajes (buildPlanUserMessage, planPrompt.js) en CADA turno. Con dos simulaciones recientes en esa ventana
+// (explorar escenarios de 2 clientes distintos — uso realista) eso es frágil. Este mecanismo resuelve el turno
+// SIGUIENTE de forma determinística, sin volver a pedirle a PLAN que reconstruya nada — mismo principio que
+// priorOffer.tool más abajo (bypasea PLAN ENTERO cuando no hay nada que el LLM deba decidir).
+//
+// _extractSignedPct(text) → {delta_pct} | null — un número con "%" en el texto, con signo/dirección YA resuelta.
+// Nunca "adivina" una dirección que el texto no dio: sin signo explícito ("-2%") y sin verbo direccional
+// (baja/sube/cae/aumenta…) es un pedido genuinamente ambiguo → null, el llamador NO debe forzar una interpretación.
+const _PCT_NUM_RE = /(-?\d+(?:[.,]\d+)?)\s*%/;
+// Stems, no formas conjugadas exactas (owner, hallazgo en el propio testing de este fix): "le SUBO el precio"
+// (1a persona, causativo — la frase MÁS natural para plantear el supuesto) no matcheaba una lista de solo 3a
+// persona ("sube"/"suben"). \w* después del stem cubre cualquier conjugación/gerundio (subo/subís/sube/suben/
+// subimos/subiendo, baja/bajan/bajo/bajás/bajando…) sin necesitar el catálogo completo de conjugaciones.
+const _DOWN_WORDS_RE = /\bbaj\w*|\bca[ey]\w*|\bdisminu\w*|\breduc\w*|\breduzc\w*|\bmenos\b|\bmenor\b|\bpierd\w*|\bperd\w*|\bced\w*/i;
+const _UP_WORDS_RE = /\bsub\w*|\baument\w*|\bcrec\w*|\bincrement\w*|\bmayor\b|\bgan\w*/i;
+const _SIM_DELTA_MAX_MIRROR = 50;   // mismo rango operable que simulateGeneral (_SIM_DELTA_MAX, toolRegistry.js) — duplicado a propósito: archivos distintos, sin import cruzado por una sola constante
+function _extractSignedPct(text) {
+  const t = String(text || "");
+  const m = t.match(_PCT_NUM_RE);
+  if (!m) return null;
+  let n = parseFloat(m[1].replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  if (!/^-/.test(m[1].trim())) {
+    if (_DOWN_WORDS_RE.test(t)) n = -Math.abs(n);
+    else if (_UP_WORDS_RE.test(t)) n = Math.abs(n);
+    else return null;   // ni signo ni verbo direccional → genuinamente ambiguo, no se adivina
+  }
+  if (Math.abs(n) > _SIM_DELTA_MAX_MIRROR) return null;
+  return { delta_pct: n };
+}
+const _PRECIO_WORD_RE = /\bprecio\b/i;
+const _VOLUMEN_WORD_RE = /\bvolumen\b|\bunidades\b/i;
+
+// _buildPendingSimulation(text, plan) → {dimension,entity,known:{campo,delta_pct},missingCampo} | null — se arma
+// cuando supuestos_faltantes disparó para una simulación de 2 variables (ver planPrompt.js: ese campo es SOLO
+// para esto). Preferí `plan.calls` si YA trae una simulateGeneral con una variable no-cero (el camino
+// silent-zero-backstop la clasificó estructuralmente — más confiable que re-parsear texto); si `calls` viene
+// vacío (el camino LIMPIO — el diseño pide dejarlo así), extraé la variable nombrada del texto de ESTE turno
+// (frase corta y puntual, no la ventana de 8 mensajes que confunde a PLAN).
+function _buildPendingSimulation(text, plan) {
+  const calls = (plan && Array.isArray(plan.calls)) ? plan.calls : [];
+  const call = calls.find((c) => c && c.tool === "simulateGeneral" && c.args);
+  let known = null, entity = null;
+  if (call) {
+    entity = call.args.entity || null;
+    const vars = [call.args.variableA, call.args.variableB].filter(Boolean);
+    known = vars.find((v) => v && typeof v.delta_pct === "number" && v.delta_pct !== 0 && (v.campo === "precioLista" || v.campo === "unidades"));
+  }
+  if (!known) {
+    const pct = _extractSignedPct(text);
+    const campo = pct && _PRECIO_WORD_RE.test(String(text || "")) ? "precioLista" : pct && _VOLUMEN_WORD_RE.test(String(text || "")) ? "unidades" : null;
+    known = campo ? { campo, delta_pct: pct.delta_pct } : null;
+  }
+  if (!entity && plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0]) {
+    entity = plan.scope.entities[0];
+  }
+  if (!known || !entity) return null;   // sin entidad o sin variable nombrada clara → no se arma (mejor nada que un pendiente roto)
+  const missingCampo = known.campo === "precioLista" ? "unidades" : "precioLista";
+  return { dimension: "cliente", entity, known: { campo: known.campo, delta_pct: known.delta_pct }, missingCampo };
+}
+
+// _resolvePendingSimulation(text, pending) → {variableA,variableB} | null — intenta resolver la respuesta del
+// usuario contra la simulación pendiente. DISTINCIÓN explícita (owner, punto 2 del pedido de certificación):
+// "0%"/"sin cambio"/"no cambia"/"queda igual"/"se mantiene" → delta_pct=0 LEGÍTIMO (el usuario respondió, y la
+// respuesta es cero). Un número con signo/verbo direccional → ese valor. CUALQUIER OTRA COSA (no numérico, cambio
+// de tema, "no sé") → null — el turno NO contestó la pregunta pendiente, nunca se asume 0 por defecto acá tampoco.
+function _resolvePendingSimulation(text, pending) {
+  if (!pending || !pending.missingCampo || !pending.known || !pending.entity) return null;
+  const t = String(text || "");
+  let missingDelta;
+  if (_ZERO_EXPLICIT_RE.test(t)) missingDelta = 0;
+  else {
+    const pct = _extractSignedPct(t);
+    if (!pct) return null;   // no resuelve → el llamador abandona el pendiente, nunca fuerza una interpretación
+    missingDelta = pct.delta_pct;
+  }
+  const missingVar = { campo: pending.missingCampo, delta_pct: missingDelta };
+  const knownVar = pending.known;
+  return knownVar.campo === "precioLista" ? { variableA: knownVar, variableB: missingVar } : { variableA: missingVar, variableB: knownVar };
+}
+
 // _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
 // el mensaje fijo — no debería pasar nunca con prosa sin cifras/entidades, pero nunca se asume). Empaquetado
 // compartido por los bypasses que NUNCA llegan a invocar PLAN/BATCH/NARRAR (owner 2026-07-31, cierre de #48:
@@ -342,7 +429,10 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario) {
   const mechanismMemory = (mem && typeof mem.mechanismByEntity === "object" && mem.mechanismByEntity) || {};
   const g = guardC(text, { ledger: { figs: [] }, results: [], trace: null, question: "", mechanismMemory, sealedOrders: [] });
   if (!g.ok) return null;
-  const mem2 = { ...mem, lastOffer: null, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
+  // pendingSimulation SIEMPRE se limpia acá por defecto (owner 2026-07-31): ninguno de estos bypasses (aceptación
+  // huérfana, retorno ambiguo) continúa una simulación pendiente — el caller de supuestos_faltantes (el ÚNICO que
+  // SÍ arma una nueva) la restaura explícito después de llamar a esta función.
+  const mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
   return {
     r: {
       text,
@@ -384,6 +474,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const priorOffer = (mem && mem.lastOffer && typeof mem.lastOffer === "object") ? mem.lastOffer : null;
   const recentSubjectsPrev = Array.isArray(mem && mem.recentSubjects) ? mem.recentSubjects : [];
   const recentNarrationsPrev = Array.isArray(mem && mem.recentNarrations) ? mem.recentNarrations : [];
+  // pendingSimulation (ver el bloque grande junto a _hasCompleteSimulateVars): intenta resolver la respuesta de
+  // ESTE turno contra la simulación de 2 variables que quedó pendiente. resolvedPendingSim==null → o no había
+  // pendiente, o el texto no la contesta (cambio de tema, "no sé") — el llamador ABANDONA el pendiente (nunca lo
+  // fuerza) y PLAN corre normal más abajo, como si nunca hubiera existido.
+  const pendingSimulationPrev = (mem && mem.pendingSimulation && typeof mem.pendingSimulation === "object") ? mem.pendingSimulation : null;
+  const resolvedPendingSim = pendingSimulationPrev ? _resolvePendingSimulation(q, pendingSimulationPrev) : null;
 
   // ── ACEPTACIÓN HUÉRFANA (owner 2026-07-31, cierre de #48) — "sí"/"dale" SIN ninguna oferta activa: "no debe
   // repetir la respuesta anterior; debe pedir una precisión breve o mostrar las opciones vigentes." Medido en vivo
@@ -411,6 +507,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     ? { intent: "answer", mode: "seguimiento", rationale: "oferta aceptada (ejecución estructurada)", scope: priorOffer.entidad ? { level: "entity", entities: [priorOffer.entidad] } : { level: "global" }, calls: [{ tool: priorOffer.tool, args: priorOffer.args || {} }] }
     : (subjectRecall && subjectRecall.kind === "resolved")
     ? { intent: "answer", mode: "seguimiento", rationale: "retorno a tema reciente (referencia posicional)", scope: { level: "entity", entities: [subjectRecall.subject.entidad] }, calls: [{ tool: "entityProfile", args: { dimension: subjectRecall.subject.dimension || "cliente", entity: subjectRecall.subject.entidad } }] }
+    : resolvedPendingSim
+    ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada)", scope: { level: "entity", entities: [pendingSimulationPrev.entity] }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, entity: pendingSimulationPrev.entity, ...resolvedPendingSim } }] }
     : null;
 
   // ── PASADA 1 · PLAN (con reintentos · 3 intentos máx, MISMO patrón que el retry de NARRAR más abajo) ── se salta
@@ -455,7 +553,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // aunque nunca llegue a invocar al narrador libre.
     const composed = stripFiller(stripLanguageLeaks(supuestosFaltantes.join(" ")));
     const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
-    if (out) return out;
+    if (out) {
+      // mem.pendingSimulation: guarda la variable YA conocida + cuál falta, para que el turno SIGUIENTE la
+      // resuelva determinísticamente (ver el bloque grande más arriba) en vez de depender de que PLAN reconstruya
+      // entidad+variables del texto crudo de la ventana de historia. _composedBypassResult ya la limpia por
+      // defecto — acá la restauramos SOLO si se pudo armar (si no, queda null, comportamiento sin cambios).
+      out.mem = { ...out.mem, pendingSimulation: _buildPendingSimulation(q, plan) };
+      return out;
+    }
   }
 
   // mecanismo dominante por entidad ESTABLECIDO en turnos ANTERIORES (owner 2026-07-29, residual 3: "si un turno ya
@@ -493,6 +598,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // qué mecanismo/nivel de aclaración ya estaba establecido, aunque guardC sí lo chequeara bien por separado.
   if (Object.keys(mechanismMemory).length) mem2 = { ...mem2, mechanismByEntity: mechanismMemory };
   mem2 = { ...mem2, clarifyStreak: clarifyStreakNow };
+  // pendingSimulation SIEMPRE se limpia acá, por defecto (mismo motivo que mechanismByEntity/clarifyStreak arriba:
+  // applyMemoryUpdate no preserva claves ajenas cuando el LLM además emite un memoryUpdate) — este turno YA la
+  // consumió (resolvedPendingSim la resolvió, ver el plan sintético de arriba) o la abandonó (el texto no la
+  // contestaba) — en NINGÚN caso de los que llegan hasta acá corresponde que sobreviva al turno siguiente.
+  mem2 = { ...mem2, pendingSimulation: null };
   if (sessionPrefPrev) mem2 = { ...mem2, responsePref: sessionPrefPrev };   // sobrevive applyMemoryUpdate, igual que mechanismByEntity
   if (turnPref && turnPref.persist) mem2 = { ...mem2, responsePref: { contentScope: pref.contentScope, detailLevel: pref.detailLevel } };
   // Fase 3 (owner 2026-07-30): lastOffer/recentSubjects sobreviven applyMemoryUpdate por la MISMA razón de arriba —
@@ -532,7 +642,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   let narrationRepaired = false;
   const simple = _simpleEntityMetric(q, plan, calls, results);
   if (simple) {
-    const det = ensurePeriodoDeclared(_rutaDeterministica(pref, simple), periodos);
+    const detRaw = pref.detailLevel === "brief" ? truncateToBriefBudget(_rutaDeterministica(pref, simple)) : _rutaDeterministica(pref, simple);
+    const det = ensurePeriodoDeclared(detRaw, periodos);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 
@@ -589,6 +700,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (!rendered || hasForbiddenContent(rendered, "action_only")) continue;
       n = rendered;
     }
+    // BREVEDAD ESTRUCTURAL (owner 2026-07-31, certificación integral, riesgo residual #1) — a diferencia de
+    // contentScope (bloques con enforcement duro), detailLevel="brief" era SOLO doctrina de prosa: medido en vivo,
+    // 2 turnos consecutivos con brief+persist activo no mostraron ninguna compresión real. ANTES de declarar el
+    // período (para que la cláusula de período se sume DESPUÉS del corte y nunca quede amputada — ver
+    // ensurePeriodoDeclared abajo), el texto se trunca al presupuesto si lo excede — no es un reintento (nunca
+    // falla): el resultado NO PUEDE exceder el presupuesto, sin importar qué haya escrito el narrador.
+    if (pref.detailLevel === "brief") n = truncateToBriefBudget(n);
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev }).ok) { narration = n; break; }
