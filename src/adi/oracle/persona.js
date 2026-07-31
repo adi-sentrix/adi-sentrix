@@ -65,7 +65,6 @@ export function renderInteractionMemory(mem) {
   if (id.empresa) L.push(`· Empresa: ${id.empresa}${id.pais ? ` · ${id.pais}` : ""}${id.moneda ? ` · moneda ${id.moneda}` : ""}.`);
   const pr = mem.preferencias || {};
   if (pr.trato) L.push(`· Trato: ${pr.trato === "usted" ? "de usted" : "cercano (tú/vos)"}.`);
-  if (pr.verbosidad) L.push(`· Estilo: ${pr.verbosidad === "directo" ? "directo, sin rodeos" : "explicativo cuando ayuda"}.`);
   if (pr.tecnicismo === "bajo") L.push(`· Evitá tecnicismos innecesarios.`);
   if (pr.tablas === false) L.push(`· No muestres tablas salvo que las pida.`);
   if (pr.prioridad) L.push(`· Prioriza primero lo ${pr.prioridad === "financiero" ? "financiero (impacto económico)" : "comercial"}.`);
@@ -106,7 +105,8 @@ export function applyMemoryUpdate(mem, upd) {
   if (upd.pais) out.identidad.pais = String(upd.pais).slice(0, 40);
   if (upd.moneda) out.identidad.moneda = String(upd.moneda).slice(0, 12);
   if (upd.trato) out.preferencias.trato = upd.trato === "usted" ? "usted" : "cercano";
-  if (upd.verbosidad) out.preferencias.verbosidad = upd.verbosidad === "directo" ? "directo" : "explicativo";
+  // verbosidad RETIRADA (owner 2026-07-31): era una segunda fuente de verdad para lo mismo que ya resuelve
+  // responsePref.detailLevel — ver _coercePref en answerViaOracle.js. No queda ni schema ni handler acá a propósito.
   if (upd.tecnicismo) out.preferencias.tecnicismo = upd.tecnicismo;
   if (typeof upd.tablas === "boolean") out.preferencias.tablas = upd.tablas;
   if (upd.prioridad) out.preferencias.prioridad = upd.prioridad;

@@ -37,6 +37,7 @@ import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, hasForbiddenContent } from "./src/adi/oracle/narrationBlocks.js";
+import { applyMemoryUpdate } from "./src/adi/oracle/persona.js";
 import { handlePlan, handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 
@@ -338,6 +339,69 @@ console.log("\n── 16 · DETERMINÍSTICO — consistencia ruta determinístic
   ok(r2 && r2.r && r2.r.deterministic === true, "turno 2: la ruta determinística se activa (precioLista, 1 entidad, 1 métrica)");
   ok(!narrateCalled, "turno 2: la Pasada 2 (narrador) NUNCA se invoca — la ruta determinística la saltea por completo");
   if (r2 && r2.r) ok(!/puedo analizarlo con m[aá]s detalle/i.test(r2.r.text), `turno 2: la SESIÓN brief (fijada por el narrador en el turno 1) SUPRIME la oferta también en la ruta determinística — "${r2.r.text}"`);
+}
+
+console.log("\n── 17 · DETERMINÍSTICO — correcciones de verbosidad mapean a responsePref (owner 2026-07-31, ex 'memoria-directo') ──");
+{
+  const PLAN = { intent: "answer", mode: "diagnostico", calls: [{ tool: "executiveSummary", args: {} }] };
+  const callPlan = async () => PLAN;
+  const callNarrate = async () => SAFE_NARRATION;
+
+  const rDirecto = await answerViaOracle({ text: "háblame más directo", history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
+  ok(rDirecto && rDirecto.mem.responsePref && rDirecto.mem.responsePref.detailLevel === "brief", `"háblame más directo" → detailLevel=brief Y PERSISTE POR DEFECTO (sin marcador "desde ahora") — obtuvo ${JSON.stringify(rDirecto && rDirecto.mem.responsePref)}`);
+
+  const rRodeos = await answerViaOracle({ text: "sin rodeos, por favor", history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
+  ok(rRodeos && rRodeos.mem.responsePref && rRodeos.mem.responsePref.detailLevel === "brief", `"sin rodeos" también mapea a brief y persiste — obtuvo ${JSON.stringify(rRodeos && rRodeos.mem.responsePref)}`);
+
+  const rMenos = await answerViaOracle({ text: "dame menos detalle", history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
+  ok(rMenos && rMenos.mem.responsePref && rMenos.mem.responsePref.detailLevel === "brief", `"menos detalle" también mapea a brief y persiste — obtuvo ${JSON.stringify(rMenos && rMenos.mem.responsePref)}`);
+
+  // sesión ya en brief (heredada de rDirecto) → "explícamelo con más detalle" la devuelve a standard, PERSISTE, y
+  // NO toca contentScope (a diferencia de "volvé a lo normal", que resetea TODO — ver sección 19).
+  const rDetalle = await answerViaOracle({ text: "explícamelo con más detalle", history: [], mem: rDirecto.mem, scenario: "actual", callPlan, callNarrate });
+  ok(rDetalle && rDetalle.mem.responsePref && rDetalle.mem.responsePref.detailLevel === "standard", `"explícamelo con más detalle" vuelve la sesión a standard, persistiendo — obtuvo ${JSON.stringify(rDetalle && rDetalle.mem.responsePref)}`);
+
+  const rExplicativo = await answerViaOracle({ text: "sé más explicativo", history: [], mem: rDirecto.mem, scenario: "actual", callPlan, callNarrate });
+  ok(rExplicativo && rExplicativo.mem.responsePref && rExplicativo.mem.responsePref.detailLevel === "standard", `"sé más explicativo" también mapea a standard y persiste — obtuvo ${JSON.stringify(rExplicativo && rExplicativo.mem.responsePref)}`);
+}
+
+console.log("\n── 18 · DETERMINÍSTICO — 'solo esta vez' aplica la corrección de verbosidad a UN turno, no a la sesión ──");
+{
+  const PLAN = { intent: "answer", mode: "diagnostico", calls: [{ tool: "executiveSummary", args: {} }] };
+  const callPlan = async () => PLAN;
+  let seenPref = null;
+  const callNarrate = async (a) => { seenPref = a.pref; return SAFE_NARRATION; };
+
+  const r = await answerViaOracle({ text: "háblame más directo, pero solo esta vez", history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
+  ok(seenPref && seenPref.detailLevel === "brief", `el EFECTIVO de este turno es brief — obtuvo ${JSON.stringify(seenPref)}`);
+  ok(!(r && r.mem && r.mem.responsePref), `"solo esta vez" gana sobre el default-persist de la corrección de verbosidad — NO escribe mem.responsePref — obtuvo ${JSON.stringify(r && r.mem && r.mem.responsePref)}`);
+
+  const rNext = await answerViaOracle({ text: "¿y algo más?", history: [], mem: (r && r.mem) || {}, scenario: "actual", callPlan, callNarrate });
+  ok(seenPref && seenPref.detailLevel === "standard", `turno siguiente: sin sesión persistida, vuelve al default (standard) — obtuvo ${JSON.stringify(seenPref)}`);
+}
+
+console.log("\n── 19 · DETERMINÍSTICO — 'vuelve a lo normal' cancela también la preferencia fijada por una corrección de verbosidad ──");
+{
+  const PLAN = { intent: "answer", mode: "diagnostico", calls: [{ tool: "executiveSummary", args: {} }] };
+  const callPlan = async () => PLAN;
+  const callNarrate = async () => SAFE_NARRATION;
+
+  const r1 = await answerViaOracle({ text: "sin rodeos de acá en más", history: [], mem: {}, scenario: "actual", callPlan, callNarrate });
+  ok(r1 && r1.mem.responsePref && r1.mem.responsePref.detailLevel === "brief", "turno 1: sesión queda en brief (por la corrección de verbosidad)");
+
+  const r2 = await answerViaOracle({ text: "volvé a lo normal", history: [], mem: r1.mem, scenario: "actual", callPlan, callNarrate });
+  ok(r2 && r2.mem.responsePref && r2.mem.responsePref.detailLevel === "standard" && r2.mem.responsePref.contentScope === "full", `"volvé a lo normal" cancela la sesión sin importar qué frase la había fijado — obtuvo ${JSON.stringify(r2 && r2.mem.responsePref)}`);
+}
+
+console.log("\n── 20 · DETERMINÍSTICO (regresión anti-estado-paralelo) — memoryUpdate.verbosidad ya NO existe: applyMemoryUpdate no la escribe ──");
+{
+  // aunque algún plan viejo/cacheado emitiera verbosidad igual (el schema ya no la declara, pero esto es una RED,
+  // no una confianza ciega en el schema) — applyMemoryUpdate NUNCA debe volver a escribir mem.preferencias.verbosidad.
+  // Si esto alguna vez falla, alguien reintrodujo la segunda fuente de verdad que el owner pidió explícitamente evitar.
+  const out = applyMemoryUpdate({}, { trato: "usted", verbosidad: "directo", tecnicismo: "bajo" });
+  ok(out.preferencias.trato === "usted", "applyMemoryUpdate sigue escribiendo trato normalmente (control positivo)");
+  ok(out.preferencias.tecnicismo === "bajo", "applyMemoryUpdate sigue escribiendo tecnicismo normalmente (control positivo)");
+  ok(out.preferencias.verbosidad === undefined, `applyMemoryUpdate NUNCA escribe preferencias.verbosidad, ni con un memoryUpdate que la incluya — obtuvo ${JSON.stringify(out.preferencias)}`);
 }
 
 console.log(`\n── _response_preference_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

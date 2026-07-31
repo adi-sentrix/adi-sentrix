@@ -248,6 +248,15 @@ const _PREF_ACTION_ONLY_RE = /\bsolo\s+la\s+acci[oó]n\b|\bsin\s+(?:el\s+)?diagn
 // deja al criterio del LLM (plan.pref), no se fuerza por red.
 const _PREF_RESULTS_ONLY_SIM_RE = /\bsolo\s+(?:los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b/i;
 const _PREF_BRIEF_RE = /\bresponde?(?:me)?\s+breve\b|\bs[eé]\s+breve\b|\brespuesta\s+corta\b|\bmuy\s+resumido\b|\bcorto\s+y\s+concreto\b|\bresum[ií]me\b/i;
+// _PREF_DIRECTO_RE/_PREF_STANDARD_RE (owner 2026-07-31, hallazgo "memoria-directo"): antes, "háblame más directo"
+// llenaba memoryUpdate.verbosidad — una SEGUNDA fuente de verdad para lo mismo que ya resuelve detailLevel, y
+// encima el LLM no la clasificaba de forma confiable (0-1/3 en el gate). Retirada del schema (planPrompt.js) y de
+// mem.preferencias (persona.js) — estas dos frases son las ÚNICAS que quedan, mapeadas DIRECTO a responsePref, sin
+// estado paralelo. A diferencia de _PREF_BRIEF_RE (persist queda a criterio del LLM/marcadores explícitos), estas
+// dos SÍ persisten por defecto — es una corrección de REGISTRO general ("así hablame de ahora en más"), del mismo
+// tipo que "trátame de usted" (que también persiste siempre) — no un pedido sobre el contenido de este turno.
+const _PREF_DIRECTO_RE = /\bh[aá]blame\s+(?:m[aá]s\s+)?directo\b|\bs[eé]\s+(?:m[aá]s\s+)?directo\b|\bsin\s+rodeos\b|\bmenos\s+detalle\b/i;
+const _PREF_STANDARD_RE = /\bexpl[ií]came?(?:lo)?\s+con\s+m[aá]s\s+detalle\b|\bs[eé]\s+(?:m[aá]s\s+)?explicativ[oa]\b/i;
 // _PREF_RESET_RE · "volver a lo normal" CANCELA la preferencia de sesión SIEMPRE, sin condición (owner 2026-07-29,
 // corrigiendo una lectura previa de este mismo mecanismo: "'Volver a lo normal' debe cancelar la preferencia
 // persistente de la sesión. No debe volver a breve en el turno siguiente.") — fija los valores (full/standard) Y
@@ -277,6 +286,8 @@ function _coercePref(text, plan) {
     else if (isSim && _PREF_RESULTS_ONLY_SIM_RE.test(t)) contentScope = "results_only";
     else if (_PREF_DATA_ONLY_RE.test(t)) contentScope = "data_only";
     if (_PREF_BRIEF_RE.test(t)) detailLevel = "brief";
+    if (_PREF_DIRECTO_RE.test(t)) { detailLevel = "brief"; persist = true; }
+    if (_PREF_STANDARD_RE.test(t)) { detailLevel = "standard"; persist = true; }
   }
   if (_PREF_PERSIST_RE.test(t)) persist = true;
   if (_PREF_ONE_TURN_RE.test(t)) persist = false;   // marcador explícito de "esta vez" siempre gana sobre persist
