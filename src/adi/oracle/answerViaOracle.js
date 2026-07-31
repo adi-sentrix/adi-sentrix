@@ -316,6 +316,22 @@ function _silentZeroSupuestoFaltante(text, calls) {
   return [`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`];
 }
 
+// _hasCompleteSimulateVars (owner 2026-07-31, hallazgo EN VIVO, certificación integral) — reproducido 1/4 con el
+// window real de historia (8 mensajes, incluyendo una simulación ANTERIOR de otra entidad): el usuario contesta
+// exactamente la variable que el propio turno anterior pidió ("el volumen baja 2%"), el plan arma `calls` PERFECTO
+// (variableA y variableB con su delta_pct correcto) — pero el mismo plan, confundido por el ruido de la simulación
+// previa todavía en la ventana, ADEMÁS marca `supuestos_faltantes` con una pregunta sobre una variable que YA está
+// completa. Como el chequeo de abajo confía en `plan.supuestos_faltantes` sin cruzarlo contra `calls`, esa pregunta
+// STALE pisaba el cálculo ya correcto y el turno nunca cerraba. Si AMBAS variables ya están completas y ninguna es
+// 0 (el 0 sigue siendo cosa de `_silentZeroSupuestoFaltante`, no de acá), la corrida ya tiene lo que necesita —
+// cualquier supuestos_faltantes de esta call puntual es contradictorio y se ignora.
+function _hasCompleteSimulateVars(calls) {
+  const call = Array.isArray(calls) ? calls.find((c) => c && c.tool === "simulateGeneral" && c.args) : null;
+  if (!call) return false;
+  const a = call.args.variableA, b = call.args.variableB;
+  return !!(a && typeof a.delta_pct === "number" && a.delta_pct !== 0 && b && typeof b.delta_pct === "number" && b.delta_pct !== 0);
+}
+
 // _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
 // el mensaje fijo — no debería pasar nunca con prosa sin cifras/entidades, pero nunca se asume). Empaquetado
 // compartido por los bypasses que NUNCA llegan a invocar PLAN/BATCH/NARRAR (owner 2026-07-31, cierre de #48:
@@ -428,7 +444,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // ver _silentZeroSupuestoFaltante arriba: red determinística para cuando el LLM, en vez de usar
   // supuestos_faltantes, asume 0% en silencio en la variable que el usuario no nombró — hallazgo EN VIVO, no
   // hipotético. El LLM manda (mecanismo principal); esto es SOLO la red, igual que el resto de _coerce* del archivo.
-  const supuestosFaltantes = (Array.isArray(plan.supuestos_faltantes) && plan.supuestos_faltantes.length)
+  const supuestosFaltantes = _hasCompleteSimulateVars(calls)
+    ? null
+    : (Array.isArray(plan.supuestos_faltantes) && plan.supuestos_faltantes.length)
     ? plan.supuestos_faltantes
     : _silentZeroSupuestoFaltante(q, calls);
   if (supuestosFaltantes && supuestosFaltantes.length) {
