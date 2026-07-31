@@ -188,6 +188,25 @@ function compareEntities({ dimension, entities, scenario } = {}) {
     `necesito dos entidades del eje '${dimension}' que existan en el dato`);
 }
 
+// _tagBodegaConflation(r) → notaBodega en el foco "capital" (owner 2026-07-31, hallazgo EN VIVO, certificación
+// integral): cada item YA trae su propia bodega correcta (`_diagCapital`, specRetrieval.js) — pero medido en vivo,
+// al nombrar 2+ SKU críticos juntos el narrador a veces colapsa ambos a UNA sola bodega ("LG-DRYER8KG y MAK-COMP-AIR
+// en Valparaíso", cuando MAK-COMP-AIR está en Antofagasta) — reproducido 2/3 en la misma conversación, en TANTO
+// diagnose como executiveSummary (mismo `findings` shape, mismo riesgo). Mismo patrón que `otro_estado_del_inventario`
+// en inventoryStatus (abajo): una nota explícita en facts que hace la distinción imposible de perder, en vez de
+// confiar en que el LLM la derive de items[].bodega. Solo aparece si de verdad hay MÁS de una bodega — no ensucia
+// el caso simple (compartida por defecto en la mayoría de escenarios/tenants).
+function _tagBodegaConflation(r) {
+  const cap = r.facts && Array.isArray(r.facts.findings) && r.facts.findings.find((f) => f && f.detector === "capital");
+  if (cap && Array.isArray(cap.items)) {
+    const bodegas = new Set(cap.items.map((it) => it.bodega).filter(Boolean));
+    if (bodegas.size > 1) {
+      cap.notaBodega = `cada SKU tiene SU PROPIA bodega, NO una compartida: ${cap.items.map((it) => `${it.entidad}→${it.bodega || "sin bodega"}`).join(", ")}`;
+    }
+  }
+  return r;
+}
+
 // diagnose · RICO por diseño: barre TODOS los detectores (contribución no capturada · carga alta · capital detenido)
 // y los rankea por $. `focus:"resumen_ejecutivo"` deriva al resumen de 5 movimientos.
 // TOLERANTE a un filtro NO-objeto (owner "de los clientes con bajo margen, cuál corregir primero": el plan a veces
@@ -197,13 +216,13 @@ function compareEntities({ dimension, entities, scenario } = {}) {
 function diagnose({ filters = {}, scenario, focus = null } = {}) {
   const f = _isObj(filters) ? filters : {};
   const x = _crossGuard(f, _SCOPE_KEYS); if (x) return _crossFail(x);
-  return _pack(composeSpecDiagnose({ filters: f, scenario, focus }),
-    "no hay focos materiales de pérdida/inmovilización con estos filtros");
+  return _tagBodegaConflation(_pack(composeSpecDiagnose({ filters: f, scenario, focus }),
+    "no hay focos materiales de pérdida/inmovilización con estos filtros"));
 }
 
 // executiveSummary · la lectura completa de 5 movimientos (cómo ganás · margen · dónde perdés · por qué · recuperación).
 function executiveSummary({ scenario } = {}) {
-  return _pack(composeSpecResumenEjecutivo({ scenario }), "no puedo armar el resumen en este escenario");
+  return _tagBodegaConflation(_pack(composeSpecResumenEjecutivo({ scenario }), "no puedo armar el resumen en este escenario"));
 }
 
 // inventoryStatus · estado de inventario (capital detenido / frenado / cobertura). `focus` = el estado que interesa.
