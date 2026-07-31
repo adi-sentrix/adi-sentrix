@@ -15,8 +15,8 @@ import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtim
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, stripOfferMarkers, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks } from "./narrationBlocks.js";
+import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -595,7 +595,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // código especial — la narración de ESTE turno simplemente produce (o no) su propia oferta fresca. extractOffer
   // ya filtra por contentScope="full" internamente (data_only/action_only/results_only nunca ofrecen seguimiento).
   const lastOfferNow = extractOffer(narration, { plan, calls, pref, turno: history.length });
-  narration = stripOfferMarkers(narration);   // la marca [[SIGUIENTE_PASO]] nunca la ve el usuario (no-op si no está)
+  narration = stripAllMarks(narration);   // ninguna marca [[...]] llega al usuario bajo full (no-op si no hay ninguna)
   mem2 = { ...mem2, lastOffer: lastOfferNow || null, recentNarrations: [narration, ...recentNarrationsPrev].slice(0, 2) };
 
   // graba el mecanismo dominante de ESTE turno (si lo hay) para que el PRÓXIMO turno pueda chequear contra él —

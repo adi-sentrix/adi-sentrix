@@ -61,13 +61,6 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
   return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, turno: turno == null ? null : turno };
 }
 
-// stripOfferMarkers(text) → saca la marca [[SIGUIENTE_PASO]] del texto VISIBLE bajo contentScope="full" (el único
-// caso donde el narrador puede haberla usado sin que renderFromBlocks ya la haya filtrado — action_only/data_only/
-// results_only nunca llegan acá con la marca todavía puesta). El usuario nunca ve la marca, solo la oración.
-export function stripOfferMarkers(text) {
-  return String(text || "").replace(/\[\[SIGUIENTE_PASO\]\]\s*/g, "").trim();
-}
-
 // ── TEMAS RECIENTES (LRU acotado a 3) ───────────────────────────────────────────────────────────────────────────
 // owner: "un único sujeto sobrescrito no puede cumplir honestamente [volver a un tema anterior]... no construyas
 // memoria ilimitada." Se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como siempre) — nunca

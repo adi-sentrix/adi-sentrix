@@ -31,6 +31,20 @@ export const KEEP_BLOCKS = {
 export const MANDATORY_BLOCK = { full: null, data_only: "datos", results_only: "datos", action_only: "accion" };
 
 const _MARK_RE = /\[\[(DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO)\]\]/g;
+const _MARK_STRIP_RE = /\[\[(?:DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO)\]\]\s*/g;
+
+// stripAllMarks(text) → saca CUALQUIER marca [[...]] del texto VISIBLE (owner 2026-07-31, hallazgo en vivo,
+// certificación integral pre-#57): bajo contentScope="full" el narrador NUNCA recibe instruccion_formato (esa
+// instrucción está gateada a alcance≠"full", ver blockInstructionFor en responsePreference.js) — pero igual emitió
+// "[[ACCION]] Renegociá primero con Falabella..." en un resumen ejecutivo normal, probablemente por aprender el
+// patrón de marcado de la MISMA doctrina que se lo prohíbe para este alcance (el LLM ve el token igual, aunque la
+// condición diga que no aplica). Bajo full nunca se llama a parseBlocks/renderFromBlocks (eso SOLO corre para
+// action_only) así que sin este strip la marca cruda llegaba al usuario tal cual — reproducido, no hipotético.
+// Reemplaza a stripOfferMarkers (dialogueState.js, retirada): mismo strip, generalizado a los 4 tokens, no solo
+// SIGUIENTE_PASO — evita mantener 2 funciones casi idénticas para lo que en la práctica es el MISMO riesgo.
+export function stripAllMarks(text) {
+  return String(text || "").replace(_MARK_STRIP_RE, "").trim();
+}
 
 // parseBlocks(text) → { datos?, interpretacion?, accion?, siguiente_paso? } | null (null = el narrador NO usó el
 // formato de bloques — falla estructural, el caller reintenta o repara). Cada bloque corre hasta el PRÓXIMO marcador
