@@ -16,6 +16,7 @@ import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EV
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent } from "./narrationBlocks.js";
+import { isAcceptance, extractOffer, stripOfferMarkers, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -302,21 +303,37 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (!t.ok) { console.error(`[answerViaOracle] abstención por tenant mismatch: ${t.reason}`); return null; }
   }
 
-  // ── PASADA 1 · PLAN (con reintentos · 3 intentos máx, MISMO patrón que el retry de NARRAR más abajo) ──
+  // ── RUTA DE ACEPTACIÓN ESTRUCTURADA (owner 2026-07-30, Fase 3: "que 'sí' ejecute exactamente lo ofrecido, no que
+  // lo reinterprete") — bypasea la Pasada 1 (PLAN) igual que _rutaDeterministica bypasea la Pasada 2: cuando la
+  // oferta guardada YA trae tool+args derivados (el caso limpio "profundizá en esto mismo" — ver extractOffer en
+  // dialogueState.js), no hay nada que el LLM deba decidir; reconstruir el mismo plan a mano sería reinterpretar
+  // lo que ya se ofreció, exactamente lo que se pidió evitar. Si la oferta NO trae tool (proponía un ángulo nuevo,
+  // requiere criterio real), NO se bypasea: PLAN corre normal, pero con la oferta como contexto explícito
+  // (mem.lastOffer, vía renderInteractionMemory — ver persona.js) en vez de tener que releer hilo_reciente crudo.
+  const priorOffer = (mem && mem.lastOffer && typeof mem.lastOffer === "object") ? mem.lastOffer : null;
+  const recentSubjectsPrev = Array.isArray(mem && mem.recentSubjects) ? mem.recentSubjects : [];
+  const recentNarrationsPrev = Array.isArray(mem && mem.recentNarrations) ? mem.recentNarrations : [];
+  let plan = (priorOffer && priorOffer.tool && isAcceptance(q))
+    ? { intent: "answer", mode: "seguimiento", rationale: "oferta aceptada (ejecución estructurada)", scope: priorOffer.entidad ? { level: "entity", entities: [priorOffer.entidad] } : { level: "global" }, calls: [{ tool: priorOffer.tool, args: priorOffer.args || {} }] }
+    : null;
+
+  // ── PASADA 1 · PLAN (con reintentos · 3 intentos máx, MISMO patrón que el retry de NARRAR más abajo) ── se salta
+  // ENTERA cuando la ruta de aceptación de arriba ya resolvió el plan.
   // hallazgo del re-barrido de 17 turnos (owner 2026-07-29): a diferencia de NARRAR, el plan NO reintentaba — un
   // JSON malformado del tool_call (el adapter de OpenAI tira "JSON inválido del tool_call: …", ver
   // src/adi/llm/adapters/openai.js) tumbaba el turno ENTERO al fallback en el primer intento, sin darle a C ni una
   // segunda chance. La mayoría de estos fallos son variance de sampling del LLM (el MISMO tool_choice forzado sobre
   // el MISMO schema casi siempre da JSON válido al reintentar) — reintentar recupera la mayoría sin debilitar nada:
   // el plan sigue validado por el schema forzado, y si los 3 intentos fallan, C se abstiene igual que antes.
-  let plan = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let p;
-    try { p = await callPlan({ text: q, history, mem, scenario, requestContext }); }
-    catch { continue; }
-    if (p && p.intent) { plan = p; break; }
+  if (!plan) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let p;
+      try { p = await callPlan({ text: q, history, mem, scenario, requestContext }); }
+      catch { continue; }
+      if (p && p.intent) { plan = p; break; }
+    }
+    if (!plan) return null;
   }
-  if (!plan) return null;
   // `calls` puede faltar en intent=ack/define (el modelo lo omite cuando no pide datos) → default [] (NO es abstención).
   // OJO: `plan` se REEMPLAZA (no solo la variable local `calls`) — buildNarrateUserMessageC recibe `plan` completo
   // más abajo, y si solo corregíamos la variable suelta, el narrador seguía viendo plan.calls SIN corregir (bug real
@@ -361,10 +378,22 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   mem2 = { ...mem2, clarifyStreak: clarifyStreakNow };
   if (sessionPrefPrev) mem2 = { ...mem2, responsePref: sessionPrefPrev };   // sobrevive applyMemoryUpdate, igual que mechanismByEntity
   if (turnPref && turnPref.persist) mem2 = { ...mem2, responsePref: { contentScope: pref.contentScope, detailLevel: pref.detailLevel } };
+  // Fase 3 (owner 2026-07-30): lastOffer/recentSubjects sobreviven applyMemoryUpdate por la MISMA razón de arriba —
+  // si no, el narrador (mem: mem2 en el loop de abajo) perdería de vista la oferta/temas recientes en CUALQUIER
+  // turno donde el LLM además emita un memoryUpdate, una inconsistencia dependiente de un codepath ajeno. Ambos se
+  // sobrescriben con el valor FRESCO de este turno más abajo (lastOffer siempre recalculado, nunca heredado).
+  if (priorOffer) mem2 = { ...mem2, lastOffer: priorOffer };
+  if (recentSubjectsPrev.length) mem2 = { ...mem2, recentSubjects: recentSubjectsPrev };
 
   // ── BATCH DETERMINÍSTICO ──
   const { ledger, results, trace } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
   const figs = ledgerBoleta(ledger);
+
+  // temas recientes (Fase 3) — se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como
+  // siempre); señal para el LLM, nunca autoridad (ver dialogueState.js). No depende de `results`, pero vive acá,
+  // junto al resto del estado post-plan que sobrevive hasta el return final.
+  const recentSubjectsNow = updateRecentSubjects(recentSubjectsPrev, plan, calls, history.length);
+  mem2 = { ...mem2, recentSubjects: recentSubjectsNow };
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
@@ -408,6 +437,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
 
+  // ── ORIENTACIÓN INICIAL MID-CONVERSACIÓN (Fase 3, la tarea que la nombra) — disparador DETERMINÍSTICO (mismo
+  // principio que _coerceMode/_coercePref: red angosta para frases inequívocas, nunca el mecanismo principal).
+  // Se computa ACÁ, no antes: necesita clarifyStreakNow (ya resuelto arriba) y recentSubjectsNow (recién derivado
+  // post-BATCH) — su único consumidor es el payload de NARRAR, vive pegado a ese uso (mismo criterio que `simple`
+  // más arriba, pegado a la ruta determinística).
+  const orientacionReason = needsOrientacion(q, clarifyStreakNow);
+  const instruccionOrientacion = buildOrientacionInstruction(orientacionReason, recentSubjectsNow);
+
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
   // results_only YA se resolvieron arriba, SIEMPRE (con datos o sin ellos) — la condición de abajo los excluye
   // explícitamente para que "nunca invoca al narrador" sea cierto también en el caso límite de boleta vacía.
@@ -417,7 +454,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // recuperar una respuesta LIMPIA de C vale más que caer al fallback. Solo si los TRES fallan, C se abstiene.
   if (!narration && pref.contentScope !== "data_only" && pref.contentScope !== "results_only") for (let attempt = 0; attempt < 3; attempt++) {
     let n;
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion }); }
     catch { return null; }
     if (!n || typeof n !== "string" || !n.trim()) continue;
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
@@ -437,7 +474,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     }
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     if (!n.trim()) continue;
-    if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = n; break; }
+    if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev }).ok) { narration = n; break; }
   }
   // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — SOLO action_only llega acá: data_only/results_only
   // ya se resolvieron arriba, siempre, con o sin datos (nunca caen en este loop, ver la condición de arriba).
@@ -447,6 +484,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
   if (!narration) return null;   // dos intentos no pasaron el muro (y sin datos para reparar) → C se abstiene (fallback a la ruta vieja)
+
+  // ── OFERTA DE SEGUIMIENTO + REPETICIÓN (Fase 3) — lastOffer SIEMPRE recalculada desde CERO (nunca heredada, ver
+  // dialogueState.js): esto es lo que hace que cambio de tema/rechazo/ejecución invaliden la oferta anterior SIN
+  // código especial — la narración de ESTE turno simplemente produce (o no) su propia oferta fresca. extractOffer
+  // ya filtra por contentScope="full" internamente (data_only/action_only/results_only nunca ofrecen seguimiento).
+  const lastOfferNow = extractOffer(narration, { plan, calls, pref, turno: history.length });
+  narration = stripOfferMarkers(narration);   // la marca [[SIGUIENTE_PASO]] nunca la ve el usuario (no-op si no está)
+  mem2 = { ...mem2, lastOffer: lastOfferNow || null, recentNarrations: [narration, ...recentNarrationsPrev].slice(0, 2) };
 
   // graba el mecanismo dominante de ESTE turno (si lo hay) para que el PRÓXIMO turno pueda chequear contra él —
   // solo entidades vistas este turno se actualizan; el resto de mechanismMemory persiste tal cual.

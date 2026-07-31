@@ -10,7 +10,7 @@
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
-import { periodosEsperados, ensurePeriodoDeclared } from "./src/adi/oracle/guardC.js";
+import { periodosEsperados, ensurePeriodoDeclared, periodoDeclarado } from "./src/adi/oracle/guardC.js";
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { handlePlan, handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
@@ -75,7 +75,12 @@ console.log("\n── 3 · SMOKE LLM REAL — compliance run (8 corridas, compar
     // resultados de ESTE turno específico (capturados de la MISMA llamada que answerViaOracle usó internamente —
     // no una segunda muestra del plan, que podría variar y desincronizar la medición del texto real).
     const periodos = periodosEsperados(capturedResults || []);
-    const tieneFrase = /a[nñ]o cerrad|a[nñ]o (?:ya )?cerr|12 meses|cierre del a[nñ]o|foto de (?:hoy|inventario)|a la fecha|corte de hoy/i.test(r.r.text);
+    // owner-audit 2026-07-30: usa la MISMA función que la garantía real (periodoDeclarado, ver guardC.js) en vez
+    // de un regex propio del gate — antes desincronizado de _PERIODO_FAMILIAS.keywords (le faltaban variantes
+    // como "ya transcurrido"/"año fiscal"/"hoy" a secas), lo que producía falsos negativos de MEDICIÓN: el
+    // narrador SÍ declaraba el período con una frase válida, ensurePeriodoDeclared lo reconocía bien y no
+    // duplicaba nada, pero el regex angosto del gate no la reconocía y contaba como falla.
+    const tieneFrase = periodos.length ? periodoDeclarado(r.r.text, periodos) : false;
     if (periodos.length) { esperabaPeriodo++; if (tieneFrase) declared++; }
   }
   console.log(`  ${responded}/${QS.length * 2} corridas respondieron · ${esperabaPeriodo} esperaban período · ${declared}/${esperabaPeriodo} lo declaran`);

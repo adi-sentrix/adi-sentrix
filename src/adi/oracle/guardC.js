@@ -266,6 +266,36 @@ function _mechanismMemoryAdvisory(narration, mechanismMemory, mechRows) {
   return out;
 }
 
+// ── REPETICIÓN (owner 2026-07-30, Fase 3 "orientación inicial mid-conversación") — "detector de repetición...
+// advisory, no debe bloquear respuestas por repetir cifras, entidades o términos necesarios." Mide solapamiento
+// LÉXICO del texto COMPLETO contra las últimas narraciones PROPIAS de ADI (mem.recentNarrations) — mismo método
+// que `_oracle_multimodo_gate.mjs` ya usaba como MÉTRICA DE TEST (nunca había corrido en runtime). AVISO puro:
+// repetir un nombre de cliente o una cifra real es correcto y necesario — lo que se mide es que el 60%+ de las
+// palabras (≥3 letras) del turno completo coincidan con un turno reciente, no cualquier término aislado.
+const _WORD_RE = /[a-zá-úñ0-9]+/gi;
+function _wordSet(text) {
+  const s = new Set();
+  for (const m of String(text || "").toLowerCase().matchAll(_WORD_RE)) if (m[0].length >= 3) s.add(m[0]);
+  return s;
+}
+function _overlapRatio(a, b) {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / Math.min(a.size, b.size);
+}
+const _REPETITION_THRESHOLD = 0.6;
+function _repetitionAdvisory(narration, recentNarrations) {
+  if (!Array.isArray(recentNarrations) || !recentNarrations.length) return [];
+  const cur = _wordSet(narration);
+  const out = [];
+  for (const prev of recentNarrations) {
+    const ratio = _overlapRatio(cur, _wordSet(prev));
+    if (ratio >= _REPETITION_THRESHOLD) out.push(`la respuesta comparte ${Math.round(ratio * 100)}% de las palabras (≥3 letras) con una narración reciente propia de ADI — posible contenido reciclado`);
+  }
+  return out;
+}
+
 // ── ENTIDAD ledger-derivada (garble) ────────────────────────────────────────────────────────────────────────────
 // STOPLIST · palabras españolas/dominio que colisionan con prefijos de nombres de cliente y NUNCA son garble
 // (la MISMA de entityGuard.js · sin ella "Para" abría casi-match con "Paris" → falso positivo → C se abstenía).
@@ -416,6 +446,16 @@ function _periodoDeclarado(narration, familias) {
   const text = String(narration || "");
   return familias.some((fam) => (_PERIODO_FAMILIAS[fam] && _PERIODO_FAMILIAS[fam].keywords || []).some((re) => re.test(text)));
 }
+// periodoDeclarado(narration, familias) → export PÚBLICO de _periodoDeclarado (owner-audit 2026-07-30, hallazgo
+// real: _periodo_declarado_gate.mjs mantenía su PROPIA copia parcial de este regex para verificar la garantía —
+// desincronizada de _PERIODO_FAMILIAS.keywords arriba, así que un turno donde el narrador declaraba el período con
+// una frase VÁLIDA pero no cubierta por la copia del gate (ej. "ya transcurrido", "año fiscal", "hoy" a secas)
+// contaba como falla del gate aunque ensurePeriodoDeclared ya lo hubiera reconocido correctamente — un falso
+// negativo de MEDICIÓN, no un hueco real de la garantía. El gate ahora importa y llama a ESTA función — misma
+// fuente de verdad que la garantía real, cero posibilidad de que vuelvan a desincronizarse.
+export function periodoDeclarado(narration, familias) {
+  return _periodoDeclarado(narration, familias);
+}
 // ensurePeriodoDeclared(narration, periodos) → la GARANTÍA real del requisito 3: si la narración YA declaró el
 // período (por palabra clave, sea la frase del narrador o la nuestra) la deja intacta; si no, le agrega una
 // cláusula corta y canónica. "anual"+"hoy" juntos (un turno con inventario + otra tool) agrega ambas cláusulas.
@@ -558,7 +598,7 @@ function _isCalc2(raw, unit, authFigs, entityNames) {
   return false;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -615,6 +655,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   for (const v of _mechanismAdvisory(narration, mechRows)) advisories.push({ kind: "mecanismo-inconsistente", detail: v });
   // mecanismo con memoria ENTRE turnos (residual 3, mismo día — AVISO por la misma razón)
   for (const v of _mechanismMemoryAdvisory(narration, mechanismMemory, mechRows)) advisories.push({ kind: "mecanismo-memoria-inconsistente", detail: v });
+  // repetición contra narraciones propias recientes (Fase 3, owner 2026-07-30 — AVISO, nunca bloquea)
+  for (const v of _repetitionAdvisory(narration, recentNarrations)) advisories.push({ kind: "repeticion", detail: v });
 
   const ok = violations.length === 0;   // solo cifra/conteo/entidad BLOQUEAN
   return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories };

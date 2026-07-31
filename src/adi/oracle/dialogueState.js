@@ -1,0 +1,113 @@
+/* === src/adi/oracle/dialogueState.js · ARQUITECTURA C · Fase 3 · ESTADO CONVERSACIONAL DENTRO DE `mem` ===
+ * owner 2026-07-30: "Estoy de acuerdo con usar `mem` como única memoria conversacional. No construyamos un
+ * DialogueState paralelo ni agreguemos nuevas llamadas al LLM." Funciones PURAS (sin LLM, sin I/O) que
+ * answerViaOracle.js orquesta — mismo patrón que responsePreference.js/narrationBlocks.js: dato + funciones,
+ * consumidas por PLAN y NARRATE vía persona.js/renderInteractionMemory (el ÚNICO injection point ya compartido
+ * entre las dos pasadas — no hace falta plumbing nuevo).
+ *
+ * Dos piezas de estado, cada una con su regla de vigencia:
+ *   · mem.lastOffer — la última oferta de seguimiento que ADI hizo, SIEMPRE recalculada desde CERO en cada turno
+ *     (nunca heredada — mismo principio que ya probó `updateMemoria` en el pipeline viejo, conversation.js:49-63:
+ *     la entidad puede persistir, pero la oferta se recomputa siempre). Esto es lo que hace que "cambio de tema",
+ *     "rechazo" y "ejecución" inviden la oferta anterior SIN código especial: la próxima narración simplemente
+ *     produce (o no) su propia oferta fresca. Estructurada cuando es posible (tool+args), para que "sí" ejecute
+ *     EXACTAMENTE lo ofrecido en vez de reinterpretarlo — ver extractOffer().
+ *   · mem.recentSubjects — lista acotada (máx 3, más reciente primero) de qué entidades se discutieron. SEÑAL para
+ *     que el LLM pueda reconocer "volvamos a lo de Sodimac", NUNCA autoridad: se deriva DESPUÉS de que el PLAN ya
+ *     resolvió su propio scope (por comprensión, como siempre) — jamás se le da al PLAN como valor por defecto.
+ */
+import { parseBlocks } from "./narrationBlocks.js";
+
+// ── ACEPTACIÓN ("sí", "dale"...) ────────────────────────────────────────────────────────────────────────────────
+export const ACCEPT_RE = /^\s*(s[ií]|dale|de acuerdo|ok(?:ay)?|listo|adelante|hag[aá]moslo|hazlo|hacelo|perfecto|correcto|as[ií]\s+es|eso\s+mismo)[\s.,!¡]*$/i;
+export function isAcceptance(text) {
+  return ACCEPT_RE.test(String(text || "").trim());
+}
+
+// ── EXTRACCIÓN DE LA OFERTA ──────────────────────────────────────────────────────────────────────────────────────
+// solo relevante para contentScope="full": data_only/action_only/results_only NUNCA ofrecen seguimiento (data_only
+// por diseño explícito del owner; action_only/results_only porque su respuesta YA es mínima por pedido del
+// usuario) — pedir "más" después de "dame solo la acción" contradice lo que se pidió. Sin oferta, sin estado.
+//
+// "Estructurada cuando sea posible" (owner): si el narrador cerró con [[SIGUIENTE_PASO]] (instrucción SIEMPRE
+// activa, ver narratePromptC.js — a diferencia del uso de este mismo marcador bajo pref restringido, acá NO
+// selecciona contenido, solo IDENTIFICA cuál oración es la oferta) se usa esa oración tal cual, exacta. Sin marca,
+// fallback a la última "¿...?" del texto (mismo método que `extractOffer` del pipeline viejo).
+//
+// tool/args SOLO se derivan en el caso limpio: la respuesta usó UNA sola tool este turno Y la oferta es del tipo
+// "profundizá en esto mismo" (no "explorá algo distinto") — ahí "ejecutar exactamente lo ofrecido" es honesto:
+// repetir la MISMA tool/scope es literalmente lo que se ofreció. Una oferta que propone un ángulo nuevo (otra
+// entidad, otra métrica) queda con tool=null — sigue necesitando criterio del LLM la próxima vez, y ESO se declara
+// así, no se finge una precisión que no existe.
+const _CONTINUATION_OFFER_RE = /profundiz|m[aá]s\s+detalle|seguir\s+viendo|ver\s+m[aá]s|el\s+porqu[eé]|el\s+c[aá]lculo|c[oó]mo\s+se\s+compone|desglos/i;
+const _QUESTION_RE = /¿[^?]{4,220}\?/g;
+
+export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
+  if (!pref || pref.contentScope !== "full") return null;
+  const parsed = parseBlocks(narration);
+  let texto = parsed && parsed.siguiente_paso ? parsed.siguiente_paso.trim() : null;
+  if (!texto) {
+    const matches = [...String(narration || "").matchAll(_QUESTION_RE)];
+    if (matches.length) texto = matches[matches.length - 1][0].trim();
+  }
+  if (!texto) return null;
+  const entidad = (plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0]) || null;
+  const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || null;
+  let tool = null, args = null;
+  if (Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
+    tool = calls[0].tool;
+    args = calls[0].args || {};
+  }
+  return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, turno: turno == null ? null : turno };
+}
+
+// stripOfferMarkers(text) → saca la marca [[SIGUIENTE_PASO]] del texto VISIBLE bajo contentScope="full" (el único
+// caso donde el narrador puede haberla usado sin que renderFromBlocks ya la haya filtrado — action_only/data_only/
+// results_only nunca llegan acá con la marca todavía puesta). El usuario nunca ve la marca, solo la oración.
+export function stripOfferMarkers(text) {
+  return String(text || "").replace(/\[\[SIGUIENTE_PASO\]\]\s*/g, "").trim();
+}
+
+// ── TEMAS RECIENTES (LRU acotado a 3) ───────────────────────────────────────────────────────────────────────────
+// owner: "un único sujeto sobrescrito no puede cumplir honestamente [volver a un tema anterior]... no construyas
+// memoria ilimitada." Se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como siempre) — nunca
+// antes, nunca como input que lo condicione. Reordena (no duplica) si el tema YA estaba en la lista.
+export function updateRecentSubjects(prev, plan, calls, turno) {
+  const list = (Array.isArray(prev) ? prev : []).slice(0, 3);
+  if (!plan || !plan.scope || plan.scope.level !== "entity" || !Array.isArray(plan.scope.entities) || !plan.scope.entities.length) return list;
+  const entidad = plan.scope.entities[0];
+  if (!entidad) return list;
+  const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || null;
+  const idx = list.findIndex((s) => s && s.entidad === entidad);
+  if (idx >= 0) list.splice(idx, 1);
+  list.unshift({ entidad, dimension, turno: turno == null ? null : turno });
+  return list.slice(0, 3);
+}
+
+// ── ORIENTACIÓN INICIAL MID-CONVERSACIÓN (la tarea que nombra la Fase 3) ────────────────────────────────────────
+// Dos disparadores DETERMINÍSTICOS (mismo patrón que _coerceMode/_coercePref — red angosta para frases inequívocas,
+// nunca el mecanismo principal para casos ambiguos): pedido explícito de orientación, o confusión persistente MÁS
+// ALLÁ de los 2 niveles de escalación que clarify ya cubre (nivel 3 = "probamos simplificar dos veces, cambiemos
+// de enfoque"). "Objetivo recién cerrado" (owner) se resuelve como refuerzo de doctrina en modos decision/evidencia
+// (conversationalContract.js), NO como un tercer disparador determinístico — detectar en silencio que un objetivo
+// "se cerró" sin que el usuario diga nada es inherentemente ambiguo; forzarlo arriesga sonar a chip genérico
+// pegado con violencia, exactamente lo que el owner pidió evitar.
+const _ORIENTACION_RE = /\bno s[eé] qu[eé] (?:m[aá]s\s+)?preguntar\b|\bpor\s+d[oó]nde\s+(?:sigo|empiezo)\b|\bqu[eé]\s+m[aá]s\s+hay\b|\bqu[eé]\s+sigue\b|\by\s+ahora\s+qu[eé]\b|\bqu[eé]\s+me\s+falta\s+ver\b|\bqu[eé]\s+deber[ií]a\s+mirar\b|\bqu[eé]\s+m[aá]s\s+puedo\s+preguntar\b/i;
+export function needsOrientacion(text, clarifyStreakNow) {
+  if (_ORIENTACION_RE.test(String(text || ""))) return "pedido_explicito";
+  if (typeof clarifyStreakNow === "number" && clarifyStreakNow >= 3) return "confusion_persistente";
+  return null;
+}
+
+// buildOrientacionInstruction(reason, recentSubjects) → instrucción REFORZADA a nivel de turno (mismo hallazgo de
+// calibración que "instruccion_formato" en responsePreference.js: el system prompt solo no bastó para el formato de
+// bloques, así que esto va DIRECTO en el payload de NARRATE, no solo como una regla de fondo).
+export function buildOrientacionInstruction(reason, recentSubjects) {
+  if (!reason) return null;
+  const temas = (Array.isArray(recentSubjects) && recentSubjects.length) ? recentSubjects.map((s) => s.entidad).filter(Boolean).join(", ") : null;
+  const base = reason === "confusion_persistente"
+    ? "El usuario sigue sin entender después de varios intentos de simplificar. Además de tu explicación, cerrá proponiendo mirar el MISMO tema desde un ángulo más chico y concreto (ej. una sola cuenta en vez de la cartera completa)"
+    : "El usuario no sabe qué preguntar. Cerrá con 2 o 3 ángulos CONCRETOS y distintos para seguir, basados en datos reales de esta conversación";
+  const conTemas = temas ? `${base} — si tiene sentido, podés retomar alguno de estos temas recientes: ${temas}.` : `${base}.`;
+  return `${conTemas} NUNCA ofrezcas algo genérico tipo "¿en qué más te puedo ayudar?" — cada sugerencia nombra una entidad, métrica o foco real, no una categoría vacía.`;
+}

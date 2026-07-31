@@ -75,6 +75,16 @@ export function renderInteractionMemory(mem) {
   if (dc.objetivo) L.push(`· Está intentando: ${dc.objetivo}.`);
   if (Array.isArray(dc.decisiones) && dc.decisiones.length) L.push(`· Ya decidió: ${dc.decisiones.join("; ")}.`);
   if (Array.isArray(dc.restricciones) && dc.restricciones.length) L.push(`· Restricciones: ${dc.restricciones.join("; ")}.`);
+  // ESTADO CONVERSACIONAL (Fase 3, owner 2026-07-30) — mismo injection point, ya compartido entre PLAN y NARRATE:
+  // no hace falta plumbing nuevo. lastOffer/recentSubjects son SEÑAL (dialogueState.js las calcula fuera de acá,
+  // determinísticamente) — nunca autoridad: el LLM sigue resolviendo el turno actual por su cuenta, esto solo le
+  // da mejor contexto que releer hilo_reciente crudo.
+  if (mem.lastOffer && mem.lastOffer.texto) {
+    L.push(`· Tu última oferta de seguimiento fue: "${mem.lastOffer.texto}"${mem.lastOffer.entidad ? ` (sobre ${mem.lastOffer.entidad})` : ""} — si el usuario la acepta ahora ("sí", "dale", "de acuerdo"...), es A ESO que se refiere, no a otra cosa.`);
+  }
+  if (Array.isArray(mem.recentSubjects) && mem.recentSubjects.length) {
+    L.push(`· Temas recientes de esta conversación (más reciente primero): ${mem.recentSubjects.map((s) => s && s.entidad).filter(Boolean).join(", ")}.`);
+  }
   if (!L.length) return "";
   return `MEMORIA DE INTERACCIÓN (cómo trabaja esta persona — respetala):\n${L.join("\n")}`;
 }

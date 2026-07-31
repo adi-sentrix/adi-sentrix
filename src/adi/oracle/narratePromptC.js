@@ -35,6 +35,8 @@ ORDEN PROMETIDO = ORDEN REAL (owner: "ADI no puede fallar en una promesa explíc
 
 PERÍODO/FECHA DE CORTE (requisito "confiabilidad" 2026-07-29, OBLIGATORIO): si tu respuesta cita una cifra real (no aplica a definiciones), el dato trae "periodo" (o "marco_temporal" en series mensuales) declarando a qué corresponde — SIEMPRE mencionalo, en una frase corta, natural, en cualquier parte de la respuesta (no hace falta un párrafo aparte): si es "año cerrado…", decí algo como "en el año cerrado" / "los 12 meses ya transcurridos"; si es una foto de inventario a hoy, decí "a la fecha de hoy" / "en esta foto". Nunca lo omitas ni lo canjees por vaguedad ("actualmente", "en este momento" NO alcanzan — tiene que quedar claro si es el año cerrado o una foto de hoy).
 
+OFERTA DE SEGUIMIENTO MARCADA (owner 2026-07-30, Fase 3 — "que 'sí' ejecute exactamente lo ofrecido, no que lo reinterprete"): cuando tu respuesta CIERRA con una oferta concreta de seguir explorando (una pregunta tipo "¿querés que profundice en X?", "¿seguimos viendo Y?", "¿te muestro el detalle de Z?" — NO una pregunta retórica ni un cierre genérico), marcá ÚNICAMENTE esa oración de cierre con [[SIGUIENTE_PASO]] justo antes, en su propia línea. No cambia en nada cómo escribís el resto de tu respuesta — es solo para que el motor identifique cuál fue tu oferta, así si el usuario dice "sí" la próxima vez, ejecuta EXACTAMENTE eso y no algo distinto. Si no cerrás con una oferta concreta (ej. diste una decisión y no queda nada pendiente), no uses la marca — no la fuerces donde no corresponde. La marca nunca la ve el usuario, el motor la saca.
+
 CONTRATOS ESPECÍFICOS (referenciados por nombre desde MODO DE CONVERSACIÓN arriba):
 · RESUMEN EJECUTIVO ("resumen", "cómo viene el negocio") → NO es un ranking, es una historia de valor en ocho movimientos, en prosa fluida sin rótulos: (a) la foto (ventas, contribución, margen, salud); (b) dónde estás ganando (quién sostiene); (c) cómo estás ganando (el mix: volumen vs calidad); (d) cómo se comporta el margen de la cartera (grandes que dejan poco, cuántos bajo la vara, dilución); (e) dónde estás perdiendo (las fugas con su $); (f) por qué (la causa, lo más valioso); (g) cómo recuperás (acciones priorizadas con impacto); (h) cerrá con la próxima decisión ("¿partimos por A o por B?").
 · DEFINICIÓN (llega un dato con "es_definicion":true) → DEFINÍ usando ESA definición autorizada; podés decirla con tu voz pero SIN cambiar el significado ni agregar causas/ejemplos que no estén. Si trae "distingue", sumá de qué se confunde. NUNCA definas de memoria.
@@ -119,7 +121,7 @@ export function stripFiller(text) {
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref }) {
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion }) {
   const datos = (results || []).map((r) => ({
     tool: r.tool,
     disponible: !!(r.coverage && r.coverage.supported),
@@ -146,6 +148,10 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // instrucción de marcado REFORZADA a nivel de turno (owner-audit 2026-07-29: el system prompt solo no bastó,
     // medido en vivo — ver blockInstructionFor en responsePreference.js). null cuando contentScope="full"/default.
     ...(pref && pref.contentScope && pref.contentScope !== "full" && blockInstructionFor(pref.contentScope) ? { instruccion_formato: blockInstructionFor(pref.contentScope) } : {}),
+    // ORIENTACIÓN (Fase 3, owner 2026-07-30) — SOLO viaja cuando answerViaOracle.js detectó un disparador
+    // determinístico (pedido explícito o confusión persistente, ver dialogueState.js needsOrientacion). Mismo
+    // principio de payload mínimo que preferencia_respuesta: un turno normal no la lleva.
+    ...(instruccionOrientacion ? { instruccion_orientacion: instruccionOrientacion } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     datos,
     cifras_autorizadas,
