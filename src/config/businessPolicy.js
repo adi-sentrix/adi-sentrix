@@ -63,3 +63,25 @@ onTenantChange(_resolvePolicy);   // en cada initTenant: perfil nuevo primero; c
 
 // helper: el benchmark de una entidad — el CRITERIO del usuario manda; si no hay, el dato por-fila; si no, POLICY.
 export const benchmarkOf = (entity) => (_benchmarkOverride != null ? _benchmarkOverride : (entity && typeof entity.benchmark === "number" ? entity.benchmark : POLICY.benchmark));
+
+// ── COST MODEL (owner 2026-07-31, #56 "simulate v2") ── declaración EXPLÍCITA de cómo se comporta el costo del
+// tenant — sin esto, simulateGeneral (toolRegistry.js) no puede calcular margen/contribución bajo un supuesto de
+// precio+volumen, solo ventas (degrade honesto, nunca inventa el modelo). NO es numérico → resolución PROPIA,
+// AFUERA del loop genérico de `_resolvePolicy` de arriba (que exige `typeof==="number"`, ver `_perfilVal`) — no se
+// toca esa función para no arriesgar los ~22 importadores que ya dependen de su comportamiento byte-exacto.
+// Default HONESTO: `null` (no autorizado) — ningún tenant lo declara salvo que su PERFIL lo traiga explícito.
+const _COST_MODEL_TIPOS = new Set(["variable_total"]);
+let _costModelOverride = null;   // C.2-style: override puntual del usuario ("asumamos costo variable") — no re-pregunta cada turno
+export const setCostModelOverride = (v) => { _costModelOverride = (v && _COST_MODEL_TIPOS.has(v.tipo)) ? v : null; };
+export const getCostModelOverride = () => _costModelOverride;
+function _resolveCostModel() {
+  const p = getTenantData() && getTenantData().perfil;
+  const fromPerfil = (p && p.costModel && _COST_MODEL_TIPOS.has(p.costModel.tipo)) ? p.costModel : null;
+  POLICY.costModel = fromPerfil;
+  _costModelOverride = null;   // no arrastra entre tenants, mismo criterio que _benchmarkOverride
+}
+_resolveCostModel();
+onTenantChange(_resolveCostModel);
+// costModelOf() → el modelo EFECTIVO (criterio del usuario > perfil del tenant > sin autorizar), mismo orden de
+// precedencia que benchmarkOf().
+export const costModelOf = () => (_costModelOverride != null ? _costModelOverride : POLICY.costModel);

@@ -296,6 +296,26 @@ function _coercePref(text, plan) {
   return { contentScope, detailLevel, persist };
 }
 
+// _silentZeroSupuestoFaltante (owner 2026-07-31, hallazgo EN VIVO, #56 "simulate v2") — el doctrine de planPrompt.js
+// pide explícitamente NO asumir 0% en la variable que el usuario no nombró y usar supuestos_faltantes en su lugar
+// — medido en vivo que el LLM a veces lo hace igual (sesgo general a "contestar" antes que "preguntar"): "si le
+// subo el precio a Falabella 5%, ¿me conviene?" (SIN mencionar volumen) volvió con variableB.delta_pct=0 puesto en
+// silencio, sin supuestos_faltantes. RED determinística (mismo patrón que el resto de _coerce*): si una call a
+// simulateGeneral trae una variable en delta_pct===0 Y el texto crudo NO menciona un "0%"/"sin cambio" explícito
+// para esa variable, tratalo como si hubiera faltado — nunca confía en que el LLM se acuerde de preguntar solo.
+const _ZERO_EXPLICIT_RE = /\b0\s*%|\bsin\s+cambio|\bno\s+cambia|\bqueda\s+igual|\bse\s+mantiene\b/i;
+function _silentZeroSupuestoFaltante(text, calls) {
+  const call = Array.isArray(calls) ? calls.find((c) => c && c.tool === "simulateGeneral" && c.args) : null;
+  if (!call) return null;
+  const zeroVar = [call.args.variableA, call.args.variableB].find((v) => v && v.delta_pct === 0);
+  if (!zeroVar) return null;
+  if (_ZERO_EXPLICIT_RE.test(String(text || ""))) return null;   // el usuario SÍ dijo "0%"/"sin cambio" — respetalo, no es un faltante
+  // OJO: sin ningún número acá — "0%" en el texto sería una cifra sin autorizar y guardC rechazaría la PROPIA
+  // pregunta de aclaración (bug real cazado en el propio testing de este fix).
+  const pregunta = zeroVar.campo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
+  return [`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`];
+}
+
 // _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
 // el mensaje fijo — no debería pasar nunca con prosa sin cifras/entidades, pero nunca se asume). Empaquetado
 // compartido por los bypasses que NUNCA llegan a invocar PLAN/BATCH/NARRAR (owner 2026-07-31, cierre de #48:
@@ -400,6 +420,25 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
   plan = { ...plan, calls: _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : []), mode: _coerceMode(q, plan) };
   const calls = plan.calls;
+
+  // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido
+  // de simulación de 2 variables con UNA sola nombrada (ver planPrompt.js) — esto corta ANTES del batch, sin tocar
+  // el dato, mismo principio de garantía-por-construcción que la aceptación huérfana/retorno ambiguo de arriba:
+  // nunca se narra libre una pregunta de aclaración (el LLM podría inventar qué falta o asumir 0% en silencio).
+  // ver _silentZeroSupuestoFaltante arriba: red determinística para cuando el LLM, en vez de usar
+  // supuestos_faltantes, asume 0% en silencio en la variable que el usuario no nombró — hallazgo EN VIVO, no
+  // hipotético. El LLM manda (mecanismo principal); esto es SOLO la red, igual que el resto de _coerce* del archivo.
+  const supuestosFaltantes = (Array.isArray(plan.supuestos_faltantes) && plan.supuestos_faltantes.length)
+    ? plan.supuestos_faltantes
+    : _silentZeroSupuestoFaltante(q, calls);
+  if (supuestosFaltantes && supuestosFaltantes.length) {
+    // el texto lo redacta el LLM del PLAN (o la red, si el LLM asumió 0% en silencio) — no una prosa fija
+    // nuestra, así que pasa por el MISMO lavado de registro que la Pasada 2 (nunca "plata"/"dormido"/relleno),
+    // aunque nunca llegue a invocar al narrador libre.
+    const composed = stripFiller(stripLanguageLeaks(supuestosFaltantes.join(" ")));
+    const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+    if (out) return out;
+  }
 
   // mecanismo dominante por entidad ESTABLECIDO en turnos ANTERIORES (owner 2026-07-29, residual 3: "si un turno ya
   // estableció mecanismo dominante por entidad, el siguiente no debe recomendar otro sin evidencia nueva o sin
@@ -536,10 +575,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev }).ok) { narration = n; break; }
   }
-  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — SOLO action_only llega acá: data_only/results_only
-  // ya se resolvieron arriba, siempre, con o sin datos (nunca caen en este loop, ver la condición de arriba).
-  if (!narration && pref.contentScope === "action_only") {
-    const composed = composeFromLedger(figs, "action_only") || composeNoDataMessage(results);
+  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — SOLO action_only llega acá normalmente: data_only/
+  // results_only ya se resolvieron arriba, siempre, con o sin datos (nunca caen en este loop, ver la condición de
+  // arriba). EXCEPCIÓN (owner 2026-07-31, #56 "simulate v2", variante c): si ESTE turno trae un simulateGeneral
+  // degradado (costModelAutorizado:false) y el narrador insistió en "conviene" los 3 intentos (guardC lo rechazó
+  // siempre), full scope TAMBIÉN repara desde la boleta — componer una tabla de figs autorizadas es SIEMPRE seguro
+  // acá (no puede accidentalmente decir "conviene", es solo venta actual/supuesta) — la alternativa (abstenerse del
+  // todo y caer al pipeline viejo) sería peor que mostrar la tabla honesta que ya tenemos.
+  const simDegradado = results.some((r) => r && r.tool === "simulateGeneral" && r.facts && r.facts.costModelAutorizado === false);
+  if (!narration && (pref.contentScope === "action_only" || simDegradado)) {
+    const composed = composeFromLedger(figs, pref.contentScope === "action_only" ? "action_only" : "full") || composeNoDataMessage(results);
     const c = ensurePeriodoDeclared(composed, periodos);
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }

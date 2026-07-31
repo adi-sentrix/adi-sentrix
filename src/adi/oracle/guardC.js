@@ -598,6 +598,16 @@ function _isCalc2(raw, unit, authFigs, entityNames) {
   return false;
 }
 
+// _simulateGeneralConclusionViolation (owner 2026-07-31, #56 "simulate v2", variante c) → si ALGÚN result de
+// simulateGeneral en este turno degradó honesto a solo-ventas (costModelAutorizado===false, ver toolRegistry.js),
+// la narración no puede usar "conviene"/"no conviene" — solo hay ventas, ninguna base real para esa conclusión.
+function _simulateGeneralConclusionViolation(narration, results) {
+  const degraded = (results || []).some((r) => r && r.tool === "simulateGeneral" && r.facts && r.facts.costModelAutorizado === false);
+  if (!degraded) return null;
+  const m = /convien\w*/i.exec(narration || "");
+  return m ? m[0] : null;
+}
+
 export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
@@ -640,6 +650,12 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     const sealedViol = _sealedOrderBroken(narration, sealedOrders);
     if (sealedViol) violations.push({ kind: "orden-sellado-incumplido", detail: sealedViol });
   }
+  // 7 · simulateGeneral degradado a SOLO-VENTAS (costModelAutorizado:false — el tenant no declaró su modelo de
+  // costo, #56 "simulate v2") → la narración JAMÁS puede concluir "conviene"/"no conviene": sin costo/margen/
+  // contribución autorizados no hay forma real de evaluar impacto, solo el efecto en ventas. BLOQUEA (tan grave
+  // como una cifra inventada — es una conclusión que el dato no respalda), determinístico, no delegado al prompt.
+  const simConclusion = _simulateGeneralConclusionViolation(narration, results);
+  if (simConclusion) violations.push({ kind: "simulacion-sin-costo-concluye", detail: simConclusion });
   // (el período/fecha de corte — requisito 3 — NO bloquea acá: se GARANTIZA aparte vía ensurePeriodoDeclared,
   // aplicado a la narración ANTES de llegar a este guard — ver comentario junto a esa función y answerViaOracle.js.)
 

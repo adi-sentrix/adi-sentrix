@@ -19,7 +19,7 @@ import {
 } from "../specRetrieval.js";
 import { CONCEPT_DEFS, matchConcept } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo")
 import { fig } from "../boleta.js";                                    // cifra autorizada (para inyectar el benchmark en el perfil)
-import { POLICY } from "../../config/businessPolicy.js";               // la VARA (benchmark de margen) para anclar el juicio
+import { POLICY, costModelOf } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
 import { buildEntityRecord, buildGrid, buildTension, guessDimension, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
 import { buildGlobalEvolution } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
@@ -297,6 +297,104 @@ function simulateCosto({ dimension = "sku", filters = {}, pct, scope = "bajo_ben
   return _pack(r, `no hay ${scope === "all" ? "" : "SKU bajo benchmark "}para simular costo con estos filtros`);
 }
 
+// ── simulateGeneral · "simulate v2" (owner 2026-07-31, #56) ────────────────────────────────────────────────────
+// Brecha que las tools simulate* de arriba NO cubren: cada una mueve UNA palanca sobre TODO un eje (carga/capital/
+// costo). Esta cubre "si subo 5% el precio a Falabella pero pierdo 10% de volumen, ¿me conviene?" — DOS variables
+// covariando sobre UNA entidad puntual. NO es un evaluador de expresiones abierto: 2 SLOTS FIJOS (precio, volumen),
+// nombrados por su campo del F table (precioLista/unidades) — nada de un array abierto, ni acá ni en el primer
+// vertical (dimension="cliente" fijo). `request_clarification` (input incompleto: solo UNA variable) se resuelve
+// en el PLAN, ANTES de esta call — ver `supuestos_faltantes` en planPrompt.js/answerViaOracle.js; si llegás acá,
+// las 2 variables YA están completas.
+//
+// COMPOSICIÓN MULTIPLICATIVA, no aditiva (el riesgo real de este motor, ver adi-simulate-v2-motor-escenarios.md):
+// ventaNueva = ventaActual × (1+Δprecio%) × (1+Δvolumen%) — precio y volumen se MULTIPLICAN sobre la venta
+// AUTORIZADA, nunca se reconstruyen desde precioLista×unidades (verificado contra el dato real: esa identidad NO
+// se sostiene exacta — difiere ~3-11% del venta/costo oficiales — usarla introduciría un error de base).
+//
+// MODELO DE COSTO (costModelOf(), businessPolicy.js): costo/margen/contribución SOLO si el tenant declaró
+// "variable_total" (costo escala 1:1 con volumen, NUNCA con precio — subir precio no cambia el costo unitario ni
+// las unidades vendidas, eso ya lo captura el delta de volumen que el usuario declaró aparte). Ventas SIEMPRE se
+// calcula (aritmética pura, no depende del modelo de costo). Sin modelo autorizado: degrade HONESTO a solo-ventas,
+// silencioso (NUNCA interrumpe con una pregunta — dos mecanismos de "incompleto" distintos, ver el diseño) — el
+// narrador tiene la obligación de NUNCA concluir "conviene/no conviene" con eso solo (narratePromptC.js + guardC).
+const _SIM_DELTA_MAX = 50;   // mismo rango operable que simulateCosto (±50%) — arriba deja de ser un supuesto realista
+function _simVar(v) {
+  if (!v || typeof v !== "object") return null;
+  const campo = String(v.campo || "");
+  const role = campo === "precioLista" ? "precio" : campo === "unidades" ? "volumen" : null;
+  const pct = Number(v.delta_pct);
+  if (!role || !Number.isFinite(pct)) return null;
+  return { role, pct, campo };
+}
+function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, scenario } = {}) {
+  const a = _simVar(variableA), b = _simVar(variableB);
+  if (!a || !b || a.role === b.role) {
+    return { facts: null, boleta: [], coverage: { supported: false, reason: "necesito exactamente 2 variables distintas — precio (precioLista) y volumen (unidades), cada una con su % de cambio" } };
+  }
+  const [precioVar, volumenVar] = a.role === "precio" ? [a, b] : [b, a];
+  if (precioVar.pct === 0 && volumenVar.pct === 0) {
+    return { facts: null, boleta: [], coverage: { supported: false, reason: "0% en ambas variables no mueve nada — no hay supuesto que proyectar" } };
+  }
+  for (const [label, v] of [["precio", precioVar], ["volumen", volumenVar]]) {
+    if (Math.abs(v.pct) > _SIM_DELTA_MAX) {
+      return { facts: null, boleta: [], coverage: { supported: false, reason: `un ${v.pct > 0 ? "+" : ""}${v.pct}% de ${label} ya no es un supuesto operable — probá un rango realista (entre ±1% y ±${_SIM_DELTA_MAX}%) y lo corro sobre el dato real` } };
+    }
+  }
+  let dim = dimension || "cliente";
+  let raw = rawRecordFor(dim, entity);
+  if (!raw && entity != null) {
+    const guessed = guessDimension(entity);
+    if (guessed && guessed !== dim) { dim = guessed; raw = rawRecordFor(dim, entity); }
+  }
+  if (!raw || typeof raw.venta !== "number") {
+    return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
+  }
+
+  const factorPrecio = 1 + precioVar.pct / 100;
+  const factorVolumen = 1 + volumenVar.pct / 100;
+  const ventaActual = raw.venta, ventaNueva = ventaActual * factorPrecio * factorVolumen;
+  const _ctx = `supuesto: precio ${precioVar.pct > 0 ? "+" : ""}${precioVar.pct}% · volumen ${volumenVar.pct > 0 ? "+" : ""}${volumenVar.pct}% sobre ${entity} (dato real)`;
+  const _fVenta = `venta × (1${precioVar.pct >= 0 ? "+" : ""}${precioVar.pct}%) × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`;
+
+  // OJO: NO uses claves que matcheen /pct/i acá (ej. "precioPct") — enrichFromFacts (ledger.js) camina `facts`
+  // recursivamente y auto-autoriza CUALQUIER número cuya CLAVE matchee ese patrón como fig "% suelto", generando
+  // cifras fantasma sin la entidad correcta en el label (bug real cazado en este mismo desarrollo). El supuesto YA
+  // viaja legible en el `context` de cada fig de la boleta — no hace falta duplicarlo acá con un nombre riesgoso.
+  const facts = { entidad: entity, dimension: dim, deltaPrecio: precioVar.pct, deltaVolumen: volumenVar.pct, ventaActual: _moneyK(ventaActual), ventaNueva: _moneyK(ventaNueva) };
+  const boleta = [
+    fig(`${entity} · Venta actual`, _moneyK(ventaActual), { unit: "money", raw: ventaActual * 1000, source: "actual", context: _ctx }),
+    fig(`${entity} · Venta supuesta`, _moneyK(ventaNueva), { unit: "money", raw: ventaNueva * 1000, mandatory: true, source: "computed", formula: _fVenta, context: _ctx }),
+  ];
+
+  const costModel = costModelOf();
+  if (costModel && costModel.tipo === "variable_total" && typeof raw.costo === "number") {
+    // costo escala SOLO con volumen (variable_total) — el precio no mueve el costo unitario ni las unidades.
+    const costoActual = raw.costo, costoNuevo = costoActual * factorVolumen;
+    const contribActual = ventaActual - costoActual, contribNueva = ventaNueva - costoNuevo;
+    const margenActual = ventaActual ? +((contribActual / ventaActual) * 100).toFixed(1) : null;
+    const margenNuevo = ventaNueva ? +((contribNueva / ventaNueva) * 100).toFixed(1) : null;
+    facts.costModelAutorizado = true;
+    facts.costoActual = _moneyK(costoActual); facts.costoNuevo = _moneyK(costoNuevo);
+    facts.contribucionActual = _moneyK(contribActual); facts.contribucionNueva = _moneyK(contribNueva);
+    facts.margenActual = `${margenActual}%`; facts.margenNuevo = `${margenNuevo}%`;
+    boleta.push(
+      fig(`${entity} · Costo actual`, _moneyK(costoActual), { unit: "money", raw: costoActual * 1000, source: "actual", context: _ctx }),
+      fig(`${entity} · Costo supuesto`, _moneyK(costoNuevo), { unit: "money", raw: costoNuevo * 1000, source: "computed", formula: `costo × (1${volumenVar.pct >= 0 ? "+" : ""}${volumenVar.pct}%)`, context: _ctx }),
+      fig(`${entity} · Contribución actual`, _moneyK(contribActual), { unit: "money", raw: contribActual * 1000, source: "actual", context: _ctx }),
+      fig(`${entity} · Contribución supuesta`, _moneyK(contribNueva), { unit: "money", raw: contribNueva * 1000, mandatory: true, source: "computed", formula: "venta supuesta − costo supuesto", context: _ctx }),
+      fig(`${entity} · Margen actual`, `${margenActual}%`, { unit: "pct", raw: margenActual, source: "actual", context: _ctx }),
+      fig(`${entity} · Margen supuesto`, `${margenNuevo}%`, { unit: "pct", raw: margenNuevo, mandatory: true, source: "computed", formula: "contribución supuesta / venta supuesta × 100", context: _ctx }),
+    );
+  } else {
+    // degrade HONESTO, silencioso (owner: "nunca interrumpe con una pregunta, limita el alcance y sigue") — solo
+    // ventas queda autorizado; costo/margen/contribución NO se calculan (ni se ponen en boleta) porque el tenant
+    // no declaró cómo se comporta su costo. narratePromptC.js/guardC impiden que esto se lea como "conviene".
+    facts.costModelAutorizado = false;
+    facts.limitacion = "el modelo de costo no está autorizado para este negocio — el cálculo se limita a ventas; no alcanza para concluir impacto en margen, contribución, ni si conviene o no";
+  }
+  return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };
+}
+
 // defineConcept · definición AUTORIZADA de un concepto del negocio (del glosario curado). Antídoto al "inventa algo":
 // la definición NO la improvisa el LLM, viene del dato. Devuelve texto (sin cifras). El narrador la dice en su voz
 // SIN cambiar el significado (ver narratePromptC). `concept` = el término o la frase del usuario.
@@ -377,7 +475,7 @@ function trend({ metric = "ventas", dimension = null, entity = null, period = nu
 export const TOOLS = {
   queryMetric, entityProfile, entityRecord, gridTable, tensionRead, compareEntities, diagnose, executiveSummary,
   inventoryStatus, marginRead, salesRead, contributionRead, trend,
-  simulate, simulateCarga, simulateCapital, simulateCosto, defineConcept,
+  simulate, simulateCarga, simulateCapital, simulateCosto, simulateGeneral, defineConcept,
 };
 
 // toolNames() → los nombres registrados (base del catálogo que verá el LLM en la Pasada 1 · Fase 3).

@@ -426,6 +426,13 @@ export const PERFIL = {
   rotacionMin: 2,           // piso de rotación (x)
   dohMax: 120,              // techo de cobertura (días)
   margenBrechaMaterial: 4,  // brecha material de margen (pp bajo la vara)
+  // costModel (owner 2026-07-31, #56 "simulate v2"): declaración EXPLÍCITA de cómo se comporta el costo — sin esto
+  // ADI no puede calcular margen/contribución bajo un supuesto de precio+volumen (ver simulateGeneral en
+  // toolRegistry.js). "variable_total" = el costo escala 1:1 con el volumen vendido — es lo que este dataset YA
+  // asume IMPLÍCITAMENTE en costo/costoMedio (nunca fue una decisión declarada hasta ahora); acá se hace explícita
+  // para el demo. Un tenant SIN esta llave (ej. empresa2) queda honestamente sin autorización — el motor degrada a
+  // solo-ventas, nunca inventa un modelo de costo que el negocio no declaró.
+  costModel: { tipo: "variable_total" },
 };
 
 export const TENANT_DEMO = {

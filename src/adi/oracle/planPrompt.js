@@ -23,6 +23,7 @@ contributionRead{dimension?,focus?,filters?,entity?} — lectura de contribució
 trend{metric,dimension?,entity?,period?} — LA SERIE MENSUAL / evolutivo. Usalo SIEMPRE que pidan "mes a mes", "mensual", "evolución", "cómo viene mes a mes", "el primer trimestre/Q1", "un mes puntual" (marzo), un rango ("de enero a marzo"), o "esto mismo mes a mes". metric = LA QUE NOMBRÓ EL USUARIO: ventas|contribucion|margen|resultado|inventario|canal (mensual REAL hay de ventas/contribución/margen; para el resto la tool devuelve el límite honesto y su alternativa — ESO es lo correcto). Global (sin dimension ni entity), por eje (dimension: cliente/marca/familia/sku → matriz meses×entidades), o de UNA entidad (entity). period = LA FRASE TEMPORAL DEL USUARIO TAL CUAL ("mes a mes", "el primer trimestre", "marzo", "el mes que viene", "los próximos 3 meses") — no la normalices ni la traduzcas: la tool necesita la frase original para distinguir pasado de FUTURO.
 simulateCarga{} — "¿y si bajo la carga comercial al target?". simulateCapital{} — "¿y si libero el capital detenido?".
 simulateCosto{pct,dimension?,scope?,filters?} — "¿y si bajo/subo el costo medio de mis peores SKU/marca/familia/clientes un X%?". pct es un NÚMERO con el signo de la dirección que pidió el usuario: si dice "bajar 3%" mandá el número negativo -3; si dice "subir 2%" mandá el número positivo 2 (NO escribas el símbolo "%" ni un texto tipo "pct:-3" — solo el número, en el campo JSON "pct" del objeto args). Rango operable: entre -50 y 50 — fuera de ese rango la tool declina honesto (no es un supuesto realista, no lo fuerces). dimension default "sku". scope: "bajo_benchmark" (default, "mis peores") o "all" (todo el eje/filtro). Calcula margen y contribución NUEVOS vía costo — NO uses el "simulate" genérico para esto (no cubre costo) ni inventes la aritmética vos mismo (costo × factor no está autorizada si la calculás a mano).
+simulateGeneral{dimension,entity,variableA:{campo,delta_pct},variableB:{campo,delta_pct}} — "si subo el precio 5% a Falabella pero pierdo 10% de volumen, ¿me conviene?": DOS variables (precio Y volumen) covariando sobre UNA entidad puntual — a diferencia de las demás simulate*, que mueven una sola palanca sobre un eje entero. campo de cada variable es SIEMPRE "precioLista" (la de precio) o "unidades" (la de volumen) — nunca otro valor, y las DOS variables son OBLIGATORIAS, una de cada campo (NUNCA dupliques el mismo campo en las dos). delta_pct = el % con el signo de la dirección que pidió el usuario (subir 5% → 5; bajar 10% → -10), igual convención que simulateCosto. Rango operable por variable: entre -50 y 50. Calcula ventas SIEMPRE; margen/costo/contribución SOLO si el negocio declaró su modelo de costo (la tool lo sabe, vos no lo decidís) — si no está autorizado, la tool responde igual con ventas y una limitación honesta; NUNCA es un error, no reintentes con otra tool.
 defineConcept{concept} — definición AUTORIZADA de un concepto del negocio (contribución no capturada, carga comercial, rebate, benchmark, margen, contribución, rotación, DOH). Usalo SIEMPRE que pregunten "qué es X" / "a qué te referís con X" / "explicame X" — NUNCA definas de memoria.`;
 
 // PLAN_TOOL · el schema del plan (tool neutral · el adapter lo fuerza). calls[].args es objeto abierto (cada tool
@@ -70,11 +71,21 @@ export const PLAN_TOOL = {
         items: {
           type: "object", additionalProperties: false,
           properties: {
-            tool: { type: "string", enum: ["queryMetric", "entityProfile", "entityRecord", "gridTable", "tensionRead", "compareEntities", "diagnose", "executiveSummary", "inventoryStatus", "marginRead", "salesRead", "contributionRead", "trend", "simulate", "simulateCarga", "simulateCapital", "simulateCosto", "defineConcept"] },
+            tool: { type: "string", enum: ["queryMetric", "entityProfile", "entityRecord", "gridTable", "tensionRead", "compareEntities", "diagnose", "executiveSummary", "inventoryStatus", "marginRead", "salesRead", "contributionRead", "trend", "simulate", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral", "defineConcept"] },
             args: { type: "object", additionalProperties: true, description: "Args de la tool según el catálogo (metric, dimension, entity, entities, filters, focus, limit)." },
           },
           required: ["tool", "args"],
         },
+      },
+      // supuestos_faltantes (owner 2026-07-31, #56 "simulate v2") — MECANISMO DE request_clarification: cuando el
+      // usuario pide una simulación de DOS variables (precio+volumen, simulateGeneral) pero SOLO nombró una, esto
+      // NO es "el negocio pide una tool distinta" ni "el negocio contestó mal" — es un PEDIDO AMBIGUO que corta
+      // ANTES del batch (calls queda VACÍO, NUNCA asumas 0% implícito en la variable que no se nombró — 0% no es
+      // lo mismo que "no dijo nada", inventar esa cifra es peor que preguntar). Array NO vacío → el motor corta acá
+      // y pregunta, sin tocar el dato. Vacío/omitido en el resto de los turnos (el 99% de los casos).
+      supuestos_faltantes: {
+        type: "array", items: { type: "string" },
+        description: "SOLO para simulaciones de 2 variables con una faltante: la pregunta EXACTA que hace falta responder para completar el supuesto (ej. '¿cuánto esperás que cambie el volumen/unidades vendidas?'). Si viene no-vacío, calls debe quedar vacío — no ejecutes la simulación a medias.",
       },
       memoryUpdate: {
         type: "object", additionalProperties: false,
@@ -121,6 +132,7 @@ Otras reglas:
 · Entendé la intención real, no las palabras sueltas. Corto o largo, formal o informal, con errores — entendé igual.
 · CORRECCIÓN: si el usuario reclama que te enfocaste mal ("te pedí del negocio y me hablás de X", "no me refería a esa cuenta") → intent="redirect", scope al alcance correcto (normalmente global sin filtro), Y ESTA VEZ SÍ incluí las calls que entregan la respuesta corregida (no dejes calls vacío: replanteá y traé el dato bueno). Reconocé breve y entregá.
 · DEFINICIÓN: si pregunta qué significa un concepto ("qué es X", "a qué te referís con X", "explicame X") → intent="define" Y SIEMPRE llamá defineConcept: calls=[{tool:"defineConcept", args:{concept:"<el concepto tal como lo nombra el usuario, ej: contribución no capturada>"}}]. NUNCA dejes calls vacío en una definición — la definición sale del glosario, no de tu memoria.
+· SIMULACIÓN DE 2 VARIABLES ("si subo el precio X% pero pierdo/gano Y% de volumen, ¿conviene?" — precio Y volumen a la vez, sobre UNA entidad puntual): eso es simulateGeneral, NUNCA simulateCosto/simulate genérico (esos mueven una sola palanca sobre un eje entero, no dos sobre una entidad). Si el usuario nombró AMBAS variables con su % → armá la call normal. Si solo nombró UNA ("si subo el precio 5%, ¿conviene?", sin decir qué pasa con el volumen) → NO asumas la otra en 0% (0% no es lo mismo que "no dijo nada" — inventar esa cifra es peor que preguntar): dejá calls VACÍO y llená supuestos_faltantes con la pregunta exacta que falta (ej. "¿cuánto esperás que cambie el volumen/unidades vendidas?"). Esto es DISTINTO de mode=clarify (que es sobre CÓMO explicar algo ya calculado) — acá directamente no hay datos suficientes para calcular nada todavía.
 · MODO (elegí SIEMPRE uno, por comprensión — no cambia QUÉ pedís, solo CÓMO se va a narrar; seguí pidiendo los mismos datos que la pregunta necesita en cualquier modo):
 ${buildModeDoctrine()}
 ${buildPrefDoctrine()}
