@@ -16,7 +16,7 @@ import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EV
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, stripOfferMarkers, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction } from "./dialogueState.js";
+import { isAcceptance, extractOffer, stripOfferMarkers, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -296,6 +296,30 @@ function _coercePref(text, plan) {
   return { contentScope, detailLevel, persist };
 }
 
+// _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
+// el mensaje fijo — no debería pasar nunca con prosa sin cifras/entidades, pero nunca se asume). Empaquetado
+// compartido por los bypasses que NUNCA llegan a invocar PLAN/BATCH/NARRAR (owner 2026-07-31, cierre de #48:
+// aceptación huérfana + retorno ambiguo a temas recientes) — mismo shape que el return final de answerViaOracle.
+// lastOffer siempre queda null (ninguna de las dos preguntas ofrece una continuación estructurada que replicar);
+// recentSubjects se hereda sin tocar (no se resolvió ninguna entidad nueva este turno).
+function _composedBypassResult(text, mem, recentNarrationsPrev, scenario) {
+  const mechanismMemory = (mem && typeof mem.mechanismByEntity === "object" && mem.mechanismByEntity) || {};
+  const g = guardC(text, { ledger: { figs: [] }, results: [], trace: null, question: "", mechanismMemory, sealedOrders: [] });
+  if (!g.ok) return null;
+  const mem2 = { ...mem, lastOffer: null, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
+  return {
+    r: {
+      text,
+      route: "oracle",
+      evidence: buildOracleEvidence({ plan: null, results: [], figs: [], scenario }),
+      deterministic: true,
+      suggestions: null,
+      sentrixAction: null,
+    },
+    mem: mem2,
+  };
+}
+
 // answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls }) → { r, mem } | null
 //   r   = { text, route:"oracle", evidence:{boleta,...} }  (compatible con _turnFromResult)
 //   mem = la memoria de interacción ACTUALIZADA (el llamador la persiste en el context del hilo)
@@ -324,8 +348,33 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const priorOffer = (mem && mem.lastOffer && typeof mem.lastOffer === "object") ? mem.lastOffer : null;
   const recentSubjectsPrev = Array.isArray(mem && mem.recentSubjects) ? mem.recentSubjects : [];
   const recentNarrationsPrev = Array.isArray(mem && mem.recentNarrations) ? mem.recentNarrations : [];
+
+  // ── ACEPTACIÓN HUÉRFANA (owner 2026-07-31, cierre de #48) — "sí"/"dale" SIN ninguna oferta activa: "no debe
+  // repetir la respuesta anterior; debe pedir una precisión breve o mostrar las opciones vigentes." Medido en vivo
+  // (adi-fase3-orientacion-inicial.md): dejarlo en manos del narrador producía una respuesta casi idéntica a la
+  // anterior — exactamente lo que esto cierra. Bypasea PLAN/BATCH/NARRAR ENTERO, nunca narra libre (mismo principio
+  // de garantía-por-construcción que data_only/results_only): si guardC rechazara el mensaje fijo (no debería, es
+  // prosa sin cifras ni entidades), cae de largo a PLAN normal en vez de abstenerse en silencio.
+  if (isAcceptance(q) && !priorOffer) {
+    const composed = composeOrphanAcceptance(recentSubjectsPrev);
+    const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+    if (out) return out;
+  }
+
+  // ── RETORNO A TEMAS RECIENTES — resolución posicional determinística (owner 2026-07-31, cierre de #48) ──
+  // "volvamos a lo de Falabella" (nombra la entidad) ya lo resuelve PLAN por comprensión, esto es SOLO para
+  // referencias POSICIONALES ("lo anterior"/"el primer tema"). Ver dialogueState.js para el detalle de índices.
+  const subjectRecall = resolveSubjectRecall(q, recentSubjectsPrev);
+  if (subjectRecall && subjectRecall.kind === "ambiguous") {
+    const composed = composeSubjectAmbiguity(subjectRecall.options);
+    const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+    if (out) return out;
+  }
+
   let plan = (priorOffer && priorOffer.tool && isAcceptance(q))
     ? { intent: "answer", mode: "seguimiento", rationale: "oferta aceptada (ejecución estructurada)", scope: priorOffer.entidad ? { level: "entity", entities: [priorOffer.entidad] } : { level: "global" }, calls: [{ tool: priorOffer.tool, args: priorOffer.args || {} }] }
+    : (subjectRecall && subjectRecall.kind === "resolved")
+    ? { intent: "answer", mode: "seguimiento", rationale: "retorno a tema reciente (referencia posicional)", scope: { level: "entity", entities: [subjectRecall.subject.entidad] }, calls: [{ tool: "entityProfile", args: { dimension: subjectRecall.subject.dimension || "cliente", entity: subjectRecall.subject.entidad } }] }
     : null;
 
   // ── PASADA 1 · PLAN (con reintentos · 3 intentos máx, MISMO patrón que el retry de NARRAR más abajo) ── se salta

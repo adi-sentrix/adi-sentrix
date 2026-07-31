@@ -111,3 +111,45 @@ export function buildOrientacionInstruction(reason, recentSubjects) {
   const conTemas = temas ? `${base} — si tiene sentido, podés retomar alguno de estos temas recientes: ${temas}.` : `${base}.`;
   return `${conTemas} NUNCA ofrezcas algo genérico tipo "¿en qué más te puedo ayudar?" — cada sugerencia nombra una entidad, métrica o foco real, no una categoría vacía.`;
 }
+
+// ── ACEPTACIÓN HUÉRFANA (owner 2026-07-31, cierre de #48) — "sí"/"dale" SIN ninguna mem.lastOffer activa: "no debe
+// repetir la respuesta anterior; debe pedir una precisión breve o mostrar las opciones vigentes." Medido en vivo
+// (ver adi-fase3-orientacion-inicial.md): dejarlo en manos del narrador produjo una respuesta casi idéntica a la
+// anterior — el riesgo exacto que esto cierra. composeOrphanAcceptance() NUNCA se narra libre (answerViaOracle.js
+// la usa para un bypass determinístico, igual que composeNoDataMessage en narrationBlocks.js).
+export function composeOrphanAcceptance(recentSubjects) {
+  const temas = (Array.isArray(recentSubjects) ? recentSubjects : []).map((s) => s && s.entidad).filter(Boolean);
+  if (temas.length) return `No tengo una oferta pendiente para ese "sí" — ¿te referís a ${temas.join(" o a ")}? Decime a cuál y sigo.`;
+  return `No tengo un contexto previo para saber a qué te referís con "sí". Contame qué querés revisar y lo armo.`;
+}
+
+// ── RETORNO A TEMAS RECIENTES (owner 2026-07-31, cierre de #48) — referencia POSICIONAL a recentSubjects (una
+// entidad NOMBRADA explícita, ej. "volvamos a lo de Falabella", ya la resuelve PLAN por comprensión vía la REGLA DE
+// ALCANCE de planPrompt.js — esto de acá es SOLO para cuando el usuario apunta por POSICIÓN, no por nombre):
+//   · "volvamos a lo anterior"/"el tema anterior" → el sujeto INMEDIATAMENTE anterior = recentSubjects[0] (el más
+//     reciente trackeado — recordar que la lista viaja más-reciente-primero).
+//   · "el primer tema"/"con lo que empezamos" → el MÁS VIEJO trackeado = el ÚLTIMO índice de la lista (tope 3 — no
+//     necesariamente el primero de TODA la conversación si ya se cayó del tope; es lo más honesto que se puede
+//     prometer sin memoria ilimitada, mismo principio que el resto de recentSubjects).
+//   · Referencia GENÉRICA de retorno ("volvamos a un tema anterior"/"a alguno de los de antes") SIN apuntar una
+//     posición concreta, con 2+ candidatos → AMBIGUO POR DISEÑO: nunca se adivina, se pregunta cuál (ver
+//     composeSubjectAmbiguity). Con 0-1 candidatos no hay ambigüedad real que declarar (deja pasar a PLAN normal).
+const _RECALL_ANTERIOR_RE = /\bvolvamos\s+a\s+lo\s+anterior\b|\bvolv[eé]\s+a\s+lo\s+anterior\b|\bel\s+tema\s+anterior\b|\blo\s+de\s+antes\b|\bal\s+tema\s+anterior\b/i;
+const _RECALL_PRIMERO_RE = /\b(?:el|al)\s+primer\s+tema\b|\bcon\s+lo\s+que\s+empezamos\b|\bel\s+primero\s+de\s+todos\b|\bvolvamos\s+al\s+principio\b/i;
+const _RECALL_GENERIC_RE = /\bvolvamos\s+a\s+(?:un|uno\s+de\s+los?)\s+tema\b|\ba\s+alguno\s+de\s+los\s+(?:temas|de\s+antes)\b|\botro\s+de\s+los\s+temas\s+anteriores\b/i;
+
+// resolveSubjectRecall(text, recentSubjects) → {kind:"resolved", subject} | {kind:"ambiguous", options} | null.
+export function resolveSubjectRecall(text, recentSubjects) {
+  const list = (Array.isArray(recentSubjects) ? recentSubjects : []).filter((s) => s && s.entidad);
+  if (!list.length) return null;
+  const t = String(text || "");
+  if (_RECALL_ANTERIOR_RE.test(t)) return { kind: "resolved", subject: list[0] };
+  if (_RECALL_PRIMERO_RE.test(t)) return { kind: "resolved", subject: list[list.length - 1] };
+  if (_RECALL_GENERIC_RE.test(t) && list.length >= 2) return { kind: "ambiguous", options: list };
+  return null;
+}
+
+export function composeSubjectAmbiguity(options) {
+  const temas = (Array.isArray(options) ? options : []).map((s) => s && s.entidad).filter(Boolean);
+  return `Tengo varios temas recientes: ${temas.join(", ")}. ¿A cuál te referís?`;
+}
