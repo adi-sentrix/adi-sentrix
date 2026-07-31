@@ -1,9 +1,9 @@
-/* === _response_preference_gate.mjs · PREFERENCIA DE RESPUESTA (owner 2026-07-29, 2 residuales cerrados) ===
+/* === _response_preference_gate.mjs · PREFERENCIA DE RESPUESTA (owner 2026-07-29, 3 residuales cerrados) ===
  * v1: doctrina de prosa libre — el narrador ignoraba las marcas. v2: bloques + renderer — cerró ESA fuga, pero el
  * owner probó una más profunda con un ejemplo concreto: "[[DATOS]] Ventas: $100M. Te recomiendo renegociar con
  * Falabella." — la ETIQUETA es correcta, el CONTENIDO no. Un renderer que solo mira qué bloque sobrevive no ve eso.
  *
- * v3 (este gate): "que 'no puede pasar' sea LITERALMENTE cierta."
+ * v3: "que 'no puede pasar' sea LITERALMENTE cierta."
  *   - data_only / results_only: GARANTÍA POR CONSTRUCCIÓN. answerViaOracle.js YA NO INVOCA al narrador libre para
  *     estos dos alcances — cero superficie lingüística. Compone SIEMPRE desde la boleta. No hay contenido de LLM
  *     que validar porque no hay contenido de LLM en absoluto. Las secciones 5-6 lo prueban con espías: el mock de
@@ -14,7 +14,12 @@
  *     CONTENIDO del bloque permitido — si coló lenguaje de causa o de siguiente-paso, el intento se DESCARTA
  *     ENTERO y reintenta (sección 7). "Repite el patrón" del owner, aplicado al único lugar donde aplica.
  *
- * Mapeo a los puntos originales + los 2 residuales:
+ * v3.1 (residual 3, "cierra únicamente el caso de boleta vacía"): el ÚNICO escape que quedaba para data_only/
+ * results_only — boleta vacía cedía al narrador como red final. composeNoDataMessage() lo cierra: mensaje
+ * determinístico honesto (cita la razón REAL del tool si existe, nunca inventa) que además pide la precisión
+ * faltante — sección 6.
+ *
+ * Mapeo a los puntos originales + los 3 residuales:
  *   1) dato puntual normal vs "solo el dato"                    → sección 11 (ruta determinística, sin bloques)
  *   2) resumen ejecutivo normal vs "solo cifras"                → secciones 5/6 (determinístico) + 12 (full, smoke)
  *   3) decisión normal vs "solo la acción"                      → sección 13 (narrador SIGUE siendo real acá)
@@ -154,15 +159,42 @@ console.log("\n── 5 · GARANTÍA POR CONSTRUCCIÓN — data_only/results_onl
   if (rRes) ok(!/te recomiendo|renegoci/i.test(rRes.r.text), `results_only: texto final tampoco puede tener la recomendación — "${rRes.r.text.slice(0, 100)}..."`);
 }
 
-console.log("\n── 6 · GARANTÍA POR CONSTRUCCIÓN — sin figs (turno degenerado), cede al narrador como última red (caso límite, no el camino común) ──");
+console.log("\n── 6 · GARANTÍA POR CONSTRUCCIÓN (3er residual) — boleta VACÍA bajo data_only/results_only NUNCA cede al narrador ──");
 {
-  // única vía por la que data_only/results_only PODRÍAN llegar a invocar al narrador: composeFromLedger no tuvo
-  // NADA con qué componer (boleta vacía). Ahí sí se intenta narrar (no hay nada que una recomendación pudiera
-  // "colarse en" — tampoco hay datos que mostrar), y el guard normal sigue corriendo sobre lo que sea que devuelva.
+  // owner: "bajo data_only o results_only, nunca debe volver al narrador libre. Si falta evidencia, responde
+  // determinísticamente que no existe información autorizada suficiente o solicita el dato faltante." Antes de
+  // este fix, ESTA era la única vía por la que data_only/results_only podían llegar a invocar al narrador
+  // (composeFromLedger sin figs → cedía como red). Ahora composeNoDataMessage cierra el hueco: nunca null.
+
+  // caso A: turno degenerado (intent=ack, calls vacío — no se pidió ningún dato) → mensaje genérico honesto.
   const PLAN_EMPTY = { intent: "ack", mode: "diagnostico", calls: [], pref: { contentScope: "data_only" } };
-  let calledEmpty = false;
-  const rEmpty = await answerViaOracle({ text: "solo cifras", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_EMPTY, callNarrate: async () => { calledEmpty = true; return SAFE_NARRATION; } });
-  ok(calledEmpty || rEmpty === null, "sin boleta (calls vacío) → cede al narrador como red final, o se abstiene honesto — nunca inventa una tabla de la nada");
+  let calledA = false;
+  const rA = await answerViaOracle({ text: "solo cifras", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_EMPTY, callNarrate: async () => { calledA = true; return "Te recomiendo lo que sea — esto NUNCA debería aparecer"; } });
+  ok(!calledA, "caso A (intent=ack, calls vacío): callNarrate JAMÁS se invoca");
+  ok(rA && rA.r, "responde igual (nunca se abstiene en silencio)");
+  if (rA) {
+    ok(/no tengo informaci[oó]n autorizada suficiente/i.test(rA.r.text), `mensaje honesto y determinístico — "${rA.r.text}"`);
+    ok(!/te recomiendo/i.test(rA.r.text), "el mock adversarial NUNCA aparece en el texto (no se invocó)");
+    ok(rA.r.narrationRepaired === true, "telemetría honesta: es composición, no narración libre");
+  }
+
+  // caso B: el tool SÍ corrió pero declinó con una razón real (entidad inexistente) → cita ESA razón, nunca inventa
+  // una distinta, y cierra pidiendo la precisión que falta (espíritu de "solicita el dato faltante").
+  const PLAN_DECLINE = { intent: "answer", mode: "diagnostico", scope: { level: "entity", entities: ["EmpresaQueNoExiste9999"] }, calls: [{ tool: "entityRecord", args: { dimension: "cliente", entity: "EmpresaQueNoExiste9999" } }], pref: { contentScope: "data_only" } };
+  let calledB = false;
+  const rB = await answerViaOracle({ text: "el margen de EmpresaQueNoExiste9999, solo el dato", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_DECLINE, callNarrate: async () => { calledB = true; return "nunca debería invocarse"; } });
+  ok(!calledB, "caso B (entidad inexistente, tool declina): callNarrate JAMÁS se invoca");
+  if (rB) {
+    ok(/no encuentro.*EmpresaQueNoExiste9999/i.test(rB.r.text), `cita la razón REAL que el tool ya declaró, nunca una inventada — "${rB.r.text}"`);
+    ok(/nombre exacto|dato que busc[aá]s|dato espec[ií]fico/i.test(rB.r.text), "cierra pidiendo la precisión que falta (solicita el dato faltante)");
+  }
+
+  // control: results_only también queda cubierto (mismo código, mismo candado)
+  const PLAN_RES_EMPTY = { intent: "ack", mode: "simulacion", calls: [], pref: { contentScope: "results_only" } };
+  let calledC = false;
+  const rC = await answerViaOracle({ text: "solo resultados", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_RES_EMPTY, callNarrate: async () => { calledC = true; return SAFE_NARRATION; } });
+  ok(!calledC, "results_only con boleta vacía: callNarrate TAMPOCO se invoca — mismo candado");
+  if (rC) ok(/no tengo informaci[oó]n autorizada suficiente/i.test(rC.r.text), `"${rC.r.text}"`);
 }
 
 console.log("\n── 7 · action_only — contaminación INTERNA del bloque permitido: 'repite el patrón' pedido por el owner ──");

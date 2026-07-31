@@ -15,7 +15,7 @@ import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtim
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, hasForbiddenContent } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent } from "./narrationBlocks.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR } from "./entityRecord.js";
 
@@ -390,29 +390,32 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 
-  // ── data_only / results_only: GARANTÍA POR CONSTRUCCIÓN (owner 2026-07-29, 2do residual) ──
+  // ── data_only / results_only: GARANTÍA POR CONSTRUCCIÓN, SIN EXCEPCIÓN (owner 2026-07-29, residuales 2 y 3) ──
   // "[[DATOS]] Ventas: $100M. Te recomiendo renegociar con Falabella." — una etiqueta correcta no garantiza que el
   // CONTENIDO adentro sea del tipo correcto; el renderer de bloques por sí solo NO cierra ese hueco. La única forma
-  // de que "no puede pasar" sea LITERALMENTE cierta para estos dos alcances es no darle al narrador ninguna
-  // oportunidad de escribir prosa libre: Pasada 2 NUNCA se invoca acá — cero superficie lingüística, compone
-  // SIEMPRE desde la boleta ya autorizada por el batch. Si no hay figs (turno degenerado, ej. intent=define forzado
-  // a data_only), cede al camino normal de abajo como última red — no hay nada que una recomendación pudiera
-  // "colarse en" si tampoco hay datos que mostrar.
+  // de que "no puede pasar" sea LITERALMENTE cierta para estos dos alcances es no darle al narrador NINGUNA
+  // oportunidad de escribir prosa libre, en NINGÚN caso: Pasada 2 NUNCA se invoca acá — cero superficie lingüística.
+  // Se resuelve ACÁ, siempre, sin caer más abajo al loop de narrar (esa condición lo excluye explícitamente):
+  //   1. composeFromLedger — hay figs autorizadas → las compone en tabla.
+  //   2. composeNoDataMessage — la boleta vino vacía (tool declinó, o el turno no trajo datos) → antes esto cedía
+  //      al narrador libre como última red (el residual 3: "bajo data_only o results_only, nunca debe volver al
+  //      narrador libre"); ahora responde determinísticamente que no hay información autorizada suficiente,
+  //      citando la razón REAL si algún tool ya la declaró, y cierra pidiendo la precisión que falta — nunca
+  //      inventa, nunca se abstiene en silencio.
   if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
-    const composed = composeFromLedger(figs, pref.contentScope);
-    if (composed) {
-      const c = ensurePeriodoDeclared(composed, periodos);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
-    }
+    const composed = composeFromLedger(figs, pref.contentScope) || composeNoDataMessage(results);
+    const c = ensurePeriodoDeclared(composed, periodos);
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
 
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
-  // results_only ya resolvieron arriba (o no tenían datos — ver el fallback final más abajo, misma composición).
+  // results_only YA se resolvieron arriba, SIEMPRE (con datos o sin ellos) — la condición de abajo los excluye
+  // explícitamente para que "nunca invoca al narrador" sea cierto también en el caso límite de boleta vacía.
   // Un rechazo del guard suele ser VARIANCE del LLM (una cifra derivada, una atribución yuxtapuesta). Re-muestrear
   // recupera la mayoría de esos turnos SIN debilitar el muro (el guard valida cada intento igual). El 2º reintento
   // solo se dispara cuando los dos primeros fallaron —los casos difíciles (temporal por entidad, cruces)— donde
   // recuperar una respuesta LIMPIA de C vale más que caer al fallback. Solo si los TRES fallan, C se abstiene.
-  if (!narration) for (let attempt = 0; attempt < 3; attempt++) {
+  if (!narration && pref.contentScope !== "data_only" && pref.contentScope !== "results_only") for (let attempt = 0; attempt < 3; attempt++) {
     let n;
     try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref }); }
     catch { return null; }
@@ -436,14 +439,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = n; break; }
   }
-  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — action_only tras 3 intentos fallidos (formato,
-  // contaminación interna, o guard); data_only/results_only SOLO si el intento de arriba no tenía figs.
-  if (!narration && pref.contentScope !== "full") {
-    const composed = composeFromLedger(figs, pref.contentScope);
-    if (composed) {
-      const c = ensurePeriodoDeclared(composed, periodos);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
-    }
+  // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — SOLO action_only llega acá: data_only/results_only
+  // ya se resolvieron arriba, siempre, con o sin datos (nunca caen en este loop, ver la condición de arriba).
+  if (!narration && pref.contentScope === "action_only") {
+    const composed = composeFromLedger(figs, "action_only") || composeNoDataMessage(results);
+    const c = ensurePeriodoDeclared(composed, periodos);
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
   if (!narration) return null;   // dos intentos no pasaron el muro (y sin datos para reparar) → C se abstiene (fallback a la ruta vieja)
 

@@ -6,9 +6,12 @@
  * correcta no garantiza que el CONTENIDO adentro sea del tipo correcto (el LLM puede escribir la recomendación
  * ENTERA dentro de un bloque bien marcado, sin usar [[ACCION]] en absoluto — el renderer nunca lo vería como algo
  * que descartar). "Para que 'no puede pasar' sea literalmente cierta":
- *   - data_only / results_only: GARANTÍA POR CONSTRUCCIÓN. answerViaOracle.js NUNCA invoca al narrador libre para
- *     estos dos alcances — cero superficie lingüística, compone SIEMPRE desde la boleta (composeFromLedger). No
- *     hay bloque que parsear ni contenido que validar porque no hay prosa libre en absoluto.
+ *   - data_only / results_only: GARANTÍA POR CONSTRUCCIÓN, SIN EXCEPCIÓN. answerViaOracle.js NUNCA invoca al
+ *     narrador libre para estos dos alcances — cero superficie lingüística, compone SIEMPRE desde la boleta
+ *     (composeFromLedger), y si la boleta viene vacía, composeNoDataMessage() cierra el último escape que existía
+ *     (owner, 3er residual: "nunca debe volver al narrador libre — si falta evidencia, responde determinísticamente
+ *     que no existe información autorizada suficiente"). No hay bloque que parsear ni contenido que validar porque
+ *     no hay prosa libre en absoluto, en NINGÚN caso.
  *   - action_only: el único alcance que SIGUE narrando libre (la recomendación es juicio, no solo datos — un
  *     composer determinístico no puede razonar el mecanismo). Doble candado: (1) el renderer de bloques descarta
  *     cualquier bloque que no sea [[ACCION]] (v2, sin cambios); (2) hasForbiddenContent() valida el CONTENIDO
@@ -101,4 +104,24 @@ export function composeFromLedger(figs, contentScope) {
   }
   const rows = list.slice(0, 12).map((f) => `| ${f.label} | ${f.value} |`);
   return `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
+}
+
+// ── composeNoDataMessage(results) ── owner 2026-07-29, 3er residual: "bajo data_only o results_only, NUNCA debe
+// volver al narrador libre — si falta evidencia, responde determinísticamente." Cierra el ÚLTIMO escape: hasta acá,
+// una boleta vacía (composeFromLedger devuelve null) todavía cedía al narrador como red — el único hueco que
+// quedaba para estos dos alcances. Esta función NUNCA devuelve null: siempre hay AL MENOS el mensaje genérico, así
+// que el caller (answerViaOracle.js) ya no necesita ese escape en absoluto.
+//   - si algún tool YA declinó con una razón real (coverage.reason — la MISMA razón que citaría el narrador libre
+//     por la doctrina HONESTIDAD de narratePromptC.js), la cita literal — nunca inventa una razón distinta.
+//   - si no hay ninguna razón específica (ej. intent=ack, calls vacío), el mensaje genérico igual es honesto: no
+//     hay información autorizada, punto.
+//   - en espíritu de "solicita el dato faltante" (owner): cierra pidiendo la precisión que falta, en vez de un
+//     "no" seco — SIN construir el mecanismo formal `request_clarification` de intent en el PLAN, que sigue
+//     guardado para el proyecto simulate v2 (ver memoria adi-simulate-v2-motor-escenarios) — acá es solo la frase
+//     de cierre de un mensaje ya determinístico, no un nuevo intent ni un nuevo turno de conversación.
+export function composeNoDataMessage(results) {
+  const list = Array.isArray(results) ? results : [];
+  const declined = list.find((r) => r && r.coverage && r.coverage.supported === false && typeof r.coverage.reason === "string" && r.coverage.reason.trim());
+  if (declined) return `No tengo información autorizada suficiente: ${declined.coverage.reason}. Decime el nombre exacto o el dato que buscás y lo reviso.`;
+  return "No tengo información autorizada suficiente para responder eso con el alcance pedido. Contame qué dato específico necesitás y lo busco.";
 }
