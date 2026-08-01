@@ -20,6 +20,8 @@ import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, bui
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
+import { detectCriteriaIntent } from "../criteria.js";   // C.2 memoria de criterio (owner 2026-07-31, fix adi-oraculo-criterio-no-invocado): la ruta oráculo nunca la corría
+import { composeCriteria } from "../conversation.js";     // UNA VERDAD: reusa la MISMA composición (setCriterion/forgetCriterion) de la ruta legacy, nunca la reimplementa acá
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
@@ -519,6 +521,35 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // fuerza) y PLAN corre normal más abajo, como si nunca hubiera existido.
   const pendingSimulationPrev = (mem && mem.pendingSimulation && typeof mem.pendingSimulation === "object") ? mem.pendingSimulation : null;
   const resolvedPendingSim = pendingSimulationPrev ? _resolvePendingSimulation(q, pendingSimulationPrev) : null;
+
+  // ── MEMORIA DE CRITERIO (owner 2026-07-07 C.2 · fix 2026-07-31 [[adi-oraculo-criterio-no-invocado]]) — "recordá
+  // que mi margen mínimo es 25%" nunca invocaba setCriterion/setBenchmarkOverride por esta ruta: PLAN corría normal,
+  // el LLM narraba una confirmación amable citando el número que el PROPIO usuario nombró (autorizado por guardC
+  // vía el eco del texto de la pregunta, no por el mecanismo real) y el override JAMÁS se seteaba — reproducido en
+  // vivo antes de este fix. Mismo principio que el resto de bypasses de este archivo: corre PRIMERO, ANTES de PLAN,
+  // y CORTA la cadena (mismo lugar que ocupa en coerceChain.js, la ruta legacy). detectCriteriaIntent/composeCriteria
+  // son la MISMA red y la MISMA composición que ya usa la ruta legacy — UNA VERDAD, nunca se reimplementan acá.
+  // A DIFERENCIA de _composedBypassResult, esto NO pasa por guardC: la confirmación es administrativa/verbatim con
+  // cifras que el usuario nombró en su propio pedido (nunca autorizadas por ledger/figs, que acá vendrían vacíos) —
+  // el MISMO motivo por el que pickNarratedText (numberGuard.js) salta el narrador para evidence.kind==="criteria"
+  // en la ruta legacy. Pasar esto por guardC lo rechazaría como "cifra-no-autorizada" y el bypass fallaría en
+  // silencio, reproduciendo una variante del mismo bug que esto arregla.
+  const criteriaIntent = detectCriteriaIntent(q);
+  if (criteriaIntent) {
+    const cr = composeCriteria(criteriaIntent);
+    const mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [cr.text, ...recentNarrationsPrev].slice(0, 2) };
+    return {
+      r: {
+        text: cr.text,
+        route: "oracle",
+        evidence: cr.evidence,
+        deterministic: true,
+        suggestions: cr.suggestions || null,
+        sentrixAction: cr.sentrixAction || null,
+      },
+      mem: mem2,
+    };
+  }
 
   // ── ACEPTACIÓN HUÉRFANA (owner 2026-07-31, cierre de #48) — "sí"/"dale" SIN ninguna oferta activa: "no debe
   // repetir la respuesta anterior; debe pedir una precisión breve o mostrar las opciones vigentes." Medido en vivo
