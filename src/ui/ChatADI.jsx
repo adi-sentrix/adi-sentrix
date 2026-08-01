@@ -430,8 +430,19 @@ function _evLabel(evidence) {
   const _vp = evidence.ventas && evidence.ventas.panel;
   const isVentas = !!(_vp && (_vp.kind === "decomp" || (Array.isArray(_vp.rows) && _vp.rows.length)));   // movers/decomp/mix/rank → panel Ventas
   const isContrib = !!(evidence.contribucion && evidence.contribucion.panel && Array.isArray(evidence.contribucion.panel.rows) && evidence.contribucion.panel.rows.length);   // pareto/gap/rank → panel Contribución
-  if (!evidence.reading && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas && !isContrib) return null;
-  return isSim ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isContrib ? "Ver la contribución en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix";
+  // isSimOracle (revisor UX 2026-07-31, CONFIRMADO en vivo — "el botón nunca aparece para una simulación vía chat"):
+  // simulateGeneral (toolRegistry.js, ruta ORÁCULO) nunca seteaba `evidence.transform` (ese campo es EXCLUSIVO del
+  // composer legacy composeSpecSimulate) ni ningún otro flag de arriba — cero botón, aunque SentrixPanel.jsx ya
+  // tiene su panel dedicado (SimulationPanelOracle). Chequeo por forma real de sus facts (ventaActual/ventaNueva,
+  // strings ya formateados por simulateGeneral) — MISMO chequeo que usa el dispatch de SentrixPanel.jsx, una sola verdad.
+  const isSimOracle = !!(evidence.oracle && typeof evidence.ventaActual === "string" && typeof evidence.ventaNueva === "string");
+  // BUGFIX (confirmado): isSim se calculaba arriba pero NO entraba en este gate — quedaba solo en el ternario de abajo,
+  // así que solo "contaba" cuando ALGÚN OTRO flag ya abría la puerta. Los follow-ups "por qué"/"y entonces" sobre una
+  // simulación (conversation.js: evidence { followup:true, kind:"explain"|"meta", transform: last.transform, boleta }·
+  // sin lens/reading/findings/pairs/…) tienen SOLO `transform` seteado → el gate viejo los mataba con null → el botón
+  // "Ver la proyección en Sentrix" desaparecía justo en el hilo de reentrada que este turno de trabajo debía arreglar.
+  if (!evidence.reading && !isSim && !isSimOracle && !isCuadro && !isDiagnose && !isCompare && !isInventory && !isMargin && !isVentas && !isContrib) return null;
+  return isSim || isSimOracle ? "Ver la proyección en Sentrix" : isCompare ? "Ver la comparación en Sentrix" : isInventory ? "Ver el inventario en Sentrix" : isMargin ? "Ver el margen en Sentrix" : isVentas ? "Ver las ventas en Sentrix" : isContrib ? "Ver la contribución en Sentrix" : isDiagnose ? "Ver el diagnóstico en Sentrix" : isCuadro ? "Ver en el Cuadro de mando" : "Ver evidencia en Sentrix";
 }
 function EvidenceButton({ evidence, onOpenEvidence, active }) {
   if (!evidence || !onOpenEvidence) return null;
@@ -563,12 +574,27 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const idRef = useRef(0);
   const ctxRef = useRef(context);   // SIEMPRE el contexto más reciente (evita la stale-closure de React en el camino LLM async · threading de lastEvidence)
+  // REENTRADA (fix): mismo patrón que ctxRef, mismo motivo. `messages` (el state) solo refleja el turno recién agregado
+  // DESPUÉS de que React re-renderice — si el usuario reingresa (Enter/click) antes de ese re-render, el `submit` en
+  // vuelo en ese instante todavía cierra sobre el `messages` de la render ANTERIOR, más corto. messagesRef.current se
+  // sincroniza en cada render (efecto de abajo) y es lo que se lee para armar recentTurns — nunca la variable `messages`
+  // capturada en el closure de `submit`/`submitSpec`.
+  const messagesRef = useRef(messages);
+  // isSubmittingRef: ref (no useState) — bloquea un segundo submit/submitSpec mientras el primero sigue en vuelo (fetch
+  // async al gateway). Se necesita un REF porque la mutación tiene que ser SÍNCRONA e inmediata (antes del próximo
+  // evento de teclado/click), y setState no lo garantiza (se procesa en el ciclo de render de React). Sin esta guardia,
+  // dos turnos concurrentes compiten por escribir ctxRef.current/setContext en su `.then()` — el que RESUELVE último
+  // gana, sin importar cuál se disparó último, así que un turno 1 lento puede pisar con su contexto viejo el resultado
+  // ya aplicado del turno 2 (se pierde lastEvidence/memoria del turno que en verdad debía quedar vigente).
+  const isSubmittingRef = useRef(false);
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // el textarea AUTO-CRECE con el texto largo (hasta ~7 líneas · después scrollea adentro) · vuelve a 1 línea al enviar
   useEffect(() => {
@@ -604,19 +630,25 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const submit = (raw) => {
     const q = (raw || "").trim();
     if (!q) return;
+    // GUARDIA DE REENTRADA: un turno ya en vuelo (fetch async al gateway) bloquea a un segundo submit/submitSpec —
+    // ver la nota junto a isSubmittingRef. El camino demo/piso (sync, más abajo) nunca prende esta guardia porque
+    // corre y termina en el mismo tick: no hay ventana para reentrar.
+    if (isSubmittingRef.current) return;
     setInput("");
 
     // ── CAMINO LLM (flag ON · async): user msg + "Pensando…" ahora; resolvemos async y reemplazamos el placeholder ──
     if (ADI_LLM_ENABLED) {
+      isSubmittingRef.current = true;
       const userMsg = { role: "user", text: q, id: ++idRef.current };
       const adiId = ++idRef.current;
       setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
       setSuggestionsVisible(false);
       setThinkPhase(0);   // arranca en "Entendiendo la pregunta" (LLM #1 en vuelo) · el pipeline reporta los saltos reales
-      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messages, setThinkPhase).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
+      // recentTurns SIEMPRE del ref (messagesRef.current), NUNCA de `messages` — ver la nota junto a su declaración.
+      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messagesRef.current, setThinkPhase).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
-      });
+      }).finally(() => { isSubmittingRef.current = false; });   // libera la guardia siempre (éxito o excepción no atrapada) — nunca deja el chat bloqueado
       return;
     }
 
@@ -634,6 +666,9 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const submitSpec = (spec, label) => {
     const q = (label || "").trim();
     if (!q) return;
+    // MISMA guardia de reentrada que submit() — comparten isSubmittingRef/ctxRef/messagesRef: un chip de inicio no
+    // debe pisar un turno de texto libre ya en vuelo, ni viceversa.
+    if (isSubmittingRef.current) return;
     // ORÁCULO ON (localhost/dev · C) → el chip se comporta como TIPEAR la pregunta: pasa por C (PLAN→BATCH→NARRAR),
     // igual que el input libre → las preguntas de inicio quedan "bien conectadas al LLM" (owner 2026-07-28), con la
     // MISMA calidad/estructura/tablas y la tool correcta que elija el plan. Con el oráculo OFF (prod real) sigue el
@@ -643,6 +678,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     // con turn_type (los P&L del inicio · owner 2026-07-25)
     const r0 = answerConversational(spec, context, { scenario });
     if (ADI_LLM_ENABLED) {
+      isSubmittingRef.current = true;
       const userMsg = { role: "user", text: q, id: ++idRef.current };
       const adiId = ++idRef.current;
       setMessages(prev => [...prev, userMsg, { role: "adi", text: "Pensando…", route: "llm_pending", pending: true, id: adiId }]);
@@ -652,7 +688,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
         const turn = _turnFromResult(q, r, context, narrated ? "llm" : "deterministico");
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
-      });
+      }).finally(() => { isSubmittingRef.current = false; });
       return;
     }
     // demo (flag OFF · sync · intacto)

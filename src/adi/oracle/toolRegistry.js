@@ -19,7 +19,7 @@ import {
 } from "../specRetrieval.js";
 import { CONCEPT_DEFS, matchConcept } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo")
 import { fig } from "../boleta.js";                                    // cifra autorizada (para inyectar el benchmark en el perfil)
-import { POLICY, costModelOf } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
+import { POLICY, costModelOf, benchmarkOf } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
 import { buildEntityRecord, buildGrid, buildTension, guessDimension, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
 import { buildGlobalEvolution } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
@@ -111,15 +111,24 @@ function entityProfile({ dimension, entity, scenario } = {}) {
     if (guessed && guessed !== dim) { dim = guessed; raw = composeSpecDive({ dimension: dim, entity, scenario }); }
   }
   const r = _pack(raw, `no encuentro a '${entity}' en el eje '${dimension}'`);
-  if (r.coverage && r.coverage.supported && POLICY && typeof POLICY.benchmark === "number") {
-    r.facts = { ...r.facts, benchmarkMargen: `${POLICY.benchmark}%`, nota: "compará el margen contra el benchmark antes de calificarlo" };
-    r.boleta = [...r.boleta, fig("Benchmark de margen", `${POLICY.benchmark}%`, { unit: "pct", context: "la vara" })];
-    // BRECHA de margen (benchmark − margen) autorizada: el "por qué cede margen" la narra naturalmente (evita abstención).
-    const mM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /margen/i.test(m.label || "") && typeof m.value === "number");
-    if (mM && mM.value < POLICY.benchmark) {
-      const gap = +(POLICY.benchmark - mM.value).toFixed(1);
-      r.facts = { ...r.facts, brechaMargen: `${gap}%` };
-      r.boleta = [...r.boleta, fig(`${entity} · brecha de margen`, `${gap}%`, { unit: "pct", context: "benchmark − margen" })];
+  // INTEGRIDAD #1 (auditoría adversarial 2026-07-31, CONFIRMADO en vivo): esto leía POLICY.benchmark CRUDO — ni
+  // el benchmark por-fila del dato, ni sobre todo el `_benchmarkOverride` del usuario (C.2, "mi margen mínimo es
+  // 28%") — así que con un criterio activo ADI narraba la vara vieja mientras kpis.js/evidenceSpec.reference ya
+  // mostraban la correcta, MISMA entidad, MISMO turno. benchmarkOf(rawRec) es el ÚNICO punto que respeta la
+  // precedencia real (criterio > fila > POLICY) — el mismo que ya usa REFERENCIA_CAMPO.margen (entityRecord.js).
+  if (r.coverage && r.coverage.supported) {
+    const rawRec = rawRecordFor(dim, entity);
+    const bench = benchmarkOf(rawRec);
+    if (typeof bench === "number" && isFinite(bench)) {
+      r.facts = { ...r.facts, benchmarkMargen: `${bench}%`, nota: "compará el margen contra el benchmark antes de calificarlo" };
+      r.boleta = [...r.boleta, fig("Benchmark de margen", `${bench}%`, { unit: "pct", context: "la vara" })];
+      // BRECHA de margen (benchmark − margen) autorizada: el "por qué cede margen" la narra naturalmente (evita abstención).
+      const mM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /margen/i.test(m.label || "") && typeof m.value === "number");
+      if (mM && mM.value < bench) {
+        const gap = +(bench - mM.value).toFixed(1);
+        r.facts = { ...r.facts, brechaMargen: `${gap}%` };
+        r.boleta = [...r.boleta, fig(`${entity} · brecha de margen`, `${gap}%`, { unit: "pct", context: "benchmark − margen" })];
+      }
     }
   }
   return r;
@@ -380,6 +389,17 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   // cifras fantasma sin la entidad correcta en el label (bug real cazado en este mismo desarrollo). El supuesto YA
   // viaja legible en el `context` de cada fig de la boleta — no hace falta duplicarlo acá con un nombre riesgoso.
   const facts = { entidad: entity, dimension: dim, deltaPrecio: precioVar.pct, deltaVolumen: volumenVar.pct, ventaActual: _moneyK(ventaActual), ventaNueva: _moneyK(ventaNueva) };
+  // assumptions ESTRUCTURADAS (owner 2026-07-31, evidenceSpec) — el `_ctx` de arriba ya trae el supuesto en PROSA
+  // (para el fig.context); esto es la MISMA información, {campo, delta} por variable, para que sentrixEvidence.js
+  // la levante sin re-parsear el string. OJO (mismo landmine que el comentario de arriba, no alcanza con anidarlo
+  // bajo `assumptions`: enrichFromFacts camina TODO `facts` recursivamente sin importar el contenedor, mira cada
+  // clave HOJA) — la clave se llama `delta`, NUNCA `delta_pct`/`deltaPct`/similar: cualquier clave que matchee
+  // /pct/i quedaría auto-autorizada como un "%" suelto sin la entidad correcta en el label (el bug que ese
+  // comentario ya documentó). `delta` no matchea ningún patrón de `_KEYUNIT` → no genera fig fantasma.
+  facts.assumptions = [
+    { campo: precioVar.campo, delta: precioVar.pct },
+    { campo: volumenVar.campo, delta: volumenVar.pct },
+  ];
   // Precio/Volumen propuesto COMO FIG DE LA BOLETA (owner 2026-07-31, hallazgo EN VIVO, certificación integral) —
   // sin esto, el % del supuesto (8%, -2%…) SOLO vivía en `facts`/`context`, nunca como una cifra autorizada
   // propiamente dicha. guardC SÍ deja citar una cifra que el usuario nombró en SU PROPIA pregunta (parseFigures del

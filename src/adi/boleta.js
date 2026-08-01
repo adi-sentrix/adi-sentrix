@@ -97,6 +97,30 @@ export function guardAgainstBoleta(narration, boleta) {
   };
 }
 
+// figFor(figs, entidad, metrica) → la fig EXACTA de esa entidad+métrica si ADI ya la citó ESTE turno | null
+// (evidenceSpec, owner 2026-07-31 "Sentrix es la evidencia"). ÚNICA forma SANCIONADA de leer un valor ya
+// autorizado: si existe, el llamador usa SU .raw/.value verbatim — el recalculo desde el dataset crudo
+// (scenarios.js/businessPolicy.js) queda reservado para entidades/métricas que ADI NO mencionó este turno.
+// Match normalizado (sin acento/mayúscula) por SEGMENTO del label ("Entidad · Métrica", el mismo separador que
+// usa TODO el resto del guard — ver guardC.js `_norm`/`_valueOwners`): la entidad debe calzar un segmento
+// completo o como substring de uno (evita que "Falabella" cace a medias "Falabella Retail" por accidente en
+// sentido inverso: un segmento MÁS LARGO que la entidad buscada sigue siendo un match honesto, ej. "Falabella ·
+// Margen" al buscar "Falabella"); la métrica se busca como substring de CUALQUIER segmento restante (tolera
+// "Margen" vs "Margen actual"/"Margen supuesto").
+const _normFF = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+export function figFor(figs, entidad, metrica) {
+  if (!Array.isArray(figs) || !entidad || !metrica) return null;
+  const ent = _normFF(entidad), met = _normFF(metrica);
+  if (!ent || !met) return null;
+  for (const f of figs) {
+    if (!f || typeof f.label !== "string") continue;
+    const segs = f.label.split("·").map((s) => _normFF(s));
+    if (!segs.some((s) => s === ent || s.includes(ent))) continue;
+    if (segs.some((s) => s.includes(met))) return f;
+  }
+  return null;
+}
+
 // boletaFromText(text) → boleta DERIVADA del texto de un composer SELLADO (rutas del motor: compare de marca/cliente/bodega,
 // que no pueden emitir boleta propia sin tocar el motor). Unit-aware: value = la cifra VERBATIM del texto CON su unidad →
 // el guard autoriza EXACTAMENTE las cifras de ADI y bloquea drift/garble (1.3× → "13 veces"). El closer del contrato no se toca.

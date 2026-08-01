@@ -141,10 +141,26 @@ function _rawRecord(dimension, entity) {
 }
 
 // _formatRecord(entity, rec) → { facts, boleta } · formatea cada columna (cruda + derivada) con su unidad.
+// DEDUP por LABEL (integridad #1-quater, auditoría adversarial 2026-07-31, CONFIRMADO en vivo): 2+ columnas crudas
+// distintas pueden mapear al MISMO label humano en `F` (ej. `margen` y `margenPct` → ambas "Margen", una de
+// skusMargen, otra de skuInventario — mismo patrón que el alias `actual`/`venta` ya dedupeado en _rawRecord de
+// arriba, pero acá la colisión es de LABEL, no de key cruda, así que sobrevivía). Antes: `add()` empujaba un fig
+// NUEVO por cada key, así que "LG-AIR9000 · Margen" podía aparecer 2 VECES en `boleta` con valores distintos
+// (22% y 28%) — `facts["Margen"]` ya resolvía correctamente al último (28%, el que ADI narraba y kpis.js mostraba),
+// pero `figFor()` (boleta.js) devuelve el PRIMER match del array → la fig STALE (22%), divergiendo de ADI Y de
+// Sentrix aunque AMBOS ya estuvieran de acuerdo entre sí. Fix: cuando el label ya se emitió, REEMPLAZA el fig en
+// vez de duplicarlo — mismo "último gana" que `facts` ya aplica, ahora también en `boleta` (una sola verdad, no dos
+// arrays desincronizados).
 function _formatRecord(entity, rec) {
   const facts = { entidad: entity };
   const boleta = [];
-  const add = (label, val, unit) => { facts[label] = val; boleta.push(fig(`${entity} · ${label}`, val, { unit })); };
+  const _idxByLabel = new Map();
+  const add = (label, val, unit) => {
+    facts[label] = val;
+    const f = fig(`${entity} · ${label}`, val, { unit });
+    if (_idxByLabel.has(label)) boleta[_idxByLabel.get(label)] = f;
+    else { _idxByLabel.set(label, boleta.length); boleta.push(f); }
+  };
   for (const [k, v] of Object.entries(rec)) {
     const m = F[k]; if (!m) continue;
     if (m.u === "text") { if (v != null && v !== "") facts[m.l] = v; continue; }

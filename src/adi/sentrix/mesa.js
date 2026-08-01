@@ -32,6 +32,20 @@ const _money = (v) => {
 const _moneyK = (vK) => _money(vK * 1000);   // dato comercial en $K → $
 const _pct = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(_r1(v))}%`;
 
+// buildAccionFrom(finding) → {titulo, detalle, ask, usdFmt, askLabel} | null — LA MISMA plantilla de acción por
+// detector (_ACCION, abajo) que buildMesaEstado ya usa para el foco top del PORTAFOLIO, factorizada acá (owner
+// integridad #1-bis, auditoría adversarial 2026-07-31: evidenceSpec.action mostraba el foco top GLOBAL —p.ej.
+// Falabella— pegado sobre los factores de una entidad puntual distinta —p.ej. Ripley— porque llamaba
+// buildMesaEstado sin filtrar, mismo turno, mismo objeto) para que un consumidor ENTITY-SCOPED
+// (sentrixEvidence.js._actionFrom) pueda construir la MISMA forma de acción a partir del foco top de SU PROPIO
+// diagnose filtrado por entidad — nunca mezclando el $ de otra entidad. Pura, sin I/O.
+export function buildAccionFrom(finding) {
+  if (!finding) return null;
+  const top = (finding.items && finding.items[0]) || {};
+  const tpl = _ACCION[finding.detector] || _ACCION.margen;
+  return { ...tpl(finding, top), usdFmt: _money(finding.subtotal_usd), askLabel: "Armame el plan" };
+}
+
 // ── LA ACCIÓN por detector (medida ejecutiva + su pregunta · la pregunta es una PROMESA gate-ada) ──
 const _ACCION = {
   carga: (f, top) => ({
@@ -107,7 +121,7 @@ export function buildMesaEstado(scenario) {
 
   // ── LA ACCIÓN priorizada · el foco top del diagnose (F ya viene ordenado por subtotal) ──
   const topF = F[0] || null;
-  const accion = topF ? { ...(_ACCION[topF.detector] || _ACCION.margen)(topF, topF.items[0] || {}), usdFmt: _money(topF.subtotal_usd), askLabel: "Armame el plan" } : null;
+  const accion = buildAccionFrom(topF);   // byte-idéntico al cálculo inline anterior — factorizado, ver buildAccionFrom arriba
 
   // ── QUÉ CAMBIÓ · 3 líneas de movimiento del período · cada una es una pregunta ──
   const cambios = [];

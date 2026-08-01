@@ -710,7 +710,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (recentSubjectsPrev.length) mem2 = { ...mem2, recentSubjects: recentSubjectsPrev };
 
   // ── BATCH DETERMINÍSTICO ──
-  const { ledger, results, trace } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
+  // `unsupported` (owner 2026-07-31, evidenceSpec) — runPlan YA lo arma (coverage/unsupported por call) pero antes
+  // se descartaba acá mismo, al desestructurar solo {ledger,results,trace}: buildOracleEvidence (más abajo) nunca
+  // podía saber qué faltó. Se hila hasta el evidence del turno como `evidenceSpec.missing` — CERO cambio de
+  // comportamiento del turno (el LLM/guard no lo consumen), solo deja de tirarse un dato que el motor ya calculó.
+  const { ledger, results, trace, unsupported } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
   const figs = ledgerBoleta(ledger);
 
   // temas recientes (Fase 3) — se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como
@@ -856,7 +860,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     r: {
       text: narration,
       route: "oracle",
-      evidence: buildOracleEvidence({ plan, results, figs, scenario }),
+      evidence: buildOracleEvidence({ plan, results, figs, scenario, unsupported }),
       // trazabilidad multiempresa (owner 2026-07-29): qué tenant/snapshot/esquema respondió este turno — nunca se
       // manda al LLM (no es parte del contrato conversacional), solo viaja en la evidencia para auditoría/debug.
       ...(requestContext ? { requestContext: { tenantId: requestContext.tenantId, dataSnapshotId: requestContext.dataSnapshotId, conversationId: requestContext.conversationId, schemaVersion: requestContext.schemaVersion } } : {}),

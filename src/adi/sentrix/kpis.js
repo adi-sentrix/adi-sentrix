@@ -6,6 +6,7 @@
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { temporalCapability, entityExplorable } from "./capability.js";
+import { benchmarkOf } from "../../config/businessPolicy.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _p1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);   // % SIEMPRE con 1 decimal (parejos en la visual)
@@ -31,15 +32,16 @@ function _skuKPIs(name) {
   const fam = skusMargen.filter((x) => x.sfamilia === sku.sfamilia);
   const avgM = fam.reduce((a, x) => a + x.margen, 0) / fam.length;
   const costoPct = 100 - sku.margen - sku.pctRebate;
+  const bench = benchmarkOf(sku);   // integridad #1: nunca sku.benchmark crudo — respeta _benchmarkOverride (memoria de criterio)
   return [
-    { label: "Margen", value: _p1(sku.margen) + "%", sub: `${_pp(sku.margen - sku.benchmark)} vs bench`, tone: sku.margen >= sku.benchmark ? "up" : "down" },
+    { label: "Margen", value: _p1(sku.margen) + "%", sub: `${_pp(sku.margen - bench)} vs bench`, tone: sku.margen >= bench ? "up" : "down" },
     { label: "Ventas", value: _fCap(sku.venta), sub: `${sku.unidades} unidades` },
     { label: "Contribución", value: _fCap(sku.contribucion), sub: `${_p1(sku.contribucion / sku.venta * 100)}% de venta` },
     { label: "Costo", value: _p1(costoPct) + "%", sub: "del precio", tone: "warn" },
     { label: "Carga comercial", value: _p1(sku.pctRebate) + "%", sub: "rebate sobre venta", tone: "warn" },
     { label: "Precio lista", value: "$" + Math.round(sku.precioLista), sub: `costo unitario $${Math.round(sku.costoMedio)}` },
     { label: "vs familia", value: _pp(sku.margen - avgM), sub: `${sku.marca} · ${sku.sfamilia}`, tone: sku.margen >= avgM ? "up" : "down" },
-    { label: "Benchmark", value: _p1(sku.benchmark) + "%", sub: "de cartera" },
+    { label: "Benchmark", value: _p1(bench) + "%", sub: "de cartera" },
   ];
 }
 
@@ -51,7 +53,7 @@ function _marcaKPIs(name) {
   const contrib = rows.reduce((a, x) => a + x.contribucion, 0);
   const unidades = rows.reduce((a, x) => a + x.unidades, 0);
   const margenP = venta ? contrib / venta * 100 : 0;
-  const bench = rows[0].benchmark;
+  const bench = benchmarkOf(rows[0]);   // integridad #1: fuente autoritativa (misma benchmarkOf genérica, no una nueva por-marca)
   const familias = [...new Set(rows.map((x) => x.sfamilia))];
   return [
     { label: "Margen", value: _p1(margenP) + "%", sub: `${_pp(margenP - bench)} vs bench (ponderado)`, tone: margenP >= bench ? "up" : "down" },
@@ -74,6 +76,7 @@ function _clientKPIs(name, s) {
   const ant = cv ? cv.anterior : null;
   const yoY = ant && ant > 0 ? _r1((venta - ant) / ant * 100) : null;
   const ticket = cm.unidades ? venta / cm.unidades : null;
+  const bench = benchmarkOf(cm);   // integridad #1: nunca cm.benchmark crudo — respeta _benchmarkOverride (memoria de criterio)
   return [
     { label: "Ventas", value: _fM(venta), sub: yoY != null ? `${yoY >= 0 ? "+" : ""}${_p1(yoY)}% vs año ant.` : "", tone: yoY != null && yoY >= 0 ? "up" : yoY != null ? "down" : null },
     { label: "Margen", value: _p1(cm.margen) + "%", sub: `${_pp(cm.margen - avgM)} vs prom.`, tone: cm.margen >= avgM ? "up" : "down" },
@@ -82,7 +85,7 @@ function _clientKPIs(name, s) {
     { label: "Ticket prom.", value: ticket != null ? _fKu(ticket) : "—", sub: `${cm.unidades} unidades` },
     { label: "Costo unitario", value: _fKu(cm.costoMedio), sub: `${_p1(100 - cm.margen - cm.pctRebate)}% de venta` },
     { label: "Unidades", value: "" + cm.unidades, sub: "" },
-    { label: "vs benchmark", value: _pp(cm.margen - cm.benchmark), sub: `bench ${_p1(cm.benchmark)}%`, tone: cm.margen >= cm.benchmark ? "up" : "down" },
+    { label: "vs benchmark", value: _pp(cm.margen - bench), sub: `bench ${_p1(bench)}%`, tone: cm.margen >= bench ? "up" : "down" },
   ];
 }
 
@@ -162,7 +165,7 @@ export function buildMarginReceipt(focus, scenario) {
     { label: "Carga comercial",  usd: cargaUSD,  pct: d.cargaPct, sign: "−", source: "ERP · rebates + descuentos",        tone: "carga"  },
     { label: "Margen",           usd: margenUSD, pct: d.margen,   sign: "=", source: "derivado · venta − costo − carga",   tone: "margen", strong: true },
   ];
-  const benchmark = cm ? cm.benchmark : null;
+  const benchmark = cm ? benchmarkOf(cm) : null;   // integridad #1: nunca cm.benchmark crudo — respeta _benchmarkOverride (memoria de criterio)
   const comparison = [                                                          // + = mejor · unidad pp
     { label: "Promedio interno", base: `${_p1(d.avgM)}%`, gap: d.gap, unit: "pp" },
     ...(benchmark != null ? [{ label: "Benchmark industria", base: `${_p1(benchmark)}%`, gap: _r1(d.margen - benchmark), unit: "pp" }] : []),

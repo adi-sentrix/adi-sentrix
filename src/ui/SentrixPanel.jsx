@@ -113,6 +113,89 @@ const _lighten = (hex, amt = 0.45) => {
   return `rgb(${c(0)},${c(2)},${c(4)})`;
 };
 
+/* ══════════════════════════ evidenceSpec · VISTAS ADAPTATIVAS (owner 2026-07-31) ══════════════════════════
+ * "ADI asesora; Sentrix demuestra" — evidence.evidenceSpec (sentrixEvidence.js, SOLO ruta oráculo) es un sub-objeto
+ * OPCIONAL/ADITIVO sobre `evidence`: cuando está presente agrega DOS piezas de UI universales, compartidas por los
+ * 7 tipos de respuesta (dato puntual/diagnóstico/decisión/simulación/capital/tendencia/P&L) sin tocar los packs
+ * existentes — cuando está AUSENTE (ruta legacy, turno bypass) ambos componentes devuelven null: el panel se ve
+ * BYTE-EXACTO a como se veía antes de esta ronda, cero regresión.
+ *   · EvidenceClaimHeader (Nivel 1) — el claim del turno (evidenceSpec.claim.text) + su grado, arriba del cuerpo.
+ *   · EvidenceConfidenceFooter (Nivel 3) — generalización del bloque "Confianza + límites" que antes SOLO existía
+ *     dentro de EvidenciaRecibo (client/bodega, vía buildMarginReceipt/buildCapitalReceipt): acá lee evidenceSpec.
+ *     grade/.missing/.sources — construido para CUALQUIER tipo, no solo los que tienen receipt. NO reemplaza a
+ *     EvidenciaRecibo (ver su propio comentario): el receipt recalcula confianza/límites para el FOCO NAVEGADO
+ *     (puede no ser ya la entidad central del turno tras un drill-down/comparación) — usar acá el grado/missing del
+ *     turno en ese caso sería la MISMA clase de bug de integridad que motiva esta iniciativa (mostrar un respaldo
+ *     que no corresponde a lo que se está mirando). Se usa en su lugar SOLO donde no hay receipt (honesto: hoy
+ *     sku/marca/familia no tenían NADA de esto) o donde el llamador confirma que sigue en la entidad base. */
+const GRADE_UI = {
+  probado:  { label: "Probado",  fg: C.green,     bg: "rgba(124,207,144,0.10)", bd: "rgba(124,207,144,0.35)" },
+  indicado: { label: "Indicado", fg: C.amber,      bg: "rgba(217,154,90,0.10)",  bd: "rgba(217,154,90,0.35)" },
+  abierto:  { label: "Abierto",  fg: C.textMuted,  bg: "rgba(255,255,255,0.05)", bd: C.border },
+};
+const GRADE_REASON = {
+  probado:  "esta cifra sale del dato real de la entidad citada este turno.",
+  indicado: "es una señal, un benchmark o una proyección — no un hecho consumado sobre esta entidad.",
+  abierto:  "no hay dato suficiente este turno para respaldar la afirmación completa.",
+};
+// Nivel 1 · flex/texto simple (sin grid) → hereda el overlay móvil de App.jsx sin CSS nuevo (regla del encargo).
+function EvidenceClaimHeader({ evidenceSpec }) {
+  const claim = evidenceSpec && evidenceSpec.claim;
+  if (!claim || !claim.text) return null;
+  const g = evidenceSpec.grade && GRADE_UI[evidenceSpec.grade];
+  return (
+    <div style={{ display:"flex", alignItems:"flex-start", gap:10, flexWrap:"wrap", marginTop:8 }}>
+      <div style={{ flex:1, minWidth:180, fontSize:12.5, color:C.textSub, lineHeight:1.5 }}>{claim.text}</div>
+      {g && (
+        <span style={{ flexShrink:0, fontFamily:MONO, fontSize:9, fontWeight:600, letterSpacing:"0.6px", textTransform:"uppercase", color:g.fg, background:g.bg, border:`1px solid ${g.bd}`, borderRadius:999, padding:"3px 9px", whiteSpace:"nowrap" }}>
+          {g.label}
+        </span>
+      )}
+    </div>
+  );
+}
+// Nivel 3 · generaliza confianza+límites a partir de evidenceSpec.grade/.missing/.sources — MISMA fuente de datos
+// que capability.js ya usa para EvidenciaRecibo.limites (temporalCapability/entityExplorable), solo que expuesta
+// acá para cualquier tipo. `missing` = unsupported de runPlan (coverage real de ESTE plan, nunca visto antes en
+// ningún panel) · `sources` = capability.js verbatim (disponibilidad/confianza temporal de la entidad del turno).
+function EvidenceConfidenceFooter({ evidenceSpec }) {
+  if (!evidenceSpec || !evidenceSpec.grade) return null;
+  const g = GRADE_UI[evidenceSpec.grade];
+  const reason = GRADE_REASON[evidenceSpec.grade];
+  const limites = [];
+  (evidenceSpec.missing || []).forEach((m) => { if (m && m.reason) limites.push(m.reason); });
+  const src = evidenceSpec.sources;
+  if (src && src.confianza && src.confianza.status === "blocked" && src.confianza.reason) limites.push(src.confianza.reason);
+  if (src && src.availability && Array.isArray(src.availability.blocked)) {
+    src.availability.blocked.forEach((b) => { if (b && b.view && b.reason) limites.push(`El desglose de ${b.view}: ${b.reason}.`); });
+  }
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      {g && (
+        <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px", borderRadius:10, background:g.bg, border:`1px solid ${g.bd}` }}>
+          <span style={{ width:8, height:8, borderRadius:"50%", background:g.fg, marginTop:5, flexShrink:0 }}/>
+          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55 }}>
+            <span style={{ color:g.fg, fontWeight:600 }}>{g.label}</span> — {reason}
+          </div>
+        </div>
+      )}
+      {limites.length > 0 && (
+        <div>
+          <Eyebrow tone={C.textMuted}>Lo que esta respuesta NO afirma</Eyebrow>
+          <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+            {limites.map((t, i) => (
+              <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", fontSize:12.5, color:C.textSub, lineHeight:1.5 }}>
+                <span style={{ color:C.textMuted, flexShrink:0, fontFamily:MONO }}>—</span>
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════ PACKS (espejo del renderer · kind → {title, Hero, Evidence}) ══════════════════════════
 
 // ── cliente · carga comercial · héroe = barra de PLATA recuperable, evidencia = la cuenta de la carga ──
@@ -465,12 +548,13 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
           <span style={{ color:C.textMuted }}>Proyección · </span>{mLabel} por {dLabel} · <b>dato real</b> vs <b style={{ color:sup }}>supuesto ({sgn(pct)}{pct}%)</b>.
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, fontFamily:MONO, marginTop:6 }}>Supuesto = Actual × {factor} · Impacto = Supuesto − Actual · sobre el dato real</div>
+        <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
-      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:16 }}>
         {proj.length === 0 ? (
           <div style={{ fontSize:13, color:C.textSub, lineHeight:1.6 }}>Ese supuesto no está habilitado para esta métrica. Hoy puedo proyectar <b>ventas</b>, <b>contribución</b> o <b>capital</b> con un +/−X% sobre el dato real.</div>
         ) : (
-          <div style={{ overflowX:"auto" }}>
+          <div style={{ overflowX:"auto", minWidth:0 }}>
             {_qvm && (
               <div style={{ display:"inline-flex", alignItems:"center", gap:8, marginBottom:12, padding:"5px 11px", borderRadius:999, background:_qvm.bg, border:`1px solid ${_qvm.bd}` }}>
                 <span style={{ fontSize:10.5, fontWeight:600, color:_qvm.fg, textTransform:"uppercase", letterSpacing:"0.5px" }}>{_qvm.label}</span>
@@ -535,6 +619,69 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
             <div style={{ fontSize:10.5, color:C.textMuted, marginTop:14, lineHeight:1.5 }}>Participación = peso de cada {dLabel} en el impacto · Acum% = acumulado (corte al 80%). Actual es dato real; el Supuesto es una proyección, no un dato observado. Hover en <span style={{ color:sup }}>Supuesto</span> para la fórmula.</div>
           </div>
         )}
+        <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
+      </div>
+    </div>
+  );
+}
+
+// ── SIMULACIÓN · ruta ORÁCULO (simulateGeneral) · UNA entidad, supuesto de precio+volumen (owner 2026-07-31,
+// hallazgo revisor UX/auditor: sin este panel, el botón "Ver la proyección en Sentrix" no tenía forma de abrir
+// nada para las simulaciones que corren por el oráculo — shape distinto al SimulationPanel de arriba (que espera
+// un desglose por-entidad de UN eje completo, `evidence.transform`/`.projection`; acá es antes/después de UNA
+// entidad puntual). Todo lo que muestra ya viene formateado y AUTORIZADO en `evidence` (facts de simulateGeneral,
+// mergeados por buildOracleEvidence) — cero recálculo, misma cuenta que ADI narró este turno.
+function SimulationPanelOracle({ evidence, onClose, onToggleMax, maximized }) {
+  const entidad = evidence.entidad || "la entidad";
+  const dp = evidence.deltaPrecio, dv = evidence.deltaVolumen;
+  const sgn = (v) => (typeof v === "number" && v >= 0 ? "+" : "");
+  const sup = C.celeste;
+  const rows = [
+    { label: "Ventas", actual: evidence.ventaActual, nuevo: evidence.ventaNueva },
+    ...(evidence.costModelAutorizado ? [
+      { label: "Costo", actual: evidence.costoActual, nuevo: evidence.costoNuevo },
+      { label: "Contribución", actual: evidence.contribucionActual, nuevo: evidence.contribucionNueva },
+      { label: "Margen", actual: evidence.margenActual, nuevo: evidence.margenNuevo },
+    ] : []),
+  ].filter((r) => r.actual != null && r.nuevo != null);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span style={{ color:sup }}>SUPUESTO</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
+          <span style={{ color:C.textMuted }}>Proyección · </span>{entidad} · precio <b style={{ color:sup }}>{sgn(dp)}{dp}%</b> · volumen <b style={{ color:sup }}>{sgn(dv)}{dv}%</b>
+        </div>
+        <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:16 }}>
+        <Card>
+          <Eyebrow>Actual → supuesto</Eyebrow>
+          <div style={{ display:"flex", flexDirection:"column", marginTop:2 }}>
+            {rows.map((r, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:14, padding:"11px 0", borderTop: i > 0 ? "1px solid rgba(255,255,255,0.035)" : "none" }}>
+                <span style={{ fontSize:13, color:C.textSub, fontWeight:500 }}>{r.label}</span>
+                <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                  <Num color={C.textMuted}>{r.actual}</Num>
+                  <span style={{ color:C.textMuted, fontSize:12 }}>→</span>
+                  <Num color={sup}>{r.nuevo}</Num>
+                </div>
+              </div>
+            ))}
+          </div>
+          {!evidence.costModelAutorizado && (
+            <div style={{ fontSize:11.5, color:C.textMuted, marginTop:12, lineHeight:1.5 }}>Costo/contribución/margen no proyectados — el tenant no declaró cómo se comporta su costo bajo este supuesto (solo ventas queda autorizado).</div>
+          )}
+        </Card>
+        <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
     </div>
   );
@@ -569,6 +716,7 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
         <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
           <span style={{ color:C.textMuted }}>Diagnóstico · </span>dónde se pierde margen o se inmoviliza capital — los focos ordenados por impacto.
         </div>
+        <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:12 }}>
         {foci.length === 0 ? (
@@ -592,6 +740,7 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
           ))}
           <div style={{ fontSize:10.5, color:C.textMuted, marginTop:2, lineHeight:1.5 }}>Cada foco es margen que no se captura (contribución, carga) o capital que se inmoviliza (inventario). {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real de tu cartera.</div>
         </>)}
+        <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
     </div>
   );
@@ -1051,6 +1200,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
           <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}><div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{titleParts[1] ? <><span style={{ color:C.textMuted }}>{titleParts[0]} · </span>{titleParts[1]}</> : titleParts[0]}</div><ScopeChip evidence={evidence}/></div>
           <div style={{ fontFamily:MONO, fontSize:16, color:fcolor, fontWeight:700, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{_fm(inv.total || 0)}</div>
         </div>
+        <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         <div>
@@ -1122,6 +1272,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
           </div>
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La franja "4 puntas" muestra todo tu inventario: {estados.map((e) => e.label).join(" · ")}. SKU en color = crítico. {MIRROR_LEGEND}{onAsk ? " Click en un SKU para pedirle a ADI que profundice." : ""} Cifras de dato real; el foco resaltado responde tu pregunta.</div>
+        <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
     </div>
   );
@@ -1232,6 +1383,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             ))}
           </div>
         </div>
+        <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
@@ -1426,6 +1578,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu benchmark), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
         </>)}
+        <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
     </div>
   );
@@ -2068,12 +2221,29 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const [tab, setTab] = useState(() => _routedTab(baseRd || {}, evidence && evidence.lens));   // shell · lente activa (Diagnóstico|Evidencia|Control)
   useEffect(() => { if (baseRd) { setStack([mkBase(baseRd)]); setTab(_routedTab(baseRd, evidence.lens)); } }, [baseFocus]);   // nueva respuesta → lente ruteada
   if (!baseRd) {
+    // DECISIÓN (evidenceSpec Nivel 0 · dispatch key rápido, owner 2026-07-31): mesa.accion promovido a un panel
+    // propio — antes vivía enterrado como el movimiento "03 · Qué hacer primero" dentro de MesaPanel cara comercial.
+    // Va PRIMERO en el if-chain (gana sobre Diagnóstico/Mesa) porque es la promoción explícita del encargo. Cuando
+    // evidenceSpec está ausente (ruta legacy) esta condición es siempre falsa → cae intacto al if-chain de abajo.
+    if (evidence && evidence.evidenceSpec && evidence.evidenceSpec.claim && evidence.evidenceSpec.claim.type === "decision" && evidence.evidenceSpec.action)
+      return <DecisionPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
     // RANKING PANORÁMICO → el Cuadro directo. "los N mejores/peores clientes/SKU" no tiene un foco ÚNICO (no hay reading
     // de UNA entidad), pero el Cuadro es una vista de dimensión COMPLETA que no necesita foco → abrimos el Cuadro solo,
     // en la dimensión del ranking. Sin esto el panel no renderiza (exige baseRd). Gated CUADRO · sin-lente/OFF = null (byte-exacto).
     // SIMULACIÓN · un supuesto sobre el dato real (transform) → la mesa Actual/Supuesto/Δ. Va ANTES que el Cuadro genérico.
     if (evidence && evidence.transform && Array.isArray(evidence.projection))
       return <SimulationPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
+    // SIMULACIÓN · ruta ORÁCULO (simulateGeneral, toolRegistry.js) — owner "por qué el botón nunca aparece para una
+    // simulación vía chat" (revisor UX 2026-07-31, CONFIRMADO en vivo): esta tool NUNCA emite `evidence.transform`/
+    // `.projection` (ese shape es EXCLUSIVO del composer legacy composeSpecSimulate, un supuesto ±X% sobre TODAS
+    // las entidades de un eje) — simulateGeneral es un supuesto de precio+volumen sobre UNA entidad puntual, shape
+    // distinto (ventaActual/ventaNueva + costo/contribución/margen si el cost model está autorizado). Antes: cero
+    // flag reconocía este shape → ni el botón "Ver ... en Sentrix" aparecía (ChatADI.jsx _evLabel) ni, aunque
+    // apareciera, había panel que renderizarlo. Chequeo propio (NO vía evidence.reading — deliberado: si esta tool
+    // alguna vez trae entityType, no queremos que la simulación se pierda detrás del panel de "dato puntual" del
+    // ESTADO ACTUAL de la entidad, que mostraría números reales pero NO el supuesto que el usuario pidió ver).
+    if (evidence && evidence.oracle && typeof evidence.ventaActual === "string" && typeof evidence.ventaNueva === "string")
+      return <SimulationPanelOracle evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized}/>;
     // DIAGNÓSTICO · los FOCOS (evidence.findings) = la evidencia de lo que el texto dice · va ANTES del Cuadro genérico.
     if (evidence && Array.isArray(evidence.findings) && evidence.findings.length)
       return <DiagnosePanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
@@ -2188,6 +2358,9 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             ? decomp.thesisFull
             : <><span style={{ color:C.textMuted }}>Demostrando: </span>{rd.reframe}</>}
         </div>
+        {/* evidenceSpec (Nivel 1) · compartido por las 3/4 lentes de este panel (Diagnóstico/Evidencia/Control/
+            Cuadro) — vive en el header común, no en una tab · null cuando no hay evidenceSpec (byte-exacto). */}
+        <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
 
       {/* SHELL · 3 tabs sobre el estado compartido (mismo caso, distinta lente) · gated · OFF = sin tabs (byte-exacto) */}
@@ -2298,11 +2471,19 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         {ADI_SENTRIX_SHELL_ENABLED && effTab === "evidencia" && (
           receipt
             ? <EvidenciaRecibo receipt={receipt}/>
-            : <div>
-                <Eyebrow>La cuenta de {rd.focus}</Eyebrow>
-                {Evidence
-                  ? <Card><Evidence rd={rd}/></Card>
-                  : <div style={{ fontSize:12.5, color:C.textMuted, lineHeight:1.6, padding:"4px 2px" }}>Sin cuenta detallada para esta lectura.</div>}
+            : <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                <div>
+                  <Eyebrow>La cuenta de {rd.focus}</Eyebrow>
+                  {Evidence
+                    ? <Card><Evidence rd={rd}/></Card>
+                    : <div style={{ fontSize:12.5, color:C.textMuted, lineHeight:1.6, padding:"4px 2px" }}>Sin cuenta detallada para esta lectura.</div>}
+                </div>
+                {/* evidenceSpec (Nivel 3, generalizado): confianza+límites para tipos SIN receipt (sku/marca/
+                    familia) — antes este bloque solo existía para client/bodega (EvidenciaRecibo, ver su propio
+                    comentario). SOLO si seguimos en la entidad BASE del turno sin comparar: navegado a otra fila,
+                    el grado/missing de evidenceSpec describe la entidad central del turno, no la que se está
+                    mirando ahora — mostrarlo ahí sería el mismo defecto de integridad que motiva esta ronda. */}
+                {atBase && !current.compareWith && <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>}
               </div>
         )}
 
@@ -2313,6 +2494,71 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         {ADI_SENTRIX_SHELL_ENABLED && ADI_SENTRIX_CUADRO_ENABLED && effTab === "cuadro" && (
           <CuadroMando scenario={evidence.periodo}/>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ── DecisionPanel · NIVEL 2 NUEVO (owner 2026-07-31) ──────────────────────────────────────────────────────────
+ * La ÚNICA pieza de UI genuinamente nueva de esta ronda: promueve mesa.accion (LA acción priorizada del diagnose —
+ * el foco de mayor $ en juego, ya ordenado) a un panel propio, en vez de quedar enterrada como el movimiento
+ * "03 · Qué hacer primero" dentro de MesaPanel cara comercial (ver ese componente, sección homónima — cero cálculo
+ * nuevo, MISMA cuenta). Dispatch: evidenceSpec.claim.type==="decision" + evidenceSpec.action presente (mesa.accion
+ * verbatim vía _actionFrom en sentrixEvidence.js). Todo lo que muestra ya viene AUTORIZADO en evidenceSpec — cero
+ * recálculo, misma verdad que la respuesta de ADI de este turno. */
+function DecisionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
+  const espec = evidence.evidenceSpec;
+  const action = espec.action || {};
+  const factors = espec.factors || [];
+  // $ crudo (subtotal_usd de un finding de diagnose, cuando `factors` trae ESE shape en vez del mesa.accion-shape
+  // ya formateado) · mismo patrón que ControlRing/EvidenciaRecibo para bodega (raw USD, no $K).
+  const moneyUSD = (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e3 ? "$" + (v / 1e3).toFixed(1) + "K" : "$" + Math.round(v));
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
+      <div className="sentrix-sweep"/>
+      <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:MONO, fontSize:9.5, letterSpacing:"0.8px", color:C.textMuted, textTransform:"uppercase", minWidth:0 }}>
+            <span style={{ color:C.text, fontWeight:600 }}>Sentrix</span><span style={{ opacity:0.4 }}>›</span><span style={{ color:C.celeste }}>DECISIÓN</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+            <IconBtn onClick={onToggleMax} title={maximized ? "Restaurar" : "Agrandar"}>{maximized ? <><polyline points="9 14 4 14 4 9"/><polyline points="15 10 20 10 20 15"/></> : <><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/></>}</IconBtn>
+            <IconBtn onClick={onClose} title="Cerrar"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
+          <span style={{ color:C.textMuted }}>Decisión · </span>la acción priorizada — el foco de mayor $ en juego este turno.
+        </div>
+        <EvidenceClaimHeader evidenceSpec={espec}/>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:16 }}>
+        <Card accent>
+          <Eyebrow>La acción priorizada</Eyebrow>
+          <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:12, flexWrap:"wrap", marginBottom:10 }}>
+            <span style={{ fontSize:16, color:C.text, fontWeight:600, lineHeight:1.4 }}>{action.text || "Sin acción priorizada este turno."}</span>
+            {action.impact && <Num color={C.amber} size="1.5em">{action.impact}</Num>}
+          </div>
+          {factors.map((f, i) => {
+            // dos shapes posibles en evidenceSpec.factors (_factorsFrom, sentrixEvidence.js): findings del diagnose
+            // ({detector,titulo,subtotal_usd,items}) si el plan los trajo, o el mesa.accion-shape ({texto,usdFmt})
+            // si no — ambos son la MISMA fuente (mesa.js), solo el shape cambia según qué trajo el plan.
+            const body = f && f.texto
+              ? f.texto
+              : f && f.titulo
+                ? `${f.titulo}${typeof f.subtotal_usd === "number" ? ` — ${moneyUSD(f.subtotal_usd)}` : ""}${Array.isArray(f.items) && f.items.length ? ` (${f.items.length} cuenta${f.items.length > 1 ? "s" : ""})` : ""}`
+                : null;
+            return body ? <div key={i} style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, marginTop: i > 0 ? 8 : 0 }}>{body}</div> : null;
+          })}
+          {action.askLabel && (
+            <button onClick={onAsk ? () => onAsk(action.askLabel) : undefined} title={onAsk ? `Preguntale a ADI: ${action.askLabel}` : undefined}
+              style={{ marginTop:14, padding:"8px 15px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12.5, fontWeight:600, cursor: onAsk ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
+              onMouseEnter={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; } : undefined}
+              onMouseLeave={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; } : undefined}>
+              {action.askLabel} <span style={{ color:C.celeste }}>→</span>
+            </button>
+          )}
+        </Card>
+        <EvidenceConfidenceFooter evidenceSpec={espec}/>
       </div>
     </div>
   );
@@ -2457,6 +2703,10 @@ function ControlRing({ ring, rd }) {
       <div>
         <Eyebrow>El ring · {ring.focus} contra su liga</Eyebrow>
         <Card>
+          {/* bug ya reportado: la grilla (fr-based) se apretaba ilegible en el overlay móvil sin poder scrollear —
+              mismo patrón overflowX:auto + minWidth que ya usa CuadroMando (ver su comentario "la grilla"). */}
+          <div style={{ overflowX:"auto" }}>
+          <div style={{ minWidth: 220 + ring.columns.length * 88 }}>
           <div style={{ display:"grid", gridTemplateColumns:GRID, gap:"0 8px", fontSize:9.5, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.5px", textTransform:"uppercase", paddingBottom:8, borderBottom:`1px solid ${C.border}`, marginBottom:2 }}>
             <span/>{ring.columns.map((c, idx) => <span key={c.key} style={{ textAlign:"right", whiteSpace:"nowrap" }}>{c.label}{c.defKey && METRIC_DEFS[c.defKey] && <InfoDot def={METRIC_DEFS[c.defKey]} align={idx === 0 ? "left" : idx >= Math.ceil(ring.columns.length / 2) ? "right" : "center"}/>}</span>)}
           </div>
@@ -2476,6 +2726,8 @@ function ControlRing({ ring, rd }) {
               </div>
             );
           })}
+          </div>
+          </div>
         </Card>
       </div>
 
