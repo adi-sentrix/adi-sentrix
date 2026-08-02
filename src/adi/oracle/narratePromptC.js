@@ -121,6 +121,40 @@ export function stripFiller(text) {
   return s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
 }
 
+// _isHypothesisFramed(text) → misma detección que certifyRun (_oracle_provider_certification_gate.mjs /
+// _model_comparison.mjs): una oración con "si" + (recuperar/podrías/estimado/liberar) en la MISMA oración.
+function _isHypothesisFramed(text) {
+  const sentences = String(text || "").split(/(?<=[.!?])\s+/);
+  return sentences.some((s) => /\bsi\b/i.test(s) && /\b(recuper\w*|podr[ií]as?|estimad\w*|liberar\w*)\b/i.test(s));
+}
+
+// ensureHypothesisFraming(text, mode, results) → GARANTÍA determinística del contrato SIMULACIÓN ("enmarcá SIEMPRE
+// como HIPÓTESIS", conversationalContract.js): medido en vivo (comparación de modelos, 2026-08-02) que el prompt
+// solo no le basta a gpt-4o-mini — a veces narra la simulación en tabla sin ninguna oración de hipótesis. Dispara
+// por mode="simulacion" O por haber usado una tool simulate* (mismo criterio que _graduationViolation en
+// guardC.js: el PLAN a veces clasifica mal el mode con este modelo, pero la tool que corrió no miente). Si el LLM
+// ya lo dijo, no duplica; si no, AGREGA una oración de resguardo GENÉRICA al final (mismo patrón que
+// ensurePeriodoDeclared en answerViaOracle.js: se suma, nunca se antepone — el texto del LLM sigue siendo lo
+// primero que se lee, y cualquier chequeo `startsWith` sobre la narración real sigue funcionando igual).
+const _SIM_TOOL_RE = /^simulate/i;
+export function ensureHypothesisFraming(text, mode, results) {
+  const s = String(text || "");
+  const usedSim = mode === "simulacion" || (Array.isArray(results) && results.some((r) => r && _SIM_TOOL_RE.test(r.tool || "")));
+  if (!usedSim || !s.trim() || _isHypothesisFramed(s)) return s;
+  return `${s.trim()}\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.`;
+}
+
+// ensureClarifyClosingQuestion(text, mode) → GARANTÍA determinística del contrato CLARIFY ("Cerrá SIEMPRE con una
+// pregunta guía", conversationalContract.js): mismo hallazgo en vivo. Debe correr DESPUÉS de ensurePeriodoDeclared
+// (answerViaOracle.js) para que la pregunta quede realmente al final, no tapada por la cláusula de período.
+// Genérica pero sin caer en las formas prohibidas por el prompt ("¿alguna otra pregunta?"/"¿te sirve esto?") — el
+// LLM sigue siendo quien debe cerrar bien; esto es solo la red para cuando no lo hizo.
+export function ensureClarifyClosingQuestion(text, mode) {
+  const s = String(text || "");
+  if (mode !== "clarify" || !s.trim() || /\?\s*$/.test(s.trim())) return s;
+  return `${s.trim()}\n\n¿Querés que lo repase de otra forma, o seguimos con el siguiente paso?`;
+}
+
 // buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history }) → el OBJETO de datos para la Pasada 2
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el

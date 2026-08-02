@@ -10,7 +10,7 @@ import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared } from "./guardC.js";
-import { stripFiller, normalizeFigures } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion } from "./narratePromptC.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
@@ -867,7 +867,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // ensurePeriodoDeclared abajo), el texto se trunca al presupuesto si lo excede — no es un reintento (nunca
     // falla): el resultado NO PUEDE exceder el presupuesto, sin importar qué haya escrito el narrador.
     if (pref.detailLevel === "brief") n = truncateToBriefBudget(n);
+    n = ensureHypothesisFraming(n, plan.mode, results);   // requisito SIMULACIÓN: garantía determinística (ver narratePromptC.js)
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
+    n = ensureClarifyClosingQuestion(n, plan.mode);   // requisito CLARIFY: va DESPUÉS del período para quedar al final de verdad
     if (!n.trim()) continue;
     if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev }).ok) { narration = n; break; }
   }
@@ -886,7 +888,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // inventar ni prometer de más) vale IGUAL para cualquier otro rechazo de full scope — se generaliza la condición.
   if (!narration && (pref.contentScope === "action_only" || pref.contentScope === "full")) {
     const composed = composeFromLedger(figs, pref.contentScope === "action_only" ? "action_only" : "full") || composeNoDataMessage(results);
-    const c = ensurePeriodoDeclared(composed, periodos);
+    let c = ensurePeriodoDeclared(composed, periodos);
+    // requisitos SIMULACIÓN/CLARIFY (ver narratePromptC.js): la reparación cae acá cuando el narrador libre agotó
+    // los 3 intentos — el turno sigue siendo mode=simulacion/clarify, así que la garantía tiene que valer IGUAL.
+    // Solo en full: action_only tiene su PROPIO contrato estricto (nunca prosa fuera del bloque [[ACCION]]) y estas
+    // oraciones de resguardo violarían eso — no se aplican ahí.
+    if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
   if (!narration) return null;   // ni narrar ni reparar desde la boleta autorizada funcionó → C se abstiene (fallback a la ruta vieja)
