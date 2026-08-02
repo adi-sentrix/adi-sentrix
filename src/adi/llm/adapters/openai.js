@@ -42,6 +42,15 @@ async function _call(body) {
 // OpenAI devuelve usage {prompt_tokens, completion_tokens} → lo mapeamos a la forma común {input_tokens, output_tokens}
 const _usage = (u) => (u ? { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } : null);
 
+// FAMILIA gpt-5.x/gpt-5.6.x (router owner 2026-08-02, verificado con probes en vivo — ver _model_comparison.mjs):
+// tres diferencias de API frente a gpt-4o-mini, confirmadas por 400 real antes de arreglarlas:
+//   1. max_tokens → RECHAZADO ("Unsupported parameter... Use 'max_completion_tokens' instead").
+//   2. temperature → RECHAZADO si no es el default (ya no lo seteamos acá, no toca).
+//   3. tool_choice forzado (function calling) exige reasoning_effort:"none" en /v1/chat/completions, o 400 apuntando
+//      a /v1/responses. Solo aplica a PARSE (donde SIEMPRE forzamos tool_choice) — NARRATE mantiene el reasoning
+//      por defecto de cada modelo (así se midió en el benchmark, es el comportamiento real de producción).
+const _isReasoningFamily = (model) => /^gpt-5/i.test(model || "");
+
 export const openaiAdapter = {
   name: "openai",
   keyEnv: "OPENAI_API_KEY",
@@ -49,12 +58,16 @@ export const openaiAdapter = {
 
   // texto → spec · función forzada (JSON garantizado por el schema). Traduce la tool NEUTRAL de ADI a function.parameters.
   async parse(text, { system, tool, model }) {
-    const data = await _call({
-      model, max_tokens: 1024,
+    const reasoning = _isReasoningFamily(model);
+    const body = {
+      model,
       messages: [{ role: "system", content: system }, { role: "user", content: text }],
       tools: [{ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.schema } }],
       tool_choice: { type: "function", function: { name: tool.name } },
-    });
+    };
+    body[reasoning ? "max_completion_tokens" : "max_tokens"] = reasoning ? 2048 : 1024;
+    if (reasoning) body.reasoning_effort = "none";   // requisito de la API para tool_choice forzado en esta familia
+    const data = await _call(body);
     const call = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.tool_calls && data.choices[0].message.tool_calls[0];
     if (!call) throw new Error("sin tool_call en la respuesta");
     let spec;
@@ -67,13 +80,16 @@ export const openaiAdapter = {
   // adapter NUNCA decide ni sustituye esa voz — no cambia cifras
   async narrate(validatedOutput, { model, system }) {
     if (!system) throw new Error("narrate() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
-    const data = await _call({
-      model, max_tokens: 1024,
+    const reasoning = _isReasoningFamily(model);
+    const body = {
+      model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: JSON.stringify(validatedOutput) },
       ],
-    });
+    };
+    body[reasoning ? "max_completion_tokens" : "max_tokens"] = reasoning ? 2048 : 1024;
+    const data = await _call(body);
     const txt = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
     return { text: txt, usage: _usage(data.usage) };
   },

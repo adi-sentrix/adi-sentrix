@@ -22,6 +22,7 @@ import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED } from "..
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
 import { buildRequestContext } from "../adi/oracle/requestContext.js";   // multiempresa (owner 2026-07-29): tenant/conversación/snapshot explícitos, nunca implícitos
 import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
+import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de modelo (owner 2026-08-02) · costo real por intento, observable por turno
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
@@ -137,26 +138,34 @@ function _oracleOn() {
 // Pasada 1 · PLAN (server-side · la key vive en el gateway). tenantId viaja SOLO para rate-limit por tenant en el
 // gateway (owner 2026-07-29, multiempresa) — nunca decide qué datos trae el plan, eso lo sigue haciendo el motor
 // client-side sobre el tenant activo en tenantStore.js.
-async function _fetchPlan({ text, history, mem, scenario, requestContext }) {
+// _onRouted (owner 2026-08-02, router de modelo — ver modelRouter.js): callback OPCIONAL, no cambia el contrato de
+// retorno de estas dos funciones (siguen devolviendo el plan/narración PELADOS, byte-igual a siempre — así ningún
+// mock existente en los gates, que llama callPlan/callNarrate ignorando args extra, se entera del cambio). Solo
+// answerViaOracle.js/buildAdiTurnLLM (abajo) lo usan, para dejar el ruteo observable por turno sin tocar el motor.
+async function _fetchPlan({ text, history, mem, scenario, requestContext, attempt, _onRouted }) {
+  const t0 = Date.now();
   const res = await fetch("/api/adi-plan", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId }),
+    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok || !data.plan) throw new Error((data && data.error) || "gateway sin plan");
+  if (typeof _onRouted === "function") _onRouted({ step: "plan", attempt: attempt || 0, model: data.modelUsed, reason: data.modelReason, ms: Date.now() - t0, usage: data.usage, costUSD: estimateCostUSD(data.modelUsed, data.usage) });
   return data.plan;
 }
 // Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
-async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion }) {
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, attempt, _onRouted }) {
   const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion });
+  const t0 = Date.now();
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId }),
+    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
+  if (typeof _onRouted === "function") _onRouted({ step: "narrate", attempt: attempt || 0, model: data.modelUsed, reason: data.modelReason, ms: Date.now() - t0, usage: data.usage, costUSD: estimateCostUSD(data.modelUsed, data.usage) });
   return data.narration;
 }
 
@@ -217,10 +226,26 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       // operación transporta explícitamente con qué tenant/conversación/snapshot está trabajando).
       const conversationId = (context && context.conversationId) || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`);
       const requestContext = buildRequestContext({ conversationId, scenario, mem });
-      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: _fetchPlan, callNarrate: _fetchNarrateC, requestContext });
+      // ROUTING TRACE (owner 2026-08-02 — ver modelRouter.js): closures frescas POR TURNO (nunca module-level, no
+      // hay concurrencia entre turnos de un mismo hilo) que envuelven _fetchPlan/_fetchNarrateC solo para capturar
+      // modelo/motivo/latencia/costo de cada intento REAL — el contrato callPlan/callNarrate que ve answerViaOracle
+      // no cambia (misma firma, mismo valor de retorno).
+      const routingTrace = [];
+      const tracedCallPlan = (args) => _fetchPlan({ ...args, _onRouted: (info) => routingTrace.push(info) });
+      const tracedCallNarrate = (args) => _fetchNarrateC({ ...args, _onRouted: (info) => routingTrace.push(info) });
+      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: tracedCallPlan, callNarrate: tracedCallNarrate, requestContext });
       if (o && o.r) {
         _ph(3);
-        const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
+        // `routing` (observable por turno): cruza routingTrace (modelo/motivo/ms/costo, del fetch) con
+        // o.r.retryTrace (veredicto de guardC por intento, del motor — ver answerViaOracle.js) por `attempt`.
+        // Ninguno de los dos condiciona el turno: es telemetría, se arma DESPUÉS de que o.r ya está resuelto.
+        const retryTrace = o.r.retryTrace || null;
+        const routing = routingTrace.map((entry) => {
+          const stepTrace = retryTrace && (entry.step === "plan" ? retryTrace.plan : entry.step === "narrate" ? retryTrace.narrate : null);
+          const verdict = Array.isArray(stepTrace) ? stepTrace.find((t) => t.attempt === entry.attempt) : null;
+          return { ...entry, guardOk: verdict ? verdict.guardOk : null, guardReason: verdict ? verdict.reason : null };
+        });
+        const rr = { ...o.r, routing, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
         return _turnFromResult(q, rr, context, "oracle");
       }
     } catch { /* el oráculo falló → seguimos a la ruta vieja (fallback intacto) */ }

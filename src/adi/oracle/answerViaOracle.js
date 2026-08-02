@@ -655,12 +655,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // segunda chance. La mayoría de estos fallos son variance de sampling del LLM (el MISMO tool_choice forzado sobre
   // el MISMO schema casi siempre da JSON válido al reintentar) — reintentar recupera la mayoría sin debilitar nada:
   // el plan sigue validado por el schema forzado, y si los 3 intentos fallan, C se abstiene igual que antes.
+  // planAttemptTrace (owner 2026-08-02, router de modelo — ver modelRouter.js): registro liviano de cada intento,
+  // NO decide nada acá (el router server-side decide el modelo por `attempt` en handlePlan) — solo queda observable
+  // por turno junto con el resto de la telemetría de ruteo (ver `routing` en ChatADI.jsx).
+  const planAttemptTrace = [];
   if (!plan) {
     for (let attempt = 0; attempt < 3; attempt++) {
       let p;
-      try { p = await callPlan({ text: q, history, mem, scenario, requestContext }); }
-      catch { continue; }
-      if (!p || !p.intent) continue;
+      try { p = await callPlan({ text: q, history, mem, scenario, requestContext, attempt }); }
+      catch { planAttemptTrace.push({ attempt, ok: false, reason: "error de red/gateway" }); continue; }
+      if (!p || !p.intent) { planAttemptTrace.push({ attempt, ok: false, reason: "plan inválido/sin intent" }); continue; }
       // BACKSTOP · calls vacío en un redirect (owner 2026-07-31, hallazgo en vivo, auditoría integral) —
       // planPrompt.js ya prohíbe esto EXPLÍCITAMENTE ("no dejes calls vacío: replanteá y traé el dato bueno"), pero
       // medido en ~1/3 de las corridas el LLM lo deja vacío igual. Sin ninguna cifra autorizada, NARRATE a veces
@@ -671,7 +675,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // plan de todos modos (nunca null acá) — el resto del pipeline (guardC + la reparación de full scope) sigue
       // siendo la red de seguridad si NARRATE igual redacta algo roto.
       plan = p;
-      if (p.intent === "redirect" && !(Array.isArray(p.calls) && p.calls.length)) continue;
+      if (p.intent === "redirect" && !(Array.isArray(p.calls) && p.calls.length)) { planAttemptTrace.push({ attempt, ok: false, reason: "redirect sin calls" }); continue; }
+      planAttemptTrace.push({ attempt, ok: true });
       break;
     }
     if (!plan) return null;
@@ -840,11 +845,23 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // recupera la mayoría de esos turnos SIN debilitar el muro (el guard valida cada intento igual). El 2º reintento
   // solo se dispara cuando los dos primeros fallaron —los casos difíciles (temporal por entidad, cruces)— donde
   // recuperar una respuesta LIMPIA de C vale más que caer al fallback. Solo si los TRES fallan, C se abstiene.
+  // narrateAttemptTrace (owner 2026-08-02, router de modelo — ver modelRouter.js): registro liviano del veredicto
+  // de guardC por intento — el router server-side (handleNarrateC) escala de modelo cuando el turno vuelve a pasar
+  // por acá, precisamente PORQUE guardC rechazó el intento anterior. Esto es lo que hace observable ese "resultado
+  // del guard" por turno (ver `routing` en ChatADI.jsx, que lo cruza con modelo/latencia/costo del fetch).
+  const narrateAttemptTrace = [];
   if (!narration && pref.contentScope !== "data_only" && pref.contentScope !== "results_only") for (let attempt = 0; attempt < 3; attempt++) {
     let n;
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion }); }
-    catch { return null; }
-    if (!n || typeof n !== "string" || !n.trim()) continue;
+    // hallazgo de auditoría (owner 2026-08-02, router de modelo): un `return null` acá aborta el TURNO ENTERO al
+    // primer error de red — antes del router, los 3 intentos eran SIEMPRE el mismo modelo, así que un error acá
+    // era casi siempre sistémico (sin sentido reintentar). Con el router, el intento 1/2 escala a un modelo NUEVO
+    // (terra/sol) nunca antes ejercitado por tráfico real de NARRAR — un modelo mal configurado, sin cupo, o con un
+    // hiccup transitorio en ESE intento específico no debe tirar el turno completo: reintenta (mismo presupuesto de
+    // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
+    // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, attempt }); }
+    catch (e) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message) }); continue; }
+    if (!n || typeof n !== "string" || !n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "sin narración utilizable" }); continue; }
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
@@ -855,9 +872,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // ENTERO acá y reintenta — nunca se edita a mano un texto que ya mezcló categorías.
     if (pref.contentScope === "action_only") {
       const parsed = parseBlocks(n);
-      if (!parsed || !parsed.accion) continue;
+      if (!parsed || !parsed.accion) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only sin bloque [[ACCION]]" }); continue; }
       const rendered = renderFromBlocks(parsed, "action_only");
-      if (!rendered || hasForbiddenContent(rendered, "action_only")) continue;
+      if (!rendered || hasForbiddenContent(rendered, "action_only")) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only con contenido prohibido" }); continue; }
       n = rendered;
     }
     // BREVEDAD ESTRUCTURAL (owner 2026-07-31, certificación integral, riesgo residual #1) — a diferencia de
@@ -870,8 +887,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureHypothesisFraming(n, plan.mode, results);   // requisito SIMULACIÓN: garantía determinística (ver narratePromptC.js)
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     n = ensureClarifyClosingQuestion(n, plan.mode);   // requisito CLARIFY: va DESPUÉS del período para quedar al final de verdad
-    if (!n.trim()) continue;
-    if (guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev }).ok) { narration = n; break; }
+    if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops" }); continue; }
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev });
+    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? null : gVerdict.verdict });
+    if (gVerdict.ok) { narration = n; break; }
   }
   // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — data_only/results_only ya se resolvieron arriba,
   // siempre, con o sin datos (nunca caen en este loop, ver la condición de arriba) — acá solo llegan full/action_only.
@@ -930,6 +949,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // diferencia de `deterministic`) pero ninguno de los 3 intentos cumplió el formato de bloques o el guard —
       // el texto final salió de composeFromLedger, no del narrador libre. Solo debug/telemetría.
       ...(narrationRepaired ? { narrationRepaired: true } : {}),
+      // retryTrace (owner 2026-08-02, router de modelo — ver modelRouter.js): reintentos + veredicto de guardC por
+      // intento, SOLO debug/telemetría (nunca condiciona el motor). Se cruza en ChatADI.jsx con el modelo/latencia/
+      // costo real de cada intento (capturado en el fetch) para dejar el ruteo observable por turno completo.
+      ...((planAttemptTrace.length || narrateAttemptTrace.length) ? { retryTrace: { plan: planAttemptTrace, narrate: narrateAttemptTrace } } : {}),
       suggestions: null,
       sentrixAction: null,
     },
