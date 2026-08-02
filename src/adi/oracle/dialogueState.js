@@ -40,7 +40,23 @@ export function isAcceptance(text) {
 // entidad, otra métrica) queda con tool=null — sigue necesitando criterio del LLM la próxima vez, y ESO se declara
 // así, no se finge una precisión que no existe.
 const _CONTINUATION_OFFER_RE = /profundiz|m[aá]s\s+detalle|seguir\s+viendo|ver\s+m[aá]s|el\s+porqu[eé]|el\s+c[aá]lculo|c[oó]mo\s+se\s+compone|desglos/i;
+// _VAGUE_TOPIC_RE — la oferta propone seguir en EL MISMO tema pero con palabras que no describen ninguna acción
+// ejecutable ("explorar condiciones/alternativas/opciones de negociación") — señal de CONTINUACIÓN igual de válida
+// que _CONTINUATION_OFFER_RE de arriba, usada en dos lugares (extractOffer más abajo + isVagueOffer): UNA sola
+// fuente para no arriesgar que las dos definiciones diverjan con el tiempo.
+const _VAGUE_TOPIC_RE = /condici[oó]n|negociaci|alternativa|opci[oó]n(es)?|explor/i;
 const _QUESTION_RE = /¿[^?]{4,220}\?/g;
+
+// MECANISMO CON SIMULACIÓN DEDICADA (owner 2026-08-01, hallazgo en vivo de 2do orden — ver
+// adi-oferta-vaga-aceptada.md): repetir la MISMA tool (entityProfile) para "profundizá en el desglose de la carga
+// comercial" seguía dando una respuesta casi idéntica — entityProfile no calcula ningún desglose nuevo, así que
+// "profundizar" con la MISMA tool no profundiza nada. Pero SÍ existe una tool dedicada, `simulateCarga` (PLAN
+// catalog, planPrompt.js), que calcula el $ recuperable REAL de bajar la carga comercial al target — "profundizar
+// en la carga comercial" de una entidad puntual tiene un mecanismo genuino, no hace falta conformarse con
+// reformular. Se prefiere ESTA tool sobre el "repetí lo mismo" genérico de abajo cuando (a) la respuesta NOMBRÓ la
+// carga comercial como mecanismo (no alcanza con que la oferta la mencione de pasada) y (b) hay una entidad puntual
+// conocida (simulateCarga sin filtro corre sobre TODA la cartera — no es lo que "profundizar en ESTE cliente" pide).
+const _CARGA_MECHANISM_RE = /carga\s+comercial/i;
 
 // _singleFilterEntity(calls) → {entidad, dimension} | null — RESPALDO (owner 2026-07-31, hallazgo por lectura de
 // código): planPrompt.js nunca le pide al LLM declarar scope.level="entity" cuando el alcance de una consulta
@@ -70,7 +86,10 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
     || (singleFilter && singleFilter.entidad) || null;
   const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || (singleFilter && singleFilter.dimension) || null;
   let tool = null, args = null;
-  if (Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
+  if (entidad && _CARGA_MECHANISM_RE.test(String(narration || "")) && (_CONTINUATION_OFFER_RE.test(texto) || _VAGUE_TOPIC_RE.test(texto))) {
+    tool = "simulateCarga";
+    args = { filters: { cliente: entidad } };
+  } else if (Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
     tool = calls[0].tool;
     args = calls[0].args || {};
   }
@@ -142,13 +161,15 @@ export function composeOrphanAcceptance(recentSubjects) {
 // posibles para esa renegociación?" → "sí" no matchea _CONTINUATION_OFFER_RE (no es "profundizá"/"el cálculo"), así
 // que priorOffer.tool queda null y el turno cae de largo a PLAN normal — que, sin nada nuevo que decidir, vuelve a
 // llamar la MISMA tool (ej. entityProfile) y el narrador solo puede reformular: respuesta casi idéntica, el usuario
-// (con razón) lee "no me escuchó". Causa raíz real: "condiciones de negociación" no tiene mecanismo — simulateGeneral
-// SOLO modela precio/volumen (toolRegistry.js), no carga comercial/rebate/descuento. En vez de repetir en silencio,
-// ofrecemos lo que SÍ existe. Ver también narratePromptC.js (OFERTA DE SEGUIMIENTO MARCADA): esto es la red de
-// seguridad para ofertas YA narradas antes del fix de prompt — el fix de prompt evita que se sigan generando.
-const _VAGUE_OFFER_RE = /condici[oó]n|negociaci|alternativa|opci[oó]n(es)?|explor/i;
+// (con razón) lee "no me escuchó". Causa raíz real: "condiciones de negociación" no tiene mecanismo genérico —
+// simulateGeneral SOLO modela precio/volumen (toolRegistry.js), nunca rebate/descuento. Cuando el mecanismo nombrado
+// SÍ es la carga comercial, extractOffer de arriba ya lo resuelve mejor (ruta simulateCarga, real) — esto es el
+// remanente honesto para cuando NO hay tool dedicada (rebate/descuento) o la entidad no se pudo determinar: ofrecer
+// lo que SÍ existe en vez de repetir en silencio. Ver también narratePromptC.js (OFERTA DE SEGUIMIENTO MARCADA):
+// esto es la red de seguridad para ofertas YA narradas antes del fix de prompt — el fix de prompt evita que se
+// sigan generando.
 export function isVagueOffer(offer) {
-  return !!(offer && !offer.tool && offer.texto && _VAGUE_OFFER_RE.test(offer.texto));
+  return !!(offer && !offer.tool && offer.texto && _VAGUE_TOPIC_RE.test(offer.texto));
 }
 export function composeVagueOfferAcceptance(offer) {
   const entidad = offer && offer.entidad;
