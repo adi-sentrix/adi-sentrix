@@ -291,11 +291,27 @@ const _CLARIFY_RE = /\b(no\s+(?:te\s+)?entiend\w*|no\s+entend[ií]\w*|no compren
 // libre). Nunca compite con isAcceptance (esa bypasea PLAN entero para "dale" A SECAS, un caso distinto).
 const _SEGUIMIENTO_MARKER_RE = /\b(dale|bueno|ok(?:ay)?|va|listo|de\s+una)\b/i;
 const _SEGUIMIENTO_VERB_RE = /\bcu[eé]ntame\b|\bcont[aá]me\b|\bsegu[ií]\b|\bprofundiza\b|\bdame\s+m[aá]s\b|\bm[aá]s\s+detalle\b|\bexplica(?:me)?\s+m[aá]s\b/i;
+// _isGlobalInventoryStatusCall (owner 2026-08-02, hallazgo en vivo): "cuánto/dónde tengo capital inmovilizado"
+// clasificó mode=default en una redacción y mode=diagnostico en otra CASI IDÉNTICA — mismo tool (inventoryStatus
+// sin filtro), mismos datos, pero cada modo narra distinto (diagnostico cuenta la historia completa; default da
+// "el dato claro" y corta) — la MISMA pregunta de negocio termina con una profundidad muy distinta según cómo se
+// formule. planPrompt.js YA describe esta tool como "DIAGNÓSTICO de inventario... es la respuesta completa a
+// 'dónde tengo capital inmovilizado'" — el LLM no lo aplica de forma confiable (mismo bar que _SEGUIMIENTO_MARKER_RE
+// arriba: sistemáticamente inconsistente pese a doctrina clara). Acotado a la llamada GLOBAL (sin filters): una
+// bodega/marca puntual ya es un dato más específico, ahí sí queda a criterio del LLM.
+function _isGlobalInventoryStatusCall(plan) {
+  const calls = Array.isArray(plan && plan.calls) ? plan.calls : [];
+  if (calls.length !== 1 || !calls[0] || calls[0].tool !== "inventoryStatus") return false;
+  const filters = calls[0].args && calls[0].args.filters;
+  return !filters || typeof filters !== "object" || Object.keys(filters).length === 0;
+}
 function _coerceMode(text, plan, hasThread) {
   const t = String(text || "");
   if (_CLARIFY_RE.test(t)) return "clarify";
   if (hasThread && _SEGUIMIENTO_MARKER_RE.test(t) && _SEGUIMIENTO_VERB_RE.test(t)) return "seguimiento";
-  return plan && MODE_KEYS.includes(plan.mode) ? plan.mode : "default";
+  const mode = plan && MODE_KEYS.includes(plan.mode) ? plan.mode : "default";
+  if (mode === "default" && _isGlobalInventoryStatusCall(plan)) return "diagnostico";
+  return mode;
 }
 
 // ── PREFERENCIA DE RESPUESTA · coerción determinística (owner 2026-07-29: "el PLAN debe detectarla y devolverla
