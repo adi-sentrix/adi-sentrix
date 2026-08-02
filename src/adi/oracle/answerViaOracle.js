@@ -16,7 +16,7 @@ import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EV
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity } from "./dialogueState.js";
+import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
@@ -559,6 +559,17 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // prosa sin cifras ni entidades), cae de largo a PLAN normal en vez de abstenerse en silencio.
   if (isAcceptance(q) && !priorOffer) {
     const composed = composeOrphanAcceptance(recentSubjectsPrev);
+    const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+    if (out) return out;
+  }
+
+  // ── OFERTA VAGA ACEPTADA (owner 2026-08-01, hallazgo en vivo: "me dio la misma respuesta") — priorOffer EXISTE
+  // pero sin tool capturado (la oferta no era "profundizá en esto mismo", era del tipo "explorar condiciones/
+  // alternativas/negociación" — sin mecanismo que lo cumpla, ver dialogueState.js:isVagueOffer). Sin este corte,
+  // "sí" caía de largo a PLAN normal, que sin nada nuevo que decidir volvía a llamar la MISMA tool y el narrador
+  // solo podía reformular. Corta ANTES de PLAN, igual que el resto de bypasses de esta sección.
+  if (isAcceptance(q) && priorOffer && isVagueOffer(priorOffer)) {
+    const composed = composeVagueOfferAcceptance(priorOffer);
     const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
     if (out) return out;
   }

@@ -138,6 +138,24 @@ export function composeOrphanAcceptance(recentSubjects) {
   return `No tengo un contexto previo para saber a qué te referís con "sí". Contame qué querés revisar y lo armo.`;
 }
 
+// ── OFERTA VAGA ACEPTADA (owner 2026-08-01, hallazgo en vivo: "¿querés que exploremos más sobre las condiciones
+// posibles para esa renegociación?" → "sí" no matchea _CONTINUATION_OFFER_RE (no es "profundizá"/"el cálculo"), así
+// que priorOffer.tool queda null y el turno cae de largo a PLAN normal — que, sin nada nuevo que decidir, vuelve a
+// llamar la MISMA tool (ej. entityProfile) y el narrador solo puede reformular: respuesta casi idéntica, el usuario
+// (con razón) lee "no me escuchó". Causa raíz real: "condiciones de negociación" no tiene mecanismo — simulateGeneral
+// SOLO modela precio/volumen (toolRegistry.js), no carga comercial/rebate/descuento. En vez de repetir en silencio,
+// ofrecemos lo que SÍ existe. Ver también narratePromptC.js (OFERTA DE SEGUIMIENTO MARCADA): esto es la red de
+// seguridad para ofertas YA narradas antes del fix de prompt — el fix de prompt evita que se sigan generando.
+const _VAGUE_OFFER_RE = /condici[oó]n|negociaci|alternativa|opci[oó]n(es)?|explor/i;
+export function isVagueOffer(offer) {
+  return !!(offer && !offer.tool && offer.texto && _VAGUE_OFFER_RE.test(offer.texto));
+}
+export function composeVagueOfferAcceptance(offer) {
+  const entidad = offer && offer.entidad;
+  if (!entidad) return `No tengo una forma concreta de "explorar esas condiciones" con el dato que manejo — ¿querés que simule un cambio de precio o de volumen, o preferís el desglose completo del mecanismo que ya nombré?`;
+  return `No tengo un mecanismo para simular "condiciones de negociación" en abstracto — pero puedo simular un cambio concreto de precio o de volumen para ${entidad}, o mostrarte el desglose completo del mecanismo que ya nombré. ¿Cuál preferís?`;
+}
+
 // ── RETORNO A TEMAS RECIENTES (owner 2026-07-31, cierre de #48) — referencia POSICIONAL a recentSubjects (una
 // entidad NOMBRADA explícita, ej. "volvamos a lo de Falabella", ya la resuelve PLAN por comprensión vía la REGLA DE
 // ALCANCE de planPrompt.js — esto de acá es SOLO para cuando el usuario apunta por POSICIÓN, no por nombre):
