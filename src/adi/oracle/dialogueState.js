@@ -39,7 +39,10 @@ export function isAcceptance(text) {
 // repetir la MISMA tool/scope es literalmente lo que se ofreció. Una oferta que propone un ángulo nuevo (otra
 // entidad, otra métrica) queda con tool=null — sigue necesitando criterio del LLM la próxima vez, y ESO se declara
 // así, no se finge una precisión que no existe.
-const _CONTINUATION_OFFER_RE = /profundiz|m[aá]s\s+detalle|seguir\s+viendo|ver\s+m[aá]s|el\s+porqu[eé]|el\s+c[aá]lculo|c[oó]mo\s+se\s+compone|desglos/i;
+// "profundi[zc]" (no solo "profundiz"): hallazgo en vivo 2026-08-02 — "¿profundicemos...?" (conjugación nosotros de
+// "profundizar", MISMO cambio ortográfico z→c que "empezar"→"empecemos") no matcheaba, así que una oferta tan común
+// como "¿te gustaría que profundicemos...?" caía SIEMPRE a la rama genérica aunque hubiera un mecanismo dedicado.
+const _CONTINUATION_OFFER_RE = /profundi[zc]|m[aá]s\s+detalle|seguir\s+viendo|ver\s+m[aá]s|el\s+porqu[eé]|el\s+c[aá]lculo|c[oó]mo\s+se\s+compone|desglos/i;
 // _VAGUE_TOPIC_RE — la oferta propone seguir en EL MISMO tema pero con palabras que no describen ninguna acción
 // ejecutable ("explorar condiciones/alternativas/opciones de negociación") — señal de CONTINUACIÓN igual de válida
 // que _CONTINUATION_OFFER_RE de arriba, usada en dos lugares (extractOffer más abajo + isVagueOffer): UNA sola
@@ -57,6 +60,12 @@ const _QUESTION_RE = /¿[^?]{4,220}\?/g;
 // carga comercial como mecanismo (no alcanza con que la oferta la mencione de pasada) y (b) hay una entidad puntual
 // conocida (simulateCarga sin filtro corre sobre TODA la cartera — no es lo que "profundizar en ESTE cliente" pide).
 const _CARGA_MECHANISM_RE = /carga\s+comercial/i;
+// mismo mecanismo, mismo hallazgo, dominio distinto (owner 2026-08-02, hallazgo en vivo): "cuánto capital tengo
+// inmovilizado en inventario" → "sí, profundicemos en la estrategia para liberarlo" repetía la MISMA tool de
+// lectura (inventoryStatus) en vez de rutear a `simulateCapital` (PLAN catalog: "¿y si libero el capital
+// detenido?"), la simulación REAL que calcula el efecto de liberarlo — no una tool de un solo cliente como
+// simulateCarga, así que NO exige `entidad` (simulateCapital{} corre global si no hay filtro puntual en foco).
+const _CAPITAL_MECHANISM_RE = /capital\s+(inmovilizad|detenid)/i;
 
 // _singleFilterEntity(calls) → {entidad, dimension} | null — RESPALDO (owner 2026-07-31, hallazgo por lectura de
 // código): planPrompt.js nunca le pide al LLM declarar scope.level="entity" cuando el alcance de una consulta
@@ -86,23 +95,32 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
     || (singleFilter && singleFilter.entidad) || null;
   const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || (singleFilter && singleFilter.dimension) || null;
   // MECANISMO YA AGOTADO (owner 2026-08-01, hallazgo en vivo de 3er orden — ver adi-oferta-vaga-aceptada.md): la
-  // respuesta de ESTE turno YA corrió simulateCarga (la entidad aceptó la oferta anterior), y el narrador vuelve a
-  // cerrar con la MISMA oferta ("¿profundice en el desglose... por SKU?") — pero simulateCarga no tiene ningún
-  // desglose más fino que dar (composeSpecSimulateCarga: con `cliente` seteado, `dondePega` es UNA frase genérica,
-  // nunca items por SKU). Repetir la tool una segunda vez no agrega nada — sería el MISMO loop que este archivo ya
-  // cerró una vez. `ranCargaThisTurn` es la señal determinística (no depende de qué palabras use el narrador esta
-  // vez): si la tool que YA respondió este turno es simulateCarga, ninguna rama de abajo vuelve a ofrecerla.
+  // respuesta de ESTE turno YA corrió la simulación dedicada (la entidad aceptó la oferta anterior), y el narrador
+  // vuelve a cerrar con la MISMA oferta — pero ninguna de estas dos simulaciones tiene un desglose más fino que dar
+  // (composeSpecSimulateCarga/composeSpecSimulateCapital: una frase/cifra agregada, nunca items por SKU/cuenta).
+  // Repetir la tool una segunda vez no agrega nada — sería el MISMO loop que este archivo ya cerró una vez.
+  // `ranXThisTurn` es la señal determinística (no depende de qué palabras use el narrador esta vez): si la tool que
+  // YA respondió este turno es la dedicada, ninguna rama de abajo vuelve a ofrecerla.
+  const narrationStr = String(narration || "");
   const ranCargaThisTurn = Array.isArray(calls) && calls.some((c) => c && c.tool === "simulateCarga");
-  const mechanismExhausted = ranCargaThisTurn && _CARGA_MECHANISM_RE.test(String(narration || ""));
+  const ranCapitalThisTurn = Array.isArray(calls) && calls.some((c) => c && c.tool === "simulateCapital");
+  const cargaMechanism = _CARGA_MECHANISM_RE.test(narrationStr);
+  const capitalMechanism = _CAPITAL_MECHANISM_RE.test(narrationStr);
+  const mechanismExhausted = (ranCargaThisTurn && cargaMechanism) || (ranCapitalThisTurn && capitalMechanism);
+  const mechanism = (ranCargaThisTurn && cargaMechanism) ? "carga" : (ranCapitalThisTurn && capitalMechanism) ? "capital" : null;
+  const continuación = _CONTINUATION_OFFER_RE.test(texto) || _VAGUE_TOPIC_RE.test(texto);
   let tool = null, args = null;
-  if (!ranCargaThisTurn && entidad && _CARGA_MECHANISM_RE.test(String(narration || "")) && (_CONTINUATION_OFFER_RE.test(texto) || _VAGUE_TOPIC_RE.test(texto))) {
+  if (!ranCargaThisTurn && entidad && cargaMechanism && continuación) {
     tool = "simulateCarga";
     args = { filters: { cliente: entidad } };
-  } else if (!ranCargaThisTurn && Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
+  } else if (!ranCapitalThisTurn && capitalMechanism && continuación) {
+    tool = "simulateCapital";
+    args = entidad ? { filters: { [dimension || "bodega"]: entidad } } : {};
+  } else if (!ranCargaThisTurn && !ranCapitalThisTurn && Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
     tool = calls[0].tool;
     args = calls[0].args || {};
   }
-  return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, mechanismExhausted, turno: turno == null ? null : turno };
+  return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, mechanismExhausted, mechanism, turno: turno == null ? null : turno };
 }
 
 // ── TEMAS RECIENTES (LRU acotado a 3) ───────────────────────────────────────────────────────────────────────────
@@ -197,8 +215,14 @@ export function composeVagueOfferAcceptance(offer) {
 export function isExhaustedMechanismOffer(offer) {
   return !!(offer && !offer.tool && offer.mechanismExhausted);
 }
+// generalizado (owner 2026-08-02, mismo hallazgo en el mecanismo de capital/inventario): el TEXTO cambia según
+// `offer.mechanism` (seteado por extractOffer), la estructura (reconocé que ya corrió, aclará el límite, ofrecé
+// las 2 rutas que sí existen) es la misma para cualquier simulación dedicada de un solo número agregado.
 export function composeExhaustedMechanismAcceptance(offer) {
   const entidad = offer && offer.entidad;
+  if (offer && offer.mechanism === "capital") {
+    return `Esa simulación de liberar el capital detenido ya la corrí — es un cálculo agregado, no tengo un desglose más fino por SKU/bodega de ESE mecanismo. ¿Querés ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
+  }
   const quien = entidad ? ` de ${entidad}` : "";
   return `Esa simulación de la carga comercial${quien} ya la corrí — no tengo un desglose más fino (por SKU) de ese mecanismo, el cálculo es a nivel de la cuenta completa. ¿Querés ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
 }
