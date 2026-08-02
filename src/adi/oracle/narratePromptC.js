@@ -155,6 +155,95 @@ export function ensureClarifyClosingQuestion(text, mode) {
   return `${s.trim()}\n\n¿Querés que lo repase de otra forma, o seguimos con el siguiente paso?`;
 }
 
+// _needsTableFormat(figs) → true si el ledger tiene la forma que el FORMATO de arriba (TABLA) ya exige tabular:
+// 2+ ENTIDADES DISTINTAS, cada una con 2+ cifras autorizadas propias. Mismo hallazgo en vivo que
+// ensureHypothesisFraming/ensureClarifyClosingQuestion (owner 2026-08-02, capturas de pantalla comparando
+// respuestas): la regla YA está en el prompt ("armá una TABLA...SIN IMPORTAR que la pregunta haya sido sobre una
+// sola métrica") pero gpt-4o-mini no la sigue de forma confiable — para el MISMO tipo de dato (capital por bodega
+// + por SKU) devolvió prosa corrida, una lista con guiones, y (rara vez) una tabla real, en 3 corridas distintas.
+// Convención de label (boleta.js fig() + specRetrieval.js, ej. "Falabella · Margen", "LG-DRYER8KG · Capital
+// detenido"): "Entidad · Concepto" — separa por " · ", agrupa por entidad, cuenta CONCEPTOS distintos por entidad.
+// Un solo entity con múltiples conceptos (ej. "Falabella · Margen"/"Falabella · Ventas" de un entityProfile) NO
+// dispara esto — esa es la ficha de UNA entidad, sigue siendo prosa legítima (ver PROSA: "para 1-2 entidades").
+// _groupByEntity(figs) → Map(entidad → Set(conceptos)) — UNA sola fuente para los 3 detectores de abajo (tabla/
+// lista/brecha), todos parten de la MISMA convención de label "Entidad · Concepto" (boleta.js fig()).
+function _groupByEntity(figs) {
+  const byEntity = new Map();
+  if (!Array.isArray(figs)) return byEntity;
+  for (const f of figs) {
+    const label = (f && f.label) || "";
+    const idx = label.indexOf(" · ");
+    if (idx < 0) continue;
+    const entidad = label.slice(0, idx);
+    const concepto = label.slice(idx + 3);
+    if (!byEntity.has(entidad)) byEntity.set(entidad, new Set());
+    byEntity.get(entidad).add(concepto);
+  }
+  return byEntity;
+}
+function _needsTableFormat(figs) {
+  if (!Array.isArray(figs) || figs.length < 4) return false;   // menos de 4 cifras no puede ser 2 entidades × 2 conceptos
+  const byEntity = _groupByEntity(figs);
+  let entitiesWithMultiple = 0;
+  for (const conceptos of byEntity.values()) if (conceptos.size >= 2) entitiesWithMultiple++;
+  return byEntity.size >= 2 && entitiesWithMultiple >= 2;
+}
+// TABLE_INSTRUCTION → mismo principio que BRIEF_INSTRUCTION (responsePreference.js): reforzar A NIVEL DE TURNO,
+// no solo en el system prompt, es lo que ya recuperó cumplimiento para brevedad/contentScope. Viaja SOLO cuando
+// _needsTableFormat detecta la forma — un turno de UNA entidad o de cifras sueltas no le agrega nada nuevo al
+// prompt (mismo principio de payload mínimo que el resto de instrucciones reforzadas de acá abajo).
+const TABLE_INSTRUCTION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifras cada una — SIEMPRE armá una tabla en MARKDOWN real (con fila de encabezado y fila separadora \"|---|---|\"), NUNCA una lista con guiones ni prosa corrida para esto, sin importar que la pregunta haya sido sobre una sola métrica. Cada fila es una entidad; cada columna, un concepto distinto que ya tenés autorizado.";
+
+// _needsListFormat(figs) → true si hay 3+ entidades con UNA sola cifra cada una (ranking de una métrica) — el
+// complemento exacto de _needsTableFormat (2+ cifras/entidad). Hallazgo de auditoría en vivo (owner 2026-08-02,
+// workflow de 4 agentes): gpt-4o-mini NUNCA usó lista numerada en 6/6 corridas reales para este caso — sistemática,
+// más consistente incluso que la inconsistencia original de tabla — siempre arma una tabla de 2 columnas en su
+// lugar, pese a que LISTA NUMERADA (FORMATO) es explícita: "varias entidades por UNA sola métrica → numerado".
+function _needsListFormat(figs) {
+  if (_needsTableFormat(figs)) return false;   // el caso de tabla (2+cifras/entidad) manda si ambos calzan
+  const byEntity = _groupByEntity(figs);
+  if (byEntity.size < 3) return false;
+  let singleConcept = 0;
+  for (const conceptos of byEntity.values()) if (conceptos.size === 1) singleConcept++;
+  return singleConcept >= byEntity.size * 0.8;   // tolera algún outlier, no exige el 100%
+}
+const LIST_INSTRUCTION = "Tus cifras_autorizadas traen 3+ entidades con UNA sola cifra cada una — SIEMPRE armá una LISTA NUMERADA (\"1. **Entidad** — cifra + tu lectura en una frase\"), la de más valor primero. NUNCA una tabla de 2 columnas para esto, NUNCA prosa encadenada tipo \"Primero X, además Y, por último Z\".";
+
+// _needsBrechaReinforcement(figs) → true si hay 2+ entidades con un concepto "margen" Y viene el fig global
+// "Benchmark de margen" — la tabla de margen DEBE sumar la columna Brecha (benchmark−margen, en puntos). Hallazgo
+// de auditoría en vivo: 0/3 tablas de margen reales incluyeron Brecha pese a tener todo lo necesario para
+// calcularla — el narrador la menciona en PROSA ("evaluá cerrar la brecha") pero nunca la tabula.
+function _needsBrechaReinforcement(figs) {
+  // hallazgo propio (owner 2026-08-02, probado en vivo): sin este candado, instruccion_brecha podía dispararse
+  // JUNTO a instruccion_lista (ranking de margen con 1 SOLO concepto por entidad — "Margen" — nada que columnar
+  // todavía) → dos instrucciones contradictorias en el mismo turno ("armá una lista" + "agregale una columna a tu
+  // tabla"). Brecha es un requisito DE LA TABLA (FORMATO línea 54: "cuando la tabla es un ranking de margen…") —
+  // solo tiene sentido cuando _needsTableFormat YA decidió que este turno es tabla.
+  if (!_needsTableFormat(figs)) return false;
+  if (!Array.isArray(figs)) return false;
+  if (!figs.some((f) => f && f.label === "Benchmark de margen")) return false;
+  const byEntity = _groupByEntity(figs);
+  let marginEntities = 0;
+  for (const conceptos of byEntity.values()) if ([...conceptos].some((c) => /margen/i.test(c))) marginEntities++;
+  return marginEntities >= 2;
+}
+const BRECHA_INSTRUCTION = "Tenés el margen de cada entidad Y el \"Benchmark de margen\" — SIEMPRE agregá una columna \"Brecha\" a la tabla (benchmark − margen, en puntos porcentuales — la resta entre dos cifras autorizadas está permitida), calculada fila por fila. Nunca la dejes afuera ni la menciones solo en la prosa sin tabularla — si el usuario ve \"brecha\" en el texto pero no en una columna, no cumpliste.";
+
+// _needsOrdenMontoReinforcement(text, results) → true si el usuario pidió EXPLÍCITO orden por $/monto/dinero
+// recuperable Y la tool que corrió es marginRead (que solo da margen/brecha en PUNTOS, nunca un $ recuperable por
+// entidad) SIN que gridTable/tensionRead (que sí sellan el orden real) también haya corrido. Hallazgo de auditoría
+// en vivo: 1/3 corridas reales prometió "ordenado por dinero" y en realidad ordenó por brecha en % — sin bloqueo
+// del guard, porque marginRead no sella facts.orden (eso es harina de un fix estructural aparte, ver memoria).
+const _ORDEN_MONTO_RE = /\bordena?(?:me|r|los|las)?\b[^.?!]{0,50}\b(dinero|monto|importe|recuperable)\b/i;
+function _needsOrdenMontoReinforcement(text, results) {
+  if (!_ORDEN_MONTO_RE.test(String(text || ""))) return false;
+  const list = Array.isArray(results) ? results : [];
+  const usedMarginRead = list.some((r) => r && r.tool === "marginRead");
+  const hasSealedOrder = list.some((r) => r && (r.tool === "gridTable" || r.tool === "tensionRead"));
+  return usedMarginRead && !hasSealedOrder;
+}
+const ORDEN_MONTO_INSTRUCTION = "El usuario pidió orden EXPLÍCITO por dinero/monto recuperable, pero la tool que corrió (marginRead) solo te da margen y brecha en PUNTOS PORCENTUALES, no un $ recuperable por cada entidad — NUNCA ordenes por brecha en % y digas que es \"por dinero\"/\"por monto\", eso promete algo que no cumpliste. Si no tenés el $ de todos, decilo honesto (\"no tengo el monto recuperable de todos, te los ordeno por brecha de margen\") en vez de una frase ambigua que suene a que sí ordenaste por plata.";
+
 // buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history }) → el OBJETO de datos para la Pasada 2
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
@@ -191,6 +280,14 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // basta para detailLevel). El motor igual trunca determinísticamente si no alcanza (truncateToBriefBudget,
     // narrationBlocks.js) — esto es para que la mayoría de los turnos ya lleguen cortos sin depender del corte.
     ...(pref && pref.detailLevel === "brief" ? { instruccion_brevedad: BRIEF_INSTRUCTION } : {}),
+    // TABLA REFORZADA (owner 2026-08-02, hallazgo en vivo): ver _needsTableFormat/TABLE_INSTRUCTION arriba.
+    ...(_needsTableFormat(ledgerFigs) ? { instruccion_tabla: TABLE_INSTRUCTION } : {}),
+    // LISTA NUMERADA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsListFormat/LIST_INSTRUCTION.
+    ...(_needsListFormat(ledgerFigs) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
+    // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
+    ...(_needsBrechaReinforcement(ledgerFigs) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
+    // ORDEN POR MONTO REFORZADO (owner 2026-08-02, hallazgo de auditoría): ver _needsOrdenMontoReinforcement.
+    ...(_needsOrdenMontoReinforcement(text, results) ? { instruccion_orden: ORDEN_MONTO_INSTRUCTION } : {}),
     // ORIENTACIÓN (Fase 3, owner 2026-07-30) — SOLO viaja cuando answerViaOracle.js detectó un disparador
     // determinístico (pedido explícito o confusión persistente, ver dialogueState.js needsOrientacion). Mismo
     // principio de payload mínimo que preferencia_respuesta: un turno normal no la lleva.

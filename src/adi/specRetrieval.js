@@ -806,7 +806,12 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
   const _lo = (n) => rows.slice().sort((a, b) => a.margen - b.margen).slice(0, n);
   const _ctx = "margen";
   let lines = [], suggestions = [], bol = [];
-  const figMargin = (label, r) => fig(`${L.s} · ${_mNombre(r)} margen`, `${_p1(r.margen)}%`, { unit: "pct", raw: r.margen, mandatory: false, context: _ctx });
+  // convención de label "Entidad · Concepto" (owner 2026-08-02, hallazgo de auditoría en vivo): antes era
+  // "${dimension} · ${entidad} margen" (ej. "cliente · Lider margen") — el prefijo de DIMENSIÓN en vez del nombre
+  // de la entidad rompía cualquier detector que agrupe cifras por entidad (_needsTableFormat, narratePromptC.js) y
+  // además el LLM a veces copiaba el label crudo tal cual a una tabla ("| Concepto | Valor | cliente · Lider margen
+  // | 21.5% |" — un hallazgo separado, pero la misma causa). `label` (1er párametro) queda sin usar — vestigial.
+  const figMargin = (_label, r) => fig(`${_mNombre(r)} · Margen`, `${_p1(r.margen)}%`, { unit: "pct", raw: r.margen, mandatory: false, context: _ctx });
   const pushMarginFigs = (list) => { for (const r of list.slice(0, 5)) bol.push(figMargin("", r)); };
 
   // ── HUECOS honestos (el dato no existe → avisar + pivot a la lente más cercana · NUNCA el genérico) ──
