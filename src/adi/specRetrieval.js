@@ -348,7 +348,7 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus } = {}) {
   const bol = [];
   for (const f of focos) {
     bol.push(fig(`${f.titulo} · subtotal`, _money(f.subtotal), { unit: "money", raw: f.subtotal, mandatory: true, context: _ctx }));
-    for (const it of f.top.slice(0, 3)) bol.push(fig(`${f.titulo} · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
+    for (const it of f.top.slice(0, 3)) bol.push(fig(`${it.entidad} · ${f.titulo}`, _money(it.usd), { unit: "money", raw: it.usd, mandatory: false, context: _ctx }));
   }
   // GANCHO OPCIONAL (owner 2026-07-09: fuera la muletilla — "si el LLM interpreta el dato, debe decir la realidad"):
   // la excepción virtuosa (cuenta que crece a contramano con carga baja · calculada, no enlatada) viaja AUTORIZADA
@@ -358,8 +358,8 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus } = {}) {
       const _vx = detectVirtuousException(scenario, deriveBusinessThesis(scenario));
       if (_vx && _vx.evidencia) {
         const _ve = _vx.evidencia;
-        if (_ve.variacion != null) bol.push(fig(`Oportunidad silenciosa · ${_vx.cuenta} crecimiento`, `${_ve.variacion}%`, { unit: "pct", raw: _ve.variacion, mandatory: false, gancho: true, context: "cuenta que crece a contramano — mencionala solo si viene al caso" }));
-        if (_ve.pctRebate != null) bol.push(fig(`Oportunidad silenciosa · ${_vx.cuenta} carga`, `${_ve.pctRebate}%`, { unit: "pct", raw: _ve.pctRebate, mandatory: false, gancho: true, context: "una de las cargas más bajas de la cartera — gancho opcional" }));
+        if (_ve.variacion != null) bol.push(fig(`${_vx.cuenta} · crecimiento`, `${_ve.variacion}%`, { unit: "pct", raw: _ve.variacion, mandatory: false, gancho: true, context: "cuenta que crece a contramano — mencionala solo si viene al caso" }));
+        if (_ve.pctRebate != null) bol.push(fig(`${_vx.cuenta} · carga`, `${_ve.pctRebate}%`, { unit: "pct", raw: _ve.pctRebate, mandatory: false, gancho: true, context: "una de las cargas más bajas de la cartera — gancho opcional" }));
       }
     } catch { /* detector legacy sin datos → silencio */ }
   }
@@ -464,10 +464,10 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
     fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la vara" }),
   ];
   if (varPct != null) bol.push(fig("Ventas vs año anterior", `${varPct >= 0 ? "+" : ""}${varPct}%`, { unit: "pct", raw: varPct, mandatory: false, context: "resumen ejecutivo" }));
-  for (const r of topC) bol.push(fig(`Contribución · ${r.nombre}`, _money(r.contribucion * 1000), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: "quién sostiene" }));
-  for (const r of grandes) bol.push(fig(`Margen · ${r.nombre}`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "los grandes" }));
-  for (const r of sanos) bol.push(fig(`Margen · ${r.nombre}`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "margen sano" }));
-  if (cgTopRow) bol.push(fig(`Carga · ${cgTopRow.nombre}`, `${cgTopRow.pctRebate}%`, { unit: "pct", raw: cgTopRow.pctRebate, mandatory: false, context: "causa de carga" }));
+  for (const r of topC) bol.push(fig(`${r.nombre} · Contribución`, _money(r.contribucion * 1000), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: "quién sostiene" }));
+  for (const r of grandes) bol.push(fig(`${r.nombre} · Margen`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "los grandes" }));
+  for (const r of sanos) bol.push(fig(`${r.nombre} · Margen`, `${r.margen}%`, { unit: "pct", raw: r.margen, mandatory: false, context: "margen sano" }));
+  if (cgTopRow) bol.push(fig(`${cgTopRow.nombre} · Carga`, `${cgTopRow.pctRebate}%`, { unit: "pct", raw: cgTopRow.pctRebate, mandatory: false, context: "causa de carga" }));
   // la COMPOSICIÓN (cómo ganamos): los bloques volumen vs calidad, autorizados
   bol.push(fig("Contribución de los grandes", `${pctGr}%`, { unit: "pct", raw: pctGr, mandatory: false, context: "composición" }));
   bol.push(fig("Contribución del resto", `${pctRe}%`, { unit: "pct", raw: pctRe, mandatory: false, context: "composición" }));
@@ -534,8 +534,8 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       if (!iv) { lines.push(`• ${s.nombre}: vende ${_money(s.venta * 1000)} — sin registro de inventario en este dataset.`); continue; }
       const flag = iv.alerta === "crit" ? " · CRÍTICO" : (iv.estado && iv.estado !== "Activo" ? ` · ${iv.estado}` : "");
       lines.push(`• ${s.nombre}: vende ${_money(s.venta * 1000)} — stock ${iv.stockUnd} unidades (${_money(iv.stockUSD)}), ${Math.round(iv.doh)} días de inventario${flag}`);
-      bol.push(fig(`Venta · ${s.nombre}`, _money(s.venta * 1000), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "top vendedores × inventario" }));
-      bol.push(fig(`Stock · ${s.nombre}`, _money(iv.stockUSD), { unit: "money", raw: iv.stockUSD, mandatory: false, context: "top vendedores × inventario" }));
+      bol.push(fig(`${s.nombre} · Venta`, _money(s.venta * 1000), { unit: "money", raw: s.venta * 1000, mandatory: false, context: "top vendedores × inventario" }));
+      bol.push(fig(`${s.nombre} · Stock`, _money(iv.stockUSD), { unit: "money", raw: iv.stockUSD, mandatory: false, context: "top vendedores × inventario" }));
       if (iv.alerta !== "ok" || (iv.estado && iv.estado !== "Activo")) alertas.push({ sku: s.nombre, estado: iv.estado, doh: Math.round(iv.doh) });
     }
     const lectura = alertas.length
@@ -558,8 +558,8 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     const lines = [], bol = [];
     for (const r of byMes) {
       lines.push(`• ${r[key]}: ${r.vendidoMes} unidades vendidas el último mes — stock ${r.stockUnd} unidades (${_money(r.stockUSD)}), ${Math.round(r.doh)} días de inventario`);
-      bol.push(fig(`Vendido en el mes · ${r[key]}`, String(r.vendidoMes), { unit: "count", raw: r.vendidoMes, mandatory: false, context: "más vendidos del mes (unidades)" }));
-      bol.push(fig(`Stock · ${r[key]}`, _money(r.stockUSD), { unit: "money", raw: r.stockUSD, mandatory: false, context: "más vendidos del mes" }));
+      bol.push(fig(`${r[key]} · Vendido en el mes`, String(r.vendidoMes), { unit: "count", raw: r.vendidoMes, mandatory: false, context: "más vendidos del mes (unidades)" }));
+      bol.push(fig(`${r[key]} · Stock`, _money(r.stockUSD), { unit: "money", raw: r.stockUSD, mandatory: false, context: "más vendidos del mes" }));
     }
     return {
       opener: `Tus ${byMes.length} SKU más vendidos del último mes (movimiento real, en unidades):\n\n${lines.join("\n")}\n\nEl corte en $ del mes por SKU se enciende con el histórico del ERP — no lo estimo. Lo que SÍ tengo completo es la venta anual por SKU en $, si te sirve ese ángulo.`,
@@ -591,7 +591,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       !fren.usd && !quie.usd ? `Sin capital detenido ni quiebres a la vista — el inventario corre sano.` : "",
     ];
     const bolE = [fig("Capital en inventario · total", _money(D.total), { unit: "money", raw: D.total, mandatory: true, context: "estado del inventario" })];
-    for (const e of _ORDEN_E) if (dd(e).usd > 0) bolE.push(fig(`Inventario · ${_ESTADO_LABEL[e]}`, _money(dd(e).usd), { unit: "money", raw: dd(e).usd, mandatory: false, context: "estado del inventario" }));
+    for (const e of _ORDEN_E) if (dd(e).usd > 0) bolE.push(fig(`Estado del inventario: ${_ESTADO_LABEL[e]}`, _money(dd(e).usd), { unit: "money", raw: dd(e).usd, mandatory: false, context: "estado del inventario" }));
     return {
       opener: lines.filter(Boolean).join("\n\n"),
       suggestions: [fren.usd ? "¿Dónde está detenido mi capital?" : null, quie.usd ? "¿Qué reponer por quiebre?" : null, "Los SKU que más venden en el año"].filter(Boolean),
@@ -633,9 +633,9 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
         const puntas = [];
         if (D.dist.riesgo_quiebre && D.dist.riesgo_quiebre.usd) puntas.push(`${_money(D.dist.riesgo_quiebre.usd)} en riesgo de quiebre (rota rápido y la cobertura no alcanza)`);
         if (D.dist.sobrestock && D.dist.sobrestock.usd) puntas.push(`${_money(D.dist.sobrestock.usd)} en sobrestock (rota, pero con más cobertura de la necesaria)`);
-        const bol2 = [fig(`Capital · ${_scName}`, _money(totalCap), { unit: "money", raw: totalCap, mandatory: true, context: `capital en ${_scName}` })];
+        const bol2 = [fig(`${_scName} · Capital`, _money(totalCap), { unit: "money", raw: totalCap, mandatory: true, context: `capital en ${_scName}` })];
         for (const p2 of [["riesgo_quiebre", "En riesgo de quiebre"], ["sobrestock", "Sobrestock"]])
-          if (D.dist[p2[0]] && D.dist[p2[0]].usd) bol2.push(fig(`${p2[1]} · ${_scName}`, _money(D.dist[p2[0]].usd), { unit: "money", raw: D.dist[p2[0]].usd, mandatory: false, context: `capital en ${_scName}` }));
+          if (D.dist[p2[0]] && D.dist[p2[0]].usd) bol2.push(fig(`${_scName} · ${p2[1]}`, _money(D.dist[p2[0]].usd), { unit: "money", raw: D.dist[p2[0]].usd, mandatory: false, context: `capital en ${_scName}` }));
         return {
           // redacción sin ambigüedad (auditoría de asks 2026-07-15: "nada detenido según tu vara (rotación bajo 2x…)"
           // se leía como si ESA fuera la razón — el narrador llegó a invertir el criterio) + benchmark, no vara.
@@ -710,10 +710,10 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   // ── boleta rica: total del foco + grupos + SKU + LAS 4 PUNTAS autorizadas (narración selectiva · el guard no deja inventar otra) ──
   const estados = _ESTADO_ORDEN.filter((e) => D.dist[e]).map((e) => ({ estado: e, label: _ESTADO_LABEL[e], usd: D.dist[e].usd, pct: D.dist[e].pct, count: D.dist[e].count }));
   const bol = [fig(`${B.title.split(" ·")[0]} · total`, _money(B.total), { unit: "money", raw: B.total, mandatory: true, context: B.ctx })];
-  for (const b of (B.byBod || [])) bol.push(fig(`Bodega · ${b.nombre}`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
-  for (const f of (B.byFam || []).slice(0, 3)) bol.push(fig(`Familia · ${f.nombre}`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: B.ctx }));
-  for (const s of B.skus.slice(0, 4)) bol.push(fig(`SKU · ${s.sku}`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
-  for (const e of estados) bol.push(fig(`Inventario · ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
+  for (const b of (B.byBod || [])) bol.push(fig(`${b.nombre} · Bodega`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
+  for (const f of (B.byFam || []).slice(0, 3)) bol.push(fig(`${f.nombre} · Familia`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: B.ctx }));
+  for (const s of B.skus.slice(0, 4)) bol.push(fig(`${s.sku} · SKU`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
+  for (const e of estados) bol.push(fig(`Estado del inventario: ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
   if (lever2) bol.push(fig(`Medida · liberar ${lever2.skus.join(" y ")}`, _money(lever2.usd), { unit: "money", raw: lever2.usd, mandatory: true, source: "computed", formula: "Σ capital top 2", context: "cuánto vale la medida" }));
   return {
     opener: B.lines.filter(Boolean).join("\n\n"),
@@ -982,7 +982,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       `**Por qué duele doble:** es capital inmovilizado Y de baja rentabilidad — si rota, deja poco; si no rota, ata caja sin premio.`,
       `**Qué hacer:** son los primeros candidatos a liquidar o dejar de reponer — bajo margen no justifica ocupar capital.`,
     ];
-    for (const s of topSk) bol.push(fig(`SKU · ${s.sku} capital`, _money(s.stockUSD), { unit: "money", raw: s.stockUSD, mandatory: false, context: "stock en bajo margen" }));
+    for (const s of topSk) bol.push(fig(`${s.sku} · Capital`, _money(s.stockUSD), { unit: "money", raw: s.stockUSD, mandatory: false, context: "stock en bajo margen" }));
     suggestions = ["Qué SKU libero primero", "Los de bajo margen por costo o precio"];
     return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: "bodega", boleta: bol, margin: { focus, panel: _marginPanel(lowM.map((s) => ({ nombre: s.sku, margen: s.margenPct })), POLICY.benchmark, "bajo_benchmark"), byBodega: byBod.map((b) => ({ bodega: b.bodega, usd: b.usd })) } } };
   } else if (focus === "palancas") {
@@ -1001,7 +1001,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       thinPrice.length ? `**2 · Precio de lista** — ${thinPrice.map((r) => `${_mNombre(r)} (markup ${_p1(_markup(r))}%)`).join(" · ")}: la lista está pegada al costo, subir precio recupera margen directo.` : "",
       `**Qué hacer (volumen-safe):** arrancá por la carga de los ${L.p} con más poder de compra tuyo y por la lista donde la demanda aguanta — así recuperás margen sin resignar volumen.`,
     ];
-    for (const r of cargaHigh) bol.push(fig(`${L.s} · ${_mNombre(r)} carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
+    for (const r of cargaHigh) bol.push(fig(`${_mNombre(r)} · Carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
     if (cargaLever && cargaLever.top.length) {
       bol.push(_figLever("Medida · carga al target", cargaLever.subtotal, "Σ (carga − target) × venta (≥ piso)", true));
       bol.push(_figLever(`Medida · ${cargaLever.top[0].entidad}`, cargaLever.top[0].usd, "(carga − target) × venta"));
@@ -1086,7 +1086,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       `**Qué hacer:** el foco de recuperación son los que quedan cortos; los de arriba marcan qué está funcionando.`,
     ];
     if (under.length) bol.push(fig("Medida · cerrar el plan", _m(short), { unit: "money", raw: short * 1000, mandatory: true, source: "computed", formula: "Σ déficit vs presupuesto", context: "cuánto vale la medida" }));
-    for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${L.s} · ${r.nombre} vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
+    for (const r of [...over.slice(0, 3), ...under.slice(0, 2)]) bol.push(fig(`${r.nombre} · vs ppto`, `${_sgnp(r.dev)}${_m(r.dev)}`, { unit: "money", raw: r.dev * 1000, mandatory: false, context: "vs presupuesto" }));
     bol.push(fig(scoped ? "Venta del grupo" : "Venta total", _m(totA), { unit: "money", raw: totA * 1000, mandatory: true, context: "vs presupuesto" }));
     bol.push(fig(scoped ? "Presupuesto del grupo" : "Presupuesto total", _m(totP), { unit: "money", raw: totP * 1000, mandatory: false, context: "vs presupuesto" }));
     const panel = { kind: "movers", title: "Vs presupuesto", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(totA)} vs ${_m(totP)}`, rows: withDev.map((r) => ({ nombre: r.nombre, val: r.dev, valFmt: `${_sgnp(r.dev)}${_m(r.dev)}`, pct: +r.devp.toFixed(1), pos: r.dev >= 0 })) };
@@ -1107,7 +1107,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       down.length ? `Restan: ${down.slice(0, 4).map((r) => `${r.nombre} (${_m(r.d)})`).join(" · ")}.` : `Ningún ${LL.s} cae vs el año anterior.`,
       `**Qué hacer:** el neto es positivo, pero los que restan son la fuga a mirar — recuperarlos suma directo.`,
     ];
-    for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${LL.s} · ${r.nombre} YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "vs año anterior" }));
+    for (const r of [...up.slice(0, 3), ...down.slice(0, 2)]) bol.push(fig(`${r.nombre} · YoY`, `${_sgnp(r.d)}${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "vs año anterior" }));
     const panel = { kind: "movers", title: "Vs año anterior", headline: `${_sgnp(tp)}${_p1(tp)}%`, headlineSub: `${_m(tot)} vs ${_m(totAnt)}`, rows: mov.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: `${_sgnp(r.d)}${_m(r.d)}`, pct: +r.p.toFixed(1), pos: r.d >= 0 })).sort((a, b) => b.val - a.val) };
     return { lines, suggestions: ["Es por volumen o por precio", "Quiénes redujeron su compra"], bol, panel };
   }
@@ -1143,7 +1143,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       `Nota: no tengo flag de "cliente activo/nuevo" ni frecuencia de compra (no hay transacciones) — esto es caída de venta YoY, la señal más cercana a "dejar de comprar".`,
       `**Qué hacer:** la mayor oportunidad de recuperación está justo acá — recuperar a estos clientes vale ${_m(Math.abs(down.slice(0, 4).reduce((a, r) => a + r.d, 0)))}.`,
     ];
-    for (const r of down.slice(0, 4)) bol.push(fig(`Cliente · ${r.nombre} YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "caída YoY" }));
+    for (const r of down.slice(0, 4)) bol.push(fig(`${r.nombre} · YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "caída YoY" }));
     const panel = { kind: "movers", title: "Clientes que retroceden", headlineSub: "vs el año anterior", rows: down.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: _m(r.d), pct: +r.p.toFixed(1), pos: false })) };
     return { lines, suggestions: ["Crecimiento YoY por cliente", "Es por volumen o por precio"], bol, panel };
   }
@@ -1158,7 +1158,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       up.length ? `Por ${L.s}, quién subió más su precio realizado vs el año anterior: ${up.slice(0, 3).map((r) => `${r.nombre} (${_sgnp(r.yoy)}${_p1(r.yoy)}%)`).join(" · ")}.` : `Precio realizado por ${L.s}: ${withP.slice(0, 3).map((r) => r.nombre).join(" · ")}.`,
       `Tampoco tengo sucursal ni vendedor, así que el corte por esos ejes no es posible. Frecuencia y tráfico requieren transacciones (no existen).`,
     ];
-    for (const r of up.slice(0, 3)) if (r.yoy != null) bol.push(fig(`${L.s} · ${r.nombre} precio realizado YoY`, `${_sgnp(r.yoy)}${_p1(r.yoy)}%`, { unit: "pct", raw: +r.yoy.toFixed(1), mandatory: false, context: "precio realizado" }));
+    for (const r of up.slice(0, 3)) if (r.yoy != null) bol.push(fig(`${r.nombre} · precio realizado YoY`, `${_sgnp(r.yoy)}${_p1(r.yoy)}%`, { unit: "pct", raw: +r.yoy.toFixed(1), mandatory: false, context: "precio realizado" }));
     const panel = { kind: "movers", title: "Precio realizado YoY (proxy, no es ticket)", pctMode: true, rows: up.filter((r) => r.yoy != null).map((r) => ({ nombre: r.nombre, val: r.yoy, valFmt: `${_sgnp(r.yoy)}${_p1(r.yoy)}%`, pos: r.yoy >= 0 })) };
     return { lines, suggestions: ["Es por volumen o por precio", "Crecimiento YoY por cliente"], bol, panel };
   }
@@ -1173,7 +1173,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       `Participación actual: ${mix.slice().sort((a, b) => b.sNow - a.sNow).map((r) => `${r.nombre} ${_p1(r.sNow)}%`).join(" · ")}.`,
       `**Qué mirar:** quién gana peso del mix marca hacia dónde se mueve la demanda — útil para reponer y negociar donde estás creciendo.`,
     ];
-    for (const r of mix) bol.push(fig(`Familia · ${r.nombre} share`, `${_p1(r.sNow)}%`, { unit: "pct", raw: +r.sNow.toFixed(1), mandatory: false, context: "mix de ventas" }));
+    for (const r of mix) bol.push(fig(`${r.nombre} · share`, `${_p1(r.sNow)}%`, { unit: "pct", raw: +r.sNow.toFixed(1), mandatory: false, context: "mix de ventas" }));
     const panel = { kind: "mix", title: "Mix de ventas · participación", rows: mix.slice().sort((a, b) => b.sNow - a.sNow).map((r) => ({ nombre: r.nombre, sNow: +r.sNow.toFixed(1), sAnt: +r.sAnt.toFixed(1), dpp: +r.dpp.toFixed(1) })) };
     return { lines, suggestions: ["Crecimiento YoY por familia", "Es por volumen o por precio"], bol, panel };
   }
@@ -1193,7 +1193,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       restN > 0 ? `El resto (${restN} ${L.p}) aporta el ${_p1(restPct)}% de la venta.` : "",
       `**Qué significa:** ${con.cantidadEntidades <= rowsC.length / 2 ? `tu venta está concentrada en pocas cuentas — cuidar a ${con.cantidadEntidades === 1 ? "esa cuenta" : `esos ${con.cantidadEntidades}`} es prioridad: perder una pega directo en la venta` : "tu venta está bastante repartida — el riesgo por cuenta es menor"}.`,
     ];
-    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${L.s} · ${e.nombre} venta`, _m(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: "concentración de venta" }));
+    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${e.nombre} · venta`, _m(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: "concentración de venta" }));
     bol.push(fig("Venta total", _m(totV), { unit: "money", raw: totV * 1000, mandatory: false, context: "concentración de venta" }));
     let accC = 0;
     const prows = rowsC.slice().sort((a, b) => b.valor - a.valor).map((r) => { accC += r.valor; return { nombre: r.nombre, valFmt: _m(r.valor), part: +(r.valor / totV * 100).toFixed(1), acum: +(accC / totV * 100).toFixed(1) }; });
@@ -1213,7 +1213,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
       ranked[1] ? `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}, seguido de ${ranked[1].nombre} (${_m(ranked[1].venta)}).` : `${ranked[0].nombre} lidera con ${_m(ranked[0].venta)}.`,
       `**Ojo:** no tengo presupuesto ni año anterior POR SKU (sólo por cliente/marca/familia), así que no puedo comparar cada SKU contra plan ni contra el año pasado — eso te lo doy a nivel cliente o familia.`,
     ];
-    for (const s of ranked.slice(0, 5)) bol.push(fig(`SKU · ${s.nombre} venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: `ranking de venta${_scLbl}` }));
+    for (const s of ranked.slice(0, 5)) bol.push(fig(`${s.nombre} · venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: `ranking de venta${_scLbl}` }));
     const panel = { kind: "rank", title: `SKU por venta${_scLbl}`, rows: ranked.slice(0, 8).map((s) => ({ nombre: s.nombre, val: s.venta, valFmt: _m(s.venta) })) };
     return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol, panel };
   }
@@ -1278,7 +1278,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       restN > 0 ? `El resto (${restN} ${L.p}) aporta apenas el ${_p1(restPct)}%.` : "",
       `**Qué significa:** tu contribución está ${con.cantidadEntidades <= rows.length / 2 ? "concentrada en pocas cuentas" : "bastante repartida"} — cuidar a esas ${con.cantidadEntidades} es prioridad, perder una pega directo en la contribución.`,
     ];
-    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${L.s} · ${e.nombre} contribución`, _mVenta(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: _ctx }));
+    for (const e of con.entidades.slice(0, 5)) bol.push(fig(`${e.nombre} · Contribución`, _mVenta(e.valor), { unit: "money", raw: e.valor * 1000, mandatory: false, context: _ctx }));
     panel = { kind: "pareto", title: "Quién sostiene la contribución", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rows.length, rows: prows };
     suggestions = ["De dónde viene esa contribución", "Cuánta contribución no capturo"];
   } else if (focus === "no_capturada") {
@@ -1312,7 +1312,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `**Qué hacer:** cada punto de margen recuperado en los de mayor venta es la medida más directa sobre este valor.`,
     ];
     bol.push(fig("Contribución no capturada · total", _money(totalGap), { unit: "money", raw: totalGap, mandatory: true, context: _ctx }));
-    for (const r of listedG) bol.push(fig(`${L.s} · ${r.nombre} no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
+    for (const r of listedG) bol.push(fig(`${r.nombre} · no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
     panel = { kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => ({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) })) };
     suggestions = ["Quién sostiene la contribución", "Es por precio o por costo"];
   } else if (focus === "origen") {
@@ -1323,7 +1323,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
         `${d.razon}`,
         `**Qué mirar:** ${d.origenContribucion === "volumen" ? "crece por tamaño, no por rentabilidad — subir su margen aunque sea un punto rinde mucho por el volumen que mueve" : d.origenContribucion === "calidad" ? "aporta por calidad de venta — el upside está en ganarle volumen sin resignar ese margen" : "conviene sostener el equilibrio y empujar donde haya espacio"}.`,
       ];
-      if (r) bol.push(fig(`${L.s} · ${entity} contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: true, context: _ctx }));
+      if (r) bol.push(fig(`${entity} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: true, context: _ctx }));
       panel = { kind: "rank", title: `Contribución · contexto de ${entity}`, rows: rows.slice().sort((a, b) => b.contribucion - a.contribucion).slice(0, 8).map((x) => ({ nombre: _mNombre(x), val: x.contribucion, valFmt: _mVenta(x.contribucion), hi: _mNombre(x) === entity })) };
     } else {
       const byO = {}; for (const r of rows) { const d = dc[_mNombre(r)]; if (d) { (byO[d.origenContribucion] = byO[d.origenContribucion] || { c: 0, names: [] }); byO[d.origenContribucion].c += r.contribucion; byO[d.origenContribucion].names.push(_mNombre(r)); } }
@@ -1348,7 +1348,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       buenM.length ? `Del otro lado, ${buenM.slice(0, 2).map((r) => `${r.nombre} (${_p1(r.margen)}% margen)`).join(" y ")} tienen buen margen pero aportan poco — por tamaño chico, no por calidad.` : "",
       `**Qué hacer:** en los de alto volumen y bajo margen, un punto de margen es lo que más rinde; en los de buen margen y poco tamaño, el upside es ganarles volumen.`,
     ];
-    for (const r of lead.slice(0, 3)) bol.push(fig(`${L.s} · ${r.nombre} contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
+    for (const r of lead.slice(0, 3)) bol.push(fig(`${r.nombre} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
     panel = { kind: "rank", title: "Venta vs contribución", rows: wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, 8).map((r) => ({ nombre: r.nombre, val: r.contribucion, valFmt: _mVenta(r.contribucion), sub: `${_p1(r.margen)}%` })) };
     suggestions = ["De dónde viene la contribución", "Cuánta contribución no capturo"];
   } else {   // rank
@@ -1361,7 +1361,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `Entre los primeros ${Math.min(3, sorted.length)} juntan ${_mVenta(sorted.slice(0, 3).reduce((a, r) => a + r.contribucion, 0))} de los ${_mVenta(totC)} totales.`,
       `**Qué mirar:** son las cuentas que hay que blindar; si querés ver qué tan concentrada está, mirá el 80/20.`,
     ];
-    for (const r of sorted.slice(0, 5)) bol.push(fig(`${L.s} · ${_mNombre(r)} contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
+    for (const r of sorted.slice(0, 5)) bol.push(fig(`${_mNombre(r)} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
     panel = { kind: "rank", title: `Contribución por ${L.s}`, rows: sorted.slice(0, 8).map((r) => ({ nombre: _mNombre(r), val: r.contribucion, valFmt: _mVenta(r.contribucion) })) };
     suggestions = ["Quién sostiene la contribución", "De dónde viene la contribución"];
   }
@@ -1395,8 +1395,8 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
   const lever = dCosto >= dCarga ? "estructura de costo" : "carga comercial";
   if (cA != null && cB != null) {
     lines.push(`**Por qué ocurre:** la diferencia de margen viene de la ${lever === "estructura de costo" ? `ESTRUCTURA DE COSTO — a ${a} el costo se le lleva el ${_p1(cA)}% del precio de lista y a ${b} el ${_p1(cB)}%` : `CARGA COMERCIAL — ${a} entrega ${_p1(gA)}% en rebates/descuentos y ${b} ${_p1(gB)}%`}; ${lever === "estructura de costo" ? `la carga casi no separa (${_p1(gA)}% vs ${_p1(gB)}%)` : `el costo casi no separa (${_p1(cA)}% vs ${_p1(cB)}%)`}.`);
-    bol.push(fig(`Causa · ${a} costo/lista`, `${_p1(cA)}%`, { unit: "pct", raw: cA, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
-    bol.push(fig(`Causa · ${b} costo/lista`, `${_p1(cB)}%`, { unit: "pct", raw: cB, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
+    bol.push(fig(`${a} · Costo/lista`, `${_p1(cA)}%`, { unit: "pct", raw: cA, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
+    bol.push(fig(`${b} · Costo/lista`, `${_p1(cB)}%`, { unit: "pct", raw: cB, mandatory: false, source: "computed", formula: "costoMedio / precioLista", context: "causa de la brecha" }));
   }
   // DÓNDE ESTÁ TU PLATA · cliente: la no-capturada GATED de cada uno (misma cuenta del diagnose · una verdad) + el valor
   // del punto. Otros ejes (marca/familia): SIN detector gated → la plata visible honesta es el valor del punto (venta×1%).
@@ -1440,8 +1440,8 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
         const d = dPct(f.rebates, l.rebates);
         if (d != null) {
           drivers.push(`las acciones de precios ${d >= 0 ? "suben" : "bajan"} de ${_money(f.rebates * 1000)} a ${_money(l.rebates * 1000)} al mes${d > 0 ? " empujando la temporada alta" : ""}`);
-          bol.push(fig(`El año · acciones de ${E.name} (inicio)`, _money(f.rebates * 1000), { unit: "money", raw: f.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Ene)", context: "el año, mes a mes" }));
-          bol.push(fig(`El año · acciones de ${E.name} (cierre)`, _money(l.rebates * 1000), { unit: "money", raw: l.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Dic)", context: "el año, mes a mes" }));
+          bol.push(fig(`${E.name} · Acciones de precios (inicio)`, _money(f.rebates * 1000), { unit: "money", raw: f.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Ene)", context: "el año, mes a mes" }));
+          bol.push(fig(`${E.name} · Acciones de precios (cierre)`, _money(l.rebates * 1000), { unit: "money", raw: l.rebates * 1000, mandatory: false, source: "historial", formula: "rebates mensuales (Dic)", context: "el año, mes a mes" }));
         }
       }
       if (f && l && typeof f.costoMedio === "number" && typeof l.costoMedio === "number") {
@@ -1453,8 +1453,8 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
         if (d != null && d !== 0) drivers.push(`el ticket ${d >= 0 ? "sube" : "baja"} ${Math.abs(d)}%`);
       }
       if (drivers.length) s += `; detrás del año: ${drivers.join(", ")}`;
-      bol.push(fig(`Mejor mes · ${E.name}`, _money(E.max * 1000), { unit: "money", raw: E.max * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.maxMes}` }));
-      bol.push(fig(`Mes más flojo · ${E.name}`, _money(E.min * 1000), { unit: "money", raw: E.min * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.minMes}` }));
+      bol.push(fig(`${E.name} · Mejor mes`, _money(E.max * 1000), { unit: "money", raw: E.max * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.maxMes}` }));
+      bol.push(fig(`${E.name} · Mes más flojo`, _money(E.min * 1000), { unit: "money", raw: E.min * 1000, mandatory: false, source: "historial", formula: "tendencia del historial × estacionalidad global", context: `mes ${E.minMes}` }));
       return s + ".";
     };
     const eA = filmCmp.a, eB = filmCmp.b;
@@ -1789,7 +1789,7 @@ export function composeSpecSimulateCarga({ filters = {}, scenario } = {}) {
     fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
     fig("Recuperable · total", _money(cg.subtotal_usd), { unit: "money", raw: cg.subtotal_usd, mandatory: true, source: "computed", formula: "(carga − target) × venta · suma de las cuentas sobre el target", context: _ctx }),
   ];
-  for (const it of top) bol.push(fig(`Recuperable · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `(carga de ${it.entidad} − target) × su venta`, context: _ctx }));
+  for (const it of top) bol.push(fig(`${it.entidad} · Recuperable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `(carga de ${it.entidad} − target) × su venta`, context: _ctx }));
   return {
     opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
     suggestions: [`Cómo recupero la carga de ${cliente || t0.entidad}`],
@@ -1817,7 +1817,7 @@ export function composeSpecSimulateCapital({ filters = {}, scenario } = {}) {
     fig("Rotación mínima", `${POLICY.rotacionMin.toFixed(1)}x`, { unit: "ratio", raw: POLICY.rotacionMin, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
     fig("Cobertura máxima", `${POLICY.dohMax}d`, { unit: "days", raw: POLICY.dohMax, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
   ];
-  for (const it of top) bol.push(fig(`Liberable · ${it.entidad}`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital detenido de ${it.entidad}`, context: _ctx }));
+  for (const it of top) bol.push(fig(`${it.entidad} · Liberable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital detenido de ${it.entidad}`, context: _ctx }));
   return {
     opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
     suggestions: ["El capital detenido en detalle"],

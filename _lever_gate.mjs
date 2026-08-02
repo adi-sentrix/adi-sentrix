@@ -83,7 +83,7 @@ ok("el compare trae POR QUÉ ocurre (causa de la brecha: costo vs carga)", /\*\*
 ok("el compare trae DÓNDE ESTÁ EL VALOR (la no-capturada de cada uno)", /\*\*Dónde está el valor:\*\*/.test(cmp.text) && /sobre la mesa/.test(cmp.text));
 ok("el compare trae LA DECISIÓN (palanca + por cuál empezar)", /\*\*La decisión:\*\*/.test(cmp.text) && /Empezá por/.test(cmp.text));
 const cmpFal = figOf(cmp, /Valor en juego · Falabella/);
-const diagFal = bol(diag).find((f) => /Contribución no capturada · Falabella/.test(f.label));
+const diagFal = bol(diag).find((f) => /Falabella · Contribución no capturada/.test(f.label));
 ok("una verdad: la plata en juego de Falabella == el ítem del diagnose (mismo raw)", cmpFal && diagFal && cmpFal.raw === diagFal.raw);
 ok("las cifras causales son computed + formula auditable", cmpFal && cmpFal.source === "computed" && !!cmpFal.formula);
 ok("el valor del punto por entidad está (palanca 1pp en ambos)", !!figOf(cmp, /Medida · 1pp en Falabella/) && !!figOf(cmp, /Medida · 1pp en Lider/));

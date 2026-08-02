@@ -73,7 +73,7 @@ ok((cComp.opener || "").startsWith(`Estás dejando ${_money(mg.subtotal_usd)} de
 const cHead = (cComp.opener || "").match(/si los (\d+) clientes materiales/);
 ok(!!cHead && Number(cHead[1]) === mg.items.length, `el corte anunciado (${cHead && cHead[1]}) == items del detector (${mg.items.length})`);
 const cFigs = cComp.evidence.boleta.filter((f) => / no capturada$/.test(f.label) && f.label !== "Contribución no capturada · total");
-const cListedNames = cFigs.map((f) => f.label.replace(/^cliente · /, "").replace(/ no capturada$/, ""));
+const cListedNames = cFigs.map((f) => f.label.replace(/ · no capturada$/, ""));
 const cNamed = cListedNames.filter((n) => cComp.opener.includes(n));
 if (Number(cHead && cHead[1]) === cListedNames.length) {
   ok(cNamed.length === cListedNames.length, `lista N=N: los ${cListedNames.length} nombrados`);
