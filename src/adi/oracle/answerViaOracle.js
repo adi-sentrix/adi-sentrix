@@ -16,7 +16,7 @@ import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EV
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance } from "./dialogueState.js";
+import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
@@ -559,6 +559,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // prosa sin cifras ni entidades), cae de largo a PLAN normal en vez de abstenerse en silencio.
   if (isAcceptance(q) && !priorOffer) {
     const composed = composeOrphanAcceptance(recentSubjectsPrev);
+    const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+    if (out) return out;
+  }
+
+  // ── MECANISMO YA AGOTADO (owner 2026-08-01, hallazgo en vivo de 3er orden — aceptar la MISMA oferta "¿profundice
+  // por SKU?" una 2da vez, tras simulateCarga ya haber corrido, repetía la MISMA simulación y la MISMA oferta —
+  // loop). Corre ANTES del chequeo de oferta vaga (más específico: reconoce que YA se corrió algo, no que nunca
+  // hubo mecanismo). Ver dialogueState.js:isExhaustedMechanismOffer.
+  if (isAcceptance(q) && priorOffer && isExhaustedMechanismOffer(priorOffer)) {
+    const composed = composeExhaustedMechanismAcceptance(priorOffer);
     const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
     if (out) return out;
   }

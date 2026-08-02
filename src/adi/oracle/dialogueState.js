@@ -85,15 +85,24 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
   const entidad = (plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0])
     || (singleFilter && singleFilter.entidad) || null;
   const dimension = (Array.isArray(calls) && calls[0] && calls[0].args && calls[0].args.dimension) || (singleFilter && singleFilter.dimension) || null;
+  // MECANISMO YA AGOTADO (owner 2026-08-01, hallazgo en vivo de 3er orden — ver adi-oferta-vaga-aceptada.md): la
+  // respuesta de ESTE turno YA corrió simulateCarga (la entidad aceptó la oferta anterior), y el narrador vuelve a
+  // cerrar con la MISMA oferta ("¿profundice en el desglose... por SKU?") — pero simulateCarga no tiene ningún
+  // desglose más fino que dar (composeSpecSimulateCarga: con `cliente` seteado, `dondePega` es UNA frase genérica,
+  // nunca items por SKU). Repetir la tool una segunda vez no agrega nada — sería el MISMO loop que este archivo ya
+  // cerró una vez. `ranCargaThisTurn` es la señal determinística (no depende de qué palabras use el narrador esta
+  // vez): si la tool que YA respondió este turno es simulateCarga, ninguna rama de abajo vuelve a ofrecerla.
+  const ranCargaThisTurn = Array.isArray(calls) && calls.some((c) => c && c.tool === "simulateCarga");
+  const mechanismExhausted = ranCargaThisTurn && _CARGA_MECHANISM_RE.test(String(narration || ""));
   let tool = null, args = null;
-  if (entidad && _CARGA_MECHANISM_RE.test(String(narration || "")) && (_CONTINUATION_OFFER_RE.test(texto) || _VAGUE_TOPIC_RE.test(texto))) {
+  if (!ranCargaThisTurn && entidad && _CARGA_MECHANISM_RE.test(String(narration || "")) && (_CONTINUATION_OFFER_RE.test(texto) || _VAGUE_TOPIC_RE.test(texto))) {
     tool = "simulateCarga";
     args = { filters: { cliente: entidad } };
-  } else if (Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
+  } else if (!ranCargaThisTurn && Array.isArray(calls) && calls.length === 1 && calls[0] && _CONTINUATION_OFFER_RE.test(texto)) {
     tool = calls[0].tool;
     args = calls[0].args || {};
   }
-  return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, turno: turno == null ? null : turno };
+  return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, mechanismExhausted, turno: turno == null ? null : turno };
 }
 
 // ── TEMAS RECIENTES (LRU acotado a 3) ───────────────────────────────────────────────────────────────────────────
@@ -175,6 +184,23 @@ export function composeVagueOfferAcceptance(offer) {
   const entidad = offer && offer.entidad;
   if (!entidad) return `No tengo una forma concreta de "explorar esas condiciones" con el dato que manejo — ¿querés que simule un cambio de precio o de volumen, o preferís el desglose completo del mecanismo que ya nombré?`;
   return `No tengo un mecanismo para simular "condiciones de negociación" en abstracto — pero puedo simular un cambio concreto de precio o de volumen para ${entidad}, o mostrarte el desglose completo del mecanismo que ya nombré. ¿Cuál preferís?`;
+}
+
+// ── MECANISMO YA AGOTADO (owner 2026-08-01, hallazgo en vivo de 3er orden — el owner aceptó DOS veces seguidas la
+// misma oferta "¿profundice en el desglose de la carga comercial por SKU?": la 1ra vez ejecutó simulateCarga
+// (correcto, contenido nuevo); la 2da vez volvió a repetir la MISMA simulación, con la MISMA oferta al cierre —
+// simulateCarga no tiene ningún desglose por SKU que dar (composeSpecSimulateCarga: con `cliente` seteado, no hay
+// items individuales, es una sola frase). extractOffer arriba ya corta la reejecución (`ranCargaThisTurn`); esto es
+// la respuesta HONESTA para ese "sí" — reconoce que la simulación ya corrió, aclara el límite real del dato, y
+// ofrece las 2 rutas que SÍ existen (ver el detalle en Sentrix, o una simulación distinta) en vez de dejar
+// `tool=null` caer a PLAN normal (que reproduciría el mismo loop por su cuenta).
+export function isExhaustedMechanismOffer(offer) {
+  return !!(offer && !offer.tool && offer.mechanismExhausted);
+}
+export function composeExhaustedMechanismAcceptance(offer) {
+  const entidad = offer && offer.entidad;
+  const quien = entidad ? ` de ${entidad}` : "";
+  return `Esa simulación de la carga comercial${quien} ya la corrí — no tengo un desglose más fino (por SKU) de ese mecanismo, el cálculo es a nivel de la cuenta completa. ¿Querés ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
 }
 
 // ── RETORNO A TEMAS RECIENTES (owner 2026-07-31, cierre de #48) — referencia POSICIONAL a recentSubjects (una
