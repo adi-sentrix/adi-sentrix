@@ -29,6 +29,20 @@ const _FIGRE = /-?\$\s?\d[\d.,]*\s*[KMB]?|\d[\d.,]*\s*%|\d[\d.,]*\s*(?:x|×)|\b\
 const _unitOf = (v) => /%/.test(v) ? "pct" : /(?:×|\dx)\b/i.test(v) ? "ratio" : /\d\s*d(?:[ií]as?)?\b/i.test(v) ? "days" : "money";
 // crudos → unidad por NOMBRE de clave (días/%/x · el $ se omite: la escala K/crudo es ambigua sin el formateo del composer)
 const _KEYUNIT = [[/doh|d[ií]as/i, "days"], [/rotacion/i, "ratio"], [/margen|carga|benchmark|rebate|share|participaci|concentraci|cobertura|variacion|yoy|crecimiento|pct|porcentaje/i, "pct"]];
+// _ENTITY_KEYS/_entityOf: de qué campo sale el nombre de la entidad de un nodo — no solo los genéricos
+// (name/entidad/nombre/label), TAMBIÉN los ejes de negocio concretos que usan los composers (sku/bodega/familia/
+// cliente/marca). Owner 2026-08-02: "filtra o etiqueta esas cifras por entidad y alcance... impedir cualquier
+// atribución incorrecta también en prosa" — hallazgo en vivo: facts.inventory.bySku[]/byBodega[]
+// (specRetrieval.js) no tienen .nombre/.name/.entidad/.label, solo .sku/.bodega — antes caían al fallback de la
+// CLAVE cruda del campo ("doh"/"pct"/"rotacion"), sin decir de QUIÉN es esa cifra (podía citarse en prosa
+// atribuida a la entidad equivocada, o a ninguna).
+const _ENTITY_KEYS = ["name", "entidad", "nombre", "label", "sku", "bodega", "familia", "cliente", "marca"];
+const _entityOf = (node) => { for (const k of _ENTITY_KEYS) if (node[k] != null && node[k] !== "") return String(node[k]); return null; };
+// _humanizeKey: la CLAVE del campo numérico (antes usada tal cual como si fuera el label completo) se combina
+// como "Entidad · Concepto" (misma convención que boleta.js fig(), reforzada en toda la sesión 2026-08-02) —
+// nunca la entidad sola (dos campos numéricos del mismo nodo colisionarían bajo el mismo label).
+const _KEYLABEL = { doh: "Días de cobertura", diasSinVenta: "Días sin venta", pct: "% del total", porcentaje: "% del total", rotacion: "Rotación", yoy: "YoY" };
+const _humanizeKey = (k) => _KEYLABEL[k] || k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
 export function enrichFromFacts(boleta, facts) {
   if (!facts || typeof facts !== "object") return boleta;
   const seen = new Set(boleta.map((f) => f.canon));
@@ -45,14 +59,22 @@ export function enrichFromFacts(boleta, facts) {
     if (typeof node === "string") { const mm = node.match(_FIGRE); if (mm) mm.forEach((g) => add(entity || key, g)); return; }
     if (Array.isArray(node)) { node.forEach((x) => walk(x, entity, key)); return; }
     if (typeof node === "object") {
-      const ent = node.name || node.entidad || node.nombre || node.label || entity || null;
+      const ent = _entityOf(node) || entity || null;
       if (typeof node.usd === "number" && node.entidad) add(String(node.entidad), _moneyE(node.usd));   // findings (diagnose): usd crudo
       for (const [k, v] of Object.entries(node)) {
         if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) mm.forEach((g) => add(ent || k, g)); }
         else if (typeof v === "number" && Number.isFinite(v)) {
           // crudos por unidad-según-clave · SOLO días/%/x (el $ se omite por la ambigüedad de escala K/crudo)
           const ku = _KEYUNIT.find(([re]) => re.test(k));
-          if (ku) add(ent || k, ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v}%`);
+          if (!ku) continue;
+          // SIN entidad real (ni siquiera sku/bodega/familia/cliente/marca) → NO se autoriza la cifra suelta:
+          // impide atribución incorrecta (owner 2026-08-02). Alcance seguro: SOLO la rama numérica — la rama de
+          // texto (arriba) no se toca, porque hay valores de negocio genuinamente globales que llegan como string
+          // ya formateado (ej. trend/toolRegistry.js "comparacion.vs_anio_anterior") y SÍ deben seguir autorizados
+          // sin entidad — no son el mismo riesgo (vienen pre-formateados por el motor, no son doh/rotacion/pct
+          // crudos de una fila de un array sin nombre).
+          if (!ent) continue;
+          add(`${ent} · ${_humanizeKey(k)}`, ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v}%`);
         } else walk(v, ent, k);
       }
       return;

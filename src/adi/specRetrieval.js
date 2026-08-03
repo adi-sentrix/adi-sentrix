@@ -726,9 +726,14 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   // % DEL TOTAL (owner 2026-08-02: "cifra autorizada y determinística... nunca por el narrador") — byBod YA viene
   // reconciliado a 100% (_groupBy → _reconcilePercents). Cada bodega expone Capital Y % como cifras AUTORIZADAS
   // separadas: el narrador cita números ya calculados, no divide él mismo (numberGuard rechaza si inventa otro).
+  // Con SOLO 1 bodega el % sería 100% siempre — trivial, no informativo, y (hallazgo en vivo) invitaba al narrador
+  // a armar una "tabla" de una sola fila pese a instruccion_tabla/instruccion_columnas_capital pidiendo lo contrario
+  // ("si solo existe una entidad... no fuerces una tabla"). Solución estructural, no de prompt: si hay 1 sola
+  // bodega, esa entidad NO tiene 2do concepto (solo Capital, sin %) → _needsTableFormat ya no puede confundirse.
+  const _bodMultiple = (B.byBod || []).length >= 2;
   for (const b of (B.byBod || [])) {
     bol.push(fig(`${b.nombre} · Capital detenido`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
-    bol.push(fig(`${b.nombre} · % del total`, `${b.pct}%`, { unit: "pct", raw: b.pct, mandatory: false, source: "computed", formula: "capital de la bodega / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
+    if (_bodMultiple) bol.push(fig(`${b.nombre} · % del total`, `${b.pct}%`, { unit: "pct", raw: b.pct, mandatory: false, source: "computed", formula: "capital de la bodega / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
   }
   for (const f of (B.byFam || []).slice(0, 3)) bol.push(fig(`${f.nombre} · Familia`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: B.ctx }));
   // SKU: top-4 + Resto (si hay más de 4) — mismo patrón que buildGrid (entityRecord.js, "pase quirúrgico de
@@ -738,9 +743,10 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   const _skuRestoCount = B.skus.length - _skuTop.length;
   const _skuRows = _skuTop.map((s) => ({ nombre: s.sku, usd: s.usd }));
   if (_skuRestoCount > 0) _skuRows.push({ nombre: `Resto (${_skuRestoCount} de ${B.skus.length})`, usd: B.skus.slice(4).reduce((a, s) => a + s.usd, 0) });
+  const _skuMultiple = _skuRows.length >= 2;   // mismo candado estructural que _bodMultiple arriba
   for (const s of _reconcilePercents(_skuRows, B.total)) {
     bol.push(fig(`${s.nombre} · Capital detenido`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
-    bol.push(fig(`${s.nombre} · % del total`, `${s.pct}%`, { unit: "pct", raw: s.pct, mandatory: false, source: "computed", formula: "capital del SKU (o del resto agrupado) / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
+    if (_skuMultiple) bol.push(fig(`${s.nombre} · % del total`, `${s.pct}%`, { unit: "pct", raw: s.pct, mandatory: false, source: "computed", formula: "capital del SKU (o del resto agrupado) / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
   }
   for (const e of estados) bol.push(fig(`Estado del inventario: ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
   if (lever2) bol.push(fig(`Medida · liberar ${lever2.skus.join(" y ")}`, _money(lever2.usd), { unit: "money", raw: lever2.usd, mandatory: true, source: "computed", formula: "Σ capital top 2", context: "cuánto vale la medida" }));

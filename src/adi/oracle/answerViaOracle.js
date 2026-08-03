@@ -10,7 +10,7 @@ import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared } from "./guardC.js";
-import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables } from "./narratePromptC.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
@@ -881,6 +881,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
+    n = stripSingleRowTables(n, q);  // "1 entidad → prosa, nunca tabla" — SALVO que el usuario haya pedido tabla explícitamente (ver narratePromptC.js)
     // action_only: DOBLE candado (data_only/results_only ya no llegan acá, ver arriba). (1) el renderer descarta
     // cualquier bloque que no sea [[ACCION]] — sigue valiendo, cierra la fuga original. (2) hasForbiddenContent
     // valida el CONTENIDO del bloque permitido — si coló lenguaje de causa/interpretación o de siguiente-paso

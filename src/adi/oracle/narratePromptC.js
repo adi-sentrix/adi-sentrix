@@ -121,6 +121,49 @@ export function stripFiller(text) {
   return s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
 }
 
+// isExplicitTableRequest(userText) → true si el usuario pidió LITERALMENTE una tabla ("ponlo en una tabla",
+// "quiero eso en formato tabla"...). Owner 2026-08-02: "si el usuario pidió explícitamente una tabla, debe
+// conservarse aunque tenga una fila" — stripSingleRowTables (abajo) es un backstop contra tablas AUTO-GENERADAS
+// por el narrador sin que nadie las pidiera; una tabla que el usuario mismo pidió es una respuesta legítima a lo
+// que preguntó, aunque termine teniendo 1 sola fila (ej. "dame en una tabla el capital de Valparaíso").
+const _EXPLICIT_TABLE_RE = /\btablas?\b/i;
+const _NEGATED_TABLE_RE = /\b(?:sin|nada\s+de|ning(?:u|ú)na?)\b[^.?!]{0,25}\btablas?\b|\btablas?\b[^.?!]{0,25}\bno\b|\bno\b[^.?!]{0,15}\b(?:hagas?|quiero|necesito|pongas?|armes?|des|hacer|poner|armar)\b[^.?!]{0,20}\btablas?\b/i;
+export function isExplicitTableRequest(userText) {
+  const t = String(userText || "");
+  return _EXPLICIT_TABLE_RE.test(t) && !_NEGATED_TABLE_RE.test(t);
+}
+
+// stripSingleRowTables(text, userText) → backstop DETERMINÍSTICO (owner 2026-08-02: "si solo existe una entidad...
+// no fuerces una tabla") — colapsa cualquier tabla markdown de EXACTAMENTE 1 fila de datos (header + separadora +
+// 1 fila): eso nunca es una tabla real, es una sola entidad vestida de tabla. Medido en vivo (caso "capital en
+// Valparaíso", 1 bodega + 2 SKU mezclados en el mismo ledger): CAPITAL_COLUMNS_INSTRUCTION solo (prompt) subió el
+// cumplimiento pero no lo garantizó (~75%, no 100%) — mismo patrón de esta sesión: instrucción sola no alcanza,
+// hace falta backstop de código, igual que ensureHypothesisFraming/ensureClarifyClosingQuestion. Genérico (no
+// específico de capital): en todas las corridas observadas la fila ya estaba dicha en la prosa ANTES de la tabla
+// (el narrador la repite en las dos formas) — se borra solo el bloque de tabla, la prosa que ya trae el mismo
+// dato queda intacta, así que no se pierde información. EXCEPCIÓN (owner 2026-08-02, segunda vuelta): si
+// isExplicitTableRequest(userText) es true, este backstop NO debe tocar nada — es un candado contra tablas que
+// nadie pidió, no contra tablas que el usuario pidió a propósito.
+export function stripSingleRowTables(text, userText) {
+  if (isExplicitTableRequest(userText)) return String(text || "");
+  const lines = String(text || "").split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const isHeaderRow = /^\s*\|.*\|\s*$/.test(lines[i]);
+    const isSepRow = i + 1 < lines.length && /^\s*\|?[\s:|-]+\|\s*$/.test(lines[i + 1]) && lines[i + 1].includes("-");
+    if (isHeaderRow && isSepRow) {
+      let j = i + 2, dataRows = 0;
+      while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) { dataRows++; j++; }
+      if (dataRows === 1) { i = j; continue; }   // 1 sola fila de datos → se salta TODO el bloque (header+sep+fila)
+      for (let k = i; k < j; k++) out.push(lines[k]);
+      i = j; continue;
+    }
+    out.push(lines[i]); i++;
+  }
+  return out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 // _isHypothesisFramed(text) → misma detección que certifyRun (_oracle_provider_certification_gate.mjs /
 // _model_comparison.mjs): una oración con "si" + (recuperar/podrías/estimado/liberar) en la MISMA oración.
 function _isHypothesisFramed(text) {
@@ -192,7 +235,7 @@ function _needsTableFormat(figs) {
 // no solo en el system prompt, es lo que ya recuperó cumplimiento para brevedad/contentScope. Viaja SOLO cuando
 // _needsTableFormat detecta la forma — un turno de UNA entidad o de cifras sueltas no le agrega nada nuevo al
 // prompt (mismo principio de payload mínimo que el resto de instrucciones reforzadas de acá abajo).
-const TABLE_INSTRUCTION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifras cada una — SIEMPRE armá una tabla en MARKDOWN real (con fila de encabezado y fila separadora \"|---|---|\"), NUNCA una lista con guiones ni prosa corrida para esto, sin importar que la pregunta haya sido sobre una sola métrica. Cada fila es una entidad; cada columna, un concepto distinto que ya tenés autorizado.";
+const TABLE_INSTRUCTION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifras cada una — SIEMPRE armá una tabla en MARKDOWN real (con fila de encabezado y fila separadora \"|---|---|\"), NUNCA una lista con guiones ni prosa corrida para esto, sin importar que la pregunta haya sido sobre una sola métrica. Cada fila es una entidad; cada columna, un concepto distinto que ya tenés autorizado. OJO si tus cifras mezclan MÁS DE UN TIPO de entidad (ej. bodegas Y SKU a la vez): esto dispara porque ALGÚN grupo tiene 2+ entidades, pero puede que OTRO grupo tenga una sola — nunca armes una tabla de UNA SOLA FILA para ese grupo chico (eso es prosa: \"tenés $X en [la única entidad]\"); tabulá solamente el grupo que de verdad tenga 2+ filas.";
 
 // _needsCapitalColumnNames(figs) → true si el ledger trae el patrón EXACTO "Entidad · Capital detenido" +
 // "Entidad · % del total" (composeSpecInventory, specRetrieval.js — capital por bodega/SKU). Owner 2026-08-02:
@@ -200,8 +243,12 @@ const TABLE_INSTRUCTION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifr
 // _needsTableFormat YA logra tabla siempre, pero el encabezado de columna varía ("Capital Inmovilizado (USD)",
 // "Porcentaje del total (%)") — los NÚMEROS ya son correctos siempre (cifras autorizadas/reconciliadas), esto
 // solo fija el TEXTO literal del encabezado. Exige _needsTableFormat===true primero (mismo candado que Brecha):
-// con 1 sola entidad (ej. alcance filtrado a una bodega) las 2 cifras existen pero NO hay tabla que formatear —
-// el owner pidió explícito "si solo existe una entidad... no fuerces una tabla".
+// si TODO el ledger es 1 sola entidad (ej. alcance filtrado a una bodega SIN SKU mezclados) las 2 cifras existen
+// pero NO hay tabla que formatear — el owner pidió explícito "si solo existe una entidad... no fuerces una tabla".
+// OJO (hallazgo en vivo, owner 2026-08-02, alcance "capital en Valparaíso"): un alcance de 1 bodega SUELE traer
+// igual 2+ SKU de esa bodega en el mismo ledger — _needsTableFormat dispara por el grupo SKU (correcto), pero el
+// LLM a veces tabuló el grupo BODEGA (1 sola fila) en vez del grupo SKU (el que de verdad tiene 2+) — ver el
+// candado explícito contra "tabla de una sola fila" en TABLE_INSTRUCTION y en CAPITAL_COLUMNS_INSTRUCTION abajo.
 function _needsCapitalColumnNames(figs) {
   if (!_needsTableFormat(figs)) return false;
   if (!Array.isArray(figs)) return false;
@@ -209,7 +256,7 @@ function _needsCapitalColumnNames(figs) {
   const hasPctDelTotal = figs.some((f) => f && / · % del total$/.test(f.label || ""));
   return hasCapitalDetenido && hasPctDelTotal;
 }
-const CAPITAL_COLUMNS_INSTRUCTION = "Tus cifras_autorizadas traen \"Capital detenido\" y \"% del total\" por entidad (bodega o SKU) — armá la tabla con ESTOS 3 encabezados LITERALES, en este orden: \"Bodega\" o \"SKU\" (el que corresponda) | \"Capital detenido\" | \"% del total\". No los reformules ni los traduzcas (nunca \"Capital Inmovilizado (USD)\", nunca \"Porcentaje del total (%)\"). El % NUNCA lo calculás vos: citá tal cual el que ya está autorizado en cifras_autorizadas — ya viene reconciliado para sumar 100%. Si tenés cifras de bodegas Y de SKU a la vez, armá DOS TABLAS separadas (una con encabezado de fila \"Bodega\", otra con \"SKU\") — nunca las mezcles bajo un solo encabezado, cada una suma 100% por sí sola.";
+const CAPITAL_COLUMNS_INSTRUCTION = "Tus cifras_autorizadas traen \"Capital detenido\" y \"% del total\" por entidad (bodega o SKU) — armá la tabla con ESTOS 3 encabezados LITERALES, en este orden: \"Bodega\" o \"SKU\" (el que corresponda) | \"Capital detenido\" | \"% del total\". No los reformules ni los traduzcas (nunca \"Capital Inmovilizado (USD)\", nunca \"Porcentaje del total (%)\"). El % NUNCA lo calculás vos NI lo completás de otra cifra suelta: si una entidad NO tiene su propia cifra \"Entidad · % del total\" autorizada, esa entidad NO va en la tabla de porcentajes — nunca uses una cifra sin ese formato exacto (ej. una cifra llamada solo \"pct\", sin nombre de entidad) para rellenar el % de una fila, aunque el número parezca coincidir. Si tenés cifras de bodegas Y de SKU a la vez, armá DOS TABLAS separadas (una con encabezado de fila \"Bodega\", otra con \"SKU\") — nunca las mezcles bajo un solo encabezado, cada una suma 100% por sí sola. Si el alcance ya viene acotado a UNA sola bodega (ej. \"cuánto capital tengo en Valparaíso\"), esa bodega NO tiene cifra de \"% del total\" autorizada a propósito (es obvio que es el 100%, no hace falta cifra) — esa bodega es una fila única, no le armes tabla ni le inventes un %: decilo en una frase (\"tenés $X en Valparaíso\"); si esos mismos datos SÍ traen 2+ SKU dentro de esa bodega, esa es la tabla que corresponde armar (encabezado \"SKU\"), no la de bodega.";
 
 // _needsListFormat(figs) → true si hay 3+ entidades con UNA sola cifra cada una (ranking de una métrica) — el
 // complemento exacto de _needsTableFormat (2+ cifras/entidad). Hallazgo de auditoría en vivo (owner 2026-08-02,
