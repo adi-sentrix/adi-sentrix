@@ -15,7 +15,7 @@ import { getAdapter } from "./providerAdapter.js";
 import { chooseModel } from "./modelRouter.js";
 import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
-import { ADI_PERSONA, renderInteractionMemory } from "../oracle/persona.js";
+import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
 import { buildPlanSystem, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
 import { buildNarrateSystemC } from "../oracle/narratePromptC.js";
 
@@ -170,7 +170,10 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
   // modelo. `routed` es null si el router no aplica (proveedor≠openai o apagado) → se usa tier1 tal cual, sin cambios.
   const routed = _resolveModel({ provider, tier1, attempt, step: "plan", env, tenantId });
   const model = routed ? routed.model : tier1;
-  const system = buildPlanSystem(ADI_PERSONA, renderInteractionMemory(mem), scenario || "actual");
+  // ADI_PERSONA_PLAN (owner 2026-08-03, Fase 1 eficiencia de Mini — ver persona.js): SOLO acá, PLAN tiene tool_choice
+  // forzado a JSON (nunca redacta prosa) — la doctrina de narración de ADI_PERSONA completa es costo sin efecto.
+  // NARRAR (handleNarrateC más abajo) sigue recibiendo ADI_PERSONA completa, sin cambios.
+  const system = buildPlanSystem(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual");
   const user = buildPlanUserMessage(history, text);
   const { spec: plan, usage } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
   return { ok: true, plan, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
@@ -189,7 +192,12 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt }
   // repetir con el mismo que ya falló. `payload.modo` viaja solo para el texto de razón/telemetría, nunca decide.
   const routed = _resolveModel({ provider, tier1, attempt, step: "narrate", mode: payload.modo, env, tenantId });
   const model = routed ? routed.model : tier1;
-  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem));
+  // mode (owner 2026-08-03, Fase 2 eficiencia de Mini — ver conversationalContract.js/buildModeDispatch): payload.modo
+  // YA viaja acá (buildNarrateUserMessageC lo pone en el payload, ver narratePromptC.js) — se lo pasamos al system
+  // para que la doctrina de "MODO DE CONVERSACIÓN" mande SOLO el modo de ESTE turno, no los 7 completos.
+  // mem.responsePref (owner 2026-08-03, Fase 2 eficiencia de Mini — ver responsePreference.js): el bloque de
+  // doctrina de preferencia de FORMATO ahora solo se manda si la SESIÓN tiene una preferencia persistida no-default.
+  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref);
   const { text: narration, usage } = await getAdapter(provider).narrate(payload, { model, system });
   return { ok: true, narration, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
 }

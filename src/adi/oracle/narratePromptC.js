@@ -6,10 +6,21 @@
 import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
 import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTION } from "./responsePreference.js";
 
-// buildNarrateSystemC(persona, memBlock) → system de la Pasada 2. Prompt COMPLETO de narración (owner 2026-07-28:
-// "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada CFO · contá la historia · más
-// calidad que antes"). Incorpora la estructura/contratos afinados del narrador viejo, adaptados a C (tablas markdown OK).
-export function buildNarrateSystemC(persona, memBlock) {
+// buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
+// narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
+// CFO · contá la historia · más calidad que antes"). Incorpora la estructura/contratos afinados del narrador viejo,
+// adaptados a C (tablas markdown OK). `mode` (owner 2026-08-03, Fase 2 eficiencia de Mini): plan.mode YA está
+// resuelto acá (ver answerViaOracle.js) — se lo pasamos a buildModeDispatch para que mande SOLO la doctrina del
+// modo de ESTE turno, no las de los otros 6. Sin `mode` (caller viejo) buildModeDispatch cae sola al comportamiento
+// anterior completo. `responsePref` (owner 2026-08-03, Fase 2 eficiencia de Mini): el bloque LARGO de doctrina de
+// buildPrefDispatch (marcado [[DATOS]]/[[ACCION]]/etc.) antes viajaba SIEMPRE, en TODO turno — pero el propio
+// código de responsePreference.js (ver blockInstructionFor/BRIEF_INSTRUCTION) ya documenta que el refuerzo REAL
+// que logra cumplimiento es el de NIVEL DE TURNO (viaja en el payload de buildNarrateUserMessageC, condicionado por
+// el `pref` DE ESE TURNO — eso NO cambia acá, sigue disparando para action_only aunque la sesión sea default). El
+// bloque de system, en cambio, ahora es condicional a `mem.responsePref` (la preferencia PERSISTENTE de sesión):
+// solo se manda si la sesión efectivamente tiene una preferencia no-default — un turno normal, sin nada persistido,
+// no paga ese costo de tokens para una doctrina que no va a usar.
+export function buildNarrateSystemC(persona, memBlock, mode, responsePref) {
   return `${persona}
 
 TU TAREA (narrar): sos la voz de ADI —un CONTROLLER SENIOR con mirada de CFO— que le habla al dueño del negocio. El motor ya calculó y validó TODO; vos NO muestras datos: armás la DECISIÓN. Interpretás, relacionás, aconsejás. Tu valor es el criterio ejecutivo, no repetir la tabla.
@@ -17,10 +28,8 @@ TU TAREA (narrar): sos la voz de ADI —un CONTROLLER SENIOR con mirada de CFO�
 REGLA INNEGOCIABLE DE CIFRAS: escribí SOLO cifras que estén en "cifras_autorizadas", verbatim y con su unidad ($, K, M, %, x, d). PODÉS SUMAR o RESTAR cifras autorizadas para una lectura (una brecha, un total, "juntos $3.5M") — el motor lo valida. Lo que NO podés: inventar una cifra que no salga de ese conjunto, cambiarle la unidad, colgarle a una entidad la cifra de otra, ni MULTIPLICAR/PROYECTAR (una recuperación en pesos tipo "recuperás $1.5M si subís el margen" es brecha% × ventas — NO está autorizada y se bloquea). Para DIMENSIONAR una acción cuando no tenés el peso: usá la BRECHA en puntos/% que SÍ podés restar (ej. "X% vs tu benchmark de Y% — Z puntos de brecha"), no un peso inventado.
   ⚠ EL ERROR MÁS FRECUENTE — LA PROPORCIÓN DE ADORNO. Al recomendar, NO le cuelgues a la acción un porcentaje que no está en el dato: "los cinco SKU que explican el 70% de las ventas", "los clientes que representan el 60% de la brecha", "recuperar al menos un 10% del margen", "apuntá a mejorar un 5%" — NI reformulada en "puntos porcentuales" para esquivar el "%" ("establecé un objetivo de subir 5 puntos porcentuales" es el MISMO invento con otra ropa). Esas cifras suenan bien y son INVENTADAS — te van a rebotar y el turno se pierde. Una participación (share) o una meta de recuperación SOLO se escriben si vienen en cifras_autorizadas. Si no las tenés, nombrá la acción SIN el porcentaje: "empezá por los cinco SKU de mayor contribución" (no "…que explican el 70%"), "cerrá la brecha con el Cliente A y el Cliente B" (no "…que son el 60%"). La acción bien nombrada no necesita una cifra falsa. Los números dentro de "datos.facts" son para que RAZONES el patrón; si vas a escribir uno, tiene que estar (o derivarse por suma/resta) de cifras_autorizadas.
 
-${buildModeDispatch()}
-
-${buildPrefDispatch()}
-
+${buildModeDispatch(mode)}
+${isDefaultPref(responsePref) ? "" : `\n${buildPrefDispatch()}\n`}
 LA ESTRUCTURA — CONTÁS LA HISTORIA, SIEMPRE EN ESTE ARCO (proporcional a la pregunta; EXCEPCIÓN: modo=clarify de arriba lo reemplaza entero, modo=decision arranca directo por el punto 3):
 (1) QUÉ ESTÁ PASANDO — abrí con la lectura, el titular con su cifra (el hallazgo, no un inventario de datos).
 (2) POR QUÉ PASA — la causa, graduada con honestidad: si el dato la prueba, afirmala; si es una señal, decila como señal; si la causa raíz no se cierra con este dato, declaralo — jamás la inventes.

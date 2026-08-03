@@ -83,6 +83,11 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
   const dir = sort && sort.dir === "asc" ? "asc" : "desc";
   result.sort((a, b) => (dir === "asc" ? a.value - b.value : b.value - a.value));
   if (limit && limit > 0) result = result.slice(0, limit);
+  // ORDEN SELLADO por la tool (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0): el criterio con
+  // que este ranking YA ordenó sus filas (arriba) viaja en `facts.orden` para que guardC verifique DIRECTO contra la
+  // tabla final, sin depender de que el narrador lo repita en prosa. Un único criterio, sin ambigüedad de columna
+  // (queryMetric siempre rankea UNA sola métrica) — el caso más simple y más seguro de sellar.
+  const orden = `${dir === "asc" ? "ascendente" : "descendente"} por ${m.label}`;
 
   const _sc = m.scale && m.scale[dimension];
   const outRows = result.map((x) => ({ name: x.name, value: x.value, fmt: _fmt(x.value, m.unit, _sc) }));
@@ -98,7 +103,7 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
     sentrixAction: null,
     // evidence enriquecida (Fase 2 · contratos): `rows` estructuradas (nombre + valor + formato) para que el CLOSER lea
     // el PATRÓN (líder/cola/polaridad) sin recomputar ni introducir cifras. El texto sigue mostrando formateado ("$64K").
-    evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro", boleta: bol,
+    evidence: { entityType: dimension, dimension, metrica: metric, lens: "cuadro", orden, boleta: bol,
       rows: outRows, metricLabel: m.label, unit: m.unit, polarity: m.polarity, dimLabel: ent.label.sing, sortDir: dir },
   };
 }
@@ -363,12 +368,22 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus } = {}) {
       }
     } catch { /* detector legacy sin datos → silencio */ }
   }
+  // ORDEN SELLADO por la tool (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0) — SOLO el foco
+  // DOMINANTE (focos[0], ya ordenado por subtotal desc arriba, la línea que abre la respuesta): diagnose puede traer
+  // 2-3 focos SIMULTÁNEOS (carga/margen/capital), cada uno con su PROPIA lista de entidades y su PROPIO $ — un
+  // narrador a veces los funde en UNA tabla multi-columna (una fila por entidad, una columna por foco, ej. "|
+  // Cliente | Contribución no capturada | Carga comercial alta |", visto en vivo). Sellar el criterio de MÁS de un
+  // foco a la vez arriesgaría un falso positivo: la tabla suele quedar ordenada por el foco PRINCIPAL, así que la(s)
+  // columna(s) restante(s) no tienen por qué salir monótonas por sí solas — eso NO es una violación real, solo dos
+  // rankings distintos comparten filas. Sellando solo el foco dominante (el mismo que encabeza el texto) cerramos el
+  // caso más frecuente y más seguro sin ese riesgo.
+  const orden = `descendente por ${focos[0].titulo}`;
   return {
     opener: `${header}\n\n${blocks}`,
     suggestions: suggestions.length ? suggestions : null,
     sentrixAction: null,
     // findings per-item para Sentrix (la boleta/panel los consume · lens diagnostico) · $ ya calculado del dato · + boleta (LLM #2)
-    evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", boleta: bol,
+    evidence: { lens: "diagnostico", metrica: "diagnose", dimension: "cliente", orden, boleta: bol,
       findings: focos.map((f) => ({ detector: f.detector, titulo: f.titulo, subtotal_usd: f.subtotal,
         // `critico` se emite SIEMPRE que el concepto aplique (los items de capital lo traen como booleano), nunca
         // solo-si-true: ausente se leía como "no sé" y el narrador llenaba el hueco ("todos con valores críticos").
@@ -1204,7 +1219,9 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     ];
     for (const r of down.slice(0, 4)) bol.push(fig(`${r.nombre} · YoY`, `${_m(r.d)}`, { unit: "money", raw: r.d * 1000, mandatory: false, context: "caída YoY" }));
     const panel = { kind: "movers", title: "Clientes que retroceden", headlineSub: "vs el año anterior", rows: down.map((r) => ({ nombre: r.nombre, val: r.d, valFmt: _m(r.d), pct: +r.p.toFixed(1), pos: false })) };
-    return { lines, suggestions: ["Crecimiento YoY por cliente", "Es por volumen o por precio"], bol, panel };
+    // ORDEN SELLADO (owner 2026-08-03): UNA sola dirección acá (solo "caen", nunca mezclado con los que suben) — el
+    // peor primero, en magnitud $ (el guard lee el monto SIN signo, ver _toNumOrder en guardC.js) — seguro de sellar.
+    return { lines, suggestions: ["Crecimiento YoY por cliente", "Es por volumen o por precio"], bol, panel, orden: "descendente por YoY" };
   }
 
   if (focus === "precio_realizado") {
@@ -1234,7 +1251,10 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     ];
     for (const r of mix) bol.push(fig(`${r.nombre} · share`, `${_p1(r.sNow)}%`, { unit: "pct", raw: +r.sNow.toFixed(1), mandatory: false, context: "mix de ventas" }));
     const panel = { kind: "mix", title: "Mix de ventas · participación", rows: mix.slice().sort((a, b) => b.sNow - a.sNow).map((r) => ({ nombre: r.nombre, sNow: +r.sNow.toFixed(1), sAnt: +r.sAnt.toFixed(1), dpp: +r.dpp.toFixed(1) })) };
-    return { lines, suggestions: ["Crecimiento YoY por familia", "Es por volumen o por precio"], bol, panel };
+    // ORDEN SELLADO (owner 2026-08-03): la LISTA que de verdad se narra ("Participación actual: …") va ordenada por
+    // sNow (share actual, siempre positivo) — NO por dpp (la variación, que sí puede cruzar de signo, ver gan/per
+    // arriba, mencionados sueltos, no como ranking completo) — se sella el criterio de la lista real, no el de `mix`.
+    return { lines, suggestions: ["Crecimiento YoY por familia", "Es por volumen o por precio"], bol, panel, orden: "descendente por participación" };
   }
 
   if (focus === "concentracion") {
@@ -1257,7 +1277,8 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     let accC = 0;
     const prows = rowsC.slice().sort((a, b) => b.valor - a.valor).map((r) => { accC += r.valor; return { nombre: r.nombre, valFmt: _m(r.valor), part: +(r.valor / totV * 100).toFixed(1), acum: +(accC / totV * 100).toFixed(1) }; });
     const panel = { kind: "pareto", title: "Quién explica la venta", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rowsC.length, rows: prows };
-    return { lines, suggestions: [`Profundiza en ${con.entidades[0].nombre}`, "¿En cuántos clientes se concentra mi contribución?"], bol, panel };
+    // ORDEN SELLADO (owner 2026-08-03): ranking único de venta (todas positivas, sin cruce de signo) — seguro de sellar.
+    return { lines, suggestions: [`Profundiza en ${con.entidades[0].nombre}`, "¿En cuántos clientes se concentra mi contribución?"], bol, panel, orden: "descendente por venta" };
   }
 
   if (focus === "rank_venta") {
@@ -1274,7 +1295,8 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
     ];
     for (const s of ranked.slice(0, 5)) bol.push(fig(`${s.nombre} · venta`, _m(s.venta), { unit: "money", raw: s.venta * 1000, mandatory: false, context: `ranking de venta${_scLbl}` }));
     const panel = { kind: "rank", title: `SKU por venta${_scLbl}`, rows: ranked.slice(0, 8).map((s) => ({ nombre: s.nombre, val: s.venta, valFmt: _m(s.venta) })) };
-    return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol, panel };
+    // ORDEN SELLADO (owner 2026-08-03): ranking único de venta — mismo criterio que "concentracion" arriba.
+    return { lines, suggestions: ["Venta vs año anterior por familia", "Los SKU de alto margen subpenetrados"], bol, panel, orden: "descendente por venta" };
   }
   return null;
 }
@@ -1299,12 +1321,18 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
       ...block.lines,
     ];
     return { opener: lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions.length ? block.suggestions : ["Cómo vamos vs el año anterior", "Cómo vamos vs presupuesto"], sentrixAction: null,
-      evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf, gapLabel: g.no, panel: block.panel || null } } };
+      evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, ...(block.orden ? { orden: block.orden } : {}), boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf, gapLabel: g.no, panel: block.panel || null } } };
   }
   const block = _ventasFocusBlock(focus, dim, filters, entityScope);
   if (!block) return null;
+  // ORDEN SELLADO (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0): _ventasFocusBlock declara
+  // `orden` SOLO en los focos de un único criterio sin cruce de signo (rank_venta/concentracion/mix_familia/
+  // caida_clientes) — vs_anterior/vs_presupuesto/precio_realizado quedan sin sellar a propósito: mezclan entidades
+  // que suben y que bajan (o cruzan de signo) en la MISMA lista, y el guard lee el monto/pct SIN signo (ver
+  // _toNumOrder en guardC.js) — declarar un único "descendente"/"ascendente" ahí arriesgaría un falso positivo en
+  // la transición de signo, no una garantía real.
   return { opener: block.lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions, sentrixAction: null,
-    evidence: { lens: "ventas", metrica: "ventas", dimension: dim, boleta: block.bol, ventas: { focus, dimension: dim, panel: block.panel || null } } };
+    evidence: { lens: "ventas", metrica: "ventas", dimension: dim, ...(block.orden ? { orden: block.orden } : {}), boleta: block.bol, ventas: { focus, dimension: dim, panel: block.panel || null } } };
 }
 
 /* ── composeSpecContribucion · FOCO CONTRIBUCIÓN (owner 2026-07-06 · "la pregunta manda el foco") ────────────
@@ -1325,8 +1353,17 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
   const dc = dim === "cliente" ? diagnoseClientes(_cVentas, _marginRows("cliente", scenario)) : {};
   const _share = (c) => +(c / totC * 100).toFixed(1);
   let lines = [], suggestions = [], bol = [], panel = null;
+  // ORDEN SELLADO por la tool (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0) — SOLO en los
+  // focos de UN SOLO criterio/lista (concentracion/no_capturada/rank: un único ranking de "Contribución", sin
+  // ambigüedad de columna). "origen" NO arma una tabla rankeada (compara 1-2 categorías, no filas de entidades) y
+  // "alta_venta_baja_contribucion" cruza DOS listas de entidades DISJUNTAS por métricas DISTINTAS (venta/margen) que
+  // un narrador podría fusionar en una sola tabla — sellar ambas a la vez arriesga un falso positivo si esa tabla
+  // fusionada no queda monótona en ninguna de las dos columnas por separado; se deja sin sellar (mismo criterio
+  // conservador que vs_anterior/vs_presupuesto en composeSpecVentas, más abajo).
+  let orden = null;
 
   if (focus === "concentracion") {
+    orden = "descendente por Contribución";
     const con = concentracion(rows.map((r) => ({ nombre: _mNombre(r), valor: r.contribucion })), 0.8);
     const restN = rows.length - con.cantidadEntidades, restPct = +(100 - con.totalCubiertoPct).toFixed(1);
     const sorted = rows.slice().sort((a, b) => b.contribucion - a.contribucion);
@@ -1341,6 +1378,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     panel = { kind: "pareto", title: "Quién sostiene la contribución", totalPct: con.totalCubiertoPct, cutoff: con.cantidadEntidades, of: rows.length, rows: prows };
     suggestions = ["De dónde viene esa contribución", "Cuánta contribución no capturo"];
   } else if (focus === "no_capturada") {
+    orden = "descendente por Contribución no capturada";
     // MISMA verdad que el diagnóstico (el $ de la card de la Mesa): venta×benchmark/100 − contribución, con los gates
     // de materialidad (≥4pp bajo benchmark · ≥ piso $). COHERENCIA (owner 2026-07-15): la venta se carga por el
     // CONTRATO scenario-aware — igual que _diagComercial — porque antes mezclaba venta base con margen del escenario
@@ -1411,6 +1449,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     panel = { kind: "rank", title: "Venta vs contribución", rows: wd.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0)).slice(0, 8).map((r) => ({ nombre: r.nombre, val: r.contribucion, valFmt: _mVenta(r.contribucion), sub: `${_p1(r.margen)}%` })) };
     suggestions = ["De dónde viene la contribución", "Cuánta contribución no capturo"];
   } else {   // rank
+    orden = "descendente por Contribución";
     const sorted = rows.slice().sort((a, b) => b.contribucion - a.contribucion);
     // el ALCANCE se declara (auditoría de asks 2026-07-15): «Top SKU por contribución de Samsung» filtrado debe
     // decir "de Samsung" — los % son sobre el total de ESE alcance, nunca un global disfrazado.
@@ -1430,7 +1469,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,
     sentrixAction: null,
-    evidence: { lens: "contribucion", metrica: "contribucion", dimension: dim, boleta: bol, contribucion: { focus, dimension: dim, panel } },
+    evidence: { lens: "contribucion", metrica: "contribucion", dimension: dim, ...(orden ? { orden } : {}), boleta: bol, contribucion: { focus, dimension: dim, panel } },
   };
 }
 

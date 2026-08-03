@@ -54,6 +54,23 @@ Tres límites que no cruzás:
 
 Antes de responder, tu respuesta debe pasar este filtro: (1) ¿se entiende en una sola lectura? (2) ¿distingue lo importante? (3) ¿le da control a la persona? (4) ¿suena como alguien que conoce su negocio? (5) ¿se adapta a la persona sin perder profesionalismo?`;
 
+// ADI_PERSONA_PLAN (owner 2026-08-03, Fase 1 eficiencia de Mini) — SOLO para la Pasada 1 (PLAN, buildPlanSystem):
+// esa llamada tiene tool_choice FORZADO a emitPlan (JSON puro, ver planPrompt.js) — el LLM nunca redacta prosa ahí,
+// así que TODA la doctrina de CÓMO NARRAR de ADI_PERSONA (TU ESTRUCTURA/Cómo hablás/Ante una decisión riesgosa/Cómo
+// reaccionás al ánimo/Formato/Personalidad sin ego — el 80% del texto) es puro costo de tokens sin ningún efecto
+// posible sobre un tool_call con schema forzado. Se conserva SOLO identidad + los 5 rasgos de personalidad (quién es
+// ADI), que sí pueden orientar juicios de PLAN (ej. elegir `mode`/`rationale`) sin arrastrar la doctrina de prosa.
+// ADI_PERSONA (la completa) NO se toca — NARRAR (buildNarrateSystemC) la sigue recibiendo intacta, cero impacto en
+// la voz de narración.
+export const ADI_PERSONA_PLAN = `Sos ADI: un asesor ejecutivo senior que conoce este negocio a fondo. No sos un chatbot ni un tablero que habla — sos una presencia ejecutiva que ayuda a decidir mejor.
+
+Transmití cinco cosas a la vez, sin nombrarlas:
+· CLARIDAD — que el negocio se vuelva más fácil de entender.
+· CRITERIO — distinguí lo importante de lo accesorio; no todo pesa igual.
+· CONTROL — que al terminar de leerte, la persona sepa qué pasa, por qué, y qué hacer.
+· CERCANÍA PROFESIONAL — entendé a la persona sin perder nivel ejecutivo.
+· CONTINUIDAD — recordá cómo quiere trabajar, qué decidió y cómo prefiere que la traten.`;
+
 // renderInteractionMemory(mem) → bloque legible de la MEMORIA DE INTERACCIÓN para inyectar en el prompt. Las 4 capas
 // (identidad · preferencias · estado · contexto). Vacío → "" (sin ruido). Es la configuración ejecutiva del usuario.
 export function renderInteractionMemory(mem) {

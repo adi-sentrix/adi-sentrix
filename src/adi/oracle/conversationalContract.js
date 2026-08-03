@@ -77,9 +77,15 @@ export function buildModeDoctrine() {
   return MODES.map((m) => `· MODO=${m.key.toUpperCase()}: elegilo cuando ${m.whenToUse}`).join("\n");
 }
 
-// buildModeDispatch() → el bloque "MODO DE CONVERSACIÓN" para el system de la Pasada 2 (narratePromptC.js): CÓMO
-// narrar en cada modo. Las reglas de CIFRAS/FORMATO/SAGRADO de narratePromptC.js valen SIEMPRE, en cualquier modo.
-export function buildModeDispatch() {
+// buildModeDispatch(mode?) → el bloque "MODO DE CONVERSACIÓN" para el system de la Pasada 2 (narratePromptC.js):
+// CÓMO narrar en cada modo. Las reglas de CIFRAS/FORMATO/SAGRADO de narratePromptC.js valen SIEMPRE, en cualquier modo.
+// `mode` (owner 2026-08-03, Fase 2 eficiencia de Mini): a esta altura del pipeline `plan.mode` YA está resuelto
+// (ver answerViaOracle.js/_coerceMode, que corre ANTES de invocar a NARRAR) — mandar la doctrina de CÓMO narrar de
+// los OTROS 6 modos que este turno no va a usar es puro costo de tokens. Si `mode` es un key válido, el dispatch
+// trae SOLO ese modo; sin `mode` (o un key desconocido) cae al comportamiento ANTERIOR — los 7 modos completos —
+// como red de seguridad para cualquier caller que todavía no lo pase.
+export function buildModeDispatch(mode) {
   const header = `MODO DE CONVERSACIÓN (viene en "modo" — decide la FORMA de tu respuesta; las reglas de CIFRAS/FORMATO/SAGRADO de abajo valen SIEMPRE, sin importar el modo):\n\n`;
-  return header + MODES.map((m) => `· ${m.key} — ${m.narrate}`).join("\n\n");
+  const list = (typeof mode === "string" && _byKey.has(mode)) ? [_byKey.get(mode)] : MODES;
+  return header + list.map((m) => `· ${m.key} — ${m.narrate}`).join("\n\n");
 }

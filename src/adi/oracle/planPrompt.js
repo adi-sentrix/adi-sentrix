@@ -146,8 +146,13 @@ ${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 }
 
 // buildPlanUserMessage(history, text) → el mensaje de usuario para la Pasada 1 (hilo reciente + turno actual).
+// TOPE POR TURNO (owner 2026-08-03, Fase 1 eficiencia de Mini): antes esto SOLO acotaba por CANTIDAD (slice(-8)),
+// sin tope de longitud por turno — a diferencia de narratePromptC.js/buildNarrateUserMessageC, que YA aplica
+// `.slice(0,220)` además del slice por cantidad (un turno verboso, o una narración larga de ADI en el hilo, podía
+// inflar el prompt de PLAN sin límite). MISMO mecanismo ya probado de NARRAR, copiado byte a byte — el slice(-8) NO
+// se toca (la ventana de turnos ya es correcta), solo se acota la LONGITUD de cada turno dentro de esa ventana.
 export function buildPlanUserMessage(history, text) {
   const h = Array.isArray(history) ? history.slice(-8) : [];
-  const hist = h.map((m) => `${m.role === "user" ? "Usuario" : "ADI"}: ${m.gist || m.text || ""}`).join("\n");
+  const hist = h.map((m) => `${m.role === "user" ? "Usuario" : "ADI"}: ${String(m.gist || m.text || "").slice(0, 220)}`).join("\n");
   return `${hist ? `Hilo reciente:\n${hist}\n\n` : ""}Turno actual del usuario: «${text}»`;
 }

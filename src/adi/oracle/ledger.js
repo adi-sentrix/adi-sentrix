@@ -74,7 +74,14 @@ export function enrichFromFacts(boleta, facts) {
           // sin entidad — no son el mismo riesgo (vienen pre-formateados por el motor, no son doh/rotacion/pct
           // crudos de una fila de un array sin nombre).
           if (!ent) continue;
-          add(`${ent} · ${_humanizeKey(k)}`, ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v}%`);
+          // "pct" (owner 2026-08-03, Fase 1 eficiencia de Mini — bug de redondeo cazado en auditoría): las otras dos
+          // ramas YA redondean (days → entero, ratio → 1 decimal) pero esta autorizaba el float CRUDO completo
+          // (ej. "23.457893214%") — inconsistente con la convención de TODO el resto de la app (composers/
+          // executiveReport.js/comparisons.js/followups.js/mechanisms.js: SIEMPRE `.toFixed(1)` para %). Mismo
+          // redondeo que ya usan los demás campos de esta rama, no una regla nueva — nunca citado en la práctica
+          // con el float completo (0/26 en la muestra de auditoría), así que esto es consistencia pura, no un
+          // cambio de comportamiento observable.
+          add(`${ent} · ${_humanizeKey(k)}`, ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`);
         } else walk(v, ent, k);
       }
       return;

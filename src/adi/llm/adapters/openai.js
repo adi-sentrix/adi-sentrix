@@ -55,7 +55,16 @@ async function _call(body) {
 }
 
 // OpenAI devuelve usage {prompt_tokens, completion_tokens} → lo mapeamos a la forma común {input_tokens, output_tokens}
-const _usage = (u) => (u ? { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } : null);
+// cachedTokens (owner 2026-08-03, Fase 0 instrumentación/eficiencia de Mini): OpenAI expone
+// usage.prompt_tokens_details.cached_tokens (tokens del prompt servidos desde el cache del proveedor, más baratos)
+// pero antes se descartaba acá mismo al armar la forma común — sin esto, ningún medidor de tokens/costo podía saber
+// cuánto del prompt YA estaba cacheado. Campo NUEVO, aditivo — null (no 0) si el proveedor no lo informó, para no
+// fingir "cero cacheado" cuando en realidad no hay dato.
+const _usage = (u) => (u ? {
+  input_tokens: u.prompt_tokens || 0,
+  output_tokens: u.completion_tokens || 0,
+  cachedTokens: (u.prompt_tokens_details && typeof u.prompt_tokens_details.cached_tokens === "number") ? u.prompt_tokens_details.cached_tokens : null,
+} : null);
 
 // FAMILIA gpt-5.x/gpt-5.6.x (router owner 2026-08-02, verificado con probes en vivo — ver _model_comparison.mjs):
 // tres diferencias de API frente a gpt-4o-mini, confirmadas por 400 real antes de arreglarlas:

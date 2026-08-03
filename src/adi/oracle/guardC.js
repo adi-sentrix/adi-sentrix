@@ -58,6 +58,54 @@ function _authorizedCounts(ledger, results) {
   return set;
 }
 
+// ── ensureCountAuthorized(text, ledger, results) — BACKSTOP DETERMINÍSTICO para 'conteo-no-autorizado' (owner
+// 2026-08-03, auditoría de eficiencia de Mini: causa de rechazo MÁS FRECUENTE medida, ~50% de las violaciones de
+// bloqueo en la muestra) — MISMO patrón que ensurePeriodoDeclared (guardC.js) / ensureHypothesisFraming
+// (narratePromptC.js): corrige el texto ANTES de que llegue al chequeo, en vez de solo dejar que bloquee.
+//
+// El caso MÁS FRECUENTE de conteo-no-autorizado no es una cifra inventada de la nada: es un DESAJUSTE entre el
+// número que el narrador dice ("Los 9 principales...") y la cantidad de ítems que en realidad ENUMERA a
+// continuación (a veces lista 5, a veces 7) — un error de conteo sobre SU PROPIO texto (el narrador cuenta mal
+// cuántos nombró), no una fabricación de dato. La convención de listado de ESTE motor (ver TODO specRetrieval.js)
+// es "· " entre ítems ("Falabella ($X) · Lider ($Y) · Sodimac ($Z)") — un patrón textual estable y chequeable sin
+// ningún LLM.
+//
+// Corrección PURAMENTE TEXTUAL y conservadora, en 2 pasos:
+//   1. Para cada conteo NO autorizado (parseCounts + _authorizedCounts), busca una lista "· "-separada dentro de la
+//      MISMA oración (mismo límite de oración que _localWindow — nunca cruza a la oración siguiente) y cuenta los
+//      ítems REALMENTE enumerados.
+//   2. Reemplaza el número inventado por la cuenta real SOLO SI esa cuenta real coincide con la cantidad de ítems
+//      Y esa cuenta YA es un conteo AUTORIZADO (ledger/facts) — nunca inventa un número nuevo, nunca "adivina": si
+//      lo enumerado tampoco cierra contra el dato autorizado, no toca nada y el guard sigue bloqueando como red
+//      final (el bloqueo actual NO se relaja, esto solo evita el rechazo en el caso verificablemente autocorregible).
+const _ENUM_SEP = /\s*·\s*/;
+export function ensureCountAuthorized(text, ledger, results) {
+  const s = String(text == null ? "" : text);
+  if (!s) return s;
+  const authorized = _authorizedCounts(ledger || { figs: [] }, results || []);
+  if (!authorized.size) return s;   // sin ningún conteo autorizado este turno → nada verificable contra qué corregir
+  const counts = parseCounts(s);
+  if (!counts.length) return s;
+  let out = s;
+  for (const c of counts) {
+    if (authorized.has(c.raw)) continue;   // ya autorizado tal cual — no toca
+    const idx = out.indexOf(c.text);
+    if (idx < 0) continue;   // el texto ya cambió por un reemplazo previo y este match quedó desalineado — no forzar
+    const afterIdx = idx + c.text.length;
+    const rest = out.slice(afterIdx);
+    const cut = rest.search(_SENT_END);
+    const window = cut >= 0 ? rest.slice(0, cut) : rest;   // SOLO la misma oración, nunca la siguiente
+    const colonIdx = window.indexOf(":");
+    if (colonIdx < 0) continue;   // sin "N <algo>: lista" en esta oración → no hay nada que recontar
+    const items = window.slice(colonIdx + 1).split(_ENUM_SEP).map((x) => x.trim()).filter(Boolean);
+    if (items.length < 2) continue;   // sin una lista real (2+ ítems) → nada que recontar
+    if (items.length === c.raw) continue;   // el conteo YA coincide con lo enumerado — el problema es otro, no lo toca
+    if (!authorized.has(items.length)) continue;   // la cuenta real TAMPOCO está autorizada — no inventa, no toca
+    out = out.slice(0, idx) + c.text.replace(String(c.raw), String(items.length)) + out.slice(afterIdx);
+  }
+  return out;
+}
+
 // ── ENTIDADES del turno (tenant-safe: salen del DATO devuelto, no de demoData global) ────────────────────────────
 function _entityNames(results) {
   const names = new Set();

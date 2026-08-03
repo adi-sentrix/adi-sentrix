@@ -9,9 +9,9 @@
 import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
-import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared } from "./guardC.js";
+import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables } from "./narratePromptC.js";
-import { stripLanguageLeaks } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red)
+import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
@@ -39,6 +39,28 @@ function _rateLimitBackoffMs(err) {
   if (!err || err.code !== "rate_limited") return 0;
   const ra = Number(err.retryAfterMs);
   return Number.isFinite(ra) && ra > 0 ? Math.min(ra, 2000) : _RATE_LIMIT_BACKOFF_MS;
+}
+
+// ── CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF (owner 2026-08-03, investigación cruzada de los 5 gates de
+// Arquitectura C — hallazgo de MAYOR impacto en USD del inventario: terra+sol miden 93-96.6% del costo extra de
+// turnos escalados) — hasta acá, el loop de reintento usaba el MISMO `attempt` (índice del for) para dos cosas
+// DISTINTAS: (1) decidir el backoff ante rate_limited (arriba) y (2) el valor que viaja a callPlan/callNarrate y que
+// el gateway usa en chooseModel(attempt) para escalar mini→terra→sol (ver modelRouter.js/gatewayCore.js). Un 429
+// real es SATURACIÓN DE CUPO — nada que ver con que el modelo actual "no esté rindiendo" — pero pagaba el mismo
+// precio que un rechazo real de contenido: escalada a un modelo 13-50x más caro. Acá se separan: `modelAttempt` es
+// un contador INDEPENDIENTE (arranca en 0, igual que antes) que SOLO avanza ante una señal de CALIDAD del modelo —
+// nunca ante un 429 ni ante ningún otro error de infraestructura (timeout, gateway caído). El índice del for sigue
+// gobernando el PRESUPUESTO de reintentos (3 intentos, sin cambios) y el `attempt` de planAttemptTrace/
+// narrateAttemptTrace (telemetría, sin cambios) — SOLO el valor enviado a callPlan/callNarrate (lo que decide el
+// tier) pasa a ser `modelAttempt`.
+//
+// _isPlanContentError(e) → true si la EXCEPCIÓN de callPlan es un rechazo de CONTENIDO (JSON inválido del tool_call
+// / sin tool_call-tool_use en la respuesta — ver adapters/openai.js·anthropic.js) — la ÚNICA clase de excepción de
+// PLAN que indica que el modelo no está rindiendo con el schema forzado. Cualquier otra excepción (429, timeout,
+// "gateway no disponible", error de red genérico) es infraestructura → NUNCA escala el tier.
+const _PLAN_CONTENT_ERROR_RE = /JSON inv[aá]lido|sin tool_call en la respuesta|sin tool_use en la respuesta/i;
+function _isPlanContentError(e) {
+  return !!(e && typeof e.message === "string" && _PLAN_CONTENT_ERROR_RE.test(e.message));
 }
 
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
@@ -142,13 +164,20 @@ function _coerceTensionArgs(text, calls) {
 //
 // Backstop DETERMINÍSTICO (mismo principio que el resto de _coerce* de este archivo — solo para el patrón
 // genuinamente inequívoco): si plan.scope.level="entity" con EXACTAMENTE 1 entidad nombrada (2+ es comparación/
-// lista, terreno de compareEntities/diagnose sin acotar — no se toca acá) y la call es una de estas 4 tools,
+// lista, terreno de compareEntities/diagnose sin acotar — no se toca acá) y la call es una de estas tools,
 // forzamos el filtro (o el redirect ya existente de queryMetric) ANTES de ejecutar — reemplaza CUALQUIER `filters`
 // que haya traído el plan (inválido, con la clave equivocada, o ausente) por el único filtro correcto: el eje real
 // de esa entidad en el dato (guessDimension — mismo mecanismo data-driven que ya usan entityRecord/entityProfile,
 // NUNCA una lista de regex nueva) → esa entidad. Si guessDimension no la reconoce (nombre no existe en el dato),
 // no se fuerza nada — la tool declina honesto como siempre, sin inventar un eje.
-const _ENTITY_FILTER_TOOLS = new Set(["marginRead", "contributionRead", "diagnose", "queryMetric"]);
+// simulateCarga/simulateCapital/simulateCosto/simulateGeneral (owner 2026-08-03, auditoría de eficiencia de Mini):
+// MISMO leak que marginRead/contributionRead/diagnose — simulateCarga/simulateCapital/simulateCosto también toman
+// `filters` (ver toolRegistry.js) y, sin filtro, corren sobre TODO el negocio; si el plan las elige para una entidad
+// puntual nombrada sin pasar el filtro, el resultado agregado de la cartera completa queda atribuido por error a esa
+// única entidad — confirmado como leak real de datos de otras entidades, no solo desperdicio de tokens. Se agregan
+// al MISMO set con el MISMO tratamiento (simulateGeneral ya exige su propio `entity`/`dimension` — nunca corre
+// global — así que para ella este backstop es inerte pero inofensivo, no un caso especial nuevo).
+const _ENTITY_FILTER_TOOLS = new Set(["marginRead", "contributionRead", "diagnose", "queryMetric", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral"]);
 function _coerceEntityScopedFilters(plan, calls) {
   const arr = Array.isArray(calls) ? calls : [];
   if (!plan || !plan.scope || plan.scope.level !== "entity") return arr;
@@ -692,19 +721,29 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // planAttemptTrace (owner 2026-08-02, router de modelo — ver modelRouter.js): registro liviano de cada intento,
   // NO decide nada acá (el router server-side decide el modelo por `attempt` en handlePlan) — solo queda observable
   // por turno junto con el resto de la telemetría de ruteo (ver `routing` en ChatADI.jsx).
+  // `usage` (owner 2026-08-03, Fase 0 instrumentación/eficiencia de Mini): antes NINGUNA entrada del trace guardaba
+  // tokens, ni siquiera el intento que SÍ tuvo éxito — imposible medir costo real por intento/turno desde acá. Lectura
+  // DEFENSIVA (`p && p.usage`, nunca inventa 0): el contrato de callPlan (ver comentario de imports, arriba) devuelve
+  // el plan PELADO (mismo shape que hoy, byte-exacto — no se toca para no romper los ~30 gates/callers existentes que
+  // ya lo consumen así); si algún caller decide en el futuro adjuntar `.usage` al plan devuelto (ej. ChatADI.jsx
+  // podría hacerlo con una propiedad no-enumerable, invisible a JSON.stringify/spread, para no filtrar nada al
+  // payload de NARRAR), esta lectura ya lo capturaría sin más cambios acá. Sin ese cableado, queda `null` — honesto,
+  // nunca un cero fingido — no es una promesa de que HOY viaje, es la plomería lista para cuando viaje.
   const planAttemptTrace = [];
   if (!plan) {
+    let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" arriba — NUNCA avanza ante un 429/error de infra
     for (let attempt = 0; attempt < 3; attempt++) {
       let p;
-      try { p = await callPlan({ text: q, history, mem, scenario, requestContext, attempt }); }
+      try { p = await callPlan({ text: q, history, mem, scenario, requestContext, attempt: modelAttempt }); }
       catch (e) {
         const rateLimited = e && e.code === "rate_limited";
-        planAttemptTrace.push({ attempt, ok: false, reason: rateLimited ? "rate_limited (429)" : "error de red/gateway" });
+        planAttemptTrace.push({ attempt, ok: false, reason: rateLimited ? "rate_limited (429)" : "error de red/gateway", usage: null });
         const wait = _rateLimitBackoffMs(e);
         if (wait) await _sleep(wait);
+        if (!rateLimited && _isPlanContentError(e)) modelAttempt++;   // JSON inválido/sin tool_call → SÍ es calidad, escala
         continue;
       }
-      if (!p || !p.intent) { planAttemptTrace.push({ attempt, ok: false, reason: "plan inválido/sin intent" }); continue; }
+      if (!p || !p.intent) { planAttemptTrace.push({ attempt, ok: false, reason: "plan inválido/sin intent", usage: (p && p.usage) || null }); modelAttempt++; continue; }
       // BACKSTOP · calls vacío en un redirect (owner 2026-07-31, hallazgo en vivo, auditoría integral) —
       // planPrompt.js ya prohíbe esto EXPLÍCITAMENTE ("no dejes calls vacío: replanteá y traé el dato bueno"), pero
       // medido en ~1/3 de las corridas el LLM lo deja vacío igual. Sin ninguna cifra autorizada, NARRATE a veces
@@ -715,8 +754,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // plan de todos modos (nunca null acá) — el resto del pipeline (guardC + la reparación de full scope) sigue
       // siendo la red de seguridad si NARRATE igual redacta algo roto.
       plan = p;
-      if (p.intent === "redirect" && !(Array.isArray(p.calls) && p.calls.length)) { planAttemptTrace.push({ attempt, ok: false, reason: "redirect sin calls" }); continue; }
-      planAttemptTrace.push({ attempt, ok: true });
+      if (p.intent === "redirect" && !(Array.isArray(p.calls) && p.calls.length)) { planAttemptTrace.push({ attempt, ok: false, reason: "redirect sin calls", usage: (p && p.usage) || null }); modelAttempt++; continue; }
+      planAttemptTrace.push({ attempt, ok: true, usage: (p && p.usage) || null });
       break;
     }
     if (!plan) return null;
@@ -889,6 +928,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // de guardC por intento — el router server-side (handleNarrateC) escala de modelo cuando el turno vuelve a pasar
   // por acá, precisamente PORQUE guardC rechazó el intento anterior. Esto es lo que hace observable ese "resultado
   // del guard" por turno (ver `routing` en ChatADI.jsx, que lo cruza con modelo/latencia/costo del fetch).
+  // `usage` (owner 2026-08-03, Fase 0 instrumentación/eficiencia de Mini): a diferencia de PLAN (`p` es un objeto,
+  // ver arriba), el contrato de callNarrate devuelve la narración PELADA como STRING (`typeof n !== "string"` se
+  // valida más abajo) — un primitivo no puede cargar una propiedad `.usage`. Capturar tokens acá de verdad exigiría
+  // cambiar esa firma (string → {text,usage}) en los ~30 gates/callers existentes que hoy la consumen como string —
+  // eso es una ruptura de contrato real, fuera del alcance "riesgo cero" de esta fase. Se deja `usage: null` en cada
+  // entrada (honesto, no un cero fingido) para que el SHAPE del trace sea uniforme con planAttemptTrace; la telemetría
+  // real de NARRAR (que SÍ existe, ver `usage` en la respuesta de handleNarrateC) hoy solo es observable vía
+  // `routingTrace`/`_onRouted` en ChatADI.jsx, no vía este trace — cambiar eso es una decisión de contrato del owner.
   const narrateAttemptTrace = [];
   // bestDegraded (owner 2026-08-03, cierre de la investigación de repetición — ver guardC.js/_repetitionVerbatim):
   // guarda la ÚLTIMA narración que pasó guardC (ok=true) pero salió marcada `degraded` (repite un tramo verbatim de
@@ -899,6 +946,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // peor, solo porque no logró variar la redacción en las 3 ventanas de reintento disponibles).
   let bestDegraded = null;
   let narrationDegraded = false;
+  let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" (arriba, junto a _rateLimitBackoffMs) — NUNCA avanza ante un 429/error de infra
   if (!narration && pref.contentScope !== "data_only" && pref.contentScope !== "results_only") for (let attempt = 0; attempt < 3; attempt++) {
     let n;
     // hallazgo de auditoría (owner 2026-08-02, router de modelo): un `return null` acá aborta el TURNO ENTERO al
@@ -908,16 +956,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // hiccup transitorio en ESE intento específico no debe tirar el turno completo: reintenta (mismo presupuesto de
     // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, attempt }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, attempt: modelAttempt }); }
     catch (e) {
-      narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message) });
+      narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message), usage: null });
       const wait = _rateLimitBackoffMs(e);
       if (wait) await _sleep(wait);
+      // TIER: NARRAR no tiene un "JSON inválido" propio (devuelve texto plano, no un tool_call) — cualquier
+      // excepción acá (429 u otro error de red/gateway) es SIEMPRE infraestructura, nunca escala el tier.
       continue;
     }
-    if (!n || typeof n !== "string" || !n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "sin narración utilizable" }); continue; }
+    if (!n || typeof n !== "string" || !n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "sin narración utilizable", usage: null }); modelAttempt++; continue; }
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
+    n = stripOutOfDataOffers(n);     // nunca ofrecer/mencionar data que no existe (campañas/marketing/…) — mismo patrón que la ruta legacy, ver voiceGuard.js
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
     n = stripSingleRowTables(n, q);  // "1 entidad → prosa, nunca tabla" — SALVO que el usuario haya pedido tabla explícitamente (ver narratePromptC.js)
     // action_only: DOBLE candado (data_only/results_only ya no llegan acá, ver arriba). (1) el renderer descarta
@@ -927,9 +978,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // ENTERO acá y reintenta — nunca se edita a mano un texto que ya mezcló categorías.
     if (pref.contentScope === "action_only") {
       const parsed = parseBlocks(n);
-      if (!parsed || !parsed.accion) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only sin bloque [[ACCION]]" }); continue; }
+      if (!parsed || !parsed.accion) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only sin bloque [[ACCION]]", usage: null }); modelAttempt++; continue; }
       const rendered = renderFromBlocks(parsed, "action_only");
-      if (!rendered || hasForbiddenContent(rendered, "action_only")) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only con contenido prohibido" }); continue; }
+      if (!rendered || hasForbiddenContent(rendered, "action_only")) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only con contenido prohibido", usage: null }); modelAttempt++; continue; }
       n = rendered;
     }
     // BREVEDAD ESTRUCTURAL (owner 2026-07-31, certificación integral, riesgo residual #1) — a diferencia de
@@ -942,10 +993,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureHypothesisFraming(n, plan.mode, results);   // requisito SIMULACIÓN: garantía determinística (ver narratePromptC.js)
     n = ensurePeriodoDeclared(n, periodos);   // requisito 3: garantía determinística, no depende de que el LLM se acuerde
     n = ensureClarifyClosingQuestion(n, plan.mode);   // requisito CLARIFY: va DESPUÉS del período para quedar al final de verdad
-    if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops" }); continue; }
+    // BACKSTOP · conteo-no-autorizado (owner 2026-08-03, auditoría de eficiencia de Mini — ver guardC.js): corrige
+    // ANTES de llegar al guard el caso más frecuente (el narrador enumera N ítems pero dice un número distinto) —
+    // nunca inventa un conteo nuevo, solo reconcilia contra lo YA autorizado. El bloqueo real sigue intacto para
+    // cualquier caso que esto no pueda corregir con certeza.
+    n = ensureCountAuthorized(n, ledger, results);
+    if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
     const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev });
-    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? "degradado:repeticion-verbatim (reintenta con escalada, no bloquea)" : null) : gVerdict.verdict });
+    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? "degradado:repeticion-verbatim (reintenta con escalada, no bloquea)" : null) : gVerdict.verdict, usage: null });
     if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
+    // TIER: acá SÍ corresponde escalar — guardC rechazó el contenido (rechazo real) o lo marcó `degraded`
+    // (repetición) — las DOS señales que el owner nombró explícitamente como indicio real de que el modelo actual
+    // no está rindiendo (a diferencia de un 429/timeout, que es infraestructura y nunca escala, ver arriba).
+    modelAttempt++;
     if (gVerdict.ok && gVerdict.degraded) { bestDegraded = n; continue; }
   }
   // ningún intento logró una redacción FRESCA (no repetida) pero al menos uno fue válido-aunque-repetido → usarla

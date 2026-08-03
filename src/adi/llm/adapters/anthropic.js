@@ -31,6 +31,18 @@ function _rateLimitError(status, bodyText, headers) {
   return err;
 }
 
+// cachedTokens (owner 2026-08-03, Fase 0 instrumentación/eficiencia de Mini — MISMO tratamiento que openai.js):
+// Anthropic expone cache_read_input_tokens en el usage crudo (tokens del prompt servidos desde el cache del
+// proveedor, vía cache_control ephemeral que este adapter YA setea en parse()/narrate() más abajo) — se preserva
+// TODO el objeto usage original (ningún campo existente cambia) y se agrega `cachedTokens` normalizado al MISMO
+// nombre que usa el adapter de OpenAI, para que el medidor de tokens/costo sea provider-neutral. null (no 0) si el
+// campo no vino — nunca se inventa "cero cacheado" cuando el proveedor simplemente no lo informó.
+function _usage(u) {
+  if (!u) return null;
+  const cachedTokens = typeof u.cache_read_input_tokens === "number" ? u.cache_read_input_tokens : null;
+  return { ...u, cachedTokens };
+}
+
 async function _call(body) {
   // Usa la conexión DEL ENTORNO si existe (ANTHROPIC_BASE_URL = proxy que inyecta auth · Claude Code/SDK).
   // Si hay key/token explícitos en env, se agregan. La key NUNCA se imprime en logs.
@@ -72,7 +84,7 @@ export const anthropicAdapter = {
     });
     const tu = (data.content || []).find((b) => b.type === "tool_use");
     if (!tu) throw new Error("sin tool_use en la respuesta");
-    return { spec: tu.input, usage: data.usage || null };
+    return { spec: tu.input, usage: _usage(data.usage) };
   },
 
   // output validado → narración (reformula sin cambiar cifras · el number-guard lo verifica aparte, en ADI)
@@ -85,6 +97,6 @@ export const anthropicAdapter = {
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-    return { text: txt, usage: data.usage || null };
+    return { text: txt, usage: _usage(data.usage) };
   },
 };
