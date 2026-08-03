@@ -16,7 +16,7 @@ import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EV
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance } from "./dialogueState.js";
+import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity } from "./dialogueState.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
@@ -352,10 +352,23 @@ function _isGlobalInventoryStatusCall(plan) {
   const filters = calls[0].args && calls[0].args.filters;
   return !filters || typeof filters !== "object" || Object.keys(filters).length === 0;
 }
-function _coerceMode(text, plan, hasThread) {
+// _ELLIPTIC_ENTITY (owner 2026-08-03, defecto "herencia de modo/intención en turnos elípticos tipo 'Y Lider?'") —
+// mismo patrón/precedencia que _CLARIFY_RE y _SEGUIMIENTO_MARKER_RE arriba: red angosta, SOLO fuerza ante un texto
+// inequívoco. Medido en vivo (~9 corridas de 2 turnos): la resolución de ENTIDAD/SCOPE nunca falla para este
+// patrón (el LLM lee el nombre propio directo del texto corto sin necesitar memoria) — el defecto real es
+// específicamente `mode`, que sin este backstop queda 100% a criterio del LLM de PLAN de ESTE turno (inconsistente:
+// ej. "¿Qué recomendás para Falabella?" mode=decision → "¿Y Sodimac?" cayó a mode=default, perdiendo profundidad).
+// Deliberadamente NO toca scope/calls/tool — PLAN sigue resolviendo libremente QUÉ tool llamar con la entidad
+// nueva (la tarea lo permite explícitamente; no hay evidencia empírica de que forzar el mismo tool sea necesario).
+// requiere `hasThread` (sin hilo previo, "¿Y Lider?" no hereda nada — PLAN decide libre, como cualquier turno
+// inicial) Y que recentSubjectsPrev[0] tenga un `mode` threadeado (turnos previos a este fix no lo traen; el
+// backstop simplemente no aplica ahí, cae al comportamiento de siempre — no rompe memoria vieja).
+function _coerceMode(text, plan, hasThread, recentSubjectsPrev) {
   const t = String(text || "");
   if (_CLARIFY_RE.test(t)) return "clarify";
   if (hasThread && _SEGUIMIENTO_MARKER_RE.test(t) && _SEGUIMIENTO_VERB_RE.test(t)) return "seguimiento";
+  const prevTop = Array.isArray(recentSubjectsPrev) && recentSubjectsPrev[0];
+  if (hasThread && prevTop && prevTop.mode && MODE_KEYS.includes(prevTop.mode) && matchEllipticEntity(t)) return prevTop.mode;
   const mode = plan && MODE_KEYS.includes(plan.mode) ? plan.mode : "default";
   if (mode === "default" && _isGlobalInventoryStatusCall(plan)) return "diagnostico";
   return mode;
@@ -765,7 +778,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // más abajo, y si solo corregíamos la variable suelta, el narrador seguía viendo plan.calls SIN corregir (bug real
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
   const hasThread = (Array.isArray(history) && history.length > 0) || recentNarrationsPrev.length > 0 || !!priorOffer;
-  plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread) };
+  plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread, recentSubjectsPrev) };
   const calls = plan.calls;
 
   // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido
@@ -999,8 +1012,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // cualquier caso que esto no pueda corregir con certeza.
     n = ensureCountAuthorized(n, ledger, results);
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev });
-    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? "degradado:repeticion-verbatim (reintenta con escalada, no bloquea)" : null) : gVerdict.verdict, usage: null });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode });
+    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, usage: null });
     if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
     // TIER: acá SÍ corresponde escalar — guardC rechazó el contenido (rechazo real) o lo marcó `degraded`
     // (repetición) — las DOS señales que el owner nombró explícitamente como indicio real de que el modelo actual

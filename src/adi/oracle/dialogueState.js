@@ -145,6 +145,25 @@ export function extractOffer(narration, { plan, calls, pref, turno } = {}) {
   return { texto, entidad, dimension, modoOrigen: (plan && plan.mode) || null, tool, args, mechanismExhausted, mechanism, mechanismBlocked, turno: turno == null ? null : turno };
 }
 
+// ── ELÍPTICO DE ENTIDAD (owner 2026-08-03, defecto "herencia de modo/intención en turnos elípticos tipo 'Y Lider?'")
+// — un turno CORTO tipo "¿Y Lider?"/"Y Sodimac?"/"¿Y en Jumbo?" (conjunción "y" + lo que razonablemente es un
+// nombre propio, SIN verbo de seguimiento) no matchea ninguno de los backstops de modo existentes (_CLARIFY_RE,
+// _SEGUIMIENTO_MARKER_RE+_SEGUIMIENTO_VERB_RE en answerViaOracle.js) — medido en vivo (~9 corridas de 2 turnos):
+// la resolución de ENTIDAD/SCOPE nunca falla (el LLM lee el nombre propio directo del texto corto sin necesitar
+// memoria), pero la clasificación de `mode` sí es inconsistente (cae a mode=default perdiendo la profundidad del
+// turno anterior para la misma clase de pregunta). Red angosta por diseño (mismo principio que _CLARIFY_RE/
+// _SEGUIMIENTO_MARKER_RE — nunca "adivina" un caso ambiguo, solo actúa en el patrón NÍTIDO): texto de ≤6 palabras
+// que empieza con "y"/"¿y" (con preposición opcional) seguido de 1-3 tokens que empiezan con mayúscula y nada más
+// hasta el final (un "?" opcional). Una frase con verbo después de "y" ("y qué hago con Lider") NUNCA matchea — el
+// verbo en minúscula rompe el patrón "solo tokens capitalizados hasta el final de la oración".
+export const ELLIPTIC_ENTITY_RE = /^\s*¿?\s*[Yy]\s+(?:en\s+|con\s+|de\s+|sobre\s+)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9'.-]*(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9'.-]*){0,2})\s*\??\s*$/;
+export function matchEllipticEntity(text) {
+  const t = String(text || "").trim();
+  if (!t || t.split(/\s+/).length > 6) return null;
+  const m = ELLIPTIC_ENTITY_RE.exec(t);
+  return m ? m[1].trim() : null;
+}
+
 // ── TEMAS RECIENTES (LRU acotado a 3) ───────────────────────────────────────────────────────────────────────────
 // owner: "un único sujeto sobrescrito no puede cumplir honestamente [volver a un tema anterior]... no construyas
 // memoria ilimitada." Se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como siempre) — nunca
@@ -163,7 +182,14 @@ export function updateRecentSubjects(prev, plan, calls, turno) {
   if (!entidad) return list;
   const idx = list.findIndex((s) => s && s.entidad === entidad);
   if (idx >= 0) list.splice(idx, 1);
-  list.unshift({ entidad, dimension, turno: turno == null ? null : turno });
+  // mode/intent/tool (owner 2026-08-03, fix "herencia de modo/intención en turnos elípticos") — ADITIVO, mismo
+  // shape de siempre + 3 campos nuevos: qué mode/intent resolvió PLAN y qué tool corrió para ESTA entidad en el
+  // turno que la estableció. renderInteractionMemory (persona.js) sigue leyendo SOLO `s.entidad` — este cambio por
+  // sí solo no altera ningún comportamiento observable hasta que _coerceMode (answerViaOracle.js) los consume.
+  const tool = (Array.isArray(calls) && calls[0] && calls[0].tool) || null;
+  const mode = (plan && plan.mode) || null;
+  const intent = (plan && plan.intent) || null;
+  list.unshift({ entidad, dimension, turno: turno == null ? null : turno, mode, intent, tool });
   return list.slice(0, 3);
 }
 

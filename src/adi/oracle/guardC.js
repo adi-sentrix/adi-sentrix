@@ -392,6 +392,39 @@ function _repetitionVerbatim(narration, recentNarrations) {
   return out;
 }
 
+// ── ORDEN ACCIÓN-TABLA EN mode=DECISION (owner 2026-08-03, defecto confirmado en vivo: 4 corridas reales del turno
+// "¿Qué debería priorizar esta semana entre Falabella, Lider y Sodimac?", 3/3 con mode=decision confirmado abrieron
+// la respuesta con una fila de tabla markdown — violando conversationalContract.js MODES['decision'].narrate
+// ("arrancá DIRECTO por la acción... la tabla JAMÁS es lo primero"). TABLE_INSTRUCTION (narratePromptC.js) asumía
+// y reforzaba tabla-primero para TODO modo; el fix de PROMPT es TABLE_INSTRUCTION_DECISION (narratePromptC.js),
+// que invierte el orden. Esto es el BACKSTOP ESTRUCTURAL — mismo canal `degraded` que `_repetitionVerbatim` de
+// arriba: NUNCA bloquea (violations/ok quedan intactos), solo señala para darle a la escalada mini→terra→sol
+// (modelRouter.js) una chance real de reescribir con el orden correcto ANTES de aceptar una tabla-primero.
+// DEGRADA, NO BLOQUEA (decisión deliberada, con evidencia — no un supuesto):
+//   1. es un requisito de FORMA/orden conversacional, no de FIDELIDAD factual — la tabla sigue siendo 100% fiel a
+//      cifras_autorizadas, solo está mal UBICADA. Las 8 categorías que sí bloquean (`violations`, más abajo) son
+//      todas de fidelidad (cifra/conteo/entidad/orden-de-datos/total/simulación/placeholder) — nunca de forma.
+//   2. bloquear (violations) arriesgaría agotar los 3 intentos de NARRAR y caer a `composeFromLedger`
+//      (answerViaOracle.js, reparación de full scope) — una tabla de cifras SIN NINGUNA prosa ejecutiva, un
+//      resultado estrictamente PEOR para un turno de decisión que una respuesta completa aunque abra con tabla.
+//   3. ningún gate existente certifica hoy "una tabla nunca abre mode=decision" (confirmado por grep del repo:
+//      _oracle_multimodo_gate.mjs solo verifica el VALOR de plan.mode, nunca la posición de una tabla en el texto)
+//      — agregar este backstop no afloja ninguna garantía previa.
+// Mira SOLO la PRIMERA línea NO VACÍA del texto — es literalmente "lo primero que decís" (owner: "la tabla JAMÁS
+// es lo primero que decís"). BUG real cazado en vivo probando esto (owner 2026-08-03, antes de cerrar el fix): una
+// primera versión miraba las primeras DOS líneas no vacías (pensando en el caso "el LLM antepone un separador/
+// negrita suelta antes de la tabla real") — pero el patrón CORRECTO y DESEADO es exactamente "UNA frase de acción,
+// blanco, tabla" — con lo que la fila de encabezado de la tabla CAE en la línea 2 en el caso BUENO también, y esa
+// versión marcaba `degraded` incluso cuando la acción YA estaba primero (falso positivo confirmado en vivo:
+// forzaba reintentos/escalada en el 100% de las respuestas bien formadas). Restringido a la línea 1: una tabla que
+// aparece en cualquier línea DESPUÉS de una primera línea de prosa real es exactamente el orden correcto y no
+// dispara nada; solo dispara cuando la tabla es LITERALMENTE lo primero que el texto dice.
+function _decisionOpensWithTable(text, mode) {
+  if (mode !== "decision") return false;
+  const lines = String(text || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.length > 0 && /^\|.*\|\s*$/.test(lines[0]);
+}
+
 // ── ENTIDAD ledger-derivada (garble) ────────────────────────────────────────────────────────────────────────────
 // STOPLIST · palabras españolas/dominio que colisionan con prefijos de nombres de cliente y NUNCA son garble
 // (la MISMA de entityGuard.js · sin ella "Para" abría casi-match con "Paris" → falso positivo → C se abstenía).
@@ -732,7 +765,7 @@ function _simulateGeneralConclusionViolation(narration, results) {
   return m ? m[0] : null;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -806,11 +839,16 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // junto a _repetitionVerbatim) — además de registrarse como aviso, alimenta `degraded` (campo separado, más abajo).
   const verbatimRepeats = _repetitionVerbatim(narration, recentNarrations);
   for (const v of verbatimRepeats) advisories.push({ kind: "repeticion-verbatim", detail: v });
+  // orden acción-tabla en mode=decision (owner 2026-08-03 — ver _decisionOpensWithTable arriba): AVISO + alimenta
+  // `degraded` (mismo canal que repetición verbatim), NUNCA `violations`/`ok`.
+  const decisionTableFirst = _decisionOpensWithTable(narration, mode);
+  if (decisionTableFirst) advisories.push({ kind: "orden-decision-tabla-primero", detail: "la tabla abre la respuesta en mode=decision — el contrato exige la frase de acción primero" });
 
   const ok = violations.length === 0;   // solo cifra/conteo/entidad BLOQUEAN
   // degraded (owner 2026-08-03): NUNCA afecta `ok`/`violations` — ver el comentario junto a _repetitionVerbatim.
   // Solo es true cuando `ok` YA es true (una respuesta con violations reales no necesita una señal aparte: ya se
-  // reintenta por otro motivo) Y se detectó un tramo verbatim de 8+ palabras contra una narración propia reciente.
-  const degraded = ok && verbatimRepeats.length > 0;
+  // reintenta por otro motivo) Y se detectó (a) un tramo verbatim de 8+ palabras contra una narración propia
+  // reciente, o (b) una tabla que abre la respuesta en mode=decision (ver _decisionOpensWithTable arriba).
+  const degraded = ok && (verbatimRepeats.length > 0 || decisionTableFirst);
   return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories, degraded };
 }

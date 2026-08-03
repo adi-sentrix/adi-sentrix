@@ -246,6 +246,21 @@ function _needsTableFormat(figs) {
 // prompt (mismo principio de payload mínimo que el resto de instrucciones reforzadas de acá abajo).
 const TABLE_INSTRUCTION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifras cada una — SIEMPRE armá una tabla en MARKDOWN real (con fila de encabezado y fila separadora \"|---|---|\"), NUNCA una lista con guiones ni prosa corrida para esto, sin importar que la pregunta haya sido sobre una sola métrica. Cada fila es una entidad; cada columna, un concepto distinto que ya tenés autorizado. OJO si tus cifras mezclan MÁS DE UN TIPO de entidad (ej. bodegas Y SKU a la vez): esto dispara porque ALGÚN grupo tiene 2+ entidades, pero puede que OTRO grupo tenga una sola — nunca armes una tabla de UNA SOLA FILA para ese grupo chico (eso es prosa: \"tenés $X en [la única entidad]\"); tabulá solamente el grupo que de verdad tenga 2+ filas. LA TABLA SOLA NUNCA ES EL CIERRE de la respuesta — es apenas el titular. Después de ella, en PROSA corrida (nunca con un encabezado tipo \"Por qué:\"/\"Qué hacer:\", eso ya está prohibido más abajo), seguí contando la historia completa: explicá la causa con las cifras que ya tenés (rotación, días de cobertura, días sin venta, mecanismo) y nombrá LA entidad puntual (no \"las bodegas mencionadas\" en genérico) con su $ o su brecha como la acción a priorizar. Armar bien la tabla no te exime de cerrar la historia completa (ver LA ESTRUCTURA en tu instrucción general) — un cierre tipo \"¿querés que profundicemos?\" sin haber explicado ya la causa y nombrado qué hacer primero es una respuesta a medias.";
 
+// TABLE_INSTRUCTION_DECISION → variante de TABLE_INSTRUCTION específica para mode="decision" (owner 2026-08-03, fix
+// "orden acción-tabla roto en mode=decision"): TABLE_INSTRUCTION de arriba asume y REFUERZA tabla-primero ("LA
+// TABLA SOLA NUNCA ES EL CIERRE... después de ella, en PROSA corrida... seguí contando la historia completa") — eso
+// choca directo contra conversationalContract.js MODES['decision'].narrate ("Arrancá DIRECTO por la acción — a lo
+// sumo UNA frase de contexto antes, nunca el diagnóstico completo primero"), y medido en vivo (4 corridas reales
+// del turno "¿Qué debería priorizar esta semana entre Falabella, Lider y Sodimac?", 3/3 con mode=decision
+// confirmado) la tabla gana SIEMPRE — el turno abre con la fila de tabla, violando el contrato de decisión.
+// MISMA doctrina de FORMATO que TABLE_INSTRUCTION (markdown real, fila separadora, una fila por entidad, tabla de
+// una sola fila sigue prohibida, tabla tampoco es el cierre) — lo ÚNICO que cambia es el ORDEN: una frase de acción
+// PRIMERO, tabla DESPUÉS, prosa causal al final. Disparada SOLO cuando modo==="decision" Y _needsTableFormat ya
+// decidió que el turno necesita tabla (ver buildNarrateUserMessageC más abajo) — los otros 6 modos siguen
+// recibiendo TABLE_INSTRUCTION sin cambios, byte a byte (cero riesgo de regresión para _table_format_gate.mjs y
+// cualquier otro turno que no sea de decisión).
+const TABLE_INSTRUCTION_DECISION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifras cada una — pero este es un turno de DECISIÓN: antes de armar la tabla, en UNA FRASE, nombrá la acción a priorizar (la entidad/fila con mayor $ o mayor brecha) — la tabla JAMÁS es lo primero que decís en un turno de decisión, a diferencia de otros modos. Recién DESPUÉS de esa frase armá la tabla en MARKDOWN real (con fila de encabezado y fila separadora \"|---|---|\"), NUNCA una lista con guiones ni prosa corrida para esto, sin importar que la pregunta haya sido sobre una sola métrica. Cada fila es una entidad; cada columna, un concepto distinto que ya tenés autorizado. OJO si tus cifras mezclan MÁS DE UN TIPO de entidad (ej. bodegas Y SKU a la vez): tabulá solamente el grupo que de verdad tenga 2+ filas, nunca una tabla de UNA SOLA FILA (eso es prosa). LA TABLA TAMPOCO ES EL CIERRE — después de ella, en PROSA corrida (nunca con un encabezado tipo \"Por qué:\"/\"Qué hacer:\", eso ya está prohibido más abajo), explicá el mecanismo/causa con las cifras que ya tenés (rotación, días de cobertura, mecanismo real). El orden completo de tu respuesta es SIEMPRE: (1) UNA frase de acción, (2) la tabla, (3) la prosa causal — la tabla NUNCA puede ser la primera línea que escribís.";
+
 // _needsCapitalColumnNames(figs) → true si el ledger trae el patrón EXACTO "Entidad · Capital detenido" +
 // "Entidad · % del total" (composeSpecInventory, specRetrieval.js — capital por bodega/SKU). Owner 2026-08-02:
 // "Usa tabla con estas columnas: Bodega/SKU | Capital detenido | % del total". Medido en vivo (5/5 corridas):
@@ -354,7 +369,9 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // narrationBlocks.js) — esto es para que la mayoría de los turnos ya lleguen cortos sin depender del corte.
     ...(pref && pref.detailLevel === "brief" ? { instruccion_brevedad: BRIEF_INSTRUCTION } : {}),
     // TABLA REFORZADA (owner 2026-08-02, hallazgo en vivo): ver _needsTableFormat/TABLE_INSTRUCTION arriba.
-    ...(_needsTableFormat(ledgerFigs) ? { instruccion_tabla: TABLE_INSTRUCTION } : {}),
+    // modo==="decision" usa la variante TABLE_INSTRUCTION_DECISION (owner 2026-08-03, fix "orden acción-tabla roto
+    // en mode=decision") — mismo disparador (_needsTableFormat), solo cambia CUÁL instrucción viaja.
+    ...(_needsTableFormat(ledgerFigs) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {}),
     // LISTA NUMERADA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsListFormat/LIST_INSTRUCTION.
     ...(_needsListFormat(ledgerFigs) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
