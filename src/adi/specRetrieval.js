@@ -883,7 +883,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     ];
     if (_pp1(lead[0])) {
       lines.push(`**Cuánto vale:** 1pp de margen en ${_mNombre(lead[0])} son +${_money(_pp1(lead[0]))} al año — por eso va primero.`);
-      bol.push(_figLever(`Medida · 1pp en ${_mNombre(lead[0])}`, _pp1(lead[0]), "venta × 1%", true));
+      bol.push(_figLever(`${_mNombre(lead[0])} · Medida 1pp`, _pp1(lead[0]), "venta × 1%", true));
     }
     pushMarginFigs(lead);
     suggestions = ["Es por precio o por costo", "Acciones para recuperar margen"];
@@ -935,10 +935,10 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
         ? `**Cuánto vale:** si los ${lever.count} que están materialmente bajo el piso llegan al benchmark, son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`
         : `**Cuánto vale:** de los ${below.length} bajo el piso, los ${lever.count} con brecha material (${_DIAG_MARGIN_GAP()} pp o más) concentran el valor: si llegan al benchmark son +${_money(lever.subtotal)} de contribución al año — el que más paga es ${lever.top[0].entidad} (+${_money(lever.top[0].usd)}).`);
       bol.push(_figLever("Medida · cerrar brecha al piso", lever.subtotal, "Σ venta × benchmark − contribución (≥4pp · ≥ piso)", true));
-      bol.push(_figLever(`Medida · ${lever.top[0].entidad}`, lever.top[0].usd, "venta × benchmark − contribución"));
+      bol.push(_figLever(`${lever.top[0].entidad} · Valor en juego`, lever.top[0].usd, "venta × benchmark − contribución"));
     } else if (below.length && _pp1(below[0])) {
       lines.push(`**Cuánto vale:** un solo punto de margen en ${_mNombre(below[0])} son +${_money(_pp1(below[0]))} al año.`);
-      bol.push(_figLever(`Medida · 1pp en ${_mNombre(below[0])}`, _pp1(below[0]), "venta × 1%", true));
+      bol.push(_figLever(`${_mNombre(below[0])} · Medida 1pp`, _pp1(below[0]), "venta × 1%", true));
     }
     suggestions = ["Es por precio o por costo", "Cuánta venta está bajo el mínimo"];
   } else if (focus === "causa_precio" || focus === "causa_costo") {
@@ -954,7 +954,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       ];
       if (_pp1(byThin[0])) {
         lines.push(`**Cuánto vale:** recuperar 1pp vía precio en ${_mNombre(byThin[0])} son +${_money(_pp1(byThin[0]))} al año.`);
-        bol.push(_figLever(`Medida · 1pp en ${_mNombre(byThin[0])}`, _pp1(byThin[0]), "venta × 1%", true));
+        bol.push(_figLever(`${_mNombre(byThin[0])} · Medida 1pp`, _pp1(byThin[0]), "venta × 1%", true));
       }
       pushMarginFigs(byThin);
       suggestions = ["Cuáles ceden por costo", "Candidatos a subir precio"];
@@ -967,7 +967,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       ];
       if (_pp1(byCost[0])) {
         lines.push(`**Cuánto vale:** recuperar 1pp vía costo en ${_mNombre(byCost[0])} son +${_money(_pp1(byCost[0]))} al año.`);
-        bol.push(_figLever(`Medida · 1pp en ${_mNombre(byCost[0])}`, _pp1(byCost[0]), "venta × 1%", true));
+        bol.push(_figLever(`${_mNombre(byCost[0])} · Medida 1pp`, _pp1(byCost[0]), "venta × 1%", true));
       }
       pushMarginFigs(byCost);
       suggestions = ["Cuáles ceden por precio", "Acciones para recuperar margen"];
@@ -985,8 +985,8 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     ];
     if (_pp1(lead[0])) {
       lines.push(`**Cuánto vale:** cada punto de precio en ${_mNombre(lead[0])} vale +${_money(_pp1(lead[0]))} al año${lead[1] && _pp1(lead[1]) ? `; en ${_mNombre(lead[1])}, +${_money(_pp1(lead[1]))}` : ""} — corrección chica, valor directo.`);
-      bol.push(_figLever(`Medida · 1pp en ${_mNombre(lead[0])}`, _pp1(lead[0]), "venta × 1%", true));
-      if (lead[1] && _pp1(lead[1])) bol.push(_figLever(`Medida · 1pp en ${_mNombre(lead[1])}`, _pp1(lead[1]), "venta × 1%"));
+      bol.push(_figLever(`${_mNombre(lead[0])} · Medida 1pp`, _pp1(lead[0]), "venta × 1%", true));
+      if (lead[1] && _pp1(lead[1])) bol.push(_figLever(`${_mNombre(lead[1])} · Medida 1pp`, _pp1(lead[1]), "venta × 1%"));
     }
     pushMarginFigs(lead);
     suggestions = ["Es por precio o por costo", "Productos de alto margen subpenetrados"];
@@ -1039,7 +1039,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     for (const r of cargaHigh) bol.push(fig(`${_mNombre(r)} · Carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
     if (cargaLever && cargaLever.top.length) {
       bol.push(_figLever("Medida · carga al target", cargaLever.subtotal, "Σ (carga − target) × venta (≥ piso)", true));
-      bol.push(_figLever(`Medida · ${cargaLever.top[0].entidad}`, cargaLever.top[0].usd, "(carga − target) × venta"));
+      bol.push(_figLever(`${cargaLever.top[0].entidad} · Carga recuperable`, cargaLever.top[0].usd, "(carga − target) × venta"));
     }
     suggestions = ["Los que más venden y peor margen", "Es por precio o por costo"];
   } else {
@@ -1442,16 +1442,16 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
   let hasPlata = false;
   if (iA || iB) {
     const parts = [];
-    if (iA) { parts.push(`con ${a} estás dejando ${_money(iA.usd)} al año sobre la mesa (margen ${_p1(rA.margen)}% vs tu piso ${_p1(bench)}%)`); bol.push(_figLever(`Valor en juego · ${a}`, iA.usd, "venta × benchmark − contribución")); }
-    if (iB) { parts.push(`con ${b}, ${_money(iB.usd)}`); bol.push(_figLever(`Valor en juego · ${b}`, iB.usd, "venta × benchmark − contribución")); }
+    if (iA) { parts.push(`con ${a} estás dejando ${_money(iA.usd)} al año sobre la mesa (margen ${_p1(rA.margen)}% vs tu piso ${_p1(bench)}%)`); bol.push(_figLever(`${a} · Valor en juego`, iA.usd, "venta × benchmark − contribución")); }
+    if (iB) { parts.push(`con ${b}, ${_money(iB.usd)}`); bol.push(_figLever(`${b} · Valor en juego`, iB.usd, "venta × benchmark − contribución")); }
     lines.push(`**Dónde está el valor:** ${parts.join("; ")}.${p1A && p1B ? ` Cada punto de margen recuperado vale +${_money(p1A)}/año en ${a} y +${_money(p1B)} en ${b}.` : ""}`);
-    if (p1A) bol.push(_figLever(`Medida · 1pp en ${a}`, p1A, "venta × 1%"));
-    if (p1B) bol.push(_figLever(`Medida · 1pp en ${b}`, p1B, "venta × 1%"));
+    if (p1A) bol.push(_figLever(`${a} · Medida 1pp`, p1A, "venta × 1%"));
+    if (p1B) bol.push(_figLever(`${b} · Medida 1pp`, p1B, "venta × 1%"));
     hasPlata = true;
   } else if ((rA.margen < bench || rB.margen < bench) && p1A && p1B) {
     lines.push(`**Dónde está el valor:** ${a} captura ${_p1(rA.margen)}% y ${b} ${_p1(rB.margen)}% contra tu piso de ${_p1(bench)}% — cada punto de margen vale +${_money(p1A)}/año en ${a} y +${_money(p1B)} en ${b}.`);
-    bol.push(_figLever(`Medida · 1pp en ${a}`, p1A, "venta × 1%"));
-    bol.push(_figLever(`Medida · 1pp en ${b}`, p1B, "venta × 1%"));
+    bol.push(_figLever(`${a} · Medida 1pp`, p1A, "venta × 1%"));
+    bol.push(_figLever(`${b} · Medida 1pp`, p1B, "venta × 1%"));
     hasPlata = true;
   } else if (rA.margen >= bench && rB.margen >= bench) {
     lines.push(`**Dónde está el valor:** los dos capturan sobre tu piso de ${_p1(bench)}% — acá no se pierde, se defiende: el riesgo es ceder margen para crecer volumen.`);
@@ -1559,9 +1559,9 @@ export function diveCauses(entity, scenario) {
     const fc = _leverFoco(scenario, "carga", { entities: [entity] });
     const im = fm && fm.items.find((x) => x.entidad === entity), ic = fc && fc.items.find((x) => x.entidad === entity);
     const parts = [];
-    if (im) { parts.push(`${_money(im.usd)} al año de contribución sobre la mesa si llega a tu piso`); bol.push(_figLever(`Valor en juego · ${entity}`, im.usd, "venta × benchmark − contribución")); }
-    if (ic) { parts.push(`${_money(ic.usd)} recuperables llevando la carga al target`); bol.push(_figLever(`Carga recuperable · ${entity}`, ic.usd, "(carga − target) × venta")); }
-    if (p1v) { parts.push(`cada punto de margen vale +${_money(p1v)}/año`); bol.push(_figLever(`Medida · 1pp en ${entity}`, p1v, "venta × 1%")); }
+    if (im) { parts.push(`${_money(im.usd)} al año de contribución sobre la mesa si llega a tu piso`); bol.push(_figLever(`${entity} · Valor en juego`, im.usd, "venta × benchmark − contribución")); }
+    if (ic) { parts.push(`${_money(ic.usd)} recuperables llevando la carga al target`); bol.push(_figLever(`${entity} · Carga recuperable`, ic.usd, "(carga − target) × venta")); }
+    if (p1v) { parts.push(`cada punto de margen vale +${_money(p1v)}/año`); bol.push(_figLever(`${entity} · Medida 1pp`, p1v, "venta × 1%")); }
     if (parts.length) lines.push(`**Dónde está el valor:** ${parts.join(" · ")}.`);
     // LA DECISIÓN · la palanca dominante en pp
     lines.push(`**La decisión:** ${cargaExc >= resto ? `la carga es la medida dominante — renegociar rebates/condiciones es lo primero` : `la medida dominante es precio/costo — revisar lista y costo de compra rinde más que tocar la carga`}; después medí el punto recuperado contra ${p1v ? `los +${_money(p1v)} que vale` : "su valor anual"}.`);
@@ -1570,7 +1570,7 @@ export function diveCauses(entity, scenario) {
     const fc = _leverFoco(scenario, "carga", { entities: [entity] });
     const ic = fc && fc.items.find((x) => x.entidad === entity);
     lines.push(`**Por qué gana:** ${entity} captura ${_p1(r.margen)}% — ${_p1(Math.abs(gap))}pp SOBRE tu piso de ${_p1(bench)}%. Acá no se pierde: se defiende ese margen mientras crece.`);
-    if (ic) { lines.push(`**Valor extra igual disponible:** su carga está sobre el target — ${_money(ic.usd)} al año recuperables sin tocar el precio.`); bol.push(_figLever(`Carga recuperable · ${entity}`, ic.usd, "(carga − target) × venta")); }
+    if (ic) { lines.push(`**Valor extra igual disponible:** su carga está sobre el target — ${_money(ic.usd)} al año recuperables sin tocar el precio.`); bol.push(_figLever(`${entity} · Carga recuperable`, ic.usd, "(carga − target) × venta")); }
     lines.push(`**La decisión:** cuidala — es de las cuentas que sostienen tu contribución; el riesgo real es cederle margen para crecer volumen.`);
   }
   return { lines, bol };

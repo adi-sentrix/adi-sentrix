@@ -40,14 +40,14 @@ ok("palanca de carga == subtotal del diagnose (mismo raw)", leverCarga && diagCa
 
 console.log("\n── 1pp = venta × 1% en focos por entidad ──");
 const mSubir = A(spec({ operation: "margin", focus: "subir_precio", dimension: "sku" }), {}, {});
-const lever1pp = figOf(mSubir, /Medida · 1pp en /);
+const lever1pp = figOf(mSubir, / · Medida 1pp/);
 ok("subir_precio cuantifica el punto de precio", /cada punto de precio en .+ vale \+\$/.test(mSubir.text) && !!lever1pp && lever1pp.raw > 0);
 const mVol = A(spec({ operation: "margin", focus: "alto_volumen_bajo_margen" }), {}, {});
-ok("alto_volumen cuantifica 1pp del caso más caro", /1pp de margen en .+ son \+\$/.test(mVol.text) && !!figOf(mVol, /Medida · 1pp en /));
+ok("alto_volumen cuantifica 1pp del caso más caro", /1pp de margen en .+ son \+\$/.test(mVol.text) && !!figOf(mVol, / · Medida 1pp/));
 const mPrecio = A(spec({ operation: "margin", focus: "causa_precio" }), {}, {});
-ok("causa_precio cuantifica 1pp vía precio", /recuperar 1pp vía precio/.test(mPrecio.text) && !!figOf(mPrecio, /Medida · 1pp en /));
+ok("causa_precio cuantifica 1pp vía precio", /recuperar 1pp vía precio/.test(mPrecio.text) && !!figOf(mPrecio, / · Medida 1pp/));
 const mCosto = A(spec({ operation: "margin", focus: "causa_costo" }), {}, {});
-ok("causa_costo cuantifica 1pp vía costo", /recuperar 1pp vía costo/.test(mCosto.text) && !!figOf(mCosto, /Medida · 1pp en /));
+ok("causa_costo cuantifica 1pp vía costo", /recuperar 1pp vía costo/.test(mCosto.text) && !!figOf(mCosto, / · Medida 1pp/));
 
 console.log("\n── ventas e inventario ──");
 const vPpto = A({ schemaVersion: 1, operation: "ventas", metric: "ventas", dimension: "cliente", focus: "vs_presupuesto" }, {}, {});
@@ -82,18 +82,18 @@ const cmp = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimens
 ok("el compare trae POR QUÉ ocurre (causa de la brecha: costo vs carga)", /\*\*Por qué ocurre:\*\*/.test(cmp.text));
 ok("el compare trae DÓNDE ESTÁ EL VALOR (la no-capturada de cada uno)", /\*\*Dónde está el valor:\*\*/.test(cmp.text) && /sobre la mesa/.test(cmp.text));
 ok("el compare trae LA DECISIÓN (palanca + por cuál empezar)", /\*\*La decisión:\*\*/.test(cmp.text) && /Empezá por/.test(cmp.text));
-const cmpFal = figOf(cmp, /Valor en juego · Falabella/);
+const cmpFal = figOf(cmp, /Falabella · Valor en juego/);
 const diagFal = bol(diag).find((f) => /Falabella · Contribución no capturada/.test(f.label));
 ok("una verdad: la plata en juego de Falabella == el ítem del diagnose (mismo raw)", cmpFal && diagFal && cmpFal.raw === diagFal.raw);
 ok("las cifras causales son computed + formula auditable", cmpFal && cmpFal.source === "computed" && !!cmpFal.formula);
-ok("el valor del punto por entidad está (palanca 1pp en ambos)", !!figOf(cmp, /Medida · 1pp en Falabella/) && !!figOf(cmp, /Medida · 1pp en Lider/));
+ok("el valor del punto por entidad está (palanca 1pp en ambos)", !!figOf(cmp, /Falabella · Medida 1pp/) && !!figOf(cmp, /Lider · Medida 1pp/));
 
 console.log("\n── capa CAUSAL del DIVE (Profundiza en X) · la brecha en pp + la plata gated + la decisión ──");
 const dive = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "Falabella" }, {}, {});
 ok("el dive trae POR QUÉ está donde está (brecha en pp descompuesta)", /\*\*Por qué está donde está:\*\*/.test(dive.text) && /pp/.test(dive.text));
 ok("el dive trae DÓNDE está el valor + valor del punto", /\*\*Dónde está el valor:\*\*/.test(dive.text) && /cada punto de margen vale/i.test(dive.text));
 ok("el dive trae LA DECISIÓN (medida dominante)", /\*\*La decisión:\*\*/.test(dive.text) && /medida/i.test(dive.text));
-const divePlata = figOf(dive, /Valor en juego · Falabella/);
+const divePlata = figOf(dive, /Falabella · Valor en juego/);
 ok("una verdad: el valor en juego del dive == el ítem del diagnose (mismo raw)", divePlata && diagFal && divePlata.raw === diagFal.raw);
 ok("aritmética honesta: carga sobre target + precio/costo ≈ brecha (mismos pp)", (() => { const g = figOf(dive, /Causa · brecha al piso/), c = figOf(dive, /Causa · carga sobre target/), r = figOf(dive, /Causa · precio\/costo/); return g && r && Math.abs((c ? c.raw : 0) + r.raw - g.raw) < 0.15; })());
 const diveTop = A({ schemaVersion: 1, operation: "dive", dimension: "cliente", entity: "La Polar" }, {}, {});
