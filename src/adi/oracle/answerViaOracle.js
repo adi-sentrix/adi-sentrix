@@ -23,6 +23,24 @@ import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_E
 import { detectCriteriaIntent } from "../criteria.js";   // C.2 memoria de criterio (owner 2026-07-31, fix adi-oraculo-criterio-no-invocado): la ruta oráculo nunca la corría
 import { composeCriteria } from "../conversation.js";     // UNA VERDAD: reusa la MISMA composición (setCriterion/forgetCriterion) de la ruta legacy, nunca la reimplementa acá
 
+// ── BACKOFF ante RATE-LIMIT real (owner 2026-08-03, investigación cruzada de los 5 gates de Arquitectura C:
+// clarify_mode/multimodo/provider_certification/plan/tension) — hallazgo transversal CONFIRMADO en vivo, múltiples
+// corridas: el proveedor (OpenAI, TPM por modelo) devuelve HTTP 429 con frecuencia bajo carga concurrente, y NINGÚN
+// adapter/loop de este archivo esperaba nada antes del siguiente intento — 3 reintentos casi instantáneos contra el
+// MISMO minuto de cupo agotado garantizan repetir el mismo 429 las 3 veces. Los adapters (openai.js/anthropic.js)
+// ahora marcan `err.code = "rate_limited"` (+ `err.retryAfterMs` si el proveedor lo informó) — acá solo se consume
+// esa señal para esperar un poco ANTES del siguiente intento. NO decide el modelo (eso sigue siendo 100% de
+// chooseModel/attempt, ver modelRouter.js) — solo demora el turno del MISMO loop de reintento ya existente, dándole
+// al siguiente tier (mini→terra→sol, con presupuesto de TPM SEPARADO por modelo) una chance real de no repetir el
+// mismo rechazo. Tope duro (2s) para no exceder presupuestos de función serverless por acumular esperas.
+function _sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+const _RATE_LIMIT_BACKOFF_MS = 1500;
+function _rateLimitBackoffMs(err) {
+  if (!err || err.code !== "rate_limited") return 0;
+  const ra = Number(err.retryAfterMs);
+  return Number.isFinite(ra) && ra > 0 ? Math.min(ra, 2000) : _RATE_LIMIT_BACKOFF_MS;
+}
+
 // ── VOCABULARIO NATURAL DE tensionRead (owner 2026-07-29, hallazgo en vivo): "cruza rotación con contribución"
 // (la forma que el catálogo de planPrompt.js ya sabía reconocer) funciona, pero "¿quién sostiene la contribución y
 // quién tiene menor margen/deja menos margen/consume margen?" — la forma NATURAL en que alguien realmente pregunta
@@ -679,7 +697,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     for (let attempt = 0; attempt < 3; attempt++) {
       let p;
       try { p = await callPlan({ text: q, history, mem, scenario, requestContext, attempt }); }
-      catch { planAttemptTrace.push({ attempt, ok: false, reason: "error de red/gateway" }); continue; }
+      catch (e) {
+        const rateLimited = e && e.code === "rate_limited";
+        planAttemptTrace.push({ attempt, ok: false, reason: rateLimited ? "rate_limited (429)" : "error de red/gateway" });
+        const wait = _rateLimitBackoffMs(e);
+        if (wait) await _sleep(wait);
+        continue;
+      }
       if (!p || !p.intent) { planAttemptTrace.push({ attempt, ok: false, reason: "plan inválido/sin intent" }); continue; }
       // BACKSTOP · calls vacío en un redirect (owner 2026-07-31, hallazgo en vivo, auditoría integral) —
       // planPrompt.js ya prohíbe esto EXPLÍCITAMENTE ("no dejes calls vacío: replanteá y traé el dato bueno"), pero
@@ -866,6 +890,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // por acá, precisamente PORQUE guardC rechazó el intento anterior. Esto es lo que hace observable ese "resultado
   // del guard" por turno (ver `routing` en ChatADI.jsx, que lo cruza con modelo/latencia/costo del fetch).
   const narrateAttemptTrace = [];
+  // bestDegraded (owner 2026-08-03, cierre de la investigación de repetición — ver guardC.js/_repetitionVerbatim):
+  // guarda la ÚLTIMA narración que pasó guardC (ok=true) pero salió marcada `degraded` (repite un tramo verbatim de
+  // 8+ palabras de una narración propia reciente) — NUNCA se acepta de inmediato (el loop sigue reintentando, dando
+  // a la escalada de modelo mini→terra→sol una chance real de producir algo fresco), pero si los 3 intentos quedan
+  // TODOS degradados, usar la mejor disponible es preferible a caer a la reparación genérica de más abajo (que
+  // reemplazaría una respuesta VÁLIDA — guardC ya la validó igual que cualquier otra — por un "no tengo información"
+  // peor, solo porque no logró variar la redacción en las 3 ventanas de reintento disponibles).
+  let bestDegraded = null;
+  let narrationDegraded = false;
   if (!narration && pref.contentScope !== "data_only" && pref.contentScope !== "results_only") for (let attempt = 0; attempt < 3; attempt++) {
     let n;
     // hallazgo de auditoría (owner 2026-08-02, router de modelo): un `return null` acá aborta el TURNO ENTERO al
@@ -876,7 +909,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
     try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, attempt }); }
-    catch (e) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message) }); continue; }
+    catch (e) {
+      narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message) });
+      const wait = _rateLimitBackoffMs(e);
+      if (wait) await _sleep(wait);
+      continue;
+    }
     if (!n || typeof n !== "string" || !n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "sin narración utilizable" }); continue; }
     n = normalizeFigures(n, figs);   // cifras en forma canónica limpia ($4.9M, no $4,943,664)
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
@@ -906,9 +944,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureClarifyClosingQuestion(n, plan.mode);   // requisito CLARIFY: va DESPUÉS del período para quedar al final de verdad
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops" }); continue; }
     const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev });
-    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? null : gVerdict.verdict });
-    if (gVerdict.ok) { narration = n; break; }
+    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? "degradado:repeticion-verbatim (reintenta con escalada, no bloquea)" : null) : gVerdict.verdict });
+    if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
+    if (gVerdict.ok && gVerdict.degraded) { bestDegraded = n; continue; }
   }
+  // ningún intento logró una redacción FRESCA (no repetida) pero al menos uno fue válido-aunque-repetido → usarla
+  // es estrictamente mejor que la reparación genérica de más abajo (ver el comentario junto a `bestDegraded`).
+  if (!narration && bestDegraded) { narration = bestDegraded; narrationDegraded = true; }
   // REPARACIÓN CONTROLADA (owner: "nunca fallback genérico") — data_only/results_only ya se resolvieron arriba,
   // siempre, con o sin datos (nunca caen en este loop, ver la condición de arriba) — acá solo llegan full/action_only.
   // ORIGEN (owner 2026-07-31, #56 "simulate v2", variante c): si ESTE turno trae un simulateGeneral degradado
@@ -966,6 +1008,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // diferencia de `deterministic`) pero ninguno de los 3 intentos cumplió el formato de bloques o el guard —
       // el texto final salió de composeFromLedger, no del narrador libre. Solo debug/telemetría.
       ...(narrationRepaired ? { narrationRepaired: true } : {}),
+      // marca de degradación por repetición (owner 2026-08-03): los 3 intentos de NARRAR quedaron marcados
+      // `degraded` (tramo verbatim de 8+ palabras contra una narración propia reciente) — se usó el último de
+      // todos modos (ver `bestDegraded` arriba) en vez de reparar desde la boleta. Solo debug/telemetría.
+      ...(narrationDegraded ? { narrationDegraded: true } : {}),
       // retryTrace (owner 2026-08-02, router de modelo — ver modelRouter.js): reintentos + veredicto de guardC por
       // intento, SOLO debug/telemetría (nunca condiciona el motor). Se cruza en ChatADI.jsx con el modelo/latencia/
       // costo real de cada intento (capturado en el fetch) para dejar el ruteo observable por turno completo.

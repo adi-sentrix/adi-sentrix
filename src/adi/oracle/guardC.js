@@ -296,6 +296,54 @@ function _repetitionAdvisory(narration, recentNarrations) {
   return out;
 }
 
+// ── REPETICIÓN VERBATIM (owner 2026-08-03, cierre de la investigación cruzada de los 5 gates de solapamiento léxico:
+// _oracle_clarify_mode_gate.mjs · _oracle_multimodo_gate.mjs · _oracle_provider_certification_gate.mjs) — a
+// diferencia de `_repetitionAdvisory` de arriba (ratio de VOCABULARIO compartido, SIEMPRE aviso puro — repetir un
+// nombre de cliente, una cifra real o el mismo encabezado de tabla entre turnos sobre el MISMO tema es correcto y
+// necesario, NUNCA debe bloquear ni cambiar el resultado — ver el comentario de esa función y `_dialogue_state_gate.
+// mjs` sección 1, que fija como decisión DELIBERADA del owner 2026-07-30 que una repetición de 100% del vocabulario
+// SIGUE pasando el guard con ok=true), esto detecta algo estructuralmente más fuerte: un TRAMO VERBATIM de 8+
+// PALABRAS CONSECUTIVAS IDÉNTICO entre la narración actual y una narración reciente propia — evidencia mucho más
+// nítida de prosa reciclada palabra-por-palabra (nunca confunde "mismo tema/tabla/entidad, mencionado de nuevo" con
+// "el mismo párrafo pegado otra vez"): dos tablas legítimas que comparten encabezados + nombres de cliente + cifras
+// jamás producen 8 palabras SEGUIDAS idénticas, salvo que sea realmente el mismo contenido copiado.
+// DISEÑO (auditoría adversarial 2026-08-03, reconciliando 2 propuestas incompatibles — ver la nota de `guardC()`
+// más abajo, en el cálculo de `degraded`): esto NUNCA entra a `violations`/`ok` — solo alimenta `advisories` (mismo
+// canal que `_repetitionAdvisory`) MÁS un campo NUEVO y SEPARADO `degraded` en el objeto de retorno. `ok` sigue
+// significando EXACTAMENTE lo mismo que siempre (cifra/conteo/entidad/orden/total/simulación/placeholder-BLOQUEAN,
+// nada más) — `degraded` es una señal ADITIVA que el loop de reintento de NARRAR en answerViaOracle.js usa para
+// darle a la escalada de modelo (mini→terra→sol, modelRouter.js) una oportunidad de producir una redacción fresca
+// ANTES de aceptar una respuesta reciclada — NUNCA para reemplazar una respuesta válida por un "no tengo datos"
+// peor (ver el uso en answerViaOracle.js: si NINGÚN intento logra una redacción fresca, se usa la MEJOR degradada
+// disponible, jamás se cae a la reparación genérica solo por esto).
+const _MIN_VERBATIM_RUN = 8;
+function _tokenizeOrdered(text) {
+  const out = [];
+  for (const m of String(text || "").toLowerCase().matchAll(_WORD_RE)) out.push(m[0]);
+  return out;
+}
+// sharedVerbatimRun(a, b, minWords) → true si `a` y `b` comparten un tramo de `minWords`+ palabras SEGUIDAS
+// idéntico (orden incluido, a diferencia de `_overlapRatio` que solo mira el CONJUNTO de palabras). Exportado
+// (owner 2026-08-03): fuente ÚNICA reusada por los gates _oracle_multimodo_gate.mjs/_oracle_provider_certification_
+// gate.mjs/_oracle_clarify_mode_gate.mjs para reemplazar su propia métrica de ratio crudo — nunca se duplica esta
+// lógica en cada gate por separado (regla de una sola fuente de verdad).
+export function sharedVerbatimRun(a, b, minWords = _MIN_VERBATIM_RUN) {
+  const ta = _tokenizeOrdered(a), tb = _tokenizeOrdered(b);
+  if (ta.length < minWords || tb.length < minWords) return false;
+  const grams = new Set();
+  for (let i = 0; i + minWords <= tb.length; i++) grams.add(tb.slice(i, i + minWords).join(" "));
+  for (let i = 0; i + minWords <= ta.length; i++) if (grams.has(ta.slice(i, i + minWords).join(" "))) return true;
+  return false;
+}
+function _repetitionVerbatim(narration, recentNarrations) {
+  if (!Array.isArray(recentNarrations) || !recentNarrations.length) return [];
+  const out = [];
+  for (const prev of recentNarrations) {
+    if (sharedVerbatimRun(narration, prev, _MIN_VERBATIM_RUN)) out.push(`la respuesta repite un tramo de ${_MIN_VERBATIM_RUN}+ palabras SEGUIDAS idéntico a una narración reciente propia de ADI — contenido reciclado verbatim (no solo mismo tema/cifra)`);
+  }
+  return out;
+}
+
 // ── ENTIDAD ledger-derivada (garble) ────────────────────────────────────────────────────────────────────────────
 // STOPLIST · palabras españolas/dominio que colisionan con prefijos de nombres de cliente y NUNCA son garble
 // (la MISMA de entityGuard.js · sin ella "Para" abría casi-match con "Paris" → falso positivo → C se abstenía).
@@ -706,7 +754,15 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   for (const v of _mechanismMemoryAdvisory(narration, mechanismMemory, mechRows)) advisories.push({ kind: "mecanismo-memoria-inconsistente", detail: v });
   // repetición contra narraciones propias recientes (Fase 3, owner 2026-07-30 — AVISO, nunca bloquea)
   for (const v of _repetitionAdvisory(narration, recentNarrations)) advisories.push({ kind: "repeticion", detail: v });
+  // repetición VERBATIM (owner 2026-08-03 — AVISO también, NUNCA entra a violations/ok, ver el comentario grande
+  // junto a _repetitionVerbatim) — además de registrarse como aviso, alimenta `degraded` (campo separado, más abajo).
+  const verbatimRepeats = _repetitionVerbatim(narration, recentNarrations);
+  for (const v of verbatimRepeats) advisories.push({ kind: "repeticion-verbatim", detail: v });
 
   const ok = violations.length === 0;   // solo cifra/conteo/entidad BLOQUEAN
-  return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories };
+  // degraded (owner 2026-08-03): NUNCA afecta `ok`/`violations` — ver el comentario junto a _repetitionVerbatim.
+  // Solo es true cuando `ok` YA es true (una respuesta con violations reales no necesita una señal aparte: ya se
+  // reintenta por otro motivo) Y se detectó un tramo verbatim de 8+ palabras contra una narración propia reciente.
+  const degraded = ok && verbatimRepeats.length > 0;
+  return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories, degraded };
 }

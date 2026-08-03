@@ -18,6 +18,19 @@ const VERSION = "2023-06-01";
 // proveedor colgado bloqueaba el request indefinidamente, agotando conexiones bajo carga multi-tenant.
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
+// _rateLimitError · MISMA convención que src/adi/llm/adapters/openai.js (owner 2026-08-03, investigación cruzada de
+// los 5 gates de Arquitectura C): `.code="rate_limited"` (+ `.retryAfterMs`) cuando status===429, para que
+// answerViaOracle.js pueda backoffear específicamente ante rate-limit real, sea cual sea el proveedor activo.
+function _rateLimitError(status, bodyText, headers) {
+  const err = new Error(`HTTP ${status}: ${bodyText.slice(0, 240)}`);
+  if (status === 429) {
+    err.code = "rate_limited";
+    const ra = headers && typeof headers.get === "function" ? headers.get("retry-after") : null;
+    if (ra != null) { const ms = Number(ra) * 1000; if (Number.isFinite(ms) && ms > 0) err.retryAfterMs = ms; }
+  }
+  return err;
+}
+
 async function _call(body) {
   // Usa la conexión DEL ENTORNO si existe (ANTHROPIC_BASE_URL = proxy que inyecta auth · Claude Code/SDK).
   // Si hay key/token explícitos en env, se agregan. La key NUNCA se imprime en logs.
@@ -28,7 +41,7 @@ async function _call(body) {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(ENDPOINT, { method: "POST", headers, body: JSON.stringify(body), signal: ctrl.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
+    if (!res.ok) throw _rateLimitError(res.status, await res.text(), res.headers);
     return await res.json();
   } catch (e) {
     if (e.name === "AbortError") throw new Error(`timeout tras ${TIMEOUT_MS}ms esperando a Anthropic`);

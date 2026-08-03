@@ -17,6 +17,21 @@ const ENDPOINT = BASE + "/chat/completions";
 // de función serverless), configurable por env sin tocar código.
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
+// _rateLimitError(status, bodyText, headers) → Error con `.code="rate_limited"` (+ `.retryAfterMs` si el proveedor
+// lo informó) cuando status===429 — owner 2026-08-03, investigación cruzada de los 5 gates de Arquitectura C:
+// antes un 429 era un Error genérico INDISTINGUIBLE de un timeout o un 500, así que el caller (answerViaOracle.js)
+// no podía backoffear específicamente ante rate-limit real. NO decide reintentos ni modelo acá (el adapter solo
+// habla con el proveedor) — solo etiqueta la señal para que el loop de reintento la consuma.
+function _rateLimitError(status, bodyText, headers) {
+  const err = new Error(`HTTP ${status}: ${bodyText.slice(0, 240)}`);
+  if (status === 429) {
+    err.code = "rate_limited";
+    const ra = headers && typeof headers.get === "function" ? headers.get("retry-after") : null;
+    if (ra != null) { const ms = Number(ra) * 1000; if (Number.isFinite(ms) && ms > 0) err.retryAfterMs = ms; }
+  }
+  return err;
+}
+
 async function _call(body) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("falta OPENAI_API_KEY");
@@ -29,7 +44,7 @@ async function _call(body) {
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
+    if (!res.ok) throw _rateLimitError(res.status, await res.text(), res.headers);
     return await res.json();
   } catch (e) {
     if (e.name === "AbortError") throw new Error(`timeout tras ${TIMEOUT_MS}ms esperando a OpenAI`);
