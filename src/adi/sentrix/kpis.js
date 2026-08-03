@@ -3,7 +3,7 @@
  * sin que la tenga que pedir. Point-in-time, REAL, scenario-aware (lección GAP 2). Puro · client-side · el motor
  * no lo llama → motor sellado. Devuelve [{label, value, sub, tone}] · el panel solo renderiza. Data-driven:
  * deriva del dataset cargado, no hardcodea — mañana con el Excel del cliente sus columnas se declaran solas. */
-import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario, applyScenarioToMarcasMargen } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { temporalCapability, entityExplorable } from "./capability.js";
 import { benchmarkOf } from "../../config/businessPolicy.js";
@@ -21,7 +21,7 @@ export function buildEntityKPIs(focusType, focus, scenario) {
   if (focusType === "client") return _clientKPIs(focus, s);
   if (focusType === "bodega") return _bodegaKPIs(focus, s);
   if (focusType === "sku")    return _skuKPIs(focus);        // B4 · SKU y marca leen skusMargen (scenario-blind · el motor no ajusta skusMargen)
-  if (focusType === "marca")  return _marcaKPIs(focus);
+  if (focusType === "marca")  return _marcaKPIs(focus, s);
   return [];   // familia: próximo · el resto del Diagnóstico igual se muestra
 }
 
@@ -45,22 +45,36 @@ function _skuKPIs(name) {
   ];
 }
 
-// ── MARCA · agregación de sus SKUs (venta/contribución totales · margen PONDERADO = Σcontrib/Σventa) ──
-function _marcaKPIs(name) {
-  const rows = skusMargen.filter((x) => x.marca === name);
-  if (!rows.length) return [];
-  const venta = rows.reduce((a, x) => a + x.venta, 0);
-  const contrib = rows.reduce((a, x) => a + x.contribucion, 0);
-  const unidades = rows.reduce((a, x) => a + x.unidades, 0);
-  const margenP = venta ? contrib / venta * 100 : 0;
-  const bench = benchmarkOf(rows[0]);   // integridad #1: fuente autoritativa (misma benchmarkOf genérica, no una nueva por-marca)
-  const familias = [...new Set(rows.map((x) => x.sfamilia))];
+// ── MARCA · marcasMargen/marcasVentas (misma fuente que entityRecord/Cuadro/Pareto — UNA VERDAD, owner 2026-08-03,
+// _evidence_spec_marca_reconciliation_gate): antes reagregaba skusMargen (Σcontrib/Σventa) — dos bugs juntos, (a)
+// ESCALA: skusMargen guarda dólares CRUDOS, marcasMargen/marcasVentas guardan MILES (mismo dígito "31600" = dos
+// magnitudes ~1000x distintas) — este panel mostraba literalmente "$31.6K" donde entityRecord/Cuadro mostraban
+// "$31.6M" para la MISMA marca; (b) FUENTE: marcasMargen/marcasVentas son insumos YA distintos de Σskus (no un
+// simple re-cálculo), así que ni el margen % coincidía. `applyScenarioToMarcasMargen` (engine/scenarios.js) trae
+// venta reconciliada contra marcasVentas (single source, igual que clientesVentas para cliente — D8, 2026-07-29) +
+// contribución re-derivada de esa venta × margen%, así venta×margen=contribución cierra siempre y responde al
+// escenario activo (antes byte-igual entre 'actual' y 'bonanza' — no recibía `s`). `unidades` se preserva de la
+// tabla margen tal cual (mismo criterio que _clientKPIs: cm.unidades, no el ventas-ajustado). ── SKUs/familias
+// siguen viniendo de skusMargen (conteo/agrupación, no $ — no tiene problema de escala).
+// _fM3 (3 decimales, solo acá — no toca _fM de cliente/SKU): el valor "miles" siempre llega como ENTERO (Σ de
+// enteros redondeados en applyScenarioToMarcasVentas), así que /1000 tiene COMO MUCHO 3 decimales — 3 decimales
+// reconstruye el número EXACTO (sin redondeo) al comparar contra otro camino que lea el mismo raw sin pasar por un
+// string (concentration.js). Con 1 decimal (_fM) el redondeo visual ($33.2M en vez de $33.160M) alcanzaba a diferir
+// en decenas de miles de dólares — la tolerancia de reconciliación (D4) es de $1K, no de redondeo visual.
+const _fM3 = (n) => "$" + (Math.abs(Number(n) || 0) / 1000).toFixed(3) + "M";
+function _marcaKPIs(name, s) {
+  const rows = applyScenarioToMarcasMargen(s);
+  const m = rows.find((x) => x.nombre === name);
+  if (!m) return [];
+  const bench = benchmarkOf(m);   // integridad #1: fuente autoritativa (misma benchmarkOf genérica, no una nueva por-marca)
+  const skusOfMarca = skusMargen.filter((x) => x.marca === name);
+  const familias = [...new Set(skusOfMarca.map((x) => x.sfamilia))];
   return [
-    { label: "Margen", value: _p1(margenP) + "%", sub: `${_pp(margenP - bench)} vs bench (ponderado)`, tone: margenP >= bench ? "up" : "down" },
-    { label: "Ventas", value: _fCap(venta), sub: `${rows.length} SKUs` },
-    { label: "Contribución", value: _fCap(contrib), sub: `${_p1(contrib / venta * 100)}% de venta` },
-    { label: "Unidades", value: "" + unidades, sub: "vendidas" },
-    { label: "SKUs", value: "" + rows.length, sub: familias.join(" · ") },
+    { label: "Margen", value: _p1(m.margen) + "%", sub: `${_pp(m.margen - bench)} vs bench`, tone: m.margen >= bench ? "up" : "down" },
+    { label: "Ventas", value: _fM3(m.venta), sub: `${skusOfMarca.length} SKUs` },
+    { label: "Contribución", value: _fM3(m.contribucion), sub: `${_p1(m.contribucion / m.venta * 100)}% de venta` },
+    { label: "Unidades", value: "" + m.unidades, sub: "vendidas" },
+    { label: "SKUs", value: "" + skusOfMarca.length, sub: familias.join(" · ") },
     { label: "Benchmark", value: _p1(bench) + "%", sub: "de cartera" },
   ];
 }

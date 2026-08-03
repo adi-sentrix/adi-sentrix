@@ -3,7 +3,7 @@
  * Funciones copiadas verbatim; solo se agregan imports. Cero cambio de cálculo. */
 import { FEATURE_FAMILY_MARGEN_BLENDED } from "../config/features.js";
 import { SCENARIO_TRANSFORMS } from "../config/scenarios.js";
-import { clientesMargen, clientesVentas, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../data/demoData.js";
+import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../data/demoData.js";
 
 export function applyScenarioToClientesVentas(scenarioId, override) {
   const t = resolveTransform(scenarioId, override)?.clientes;
@@ -54,6 +54,33 @@ export function applyScenarioToMarcasVentas(scenarioId) {
     ...g,
     pctRebate: Math.round((g.pctRebate / g._count) * 10) / 10,
   })).sort((a,b) => b.actual - a.actual);
+}
+
+// applyScenarioToMarcasMargen · residual de reconciliación marca (owner 2026-08-03, _evidence_spec_marca_
+// reconciliation_gate): marcasMargen.venta y marcasVentas.actual YA son el MISMO número por construcción en el
+// dataset demo (a diferencia de clientesMargen.venta vs clientesVentas.actual, que SÍ divergían — D8, 2026-07-29) —
+// por eso, a diferencia de applyScenarioToClientesMargen, acá NO hace falta reconciliar en el escenario "actual"
+// (bypass, mismo criterio que applyScenarioToMarcasVentas de arriba). Con transform de escenario, venta se toma de
+// applyScenarioToMarcasVentas (la MISMA fuente que ya usa concentration.js para el Pareto de ventas por marca) y
+// contribución se RE-DERIVA de esa venta × el margen% reportado (misma fórmula que applyScenarioToClientesMargen:
+// margen% es la eficiencia, no se re-calcula; costo/contribución sí, para que venta×margen=contribución cierre
+// SIEMPRE, sin importar el escenario).
+export function applyScenarioToMarcasMargen(scenarioId) {
+  if (!SCENARIO_TRANSFORMS[scenarioId]?.clientes) return marcasMargen;
+  const ventasScn = applyScenarioToMarcasVentas(scenarioId);
+  const ventaByName = Object.fromEntries(ventasScn.map(v => [v.nombre, v.actual]));
+  const rebateByName = Object.fromEntries(ventasScn.map(v => [v.nombre, v.pctRebate]));
+  return marcasMargen.map(m => {
+    const newVenta = ventaByName[m.nombre] ?? m.venta;
+    const newContrib = Math.round(newVenta * (m.margen / 100));
+    return {
+      ...m,
+      venta: newVenta,
+      costo: newVenta - newContrib,
+      contribucion: newContrib,
+      pctRebate: rebateByName[m.nombre] ?? m.pctRebate,
+    };
+  }).sort((a,b) => b.contribucion - a.contribucion);
 }
 
 export function applyScenarioToSfamiliasVentas(scenarioId) {
