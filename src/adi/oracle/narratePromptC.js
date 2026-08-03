@@ -194,6 +194,23 @@ function _needsTableFormat(figs) {
 // prompt (mismo principio de payload mínimo que el resto de instrucciones reforzadas de acá abajo).
 const TABLE_INSTRUCTION = "Tus cifras_autorizadas traen 2+ entidades con 2+ cifras cada una — SIEMPRE armá una tabla en MARKDOWN real (con fila de encabezado y fila separadora \"|---|---|\"), NUNCA una lista con guiones ni prosa corrida para esto, sin importar que la pregunta haya sido sobre una sola métrica. Cada fila es una entidad; cada columna, un concepto distinto que ya tenés autorizado.";
 
+// _needsCapitalColumnNames(figs) → true si el ledger trae el patrón EXACTO "Entidad · Capital detenido" +
+// "Entidad · % del total" (composeSpecInventory, specRetrieval.js — capital por bodega/SKU). Owner 2026-08-02:
+// "Usa tabla con estas columnas: Bodega/SKU | Capital detenido | % del total". Medido en vivo (5/5 corridas):
+// _needsTableFormat YA logra tabla siempre, pero el encabezado de columna varía ("Capital Inmovilizado (USD)",
+// "Porcentaje del total (%)") — los NÚMEROS ya son correctos siempre (cifras autorizadas/reconciliadas), esto
+// solo fija el TEXTO literal del encabezado. Exige _needsTableFormat===true primero (mismo candado que Brecha):
+// con 1 sola entidad (ej. alcance filtrado a una bodega) las 2 cifras existen pero NO hay tabla que formatear —
+// el owner pidió explícito "si solo existe una entidad... no fuerces una tabla".
+function _needsCapitalColumnNames(figs) {
+  if (!_needsTableFormat(figs)) return false;
+  if (!Array.isArray(figs)) return false;
+  const hasCapitalDetenido = figs.some((f) => f && / · Capital detenido$/.test(f.label || ""));
+  const hasPctDelTotal = figs.some((f) => f && / · % del total$/.test(f.label || ""));
+  return hasCapitalDetenido && hasPctDelTotal;
+}
+const CAPITAL_COLUMNS_INSTRUCTION = "Tus cifras_autorizadas traen \"Capital detenido\" y \"% del total\" por entidad (bodega o SKU) — armá la tabla con ESTOS 3 encabezados LITERALES, en este orden: \"Bodega\" o \"SKU\" (el que corresponda) | \"Capital detenido\" | \"% del total\". No los reformules ni los traduzcas (nunca \"Capital Inmovilizado (USD)\", nunca \"Porcentaje del total (%)\"). El % NUNCA lo calculás vos: citá tal cual el que ya está autorizado en cifras_autorizadas — ya viene reconciliado para sumar 100%. Si tenés cifras de bodegas Y de SKU a la vez, armá DOS TABLAS separadas (una con encabezado de fila \"Bodega\", otra con \"SKU\") — nunca las mezcles bajo un solo encabezado, cada una suma 100% por sí sola.";
+
 // _needsListFormat(figs) → true si hay 3+ entidades con UNA sola cifra cada una (ranking de una métrica) — el
 // complemento exacto de _needsTableFormat (2+ cifras/entidad). Hallazgo de auditoría en vivo (owner 2026-08-02,
 // workflow de 4 agentes): gpt-4o-mini NUNCA usó lista numerada en 6/6 corridas reales para este caso — sistemática,
@@ -286,6 +303,8 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     ...(_needsListFormat(ledgerFigs) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
     ...(_needsBrechaReinforcement(ledgerFigs) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
+    // COLUMNAS DE CAPITAL REFORZADAS (owner 2026-08-02): ver _needsCapitalColumnNames/CAPITAL_COLUMNS_INSTRUCTION.
+    ...(_needsCapitalColumnNames(ledgerFigs) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
     // ORDEN POR MONTO REFORZADO (owner 2026-08-02, hallazgo de auditoría): ver _needsOrdenMontoReinforcement.
     ...(_needsOrdenMontoReinforcement(text, results) ? { instruccion_orden: ORDEN_MONTO_INSTRUCTION } : {}),
     // ORIENTACIÓN (Fase 3, owner 2026-07-30) — SOLO viaja cuando answerViaOracle.js detectó un disparador

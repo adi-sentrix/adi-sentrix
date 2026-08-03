@@ -499,7 +499,20 @@ const _ESTADO_COLOR = { capital_frenado: "amber", riesgo_quiebre: "red", sobrest
 const _skusOf = (D, est, critById) => D.perSku.filter((s) => s.estado === est)
   .map((s) => ({ sku: s.sku, usd: s.capital, doh: s.doh, rotacion: s.rotacion, bodega: s.bodega || "—", familia: s.familia, diasSinVenta: s.diasSinVenta, critico: !!critById[s.sku] }))
   .sort((a, b) => b.usd - a.usd);
-const _groupBy = (skus, field, total) => { const m = {}; for (const s of skus) m[s[field]] = (m[s[field]] || 0) + s.usd; return Object.entries(m).map(([nombre, usd]) => ({ nombre, usd, pct: total ? Math.round(usd / total * 100) : 0 })).sort((a, b) => b.usd - a.usd); };
+// _reconcilePercents(rows, total) → rows + .pct ENTERO cuya SUMA siempre cierra en 100 (si total>0) — método del
+// MAYOR RESTO (Hamilton/Hare): redondeo hacia abajo para todas las filas, y el déficit hasta 100 se reparte de a 1
+// punto a quienes más resto perdieron al truncar. Owner 2026-08-02: "el porcentaje debe reconciliar con el total
+// mostrado y cerrar en 100% considerando redondeos" — un Math.round independiente por fila NO lo garantiza (ej. 3
+// filas de 33.3% redondean a 33+33+33=99, o 4 filas de 12.5%/37.5%/25%/25% pueden dar 101 según el caso).
+export function _reconcilePercents(rows, total) {
+  if (!(total > 0) || !rows.length) return rows.map((r) => ({ ...r, pct: 0 }));
+  const withFloor = rows.map((r) => { const raw = (r.usd / total) * 100; return { ...r, pct: Math.floor(raw), _resto: raw - Math.floor(raw) }; });
+  let deficit = 100 - withFloor.reduce((s, r) => s + r.pct, 0);
+  const byResto = withFloor.slice().sort((a, b) => b._resto - a._resto);
+  for (let i = 0; i < byResto.length && deficit > 0; i++, deficit--) byResto[i].pct += 1;
+  return withFloor.map(({ _resto, ...r }) => r);
+}
+const _groupBy = (skus, field, total) => { const m = {}; for (const s of skus) m[s[field]] = (m[s[field]] || 0) + s.usd; const rows = Object.entries(m).map(([nombre, usd]) => ({ nombre, usd })).sort((a, b) => b.usd - a.usd); return _reconcilePercents(rows, total); };
 // la punta más material DISTINTA del foco → el cierre honesto ("no es lo único")
 function _contrapunta(D, focusEst) {
   if (focusEst !== "riesgo_quiebre" && D.quiebreMaterial && D.dist.riesgo_quiebre && D.dist.riesgo_quiebre.usd > 0) {
@@ -710,9 +723,25 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   // ── boleta rica: total del foco + grupos + SKU + LAS 4 PUNTAS autorizadas (narración selectiva · el guard no deja inventar otra) ──
   const estados = _ESTADO_ORDEN.filter((e) => D.dist[e]).map((e) => ({ estado: e, label: _ESTADO_LABEL[e], usd: D.dist[e].usd, pct: D.dist[e].pct, count: D.dist[e].count }));
   const bol = [fig(`${B.title.split(" ·")[0]} · total`, _money(B.total), { unit: "money", raw: B.total, mandatory: true, context: B.ctx })];
-  for (const b of (B.byBod || [])) bol.push(fig(`${b.nombre} · Bodega`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
+  // % DEL TOTAL (owner 2026-08-02: "cifra autorizada y determinística... nunca por el narrador") — byBod YA viene
+  // reconciliado a 100% (_groupBy → _reconcilePercents). Cada bodega expone Capital Y % como cifras AUTORIZADAS
+  // separadas: el narrador cita números ya calculados, no divide él mismo (numberGuard rechaza si inventa otro).
+  for (const b of (B.byBod || [])) {
+    bol.push(fig(`${b.nombre} · Capital detenido`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
+    bol.push(fig(`${b.nombre} · % del total`, `${b.pct}%`, { unit: "pct", raw: b.pct, mandatory: false, source: "computed", formula: "capital de la bodega / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
+  }
   for (const f of (B.byFam || []).slice(0, 3)) bol.push(fig(`${f.nombre} · Familia`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: B.ctx }));
-  for (const s of B.skus.slice(0, 4)) bol.push(fig(`${s.sku} · SKU`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
+  // SKU: top-4 + Resto (si hay más de 4) — mismo patrón que buildGrid (entityRecord.js, "pase quirúrgico de
+  // confiabilidad" owner 2026-07-29: "en todo top-N, informa 'N de total' y cuantifica el resto") — así el % SIEMPRE
+  // reconcilia con el total MOSTRADO (B.total), no solo con la suma de los 4 nombrados, que sería parcial y engañoso.
+  const _skuTop = B.skus.slice(0, 4);
+  const _skuRestoCount = B.skus.length - _skuTop.length;
+  const _skuRows = _skuTop.map((s) => ({ nombre: s.sku, usd: s.usd }));
+  if (_skuRestoCount > 0) _skuRows.push({ nombre: `Resto (${_skuRestoCount} de ${B.skus.length})`, usd: B.skus.slice(4).reduce((a, s) => a + s.usd, 0) });
+  for (const s of _reconcilePercents(_skuRows, B.total)) {
+    bol.push(fig(`${s.nombre} · Capital detenido`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
+    bol.push(fig(`${s.nombre} · % del total`, `${s.pct}%`, { unit: "pct", raw: s.pct, mandatory: false, source: "computed", formula: "capital del SKU (o del resto agrupado) / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
+  }
   for (const e of estados) bol.push(fig(`Estado del inventario: ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
   if (lever2) bol.push(fig(`Medida · liberar ${lever2.skus.join(" y ")}`, _money(lever2.usd), { unit: "money", raw: lever2.usd, mandatory: true, source: "computed", formula: "Σ capital top 2", context: "cuánto vale la medida" }));
   return {
