@@ -841,6 +841,13 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
   const _lo = (n) => rows.slice().sort((a, b) => a.margen - b.margen).slice(0, n);
   const _ctx = "margen";
   let lines = [], suggestions = [], bol = [];
+  // ORDEN SELLADO por la tool (owner 2026-08-03, "sella facts.orden para marginRead" — pendiente documentado en
+  // memoria desde el pase quirúrgico 2026-07-29): mismo patrón que buildGrid/buildTension (entityRecord.js) — el
+  // criterio + dirección que la RAMA de foco ya usa (y ya promete en sus `lines`) viaja en `facts.orden` (o
+  // `ordenA`/`ordenB` cuando el foco arma DOS rankings independientes, como `palancas`) para que guardC verifique
+  // DIRECTO contra la tabla final, sin depender de que el narrador lo repita en prosa. `null` = este foco no arma
+  // un ranking clasificable (ej. el pivot de "huecos honestos", 3 candidatos sin promesa de orden).
+  let orden = null, ordenA = null, ordenB = null;
   // convención de label "Entidad · Concepto" (owner 2026-08-02, hallazgo de auditoría en vivo): antes era
   // "${dimension} · ${entidad} margen" (ej. "cliente · Lider margen") — el prefijo de DIMENSIÓN en vez del nombre
   // de la entidad rompía cualquier detector que agrupe cifras por entidad (_needsTableFormat, narratePromptC.js) y
@@ -875,6 +882,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     const ranked = rows.slice().sort((a, b) => (b.venta || 0) - (a.venta || 0));
     const hits = ranked.filter((r) => r.margen < _benchOf(r)).slice(0, 4);
     const lead = hits.length ? hits : ranked.slice(0, 3);
+    orden = "descendente por Ventas";
     lines = [
       `${L.art} ${L.p} que más venden y peor margen dejan: ${lead.map((r) => `${_mNombre(r)} (${_mVenta(r.venta)} a ${_p1(r.margen)}%)`).join(" · ")}.`,
       `${_mNombre(lead[0])} es el caso más caro: factura ${_mVenta(lead[0].venta)} pero a ${_p1(lead[0].margen)}% — ${_p1(_gap(lead[0]))}pp bajo el benchmark ${_p1(bench)}%. Cada punto de margen ahí vale mucho por el volumen.`,
@@ -888,8 +896,12 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     pushMarginFigs(lead);
     suggestions = ["Es por precio o por costo", "Acciones para recuperar margen"];
   } else if (focus === "bajo_benchmark") {
-    const negatives = rows.filter((r) => r.margen < 0);
+    // antes SIN ordenar (preservaba el orden crudo de la fuente, un accidente de archivo, no una clasificación real)
+    // — "la clasificación... deben calcularse determinísticamente" (owner 2026-08-03): peor margen (más negativo)
+    // primero, mismo criterio "peor primero" que el resto de los focos de este composer.
+    const negatives = rows.filter((r) => r.margen < 0).sort((a, b) => a.margen - b.margen);
     if (pct) {
+      orden = "descendente por Brecha";
       const vBelow = below.reduce((a, r) => a + (r.venta || 0), 0), share = totVenta ? vBelow / totVenta * 100 : 0;
       lines = [
         `El ${_p1(share)}% de la venta (${_mVenta(vBelow)} de ${_mVenta(totVenta)}) está bajo el margen mínimo de ${_p1(bench)}%.`,
@@ -899,6 +911,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       pushMarginFigs(below);
     } else if (negativo) {
       if (!negatives.length) {
+        orden = "descendente por Brecha";
         const piso = _lo(1)[0];
         lines = [
           `Ninguno tiene margen negativo — el piso es ${_mNombre(piso)} con ${_p1(piso.margen)}%. No te invento una alarma que no existe.`,
@@ -907,6 +920,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
         ];
         pushMarginFigs(below);
       } else {
+        orden = "ascendente por Margen";
         lines = [`${negatives.length} ${L.p} con margen negativo: ${negatives.map((r) => `${_mNombre(r)} (${_p1(r.margen)}%)`).join(" · ")}. Es valor que se pierde en cada venta — máxima prioridad.`];
         pushMarginFigs(negatives);
       }
@@ -914,6 +928,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       // COMPLETO Y GRADUADO (owner 2026-07-15): si son 8, los 8 tienen nombre o camino (nada de 5-de-8 sin ruta) ·
       // la CAUSA se declara con su grado — la brecha y su $ están PROBADOS; el porqué (precio/costo/carga) queda
       // ABIERTO desde esta vista, con la oferta explícita de confirmarlo.
+      orden = "descendente por Brecha";
       const listedM = below.slice(0, 5), restM = below.slice(5);
       lines = [
         `${below.length} de ${rows.length} ${L.p} están bajo el margen mínimo de ${_p1(bench)}%: ${listedM.map((r) => `${_mNombre(r)} ${_p1(r.margen)}% (${_p1(_gap(r))}pp)`).join(" · ")}.`,
@@ -947,6 +962,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     if (!src.length) return null;
     if (focus === "causa_precio") {
       const byThin = src.slice().sort((a, b) => _markup(a) - _markup(b)).slice(0, 4);   // markup más fino = precio no da
+      orden = "ascendente por Markup";
       lines = [
         `Estos ${L.p} ceden margen por el PRECIO: la lista está pegada al costo. ${byThin.map((r) => `${_mNombre(r)} (markup ${_p1(_markup(r))}%)`).join(" · ")}.`,
         `${_mNombre(byThin[0])} deja apenas ${_p1(_markup(byThin[0]))}% de markup sobre lista vs el ${_p1(bench)}% de referencia — el precio no alcanza a cubrir el margen objetivo.`,
@@ -960,6 +976,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       suggestions = ["Cuáles ceden por costo", "Candidatos a subir precio"];
     } else {
       const byCost = src.slice().sort((a, b) => _costShare(b) - _costShare(a)).slice(0, 4);   // costo se lleva más del precio
+      orden = "descendente por Costo";
       lines = [
         `Estos ${L.p} ceden margen por el COSTO: se lleva la mayor parte del precio de lista. ${byCost.map((r) => `${_mNombre(r)} (costo ${Math.round(_costShare(r))}% de la lista)`).join(" · ")}.`,
         `En ${_mNombre(byCost[0])} el costo es el ${Math.round(_costShare(byCost[0]))}% de la lista — queda poco para el margen aunque el precio esté en regla.`,
@@ -978,6 +995,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     const cand = src.filter((r) => r.margen < _benchOf(r) && (r.unidades || 0) >= uMed).sort((a, b) => _markup(a) - _markup(b)).slice(0, 4);
     const lead = cand.length ? cand : src.filter((r) => r.margen < _benchOf(r)).slice(0, 3);
     if (!lead.length) return null;
+    orden = "ascendente por Markup";
     lines = [
       `Candidatos a subir precio (margen bajo + demanda que aguanta): ${lead.map((r) => `${_mNombre(r)} (${r.unidades || "—"}u a ${_p1(r.margen)}%, markup ${_p1(_markup(r))}%)`).join(" · ")}.`,
       `${_mNombre(lead[0])} vende ${lead[0].unidades || "—"}u con markup de sólo ${_p1(_markup(lead[0]))}% — hay espacio de lista sin que el volumen sea frágil.`,
@@ -995,6 +1013,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     let sub = rows.filter((r) => ds[_mNombre(r)] && ds[_mNombre(r)].patron === "alto_margen_subpenetrado");
     if (!sub.length) sub = rows.filter((r) => r.margen >= bench).sort((a, b) => (a.venta || 0) - (b.venta || 0)).slice(0, 4);
     sub = sub.sort((a, b) => b.margen - a.margen).slice(0, 4);
+    orden = "descendente por Margen";
     lines = [
       `Productos de alto margen y baja penetración (upside si ganan distribución): ${sub.map((r) => `${_mNombre(r)} (${_p1(r.margen)}% margen, sólo ${_mVenta(r.venta)})`).join(" · ")}.`,
       `${_mNombre(sub[0])} rinde ${_p1(sub[0].margen)}% pero factura poco — cada peso extra de venta acá entra a margen alto.`,
@@ -1019,11 +1038,15 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     ];
     for (const s of topSk) bol.push(fig(`${s.sku} · Capital`, _money(s.stockUSD), { unit: "money", raw: s.stockUSD, mandatory: false, context: "stock en bajo margen" }));
     suggestions = ["Qué SKU libero primero", "Los de bajo margen por costo o precio"];
-    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: "bodega", boleta: bol, margin: { focus, panel: _marginPanel(lowM.map((s) => ({ nombre: s.sku, margen: s.margenPct })), POLICY.benchmark, "bajo_benchmark"), byBodega: byBod.map((b) => ({ bodega: b.bodega, usd: b.usd })) } } };
+    return { opener: lines.filter(Boolean).join("\n\n"), suggestions, sentrixAction: null, evidence: { lens: "margin", metrica: "margen", dimension: "bodega", orden: "descendente por Capital", boleta: bol, margin: { focus, panel: _marginPanel(lowM.map((s) => ({ nombre: s.sku, margen: s.margenPct })), POLICY.benchmark, "bajo_benchmark"), byBodega: byBod.map((b) => ({ bodega: b.bodega, usd: b.usd })) } } };
   } else if (focus === "palancas") {
     const target = POLICY.targetCarga;
     const cargaHigh = rows.filter((r) => typeof r.pctRebate === "number" && r.pctRebate > target).sort((a, b) => b.pctRebate - a.pctRebate).slice(0, 4);
     const thinPrice = rows.filter((r) => _markup(r) != null && r.margen < _benchOf(r)).sort((a, b) => _markup(a) - _markup(b)).slice(0, 3);
+    // DOS rankings independientes en el mismo foco (carga/rebates + precio de lista) → ordenA/ordenB, mismo patrón
+    // dual que buildTension (entityRecord.js) ya usa para sus dos métricas cruzadas.
+    if (cargaHigh.length) ordenA = "descendente por Carga";
+    if (thinPrice.length) ordenB = "ascendente por Markup";
     // CUÁNTO VALE (misma cuenta del detector de carga del diagnóstico · una verdad) — y LIDERA la respuesta:
     // "¿cuánto me come la carga?" se contesta con el $ primero, el ranking después (invitado en prod 2026-07-09).
     const cargaLever = dim === "cliente" ? _leverFoco(scenario, "carga", entityScope || (filters.cliente ? { entities: [filters.cliente] } : null)) : null;
@@ -1055,7 +1078,8 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,
     sentrixAction: null,
-    evidence: { lens: "margin", metrica: "margen", dimension: dim, boleta: bol,
+    evidence: { lens: "margin", metrica: "margen", dimension: dim,
+      ...(orden ? { orden } : {}), ...(ordenA ? { ordenA } : {}), ...(ordenB ? { ordenB } : {}), boleta: bol,
       margin: { focus, bench, dimension: dim, panel: _marginPanel(rows, bench, focus), below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen, venta: r.venta, gap: _gap(r) })) } },
   };
 }

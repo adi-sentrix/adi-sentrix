@@ -275,9 +275,9 @@ function marginRead({ filters = {}, scenario, focus = "bajo_benchmark", dimensio
       const seen = new Set(r.boleta.map((f) => f.label));
       const add = (label, usd) => { if (usd > 0 && !seen.has(label)) { seen.add(label); r.boleta.push(fig(label, _moneyRaw(usd), { unit: "money", raw: usd, source: "computed", formula: "venta × (benchmark − margen)", context: "cuánto vale la medida" })); } };
       for (const row of rows.filter((x) => x.below && typeof x.venta === "number")) {
-        if (bench != null && typeof row.margen === "number") add(`Medida · cerrar brecha en ${row.nombre}`, Math.round(row.venta * 10 * (bench - row.margen)));
+        if (bench != null && typeof row.margen === "number") add(`${row.nombre} · Medida cerrar brecha`, Math.round(row.venta * 10 * (bench - row.margen)));
         const pp1 = Math.round(row.venta * 10);   // venta (miles) × 1000 × 1% = venta × 10 (misma fórmula que _pp1 del composer)
-        if (pp1 > 0) { const label = `Medida · 1pp en ${row.nombre}`; if (!seen.has(label)) { seen.add(label); r.boleta.push(fig(label, _moneyRaw(pp1), { unit: "money", raw: pp1, source: "computed", formula: "venta × 1%", context: "cuánto vale la medida" })); } }
+        if (pp1 > 0) { const label = `${row.nombre} · Medida 1pp`; if (!seen.has(label)) { seen.add(label); r.boleta.push(fig(label, _moneyRaw(pp1), { unit: "money", raw: pp1, source: "computed", formula: "venta × 1%", context: "cuánto vale la medida" })); } }
       }
     }
   }

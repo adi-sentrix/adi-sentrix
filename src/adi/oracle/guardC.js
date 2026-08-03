@@ -346,13 +346,29 @@ const _ORDER_ASC = /\bde\s+menor\s+a\s+mayor\b/;
 const _ORDER_BY = /\borden(?:a|alos|ados?|ando|ar)?\s+(?:l[oa]s\s+)?(?:por|segun)\s+([a-z%]+(?:\s+[a-z%]+){0,2})/;
 // respaldo: "de mayor a menor MARGEN" / "de menor a mayor VENTA" — sin "por/según", la forma más natural en español.
 const _ORDER_DIR_KEYWORD = /\bde\s+(?:mayor\s+a\s+menor|menor\s+a\s+mayor)\s+([a-z%]+(?:\s+[a-z%]+){0,2})/;
-const _MONEY_RE = /\$\s?[\d.,]+\s?[KMB]?/, _PCT_RE = /[\d.,]+\s?%/;
+// _PP_RE (owner 2026-08-03, "sella facts.orden para marginRead"): un TERCER formato de valor, "puntos porcentuales"
+// (ej. "8.6pp" — la BRECHA benchmark−margen, no un $ ni un % de por sí) — sin esto, un orden sellado/prometido en
+// "pp" (como marginRead's "descendente por Brecha") caía silenciosamente sin verificarse: ni _MONEY_RE ("$X") ni
+// _PCT_RE ("X%") matchean "8.6pp", así que `seq` quedaba vacía y el chequeo se saltaba entero (mismo camino que
+// "columna sellada ausente" — un falso negativo, no un falso positivo, pero deja el sello sin efecto real).
+const _MONEY_RE = /\$\s?[\d.,]+\s?[KMB]?/, _PCT_RE = /[\d.,]+\s?%/, _PP_RE = /[\d.,]+\s?pp\b/i;
 function _toNumOrder(tok) {
   const dm = String(tok).match(/\$\s?([\d.,]+)\s?([KMB]?)/i);
   if (dm) { let v = parseFloat(dm[1].replace(/,/g, "")); const s = (dm[2] || "").toUpperCase(); if (s === "K") v *= 1e3; else if (s === "M") v *= 1e6; else if (s === "B") v *= 1e9; return v; }
+  const ppm = String(tok).match(/([\d.,]+)\s?pp\b/i);
+  if (ppm) return parseFloat(ppm[1].replace(/,/g, ""));
   const pm = String(tok).match(/([\d.,]+)\s?%/);
   if (pm) return parseFloat(pm[1].replace(/,/g, ""));
   return null;
+}
+// _reFor(keyword) → qué patrón usar para extraer valores de la columna/celda sellada — money ($X) / pct (X%) /
+// pp (X puntos porcentuales, ej. brecha). Chequea "pp" ANTES que "pct": un keyword como "brecha" no contiene "%"
+// ni "porcentaje" (isPct no lo detectaría), pero SÍ debe leerse en pp, no en $.
+function _reFor(keyword) {
+  const k = String(keyword || "");
+  if (/\bpp\b|brecha|\bgap\b|puntos?\s*porcentual/i.test(k)) return _PP_RE;
+  if (/margen|%|porcentaje/i.test(k)) return _PCT_RE;
+  return _MONEY_RE;
 }
 function _tableRowsOrder(text) {
   const lines = text.split("\n").map((l) => l.trim()).filter((l) => l.includes("|"));
@@ -402,8 +418,7 @@ function _orderViolation(narration, question) {
   const keyword = byM ? byM[1].trim() : null;
   if (!dir && !keyword) return null;                 // sin promesa explícita de orden → no aplica
   if (!dir) dir = "desc";                             // "ordená por X" sin dirección → de mayor a menor (default ejecutivo)
-  const isPct = /margen|%|porcentaje/i.test(keyword || "");
-  const re = isPct ? _PCT_RE : _MONEY_RE;
+  const re = _reFor(keyword);
   const table = _tableRowsOrder(text);
   let seq = table ? _seqFromTableOrder(table, keyword, re) : [];
   if (seq.length < 3) { const items = _listItemsOrder(text); if (items) seq = _seqFromListOrder(items, keyword, re); }
@@ -500,8 +515,7 @@ function _sealedOrderBroken(narration, sealedOrders) {
     if (!keyword) continue;
     const col = _colForKeyword(table.header, keyword);
     if (col < 0) continue;   // la columna sellada NO aparece literal en esta tabla → no hay nada que verificar acá
-    const isPct = /margen|%|porcentaje/i.test(keyword);
-    const re = isPct ? _PCT_RE : _MONEY_RE;
+    const re = _reFor(keyword);
     const seq = table.rows.map((r) => { const mm = (r[col] || "").match(re); return mm ? _toNumOrder(mm[0]) : null; }).filter((v) => v != null);
     if (seq.length < 3) continue;   // sin evidencia estructural suficiente para ESTE campo → no se pronuncia
     for (let i = 1; i < seq.length; i++) {
