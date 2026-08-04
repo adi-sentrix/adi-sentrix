@@ -270,15 +270,16 @@ export function buildNegocioEvolution(dim = "cliente", metric = "venta") {
     const serie = V.serie.map((v, i) => _round1((Cc.serie[i] / v) * 100));
     return { ..._entityAnalysis("negocio", metric, V.meses, serie), anterior: null };
   }
-  let meses = null, sumAnt = null, allAnt = true;
-  const rows = [];   // series individuales por entidad (para reconciliar mes-a-mes contra el negocio real)
+  let meses = null, allAnt = true;
+  const rows = [];      // series ACTUALES por entidad (para reconciliar mes-a-mes contra el negocio real)
+  const antRows = [];   // series AÑO ANTERIOR por entidad — MISMO tratamiento que `rows` (ver fix de abajo)
   for (const nm of names) {
     const e = buildEntityEvolutionComparado(nm, metric);
     if (!e) return null;   // una entidad sin serie → la suma no sería el negocio (honesto: sin gráfico)
     if (!meses) meses = e.meses;
     else if (e.n !== meses.length) return null;
     rows.push(e.serie);
-    if (e.anterior) { if (!sumAnt) sumAnt = e.anterior.serie.slice(); else e.anterior.serie.forEach((v, i) => { sumAnt[i] += v; }); }
+    if (e.anterior) antRows.push(e.anterior.serie);
     else allAnt = false;
   }
   if (!rows.length) return null;
@@ -286,6 +287,14 @@ export function buildNegocioEvolution(dim = "cliente", metric = "venta") {
   // que reconciliar — contribución/margen agregados no tienen un ancla externa propia, quedan como antes (honesto).
   const reconciled = metric === "venta" ? reconcileMonthly(rows, buildGlobalEvolution().actual) : rows;
   const sum = meses.map((_, i) => reconciled.reduce((a, r) => a + r[i], 0));
+  // FIX (owner 2026-08-04, hallazgo en vivo — "Ene: ADI dice $6.3M de año anterior, la Mesa dice $5.4M"): el mismo
+  // bug D1 de arriba, pero SOLO se había corregido para `actual` — `anterior` sumaba las series crudas de cada
+  // entidad sin reconciliar contra la curva real del negocio (buildGlobalEvolution().anterior), así que el AÑO
+  // cuadraba pero NINGÚN MES cuadraba (idéntico síntoma que D1 documentó para `actual`). Mismo tratamiento: IPF
+  // contra la curva real del año anterior, nunca contra un supuesto — si los universos no cuadran, reconcileMonthly
+  // ya degrada solo (devuelve la serie sin tocar), honesto.
+  const reconciledAnt = metric === "venta" && allAnt && antRows.length ? reconcileMonthly(antRows, buildGlobalEvolution().anterior) : antRows;
+  const sumAnt = allAnt && reconciledAnt.length ? meses.map((_, i) => reconciledAnt.reduce((a, r) => a + r[i], 0)) : null;
   const anterior = metric === "venta" && allAnt && sumAnt ? { serie: sumAnt, total: _sum(sumAnt) } : null;
   return { ..._entityAnalysis("negocio", metric, meses, sum), anterior };
 }
