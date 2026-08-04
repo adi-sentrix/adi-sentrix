@@ -77,8 +77,10 @@ function _crossGuard(filters, allowed) {
 }
 const _crossFail = (cov) => ({ facts: null, boleta: [], coverage: cov });
 
-// queryMetric · ranking/lista de una métrica × un eje (ventas por cliente, margen por marca…).
-function queryMetric({ metric, dimension, filters = {}, scenario, limit = null, sort = null } = {}) {
+// queryMetric · ranking/lista de una métrica × un eje (ventas por cliente, margen por marca…). entityScope (Etapa 2,
+// owner 2026-08-03, continuidad conversacional universal): forwarding mecánico a composeSpecRetrieval — "de esos
+// SKU, ¿cuál vendió más?" acota el ranking al subconjunto en vez de traer el eje entero.
+function queryMetric({ metric, dimension, filters = {}, scenario, limit = null, sort = null, entityScope = null } = {}) {
   // REDIRECT A ENTIDAD PUNTUAL (owner "unidades vendidas por Falabella" 2026-07-29, hallazgo en vivo): si el plan
   // filtra el EJE por SÍ MISMO (dimension:"cliente", filters:{cliente:"Falabella"}) en realidad pidió LA FILA de
   // una entidad concreta, no un ranking — es el mismo error de tool que "el costo medio de Sodimac" con
@@ -91,7 +93,7 @@ function queryMetric({ metric, dimension, filters = {}, scenario, limit = null, 
   }
   const x = _crossGuard(filters, ["marca", "familia", "bodega"]);   // el retrieval NO filtra por cliente
   if (x) { x.alternativas = [`${metric} por ${dimension}`]; return _crossFail(x); }
-  return _pack(composeSpecRetrieval({ metric, dimension, filters: _isObj(filters) ? filters : {}, scenario, limit, sort }),
+  return _pack(composeSpecRetrieval({ metric, dimension, filters: _isObj(filters) ? filters : {}, scenario, limit, sort, entityScope }),
     `la métrica '${metric}' no está declarada para el eje '${dimension}'`);
 }
 
@@ -173,8 +175,10 @@ function entityRecord({ dimension, entity } = {}) {
 // rankings, quién solo en uno) — antes esto disparaba 2 tool-calls de EJES DISTINTOS que el narrador mezclaba sin
 // declarar el mismatch. Si el eje no tiene ambas columnas (cliente/marca/familia no tienen capital), degrada
 // HONESTO con la razón exacta (no hay tabla puente eje↔SKU en el dato) — nunca inventa el cruce.
-function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc" } = {}) {
-  const r = buildTension(dimension, { metricA, metricB, limit, dirA, dirB });
+// entityScope (Etapa 2, owner 2026-08-03): forwarding mecánico a buildTension — "de esos SKU, ¿quién sostiene
+// contribución vs consume capital?" cruza solo el subconjunto en vez del eje entero.
+function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null } = {}) {
+  const r = buildTension(dimension, { metricA, metricB, limit, dirA, dirB, entityScope });
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no puedo cruzar esas dos métricas por '${dimension}'` } };
   if (r.unsupported) return { facts: null, boleta: [], coverage: { supported: false, reason: r.unsupported } };
   return { facts: { ...r.facts, lens: "cuadro", entityType: dimension }, boleta: r.boleta, coverage: { supported: true, figCount: r.boleta.length } };
@@ -183,8 +187,10 @@ function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD"
 // gridTable · LA GRILLA: los top-N de una dimensión (cliente/sku/marca/familia) con TODAS sus columnas, para que el
 // LLM arme una TABLA multi-columna. sortBy = por qué campo rankear (venta/contribucion/stockUSD/rotacion/margen…).
 // Ej: "los 5 mejores SKU con ventas, costo medio, precio y margen de contribución" → {dimension:"sku",sortBy:"venta",limit:5}.
-function gridTable({ dimension, sortBy = null, dir = "desc", limit = 20 } = {}) {
-  const r = buildGrid(dimension, { sortBy, dir, limit });
+// entityScope (Etapa 2, owner 2026-08-03): forwarding mecánico a buildGrid — "de esos clientes, armame la tabla"
+// acota la grilla al subconjunto en vez de traer el top-N del eje entero.
+function gridTable({ dimension, sortBy = null, dir = "desc", limit = 20, entityScope = null } = {}) {
+  const r = buildGrid(dimension, { sortBy, dir, limit, entityScope });
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no puedo armar la grilla del eje '${dimension}'` } };
   // lens:"cuadro" + entityType (SENTRIX ES LA EVIDENCIA): abre el Cuadro de mando en ESTE eje — las filas que ADI
   // acaba de nombrar en la tabla quedan marcadas (espejo vía boleta), en vez de dejar el panel en lo que mostraba antes.
@@ -319,8 +325,10 @@ function simulateCapital({ filters = {}, scenario } = {}) {
 // costo, no escala linealmente sobre el nivel pedido). Mismo estilo simple que simulateCarga/Capital (args planos,
 // sin transform anidado): la evidencia en vivo mostró que el planner no arma el `transform` del tool genérico ni
 // para las métricas que SÍ soporta — necesita un tool con nombre propio y ejemplo en prosa, igual que Carga/Capital.
-function simulateCosto({ dimension = "sku", filters = {}, pct, scope = "bajo_benchmark", scenario } = {}) {
-  const r = composeSpecSimulateCosto({ dimension, filters, pct, scope, scenario });
+// entityScope (Etapa 2, owner 2026-08-03): forwarding mecánico a composeSpecSimulateCosto — "de esos SKU, ¿y si
+// bajo el costo medio 3%?" acota la simulación al subconjunto (antes ignoraba cualquier alcance heredado).
+function simulateCosto({ dimension = "sku", filters = {}, pct, scope = "bajo_benchmark", scenario, entityScope = null } = {}) {
+  const r = composeSpecSimulateCosto({ dimension, filters, pct, scope, scenario, entityScope });
   if (r && r.unsupported) return { facts: null, boleta: [], coverage: { supported: false, reason: r.unsupported } };
   return _pack(r, `no hay ${scope === "all" ? "" : "SKU bajo benchmark "}para simular costo con estos filtros`);
 }

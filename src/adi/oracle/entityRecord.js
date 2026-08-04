@@ -218,14 +218,27 @@ export function axisHasField(dimension, field) {
 // top-N por metricA y por metricB YA CALCULADOS + su intersección — el narrador no arma el cruce a mano, lo recibe
 // resuelto y autorizado. Si el eje no tiene AMBAS columnas (hoy: cliente/marca/familia no tienen capital/inventario
 // — no hay tabla puente eje↔SKU en el dato), degrada HONESTO con la razón exacta vía `unsupported`.
-export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc" } = {}) {
+// entityScope (Etapa 2, owner 2026-08-03, continuidad conversacional universal — generalización mecánica del MISMO
+// parámetro que ya usan inventoryStatus/marginRead/salesRead/contributionRead vía _scopeRows en specRetrieval.js):
+// acota `ents` al subconjunto nombrado ANTES de rankear/cruzar — "de esos SKU, ¿quién sostiene contribución?".
+// Mismo fallback SUAVE que _scopeRows: si el subconjunto no intersecta NADA del eje (cruce de dimensión/tenant
+// stale), se ignora y se sigue con el eje completo — nunca una respuesta vacía por un alcance incompatible.
+function _applyEntityScope(ents, entityScope) {
+  if (!entityScope || !Array.isArray(entityScope.entities) || !entityScope.entities.length) return ents;
+  const set = new Set(entityScope.entities.map(String));
+  const scoped = ents.filter((e) => set.has(String(e)));
+  return scoped.length ? scoped : ents;
+}
+
+export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null } = {}) {
   const hasA = axisHasField(dimension, metricA), hasB = axisHasField(dimension, metricB);
   const lblA = (F[metricA] && F[metricA].l) || metricA, lblB = (F[metricB] && F[metricB].l) || metricB;
   if (!hasA || !hasB) {
     const falta = !hasA && !hasB ? `${lblA} ni ${lblB}` : !hasA ? lblA : lblB;
     return { unsupported: `${lblA} y ${lblB} no se miden juntas por ${dimension} — falta ${falta} en ese eje (no hay tabla puente ${dimension}↔SKU en el dato).` };
   }
-  const ents = _allEntities(dimension); if (!ents.length) return null;
+  let ents = _allEntities(dimension); if (!ents.length) return null;
+  ents = _applyEntityScope(ents, entityScope);
   const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e) }))
     .filter((x) => x.rec && typeof x.rec[metricA] === "number" && typeof x.rec[metricB] === "number");
   if (recs.length < 2) return null;
@@ -264,8 +277,9 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
 // LA GRILLA: top-N entidades × TODAS sus columnas (el motor arma la tabla junta y exacta; el LLM elige qué columnas
 // mostrar). sortBy = campo crudo por el que rankear (venta/contribucion/stockUSD/rotacion/margen…) o su etiqueta.
 const _LABEL2FIELD = Object.fromEntries(Object.entries(F).map(([k, m]) => [m.l.toLowerCase(), k]));
-export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20 } = {}) {
-  const ents = _allEntities(dimension); if (!ents.length) return null;
+export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20, entityScope = null } = {}) {
+  let ents = _allEntities(dimension); if (!ents.length) return null;
+  ents = _applyEntityScope(ents, entityScope);   // Etapa 2: "de esos clientes, armame la tabla" — ver _applyEntityScope arriba
   const field = (sortBy && (F[sortBy] ? sortBy : _LABEL2FIELD[String(sortBy).toLowerCase()])) || (F["venta"] ? "venta" : (F["contribucion"] ? "contribucion" : "stockUSD"));
   const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e) })).filter((x) => x.rec);
   recs.sort((a, b) => { const av = a.rec[field], bv = b.rec[field]; const an = typeof av === "number" ? av : -Infinity, bn = typeof bv === "number" ? bv : -Infinity; return dir === "asc" ? an - bn : bn - an; });

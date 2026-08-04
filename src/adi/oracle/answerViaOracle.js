@@ -21,6 +21,12 @@ import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, bui
 // canónica, ADITIVA (ver el comentario "CONSOLIDACIÓN — QUÉ QUEDA PARA ETAPA 2/3" al final de ese archivo):
 // mem.lastOffer/mem.recentSubjects de dialogueState.js arriba NO se tocan, siguen funcionando igual que hoy.
 import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline } from "./conversationScope.js";
+// CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 2 (owner 2026-08-03) — toolContracts.js declara, POR TOOL, si admite
+// una lista de entidades (y cómo: entityScope nativo · lista de cardinalidad fija · fan-out a N calls) o si genuina-
+// mente NO admite varias a la vez (decline + oferta de correrlas por separado, nunca cambia de eje en silencio).
+// applyMultiEntityScope es el ÚNICO punto que puebla args.entityScope/args.entities/expande calls por esto — ver su
+// comentario de cabecera en toolContracts.js.
+import { applyMultiEntityScope } from "./toolContracts.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
@@ -813,6 +819,23 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
   const hasThread = (Array.isArray(history) && history.length > 0) || recentNarrationsPrev.length > 0 || !!priorOffer;
   plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread, recentSubjectsPrev) };
+
+  // ── CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 2 (ver toolContracts.js) ── backstop DETERMINÍSTICO, mismo
+  // principio y misma precedencia que el resto de _coerce*/bypasses de este archivo: corre SOLO cuando el scope
+  // (ya resuelto arriba, por PLAN mismo o por conversationScope Etapa 1) trae 2+ entidades (plan.scope.level="list")
+  // — el caso de 0-1 entidad sigue exactamente igual que antes (_coerceEntityScopedFilters arriba, sin cambios).
+  // Puebla args.entityScope/args.entities o expande a N calls SEGÚN EL CONTRATO de cada tool — nunca fuerza una
+  // tool que genuinamente no admite una lista: ahí CORTA acá mismo (igual que ambiguous/decline arriba), con una
+  // pregunta que EXPLICA y OFRECE una alternativa concreta, nunca cambia de eje/entidad en silencio.
+  if (plan.scope && plan.scope.level === "list" && Array.isArray(plan.scope.entities) && plan.scope.entities.length > 1) {
+    const multiScope = applyMultiEntityScope(plan, plan.calls, maxCalls);
+    if (multiScope.decline) {
+      const out = _composedBypassResult(multiScope.decline, mem, recentNarrationsPrev, scenario);
+      if (out) return out;
+    } else if (Array.isArray(multiScope.calls)) {
+      plan = { ...plan, calls: multiScope.calls };
+    }
+  }
   const calls = plan.calls;
 
   // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido

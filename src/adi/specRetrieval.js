@@ -42,8 +42,13 @@ const _money = (v) => {
 // escala del contrato: money(K) = valor en MILES de $ → a dólares reales antes de formatear (money(raw) = $ crudo)
 const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * 1000 : v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
 
-// composeSpecRetrieval({metric, dimension, filters, scenario, limit, sort}) → {opener, evidence} | null (no soportado)
-export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario, limit = null, sort = null }) {
+// composeSpecRetrieval({metric, dimension, filters, scenario, limit, sort, entityScope}) → {opener, evidence} | null
+// entityScope (Etapa 2, owner 2026-08-03, continuidad conversacional universal — generalización mecánica del MISMO
+// parámetro que ya usan inventoryStatus/marginRead/salesRead/contributionRead vía _scopeRows): "de esos SKU, ¿cuál
+// vende más?" acota el ranking al subconjunto nombrado ANTES de ordenar/recortar a `limit`, en vez de traer el
+// ranking del eje entero. Fallback SUAVE: si el subconjunto no intersecta ninguna fila del eje (cruce de dimensión/
+// tenant stale), se ignora y sigue con el eje completo — nunca una respuesta vacía por un alcance incompatible.
+export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario, limit = null, sort = null, entityScope = null }) {
   const m = METRICS[metric];
   const sba = m && m.sourceByAxis && m.sourceByAxis[dimension];
   if (!sba) return null;                                    // métrica@eje no declarada → no soportada (seam degrada)
@@ -79,6 +84,15 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
     result = rows.map((r) => ({ name: r[nameField], value: r[field] })).filter((x) => typeof x.value === "number");
   }
   if (!result.length) return null;
+
+  // entityScope (Etapa 2) — se aplica DESPUÉS de armar `result` (name/value ya resueltos, mismo `name` para ejes
+  // group-by como para ejes por-fila): mismo fallback suave que _scopeRows (specRetrieval.js) — si el subconjunto
+  // no matchea ninguna fila (cruce de dimensión, ej. entityScope de SKU sobre dimension="cliente"), se ignora.
+  if (entityScope && Array.isArray(entityScope.entities) && entityScope.entities.length) {
+    const set = new Set(entityScope.entities.map(String));
+    const scoped = result.filter((x) => set.has(String(x.name)));
+    if (scoped.length) result = scoped;
+  }
 
   const dir = sort && sort.dir === "asc" ? "asc" : "desc";
   result.sort((a, b) => (dir === "asc" ? a.value - b.value : b.value - a.value));
@@ -1937,7 +1951,11 @@ export function composeSpecSimulateCapital({ filters = {}, scenario } = {}) {
  * contribS = contribA − dCosto (costo baja → contribución sube en la MISMA magnitud, rebates/venta constantes);
  * margenS = contribS / venta × 100. Devuelve null (coverage=false honesto) si no hay filas con costo/venta/
  * contribución numéricos en el eje/filtro pedido — mismo patrón que el resto de composeSpecSimulate*. */
-export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct, scope = "bajo_benchmark", scenario } = {}) {
+// entityScope (Etapa 2, owner 2026-08-03, continuidad conversacional universal): antes esta función pasaba `null`
+// HARDCODEADO como 3er arg de `_scopeRows` — CUALQUIER alcance heredado ("de esos SKU, ¿y si bajo el costo medio
+// 3%?") se ignoraba en silencio y la simulación corría sobre TODO el eje/filtro. Ahora se forwardea igual que
+// composeSpecMargin/Ventas/Contribucion/Inventory (mismo parámetro, mismo mecanismo, cero código nuevo en _scopeRows).
+export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct, scope = "bajo_benchmark", scenario, entityScope = null } = {}) {
   if (!Number.isFinite(pct)) return null;
   // GUARD DE ABSURDOS (hallazgo del re-barrido de 17 turnos, owner 2026-07-29): sin tope, un pct grande (ej. -150%)
   // deja costoSupuesto NEGATIVO y un margen de >100% narrado como recomendación real, con guardC en verde (la
@@ -1948,7 +1966,7 @@ export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct,
   if (Math.abs(pct) > 50) return { unsupported: `Un ${pct > 0 ? "+" : ""}${pct}% ya no es un supuesto operable sobre el costo: a esa escala el costo se vuelve negativo o el negocio cambia por completo, y el dato actual deja de ser una base válida para proyectar. Probá un rango realista (entre ±1% y ±50%) y lo corro sobre el dato real.` };
   const dim = _MLBL[dimension] ? dimension : "sku";
   const L = _MLBL[dim];
-  const rows = _scopeRows(_marginRows(dim, scenario), filters, null)
+  const rows = _scopeRows(_marginRows(dim, scenario), filters, entityScope)
     .filter((r) => typeof r.costo === "number" && typeof r.venta === "number" && r.venta > 0 && typeof r.contribucion === "number");
   if (!rows.length) return null;
   const candidatos = scope === "all" ? rows : rows.filter((r) => typeof r.margen === "number" && r.margen < _benchOf(r));
