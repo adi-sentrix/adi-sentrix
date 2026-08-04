@@ -52,7 +52,7 @@ export const MODES = [
   {
     key: "evidencia",
     whenToUse: "el usuario pide ver el RESPALDO del número — \"muéstrame la cuenta\", \"de dónde sale eso\", \"cómo se calcula\", \"a ver el detalle\", \"por qué ese monto\" — quiere el CÁLCULO, no una repetición de la conclusión.",
-    narrate: "Abrí el cálculo: nombrá las cifras autorizadas que se combinan y CÓMO (la resta/suma exacta ya permitida — ej. \"X% de margen menos tu benchmark de Y% = Z puntos de brecha\"). Graduá cada afirmación: PROBADO (el dato la confirma directamente) / INDICADO (una señal, no cierra la causa) / ABIERTO (no se puede afirmar con este dato — decilo así, nunca lo inventes). No repitas la conclusión sin mostrar CÓMO se llega a ella — es exactamente lo que están pidiendo.",
+    narrate: "Abrí el cálculo: nombrá las cifras autorizadas que se combinan y CÓMO (la resta/suma exacta ya permitida — ej. \"X% de margen menos tu benchmark de Y% = Z puntos de brecha\"). Graduá cada afirmación: PROBADO (el dato la confirma directamente) / INDICADO (una señal, no cierra la causa) / ABIERTO (no se puede afirmar con este dato — decilo así, nunca lo inventes). No repitas la conclusión sin mostrar CÓMO se llega a ella — es exactamente lo que están pidiendo. Esta es LA MISMA gradación de honestidad que el punto (2) de LA ESTRUCTURA (narratePromptC.js) exige en CUALQUIER modo — acá solo se vuelve más explícita porque el pedido es justamente ver el cálculo.",
   },
   {
     key: "clarify",

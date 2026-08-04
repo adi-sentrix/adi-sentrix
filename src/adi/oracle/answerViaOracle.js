@@ -403,12 +403,23 @@ function _coerceMode(text, plan, hasThread, recentSubjectsPrev) {
 // s[oó]lo (owner 2026-07-31, hallazgo en vivo): "\bsolo\b" NUNCA matcheaba la variante acentuada "sólo" (ortografía
 // tradicional española, uso muy común) — confirmado por test de regex aislado, 100% determinístico, sin LLM
 // involucrado. Las 4 regex de preferencia (data_only/action_only/results_only/"solo esta vez") se amplían acá.
-const _PREF_DATA_ONLY_RE = /\bs[oó]lo\s+(?:el\s+|la\s+|los\s+|las\s+)?(?:dato|datos|n[uú]mero|n[uú]meros|cifras?|kpis?)\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bnada\s+m[aá]s\b|\bdame\s+s[oó]lo\b/i;
+// AMPLIACIÓN (owner 2026-08-04, consolidación Parte 2): probadas las 13 frases exactas del owner contra las regex de
+// arriba, 9/13 no matcheaban ninguna ("solo dame el dato", "dime únicamente las ventas", "sin explicación", "directo
+// al número", "cuánto fue y punto", "no me recomiendes", "no me des contexto", "solo el resultado", "solo la
+// tabla") — confirmado con script de regex aislado, 100% determinístico, sin LLM. Se agregan como alternativas NUEVAS
+// (nunca se retira ninguna existente) con el MISMO estilo angosto ya usado en el archivo (palabra ASCII pegada al
+// \b, la vocal acentuada siempre en el INTERIOR de la alternativa — nunca como primer carácter tras un \b, porque
+// \w en JS regex no incluye vocales acentuadas y esa combinación NUNCA matchea la ortografía con tilde real, ej.
+// "únicamente" — verificado con test aislado). "y punto" lleva lookahead a puntuación/fin-de-frase para no
+// confundirse con "punto de venta" (falso positivo real detectado en la ronda de negativos).
+const _PREF_DATA_ONLY_RE = /\bs[oó]lo\s+(?:el\s+|la\s+|los\s+|las\s+)?(?:dato|datos|n[uú]mero|n[uú]meros|cifras?|kpis?|tabla|resultados?)\b|\bs[oó]lo\s+dame\b|\bdame\s+s[oó]lo\b|\b(?:dame|dime|mu[eé]strame|quiero|necesito)\s+[uú]nicamente\b|\bsin\s+an[aá]lisis\b|\bsin\s+interpretaci[oó]n\b|\bsin\s+explicaci[oó]n\b|\bnada\s+m[aá]s\b|\by\s+punto\b(?=[.!?]|\s*$)|\bdirecto\s+al\s+(?:n[uú]mero|dato|resultado|cifra)\b|\bno\s+me\s+recomiendes\b|\bno\s+me\s+des\s+contexto\b/i;
 const _PREF_ACTION_ONLY_RE = /\bs[oó]lo\s+la\s+acci[oó]n\b|\bsin\s+(?:el\s+)?diagn[oó]stico\b|\band[aá]\s+al\s+grano\b|\bdirecto\s+a\s+la\s+acci[oó]n\b|\bsin\s+repetir\s+el\s+diagn[oó]stico\b/i;
 // "resultados"/"sin recomendación" SOLO se leen como results_only dentro de una SIMULACIÓN (mode="simulacion") —
 // fuera de ese contexto "sin recomendación" es ambiguo (una decisión SIN recomendación no tiene mucho sentido) y se
-// deja al criterio del LLM (plan.pref), no se fuerza por red.
-const _PREF_RESULTS_ONLY_SIM_RE = /\bs[oó]lo\s+(?:los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b/i;
+// deja al criterio del LLM (plan.pref), no se fuerza por red. "solo el resultado" (owner 2026-08-04): el artículo
+// "el" faltaba junto a "los" — agregado. "no me recomiendes" (owner 2026-08-04): mismo tratamiento dual que "sin
+// análisis" arriba — dentro de simulación matchea acá (results_only), fuera de simulación cae a _PREF_DATA_ONLY_RE.
+const _PREF_RESULTS_ONLY_SIM_RE = /\bs[oó]lo\s+(?:el\s+|los\s+)?resultados?\b|\bsin\s+recomendaci[oó]n\b|\bsin\s+an[aá]lisis\b|\bno\s+me\s+recomiendes\b/i;
 const _PREF_BRIEF_RE = /\bresponde?(?:me)?\s+breve\b|\bs[eé]\s+breve\b|\brespuesta\s+corta\b|\bmuy\s+resumido\b|\bcorto\s+y\s+concreto\b|\bresum[ií]me\b/i;
 // _PREF_DIRECTO_RE/_PREF_STANDARD_RE (owner 2026-07-31, hallazgo "memoria-directo"): antes, "háblame más directo"
 // llenaba memoryUpdate.verbosidad — una SEGUNDA fuente de verdad para lo mismo que ya resuelve detailLevel, y

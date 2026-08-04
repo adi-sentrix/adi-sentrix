@@ -136,6 +136,31 @@ function _bestByMagnitude(figs) {
   }
   return best;
 }
+
+// ── SUPUESTO DE SIMULACIÓN BAJO data_only/results_only (owner 2026-08-04, GAP 3, consolidación Parte 2) ──
+// composeFromLedger armaba la tabla SOLO de fig.label/fig.value — fig.context (donde vive el texto del supuesto,
+// ej. "supuesto: costo medio -3% sobre los sku bajo benchmark (dato real)", ver composeSpecSimulateCosto/
+// composeSpecSimulate/composeSpecSimulateCarga/composeSpecSimulateCapital en specRetrieval.js — TODAS estampan
+// "supuesto" al inicio de fig.context) se descartaba por completo. Bajo data_only/results_only este composer es el
+// ÚNICO texto que llega al usuario (garantía por construcción, ver el comentario de cabecera del archivo) — sin
+// este fix, una simulación bajo results_only mostraba el resultado numérico SIN decir sobre qué supuesto se
+// calculó, violando DIRECTO el requisito del owner ("en una simulación NUNCA ocultes el supuesto usado"). Declarar
+// el supuesto es METADATO indispensable (qué %/acción se asumió), no análisis ni recomendación — no rompe "sin
+// análisis". Toma el PRIMER fig con un context de supuesto (todas las filas de una misma simulación comparten el
+// mismo _ctx en origen, ver specRetrieval.js) — nunca concatena varios, evita ruido si hubiera figs de más de una
+// simulación mezcladas en el mismo turno (caso hoy no ejercitado, pero la función queda correcta igual).
+const _SUPUESTO_CTX_RE = /supuesto/i;
+function _findSupuestoContext(list) {
+  for (const f of list) {
+    if (f && typeof f.context === "string" && _SUPUESTO_CTX_RE.test(f.context)) return f.context.trim();
+  }
+  return null;
+}
+function _formatSupuestoLine(context) {
+  const cleaned = context.replace(/^supuesto\s*:?\s*/i, "");
+  return `Supuesto: ${cleaned}.`;
+}
+
 export function composeFromLedger(figs, contentScope) {
   const list = Array.isArray(figs) ? figs.filter((f) => f && typeof f.label === "string" && f.value != null) : [];
   if (!list.length) return null;
@@ -145,7 +170,12 @@ export function composeFromLedger(figs, contentScope) {
     return `La prioridad: ${top.label} (${top.value}).`;
   }
   const rows = list.slice(0, 12).map((f) => `| ${f.label} | ${f.value} |`);
-  return `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
+  let table = `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
+  if (contentScope === "data_only" || contentScope === "results_only") {
+    const supuesto = _findSupuestoContext(list);
+    if (supuesto) table += `\n\n${_formatSupuestoLine(supuesto)}`;
+  }
+  return table;
 }
 
 // ── composeNoDataMessage(results) ── owner 2026-07-29, 3er residual: "bajo data_only o results_only, NUNCA debe
