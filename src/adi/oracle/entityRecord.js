@@ -9,6 +9,7 @@ import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { fig } from "../boleta.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
+import { ENTITIES } from "../../config/contract/entityRegistry.js";
 
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
 
@@ -171,21 +172,61 @@ function _formatRecord(entity, rec) {
   return { facts, boleta };
 }
 
-// todas las entidades de una dimensión (para la grilla / ranking)
+// ── EJES GROUP-BY (bodega/canal) — Etapa 1, owner 2026-08-04, "cierre de los límites restantes de
+// conversationScope": "esas bodegas"/"esos canales" deben resolver como entidad reconocida (boleta "Entidad ·
+// Concepto"), sin que buildEntityRecord/buildGrid/buildTension aprendan a soportarlos (siguen sin poder, sus
+// contratos ya lo reflejan así — ver toolContracts.js). La raíz única del gap era _sources() (arriba): default:null
+// para "bodega"/"canal" alimentaba TANTO guessDimension() como _allEntities(), así que ningún nombre de bodega/canal
+// podía siquiera reconocerse como perteneciente a un eje real.
+//
+// SEPARACIÓN DELIBERADA de 2 caminos, para no tocar _rawRecord (armado de registro MERGED, deliberadamente sin
+// bodega/canal): bodega/canal son ejes GROUP-BY (N filas por nombre de grupo, ver entityRegistry.js
+// ENTITIES.bodega/canal) — un merge naive devolvería un registro FALSO (solo la primera fila que matchee) si
+// alguna vez se enrutara dimension="bodega"/"canal" hacia buildEntityRecord. `_axisNames` es SOLO el camino de
+// "listar los nombres válidos de un eje" (lo que necesitan guessDimension/_allEntities) — reusa
+// ENTITIES.bodega/canal (entityRegistry.js, la MISMA fuente de verdad que ya usa axisAvailable() para multiempresa)
+// en vez de duplicar una segunda declaración de dónde vive cada campo.
+//
+// `_groupBySourceRows` re-lee el import LIVE-BINDING en cada llamada — mismo patrón que `_sources` arriba (nunca
+// cachea el array en un objeto a nivel de módulo, que quedaría STALE tras un initTenant()/cambio de tenant).
+function _groupBySourceRows(sourceName) {
+  if (sourceName === "skuInventario") return skuInventario;
+  if (sourceName === "clientesVentas") return clientesVentas;
+  return null;
+}
+function _axisNames(dimension) {
+  const direct = _sources(dimension);
+  if (direct) return direct;
+  const E = ENTITIES[dimension];
+  if (!E || !E.isGroupBy) return null;
+  const rows = _groupBySourceRows(E.source);
+  if (!Array.isArray(rows)) return null;
+  return [{ rows, key: E.keyField }];
+}
+
+// todas las entidades de una dimensión (para la grilla / ranking) — vía _axisNames: idéntico resultado a _sources
+// para sku/cliente/marca/familia (nadie llama esta función con dimension="bodega"/"canal" hoy — gridTable/
+// tensionRead/buildEntityRecord no las soportan, ver toolContracts.js), y ahora también sirve como base de
+// resolveEntity() para bodega/canal (normalización case/acento-insensitive, guessDimension de abajo).
 function _allEntities(dimension) {
-  const srcs = _sources(dimension); if (!srcs) return [];
+  const srcs = _axisNames(dimension); if (!srcs) return [];
   const seen = new Set(); const out = [];
   for (const s of srcs) for (const r of s.rows) { const id = r && r[s.key]; if (id != null && !seen.has(String(id))) { seen.add(String(id)); out.push(String(id)); } }
   return out;
 }
 
-// guessDimension(entity) → "sku"|"cliente"|"marca"|"familia"|null · a qué eje pertenece un NOMBRE, cuando el plan
-// solo tiene el nombre (ej. `trend` con `entity` pero sin `dimension`) — para que la evidencia sepa qué cuadro abrir
-// aun cuando la tool DECLINA (no hay serie mensual de esa métrica, pero SÍ sabemos que se hablaba de esa entidad).
+// guessDimension(entity) → "sku"|"cliente"|"marca"|"familia"|"bodega"|"canal"|null · a qué eje pertenece un NOMBRE,
+// cuando el plan solo tiene el nombre (ej. `trend` con `entity` pero sin `dimension`) — para que la evidencia sepa
+// qué cuadro abrir aun cuando la tool DECLINA (no hay serie mensual de esa métrica, pero SÍ sabemos que se hablaba
+// de esa entidad). bodega/canal sumados en Etapa 1 (owner 2026-08-04) vía _axisNames — data-driven por tenant: si
+// el dato activo no trae canal (ej. empresa2, fixture deliberado sin ese eje), _groupBySourceRows sigue devolviendo
+// el array real (clientesVentas) pero ninguna fila tiene ese nombre de canal → sigue devolviendo null, nunca una
+// lista fija hardcodeada.
 export function guessDimension(entity) {
   if (entity == null) return null;
-  for (const dim of ["sku", "cliente", "marca", "familia"]) {
-    const srcs = _sources(dim);
+  for (const dim of ["sku", "cliente", "marca", "familia", "bodega", "canal"]) {
+    const srcs = _axisNames(dim);
+    if (!srcs) continue;
     const canon = resolveEntity(dim, entity);
     for (const s of srcs) if (s.rows.some((r) => r && String(r[s.key]) === String(canon))) return dim;
   }

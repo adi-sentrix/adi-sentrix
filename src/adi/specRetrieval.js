@@ -9,6 +9,7 @@
 import { METRICS } from "../config/contract/metricRegistry.js";
 import { ENTITIES } from "../config/contract/entityRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
+import { guessDimension } from "./oracle/entityRecord.js";   // Etapa 1 (owner 2026-08-04): resuelve el EJE de un entityScope heredado (bodega/canal vs nombre/sku) — ver _scopeRows
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // umbrales de política (UNA verdad) para el diagnose
 import { fig } from "./boleta.js";   // BOLETA de cifras autorizadas (primera clase · emitida por el composer · la valida el guard)
 import { diagnoseInventario, diagnoseClientes, diagnoseSkus, concentracion } from "./diagnosis/economicDiagnosis.js";   // motor: 4 puntas inventario + patrón económico cliente/SKU + concentración 80/20 · UNA verdad
@@ -268,6 +269,13 @@ const _eqNorm = (a, b) => a != null && b != null && _norm(a) === _norm(b);
 // acota el barrido a una marca/familia/bodega/cliente (los `filters` del spec) y, si viene, al ENTITYSCOPE heredado de un
 // follow-up deíctico ("de esos…"): un set de nombres/SKU de la última evidencia. Si el set NO intersecta (cruce de dimensión),
 // se ignora y devuelve las filas del filtro (nunca vacía por un alcance incompatible → la respuesta general en vez de mentir).
+// BODEGA/CANAL (Etapa 1, owner 2026-08-04): antes el match SOLO comparaba contra r.nombre/r.sku — un entityScope de
+// bodega/canal (ej. "esas bodegas" resuelto por conversationScope.js) nunca intersectaba nada, así que el fallback
+// suave de arriba lo IGNORABA EN SILENCIO — el blocker real del cierre (bodega/canal ya "resolvían" como entidad
+// conversacional desde el fix de entityRecord.js/conversationScope.js, pero el filtro downstream no los aplicaba).
+// `axis` se resuelve UNA vez con guessDimension (misma fuente de verdad que conversationScope.js) sobre el primer
+// nombre del scope — nunca se adivina por qué campo trae la fila (fuentes sin ese eje, ej. skusMargen sin bodega,
+// simplemente no matchean y caen al fallback suave, honesto).
 function _scopeRows(rows, filters, entityScope) {
   if (filters.marca)   rows = rows.filter((r) => r && _eqNorm(r.marca, filters.marca));
   if (filters.familia) rows = rows.filter((r) => r && _eqNorm(r.sfamilia, filters.familia));
@@ -275,7 +283,9 @@ function _scopeRows(rows, filters, entityScope) {
   if (filters.cliente) rows = rows.filter((r) => r && _eqNorm(r.nombre, filters.cliente));
   if (entityScope && Array.isArray(entityScope.entities) && entityScope.entities.length) {
     const set = new Set(entityScope.entities.map((s) => String(s)));
-    const scoped = rows.filter((r) => r && set.has(String(r.nombre != null ? r.nombre : r.sku)));
+    const axis = guessDimension(entityScope.entities[0]);
+    const groupField = axis === "bodega" ? "bodega" : axis === "canal" ? "canal" : null;
+    const scoped = rows.filter((r) => r && (set.has(String(r.nombre != null ? r.nombre : r.sku)) || (groupField && r[groupField] != null && set.has(String(r[groupField])))));
     if (scoped.length) rows = scoped;
   }
   return rows;

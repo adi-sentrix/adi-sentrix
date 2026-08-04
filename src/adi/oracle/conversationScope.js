@@ -41,7 +41,10 @@
  */
 import { guessDimension } from "./entityRecord.js";
 
-const _AXES = new Set(["sku", "cliente", "marca", "familia"]);
+// bodega/canal sumados Etapa 1 (owner 2026-08-04, "cierre de los límites restantes"): guessDimension
+// (entityRecord.js) ya los reconoce vía ENTITIES.bodega/canal (entityRegistry.js) — este Set gatea buildEntityList
+// (abajo) y los 7 puntos de uso de guessDimension de este archivo, así que el fix se hereda mecánicamente.
+const _AXES = new Set(["sku", "cliente", "marca", "familia", "bodega", "canal"]);
 
 export function emptyConversationScope() {
   return { version: 1, current: null, history: [] };
@@ -79,8 +82,11 @@ export function emptyConversationScope() {
 // MULTI-dimensión (comercial por cliente + capital por SKU en la MISMA boleta) — el fallback de mayoría no separa
 // ambos grupos, elige uno. Generalizar diagnose a un contrato multi-eje es Etapa 2 (toolContracts.js), fuera de
 // alcance acá; mientras tanto, una referencia tipo "esos SKU" después de un `diagnose` puede resolver mal si el
-// diagnose trajo más entidades de cliente que de SKU. bodega/canal NUNCA resuelven (guessDimension no los cubre
-// hoy, ver entityRecord.js — mismo límite que el resto del motor).
+// diagnose trajo más entidades de cliente que de SKU. bodega/canal SÍ resuelven desde Etapa 1 (owner 2026-08-04):
+// guessDimension (entityRecord.js) reconoce ambos ejes group-by vía ENTITIES.bodega/canal (entityRegistry.js) —
+// mismo mecanismo universal de este archivo, sin caso especial acá (inventoryStatus, el composer típico que trae
+// grupos de bodega en su boleta, sigue en `_AMBIGUOUS_DIMENSION_TOOLS` → el fallback de mayoría decide entre sku/
+// bodega/familia por conteo, igual que antes decidía entre sku/familia).
 const _AMBIGUOUS_DIMENSION_TOOLS = new Set(["inventoryStatus"]);
 
 export function buildEntityList(toolName, result) {
@@ -281,6 +287,8 @@ const _DIM_HINT = [
   [/\bclientes?\b/i, "cliente"],
   [/\bmarcas?\b/i, "marca"],
   [/\bfamilias?\b/i, "familia"],
+  [/\bbodegas?\b/i, "bodega"],   // Etapa 1 (owner 2026-08-04) — "esas bodegas"/"esos canales" como pista explícita
+  [/\bcanales?\b/i, "canal"],    // de desambiguación (sin esto el pool cae al filtro por defecto igual, no bloqueaba)
 ];
 function _dimHint(text) {
   for (const [re, dim] of _DIM_HINT) if (re.test(text)) return dim;

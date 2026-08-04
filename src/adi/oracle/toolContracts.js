@@ -43,8 +43,10 @@ import { guessDimension } from "./entityRecord.js";
 export const TOOL_CONTRACTS = {
   // queryMetric · ranking/lista de UNA métrica × UN eje. Etapa 2: entityScope generalizado (composeSpecRetrieval,
   // specRetrieval.js) — "de esos SKU, ¿cuál vendió más?" ahora se acota al subconjunto en vez de mostrar el ranking
-  // completo del eje. bodega/canal quedan soportados como eje (ya lo estaban) pero conversationScope nunca resuelve
-  // entidades de esos 2 ejes (guessDimension no los cubre) — el entityScope llegaría vacío/sin match ahí, inerte.
+  // completo del eje. bodega/canal quedan soportados como eje (ya lo estaban) y desde Etapa 1 (owner 2026-08-04)
+  // conversationScope también resuelve entidades de esos 2 ejes (guessDimension las reconoce, entityRecord.js) —
+  // el entityScope ahora sí puede llegar poblado para "esas bodegas"/"esos canales" (composeSpecRetrieval no
+  // necesitó cambios: ya filtraba por el `name` agregado del grupo, sin depender de r.nombre/r.sku crudo).
   queryMetric: {
     dimensionesSoportadas: ["cliente", "sku", "marca", "familia", "bodega", "canal"],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
