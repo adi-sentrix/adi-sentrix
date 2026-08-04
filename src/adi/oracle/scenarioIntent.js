@@ -20,33 +20,46 @@
  * es el TIEMPO PASADO ("el precio subió 8%", "las ventas bajaron 3%"): eso es una LECTURA del dato ya ocurrido,
  * nunca un supuesto a simular — se excluye ANTES de mirar campo/entidad, sin excepción.
  */
-import { clientesMargen as _CLIENTES } from "../../data/demoData.js";
+import { clientesMargen as _CLIENTES, marcasMargen as _MARCAS, sfamiliasMargen as _FAMILIAS, skuInventario as _SKUS } from "../../data/demoData.js";
 import { onTenantChange } from "../../data/tenantStore.js";
+// DEICTIC_PLURAL_RE (Etapa 3, owner 2026-08-03, continuidad conversacional universal): UNA sola fuente de verdad
+// del patrón deíctico plural, compartida con conversationScope.js (mismo principio que ZERO_EXPLICIT_RE más abajo)
+// — la usa el arm "future_multi" de detectScenarioIntent, ver su comentario de cabecera.
+import { DEICTIC_PLURAL_RE } from "./conversationScope.js";
 
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 
-// ── CANON DE CLIENTES (dimension="cliente", la ÚNICA que simulateGeneral v1 soporta) — re-armado por tenant,
-// mismo patrón que coerceChain.js._buildCanon (una verdad contra el dataset, nunca una lista propia hardcodeada).
-function _buildClientCanon() {
+// ── CANON MULTI-EJE (Etapa 3, owner 2026-08-03: "continuidad conversacional universal" — generalización de la
+// versión anterior de este módulo, que solo reconocía dimension="cliente" porque simulateGeneral v1 solo la
+// soportaba). Etapa 2 (toolContracts.js) ya generalizó simulateGeneral a
+// dimensionesSoportadas=[cliente,sku,marca,familia] — este canon cubre los MISMOS 4 ejes, mismo patrón que
+// coerceChain.js._buildCanon (una verdad contra el dataset, re-armado por tenant, nunca una lista propia
+// hardcodeada). bodega queda FUERA a propósito (mismo límite que el resto del motor: guessDimension no la cubre,
+// ver entityRecord.js — simulateGeneral tampoco la declara soportada).
+function _buildEntityCanon() {
   const m = new Map();
-  for (const r of _CLIENTES) if (r && r.nombre) m.set(_norm(r.nombre), r.nombre);
+  for (const r of _CLIENTES) if (r && r.nombre) m.set(_norm(r.nombre), { nombre: r.nombre, dimension: "cliente" });
+  for (const r of _MARCAS) if (r && r.nombre) m.set(_norm(r.nombre), { nombre: r.nombre, dimension: "marca" });
+  for (const r of _FAMILIAS) if (r && r.nombre) m.set(_norm(r.nombre), { nombre: r.nombre, dimension: "familia" });
+  for (const r of _SKUS) if (r && r.sku) m.set(_norm(r.sku), { nombre: r.sku, dimension: "sku" });
   return m;
 }
-let _CLIENT_CANON = _buildClientCanon();
-onTenantChange(() => { _CLIENT_CANON = _buildClientCanon(); });
+let _ENTITY_CANON = _buildEntityCanon();
+onTenantChange(() => { _ENTITY_CANON = _buildEntityCanon(); });
 
-// extractKnownClient(text) → nombre CANÓNICO si el texto nombra EXACTAMENTE UN cliente conocido — null si nombra
-// cero o 2+ (ambigüedad real: nunca adivina cuál). Scan por límite de palabra sobre texto normalizado (sin tilde,
-// minúscula) — mismo patrón que coerceChain.js._soloCanonEn.
-export function extractKnownClient(text) {
+// extractKnownEntity(text) → {name,dimension} CANÓNICO si el texto nombra EXACTAMENTE UNA entidad conocida (de
+// cualquiera de los 4 ejes) — null si nombra cero o 2+ (ambigüedad real: nunca adivina cuál). Scan por límite de
+// palabra sobre texto normalizado (sin tilde, minúscula) — mismo patrón que coerceChain.js._soloCanonEn. Sustituye
+// a la versión anterior (extractKnownClient, solo cliente) — ver comentario del canon arriba.
+export function extractKnownEntity(text) {
   const nq = _norm(text);
-  const found = new Set();
-  for (const [k, nombre] of _CLIENT_CANON) {
+  const found = new Map();   // nombre canónico → {nombre,dimension} (Map, no Set: dedupe por nombre real)
+  for (const [k, ent] of _ENTITY_CANON) {
     if (k.length < 3) continue;
     const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) found.add(nombre);
+    if (new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(nq)) found.set(ent.nombre, ent);
   }
-  return found.size === 1 ? [...found][0] : null;
+  return found.size === 1 ? [...found.values()][0] : null;
 }
 
 // ── TIEMPO PASADO (preterite 3a persona sing/plural — INEQUÍVOCO, el imperativo español NUNCA usa estas
@@ -117,21 +130,39 @@ export function extractScenarioVariable(text) {
   return pct ? { campo, ...pct } : null;
 }
 
-// detectScenarioIntent(text) → clasifica el turno para el bypass determinístico de answerViaOracle.js:
+// detectScenarioIntent(text, scopeCurrent) → clasifica el turno para el bypass determinístico de
+// answerViaOracle.js. `scopeCurrent` (Etapa 3, owner 2026-08-03, continuidad conversacional universal) es OPCIONAL
+// y es EXACTAMENTE mem.conversationScope.current (ver conversationScope.js, Etapa 1) — el mismo estado
+// ESTRUCTURADO (nunca prosa) que ya resuelve "estos SKU"/"esos clientes" en el resto del motor. Sin él (o con él
+// pero sin match), este detector se comporta BYTE-IGUAL a antes de Etapa 3:
 //   { kind: "historical" } → tiempo pasado inequívoco, NUNCA simular (es una lectura del dato, no un supuesto)
 //   { kind: "none" }       → sin campo resoluble sin ambigüedad (ninguno, ambos, o % sin dirección clara) — PLAN
 //                            corre normal, este módulo no interviene (incluye el caso YA cubierto "precio Y volumen
 //                            en la misma frase", que PLAN ya maneja bien)
-//   { kind: "no_entity", variable } → campo+% inequívoco, pero NINGÚN cliente conocido nombrado — "una entidad
+//   { kind: "no_entity", variable } → campo+% inequívoco, pero NINGUNA entidad conocida nombrada EN ESTE TEXTO y
+//                            tampoco un scope estructurado referenciable (ver "future_multi" abajo) — "una entidad
 //                            explícita nunca puede degradarse a cartera completa" implica lo inverso también:
 //                            SIN entidad, nunca se asume cartera completa en silencio — hay que preguntar cuál.
-//   { kind: "future", entity, variable } → campo+% inequívoco Y una entidad conocida — la falla #2 (alcance
+//   { kind: "future", entity, dimension, variable } → campo+% inequívoco Y una entidad conocida NOMBRADA en este
+//                            texto (cualquiera de los 4 ejes, ver extractKnownEntity) — la falla #2 (alcance
 //                            perdido) es estructuralmente imposible acá: la entidad la puso este detector, no el LLM.
-export function detectScenarioIntent(text) {
+//   { kind: "future_multi", entities, dimension, variable } → campo+% inequívoco, NINGUNA entidad nombrada EN ESTE
+//                            TEXTO, pero el texto trae un deíctico plural ("estos SKU"/"esos clientes"/"ellos") Y
+//                            hay un `scopeCurrent` ESTRUCTURADO vigente (no "cartera", con 1+ entidades) — el CASO
+//                            OBLIGATORIO del owner ("¿Qué pasa si subo 3% el precio de estos SKU?" tras un turno que
+//                            ya estableció 3 SKU puntuales): la(s) entidad(es) las pone el scope estructurado,
+//                            NUNCA el LLM ni una re-lectura de prosa — ver conversationScope.js para la garantía de
+//                            fidelidad (solo boleta, nunca narración).
+export function detectScenarioIntent(text, scopeCurrent) {
   const t = String(text || "");
   if (isHistoricalMention(t)) return { kind: "historical" };
   const variable = extractScenarioVariable(t);
   if (!variable) return { kind: "none" };
-  const entity = extractKnownClient(t);
-  return entity ? { kind: "future", entity, variable } : { kind: "no_entity", variable };
+  const known = extractKnownEntity(t);
+  if (known) return { kind: "future", entity: known.nombre, dimension: known.dimension, variable };
+  if (scopeCurrent && Array.isArray(scopeCurrent.entities) && scopeCurrent.entities.length
+    && scopeCurrent.dimension && scopeCurrent.dimension !== "cartera" && DEICTIC_PLURAL_RE.test(t)) {
+    return { kind: "future_multi", entities: scopeCurrent.entities, dimension: scopeCurrent.dimension, variable };
+  }
+  return { kind: "no_entity", variable };
 }

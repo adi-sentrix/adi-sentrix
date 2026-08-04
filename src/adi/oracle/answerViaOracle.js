@@ -26,7 +26,11 @@ import { emptyConversationScope, updateConversationScope, resolveConversationRef
 // mente NO admite varias a la vez (decline + oferta de correrlas por separado, nunca cambia de eje en silencio).
 // applyMultiEntityScope es el ÚNICO punto que puebla args.entityScope/args.entities/expande calls por esto — ver su
 // comentario de cabecera en toolContracts.js.
-import { applyMultiEntityScope } from "./toolContracts.js";
+// applySingleEntityScope (Etapa 3, owner 2026-08-03) — el hermano N=1 de applyMultiEntityScope: cubre las tools que
+// applyMultiEntityScope solo alcanzaba con 2+ entidades (entityProfile/entityRecord/trend/gridTable/tensionRead/
+// inventoryStatus) para el caso de UNA sola entidad resuelta por conversationScope.js (ej. "profundiza en el
+// primero") — ver su comentario de cabecera en toolContracts.js para el hallazgo completo.
+import { applyMultiEntityScope, applySingleEntityScope } from "./toolContracts.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
@@ -502,28 +506,40 @@ function _hasCompleteSimulateVars(calls) {
 // compartida con el detector de intención de escenario — antes vivían duplicados acá y en el detector nuevo, con
 // riesgo real de divergir, ej. el fix de "cambios" plural o "mantén" solo hubiera quedado en uno de los dos).
 
-// _buildPendingSimulation(text, plan) → {dimension,entity,known:{campo,delta_pct},missingCampo} | null — se arma
-// cuando supuestos_faltantes disparó para una simulación de 2 variables (ver planPrompt.js: ese campo es SOLO
-// para esto). Preferí `plan.calls` si YA trae una simulateGeneral con una variable no-cero (el camino
+// _buildPendingSimulation(text, plan) → {dimension,entity,entities,known:{campo,delta_pct},missingCampo} | null —
+// se arma cuando supuestos_faltantes disparó para una simulación de 2 variables (ver planPrompt.js: ese campo es
+// SOLO para esto). Preferí `plan.calls` si YA trae 1+ simulateGeneral con una variable no-cero (el camino
 // silent-zero-backstop la clasificó estructuralmente — más confiable que re-parsear texto); si `calls` viene
 // vacío (el camino LIMPIO — el diseño pide dejarlo así), extraé la variable nombrada del texto de ESTE turno
 // (frase corta y puntual, no la ventana de 8 mensajes que confunde a PLAN) vía extractScenarioVariable.
+// GENERALIZACIÓN (Etapa 3, owner 2026-08-03, continuidad conversacional universal): antes solo leía la PRIMERA
+// call de `calls` y hardcodeaba dimension="cliente" — con Etapa 2 (toolContracts.js), un scope de 2+ entidades
+// (ej. "estos SKU") ya llega acá como N calls DISTINTAS a simulateGeneral (una por entidad, fan-out de
+// applyMultiEntityScope), cada una con la MISMA variable conocida y la MISMA variable faltante — recolectar
+// SOLO la primera perdía las demás entidades del pendiente (hallazgo documentado en el diseño de Etapa 2,
+// openIssuesForNextStage #5). `entity` (singular) sobrevive como alias = entities[0] — compatibilidad hacia
+// atrás con cualquier lector existente de ese campo (ninguno hoy, pero es gratis mantenerlo).
 function _buildPendingSimulation(text, plan) {
   const calls = (plan && Array.isArray(plan.calls)) ? plan.calls : [];
-  const call = calls.find((c) => c && c.tool === "simulateGeneral" && c.args);
-  let known = null, entity = null;
-  if (call) {
-    entity = call.args.entity || null;
-    const vars = [call.args.variableA, call.args.variableB].filter(Boolean);
-    known = vars.find((v) => v && typeof v.delta_pct === "number" && v.delta_pct !== 0 && (v.campo === "precioLista" || v.campo === "unidades"));
+  const simCalls = calls.filter((c) => c && c.tool === "simulateGeneral" && c.args);
+  let known = null, dimension = null;
+  const entities = [];
+  for (const c of simCalls) {
+    if (typeof c.args.entity === "string" && c.args.entity && !entities.includes(c.args.entity)) entities.push(c.args.entity);
+    if (!dimension && typeof c.args.dimension === "string" && c.args.dimension) dimension = c.args.dimension;
+    if (!known) {
+      const vars = [c.args.variableA, c.args.variableB].filter(Boolean);
+      known = vars.find((v) => v && typeof v.delta_pct === "number" && v.delta_pct !== 0 && (v.campo === "precioLista" || v.campo === "unidades")) || null;
+    }
   }
   if (!known) known = extractScenarioVariable(text);
-  if (!entity && plan && plan.scope && plan.scope.level === "entity" && Array.isArray(plan.scope.entities) && plan.scope.entities[0]) {
-    entity = plan.scope.entities[0];
+  if (!entities.length && plan && plan.scope && (plan.scope.level === "entity" || plan.scope.level === "list") && Array.isArray(plan.scope.entities)) {
+    for (const e of plan.scope.entities) if (typeof e === "string" && e && !entities.includes(e)) entities.push(e);
   }
-  if (!known || !entity) return null;   // sin entidad o sin variable nombrada clara → no se arma (mejor nada que un pendiente roto)
+  if (!dimension) dimension = (plan && plan.scope && typeof plan.scope.dimension === "string" && plan.scope.dimension) || (entities[0] && guessDimension(entities[0])) || null;
+  if (!known || !entities.length) return null;   // sin entidad o sin variable nombrada clara → no se arma (mejor nada que un pendiente roto)
   const missingCampo = known.campo === "precioLista" ? "unidades" : "precioLista";
-  return { dimension: "cliente", entity, known: { campo: known.campo, delta_pct: known.delta_pct }, missingCampo };
+  return { dimension: dimension || "cliente", entity: entities[0], entities, known: { campo: known.campo, delta_pct: known.delta_pct }, missingCampo };
 }
 
 // _resolvePendingSimulation(text, pending) → {variableA,variableB} | null — intenta resolver la respuesta del
@@ -531,8 +547,11 @@ function _buildPendingSimulation(text, plan) {
 // "0%"/"sin cambio"/"no cambia"/"queda igual"/"se mantiene"/"mantén" → delta_pct=0 LEGÍTIMO (el usuario respondió,
 // y la respuesta es cero). Un número con signo/verbo direccional → ese valor. CUALQUIER OTRA COSA (no numérico,
 // cambio de tema, "no sé") → null — el turno NO contestó la pregunta pendiente, nunca se asume 0 por defecto acá.
+// `pending.entities` (Etapa 3) es la forma CANÓNICA — `pending.entity` sobrevive como alias singular (ver
+// _buildPendingSimulation arriba); acepta cualquiera de los dos para no romper un pendiente viejo persistido.
 function _resolvePendingSimulation(text, pending) {
-  if (!pending || !pending.missingCampo || !pending.known || !pending.entity) return null;
+  const hasEntity = !!(pending && (pending.entity || (Array.isArray(pending.entities) && pending.entities.length)));
+  if (!pending || !pending.missingCampo || !pending.known || !hasEntity) return null;
   const t = String(text || "");
   let missingDelta;
   if (ZERO_EXPLICIT_RE.test(t)) missingDelta = 0;
@@ -573,10 +592,17 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario) {
   };
 }
 
-// answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls }) → { r, mem } | null
+// answerViaOracle({ text, history, mem, scenario, callPlan, callNarrate, maxCalls, uiSignals }) → { r, mem } | null
 //   r   = { text, route:"oracle", evidence:{boleta,...} }  (compatible con _turnFromResult)
 //   mem = la memoria de interacción ACTUALIZADA (el llamador la persiste en el context del hilo)
-export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null } = {}) {
+// `uiSignals` (Etapa 3, owner 2026-08-03, continuidad conversacional universal) — OPCIONAL, mismo shape que
+// getUISignals() (src/adi/uiSignals.js): "chips, tablas, filas de Sentrix y preguntas escritas a mano deben pasar
+// TODAS por el MISMO mecanismo de contexto (nunca un camino paralelo para UI vs texto)" — hallazgo real: la
+// selección de checkboxes de la Mesa (uiSignals.mesaSel) hoy SOLO alimentaba coerceChain.js (ruta legacy); con el
+// oráculo ON, "comparalos" tras seleccionar 2 filas nunca veía esa selección. Se pasa tal cual a
+// resolveConversationReference (conversationScope.js) como UN CANDIDATO MÁS del pool — mismas 4 reglas de
+// validación que cualquier otra fuente (tenant/existencia/dimensión/ambigüedad), nunca un atajo que las salte.
+export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null, uiSignals = null } = {}) {
   if (typeof callPlan !== "function" || typeof callNarrate !== "function") return null;
   const q = (text || "").trim();
   if (!q) return null;
@@ -693,21 +719,27 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // no acaba de resolver una simulación YA pendiente (resolvedPendingSim): si el turno actual SÍ la resolvió, esa
   // toma precedencia entera, sin tocar nada de esto.
   if (!resolvedPendingSim) {
-    const scenarioIntent = detectScenarioIntent(q);
-    // "no_entity": campo+% inequívoco, pero NINGÚN cliente conocido nombrado EN ESTE TEXTO — nunca se asume cartera
+    // scopeCurrent (Etapa 3, ver scenarioIntent.js): el MISMO conversationScope.current que Etapa 1 ya resuelve
+    // para deícticos de lectura — acá se lo pasamos al detector para que "estos SKU"/"esos clientes" también
+    // resuelva ANTES de simular, no solo para leer. detectScenarioIntent es puro (nunca muta esto).
+    const scenarioIntent = detectScenarioIntent(q, conversationScopePrev.current);
+    // "no_entity": campo+% inequívoco, pero NINGUNA entidad conocida nombrada EN ESTE TEXTO ni resoluble vía
+    // conversationScope (scenarioIntent.js ya lo intentó — ver "future_multi" abajo) — nunca se asume cartera
     // completa en silencio (la falla #2, invertida: sin entidad tampoco se adivina, se pregunta). PERO (owner
     // 2026-07-31, hallazgo en vivo): esto opera SOLO sobre el texto crudo del turno actual, nunca sobre history/
     // pendingSimulation — mem.pendingSimulation ya se limpió (sobrevive un único turno) si hubo un tema de por
     // medio, así que un retorno ELÍPTICO a una simulación cuya entidad quedó establecida turnos atrás (interrumpida
     // por un desvío de tema) perdía el contexto acá, preguntando algo que el usuario ya había contestado. Antes de
     // preguntar genérico, consultamos mem.recentSubjects (Fase 3, sobrevive varios turnos, a diferencia de
-    // pendingSimulation): si hay un sujeto reciente recuperable (de dimension "cliente", la única que
-    // simulateGeneral soporta), dejamos pasar el turno a PLAN — el motor YA demostró resolver este tipo de
-    // elipsis por comprensión cuando se le da la oportunidad — en vez de cortar con una pregunta que ignora el hilo.
+    // pendingSimulation): si hay un sujeto reciente recuperable, dejamos pasar el turno a PLAN — el motor YA
+    // demostró resolver este tipo de elipsis por comprensión cuando se le da la oportunidad — en vez de cortar con
+    // una pregunta que ignora el hilo. GENERALIZACIÓN (Etapa 3): simulateGeneral ya soporta cliente/sku/marca/
+    // familia (toolContracts.js) — el filtro `dimension==="cliente"` de acá era un residuo de simulate v1, ya
+    // stale; se amplía a cualquiera de los 4 ejes que el motor realmente soporta.
     if (scenarioIntent.kind === "no_entity") {
-      const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || s.dimension === "cliente"));
+      const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || ["cliente", "sku", "marca", "familia"].includes(s.dimension)));
       if (!recoverable) {
-        const out = _composedBypassResult("¿Para qué cliente querés simular este escenario?", mem, recentNarrationsPrev, scenario);
+        const out = _composedBypassResult("¿Sobre qué cliente, SKU, marca o familia querés simular este escenario?", mem, recentNarrationsPrev, scenario);
         if (out) return out;
       }
     }
@@ -715,12 +747,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // falla #2 (alcance perdido) son estructuralmente imposibles acá: la entidad la puso este detector determinístico,
     // nunca el LLM. Arma pendingSimulation directo (mismo shape que el camino existente) y pregunta SOLO lo que falta.
     if (scenarioIntent.kind === "future") {
-      const { entity, variable } = scenarioIntent;
+      const { entity, dimension, variable } = scenarioIntent;
       const missingCampo = variable.campo === "precioLista" ? "unidades" : "precioLista";
       const pregunta = missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
       const out = _composedBypassResult(`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
       if (out) {
-        out.mem = { ...out.mem, pendingSimulation: { dimension: "cliente", entity, known: variable, missingCampo } };
+        out.mem = { ...out.mem, pendingSimulation: { dimension: dimension || "cliente", entity, entities: [entity], known: variable, missingCampo } };
+        return out;
+      }
+    }
+    // "future_multi" (Etapa 3, owner 2026-08-03 — CASO OBLIGATORIO: "¿Qué pasa si subo 3% el precio de estos SKU?"
+    // tras un turno que ya estableció 3 SKU puntuales) — campo+% inequívoco, NINGUNA entidad nombrada en el texto,
+    // pero un deíctico plural inequívoco Y un conversationScope.current ESTRUCTURADO (nunca prosa) con 1+
+    // entidades — scenarioIntent.js ya hizo el match; acá SOLO se arma pendingSimulation con las N entidades y se
+    // pregunta EXACTAMENTE lo mismo que en "future" (SOLO la variable faltante — nunca cliente, nunca una por
+    // entidad: "preguntar SOLO por el supuesto realmente faltante", pedido explícito del owner).
+    if (scenarioIntent.kind === "future_multi") {
+      const { entities, dimension, variable } = scenarioIntent;
+      const missingCampo = variable.campo === "precioLista" ? "unidades" : "precioLista";
+      const pregunta = missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
+      const out = _composedBypassResult(`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+      if (out) {
+        out.mem = { ...out.mem, pendingSimulation: { dimension: dimension || "cliente", entity: entities[0], entities, known: variable, missingCampo } };
         return out;
       }
     }
@@ -729,12 +777,22 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // Y volumen mencionados en la misma frase). plan sigue null, cae de largo a PLAN normal sin tocar nada.
   }
 
+  // pendingEntities (Etapa 3): forma canónica plural — `pendingSimulationPrev.entities`, con `.entity` (singular,
+  // pendientes viejos persistidos antes de Etapa 3) como fallback. 1 entidad → scope.level="entity" (BYTE-IGUAL al
+  // comportamiento anterior a Etapa 3, ver el call único con `entity` puesto). 2+ → scope.level="list": el call
+  // ÚNICO (sin `entity`) deja que el backstop de Etapa 2 (applyMultiEntityScope, más abajo) haga el fan-out a N
+  // calls — mismo mecanismo ya probado para "de esos SKU, armame la tabla", ahora también para simular.
+  const pendingEntities = pendingSimulationPrev
+    ? ((Array.isArray(pendingSimulationPrev.entities) && pendingSimulationPrev.entities.length) ? pendingSimulationPrev.entities : (pendingSimulationPrev.entity ? [pendingSimulationPrev.entity] : []))
+    : [];
   let plan = (priorOffer && priorOffer.tool && isAcceptance(q))
     ? { intent: "answer", mode: "seguimiento", rationale: "oferta aceptada (ejecución estructurada)", scope: priorOffer.entidad ? { level: "entity", entities: [priorOffer.entidad] } : { level: "global" }, calls: [{ tool: priorOffer.tool, args: priorOffer.args || {} }] }
     : (subjectRecall && subjectRecall.kind === "resolved")
     ? { intent: "answer", mode: "seguimiento", rationale: "retorno a tema reciente (referencia posicional)", scope: { level: "entity", entities: [subjectRecall.subject.entidad] }, calls: [{ tool: "entityProfile", args: { dimension: subjectRecall.subject.dimension || "cliente", entity: subjectRecall.subject.entidad } }] }
-    : resolvedPendingSim
-    ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada)", scope: { level: "entity", entities: [pendingSimulationPrev.entity] }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, entity: pendingSimulationPrev.entity, ...resolvedPendingSim } }] }
+    : (resolvedPendingSim && pendingEntities.length > 1)
+    ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada, múltiples entidades)", scope: { level: "list", entities: pendingEntities, dimension: pendingSimulationPrev.dimension }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, ...resolvedPendingSim } }] }
+    : (resolvedPendingSim && pendingEntities.length === 1)
+    ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada)", scope: { level: "entity", entities: pendingEntities }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, entity: pendingEntities[0], ...resolvedPendingSim } }] }
     : null;
   // conversationScope (Etapa 1) solo interviene sobre un plan REAL de PLAN — los planes sintéticos de arriba
   // (oferta aceptada / retorno posicional / simulación pendiente) ya resolvieron su propio scope de forma
@@ -799,7 +857,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // estructurado). Corre ANTES del batch — si la referencia es ambigua o rechazable, corta acá, igual que la
   // aceptación huérfana/retorno ambiguo de arriba (nunca gasta un batch/narración sobre una referencia sin resolver).
   if (!planWasSynthetic) {
-    const scopeRef = resolveConversationReference(q, plan, conversationScopePrev, requestContext);
+    const scopeRef = resolveConversationReference(q, plan, conversationScopePrev, requestContext, uiSignals);
     if (scopeRef.kind === "ambiguous") {
       const composed = composeReferenceAmbiguity(scopeRef.options);
       const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
@@ -819,6 +877,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
   const hasThread = (Array.isArray(history) && history.length > 0) || recentNarrationsPrev.length > 0 || !!priorOffer;
   plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread, recentSubjectsPrev) };
+  // CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 3 (ver toolContracts.js:applySingleEntityScope) — corre DESPUÉS de
+  // _coerceEntityScopedFilters (arriba, sin tocar) para cubrir las tools que ese mecanismo pre-Etapa-3 no alcanza
+  // (entityProfile/entityRecord/trend/gridTable/tensionRead/inventoryStatus) cuando el scope ya trae EXACTAMENTE 1
+  // entidad resuelta (por PLAN o por conversationScope Etapa 1, ej. "profundiza en el primero") — nunca pisa una
+  // call que _coerceEntityScopedFilters ya dejó bien acotada.
+  plan = { ...plan, calls: applySingleEntityScope(plan, plan.calls) };
 
   // ── CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 2 (ver toolContracts.js) ── backstop DETERMINÍSTICO, mismo
   // principio y misma precedencia que el resto de _coerce*/bypasses de este archivo: corre SOLO cuando el scope

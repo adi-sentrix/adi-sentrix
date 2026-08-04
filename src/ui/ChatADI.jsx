@@ -233,7 +233,11 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       const routingTrace = [];
       const tracedCallPlan = (args) => _fetchPlan({ ...args, _onRouted: (info) => routingTrace.push(info) });
       const tracedCallNarrate = (args) => _fetchNarrateC({ ...args, _onRouted: (info) => routingTrace.push(info) });
-      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: tracedCallPlan, callNarrate: tracedCallNarrate, requestContext });
+      // uiSignals (Etapa 3, owner 2026-08-03, continuidad conversacional universal): MISMO mecanismo de contexto
+      // que ya lee la ruta legacy (coerceChain.js línea ~472, "comparalos" contra la selección de la Mesa) — sin
+      // esto, la selección de checkboxes de la Mesa era un camino PARALELO invisible para el oráculo (ver el
+      // comentario de cabecera de answerViaOracle.js sobre `uiSignals`).
+      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: tracedCallPlan, callNarrate: tracedCallNarrate, requestContext, uiSignals: getUISignals() });
       if (o && o.r) {
         _ph(3);
         // `routing` (observable por turno): cruza routingTrace (modelo/motivo/ms/costo, del fetch) con

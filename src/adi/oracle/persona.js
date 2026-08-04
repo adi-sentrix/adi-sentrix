@@ -109,7 +109,12 @@ export function renderInteractionMemory(mem) {
   // solo en el caso común; el código determinístico sigue siendo la autoridad (ver answerViaOracle.js).
   const cs = mem.conversationScope && mem.conversationScope.current;
   if (cs && Array.isArray(cs.entities) && cs.entities.length) {
-    L.push(`· Alcance activo de la conversación: dimensión=${cs.dimension || "?"}, entidades=[${cs.entities.join(", ")}]${cs.tool ? ` (tool=${cs.tool})` : ""} — si el usuario dice "estos/esos/los mismos" sin nombrar de nuevo, es A ESTO que se refiere.`);
+    // `periodo` (Etapa 3, owner 2026-08-03, continuidad conversacional universal) — mismo dato ESTRUCTURADO que ya
+    // vive en conversationScope.current.periodo desde Etapa 1 (nunca se calcula acá), ahora TAMBIÉN surfaceado a
+    // PLAN — sin esto, "¿y el mes/año anterior?" (referencia de PERÍODO, no de entidad) no tenía forma de saber a
+    // qué período CONCRETO se refería "el actual" para poder pedir el anterior. La resolución sigue siendo de PLAN
+    // (comprensión) — esto es SOLO la señal, mismo principio que entidades/tool en la misma línea.
+    L.push(`· Alcance activo de la conversación: dimensión=${cs.dimension || "?"}, entidades=[${cs.entities.join(", ")}]${cs.tool ? ` (tool=${cs.tool})` : ""}${cs.periodo ? ` · período ya mostrado: ${cs.periodo}` : ""} — si el usuario dice "estos/esos/los mismos" sin nombrar de nuevo, es A ESTO que se refiere; si pregunta "¿y el período/mes/año anterior?", es sobre este MISMO alcance, pidiendo el período previo.`);
   }
   if (!L.length) return "";
   return `MEMORIA DE INTERACCIÓN (cómo trabaja esta persona — respetala):\n${L.join("\n")}`;

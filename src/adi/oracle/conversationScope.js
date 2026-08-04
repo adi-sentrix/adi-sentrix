@@ -257,7 +257,11 @@ export function resolveOrdinalReference(text, current) {
 // Se invoca DESDE answerViaOracle.js, en la MISMA cadena que _coerceEntityScopedFilters/_coerceTensionArgs — solo
 // cuando el plan vino de una llamada REAL a PLAN (no de un plan sintético ya resuelto por otro bypass, ver
 // answerViaOracle.js:_coerceConversationScope).
-const _DEICTIC_PLURAL_RE = /\best[oa]s\b|\bes[oa]s\b|\bell[oa]s\b|\blos?\s+mismos?\b/i;
+// exportado (Etapa 3, owner 2026-08-03) — scenarioIntent.js lo reusa para su arm "future_multi" (ver el comentario
+// de cabecera de ese archivo): UNA sola fuente de verdad del patrón deíctico plural, nunca 2 regex que puedan
+// divergir (mismo principio que ZERO_EXPLICIT_RE, compartido entre scenarioIntent.js y answerViaOracle.js).
+export const DEICTIC_PLURAL_RE = /\best[oa]s\b|\bes[oa]s\b|\bell[oa]s\b|\blos?\s+mismos?\b/i;
+const _DEICTIC_PLURAL_RE = DEICTIC_PLURAL_RE;
 // _RECALL_MARK_RE — SOLO con esta marca explícita se consulta `history` además de `current` (ver el comentario
 // largo más abajo, "por qué history NO entra en el caso común"). Sin ella, un "estos/esos" plano SOLO mira
 // `current` — nunca resucita un tema abandonado por un cambio de tema real.
@@ -292,7 +296,26 @@ function _looksLikeReference(t) {
   return _DEICTIC_PLURAL_RE.test(t) || _ORD_PRIMERO_RE.test(t) || _ORD_ULTIMO_RE.test(t) || _ORD_PEOR_RE.test(t) || _ORD_MEJOR_RE.test(t) || !!_ordN(t);
 }
 
-export function resolveConversationReference(text, plan, scopePrev, requestContext) {
+// _uiSignalsGroup(uiSignals) → {dimension,entities}|null — Etapa 3 (owner 2026-08-03): "chips, tablas, filas de
+// Sentrix... deben pasar TODAS por el MISMO mecanismo de contexto (nunca un camino paralelo para UI vs texto)".
+// uiSignals.mesaSel (selección de checkboxes en la Mesa, ver SentrixPanel.jsx/uiSignals.js) hoy SOLO alimenta la
+// ruta LEGACY (coerceChain.js) — un camino paralelo real: con el oráculo ON, "comparalos" tras seleccionar 2 filas
+// en la Mesa no llegaba a esta resolución. Se trata como UN CANDIDATO MÁS del pool (mismas 4 reglas: cada entidad
+// se REVALIDA con guessDimension — nunca se confía ciegamente en lo que viajó de la UI — y el eje declarado por la
+// Mesa, si vino, se usa solo como HINT, no como autoridad). NUNCA reemplaza `current`/`history`: si ambos existen a
+// la vez y no coinciden, es ambigüedad real (ver `pool` más abajo), nunca un silencioso "gana la UI".
+function _uiSignalsGroup(uiSignals) {
+  if (!uiSignals || !Array.isArray(uiSignals.mesaSel)) return null;
+  const raw = uiSignals.mesaSel.filter((e) => typeof e === "string" && e);
+  if (raw.length < 2) return null;
+  const dims = raw.map((e) => guessDimension(e));
+  const dimension = (typeof uiSignals.mesaDim === "string" && _AXES.has(uiSignals.mesaDim)) ? uiSignals.mesaDim : dims.find(Boolean) || null;
+  if (!dimension) return null;
+  const entities = raw.filter((e, i) => dims[i] === dimension);   // revalidación: solo las que SÍ pertenecen a ese eje
+  return entities.length >= 2 ? { dimension, entities } : null;
+}
+
+export function resolveConversationReference(text, plan, scopePrev, requestContext, uiSignals) {
   const t = String(text || "");
   const tenantCheck = validateScopeTenant(scopePrev, requestContext);
 
@@ -330,7 +353,10 @@ export function resolveConversationReference(text, plan, scopePrev, requestConte
   // dimensión) → ambigüedad real, nunca se adivina (ver composeReferenceAmbiguity).
   const wantsRecall = _RECALL_MARK_RE.test(t);
   const historyList = Array.isArray(safePrev.history) ? safePrev.history : [];
-  const basePool = wantsRecall ? [current, ...historyList] : [current];
+  // uiGroup (Etapa 3) — SIEMPRE candidato disponible (no depende de `wantsRecall`: la selección de la Mesa es
+  // estado VIVO de la pantalla, no un tema conversacional "de antes" que haya que recordar explícitamente).
+  const uiGroup = _uiSignalsGroup(uiSignals);
+  const basePool = wantsRecall ? [current, ...historyList, uiGroup] : [current, uiGroup];
   const pool = basePool.filter((g) => g && Array.isArray(g.entities) && g.entities.length && g.dimension && g.dimension !== "cartera");
   if (!pool.length) return { kind: "none" };   // no había NADA estructurado que referenciar — no es un rechazo, es "no aplica"
 

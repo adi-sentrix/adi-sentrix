@@ -326,3 +326,58 @@ export function applyMultiEntityScope(plan, calls, maxCalls = 6) {
   }
   return { calls: outCalls };
 }
+
+// ── applySingleEntityScope(plan, calls) → calls ─────────────────────────────────────────────────────────────────
+// Backstop DETERMINÍSTICO (Etapa 3, owner 2026-08-03, continuidad conversacional universal) — hermano de
+// applyMultiEntityScope, pero para el caso N=1: `plan.scope.level==="entity"` con EXACTAMENTE 1 entidad YA
+// resuelta (por PLAN mismo, o por resolveConversationReference — ej. "profundiza en el primero"/"esa marca" tras
+// un ordinal/deíctico singular resuelto por conversationScope.js). HALLAZGO real durante la verificación de esta
+// etapa: `_coerceEntityScopedFilters` (arriba, mecanismo PRE-Etapa-3, sin tocar) solo cubre 8 tools con `filters`
+// (marginRead/contributionRead/diagnose/queryMetric/simulateCarga/simulateCapital/simulateCosto/simulateGeneral)
+// — para el resto de tools que SÍ aceptan una entidad puntual (entityProfile/entityRecord/trend vía `args.entity`
+// directo · gridTable/tensionRead/inventoryStatus vía `args.entityScope` nativo de Etapa 2) NADA poblaba el
+// argumento cuando PLAN dejaba la call sin `entity` (el caso típico de una referencia RESUELTA POR CÓDIGO, no
+// nombrada por PLAN) — "profundiza en el primero" quedaría corriendo entityProfile SIN entidad. Se generaliza acá,
+// vía TOOL_CONTRACTS (nunca por nombre de tool hardcodeado), como pide el owner: "generalizar las tools que hoy
+// asumen una sola entidad". NUNCA pisa una call que YA viene bien acotada (a esa MISMA entidad, por cualquiera de
+// las 3 formas: args.entity/args.filters[eje]/args.entityScope) — PLAN o `_coerceEntityScopedFilters` "ya
+// acertaron solo" es el caso más común y no se toca.
+export function applySingleEntityScope(plan, calls) {
+  const arr = Array.isArray(calls) ? calls : [];
+  const scope = plan && plan.scope;
+  if (!scope || scope.level !== "entity" || !Array.isArray(scope.entities) || scope.entities.length !== 1) return arr;
+  const entity = scope.entities[0];
+  if (typeof entity !== "string" || !entity) return arr;
+  const axis = guessDimension(entity);
+  if (!axis) return arr;   // nombre no reconocido en el dato → no se fuerza nada, la tool declina honesto como siempre
+
+  return arr.map((c) => {
+    if (!c || typeof c.tool !== "string") return c;
+    const contract = TOOL_CONTRACTS[c.tool];
+    if (!contract || !contract.aceptaEntidadPuntual) return c;   // sin contrato, o global puro — sin cambios
+    const args = (c.args && typeof c.args === "object" && !Array.isArray(c.args)) ? c.args : {};
+
+    // YA bien acotada a ESTA entidad (por cualquiera de las 3 formas) → no-op, PLAN/el backstop de filters ya acertó.
+    if (typeof args.entity === "string" && args.entity === entity) return c;
+    if (args.filters && typeof args.filters === "object" && !Array.isArray(args.filters) && args.filters[axis] === entity) return c;
+    if (args.entityScope && Array.isArray(args.entityScope.entities) && args.entityScope.entities.length === 1 && args.entityScope.entities[0] === entity) return c;
+
+    const dimSupported = !Array.isArray(contract.dimensionesSoportadas) || !contract.dimensionesSoportadas.length || contract.dimensionesSoportadas.includes(axis);
+    if (!dimSupported) return c;   // eje no soportado por esta tool — no se fuerza (la tool declina honesto, mismo criterio que applyMultiEntityScope)
+
+    // entidad="single" (entityProfile/entityRecord/trend) O "multi-vía-fanout" con N=1 (simulateGeneral: el mismo
+    // arg shape que el fan-out usa por entidad, ver applyMultiEntityScope arriba) → args.entity/dimension directo.
+    if (contract.entidad === "single" || contract.entidad === "multi-vía-fanout") {
+      return { ...c, args: { ...args, entity, dimension: args.dimension || axis } };
+    }
+    // entityScopeNativo (gridTable/tensionRead/inventoryStatus/marginRead/salesRead/contributionRead/queryMetric/
+    // simulateCosto) → args.entityScope con la única entidad — mismo mecanismo `{entities:[...]}` que Etapa 2 ya
+    // generalizó, ahora también alcanzable con N=1 (antes solo llegaba acá con 2+, vía applyMultiEntityScope).
+    if (contract.entityScopeNativo) {
+      const newArgs = { ...args, entityScope: { entities: [entity] } };
+      if (Array.isArray(contract.inputsObligatorios) && contract.inputsObligatorios.includes("dimension") && !args.dimension) newArgs.dimension = axis;
+      return { ...c, args: newArgs };
+    }
+    return c;   // "multi" (compareEntities): 1 sola entidad no le alcanza — no se fuerza, la tool declina honesto
+  });
+}
