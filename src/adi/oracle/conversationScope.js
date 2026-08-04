@@ -260,7 +260,17 @@ export function resolveOrdinalReference(text, current) {
 // exportado (Etapa 3, owner 2026-08-03) — scenarioIntent.js lo reusa para su arm "future_multi" (ver el comentario
 // de cabecera de ese archivo): UNA sola fuente de verdad del patrón deíctico plural, nunca 2 regex que puedan
 // divergir (mismo principio que ZERO_EXPLICIT_RE, compartido entre scenarioIntent.js y answerViaOracle.js).
-export const DEICTIC_PLURAL_RE = /\best[oa]s\b|\bes[oa]s\b|\bell[oa]s\b|\blos?\s+mismos?\b/i;
+// AMPLIACIÓN (owner 2026-08-03, hallazgo del revisor de continuidad universal, verificado con ejecución real):
+// el regex original no reconocía verbo+clítico ("comparalos"/"compáralos"/"simulalos"/"simúlalos") ni el
+// deíctico espacial "ahí" — 2 de las formas EXACTAS que el owner listó como obligatorias ("compáralos,
+// simúlalos, profundiza ahí"). Sin esto, "Simúlalos: sube el precio 3%." en vez de "estos SKU" reproducía una
+// versión más leve del bug original (re-pregunta algo que el sistema ya sabía). Extensión ANGOSTA (misma
+// disciplina que el resto de regexes deterministas del repo, ver _SEGUIMIENTO_VERB_RE/_PREF_*_RE en
+// answerViaOracle.js): enumera los verbos de acción que ya aparecen en la doctrina del motor (comparar/
+// simular/profundizar/analizar/revisar) + el clítico los/las, en vez de una regla gramatical genérica de
+// sufijo (que arriesgaría falsos positivos con sustantivos comunes terminados en "-alos"/"-alas", ej.
+// "regalos") — y "ahí"/"ahi" (con o sin tilde) como deíctico espacial explícito.
+export const DEICTIC_PLURAL_RE = /\best[oa]s\b|\bes[oa]s\b|\bell[oa]s\b|\blos?\s+mismos?\b|\b(?:comp[aá]r|sim[uú]l|profund[ií]z|anal[ií]z|rev[ií]s)al[oa]s\b|\bah[ií](?![a-záéíóúñ])/i;
 const _DEICTIC_PLURAL_RE = DEICTIC_PLURAL_RE;
 // _RECALL_MARK_RE — SOLO con esta marca explícita se consulta `history` además de `current` (ver el comentario
 // largo más abajo, "por qué history NO entra en el caso común"). Sin ella, un "estos/esos" plano SOLO mira
