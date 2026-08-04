@@ -1870,8 +1870,9 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
   // composeFromLedger (narrationBlocks.js) declara ese `_ctx` como la línea "Supuesto: …" (requisito del owner:
   // "nunca ocultes el supuesto usado") — sin esta fig, guardC podía rechazar esa cifra por "no autorizada" en un
   // dataset con pocas figs "pct" (verificado con un pool sintético sin ninguna resta/suma que reproduzca el %, ver
-  // _gap3_synthetic_check.mjs) — funcionaba por COINCIDENCIA en datasets ricos (14+ figs pct), nunca por
-  // construcción. Mismo patrón que "Meta %" en computeGoalAnchor (abajo), que YA hacía esto bien.
+  // la sección "GAP 3 · pool adversarial" de _response_contract_parte2_gate.mjs, local no commiteado) — funcionaba
+  // por COINCIDENCIA en datasets ricos (14+ figs pct), nunca por construcción. Mismo patrón que "Meta %" en
+  // computeGoalAnchor (abajo), que YA hacía esto bien.
   bol.push(fig("Supuesto %", `${_sgn(pct)}${pct}%`, { unit: "pct", raw: pct, context: _ctx, source: "computed", formula: "% del supuesto pedido, aplicado sobre el dato real" }));
   // total actual/supuesto AUTORIZADAS (no mandatory) → NARRATE ON puede usar el before/after sin que el guard obligue a citarlas
   bol.push(fig("Total · actual",       _f(totA),      { unit: m.unit, raw: totA,     context: _ctx, source: "actual" }));
@@ -2055,7 +2056,8 @@ export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct,
     // Supuesto % (owner 2026-08-04, GAP 3 consolidación Parte 2) — MISMA razón que composeSpecSimulate (arriba):
     // el % del supuesto (con signo) no tenía fig propia, solo vivía en `_ctx`; sin esta fig, la línea "Supuesto: …"
     // que composeFromLedger declara bajo data_only/results_only dependía de que el pool de figs "pct" reprodujera
-    // el número por resta/suma — cierto en datasets ricos, falso en un pool chico. Ver _gap3_synthetic_check.mjs.
+    // el número por resta/suma — cierto en datasets ricos, falso en un pool chico. Ver la sección "GAP 3 · pool
+    // adversarial" de _response_contract_parte2_gate.mjs (local, no commiteado).
     fig("Supuesto %", `${_sgn(pct)}${pct}%`, { unit: "pct", raw: pct, context: _ctx, source: "computed", formula: "% del supuesto pedido, aplicado sobre el dato real" }),
     fig("Total · costo actual", _money(totCostoA * 1000), { unit: "money", raw: totCostoA * 1000, source: "actual", context: _ctx }),
     fig("Total · costo supuesto", _money(totCostoS * 1000), { unit: "money", raw: totCostoS * 1000, source: "computed", formula: `costo × (1${_sgn(pct)}${pct}%)`, context: _ctx }),
