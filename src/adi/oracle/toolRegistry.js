@@ -228,10 +228,12 @@ function _tagBodegaConflation(r) {
 // manda un STRING libre tipo "contribucion no capturada" en vez de un eje — diagnose es la vista panorámica, y
 // degradar a "todo el negocio" (silencioso) sirve más que rechazar el turno entero. Una KEY de objeto inválida
 // (ej. {state:"x"}) sí sigue rechazando — ahí hay un intento deliberado de cruce que de verdad no existe.
-function diagnose({ filters = {}, scenario, focus = null } = {}) {
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecDiagnose — "de esos clientes, ¿dónde
+// perdemos plata?" ahora acota el barrido al subconjunto (antes CONSCIENTEMENTE no generalizado — ver toolContracts.js).
+function diagnose({ filters = {}, scenario, focus = null, entityScope = null } = {}) {
   const f = _isObj(filters) ? filters : {};
   const x = _crossGuard(f, _SCOPE_KEYS); if (x) return _crossFail(x);
-  return _tagBodegaConflation(_pack(composeSpecDiagnose({ filters: f, scenario, focus }),
+  return _tagBodegaConflation(_pack(composeSpecDiagnose({ filters: f, scenario, focus, entityScope }),
     "no hay focos materiales de pérdida/inmovilización con estos filtros"));
 }
 
@@ -311,13 +313,16 @@ function simulate({ metric, dimension, filters = {}, transform } = {}) {
 }
 
 // simulateCarga · simulación específica de bajar la carga comercial al target.
-function simulateCarga({ filters = {}, scenario } = {}) {
-  return _pack(composeSpecSimulateCarga({ filters, scenario }), "no hay carga recuperable para simular");
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecSimulateCarga — mismo mecanismo que
+// simulateCosto (abajo), acota la simulación al subconjunto pedido en vez de correr sobre el eje comercial entero.
+function simulateCarga({ filters = {}, scenario, entityScope = null } = {}) {
+  return _pack(composeSpecSimulateCarga({ filters, scenario, entityScope }), "no hay carga recuperable para simular");
 }
 
 // simulateCapital · simulación específica de liberar capital detenido.
-function simulateCapital({ filters = {}, scenario } = {}) {
-  return _pack(composeSpecSimulateCapital({ filters, scenario }), "no hay capital detenido para liberar");
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecSimulateCapital — mismo mecanismo.
+function simulateCapital({ filters = {}, scenario, entityScope = null } = {}) {
+  return _pack(composeSpecSimulateCapital({ filters, scenario, entityScope }), "no hay capital detenido para liberar");
 }
 
 // simulateCosto · simulación específica de bajar/subir el costo medio (turno 10 del veredicto de 18 turnos):

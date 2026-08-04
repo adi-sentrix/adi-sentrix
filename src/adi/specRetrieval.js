@@ -292,10 +292,15 @@ function _scopeRows(rows, filters, entityScope) {
 }
 
 // detectores comerciales (CLIENTE · scenario-aware): contribución no capturada + carga comercial alta
-function _diagComercial(filters, scenario) {
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a _scopeRows — "de esos clientes, ¿dónde
+// diagnosticamos?" acota el barrido comercial al subconjunto (antes ignoraba cualquier alcance heredado). Un
+// entityScope de SKU (eje de _diagCapital, no de este detector) NO intersecta r.nombre/r.marca/r.sfamilia/r.bodega
+// → el fallback suave de _scopeRows lo ignora y el foco comercial sigue intacto (mismo criterio ya usado por
+// bodega/canal en Etapa 1: cruce de dimensión = alcance incompatible = se ignora, nunca se fuerza).
+function _diagComercial(filters, scenario, entityScope) {
   const vSF = _sf("ventas", "cliente"), mSF = _sf("margen", "cliente"), cSF = _sf("contribucion", "cliente"), gSF = _sf("carga", "cliente");
   if (!vSF || !mSF || !cSF || !gSF) return [];
-  const ventas = _load(vSF.source, scenario), margen = _scopeRows(_load(mSF.source, scenario), filters);
+  const ventas = _load(vSF.source, scenario), margen = _scopeRows(_load(mSF.source, scenario), filters, entityScope);
   if (!ventas.length || !margen.length) return [];
   const vKey = (SOURCES[vSF.source] && SOURCES[vSF.source].keyField) || "nombre";
   const mKey = (SOURCES[mSF.source] && SOURCES[mSF.source].keyField) || "nombre";
@@ -323,10 +328,13 @@ function _diagComercial(filters, scenario) {
 }
 
 // detector de inventario (SKU · scenario-aware): capital dormido (umbral numérico · portable a ERP real)
-function _diagCapital(filters, scenario) {
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a _scopeRows — "de esos SKU, ¿cuánto capital
+// tienen dormido?" acota el barrido de capital al subconjunto. Un entityScope de cliente (eje de _diagComercial,
+// no de este detector) no matchea r.sku/r.nombre de la fuente de capital → fallback suave, foco capital intacto.
+function _diagCapital(filters, scenario, entityScope) {
   const kSF = _sf("capital", "sku"), rSF = _sf("rotacion", "sku"), dSF = _sf("doh", "sku");
   if (!kSF || !rSF || !dSF) return [];
-  const rows = _scopeRows(_load(kSF.source, scenario), filters);
+  const rows = _scopeRows(_load(kSF.source, scenario), filters, entityScope);
   if (!rows.length) return [];
   const key = (SOURCES[kSF.source] && SOURCES[kSF.source].keyField) || "sku";
   const items = [];
@@ -345,11 +353,16 @@ function _diagFoco(detector, titulo, items) {
   return { detector, titulo, subtotal: items.reduce((s, it) => s + it.usd, 0), count: items.length, top: items.slice(0, _DIAG_TOPN), items };
 }
 
-// composeSpecDiagnose({filters, scenario}) → focos rankeados por $ (contribución/carga/capital) | null (nada material)
-export function composeSpecDiagnose({ filters = {}, scenario, focus } = {}) {
+// composeSpecDiagnose({filters, scenario, entityScope}) → focos rankeados por $ (contribución/carga/capital) | null
+// entityScope (Etapa 2, owner 2026-08-04, generalización multi-entidad diagnose/simulateCarga/simulateCapital):
+// forwardeado a AMBOS detectores — cada uno lo aplica sobre SU propio eje (cliente/sku) vía _scopeRows, y el
+// fallback suave YA establecido (Etapa 1) hace que un scope de un solo eje deje el foco del OTRO eje intacto (ver
+// comentarios de _diagComercial/_diagCapital arriba) — nunca fan-out, es FILTRADO: ambos detectores siguen
+// recorriendo su eje en un pase y agregando por foco, solo que acotado al subconjunto pedido.
+export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope = null } = {}) {
   // RESUMEN EJECUTIVO (owner 2026-07-10): "no es un ranking — es la lectura completa" → su propio composer (5 movimientos)
   if (focus === "resumen_ejecutivo") return composeSpecResumenEjecutivo({ scenario });
-  const focos = [..._diagComercial(filters, scenario), ..._diagCapital(filters, scenario)];
+  const focos = [..._diagComercial(filters, scenario, entityScope), ..._diagCapital(filters, scenario, entityScope)];
   if (!focos.length) return null;                                             // sin focos materiales → el seam degrada honesto
   focos.sort((a, b) => b.subtotal - a.subtotal);
   const scope = [filters.marca, filters.familia, filters.bodega, filters.cliente].filter(Boolean).join("/");
@@ -1892,8 +1905,13 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
  * el $ como PROYECCIÓN con honestidad dura: el efecto directo es cálculo probado por el dato; la reacción del
  * mercado (volumen · precio de salida) NO está en el dato y queda declarada abierta. Los campos source/formula/
  * context de la boleta (reservados para simulate desde [[adi-llm-premium-boleta]]) se usan acá: cifra auditable. */
-export function composeSpecSimulateCarga({ filters = {}, scenario } = {}) {
-  const diag = composeSpecDiagnose({ filters, scenario });
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecDiagnose — "de esos clientes, ¿y si
+// bajamos la carga al target?" acota la simulación al subconjunto (antes ignoraba cualquier alcance heredado,
+// igual que el resto de las tools pre-Etapa-2). RIESGO DE COPY aceptado (documentado, no funcional): cuando la
+// única entidad llega vía entityScope (no vía filters.cliente), la frase "Dónde pega" cae a la variante de lista
+// en vez de nombrar la entidad — mismo dato correcto, prosa menos personalizada.
+export function composeSpecSimulateCarga({ filters = {}, scenario, entityScope = null } = {}) {
+  const diag = composeSpecDiagnose({ filters, scenario, entityScope });
   const F = (diag && diag.evidence && diag.evidence.findings) || [];
   const cg = F.find((f) => f.detector === "carga");
   if (!cg || !cg.items.length) return null;   // carga en/bajo target en ese alcance → el seam declara el límite honesto
@@ -1921,8 +1939,11 @@ export function composeSpecSimulateCarga({ filters = {}, scenario } = {}) {
   };
 }
 
-export function composeSpecSimulateCapital({ filters = {}, scenario } = {}) {
-  const diag = composeSpecDiagnose({ filters, scenario });
+// entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecDiagnose — "de esos SKU, ¿y si
+// liberamos el capital detenido?" acota la simulación al subconjunto. Mismo riesgo de copy aceptado que
+// composeSpecSimulateCarga (arriba): entityScope no alimenta la frase personalizada "Dónde pega", solo filters.bodega.
+export function composeSpecSimulateCapital({ filters = {}, scenario, entityScope = null } = {}) {
+  const diag = composeSpecDiagnose({ filters, scenario, entityScope });
   const F = (diag && diag.evidence && diag.evidence.findings) || [];
   const cap = F.find((f) => f.detector === "capital");
   if (!cap || !cap.items.length) return null;   // sin capital detenido material → el seam declara el límite honesto

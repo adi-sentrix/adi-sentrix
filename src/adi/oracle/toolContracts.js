@@ -30,7 +30,9 @@
  * `entityScopeNativo` — true si la tool YA recibe/aplica `args.entityScope={entities:[...]}` end-a-end (4 tools lo
  * traían de fábrica — inventoryStatus/marginRead/salesRead/contributionRead, ver specRetrieval.js `_scopeRows`;
  * Etapa 2 generaliza el MISMO parámetro, mecánicamente, a queryMetric/gridTable/tensionRead/simulateCosto — ver el
- * comentario de cada composer tocado en specRetrieval.js/entityRecord.js/toolRegistry.js).
+ * comentario de cada composer tocado en specRetrieval.js/entityRecord.js/toolRegistry.js. Sesión posterior, cierre
+ * del núcleo (owner 2026-08-04): mismo parámetro generalizado a diagnose/simulateCarga/simulateCapital — ver el
+ * comentario de cada entrada abajo y de _diagComercial/_diagCapital/composeSpecDiagnose en specRetrieval.js).
  *
  * `escribeEntityList` — documentación (no gatea nada acá): si la boleta de esta tool sigue la convención
  * "<entidad> · <label>" que conversationScope.js:buildEntityList lee para reconstruir conversationScope.current.
@@ -102,16 +104,18 @@ export const TOOL_CONTRACTS = {
     entityScopeNativo: false, escribeEntityList: true,
   },
   // diagnose · barre TODOS los detectores (contribución no capturada · carga alta · capital detenido) del eje
-  // comercial (cliente) + capital (sku) A LA VEZ, acotado por UN `filters` (marca/familia/bodega/cliente) — NUNCA
-  // una lista. CONSCIENTEMENTE no generalizado en Etapa 2 (tocaría _diagComercial/_diagCapital en specRetrieval.js,
-  // fuera del camino crítico del caso obligatorio del owner — decisión a confirmar con el owner, no un olvido).
-  // Un scope de 2+ entidades → decline + oferta de diagnosticar cada una por separado.
+  // comercial (cliente) + capital (sku) A LA VEZ. Etapa 2 (owner 2026-08-04, generalización multientidad diagnose/
+  // simulateCarga/simulateCapital): entityScope generalizado (composeSpecDiagnose → _diagComercial/_diagCapital,
+  // specRetrieval.js) — "de esos clientes, ¿dónde perdemos plata?" acota el barrido al subconjunto pedido. FILTRADO
+  // (nunca fan-out): ambos detectores siguen recorriendo su eje en un pase y agregando por foco, solo que acotados.
+  // Un entityScope de UN solo eje (ej. solo clientes) deja el foco del OTRO eje (capital) intacto — el fallback
+  // suave de _scopeRows (Etapa 1) ignora el scope cuando no intersecta ese eje, nunca lo fuerza ni lo vacía.
   diagnose: {
     dimensionesSoportadas: ["cliente", "sku"],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer", "redirect"],
-    entityScopeNativo: false, escribeEntityList: true,
-    notas: "CONSCIENTEMENTE no generalizado en Etapa 2 — ver comentario arriba.",
+    entityScopeNativo: true, escribeEntityList: true,
+    notas: "Etapa 2: entityScope generalizado (antes CONSCIENTEMENTE no generalizado — decline ante 2+ entidades).",
   },
   // executiveSummary · la lectura completa de 5 movimientos del NEGOCIO ENTERO — no tiene concepto de entidad.
   executiveSummary: {
@@ -168,22 +172,25 @@ export const TOOL_CONTRACTS = {
     entityScopeNativo: false, escribeEntityList: false,
   },
   // simulateCarga/simulateCapital · simulaciones de UNA acción fija (llevar la carga al target · liberar el capital
-  // detenido) sobre el eje comercial/capital ENTERO, acotadas por UN `filters.cliente`/`filters.bodega` — nunca una
-  // lista. Mismo motivo y misma decisión que diagnose (reusan composeSpecDiagnose por debajo) — CONSCIENTEMENTE no
-  // generalizadas en Etapa 2. Un scope de 2+ → decline + oferta de simular cada una por separado.
+  // detenido) — reusan composeSpecDiagnose por debajo (una verdad, cero cálculo nuevo). Etapa 2 (owner 2026-08-04):
+  // entityScope generalizado (mismo forwarding que diagnose arriba) — "de esos clientes, ¿y si bajamos la carga al
+  // target?" acota la simulación al subconjunto. RIESGO DE COPY aceptado (no funcional, documentado en
+  // specRetrieval.js): cuando la única entidad llega vía entityScope (no vía filters.cliente/filters.bodega), la
+  // frase "Dónde pega" cae a la variante de lista en vez de nombrar la entidad — mismo dato correcto, prosa menos
+  // personalizada. No se corrige en esta etapa salvo pedido explícito del owner.
   simulateCarga: {
     dimensionesSoportadas: ["cliente"],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
-    entityScopeNativo: false, escribeEntityList: true,
-    notas: "CONSCIENTEMENTE no generalizado en Etapa 2 — mismo motivo que diagnose.",
+    entityScopeNativo: true, escribeEntityList: true,
+    notas: "Etapa 2: entityScope generalizado (antes CONSCIENTEMENTE no generalizado — decline ante 2+ entidades).",
   },
   simulateCapital: {
     dimensionesSoportadas: ["sku"],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
-    entityScopeNativo: false, escribeEntityList: true,
-    notas: "CONSCIENTEMENTE no generalizado en Etapa 2 — mismo motivo que diagnose.",
+    entityScopeNativo: true, escribeEntityList: true,
+    notas: "Etapa 2: entityScope generalizado (antes CONSCIENTEMENTE no generalizado — decline ante 2+ entidades).",
   },
   // simulateCosto · simulación de costo medio ±% sobre un SUBCONJUNTO del eje (bajo_benchmark|all) acotado por
   // `filters`. Etapa 2: entityScope generalizado (composeSpecSimulateCosto, specRetrieval.js — antes pasaba `null`
