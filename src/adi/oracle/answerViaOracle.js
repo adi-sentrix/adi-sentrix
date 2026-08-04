@@ -16,11 +16,15 @@ import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EV
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity } from "./dialogueState.js";
-// CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa NUEVA,
-// canónica, ADITIVA (ver el comentario "CONSOLIDACIÓN — QUÉ QUEDA PARA ETAPA 2/3" al final de ese archivo):
-// mem.lastOffer/mem.recentSubjects de dialogueState.js arriba NO se tocan, siguen funcionando igual que hoy.
-import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline } from "./conversationScope.js";
+import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
+// CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
+// Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
+// dejó pendiente por bajo riesgo: mem.lastOffer/mem.recentSubjects (dialogueState.js) ya NO son una segunda fuente
+// mantenida en paralelo — getLastOffer/getRecentSubjects (importados arriba) las CALCULAN leyendo
+// mem.conversationScope, con mem.lastOffer/mem.recentSubjects "pelados" como shim de compatibilidad para
+// fixtures viejos. withOfertaPendiente (abajo) es el ÚNICO punto que escribe el lado canónico — ver el comentario
+// "CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4" al final de conversationScope.js para el detalle completo.
+import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline, withOfertaPendiente } from "./conversationScope.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 2 (owner 2026-08-03) — toolContracts.js declara, POR TOOL, si admite
 // una lista de entidades (y cómo: entityScope nativo · lista de cardinalidad fija · fan-out a N calls) o si genuina-
 // mente NO admite varias a la vez (decline + oferta de correrlas por separado, nunca cambia de eje en silencio).
@@ -578,7 +582,12 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario) {
   // pendingSimulation SIEMPRE se limpia acá por defecto (owner 2026-07-31): ninguno de estos bypasses (aceptación
   // huérfana, retorno ambiguo) continúa una simulación pendiente — el caller de supuestos_faltantes (el ÚNICO que
   // SÍ arma una nueva) la restaura explícito después de llamar a esta función.
-  const mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
+  let mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
+  // Etapa 4 (owner 2026-08-04) — SYNC del lado canónico: lastOffer=null tiene que reflejarse TAMBIÉN en
+  // conversationScope.current.ofertaPendiente, o el turno SIGUIENTE (getLastOffer) leería el valor STALE de un
+  // turno anterior (fromScope gana por precedencia sobre el shim mem.lastOffer — ver dialogueState.js) y un "sí"
+  // ejecutaría una oferta que este bypass ya invalidó. No-op si no hay conversationScope/current que limpiar.
+  if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, null) };
   return {
     r: {
       text,
@@ -624,8 +633,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // lo que ya se ofreció, exactamente lo que se pidió evitar. Si la oferta NO trae tool (proponía un ángulo nuevo,
   // requiere criterio real), NO se bypasea: PLAN corre normal, pero con la oferta como contexto explícito
   // (mem.lastOffer, vía renderInteractionMemory — ver persona.js) en vez de tener que releer hilo_reciente crudo.
-  const priorOffer = (mem && mem.lastOffer && typeof mem.lastOffer === "object") ? mem.lastOffer : null;
-  const recentSubjectsPrev = Array.isArray(mem && mem.recentSubjects) ? mem.recentSubjects : [];
+  // Etapa 4 (owner 2026-08-04): getLastOffer/getRecentSubjects (dialogueState.js) leen conversationScope.current.
+  // ofertaPendiente/conversationScope.recentSubjects PRIMERO (el lado canónico, escrito por withOfertaPendiente/
+  // el dual-write de recentSubjects más abajo) y caen a mem.lastOffer/mem.recentSubjects SOLO si el scope no trae
+  // nada — mismo VALOR que antes en cualquier turno real (dual-write nunca deja que las 2 fuentes diverjan).
+  const priorOffer = getLastOffer(mem);
+  const recentSubjectsPrev = getRecentSubjects(mem);
   const recentNarrationsPrev = Array.isArray(mem && mem.recentNarrations) ? mem.recentNarrations : [];
   // conversationScope (Etapa 1, ver conversationScope.js) — leído ACÁ, ANTES de PLAN, mismo principio que
   // priorOffer/recentSubjectsPrev arriba: el estado del turno ANTERIOR es lo único que puede autorizar una
@@ -653,7 +666,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const criteriaIntent = detectCriteriaIntent(q);
   if (criteriaIntent) {
     const cr = composeCriteria(criteriaIntent);
-    const mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [cr.text, ...recentNarrationsPrev].slice(0, 2) };
+    let mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [cr.text, ...recentNarrationsPrev].slice(0, 2) };
+    // Etapa 4 (owner 2026-08-04) — mismo SYNC que _composedBypassResult: lastOffer=null también limpia el lado
+    // canónico, para que getLastOffer no resucite una oferta ya invalidada por este bypass.
+    if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, null) };
     return {
       r: {
         text: cr.text,
@@ -976,6 +992,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // si no, el narrador (mem: mem2 en el loop de abajo) perdería de vista la oferta/temas recientes en CUALQUIER
   // turno donde el LLM además emita un memoryUpdate, una inconsistencia dependiente de un codepath ajeno. Ambos se
   // sobrescriben con el valor FRESCO de este turno más abajo (lastOffer siempre recalculado, nunca heredado).
+  // Etapa 4: estos 2 campos son el shim que getLastOffer/getRecentSubjects (dialogueState.js) leen cuando el lado
+  // canónico (conversationScope) todavía NO tiene el valor fresco de ESTE turno — para lastOffer, ese es
+  // exactamente el caso durante la Pasada 2/NARRAR de más abajo (conversationScopeNow.current.ofertaPendiente
+  // recién se escribe DESPUÉS de que `narration` exista, ver el bloque junto a lastOfferNow) — priorOffer acá
+  // sigue siendo el valor CORRECTO para ese instante (la oferta del turno ANTERIOR, que es lo que NARRATE debe
+  // conocer), no un dato viejo que haya que descartar.
   if (priorOffer) mem2 = { ...mem2, lastOffer: priorOffer };
   if (recentSubjectsPrev.length) mem2 = { ...mem2, recentSubjects: recentSubjectsPrev };
   // conversationScope (Etapa 1) — misma reinyección defensiva que lastOffer/recentSubjects arriba (redundante con
@@ -995,13 +1017,18 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // siempre); señal para el LLM, nunca autoridad (ver dialogueState.js). No depende de `results`, pero vive acá,
   // junto al resto del estado post-plan que sobrevive hasta el return final.
   const recentSubjectsNow = updateRecentSubjects(recentSubjectsPrev, plan, calls, history.length);
-  mem2 = { ...mem2, recentSubjects: recentSubjectsNow };
+  mem2 = { ...mem2, recentSubjects: recentSubjectsNow };   // shim de compatibilidad (Etapa 4) — ver dialogueState.js:getRecentSubjects
   // conversationScope (Etapa 1) — MISMO punto de derivación que recentSubjectsNow (post-batch, plan.scope YA
   // resuelto): a diferencia de recentSubjects (señal para el LLM), conversationScope SÍ es la fuente de verdad que
   // resolveConversationReference lee el turno SIGUIENTE — por eso se deriva de `results` (boleta estructurada),
   // nunca de la prosa que NARRAR todavía no escribió a esta altura.
   const conversationScopeNow = updateConversationScope(conversationScopePrev, { plan, calls, results, turno: history.length, requestContext });
-  mem2 = { ...mem2, conversationScope: conversationScopeNow };
+  // Etapa 4 (owner 2026-08-04) — dual-write: recentSubjectsNow se escribe TAMBIÉN como key hermana física dentro
+  // de conversationScope (root.recentSubjects, ver el comentario de ConversationScopeEntry en conversationScope.js)
+  // en el MISMO instante que el shim de arriba — nunca 2 fuentes que puedan divergir. Se computa ANTES de NARRAR
+  // (a diferencia de ofertaPendiente/lastOffer, que solo existen DESPUÉS de que la narración exista), así que acá
+  // sí queda correctamente poblado para la lectura mid-turno de NARRATE (getRecentSubjects vía persona.js).
+  mem2 = { ...mem2, conversationScope: { ...conversationScopeNow, recentSubjects: recentSubjectsNow } };
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
@@ -1186,7 +1213,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // ya filtra por contentScope="full" internamente (data_only/action_only/results_only nunca ofrecen seguimiento).
   const lastOfferNow = extractOffer(narration, { plan, calls, pref, turno: history.length });
   narration = stripAllMarks(narration);   // ninguna marca [[...]] llega al usuario bajo full (no-op si no hay ninguna)
-  mem2 = { ...mem2, lastOffer: lastOfferNow || null, recentNarrations: [narration, ...recentNarrationsPrev].slice(0, 2) };
+  mem2 = { ...mem2, lastOffer: lastOfferNow || null, recentNarrations: [narration, ...recentNarrationsPrev].slice(0, 2) };   // shim de compatibilidad (Etapa 4) — ver dialogueState.js:getLastOffer
+  // Etapa 4 (owner 2026-08-04) — dual-write del lado canónico: recién ACÁ existe `narration` (extractOffer solo
+  // puede correr después de que el texto final existe — a diferencia de recentSubjects, que se deriva ANTES de
+  // NARRAR), así que conversationScope.current.ofertaPendiente se escribe recién en este punto, no en el bloque de
+  // arriba junto a conversationScopeNow. No-op si no hay `current` (conversación sin ninguna entidad establecida
+  // todavía) — mismo criterio que el resto de sitios que llaman withOfertaPendiente.
+  if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, lastOfferNow || null) };
 
   // graba el mecanismo dominante de ESTE turno (si lo hay) para que el PRÓXIMO turno pueda chequear contra él —
   // solo entidades vistas este turno se actualizan; el resto de mechanismMemory persiste tal cual.

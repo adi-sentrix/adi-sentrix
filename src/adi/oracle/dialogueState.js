@@ -19,6 +19,40 @@
 import { parseBlocks } from "./narrationBlocks.js";
 import { extractSignedPct } from "./scenarioIntent.js";
 
+// ── VISTAS DERIVADAS DE conversationScope (Etapa 4, owner 2026-08-04, "lastOffer/recentSubjects como vistas
+// derivadas del scope canónico") ───────────────────────────────────────────────────────────────────────────────
+// mem.lastOffer/mem.recentSubjects DEJAN DE SER una segunda fuente de verdad mantenida en paralelo — a partir de
+// acá se CALCULAN leyendo mem.conversationScope (conversationScope.js) en el momento en que se necesitan, vía
+// estos dos getters. answerViaOracle.js escribe el valor CANÓNICO en conversationScope (current.ofertaPendiente /
+// root.recentSubjects) en el MISMO instante en que escribe el campo legacy — dual-write, nunca dos fuentes que
+// puedan divergir (ver los comentarios junto a cada sitio de escritura en ese archivo: _composedBypassResult, el
+// bypass de criteriaIntent, y el cierre del turno completo).
+//
+// El fallback a mem.lastOffer/mem.recentSubjects "pelados" es OBLIGATORIO, no cosmético: ~13-20 fixtures de gate
+// (ej. _vague_offer_gate.mjs, _dialogue_state_gate.mjs, _tool_contracts_gate.mjs) arman `mem: {lastOffer:{...}}`
+// a mano, sin poblar conversationScope en paralelo — sin el fallback, esos gates dejarían de funcionar. Por eso
+// la precedencia es: conversationScope (si trae algo) primero, mem.<campo> plano después — NUNCA al revés (un
+// mem.<campo> plano nunca debe pisar en silencio un valor canónico ya escrito ahí).
+//
+// `mem.conversationScope.current.ofertaPendiente` es el campo RESERVADO desde el diseño original del shape (ver
+// el comentario de cabecera de conversationScope.js, "ofertaPendiente object|null reservado — Etapa 2/3") — nunca
+// fue código muerto, solo esperaba a que Etapa 4 lo empezara a escribir. `mem.conversationScope.recentSubjects`
+// es un campo NUEVO en la raíz del objeto (hermano de `current`/`history`) — consolidación FÍSICA (mismo mecanismo
+// LRU de updateRecentSubjects de abajo, sin cambiar su semántica de retención) — NO la derivación semántica
+// completa desde conversationScope.history, que quedó fuera de alcance de Etapa 4 (ver el comentario grande al
+// final de este archivo, "POR QUÉ recentSubjects NO se deriva de conversationScope.history").
+export function getLastOffer(mem) {
+  const scope = mem && mem.conversationScope;
+  const fromScope = scope && scope.current && scope.current.ofertaPendiente;
+  if (fromScope && typeof fromScope === "object") return fromScope;
+  return (mem && mem.lastOffer && typeof mem.lastOffer === "object") ? mem.lastOffer : null;
+}
+export function getRecentSubjects(mem) {
+  const scope = mem && mem.conversationScope;
+  if (scope && Array.isArray(scope.recentSubjects)) return scope.recentSubjects;
+  return Array.isArray(mem && mem.recentSubjects) ? mem.recentSubjects : [];
+}
+
 // ── ACEPTACIÓN ("sí", "dale"...) ────────────────────────────────────────────────────────────────────────────────
 export const ACCEPT_RE = /^\s*(s[ií]|dale|de acuerdo|ok(?:ay)?|listo|adelante|hag[aá]moslo|hazlo|hacelo|perfecto|correcto|as[ií]\s+es|eso\s+mismo)[\s.,!¡]*$/i;
 export function isAcceptance(text) {
@@ -310,3 +344,32 @@ export function composeSubjectAmbiguity(options) {
   const temas = (Array.isArray(options) ? options : []).map((s) => s && s.entidad).filter(Boolean);
   return `Tengo varios temas recientes: ${temas.join(", ")}. ¿A cuál te referís?`;
 }
+
+/* ── POR QUÉ recentSubjects NO se deriva de conversationScope.history (Etapa 4, documentado a propósito, para que
+ * el próximo agente no lo re-descubra) ─────────────────────────────────────────────────────────────────────────
+ * recentSubjects (updateRecentSubjects arriba) es LRU real: se actualiza en CADA turno que resuelve alguna
+ * entidad, reordenando/evitando duplicados, tope 3. conversationScope.history (conversationScope.js) SOLO archiva
+ * el `current` saliente cuando plan.scope.level==='global' ("CAMBIO REAL DE TEMA — disparador único", diseño
+ * DELIBERADO para que resolveConversationReference nunca resucite un tema abandonado con "estos/esos" — ver el
+ * comentario de cabecera de ese archivo). En el caso común (el usuario pasa de Falabella a Sodimac SIN decir
+ * "cambiemos de tema"), `current` se PISA en silencio y NUNCA entra a history — recentSubjects hoy SÍ retiene
+ * ambos (Falabella y Sodimac), conversationScope.history NO retendría a Falabella en ese mismo escenario.
+ * Derivar recentSubjects de conversationScope.history tal como existe hoy degradaría de verdad varios consumidores
+ * reales (composeOrphanAcceptance, resolveSubjectRecall "primer tema"/"lo anterior", la recuperación elíptica de
+ * simulación a través de un desvío de tema, buildOrientacionInstruction, persona.js) — el escenario EXACTO que
+ * esta etapa debía evitar ("verificar exhaustivamente que ningún consumidor existente se rompe, byte a byte").
+ *
+ * Lo que Etapa 4 SÍ hizo (ver getRecentSubjects arriba + los sitios de escritura en answerViaOracle.js): mover
+ * recentSubjects DENTRO del envelope de conversationScope como key hermana física (mem.conversationScope.
+ * recentSubjects en vez de mem.recentSubjects top-level) — SIN cambiar ninguna semántica de retención
+ * (updateRecentSubjects sigue siendo la MISMA función pura, con la MISMA lógica LRU; solo cambia DÓNDE vive el
+ * array resultante, vía dual-write con el campo legacy). Esto consolida el estado en un único objeto persistido
+ * físicamente y satisface PARCIALMENTE el pedido del owner ("una sola fuente de verdad") con riesgo cero de
+ * regresión — la derivación SEMÁNTICA completa (recentSubjects calculado desde conversationScope.history, ya sin
+ * ningún campo paralelo) requeriría PRIMERO rediseñar la política de archivado de conversationScope.history
+ * (separar "archivo por pivote global" de "archivo por cambio de entidad") y re-verificar con el MISMO rigor
+ * byte-exacto tanto los gates de recentSubjects/dialogueState como los de conversationScope/continuidad universal
+ * (que hoy asumen la política actual, incluida la garantía deliberada de que "estos/esos" no resucite temas
+ * viejos) — alcance mayor al de una consolidación de bajo riesgo. Queda como decisión EXPLÍCITA pendiente del
+ * owner: si se quiere la derivación completa, es su propia etapa futura con gates dedicados, no algo para forzar
+ * dentro de este cierre. */

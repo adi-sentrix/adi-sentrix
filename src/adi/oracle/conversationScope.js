@@ -10,11 +10,13 @@
  * fuente de verdad del estado (un LLM puede parafrasear/resumir de formas no parseables con seguridad).
  *
  * Funciones PURAS (sin LLM, sin I/O) — mismo patrón arquitectónico que dialogueState.js, orquestadas por
- * answerViaOracle.js. NO reemplaza dialogueState.js (mem.lastOffer/mem.recentSubjects siguen vivos, sin cambios de
- * comportamiento en Etapa 1 — ver el comentario "CONSOLIDACIÓN — QUÉ QUEDA PARA ETAPA 2/3" al final del archivo):
- * esto es la capa NUEVA, canónica, aditiva — construida para que Etapa 2 (contratos de tool + entityScope
- * multi-entidad) y Etapa 3 (scenarioIntent.js multi-eje + retiro de mem.pendingSimulation) tengan una base real
- * sobre la que pararse, sin tener que re-descubrir nada de lo de acá.
+ * answerViaOracle.js. Etapa 1 la dejó ADITIVA (mem.lastOffer/mem.recentSubjects seguían vivos en paralelo, sin
+ * leer de acá) a propósito, para no arriesgar los ~30 gates/mecanismos que dependían de esas 2 keys antes de que
+ * el resto de la generalización (Etapa 2: contratos de tool + entityScope multi-entidad; Etapa 3: scenarioIntent.js
+ * multi-eje) estuviera asentada. Etapa 4 (2026-08-04, "lastOffer/recentSubjects como vistas derivadas del scope
+ * canónico") cerró esa consolidación pendiente — ver "CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4" al final del
+ * archivo para el estado final exacto (lastOffer: derivación real · recentSubjects: consolidación física parcial,
+ * por diseño, no por omisión).
  *
  * ── ConversationScopeEntry ──────────────────────────────────────────────────────────────────────────────────────
  *   turno       number|null            = history.length del turno que lo estableció (misma convención que
@@ -33,10 +35,17 @@
  *   origen      {callId, boletaLabels} trazabilidad mínima (nunca un puntero vivo a `results`)
  *   supuestos   array                  reservado — Etapa 3 (simulate multi-entidad) lo puebla
  *   faltantes   string[]               reservado — Etapa 3
- *   ofertaPendiente object|null        reservado — Etapa 2/3 (hoy sigue viviendo en mem.lastOffer)
+ *   ofertaPendiente object|null        Etapa 4 (owner 2026-08-04) — escrito por answerViaOracle.js vía
+ *                                       withOfertaPendiente (abajo) en el MISMO instante que mem.lastOffer (dual-
+ *                                       write); leído por dialogueState.js:getLastOffer. mem.lastOffer sigue vivo
+ *                                       como shim de compatibilidad para fixtures viejos — ver dialogueState.js.
  *   tenant      {tenantId,dataSnapshotId}|null   copiado AL ESCRIBIR, nunca recalculado
  *
- * mem.conversationScope = { version: 1, current: ConversationScopeEntry|null, history: ConversationScopeEntry[] }
+ * mem.conversationScope = { version: 1, current: ConversationScopeEntry|null, history: ConversationScopeEntry[],
+ *   recentSubjects: RecentSubject[] }   — `recentSubjects` (Etapa 4, owner 2026-08-04) es consolidación FÍSICA
+ *   (misma lista/shape que dialogueState.js:updateRecentSubjects siempre produjo, dual-escrita acá como key
+ *   hermana de `current`/`history`) — NUNCA derivada de `history` (política de archivado distinta, ver el
+ *   comentario "POR QUÉ recentSubjects NO se deriva de conversationScope.history" en dialogueState.js).
  * (history: tope 3, más-reciente-primero, nunca incluye a `current`)
  */
 import { guessDimension } from "./entityRecord.js";
@@ -48,6 +57,20 @@ const _AXES = new Set(["sku", "cliente", "marca", "familia", "bodega", "canal"])
 
 export function emptyConversationScope() {
   return { version: 1, current: null, history: [] };
+}
+
+// ── withOfertaPendiente(scope, offer) → scope' — Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas
+// derivadas del scope canónico"): escribe/limpia ConversationScopeEntry.ofertaPendiente SIN mutar el objeto
+// recibido. `scope.current` puede ser la MISMA referencia que un scopePrev.current de un turno anterior (ver
+// updateConversationScope más abajo, rama "sin entidades nuevas": devuelve `prev.current` TAL CUAL, sin clonar) —
+// mutarlo en el lugar corrompería en silencio la memoria de un turno que el caller ya devolvió/persistió en otro
+// lado. `ofertaPendiente` era un campo RESERVADO desde el diseño original del shape (ver el comentario de
+// ConversationScopeEntry arriba, "reservado — Etapa 2/3") — este es el punto único donde Etapa 4 empieza a
+// escribirlo; dialogueState.js:getLastOffer es el único lector. No-op (devuelve `scope` tal cual) si no hay
+// `current` sobre el que escribir — nunca inventa un scope nuevo desde acá.
+export function withOfertaPendiente(scope, offer) {
+  if (!scope || !scope.current) return scope || null;
+  return { ...scope, current: { ...scope.current, ofertaPendiente: offer || null } };
 }
 
 // ── buildEntityList(toolName, result) → {dimension, entities, orden} | null ────────────────────────────────────
@@ -416,24 +439,29 @@ export function composeReferenceDecline(reason) {
   return `No puedo resolver esa referencia con lo que tengo — decime a qué entidad o grupo te referís.`;
 }
 
-/* ── CONSOLIDACIÓN — QUÉ QUEDA PARA ETAPA 2/3 (documentado a propósito, para que el próximo agente no lo
- * re-descubra) ──────────────────────────────────────────────────────────────────────────────────────────────────
- * Elección DELIBERADA de Etapa 1: mem.lastOffer/mem.recentSubjects (dialogueState.js) NO se retiran ni se re-
- * apuntan a leer conversationScope.current/.history — siguen funcionando EXACTAMENTE como hoy, cero cambio de
- * comportamiento en esos dos mecanismos. conversationScope se construye y se guarda ADITIVAMENTE (mem.conversation
- * Scope, junto a mem.lastOffer/mem.recentSubjects, no en reemplazo). Motivo: el diseño original ofrece este camino
- * explícitamente ("retirar mem.recentSubjects/mem.lastOffer como keys — O DEJARLAS COMO ALIAS DE LECTURA
- * TEMPORAL") y es el de MENOR riesgo de regresión sobre ~30 gates/mecanismos que hoy dependen de esas dos keys
- * (MECHANISM_TABLE, isVagueOffer, isExhaustedMechanismOffer, _coerceMode vía recentSubjectsPrev[0].mode, etc.) —
- * ninguno de ellos se tocó.
- * Pendiente para Etapa 2/3 (staging plan original, sin cambios): portar resolveSubjectRecall/composeSubjectAmbig
- * uity a leer scopePrev.history; mover extractOffer/isVagueOffer/isExhaustedMechanismOffer a leer/escribir
- * conversationScope.current.ofertaPendiente; retirar mem.pendingSimulation en favor de
- * conversationScope.current.{supuestos,faltantes}; toolContracts.js + entityScope multi-entidad (Etapa 2);
- * scenarioIntent.js multi-eje + el arm "future_multi" que hace que el CASO OBLIGATORIO completo (3 turnos, "¿Qué
- * pasa si subo 3% el precio de estos SKU?" → pregunta SOLO por volumen, nunca por cliente) cierre de punta a
- * punta (Etapa 3) — Etapa 1 deja `plan.scope.entities` correctamente resuelto a los 3 SKU estructurados
- * (resolveConversationReference), pero la pregunta de "¿para qué cliente...?" hoy la dispara scenarioIntent.js
- * (detectScenarioIntent → kind:"no_entity", ver answerViaOracle.js líneas ~681-712) — ese código NO se tocó en
- * Etapa 1 a propósito (es la doctrina/mecanismo que Etapa 3 tiene que generalizar, no un wiring mecánico).
+/* ── CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4 (2026-08-04, documentado a propósito, para que el próximo agente
+ * no lo re-descubra — el núcleo se CONGELA después de esta etapa, nadie retoma esto pronto) ──────────────────────
+ * toolContracts.js + entityScope multi-entidad (queryMetric/gridTable/tensionRead/simulateCosto + diagnose/
+ * simulateCarga/simulateCapital) y scenarioIntent.js multi-eje + el arm "future_multi" (CASO OBLIGATORIO: "¿Qué
+ * pasa si subo 3% el precio de estos SKU?" → pregunta SOLO por volumen, nunca por cliente, cierre de punta a
+ * punta) — YA ESTÁN COMPLETOS (ver los commits de "continuidad conversacional universal" + "cierre de los límites
+ * restantes de conversationScope"), sin relación con lo que sigue.
+ *
+ * lastOffer/recentSubjects (Etapa 4, "vistas derivadas del scope canónico") — RESUELTO CON ALCANCE PARCIAL, por
+ * diseño, NO por omisión:
+ *   · lastOffer → conversationScope.current.ofertaPendiente: DERIVACIÓN REAL. mem.lastOffer sigue vivo SOLO como
+ *     shim de compatibilidad (dialogueState.js:getLastOffer cae a él cuando conversationScope no trae nada — los
+ *     ~13-20 fixtures de gate que arman `mem:{lastOffer:{...}}` a mano sin poblar conversationScope en paralelo lo
+ *     necesitan). answerViaOracle.js escribe AMBOS campos en el mismo instante (dual-write, nunca 2 fuentes que
+ *     puedan divergir) — ver withOfertaPendiente arriba y los 3 sitios que la usan en ese archivo.
+ *   · recentSubjects → mem.conversationScope.recentSubjects: consolidación FÍSICA únicamente (key hermana de
+ *     `current`/`history`, MISMO mecanismo LRU de dialogueState.js:updateRecentSubjects, sin cambiar su
+ *     semántica). La derivación SEMÁNTICA completa (calcular recentSubjects desde conversationScope.history, sin
+ *     ningún campo paralelo) quedó EXPLÍCITAMENTE fuera de esta etapa — ver el comentario "POR QUÉ recentSubjects
+ *     NO se deriva de conversationScope.history" al final de dialogueState.js para la razón completa (política de
+ *     archivado de `history` distinta a la retención LRU de recentSubjects) y qué requeriría cerrarla de verdad.
+ *
+ * mem.pendingSimulation NO se retiró en favor de conversationScope.current.{supuestos,faltantes} — fuera de
+ * alcance de Etapa 4 (el owner pidió específicamente lastOffer/recentSubjects, no pendingSimulation) y del pedido
+ * original de cierre de límites; sigue viviendo como su propio campo de `mem`, sin cambios de esta etapa.
  */

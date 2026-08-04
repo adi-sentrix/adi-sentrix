@@ -5,6 +5,7 @@
  *
  * Va junto al MURO (no lo reemplaza): la persona define CÓMO habla; la boleta/guard define QUÉ cifras puede usar.
  */
+import { getLastOffer, getRecentSubjects } from "./dialogueState.js";   // Etapa 4 (owner 2026-08-04) — lastOffer/recentSubjects como vistas derivadas de conversationScope, ver esos getters para el detalle
 
 // ADI_PERSONA · el carácter, en instrucción operativa para el narrador. Registro ejecutivo neutro LatAm (sin
 // chilenismos · [[adi-lenguaje-formal]]). Encaja con el sello entender→explicar→actuar y "siempre interpreta".
@@ -95,11 +96,17 @@ export function renderInteractionMemory(mem) {
   // no hace falta plumbing nuevo. lastOffer/recentSubjects son SEÑAL (dialogueState.js las calcula fuera de acá,
   // determinísticamente) — nunca autoridad: el LLM sigue resolviendo el turno actual por su cuenta, esto solo le
   // da mejor contexto que releer hilo_reciente crudo.
-  if (mem.lastOffer && mem.lastOffer.texto) {
-    L.push(`· Tu última oferta de seguimiento fue: "${mem.lastOffer.texto}"${mem.lastOffer.entidad ? ` (sobre ${mem.lastOffer.entidad})` : ""} — si el usuario la acepta ahora ("sí", "dale", "de acuerdo"...), es A ESO que se refiere, no a otra cosa.`);
+  // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") — getLastOffer/getRecentSubjects
+  // (dialogueState.js) leen mem.conversationScope PRIMERO (el lado canónico) y caen a mem.lastOffer/
+  // mem.recentSubjects "pelados" solo si el scope no trae nada — MISMO shape de salida, cero cambio de lo que se
+  // le inyecta al prompt, ver el comentario de cabecera de esos 2 getters para el detalle de la precedencia.
+  const lastOffer = getLastOffer(mem);
+  if (lastOffer && lastOffer.texto) {
+    L.push(`· Tu última oferta de seguimiento fue: "${lastOffer.texto}"${lastOffer.entidad ? ` (sobre ${lastOffer.entidad})` : ""} — si el usuario la acepta ahora ("sí", "dale", "de acuerdo"...), es A ESO que se refiere, no a otra cosa.`);
   }
-  if (Array.isArray(mem.recentSubjects) && mem.recentSubjects.length) {
-    L.push(`· Temas recientes de esta conversación (más reciente primero): ${mem.recentSubjects.map((s) => s && s.entidad).filter(Boolean).join(", ")}.`);
+  const recentSubjects = getRecentSubjects(mem);
+  if (Array.isArray(recentSubjects) && recentSubjects.length) {
+    L.push(`· Temas recientes de esta conversación (más reciente primero): ${recentSubjects.map((s) => s && s.entidad).filter(Boolean).join(", ")}.`);
   }
   // ALCANCE CONVERSACIONAL ESTRUCTURADO (Etapa 1, owner "continuidad conversacional universal" 2026-08-03) —
   // MISMO injection point, DATO estructurado (no prosa nueva): esto es lo que le da a PLAN, por primera vez, un
