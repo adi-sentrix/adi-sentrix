@@ -17,6 +17,10 @@ import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity } from "./dialogueState.js";
+// CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa NUEVA,
+// canónica, ADITIVA (ver el comentario "CONSOLIDACIÓN — QUÉ QUEDA PARA ETAPA 2/3" al final de ese archivo):
+// mem.lastOffer/mem.recentSubjects de dialogueState.js arriba NO se tocan, siguen funcionando igual que hoy.
+import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline } from "./conversationScope.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
@@ -591,6 +595,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const priorOffer = (mem && mem.lastOffer && typeof mem.lastOffer === "object") ? mem.lastOffer : null;
   const recentSubjectsPrev = Array.isArray(mem && mem.recentSubjects) ? mem.recentSubjects : [];
   const recentNarrationsPrev = Array.isArray(mem && mem.recentNarrations) ? mem.recentNarrations : [];
+  // conversationScope (Etapa 1, ver conversationScope.js) — leído ACÁ, ANTES de PLAN, mismo principio que
+  // priorOffer/recentSubjectsPrev arriba: el estado del turno ANTERIOR es lo único que puede autorizar una
+  // resolución determinística de referencia en ESTE turno.
+  const conversationScopePrev = (mem && mem.conversationScope && typeof mem.conversationScope === "object") ? mem.conversationScope : emptyConversationScope();
   // pendingSimulation (ver el bloque grande junto a _hasCompleteSimulateVars): intenta resolver la respuesta de
   // ESTE turno contra la simulación de 2 variables que quedó pendiente. resolvedPendingSim==null → o no había
   // pendiente, o el texto no la contesta (cambio de tema, "no sé") — el llamador ABANDONA el pendiente (nunca lo
@@ -722,6 +730,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     : resolvedPendingSim
     ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada)", scope: { level: "entity", entities: [pendingSimulationPrev.entity] }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, entity: pendingSimulationPrev.entity, ...resolvedPendingSim } }] }
     : null;
+  // conversationScope (Etapa 1) solo interviene sobre un plan REAL de PLAN — los planes sintéticos de arriba
+  // (oferta aceptada / retorno posicional / simulación pendiente) ya resolvieron su propio scope de forma
+  // determinística por otros mecanismos ya probados (dialogueState.js) — no se les superpone un segundo criterio.
+  const planWasSynthetic = !!plan;
 
   // ── PASADA 1 · PLAN (con reintentos · 3 intentos máx, MISMO patrón que el retry de NARRAR más abajo) ── se salta
   // ENTERA cuando la ruta de aceptación de arriba ya resolvió el plan.
@@ -773,6 +785,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     }
     if (!plan) return null;
   }
+
+  // ── CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1, ver conversationScope.js) ── backstop DETERMINÍSTICO, mismo
+  // principio y misma precedencia que el resto de _coerce* de este archivo: PLAN es el mecanismo PRINCIPAL (puede
+  // interpretar la expresión libre), esto SOLO corrige el patrón inequívoco cuando PLAN se quedó sin nada resoluble
+  // en scope.entities (o el texto trae un deíctico/ordinal que PLAN no tiene forma de resolver sin este dato
+  // estructurado). Corre ANTES del batch — si la referencia es ambigua o rechazable, corta acá, igual que la
+  // aceptación huérfana/retorno ambiguo de arriba (nunca gasta un batch/narración sobre una referencia sin resolver).
+  if (!planWasSynthetic) {
+    const scopeRef = resolveConversationReference(q, plan, conversationScopePrev, requestContext);
+    if (scopeRef.kind === "ambiguous") {
+      const composed = composeReferenceAmbiguity(scopeRef.options);
+      const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+      if (out) return out;
+    } else if (scopeRef.kind === "decline") {
+      const composed = composeReferenceDecline(scopeRef.reason);
+      const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
+      if (out) return out;
+    } else if (scopeRef.kind === "resolved") {
+      plan = { ...plan, scope: { level: scopeRef.entities.length > 1 ? "list" : "entity", entities: scopeRef.entities } };
+    }
+  }
+
   // `calls` puede faltar en intent=ack/define (el modelo lo omite cuando no pide datos) → default [] (NO es abstención).
   // OJO: `plan` se REEMPLAZA (no solo la variable local `calls`) — buildNarrateUserMessageC recibe `plan` completo
   // más abajo, y si solo corregíamos la variable suelta, el narrador seguía viendo plan.calls SIN corregir (bug real
@@ -857,6 +891,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // sobrescriben con el valor FRESCO de este turno más abajo (lastOffer siempre recalculado, nunca heredado).
   if (priorOffer) mem2 = { ...mem2, lastOffer: priorOffer };
   if (recentSubjectsPrev.length) mem2 = { ...mem2, recentSubjects: recentSubjectsPrev };
+  // conversationScope (Etapa 1) — misma reinyección defensiva que lastOffer/recentSubjects arriba (redundante con
+  // el fix de applyMemoryUpdate en persona.js, pero se deja por consistencia/robustez ante un futuro revert de ese
+  // fix). Se sobrescribe con el valor FRESCO de este turno más abajo, junto a recentSubjectsNow.
+  if (conversationScopePrev.current || conversationScopePrev.history.length) mem2 = { ...mem2, conversationScope: conversationScopePrev };
 
   // ── BATCH DETERMINÍSTICO ──
   // `unsupported` (owner 2026-07-31, evidenceSpec) — runPlan YA lo arma (coverage/unsupported por call) pero antes
@@ -871,6 +909,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // junto al resto del estado post-plan que sobrevive hasta el return final.
   const recentSubjectsNow = updateRecentSubjects(recentSubjectsPrev, plan, calls, history.length);
   mem2 = { ...mem2, recentSubjects: recentSubjectsNow };
+  // conversationScope (Etapa 1) — MISMO punto de derivación que recentSubjectsNow (post-batch, plan.scope YA
+  // resuelto): a diferencia de recentSubjects (señal para el LLM), conversationScope SÍ es la fuente de verdad que
+  // resolveConversationReference lee el turno SIGUIENTE — por eso se deriva de `results` (boleta estructurada),
+  // nunca de la prosa que NARRAR todavía no escribió a esta altura.
+  const conversationScopeNow = updateConversationScope(conversationScopePrev, { plan, calls, results, turno: history.length, requestContext });
+  mem2 = { ...mem2, conversationScope: conversationScopeNow };
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).

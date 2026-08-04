@@ -101,16 +101,35 @@ export function renderInteractionMemory(mem) {
   if (Array.isArray(mem.recentSubjects) && mem.recentSubjects.length) {
     L.push(`· Temas recientes de esta conversación (más reciente primero): ${mem.recentSubjects.map((s) => s && s.entidad).filter(Boolean).join(", ")}.`);
   }
+  // ALCANCE CONVERSACIONAL ESTRUCTURADO (Etapa 1, owner "continuidad conversacional universal" 2026-08-03) —
+  // MISMO injection point, DATO estructurado (no prosa nueva): esto es lo que le da a PLAN, por primera vez, un
+  // valor real para copiar en scope.entities cuando reconoce una referencia tipo "estos SKU"/"esos clientes" — hoy
+  // solo tenía prosa cruda del hilo (buildPlanUserMessage) para intentar reconstruirlo. La resolución DETERMINÍSTICA
+  // real vive en conversationScope.js (resolveConversationReference) — esto es SOLO la señal para que PLAN acierte
+  // solo en el caso común; el código determinístico sigue siendo la autoridad (ver answerViaOracle.js).
+  const cs = mem.conversationScope && mem.conversationScope.current;
+  if (cs && Array.isArray(cs.entities) && cs.entities.length) {
+    L.push(`· Alcance activo de la conversación: dimensión=${cs.dimension || "?"}, entidades=[${cs.entities.join(", ")}]${cs.tool ? ` (tool=${cs.tool})` : ""} — si el usuario dice "estos/esos/los mismos" sin nombrar de nuevo, es A ESTO que se refiere.`);
+  }
   if (!L.length) return "";
   return `MEMORIA DE INTERACCIÓN (cómo trabaja esta persona — respetala):\n${L.join("\n")}`;
 }
 
 // applyMemoryUpdate(mem, upd) → nueva memoria con el update del plan aplicado (identidad/preferencias/contexto).
 // PURO (no muta). El PLAN (Pasada 1) emite memoryUpdate cuando la persona da una instrucción de trato.
+// FIX ESTRUCTURAL (Etapa 1, owner "continuidad conversacional universal" 2026-08-03, hallazgo por lectura de
+// código): `out` se armaba desde una allowlist FIJA de 4 claves (identidad/preferencias/contexto/estado) y
+// descartaba en silencio cualquier key ajena de `base` — lastOffer/recentSubjects/mechanismByEntity/clarifyStreak/
+// responsePref/recentNarrations/pendingSimulation/conversationScope se PERDÍAN en cualquier turno donde el LLM
+// además emitiera un memoryUpdate, obligando a answerViaOracle.js a reinyectarlas todas a mano después de cada
+// llamada (ver los comentarios "sobrevive applyMemoryUpdate" ahí). Se spreadea `base` primero y se sobreescriben
+// SOLO las 4 claves que este helper administra — cierra el bug de raíz; las reinyecciones manuales existentes
+// quedan como no-ops inofensivos (defensivas, no se retiraron acá para no tocar ese archivo en este commit).
 export function applyMemoryUpdate(mem, upd) {
   const base = mem && typeof mem === "object" ? mem : {};
   if (!upd || typeof upd !== "object") return base;
   const out = {
+    ...base,
     identidad: { ...(base.identidad || {}) },
     preferencias: { ...(base.preferencias || {}) },
     contexto: { ...(base.contexto || {}) },
