@@ -259,6 +259,27 @@ function _pnlEntitiesEn(q) {   // TODAS las entidades del canon nombradas en el 
   }
   return out;
 }
+// ── ENTRADA desde conversationScope (Etapa 3, owner 2026-08-04 · "wiring de P&L a conversationScope, sin
+// reescribir su motor"): fuente ADICIONAL de continuidad de entidad para los 2 sitios de fallback de composePnl
+// que hoy solo miran `ctx.memoria.entidad` (la boleta V1) cuando el hilo PROPIO de P&L (`_scope`) no trae nada —
+// PRIORIDAD: _scope propio (hilo P&L en curso) > conversationScope.current (Arquitectura C) > ctx.memoria.entidad
+// (V1 legacy). Nunca pisa a ninguno de los dos, solo se consulta cuando ambos ya fallaron... en realidad se
+// consulta ANTES de la boleta V1 (ver los 2 call-sites) porque conversationScope es el estado MÁS FRESCO del
+// turno (Arquitectura C, cuando está activa) — mismo orden de precedencia que documenta el diseño de esta etapa.
+// Lee conversationScope.current.entities SOLO cuando trae EXACTAMENTE 1 entidad: una lista de 2+ no es "la
+// entidad en foco" que estos 2 sitios necesitan (un singular), así que se deja pasar (null) sin adivinar cuál de
+// las N tomar. La entidad se re-valida contra el canon del alcance PROPIO de P&L (_pnlEntityEn + covered): si
+// conversationScope resolvió un eje que P&L no cubre (bodega/SKU — pnlDisponibilidad), _pnlEntityEn no la
+// encuentra ahí (esos ejes no entran a _pnlCanon) y esta función devuelve null — cae al comportamiento honesto de
+// siempre, sin prorratear un eje sin venta desglosada.
+function _scopeEntidadEn(ctx) {
+  const cs = ctx && ctx.memoriaInteraccion && ctx.memoriaInteraccion.conversationScope;
+  const cur = cs && cs.current;
+  const ents = cur && Array.isArray(cur.entities) ? cur.entities : null;
+  if (!ents || ents.length !== 1) return null;
+  const c0 = _pnlEntityEn(ents[0]);
+  return (c0 && c0.covered) ? c0 : null;
+}
 // eje nombrado en el texto («por familia» · «por punto de venta») → key del contrato + la palabra del usuario
 const _EJE_ALIAS = [
   [/\bpuntos?\s+de\s+venta\b/i, "bodega"], [/\bbodegas?\b/i, "bodega"], [/\bsucursal\w*\b/i, "bodega"],
@@ -1367,9 +1388,14 @@ export function composePnl(pi, ctx = null, state = {}) {
     let nombre = pi.entidad || null, eje = (pi.eje && ENTITIES[pi.eje]) ? pi.eje : null;
     if (!nombre && !pi.negocio) {
       if (_scope && _scope.entity) { nombre = _scope.entity; eje = _scope.dimension; }
-      else if (ctx && ctx.memoria && ctx.memoria.entidad && ctx.memoria.entidad.nombre) {
-        const c0 = _pnlEntityEn(ctx.memoria.entidad.nombre);
-        if (c0 && c0.covered) { nombre = c0.nombre; eje = c0.eje; }
+      else {
+        // Etapa 3 (owner 2026-08-04): conversationScope.current ANTES que la boleta V1 — ver _scopeEntidadEn.
+        const c0 = _scopeEntidadEn(ctx);
+        if (c0) { nombre = c0.nombre; eje = c0.eje; }
+        else if (ctx && ctx.memoria && ctx.memoria.entidad && ctx.memoria.entidad.nombre) {
+          const c1 = _pnlEntityEn(ctx.memoria.entidad.nombre);
+          if (c1 && c1.covered) { nombre = c1.nombre; eje = c1.eje; }
+        }
       }
     }
     const c = buildPnlCascade(scenario, null, nombre ? { dimension: eje || _BASE_EJE } : null);
@@ -1530,9 +1556,14 @@ export function composePnl(pi, ctx = null, state = {}) {
       const _dEje = { familia: "familia", cliente: "cliente", cuenta: "cliente", marca: "marca" }[String(pi.scopeDeictic)] || null;
       const _calza = (eje) => !_dEje || _dEje === eje;
       if (_scope && _scope.entity && _calza(_scope.dimension)) { sEnt = _scope.entity; sEje = _scope.dimension; }
-      else if (ctx && ctx.memoria && ctx.memoria.entidad && ctx.memoria.entidad.nombre) {
-        const c0 = _pnlEntityEn(ctx.memoria.entidad.nombre);
-        if (c0 && c0.covered && _calza(c0.eje)) { sEnt = c0.nombre; sEje = c0.eje; }
+      else {
+        // Etapa 3 (owner 2026-08-04): conversationScope.current ANTES que la boleta V1 — ver _scopeEntidadEn.
+        const c0 = _scopeEntidadEn(ctx);
+        if (c0 && _calza(c0.eje)) { sEnt = c0.nombre; sEje = c0.eje; }
+        else if (ctx && ctx.memoria && ctx.memoria.entidad && ctx.memoria.entidad.nombre) {
+          const c1 = _pnlEntityEn(ctx.memoria.entidad.nombre);
+          if (c1 && c1.covered && _calza(c1.eje)) { sEnt = c1.nombre; sEje = c1.eje; }
+        }
       }
       if (!sEnt) return _resp(`¿En cuál? Dímelo con nombre: «¿y si en Cuidado Personal bajo ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%?»`, { route: "pnl_reading", bol: [_gPct(t)] });
     }

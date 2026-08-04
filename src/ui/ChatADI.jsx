@@ -13,7 +13,7 @@ import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   /
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
 import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · la Mesa/paneles informan el contexto conversacional
-import { resetPnlDraft, ensurePnlNarration, detectPnlIntent } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código) + la red que le CEDE el turno del P&L a la ruta vieja (C no tiene el flujo guiado)
+import { resetPnlDraft, ensurePnlNarration, detectPnlIntent, pnlScope } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código) + la red que le CEDE el turno del P&L a la ruta vieja (C no tiene el flujo guiado) + pnlScope: Etapa 3 (owner 2026-08-04), proyección de entidad hacia conversationScope al SALIR de un turno de P&L
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
@@ -38,10 +38,49 @@ function _sanitizeScenario(text) {
   return typeof text === "string" ? text.replace(/(escenario\s+)(bonanza|tensi[oó]n|tension|crisis)/gi, "$1actual") : text;
 }
 
+// pnlScope() (pnl.js) → { dimension, entity|null, entities|null, global? } — el hilo PROPIO de P&L ("P&L de
+// Falabella" / "los que veníamos mirando"). Etapa 3 (owner 2026-08-04, "wiring de P&L a conversationScope, sin
+// reescribir su motor"): al SALIR de un turno de P&L con una entidad EXPLÍCITA en foco, esa entidad se proyecta
+// hacia conversationScope.current — construyendo el MISMO shape que produce updateConversationScope
+// (conversationScope.js), nunca un shape paralelo — así "¿y su margen?" al VOLVER a Oracle después de mirar el
+// P&L de una entidad resuelve ESA entidad, no la que Oracle tenía antes de entrar al P&L (ver pnl.js:
+// _scopeEntidadEn para la mitad de ENTRADA de este mismo wiring).
+// GUARDA (riesgo de mayor cuidado del diseño): SOLO escribe cuando pnlScope() trae una entidad real — NUNCA en
+// "negocio"/global (`ps.global`) ni cuando el hilo P&L no tiene nada — escribir en cada turno de P&L (incluidas
+// lecturas globales sin entidad) podría borrar en silencio una entidad en foco que el usuario nunca pidió cambiar.
+// `turno`/`periodo`/`ofertaPendiente`/`metrica`/etc. quedan null/vacíos a propósito: P&L no los conoce y
+// ningún consumidor de conversationScope los lee hoy para resolver referencias (solo dimension/entities/tenant,
+// ver resolveConversationReference) — no se inventa un valor donde no hay dato real.
+function _pnlScopeProjection(mem) {
+  const ps = pnlScope();
+  if (!ps || ps.global) return mem;
+  const entities = ps.entity ? [ps.entity] : (Array.isArray(ps.entities) ? ps.entities.filter(Boolean) : []);
+  if (!entities.length || !ps.dimension) return mem;
+  const prevScope = (mem && mem.conversationScope && typeof mem.conversationScope === "object") ? mem.conversationScope : { version: 1, current: null, history: [] };
+  const prevCurrent = prevScope.current;
+  const current = {
+    turno: null, dimension: ps.dimension, entities,
+    selection: null, periodo: null, filtros: null, metrica: null,
+    operacion: "pnl", modo: null, tool: "pnl",
+    origen: { callId: null, boletaLabels: [] },
+    supuestos: [], faltantes: [], ofertaPendiente: null,
+    tenant: (prevCurrent && prevCurrent.tenant) || null,   // nunca recalculado acá — mismo criterio de fallback que updateConversationScope
+  };
+  return { ...(mem || {}), conversationScope: { ...prevScope, current } };
+}
+
 // ── Helper PURO · arma el turno que la UI agrega DESDE el resultado de ADI (answerADI o answerADIFromSpec).
 // La UI CONSUME el resultado, no recalcula (regla madre). Mismo shape para ambos caminos.
 function _turnFromResult(q, r, context, source) {
   const deferred = r.text == null;
+  const baseContext = { ...(r.context || context || {}) };
+  // P&L → conversationScope (Etapa 3): SOLO cuando este turno lo resolvió P&L (route "pnl_setup"/"pnl_reading",
+  // la única familia de rutas que compone pnl.js — ver el comentario de _pnlScopeProjection) se consulta el hilo
+  // P&L; en cualquier otro turno (incluido el camino Oracle, que CEDE el paso a P&L y nunca produce estas rutas
+  // — ver detectPnlIntent en el camino LLM más abajo) memoriaInteraccion pasa intacta, sin tocar conversationScope.
+  const memoriaInteraccion = (!deferred && typeof r.route === "string" && r.route.indexOf("pnl_") === 0)
+    ? _pnlScopeProjection(baseContext.memoriaInteraccion)
+    : baseContext.memoriaInteraccion;
   return {
     result: r,
     deferred,
@@ -62,7 +101,8 @@ function _turnFromResult(q, r, context, source) {
     // + LA BOLETA DE MEMORIA (owner 2026-07-15 · "una boleta chica y bien hecha con lo que importa para decidir el
     // siguiente paso"): entidad en foco (persiste) + oferta de cierre del texto que el usuario VIO + próxima acción +
     // tema — updateMemoria (una verdad, pura) la arma por turno; el "sí"/"dale"/"compáralo"/"muéstrame más" la consumen.
-    context: { ...(r.context || context || {}),
+    context: { ...baseContext,
+      memoriaInteraccion,
       lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null),
       memoria: updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) }) },
   };
