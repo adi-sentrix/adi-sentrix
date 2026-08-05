@@ -22,6 +22,10 @@ const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e
 const _mK = (vK) => _money(vK * 1000);   // las series vienen en MILES de $ (misma escala del dato)
 const _pct1 = (v) => `${Math.round(v * 10) / 10}%`;
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
+// dv(actual, base) → "+X.X%"/"-X.X%" — variación porcentual entre 2 valores REALES de la serie (nunca inventada,
+// mismo redondeo/formato ya usado inline para dAnt/dPpto arriba en este mismo archivo). null si no hay base
+// (evita división por 0 — "s/d" en vez de un % falso).
+const dv = (actual, base) => { if (!base) return null; const d = Math.round(((actual - base) / base) * 1000) / 10; return `${d >= 0 ? "+" : ""}${d}%`; };
 
 // ── PERIODO · parse determinístico del español (la fuerza del piso: meses/trimestres/semestres/rangos) ──
 const _MESES_L = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -185,10 +189,27 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
     rows.push({ label: "Total", values: [F(`Venta del período`, tot, { mandatory: true }), F(`Año anterior (${_plabel(p)})`, totAnt), F(`Presupuesto (${_plabel(p)})`, totPpto)], strong: true });
     const dAnt = totAnt ? Math.round(((tot - totAnt) / totAnt) * 1000) / 10 : null;
     const dPpto = totPpto ? Math.round(((tot - totPpto) / totPpto) * 1000) / 10 : null;
+    // VARIACIÓN POR MES (owner 2026-08-05, hallazgo en vivo: "le falta el % cuanto ha variado, eso es lo que
+    // debería explicar ADI"): la tabla YA trae el $ de cada mes, pero ningún % de variación mes-a-mes-vs-año-
+    // anterior/presupuesto existía en ningún lado — el narrador no podía citarlo (guardC lo hubiera bloqueado
+    // como "cifra-no-autorizada": %  es una DIVISIÓN, no una resta/suma permitida sobre 2 cifras autorizadas) ni
+    // aunque quisiera. Se computa acá (el motor, no el LLM) y se autoriza vía enrichFromFacts (ledger.js) — mismo
+    // mecanismo que ya autoriza los $ de `tablaM.rows` y `comparacion.vs_anio_anterior/vs_presupuesto` (ver
+    // toolRegistry.js trend()) — el campo `label` en cada entrada la ata a un mes real (mismo criterio "label" que
+    // _ENTITY_KEYS de ledger.js ya reconoce), así que nunca puede citarse sin decir DE QUÉ mes es. mejorMes/
+    // peorMes quedan aparte, ya resueltos por el motor (el narrador no debe re-derivar "cuál es el mayor/menor",
+    // ver SUPERLATIVOS CONSISTENTES) — con su % de variación ya calculado, listo para citar.
+    const variacionMensual = meses.map((mes, i) => ({
+      label: mes,
+      vsAnioAnterior: sAnt[i] ? `${dv(serie[i], sAnt[i])}` : null,
+      vsPresupuesto: sPpto[i] ? `${dv(serie[i], sPpto[i])}` : null,
+    }));
+    const mejorMes = { label: meses[iMax], valor: fmt(serie[iMax]), vsAnioAnterior: sAnt[iMax] ? dv(serie[iMax], sAnt[iMax]) : null, vsPresupuesto: sPpto[iMax] ? dv(serie[iMax], sPpto[iMax]) : null };
+    const peorMes = { label: meses[iMin], valor: fmt(serie[iMin]), vsAnioAnterior: sAnt[iMin] ? dv(serie[iMin], sAnt[iMin]) : null, vsPresupuesto: sPpto[iMin] ? dv(serie[iMin], sPpto[iMin]) : null };
     const opener = [
       `Tu venta de ${p.tipo === "rango" ? _plabel(p) : "todo el año, mes a mes"}: ${fmt(tot)}${dAnt != null ? ` — ${dAnt >= 0 ? "+" : ""}${dAnt}% contra el año anterior` : ""}${dPpto != null ? ` y ${dPpto >= 0 ? "+" : ""}${dPpto}% contra el presupuesto` : ""}.`,
-      `· Mejor mes: ${meses[iMax]} (${fmt(serie[iMax])})`,
-      `· Mes más bajo: ${meses[iMin]} (${fmt(serie[iMin])})`,
+      `· Mejor mes: ${meses[iMax]} (${fmt(serie[iMax])}, ${mejorMes.vsAnioAnterior || "s/d"} vs año anterior)`,
+      `· Mes más bajo: ${meses[iMin]} (${fmt(serie[iMin])}, ${peorMes.vsAnioAnterior || "s/d"} vs año anterior)`,
       `Es la misma curva del evolutivo de Sentrix — la tabla va abajo.`,
     ].join("\n");
     return {
@@ -196,6 +217,7 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
       evidence: {
         lens: "temporal", followup: false, dimension: null,
         tablaM: { titulo: `Venta del negocio — ${_plabel(p)}`, cols: ["Este año", "Año anterior", "Presupuesto"], rows, nota: "la curva real del negocio (misma serie del evolutivo de Sentrix)" },
+        variacionMensual, mejorMes, peorMes,
         boleta: bol,
       },
     };

@@ -425,6 +425,39 @@ function _decisionOpensWithTable(text, mode) {
   return lines.length > 0 && /^\|.*\|\s*$/.test(lines[0]);
 }
 
+// _clarifyHasTable(text, mode) — MISMA familia que _decisionOpensWithTable arriba (owner 2026-08-03, hallazgo de la
+// suite completa de 107 gates: _oracle_clarify_mode_gate.mjs, un turno "no entendí" citó 16 cifras en una tabla
+// completa, MÁS que el resumen que originó la confusión). A diferencia de decision (donde el problema es el ORDEN
+// — la tabla puede seguir existiendo, solo no puede abrir la respuesta), clarify PROHÍBE la tabla PUNTO — su propia
+// doctrina (conversationalContract.js MODES['clarify'].narrate) exige como mucho 1 cifra (nivel 1) o cero cifras
+// (nivel 2+), nunca una tabla en ningún nivel. Por eso este chequeo mira CUALQUIER línea del texto (no solo la
+// primera) — cualquier fila de tabla markdown en una narración mode=clarify ya es una violación de forma, sin
+// importar dónde caiga. El fix de raíz es la supresión de instruccion_tabla en narratePromptC.js (ver ahí); este
+// backstop es la red para cuando el modelo igual arma una tabla por su cuenta.
+function _clarifyHasTable(text, mode) {
+  if (mode !== "clarify") return false;
+  const lines = String(text || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.some((l) => /^\|.*\|\s*$/.test(l));
+}
+
+// _temporalMissingVariation(text, results) — MISMA familia que _decisionOpensWithTable/_clarifyHasTable (owner
+// 2026-08-05, hallazgo en vivo: "le falta el % cuanto ha variado, eso es lo que debería explicar ADI"). Cuando
+// el turno corrió la tool `trend` Y el composer YA calculó/autorizó facts.mejorMes/peorMes con su % de variación
+// (ver temporalTable.js — HOY solo la rama GLOBAL de venta lo hace, no contribución/margen ni por-entidad) — pero
+// solo REFORZAR la doctrina (narratePromptC.js SERIE TEMPORAL) no garantiza que el narrador de verdad lo cite,
+// mismo patrón de TODA esta sesión (doctrina sola no alcanza, hace falta backstop). Ojo con el candado exacto:
+// exige facts.mejorMes (no solo tablaM) — si se disparara para CUALQUIER trend, degradaría (reintentaría) turnos
+// donde el % simplemente NO EXISTE en los facts (branches que todavía no lo calculan), gastando escalada
+// mini→terra→sol en una garantía estructuralmente imposible de cumplir. Chequeo angosto y barato: si el % SÍ
+// está disponible en los facts Y la narración no trae NINGÚN símbolo "%", es estructuralmente imposible que haya
+// cumplido "nombrá el % de variación del mejor/peor mes" — sin importar qué tan bien redactada esté la prosa. NO
+// exige un % en cada oración (eso sería rigidez de formulario) — solo que exista AL MENOS uno.
+function _temporalMissingVariation(text, results) {
+  const hasVariationData = Array.isArray(results) && results.some((r) => r && r.tool === "trend" && r.facts && r.facts.mejorMes);
+  if (!hasVariationData) return false;
+  return !/%/.test(String(text || ""));
+}
+
 // ── ENTIDAD ledger-derivada (garble) ────────────────────────────────────────────────────────────────────────────
 // STOPLIST · palabras españolas/dominio que colisionan con prefijos de nombres de cliente y NUNCA son garble
 // (la MISMA de entityGuard.js · sin ella "Para" abría casi-match con "Paris" → falso positivo → C se abstenía).
@@ -843,12 +876,20 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // `degraded` (mismo canal que repetición verbatim), NUNCA `violations`/`ok`.
   const decisionTableFirst = _decisionOpensWithTable(narration, mode);
   if (decisionTableFirst) advisories.push({ kind: "orden-decision-tabla-primero", detail: "la tabla abre la respuesta en mode=decision — el contrato exige la frase de acción primero" });
+  // clarify NUNCA lleva tabla, en ningún nivel_aclaracion (owner 2026-08-03 — ver _clarifyHasTable arriba).
+  const clarifyHasTable = _clarifyHasTable(narration, mode);
+  if (clarifyHasTable) advisories.push({ kind: "clarify-con-tabla", detail: "el contrato de clarify prohíbe tablas en cualquier nivel_aclaracion — como mucho 1 cifra (nivel 1) o cero (nivel 2+)" });
+  // serie temporal sin % de variación (owner 2026-08-05 — ver _temporalMissingVariation arriba): AVISO + alimenta
+  // `degraded`, NUNCA `violations`/`ok` — misma familia que decision-tabla-primero/clarify-con-tabla.
+  const temporalMissingVariation = _temporalMissingVariation(narration, results);
+  if (temporalMissingVariation) advisories.push({ kind: "temporal-sin-variacion", detail: "corrió trend pero la narración no cita ningún % de variación (mejor/peor mes vs año anterior o presupuesto)" });
 
   const ok = violations.length === 0;   // solo cifra/conteo/entidad BLOQUEAN
   // degraded (owner 2026-08-03): NUNCA afecta `ok`/`violations` — ver el comentario junto a _repetitionVerbatim.
   // Solo es true cuando `ok` YA es true (una respuesta con violations reales no necesita una señal aparte: ya se
   // reintenta por otro motivo) Y se detectó (a) un tramo verbatim de 8+ palabras contra una narración propia
-  // reciente, o (b) una tabla que abre la respuesta en mode=decision (ver _decisionOpensWithTable arriba).
-  const degraded = ok && (verbatimRepeats.length > 0 || decisionTableFirst);
+  // reciente, (b) una tabla que abre la respuesta en mode=decision, (c) CUALQUIER tabla en mode=clarify, o (d) una
+  // serie temporal sin ningún % de variación citado (ver los 4 detectores arriba).
+  const degraded = ok && (verbatimRepeats.length > 0 || decisionTableFirst || clarifyHasTable || temporalMissingVariation);
   return { ok, verdict: ok ? "fiel" : violations[0].kind, violations, advisories, degraded };
 }

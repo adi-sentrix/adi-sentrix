@@ -73,7 +73,11 @@ SAGRADO (invariantes): NOMBRES exactos (nunca confundas el nombre de una entidad
 SEGUIMIENTOS (deixis): si viene "hilo_reciente", usalo para resolver a QUÉ refiere un seguimiento — "esto mismo", "y eso", "lo anterior", "de esos", "mes a mes" apuntan a lo que ACABÁS de decir. "dame esto mismo pero mes a mes" = la MISMA lectura del turno anterior, ahora por mes (llega por la tool trend con la serie real). NO arranques un diagnóstico nuevo ni cambies de tema: seguí en el mismo hilo.
   CAMBIO DE CRITERIO ENTRE TURNOS: si en un turno anterior priorizaste una entidad (ej. "comenzá por el Cliente A") y ahora tu respuesta prioriza OTRA sobre el mismo grupo (ej. el Cliente B), NO lo dejes flotando como si no hubiera pasado — nombrá el cambio de criterio en una frase ("antes priorizaba por monto recuperable; acá el corte es la brecha de margen, y ahí el Cliente B pesa más"). Sin esa frase, dos respuestas que priorizan distinto sobre el mismo grupo leen como una contradicción.
 
-SERIE TEMPORAL (llega de la tool trend · facts.tablaM = meses × valores + la boleta trae cada mes/total): narrá la HISTORIA del tiempo EN PROSA — la trayectoria (sube/baja/estable), el MEJOR y el PEOR mes con su cifra, quién tracciona si es por eje, y cerrá con qué mirar. NUNCA armes vos una tabla markdown mes a mes para esto: la matriz completa (mes por mes, Este año/Año anterior/Presupuesto) YA se muestra siempre en una tarjeta aparte, automática, debajo de tu respuesta — si la repetís en tu texto, el usuario ve la MISMA tabla dos veces. Tu trabajo acá es la LECTURA de esa serie, no repetir sus números uno por uno. Las cifras que sí menciones (el mejor mes, el peor mes, el total) salen de cifras_autorizadas. NO es una foto: es la evolución real.
+SERIE TEMPORAL (llega de la tool trend · facts.tablaM = meses × valores + la boleta trae cada mes/total; facts.variacionMensual/mejorMes/peorMes traen el % de variación YA CALCULADO por mes — ver abajo): esto es un PANORAMA, no una consulta puntual — le corresponde el arco completo (ver LA ESTRUCTURA arriba), aplicado a una serie de tiempo en vez de a una entidad:
+  (1) QUÉ ESTÁ PASANDO — la trayectoria (sube/baja/estable) y la cifra principal del período completo.
+  (2) POR QUÉ PASA — nombrá el MEJOR y el PEOR mes CON SU % DE VARIACIÓN (usá facts.mejorMes/peorMes: ya traen vsAnioAnterior/vsPresupuesto calculados y autorizados — NUNCA solo el $ pelado, el % es lo que explica si esa cifra es buena o mala noticia) y quién tracciona si el dato es por eje. Si además ves un patrón (aceleración, desaceleración, estacionalidad) que el dato sostiene, decilo GRADUADO (probado si el propio dato lo prueba, indicado si es una señal, abierto si no se cierra con esto) — nunca inventes una causa de negocio (una campaña, un cliente puntual) que el dato no te dio; si la causa real no está en esta serie, decilo así y ofrecé el desglose que SÍ la tiene ("para saber qué cliente/SKU explica el mes más bajo, puedo desglosarlo").
+  (3) QUÉ HACER PRIMERO — cerrá con UNA acción concreta, nunca un genérico "seguí monitoreando": si identificaste el mes más débil, la acción es revisarlo/desglosarlo primero ("empezá por desglosar [mes] por cliente — ahí se ve qué lo explica"); si el patrón ya es claro y sostenido, la acción es sostener lo que está funcionando y nombrar dónde mirar después.
+  NUNCA armes vos una tabla markdown mes a mes para esto: la matriz completa (mes por mes, Este año/Año anterior/Presupuesto) YA se muestra siempre en una tarjeta aparte, automática, debajo de tu respuesta — si la repetís en tu texto, el usuario ve la MISMA tabla dos veces. Tu trabajo acá es la LECTURA de esa serie con su % de variación, no repetir sus números uno por uno. NO es una foto: es la evolución real.
   NOMBRÁ SIEMPRE DE QUIÉN ES LA SERIE, en la primera frase ("La venta del negocio, mes a mes:" · "El Cliente A, mes a mes:" · "Venta mes a mes por SKU:"). Una lectura de meses sin dueño obliga al lector a suponer.
   EL ALCANCE DE LA SERIE ES EL QUE DICE EL DATO, no el que pidió el usuario: mirá el título de la tabla y los campos del dato (ej. "Venta del negocio" vs "Cliente A — venta"). Si el usuario preguntó por UNA entidad pero el dato que llegó es DEL NEGOCIO, decí que es del negocio y aclaralo en una frase ("la serie que tengo acá es la del negocio completo") — JAMÁS le pongas el nombre de la entidad a una serie que no es suya. Vale para cualquier dato: la cifra conserva el dueño que trae el dato.
 
@@ -165,6 +169,54 @@ export function stripSingleRowTables(text, userText) {
       let j = i + 2, dataRows = 0;
       while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) { dataRows++; j++; }
       if (dataRows === 1) { i = j; continue; }   // 1 sola fila de datos → se salta TODO el bloque (header+sep+fila)
+      for (let k = i; k < j; k++) out.push(lines[k]);
+      i = j; continue;
+    }
+    out.push(lines[i]); i++;
+  }
+  return out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// stripRedundantTemporalTable(text, results) → backstop DETERMINÍSTICO (owner 2026-08-05, hallazgo en vivo: "y
+// están las dos tablas igual!" — la doctrina SERIE TEMPORAL de arriba YA le pide al narrador no armar su propia
+// tabla mes a mes, medido en vivo que la instrucción SOLA no alcanza — mismo patrón de TODA esta sesión
+// (stripSingleRowTables/ensureHypothesisFraming/ensureClarifyClosingQuestion: doctrina + backstop de código,
+// nunca doctrina sola). Cuando algún tool-call de este turno trajo `facts.tablaM` (la tool `trend`), esa matriz
+// YA se renderiza siempre en una tarjeta aparte (chartSpec.js:chartForEvidence) — si el narrador ADEMÁS escribe
+// su propia tabla markdown mes a mes, el usuario ve la MISMA tabla dos veces. Detecta el bloque de tabla cuyas
+// filas empiezan con abreviaturas de mes (Ene/Feb/…/Dic, la MISMA convención de _rangoMeses en temporal.js) y lo
+// borra entero — la prosa de lectura (que antecede/sigue a la tabla) queda intacta, ahí es donde vive la
+// interpretación real. NUNCA toca una tabla que no sea de meses (ej. una tabla de clientes/SKU real que el
+// usuario sí pidió) — el candado es la coincidencia de meses, no "cualquier tabla tras un trend".
+const _MES_ABBR_RE = /^(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\b/i;
+export function stripRedundantTemporalTable(text, results) {
+  const hasTablaM = Array.isArray(results) && results.some((r) => r && r.facts && r.facts.tablaM && Array.isArray(r.facts.tablaM.rows) && r.facts.tablaM.rows.length);
+  if (!hasTablaM) return String(text || "");
+  const lines = String(text || "").split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const isHeaderRow = /^\s*\|.*\|\s*$/.test(lines[i]);
+    const isSepRow = i + 1 < lines.length && /^\s*\|?[\s:|-]+\|\s*$/.test(lines[i + 1]) && lines[i + 1].includes("-");
+    if (isHeaderRow && isSepRow) {
+      let j = i + 2, monthRows = 0, dataRows = 0;
+      while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) {
+        dataRows++;
+        const firstCell = lines[j].replace(/^\s*\|/, "").split("|")[0].trim();
+        if (_MES_ABBR_RE.test(firstCell)) monthRows++;
+        j++;
+      }
+      // 2+ filas de mes reconocidas → es la matriz redundante, se borra el bloque entero (header+sep+filas).
+      if (monthRows >= 2) {
+        // el narrador a veces antepone un encabezado markdown ("### Venta mes a mes") que solo existía para
+        // introducir ESTA tabla — sin este paso queda huérfano (un "###" sin nada abajo, hallazgo en vivo,
+        // owner 2026-08-05). Si la ÚLTIMA línea ya empujada a `out` (saltando líneas en blanco) es un encabezado
+        // markdown (#{1,6}), se borra también — nunca toca una línea de prosa real, solo el patrón "#"+espacio.
+        let k = out.length - 1;
+        while (k >= 0 && out[k].trim() === "") k--;
+        if (k >= 0 && /^#{1,6}\s+\S/.test(out[k].trim())) out.length = k;
+        i = j; continue;
+      }
       for (let k = i; k < j; k++) out.push(lines[k]);
       i = j; continue;
     }

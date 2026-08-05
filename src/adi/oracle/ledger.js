@@ -25,7 +25,14 @@ export function createLedger() {
 // las cifras de los facts es SEGURO (son del motor, no inventadas): el guard sigue bloqueando derivaciones (sumas
 // que NO están en facts) y mala atribución (por-call-scope). Reusa las cifras ya FORMATEADAS de los facts + usd crudo.
 const _moneyE = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
-const _FIGRE = /-?\$\s?\d[\d.,]*\s*[KMB]?|\d[\d.,]*\s*%|\d[\d.,]*\s*(?:x|×)|\b\d+\s*d(?:[ií]as?)?\b/gi;
+// FIX (owner 2026-08-05, hallazgo en vivo agregando variacionMensual a trend): la rama "%" NO capturaba el signo
+// negativo ("-3.2%" solo matcheaba "3.2%", perdiendo el signo) — a diferencia de la rama "$" que sí lo hace
+// (`-?\$...`). Una cifra de facts formateada como string negativo (ej. una variación % que cae bajo presupuesto/
+// año anterior) quedaba autorizada como su valor POSITIVO — si el narrador citaba el signo real ("-3.2%"), el
+// canon de la narración (guardC/boleta.js parseFigures, que SÍ captura el signo) no coincidía con el canon
+// autorizado → falso "cifra-no-autorizada" en cualquier variación negativa. Mismo criterio que la rama "$", ahora
+// simétrico.
+const _FIGRE = /-?\$\s?\d[\d.,]*\s*[KMB]?|-?\d[\d.,]*\s*%|\d[\d.,]*\s*(?:x|×)|\b\d+\s*d(?:[ií]as?)?\b/gi;
 const _unitOf = (v) => /%/.test(v) ? "pct" : /(?:×|\dx)\b/i.test(v) ? "ratio" : /\d\s*d(?:[ií]as?)?\b/i.test(v) ? "days" : "money";
 // crudos → unidad por NOMBRE de clave (días/%/x · el $ se omite: la escala K/crudo es ambigua sin el formateo del composer)
 const _KEYUNIT = [[/doh|d[ií]as/i, "days"], [/rotacion/i, "ratio"], [/margen|carga|benchmark|rebate|share|participaci|concentraci|cobertura|variacion|yoy|crecimiento|pct|porcentaje/i, "pct"]];
