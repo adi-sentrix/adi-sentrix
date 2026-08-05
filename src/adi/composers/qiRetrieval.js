@@ -1013,15 +1013,12 @@ export function composeRetrieval(qi, scenario, opts) {
     ril_enrichedFoco = foco;
   }
 
-  // Confianza · referencia escenario + dataset
-  const confianza = `Cifras runtime del escenario ${scenarioLabel}. ${sortedRows.length} ${dimLabel.toLowerCase()}(s) en la respuesta.`;
-
   // Build opener · Lectura insertada entre tabla y Foco si presente
   let opener;
   if (ril_readingLine) {
-    opener = `${header}\n\n${table}\n${ril_readingLine}\n\n${ril_enrichedFoco}\n\n${confianza}`;
+    opener = `${header}\n\n${table}\n${ril_readingLine}\n\n${ril_enrichedFoco}`;
   } else {
-    opener = `${header}\n\n${table}\n${ril_enrichedFoco}\n\n${confianza}`;
+    opener = `${header}\n\n${table}\n${ril_enrichedFoco}`;
   }
 
   // Suggestions contextuales · 3 invitaciones a profundizar

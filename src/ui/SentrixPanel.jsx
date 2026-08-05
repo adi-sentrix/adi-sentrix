@@ -1517,7 +1517,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
               {resumen.focos.map((f, i) => (
                 <button key={i} onClick={onAsk ? () => onAsk(_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?") : undefined}
-                  title={onAsk ? `Preguntale a ADI: ${_MESA_FOCO_ASK[f.detector]}` : undefined}
+                  title={onAsk ? `Preguntale a ADI: ${_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?"}` : undefined}
                   style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
@@ -1822,7 +1822,7 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
     {/* ── ¿Y SI…? · cada línea pregunta su proyección + la meta de venta ── */}
     {(mr.simulaciones || []).length > 0 && (
       <div>
-        <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — aritmética directa de la cascada, sin predecir el efecto operativo. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Tocá una línea y ADI corre esa cuenta al lado."}/>
+        <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — el cálculo directo de ese cambio, sin predecir si es viable operarlo así. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Tocá una línea y ADI corre esa cuenta al lado."}/>
         <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
           {mr.simulaciones.map((s) => (
             <AskRow key={s.key} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>

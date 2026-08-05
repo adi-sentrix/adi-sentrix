@@ -110,10 +110,7 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
 
   const foco = `${focoText}`;
 
-  // ── Confianza
-  const confianza = `*Confianza alta · las ${top3.length} instancias y la materialidad son determinísticas sobre el escenario activo.*`;
-
-  const opener = `${evidencia}\n\n${lectura}\n\n${foco}\n\n${confianza}`;
+  const opener = `${evidencia}\n\n${lectura}\n\n${foco}`;
 
   // ── Suggestions accionables (entidades reales)
   const suggestions = [
@@ -250,10 +247,7 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
 
   const foco = `${focoText}`;
 
-  // ── Confianza
-  const confianza = `*Confianza alta · la relación crecimiento-margen es observable en el escenario activo.*`;
-
-  const opener = `${evidencia}\n\n${lectura}\n\n${foco}\n\n${confianza}`;
+  const opener = `${evidencia}\n\n${lectura}\n\n${foco}`;
 
   // ── Suggestions accionables (entidades reales)
   const suggestions = [
@@ -297,9 +291,7 @@ export function composeCustomerDependencyRiskResponse(m, scan, scenarioId) {
 
   const M4 = `La palanca prioritaria es diversificación proactiva de Tier 2 mientras los Tier 1 siguen activos. El objetivo no es reemplazar volumen, es construir capacidad comercial alternativa con perfil de margen sano antes de que la salida sea forzada.`;
 
-  const confianza = `*Confianza alta · la cuantificación de exposición es determinística sobre el escenario activo.*`;
-
-  const opener = [M1, M2, M3, M4, confianza].join("\n\n");
+  const opener = [M1, M2, M3, M4].join("\n\n");
 
   const suggestions = [
     `Qué pasa si pierdo a los tres simultáneamente`,
@@ -335,7 +327,7 @@ export function composeMechanismInactiveResponse(mechanismId, scan) {
     mensaje = `${mech.nombre_capitalizado} no presenta instancias activas en el escenario actual.`;
   }
 
-  const opener = `${mensaje}\n\n*Confianza ${mechanismId === "trapped_capital" ? "media" : "alta"}.*`;
+  const opener = mensaje;
 
   return { opener, suggestions: [] };
 }
@@ -547,8 +539,6 @@ export function composeMechanismScan(scenarioId) {
 
     opener += "\n\n" + inactivosTxt;
   }
-
-  opener += `\n\n*Confianza alta · mecanismos activos con cifras determinísticas del escenario.*`;
 
   const suggestions = activos.length > 0 ? [
     `Profundizar en ${activos[0].m.nombre}`,

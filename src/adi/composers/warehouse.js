@@ -73,7 +73,7 @@ export function composeWarehouseAnalysis(scenarioId, params) {
 
     // Guard defensivo: si la sucursal no tiene SKUs en el dataset actual.
     if (agg.skus.length === 0) {
-      const opener = `${specificSucursal} no registra SKUs activos en el dataset actual. Las 4 sucursales canónicas (${SUCURSALES.join(", ")}) tienen distribución desigual del inventario.\n\n*Confianza alta · inventario distribuido desde el dataset base.*`;
+      const opener = `${specificSucursal} no registra SKUs activos en el dataset actual. Las 4 sucursales canónicas (${SUCURSALES.join(", ")}) tienen distribución desigual del inventario.`;
       return buildResponseContract({
         opener,
         // BRIEF N-bis · Tipo A puro · filtradas
@@ -154,8 +154,7 @@ export function composeWarehouseAnalysis(scenarioId, params) {
       focoText = `Estructura balanceada: ${specificSucursal} opera sin SKUs en estado crítico ni rotacionales destacados · la evolución mensual es la métrica de seguimiento natural.`;
     }
 
-    const confianza = `*Confianza alta · cifras determinísticas del inventario actual.*`;
-    const opener = `${evidencia}\n\n${lecturaCausal}\n\n${focoText}\n\n${confianza}`;
+    const opener = `${evidencia}\n\n${lecturaCausal}\n\n${focoText}`;
 
     // ── 8. Suggestions + SentrixAction
     const allSkus = agg.skus.map(s => s.sku);
@@ -270,8 +269,7 @@ export function composeWarehouseAnalysis(scenarioId, params) {
         : `Mecanismo disponible: ${sucursalCritica.sucursal} concentra mayor presión (${fmtK(_critVal)} · DOH ${sucursalCritica.dohPromedio}d) · zona estructural a profundizar antes que la palanca de redistribución o liquidación opere.`)
     : `Estructura balanceada: la distribución opera dentro del rango healthy · la evolución mensual es la métrica de seguimiento natural.`;
 
-  const confianza = `*Confianza alta · distribución determinística sobre el inventario actual.*`;
-  const opener = `${evidencia}\n\n${lecturaCausal}\n\n${focoText}\n\n${confianza}`;
+  const opener = `${evidencia}\n\n${lecturaCausal}\n\n${focoText}`;
 
   // ── 7. Suggestions + SentrixAction
   const suggestions = [

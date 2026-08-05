@@ -394,7 +394,6 @@ export function composeRankingExtremes({
     } else if (metric === "stockUSD" && e.doh != null) {
       opener += `\n\n${e[nameField]} concentra capital con ${e.doh}d de cobertura.`;
     }
-    opener += `\n\n*Confianza alta · cálculo determinístico sobre dataset runtime.*`;
   } else {
     // topN ≥ 2 · listado
     const _anexaHdr = anexaSpec ? ` (con ${_metricNounEs(anexaMetric)})` : "";
@@ -409,7 +408,6 @@ export function composeRankingExtremes({
       }
       opener += line + `\n`;
     });
-    opener += `\n*Confianza alta · cálculo determinístico sobre dataset runtime.*`;
   }
 
   // Sentrix action · decisión D7

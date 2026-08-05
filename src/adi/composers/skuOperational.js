@@ -162,10 +162,7 @@ export function composeSkuOperationalAnalysis(scenarioId) {
 
   const m3 = `${focoText}`;
 
-  // ── 7. Confianza
-  const confianza = `*Confianza alta · cifras determinísticas sobre el inventario actual del escenario.*`;
-
-  const opener = `${m1}\n\n${m2}\n\n${m3}\n\n${confianza}`;
+  const opener = `${m1}\n\n${m2}\n\n${m3}`;
 
   // ── 8. Suggestions accionables derivadas (entidades reales)
   const suggestions = [

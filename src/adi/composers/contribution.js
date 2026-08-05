@@ -26,7 +26,7 @@ export function composeClientContributionRanking(scenarioId) {
 
   if (ranked.length === 0) {
     return buildResponseContract({
-      opener: "El portafolio no registra clientes con contribución activa en el dataset actual.\n\n*Confianza alta.*",
+      opener: "El portafolio no registra clientes con contribución activa en el dataset actual.",
       suggestions: filterTextualSuggestions(["¿Qué productos dejan más plata?", "¿Cómo está la rotación?", "Cuál es la cobertura"]),
       sentrixAction: null,
       decision: null,
@@ -80,11 +80,10 @@ export function composeClientContributionRanking(scenarioId) {
   } else if (recuperable) {
     focoText = `${recuperable.nombre} opera con carga sobre mejor práctica (${recuperable.pctRebate}%) · la palanca comercial sobre este cliente tiene espacio cuantificable de recuperación de contribución.`;
   } else {
-    focoText = `${top1.nombre} opera como cuenta ancla del top 3 · la base de diversificación está concentrada en pocas cuentas.`;
+    focoText = `${top1.nombre} es, por lejos, la cuenta más grande del top 3 · la cartera depende de pocos clientes para sostener la contribución.`;
   }
 
-  const confianza = `*Confianza alta · ranking determinístico sobre cartera mensual.*`;
-  const opener = `${evidencia}\n\n${lecturaCausal}\n\n${focoText}\n\n${confianza}`;
+  const opener = `${evidencia}\n\n${lecturaCausal}\n\n${focoText}`;
 
   // ── 6. Suggestions + SentrixAction
   const suggestions = [

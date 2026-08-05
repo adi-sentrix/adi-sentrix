@@ -159,7 +159,7 @@ function composePriorityRecommendationV2(scenarioId) {
   // Total fallback: cero cliente Tier 1 con presión en escenario.
   if (!cliente_m || !cliente_v) {
     return {
-      opener: "El detalle de priorización requiere identificación de la cuenta con mayor peso económico en el escenario activo.\n\n*Confianza media · lectura estructural · requiere drilldown por cliente.*",
+      opener: "El detalle de priorización requiere identificación de la cuenta con mayor peso económico en el escenario activo.",
       // BRIEF N-bis · Tipo A puro · suggestions filtradas
       suggestions: filterTextualSuggestions(["Ver por cuenta", "Ver capital detenido por categoría", "Comparar Tier 1"]),
       sentrixAction: null,
@@ -192,11 +192,8 @@ function composePriorityRecommendationV2(scenarioId) {
   // ── BLOQUE 5 · QUÉ HARÍA (D2 LOCKED · paralelismo verbal "Negociaría... revisaría") ─
   const b5 = `Negociaría primero la carga comercial de ${cliente_nombre} · luego revisaría inventario · finalmente canal digital.`;
 
-  // ── BLOQUE 6 · CONFIANZA (compacto · Executive V1) ────────────────────
-  const b6 = `*Confianza alta · cifras runtime sobre escenario activo.*`;
-
   const _teaser = composeBusinessThesisOpener(scenarioId) || `Si este mes solo pudieras mover una pieza, empezaría por esta.`;
-  const opener = [_teaser, b2, b3, b4, b5, b6].join("\n\n");
+  const opener = [_teaser, b2, b3, b4, b5].join("\n\n");
 
   // Suggestions ajustadas (D3 · voz controller).
   const suggestions = [
@@ -253,9 +250,8 @@ export function composeCrossDomainResponse(detection, scenarioId) {
   const m2 = composeM2ComoOpera(archetype, domains, scenarioId);
   const m3 = composeM3ComoSeConectan(archetype, domains, evidence, scenarioId);
   const m4 = composeM4QuePriorizar(archetype, domains, scenarioId);
-  const confianza = composeCrossDomainConfianza(archetype, evidence);
 
-  const opener = [m1, m2, m3, m4, confianza]
+  const opener = [m1, m2, m3, m4]
     .filter(p => p && p.length > 0)
     .join("\n\n");
 
@@ -481,28 +477,6 @@ function composeM4QuePriorizar(archetype, domains, scenarioId) {
   }
 
   return `La palanca prioritaria requiere análisis específico del dominio detectado con mayor materialidad activa en el escenario.`;
-}
-
-// ─── CONFIANZA ──────────────────────────────────────────
-
-function composeCrossDomainConfianza(archetype, evidence) {
-  if (!evidence.valid) {
-    return `*Confianza media · la lectura es estructural pero requiere drilldown por dimensión específica para precisión cuantitativa.*`;
-  }
-
-  if (archetype === "fuga_distribuida") {
-    return `*Confianza alta · el cruce contribución-capital se sostiene como mecanismo estructural en el escenario activo, con cifras determinísticas sobre carga comercial.*`;
-  }
-
-  if (archetype === "exposure_analysis") {
-    return `*Confianza alta · la cuantificación de exposición es determinística sobre el escenario activo. La estimación de reemplazabilidad se sostiene en participación actual de Tier 2 y crecimiento histórico observado.*`;
-  }
-
-  if (archetype === "priority_recommendation") {
-    return `*Confianza alta · la priorización se sostiene en evidencia observable del escenario activo, con impacto cuantificado sobre la cuenta de mayor materialidad de la cartera.*`;
-  }
-
-  return `*Confianza alta · la lectura cross-domain se sostiene en evidencia observable del escenario activo.*`;
 }
 
 // ─── SUGGESTIONS ────────────────────────────────────────

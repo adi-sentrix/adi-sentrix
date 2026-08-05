@@ -59,7 +59,6 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     } else {
       opener += `Está en línea con el promedio · sin presión particular de renegociación pero tampoco margen estructural.`;
     }
-    opener += `\n\n*Confianza alta · cifras runtime sobre escenario ${scenario}.*`;
 
     suggestions = filterTextualSuggestions([
       `Compara la carga de ${c.nombre} con el resto`,
@@ -99,7 +98,6 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     } else {
       opener += `Margen razonable pero hay espacio · existen 2 palancas disponibles: composición del mix y carga comercial.`;
     }
-    opener += `\n\n*Confianza alta · cifras runtime sobre escenario ${scenario}.*`;
 
     suggestions = filterTextualSuggestions([
       `¿Por qué ${c.nombre} está bajo benchmark?`,
@@ -137,7 +135,6 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     } else {
       opener += `Aporte relevante pero no dependiente · la cartera tiene resiliencia ante variaciones de esta cuenta.`;
     }
-    opener += `\n\n*Confianza alta · cifras runtime sobre escenario ${scenario}.*`;
 
     suggestions = filterTextualSuggestions([
       `¿Qué pasaría si pierdo a ${c.nombre}?`,
@@ -163,7 +160,6 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
       opener += `El cliente opera en ${c.sfamilia} con marca principal ${c.marca}. `;
     }
     opener += `Cada $1 vendido aporta $${ratioContrib.toFixed(2)} de contribución después de carga.`;
-    opener += `\n\n*Confianza alta · cifras runtime sobre escenario ${scenario}.*`;
 
     suggestions = filterTextualSuggestions([
       `¿Cuánto creció ${c.nombre} YoY?`,

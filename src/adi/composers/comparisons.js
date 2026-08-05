@@ -132,8 +132,6 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
     }
   }
 
-  opener += `\n\n*Confianza alta · cifras runtime sobre escenario ${scenario}.*`;
-
   const suggestions = filterTextualSuggestions([
     `¿Por qué ${A.nombre} pierde margen?`,
     `¿Qué pasaría si pierdo a ${A.nombre}?`,

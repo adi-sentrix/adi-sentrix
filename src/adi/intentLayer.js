@@ -118,11 +118,10 @@ export function resolveIntentLayer(text, scenario, context) {
 }
 
 export function _routeIntentToComposer(intent, scenario) {
-  const _confLine = "\n\nConfianza determinística: alta.";
   const _wrap = (res) => {
     if (!res) return null;
-    if (typeof res === "string") return { opener: res + _confLine, suggestions: [], sentrixAction: null };
-    return { opener: (res.opener || "") + _confLine,
+    if (typeof res === "string") return { opener: res, suggestions: [], sentrixAction: null };
+    return { opener: res.opener || "",
       suggestions: res.suggestions || [], sentrixAction: res.sentrixAction || null };
   };
   const mod = intent.module;
@@ -138,13 +137,13 @@ export function _routeIntentToComposer(intent, scenario) {
   if (mod === "negocio") {
     const thesis = (typeof composeBusinessThesisOpener === "function") ? composeBusinessThesisOpener(scenario) : null;
     if (thesis) return _wrap(thesis);
-    return { opener: "El panorama del negocio se arma sobre tres módulos: ventas, margen e inventario. Decime cuál querés y te doy la vista completa." + _confLine,
+    return { opener: "El panorama del negocio se arma sobre tres módulos: ventas, margen e inventario. Decime cuál querés y te doy la vista completa.",
       suggestions: (typeof filterTextualSuggestions === "function" ? filterTextualSuggestions(["Las ventas", "El margen", "El inventario"]) : ["Las ventas", "El margen", "El inventario"]),
       sentrixAction: null };
   }
   // precio: NO hay panorama de precio (es palanca sobre una entidad · §7 declara, no fabrica)
   if (mod === "precio") {
-    return { opener: "El precio en ADI se analiza como palanca sobre una entidad puntual, no como panorama general. Puedo darte el panorama de ventas, margen o inventario, o el efecto de un cambio de precio sobre un cliente, familia o SKU." + _confLine,
+    return { opener: "El precio en ADI se analiza como palanca sobre una entidad puntual, no como panorama general. Puedo darte el panorama de ventas, margen o inventario, o el efecto de un cambio de precio sobre un cliente, familia o SKU.",
       suggestions: (typeof filterTextualSuggestions === "function" ? filterTextualSuggestions(["El margen", "Las ventas"]) : ["El margen", "Las ventas"]),
       sentrixAction: null };
   }

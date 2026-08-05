@@ -153,12 +153,6 @@ export function getClientDeepDive(clientName, scenarioId, context = {}) {
     recommendation = composeRecommendation(trace, profile, context);
   }
 
-  // BRIEF #12-C.6 · Confianza block (italic, separate from recommendation)
-  let confianza = null;
-  if (brevity === "medium" || brevity === "expanded") {
-    confianza = composeConfianza(trace, profile, context);
-  }
-
   // ════════════════════════════════════════════════════════════════════════
   // BRIEF #13 · EXECUTIVE STORY RULES V1 · PILOTO
   //
@@ -183,7 +177,7 @@ export function getClientDeepDive(clientName, scenarioId, context = {}) {
 
   // Final assembly · double-newline between movements, skip empty blocks
   // Story Rules block (#13) se inserta entre proyecta y concluye (LOCKED).
-  const parts = [calcula, interpreta, contextualiza, proyecta, storyBlock, concluye, recommendation, confianza]
+  const parts = [calcula, interpreta, contextualiza, proyecta, storyBlock, concluye, recommendation]
                   .filter(p => p && p.length > 0);
   const opener = parts.join("\n\n");
 
@@ -836,58 +830,6 @@ export function composeRecommendation(trace, profile, context = {}) {
   return _voz2Interp
     ? `**Mecanismos disponibles**\n\n${mech}`
     : `**Recomendación**\n\n${action} ${reason} ${risk}`;
-}
-
-export function composeConfianza(trace, profile, context = {}) {
-  const templates = trace.layers.templates;
-
-  // Same virtuous-side helper
-  const isVirtuousSideTemplate = (t) => {
-    if (t.id === "hidden_profitability") return true;
-    if (t.id === "dependency_risk") {
-      const ev = t.evidence || {};
-      const isUnique = ev.isUnique === true;
-      const lowParticipation = (ev.participacion === undefined) || ev.participacion < 15;
-      return isUnique && lowParticipation;
-    }
-    return false;
-  };
-
-  const negativeTemplates = templates.filter(t => !isVirtuousSideTemplate(t));
-  const hasHidden = templates.some(t => t.id === "hidden_profitability");
-  const hasNegative = negativeTemplates.length > 0;
-  const variacion = trace.layers.primitives.compareVsLastPeriod.evidence.deltaPct;
-  const gapBp = trace.layers.primitives.compareVsBenchmark.evidence.gap;
-
-  // Determine confidence level + backing statement based on branch
-  let level = "alta";
-  let backing = "";
-
-  // Decline-sano branch (evaluated first to align with composeInterpreta order)
-  if (variacion < -5 && gapBp <= 0) {
-    level = "media";
-    backing = `La caída de volumen es consistente, pero todavía no hay evidencia suficiente para confirmar una tendencia estructural.`;
-  }
-  // Virtuous branch
-  else if (hasHidden && !hasNegative) {
-    level = "alta";
-    backing = `La combinación de margen, carga comercial y crecimiento de ${trace.client} se sostiene como excepción consistente en el histórico de la cartera.`;
-  }
-  // High severity actionable branch
-  else if (negativeTemplates.some(t => t.severity === "high")) {
-    level = "alta";
-    backing = `La relación entre carga comercial, benchmark y deterioro de margen se repite consistentemente en el histórico reciente de la cartera.`;
-  }
-  // Medium severity branch
-  else if (negativeTemplates.length >= 2) {
-    level = "media";
-    backing = `Los indicadores de presión son consistentes con el perfil de la cuenta, aunque la magnitud individual de cada tensión es moderada.`;
-  }
-  else {
-    return null;
-  }
-
-  return `*Confianza ${level}. ${backing}*`;
 }
 
 export function hashClientName(name) {

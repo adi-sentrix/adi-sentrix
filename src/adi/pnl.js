@@ -1299,7 +1299,7 @@ export function composePnl(pi, ctx = null, state = {}) {
       // el pedido se entiende y se responde honesto — JAMÁS prorratear sobre venta que el dato no desglosa.
       const covered = buildPnlCascade(scenario, null, { dimension: eje }).porEntidad.map((x) => x.nombre);
       return _resp(
-        `El P&L de ${pi.entidad} no lo puedo armar con rigor: el P&L ancla en la venta desglosada por ${_EJE_LBL(_BASE_EJE).sing}, y ${pi.entidad} no tiene esa venta en el dato — prorratear tus gastos ahí sería inventar. Sí puedo darte su margen o su contribución como siempre, o el P&L de ${covered.length ? covered.slice(0, 3).join(", ") : _dondeSi()}. ¿Cuál te sirve?`,
+        `El P&L de ${pi.entidad} no lo puedo armar con rigor: el P&L se arma sobre la venta desglosada por ${_EJE_LBL(_BASE_EJE).sing}, y ${pi.entidad} no tiene esa venta en el dato — prorratear tus gastos ahí sería inventar. Sí puedo darte su margen o su contribución como siempre, o el P&L de ${covered.length ? covered.slice(0, 3).join(", ") : _dondeSi()}. ¿Cuál te sirve?`,
         { route: "pnl_reading", suggestions: [`¿Cómo está ${pi.entidad}?`, ...(covered.length ? [`P&L de ${covered[0]}`] : [])] }
       );
     }
@@ -1586,7 +1586,7 @@ export function composePnl(pi, ctx = null, state = {}) {
           _fMoneyK("Resultado del negocio con el supuesto", negocioB),
         ];
         return _resp(
-          `**Supuesto (local):** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% solo en ${e.nombre}.\n**Efecto directo:** su gasto de ${l.nombre.toLowerCase()} va de ${_moneyK(gA)} a ${_moneyK(gB)}, y su resultado ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(e.resultadoK)} (${_fmtPct(e.resultadoPct)}%) a ${_moneyK(resB)} (${_fmtPct(pctB)}% de su venta). El del negocio queda en ${_moneyK(negocioB)}.\n**Límite:** tu P&L declara ${l.nombre.toLowerCase()} global (${_fmtPct(l.pct)}% en toda la venta) — este supuesto es local y es aritmética, no contabilidad de ${e.nombre}.\n**Decisión:** si quieres moverlo de verdad en todo tu P&L, dímelo y dejo ${l.nombre.toLowerCase()} en ${_fmtPct(t)}% de forma global.`,
+          `**Supuesto (local):** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% solo en ${e.nombre}.\n**Efecto directo:** su gasto de ${l.nombre.toLowerCase()} va de ${_moneyK(gA)} a ${_moneyK(gB)}, y su resultado ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(e.resultadoK)} (${_fmtPct(e.resultadoPct)}%) a ${_moneyK(resB)} (${_fmtPct(pctB)}% de su venta). El del negocio queda en ${_moneyK(negocioB)}.\n**Límite:** tu P&L declara ${l.nombre.toLowerCase()} global (${_fmtPct(l.pct)}% en toda la venta) — este número es solo un estimado para ${e.nombre}, no tu contabilidad oficial de esa cuenta.\n**Decisión:** si quieres moverlo de verdad en todo tu P&L, dímelo y dejo ${l.nombre.toLowerCase()} en ${_fmtPct(t)}% de forma global.`,
           { route: "pnl_reading", suggestions: [`Cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%`, `P&L de ${e.nombre}`], bol, ev: { entidad: e.nombre, entityType: sEje || _BASE_EJE, dimension: sEje || _BASE_EJE } }
         );
       }
@@ -1605,7 +1605,7 @@ export function composePnl(pi, ctx = null, state = {}) {
       _fMoneyK("Resultado con el supuesto", sim.resultadoK), _fPct("Resultado con el supuesto %", sim.resultadoPct),
     ];
     return _resp(
-      `**Supuesto:** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% sobre la venta.\n**Efecto directo:** el gasto anual de ${l.nombre.toLowerCase()} va de ${_moneyK(gA.usdK)} a ${_moneyK(gB.usdK)}, y el resultado comercial ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(base.resultadoK)} (${_fmtPct(base.resultadoPct)}%) a ${_moneyK(sim.resultadoK)} (${_fmtPct(sim.resultadoPct)}% de la venta).\n**Límite:** es aritmética sobre tu supuesto declarado — no predice el efecto operativo de mover ${l.nombre.toLowerCase()}.\n**Decisión:** si te cierra, solo confírmalo y dejo ${l.nombre.toLowerCase()} en ${_fmtPct(t)}%.`,
+      `**Supuesto:** ${l.nombre.toLowerCase()} pasa de ${_fmtPct(l.pct)}% a ${_fmtPct(t)}% sobre la venta.\n**Efecto directo:** el gasto anual de ${l.nombre.toLowerCase()} va de ${_moneyK(gA.usdK)} a ${_moneyK(gB.usdK)}, y el resultado comercial ${dir} ${_moneyK(Math.abs(dK))}: de ${_moneyK(base.resultadoK)} (${_fmtPct(base.resultadoPct)}%) a ${_moneyK(sim.resultadoK)} (${_fmtPct(sim.resultadoPct)}% de la venta).\n**Límite:** este número sigue tu supuesto tal cual lo declaraste — no confirma que bajar ${l.nombre.toLowerCase()} a ${_fmtPct(t)}% sea viable en la operación real.\n**Decisión:** si te cierra, solo confírmalo y dejo ${l.nombre.toLowerCase()} en ${_fmtPct(t)}%.`,
       { route: "pnl_reading", suggestions: [`Cambia ${l.nombre.toLowerCase()} a ${_fmtPct(t)}%`], bol, ev: { dimension: _BASE_EJE } }
     );
   }

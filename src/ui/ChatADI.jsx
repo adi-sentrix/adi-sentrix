@@ -565,12 +565,16 @@ function ThinkingIndicator({ phase = 0 }) {
 function SourceBadge({ source }) {
   if (source !== "llm" && source !== "deterministico") return null;
   const isAI = source === "llm";
+  // owner 2026-08-05 ("conecta todo Sentrix con ADI... eso debe funcionar bien"): "determinístico" era una
+  // etiqueta SIEMPRE visible (no un tooltip) bajo cada respuesta no-narrada, en las 3 pestañas — jerga interna
+  // que nadie del negocio entiende, la misma familia del hallazgo "es aritmética" ya cerrado en pnl.js. "cálculo
+  // directo" comunica lo mismo (esta respuesta salió del motor, no la redactó un LLM) en lenguaje llano.
   return (
     <div style={{ marginLeft:44, marginTop:1, display:"flex", alignItems:"center", gap:6, opacity:0.72 }}
-      title={isAI ? "Redactado por el LLM sobre cifras validadas por ADI (number-guard OK · no inventa cifras)" : "Respuesta determinística de ADI (sin narración del LLM · o fallback)"}>
+      title={isAI ? "Redactado por el LLM sobre cifras validadas por ADI (nunca inventa cifras)" : "Respuesta calculada directamente por ADI, sin redacción de IA"}>
       <span style={{ width:5, height:5, borderRadius:"50%", background: isAI ? C.celeste : "rgba(255,255,255,0.3)", flexShrink:0 }}/>
       <span style={{ fontSize:9.5, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.6px", color:C.textMuted, textTransform:"uppercase" }}>
-        {isAI ? "narrado · IA" : "determinístico"}
+        {isAI ? "narrado · IA" : "cálculo directo"}
       </span>
     </div>
   );

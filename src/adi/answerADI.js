@@ -89,12 +89,6 @@ export function _finalize(resp, route, intentLabel, ctx, scenario, intent) {   /
       const _etlg = executiveThesisLineGenerator({ opener: text, suggestions: resp.suggestions, sentrixAction: resp.sentrixAction }, _meta, scenario);
       if (_etlg && _etlg.shouldApply === true && typeof _etlg.thesisLine === "string" && _etlg.thesisLine.length > 0) {
         text = _etlg.thesisLine + "\n\n" + text;
-        // Lead module_overview: el piso lo rutea por composeModuleOverview directo (SIN el _confLine que
-        // _routeIntentToComposer agrega en el early-gate/late-layer modular). Remover "Confianza determinística: alta."
-        // solo en los lead-cases module_overview (los honest-fallback la conservan · ventas).
-        if (_tier === "module_overview") {
-          text = text.replace("\n\nConfianza determinística: alta.", "");
-        }
       }
     }
   }

@@ -102,8 +102,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
     }
 
     const m4 = `¿Qué quieres entender primero?`;
-    const confianza = `*Confianza alta · cifras runtime sobre escenario ${scenarioId}.*`;
-    const opener = [m1, m2, m3, m4, confianza].filter(Boolean).join("\n\n");
+    const opener = [m1, m2, m3, m4].filter(Boolean).join("\n\n");
 
     const suggestionsByScenario = {
       bonanza: [
@@ -185,8 +184,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
     }
 
     const m4 = `¿Por dónde profundizamos?`;
-    const confianza = `*Confianza alta · cifras runtime sobre escenario ${scenarioId}.*`;
-    const opener = [m1, m2, m3, m4, confianza].join("\n\n");
+    const opener = [m1, m2, m3, m4].join("\n\n");
 
     const suggestionsByScenario = {
       bonanza: [
@@ -259,8 +257,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
     }
 
     const m4 = `¿Por dónde quieres empezar a desarmar el problema?`;
-    const confianza = `*Confianza alta · cifras runtime sobre escenario ${scenarioId}.*`;
-    const opener = [m1, m2, m3, m4, confianza].filter(Boolean).join("\n\n");
+    const opener = [m1, m2, m3, m4].filter(Boolean).join("\n\n");
 
     const suggestionsByScenario = {
       bonanza: [
@@ -360,8 +357,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       b4 = `La dinámica de la cartera depende de tres cuentas.`;
       b5 = `Profundizaría primero por cuenta · luego por canal.`;
     }
-    const b6 = `*Confianza alta · cifras runtime sobre escenario ${scenarioId}.*`;
-    const opener = [b2, b3, b4, b5, b6].filter(Boolean).join("\n\n");
+    const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
     // Suggestions intactas (D5 mantener bitwise · legacy wording)
     const suggestionsByScenario = {
@@ -438,8 +434,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       b4 = `La presión sobre margen se concentra en Tier 1.`;
       b5 = `Negociaría primero la carga comercial de ${topRebate.nombre}.`;
     }
-    const b6 = `*Confianza alta · cifras runtime sobre escenario ${scenarioId}.*`;
-    const opener = [b2, b3, b4, b5, b6].filter(Boolean).join("\n\n");
+    const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
     const suggestionsByScenario = {
       bonanza: [
@@ -526,8 +521,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       b4 = `El stock detenido requiere lectura por familia.`;
       b5 = `Revisaría rotación por familia.`;
     }
-    const b6 = `*Confianza alta · cifras runtime sobre escenario ${scenarioId}.*`;
-    const opener = [b2, b3, b4, b5, b6].filter(Boolean).join("\n\n");
+    const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
     const suggestionsByScenario = {
       bonanza: [
