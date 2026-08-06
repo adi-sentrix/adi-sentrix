@@ -1279,11 +1279,15 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
 }
 
 // PERFIL ÚNICO (owner 2026-08-06): deep-link puro (evidencia de perfil → Mesa comercial con esa fila ya
-// seleccionada) — mismo patrón que pnlMesaLink. Solo client_dive marca `_profileRequest` (answerADI.js);
-// deliberadamente angosto — NO cualquier evidence.reading con entityType client (comparaciones/rankings
-// especiales también traen reading pero no deben perder su shell propio).
+// seleccionada) — mismo patrón que pnlMesaLink. Los DOS pipelines marcan `_profileRequest` (answerADI.js/
+// client_dive del piso legacy · sentrixEvidence.js/entityProfile de Arquitectura C — el que responde en vivo
+// hoy con LLM ON) — deliberadamente angosto en AMBOS: NO cualquier evidence.reading con entityType client
+// (comparaciones/rankings especiales también traen reading pero no deben perder su shell propio). entityType
+// llega "cliente" (oracle, dimension tal cual del plan) o "client" (legacy, ya canónico vía boleta.js) — mismo
+// dato, dos pipelines, sin normalizar entre sí.
 function clientMesaLink(e) {
-  if (!e || !e._profileRequest || !e.entidad || e.entityType !== "client") return null;
+  if (!e || !e._profileRequest || !e.entidad) return null;
+  if (e.entityType !== "client" && e.entityType !== "cliente") return null;
   return { cliente: e.entidad };
 }
 

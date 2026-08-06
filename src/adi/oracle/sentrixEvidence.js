@@ -382,9 +382,16 @@ export function buildOracleEvidence({ plan, results, figs, scenario, unsupported
   const merged = _mergeFacts(results);
   const reading = _entityReading(results, scenario);
   const calls = Array.isArray(plan && plan.calls) ? plan.calls : [];
+  // PERFIL ÚNICO (owner 2026-08-06): "perfil/avance/estado de X" → tool entityProfile (planPrompt.js lo documenta
+  // exacto: "cómo viene el margen de Falabella" → entityProfile). Mismo marcador `_profileRequest` que el pipeline
+  // legacy (answerADI.js/clientDive.js) — clientMesaLink (SentrixPanel.jsx) lo lee igual sin importar qué pipeline
+  // respondió. Gated a `reading` truthy: sin lectura de contribución no hay Ficha que mostrar (mismo criterio que
+  // el legacy).
+  const isProfileRequest = reading && calls.some((c) => c && c.tool === "entityProfile");
   return {
     ...merged,
     ...(reading ? { reading } : {}),
+    ...(isProfileRequest ? { _profileRequest: true } : {}),
     boleta: figs,
     periodo: scenario,
     oracle: true,
