@@ -1285,11 +1285,6 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
  * ADI lo desglosa al lado). Reusa todo lo construido: resumen ejecutivo, diagnose, buildConcentration, CuadroMando. */
 // registro EJECUTIVO (owner 2026-07-09): las preguntas que ADI ofrece van en lenguaje de directorio — nada de
 // "plata"/"me come"; el usuario puede ser coloquial, lo emitido por ADI no.
-const _MESA_FOCO_ASK = {
-  margen:  "¿Quiénes están bajo el margen mínimo?",
-  carga:   "¿Cuánta carga comercial puedo recuperar?",
-  capital: "¿Dónde está detenido mi capital?",
-};
 function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const scenario = (evidence && evidence.periodo) || "bonanza";
   const resumen = React.useMemo(() => buildResumenEjecutivo(scenario), [scenario]);
@@ -1371,7 +1366,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
-          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· ADI al lado — cada fila es una pregunta</span></div>
+          <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· datos organizados por vista — ADI explica cualquier punto que quieras entender</span></div>
           {/* SELECTOR DE CARA (owner 2026-07-15) · segmented discreto: la misma Mesa mirando lo comercial o el capital */}
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
             {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"]].map(([k, lbl]) => (
@@ -1394,13 +1389,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         ) : cara === "capital" ? (
           <MesaCapitalCara capital={capital} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={toggleWatch} wl={wl}/>
         ) : (<>
-        {/* ── 01 · QUÉ ESTÁ PASANDO · la lectura de ADI + los KPIs con su estado contra TU vara (Mesa 2.0) ── */}
+        {/* ── RESUMEN SUPERIOR · 4 KPI compactos con estado contra TU vara (Mesa 3.0 — owner 2026-08-06: "mesa de
+            control interactiva, no informe narrativo"). Sin prosa fija: la lectura de ADI vive en su respuesta,
+            no clavada acá. Cada tarjeta es una pregunta ("explicar" aparece al pasar el mouse). ── */}
         <div>
-          <MovHead num="01" title="Qué está pasando" def={"El pulso del período: la lectura de ADI y los KPIs con su estado contra TU benchmark (verde = en línea · ámbar = atención · rojo = fuera). El benchmark es tu criterio: si fijaste tu margen mínimo en la conversación, el semáforo lo respeta. Tocá un KPI y ADI abre ese frente al lado."}/>
-          <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
-            <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{resumen.lectura}
-          </div>
-          {/* KPIs del período (misma verdad que el hero) + semáforo y línea contra la vara · cada estado es una pregunta */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9 }}>
             {resumen.kpis.map((k, i) => { const e = mesa.estados[k.key]; const col = e ? semCol[e.estado] : null;
               // CONEXIÓN (cara Capital · owner 2026-07-15): el KPI de capital SALTA a la cara Capital (navega/informa,
@@ -1409,9 +1401,12 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
               return (
               <button key={i} onClick={esCapital ? () => setCara("capital") : onAsk && e ? () => onAsk(e.ask) : undefined}
                 title={esCapital ? "Ver la cara Capital de la Mesa" : onAsk && e ? `Preguntale a ADI: ${e.ask}` : undefined}
-                style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && e ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
-                onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
-                onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
+                style={{ position:"relative", background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && e ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
+                onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 1; }}
+                onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 0; }}>
+                {onAsk && e && !esCapital && (
+                  <span className="kpi-explain" style={{ position:"absolute", top:8, right:9, fontFamily:MONO, fontSize:8, letterSpacing:"0.4px", textTransform:"uppercase", color:C.celeste, opacity:0, transition:"opacity 0.15s" }}>explicar →</span>
+                )}
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
                   <span style={{ fontSize:10.5, color:C.textMuted }}>{k.label}</span>
                   {col && <span style={{ width:7, height:7, borderRadius:"50%", background:col, boxShadow:`0 0 6px ${col}aa`, flexShrink:0 }}/>}
@@ -1421,17 +1416,19 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
               </button>
             ); })}
           </div>
-          {/* EN ALERTA (PASE 2) · contador siempre visible con el $ en juego — los items del detector de margen
-              (misma cuenta del chevron rojo y del filtro "En alerta" del cuadro · una verdad) · click = pregunta */}
+        </div>
+        {/* ── ALERTAS · franja compacta tipo command center (comercial/margen + inventario/capital) — señales, no
+            bloques de reporte. Cada una lleva a la vista (Capital) o abre la explicación de ADI. ── */}
+        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
           <button onClick={onAsk ? () => onAsk(mesa.alertas.ask) : undefined}
             title={onAsk ? `Preguntale a ADI: ${mesa.alertas.ask}` : undefined}
-            style={{ display:"flex", alignItems:"center", gap:9, width:"100%", marginTop:9, padding:"9px 12px", borderRadius:10,
+            style={{ display:"flex", alignItems:"center", gap:9, width:"100%", padding:"9px 12px", borderRadius:10,
               border:`1px solid ${mesa.alertas.n ? "rgba(217,154,90,0.4)" : C.border}`, background: mesa.alertas.n ? "rgba(217,154,90,0.05)" : "rgba(255,255,255,0.015)",
               color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
             onMouseEnter={(ev) => { ev.currentTarget.style.background = mesa.alertas.n ? "rgba(217,154,90,0.1)" : "rgba(255,255,255,0.03)"; }}
             onMouseLeave={(ev) => { ev.currentTarget.style.background = mesa.alertas.n ? "rgba(217,154,90,0.05)" : "rgba(255,255,255,0.015)"; }}>
             <span style={{ width:7, height:7, borderRadius:"50%", background: mesa.alertas.n ? C.amber : C.green, boxShadow:`0 0 6px ${mesa.alertas.n ? C.amber : C.green}aa`, flexShrink:0 }}/>
-            <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color: mesa.alertas.n ? C.amber : C.textMuted, flexShrink:0 }}>En alerta</span>
+            <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color: mesa.alertas.n ? C.amber : C.textMuted, flexShrink:0 }}>Margen en riesgo</span>
             <span style={{ fontSize:12, color: mesa.alertas.n ? C.text : C.textSub, lineHeight:1.4 }}>{mesa.alertas.linea}</span>
             <InfoDot def={`Las cuentas con brecha material contra tu benchmark: margen ${POLICY.margenBrechaMaterial} pp o más abajo y monto material — la misma cuenta del diagnóstico y del chevron rojo del cuadro (una sola verdad). El valor en juego es la contribución no capturada anual de esas cuentas. Tocá la tira y ADI abre la lista; "verlas en el cuadro" filtra la grilla.`} align="left"/>
             {mesa.alertas.n > 0 && (
@@ -1441,19 +1438,19 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
               </span>
             )}
           </button>
-          {/* CONEXIÓN (cara Capital · owner 2026-07-15): "En alerta" gana la PATA DE INVENTARIO — los SKU críticos
-              con su capital detenido (el mismo detector del diagnose · una verdad). Click = pregunta; el salto a la
-              cara Capital navega (informa, no dispara). ADITIVA: la tira de margen de arriba queda intacta. */}
+          {/* CONEXIÓN (cara Capital · owner 2026-07-15): la pata de inventario — los SKU críticos con su capital
+              detenido (el mismo detector del diagnose · una verdad). Click = pregunta; el salto a la cara Capital
+              navega (informa, no dispara). */}
           {capital.alertas.n > 0 && (
             <button onClick={onAsk ? () => onAsk(capital.alertas.ask) : undefined}
               title={onAsk ? `Preguntale a ADI: ${capital.alertas.ask}` : undefined}
-              style={{ display:"flex", alignItems:"center", gap:9, width:"100%", marginTop:6, padding:"9px 12px", borderRadius:10,
+              style={{ display:"flex", alignItems:"center", gap:9, width:"100%", padding:"9px 12px", borderRadius:10,
                 border:"1px solid rgba(217,154,90,0.4)", background:"rgba(217,154,90,0.05)",
                 color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
               onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(217,154,90,0.1)"; }}
               onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(217,154,90,0.05)"; }}>
               <span style={{ width:7, height:7, borderRadius:"50%", background:C.amber, boxShadow:`0 0 6px ${C.amber}aa`, flexShrink:0 }}/>
-              <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color:C.amber, flexShrink:0 }}>Inventario</span>
+              <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color:C.amber, flexShrink:0 }}>Capital detenido</span>
               <span style={{ fontSize:12, color:C.text, lineHeight:1.4 }}>{capital.alertas.linea}</span>
               <InfoDot def={"La pata de inventario de la alerta: los SKU críticos del detector de capital (sin rotación según tu benchmark) con su capital detenido — la misma cuenta de la cara Capital y del diagnóstico (una sola verdad). Tocá la tira y ADI abre esa historia; \"ver la cara Capital\" cambia la cara de la Mesa."} align="left"/>
               <span onClick={(e) => { e.stopPropagation(); setCara("capital"); }} title="Ver la cara Capital de la Mesa"
@@ -1463,101 +1460,62 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             </button>
           )}
         </div>
-        {/* ── LO QUE YO SIGO (PASE 2) · la watchlist del owner: estrella en el cuadro → acá, contra tu vara ── */}
-        <div>
-          <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento: marcá la estrella en cualquier fila del cuadro (cliente, SKU, marca o bodega) y queda acá con su cifra clave y su estado contra tu benchmark — verde en línea, ámbar cerca, rojo abajo; en bodega el estado marca SKU críticos. Tocá un seguido y ADI lo abre al lado; la estrella lo saca de la lista. Se guarda en este navegador."}/>
-          {wl.items.length === 0 ? (
-            <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-              Todavía no seguís ninguna cuenta. Marcá la <span style={{ color:C.celeste }}>★</span> en cualquier fila del cuadro de mando y acá queda, con su estado contra tu benchmark.
-            </div>
-          ) : (
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
-              {wl.items.map((it) => { const col = it.vara ? semCol[it.vara] : null; return (
-                <button key={it.dim + "·" + it.nombre} onClick={onAsk && it.ask ? () => onAsk(it.ask) : undefined}
-                  title={onAsk && it.ask ? `Preguntale a ADI: ${it.ask}` : undefined}
-                  style={{ display:"flex", flexDirection:"column", alignItems:"stretch", gap:3, padding:"9px 11px", borderRadius:10, border:`1px solid ${C.border}`,
-                    background:"rgba(255,255,255,0.02)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left",
-                    cursor: onAsk && it.ask ? "pointer" : "default", transition:"background 0.15s" }}
-                  onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
-                  onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
-                  <span style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
-                    <span onClick={(e) => { e.stopPropagation(); toggleWatch(it.dim, it.nombre); }} title="Dejar de seguir"
-                      style={{ color:C.celeste, fontSize:11, lineHeight:1, flexShrink:0, cursor:"pointer" }}>★</span>
-                    <span style={{ fontSize:11.5, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{it.nombre}</span>
-                    {col && <span style={{ width:7, height:7, borderRadius:"50%", background:col, boxShadow:`0 0 6px ${col}aa`, flexShrink:0 }}/>}
-                  </span>
-                  <span style={{ display:"flex", alignItems:"baseline", gap:6 }}>
-                    <span style={{ fontSize:14, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{it.cifra}</span>
-                    <span style={{ fontSize:9, color:C.textMuted, fontFamily:MONO, letterSpacing:"0.5px", textTransform:"uppercase" }}>{it.dimLabel}</span>
-                  </span>
-                  <span style={{ fontSize:10, color:C.textMuted, lineHeight:1.35 }}>{it.sub}</span>
-                </button>
-              ); })}
-            </div>
-          )}
+        {/* ── ZONA PRINCIPAL · el Cuadro de mando (gráfico comparado + tabla operable) sube al frente — es lo
+            primero que se explora, no la "sala de máquinas" al final (owner 2026-08-06). Click en una fila,
+            en el gráfico o en una columna: todo sigue siendo pregunta a ADI, igual que antes. ── */}
+        <div ref={cuadroRef}>
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. Debajo, el 80/20 del mismo eje. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Seguimiento\"."} align="left"/></div>
+          <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
-        {/* ── QUÉ CAMBIÓ · el movimiento del período (movers + trayectoria anclada + entradas/salidas del 80/20) ── */}
-        {mesa.cambios.length > 0 && (
+        {/* ── SEGUIMIENTO + CAMBIOS DETECTADOS · compactos, plegados, señales — no secciones de reporte. "Por qué
+            pasa" y "Qué hacer primero" ya NO son secciones fijas acá: viajan dentro de la respuesta de ADI cuando
+            preguntás (el contrato de respuesta de ADI ya cierra con qué/por qué/qué hacer). ── */}
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div>
-            <MovHead title="Qué cambió" def={"El movimiento del período: quién sube y quién cede en venta contra el año anterior, la trayectoria de contribución del año (la misma serie de la ficha — cierra exacto con el cuadro) y las entradas/salidas del grupo 80/20. Tocá una línea y ADI la abre al lado."}/>
-            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-              {mesa.cambios.map((c, i) => (
-                <AskRow key={i} onAsk={onAsk} q={c.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
-                  <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>›</span>
-                  <span>{c.texto}</span>
-                </AskRow>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* ── 02 · POR QUÉ PASA · los focos del diagnose con su $ (click abre esa conversación) ── */}
-        <div>
-          <MovHead num="02" title="Por qué pasa" def={"Los focos del diagnóstico con su valor: dónde se pierde margen o se inmoviliza capital — las mismas cuentas que las respuestas de ADI (una sola verdad). Tocá un foco y ADI lo desglosa al lado."}/>
-          {(resumen.focos || []).length > 0 ? (
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
-              {resumen.focos.map((f, i) => (
-                <button key={i} onClick={onAsk ? () => onAsk(_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?") : undefined}
-                  title={onAsk ? `Preguntale a ADI: ${_MESA_FOCO_ASK[f.detector] || "¿Dónde estoy perdiendo dinero?"}` : undefined}
-                  style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
-                  <span style={{ fontSize:14.5, fontWeight:600, color:C.celeste, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
-                  <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin focos materiales en el dato del período — el margen y el capital corren en línea.</div>
-          )}
-        </div>
-        {/* ── 03 · QUÉ HACER PRIMERO · LA acción priorizada del diagnose + "Armame el plan" ── */}
-        <div>
-          <MovHead num="03" title="Qué hacer primero" def={"LA acción priorizada: el foco más grande del diagnóstico, con su medida y su valor en juego. \"Armame el plan\" le pide a ADI el paso a paso sobre ese frente."}/>
-          {mesa.accion ? (
-            <div style={{ ...CARD_SIDES, borderRadius:12, padding:"13px 15px", background:"rgba(255,255,255,0.025)" }}>
-              <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, marginBottom:6 }}>
-                <span style={{ fontSize:13, color:C.text, fontWeight:600 }}>{mesa.accion.titulo}</span>
-                <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{mesa.accion.usdFmt}</span>
+            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>Seguimiento{wl.items.length > 0 ? ` (${wl.items.length})` : ""}<InfoDot def={"Tu lista de seguimiento: marcá la estrella en cualquier fila del cuadro (cliente, SKU, marca o bodega) y queda acá con su cifra clave y su estado contra tu benchmark — verde en línea, ámbar cerca, rojo abajo; en bodega el estado marca SKU críticos. Tocá un seguido y ADI lo abre al lado; la estrella lo saca de la lista. Se guarda en este navegador."} align="left"/></div>
+            {wl.items.length === 0 ? (
+              <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, padding:"8px 10px", border:`1px dashed ${C.border}`, borderRadius:9 }}>
+                Marcá la <span style={{ color:C.celeste }}>★</span> en cualquier fila del cuadro y queda acá.
               </div>
-              <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, marginBottom:10 }}>{mesa.accion.detalle}</div>
-              {onAsk && (
-                <button onClick={() => onAsk(mesa.accion.ask)} title={`Preguntale a ADI: ${mesa.accion.ask}`}
-                  style={{ padding:"7px 14px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
-                  {mesa.accion.askLabel} <span style={{ color:C.celeste }}>→</span>
-                </button>
-              )}
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:6 }}>
+                {wl.items.map((it) => { const col = it.vara ? semCol[it.vara] : null; return (
+                  <button key={it.dim + "·" + it.nombre} onClick={onAsk && it.ask ? () => onAsk(it.ask) : undefined}
+                    title={onAsk && it.ask ? `Preguntale a ADI: ${it.ask}` : undefined}
+                    style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 9px", borderRadius:8, border:`1px solid ${C.border}`,
+                      background:"rgba(255,255,255,0.02)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left",
+                      cursor: onAsk && it.ask ? "pointer" : "default", transition:"background 0.15s" }}
+                    onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
+                    onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
+                    <span onClick={(e) => { e.stopPropagation(); toggleWatch(it.dim, it.nombre); }} title="Dejar de seguir"
+                      style={{ color:C.celeste, fontSize:10, lineHeight:1, flexShrink:0, cursor:"pointer" }}>★</span>
+                    <span style={{ fontSize:11, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{it.nombre}</span>
+                    {col && <span style={{ width:6, height:6, borderRadius:"50%", background:col, boxShadow:`0 0 5px ${col}aa`, flexShrink:0 }}/>}
+                    <span style={{ fontSize:11, fontWeight:600, color:C.textSub, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{it.cifra}</span>
+                  </button>
+                ); })}
+              </div>
+            )}
+          </div>
+          {mesa.cambios.length > 0 && (
+            <div>
+              <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>Cambios detectados<InfoDot def={"El movimiento del período: quién sube y quién cede en venta contra el año anterior, la trayectoria de contribución del año (la misma serie de la ficha — cierra exacto con el cuadro) y las entradas/salidas del grupo 80/20. Tocá una línea y ADI la abre al lado."} align="left"/></div>
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                {mesa.cambios.map((c, i) => (
+                  <AskRow key={i} onAsk={onAsk} q={c.ask} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:11.5, color:C.textSub, lineHeight:1.45, padding:"6px 9px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)" }}>
+                    <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>›</span>
+                    <span>{c.texto}</span>
+                  </AskRow>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin una acción urgente sobre la mesa — cuando aparezca un foco material, acá va la primera medida.</div>
           )}
         </div>
         {/* ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14): supuestos accionables sobre el dato real — cada línea es una
             pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo) ── */}
         {(mesa.simulaciones || []).length > 0 && (
           <div>
-            <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta una acción sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta, liberar el capital detenido. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado."}/>
+            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>¿Y si…?<InfoDot def={"Supuestos, no datos: cada línea proyecta una acción sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta, liberar el capital detenido. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado."} align="left"/></div>
             <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
               {mesa.simulaciones.map((s, i) => (
                 <AskRow key={i} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
@@ -1569,17 +1527,25 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             </div>
           </div>
         )}
-        {/* ORDEN ÚNICO (owner 2026-07-10 · "un panel de Sentrix único"): movimientos → cuadro → click en una fila abre
-            la FICHA de esa entidad (80/20 con su columna destacada · perfil vs promedio · evolutivo por estación).
-            El cuadro queda al final como sala de máquinas: toda cifra operable, después de la historia. */}
-        <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. Debajo, el 80/20 del mismo eje. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Lo que yo sigo\"."} align="left"/></div>
-          <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
-        </div>
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La Mesa cuenta tu negocio en tres movimientos: qué está pasando (los KPIs contra tu benchmark), por qué pasa (los focos con su valor) y qué hacer primero (la acción priorizada). Todo es pregunta: tocá un KPI, una línea o un foco y ADI lo abre al lado. Cifras de dato real.</div>
         </>)}
         <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
+      {/* ── BOTÓN GLOBAL FIJO · "Preguntar a ADI sobre esta vista" (owner 2026-08-06) — el catch-all cuando lo
+          que querés entender no es un KPI/fila/alerta puntual sino la vista completa. FUERA del scroll (hermano,
+          no descendiente, del contenedor overflow:auto de arriba) — un position:absolute adentro de un
+          overflow:auto queda clippeado a su caja de scroll aunque el offset se calcule contra un ancestro más
+          arriba; comprobado en vivo: el botón existía en el DOM pero el click nunca llegaba. ── */}
+      {cara === "comercial" && onAsk && (
+        <button onClick={() => onAsk("¿Qué es lo más importante que debería ver en la vista Comercial?")}
+          title="Preguntale a ADI sobre esta vista completa"
+          style={{ position:"absolute", right:16, bottom:16, display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:999,
+            background:C.celeste, color:"#04262e", border:"none", fontSize:12, fontWeight:700, cursor:"pointer",
+            fontFamily:"'DM Sans', system-ui, sans-serif", boxShadow:"0 8px 22px -4px rgba(47,184,218,0.5)", zIndex:5, transition:"transform 0.15s" }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}>
+          Preguntar a ADI sobre esta vista
+        </button>
+      )}
     </div>
   );
 }
