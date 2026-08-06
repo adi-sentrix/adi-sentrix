@@ -1278,6 +1278,15 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   );
 }
 
+// PERFIL ÚNICO (owner 2026-08-06): deep-link puro (evidencia de perfil → Mesa comercial con esa fila ya
+// seleccionada) — mismo patrón que pnlMesaLink. Solo client_dive marca `_profileRequest` (answerADI.js);
+// deliberadamente angosto — NO cualquier evidence.reading con entityType client (comparaciones/rankings
+// especiales también traen reading pero no deben perder su shell propio).
+function clientMesaLink(e) {
+  if (!e || !e._profileRequest || !e.entidad || e.entityType !== "client") return null;
+  return { cliente: e.entidad };
+}
+
 /* ── MESA DE CONTROL · Sentrix EN OPERACIÓN (owner 2026-07-07) ────────────────────────────────────────────────────────
  * No es la evidencia de una respuesta: es el lugar donde el dueño VIVE sus cifras — ventas, márgenes, capital a la mano —
  * con ADI al lado. Anti-BI por diseño: cada bloque lleva la LECTURA de ADI (no cifras mudas), los FOCOS del día con su $,
@@ -1299,9 +1308,13 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // en foco en la cascada. El click sigue el patrón de la Mesa: informa (uiSignals), nunca dispara.
   const _pnlLink = pnlMesaLink(evidence);
   const _tLink = !!(evidence && evidence.lens === "temporal");   // mejora 7b · el mes a mes ampliado abre la cara comercial (la película del año vive ahí)
+  // DEEP-LINK del perfil único (owner 2026-08-06): "dame el perfil/avance/estado de Falabella" → la cara comercial
+  // con esa fila ya seleccionada en el Cuadro — la Ficha (evolutivo + perfil vs promedio + 80/20) aparece de una,
+  // sin que el usuario tenga que buscar y clickear la fila él mismo. Mismo patrón que _pnlLink/_tLink.
+  const _clientLink = clientMesaLink(evidence);
   const [cara, setCara] = useState(() => {
     if (_pnlLink) return _pnlLink.cara;
-    if (_tLink) return "comercial";
+    if (_tLink || _clientLink) return "comercial";
     try { const v = localStorage.getItem("adi_mesa_cara_v1"); return v === "capital" || v === "resultado" ? v : "comercial"; } catch { return "comercial"; }
   });
   useEffect(() => {
@@ -1323,7 +1336,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // «Ampliar» sobre OTRA respuesta P&L con la Mesa ya abierta → re-enfoca (la evidencia nueva manda su alcance)
   useEffect(() => {
     if (_pnlLink) { setCara(_pnlLink.cara); setPnlEje(_pnlLink.eje); setPnlFoco(_pnlLink.foco); }
-    else if (_tLink) setCara("comercial");
+    else if (_tLink || _clientLink) setCara("comercial");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evidence]);
   const resultado = React.useMemo(() => buildMesaResultado(scenario, pnlEje, pnlFoco), [scenario, pnlTick, pnlEje, pnlFoco]);
@@ -1465,7 +1478,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             en el gráfico o en una columna: todo sigue siendo pregunta a ADI, igual que antes. ── */}
         <div ref={cuadroRef}>
           <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. Debajo, el 80/20 del mismo eje. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Seguimiento\"."} align="left"/></div>
-          <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
+          <CuadroMando key={"mesa-" + scenario + (_clientLink ? "-" + _clientLink.cliente : "")} scenario={scenario} initialDim="cliente" initialSel={_clientLink ? [_clientLink.cliente] : null} mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
         </div>
         {/* ── SEGUIMIENTO + CAMBIOS DETECTADOS · compactos, plegados, señales — no secciones de reporte. "Por qué
             pasa" y "Qué hacer primero" ya NO son secciones fijas acá: viajan dentro de la respuesta de ADI cuando
@@ -2186,6 +2199,13 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   };
   const [tab, setTab] = useState(() => _routedTab(baseRd || {}, evidence && evidence.lens));   // shell · lente activa (Diagnóstico|Evidencia|Control)
   useEffect(() => { if (baseRd) { setStack([mkBase(baseRd)]); setTab(_routedTab(baseRd, evidence.lens)); } }, [baseFocus]);   // nueva respuesta → lente ruteada
+  // PERFIL ÚNICO (owner 2026-08-06 "dame el perfil/avance/estado de X"): client_dive SIEMPRE trae evidence.reading
+  // (baseRd truthy) → sin este check caería en el shell genérico de lectura (Diagnóstico/Evidencia/Control), NO en
+  // la Ficha rica de la Mesa (evolutivo + perfil vs promedio + 80/20) que da clickear la fila en el Cuadro. Mismo
+  // dato, misma pregunta, un solo destino — sea que la pidas por chat o que la explores vos mismo en Sentrix.
+  // DESPUÉS de los hooks (regla de hooks: un return temprano acá no los salta, van todos arriba sin condición).
+  if (clientMesaLink(evidence))
+    return <MesaPanel evidence={evidence} onClose={onClose} onToggleMax={onToggleMax} maximized={maximized} onAsk={onAsk}/>;
   if (!baseRd) {
     // DECISIÓN (evidenceSpec Nivel 0 · dispatch key rápido, owner 2026-07-31): mesa.accion promovido a un panel
     // propio — antes vivía enterrado como el movimiento "03 · Qué hacer primero" dentro de MesaPanel cara comercial.
@@ -2748,9 +2768,11 @@ function ControlRing({ ring, rd }) {
 // microlectura del detector bajo el nombre (PASE 1b: visible SOLO en el modo "En alerta") · columna "En juego $" ·
 // la Acción como chip que pregunta a ADI · dot de movimiento 80/20. El gráfico COMPARADO vs año anterior vive en
 // la FICHA (owner 2026-07-15: "no en la tabla" — grande y siempre visible al tocar una fila, FichaEvolutivo).
-function CuadroMando({ scenario, initialDim, initialSort, mesa = false, onAsk = null, watch = null, onWatch = null, alertSignal = 0 }) {
+function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mesa = false, onAsk = null, watch = null, onWatch = null, alertSignal = 0 }) {
   const [dim, setDim] = useState(initialDim || "cliente");
-  const [sel, setSel] = useState([]);                 // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
+  // PERFIL ÚNICO (owner 2026-08-06): initialSel llega del deep-link de clientMesaLink — la fila ya viene
+  // seleccionada al abrir (la Ficha aparece de una), sin perder la selección manual normal del resto de casos.
+  const [sel, setSel] = useState(initialSel || []);   // nombres seleccionados (resaltan · TODAS las filas quedan visibles)
   // memoria UI (owner 2026-07-08): la selección de la Mesa es contexto de ADI ("compará estos dos" la referencia)
   useEffect(() => { if (mesa) setUISignal({ mesaSel: sel, mesaDim: dim }); }, [mesa, sel, dim]);
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)

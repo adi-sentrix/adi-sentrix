@@ -422,7 +422,7 @@ export function dispatchIntent(intent, trimmed, scenario, ctx) {   // export adi
       // queda intacto. Gated ADI_SENTRIX_READING_ENABLED · OFF = sin reading (byte-exacto · client_dive del piso).
       if (ADI_SENTRIX_READING_ENABLED) {
         const _crd = buildReadingFromSignals(buildClientContribSignals(intent.clientName, scenario));
-        if (_crd) _cd.evidence = { ...(deep.evidence || {}), reading: _crd, entidad: intent.clientName, entityType: "client", metrica: _crd.metric || "margen" };
+        if (_crd) _cd.evidence = { ...(deep.evidence || {}), reading: _crd, entidad: intent.clientName, entityType: "client", metrica: _crd.metric || "margen", _profileRequest: true };
       }
       return _finalize(_cd, "client_dive", "client_dive", ctx, scenario, intent);
     }
