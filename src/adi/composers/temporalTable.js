@@ -154,12 +154,21 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
     const e = buildEntityEvolutionComparado(entity, met);
     if (!e) return null;
     const meses = _rangoMeses(e.meses, p), serie = _rangoSerie(e.serie, p);
+    const serieAnt = e.anterior ? _rangoSerie(e.anterior.serie, p) : null;
     const tot = _sum(serie);
-    const ant = e.anterior ? _sum(_rangoSerie(e.anterior.serie, p)) : null;
+    const ant = serieAnt ? _sum(serieAnt) : null;
     const iMax = serie.indexOf(Math.max(...serie)), iMin = serie.indexOf(Math.min(...serie));
     const rows = meses.map((mes, i) => ({ label: mes, values: [fmt(serie[i]), ...(e.anterior ? [fmt(_rangoSerie(e.anterior.serie, p)[i])] : [])] }));
     if (met !== "margen") rows.push({ label: "Total", values: [F(`${entity} · ${metLbl} ${_plabel(p)}`, tot, { mandatory: true }), ...(ant != null ? [F(`${entity} · año anterior (${_plabel(p)})`, ant)] : [])], strong: true });
     const varTxt = ant != null && ant > 0 ? ` — ${tot >= ant ? "sube" : "baja"} ${Math.round(Math.abs((tot - ant) / ant) * 1000) / 10}% contra el mismo período del año anterior (${fmt(ant)})` : "";
+    // mejorMes/peorMes + variacionMensual estructurados (owner 2026-08-06, mismo patrón que la rama GLOBAL de
+    // arriba — "perfil/avance/estado de X" pide meses altos/bajos CON su % citable). Antes solo vivían en el
+    // opener/boleta como prosa+figs sueltos; narratePromptC ya instruye "usá facts.mejorMes/peorMes" pero esa
+    // forma solo existía para GLOBAL. Solo "venta" declara serie año-anterior por entidad (ver
+    // buildEntityEvolutionComparado) — margen/contribución quedan con vsAnioAnterior:null, honesto, nunca inventado.
+    const variacionMensual = serieAnt ? meses.map((mes, i) => ({ label: mes, vsAnioAnterior: serieAnt[i] ? dv(serie[i], serieAnt[i]) : null })) : null;
+    const mejorMes = { label: meses[iMax], valor: fmt(serie[iMax]), vsAnioAnterior: serieAnt && serieAnt[iMax] ? dv(serie[iMax], serieAnt[iMax]) : null };
+    const peorMes = { label: meses[iMin], valor: fmt(serie[iMin]), vsAnioAnterior: serieAnt && serieAnt[iMin] ? dv(serie[iMin], serieAnt[iMin]) : null };
     const opener = [
       met === "margen"
         ? `El margen de ${entity}, ${_plabel(p)}: se mueve entre ${F(`${entity} · margen mínimo (${meses[iMin]})`, serie[iMin])} (${meses[iMin]}) y ${F(`${entity} · margen máximo (${meses[iMax]})`, serie[iMax])} (${meses[iMax]}), cerrando el período consistente con su margen anual.`
@@ -173,6 +182,8 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
       evidence: {
         lens: "temporal", followup: false, entidad: entity, dimension: dimension || null,
         tablaM: { titulo: `${entity} — ${metLbl} ${_plabel(p)}`, cols: [metLbl === "venta" ? "Este año" : metLbl, ...(e.anterior ? ["Año anterior"] : [])], rows, nota: "misma serie de la Ficha en Sentrix · el año cierra exacto con el dato del período" },
+        ...(variacionMensual ? { variacionMensual } : {}),
+        mejorMes, peorMes,
         boleta: bol,
       },
     };

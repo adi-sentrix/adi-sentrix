@@ -439,6 +439,11 @@ const _PREF_RESET_RE = /\b(?:an[aá]lisis|respuesta)\s+completo?a?\b|\bvolv[eé]
 const _PREF_PERSIST_RE = /\bdesde\s+ahora\b|\bde\s+ahora\s+en\s+adelante\b|\ba\s+partir\s+de\s+ahora\b|\bsiempre\s+respond[eé]me?\b|\ben\s+adelante\b/i;
 const _PREF_ONE_TURN_RE = /\bs[oó]lo\s+esta\s+vez\b|\bpor\s+esta\s+vez\b|\bs[oó]lo\s+por\s+ahora\b|\bahora\s+s[oó]lo\b/i;
 
+// _WANTS_PERFIL_RE (owner 2026-08-06, "lectura ejecutiva") — pedido EXPLÍCITO del perfil/avance/estado/resumen de
+// una entidad (no solo "cómo está X" de pasada, ver _trend_vs_puntual_gate.mjs: esa frase sigue siendo
+// entityProfile-solo). Usada por el backstop determinístico de abajo (cerca de `const calls = plan.calls`).
+const _WANTS_PERFIL_RE = /\b(perfil|avance|resumen)\b|\bestado\b/i;
+
 // _coercePref(text, plan) → { contentScope, detailLevel, persist } | null (null = ninguna señal este turno, ni del
 // LLM ni de la red — el llamador cae a la preferencia de SESIÓN si había una, o al default). `plan.pref` (si el LLM
 // lo llenó) se respeta tal cual salvo que una frase de la red la contradiga de forma inequívoca — la red SIEMPRE
@@ -925,6 +930,24 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (out) return out;
     } else if (Array.isArray(multiScope.calls)) {
       plan = { ...plan, calls: multiScope.calls };
+    }
+  }
+  // ── LECTURA EJECUTIVA · perfil/avance/estado/resumen de UNA entidad (owner 2026-08-06) ── backstop
+  // DETERMINÍSTICO, mismo principio que el resto de _coerce*/bypasses de este archivo: planPrompt.js
+  // (entityProfile) YA pide sumar trend{dimension,entity} sin period cuando el usuario pide EXPLÍCITAMENTE el
+  // perfil de una entidad — medido en vivo (_probe_perfil_ejecutivo_live.mjs, 2/2 corridas) que el LLM no lo
+  // hace, se queda en entityProfile solo (el mismo patrón de "el LLM no siempre seguía la doctrina sola" que
+  // motivó el resto de estos backstops). Si el texto trae la palabra Y el plan ya resolvió entityProfile para
+  // una entidad pero no trae trend de esa MISMA entidad, se agrega acá — mismo dimension/entity que
+  // entityProfile YA resolvió (nunca adivina un eje nuevo), sin period (la foto completa del año: mejor/peor
+  // mes + variación, lo que a la lectura ejecutiva le faltaba).
+  if (_WANTS_PERFIL_RE.test(String(q || "")) && Array.isArray(plan.calls)) {
+    const epCall = plan.calls.find((c) => c && c.tool === "entityProfile");
+    const dimension = epCall && (epCall.dimension || (epCall.args && epCall.args.dimension));
+    const entity = epCall && (epCall.entity || (epCall.args && epCall.args.entity));
+    const hasTrend = plan.calls.some((c) => c && c.tool === "trend" && (c.entity || (c.args && c.args.entity)) === entity);
+    if (epCall && entity && !hasTrend && plan.calls.length < maxCalls) {
+      plan = { ...plan, calls: [...plan.calls, { tool: "trend", args: { dimension: dimension || "cliente", entity } }] };
     }
   }
   const calls = plan.calls;

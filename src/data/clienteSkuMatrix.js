@@ -71,6 +71,22 @@ export function composicionCliente(nombre, metric = "ventas") {
   return _SKUS.map((s, j) => ({ name: s.nombre, value: M[i][j] })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
 }
 
+// composición de UN cliente, agregada POR FAMILIA (owner 2026-08-06, "familias que más compran, productos — ese
+// es el juego de Sentrix"): mismo cierre que composicionCliente — Σ familias = Σ SKU = el total del cliente,
+// porque es un re-agrupado de las MISMAS celdas de la matriz, nunca un cálculo aparte. metric "ventas" |
+// "contribucion" → [{ name, value }] desc, sin ceros.
+export function composicionClientePorFamilia(nombre, metric = "ventas") {
+  const i = _iC.get(nombre);
+  if (i == null) return null;
+  const M = metric === "contribucion" ? _CONTRIB : _VENTA;
+  const porFamilia = new Map();
+  _SKUS.forEach((s, j) => {
+    const v = M[i][j];
+    if (v > 0) porFamilia.set(s.sfamilia, (porFamilia.get(s.sfamilia) || 0) + v);
+  });
+  return [...porFamilia.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+}
+
 // la transpuesta: quiénes compran UN SKU → [{ name, value }] desc (mismo cierre por construcción)
 export function compradoresSku(sku, metric = "ventas") {
   const j = _iS.get(sku);

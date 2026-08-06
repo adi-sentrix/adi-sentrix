@@ -9,7 +9,7 @@ import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
 import { MiniPareto } from "./InlineChart.jsx";   // el 80/20 de la Mesa = la MISMA pieza del chat (owner 2026-07-09) · su import inyecta los keyframes adi*
 import { skusMargen } from "../data/skusMargen.js";   // composición de marca/familia por sus SKU (cruce REAL · Pareto reflejo de la tabla 2026-07-10)
-import { composicionCliente, compradoresSku } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (cierra exacto con el cuadro · gate de conexión)
+import { composicionCliente, composicionClientePorFamilia, compradoresSku } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (cierra exacto con el cuadro · gate de conexión)
 import { buildComparisonReading, buildReadingFromSignals, buildClientContribSignals, buildSkuContribSignals, buildSkuMarginSignals } from "../adi/sentrix/reading.js";   // paso 3 · operaciones
 import { entityExplorable, temporalCapability } from "../adi/sentrix/capability.js";   // explorable del frame + regla temporal
 import { buildGlobalEvolution, buildCompareEvolution, buildEntityEvolutionComparado, buildNegocioEvolution } from "../adi/sentrix/temporal.js";   // paso 4 · la historia (evolutivo global real + curvas por entidad · el cuadro usa el COMPARADO: negocio/entidad vs año anterior/dos entidades)
@@ -3432,20 +3432,27 @@ const _fmDin = (v) => (Math.abs(v) >= 1000 ? "$" + (v / 1000).toFixed(1) + "M" :
 
 function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
   const [met, setMet] = useState("ventas");
+  // AGRUPAR POR FAMILIA (owner 2026-08-06, "familias que más compran, productos — ese es el juego de Sentrix"):
+  // SOLO tiene sentido para la composición de UN cliente (marca/familia ya componen por SKU; SKU compone por
+  // clientes, que no tienen familia). Default "sku" — el detalle fino que ya existía — "familia" es la nueva
+  // vista agregada, mismo cierre exacto (ver composicionClientePorFamilia en clienteSkuMatrix.js).
+  const [agrupar, setAgrupar] = useState("sku");
   if (!_PARETO_PLURAL[dim]) return null;   // bodega: sin pareto comercial (su historia es de inventario)
   const metLabel = met === "ventas" ? "venta" : "contribución";
+  const porFamilia = dim === "cliente" && sel && agrupar === "familia";
   // COMPOSICIÓN de la entidad seleccionada (owner 2026-07-10: "click en ABC → cómo se compone SU venta/contribución"):
-  // marca/familia → sus SKU (skusMargen) · CLIENTE → sus SKU (matriz cliente×SKU, cierra exacto con el cuadro) ·
-  // SKU → la transpuesta (quiénes lo compran). Todo dato del set — el gate de conexión lo sella.
+  // marca/familia → sus SKU (skusMargen) · CLIENTE → sus SKU o, si se pide, sus FAMILIAS (matriz cliente×SKU,
+  // cierra exacto con el cuadro) · SKU → la transpuesta (quiénes lo compran). Todo dato del set — el gate de
+  // conexión lo sella.
   const compRows = !sel ? null
     : (dim === "marca" || dim === "familia")
       ? skusMargen.filter((s) => (dim === "marca" ? s.marca : s.sfamilia) === sel)
           .map((s) => ({ name: s.nombre, value: Number(met === "ventas" ? s.venta : s.contribucion) || 0 }))
           .filter((r) => r.value > 0).sort((a, b) => b.value - a.value)
-      : dim === "cliente" ? composicionCliente(sel, met)
+      : dim === "cliente" ? (porFamilia ? composicionClientePorFamilia(sel, met) : composicionCliente(sel, met))
       : dim === "sku" ? compradoresSku(sel, met)
       : null;
-  const compPlural = dim === "sku" ? "clientes" : "SKU";
+  const compPlural = dim === "sku" ? "clientes" : porFamilia ? "familias" : "SKU";
   let con, modo;
   if (compRows && compRows.length >= 2) {
     const total = compRows.reduce((s, r) => s + r.value, 0) || 1;
@@ -3473,9 +3480,9 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
       ? (met === "ventas" ? `Profundiza en ${sel}` : `¿De dónde saca ${sel} su contribución?`)
       : _PARETO_NEG_Q[met][dim];
   const titulo = modo === "composicion" ? `Cómo se compone ${sel}` : modo === "posicion" ? `Dónde pesa ${sel} en el 80/20` : "El 80/20 · cómo se compone";
-  const pill = (k, label) => (
-    <button key={k} onClick={() => setMet(k)}
-      style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${met === k ? "rgba(47,184,218,0.5)" : C.border}`, background: met === k ? "rgba(47,184,218,0.10)" : "transparent", color: met === k ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{label}</button>
+  const pill = (k, label, active, onClick) => (
+    <button key={k} onClick={onClick}
+      style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${active ? "rgba(47,184,218,0.5)" : C.border}`, background: active ? "rgba(47,184,218,0.10)" : "transparent", color: active ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{label}</button>
   );
   return (
     <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
@@ -3485,10 +3492,16 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
           <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{titulo}</span>
-          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por los SKU que le vendés; un SKU, por los clientes que lo compran — y cada composición SUMA EXACTO la cifra del cuadro (una sola verdad). El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando."} align="left"/>
+          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por sus familias o sus SKU (elegís la vista); un SKU, por los clientes que lo compran — y cada composición SUMA EXACTO la cifra del cuadro (una sola verdad). El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando."} align="left"/>
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ display:"flex", gap:3 }}>{pill("ventas", "Ventas")}{pill("contribucion", "Contribución")}</span>
+          {dim === "cliente" && sel && (
+            <span style={{ display:"flex", gap:3 }}>
+              {pill("familia", "Por familia", agrupar === "familia", () => setAgrupar("familia"))}
+              {pill("sku", "Por SKU", agrupar === "sku", () => setAgrupar("sku"))}
+            </span>
+          )}
+          <span style={{ display:"flex", gap:3 }}>{pill("ventas", "Ventas", met === "ventas", () => setMet("ventas"))}{pill("contribucion", "Contribución", met === "contribucion", () => setMet("contribucion"))}</span>
           {onAsk ? _btnADI(() => onAsk(q), "Que ADI lo explique →") : null}
         </span>
       </div>
