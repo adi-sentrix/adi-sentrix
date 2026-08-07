@@ -11,7 +11,10 @@
  *   [3] NAVEGACIÓN A LA FICHA: el insight, la primera profundización sugerida, la barra del gráfico y el
  *       "Ver Ficha" de cada fila abren la Ficha Ejecutiva REAL de esa entidad (la cara Ficha, no una vista nueva).
  *   [4] EXPANSIÓN/CONTRACCIÓN de la cartera completa: la tabla no existe hasta pedirla y se puede volver a cerrar.
- *   [5] LO QUE SALE DE COMERCIAL: KPI de capital · bodegas · evolución de UNA entidad · "perfil vs promedio".
+ *   [4b] LOS DOS UNIVERSOS, RECONCILIADOS A LA VISTA: la cartera material y el plano de decisión aparecen SIEMPRE
+ *       nombrados, con el % dinámico que el plano concentra — nunca dos montos parecidos sueltos.
+ *   [5] LO QUE SALE DE COMERCIAL: las tiras legacy "Margen en riesgo" y "Capital detenido" · KPI de capital ·
+ *       bodegas · evolución de UNA entidad · "perfil vs promedio".
  *   [6] TOGGLE Ventas/Contribución: cambia el gráfico con las cifras del módulo, no con un recálculo propio.
  *   [7] CERO REGRESIONES: las caras Ficha, Capital y Resultado siguen rindiendo igual.
  *   [8] PROPORCIONALIDAD SEMÁNTICA: nada de "revisar costo" (el costo no está probado) ni de causa afirmada.
@@ -258,10 +261,46 @@ H("[4] LA CARTERA COMPLETA · evidencia opcional que se expande y se contrae");
   cleanup();
 }
 
-H("[5] LO QUE SALE DE COMERCIAL · capital · bodegas · evolución de una entidad · perfil vs promedio");
+H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecidos sueltos");
+{
+  const { container } = abrir(evTemporal());
+  const T = container.textContent;
+  const c = R.tension.cartera;
+  ok(T.includes(R.tension.reconcilia), `la frase de reconciliación se muestra entera — "${R.tension.reconcilia}"`);
+  ok(T.includes("Alcance"), "…rotulada como ALCANCE (es una declaración de universo, no un dato más)");
+  // los dos montos parecidos conviven, pero SIEMPRE con su universo pegado
+  ok(T.includes(c.enJuegoFmt) && T.includes(R.tension.enJuegoFmt), `los dos montos están a la vista — cartera ${c.enJuegoFmt} · plano ${R.tension.enJuegoFmt}`);
+  ok(T.includes(R.tension.concentraPctFmt), `el % que el plano concentra de la oportunidad total se muestra y es dinámico — ${R.tension.concentraPctFmt}`);
+  // REGLA DURA: cada aparición de la cifra de CARTERA viene con "toda la cartera" cerca; cada una de la del PLANO,
+  // con "plano"/"que explican el X%". Se chequea sobre el texto real, no sobre la intención.
+  const ventanas = (txt, aguja) => { const out = []; let i = txt.indexOf(aguja); while (i >= 0) { out.push(txt.slice(Math.max(0, i - 220), i + 220)); i = txt.indexOf(aguja, i + 1); } return out; };
+  const vCartera = ventanas(T, c.enJuegoFmt).filter((w) => !w.includes("Ver todos los clientes"));
+  ok(vCartera.length > 0 && vCartera.every((w) => /toda la cartera|cartera material|cuentas con brecha material/i.test(w)),
+    `las ${vCartera.length} apariciones de ${c.enJuegoFmt} declaran su universo (toda la cartera)`);
+  const vPlano = ventanas(T, R.tension.enJuegoFmt);
+  ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|que explican el/i.test(w)),
+    `las ${vPlano.length} apariciones de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
+  // el TOTAL del puente ($5.0M) es un tercer universo y también se declara
+  ok(T.includes(R.puente.universo), "el total del puente declara que incluye cuentas sin brecha material");
+  ok(T.includes(`${R.puente.materialFmt} está en las ${R.puente.materialN} cuentas con brecha material`),
+    "…y publica al lado cuánto de ese total es material, para que las dos cifras se lean juntas sin chocar");
+  cleanup();
+}
+
+H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evolución de una entidad · perfil vs promedio");
 {
   const { container } = abrir(evTemporal());
   const T0 = container.textContent;
+  // LAS TIRAS LEGACY (owner 2026-08-07): "Margen en riesgo" repetía la cifra de otro universo sin decirlo, y
+  // "Capital detenido" no es comercio. Las dos se eliminaron de esta cara.
+  ok(!/Margen en riesgo/i.test(T0), "la franja legacy \"Margen en riesgo\" ya NO existe en Comercial");
+  ok(!/capital detenido/i.test(T0), "\"Capital detenido\" no aparece en ninguna forma: ni franja, ni supuesto del ¿Y si…?");
+  ok(!/verlas en el cuadro/i.test(T0) && !/ver la cara Capital →/i.test(T0), "…ni quedan sus enlaces sueltos");
+  ok(porTexto(container, "Capital"), "la cara Capital sigue a un click en el encabezado (no se perdió el acceso)");
+  // …y lo que salió NO se perdió: el mismo supuesto vive en la cara Capital
+  fireEvent.click(porTexto(container, "Capital"));
+  ok(/capital detenido/i.test(container.textContent), "el supuesto de liberar capital detenido sigue vivo en la cara Capital (se movió, no se borró)");
+  fireEvent.click(porTexto(container, "Comercial"));
   ok(!R.kpis.some((k) => k.key === "capital"), "el KPI de CAPITAL no está entre los KPI principales (su historia vive en la cara Capital)");
   ok(!/Capital inmovilizado|capital detenido en \d+ SKU/i.test(T0.split("Evidencia completa")[0]), "…ni se cuela una cifra de capital en la cabecera comercial");
   ok(!T0.includes("El 80/20 · cómo se compone"), "el Pareto por eje (el que traía las bodegas) ya no vive acá — el 80/20 es el bloque de concentración de clientes");

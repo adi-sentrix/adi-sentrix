@@ -1361,10 +1361,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   }, [watch]);
   const toggleWatch = (dim, name) => setWatch((w) => (w.some((x) => x.dim === dim && x.name === name) ? w.filter((x) => !(x.dim === dim && x.name === name)) : [...w, { dim, name }]));
   const wl = React.useMemo(() => buildWatchlistEstado(watch, scenario), [watch, scenario]);
-  // "verlas en el cuadro" · el contador de alerta navega al cuadro ya filtrado (informa/navega — no dispara a ADI)
-  const cuadroRef = React.useRef(null);
-  const [alertTick, setAlertTick] = useState(0);
-  const verEnCuadro = (e) => { e.stopPropagation(); setAlertTick((t) => t + 1); if (cuadroRef.current) cuadroRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const cuadroRef = React.useRef(null);   // el ancla de la cartera completa (evidencia opcional, más abajo)
   // ── RESUMEN COMERCIAL (owner 2026-08-07) · TODA la cara Comercial sale de este módulo, con ALCANCE GLOBAL: la
   //    firma no acepta entidad seleccionada, así que ni el deep-link de un cliente ni una selección previa en la
   //    tabla pueden teñirla. El tope del gráfico es lo único que depende de la pantalla (10 entidades en desktop,
@@ -1374,10 +1371,11 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     try { return buildResumenComercial(scenario, { maxEntidades: narrow ? 6 : 10 }); } catch { return null; }
   }, [scenario, narrow]);
   // LA CARTERA COMPLETA · evidencia OPCIONAL detrás de "Ver todos los clientes" (owner: la tabla no se elimina,
-  // baja de plano). "verlas en el cuadro" de la tira de alerta la despliega sola — si no, el click no llevaría a
-  // ningún lado.
+  // baja de plano). El filtro "En alerta" sigue viviendo dentro de la grilla, que es donde se opera.
   const [verCartera, setVerCartera] = useState(false);
-  useEffect(() => { if (alertTick) setVerCartera(true); }, [alertTick]);
+  // ¿Y SI…? de la cara Comercial: solo supuestos COMERCIALES (owner 2026-08-07 · "mantené el capital en Capital").
+  // El de liberar capital detenido no se pierde — es el mismo que ya ofrece el "¿Y si…?" de la cara Capital.
+  const simulacionesComerciales = React.useMemo(() => (mesa.simulaciones || []).filter((s) => s.key !== "capital"), [mesa]);
   // "detecta → EXPLICA": cada insight, la primera profundización sugerida, cada barra del Pareto y el "Ver Ficha"
   // de la tabla abren la Ficha REAL de esa entidad — el MISMO camino del deep-link `_clientLink` (cara Ficha +
   // cliente elegido), no una vista paralela.
@@ -1471,55 +1469,13 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             </div>
           )}
           {verCartera && (
-            <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa resumen onFicha={irAFicha} onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
+            <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa resumen onFicha={irAFicha} onAsk={onAsk} watch={watch} onWatch={toggleWatch}/>
           )}
         </div>
-        {/* ── SEÑALES QUE SIGUEN VIVAS · van DEBAJO del resumen (owner 2026-08-07: los seis bloques mandan el
-            orden de la cara). "Verlas en el cuadro" despliega la cartera completa de arriba y hace scroll hasta
-            ella. ── */}
-        {/* ── ALERTAS · franja compacta tipo command center (comercial/margen + inventario/capital) — señales, no
-            bloques de reporte. Cada una lleva a la vista (Capital) o abre la explicación de ADI. ── */}
-        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-          <button onClick={onAsk ? () => onAsk(mesa.alertas.ask) : undefined}
-            title={onAsk ? `Preguntale a ADI: ${mesa.alertas.ask}` : undefined}
-            style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", width:"100%", padding:"9px 12px", borderRadius:10,
-              border:`1px solid ${mesa.alertas.n ? "rgba(217,154,90,0.4)" : C.border}`, background: mesa.alertas.n ? "rgba(217,154,90,0.05)" : "rgba(255,255,255,0.015)",
-              color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-            onMouseEnter={(ev) => { ev.currentTarget.style.background = mesa.alertas.n ? "rgba(217,154,90,0.1)" : "rgba(255,255,255,0.03)"; }}
-            onMouseLeave={(ev) => { ev.currentTarget.style.background = mesa.alertas.n ? "rgba(217,154,90,0.05)" : "rgba(255,255,255,0.015)"; }}>
-            <span style={{ width:7, height:7, borderRadius:"50%", background: mesa.alertas.n ? C.amber : C.green, boxShadow:`0 0 6px ${mesa.alertas.n ? C.amber : C.green}aa`, flexShrink:0 }}/>
-            <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color: mesa.alertas.n ? C.amber : C.textMuted, flexShrink:0 }}>Margen en riesgo</span>
-            <span style={{ fontSize:12, color: mesa.alertas.n ? C.text : C.textSub, lineHeight:1.4 }}>{mesa.alertas.linea}</span>
-            <InfoDot def={`Las cuentas con brecha material contra tu benchmark: margen ${POLICY.margenBrechaMaterial} pp o más abajo y monto material — la misma cuenta del diagnóstico y del chevron rojo del cuadro (una sola verdad). El valor en juego es la contribución no capturada anual de esas cuentas. Tocá la tira y ADI abre la lista; "verlas en el cuadro" despliega la cartera completa de arriba, ya filtrada en alerta.`} align="left"/>
-            {mesa.alertas.n > 0 && (
-              <span onClick={verEnCuadro} title="Filtrar el cuadro de mando en alerta"
-                style={{ marginLeft:"auto", flexShrink:0, fontSize:11, color:C.celeste, whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, border:"1px solid rgba(47,184,218,0.35)" }}>
-                verlas en el cuadro →
-              </span>
-            )}
-          </button>
-          {/* CONEXIÓN (cara Capital · owner 2026-07-15): la pata de inventario — los SKU críticos con su capital
-              detenido (el mismo detector del diagnose · una verdad). Click = pregunta; el salto a la cara Capital
-              navega (informa, no dispara). */}
-          {capital.alertas.n > 0 && (
-            <button onClick={onAsk ? () => onAsk(capital.alertas.ask) : undefined}
-              title={onAsk ? `Preguntale a ADI: ${capital.alertas.ask}` : undefined}
-              style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", width:"100%", padding:"9px 12px", borderRadius:10,
-                border:"1px solid rgba(217,154,90,0.4)", background:"rgba(217,154,90,0.05)",
-                color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-              onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(217,154,90,0.1)"; }}
-              onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(217,154,90,0.05)"; }}>
-              <span style={{ width:7, height:7, borderRadius:"50%", background:C.amber, boxShadow:`0 0 6px ${C.amber}aa`, flexShrink:0 }}/>
-              <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color:C.amber, flexShrink:0 }}>Capital detenido</span>
-              <span style={{ fontSize:12, color:C.text, lineHeight:1.4 }}>{capital.alertas.linea}</span>
-              <InfoDot def={"La pata de inventario de la alerta: los SKU críticos del detector de capital (sin rotación según tu benchmark) con su capital detenido — la misma cuenta de la cara Capital y del diagnóstico (una sola verdad). Tocá la tira y ADI abre esa historia; \"ver la cara Capital\" cambia la cara de la Mesa."} align="left"/>
-              <span onClick={(e) => { e.stopPropagation(); setCara("capital"); }} title="Ver la cara Capital de la Mesa"
-                style={{ marginLeft:"auto", flexShrink:0, fontSize:11, color:C.celeste, whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, border:"1px solid rgba(47,184,218,0.35)" }}>
-                ver la cara Capital →
-              </span>
-            </button>
-          )}
-        </div>
+        {/* Las tiras legacy "Margen en riesgo" y "Capital detenido" SE ELIMINARON de esta cara (owner
+            2026-08-07). La primera repetía, con OTRO universo y sin decirlo, la cifra que el veredicto ya da:
+            su alcance vive ahora reconciliado dentro del bloque 1. La segunda es capital, y el capital tiene
+            su propia cara — la pestaña Capital sigue a un click en el encabezado. */}
         {/* ── SEGUIMIENTO + CAMBIOS DETECTADOS · compactos, plegados, señales — no secciones de reporte. "Por qué
             pasa" y "Qué hacer primero" ya NO son secciones fijas acá: viajan dentro de la respuesta de ADI cuando
             preguntás (el contrato de respuesta de ADI ya cierra con qué/por qué/qué hacer). ── */}
@@ -1565,12 +1521,14 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           )}
         </div>
         {/* ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14): supuestos accionables sobre el dato real — cada línea es una
-            pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo) ── */}
-        {(mesa.simulaciones || []).length > 0 && (
+            pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo).
+            SOLO LOS COMERCIALES (owner 2026-08-07): el supuesto de liberar capital detenido salió de esta cara —
+            ya vive, idéntico, en el "¿Y si…?" de la cara Capital, que es donde el capital se decide. ── */}
+        {(simulacionesComerciales || []).length > 0 && (
           <div>
-            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>¿Y si…?<InfoDot def={"Supuestos, no datos: cada línea proyecta una acción sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta, liberar el capital detenido. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado."} align="left"/></div>
+            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>¿Y si…?<InfoDot def={"Supuestos, no datos: cada línea proyecta una acción comercial sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado. Los supuestos sobre el capital viven en la cara Capital."} align="left"/></div>
             <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-              {mesa.simulaciones.map((s, i) => (
+              {simulacionesComerciales.map((s, i) => (
                 <AskRow key={i} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
                   <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
                   <span style={{ flex:1 }}>{s.texto}</span>
@@ -1678,6 +1636,18 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
         {v.lectura ? (
           <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7, fontVariantNumeric: "tabular-nums" }}>{v.lectura}</div>
         ) : null}
+      </div>
+      {/* LA RECONCILIACIÓN DE LOS DOS UNIVERSOS (owner 2026-08-07) · antes convivían el veredicto del plano y una
+          tira de alerta legacy con la cifra de toda la cartera: dos montos parecidos, sin decir de dónde salía
+          cada uno. La tira se eliminó y su universo entró ACÁ, nombrado y con el puente entre los dos —
+          incluido el porcentaje de la oportunidad total que el plano concentra, siempre dinámico. */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 13px", borderRadius: 10,
+        border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)", marginBottom: 10 }}>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.6px", textTransform: "uppercase", color: C.amber, border: `1px solid ${C.amber}55`, borderRadius: 4, padding: "2px 6px", flexShrink: 0, marginTop: 1 }}>Alcance</span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textSub, lineHeight: 1.55 }}>
+          {R.tension.reconcilia}
+          <InfoDot def={"Dos universos con el MISMO criterio de materialidad y distinto alcance: la cartera completa (todo el negocio) y el plano de decisión (el grupo que explica el 80% de la venta). El primero manda para dimensionar la oportunidad total; el segundo, para decidir por dónde empezar. Los dos cierran exacto: lo del plano más lo de la cola es lo de la cartera. Nunca vas a ver acá dos montos parecidos sin que diga de qué universo sale cada uno."} align="left"/>
+        </span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 9 }}>
         {R.kpis.map((k) => { const ask = askDe(k.key); const clic = !!(onAsk && ask); return (
@@ -1849,7 +1819,12 @@ function ResumenPuente({ R }) {
         </div>
         <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4 }}>Dónde está la brecha de contribución</div>
         <div style={{ fontSize: 30, fontWeight: 600, color: C.text, fontFamily: MONO, letterSpacing: "0.5px", fontVariantNumeric: "tabular-nums", marginTop: 8, lineHeight: 1.1 }}>{p.brechaTotalFmt}</div>
-        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 3 }}>Contribución no capturada frente a tu benchmark, sumando toda la cartera.</div>
+        {/* EL UNIVERSO DEL TOTAL, DECLARADO: este monto incluye cuentas que NO llegan a brecha material, así que
+            es distinto —y mayor— que el de la cartera material de arriba. Decirlo es la diferencia entre dos
+            cifras parecidas que se leen bien y dos que se contradicen a los ojos del lector. */}
+        <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 3 }}>
+          Contribución no capturada frente a tu benchmark. {p.universo} De ese total, {p.materialFmt} está en las {p.materialN} cuentas con brecha material.
+        </div>
         <div style={{ display: "flex", height: 9, borderRadius: 5, overflow: "hidden", background: "rgba(255,255,255,0.07)", marginTop: 12 }}>
           <div style={{ width: `${pctProbado}%`, background: C.green, opacity: 0.85 }} title={`${p.probadoFmt} con causa comprobada`}/>
           <div style={{ flex: 1, background: "rgba(255,255,255,0.10)" }} title={`${p.abiertoFmt} por aislar`}/>
@@ -3165,7 +3140,7 @@ function ControlRing({ ring, rd }) {
 // lo operable (selección para comparar, comparado multi-entidad, filtros, orden, buscador, watchlist) y saca lo que
 // ahora pertenece a la Ficha — el 80/20 por eje (con sus bodegas), la evolución de UNA entidad y el perfil inline
 // vs promedio. `onFicha` es el camino a la Ficha real del cliente (el MISMO que abre el deep-link del perfil).
-function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mesa = false, resumen = false, onAsk = null, onFicha = null, watch = null, onWatch = null, alertSignal = 0 }) {
+function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mesa = false, resumen = false, onAsk = null, onFicha = null, watch = null, onWatch = null }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   // PERFIL ÚNICO (owner 2026-08-06): initialSel llega del deep-link de clientMesaLink — la fila ya viene
   // seleccionada al abrir (la Ficha aparece de una), sin perder la selección manual normal del resto de casos.
@@ -3175,8 +3150,8 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
   const [mode, setMode] = useState("all");            // all | top | bottom | alert
   const [scope, setScope] = useState("global");       // global | fecha (honesto)
-  // "verlas en el cuadro" del bloque En alerta (PASE 2): navega la grilla al filtro en alerta de clientes (mismo criterio)
-  useEffect(() => { if (alertSignal) { setDim("cliente"); setMode("alert"); setOnlySel(false); } }, [alertSignal]);
+  // (el deep-link "verlas en el cuadro" murió con la tira legacy de alerta · owner 2026-08-07 — el filtro
+  //  "En alerta" vive donde se opera: en la propia grilla, un click más abajo)
   const cm = buildCuadroMando(dim, scenario);
   const cols = cm.columns;
   const primary = cols.find((c) => c.key !== "accion") || cols[0];

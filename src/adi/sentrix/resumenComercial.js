@@ -15,11 +15,16 @@
  * Este módulo ORDENA y RECONCILIA; no inventa una segunda aritmética. Si una cifra no está autorizada, se declara
  * la limitación en vez de rellenarla.
  *
- * DOS UNIVERSOS QUE NUNCA SE CONFUNDEN (owner 2026-08-07):
+ * UNIVERSOS QUE NUNCA SE CONFUNDEN, Y QUE SIEMPRE RECONCILIAN (owner 2026-08-07):
  *   · GRUPO 80%        el mínimo de clientes cuya venta acumulada alcanza el 80%. Es el plano de decisión.
  *   · EN TENSIÓN       los del grupo 80% con brecha MATERIAL (≥ POLICY.margenBrechaMaterial pp bajo su vara).
  *                      NO es "todos los que están bajo benchmark": una diferencia chica no es material.
+ *   · CARTERA MATERIAL el MISMO criterio de materialidad sobre TODO el negocio — el universo de la alerta de
+ *                      margen de la Mesa. En tensión + cola material = cartera material, exacto.
  * Los clientes de la cola NO entran al diagnóstico inicial — aparecen al expandir la cartera completa.
+ * REGLA DURA (owner 2026-08-07, tras ver la vista con la tira legacy al lado): dos montos parecidos de universos
+ * distintos NUNCA pueden aparecer juntos sin decir de cuál sale cada uno. Por eso `tension.reconcilia` y
+ * `puente.universo` se arman ACÁ, ya formateados y nombrando su universo — la vista no improvisa esa frase.
  *
  * PROPORCIONALIDAD SEMÁNTICA (el contrato que rige a ADI, aplicado a la UI): el veredicto localiza la tensión,
  * nunca afirma la causa. "X concentran $N de brecha" es una localización comprobada; "X están debilitando el
@@ -55,12 +60,43 @@ function _plano(rows) {
   };
 }
 
-// ── CUENTAS EN TENSIÓN ─────────────────────────────────────────────────────────────────────────────────────────
+// ── CUENTAS EN TENSIÓN · LOS DOS UNIVERSOS, RECONCILIADOS ──────────────────────────────────────────────────────
 // Brecha MATERIAL, no "bajo benchmark". La vara es la misma del detector (POLICY.margenBrechaMaterial), así que
-// esta cuenta no puede divergir del semáforo del cuadro ni de lo que ADI diga: una sola verdad.
-function _enTension(grupo) {
-  const t = grupo.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial);
-  return { lista: t, n: t.length, enJuego: t.reduce((s, r) => s + (r.enJuego || 0), 0) };
+// esta cuenta no puede divergir del semáforo del cuadro, de la tira de alerta de la Mesa ni de lo que ADI diga.
+//
+// EL MISMO CRITERIO SE APLICA A DOS UNIVERSOS Y LOS DOS SE DECLARAN (owner 2026-08-07, tras ver la vista):
+//   · CARTERA COMPLETA  todas las cuentas del negocio con brecha material — el universo de la alerta de margen.
+//   · GRUPO 80%         las de ese conjunto que además están dentro del plano de decisión.
+// El resto vive en la cola. Las tres cifras cierran: plano + cola = cartera. Y como las dos primeras se parecen
+// ($4.7M vs $4.9M en el set demo), la regla dura es que NUNCA pueden aparecer juntas sin decir de qué universo es
+// cada una: por eso la frase de reconciliación se arma acá, formateada, y no se improvisa en la vista.
+function _enTension(plano, rows) {
+  const material = (xs) => xs.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial);
+  const suma = (xs) => xs.reduce((s, r) => s + (r.enJuego || 0), 0);
+  const enPlano = material(plano.grupo);
+  const enCartera = material(rows);
+  const dentro = new Set(enPlano.map((r) => r.name));
+  const enCola = enCartera.filter((r) => !dentro.has(r.name));
+  const tPlano = suma(enPlano), tCartera = suma(enCartera), tCola = suma(enCola);
+  // CUÁNTO DE LA OPORTUNIDAD MATERIAL VIVE DENTRO DEL PLANO — dinámico, nunca un porcentaje clavado.
+  const concentraPct = tCartera > 0 ? +((tPlano / tCartera) * 100).toFixed(1) : null;
+  const _cuentas = (n) => `${n} ${n === 1 ? "cuenta" : "cuentas"}`;
+  const cartera = {
+    lista: enCartera, n: enCartera.length, enJuego: tCartera, enJuegoFmt: _M(tCartera),
+    colaLista: enCola, colaN: enCola.length, colaEnJuego: tCola, colaEnJuegoFmt: _K(tCola),
+  };
+  // LA RECONCILIACIÓN · los dos universos nombrados y el puente entre ellos, en una sola frase.
+  let reconcilia;
+  if (!enCartera.length) {
+    reconcilia = `Ninguna cuenta de la cartera tiene brecha material (${POLICY.margenBrechaMaterial} pp o más bajo su referencia), ni dentro ni fuera del plano de decisión.`;
+  } else if (!enPlano.length) {
+    reconcilia = `En toda la cartera hay ${_cuentas(enCartera.length)} con brecha material por ${_M(tCartera)}, pero ninguna está dentro del plano de decisión: la oportunidad vive entera en la cola.`;
+  } else if (!enCola.length) {
+    reconcilia = `Toda la cartera tiene ${_cuentas(enCartera.length)} con brecha material por ${_M(tCartera)}, y ${enCartera.length === 1 ? "esa cuenta está" : "todas están"} dentro del plano de decisión: el ${_pct(100)} de esa oportunidad ya está en foco.`;
+  } else {
+    reconcilia = `En toda la cartera hay ${_cuentas(enCartera.length)} con brecha material por ${_M(tCartera)}. Las ${enPlano.length} que están dentro del plano de decisión concentran el ${_pct(concentraPct)} de esa oportunidad; ${_cuentas(enCola.length)} ${enCola.length === 1 ? "queda" : "quedan"} en la cola por ${_K(tCola)}.`;
+  }
+  return { lista: enPlano, n: enPlano.length, enJuego: tPlano, enJuegoFmt: _M(tPlano), cartera, concentraPct, concentraPctFmt: _pct(concentraPct), reconcilia };
 }
 
 // ── EL VEREDICTO · jerarquía de tres pasos (owner 2026-08-07) ──────────────────────────────────────────────────
@@ -156,14 +192,19 @@ function _puente(rows, plano, tension) {
   const abierto = Math.max(0, brechaTotal - probado);
   return {
     brechaTotal, brechaTotalFmt: _M(brechaTotal),
+    // EL UNIVERSO DEL TOTAL, DECLARADO: son TODAS las cuentas con contribución en juego — las de brecha material y
+    // las que no llegan a serlo. Por eso este número es distinto (y mayor) que el de las cuentas materiales de la
+    // cartera: dos cifras parecidas que solo se pueden leer bien si cada una dice de qué universo sale.
+    universo: `Toda la cartera: las ${rows.length} cuentas del negocio, sumando las de brecha material y las que no llegan a serlo.`,
+    materialFmt: tension.cartera.enJuegoFmt, materialN: tension.cartera.n,
     probado, probadoFmt: _K(probado),
     abierto, abiertoFmt: _M(abierto),
     tramos: [
       { estatus: "probado", monto: _K(probado), titulo: "Acciones comerciales sobre la meta",
         detalle: `${conExceso.length} ${conExceso.length === 1 ? "cliente opera" : "clientes operan"} con carga comercial sobre tu meta de ${_pct(POLICY.targetCarga)}. Es la única parte de la brecha con una causa comprobada y cuantificada.` },
-      { estatus: "indicado", monto: tension.n ? _M(tension.enJuego) : "—", titulo: "Dónde se concentra la brecha",
+      { estatus: "indicado", monto: tension.n ? tension.enJuegoFmt : "—", titulo: "Dónde se concentra la brecha",
         detalle: tension.n
-          ? `${tension.n} de los ${plano.n} clientes del plano concentran ${_M(tension.enJuego)}. Es una localización comprobada, no una causa: falta aislar qué la produce en cada cuenta.`
+          ? `${tension.n} de los ${plano.n} clientes del plano concentran ${tension.enJuegoFmt} — el ${tension.concentraPctFmt} de los ${tension.cartera.enJuegoFmt} que suman las ${tension.cartera.n} cuentas con brecha material de toda la cartera. Es una localización comprobada, no una causa: falta aislar qué la produce en cada cuenta.`
           : "Ninguna cuenta del plano supera la brecha material; no hay concentración que señalar." },
       { estatus: "abierto", monto: _M(abierto), titulo: "Pendiente de aislar",
         detalle: "El resto debe separarse entre costo de producto, precio y composición de la venta. El motor todavía no aisló ninguno de los tres, así que son rutas de investigación abiertas — no causas." },
@@ -230,7 +271,7 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
   if (!rows.length) return null;
   const total = { ...(cuadro.total || {}), _vara: rows.find((r) => typeof r.varaRef === "number")?.varaRef ?? null };
   const plano = _plano(rows);
-  const tension = _enTension(plano.grupo);
+  const tension = _enTension(plano, rows);
   // VARIACIÓN ANUAL DEL NEGOCIO · de la MISMA fuente que la venta por cliente (`clientesVentas`, una sola verdad
   // — ver la regla de venta oficial por cliente). Si el tenant no declara `anterior`, queda null y el veredicto lo
   // dice en vez de inventar un crecimiento.

@@ -55,6 +55,36 @@ H("[3] DOS UNIVERSOS · grupo 80% vs cuentas en tensión");
   ok(R.tension.enJuego === R.tension.lista.reduce((s, r) => s + (r.enJuego || 0), 0), "el monto en tensión es la suma de sus propias filas");
 }
 
+H("[3b] LOS DOS UNIVERSOS RECONCILIAN, Y LA VISTA LO DICE (owner 2026-08-07)");
+{
+  const c = R.tension.cartera;
+  // el universo CARTERA usa el MISMO criterio de materialidad, sobre todo el negocio
+  const materialCartera = R.rows.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial);
+  ok(c.n === materialCartera.length, `la cartera material se calcula con la MISMA vara sobre todo el negocio — ${c.n} cuentas`);
+  ok(c.n >= R.tension.n, `la cartera material CONTIENE al plano — ${c.n} en la cartera ⊇ ${R.tension.n} en el plano`);
+  ok(R.tension.lista.every((r) => c.lista.some((x) => x.name === r.name)), "toda cuenta en tensión del plano también está en la cartera material");
+  // RECONCILIACIÓN EXACTA: plano + cola = cartera, en cuentas y en plata
+  ok(R.tension.n + c.colaN === c.n, `RECONCILIA en cuentas: ${R.tension.n} del plano + ${c.colaN} de la cola = ${c.n} de la cartera`);
+  ok(R.tension.enJuego + c.colaEnJuego === c.enJuego, `RECONCILIA en plata: ${R.tension.enJuegoFmt} + ${c.colaEnJuegoFmt} = ${c.enJuegoFmt}`);
+  ok(c.colaLista.every((r) => R.plano.cola.some((x) => x.name === r.name)), "la parte que no entra al plano está efectivamente en la cola");
+  // EL PORCENTAJE ES DINÁMICO Y CORRECTO
+  ok(typeof R.tension.concentraPct === "number" && Math.abs(R.tension.concentraPct - (R.tension.enJuego / c.enJuego) * 100) < 0.1,
+    `el % de la oportunidad total que concentra el plano es dinámico y exacto — ${R.tension.concentraPctFmt}`);
+  ok(R.tension.concentraPct <= 100.001, `nunca pasa del 100% — ${R.tension.concentraPct}`);
+  // LA FRASE NOMBRA LOS DOS UNIVERSOS · nunca dos montos parecidos sueltos
+  const f = R.tension.reconcilia;
+  ok(!!f && /toda la cartera/i.test(f) && /plano de decisi[óo]n/i.test(f), `la frase NOMBRA los dos universos — "${f}"`);
+  ok(f.includes(c.enJuegoFmt) && f.includes(R.tension.concentraPctFmt), "…y trae el monto de la cartera junto al % que el plano concentra");
+  ok(c.colaN === 0 || f.includes(c.colaEnJuegoFmt), "…y declara lo que queda en la cola, para que la resta cierre a la vista");
+  // el PUENTE declara SU universo (es un total distinto: incluye cuentas sin brecha material)
+  ok(/toda la cartera/i.test(R.puente.universo) && /no llegan a serlo/i.test(R.puente.universo),
+    `el total del puente declara su universo — "${R.puente.universo}"`);
+  ok(R.puente.brechaTotal >= c.enJuego, `y es ≥ que el material, porque lo contiene — ${R.puente.brechaTotalFmt} ⊇ ${c.enJuegoFmt}`);
+  ok(R.puente.materialFmt === c.enJuegoFmt && R.puente.materialN === c.n, "el puente publica la parte material con su cuenta, para que las dos cifras no queden sueltas");
+  ok(R.tension.n === 0 || (R.puente.tramos[1].detalle.includes(c.enJuegoFmt) && R.puente.tramos[1].detalle.includes(R.tension.concentraPctFmt)),
+    "el tramo INDICADO también nombra los dos universos y el % — nunca $X y $Y juntos sin decir de dónde salen");
+}
+
 H("[4] VEREDICTO · jerarquía, nunca vacío, nunca causal");
 {
   ok(R.veredicto && R.veredicto.titular && R.veredicto.soporte, `el bloque NUNCA queda vacío — "${R.veredicto.titular}"`);
