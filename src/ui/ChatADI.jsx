@@ -623,8 +623,11 @@ function SourceBadge({ source }) {
 // con nombre de P&L, y ADI guía los supuestos en el chat") → specs ENLATADOS. Corren en demo Y con LLM: el
 // análisis es 100% determinístico · sólo el texto libre pasa por el LLM. El flagship es la historia del P&L
 // (composePnl "perdiendo": cascada del negocio + fugas · sin gastos declarados ABRE el flujo guiado).
+// EXPORTADO (owner 2026-08-07 · guía de inicio): GuiaInicio.jsx deriva sus ejemplos de acá por texto exacto en vez
+// de declarar preguntas propias — estos specs están curados y verificados, y una guía que prometa algo que el motor
+// no contesta convierte el primer turno del usuario en un decline. Una sola fuente de preguntas de entrada.
 const _SPEC = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o });
-const HERO_CHIPS = [
+export const HERO_CHIPS = [
   { q: "¿Cómo viene el P&L de mi negocio?",   spec: { schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "perdiendo" } } },
   { q: "¿Cuánto me queda después de gastos?", spec: { schemaVersion: 1, turn_type: "pnl_setup", pnl: { action: "resultado" } } },
   { q: "¿Qué clientes ceden más margen?",     spec: _SPEC({ operation: "rank", dimension: "cliente", metric: "margen", sort: { by: "margen", dir: "asc" }, limit: 5 }) },
@@ -676,7 +679,7 @@ function HeroInicio({ onChip }) {
   );
 }
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null }) {
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -810,6 +813,18 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     setMessages(prev => [...prev, userMsg, adiMsg]);
     _applyTurn(turn, adiMsg.id);
   };
+
+  // GUÍA DE INICIO (owner 2026-08-07) · un ejemplo de la guía se ejecuta por el MISMO camino que su chip del hero:
+  // submitSpec, con su guardia de reentrada, su ruteo por oráculo y su fallback. La guía no conoce el pipeline.
+  // A DIFERENCIA de registerAsk (que solo prellena el input y no cierra sobre nada), esto SÍ necesita el ref: el
+  // handler se registra una sola vez ([registerRun]) pero submitSpec se re-crea en cada render cerrando sobre el
+  // `context` de ESE render — sin el ref, reabrir la guía a mitad de una conversación ejecutaría el ejemplo con el
+  // contexto del primer render (vacío), perdiendo el hilo. El ref se sincroniza en cada render.
+  const submitSpecRef = useRef(null);
+  useEffect(() => { submitSpecRef.current = submitSpec; });
+  useEffect(() => {
+    if (typeof registerRun === "function") registerRun((spec, label) => { if (submitSpecRef.current) submitSpecRef.current(spec, label); });
+  }, [registerRun]);
 
   const lastAdiId = (() => {
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "adi") return messages[i].id;
