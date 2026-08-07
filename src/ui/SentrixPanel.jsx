@@ -29,6 +29,7 @@ import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CO
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // Perfil comparado · la línea de benchmark/target (criterio-aware: si el owner fijó su vara, ES su vara)
 import { setUISignal } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · lo que el usuario hace en la Mesa informa el contexto de ADI
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
+import { TOOLS } from "../adi/oracle/toolRegistry.js";   // FICHA EJECUTIVA (owner 2026-08-07): misma boleta/políticas que ADI — entityProfile/entityComposicion/entityCapitalLigado/trend, funciones puras sin LLM, cero cálculo paralelo en React
 const _isDev = ADI_PROFILE === "dev";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -2987,7 +2988,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
           se ELIMINÓ — con DOS seleccionadas la comparación es el comparado temporal de ARRIBA (dual); en la lente
           Control (sin Mesa) sigue el dumbbell original de clientes. */}
       {sel.length === 1 && mesa && (
-        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} onAsk={onAsk}/>
+        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} scenario={scenario} onAsk={onAsk}/>
       )}
       {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
@@ -3733,8 +3734,240 @@ function _mono(xs, ys) {
   return d;
 }
 
-function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
-  // el Pareto vive AFUERA (MesaPareto · reflejo de la tabla, owner 2026-07-10) — la ficha suma perfil + evolutivo
+// ── FICHA EJECUTIVA DE CLIENTE (owner 2026-08-07, "no quiero otro mockup, debe quedar integrada, navegable y
+// desplegada") — construida SOLO con TOOLS.entityProfile/entityComposicion/entityCapitalLigado/trend
+// (toolRegistry.js): la MISMA boleta, políticas y cálculos que consume ADI por el chat. Cero cálculo paralelo acá
+// — todo lo que se ve es un `.fmt`/`.value` ya autorizado por el motor, nunca una cuenta nueva en React. Funciona
+// para CUALQUIER cliente/tenant (name es un parámetro, nunca un literal) — degrada honesto módulo por módulo si
+// falta cobertura, nunca inventa ni rellena.
+const _panelStyle = {
+  padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(47,184,218,0.25)",
+  background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+};
+const _panelTitle = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center" };
+const _dot = <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>;
+// $ CRUDO (no $K-escalado) — capitalLigado.usd/subtotal vienen en dólares reales (stockUSD), NO en miles como
+// venta/contribución del cuadro comercial: _fmDin de arriba asume input en $K y aquí duplicaría ×1000. Mismo
+// criterio que el formatter local `usd()` de CuadroMando, factoreado para reusar acá.
+const _fmUsd = (v) => { const a = Math.abs(v); return a >= 1e6 ? "$" + (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? "$" + Math.round(a / 1e3) + "K" : "$" + Math.round(a); };
+
+function _KPI({ label, value, sub, tone, def }) {
+  if (value == null) return null;
+  return (
+    <div style={{ minWidth: 108 }}>
+      <div style={{ fontSize: 10, color: C.textMuted, display: "flex", alignItems: "center", gap: 3 }}>{label}{def && <InfoDot def={def} align="left"/>}</div>
+      <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 600, color: tone || C.text, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: C.textMuted, marginTop: 1 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function FichaEjecutivaCliente({ name, scenario, onAsk }) {
+  const prof = TOOLS.entityProfile({ dimension: "cliente", entity: name, scenario });
+  if (!prof || !prof.coverage || !prof.coverage.supported) {
+    return (
+      <div style={_panelStyle}>
+        <span style={_panelTitle}>{_dot}Ficha Ejecutiva · {name}</span>
+        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
+          No tengo datos suficientes para armar la ficha ejecutiva de {name} en este escenario — {(prof && prof.coverage && prof.coverage.reason) || "sin cobertura"}.
+        </div>
+      </div>
+    );
+  }
+  const f = prof.facts;
+  const metric = (label) => (Array.isArray(f.metrics) ? f.metrics.find((m) => m.label === label) : null);
+  const mVentas = metric("Ventas"), mMargen = metric("Margen"), mContrib = metric("Contribución"), mCarga = metric("Carga comercial");
+  const comp = TOOLS.entityComposicion({ dimension: "cliente", entity: name });
+  const cap = TOOLS.entityCapitalLigado({ dimension: "cliente", entity: name, scenario });
+  const trV = TOOLS.trend({ metric: "ventas", dimension: "cliente", entity: name });
+  const trC = TOOLS.trend({ metric: "contribucion", dimension: "cliente", entity: name });
+  const trM = TOOLS.trend({ metric: "margen", dimension: "cliente", entity: name });
+
+  const familias = (comp && comp.coverage && comp.coverage.supported) ? comp.facts.composicion.familias : [];
+  const skus = (comp && comp.coverage && comp.coverage.supported) ? comp.facts.composicion.skus : [];
+  const topFamilia = familias[0] || null;   // composicion.familias ya viene ordenada por venta desc (specRetrieval.js)
+  // familia de margen REAL más bajo — comparando TODAS, nunca asumiendo que la de más peso lo es (owner 2026-08-07,
+  // "no debe llamarse 'el margen más bajo'" — mismo candado que ya se reforzó en narratePromptC.js para el chat).
+  const minMargenFamilia = familias.reduce((min, x) => (typeof x.margen === "number" && (!min || x.margen < min.margen) ? x : min), null);
+  const topEsElPeor = topFamilia && minMargenFamilia && topFamilia.nombre === minMargenFamilia.nombre;
+
+  const items = (cap && cap.coverage && cap.coverage.supported) ? cap.facts.capitalLigado.items : [];
+  const pos = f.posicionCartera || null;
+
+  const _ask = (q) => {
+    setUISignal({ ficha: { cliente: name, dimension: "cliente", scenario, origen: "ficha_ejecutiva" } });
+    if (onAsk) onAsk(q);
+  };
+  const _btn = (label, q) => onAsk ? (
+    <button onClick={() => _ask(q)} style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 10.5, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{label}</button>
+  ) : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* 1 · ENCABEZADO EJECUTIVO */}
+      <div style={_panelStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <span style={_panelTitle}>{_dot}Ficha Ejecutiva · {name}</span>
+          {_btn("Preguntar a ADI sobre esta cuenta →", `Muéstrame el perfil de ${name}`)}
+        </div>
+        <div style={{ fontSize: 12.5, color: C.textSub, lineHeight: 1.6, marginTop: 8 }}>
+          {name} vende {mVentas ? mVentas.fmt : "—"}
+          {trV && trV.facts && trV.facts.variacionAnual ? <> ({trV.facts.variacionAnual.pct} vs año anterior)</> : null}
+          {mMargen ? <>, con margen {mMargen.fmt}</> : null}
+          {f.brechaMargen ? <> — {f.brechaMargen} bajo tu benchmark de {f.benchmarkMargen}</> : (f.benchmarkMargen ? <> — sobre tu benchmark de {f.benchmarkMargen}</> : null)}.
+        </div>
+      </div>
+
+      {/* 2 · KPIs */}
+      <div style={_panelStyle}>
+        <span style={_panelTitle}>{_dot}Cifras clave · 12 meses</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginTop: 10 }}>
+          <_KPI label="Ventas (12 meses)" value={mVentas && mVentas.fmt} sub={trV && trV.facts && trV.facts.variacionAnual ? `${trV.facts.variacionAnual.pct} vs año anterior` : "sin año anterior declarado"}/>
+          <_KPI label="Margen" value={mMargen && mMargen.fmt} tone={f.brechaMargen ? C.red : C.green} sub={f.benchmarkMargen ? `benchmark ${f.benchmarkMargen}` : null}/>
+          <_KPI label="Contribución" value={mContrib && mContrib.fmt}/>
+          <_KPI label="Acciones comerciales" value={mCarga && mCarga.fmt} sub={f.targetCarga ? `meta ${f.targetCarga}` : null}/>
+          <_KPI label="Ticket promedio" value={f.ticketPromedio} def="Precio promedio realizado (venta ÷ unidades) — no es un ticket transaccional real, el dato no trae número de operaciones."/>
+        </div>
+      </div>
+
+      {/* 3 · QUÉ EXPLICA LA BRECHA — probado / indicado / abierto (nunca confunde el mecanismo con el total) */}
+      {f.brechaMargen && (
+        <div style={_panelStyle}>
+          <span style={_panelTitle}>{_dot}Qué explica la brecha de margen</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 9, fontSize: 12, color: C.textSub, lineHeight: 1.55 }}>
+            {f.excesoAccionesComerciales && (
+              <div><span style={{ color: C.green, fontFamily: MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Probado</span>
+                Cerrar el exceso de acciones comerciales sobre tu meta ({f.targetCarga}) libera <b style={{ color: C.text }}>{f.excesoAccionesComerciales}</b> — hoy tu carga comercial es {mCarga ? mCarga.fmt : "—"}.</div>
+            )}
+            {topFamilia && (
+              <div><span style={{ color: C.amber, fontFamily: MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Indicado</span>
+                La familia con más peso, <b style={{ color: C.text }}>{topFamilia.nombre}</b> ({topFamilia.share}% de la compra), tiene margen {topFamilia.margen}%{f.benchmarkMargen ? <> — {topFamilia.margen < parseFloat(f.benchmarkMargen) ? "bajo" : "sobre"} tu benchmark de {f.benchmarkMargen}</> : null}{topEsElPeor ? <>, la más baja de sus {familias.length} familias</> : null}.</div>
+            )}
+            <div><span style={{ color: C.textMuted, fontFamily: MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Abierto</span>
+              La brecha total contra tu benchmark es {f.brechaMargen}. El exceso de acciones comerciales explica una parte comprobada; el resto no tiene una causa aislada en el dato disponible (mix, costo u otros factores no separables con lo que hay).</div>
+          </div>
+        </div>
+      )}
+
+      {/* 4 · EVOLUCIÓN MENSUAL — venta con año anterior (única serie con ancla), contribución/margen honestos sin ella */}
+      <ComparadoCard a={name} rowA={{ varaRef: f.benchmarkMargen ? parseFloat(f.benchmarkMargen) : null }} dim="cliente" onAsk={onAsk}/>
+
+      {/* 5 · COMPOSICIÓN POR FAMILIA Y POR SKU — participación, venta, contribución, margen */}
+      <div style={_panelStyle}>
+        <span style={_panelTitle}>{_dot}Composición de la compra</span>
+        {familias.length === 0 && skus.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
+            No tengo la composición de la compra de {name} por familia o SKU en este escenario — queda abierto.
+          </div>
+        ) : (
+          <>
+          {familias.length > 0 && (
+            <div style={{ marginTop: 10, overflowX: "auto" }}>
+              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>Por familia</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 420 }}>
+                <thead><tr>{["Familia", "Participación", "Venta", "Contribución", "Margen"].map((h, i) => (
+                  <th key={h} style={{ textAlign: i === 0 ? "left" : "right", color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" }}>{h}</th>
+                ))}</tr></thead>
+                <tbody>{familias.map((row) => (
+                  <tr key={row.nombre}>
+                    <td style={{ padding: "5px 6px", color: C.text }}>{row.nombre}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.share}%</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.venta}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.contribucion}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: f.benchmarkMargen && row.margen < parseFloat(f.benchmarkMargen) ? C.amber : C.text, fontVariantNumeric: "tabular-nums" }}>{row.margen}%</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+          {skus.length > 0 && (
+            <div style={{ marginTop: 14, overflowX: "auto" }}>
+              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>Por SKU (top {Math.min(10, skus.length)} de {skus.length})</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 420 }}>
+                <thead><tr>{["SKU", "Participación", "Venta", "Contribución", "Margen"].map((h, i) => (
+                  <th key={h} style={{ textAlign: i === 0 ? "left" : "right", color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" }}>{h}</th>
+                ))}</tr></thead>
+                <tbody>{skus.slice(0, 10).map((row) => (
+                  <tr key={row.nombre}>
+                    <td style={{ padding: "5px 6px", color: C.text }}>{row.nombre}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.share}%</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.venta}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.contribucion}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: typeof row.margen === "number" && f.benchmarkMargen && row.margen < parseFloat(f.benchmarkMargen) ? C.amber : C.text, fontVariantNumeric: "tabular-nums" }}>{row.margen != null ? `${row.margen}%` : "—"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+          {_btn(`Pedile a ADI que profundice en la composición de ${name} →`, `¿Cómo se compone ${name}?`)}
+          </>
+        )}
+      </div>
+
+      {/* 6 · POSICIÓN EN LA CARTERA */}
+      <div style={_panelStyle}>
+        <span style={_panelTitle}>{_dot}Posición en la cartera</span>
+        {!pos ? (
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
+            No tengo la posición de {name} en la cartera en este escenario — queda abierto.
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 10 }}>
+            <div><div style={{ fontSize: 10, color: C.textMuted }}>Ranking por venta</div><div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: C.text, marginTop: 2 }}>{pos.rankingVenta}º de {pos.totalClientes}</div></div>
+            <div><div style={{ fontSize: 10, color: C.textMuted }}>Concentración</div><div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: pos.enBloque8020 ? C.green : C.textMuted, marginTop: 2 }}>{pos.enBloque8020 ? `en el bloque ${pos.reglaConcentracion}` : `fuera del ${pos.reglaConcentracion}`}</div></div>
+            {pos.rankingMargenDesdeAbajo && (
+              <div><div style={{ fontSize: 10, color: C.textMuted }}>Margen vs cartera</div><div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: pos.rankingMargenDesdeAbajo <= 3 ? C.amber : C.text, marginTop: 2 }}>{pos.rankingMargenDesdeAbajo}º más rezagado de {pos.totalConMargen}</div></div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 7 · CAPITAL DEL NEGOCIO LIGADO AL MIX — SKU/bodega/valorizado/unidades/estado, severidad crítico(rojo)/atención(ámbar) */}
+      <div style={_panelStyle}>
+        <span style={_panelTitle}>{_dot}Capital del negocio ligado al mix vendido</span>
+        {items.length > 0 ? (
+          <>
+            <div style={{ marginTop: 10, overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 420 }}>
+                <thead><tr>{["SKU", "Bodega", "Valorizado", "Unidades", "Estado"].map((h, i) => (
+                  <th key={h} style={{ textAlign: i === 0 ? "left" : "right", color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" }}>{h}</th>
+                ))}</tr></thead>
+                <tbody>{items.map((it) => (
+                  <tr key={it.sku}>
+                    <td style={{ padding: "5px 6px", color: C.text }}>{it.sku}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", color: C.textSub }}>{it.bodega}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.text, fontVariantNumeric: "tabular-nums" }}>{_fmUsd(it.usd)}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{it.unidades ?? "—"}</td>
+                    <td style={{ padding: "5px 6px", textAlign: "right" }}>
+                      <span style={{ fontFamily: MONO, fontSize: 10.5, color: it.critico ? C.red : C.amber }}>
+                        {it.critico ? "crítico" : "atención"}{typeof it.diasSinVenta === "number" ? ` · ${it.diasSinVenta}d sin venta` : ""}
+                      </span>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 8 }}>
+              De los productos que le vendés a {name}, {items.length} {items.length === 1 ? "está" : "están"} con capital detenido en tu inventario — <b style={{ color: C.text }}>{cap.facts.capitalLigado ? _fmUsd(cap.facts.capitalLigado.subtotal) : ""}</b> entre {items.length === 1 ? "ese" : "todos"}. Es inventario de tu negocio, no plata de {name}.
+            </div>
+            {_btn(`Pedile a ADI el capital detenido de ${name} →`, `¿Qué capital tenés detenido en el mix de ${name}?`)}
+          </>
+        ) : (
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
+            Ningún SKU del mix de {name} está hoy con capital detenido según tu benchmark de rotación/cobertura.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk }) {
+  // el Pareto vive AFUERA (MesaPareto · reflejo de la tabla, owner 2026-07-10) — la ficha suma perfil + evolutivo.
+  // CLIENTE (owner 2026-08-07): la Ficha Ejecutiva real va ADELANTE del perfil genérico vs-promedio — el perfil
+  // vs-promedio sigue disponible para todos los ejes (marca/familia/SKU incluidos), la Ficha Ejecutiva es
+  // ESPECÍFICA de cliente (acciones comerciales, ticket promedio, capital ligado al mix no aplican a otros ejes).
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
@@ -3747,6 +3980,7 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
           </button>
         ) : null}
       </div>
+      {dim === "cliente" && <FichaEjecutivaCliente name={name} scenario={scenario} onAsk={onAsk}/>}
       {/* PASE 1c: el comparado (ex FichaEvolutivo) subió ARRIBA de la tabla (owner) — la ficha queda perfil + composición */}
       <MesaPerfil name={name} row={row} columns={columns} allRows={allRows} dim={dim} onAsk={onAsk}/>
     </div>

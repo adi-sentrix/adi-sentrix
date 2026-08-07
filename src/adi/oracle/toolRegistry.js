@@ -24,6 +24,10 @@ import { POLICY, costModelOf, benchmarkOf } from "../../config/businessPolicy.js
 import { buildEntityRecord, buildGrid, buildTension, guessDimension, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
 import { buildGlobalEvolution } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
+import { concentracion } from "../diagnosis/economicDiagnosis.js";                   // 80/20 · la MISMA función del detector de concentración de Sentrix
+import { SOURCES } from "../../config/contract/sourceManifest.js";                   // carga scenario-aware de clientesVentas/clientesMargen (posición en cartera)
+
+const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) return []; return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || []; };
 
 // ── $ EN MILES → $ FORMATEADO (la trampa de escala · owner "el motor le entrega la sábana, sin trampas") ──────────
 // Las tablas comerciales del dato guardan el dinero en MILES (venta: 17000 = $17.0M). El LLM leía ese crudo en los
@@ -147,6 +151,42 @@ function entityProfile({ dimension, entity, scenario } = {}) {
         r.boleta = [...r.boleta,
           fig("Meta de carga comercial", `${POLICY.targetCarga}%`, { unit: "pct", context: "tu target" }),
           fig(`${entity} · exceso de acciones comerciales`, _moneyRaw(excesoUsd), { unit: "money", raw: excesoUsd, mandatory: true, context: "carga actual − tu meta, aplicado a la venta — SOLO el exceso comprobado, no la brecha total de margen" }),
+        ];
+      }
+    }
+    // TICKET PROMEDIO (owner 2026-08-07, Ficha Ejecutiva real, "Ticket promedio" es el nombre pedido
+    // explícitamente aunque no sea un ticket transaccional real — no hay nº de operaciones en el dato, lo que
+    // hay es venta ÷ unidades = precio realizado; mismo override de nombre que ya usó el mockup aprobado).
+    // SOLO cliente: `unidades` solo existe en clientesVentas.
+    if (dim === "cliente") {
+      const rawRec = rawRecordFor(dim, entity);
+      const ventaK = rawRec && (typeof rawRec.venta === "number" ? rawRec.venta : rawRec.actual);
+      if (rawRec && typeof rawRec.unidades === "number" && rawRec.unidades > 0 && typeof ventaK === "number") {
+        const ticket = Math.round((ventaK * 1000) / rawRec.unidades);
+        r.facts = { ...r.facts, ticketPromedio: _moneyRaw(ticket) };
+        r.boleta = [...r.boleta, fig(`${entity} · Ticket promedio`, _moneyRaw(ticket), { unit: "money", raw: ticket, context: "precio promedio realizado (venta ÷ unidades) — no es un ticket transaccional real, el dato no trae número de operaciones" })];
+      }
+      // POSICIÓN EN LA CARTERA (owner 2026-08-07, Ficha Ejecutiva real, "posición del cliente dentro de la
+      // cartera"): ranking por venta + si cae en el bloque 80/20 (concentracion(), la MISMA función del
+      // detector de Sentrix) + ranking de margen desde el más rezagado — todo cross-cliente, no del cliente
+      // solo, así que se computa acá con el universo completo en vez de depender de otra tool.
+      const allVentas = _loadSrc("clientesVentas", scenario).map((c) => ({ nombre: c.nombre, valor: c.actual }));
+      const rankV = [...allVentas].sort((a, b) => b.valor - a.valor);
+      const rank = rankV.findIndex((c) => c.nombre === entity) + 1;
+      if (rank > 0 && allVentas.length) {
+        const conc = concentracion(allVentas, 0.8);
+        const enBloque8020 = conc.entidades.some((e) => e.nombre === entity);
+        const allMargen = _loadSrc("clientesMargen", scenario).filter((c) => c.tipo === "cliente" && typeof c.margen === "number");
+        const rankM = [...allMargen].sort((a, b) => a.margen - b.margen);   // ascendente: el más rezagado primero
+        const rankMargen = rankM.findIndex((c) => c.nombre === entity) + 1;
+        r.facts = { ...r.facts, posicionCartera: {
+          rankingVenta: rank, totalClientes: rankV.length,
+          enBloque8020, reglaConcentracion: conc.regla,
+          rankingMargenDesdeAbajo: rankMargen > 0 ? rankMargen : null, totalConMargen: rankM.length,
+        } };
+        r.boleta = [...r.boleta,
+          fig(`${entity} · ranking por venta`, `${rank}º de ${rankV.length}`, { unit: "rank", raw: rank, context: "posición en la cartera por venta" }),
+          ...(rankMargen > 0 ? [fig(`${entity} · ranking de margen desde el más rezagado`, `${rankMargen}º de ${rankM.length}`, { unit: "rank", raw: rankMargen, context: "1º = el margen más bajo de la cartera" })] : []),
         ];
       }
     }

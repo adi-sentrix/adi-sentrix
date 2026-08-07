@@ -204,6 +204,20 @@ export function composeSpecComposicion({ dimension, entity }) {
     const contribucion = c ? c.value : 0;
     return { nombre: f.name, venta: f.value, contribucion, margen: f.value ? Math.round((contribucion / f.value) * 1000) / 10 : null, share: totalV ? Math.round((f.value / totalV) * 1000) / 10 : null };
   }).sort((a, b) => b.venta - a.venta);
+  // COMPOSICIÓN POR SKU (owner 2026-08-07, Ficha Ejecutiva real: "participación, venta, contribución y margen"
+  // también a nivel SKU, no solo familia) — mismo cierre exacto que `familias` arriba (misma matriz cliente×SKU,
+  // composicionCliente en vez de composicionClientePorFamilia), margen por SKU sale de `skusMargen` (el margen es
+  // propiedad del SKU, no varía por quién lo compra, en este modelo de dato — igual que el margen de familia SÍ
+  // varía porque es el mix ponderado de los SKU que cada cliente elige).
+  const skuVenta = composicionCliente(entity, "ventas");
+  const skuContrib = composicionCliente(entity, "contribucion");
+  const totalSV = skuVenta.reduce((s, r) => s + r.value, 0);
+  const skus = skuVenta.map((s) => {
+    const c = skuContrib.find((x) => x.name === s.name);
+    const contribucion = c ? c.value : 0;
+    const m = _skusM.find((x) => x.nombre === s.name);
+    return { nombre: s.name, venta: s.value, contribucion, margen: typeof m?.margen === "number" ? m.margen : (s.value ? Math.round((contribucion / s.value) * 1000) / 10 : null), sfamilia: m ? m.sfamilia : null, share: totalSV ? Math.round((s.value / totalSV) * 1000) / 10 : null };
+  }).sort((a, b) => b.venta - a.venta);
   const lines = familias.map((f) => `${f.nombre}: ${f.share}% de su venta, margen ${f.margen}%`);
   const opener = `Cómo se compone la compra de ${entity} por familia (venta/contribución/margen):\n\n${lines.join(" · ")}`;
   // BOLETA LIVIANA (owner 2026-08-07, hallazgo en vivo: con las ~50 cifras de un perfil completo — entityProfile+
@@ -222,7 +236,7 @@ export function composeSpecComposicion({ dimension, entity }) {
   });
   return {
     opener, suggestions: null, sentrixAction: null,
-    evidence: { entidad: entity, entityType: "cliente", dimension: "cliente", lens: "cuadro", composicion: { familias }, boleta: bol },
+    evidence: { entidad: entity, entityType: "cliente", dimension: "cliente", lens: "cuadro", composicion: { familias, skus }, boleta: bol },
   };
 }
 

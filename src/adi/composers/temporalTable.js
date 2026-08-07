@@ -167,6 +167,10 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
     // forma solo existía para GLOBAL. Solo "venta" declara serie año-anterior por entidad (ver
     // buildEntityEvolutionComparado) — margen/contribución quedan con vsAnioAnterior:null, honesto, nunca inventado.
     const variacionMensual = serieAnt ? meses.map((mes, i) => ({ label: mes, vsAnioAnterior: serieAnt[i] ? dv(serie[i], serieAnt[i]) : null })) : null;
+    // variacionAnual (owner 2026-08-07, Ficha Ejecutiva real, KPI "variación"): el % del período YA se calculaba
+    // para el opener (varTxt, prosa) pero no vivía estructurado — dv() es la MISMA función que ya arma
+    // variacionMensual/mejorMes/peorMes, cero cálculo nuevo, solo expone lo que ya existía.
+    const variacionAnual = ant != null ? { actual: fmt(tot), anterior: fmt(ant), pct: dv(tot, ant) } : null;
     const mejorMes = { label: meses[iMax], valor: fmt(serie[iMax]), vsAnioAnterior: serieAnt && serieAnt[iMax] ? dv(serie[iMax], serieAnt[iMax]) : null };
     const peorMes = { label: meses[iMin], valor: fmt(serie[iMin]), vsAnioAnterior: serieAnt && serieAnt[iMin] ? dv(serie[iMin], serieAnt[iMin]) : null };
     const opener = [
@@ -183,6 +187,7 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
         lens: "temporal", followup: false, entidad: entity, dimension: dimension || null,
         tablaM: { titulo: `${entity} — ${metLbl} ${_plabel(p)}`, cols: [metLbl === "venta" ? "Este año" : metLbl, ...(e.anterior ? ["Año anterior"] : [])], rows, nota: "misma serie de la Ficha en Sentrix · el año cierra exacto con el dato del período" },
         ...(variacionMensual ? { variacionMensual } : {}),
+        ...(variacionAnual ? { variacionAnual } : {}),
         mejorMes, peorMes,
         boleta: bol,
       },
