@@ -118,10 +118,10 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
       opener += `**Lectura**: ambas operan bajo benchmark · ${peorMargen.nombre} es el caso más crítico con ${Math.abs(peorMargen.margen - benchmark).toFixed(1)}pp bajo benchmark. La palanca disponible opera sobre ${palancaDisponible}.`;
     }
   } else if (diffMargen !== null && A.margen >= benchmark && B.margen >= benchmark) {
-    opener += `**Lectura**: ambas cuentas son estructuralmente rentables · sostienen el promedio de la cartera.`;
+    opener += `**Lectura**: ambas cuentas sostienen margen sobre el promedio de la cartera.`;
   } else if (diffMargen !== null) {
     const enriesgo = A.margen < benchmark ? A : B;
-    opener += `**Lectura**: ${enriesgo.nombre} es la que sub-rentabiliza · la palanca opera sobre esa cuenta · la otra es estructuralmente sana en margen.`;
+    opener += `**Lectura**: ${enriesgo.nombre} es la que cede margen · la palanca opera sobre esa cuenta · la otra es estructuralmente sana en margen.`;
   } else {
     // Caso ventas sin margen
     if (ventasSimilar) {

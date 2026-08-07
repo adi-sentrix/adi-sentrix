@@ -9,6 +9,7 @@
  * PURO · aditivo · NO toca boleta.js/numberGuard.js/entityGuard.js (guard vivo · Falcon). Reusa parseFigures.
  */
 import { parseFigures } from "../boleta.js";
+import { buildClaims } from "./narrationContract.js";   // Proporcionalidad Semántica: el guard lee el MISMO sello que el narrador
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -330,6 +331,96 @@ function _totalMisattribution(narration, ledger, entityNames) {
     }
   }
   return viol;
+}
+
+// ══ PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07) ══════════════════════════════════════════════════════════════
+// "ADI nunca puede afirmar más de lo que la evidencia autorizada demuestra."
+// CÓMO DISPARAN estos cuatro chequeos, y por qué NO son reglas frase-por-frase: el gatillo es la AUSENCIA DE
+// AUTORIZACIÓN ESTRUCTURAL en los claims (no hay claim con procedencia externa · no hay claim con nivel
+// `resultado` · el claim está marcado `parcial` · la cifra pertenece a una entidad). El texto solo se mira para
+// ubicar SI se hizo esa clase de afirmación — igual que _graduationViolation, que ya vivía acá con esa forma.
+// Cambiar el vocabulario de una frase no cambia el veredicto; cambiar la evidencia autorizada, sí.
+// Todos reusan el criterio NÍTIDO de Fase 2 (_maskFigures + _localWindow + "una sola señal cerca o no se juzga").
+
+// El sujeto es EL NEGOCIO: formas con las que la narración generaliza al conjunto. Nunca alcanza por sí sola —
+// siempre se exige además que la cifra sea DE UNA ENTIDAD y que su dueña NO esté nombrada cerca.
+const _SUJETO_NEGOCIO = /\b(el negocio|tu negocio|la empresa|la compañ[íi]a|la cartera|el total del negocio|a nivel (?:global|general|de negocio))\b/i;
+const _EXPANSION = /\b(en expansi[oó]n|est[aá] creciendo|viene creciendo|crecimiento del negocio)\b/i;
+// Afirmar rentabilidad: exige un RESULTADO (costos + gastos). Venta/margen/contribución positivos NO alcanzan.
+const _RENTABLE = /\b(es|son|resulta[n]?|sigue siendo|siguen siendo)\s+(?:una\s+|un\s+|muy\s+|bastante\s+|estructuralmente\s+)*(?:cuenta\s+)?rentables?\b|\bla rentabilidad (?:de la cuenta|del negocio|es)\b|\bes rentable\b/i;
+// Atribuir la vara a una fuente sectorial que el dato no tiene.
+const _REFERENCIA_EXTERNA = /\b(est[aá]ndar(?:es)? (?:de|del) (?:la )?(?:sector|industria|mercado|categor[íi]a)|promedio (?:del|de) (?:sector|mercado|la industria)|referencia (?:de|del) (?:la )?(?:industria|mercado|sector)|benchmark de (?:la )?industria|lo esperable para su categor[íi]a)\b/i;
+// Presentar una causa como la explicación completa.
+// `explican?` y no `explica`: el plural es la forma natural cuando el sujeto es el monto ("los $194K EXPLICAN toda
+// la diferencia") — cazado por el caso de aceptación del owner, que en singular pasaba y en plural no.
+const _CAUSA_TOTAL = /\b(la (?:principal|mayor) causa|la causa principal|se debe (?:a|al)\b|explican? (?:toda|todo|el total|la totalidad)|dan cuenta de (?:toda|todo)|responsables? de (?:toda|todo)|por completo se explica)\b/i;
+
+// 12 · ALCANCE DEL SUJETO — cifra de UNA ENTIDAD narrada como si fuera del negocio.
+// El hueco medido: _attributionViolations solo juzga cuando hay UNA entidad cerca; "el negocio" no es una entidad,
+// así que entidad→negocio pasaba SIEMPRE, en los seis ejes. Acá se cierra con el mismo criterio nítido invertido:
+// la cifra es de una entidad, la ventana declara sujeto-negocio, y la dueña NO aparece en NINGUNA parte del texto.
+function _sujetoGeneralizado(narration, claims) {
+  const out = [];
+  const text = String(narration || "");
+  const masked = _maskFigures(text);
+  const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const textoNorm = norm(text);
+  for (const c of claims) {
+    if (!c || c.sujetoTipo !== "entidad" || !c.entidad || !c.valor) continue;
+    if (textoNorm.includes(norm(c.entidad))) continue;   // la dueña está nombrada: no hay generalización
+    let idx = -1;
+    while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
+      const [lo, hi] = _localWindow(masked, idx, 90);
+      const ventana = text.slice(lo, hi);
+      if (!_SUJETO_NEGOCIO.test(ventana) && !_EXPANSION.test(ventana)) continue;
+      // si en la misma ventana aparece OTRA entidad, el caso es ambiguo → no se juzga (criterio nítido)
+      const otras = claims.filter((x) => x.sujetoTipo === "entidad" && x.entidad && x.entidad !== c.entidad && norm(ventana).includes(norm(x.entidad)));
+      if (otras.length) continue;
+      out.push(`"${c.valor}" es de ${c.entidad} (${c.eje || "entidad"}) pero se narra como si fuera del negocio, sin nombrarla: "${ventana.trim().slice(0, 110)}"`);
+      break;
+    }
+  }
+  return out;
+}
+
+// 13 · PROCEDENCIA DE LA REFERENCIA — atribuir la vara al sector/mercado/industria sin fuente externa autorizada.
+// Estructural: hoy NINGÚN claim puede traer procedencia "externa_sector" (ver businessPolicy.js: las tres capas de
+// benchmarkOf son internas y SECTORAL_BENCHMARKS no se importa en src/). El día que exista, este chequeo se apaga
+// solo para ese turno — no hay que tocarlo.
+function _procedenciaNoAutorizada(narration, claims) {
+  const m = _REFERENCIA_EXTERNA.exec(String(narration || ""));
+  if (!m) return null;
+  if (claims.some((c) => c && c.procedencia === "externa_sector")) return null;   // hay fuente externa: autorizado
+  return `"${m[0]}" atribuye la referencia a una fuente sectorial, y ninguna cifra autorizada la declara — la vara la define el negocio del usuario ("tu benchmark", "tu referencia")`;
+}
+
+// 14 · NIVEL FINANCIERO — afirmar rentabilidad sin un resultado que incluya costos y gastos.
+// Medido antes de este chequeo: "Falabella vende $19.4M con un margen de 22%, así que es una cuenta rentable"
+// pasaba con ok=true, verdict "fiel". Venta/margen/contribución positivos NO sostienen esa conclusión.
+function _nivelNoAutorizado(narration, claims) {
+  const m = _RENTABLE.exec(String(narration || ""));
+  if (!m) return null;
+  if (claims.some((c) => c && c.nivelFinanciero === "resultado")) return null;   // hay resultado autorizado
+  return `"${m[0]}" afirma rentabilidad y ninguna cifra autorizada trae un RESULTADO (con costos y gastos) que lo sostenga — venta, margen o contribución positivos no alcanzan`;
+}
+
+// 15 · ALCANCE CAUSAL — una causa marcada `parcial` presentada como la explicación total.
+function _causaSobredimensionada(narration, claims) {
+  const out = [];
+  const text = String(narration || "");
+  const masked = _maskFigures(text);
+  for (const c of claims) {
+    if (!c || c.coberturaCausal !== "parcial" || !c.valor) continue;
+    let idx = -1;
+    while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
+      const [lo, hi] = _localWindow(masked, idx, 110);
+      const ventana = text.slice(lo, hi);
+      if (!_CAUSA_TOTAL.test(ventana)) continue;
+      out.push(`"${c.valor}" (${c.etiqueta}) explica una PARTE comprobada, pero se narra como la explicación completa: "${ventana.trim().slice(0, 110)}"`);
+      break;
+    }
+  }
+  return out;
 }
 
 // ── GRADUACIÓN (supuesto ≠ probado) ─────────────────────────────────────────────────────────────────────────────
@@ -979,6 +1070,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // se juzga solo la contradicción explícita, nunca la omisión.
   const periodoViol = _periodoContradictorio(narration, periodosEsperados(results));
   if (periodoViol) violations.push({ kind: "periodo-contradictorio", detail: periodoViol });
+  // 12-15 · PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07) — los cuatro límites que la regla exige conservar.
+  // Los claims se derivan de la MISMA boleta que ya validó todo lo de arriba (una verdad, sin dato nuevo): el
+  // sello vive en narrationContract.buildClaims y acá solo se lee. Si el turno no trae boleta, no hay nada que
+  // juzgar y los cuatro salen vacíos solos.
+  const claimsPS = buildClaims(figs);
+  for (const v of _sujetoGeneralizado(narration, claimsPS)) violations.push({ kind: "sujeto-generalizado", detail: v });
+  const procViol = _procedenciaNoAutorizada(narration, claimsPS);
+  if (procViol) violations.push({ kind: "procedencia-no-autorizada", detail: procViol });
+  const nivelViol = _nivelNoAutorizado(narration, claimsPS);
+  if (nivelViol) violations.push({ kind: "nivel-financiero-no-autorizado", detail: nivelViol });
+  for (const v of _causaSobredimensionada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución

@@ -385,7 +385,7 @@ export function composeRankingExtremes({
     if (metric === "margen" && e.benchmark != null) {
       const gap = Math.abs(e.benchmark - e.margen).toFixed(1);
       const dir = e.margen < e.benchmark ? "bajo" : "sobre";
-      opener += `\n\n${e[nameField]} opera ${gap}pp ${dir} el benchmark de industria (${e.benchmark}%).`;
+      opener += `\n\n${e[nameField]} opera ${gap}pp ${dir} tu benchmark (${e.benchmark}%).`;
       if (e.pctRebate != null) {
         opener += ` Su carga comercial es ${e.pctRebate.toFixed(1)}%.`;
       }

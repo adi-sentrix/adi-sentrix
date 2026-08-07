@@ -357,7 +357,7 @@ function composeM1Donde(archetype, domains, scenarioId) {
       `${c.nombre} (crece +${c._var}% pero opera con margen ${c.margen}%, ${(benchmark - c.margen).toFixed(1)}pp bajo benchmark)`
     ).join("; ");
 
-    return `El crecimiento de las ventas se concentra en cuentas que operan con margen comprimido: ${namesList}. Las tres aportan volumen incremental pero por debajo de la rentabilidad estructural de la cartera.`;
+    return `El crecimiento de las ventas se concentra en cuentas que operan con margen comprimido: ${namesList}. Las tres aportan volumen incremental pero por debajo del margen de la cartera.`;
   }
 
   if (archetype === "exposure_analysis") {
@@ -372,11 +372,11 @@ function composeM1Donde(archetype, domains, scenarioId) {
     const top3VentasM = (top3Ventas / 1000).toFixed(1);
     const namesList = top3.map(c => c.nombre).join(", ");
 
-    return `Los tres principales clientes por contribución son ${namesList}, que combinados representan $${top3ContribM}M de contribución y ${top3Participacion}% de la cartera total. Una salida simultánea de los tres significaría -$${top3VentasM}M en ventas anuales y eliminaría aproximadamente la mitad de la rentabilidad operativa.`;
+    return `Los tres principales clientes por contribución son ${namesList}, que combinados representan $${top3ContribM}M de contribución y ${top3Participacion}% de la cartera total. Una salida simultánea de los tres significaría -$${top3VentasM}M en ventas anuales y eliminaría aproximadamente la mitad de la contribución.`;
   }
 
   if (archetype === "trapped_capital") {
-    return `La pregunta toca capital de trabajo cruzado con rentabilidad por categoría. El capital inmovilizado vive en el módulo Inventario, donde se descompone por categoría, antigüedad y bodega. La lectura precisa de qué parte del negocio consume capital sin devolver rentabilidad requiere drilldown por categoría con datos de rotación específicos.`;
+    return `La pregunta toca capital de trabajo cruzado con rentabilidad por categoría. El capital inmovilizado vive en el módulo Inventario, donde se descompone por categoría, antigüedad y bodega. La lectura precisa de qué parte del negocio consume capital sin devolver contribución requiere drilldown por categoría con datos de rotación específicos.`;
   }
 
   // Generic multi-domain fallback

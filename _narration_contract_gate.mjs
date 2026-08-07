@@ -95,14 +95,31 @@ H("[1] SELLADO · el contrato es inmutable en profundidad");
   ok(!mutó2, "un intento de push en scope.entidades NO prospera");
 }
 
-H("[2] EQUIVALENCIA · el payload es byte-idéntico vía contrato vs. llamada pública directa");
-for (const caso of CASOS) {
-  const { results, ledger } = runPlan(caso.plan, { scenario: "actual" });
-  const args = { text: caso.text, plan: caso.plan, results, ledgerFigs: ledger.figs, mem: MEM, history: HIST, pref: null, scenario: "actual" };
-  const viaPublica = buildNarrateUserMessageC(args);
-  const viaContrato = projectNarratePayload(buildNarrationContract(args));
-  ok(deepEq(viaPublica, viaContrato), `${caso.nombre}: proyección === construcción pública`,
-    deepEq(viaPublica, viaContrato) ? "" : `dif:\n      ${JSON.stringify(viaPublica).slice(0, 300)}\n      ${JSON.stringify(viaContrato).slice(0, 300)}`);
+// ⚠️ CORRECCIÓN (owner 2026-08-07, hallazgo del mapa de proporcionalidad): la versión ANTERIOR de esta sección
+// comparaba `buildNarrateUserMessageC(args)` contra `projectNarratePayload(buildNarrationContract(args))` — y
+// buildNarrateUserMessageC hace INTERNAMENTE exactamente eso. Era una tautología: no probaba ninguna equivalencia,
+// solo que una función devuelve lo que devuelve. La garantía "el payload no cambió" que esta sección decía
+// sostener NUNCA estuvo verificada. Ahora se compara contra un SNAPSHOT de forma congelado: las claves que el
+// narrador viene consumiendo, y la forma exacta de las que el guard ata. Un cambio de payload tiene que ser
+// DELIBERADO (actualizar este snapshot), nunca silencioso.
+H("[2] FORMA DEL PAYLOAD · snapshot congelado (antes esto era una tautología, ver comentario)");
+{
+  // claves que el narrador de producción consume hoy. Si desaparece una, el prompt pierde información sin avisar.
+  const CLAVES_MINIMAS = ["pregunta", "intencion", "modo", "alcance", "datos", "cifras_autorizadas"];
+  // los campos de CADA cifra: `etiqueta`+`valor` son el contrato con guardC (canon unit:value) y NO se tocan; el
+  // resto son los campos SEMÁNTICOS opcionales de la Regla de Proporcionalidad (esparcidos, ver _semanticaDe).
+  const CAMPOS_CIFRA = new Set(["etiqueta", "valor", "sujeto", "estatus", "referencia", "nivel", "cobertura"]);
+  for (const caso of CASOS) {
+    const { results, ledger } = runPlan(caso.plan, { scenario: "actual" });
+    const args = { text: caso.text, plan: caso.plan, results, ledgerFigs: ledger.figs, mem: MEM, history: HIST, pref: null, scenario: "actual" };
+    const p = buildNarrateUserMessageC(args);
+    const faltan = CLAVES_MINIMAS.filter((k) => !(k in p));
+    ok(faltan.length === 0, `${caso.nombre}: el payload conserva las claves que el narrador consume`, faltan.length ? `faltan: ${faltan}` : "");
+    const raros = [...new Set(p.cifras_autorizadas.flatMap((c) => Object.keys(c)))].filter((k) => !CAMPOS_CIFRA.has(k));
+    ok(raros.length === 0, `${caso.nombre}: cada cifra usa solo campos declarados`, raros.length ? `no declarados: ${raros}` : "");
+    ok(p.cifras_autorizadas.every((c) => typeof c.etiqueta === "string" && typeof c.valor === "string"),
+      `${caso.nombre}: etiqueta+valor intactos en TODA cifra (el contrato con guardC no se toca)`);
+  }
 }
 
 H("[3] FRONTERA · projectNarratePayload NO recibe plan ni results");

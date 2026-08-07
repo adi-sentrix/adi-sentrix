@@ -868,7 +868,11 @@ export function composeRetrieval(qi, scenario, opts) {
     contribucion:  { field: "contribucion",  label: "Contribución",  formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
     carga:         { field: "pctRebate",     label: "Carga Comercial", formatter: (v) => v.toFixed(1) + "%" },
     aporte:        { field: "contribucion",  label: "Aporte",        formatter: (v) => "$" + Math.round(v / 100) / 10 + "M" },
-    rentabilidad:  { field: "margen",        label: "Rentabilidad",  formatter: (v) => v.toFixed(1) + "%" },
+    // la CLAVE sigue siendo "rentabilidad" (es vocabulario de ENTRADA: el usuario pregunta así y hay que
+    // entenderlo). La ETIQUETA de salida dice "Margen", que es lo que el campo realmente contiene: mostrar una
+    // columna "Rentabilidad" con el margen adentro afirma un nivel financiero que el dato no sostiene — la
+    // rentabilidad exige un resultado con costos y gastos (Regla de Proporcionalidad Semántica, owner 2026-08-07).
+    rentabilidad:  { field: "margen",        label: "Margen",        formatter: (v) => v.toFixed(1) + "%" },
     stock:         { field: "unidades",      label: "Unidades",      formatter: (v) => String(v) },   // COMERCIAL (unidades) · INTACTO · NO es el capital de inventario
     participacion: { field: "venta",         label: "Participación", formatter: (v, total) => total ? ((v / total) * 100).toFixed(1) + "%" : "—" },
     // Fase 2.5c-1 · CAPITAL (stock en valor) MODELADA · campo stockUSD (inventario) · key `capital` (NO el "stock"

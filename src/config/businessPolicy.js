@@ -64,6 +64,25 @@ onTenantChange(_resolvePolicy);   // en cada initTenant: perfil nuevo primero; c
 // helper: el benchmark de una entidad — el CRITERIO del usuario manda; si no hay, el dato por-fila; si no, POLICY.
 export const benchmarkOf = (entity) => (_benchmarkOverride != null ? _benchmarkOverride : (entity && typeof entity.benchmark === "number" ? entity.benchmark : POLICY.benchmark));
 
+// ── PROCEDENCIA DE LA REFERENCIA (Regla de Proporcionalidad Semántica, owner 2026-08-07) ───────────────────────
+// Las TRES capas que resuelve `benchmarkOf` son INTERNAS de la empresa: (1) el criterio que el usuario fijó (C.2),
+// (2) el `benchmark` por fila del dataset del tenant, (3) `POLICY.benchmark` del PERFIL. Ninguna viene de una
+// fuente sectorial. Por eso la referencia se narra como "tu benchmark" / "tu referencia" / "la meta definida para
+// tu negocio", y NUNCA como "estándar del sector", "promedio del mercado" ni "referencia de la industria".
+//
+// ESTO NO ES UNA OPINIÓN, ES EL ESTADO DEL PRODUCTO: `SECTORAL_BENCHMARKS` existe declarado en
+// src/config/scenarios.js pero NO se importa en ninguna parte de `src/` (solo en los monolitos archivados), y sus
+// propios comentarios lo marcan `[DERIVADO n=6 SKU]` / `[ASUNCIÓN U.A]` — o sea, derivado del mismo dato demo.
+// Mientras eso siga así, "externa_sector" NO se puede producir y toda afirmación sectorial es no autorizada.
+// El día que exista una fuente externa real, se cambia ACÁ (una verdad) y el resto del sistema la respeta solo.
+export const REFERENCIA_PROCEDENCIA = "interna_empresa";   // "interna_empresa" | "externa_sector"
+
+// Etiquetas de MÉTRICA que son una REFERENCIA (no una medición del negocio). Se declaran acá, junto al único
+// resolvedor (`benchmarkOf`), para que la procedencia no se adivine con un regex esparcido por los composers.
+// Los emisores usan estas etiquetas literales: toolRegistry.js (boleta del perfil/margen), entityRecord.js
+// (REFS.margen.label) y conversation.js (enumeración) — una sola convención de nombre, ya vigente.
+export const METRICAS_DE_REFERENCIA = ["Benchmark de margen"];
+
 // ── COST MODEL (owner 2026-07-31, #56 "simulate v2") ── declaración EXPLÍCITA de cómo se comporta el costo del
 // tenant — sin esto, simulateGeneral (toolRegistry.js) no puede calcular margen/contribución bajo un supuesto de
 // precio+volumen, solo ventas (degrade honesto, nunca inventa el modelo). NO es numérico → resolución PROPIA,

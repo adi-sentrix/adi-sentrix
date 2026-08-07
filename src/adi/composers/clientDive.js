@@ -427,7 +427,7 @@ export function composeInterpreta(trace, profile, context = {}) {
     } else if (variacion < 0) {
       secondSentence = `Pese a la caída de volumen, la cuenta sostiene calidad de margen, lo que indica deterioro de ventas pero no de pricing ni carga.`;
     } else {
-      secondSentence = `La rentabilidad estructural se sostiene sobre carga comercial baja y mix de producto favorable.`;
+      secondSentence = `El margen se sostiene sobre carga comercial baja y una composición de producto favorable.`;
     }
     return `${firstSentence} ${secondSentence}${mechanismSentence}`;
   }
@@ -743,7 +743,7 @@ export function composeRecommendation(trace, profile, context = {}) {
   if (variacion < -5 && gapBp <= 0) {
     const action = `Monitorear evolución de ventas en los próximos 2-3 meses antes de definir acciones.`;
     const reason = `La prioridad es confirmar si la caída de volumen es transitoria o si comienza a deteriorar el margen de la cuenta.`;
-    const risk = `La rentabilidad sana del margen permite mantener la cuenta sin urgencia operativa, pero un deterioro adicional sin recuperación de margen activaría revisión de la estrategia comercial.`;
+    const risk = `El margen sano permite mantener la cuenta sin urgencia operativa, pero un deterioro adicional sin recuperación de margen activaría revisión de la estrategia comercial.`;
     const mech = `El volumen cae pero el margen se mantiene sano · lo que define el siguiente paso es si la caída empieza a afectar el margen en los próximos 2-3 meses.`;
     return _voz2Interp
       ? `**Mecanismos disponibles**\n\n${mech}`
@@ -801,7 +801,7 @@ export function composeRecommendation(trace, profile, context = {}) {
       const pointsToReduce = +(carga - operationalTarget).toFixed(1);
       const impactK = Math.round(ventasK * pointsToReduce / 100);
       action = `Reducir gradualmente la carga comercial desde ${carga}% hacia niveles cercanos al benchmark interno de ${operationalTarget}% permitiría recuperar aproximadamente $${impactK}K anuales de contribución.`;
-      reason = `El objetivo no es reducir volumen, sino frenar el deterioro del margen y mejorar la rentabilidad de la cuenta sin afectar participación en el corto plazo.`;
+      reason = `El objetivo no es reducir volumen, sino frenar el deterioro del margen y mejorar el margen de la cuenta sin afectar participación en el corto plazo.`;
       risk = `El principal riesgo está en próximas negociaciones comerciales, donde ${clientName} podría exigir compensaciones para mantener las condiciones actuales.`;
       mech = `La carga comercial está en ${carga}% · acercarla al benchmark interno de ${operationalTarget}% liberaría aproximadamente $${impactK}K anuales de contribución · la palanca está en la carga, no en el volumen.`;
       break;
@@ -868,7 +868,7 @@ export function composeReasoningSentence(trace, profile) {
   if (variacion < -5 && gapBp <= 0) {
     const variants = [
       `La caída de volumen todavía no deteriora el margen, por lo que la principal lectura sigue estando en la calidad de contribución`,
-      `La presión está en volumen pero no en margen, por lo que la lectura principal sigue siendo de rentabilidad estructural`,
+      `La presión está en volumen pero no en margen, por lo que la lectura principal sigue siendo de margen`,
       `El margen no se ha visto afectado por la caída de ventas, por lo que la atención debería estar en la calidad de contribución antes que en la escala`,
     ];
     const idx = hashClientName(clientName + "_reasoning_decline") % variants.length;
@@ -916,7 +916,7 @@ export function composeReasoningSentence(trace, profile) {
     variants = [
       `La principal presión está en el margen porque la brecha frente al benchmark de cartera es estructural y comprime la contribución sistemáticamente`,
       `El margen concentra la lectura porque opera por debajo del benchmark de cartera sin ajustes en costo o pricing que compensen`,
-      `El gap de margen frente al benchmark es la lectura central, porque la cuenta no captura la rentabilidad promedio de la categoría`,
+      `El gap de margen frente al benchmark es la lectura central, porque la cuenta no captura el margen de referencia`,
     ];
   } else if (dominant.id === "dependency_risk") {
     variants = [

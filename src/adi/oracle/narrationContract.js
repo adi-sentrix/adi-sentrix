@@ -53,6 +53,9 @@ function _deepFreeze(obj, seen = new WeakSet()) {
 // La convención "Entidad · Concepto" (boleta.js/fig + specRetrieval.js) es la MISMA que ya leen _groupByEntity /
 // _needsTableFormat (narratePromptC.js) y enrichFromFacts (ledger.js): se parte en el PRIMER " · ". Un label sin
 // separador es una cifra del NEGOCIO (sin dueño), no una entidad anónima — se marca entidad:null, nunca inventada.
+import { resolveEntityRef } from "./entityIndex.js";                              // Fase 3 · el eje REAL de un nombre, O(1) por tenant
+import { REFERENCIA_PROCEDENCIA, METRICAS_DE_REFERENCIA } from "../../config/businessPolicy.js";   // procedencia de la vara (una verdad, junto a benchmarkOf)
+
 const _SEP = " · ";
 function _splitLabel(label) {
   const s = String(label == null ? "" : label);
@@ -74,32 +77,130 @@ function _estatusDe(fig) {
   return "probado";
 }
 
+// ══ REGLA DE PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07) ═════════════════════════════════════════════════════
+// "ADI nunca puede afirmar más de lo que la evidencia autorizada demuestra."
+// No es una regla nueva al costado: son CUATRO CAMPOS MÁS en el claim, que el prompt lee y el guard verifica.
+// Todo se DERIVA de lo que el motor ya sabe — ningún composer tiene que declarar nada nuevo (salvo la etiqueta de
+// referencia, que ya era una convención vigente y ahora está declarada en businessPolicy.js).
+//
+//   sujetoTipo        entidad | negocio | concepto   ← quién es el sujeto REAL de la cifra
+//   procedencia       interna_empresa | externa_sector | null   ← de dónde sale la vara
+//   nivelFinanciero   venta|costo|margen|contribucion|carga|resultado|null   ← qué nivel de la cascada es
+//   coberturaCausal   total | parcial | no_determinada | null   ← cuánto del fenómeno explica
+//   explica           {monto, universo, fraccion} | null        ← la parte y el todo, cuando ambos existen
+
+// ── SUJETO ─────────────────────────────────────────────────────────────────────────────────────────────────────
+// El `eje` del claim MENTÍA: buildClaims le estampaba a TODOS el `scope.eje` del turno, que sale del PRIMER
+// facts.entityType que aparezca. Medido: executiveSummary (lectura del NEGOCIO) sellaba eje:"cliente", e
+// inventoryStatus sellaba eje:"bodega" sobre un ledger que mezcla bodegas, familias y SKU (LG-DRYER8KG quedaba
+// tipado como bodega). Ahora el eje se resuelve POR CLAIM contra el catálogo real del tenant, con el índice O(1)
+// de Fase 3 — que además separa limpio la entidad real de la pseudo-entidad ("Capital inmovilizado", "Medida",
+// "headline" son labels que _splitLabel devuelve como si fueran sujetos, y no lo son).
+function _sujetoDe(entidad, ejeDelTurno) {
+  if (!entidad) return { sujetoTipo: "negocio", eje: null };
+  const ref = resolveEntityRef(entidad);
+  if (ref.estado === "resuelto") return { sujetoTipo: "entidad", eje: ref.dimension };
+  // no existe en NINGÚN eje del tenant → no es una entidad, es un concepto de la lectura. NO hereda el eje del
+  // turno: heredarlo es justamente lo que producía "LG-DRYER8KG es una bodega".
+  return { sujetoTipo: "concepto", eje: null, _ejeTurno: ejeDelTurno || null };
+}
+
+// ── NIVEL FINANCIERO ───────────────────────────────────────────────────────────────────────────────────────────
+// La cascada real del negocio (buildPnlCascade, pnl.js): Ingreso − Costo = Margen bruto − Carga comercial =
+// Contribución − Σ Gastos = Resultado. Venta positiva significa que VENDE; margen positivo, que DEJA MARGEN;
+// contribución positiva, que APORTA CONTRIBUCIÓN. Ninguna autoriza por sí sola a decir "es rentable": eso exige
+// un RESULTADO que ya descontó costos y gastos. Hoy `resultado` no está declarado para ejes de entidad
+// (metricRegistry) y el tenant demo ni siquiera tiene P&L definido — así que en la práctica casi nunca existe,
+// y esa ausencia es exactamente lo que el guard usa para bloquear la afirmación de rentabilidad.
+// `\b` y no `$`: las etiquetas reales del motor traen calificador ("Venta del período", "Margen bruto",
+// "Contribución del período") y sin eso quedaban sin nivel — cazado proyectando el payload de un trend de negocio.
+const _NIVEL_POR_METRICA = [
+  [/^ventas?\b/i, "venta"], [/^costo\b/i, "costo"], [/^margen\b/i, "margen"],
+  [/^contribuci[oó]n\b/i, "contribucion"], [/^carga comercial\b/i, "carga"], [/^resultado\b/i, "resultado"],
+];
+function _nivelFinancieroDe(metrica) {
+  const m = String(metrica || "").trim();
+  for (const [re, nivel] of _NIVEL_POR_METRICA) if (re.test(m)) return nivel;
+  return null;   // rotación, cobertura, unidades, ticket, capital… no son niveles de la cascada
+}
+
+// ── COBERTURA CAUSAL ───────────────────────────────────────────────────────────────────────────────────────────
+// Una PALANCA (exceso de acciones comerciales, capital detenido…) explica UNA PARTE de un fenómeno mayor. El caso
+// que lo motiva, con las cifras reales: "Falabella · exceso de acciones comerciales" = $194K, dentro de un
+// universo de $1.574.333 (venta × benchmark − contribución) — o sea el 12,3%, equivalente a 1,0 pp de los 8,1 pp
+// de brecha. Narrado suelto se lee como la explicación completa. Nunca lo es.
+// El universo vive en OTRA tool ("Valor en juego" / "Contribución no capturada"), así que puede NO estar en la
+// boleta del turno. Esa distinción importa y se sella: con universo → se puede declarar la fracción; sin universo
+// → sigue siendo parcial, pero la fracción es INNARRABLE y el prompt lo dice explícito.
+const _UNIVERSO_DE_PALANCA = [/valor en juego/i, /contribuci[oó]n no capturada/i, /brecha.*contribuci/i];
+function _esUniverso(metrica) { return _UNIVERSO_DE_PALANCA.some((re) => re.test(String(metrica || ""))); }
+
 // ── CLAIMS ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // buildClaims(ledgerFigs, {eje, periodo}) → la boleta convertida en AFIRMACIONES tipadas. Cada claim conserva el
 // `canon` original de la fig (unit:value) para que el guard de Fase 2 pueda atar el binding sin recalcular nada.
 // El orden se preserva (la boleta ya viene ordenada por el composer — el orden es información).
 export function buildClaims(ledgerFigs, { eje = null, periodo = null } = {}) {
   const figs = Array.isArray(ledgerFigs) ? ledgerFigs : [];
-  return figs.filter(Boolean).map((f, i) => {
+  const base = figs.filter(Boolean).map((f, i) => {
     const { entidad, metrica } = _splitLabel(f.label);
+    const suj = _sujetoDe(entidad, eje);
     return {
       id: `c${i}`,
       entidad,
-      eje: entidad ? eje : null,          // sin entidad no hay eje: es una cifra del negocio
+      // PROPORCIONALIDAD SEMÁNTICA · el sujeto real, resuelto por claim contra el catálogo del tenant (ver
+      // _sujetoDe): deja de heredar a ciegas el eje del turno, que en ledgers multi-eje mentía.
+      sujetoTipo: suj.sujetoTipo,
+      eje: suj.eje,
       metrica,
       periodo,
       unidad: f.unit || null,
       valor: f.value,                     // string YA formateado (verbatim, una sola verdad con el texto)
       valorRaw: typeof f.raw === "number" ? f.raw : null,
       estatus: _estatusDe(f),
+      // PROCEDENCIA · una REFERENCIA no es una medición del negocio. Las tres capas de benchmarkOf son internas
+      // de la empresa, así que se narra "tu benchmark"/"tu referencia" — nunca sectorial (ver businessPolicy.js).
+      procedencia: METRICAS_DE_REFERENCIA.includes(metrica) ? REFERENCIA_PROCEDENCIA : null,
+      // NIVEL FINANCIERO · qué escalón de la cascada es esta cifra. Solo `resultado` sostiene "es rentable".
+      nivelFinanciero: _nivelFinancieroDe(metrica),
+      coberturaCausal: null,              // se completa abajo: necesita ver TODOS los claims del turno
+      explica: null,
       obligatoria: !!f.mandatory,         // la narración DEBE citarla (guardC ya lo enforcea)
       gancho: !!f.gancho,                 // disponible pero opcional (no exigible)
       formula: f.formula || null,
+      // SUPUESTOS del claim: lo que hubo que asumir para que esta cifra exista. Hoy son dos y ambos derivan del
+      // fig: la fórmula (es una cuenta, no una lectura) y la referencia usada (la vara es interna, no del sector).
+      supuestos: [
+        ...(f.formula ? [`se calcula como ${f.formula}`] : []),
+        ...(METRICAS_DE_REFERENCIA.includes(metrica) ? ["la referencia la define tu negocio, no una fuente sectorial"] : []),
+      ],
       contexto: f.context || null,
       etiqueta: f.label,                  // el label ORIGINAL — el binding del guard se ata a esto
       canon: f.canon || null,
     };
   });
+
+  // ── SEGUNDA PASADA · COBERTURA CAUSAL ────────────────────────────────────────────────────────────────────────
+  // Necesita el conjunto completo: una palanca es PARCIAL siempre, pero solo se puede declarar la FRACCIÓN si su
+  // universo está en la MISMA boleta y para la MISMA entidad. Sin universo, la cobertura sigue siendo parcial y
+  // la fracción queda explícitamente innarrable — que es distinto de no saber nada.
+  for (const c of base) {
+    const pal = _PALANCAS.find((p) => p.re.test(c.metrica));
+    if (!pal || !pal.esParte) continue;   // la brecha es el FENÓMENO, no una parte de sí misma (ver _PALANCAS)
+    c.coberturaCausal = "parcial";
+    const universo = base.find((u) => u !== c && u.entidad === c.entidad && _esUniverso(u.metrica) && typeof u.valorRaw === "number" && u.valorRaw > 0);
+    const monto = typeof c.valorRaw === "number" ? c.valorRaw : null;
+    c.explica = {
+      clase: pal.clase,
+      monto: c.valor,
+      montoRaw: monto,
+      universo: universo ? universo.valor : null,
+      universoEtiqueta: universo ? universo.etiqueta : null,
+      // la fracción SOLO existe si ambas cifras están autorizadas en este turno. Si no, es null y el prompt
+      // instruye a decir "explica una parte" sin ponerle número — nunca a estimarla.
+      fraccion: (universo && monto != null) ? `${Math.round((monto / universo.valorRaw) * 1000) / 10}%` : null,
+    };
+  }
+  return base;
 }
 
 // ── RELACIONES AUTORIZADAS ─────────────────────────────────────────────────────────────────────────────────────
@@ -134,7 +235,22 @@ export function buildRelations(claims) {
     porEntidad.get(c.entidad).push(c.id);
   }
   const mismaEntidad = [...porEntidad.entries()].map(([entidad, ids]) => ({ tipo: "mismaEntidad", entidad, claims: ids }));
-  return { comparables, derivadas, mismaEntidad };
+  // PARTE-DE (Regla de Proporcionalidad Semántica) — la relación que la cabecera de este archivo prometía y que
+  // nunca se había escrito. Es la que impide que una causa parcial se narre como la explicación completa: declara
+  // explícitamente qué claim es una PARTE de qué otro, con la fracción cuando ambas cifras están autorizadas.
+  // Su AUSENCIA también informa: una palanca sin universo en la boleta sigue siendo parcial, pero su fracción es
+  // innarrable — el prompt lo dice, y nunca se estima.
+  const parteDe = cs.filter((c) => c.coberturaCausal === "parcial" && c.explica).map((c) => ({
+    tipo: "parte-de",
+    claim: c.id,
+    clase: c.explica.clase,
+    parte: c.explica.monto,
+    universo: c.explica.universo,           // null si no está en esta boleta
+    universoEtiqueta: c.explica.universoEtiqueta,
+    fraccion: c.explica.fraccion,           // null si el universo no está autorizado en este turno
+    cuantificable: !!c.explica.fraccion,
+  }));
+  return { comparables, derivadas, mismaEntidad, parteDe };
 }
 
 // ── PREGUNTAS ABIERTAS (el estatus "abierto" del contrato) ─────────────────────────────────────────────────────
@@ -175,10 +291,14 @@ export function buildSupuestos({ plan, results }) {
 // para que la PRIORIDAD sea del dato (mayor monto primero), no del criterio del narrador.
 // Nota de alcance: es una lista de lo PERMITIDO/priorizable, no una orden. El narrador sigue eligiendo cómo
 // contarlo; lo que no puede es proponer una acción sin respaldo cuantificado en esta lista.
+// `esParte` (Regla de Proporcionalidad Semántica): distingue el MECANISMO del FENÓMENO. Un mecanismo explica una
+// PARTE de algo mayor — el exceso de acciones comerciales y el capital detenido son mecanismos. La BRECHA no: la
+// brecha ES el fenómeno, el universo contra el que se mide la parte. Sin esta distinción, la primera versión
+// marcaba la brecha de 8,1 pp como "causa parcial de sí misma" (cazado corriendo la derivación sobre 4 ejes).
 const _PALANCAS = [
-  { re: /exceso de acciones comerciales/i, clase: "acciones_comerciales", accion: "revisar las acciones comerciales (rebates y descuentos)" },
-  { re: /capital detenido/i,               clase: "capital_detenido",     accion: "liberar el capital detenido en inventario" },
-  { re: /\bbrecha\b/i,                     clase: "brecha_margen",        accion: "cerrar la brecha de margen contra el benchmark" },
+  { re: /exceso de acciones comerciales/i, clase: "acciones_comerciales", accion: "revisar las acciones comerciales (rebates y descuentos)", esParte: true },
+  { re: /capital detenido/i,               clase: "capital_detenido",     accion: "liberar el capital detenido en inventario",               esParte: true },
+  { re: /\bbrecha\b/i,                     clase: "brecha_margen",        accion: "cerrar la brecha de margen contra el benchmark",          esParte: false },
 ];
 export function buildAllowedActions(claims) {
   const cs = Array.isArray(claims) ? claims : [];

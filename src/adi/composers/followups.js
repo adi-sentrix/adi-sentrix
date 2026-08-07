@@ -86,15 +86,15 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     const gapVsBench = c.margen - benchmark;
     const gapVsAvgInternal = c.margen - avgMargen;
 
-    opener = `${c.nombre} opera con margen **${c.margen}%** · ${Math.abs(gapVsBench).toFixed(1)} puntos ${gapVsBench >= 0 ? "sobre" : "bajo"} el benchmark de industria (${benchmark}%).\n\n`;
+    opener = `${c.nombre} opera con margen **${c.margen}%** · ${Math.abs(gapVsBench).toFixed(1)} puntos ${gapVsBench >= 0 ? "sobre" : "bajo"} tu benchmark (${benchmark}%).\n\n`;
     opener += `Frente al promedio interno de la cartera (${avgMargen.toFixed(1)}%), está ${Math.abs(gapVsAvgInternal).toFixed(1)}pp ${gapVsAvgInternal >= 0 ? "arriba" : "debajo"}. `;
 
     if (gapVsBench < -3) {
       const destruccion = Math.round(c.venta * (benchmark - c.margen) / 100);
-      opener += `La cuenta está sub-rentabilizando: aproximadamente **$${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
+      opener += `La cuenta está cediendo margen: aproximadamente **$${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
       opener += `**Mecanismo disponible**: el cruce margen vs carga comercial es la lectura natural · si ${c.nombre} tiene carga sobre promedio (${avgCarga.toFixed(1)}%), la palanca de rebate opera antes que la de precio.`;
     } else if (gapVsBench >= 0) {
-      opener += `La cuenta es estructuralmente rentable · sostiene el promedio de la cartera.`;
+      opener += `La cuenta sostiene margen sobre el promedio de la cartera.`;
     } else {
       opener += `Margen razonable pero hay espacio · existen 2 palancas disponibles: composición del mix y carga comercial.`;
     }

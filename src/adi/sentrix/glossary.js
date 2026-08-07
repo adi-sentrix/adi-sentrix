@@ -59,8 +59,8 @@ export const CONCEPT_DEFS = {
   },
   benchmark: {
     aka: "benchmark",
-    def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta: el estándar de la industria, o el que vos fijes como tu mínimo. Un cliente por debajo del benchmark rinde menos de lo esperable para su categoría.",
-    distingue: "No es una meta que te inventes: es la referencia de mercado (o tu criterio) contra la que se mide cada cuenta.",
+    def: "Es el punto de referencia contra el que ADI mide el margen de cada cuenta: la referencia que define tu negocio (tu criterio, o el que traiga tu dato). Un cliente por debajo del benchmark rinde menos que la referencia que definiste.",
+    distingue: "No viene de una fuente sectorial: es TU referencia (tu criterio o tu dato) contra la que se mide cada cuenta.",
   },
   margen: {
     aka: "margen",

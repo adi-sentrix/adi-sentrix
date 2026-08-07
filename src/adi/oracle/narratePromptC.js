@@ -568,6 +568,63 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
 // narrador ve EXCLUSIVAMENTE lo que el motor selló y autorizó:
 //   alcance · afirmaciones (con estatus epistémico) · relaciones autorizadas · acciones y prioridades permitidas ·
 //   supuestos · preguntas abiertas · política de respuesta (modo + densidad + qué NO puede agregar).
+// ── PROPORCIONALIDAD SEMÁNTICA · qué de cada cifra viaja al narrador (owner 2026-08-07) ────────────────────────
+// EL HUECO QUE CIERRA: `cifras_autorizadas` proyectaba SOLO {etiqueta, valor}. O sea que sellar campos nuevos en
+// el claim no servía de nada — el narrador de producción nunca los veía, y la regla volvía a ser doctrina.
+// Ahora viajan, pero ESPARCIDOS: solo se emite lo que dice algo. Una cifra normal (ventas de un cliente, probada,
+// sin causalidad ni referencia) sigue pesando exactamente {etiqueta, valor} — cero costo de tokens donde no hay
+// nada que limitar. Se paga solo en las cifras que de verdad pueden hacer sobre-afirmar.
+// ── LA DOCTRINA · se manda SOLO si el turno tiene algo que limitar ─────────────────────────────────────────────
+// Cuatro límites, cada uno disparado por un campo REAL del claim — no por el tema de la pregunta. Un turno sin
+// causas parciales no recibe el párrafo de causalidad; uno sin referencia no recibe el de procedencia. Mismo
+// criterio de economía que buildModeDispatch (owner 2026-08-03, eficiencia Mini): doctrina del turno, no toda.
+// Las FORMULACIONES son orientación de voz, NO una lista cerrada ni un reemplazo frase por frase: el narrador
+// sigue eligiendo cómo decirlo. Lo que no puede es ampliar sujeto, causalidad, procedencia o nivel financiero.
+const _PS = {
+  sujeto: "ALCANCE DEL SUJETO. Cada cifra conserva el sujeto que trae en su etiqueta. Si crecieron las ventas A UN CLIENTE, hablá del crecimiento de las ventas a ESE cliente — nunca lo generalices al negocio (\"el negocio está en expansión\" con una sola entidad que crece es falso). Lo mismo con familia, SKU, canal y bodega: la dimensión del dato se conserva. Decí \"las ventas a Falabella crecieron 8,3%\", no \"las ventas crecieron 8,3%\". Cuando la cifra SÍ es del negocio, su semántica lo dice (\"el negocio (no una entidad)\") y ahí sí podés hablar del negocio.",
+  causa: "ALCANCE CAUSAL. Una causa marcada `cobertura: parcial` explica UNA PARTE — nunca la presentes como la principal, la total ni la suficiente. Prohibido: \"la principal causa es…\", \"la brecha se debe a…\", \"esto explica toda la diferencia\". Decí que es una causa COMPROBADA de una parte, y dejá el resto abierto: \"una causa comprobada es…\", \"explica una parte de la brecha\", \"es una causa comprobada, pero no la explicación completa\", \"corregirla recupera $X; el resto requiere otro análisis\". Si —y solo si— la semántica de esa cifra te da la fracción (\"explica $X de $Y (Z%)\"), podés cuantificarla con ESOS números. Si te dice que el universo NO está autorizado, NO le pongas número a la parte que falta ni la estimes: \"el resto de la brecha permanece abierto\".",
+  referencia: "PROCEDENCIA DE LA REFERENCIA. La vara contra la que se mide el margen la DEFINE EL NEGOCIO del usuario (su criterio, su dato, su meta). Se narra \"tu benchmark\", \"tu referencia\" o \"la meta definida para tu negocio\". NUNCA \"estándar del sector\", \"promedio del mercado\", \"referencia de la industria\" ni \"lo esperable para su categoría\": no hay ninguna fuente sectorial autorizada en el dato, así que decirlo es inventar una autoridad que no existe. Decí \"8,1 puntos bajo tu benchmark de 30,1%\", no \"bajo los estándares del sector\".",
+  nivel: "NIVEL FINANCIERO. Cada métrica afirma lo suyo y nada más: venta positiva significa que VENDE; margen positivo, que DEJA MARGEN; contribución positiva, que APORTA CONTRIBUCIÓN. Ninguna de las tres autoriza a decir que una cuenta o el negocio \"es rentable\" o \"es rentable/sana en rentabilidad\" — eso exige un RESULTADO que ya descontó costos Y gastos, y solo podés afirmarlo si tenés una cifra autorizada con `nivel: resultado`. Si no la tenés y el usuario pregunta si conviene la cuenta, respondé con lo que SÍ sabés y nombrá el límite: \"la cuenta deja contribución positiva, pero su margen está bajo tu referencia\" — y decí que para hablar de rentabilidad hace falta el resultado con gastos.",
+  cierre: "TRANSVERSAL: no afirmes más de lo que la cifra demuestra. Para lo PROBADO: \"el dato muestra que…\", \"la parte comprobada es…\", \"hoy esta cuenta aporta…\". Para lo INDICADO: \"el patrón sugiere…\", \"hay una señal de presión en…\", \"los datos apuntan a…\", \"conviene profundizar en…\". Para lo ABIERTO: \"el dato disponible no permite aislar todavía…\", \"no hay evidencia suficiente para atribuirlo a…\", \"para confirmarlo falta…\". Y una contribución no capturada NUNCA es una \"pérdida\": es una oportunidad, una brecha o un valor no capturado — no salió de la caja.",
+};
+export function buildProporcionalidadDoctrina(claims) {
+  const cs = Array.isArray(claims) ? claims : [];
+  if (!cs.length) return "";
+  const partes = [];
+  if (cs.some((c) => c.sujetoTipo === "entidad") && cs.some((c) => c.sujetoTipo === "negocio")) partes.push(_PS.sujeto);
+  else if (cs.some((c) => c.sujetoTipo === "entidad")) partes.push(_PS.sujeto);
+  if (cs.some((c) => c.coberturaCausal === "parcial")) partes.push(_PS.causa);
+  if (cs.some((c) => c.procedencia)) partes.push(_PS.referencia);
+  if (cs.some((c) => c.nivelFinanciero && c.nivelFinanciero !== "resultado")) partes.push(_PS.nivel);
+  if (!partes.length) return "";
+  partes.push(_PS.cierre);
+  return `PROPORCIONALIDAD SEMÁNTICA (nunca afirmes más de lo que la evidencia autorizada demuestra):\n  · ${partes.join("\n  · ")}`;
+}
+
+// `ctx` = lo que hace que el sujeto valga la pena decirlo. Repetir "el negocio" 48 veces en un trend de negocio no
+// informa nada y solo cuesta tokens (medido); en cambio, en un turno MIXTO (entidades + negocio) o MULTI-EJE es
+// justo el dato que evita la generalización. Un `concepto` siempre se marca: es una advertencia, no una etiqueta.
+function _ctxSujeto(claims) {
+  const cs = Array.isArray(claims) ? claims : [];
+  const ejes = new Set(cs.map((c) => c.eje).filter(Boolean));
+  return { mixto: cs.some((c) => c.sujetoTipo === "entidad") && cs.some((c) => c.sujetoTipo === "negocio"), multiEje: ejes.size > 1 };
+}
+function _semanticaDe(cl, ctx = { mixto: true, multiEje: true }) {
+  const s = {};
+  if (cl.sujetoTipo === "concepto") s.sujeto = "un concepto de la lectura, NO una entidad del dato";
+  else if (cl.sujetoTipo === "negocio") { if (ctx.mixto) s.sujeto = "el negocio (no una entidad)"; }
+  else if (cl.eje && (ctx.mixto || ctx.multiEje)) s.sujeto = `${cl.entidad} (${cl.eje})`;
+  if (cl.estatus === "indicado") s.estatus = "indicado (es una cuenta del motor, no una lectura directa)";
+  if (cl.procedencia === "interna_empresa") s.referencia = "la define tu negocio — nunca la llames sectorial, de industria ni de mercado";
+  if (cl.nivelFinanciero) s.nivel = cl.nivelFinanciero;
+  if (cl.coberturaCausal === "parcial") {
+    s.cobertura = cl.explica && cl.explica.fraccion
+      ? `parcial — explica ${cl.explica.monto} de ${cl.explica.universo} (${cl.explica.fraccion}); el resto queda abierto`
+      : "parcial — explica UNA PARTE comprobada; el universo total NO está autorizado en este turno, así que NO le pongas número a la fracción ni digas que es la causa principal";
+  }
+  return s;
+}
+
 // Las cifras siguen viajando como `cifras_autorizadas` (mismo contrato con guardC — no se toca el muro numérico).
 // NO se declara cerrado el contrato ni se enciende en producción hasta que el owner valide la calidad de la prosa:
 // cambiar lo que el narrador lee cambia la narración, y eso no es verificable sin corridas pagadas.
@@ -610,8 +667,12 @@ export function projectClaimsOnlyPayload(contract) {
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
     ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
     ...(forma.instruccionOrientacion ? { instruccion_orientacion: forma.instruccionOrientacion } : {}),
+    // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): doctrina de NIVEL DE TURNO, no del system — solo viaja si
+    // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Turno sin causas parciales, sin
+    // referencia y sin niveles de cascada → cadena vacía → la clave ni aparece.
+    ...(buildProporcionalidadDoctrina(claims) ? { instruccion_proporcionalidad: buildProporcionalidadDoctrina(claims) } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
-    cifras_autorizadas: claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor })),
+    cifras_autorizadas: claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor, ..._semanticaDe(cl, _ctxSujeto(claims)) })),
     ...(c.memoria ? { memoria_interaccion: c.memoria } : {}),
   };
 }
@@ -628,7 +689,7 @@ export function projectNarratePayload(contract) {
   // label original en `etiqueta`, así que se proyecta la misma forma que consumían de la boleta cruda.
   const figLabels = claims.map((cl) => ({ label: cl.etiqueta, unit: cl.unidad, value: cl.valor }));
   const datos = Array.isArray(c.datos) ? c.datos : [];
-  const cifras_autorizadas = claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor }));
+  const cifras_autorizadas = claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor, ..._semanticaDe(cl, _ctxSujeto(claims)) }));
   const hilo_reciente = Array.isArray(c.hiloReciente) ? c.hiloReciente : [];
   const mem = c.memoria;
   const instruccionOrientacion = forma.instruccionOrientacion;
@@ -691,6 +752,10 @@ export function projectNarratePayload(contract) {
     // determinístico (pedido explícito o confusión persistente, ver dialogueState.js needsOrientacion). Mismo
     // principio de payload mínimo que preferencia_respuesta: un turno normal no la lleva.
     ...(instruccionOrientacion ? { instruccion_orientacion: instruccionOrientacion } : {}),
+    // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): doctrina de NIVEL DE TURNO, no del system — solo viaja si
+    // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Un turno sin causas parciales, sin
+    // referencia y sin niveles de cascada devuelve cadena vacía y la clave ni siquiera aparece en el payload.
+    ...(buildProporcionalidadDoctrina(claims) ? { instruccion_proporcionalidad: buildProporcionalidadDoctrina(claims) } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     datos,
     cifras_autorizadas,

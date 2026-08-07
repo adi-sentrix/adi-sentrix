@@ -465,7 +465,7 @@ function composeMechanismRankingNarrative(signals, posture, ctx) {
   } else if (top.mechanismId === "quality_of_growth_deterioration") {
     const cp = hl.contribPerdida_M || 0;
     const cp_str = cp >= 1 ? `$${cp.toFixed(2)}M` : _fmtMoneyK(cp * 1000);
-    movements.push(`${cp_str} de contribución perdida vs benchmark sobre ${hl.instances_count} cuentas.`);
+    movements.push(`${cp_str} de contribución no capturada vs tu benchmark sobre ${hl.instances_count} cuentas.`);
   } else if (top.mechanismId === "customer_dependency_risk") {
     const top3 = (hl.top3_names || []).join(" · ");
     const part = hl.top3_participacion_pct || 0;
@@ -522,7 +522,7 @@ function composeClientDeepDiveNarrative(signals, posture, ctx) {
   const gapBench = (w.benchmark - w.margen).toFixed(1);
   const dirBench = w.margen < w.benchmark ? "bajo" : "sobre";
   const cargaClause = w.pctRebate != null ? ` La carga comercial es ${w.pctRebate.toFixed(1)}%.` : "";
-  movements.push(`El margen está en ${w.margen.toFixed(1)}% · ${gapBench}pp ${dirBench} el benchmark de industria (${w.benchmark.toFixed(1)}%).${cargaClause}`);
+  movements.push(`El margen está en ${w.margen.toFixed(1)}% · ${gapBench}pp ${dirBench} tu benchmark (${w.benchmark.toFixed(1)}%).${cargaClause}`);
 
   // MOVIMIENTO 3 · Driver interpretativo (postura challenge si counter_intuition)
   if (posture === "challenge" && signals.why) {
@@ -581,7 +581,7 @@ function composeSkuDeepDiveNarrative(signals, posture, ctx) {
     } else if (signals.why.driver.factor === "margen_unitario") {
       const d = signals.why.driver;
       const recK = signals.implication?.recoverable_value || 0;
-      movements.push(`El margen unitario está ${d.vs_benchmark.toFixed(1)}pp bajo el benchmark de industria.`);
+      movements.push(`El margen unitario está ${d.vs_benchmark.toFixed(1)}pp bajo tu benchmark.`);
       movements.push(`Acción: recuperarlo al benchmark libera ${_fmtMoneyK(recK)} anuales en contribución.`);
     }
   } else if (ARCO_ENABLED && !signals.why) {
@@ -748,7 +748,7 @@ function composeCausalMovement(why, posture) {
     return `La carga comercial ${targetClause} es ${d.value.toFixed(1)}% · ${gapStr}.`.replace(/\s+/g, " ");
   }
   if (d.factor === "margen_unitario") {
-    return `El margen unitario está ${d.vs_benchmark.toFixed(1)}pp bajo el benchmark de industria.`;
+    return `El margen unitario está ${d.vs_benchmark.toFixed(1)}pp bajo tu benchmark.`;
   }
   if (d.factor === "doh_alto") {
     return `El DOH acumula ${Math.round(d.value)} días · capital atrapado por baja velocidad de conversión.`;

@@ -166,7 +166,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
 
     if (scenarioId === "bonanza") {
       // Bonanza · gap vs benchmark (positivo o negativo según escenario)
-      m1 = `El margen general está en ${margenPct.toFixed(1)}%, ${Math.abs(_gapBench).toFixed(1)} puntos ${_gapBench >= 0 ? "sobre" : "bajo"} el benchmark de industria (${benchmark.toFixed(1)}%), equivalente a ${fmtM(gapContrib)} de contribución ${_gapBench >= 0 ? "capturada sobre el estándar" : "no capturada"}.`;
+      m1 = `El margen general está en ${margenPct.toFixed(1)}%, ${Math.abs(_gapBench).toFixed(1)} puntos ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark (${benchmark.toFixed(1)}%), equivalente a ${fmtM(gapContrib)} de contribución ${_gapBench >= 0 ? "capturada sobre tu referencia" : "no capturada"}.`;
       m2 = `${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga comercial con margen ${topRebate.margen.toFixed(1)}%, mientras ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}% — la diferencia es estructural, no coyuntural.`;
       m3 = `La carga comercial sobre cuentas Tier 1 explica gran parte de la diferencia versus benchmark, ya que el resto del portafolio opera dentro de rango.`;
     } else if (scenarioId === "tension") {
@@ -409,7 +409,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
 
     let b2, b3, b4, b5;
     if (scenarioId === "bonanza") {
-      b2 = `El margen general está en ${margenPct.toFixed(1)}% · ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} benchmark de industria.`;
+      b2 = `El margen general está en ${margenPct.toFixed(1)}% · ${Math.abs(_gapBench).toFixed(1)}pp ${_gapBench >= 0 ? "sobre" : "bajo"} tu benchmark.`;
       // D2 ajuste LOCKED: NO repetir "Margen X%" de B2.
       b3 = `Benchmark ${benchmark.toFixed(1)}% · gap ${fmtM(gapContrib)} · ${topRebate.nombre} concentra ${fmtM(topRebate.rebates)} en carga${ml ? ` · ${ml.nombre} opera con margen ${ml.margen.toFixed(1)}% y carga ${ml.pctRebate}%` : ""}.`;
       b4 = `La presión sobre margen se concentra en Tier 1.`;

@@ -179,7 +179,7 @@ const ETLG_THESIS_TEMPLATES = {
   // ── Tier module_overview · variantes scenario (D6 margen + ventas) ──────
   module_overview_margenes: {
     requires_concepts: [],
-    bonanza: (params) => `El margen está en ${params.actualMargin}%, bajo el benchmark de industria · la diferencia viene de la carga comercial sobre las cuentas Tier 1.`,
+    bonanza: (params) => `El margen está en ${params.actualMargin}%, bajo tu benchmark · la diferencia viene de la carga comercial sobre las cuentas Tier 1.`,
     tension: (params) => `El margen cayó de 25.6% a ${params.actualMargin}% · la carga comercial sobre las cuentas grandes está absorbiendo más del crecimiento.`,
     crisis:  (params) => `El margen cayó a ${params.actualMargin}% · tres clientes están operando bajo costo real con la carga comercial actual.`,
     resolve_params: (scenario) => {

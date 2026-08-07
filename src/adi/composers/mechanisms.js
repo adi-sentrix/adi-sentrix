@@ -518,7 +518,7 @@ export function composeMechanismScan(scenarioId) {
       const top3_participacion = m.aggregate.top3_participacion_pct;
       const top3_contribucion = m.aggregate.top3_contribucion_M;
       const namesList = r7_listInstances(top3_names.map(n => ({ clientName: n })));
-      parrafo = `**Riesgo de dependencia de cliente** es estructural: ${namesList} concentran ${top3_participacion}% de las ventas y ${r7_formatCurrencyM(top3_contribucion)} de contribución. Una salida simultánea representaría la pérdida de aproximadamente la mitad de la rentabilidad operativa. Mecanismo de horizonte largo · la palanca de diversificación opera sobre cuentas Tier 2.`;
+      parrafo = `**Riesgo de dependencia de cliente** es estructural: ${namesList} concentran ${top3_participacion}% de las ventas y ${r7_formatCurrencyM(top3_contribucion)} de contribución. Una salida simultánea representaría la caída de aproximadamente la mitad de la contribución. Mecanismo de horizonte largo · la palanca de diversificación opera sobre cuentas Tier 2.`;
     }
 
     opener += "\n\n" + parrafo;
