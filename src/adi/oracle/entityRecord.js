@@ -10,6 +10,7 @@ import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { fig } from "../boleta.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
+import { resolveCanonical, axisCollisions } from "./entityIndex.js";   // CONTRATO v2 · Fase 3: índice Map por eje/tenant (O(1)) + colisiones explícitas
 
 const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
 
@@ -119,6 +120,12 @@ function _derived(rec) {
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 export function resolveEntity(dimension, entity) {
   if (entity == null) return entity;
+  // CONTRATO v2 · FASE 3: primero el índice Map por eje/tenant (O(1) — ver entityIndex.js). El scan lineal de
+  // abajo queda como RED: cubre cualquier fuente que el índice no cachee (ej. el eje cliente que acá se lee
+  // scenario-aware vía applyScenarioToClientesMargen) y garantiza que la resolución nunca EMPEORA respecto del
+  // comportamiento histórico. El contrato de retorno no cambia: sin match devuelve el crudo, como siempre.
+  const canon = resolveCanonical(dimension, entity);
+  if (canon) return canon;
   const target = _norm(entity);
   for (const e of _allEntities(dimension)) if (_norm(e) === target) return e;
   return entity;   // sin match → tal cual (el caller declina honesto, no se inventa un nombre)
@@ -224,6 +231,12 @@ function _allEntities(dimension) {
 // lista fija hardcodeada.
 export function guessDimension(entity) {
   if (entity == null) return null;
+  // CONTRATO v2 · FASE 3: el índice resuelve en O(1) y además SABE si hubo colisión entre ejes. Acá se conserva
+  // el contrato histórico (devolver el PRIMER eje del orden fijo) para no alterar resoluciones existentes — la
+  // colisión no se pierde: `axisCollisions`/`resolveEntityRef` (entityIndex.js) la exponen para que el llamador
+  // que quiera desambiguar pueda hacerlo. Ver guessDimensionDetallado abajo.
+  const hits = axisCollisions(entity);
+  if (hits.length) return hits[0].dimension;
   for (const dim of ["sku", "cliente", "marca", "familia", "bodega", "canal"]) {
     const srcs = _axisNames(dim);
     if (!srcs) continue;
@@ -231,6 +244,16 @@ export function guessDimension(entity) {
     for (const s of srcs) if (s.rows.some((r) => r && String(r[s.key]) === String(canon))) return dim;
   }
   return null;
+}
+
+// guessDimensionDetallado(entity) → lo que guessDimension NO podía decir: si el nombre existe en MÁS DE UN eje.
+// El orden fijo (sku > cliente > marca > …) servía la fila del primer eje EN SILENCIO — con cifras reales del eje
+// equivocado, que ningún guard numérico marca porque no hay nada inventado. Este accesor deja la colisión visible
+// para el llamador que quiera preguntar en vez de adivinar.
+export function guessDimensionDetallado(entity) {
+  const hits = axisCollisions(entity);
+  if (!hits.length) return { dimension: guessDimension(entity), colision: false, opciones: [] };
+  return { dimension: hits[0].dimension, colision: hits.length > 1, opciones: hits };
 }
 
 // buildEntityRecord(dimension, entity) → { facts, boleta } | null
