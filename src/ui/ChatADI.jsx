@@ -18,7 +18,7 @@ import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el 
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag)
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
 import { buildRequestContext } from "../adi/oracle/requestContext.js";   // multiempresa (owner 2026-07-29): tenant/conversación/snapshot explícitos, nunca implícitos
 import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
@@ -175,6 +175,25 @@ function _oracleOn() {
   } catch { /* headless */ }
   return ADI_ORACLE_ENABLED;   // producción real: solo el flag (OFF salvo que se prenda a propósito)
 }
+// ── CONTRATO v2 · NARRACIÓN CLAIMS-ONLY detrás de flag (owner 2026-08-07, opción (b)) ───────────────────────────
+// A DIFERENCIA de _oracleOn: acá NO hay default-ON en dev. El modo claims-only cambia lo que el narrador LEE, así
+// que cambia la prosa — y eso no se puede verificar sin corridas pagadas. Queda desplegado pero APAGADO hasta que
+// el owner valide la calidad manualmente: se enciende SOLO con override explícito (localStorage adi_claims_only="1"
+// o ?claims=1) y NUNCA en un dominio real de producción, ni siquiera con el override puesto.
+function _claimsOnlyOn() {
+  try {
+    let pedido = false;
+    if (typeof localStorage !== "undefined" && localStorage.getItem("adi_claims_only") === "1") pedido = true;
+    if (typeof location !== "undefined" && /[?&]claims=1\b/.test(location.search)) pedido = true;
+    if (pedido && typeof location !== "undefined") {
+      const h = location.hostname || "";
+      const esProdReal = /(^|\.)adiai\.cl$/i.test(h) || /\.vercel\.app$/i.test(h);
+      if (esProdReal) return ADI_CLAIMS_ONLY_ENABLED;   // en prod real manda el flag, el override no alcanza
+    }
+    if (pedido) return true;
+  } catch { /* headless */ }
+  return ADI_CLAIMS_ONLY_ENABLED;   // default: el flag del perfil (OFF)
+}
 // Pasada 1 · PLAN (server-side · la key vive en el gateway). tenantId viaja SOLO para rate-limit por tenant en el
 // gateway (owner 2026-07-29, multiempresa) — nunca decide qué datos trae el plan, eso lo sigue haciendo el motor
 // client-side sobre el tenant activo en tenantStore.js.
@@ -196,7 +215,9 @@ async function _fetchPlan({ text, history, mem, scenario, requestContext, attemp
 }
 // Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
 async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, attempt, _onRouted }) {
-  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion });
+  // claimsOnly: modo del Contrato v2 detrás de flag (owner 2026-08-07) — cambia lo que el narrador LEE, no lo que
+  // el guard exige. Apagado por defecto: el payload que sale de acá es el mismo verificado en vivo.
+  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, requestContext, claimsOnly: _claimsOnlyOn() });
   const t0 = Date.now();
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },

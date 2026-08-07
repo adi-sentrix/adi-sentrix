@@ -492,7 +492,7 @@ const ORDEN_MONTO_INSTRUCTION = "El usuario pidió orden EXPLÍCITO por dinero/m
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext }) {
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext, claimsOnly = false }) {
   // CONTRATO v2 · FASE 1 (owner 2026-08-07): el payload deja de armarse desde `plan`/`results` crudos. Se SELLA
   // primero un NarrationContract inmutable (narrationContract.js) y el payload es una PROYECCIÓN PURA de ese
   // contrato — projectNarratePayload no recibe ni puede mirar plan/results. La garantía "el LLM no puede modificar
@@ -500,7 +500,62 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
   // prompt se lo prohíba, es que no hay otra cosa que ver. Esta firma NO cambia (los ~30 callers/gates que la
   // consumen siguen andando igual) y el payload resultante es BYTE-IDÉNTICO al anterior — verificado por
   // _narration_contract_gate.mjs, que compara la proyección contra la construcción legacy caso por caso.
-  return projectNarratePayload(buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext }));
+  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext });
+  return claimsOnly ? projectClaimsOnlyPayload(contract) : projectNarratePayload(contract);
+}
+
+// projectClaimsOnlyPayload(contract) → CONTRATO v2 · el payload SIN NINGUNA FUENTE CRUDA (owner 2026-08-07,
+// opción (b): implementado detrás de flag, APAGADO por defecto — ver ADI_CLAIMS_ONLY_ENABLED en voiceFlags.js).
+// Diferencia con projectNarratePayload: acá NO viaja `datos` (los facts de las tools) ni el eco del plan. El
+// narrador ve EXCLUSIVAMENTE lo que el motor selló y autorizó:
+//   alcance · afirmaciones (con estatus epistémico) · relaciones autorizadas · acciones y prioridades permitidas ·
+//   supuestos · preguntas abiertas · política de respuesta (modo + densidad + qué NO puede agregar).
+// Las cifras siguen viajando como `cifras_autorizadas` (mismo contrato con guardC — no se toca el muro numérico).
+// NO se declara cerrado el contrato ni se enciende en producción hasta que el owner valide la calidad de la prosa:
+// cambiar lo que el narrador lee cambia la narración, y eso no es verificable sin corridas pagadas.
+export function projectClaimsOnlyPayload(contract) {
+  const c = contract || {};
+  const scope = c.scope || {};
+  const forma = c.forma || {};
+  const pref = c.pref;
+  const claims = Array.isArray(c.claims) ? c.claims : [];
+  const figLabels = claims.map((cl) => ({ label: cl.etiqueta, unit: cl.unidad, value: cl.valor }));
+  const modo = MODE_KEYS.includes(forma.modo) ? forma.modo : "default";
+  const hilo_reciente = Array.isArray(c.hiloReciente) ? c.hiloReciente : [];
+  return {
+    pregunta: c.pregunta,
+    intencion: c.intencion || "answer",
+    modo,
+    ...(modo === "clarify" ? { nivel_aclaracion: forma.clarifyStreak || 1 } : {}),
+    // ALCANCE sellado (no el eco del plan): sobre qué, en qué eje, en qué período — ya validado contra el catálogo.
+    alcance: { eje: scope.eje, entidades: scope.entidades, nivel: scope.nivel, periodo: scope.periodo, filtros: scope.filtros },
+    // AFIRMACIONES con su estatus epistémico — reemplazan a `datos`/facts.
+    afirmaciones: claims.map((cl) => ({
+      id: cl.id, entidad: cl.entidad, metrica: cl.metrica, periodo: cl.periodo,
+      valor: cl.valor, unidad: cl.unidad, estatus: cl.estatus,
+      ...(cl.obligatoria ? { obligatoria: true } : {}),
+      ...(cl.formula ? { formula: cl.formula } : {}),
+      ...(cl.contexto ? { contexto: cl.contexto } : {}),
+    })),
+    relaciones_autorizadas: c.relaciones || {},
+    acciones_permitidas: c.acciones || [],
+    ...(Array.isArray(c.supuestos) && c.supuestos.length ? { supuestos: c.supuestos } : {}),
+    ...(Array.isArray(c.preguntasAbiertas) && c.preguntasAbiertas.length ? { preguntas_abiertas: c.preguntasAbiertas } : {}),
+    politica_respuesta: c.politicaExtension || {},
+    // las instrucciones de FORMA siguen siendo decisiones del motor (no fuentes crudas) — se conservan para que
+    // la comparación de calidad contra el modo actual sea justa: solo cambia el ORIGEN del contenido, no la forma.
+    ...(!isDefaultPref(pref) ? { preferencia_respuesta: { alcance: pref.contentScope || "full", detalle: pref.detailLevel || "standard" } } : {}),
+    ...(pref && pref.contentScope && pref.contentScope !== "full" && blockInstructionFor(pref.contentScope) ? { instruccion_formato: blockInstructionFor(pref.contentScope) } : {}),
+    ...(pref && pref.detailLevel === "brief" ? { instruccion_brevedad: BRIEF_INSTRUCTION } : {}),
+    ...(modo === "clarify" ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {})),
+    ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
+    ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
+    ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
+    ...(forma.instruccionOrientacion ? { instruccion_orientacion: forma.instruccionOrientacion } : {}),
+    ...(hilo_reciente.length ? { hilo_reciente } : {}),
+    cifras_autorizadas: claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor })),
+    ...(c.memoria ? { memoria_interaccion: c.memoria } : {}),
+  };
 }
 
 // projectNarratePayload(contract) → el OBJETO de datos para la Pasada 2, derivado EXCLUSIVAMENTE del contrato

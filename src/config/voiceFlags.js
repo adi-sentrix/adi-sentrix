@@ -282,6 +282,18 @@ export const ADI_LLM_NARRATE_ENABLED = (typeof __ADI_LLM_NARRATE_ENABLED__ !== "
 // Además del env, ChatADI acepta un override SOLO-dev (localStorage adi_oracle / ?oracle=1) para probar en vivo.
 export const ADI_ORACLE_ENABLED = P("ADI_ORACLE_ENABLED");
 
+// ── CONTRATO v2 · NARRACIÓN CLAIMS-ONLY detrás de flag · default FALSE (owner 2026-08-07) ──
+// FALSE (default, y lo que corre en producción HOY) = el payload de NARRAR incluye `datos` (los facts de las
+// tools) además de los claims sellados — el comportamiento verificado que está en vivo.
+// TRUE = NARRAR recibe EXCLUSIVAMENTE el NarrationContract proyectado: scope, claims, relaciones, prioridades,
+// acciones autorizadas, supuestos, preguntas abiertas y política de respuesta. CERO `plan`, `results`, `facts` o
+// catálogos crudos (probado determinísticamente por _claims_only_gate.mjs, que falla si aparece una fuente cruda).
+// El owner lo activa MANUALMENTE para evaluar la calidad de la narración — cambiar lo que el narrador lee cambia
+// la prosa, y eso NO es verificable sin corridas pagadas. NO se declara cerrado el contrato hasta esa validación.
+// Además del perfil, ChatADI acepta override SOLO-dev (localStorage adi_claims_only / ?claims=1), mismo patrón
+// que ADI_ORACLE_ENABLED — nunca se enciende solo en un dominio real de producción.
+export const ADI_CLAIMS_ONLY_ENABLED = P("ADI_CLAIMS_ONLY_ENABLED");
+
 // ── ADI Core · Paso 5 · UX pre-prod · selector de escenarios SOLO en dev · default FALSE ──
 // FALSE = chip estático "Datos actuales" (el escenario interno sigue "bonanza"=base · motor/tests/scenarioLoad intactos). TRUE = ScenarioSelector.
 export const ADI_SCENARIO_SWITCHER_ENABLED = P("ADI_SCENARIO_SWITCHER_ENABLED");
