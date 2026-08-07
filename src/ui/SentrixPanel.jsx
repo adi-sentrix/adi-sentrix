@@ -3801,6 +3801,34 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
   const items = (cap && cap.coverage && cap.coverage.supported) ? cap.facts.capitalLigado.items : [];
   const pos = f.posicionCartera || null;
 
+  // IMPORTANCIA EN LA CARTERA + CLASIFICACIÓN (owner 2026-08-07, "diréctamente, sin jerga"): un 2×2 de VOLUMEN
+  // (¿está en el grupo que concentra el 80% de la venta?) × MARGEN (¿sobre o bajo tu benchmark, la vara
+  // autorizada?). Los 4 roles son los que el owner pidió, en lenguaje de dueño de negocio. El margen se juzga
+  // contra el benchmark (POLICY/benchmarkOf, la MISMA vara del resto de la Ficha) — no un promedio inventado.
+  const _benchNum = f.benchmarkMargen ? parseFloat(f.benchmarkMargen) : null;
+  const _margenNum = mMargen && typeof mMargen.value === "number" ? mMargen.value : null;
+  const _vendeMucho = !!(pos && pos.enBloque8020);
+  const _buenMargen = _margenNum != null && _benchNum != null && _margenNum >= _benchNum;
+  const _claseOK = pos && _margenNum != null && _benchNum != null;
+  const clase = !_claseOK ? null
+    : _vendeMucho && _buenMargen ? { label: "CUIDAR", desc: "Vende mucho y deja buen margen", color: C.green }
+    : _vendeMucho && !_buenMargen ? { label: "RECUPERAR", desc: "Vende mucho, pero deja poco margen", color: C.amber }
+    : !_vendeMucho && _buenMargen ? { label: "CRECER", desc: "Vende poco, pero deja buen margen", color: C.celeste }
+    : { label: "REVISAR", desc: "Vende poco y deja poco margen", color: C.red };
+  const _cierreCartera = !clase ? null
+    : clase.label === "CUIDAR" ? `${name} es una cuenta importante y rentable. Protegé estas condiciones y usala de referencia para negociar con el resto.`
+    : clase.label === "RECUPERAR" ? `${name} mueve mucho volumen, pero su margen está bajo tu estándar. Acá está la mayor oportunidad de recuperar rentabilidad — empezá por revisar sus acciones comerciales.`
+    : clase.label === "CRECER" ? `${name} deja buen margen pero todavía pesa poco. Si sus condiciones se sostienen, es una cuenta sana para hacer crecer en volumen.`
+    : `Hoy ${name} no es una cuenta importante por volumen y tampoco compensa con rentabilidad. Antes de buscar más ventas, conviene revisar si sus condiciones permiten mejorar el margen.`;
+
+  // CAPITAL · separo lo DETENIDO (crítico) de lo de ROTACIÓN LENTA (atención) — owner pidió nombrarlo distinto.
+  const _criticos = items.filter((it) => it.critico);
+  const _lentos = items.filter((it) => !it.critico);
+  const _sumUsd = (arr) => arr.reduce((s, it) => s + (typeof it.usd === "number" ? it.usd : 0), 0);
+  const _capTopMonto = items.length ? items.slice().sort((a, b) => (b.usd || 0) - (a.usd || 0))[0] : null;
+  const _capConDias = items.filter((it) => typeof it.diasSinVenta === "number");
+  const _capTopDias = _capConDias.length ? _capConDias.slice().sort((a, b) => b.diasSinVenta - a.diasSinVenta)[0] : null;
+
   const _ask = (q) => {
     setUISignal({ ficha: { cliente: name, dimension: "cliente", scenario, origen: "ficha_ejecutiva" } });
     if (onAsk) onAsk(q);
@@ -3851,7 +3879,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                 La familia con más peso, <b style={{ color: C.text }}>{topFamilia.nombre}</b> ({topFamilia.share}% de la compra), tiene margen {topFamilia.margen}%{f.benchmarkMargen ? <> — {topFamilia.margen < parseFloat(f.benchmarkMargen) ? "bajo" : "sobre"} tu benchmark de {f.benchmarkMargen}</> : null}{topEsElPeor ? <>, la más baja de sus {familias.length} familias</> : null}.</div>
             )}
             <div><span style={{ color: C.textMuted, fontFamily: MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginRight: 6 }}>Abierto</span>
-              La brecha total contra tu benchmark es {f.brechaMargen}. El exceso de acciones comerciales explica una parte comprobada; el resto no tiene una causa aislada en el dato disponible (mix, costo u otros factores no separables con lo que hay).</div>
+              La brecha total contra tu benchmark es {f.brechaMargen}. El exceso de acciones comerciales explica una parte comprobada; el resto no tiene una causa aislada en el dato disponible (la combinación de productos, el costo u otros factores no separables con lo que hay).</div>
           </div>
         </div>
       )}
@@ -3911,27 +3939,48 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
         )}
       </div>
 
-      {/* 6 · POSICIÓN EN LA CARTERA */}
+      {/* 6 · IMPORTANCIA EN LA CARTERA + CLASIFICACIÓN (owner 2026-08-07): el veredicto de 2 dimensiones
+          (volumen × margen) en lenguaje directo — la chip del rol arriba, la lectura y los 3 datos que la
+          respaldan debajo, y el cierre ejecutivo. Sin "rezagado"/"relevancia": ranking directo + sobre/bajo
+          benchmark. */}
       <div style={_panelStyle}>
-        <span style={_panelTitle}>{_dot}Posición en la cartera</span>
+        <span style={_panelTitle}>{_dot}Importancia de {name} en tu cartera</span>
         {!pos ? (
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
             No tengo la posición de {name} en la cartera en este escenario — queda abierto.
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 10 }}>
-            <div><div style={{ fontSize: 10, color: C.textMuted }}>Ranking por venta</div><div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: C.text, marginTop: 2 }}>{pos.rankingVenta}º de {pos.totalClientes}</div></div>
-            <div><div style={{ fontSize: 10, color: C.textMuted }}>Concentración</div><div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: pos.enBloque8020 ? C.green : C.textMuted, marginTop: 2 }}>{pos.enBloque8020 ? `en el bloque ${pos.reglaConcentracion}` : `fuera del ${pos.reglaConcentracion}`}</div></div>
-            {pos.rankingMargenDesdeAbajo && (
-              <div><div style={{ fontSize: 10, color: C.textMuted }}>Margen vs cartera</div><div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: pos.rankingMargenDesdeAbajo <= 3 ? C.amber : C.text, marginTop: 2 }}>{pos.rankingMargenDesdeAbajo}º más rezagado de {pos.totalConMargen}</div></div>
+          <>
+            {clase && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.8px", color: "#0b0b0b", background: clase.color, padding: "3px 10px", borderRadius: 6 }}>{clase.label}</span>
+                <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>{clase.desc}</span>
+                <InfoDot def={"El rol de la cuenta en un cuadro simple: CUIDAR (vende mucho y deja buen margen) · RECUPERAR (vende mucho, pero deja poco margen) · CRECER (vende poco, pero deja buen margen) · REVISAR (vende poco y deja poco margen). Volumen = si la cuenta está en el grupo que concentra el 80% de tu venta; margen = si está sobre o bajo tu benchmark."} align="left"/>
+              </div>
             )}
-          </div>
+            <div style={{ fontSize: 12.5, color: C.textSub, lineHeight: 1.6, marginTop: 9 }}>
+              {name} {_vendeMucho ? "es una de tus cuentas de mayor volumen" : "vende poco frente al resto de tu cartera"}
+              {_margenNum != null && _benchNum != null ? <> y {_buenMargen ? "su margen supera tu benchmark" : "su margen está por debajo de tu benchmark"}</> : null}.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9, fontSize: 12, color: C.textSub, lineHeight: 1.5 }}>
+              <div><span style={{ color: C.textMuted }}>Ventas:</span> {pos.rankingVenta}º de {pos.totalClientes} clientes.</div>
+              <div><span style={{ color: C.textMuted }}>Peso en la cartera:</span> {_vendeMucho ? "dentro" : "fuera"} del grupo que concentra el 80% de las ventas.</div>
+              {_margenNum != null && _benchNum != null && (
+                <div><span style={{ color: C.textMuted }}>Margen:</span> {_buenMargen ? "sobre" : "bajo"} tu benchmark de {f.benchmarkMargen}{pos.rankingMargenDesdeAbajo ? ` (${pos.rankingMargenDesdeAbajo}º más bajo de ${pos.totalConMargen})` : ""}.</div>
+              )}
+            </div>
+            {_cierreCartera && (
+              <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, marginTop: 10, paddingLeft: 10, borderLeft: `2px solid ${clase ? clase.color : C.celeste}` }}>{_cierreCartera}</div>
+            )}
+          </>
         )}
       </div>
 
-      {/* 7 · CAPITAL DEL NEGOCIO LIGADO AL MIX — SKU/bodega/valorizado/unidades/estado, severidad crítico(rojo)/atención(ámbar) */}
+      {/* 7 · INVENTARIO DE BAJA ROTACIÓN EN PRODUCTOS QUE COMPRA {name} — SKU/bodega/valorizado/unidades/estado,
+          severidad detenido/crítico(rojo) vs rotación lenta/atención(ámbar). Owner 2026-08-07: título directo,
+          lectura que separa lo detenido de lo de rotación lenta, cierre con la prioridad concreta. */}
       <div style={_panelStyle}>
-        <span style={_panelTitle}>{_dot}Capital del negocio ligado al mix vendido</span>
+        <span style={_panelTitle}>{_dot}Inventario de baja rotación en productos que compra {name}</span>
         {items.length > 0 ? (
           <>
             <div style={{ marginTop: 10, overflowX: "auto" }}>
@@ -3954,14 +4003,26 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                 ))}</tbody>
               </table>
             </div>
-            <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 8 }}>
-              De los productos que le vendés a {name}, {items.length} {items.length === 1 ? "está" : "están"} con capital detenido en tu inventario — <b style={{ color: C.text }}>{cap.facts.capitalLigado ? _fmUsd(cap.facts.capitalLigado.subtotal) : ""}</b> entre {items.length === 1 ? "ese" : "todos"}. Es inventario de tu negocio, no plata de {name}.
+            <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, marginTop: 8 }}>
+              {_criticos.length > 0 && _lentos.length > 0
+                ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en productos que le vendés a {name}.</>
+                : _criticos.length > 0
+                  ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en productos que le vendés a {name}.</>
+                  : <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en productos que le vendés a {name}.</>}
+              {" "}Es inventario de tu negocio, no plata de {name}.
             </div>
-            {_btn(`Pedile a ADI el capital detenido de ${name} →`, `¿Qué capital tenés detenido en el mix de ${name}?`)}
+            {_capTopMonto && (
+              <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${C.celeste}` }}>
+                {_capTopDias && _capTopDias.sku !== _capTopMonto.sku
+                  ? <>Priorizá <b>{_capTopMonto.sku}</b> por el monto ({_fmUsd(_capTopMonto.usd)}) y <b>{_capTopDias.sku}</b> por llevar {_capTopDias.diasSinVenta} días sin venta.</>
+                  : <>Priorizá <b>{_capTopMonto.sku}</b>: es el mayor monto ({_fmUsd(_capTopMonto.usd)}){typeof _capTopMonto.diasSinVenta === "number" ? <> y lleva {_capTopMonto.diasSinVenta} días sin venta</> : null}.</>}
+              </div>
+            )}
+            {_btn(`Pedile a ADI el detalle de este inventario de ${name} →`, `¿Qué capital tenés detenido en los productos que le vendés a ${name}?`)}
           </>
         ) : (
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
-            Ningún SKU del mix de {name} está hoy con capital detenido según tu benchmark de rotación/cobertura.
+            Ningún producto que le vendés a {name} está hoy detenido ni con rotación lenta según tu benchmark de rotación/cobertura.
           </div>
         )}
       </div>
