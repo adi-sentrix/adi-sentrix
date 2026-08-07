@@ -5,6 +5,7 @@
  */
 import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
 import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTION } from "./responsePreference.js";
+import { buildNarrationContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 1: el payload se proyecta del contrato sellado, nunca de plan/results crudos
 
 // buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
 // narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
@@ -491,30 +492,48 @@ const ORDEN_MONTO_INSTRUCTION = "El usuario pidió orden EXPLÍCITO por dinero/m
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion }) {
-  const datos = (results || []).map((r) => ({
-    tool: r.tool,
-    disponible: !!(r.coverage && r.coverage.supported),
-    ...(r.coverage && r.coverage.supported === false ? { motivo: r.coverage.reason } : {}),
-    facts: r.facts || null,
-  }));
-  const cifras_autorizadas = (ledgerFigs || []).map((f) => ({ etiqueta: f.label, valor: f.value }));
-  const h = Array.isArray(history) ? history.slice(-4) : [];
-  const hilo_reciente = h.map((m) => ({ quien: m.role === "user" ? "usuario" : "ADI", dijo: String(m.gist || m.text || "").slice(0, 220) })).filter((m) => m.dijo);
-  const modo = (plan && MODE_KEYS.includes(plan.mode)) ? plan.mode : "default";
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext }) {
+  // CONTRATO v2 · FASE 1 (owner 2026-08-07): el payload deja de armarse desde `plan`/`results` crudos. Se SELLA
+  // primero un NarrationContract inmutable (narrationContract.js) y el payload es una PROYECCIÓN PURA de ese
+  // contrato — projectNarratePayload no recibe ni puede mirar plan/results. La garantía "el LLM no puede modificar
+  // entidades/métricas/períodos/supuestos tras validar" pasa de doctrina de prompt a ESTRUCTURA: no es que el
+  // prompt se lo prohíba, es que no hay otra cosa que ver. Esta firma NO cambia (los ~30 callers/gates que la
+  // consumen siguen andando igual) y el payload resultante es BYTE-IDÉNTICO al anterior — verificado por
+  // _narration_contract_gate.mjs, que compara la proyección contra la construcción legacy caso por caso.
+  return projectNarratePayload(buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext }));
+}
+
+// projectNarratePayload(contract) → el OBJETO de datos para la Pasada 2, derivado EXCLUSIVAMENTE del contrato
+// sellado. Es la frontera dura del contrato v2: si un dato no está en el contrato, el narrador no lo ve. Pura.
+export function projectNarratePayload(contract) {
+  const c = contract || {};
+  const scope = c.scope || {};
+  const forma = c.forma || {};
+  const pref = c.pref;
+  const claims = Array.isArray(c.claims) ? c.claims : [];
+  // los detectores de FORMA (tabla/lista/brecha/columnas) leen `label` de cada cifra — los claims conservan el
+  // label original en `etiqueta`, así que se proyecta la misma forma que consumían de la boleta cruda.
+  const figLabels = claims.map((cl) => ({ label: cl.etiqueta, unit: cl.unidad, value: cl.valor }));
+  const datos = Array.isArray(c.datos) ? c.datos : [];
+  const cifras_autorizadas = claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor }));
+  const hilo_reciente = Array.isArray(c.hiloReciente) ? c.hiloReciente : [];
+  const mem = c.memoria;
+  const instruccionOrientacion = forma.instruccionOrientacion;
+  const text = c.pregunta;
+  const modo = MODE_KEYS.includes(forma.modo) ? forma.modo : "default";
   // PERFIL COMPLETO (owner 2026-08-07): true si el plan trajo entityComposicion/entityCapitalLigado — ver el uso
   // en instruccion_tabla más abajo (mismo criterio de supresión que modo="clarify").
-  const _planCalls = (plan && Array.isArray(plan.calls)) ? plan.calls : [];
-  const esPerfilCompleto = _planCalls.some((c) => c && (c.tool === "entityComposicion" || c.tool === "entityCapitalLigado"));
+  const _planCalls = Array.isArray(forma._planCalls) ? forma._planCalls : [];
+  const esPerfilCompleto = _planCalls.some((x) => x && (x.tool === "entityComposicion" || x.tool === "entityCapitalLigado"));
   return {
     pregunta: text,
-    intencion: (plan && plan.intent) || "answer",
+    intencion: c.intencion || "answer",
     modo,
     // nivel_aclaracion SOLO tiene sentido cuando modo=clarify (turnos consecutivos de confusión seguidos — ver
     // conversationalContract.js): 1 = primer intento de simplificar (máximo 1 cifra) · 2+ = el usuario TODAVÍA no
     // entendió (cero cifras, ejemplo concreto). Threaded vía plan.clarifyStreak desde answerViaOracle.js.
-    ...(modo === "clarify" ? { nivel_aclaracion: (plan && plan.clarifyStreak) || 1 } : {}),
-    alcance: (plan && plan.scope) || null,
+    ...(modo === "clarify" ? { nivel_aclaracion: forma.clarifyStreak || 1 } : {}),
+    alcance: scope.declarado || null,
     // PREFERENCIA DE RESPUESTA (owner 2026-07-29) — SOLO viaja si es distinta del default (mismo principio de
     // payload mínimo que nivel_aclaracion arriba): un turno normal, sin pedido de formato, no le agrega NADA nuevo
     // al prompt del narrador — cero riesgo de drift para el 100% de los turnos que nunca tocan esta feature.
@@ -545,15 +564,16 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // de "PERFIL COMPLETO: nunca reconstruyas la tabla" de arriba (instrucción de payload > doctrina de system,
     // mismo problema que ya resolvió la excepción de clarify). Sentrix YA muestra esta composición/capital como
     // panel — el chat debe sintetizar en prosa, no repetir la tabla.
-    ...(modo === "clarify" || esPerfilCompleto ? {} : (_needsTableFormat(ledgerFigs) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {})),
+    ...(modo === "clarify" || esPerfilCompleto ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {})),
     // LISTA NUMERADA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsListFormat/LIST_INSTRUCTION.
-    ...(_needsListFormat(ledgerFigs) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
+    ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
-    ...(_needsBrechaReinforcement(ledgerFigs) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
+    ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
     // COLUMNAS DE CAPITAL REFORZADAS (owner 2026-08-02): ver _needsCapitalColumnNames/CAPITAL_COLUMNS_INSTRUCTION.
-    ...(_needsCapitalColumnNames(ledgerFigs) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
+    ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
     // ORDEN POR MONTO REFORZADO (owner 2026-08-02, hallazgo de auditoría): ver _needsOrdenMontoReinforcement.
-    ...(_needsOrdenMontoReinforcement(text, results) ? { instruccion_orden: ORDEN_MONTO_INSTRUCTION } : {}),
+    // `datos` conserva `tool` por entrada — el detector solo mira qué tools corrieron, no los facts.
+    ...(_needsOrdenMontoReinforcement(text, datos) ? { instruccion_orden: ORDEN_MONTO_INSTRUCTION } : {}),
     // ORIENTACIÓN (Fase 3, owner 2026-07-30) — SOLO viaja cuando answerViaOracle.js detectó un disparador
     // determinístico (pedido explícito o confusión persistente, ver dialogueState.js needsOrientacion). Mismo
     // principio de payload mínimo que preferencia_respuesta: un turno normal no la lleva.
