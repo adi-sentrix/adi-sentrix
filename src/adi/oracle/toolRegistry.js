@@ -132,6 +132,23 @@ function entityProfile({ dimension, entity, scenario } = {}) {
         r.facts = { ...r.facts, brechaMargen: `${gap}%` };
         r.boleta = [...r.boleta, fig(`${entity} · brecha de margen`, `${gap}%`, { unit: "pct", context: "benchmark − margen" })];
       }
+      // EXCESO DE ACCIONES COMERCIALES ($) — owner 2026-08-07, "no atribuya el $ a TODA la brecha de margen,
+      // sino únicamente al exceso comprobado de acciones comerciales": MISMO cálculo que el detector de
+      // diagnose (_diagComercial, specRetrieval.js — "carga comercial alta": (carga−target)/100 × venta) —
+      // se autoriza acá TAMBIÉN para que el perfil de un cliente lo pueda citar sin una call aparte a
+      // diagnose. Es DISTINTA de la contribución no capturada (brecha total de margen vs benchmark) — el
+      // narrador tiene la instrucción explícita de no confundirlas (narratePromptC.js, "NO CONFUNDAS EL
+      // MECANISMO CON EL TOTAL").
+      const cargaM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /carga comercial/i.test(m.label || "") && typeof m.value === "number");
+      const ventaM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /^ventas$/i.test(m.label || "") && typeof m.value === "number");
+      if (cargaM && ventaM && cargaM.value > POLICY.targetCarga) {
+        const excesoUsd = Math.round(((cargaM.value - POLICY.targetCarga) / 100) * ventaM.value * 1000);
+        r.facts = { ...r.facts, excesoAccionesComerciales: _moneyRaw(excesoUsd), targetCarga: `${POLICY.targetCarga}%` };
+        r.boleta = [...r.boleta,
+          fig("Meta de carga comercial", `${POLICY.targetCarga}%`, { unit: "pct", context: "tu target" }),
+          fig(`${entity} · exceso de acciones comerciales`, _moneyRaw(excesoUsd), { unit: "money", raw: excesoUsd, mandatory: true, context: "carga actual − tu meta, aplicado a la venta — SOLO el exceso comprobado, no la brecha total de margen" }),
+        ];
+      }
     }
   }
   return r;

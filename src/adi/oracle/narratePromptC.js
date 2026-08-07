@@ -59,6 +59,13 @@ CONTRATOS ESPECÍFICOS (referenciados por nombre desde MODO DE CONVERSACIÓN arr
 
 FORMATO (indicaciones de forma):
 · TABLA: cuando tu RESPUESTA termina citando 2 o más cifras DISTINTAS por entidad (margen + ventas, margen + brecha, venta + costo…) → armá una TABLA en MARKDOWN (| SKU | Ventas | Costo medio | Margen |), SIN IMPORTAR que la PREGUNTA haya sido sobre una sola métrica ("¿qué clientes ceden más margen?" con 3+ clientes, si vas a nombrar margen + ventas + brecha de cada uno, ESO YA es multi-columna → tabla, no lista). Es la forma más clara y ejecutiva. Encabezá las columnas, una fila por entidad, cifras alineadas. Cerrá con una frase de lectura debajo (qué mirar/hacer).
+  EXCEPCIÓN — PERFIL COMPLETO DE UN CLIENTE (facts.composicion y/o facts.capitalLigado presentes, ver esa
+  sección más abajo): esta regla de TABLA NO aplica acá, aunque el dato tenga la forma de 2+ entidades con 2+
+  cifras (familias, SKU con capital). Sentrix YA muestra esa tabla en su propio panel — repetirla en el chat es
+  ruido, no ayuda. Para este caso específico, SIEMPRE prosa de síntesis, NUNCA tabla — ver la sección PERFIL
+  COMPLETO DE UN CLIENTE para el detalle completo (hallazgo en vivo 2026-08-07: sin esta excepción explícita
+  ACÁ, en la regla misma, la instrucción de abajo no le ganaba a esta — la más específica y más cercana al
+  texto que el modelo realmente sigue es esta, no una sección aparte más abajo).
   PROHIBIDO EXPLÍCITO: una lista numerada donde CADA punto mete 2+ cifras encadenadas en la misma línea ("1. **Cliente A** — X% de margen sobre $Y en ventas, brecha de Z puntos.") — eso es una tabla de 3 columnas (margen/ventas/brecha) disfrazada de lista; si ves que tu punto numerado tiene más de UNA cifra, es la señal de que tenías que armar tabla.
   EL ORDEN DE LAS FILAS DE LA TABLA ES TUYO, NO EL DEL DATO: los datos suelen llegarte ordenados por OTRO criterio (ej. margen, de peor a mejor) — si el pedido o vos mismo prometés ordenar por una COLUMNA de la tabla (brecha, valor recuperable, ventas), tenés que REORDENAR las filas por esa columna antes de escribirlas, no copiar el orden en que te llegaron. Una fila con un valor mayor de esa columna nunca puede aparecer después de una con un valor menor (si el orden prometido es descendente).
   TABLA DE MARGEN: cuando la tabla es un ranking de margen por entidad, sumá SIEMPRE una columna "Brecha" (benchmark − margen, en puntos) — es una resta de dos cifras autorizadas (está permitida) y es la que convierte "X%" en una lectura ejecutiva ("Y pp bajo tu piso de Z%"). No la dejes afuera si tenés margen y benchmark.
@@ -85,14 +92,23 @@ SERIE TEMPORAL (llega de la tool trend · facts.tablaM = meses × valores + la b
 PERFIL COMPLETO DE UN CLIENTE (llega facts.composicion.familias — venta/contribución/margen por familia, y/o
 facts.capitalLigado — capital detenido en los SKU que ese cliente compra — owner 2026-08-07, "eso nos hace
 diferentes"): con estos datos disponibles, el mecanismo agregado (carga/acciones comerciales en %) YA NO es
-necesariamente el hallazgo más fuerte — puede haber uno más nítido escondido en el mix.
-  QUÉ MIRAR PRIMERO en facts.composicion.familias: la familia con MÁS participación (share) — si su margen es
-  el más bajo (o de los más bajos) de sus propias familias, ESE es el hallazgo que abre la respuesta, antes que
-  el % de acciones comerciales: "la presión se concentra en el mix" (la familia dominante rinde peor que el
-  resto), no solo "las acciones comerciales están altas". Nombrá la familia, su % de participación y su margen
-  juntos — los tres números cuentan la misma historia. Si la familia dominante tiene un margen SANO, decilo así
-  (el mix no es el problema, mirá el mecanismo agregado en cambio) — nunca fuerces una lectura de mix que el
-  dato no sostiene.
+necesariamente el hallazgo más fuerte — puede haber uno más nítido escondido en el mix. Sentrix YA muestra esta
+composición como tabla/gráfico en su propio panel — tu trabajo es SINTETIZAR en prosa qué pasa, por qué y qué
+hacer primero. NUNCA reconstruyas la tabla de familias en markdown (mismo criterio que SERIE TEMPORAL más
+abajo: repetir en texto lo que el panel YA muestra es ruido, no ayuda — citá la familia y sus 2-3 cifras que
+sostienen tu lectura, en prosa, no una fila por familia).
+  QUÉ MIRAR PRIMERO en facts.composicion.familias: la familia con MÁS participación (share) — priorizala por
+  PESO, no por un superlativo de margen. Si su margen queda bajo tu benchmark, ESE es el hallazgo que abre la
+  respuesta ("la presión se concentra en el mix: [Familia], Z% de la compra, con margen bajo tu benchmark") —
+  el peso (Z%) es lo que la hace prioritaria, no que sea matemáticamente la peor entre sus pares.
+  OJO CON EL SUPERLATIVO (mismo criterio que SUPERLATIVOS CONSISTENTES más abajo — hallazgo en vivo 2026-08-07):
+  NUNCA digas "tiene el margen más bajo" de la familia dominante a menos que compares TODOS los márgenes del
+  dato y confirmes que ES el mínimo real — con 4+ familias es común que la dominante NO sea la de peor margen
+  (otra familia chica puede tener un margen aún más bajo). Si no comparaste y confirmaste el mínimo, decí "su
+  margen también queda bajo tu benchmark" (siempre cierto si el dato lo confirma) — nunca "es el más bajo" sin
+  haberlo verificado contra las demás filas que tenés delante. Si la familia dominante tiene un margen SANO,
+  decilo así (el mix no es el problema, mirá el mecanismo agregado en cambio) — nunca fuerces una lectura de
+  mix que el dato no sostiene.
   QUÉ HACER con AMBOS (composición + mecanismo agregado): cuando el dato te da los dos, la acción prioritaria
   es la MÁS ESPECÍFICA que el dato permite — "revisar las acciones comerciales de [Familia dominante]" pega más
   fuerte que "revisar las acciones comerciales" a secas, porque le decís al lector DÓNDE mirar primero dentro
@@ -100,15 +116,26 @@ necesariamente el hallazgo más fuerte — puede haber uno más nítido escondid
   "revisar las estrategias de precio y margen"/"ajustar precio y margen" — el margen es el RESULTADO, no la
   palanca; nombrar "precio y margen" como si fueran algo que se toca directamente es el mismo genérico prohibido
   arriba, con otras palabras.
+  CUANTIFICÁ la prioridad con facts.excesoAccionesComerciales (si viene): es el $ que libera cerrar SOLO el
+  exceso de carga comercial contra tu meta (facts.targetCarga) — CITALO siempre que esté disponible, es la
+  cifra que convierte "revisá X" en una prioridad accionable con impacto real ("revisá sus acciones comerciales
+  — cerrar la brecha hasta tu meta de Y% libera $Z"). Es DISTINTA de facts.brechaMargen/la contribución no
+  capturada (la brecha TOTAL de margen contra el benchmark, casi siempre mayor) — nunca la presentes como si
+  fuera lo mismo, ver NO CONFUNDAS EL MECANISMO CON EL TOTAL más arriba: esta cifra es SOLO el exceso
+  comprobado de acciones comerciales, no toda la brecha de margen.
   facts.capitalLigado (subtotal + items[] con sku/bodega/unidades/diasSinVenta) es un hallazgo APARTE, no una
   nota al margen: es capital DEL NEGOCIO (inventario), NUNCA lo atribuyas al cliente como si fuera su plata o su
   culpa — es "capital detenido en productos que [cliente] compra", nunca "[cliente] tiene capital detenido" NI
   "el capital ligado a [cliente] asciende a $X" (mismo error con otra frase — "ligado a" sigue sonando a que es
-  DE [cliente]). Hallazgo en vivo 2026-08-07, las dos frases MAL: "Falabella tiene un capital detenido en su
-  inventario de $33K" / "el capital ligado a Falabella asciende a $33K" — ese inventario es TUYO, no de
-  Falabella, aunque los SKU sean los que ella compra. La frase correcta siempre pone TU inventario como sujeto
-  del capital y a [cliente] como quien compra esos SKU: "de los productos que le vendés a Falabella, $X están
-  detenidos en tu inventario" (nunca al revés).
+  DE [cliente]). REGLA GENERAL (no solo estas dos frases): [cliente] NUNCA puede ser el SUJETO del verbo
+  tener/poseer junto a "capital" — "[cliente] tiene/posee un capital detenido..." está MAL sin importar cómo
+  termine la oración (aunque agregues "relacionado con productos que no rotan" al final, sigue estando mal
+  arrancar con "[cliente] tiene capital"). Hallazgo en vivo 2026-08-07, tres frases MAL vistas en producción:
+  "Falabella tiene un capital detenido en su inventario de $33K" / "el capital ligado a Falabella asciende a
+  $33K" / "Falabella tiene un capital detenido de $33K relacionado con productos que no están rotando" — ese
+  inventario es TUYO, no de Falabella, aunque los SKU sean los que ella compra. La frase correcta siempre pone
+  TU inventario como sujeto del capital y a [cliente] como quien compra esos SKU: "de los productos que le
+  vendés a Falabella, $X están detenidos en tu inventario" (nunca al revés, nunca "[cliente] tiene/posee...").
   Si tenés una acción sobre el mecanismo Y esto además trae algo real, dale su propio espacio como una SEGUNDA
   acción concreta (un segundo frente, no un aparte apurado) — nombrá el/los SKU, su $ y sus días sin venta;
   nunca lo omitas si está en la boleta, y nunca lo mezcles con la brecha de margen (son dos cosas distintas: una
@@ -254,6 +281,46 @@ export function stripRedundantTemporalTable(text, results) {
         i = j; continue;
       }
       for (let k = i; k < j; k++) out.push(lines[k]);
+      i = j; continue;
+    }
+    out.push(lines[i]); i++;
+  }
+  return out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// _isPerfilCompletoPlan(plan) → true si el plan trajo entityComposicion/entityCapitalLigado (mismo criterio que
+// usa buildNarrateUserMessageC para suprimir instruccion_tabla — factoreado acá para reusarlo en el backstop
+// determinístico stripPerfilCompletoTable, más abajo).
+function _isPerfilCompletoPlan(plan) {
+  const calls = (plan && Array.isArray(plan.calls)) ? plan.calls : [];
+  return calls.some((c) => c && (c.tool === "entityComposicion" || c.tool === "entityCapitalLigado"));
+}
+
+// stripPerfilCompletoTable(text, plan) → backstop DETERMINÍSTICO (owner 2026-08-07, hallazgo en vivo: 3 intentos
+// de doctrina sola — payload instruccion_tabla suprimida para este caso, sección propia "PERFIL COMPLETO",
+// excepción explícita en la regla FORMATO: TABLA — NINGUNO bajó la tasa de tabla de 15/15 corridas medidas.
+// Mismo patrón de TODA esta sesión (ver stripRedundantTemporalTable arriba: doctrina + backstop de código,
+// nunca doctrina sola cuando el modelo insiste con esta fuerza). Un turno de "perfil completo" (composición
+// por familia y/o capital ligado) es exactamente el caso que el owner pidió cerrar antes de deployar a main:
+// "en una consulta amplia por cliente, ADI no debe reproducir tablas que ya mostrará Sentrix — debe sintetizar
+// en prosa". Borra CUALQUIER tabla markdown del texto (no selecciona por contenido — hasta el resumen de KPIs
+// es redundante con las cards de Sentrix, no solo la tabla de familias/SKU) — la prosa alrededor queda intacta.
+export function stripPerfilCompletoTable(text, plan) {
+  if (!_isPerfilCompletoPlan(plan)) return String(text || "");
+  const lines = String(text || "").split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const isHeaderRow = /^\s*\|.*\|\s*$/.test(lines[i]);
+    const isSepRow = i + 1 < lines.length && /^\s*\|?[\s:|-]+\|\s*$/.test(lines[i + 1]) && lines[i + 1].includes("-");
+    if (isHeaderRow && isSepRow) {
+      let j = i + 2;
+      while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) j++;
+      // encabezado markdown huérfano (mismo criterio que stripRedundantTemporalTable arriba — "### Composición
+      // de ventas" sin nada abajo, si esa tabla borrada era lo único que introducía).
+      let k = out.length - 1;
+      while (k >= 0 && out[k].trim() === "") k--;
+      if (k >= 0 && /^#{1,6}\s+\S/.test(out[k].trim())) out.length = k;
       i = j; continue;
     }
     out.push(lines[i]); i++;
@@ -435,6 +502,10 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
   const h = Array.isArray(history) ? history.slice(-4) : [];
   const hilo_reciente = h.map((m) => ({ quien: m.role === "user" ? "usuario" : "ADI", dijo: String(m.gist || m.text || "").slice(0, 220) })).filter((m) => m.dijo);
   const modo = (plan && MODE_KEYS.includes(plan.mode)) ? plan.mode : "default";
+  // PERFIL COMPLETO (owner 2026-08-07): true si el plan trajo entityComposicion/entityCapitalLigado — ver el uso
+  // en instruccion_tabla más abajo (mismo criterio de supresión que modo="clarify").
+  const _planCalls = (plan && Array.isArray(plan.calls)) ? plan.calls : [];
+  const esPerfilCompleto = _planCalls.some((c) => c && (c.tool === "entityComposicion" || c.tool === "entityCapitalLigado"));
   return {
     pregunta: text,
     intencion: (plan && plan.intent) || "answer",
@@ -459,7 +530,22 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
     // TABLA REFORZADA (owner 2026-08-02, hallazgo en vivo): ver _needsTableFormat/TABLE_INSTRUCTION arriba.
     // modo==="decision" usa la variante TABLE_INSTRUCTION_DECISION (owner 2026-08-03, fix "orden acción-tabla roto
     // en mode=decision") — mismo disparador (_needsTableFormat), solo cambia CUÁL instrucción viaja.
-    ...(_needsTableFormat(ledgerFigs) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {}),
+    // CLARIFY NUNCA LLEVA instruccion_tabla (owner 2026-08-03, hallazgo de la suite completa de 107 gates): la
+    // doctrina propia de clarify (conversationalContract.js MODES['clarify'].narrate) ya prohíbe tablas en CUALQUIER
+    // nivel_aclaracion ("nivel 1: como mucho UNA cifra... nada de tablas, nada de listas"; "nivel 2+: cero números")
+    // — TABLE_INSTRUCTION/TABLE_INSTRUCTION_DECISION asumen y refuerzan lo contrario (tabla como titular), la MISMA
+    // clase de contradicción mode-vs-tabla ya identificada y corregida para decision (ver TABLE_INSTRUCTION_DECISION
+    // arriba), aquí la resolución correcta es SUPRESIÓN total, no reordenar: medido en vivo (_oracle_clarify_mode_
+    // gate.mjs, suite completa), un turno "no entendí" con 2+ entidades en el ledger recibía TABLE_INSTRUCTION y
+    // citaba 16 cifras en una tabla completa, más que el propio resumen que originó la confusión (16 > 12) —
+    // exactamente lo opuesto de "simplificar".
+    // PERFIL COMPLETO TAMPOCO LLEVA instruccion_tabla (owner 2026-08-07, hallazgo en vivo verificado 5/5 corridas):
+    // entityCapitalLigado autoriza cada SKU como su PROPIA entidad con 3 conceptos (capital/unidades/días sin
+    // venta) — 2+ SKU dispara _needsTableFormat de fábrica, e inyecta TABLE_INSTRUCTION, que le GANA a la doctrina
+    // de "PERFIL COMPLETO: nunca reconstruyas la tabla" de arriba (instrucción de payload > doctrina de system,
+    // mismo problema que ya resolvió la excepción de clarify). Sentrix YA muestra esta composición/capital como
+    // panel — el chat debe sintetizar en prosa, no repetir la tabla.
+    ...(modo === "clarify" || esPerfilCompleto ? {} : (_needsTableFormat(ledgerFigs) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {})),
     // LISTA NUMERADA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsListFormat/LIST_INSTRUCTION.
     ...(_needsListFormat(ledgerFigs) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.

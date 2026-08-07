@@ -10,7 +10,7 @@ import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
-import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable } from "./narratePromptC.js";
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
@@ -1189,6 +1189,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
     n = stripSingleRowTables(n, q);  // "1 entidad → prosa, nunca tabla" — SALVO que el usuario haya pedido tabla explícitamente (ver narratePromptC.js)
     n = stripRedundantTemporalTable(n, results);   // trend YA renderiza su propia tarjeta con la matriz — nunca dos tablas mes a mes (owner 2026-08-05, ver narratePromptC.js)
+    n = stripPerfilCompletoTable(n, plan);   // perfil de cliente (composición/capital ligado) — Sentrix YA muestra esto, el chat sintetiza en prosa (owner 2026-08-07, ver narratePromptC.js)
     // action_only: DOBLE candado (data_only/results_only ya no llegan acá, ver arriba). (1) el renderer descarta
     // cualquier bloque que no sea [[ACCION]] — sigue valiendo, cierra la fuga original. (2) hasForbiddenContent
     // valida el CONTENIDO del bloque permitido — si coló lenguaje de causa/interpretación o de siguiente-paso
