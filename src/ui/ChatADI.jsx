@@ -75,6 +75,13 @@ function _pnlScopeProjection(mem) {
 function _turnFromResult(q, r, context, source) {
   const deferred = r.text == null;
   const baseContext = { ...(r.context || context || {}) };
+  // MEMORIA CANÓNICA + VISTA DERIVADA (Contrato v2 · Fase 4, owner 2026-08-07): `conversationScope` es la memoria
+  // canónica; `memoria` es la vista LEGACY que todavía leen _hasThread, el digest del LLM #1, conversation.js y
+  // pnl.js. La vista se DERIVA del canónico en vez de escribirse aparte — pero NUNCA pierde lo que el escritor
+  // legacy sabía: updateMemoria se sigue calculando y entra como `prev`, así que el canónico MANDA donde conoce
+  // (entidad/tema/oferta/ruta del turno) y hereda de la vista legacy donde el canónico calla (ej. un turno cuyo
+  // alcance se resolvió por filtro y no dejó entidad en scope). Sin canónico (rutas legacy, que no lo producen)
+  // queda exactamente el comportamiento anterior.
   // P&L → conversationScope (Etapa 3): SOLO cuando este turno lo resolvió P&L (route "pnl_setup"/"pnl_reading",
   // la única familia de rutas que compone pnl.js — ver el comentario de _pnlScopeProjection) se consulta el hilo
   // P&L; en cualquier otro turno (incluido el camino Oracle, que CEDE el paso a P&L y nunca produce estas rutas
@@ -82,6 +89,10 @@ function _turnFromResult(q, r, context, source) {
   const memoriaInteraccion = (!deferred && typeof r.route === "string" && r.route.indexOf("pnl_") === 0)
     ? _pnlScopeProjection(baseContext.memoriaInteraccion)
     : baseContext.memoriaInteraccion;
+  const memoriaLegacy = updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) });
+  const memoriaVista = (!deferred && deriveMemoriaLegacy(memoriaInteraccion && memoriaInteraccion.conversationScope, {
+    prev: memoriaLegacy, route: r.route, suggestions: r.suggestions,
+  })) || memoriaLegacy;
   return {
     result: r,
     deferred,
@@ -105,14 +116,7 @@ function _turnFromResult(q, r, context, source) {
     context: { ...baseContext,
       memoriaInteraccion,
       lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null),
-      // MEMORIA CANÓNICA + VISTA DERIVADA (Contrato v2 · Fase 4, owner 2026-08-07): `conversationScope` es la
-      // memoria canónica; `memoria` es la vista LEGACY que todavía leen _hasThread, el digest del LLM #1,
-      // conversation.js y pnl.js. Cuando el turno trae conversationScope (o sea: lo resolvió el oráculo), la vista
-      // se DERIVA del canónico en vez de escribirse aparte — así deja de haber dos verdades que se pueden separar.
-      // Sin canónico (rutas legacy, que no lo producen) sigue mandando updateMemoria, intacto.
-      memoria: (!deferred && deriveMemoriaLegacy(memoriaInteraccion && memoriaInteraccion.conversationScope, {
-        prev: (context && context.memoria) || null, route: r.route, suggestions: r.suggestions,
-      })) || updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) }) },
+      memoria: memoriaVista },
   };
 }
 
