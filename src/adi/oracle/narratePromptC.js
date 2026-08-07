@@ -6,6 +6,7 @@
 import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
 import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTION } from "./responsePreference.js";
 import { buildNarrationContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 1: el payload se proyecta del contrato sellado, nunca de plan/results crudos
+import { ADI_EPISTEMIC_NOTE_ENABLED } from "../../config/voiceFlags.js";   // CONTRATO v2 · la PRESENTACIÓN del estatus epistémico va detrás de flag (el SELLO no)
 
 // buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
 // narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
@@ -363,30 +364,35 @@ export function ensureClarifyClosingQuestion(text, mode) {
   return `${s.trim()}\n\n¿Querés que lo repase de otra forma, o seguimos con el siguiente paso?`;
 }
 
-// ── ESTATUS EPISTÉMICO · deja de ser doctrina (owner 2026-08-07, pendiente obligatorio de Fase 4) ───────────────
-// El contrato distingue `probado` (la cifra sale del dato) de `indicado` (la cifra es una CUENTA del motor: tiene
-// fórmula, o viene de un source que no es el dato actual). Hasta acá esa distinción vivía SOLO en el payload: el
-// narrador la recibía y se esperaba que la respetara. El owner pidió cerrarla — "o el guard la bloquea, o el
-// renderer la gradúa determinísticamente". Se eligió GRADUAR, no bloquear, por una razón concreta: bloquear empuja
-// el turno a reintento y, agotados los 3, a composeFromLedger — o sea, degrada una respuesta buena por una razón
-// que se puede corregir sin perder nada. Graduar no puede degradar nada: solo agrega.
+// ── ESTATUS EPISTÉMICO · PRESENTACIÓN detrás de flag, SELLO siempre (owner 2026-08-07) ─────────────────────────
+// EL SELLO ES ESTRUCTURAL Y NO SE APAGA: cada claim lleva su `estatus` probado|indicado|abierto, derivado del fig
+// (tiene `formula`, o `source !== "actual"`), sellado en el NarrationContract, presente en `r.claims` y en el
+// payload claims-only. Esto de acá NO es el sello — es solo su PRESENTACIÓN en el texto, y va apagada por default.
 //
-// POR QUÉ IMPORTA (el caso real que lo motiva): marginRead autoriza "Falabella · Valor en juego $1.6M" con fórmula
-// `venta × benchmark − contribución`. Narrado suelto, eso se lee como plata YA perdida. No lo es: es lo que habría
-// si el cliente rindiera como el benchmark. Es exactamente la clase de afirmación que el owner viene cerrando a
-// mano turno por turno (los $194K atribuidos a toda la brecha de 8,1 pp fue el mismo error).
+// POR QUÉ IMPORTA EL SELLO (el caso real): marginRead autoriza "Falabella · Valor en juego $1.6M" con fórmula
+// `venta × benchmark − contribución`. Narrado suelto, se lee como plata YA perdida. No lo es: es lo que habría si
+// el cliente rindiera como el benchmark. La misma clase de error que los $194K atribuidos a toda la brecha.
 //
-// DETERMINÍSTICO DE VERDAD: el disparador NO es lingüístico. Es `estatus === "indicado"`, que sale del fig (tiene
-// `formula`, o `source !== "actual"`) — nunca del texto. Lo único que se mira en el texto es si el VALOR aparece
-// citado (búsqueda literal del string ya formateado, la misma verdad que cita el guard). Sin heurística de "¿ya lo
-// enmarcó bien?": si la cifra derivada se citó, su fórmula se declara. Cuando el narrador ya lo explicó, la nota
-// igual aporta la fórmula auditable, que el narrador casi nunca escribe.
+// POR QUÉ LA PRESENTACIÓN VA APAGADA (owner, 2026-08-07, revisión de Fase 4): "la graduación debe integrarse
+// naturalmente en la oración, por ejemplo 'valor estimado en juego', no como una nota técnica que vuelva robótica
+// la respuesta. La fórmula completa puede vivir en Sentrix." El pie `_Cómo se calcula: …_` que arma esta función
+// es PROVISIONAL y NO va a producción con esta forma.
+//
+// CONTRATO PARA QUIEN LA ACTIVE (ver ADI_EPISTEMIC_NOTE_ENABLED en voiceFlags.js): el camino correcto NO es seguir
+// pegando prosa post-hoc, es graduar EN EL ORIGEN — que la etiqueta autorizada del fig diga "Valor estimado en
+// juego". Ahí el narrador escribe la graduación naturalmente porque es la cifra que tiene autorizada, sin ninguna
+// cirugía sobre el texto, y la fórmula completa se muestra en Sentrix. Esta función queda como red, no como plan.
+//
+// DETERMINÍSTICO: el disparador NO es lingüístico. Es `estatus === "indicado"`, que sale del fig — nunca del texto.
+// Lo único que se mira en el texto es si el VALOR aparece citado (búsqueda literal del string ya formateado, la
+// misma verdad que cita el guard).
 //
 // ALCANCE: solo `full`. data_only/results_only/action_only tienen contrato ESTRICTO (nada de prosa fuera de su
 // bloque) y una nota los violaría — ahí el hueco queda abierto a propósito y está reportado como residual.
 function _escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
-export function gradeIndicatedClaims(text, claims, contentScope = "full") {
+export function gradeIndicatedClaims(text, claims, contentScope = "full", enabled = ADI_EPISTEMIC_NOTE_ENABLED) {
   const s = String(text || "");
+  if (!enabled) return s;   // default: el sello sigue en los claims, pero NADA visible en la respuesta
   if (contentScope !== "full" || !s.trim() || !Array.isArray(claims) || !claims.length) return s;
   const notas = [];
   const vistos = new Set();

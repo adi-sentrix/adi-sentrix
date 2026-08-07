@@ -294,6 +294,24 @@ export const ADI_ORACLE_ENABLED = P("ADI_ORACLE_ENABLED");
 // que ADI_ORACLE_ENABLED — nunca se enciende solo en un dominio real de producción.
 export const ADI_CLAIMS_ONLY_ENABLED = P("ADI_CLAIMS_ONLY_ENABLED");
 
+// ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
+// SEPARA DOS COSAS QUE NO SON LO MISMO:
+//   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`
+//     probado|indicado|abierto derivado del fig (tiene fórmula, o source ≠ "actual"), sellado en el
+//     NarrationContract, presente en `r.claims` y en el payload claims-only. Eso NO se apaga.
+//   · LA PRESENTACIÓN (esto): que el estatus se MUESTRE al usuario en el texto de la respuesta.
+// FALSE (default, y lo que corre hoy) = la respuesta NO lleva ningún pie ni marca visible. El estatus sigue
+// sellado y auditable, simplemente no se imprime.
+// TRUE = se muestra. PERO la forma actual (`_Cómo se calcula: …_` al final) es EXPLÍCITAMENTE PROVISIONAL y el
+// owner ya la rechazó para producción: "la graduación debe integrarse naturalmente en la oración, por ejemplo
+// 'valor estimado en juego', no como una nota técnica que vuelva robótica la respuesta. La fórmula completa
+// puede vivir en Sentrix."
+// CONTRATO PARA QUIEN LO ACTIVE: antes de prenderlo hay que reemplazar el pie por graduación EN LA ORACIÓN. El
+// camino estructural (no post-hoc sobre la prosa) es graduar en el ORIGEN — que la etiqueta autorizada del fig
+// diga "Valor estimado en juego" — así el narrador la escribe naturalmente porque es la cifra que tiene
+// autorizada, y la fórmula completa se muestra en Sentrix, no en el chat.
+export const ADI_EPISTEMIC_NOTE_ENABLED = P("ADI_EPISTEMIC_NOTE_ENABLED");
+
 // ── ADI Core · Paso 5 · UX pre-prod · selector de escenarios SOLO en dev · default FALSE ──
 // FALSE = chip estático "Datos actuales" (el escenario interno sigue "bonanza"=base · motor/tests/scenarioLoad intactos). TRUE = ScenarioSelector.
 export const ADI_SCENARIO_SWITCHER_ENABLED = P("ADI_SCENARIO_SWITCHER_ENABLED");

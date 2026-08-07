@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "start": "node server.js",
     "serve": "npm run build && node server.js",
-    "gates": "node scripts/run-gates.mjs"
+    "gates": "node scripts/run-gates.mjs",
+    "gates:offline": "node scripts/gates-offline.mjs"
   },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",

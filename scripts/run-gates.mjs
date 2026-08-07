@@ -1,4 +1,11 @@
 /* === scripts/run-gates.mjs · `npm run gates` · corre la suite COMPLETA de gates del repo ===
+ *
+ * ⚠️ ESTO GASTA CRÉDITOS REALES (owner 2026-08-07). Alrededor de 20 de estos gates llaman al LLM de verdad — y NO
+ * a través de una key local: pegan contra el GATEWAY DESPLEGADO, que tiene la key server-side. Que no exista
+ * `OPENAI_API_KEY` en el env de tu shell NO significa que la corrida sea gratis; esa creencia ya vació la cuenta
+ * una vez. Bajo cualquier instrucción de "no gastes créditos" / "sin corridas live", usá `npm run gates:offline`,
+ * que corre SOLO los determinísticos con la red bloqueada a nivel de proceso.
+ *
  * owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 6: "agrega un `npm run gates` que ejecute la
  * suite completa". Un gate = cualquier archivo `_*_gate.mjs` en la raíz del repo — la convención YA establecida:
  * cada pieza de producto que se blindó dejó su propio gate permanente en disco (nunca se commitea el gate en sí,

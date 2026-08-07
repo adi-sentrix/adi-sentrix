@@ -18,6 +18,7 @@ import {
   RESPONSE_KEYS, normalizeResponse, normalizeSuggestions, normalizeSentrixAction,
   assertResponseContract, deriveMemoriaLegacy, projectClaims,
 } from "./src/adi/responseContract.js";
+import { ADI_EPISTEMIC_NOTE_ENABLED } from "./src/config/voiceFlags.js";
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -76,7 +77,25 @@ H("[3] CLAIMS EN LA SALIDA · la boleta tipada viaja con la respuesta");
   ok(projectClaims([]) === null && projectClaims(null) === null, "sin claims → null, no `[]`");
 }
 
-H("[4] ESTATUS EPISTÉMICO · deja de ser doctrina (pendiente obligatorio del owner)");
+H("[4] ESTATUS EPISTÉMICO · el SELLO es estructural, la PRESENTACIÓN va detrás de flag apagado");
+{
+  // Lo que el owner separó (2026-08-07): el estatus queda sellado SIEMPRE; el pie visible NO sale a producción con
+  // la forma de nota técnica. Estos 4 asserts certifican esa separación — son la parte que rige HOY.
+  ok(ADI_EPISTEMIC_NOTE_ENABLED === false, `ADI_EPISTEMIC_NOTE_ENABLED === false por default — vale ${ADI_EPISTEMIC_NOTE_ENABLED}`);
+  const P0 = { intent: "answer", mode: "diagnostico", calls: [{ tool: "marginRead", args: { dimension: "cliente", focus: "bajo_benchmark" } }] };
+  const { ledger: L0 } = runPlan(P0, { scenario: "actual" });
+  const C0 = buildClaims(L0.figs, { eje: "cliente", periodo: "año cerrado" });
+  const ind0 = C0.find((c) => c.estatus === "indicado");
+  const txt0 = `Falabella te está costando ${ind0.valor} este año.`;
+  ok(gradeIndicatedClaims(txt0, C0, "full") === txt0, "con el flag APAGADO la respuesta sale SIN pie visible (byte-idéntica)");
+  ok(C0.some((c) => c.estatus === "indicado" && c.formula), "…y el SELLO sigue: los claims derivados conservan estatus `indicado` + fórmula");
+  ok(projectClaims(C0).some((c) => c.estatus === "indicado"), "…y el estatus viaja hasta la SALIDA (r.claims), que es donde Sentrix puede leer la fórmula");
+}
+
+// El resto de este bloque certifica el COMPORTAMIENTO CUANDO SE ACTIVE (4º parámetro explícito, sin tocar el flag).
+// La forma del pie es PROVISIONAL — el owner pidió graduación en la oración ("valor estimado en juego"), no una nota
+// técnica. Se mantiene la cobertura para que el mecanismo no se pudra mientras espera su forma definitiva.
+H("[4b] ESTATUS EPISTÉMICO · mecanismo (forzado ON) — la forma del pie es PROVISIONAL, ver voiceFlags.js");
 {
   const PLAN = { intent: "answer", mode: "diagnostico", calls: [{ tool: "marginRead", args: { dimension: "cliente", focus: "bajo_benchmark" } }] };
   const { ledger } = runPlan(PLAN, { scenario: "actual" });
@@ -87,7 +106,7 @@ H("[4] ESTATUS EPISTÉMICO · deja de ser doctrina (pendiente obligatorio del ow
   const derivada = ind[0];
   // el caso peligroso EXACTO: la cifra derivada narrada como plata ya perdida.
   const crudo = `Falabella te está costando ${derivada.valor} este año. Revisá sus condiciones comerciales.`;
-  const grad = gradeIndicatedClaims(crudo, claims, "full");
+  const grad = gradeIndicatedClaims(crudo, claims, "full", true);
   ok(grad !== crudo, "una cifra `indicado` citada como hecho NO sale igual que entró");
   ok(grad.includes("es una cuenta sobre el dato"), "la salida declara que es una CUENTA, no una medición");
   ok(derivada.formula ? grad.includes(derivada.formula) : true, `declara la fórmula auditable — "${derivada.formula}"`);
@@ -96,7 +115,7 @@ H("[4] ESTATUS EPISTÉMICO · deja de ser doctrina (pendiente obligatorio del ow
   // LA NOTA NUNCA ENTIERRA LA PREGUNTA DE CIERRE (defecto cazado por _oracle_multimodo_gate en la suite completa):
   // el contrato CLARIFY exige cerrar con "?" y bajo `full` el último párrafo suele ser la oferta de siguiente paso.
   const conPregunta = `Falabella te está costando ${derivada.valor} este año.\n\n¿Querés que revisemos sus condiciones comerciales?`;
-  const gp = gradeIndicatedClaims(conPregunta, claims, "full");
+  const gp = gradeIndicatedClaims(conPregunta, claims, "full", true);
   ok(/\?\s*$/.test(gp.trim()), "si el último párrafo es una pregunta, el texto SIGUE terminando en '?' (clarify y la oferta de cierre intactas)", JSON.stringify(gp));
   ok(gp.includes("es una cuenta sobre el dato"), "y la nota igual está presente, insertada ANTES de la pregunta");
   ok(gp.indexOf("Cómo se calcula") < gp.indexOf("¿Querés"), "el orden es: lectura → nota de método → pregunta de cierre");
@@ -104,20 +123,20 @@ H("[4] ESTATUS EPISTÉMICO · deja de ser doctrina (pendiente obligatorio del ow
   // no dispara donde no corresponde
   const probada = claims.find((c) => c.estatus === "probado" && c.valor);
   const soloProbada = `Falabella vendió ${probada.valor} este año.`;
-  ok(gradeIndicatedClaims(soloProbada, claims, "full") === soloProbada, "una cifra `probado` NO se gradúa (no ensucia la respuesta normal)");
+  ok(gradeIndicatedClaims(soloProbada, claims, "full", true) === soloProbada, "una cifra `probado` NO se gradúa (no ensucia la respuesta normal)");
   const sinCitar = "Falabella está por debajo del benchmark. Revisá sus condiciones.";
-  ok(gradeIndicatedClaims(sinCitar, claims, "full") === sinCitar, "si la cifra derivada NO se citó, no hay nota que agregar");
-  ok(gradeIndicatedClaims(crudo, claims, "data_only") === crudo, "bajo data_only NO se agrega prosa (contrato estricto de bloques respetado)");
-  ok(gradeIndicatedClaims(crudo, claims, "action_only") === crudo, "bajo action_only tampoco");
-  ok(gradeIndicatedClaims("", claims, "full") === "" && gradeIndicatedClaims(crudo, [], "full") === crudo, "sin texto o sin claims: no-op, no explota");
+  ok(gradeIndicatedClaims(sinCitar, claims, "full", true) === sinCitar, "si la cifra derivada NO se citó, no hay nota que agregar");
+  ok(gradeIndicatedClaims(crudo, claims, "data_only", true) === crudo, "bajo data_only NO se agrega prosa (contrato estricto de bloques respetado)");
+  ok(gradeIndicatedClaims(crudo, claims, "action_only", true) === crudo, "bajo action_only tampoco");
+  ok(gradeIndicatedClaims("", claims, "full", true) === "" && gradeIndicatedClaims(crudo, [], "full", true) === crudo, "sin texto o sin claims: no-op, no explota");
 
   // el disparador es el FIG, no el texto: dos redacciones distintas de lo mismo se gradúan las dos.
   const otra = `El valor en juego con Falabella asciende a ${derivada.valor}.`;
-  ok(gradeIndicatedClaims(otra, claims, "full").includes("es una cuenta sobre el dato"),
+  ok(gradeIndicatedClaims(otra, claims, "full", true).includes("es una cuenta sobre el dato"),
     "otra redacción de la MISMA cifra también se gradúa (el disparador es el estatus del fig, no la frase)");
   // y no se duplica la nota si la cifra aparece dos veces
   const dosVeces = `${crudo} Insisto: ${derivada.valor}.`;
-  const g2 = gradeIndicatedClaims(dosVeces, claims, "full");
+  const g2 = gradeIndicatedClaims(dosVeces, claims, "full", true);
   ok((g2.match(/es una cuenta sobre el dato/g) || []).length === ind.filter((c) => dosVeces.includes(c.valor)).length,
     "la nota no se duplica cuando la cifra se repite en el texto");
 }
