@@ -407,7 +407,7 @@ export function buildExtensionPolicy({ scope, claims, acciones }) {
 // `datos` viaja acá (Fase 1) porque el narrador de hoy consume facts y migrar ese contenido cambia el prompt —
 // pero YA está DENTRO del contrato, sellado: nadie río abajo lo lee de `results`. Fase 1b lo reemplaza por claims.
 export function buildNarrationContract({
-  text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario = null, requestContext = null,
+  text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, scenario = null, requestContext = null,
 } = {}) {
   const scope = sealScopeContract({ plan, results, scenario, requestContext, pref });
   const claims = buildClaims(ledgerFigs, { eje: scope.eje, periodo: scope.periodo });
@@ -442,6 +442,9 @@ export function buildNarrationContract({
       modo: scope.modo,
       clarifyStreak: (plan && plan.clarifyStreak) || null,
       instruccionOrientacion: instruccionOrientacion || null,
+      // DIVULGACIÓN PROGRESIVA (owner 2026-08-07): qué decir en vez de la tabla que NO se trajo. Va en 
+      // porque es una instrucción de FORMA del turno, igual que la orientación — no es un claim ni un dato.
+      instruccionDisclosure: instruccionDisclosure || null,
       // el plan sigue viajando SOLO para los detectores de forma que hoy lo consultan (perfil completo, orden por
       // monto). Fase 1b los mueve a consumir `claims`/`scope` y este campo desaparece.
       _planCalls: (plan && Array.isArray(plan.calls) ? plan.calls : []).map((c) => ({ tool: c && c.tool })),

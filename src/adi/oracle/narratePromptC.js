@@ -550,7 +550,7 @@ const ORDEN_MONTO_INSTRUCTION = "El usuario pidió orden EXPLÍCITO por dinero/m
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext, claimsOnly = false }) {
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, scenario, requestContext, claimsOnly = false }) {
   // CONTRATO v2 · FASE 1 (owner 2026-08-07): el payload deja de armarse desde `plan`/`results` crudos. Se SELLA
   // primero un NarrationContract inmutable (narrationContract.js) y el payload es una PROYECCIÓN PURA de ese
   // contrato — projectNarratePayload no recibe ni puede mirar plan/results. La garantía "el LLM no puede modificar
@@ -558,7 +558,7 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
   // prompt se lo prohíba, es que no hay otra cosa que ver. Esta firma NO cambia (los ~30 callers/gates que la
   // consumen siguen andando igual) y el payload resultante es BYTE-IDÉNTICO al anterior — verificado por
   // _narration_contract_gate.mjs, que compara la proyección contra la construcción legacy caso por caso.
-  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, scenario, requestContext });
+  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, scenario, requestContext });
   return claimsOnly ? projectClaimsOnlyPayload(contract) : projectNarratePayload(contract);
 }
 
@@ -667,6 +667,7 @@ export function projectClaimsOnlyPayload(contract) {
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
     ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
     ...(forma.instruccionOrientacion ? { instruccion_orientacion: forma.instruccionOrientacion } : {}),
+    ...(forma.instruccionDisclosure ? { instruccion_divulgacion: forma.instruccionDisclosure } : {}),
     // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): doctrina de NIVEL DE TURNO, no del system — solo viaja si
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Turno sin causas parciales, sin
     // referencia y sin niveles de cascada → cadena vacía → la clave ni aparece.
@@ -752,6 +753,8 @@ export function projectNarratePayload(contract) {
     // determinístico (pedido explícito o confusión persistente, ver dialogueState.js needsOrientacion). Mismo
     // principio de payload mínimo que preferencia_respuesta: un turno normal no la lleva.
     ...(instruccionOrientacion ? { instruccion_orientacion: instruccionOrientacion } : {}),
+    // DIVULGACIÓN PROGRESIVA: la Ficha como destino del detalle. Solo viaja si de verdad se podó algo.
+    ...(forma.instruccionDisclosure ? { instruccion_divulgacion: forma.instruccionDisclosure } : {}),
     // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): doctrina de NIVEL DE TURNO, no del system — solo viaja si
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Un turno sin causas parciales, sin
     // referencia y sin niveles de cascada devuelve cadena vacía y la clave ni siquiera aparece en el payload.

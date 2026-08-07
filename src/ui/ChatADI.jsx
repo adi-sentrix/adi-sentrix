@@ -520,6 +520,12 @@ function SentrixButton({ sentrixAction, onSentrixAction }) {
 // MULTI-ANÁLISIS (V3 · Frente C.1): si la evidencia trae `multi: [evidencias extra]`, se muestra UN botón por lente. ──
 function _evLabel(evidence) {
   if (!evidence) return null;
+  // DIVULGACIÓN PROGRESIVA (owner 2026-08-07): en una consulta general de entidad la respuesta NO trae el detalle
+  // — el evolutivo y la composición ni siquiera se calcularon (ver progressiveDisclosure.js). El único camino al
+  // detalle es la Ficha, y el botón tiene que decirlo con esas palabras, no con una etiqueta genérica de panel.
+  // `_profileRequest` es la MISMA marca que ya hace que el panel abra la cara Ficha (SentrixPanel _clientLink).
+  if (evidence._profileRequest && evidence.entidad) return `Ver ficha de ${evidence.entidad} en Sentrix`;
+  if (evidence._profileRequest) return "Ver ficha en Sentrix";
   if (evidence.pnl) return "Ver el P&L en la Mesa";   // deep-link (2026-07-26) · la respuesta P&L abre la cara Resultado con su alcance
   if (evidence.lens === "temporal") return "Ver el año en la Mesa";   // deep-link 7b · el mes a mes abre la Mesa (la película del año)
   if (Array.isArray(evidence.criteriaList)) return "Ver lo que sé de tu negocio";   // C.2 · panel de criterio

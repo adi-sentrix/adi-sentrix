@@ -12,7 +12,8 @@ import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta
-import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";   // CONTRATO v2 · Fase 4: forma única de salida
+import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
+import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion } from "./progressiveDisclosure.js";   // divulgación progresiva: el detalle vive en la Ficha, y se poda ANTES del batch
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
@@ -966,6 +967,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (room > 0 && extra.length) plan = { ...plan, calls: [...plan.calls, ...extra.slice(0, room)] };
     }
   }
+  // ── DIVULGACIÓN PROGRESIVA (owner 2026-08-07) ────────────────────────────────────────────────────────────────
+  // Corre DESPUÉS del backstop de arriba a propósito: así poda tanto lo que el backstop agregó como lo que el
+  // propio PLAN pidió — un solo punto de decisión, no dos criterios que se puedan separar. Y corre ANTES de
+  // runPlan, que es lo que hace que esto AHORRE de verdad: la tool de detalle no se ejecuta, sus cifras nunca
+  // existen y nunca llegan al narrador. Esconder la tabla en la UI no ahorraría un solo token.
+  const _disclosure = podarPlanProgresivo(plan, q);
+  plan = _disclosure.plan;
   const calls = plan.calls;
 
   // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido
@@ -1061,7 +1069,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // podía saber qué faltó. Se hila hasta el evidence del turno como `evidenceSpec.missing` — CERO cambio de
   // comportamiento del turno (el LLM/guard no lo consumen), solo deja de tirarse un dato que el motor ya calculó.
   const { ledger, results, trace, unsupported } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
-  const figs = ledgerBoleta(ledger);
+  // DIVULGACIÓN PROGRESIVA · segunda poda, sobre el LEDGER: del capital ligado se conserva el subtotal y el monto
+  // de cada SKU (con eso se nombra la prioridad concreta), y se van las columnas que solo se leen en tabla
+  // (unidades detenidas · días sin venta). Podadas del ledger = NO autorizadas: guardC las rechaza si el narrador
+  // las intentara igual. El detalle completo sigue en la Ficha.
+  const _podaLedger = podarLedgerProgresivo(ledgerBoleta(ledger), { quiereDesglose: !_disclosure.podado.length || pideDetalleComposicion(q) });
+  const figs = _podaLedger.figs;
 
   // temas recientes (Fase 3) — se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como
   // siempre); señal para el LLM, nunca autoridad (ver dialogueState.js). No depende de `results`, pero vive acá,
@@ -1137,6 +1150,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // más arriba, pegado a la ruta determinística).
   const orientacionReason = needsOrientacion(q, clarifyStreakNow);
   const instruccionOrientacion = buildOrientacionInstruction(orientacionReason, recentSubjectsNow);
+  // qué decir EN VEZ de la tabla: la Ficha como destino del detalle, no una promesa vaga de profundizar.
+  const instruccionDisclosure = buildDisclosureInstruction({ podado: _disclosure.podado, entidad: _disclosure.entidad });
 
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
   // results_only YA se resolvieron arriba, SIEMPRE (con datos o sin ellos) — la condición de abajo los excluye
@@ -1177,7 +1192,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // hiccup transitorio en ESE intento específico no debe tirar el turno completo: reintenta (mismo presupuesto de
     // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, attempt: modelAttempt }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, attempt: modelAttempt }); }
     catch (e) {
       narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message), usage: null });
       const wait = _rateLimitBackoffMs(e);
