@@ -363,6 +363,50 @@ export function ensureClarifyClosingQuestion(text, mode) {
   return `${s.trim()}\n\n¿Querés que lo repase de otra forma, o seguimos con el siguiente paso?`;
 }
 
+// ── ESTATUS EPISTÉMICO · deja de ser doctrina (owner 2026-08-07, pendiente obligatorio de Fase 4) ───────────────
+// El contrato distingue `probado` (la cifra sale del dato) de `indicado` (la cifra es una CUENTA del motor: tiene
+// fórmula, o viene de un source que no es el dato actual). Hasta acá esa distinción vivía SOLO en el payload: el
+// narrador la recibía y se esperaba que la respetara. El owner pidió cerrarla — "o el guard la bloquea, o el
+// renderer la gradúa determinísticamente". Se eligió GRADUAR, no bloquear, por una razón concreta: bloquear empuja
+// el turno a reintento y, agotados los 3, a composeFromLedger — o sea, degrada una respuesta buena por una razón
+// que se puede corregir sin perder nada. Graduar no puede degradar nada: solo agrega.
+//
+// POR QUÉ IMPORTA (el caso real que lo motiva): marginRead autoriza "Falabella · Valor en juego $1.6M" con fórmula
+// `venta × benchmark − contribución`. Narrado suelto, eso se lee como plata YA perdida. No lo es: es lo que habría
+// si el cliente rindiera como el benchmark. Es exactamente la clase de afirmación que el owner viene cerrando a
+// mano turno por turno (los $194K atribuidos a toda la brecha de 8,1 pp fue el mismo error).
+//
+// DETERMINÍSTICO DE VERDAD: el disparador NO es lingüístico. Es `estatus === "indicado"`, que sale del fig (tiene
+// `formula`, o `source !== "actual"`) — nunca del texto. Lo único que se mira en el texto es si el VALOR aparece
+// citado (búsqueda literal del string ya formateado, la misma verdad que cita el guard). Sin heurística de "¿ya lo
+// enmarcó bien?": si la cifra derivada se citó, su fórmula se declara. Cuando el narrador ya lo explicó, la nota
+// igual aporta la fórmula auditable, que el narrador casi nunca escribe.
+//
+// ALCANCE: solo `full`. data_only/results_only/action_only tienen contrato ESTRICTO (nada de prosa fuera de su
+// bloque) y una nota los violaría — ahí el hueco queda abierto a propósito y está reportado como residual.
+function _escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+export function gradeIndicatedClaims(text, claims, contentScope = "full") {
+  const s = String(text || "");
+  if (contentScope !== "full" || !s.trim() || !Array.isArray(claims) || !claims.length) return s;
+  const notas = [];
+  const vistos = new Set();
+  for (const c of claims) {
+    if (!c || c.estatus !== "indicado" || !c.valor) continue;
+    const clave = `${c.etiqueta}|${c.valor}`;
+    if (vistos.has(clave)) continue;
+    // El valor tiene que estar REALMENTE citado: si el narrador no lo usó, no hay nada que graduar. La lookahead
+    // rechaza solo la CONTINUACIÓN de un número ($1.6M dentro de $1.6M2, o "1.6" dentro de "1.65") — nunca un punto
+    // final de oración (bug cazado por el gate: "asciende a $1.6M." no matcheaba con `(?![\d.,])`).
+    if (!new RegExp(`(^|[^\\d.,])${_escRe(String(c.valor))}(?!\\d|[.,]\\d)`).test(s)) continue;
+    vistos.add(clave);
+    const quien = c.etiqueta ? ` (${c.etiqueta})` : "";
+    const comoSale = c.formula ? ` — se obtiene de ${c.formula}` : "";
+    notas.push(`${c.valor}${quien} es una cuenta sobre el dato${comoSale}, no una cifra ya realizada.`);
+  }
+  if (!notas.length) return s;
+  return `${s.trim()}\n\n_Cómo se calcula: ${notas.join(" ")}_`;
+}
+
 // _needsTableFormat(figs) → true si el ledger tiene la forma que el FORMATO de arriba (TABLA) ya exige tabular:
 // 2+ ENTIDADES DISTINTAS, cada una con 2+ cifras autorizadas propias. Mismo hallazgo en vivo que
 // ensureHypothesisFraming/ensureClarifyClosingQuestion (owner 2026-08-02, capturas de pantalla comparando

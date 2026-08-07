@@ -22,6 +22,7 @@ import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIM
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
 import { buildRequestContext } from "../adi/oracle/requestContext.js";   // multiempresa (owner 2026-07-29): tenant/conversación/snapshot explícitos, nunca implícitos
 import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
+import { deriveMemoriaLegacy } from "../adi/oracle/responseContract.js";   // Contrato v2 · Fase 4: la memoria legacy pasa a ser una VISTA del canónico (conversationScope), no una segunda verdad
 import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de modelo (owner 2026-08-02) · costo real por intento, observable por turno
 import { C } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
@@ -104,7 +105,14 @@ function _turnFromResult(q, r, context, source) {
     context: { ...baseContext,
       memoriaInteraccion,
       lastEvidence: (r.evidence && !r.evidence.followup) ? r.evidence : ((context && context.lastEvidence) || null),
-      memoria: updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) }) },
+      // MEMORIA CANÓNICA + VISTA DERIVADA (Contrato v2 · Fase 4, owner 2026-08-07): `conversationScope` es la
+      // memoria canónica; `memoria` es la vista LEGACY que todavía leen _hasThread, el digest del LLM #1,
+      // conversation.js y pnl.js. Cuando el turno trae conversationScope (o sea: lo resolvió el oráculo), la vista
+      // se DERIVA del canónico en vez de escribirse aparte — así deja de haber dos verdades que se pueden separar.
+      // Sin canónico (rutas legacy, que no lo producen) sigue mandando updateMemoria, intacto.
+      memoria: (!deferred && deriveMemoriaLegacy(memoriaInteraccion && memoriaInteraccion.conversationScope, {
+        prev: (context && context.memoria) || null, route: r.route, suggestions: r.suggestions,
+      })) || updateMemoria((context && context.memoria) || null, deferred ? null : { ...r, text: _sanitizeScenario(r.text) }) },
   };
 }
 

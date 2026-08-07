@@ -10,7 +10,9 @@ import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
-import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims } from "./narratePromptC.js";
+import { buildClaims, sealScopeContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta
+import { normalizeResponse, deriveMemoriaLegacy } from "./responseContract.js";   // CONTRATO v2 · Fase 4: forma única de salida
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
@@ -605,14 +607,15 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario) {
   // ejecutaría una oferta que este bypass ya invalidó. No-op si no hay conversationScope/current que limpiar.
   if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, null) };
   return {
-    r: {
+    r: normalizeResponse({
       text,
       route: "oracle",
       evidence: buildOracleEvidence({ plan: null, results: [], figs: [], scenario }),
       deterministic: true,
+      claims: [],   // estos bypasses corren con la boleta VACÍA a propósito (ver guardC arriba): no hay nada que afirmar
       suggestions: null,
       sentrixAction: null,
-    },
+    }),
     mem: mem2,
   };
 }
@@ -687,14 +690,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // canónico, para que getLastOffer no resucite una oferta ya invalidada por este bypass.
     if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, null) };
     return {
-      r: {
+      r: normalizeResponse({
         text: cr.text,
         route: "oracle",
         evidence: cr.evidence,
         deterministic: true,
+        claims: [],   // confirmación administrativa: las cifras son las que el usuario nombró, no hay boleta que afirmar
         suggestions: cr.suggestions || null,
         sentrixAction: cr.sentrixAction || null,
-      },
+      }),
       mem: mem2,
     };
   }
@@ -1278,10 +1282,25 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     mem2 = { ...mem2, mechanismByEntity: merged };
   }
 
+  // ── CONTRATO v2 · FASE 4 ─────────────────────────────────────────────────────────────────────────────────────
+  // claims sellados: la MISMA conversión boleta→afirmaciones que consume el narrador (narrationContract.js), ahora
+  // también en la salida — para que Sentrix, la telemetría y los gates auditen contra lo mismo que se narró, no
+  // contra una segunda lectura de la boleta. Es la boleta tipada, no un dato nuevo: cero llamadas, cero costo.
+  // eje/período salen de sealScopeContract, NO de plan.scope: el eje canónico lo declaran los facts
+  // (entityType/dimension, ya canonicalizados por el motor) — `plan.scope` ni siquiera tiene campo `dimension`.
+  // Una sola verdad con lo que el narrador recibió.
+  const scopeSellado = sealScopeContract({ plan, results, scenario, requestContext, pref });
+  const claims = buildClaims(figs, { eje: scopeSellado.eje, periodo: scopeSellado.periodo });
+  // GRADUACIÓN EPISTÉMICA (pendiente obligatorio de Fase 4): una cifra `indicado` (derivada por el motor, con
+  // fórmula) nunca sale narrada como si fuera un hecho medido. Corre DESPUÉS de recentNarrations a propósito: la
+  // nota es del renderer, no del narrador — no debe entrar en la memoria de repetición ni en extractOffer.
+  const textoFinal = gradeIndicatedClaims(narration, claims, pref.contentScope);
+
   return {
-    r: {
-      text: narration,
+    r: normalizeResponse({
+      text: textoFinal,
       route: "oracle",
+      claims,
       evidence: buildOracleEvidence({ plan, results, figs, scenario, unsupported }),
       // trazabilidad multiempresa (owner 2026-07-29): qué tenant/snapshot/esquema respondió este turno — nunca se
       // manda al LLM (no es parte del contrato conversacional), solo viaja en la evidencia para auditoría/debug.
@@ -1301,9 +1320,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // intento, SOLO debug/telemetría (nunca condiciona el motor). Se cruza en ChatADI.jsx con el modelo/latencia/
       // costo real de cada intento (capturado en el fetch) para dejar el ruteo observable por turno completo.
       ...((planAttemptTrace.length || narrateAttemptTrace.length) ? { retryTrace: { plan: planAttemptTrace, narrate: narrateAttemptTrace } } : {}),
+      // suggestions/sentrixAction siguen en null A PROPÓSITO (Fase 4): el motor YA tiene con qué llenarlos
+      // (mem2.lastOffer es literalmente la próxima acción ofrecida, y el alcance sellado da el módulo del CTA),
+      // pero encenderlos hace aparecer chips y un botón donde hoy no hay ninguno — un cambio VISIBLE que no se
+      // puede validar sin corridas en vivo. Además el CTA está inerte por otra razón: App.jsx monta <ChatADI> sin
+      // `onSentrixAction`, así que hoy el botón no se renderiza en ninguna ruta. Queda reportado, no encendido.
       suggestions: null,
       sentrixAction: null,
-    },
+    }),
     mem: mem2,
   };
 }
