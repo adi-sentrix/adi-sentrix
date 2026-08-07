@@ -3837,6 +3837,41 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
     <button onClick={() => _ask(q)} style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 10.5, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{label}</button>
   ) : null;
 
+  // TABLA DE COMPOSICIÓN alineada (owner 2026-08-07, "son los mismos campos pero están desordenados"): familia y
+  // SKU comparten EL MISMO colgroup de anchos fijos (tableLayout:fixed) → las columnas caen en la misma posición.
+  // + Unidades y Rotación (conecta con el inventario inmovilizado: rotación bajo tu piso, en rojo, es la que se
+  // detiene). Rotación baja = C.red (mismo criterio POLICY.rotacionMin que el detector de capital).
+  const _compTh = { color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" };
+  const _compTd = { padding: "5px 6px", textAlign: "right", fontFamily: MONO, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" };
+  const _compCols = ["19%", "12%", "12%", "14%", "11%", "15%", "17%"];
+  const _compTable = (rows, firstLabel, sub) => (
+    <div style={{ marginTop: 10, overflowX: "auto" }}>
+      <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>{sub}</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 560, tableLayout: "fixed" }}>
+        <colgroup>{_compCols.map((w, i) => <col key={i} style={{ width: w }}/>)}</colgroup>
+        <thead><tr>
+          <th style={{ ..._compTh, textAlign: "left" }}>{firstLabel}</th>
+          {["Participación", "Venta", "Contribución", "Margen", "Unidades", "Rotación"].map((h) => <th key={h} style={{ ..._compTh, textAlign: "right" }}>{h}</th>)}
+        </tr></thead>
+        <tbody>{rows.map((row) => {
+          const bajoBench = typeof row.margen === "number" && f.benchmarkMargen && row.margen < parseFloat(f.benchmarkMargen);
+          const rotBaja = typeof row.rotacion === "number" && row.rotacion < POLICY.rotacionMin;
+          return (
+            <tr key={row.nombre}>
+              <td style={{ padding: "5px 6px", color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.nombre}</td>
+              <td style={{ ..._compTd, color: C.textSub }}>{row.share}%</td>
+              <td style={{ ..._compTd, color: C.textSub }}>{row.venta}</td>
+              <td style={{ ..._compTd, color: C.textSub }}>{row.contribucion}</td>
+              <td style={{ ..._compTd, color: bajoBench ? C.amber : C.text }}>{row.margen != null ? `${row.margen}%` : "—"}</td>
+              <td style={{ ..._compTd, color: C.textSub }}>{typeof row.unidades === "number" ? row.unidades.toLocaleString("es-CL") : "—"}</td>
+              <td style={{ ..._compTd, color: rotBaja ? C.red : C.textSub }}>{typeof row.rotacion === "number" ? `${row.rotacion}x` : "—"}</td>
+            </tr>
+          );
+        })}</tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* 1 · ENCABEZADO EJECUTIVO */}
@@ -3887,7 +3922,8 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
       {/* 4 · EVOLUCIÓN MENSUAL — venta con año anterior (única serie con ancla), contribución/margen honestos sin ella */}
       <ComparadoCard a={name} rowA={{ varaRef: f.benchmarkMargen ? parseFloat(f.benchmarkMargen) : null }} dim="cliente" onAsk={onAsk}/>
 
-      {/* 5 · COMPOSICIÓN POR FAMILIA Y POR SKU — participación, venta, contribución, margen */}
+      {/* 5 · COMPOSICIÓN — familia y SKU con LAS MISMAS columnas alineadas (colgroup fijo compartido) +
+          Unidades + Rotación (conecta con el inventario inmovilizado de abajo) */}
       <div style={_panelStyle}>
         <span style={_panelTitle}>{_dot}Composición de la compra</span>
         {familias.length === 0 && skus.length === 0 ? (
@@ -3896,45 +3932,12 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
           </div>
         ) : (
           <>
-          {familias.length > 0 && (
-            <div style={{ marginTop: 10, overflowX: "auto" }}>
-              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>Por familia</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 420 }}>
-                <thead><tr>{["Familia", "Participación", "Venta", "Contribución", "Margen"].map((h, i) => (
-                  <th key={h} style={{ textAlign: i === 0 ? "left" : "right", color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" }}>{h}</th>
-                ))}</tr></thead>
-                <tbody>{familias.map((row) => (
-                  <tr key={row.nombre}>
-                    <td style={{ padding: "5px 6px", color: C.text }}>{row.nombre}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.share}%</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.venta}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.contribucion}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: f.benchmarkMargen && row.margen < parseFloat(f.benchmarkMargen) ? C.amber : C.text, fontVariantNumeric: "tabular-nums" }}>{row.margen}%</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+            {familias.length > 0 && _compTable(familias, "Familia", "Por familia")}
+            {skus.length > 0 && _compTable(skus.slice(0, 10), "SKU", `Por SKU (top ${Math.min(10, skus.length)} de ${skus.length})`)}
+            <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+              Unidades = reparto de las unidades del cliente según su venta (cierran con su total). Rotación = veces al año que rota el producto en tu inventario; <span style={{ color: C.red }}>en rojo</span> la que está bajo tu piso de {POLICY.rotacionMin}x — es la que después aparece detenida abajo.
             </div>
-          )}
-          {skus.length > 0 && (
-            <div style={{ marginTop: 14, overflowX: "auto" }}>
-              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 5 }}>Por SKU (top {Math.min(10, skus.length)} de {skus.length})</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 420 }}>
-                <thead><tr>{["SKU", "Participación", "Venta", "Contribución", "Margen"].map((h, i) => (
-                  <th key={h} style={{ textAlign: i === 0 ? "left" : "right", color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" }}>{h}</th>
-                ))}</tr></thead>
-                <tbody>{skus.slice(0, 10).map((row) => (
-                  <tr key={row.nombre}>
-                    <td style={{ padding: "5px 6px", color: C.text }}>{row.nombre}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.share}%</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.venta}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{row.contribucion}</td>
-                    <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: MONO, color: typeof row.margen === "number" && f.benchmarkMargen && row.margen < parseFloat(f.benchmarkMargen) ? C.amber : C.text, fontVariantNumeric: "tabular-nums" }}>{row.margen != null ? `${row.margen}%` : "—"}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-          )}
-          {_btn(`Pedile a ADI que profundice en la composición de ${name} →`, `¿Cómo se compone ${name}?`)}
+            {_btn(`Pedile a ADI que profundice en la composición de ${name} →`, `¿Cómo se compone ${name}?`)}
           </>
         )}
       </div>

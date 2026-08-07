@@ -205,8 +205,8 @@ function entityProfile({ dimension, entity, scenario } = {}) {
 // degradaba a la tabla cruda de composeFromLedger. Autorizar solo la de la familia top no alcanzó: el narrador
 // arma la tabla de las 4 familias igual (la instrucción FORMATO es "siempre", no "si podés") — así que se
 // autorizan las 4, mismo patrón que entityProfile (arriba): el motor calcula la brecha, no el LLM.
-function entityComposicion({ dimension, entity } = {}) {
-  const r = _pack(composeSpecComposicion({ dimension, entity }), `no tengo composición por familia para '${entity}' en el eje '${dimension}'`);
+function entityComposicion({ dimension, entity, scenario } = {}) {
+  const r = _pack(composeSpecComposicion({ dimension, entity, scenario }), `no tengo composición por familia para '${entity}' en el eje '${dimension}'`);
   if (r.coverage && r.coverage.supported && r.facts.composicion && Array.isArray(r.facts.composicion.familias) && r.facts.composicion.familias.length) {
     const rawRec = rawRecordFor(dimension, entity);
     const bench = benchmarkOf(rawRec);

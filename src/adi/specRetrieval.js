@@ -193,17 +193,21 @@ export function composeSpecDive({ dimension, entity, scenario }) {
 // familia/SKU no tienen "de qué se compone" en este sentido. LÍMITE HONESTO: la matriz cliente×SKU no varía por
 // escenario (bonanza/tensión/crisis) — es la MISMA base que ya muestra el Pareto de Sentrix en cualquier
 // escenario (limitación heredada del dato de demo, no nueva de esta función).
-export function composeSpecComposicion({ dimension, entity }) {
+export function composeSpecComposicion({ dimension, entity, scenario = "actual" }) {
   if (dimension !== "cliente" || !entity) return null;
   const porVenta = composicionClientePorFamilia(entity, "ventas");
   const porContrib = composicionClientePorFamilia(entity, "contribucion");
   if (!porVenta || !porVenta.length) return null;
   const totalV = porVenta.reduce((s, r) => s + r.value, 0);
-  const familias = porVenta.map((f) => {
-    const c = porContrib.find((x) => x.name === f.name);
-    const contribucion = c ? c.value : 0;
-    return { nombre: f.name, venta: f.value, contribucion, margen: f.value ? Math.round((contribucion / f.value) * 1000) / 10 : null, share: totalV ? Math.round((f.value / totalV) * 1000) / 10 : null };
-  }).sort((a, b) => b.venta - a.venta);
+  // UNIDADES + ROTACIÓN (owner 2026-08-07, "conecta con la parte de SKU inmovilizados"): la rotación por SKU sale
+  // del MISMO inventario scenario-aware que usa el detector de capital detenido (entityCapitalLigado) — así el
+  // número que ves en la composición explica por qué un SKU aparece inmovilizado abajo. Las UNIDADES por SKU son
+  // el reparto de las unidades TOTALES del cliente (clientesVentas.unidades) por la MISMA proporción de venta que
+  // ya usa la matriz para el $ — cierran con el total del cliente (una sola verdad), no un conteo aparte.
+  const _invRows = _load("skuInventario", scenario);
+  const _rotBySku = new Map(_invRows.map((r) => [r.sku, typeof r.rotacion === "number" ? r.rotacion : null]));
+  const _cliRow = _cVentas.find((c) => c.nombre === entity);
+  const _cliUnits = _cliRow && typeof _cliRow.unidades === "number" ? _cliRow.unidades : null;
   // COMPOSICIÓN POR SKU (owner 2026-08-07, Ficha Ejecutiva real: "participación, venta, contribución y margen"
   // también a nivel SKU, no solo familia) — mismo cierre exacto que `familias` arriba (misma matriz cliente×SKU,
   // composicionCliente en vez de composicionClientePorFamilia), margen por SKU sale de `skusMargen` (el margen es
@@ -216,7 +220,25 @@ export function composeSpecComposicion({ dimension, entity }) {
     const c = skuContrib.find((x) => x.name === s.name);
     const contribucion = c ? c.value : 0;
     const m = _skusM.find((x) => x.nombre === s.name);
-    return { nombre: s.name, venta: s.value, contribucion, margen: typeof m?.margen === "number" ? m.margen : (s.value ? Math.round((contribucion / s.value) * 1000) / 10 : null), sfamilia: m ? m.sfamilia : null, share: totalSV ? Math.round((s.value / totalSV) * 1000) / 10 : null };
+    const rotacion = _rotBySku.has(s.name) ? _rotBySku.get(s.name) : null;
+    const unidades = (_cliUnits != null && totalSV) ? Math.round((_cliUnits * s.value) / totalSV) : null;
+    return { nombre: s.name, venta: s.value, contribucion, margen: typeof m?.margen === "number" ? m.margen : (s.value ? Math.round((contribucion / s.value) * 1000) / 10 : null), sfamilia: m ? m.sfamilia : null, share: totalSV ? Math.round((s.value / totalSV) * 1000) / 10 : null, unidades, rotacion };
+  }).sort((a, b) => b.venta - a.venta);
+  // familia: unidades = suma de sus SKU (cierra con el reparto por SKU) · rotación = promedio ponderado por venta
+  // de la rotación de sus SKU (resumen honesto de "qué tan rápido rota esta familia", no un número inventado).
+  const _famAgg = (fam) => {
+    const rows = skus.filter((s) => s.sfamilia === fam);
+    const uni = rows.some((r) => typeof r.unidades === "number") ? rows.reduce((a, r) => a + (r.unidades || 0), 0) : null;
+    const withRot = rows.filter((r) => typeof r.rotacion === "number" && r.venta > 0);
+    const den = withRot.reduce((a, r) => a + r.venta, 0);
+    const rot = den ? Math.round((withRot.reduce((a, r) => a + r.rotacion * r.venta, 0) / den) * 10) / 10 : null;
+    return { unidades: uni, rotacion: rot };
+  };
+  const familias = porVenta.map((f) => {
+    const c = porContrib.find((x) => x.name === f.name);
+    const contribucion = c ? c.value : 0;
+    const agg = _famAgg(f.name);
+    return { nombre: f.name, venta: f.value, contribucion, margen: f.value ? Math.round((contribucion / f.value) * 1000) / 10 : null, share: totalV ? Math.round((f.value / totalV) * 1000) / 10 : null, unidades: agg.unidades, rotacion: agg.rotacion };
   }).sort((a, b) => b.venta - a.venta);
   const lines = familias.map((f) => `${f.nombre}: ${f.share}% de su venta, margen ${f.margen}%`);
   const opener = `Cómo se compone la compra de ${entity} por familia (venta/contribución/margen):\n\n${lines.join(" · ")}`;
