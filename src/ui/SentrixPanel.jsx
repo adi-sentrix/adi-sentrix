@@ -4012,7 +4012,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                 : _criticos.length > 0
                   ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en productos que le vendés a {name}.</>
                   : <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en productos que le vendés a {name}.</>}
-              {" "}Es inventario de tu negocio, no plata de {name}.
+              {" "}Es capital de tu negocio, no de {name}.
             </div>
             {_capTopMonto && (
               <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${C.celeste}` }}>

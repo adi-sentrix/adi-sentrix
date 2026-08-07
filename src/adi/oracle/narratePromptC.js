@@ -404,7 +404,15 @@ export function gradeIndicatedClaims(text, claims, contentScope = "full") {
     notas.push(`${c.valor}${quien} es una cuenta sobre el dato${comoSale}, no una cifra ya realizada.`);
   }
   if (!notas.length) return s;
-  return `${s.trim()}\n\n_Cómo se calcula: ${notas.join(" ")}_`;
+  const nota = `_Cómo se calcula: ${notas.join(" ")}_`;
+  // DÓNDE VA LA NOTA (defecto cazado por _oracle_multimodo_gate en la suite completa): pegada al final rompía dos
+  // garantías que ya existían — el contrato CLARIFY exige cerrar con una pregunta guía (ensureClarifyClosingQuestion)
+  // y bajo `full` el último párrafo suele ser la oferta de siguiente paso. Una nota de método DESPUÉS de la pregunta
+  // la entierra, además de romper el chequeo. Si el último párrafo es una pregunta, la nota va ANTES; si no, al final.
+  const bloques = s.trim().split(/\n{2,}/);
+  const ultimo = bloques[bloques.length - 1] || "";
+  if (/\?\s*$/.test(ultimo)) { bloques.splice(bloques.length - 1, 0, nota); return bloques.join("\n\n"); }
+  return `${s.trim()}\n\n${nota}`;
 }
 
 // _needsTableFormat(figs) → true si el ledger tiene la forma que el FORMATO de arriba (TABLA) ya exige tabular:

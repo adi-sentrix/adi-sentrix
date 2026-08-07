@@ -93,6 +93,14 @@ H("[4] ESTATUS EPISTÉMICO · deja de ser doctrina (pendiente obligatorio del ow
   ok(derivada.formula ? grad.includes(derivada.formula) : true, `declara la fórmula auditable — "${derivada.formula}"`);
   ok(grad.startsWith(crudo.trim()), "el texto del narrador queda PRIMERO e intacto (se suma, nunca se reescribe)");
 
+  // LA NOTA NUNCA ENTIERRA LA PREGUNTA DE CIERRE (defecto cazado por _oracle_multimodo_gate en la suite completa):
+  // el contrato CLARIFY exige cerrar con "?" y bajo `full` el último párrafo suele ser la oferta de siguiente paso.
+  const conPregunta = `Falabella te está costando ${derivada.valor} este año.\n\n¿Querés que revisemos sus condiciones comerciales?`;
+  const gp = gradeIndicatedClaims(conPregunta, claims, "full");
+  ok(/\?\s*$/.test(gp.trim()), "si el último párrafo es una pregunta, el texto SIGUE terminando en '?' (clarify y la oferta de cierre intactas)", JSON.stringify(gp));
+  ok(gp.includes("es una cuenta sobre el dato"), "y la nota igual está presente, insertada ANTES de la pregunta");
+  ok(gp.indexOf("Cómo se calcula") < gp.indexOf("¿Querés"), "el orden es: lectura → nota de método → pregunta de cierre");
+
   // no dispara donde no corresponde
   const probada = claims.find((c) => c.estatus === "probado" && c.valor);
   const soloProbada = `Falabella vendió ${probada.valor} este año.`;
