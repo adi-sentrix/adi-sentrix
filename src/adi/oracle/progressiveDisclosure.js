@@ -113,6 +113,76 @@ export function podarLedgerProgresivo(figs, { quiereDesglose = false } = {}) {
 // ── LO QUE LA RESPUESTA DEBE DECIR EN VEZ DE LA TABLA ──────────────────────────────────────────────────────────
 // Instrucción de NIVEL DE TURNO: solo viaja cuando de verdad se podó algo. Nombra la Ficha como el lugar del
 // detalle (no como una promesa vaga de "puedo profundizar"), y prohíbe explícitamente reconstruir la tabla.
+// ══ POLÍTICA DE PRESENTACIÓN (owner 2026-08-07) ════════════════════════════════════════════════════════════════
+// NO es un booleano global "tablas sí / tablas no". La tabla es una decisión de PRESENTACIÓN del turno, y tiene
+// tres estados — el guard valida EL QUE SE DECIDIÓ, no una prohibición general:
+//   · forbidden  consulta general de perfil ("Falabella"): el detalle no viajó, tabular lo que queda sería
+//                reconstruirlo con MENOS información que la Ficha. Se bloquea la tabla.
+//   · required   el usuario pidió explícitamente una tabla, la serie mes a mes o un desglose tabular. Acá la
+//                tabla es OBLIGATORIA: responder en prosa una pregunta que pidió tabla también es incumplir.
+//   · auto       el resto — comparaciones y listados donde la tabla mejora la lectura. Decide el narrador con
+//                los detectores de forma que ya existían (_needsTableFormat); el guard no juzga.
+// Pedido EXPLÍCITO de tabla: la forma se nombra ("en una tabla", "tabulá", "en formato tabla", "en columnas").
+const _PIDE_TABLA = /\b(en (?:una )?tabla|en formato tabla|tabulad[oa]|tabul[aá]\w*|en columnas|como tabla|arm[aá]\w* una tabla|una tabla con)\b/i;
+export function pideTablaExplicita(text) { return _PIDE_TABLA.test(String(text || "")); }
+
+// resolveTablePolicy({text, podado}) → "forbidden" | "required" | "auto"
+// PRECEDENCIA: `required` gana sobre `forbidden`. Si el usuario pidió la tabla, la pidió — aunque el turno sea un
+// perfil general y solo queden las cifras de cabecera: se le tabula lo que hay, no se le niega lo que pidió.
+export function resolveTablePolicy({ text = "", podado = [] } = {}) {
+  if (pideTablaExplicita(text) || pideDetalleTemporal(text) || pideDetalleComposicion(text)) return "required";
+  if (podado.length) return "forbidden";
+  return "auto";
+}
+
+// ── SALIDA DETERMINÍSTICA EN PROSA · sin otra llamada al LLM ───────────────────────────────────────────────────
+// Si el narrador arma una tabla donde no está permitida, NO se reintenta: reintentar cuesta otra llamada y el
+// problema no es de suerte, es de forma. Se compone la respuesta desde los claims YA autorizados, en prosa, con
+// el mismo arco qué pasa / por qué / qué hacer primero. Cada cifra sale VERBATIM del claim, así que este texto
+// pasa guardC por construcción — no hay ninguna cifra que no estuviera autorizada.
+// Respeta la Regla de Proporcionalidad: nombra "tu benchmark" (nunca sectorial), dice "una causa comprobada"
+// (nunca "la principal"), y no afirma rentabilidad.
+const _M = (claims, re) => claims.find((c) => c && re.test(String(c.metrica || "")));
+const _cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : s);
+export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFicha = true } = {}) {
+  const cs = (Array.isArray(claims) ? claims : []).filter(Boolean);
+  const dueño = entidad || (cs.find((c) => c.sujetoTipo === "entidad") || {}).entidad || null;
+  if (!dueño) return null;
+  const míos = cs.filter((c) => c.entidad === dueño);
+  if (!míos.length) return null;
+  const ventas = _M(míos, /^ventas?\b/i), margen = _M(míos, /^margen$/i), contrib = _M(míos, /^contribuci[oó]n$/i);
+  const rank = _M(míos, /^ranking por venta$/i), brecha = _M(míos, /brecha de margen/i);
+  const bench = _M(cs, /^benchmark de margen$/i);
+  const palanca = míos.find((c) => c.coberturaCausal === "parcial" && c.explica);
+  const capital = míos.find((c) => /capital detenido/i.test(String(c.metrica || "")) && /subtotal/i.test(String(c.metrica || "")));
+
+  const p = [];
+  // QUÉ PASA
+  const qué = [];
+  if (ventas) qué.push(`${dueño} vendió ${ventas.valor}`);
+  if (rank) qué.push(`y está ${rank.valor} por venta`);
+  if (qué.length) p.push(_cap(qué.join(" ")) + ".");
+  else if (contrib) p.push(`${dueño} aporta ${contrib.valor} de contribución.`);
+  // POR QUÉ
+  if (margen && bench && brecha) p.push(`Su margen es ${margen.valor}, ${brecha.valor} de brecha contra tu benchmark de ${bench.valor}.`);
+  else if (margen) p.push(`Su margen es ${margen.valor}.`);
+  // QUÉ HACER PRIMERO — la prioridad es una frase con su monto, nunca una tabla
+  if (palanca) {
+    const resto = palanca.explica.fraccion
+      ? ` Explica ${palanca.explica.monto} de ${palanca.explica.universo} (${palanca.explica.fraccion}); el resto permanece abierto.`
+      : " Es una parte comprobada; el resto de la brecha permanece abierto.";
+    // artículo: las métricas de palanca son sustantivos ("exceso de acciones comerciales", "capital detenido") —
+    // sin "el/la" la frase queda agramatical ("es exceso de acciones comerciales").
+    const m = String(palanca.metrica).toLowerCase();
+    const art = /^(brecha|carga|meta|contribuci)/.test(m) ? "la" : "el";
+    p.push(`Una causa comprobada es ${art} ${m}: ${palanca.valor}.${resto}`);
+  }
+  if (capital) p.push(`Además tenés ${capital.valor} de capital detenido en el inventario del mix que le vendés — es capital de tu negocio, no de ${dueño}.`);
+  if (!p.length) return null;
+  if (hayDetalleEnFicha) p.push(`El detalle está en la ficha de ${dueño} en Sentrix.`);
+  return p.join(" ");
+}
+
 export function buildDisclosureInstruction({ podado = [], entidad = null } = {}) {
   if (!podado.length) return "";
   const quien = entidad ? `de ${entidad}` : "de esta entidad";

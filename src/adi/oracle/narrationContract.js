@@ -383,7 +383,7 @@ export function sealScopeContract({ plan, results, scenario = null, requestConte
 // naturalidad, pero no agregar ni modificar entidades, métricas, períodos, causalidad, acciones o supuestos fuera
 // de ese contrato". Esto lo declara como DATO (no como párrafo de prompt) para que Fase 2 pueda verificarlo y para
 // que sea legible por cualquier proveedor.
-export function buildExtensionPolicy({ scope, claims, acciones }) {
+export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "auto" }) {
   return {
     puedeRedactarLibre: true,               // la naturalidad es del LLM — no se toca
     puedeAgregarEntidades: false,
@@ -397,6 +397,12 @@ export function buildExtensionPolicy({ scope, claims, acciones }) {
     periodoPermitido: scope ? scope.periodo : null,
     accionesPermitidas: (acciones || []).map((a) => a.accion),
     // cuánto puede extenderse: el contrato de forma ya resuelto (modo + densidad) — la "proporcionalidad".
+    // TABLA: la FORMA es una decisión de PRESENTACIÓN del turno, con TRES estados (ver progressiveDisclosure.js):
+    //   forbidden · perfil general — el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha
+    //   required  · el usuario pidió tabla / mes a mes / desglose — responder en prosa también sería incumplir
+    //   auto      · el resto — decide el narrador con los detectores de forma; el guard no juzga
+    // El guard valida LA POLÍTICA DECIDIDA para este turno, nunca una prohibición general de tablas.
+    tablePolicy: ["forbidden", "required", "auto"].includes(tablePolicy) ? tablePolicy : "auto",
     densidad: scope ? scope.contentScope : "full",
     detalle: scope ? scope.detalle : "standard",
   };
@@ -407,7 +413,7 @@ export function buildExtensionPolicy({ scope, claims, acciones }) {
 // `datos` viaja acá (Fase 1) porque el narrador de hoy consume facts y migrar ese contenido cambia el prompt —
 // pero YA está DENTRO del contrato, sellado: nadie río abajo lo lee de `results`. Fase 1b lo reemplaza por claims.
 export function buildNarrationContract({
-  text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, scenario = null, requestContext = null,
+  text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy = "auto", scenario = null, requestContext = null,
 } = {}) {
   const scope = sealScopeContract({ plan, results, scenario, requestContext, pref });
   const claims = buildClaims(ledgerFigs, { eje: scope.eje, periodo: scope.periodo });
@@ -415,7 +421,7 @@ export function buildNarrationContract({
   const preguntasAbiertas = buildOpenQuestions(results);
   const supuestos = buildSupuestos({ plan, results });
   const acciones = buildAllowedActions(claims);
-  const politicaExtension = buildExtensionPolicy({ scope, claims, acciones });
+  const politicaExtension = buildExtensionPolicy({ scope, claims, acciones, tablePolicy });
   const datos = (results || []).map((r) => ({
     tool: r.tool,
     disponible: !!(r.coverage && r.coverage.supported),

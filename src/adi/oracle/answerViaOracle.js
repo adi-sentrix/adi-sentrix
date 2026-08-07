@@ -13,7 +13,7 @@ import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared,
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
-import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion } from "./progressiveDisclosure.js";   // divulgación progresiva: el detalle vive en la Ficha, y se poda ANTES del batch
+import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, composeProsaEjecutiva, resolveTablePolicy } from "./progressiveDisclosure.js";   // divulgación progresiva: el detalle vive en la Ficha, y se poda ANTES del batch
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { MODE_KEYS } from "./conversationalContract.js";
@@ -1152,6 +1152,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const instruccionOrientacion = buildOrientacionInstruction(orientacionReason, recentSubjectsNow);
   // qué decir EN VEZ de la tabla: la Ficha como destino del detalle, no una promesa vaga de profundizar.
   const instruccionDisclosure = buildDisclosureInstruction({ podado: _disclosure.podado, entidad: _disclosure.entidad });
+  // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
+  //   forbidden · perfil general — el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha
+  //   required  · pidió tabla / mes a mes / desglose — responder eso en prosa también es incumplir
+  //   auto      · el resto — deciden los detectores de forma del prompt; el guard no juzga
+  // No es una sugerencia: viaja sellada en el contrato (politicaExtension.tablePolicy) y guardC valida LA
+  // DECIDIDA. `required` gana sobre `forbidden`: si el usuario pidió la tabla, se le tabula lo que haya.
+  const tablePolicy = resolveTablePolicy({ text: q, podado: _disclosure.podado });
 
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
   // results_only YA se resolvieron arriba, SIEMPRE (con datos o sin ellos) — la condición de abajo los excluye
@@ -1192,7 +1199,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // hiccup transitorio en ESE intento específico no debe tirar el turno completo: reintenta (mismo presupuesto de
     // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, attempt: modelAttempt }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, attempt: modelAttempt }); }
     catch (e) {
       narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message), usage: null });
       const wait = _rateLimitBackoffMs(e);
@@ -1237,9 +1244,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // cualquier caso que esto no pueda corregir con certeza.
     n = ensureCountAuthorized(n, ledger, results);
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy });
     narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, usage: null });
     if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
+    // FORMA INCUMPLIDA → SALIDA DETERMINÍSTICA, SIN OTRA LLAMADA (owner 2026-08-07). Reintentar sería gastar una
+    // llamada por algo que NO es de suerte: el narrador eligió una presentación que la política del turno no
+    // admite, y con las mismas cifras puede volver a elegirla. Las dos salidas se componen desde lo YA autorizado,
+    // así que pasan guardC por construcción — igual se verifica, nunca se asume:
+    //   tabla-no-autorizada → prosa desde los claims (composeProsaEjecutiva)
+    //   tabla-faltante      → la tabla desde la boleta (composeFromLedger, el compositor que ya existía)
+    if (!gVerdict.ok && /tabla-no-autorizada|tabla-faltante/.test(String(gVerdict.verdict || ""))) {
+      const esFaltante = /tabla-faltante/.test(String(gVerdict.verdict));
+      const alt = esFaltante ? composeFromLedger(figs, "full") : composeProsaEjecutiva(buildClaims(figs), { entidad: _disclosure.entidad });
+      if (alt) {
+        let c = ensurePeriodoDeclared(alt, periodos);
+        c = ensureClarifyClosingQuestion(c, plan.mode);
+        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy }).ok) {
+          narration = c; narrationRepaired = true;
+          narrateAttemptTrace.push({ attempt, guardOk: false, reason: `${gVerdict.verdict} → salida determinística desde lo autorizado (sin otra llamada)`, usage: null });
+          break;
+        }
+      }
+    }
     // TIER: acá SÍ corresponde escalar — guardC rechazó el contenido (rechazo real) o lo marcó `degraded`
     // (repetición) — las DOS señales que el owner nombró explícitamente como indicio real de que el modelo actual
     // no está rindiendo (a diferencia de un 429/timeout, que es infraestructura y nunca escala, ver arriba).

@@ -423,6 +423,37 @@ function _causaSobredimensionada(narration, claims) {
   return out;
 }
 
+// ── 16 · TABLA NO AUTORIZADA (divulgación progresiva · candado estructural, owner 2026-08-07) ──────────────────
+// En una consulta GENERAL de perfil el detalle NO viajó: la serie mes a mes y la composición ni se calcularon.
+// Tabular las cifras QUE QUEDAN sería reconstruir el detalle con menos información que la Ficha — peor que no
+// darlo. Por eso `tableAllowed:false` no es una sugerencia del prompt: es una autorización del contrato, y acá
+// se hace cumplir. NO depende de que el narrador obedezca.
+// Se detectan las DOS formas de tabular, porque prohibir solo el markdown empuja a la lista con guiones:
+//   · tabla markdown real (fila separadora |---|---|)
+//   · listado tabular: 3+ líneas seguidas con forma "etiqueta: cifra" / "- etiqueta — cifra", que es una tabla
+//     escrita con otra puntuación. Una enumeración en PROSA (una oración con comas) no cae: no son líneas.
+const _SEP_MD = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/;
+const _FILA_TABULAR = /^\s*(?:[-*·]|\d+[.)])?\s*\*{0,2}[^:—|\n]{2,48}\*{0,2}\s*(?::|—|\|)\s*\S*\d/;
+// ¿HAY tabla? Cuenta como tabla tanto la markdown real como el listado tabular — son la misma presentación con
+// distinta puntuación, así que si el usuario pidió "tabla" cualquiera de las dos cumple.
+function _tieneTabla(narration) {
+  const lineas = String(narration || "").split("\n");
+  if (lineas.some((l) => _SEP_MD.test(l))) return true;
+  let racha = 0;
+  for (const l of lineas) { if (_FILA_TABULAR.test(l)) { if (++racha >= 3) return true; } else if (l.trim()) racha = 0; }
+  return false;
+}
+function _tablaNoAutorizada(narration) {
+  const lineas = String(narration || "").split("\n");
+  if (lineas.some((l) => _SEP_MD.test(l))) return "la respuesta arma una tabla markdown y este turno no la tiene autorizada";
+  let racha = 0, max = 0;
+  for (const l of lineas) {
+    if (_FILA_TABULAR.test(l)) { racha++; max = Math.max(max, racha); } else if (!l.trim()) { /* la línea en blanco no corta */ } else racha = 0;
+  }
+  if (max >= 3) return `la respuesta arma un listado tabular (${max} filas "etiqueta: cifra" seguidas) y este turno no tiene tabla autorizada`;
+  return null;
+}
+
 // ── GRADUACIÓN (supuesto ≠ probado) ─────────────────────────────────────────────────────────────────────────────
 const _SIM_TOOLS = new Set(["simulate", "simulateCarga", "simulateCapital", "simulateCosto"]);
 const _ASSUMPTION = /\b(si\b|supon|asum|estimad|proyectad|hipot|en el supuesto|de bajar|de subir|podr[íi]a|llevar[íi]a|implicar[íi]a|escenario donde)/i;
@@ -1002,7 +1033,7 @@ function _simulateGeneralConclusionViolation(narration, results) {
   return m ? m[0] : null;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto" } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -1081,6 +1112,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   const nivelViol = _nivelNoAutorizado(narration, claimsPS);
   if (nivelViol) violations.push({ kind: "nivel-financiero-no-autorizado", detail: nivelViol });
   for (const v of _causaSobredimensionada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
+  // 16 · POLÍTICA DE PRESENTACIÓN (owner 2026-08-07) — se valida LA POLÍTICA DECIDIDA para este turno, en los DOS
+  // sentidos: `forbidden` bloquea la tabla, `required` bloquea su AUSENCIA (responder en prosa algo que se pidió
+  // tabulado también es incumplir), `auto` no juzga y deja decidir a los detectores de forma del prompt.
+  if (tablePolicy === "forbidden") { const t = _tablaNoAutorizada(narration); if (t) violations.push({ kind: "tabla-no-autorizada", detail: t }); }
+  else if (tablePolicy === "required" && !_tieneTabla(narration)) {
+    violations.push({ kind: "tabla-faltante", detail: "el turno pidió explícitamente una tabla (o la serie mes a mes / un desglose) y la respuesta no trae ninguna — responder en prosa lo que se pidió tabulado también es incumplir" });
+  }
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución

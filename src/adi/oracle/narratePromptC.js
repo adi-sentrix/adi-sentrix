@@ -550,7 +550,7 @@ const ORDEN_MONTO_INSTRUCTION = "El usuario pidió orden EXPLÍCITO por dinero/m
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, scenario, requestContext, claimsOnly = false }) {
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy = "auto", scenario, requestContext, claimsOnly = false }) {
   // CONTRATO v2 · FASE 1 (owner 2026-08-07): el payload deja de armarse desde `plan`/`results` crudos. Se SELLA
   // primero un NarrationContract inmutable (narrationContract.js) y el payload es una PROYECCIÓN PURA de ese
   // contrato — projectNarratePayload no recibe ni puede mirar plan/results. La garantía "el LLM no puede modificar
@@ -558,7 +558,7 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
   // prompt se lo prohíba, es que no hay otra cosa que ver. Esta firma NO cambia (los ~30 callers/gates que la
   // consumen siguen andando igual) y el payload resultante es BYTE-IDÉNTICO al anterior — verificado por
   // _narration_contract_gate.mjs, que compara la proyección contra la construcción legacy caso por caso.
-  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, scenario, requestContext });
+  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, scenario, requestContext });
   return claimsOnly ? projectClaimsOnlyPayload(contract) : projectNarratePayload(contract);
 }
 
@@ -662,7 +662,9 @@ export function projectClaimsOnlyPayload(contract) {
     ...(!isDefaultPref(pref) ? { preferencia_respuesta: { alcance: pref.contentScope || "full", detalle: pref.detailLevel || "standard" } } : {}),
     ...(pref && pref.contentScope && pref.contentScope !== "full" && blockInstructionFor(pref.contentScope) ? { instruccion_formato: blockInstructionFor(pref.contentScope) } : {}),
     ...(pref && pref.detailLevel === "brief" ? { instruccion_brevedad: BRIEF_INSTRUCTION } : {}),
-    ...(modo === "clarify" ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {})),
+    // tabla_permitida:false → NO se manda ninguna instrucción de tabla. Mandarla sería pedirle al narrador
+    // exactamente lo que guardC va a bloquear: el prompt y el candado tienen que decir lo MISMO.
+    ...(_politicaTabla(c) === "forbidden" ? {} : (modo === "clarify" ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {}))),
     ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
     ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
@@ -680,6 +682,9 @@ export function projectClaimsOnlyPayload(contract) {
 
 // projectNarratePayload(contract) → el OBJETO de datos para la Pasada 2, derivado EXCLUSIVAMENTE del contrato
 // sellado. Es la frontera dura del contrato v2: si un dato no está en el contrato, el narrador no lo ve. Pura.
+const _politicaTabla = (c) => ((c && c.politicaExtension && c.politicaExtension.tablePolicy) || "auto");
+const TABLA_OBLIGATORIA_INSTRUCTION = "ESTE TURNO PIDIÓ UNA TABLA (explícitamente, o pidiendo la serie mes a mes / un desglose). La tabla es OBLIGATORIA: armala en MARKDOWN real, con fila de encabezado y fila separadora \"|---|---|\". Una fila por período o por entidad; una columna por concepto autorizado. Responder esto en prosa, o resumirlo en dos frases, es NO cumplir lo que se pidió. La tabla tampoco es el cierre: después de ella, en prosa corrida, contá qué muestra — el mejor y el peor tramo, la variación, y qué hacer con eso.";
+const SIN_TABLA_INSTRUCTION = "ESTE TURNO NO TIENE TABLA AUTORIZADA. Respondé en PROSA ejecutiva: qué pasa, por qué y qué hacer primero. Prohibido armar una tabla markdown Y prohibido el listado tabular equivalente (3+ líneas seguidas del tipo \"Etiqueta: cifra\" o \"- Etiqueta — cifra\"): las dos formas son lo mismo con distinta puntuación, y las dos se bloquean. Tabular las pocas cifras que tenés sería reconstruir el detalle con MENOS información que la ficha de Sentrix, que es donde vive. La prioridad SÍ va nombrada con su monto — eso es una frase, no una tabla.";
 export function projectNarratePayload(contract) {
   const c = contract || {};
   const scope = c.scope || {};
@@ -739,7 +744,19 @@ export function projectNarratePayload(contract) {
     // de "PERFIL COMPLETO: nunca reconstruyas la tabla" de arriba (instrucción de payload > doctrina de system,
     // mismo problema que ya resolvió la excepción de clarify). Sentrix YA muestra esta composición/capital como
     // panel — el chat debe sintetizar en prosa, no repetir la tabla.
-    ...(modo === "clarify" || esPerfilCompleto ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {})),
+    // CANDADO ESTRUCTURAL (owner 2026-08-07): si el contrato negó la tabla, NO se manda ninguna instrucción de
+    // tabla — pedirle al narrador exactamente lo que guardC va a bloquear sería contradecirse. Y se le DICE la
+    // prohibición, para que la primera respuesta ya salga bien y no haya que caer a la prosa determinística.
+    // POLÍTICA DE PRESENTACIÓN (owner 2026-08-07) · TRES estados, y el prompt dice EXACTAMENTE lo que el guard va
+    // a validar — si se contradijeran, el turno se pierde en un rebote evitable.
+    //   forbidden · sin ninguna instrucción de tabla + la prohibición explícita (incluye el listado tabular).
+    //   required  · la instrucción de tabla va SIEMPRE, aunque los detectores de forma no la pedirían: el usuario
+    //               la pidió, y responder eso en prosa también es incumplir.
+    //   auto      · como siempre: deciden los detectores (_needsTableFormat) y el modo.
+    ...(_politicaTabla(c) === "auto" ? {} : { politica_tabla: _politicaTabla(c) }),
+    ...(_politicaTabla(c) === "forbidden" ? { instruccion_sin_tabla: SIN_TABLA_INSTRUCTION } : {}),
+    ...(_politicaTabla(c) === "required" ? { instruccion_tabla: TABLA_OBLIGATORIA_INSTRUCTION } : {}),
+    ...(_politicaTabla(c) !== "auto" ? {} : (modo === "clarify" || esPerfilCompleto ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {}))),
     // LISTA NUMERADA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsListFormat/LIST_INSTRUCTION.
     ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
