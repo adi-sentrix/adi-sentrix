@@ -1313,14 +1313,17 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // en foco en la cascada. El click sigue el patrón de la Mesa: informa (uiSignals), nunca dispara.
   const _pnlLink = pnlMesaLink(evidence);
   const _tLink = !!(evidence && evidence.lens === "temporal");   // mejora 7b · el mes a mes ampliado abre la cara comercial (la película del año vive ahí)
-  // DEEP-LINK del perfil único (owner 2026-08-06): "dame el perfil/avance/estado de Falabella" → la cara comercial
-  // con esa fila ya seleccionada en el Cuadro — la Ficha (evolutivo + perfil vs promedio + 80/20) aparece de una,
-  // sin que el usuario tenga que buscar y clickear la fila él mismo. Mismo patrón que _pnlLink/_tLink.
+  // DEEP-LINK del perfil único (owner 2026-08-07, "no debe ir mezclada — debe ser su propia pestaña"): "dame el
+  // perfil/avance/estado de Falabella" → la cara FICHA con ese cliente ya elegido — la Ficha Ejecutiva completa
+  // aparece de una, sola, sin el Cuadro/Pareto/Comparado genéricos de la cara Comercial mezclados encima.
+  // Mismo patrón que _pnlLink/_tLink.
   const _clientLink = clientMesaLink(evidence);
+  const [fichaCliente, setFichaCliente] = useState(_clientLink ? _clientLink.cliente : null);
   const [cara, setCara] = useState(() => {
     if (_pnlLink) return _pnlLink.cara;
-    if (_tLink || _clientLink) return "comercial";
-    try { const v = localStorage.getItem("adi_mesa_cara_v1"); return v === "capital" || v === "resultado" ? v : "comercial"; } catch { return "comercial"; }
+    if (_clientLink) return "ficha";
+    if (_tLink) return "comercial";
+    try { const v = localStorage.getItem("adi_mesa_cara_v1"); return v === "capital" || v === "resultado" || v === "ficha" ? v : "comercial"; } catch { return "comercial"; }
   });
   useEffect(() => {
     try { localStorage.setItem("adi_mesa_cara_v1", cara); } catch { /* sin storage → sesión */ }
@@ -1341,7 +1344,8 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // «Ampliar» sobre OTRA respuesta P&L con la Mesa ya abierta → re-enfoca (la evidencia nueva manda su alcance)
   useEffect(() => {
     if (_pnlLink) { setCara(_pnlLink.cara); setPnlEje(_pnlLink.eje); setPnlFoco(_pnlLink.foco); }
-    else if (_tLink || _clientLink) setCara("comercial");
+    else if (_clientLink) { setCara("ficha"); setFichaCliente(_clientLink.cliente); }
+    else if (_tLink) setCara("comercial");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evidence]);
   const resultado = React.useMemo(() => buildMesaResultado(scenario, pnlEje, pnlFoco), [scenario, pnlTick, pnlEje, pnlFoco]);
@@ -1387,9 +1391,9 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>Tu negocio, en vivo <span style={{ color:C.textMuted, fontWeight:400 }}>· datos organizados por vista — ADI explica cualquier punto que quieras entender</span></div>
           {/* SELECTOR DE CARA (owner 2026-07-15) · segmented discreto: la misma Mesa mirando lo comercial o el capital */}
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
-            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"]].map(([k, lbl]) => (
+            {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["ficha", "Ficha"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
-                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos"}
+                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "La Ficha Ejecutiva de un cliente: perfil, brecha, evolución, composición, posición y capital ligado"}
                 style={{ padding:"4px 12px", fontSize:11, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
                   background: cara === k ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
                   color: cara === k ? C.text : C.textMuted, transition:"all 0.15s" }}>{lbl}</button>
@@ -1401,7 +1405,9 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
-        {cara === "resultado" ? (
+        {cara === "ficha" ? (
+          <MesaFichaCara entity={fichaCliente} scenario={scenario} onAsk={onAsk} onSelect={setFichaCliente}/>
+        ) : cara === "resultado" ? (
           <MesaResultadoCara resultado={resultado} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}
             onExport={() => pnlExportData(scenario, pnlEje, pnlFoco)}/>
         ) : cara === "capital" ? (
@@ -2988,7 +2994,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
           se ELIMINÓ — con DOS seleccionadas la comparación es el comparado temporal de ARRIBA (dual); en la lente
           Control (sin Mesa) sigue el dumbbell original de clientes. */}
       {sel.length === 1 && mesa && (
-        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} scenario={scenario} onAsk={onAsk}/>
+        <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} onAsk={onAsk}/>
       )}
       {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
@@ -3963,11 +3969,46 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
   );
 }
 
-function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk }) {
+// ── CARA FICHA (owner 2026-08-07, "no debe ir mezclada con lo que ya teníamos — debe ser su propia pestaña"):
+// la Ficha Ejecutiva de cliente vive en su PROPIA cara de la Mesa, junto a Comercial/Capital/Resultado —
+// selector de cliente + SOLO FichaEjecutivaCliente, sin el Cuadro de Mando/Pareto/Comparado genéricos de la
+// cara Comercial encima. El deep-link del perfil único (clientMesaLink, "dame el perfil de X") abre esta cara
+// directo con el cliente ya elegido — ver el switch de `cara` en MesaPanel.
+function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
+  const cm = React.useMemo(() => buildCuadroMando("cliente", scenario), [scenario]);
+  const names = cm.rows.map((r) => r.name);
+  const [busca, setBusca] = useState("");
+  const _normB = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const filtered = busca.trim() ? names.filter((n) => _normB(n).includes(_normB(busca))) : names;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Elegí un cliente</div>
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="buscar cliente…"
+          style={{ width: "100%", maxWidth: 280, padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", color: C.text, fontSize: 12, fontFamily: "'DM Sans', system-ui, sans-serif", outline: "none", marginBottom: 9 }}/>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {filtered.map((n) => (
+            <button key={n} onClick={() => onSelect(n)}
+              style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${n === entity ? "rgba(47,184,218,0.5)" : C.border}`, background: n === entity ? "rgba(47,184,218,0.1)" : "transparent", color: n === entity ? C.celeste : C.textSub, fontSize: 11.5, fontWeight: n === entity ? 600 : 400, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              {n}
+            </button>
+          ))}
+          {filtered.length === 0 && <span style={{ fontSize: 11.5, color: C.textMuted }}>Sin coincidencias.</span>}
+        </div>
+      </div>
+      {entity ? <FichaEjecutivaCliente name={entity} scenario={scenario} onAsk={onAsk}/> : (
+        <div style={{ fontSize: 12, color: C.textMuted }}>Elegí un cliente arriba para ver su Ficha Ejecutiva.</div>
+      )}
+    </div>
+  );
+}
+
+function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
   // el Pareto vive AFUERA (MesaPareto · reflejo de la tabla, owner 2026-07-10) — la ficha suma perfil + evolutivo.
-  // CLIENTE (owner 2026-08-07): la Ficha Ejecutiva real va ADELANTE del perfil genérico vs-promedio — el perfil
-  // vs-promedio sigue disponible para todos los ejes (marca/familia/SKU incluidos), la Ficha Ejecutiva es
-  // ESPECÍFICA de cliente (acciones comerciales, ticket promedio, capital ligado al mix no aplican a otros ejes).
+  // La FICHA EJECUTIVA real de cliente (owner 2026-08-07: "no debe ir mezclada con lo que ya teníamos, debe ser
+  // su propia pestaña") vive en su PROPIA cara de la Mesa (MesaFichaCara, ver el selector "Ficha" del
+  // encabezado) — acá, dentro del Cuadro de Mando, la selección de fila sigue mostrando SOLO el perfil genérico
+  // vs-promedio (mismo comportamiento para cliente/marca/familia/SKU, sin mezclar vistas).
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
@@ -3980,7 +4021,6 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, scenario, onAsk
           </button>
         ) : null}
       </div>
-      {dim === "cliente" && <FichaEjecutivaCliente name={name} scenario={scenario} onAsk={onAsk}/>}
       {/* PASE 1c: el comparado (ex FichaEvolutivo) subió ARRIBA de la tabla (owner) — la ficha queda perfil + composición */}
       <MesaPerfil name={name} row={row} columns={columns} allRows={allRows} dim={dim} onAsk={onAsk}/>
     </div>
