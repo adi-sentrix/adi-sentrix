@@ -73,6 +73,23 @@ export const TOOL_CONTRACTS = {
     inputsObligatorios: ["dimension", "entity"], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: false, escribeEntityList: true,
   },
+  // entityComposicion · cómo se compone la compra de UN cliente por familia (venta/contribución/margen). Nunca
+  // multi por el mismo motivo que entityProfile — es SOLO eje cliente (marca/familia/SKU no tienen "de qué se
+  // compone" en este sentido, ver composeSpecComposicion en specRetrieval.js).
+  entityComposicion: {
+    dimensionesSoportadas: ["cliente"],
+    entidad: "single", aceptaEntidadPuntual: true, multiCardinality: null,
+    inputsObligatorios: ["dimension", "entity"], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: true,
+  },
+  // entityCapitalLigado · capital detenido cruzado contra el mix de UN cliente (SKU/bodega/valorizado/unidades/
+  // días sin venta). Solo eje cliente, misma razón que entityComposicion.
+  entityCapitalLigado: {
+    dimensionesSoportadas: ["cliente"],
+    entidad: "single", aceptaEntidadPuntual: true, multiCardinality: null,
+    inputsObligatorios: ["dimension", "entity"], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: true,
+  },
   // gridTable · LA GRILLA: top-N de un eje × todas sus columnas. Etapa 2: entityScope generalizado (buildGrid,
   // entityRecord.js) — "de esos clientes, armame la tabla" ahora filtra las filas al subconjunto ANTES de rankear/
   // recortar a `limit`, en vez de traer el top-N del eje entero.

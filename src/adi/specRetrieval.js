@@ -19,6 +19,7 @@ import { detectVirtuousException } from "./proactive.js";   // gancho opcional d
 import { deriveBusinessThesis } from "./composers/thesis.js";
 import { skusMargen as _skusM } from "../data/skusMargen.js";   // SKU: venta+unidades (sin anterior/ppto)
 import { ventasKPI as _vKPI } from "../data/baseKpis.js";       // totales de cartera (100K vs 92.9K vs 97K)
+import { composicionCliente, composicionClientePorFamilia } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (la MISMA que usa el Pareto de Sentrix — cierra exacto con el cuadro)
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -182,6 +183,88 @@ export function composeSpecDive({ dimension, entity, scenario }) {
   // BOLETA (primera clase): cada métrica del perfil es una cifra autorizada · value == fmt del texto (una sola verdad)
   const bol = metrics.map((mm) => fig(`${entity} · ${mm.label}`, mm.fmt, { unit: mm.unit, raw: mm.value, context: `${entity} (${ent.label.sing})` }));
   return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro", metrics, boleta: bol } };
+}
+
+// composeSpecComposicion({dimension, entity}) → cómo se compone la venta/contribución/margen de UN cliente por
+// familia (owner 2026-08-07, "familias que más compran... coloca todos los datos, ADI muestra el resolutivo"):
+// reusa la MISMA matriz cliente×SKU de Sentrix (composicionClientePorFamilia, clienteSkuMatrix.js — cierra
+// exacto con el cuadro) para que el narrador nombre la familia con más peso Y su margen — el ingrediente que le
+// faltaba al mecanismo agregado (carga/rebate) para explicar DÓNDE pesa la brecha. SOLO eje cliente — marca/
+// familia/SKU no tienen "de qué se compone" en este sentido. LÍMITE HONESTO: la matriz cliente×SKU no varía por
+// escenario (bonanza/tensión/crisis) — es la MISMA base que ya muestra el Pareto de Sentrix en cualquier
+// escenario (limitación heredada del dato de demo, no nueva de esta función).
+export function composeSpecComposicion({ dimension, entity }) {
+  if (dimension !== "cliente" || !entity) return null;
+  const porVenta = composicionClientePorFamilia(entity, "ventas");
+  const porContrib = composicionClientePorFamilia(entity, "contribucion");
+  if (!porVenta || !porVenta.length) return null;
+  const totalV = porVenta.reduce((s, r) => s + r.value, 0);
+  const familias = porVenta.map((f) => {
+    const c = porContrib.find((x) => x.name === f.name);
+    const contribucion = c ? c.value : 0;
+    return { nombre: f.name, venta: f.value, contribucion, margen: f.value ? Math.round((contribucion / f.value) * 1000) / 10 : null, share: totalV ? Math.round((f.value / totalV) * 1000) / 10 : null };
+  }).sort((a, b) => b.venta - a.venta);
+  const lines = familias.map((f) => `${f.nombre}: ${f.share}% de su venta, margen ${f.margen}%`);
+  const opener = `Cómo se compone la compra de ${entity} por familia (venta/contribución/margen):\n\n${lines.join(" · ")}`;
+  // BOLETA LIVIANA (owner 2026-08-07, hallazgo en vivo: con las ~50 cifras de un perfil completo — entityProfile+
+  // trend+composición+capital — el narrador a veces degrada a volcar TODA la boleta en una tabla cruda, sin prosa):
+  // el detalle completo (venta/contribución/margen) SOLO para la familia dominante (la que importa para el
+  // hallazgo del mix, ver la doctrina de arriba) — el resto de familias autorizan solo su participación, liviano
+  // pero suficiente si el narrador necesita citarlas.
+  const bol = [];
+  familias.forEach((f, i) => {
+    bol.push(fig(`${entity} · ${f.nombre} · participación`, `${f.share}%`, { unit: "pct", raw: f.share, context: `composición de ${entity} por familia`, mandatory: i === 0 }));
+    if (i === 0) {
+      bol.push(fig(`${entity} · ${f.nombre} · venta`, _fmt(f.venta, "money", "K"), { unit: "money", raw: f.venta * 1000, context: `composición de ${entity} por familia` }));
+      bol.push(fig(`${entity} · ${f.nombre} · contribución`, _fmt(f.contribucion, "money", "K"), { unit: "money", raw: f.contribucion * 1000, context: `composición de ${entity} por familia` }));
+      bol.push(fig(`${entity} · ${f.nombre} · margen`, `${f.margen}%`, { unit: "pct", raw: f.margen, context: `composición de ${entity} por familia`, mandatory: true }));
+    }
+  });
+  return {
+    opener, suggestions: null, sentrixAction: null,
+    evidence: { entidad: entity, entityType: "cliente", dimension: "cliente", lens: "cuadro", composicion: { familias }, boleta: bol },
+  };
+}
+
+// composeSpecClientCapital({dimension, entity, scenario}) → capital detenido, CRUZADO contra los SKU que compra
+// el cliente (owner 2026-08-07, "capital ligado a su mix... deberían aparecer el valorizado y unidades, incluso
+// la bodega"): MISMO criterio de "detenido" que el detector de capital (rotación bajo tu mínimo o cobertura
+// sobre tu máximo, POLICY — una sola vara para todo ADI), acotado al surtido REAL de este cliente
+// (composicionCliente, la misma matriz que ya cierra exacto con Sentrix). No invoca el detector comercial (a
+// diferencia de composeSpecDiagnose con entityScope de SKU, que sin querer corre el foco comercial SIN acotar —
+// un scope de SKU no intersecta filas por cliente — así que este composer recalcula el criterio de capital
+// directo, sin ese efecto secundario). Null si ningún SKU de su mix está detenido (honesto, nada que reportar).
+export function composeSpecClientCapital({ dimension, entity, scenario }) {
+  if (dimension !== "cliente" || !entity) return null;
+  const skuRows = composicionCliente(entity, "ventas");
+  if (!skuRows || !skuRows.length) return null;
+  const skuSet = new Set(skuRows.map((r) => r.name));
+  const kSF = _sf("capital", "sku"), rSF = _sf("rotacion", "sku"), dSF = _sf("doh", "sku");
+  if (!kSF || !rSF || !dSF) return null;
+  const src = SOURCES[kSF.source]; if (!src) return null;
+  const rows = _load(kSF.source, scenario).filter((r) => skuSet.has(r[src.keyField]));
+  const items = [];
+  for (const r of rows) {
+    const cap = r[kSF.field], rot = r[rSF.field], doh = r[dSF.field]; if (typeof cap !== "number") continue;
+    const dormido = (typeof rot === "number" && rot < POLICY.rotacionMin) || (typeof doh === "number" && doh > POLICY.dohMax);
+    if (!dormido) continue;
+    items.push({ sku: r[src.keyField], usd: cap, bodega: r.bodega, unidades: r.stockUnd, diasSinVenta: r.diasSinVenta, critico: r.alerta === "crit" });
+  }
+  if (!items.length) return null;
+  items.sort((a, b) => b.usd - a.usd);
+  const subtotal = items.reduce((s, it) => s + it.usd, 0);
+  const lines = items.map((it) => `${it.sku} (${it.bodega}): ${_money(it.usd)}${typeof it.unidades === "number" ? `, ${it.unidades} unidades` : ""}${typeof it.diasSinVenta === "number" ? `, ${it.diasSinVenta}d sin venta` : ""}${it.critico ? " · crítico" : ""}`);
+  const opener = `De los productos que le vendés a ${entity}, ${items.length} ${items.length === 1 ? "está" : "están"} con capital detenido en tu inventario (${_money(subtotal)} entre ${items.length === 1 ? "ese" : "todos"}):\n\n${lines.join("\n")}`;
+  const bol = [fig(`${entity} · capital detenido en su mix · subtotal`, _money(subtotal), { unit: "money", raw: subtotal, mandatory: true, context: `capital detenido en SKU que compra ${entity} — es inventario, no plata de ${entity}` })];
+  items.forEach((it) => {
+    bol.push(fig(`${it.sku} · capital detenido`, _money(it.usd), { unit: "money", raw: it.usd, context: `en el mix de ${entity}` }));
+    if (typeof it.unidades === "number") bol.push(fig(`${it.sku} · unidades detenidas`, `${it.unidades}`, { unit: "unit", raw: it.unidades, context: `en el mix de ${entity}` }));
+    if (typeof it.diasSinVenta === "number") bol.push(fig(`${it.sku} · días sin venta`, `${it.diasSinVenta}d`, { unit: "days", raw: it.diasSinVenta, context: `en el mix de ${entity}` }));
+  });
+  return {
+    opener, suggestions: null, sentrixAction: null,
+    evidence: { entidad: entity, entityType: "cliente", dimension: "cliente", lens: "cuadro", capitalLigado: { subtotal, items }, boleta: bol },
+  };
 }
 
 // comparePairs(dimension, entities, scenario) → pairs A vs B (métrica por métrica) + participación (share de ventas) para

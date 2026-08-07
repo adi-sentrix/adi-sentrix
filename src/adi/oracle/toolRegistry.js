@@ -16,6 +16,7 @@ import {
   composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecDiagnose,
   composeSpecResumenEjecutivo, composeSpecInventory, composeSpecMargin, composeSpecVentas,
   composeSpecContribucion, composeSpecSimulate, composeSpecSimulateCarga, composeSpecSimulateCapital, composeSpecSimulateCosto,
+  composeSpecComposicion, composeSpecClientCapital,
 } from "../specRetrieval.js";
 import { CONCEPT_DEFS, matchConcept } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo")
 import { fig } from "../boleta.js";                                    // cifra autorizada (para inyectar el benchmark en el perfil)
@@ -134,6 +135,42 @@ function entityProfile({ dimension, entity, scenario } = {}) {
     }
   }
   return r;
+}
+
+// entityComposicion · CÓMO SE COMPONE la compra de UN cliente por familia — venta/contribución/margen (owner
+// 2026-08-07, "familias que más compran, productos — ese es el juego de Sentrix, ADI muestra el resolutivo"):
+// reusa la MISMA matriz cliente×SKU del Pareto de Sentrix. Solo eje cliente.
+// BRECHA por familia, TODAS (owner 2026-08-07, hallazgo en vivo — _probe_guardc_diag.mjs): sin esto, el
+// narrador RESTA benchmark−margen por su cuenta para la tabla ("Brecha" por familia, la instrucción FORMATO
+// "TABLA DE MARGEN: sumá SIEMPRE una columna Brecha" de narratePromptC.js dispara sobre esta tabla también) —
+// una resta de 2 cifras autorizadas que en teoría el guard permite, pero en la práctica guardC la rechazó
+// (cifra-no-autorizada) porque el benchmark autorizado no está atado a NINGUNA familia — el turno completo
+// degradaba a la tabla cruda de composeFromLedger. Autorizar solo la de la familia top no alcanzó: el narrador
+// arma la tabla de las 4 familias igual (la instrucción FORMATO es "siempre", no "si podés") — así que se
+// autorizan las 4, mismo patrón que entityProfile (arriba): el motor calcula la brecha, no el LLM.
+function entityComposicion({ dimension, entity } = {}) {
+  const r = _pack(composeSpecComposicion({ dimension, entity }), `no tengo composición por familia para '${entity}' en el eje '${dimension}'`);
+  if (r.coverage && r.coverage.supported && r.facts.composicion && Array.isArray(r.facts.composicion.familias) && r.facts.composicion.familias.length) {
+    const rawRec = rawRecordFor(dimension, entity);
+    const bench = benchmarkOf(rawRec);
+    if (typeof bench === "number" && isFinite(bench)) {
+      r.facts = { ...r.facts, benchmarkMargen: `${bench}%` };
+      r.boleta = [...r.boleta, fig("Benchmark de margen", `${bench}%`, { unit: "pct", context: "la vara" })];
+      r.facts.composicion.familias.forEach((f, i) => {
+        if (typeof f.margen !== "number") return;
+        const gap = Math.round((bench - f.margen) * 10) / 10;
+        r.boleta.push(fig(`${entity} · ${f.nombre} · brecha`, `${gap}pp`, { unit: "pp", raw: gap, context: `composición de ${entity} por familia — benchmark − margen de ${f.nombre}`, mandatory: i === 0 }));
+      });
+    }
+  }
+  return r;
+}
+
+// entityCapitalLigado · capital detenido CRUZADO contra el mix del cliente (owner 2026-08-07, "capital ligado a
+// su mix — deberían aparecer el valorizado y unidades, incluso la bodega"): mismo criterio de "detenido" del
+// detector de capital, acotado a los SKU que este cliente compra. Solo eje cliente.
+function entityCapitalLigado({ dimension, entity, scenario } = {}) {
+  return _pack(composeSpecClientCapital({ dimension, entity, scenario }), `${entity} no tiene capital detenido en su mix`);
 }
 
 // entityRecord · LA FILA COMPLETA de una entidad: TODAS sus columnas reales del dato (unidades, valor de inventario,
@@ -544,6 +581,7 @@ export const TOOLS = {
   queryMetric, entityProfile, entityRecord, gridTable, tensionRead, compareEntities, diagnose, executiveSummary,
   inventoryStatus, marginRead, salesRead, contributionRead, trend,
   simulate, simulateCarga, simulateCapital, simulateCosto, simulateGeneral, defineConcept,
+  entityComposicion, entityCapitalLigado,
 };
 
 // toolNames() → los nombres registrados (base del catálogo que verá el LLM en la Pasada 1 · Fase 3).

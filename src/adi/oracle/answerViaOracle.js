@@ -932,7 +932,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       plan = { ...plan, calls: multiScope.calls };
     }
   }
-  // ── LECTURA EJECUTIVA · perfil/avance/estado/resumen de UNA entidad (owner 2026-08-06) ── backstop
+  // ── LECTURA EJECUTIVA · perfil/avance/estado/resumen de UNA entidad (owner 2026-08-06/07) ── backstop
   // DETERMINÍSTICO, mismo principio que el resto de _coerce*/bypasses de este archivo: planPrompt.js
   // (entityProfile) YA pide sumar trend{dimension,entity} sin period cuando el usuario pide EXPLÍCITAMENTE el
   // perfil de una entidad — medido en vivo (_probe_perfil_ejecutivo_live.mjs, 2/2 corridas) que el LLM no lo
@@ -941,13 +941,25 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // una entidad pero no trae trend de esa MISMA entidad, se agrega acá — mismo dimension/entity que
   // entityProfile YA resolvió (nunca adivina un eje nuevo), sin period (la foto completa del año: mejor/peor
   // mes + variación, lo que a la lectura ejecutiva le faltaba).
+  // COMPOSICIÓN + CAPITAL LIGADO (owner 2026-08-07, "familias que más compran, productos... capital ligado a su
+  // mix"): SOLO eje cliente (entityComposicion/entityCapitalLigado no soportan otro eje, ver specRetrieval.js) —
+  // mismo criterio "agregá lo que falta, sin pisar lo que el plan ya trajo" que trend arriba.
   if (_WANTS_PERFIL_RE.test(String(q || "")) && Array.isArray(plan.calls)) {
     const epCall = plan.calls.find((c) => c && c.tool === "entityProfile");
     const dimension = epCall && (epCall.dimension || (epCall.args && epCall.args.dimension));
     const entity = epCall && (epCall.entity || (epCall.args && epCall.args.entity));
-    const hasTrend = plan.calls.some((c) => c && c.tool === "trend" && (c.entity || (c.args && c.args.entity)) === entity);
-    if (epCall && entity && !hasTrend && plan.calls.length < maxCalls) {
-      plan = { ...plan, calls: [...plan.calls, { tool: "trend", args: { dimension: dimension || "cliente", entity } }] };
+    if (epCall && entity) {
+      let extra = [];
+      const hasTrend = plan.calls.some((c) => c && c.tool === "trend" && (c.entity || (c.args && c.args.entity)) === entity);
+      if (!hasTrend) extra.push({ tool: "trend", args: { dimension: dimension || "cliente", entity } });
+      if (dimension === "cliente" || !dimension) {
+        const hasComposicion = plan.calls.some((c) => c && c.tool === "entityComposicion" && (c.entity || (c.args && c.args.entity)) === entity);
+        if (!hasComposicion) extra.push({ tool: "entityComposicion", args: { dimension: "cliente", entity } });
+        const hasCapitalLigado = plan.calls.some((c) => c && c.tool === "entityCapitalLigado" && (c.entity || (c.args && c.args.entity)) === entity);
+        if (!hasCapitalLigado) extra.push({ tool: "entityCapitalLigado", args: { dimension: "cliente", entity } });
+      }
+      const room = Math.max(0, maxCalls - plan.calls.length);
+      if (room > 0 && extra.length) plan = { ...plan, calls: [...plan.calls, ...extra.slice(0, room)] };
     }
   }
   const calls = plan.calls;
