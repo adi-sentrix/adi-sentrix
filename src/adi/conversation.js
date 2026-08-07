@@ -23,6 +23,7 @@ import { tenantPolicyDefault } from "../config/businessPolicy.js";   // F2 multi
 import { composePnl, activePnl, clearPnl, pnlExplain, pnlRecommend } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2 · seguidores P&L-aware (pase 2)
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
 import { CONCEPT_DEFS } from "./sentrix/glossary.js";   // NATURALIDAD (owner 2026-07-27): definiciones de conceptos del negocio (composeDefine)
+import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: la capa conversacional sale con la MISMA forma que el resto
 
 // ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
 // con una pregunta-oferta ("¿empezamos con el análisis de costos?"). Esa pregunta es una PROMESA: se captura acá
@@ -699,5 +700,9 @@ export function answerConversational(spec, context = {}, state = {}) {
   if (spec && spec._enumerate && last && last.entityList && Array.isArray(last.entityList.entities) && last.entityList.entities.length) {
     tt = "followup_enumerate";
   }
-  return resolveTurn(tt, spec, { ...context, last }, state);
+  // normalizeResponse (Contrato v2 · Fase 4): TODOS los composers de este archivo (clarify/define/explain/meta/
+  // compare/multi/criteria/enumerate) devuelven su objeto inline, cada uno con su propia forma. Normalizar en el
+  // DESPACHO — el único punto por el que pasan todos — le da a la capa conversacional la misma forma que el
+  // oráculo, el legacy y el P&L, sin tocar 25 sitios.
+  return normalizeResponse(resolveTurn(tt, spec, { ...context, last }, state));
 }

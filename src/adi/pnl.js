@@ -45,6 +45,7 @@ import { METRICS } from "../config/contract/metricRegistry.js";
 import { SOURCES } from "../config/contract/sourceManifest.js";
 import { detectMultiAnalysis } from "./multiFocus.js";   // pase 2c: una enumeración de lentes es del MULTI, no del P&L
 import { composeSpecDiagnose } from "./specRetrieval.js";   // sello del contrato: los DETECTORES (carga/margen) puentean el porqué de negocio — los mismos de la Mesa (una verdad)
+import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: el P&L sale con la MISMA forma que el oráculo y el legacy
 
 // ── formato (misma escala que mesa.js: dato comercial en $K → $) ─────────────────────────────────────────────
 const _r1 = (n) => Math.round(n * 10) / 10;
@@ -736,8 +737,11 @@ function _evidence(extraBol = [], ev = null, guia = false) {
   // shouldNarrate SIN tocar numberGuard.js; el ECO verbatim queda kind criteria por diseño.
   return ev ? { ...base, followup: false, pnl: true, ...ev } : base;
 }
+// normalizeResponse (Contrato v2 · Fase 4): el P&L es el ÚNICO constructor de respuesta de este archivo, así que
+// normalizar acá alcanza para que TODA salida de P&L tenga la misma forma que el oráculo y el legacy. `intent` y
+// `context` (que P&L nunca produjo) quedan en null explícito en vez de ausentes.
 const _resp = (text, { route = "pnl_setup", suggestions = null, bol = [], ev = null, guia = false } = {}) =>
-  ({ text, suggestions, sentrixAction: null, evidence: _evidence(bol, ev, guia), route });
+  normalizeResponse({ text, suggestions, sentrixAction: null, evidence: _evidence(bol, ev, guia), route });
 const _gPct = (v, label = "Supuesto %") => fig(label, `${_fmtPct(v)}%`, { unit: "pct", raw: _r1(v), source: "computed", gancho: true, context: "P&L comercial" });
 const _fMoneyK = (label, vK, { mandatory = false, gancho = false } = {}) =>
   fig(label, _moneyK(vK), { unit: "money", raw: vK * 1000, mandatory, source: "computed", gancho, context: "P&L comercial" });

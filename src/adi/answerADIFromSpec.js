@@ -24,6 +24,7 @@ import { composeSpecRetrieval, composeSpecDive, composeSpecCompare, composeSpecD
 import { composeSpecTemporal } from "./composers/temporalTable.js";   // TIEMPO (mejora 7 · 2026-07-26) · mes a mes / rangos · historia + tabla_matriz (misma serie del evolutivo)
 import { composeContract } from "./contracts/contractCloser.js";   // Fase 1 · capa de contratos de respuesta (envuelve el productor · aditiva · el motor sellado NO la importa → 16/0 intacto)
 import { boletaFromText, ensureBoletaCoversText } from "./boleta.js";   // increment 2 · boleta para rutas del MOTOR + cobertura del texto final (flag-independiente)
+import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: el seam de spec sale con la MISMA forma que el resto
 
 // _finBoleta · como _finalize pero adjunta evidence.boleta que CUBRE el texto final, INDEPENDIENTE de flags.
 // Necesario porque _finalize surfacea `evidence` solo con ADI_SENTRIX_BOLETA_ENABLED (colisión con la boleta-Sentrix del panel);
@@ -78,7 +79,7 @@ const _cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 // ── constructores de respuesta · MISMA forma que _finalize (la UI no distingue el origen) ──
 function _plain(text, { route, intent, ctx, offer }) {
   const sug = (offer && offer.length) ? offer.map(_offerLabel) : null;
-  return {
+  return normalizeResponse({   // misma forma que el oráculo y el legacy (Contrato v2 · Fase 4)
     text,
     suggestions: sug,
     sentrixAction: null,
@@ -86,7 +87,7 @@ function _plain(text, { route, intent, ctx, offer }) {
     route: route || "spec",
     context: { ...(ctx || {}), turnCount: ((ctx && ctx.turnCount) || 0) + 1 },
     evidence: null,
-  };
+  });
 }
 // degrada HONESTO: nunca inventa · declara el límite y ofrece lo disponible (se adueña).
 function _degrade(kind, text, offer, ctx) {

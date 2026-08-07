@@ -18,6 +18,7 @@ import { composeBrandDive } from "./composers/brand.js";
 import { composeWarehouseComparison, composeWarehouseAnalysis } from "./composers/warehouse.js";
 import { composeClientComparison, composeBrandComparison } from "./composers/comparisons.js";
 import { executiveLanguageDetector, queryInterpreter, composeRetrieval, QI_METRIC_VOCAB, QI_DIMENSION_VOCAB } from "./composers/qiRetrieval.js";
+import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: legacy sale con la MISMA forma que el oráculo
 import { resolveDimensionalSuperlative, resolveFilteredRetrieval, resolveInventoryRetrieval } from "./core/spine.js";  // ADI Core · Fase 2.1a/b · spine · 2.5a inventario
 import { isAvailable, unavailableMessage } from "./core/availabilityMap.js";  // ADI Core · Fase 2.2a · anti-fuga · guardrail de continuación (R4 + MODE 2)
 import { detectAnomalyIntent, detectOpportunityIntent, detectExplorationIntent } from "./composers/d0Cascade.js";
@@ -119,7 +120,10 @@ export function _finalize(resp, route, intentLabel, ctx, scenario, intent) {   /
   if (ADI_CTX_THREADING_ENABLED) {
     _threadContext(nextCtx, intent, resp, route);
   }
-  return {
+  // normalizeResponse (Contrato v2 · Fase 4): la ruta legacy sale con la MISMA forma que el oráculo — 8 claves
+  // siempre presentes + las coerciones de suggestions/sentrixAction. No cambia ninguna decisión: solo garantiza
+  // la forma que hoy cada consumidor tenía que adivinar (ver responseContract.js).
+  return normalizeResponse({
     text,
     suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
     sentrixAction: _gateInvCTA(resp.sentrixAction),
@@ -129,7 +133,7 @@ export function _finalize(resp, route, intentLabel, ctx, scenario, intent) {   /
     // Etapa 5 · Sentrix S1 · boleta UNIFORME en TODA respuesta comercial (cierra el gap: _finalize no surfaceaba
     // evidence). Flag OFF → sin campo (byte-exacto). Normaliza ranking_*/intent → entidad/métrica + availability.
     ...(ADI_SENTRIX_BOLETA_ENABLED ? { evidence: buildSentrixBoleta(resp, intent, route, scenario, ctx) } : {}),
-  };
+  });
 }
 
 // ── _threadContext · escribe memoria de entidad/módulo/lista en nextCtx (Fase 0 · raíz multi-turno) ──
@@ -230,7 +234,7 @@ function _threadContext(nextCtx, intent, resp, route) {
 }
 
 // wrap plano · sin ECL/suffix (rutas que en el piso corren ANTES del punto de suffix · ej. inversa)
-const _plainWrap = (resp, route, ctx) => ({
+const _plainWrap = (resp, route, ctx) => normalizeResponse({
   text: resp.opener,
   suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
   sentrixAction: _gateInvCTA(resp.sentrixAction),   // Cabo 2 · 3er punto de salida (hoy null/comercial · futuro-seguro)
@@ -244,7 +248,7 @@ const _plainWrap = (resp, route, ctx) => ({
   // turno por construcción. Flag OFF → no toca el contexto (byte-exacto).
   context: { ...ctx, turnCount: (ctx.turnCount || 0) + 1,
     ...(ADI_MT_SPINE_FOLLOWUP_ENABLED ? { pendingSpineDecision: resp._pending ? { ...resp._pending, turn: (ctx.turnCount || 0) + 1 } : null } : {}) },
-});
+});   // normalizeResponse: misma forma que el oráculo (Contrato v2 · Fase 4)
 
 // ── ADI Core · MURO DE INVENTARIO · toda pregunta de inventario/capital por el chat → AVISAR Fase 2.5 ──
 // Detecta inventario por 3 vías SIN aflojar los discriminadores:
@@ -306,14 +310,14 @@ const _fallbackWrap = (resp, route, intentLabel, ctx, scenario) => {
     const sfx = virtuousExceptionSuffix(scenario);
     if (sfx) { text = text + "\n\n" + sfx; nextCtx.observationEmittedScenario = scenario; }
   }
-  return {
+  return normalizeResponse({   // misma forma que el oráculo (Contrato v2 · Fase 4)
     text,
     suggestions: (resp.suggestions && resp.suggestions.length) ? resp.suggestions : null,
     sentrixAction: _gateInvCTA(resp.sentrixAction),
     intent: intentLabel,
     route,
     context: nextCtx,
-  };
+  });
 };
 
 // Dispatch de la cascada de PanelADI · intent.type → composer (rama por rama). Todas con _finalize.

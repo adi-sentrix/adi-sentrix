@@ -17,7 +17,7 @@ import { gradeIndicatedClaims } from "./src/adi/oracle/narratePromptC.js";
 import {
   RESPONSE_KEYS, normalizeResponse, normalizeSuggestions, normalizeSentrixAction,
   assertResponseContract, deriveMemoriaLegacy, projectClaims,
-} from "./src/adi/oracle/responseContract.js";
+} from "./src/adi/responseContract.js";
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
