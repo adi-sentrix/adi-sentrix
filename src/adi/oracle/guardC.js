@@ -176,6 +176,119 @@ function _attributionViolations(narration, ledger, entityNames) {
   return viol;
 }
 
+// ── BINDING SEMÁNTICO · CONTRATO v2 · FASE 2 (owner 2026-08-07) ────────────────────────────────────────────────
+// EL HUECO QUE CIERRA: el canon del guard es `unit:value` — NO incluye la etiqueta. Una cifra REAL y autorizada
+// narrada bajo OTRA métrica pasaba el chequeo 1 sin que nada la mirara: «$1.6M de contribución no capturada»
+// contado como «$1.6M en ventas» matchea el canon money:$1.6M y entra. El valor era verdad; la oración, mentira.
+// Es la clase de falla que esta sesión encontró tres veces (superlativo de familia, capital atribuido al cliente,
+// exceso de acciones comerciales presentado como la brecha total) — ninguna la detectó el muro numérico.
+//
+// VOCABULARIO DECLARADO, no adivinanza: solo se juzgan las métricas del negocio que el contrato conoce. Si una
+// etiqueta no cae en ninguna, la cifra simplemente no se juzga por métrica (nunca se inventa un conflicto).
+// Las formas verbales importan: "vende $19.4M" es la MISMA métrica que "Ventas" — sin eso, la lectura más común
+// del producto ("X vende $N, con margen M%") se marcaría sola.
+const _METRIC_VOCAB = [
+  { clave: "ventas",       re: /\bventas?\b|\bvend[eióa]\w*\b|\bfactur\w+\b/i },
+  { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b/i },
+  { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
+  { clave: "costo",        re: /\bcostos?\b/i },
+  { clave: "carga",        re: /\bcarga comercial\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
+  { clave: "capital",      re: /\bcapital\b|\binventario\b/i },
+  { clave: "rotacion",     re: /\brotaci[oó]n\b/i },
+  { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b/i },
+  { clave: "unidades",     re: /\bunidades\b/i },
+  { clave: "ticket",       re: /\bticket\b/i },
+];
+function _metricasEn(texto) {
+  const s = String(texto || "");
+  const out = new Set();
+  for (const m of _METRIC_VOCAB) if (m.re.test(s)) out.add(m.clave);
+  return out;
+}
+// _maskFigures(text) → copia de la MISMA longitud con cada cifra reemplazada por "#" (sin puntos ni signos), para
+// que el cálculo de límites de oración no confunda un punto decimal con un fin de oración. Solo se usa para medir
+// posiciones — el contenido siempre se lee del texto original.
+function _maskFigures(text) {
+  const s = String(text || "");
+  let out = s;
+  for (const f of parseFigures(s)) {
+    let from = 0, i;
+    while ((i = out.indexOf(f.text, from)) >= 0) {
+      out = out.slice(0, i) + "#".repeat(f.text.length) + out.slice(i + f.text.length);
+      from = i + f.text.length;
+    }
+  }
+  return out;
+}
+// canon → Set(métrica) que lo autoriza, leído del LABEL de cada fig (la etiqueta es el dueño semántico del valor).
+function _metricOwners(ledger) {
+  const owners = new Map();
+  for (const f of (ledger.figs || [])) {
+    const ms = _metricasEn(f.label);
+    if (!ms.size) continue;
+    if (!owners.has(f.canon)) owners.set(f.canon, new Set());
+    for (const m of ms) owners.get(f.canon).add(m);
+  }
+  return owners;
+}
+// _metricBindingViolations(narration, ledger) → cifra real colgada de la métrica equivocada.
+// CRITERIO NÍTIDO (mismo principio que _attributionViolations, para no castigar prosa legítima): solo marca cuando
+// en la ventana local de la cifra hay UNA sola métrica reconocida y NO es de las que autorizan ese valor. Si hay
+// dos o más (una lectura que cruza métricas en la misma oración) es ambiguo → no se marca. Falso negativo antes
+// que falso positivo: un bloqueo de más degrada respuestas correctas, que es exactamente lo que este muro evita.
+function _metricBindingViolations(narration, ledger) {
+  const owners = _metricOwners(ledger);
+  if (!owners.size) return [];
+  const text = String(narration || "");
+  const viol = [];
+  for (const f of parseFigures(text)) {
+    const ownerSet = owners.get(f.canon);
+    if (!ownerSet || !ownerSet.size) continue;      // valor sin métrica dueña → no se juzga
+    const idx = text.indexOf(f.text);
+    if (idx < 0) continue;
+    // LÍMITES DE ORACIÓN SOBRE EL TEXTO ENMASCARADO: `_SENT_END` incluye "." y el punto DECIMAL de una cifra
+    // ("$4.3M", "$17.8M") cortaba la ventana en falso — hacia adelante dejaba afuera la métrica que sigue, y
+    // hacia atrás dejaba afuera el verbo de la cifra anterior ("A vende $19.4M y B $17.8M" perdía "vende" y
+    // marcaba $17.8M como "margen"). Dos falsos cazados por el gate de aceptación. Se calculan los límites sobre
+    // una copia con las cifras enmascaradas (misma longitud, sin puntos) y se LEE del texto original.
+    const masked = _maskFigures(text);
+    const [lo] = _localWindow(masked, idx, 60);
+    const end = idx + f.text.length;
+    const hi0 = Math.min(masked.length, end + 60);
+    const cut = masked.slice(end, hi0).search(_SENT_END);
+    const hi = cut >= 0 ? end + cut : hi0;
+    const cerca = _metricasEn(text.slice(lo, hi));
+    if (cerca.size !== 1) continue;                 // 0 → sin señal · 2+ → ambiguo, no se juzga
+    const unica = [...cerca][0];
+    if (!ownerSet.has(unica)) viol.push(`«${f.text}» narrado como ${unica}, pero pertenece a ${[...ownerSet].join("/")}`);
+  }
+  return viol;
+}
+
+// ── PERÍODO CONTRADICTORIO · CONTRATO v2 · FASE 2 ──────────────────────────────────────────────────────────────
+// ensurePeriodoDeclared (más arriba) solo AGREGA la cláusula canónica si falta — nunca valida. Una narración que
+// afirma "en el primer trimestre" sobre un dato de año cerrado recibía "(Datos del año cerrado.)" pegado al lado:
+// dos períodos contradictorios conviviendo en la misma respuesta, y pasaba. Acá se BLOQUEA la contradicción.
+// Acotado a AFIRMACIONES DE ALCANCE TEMPORAL, no a menciones de meses: "el mejor mes es Dic" describe un punto
+// DENTRO del período sellado y es legítimo; "en el primer trimestre" re-declara el alcance y no lo es.
+const _PERIODO_CONTRADICE_ANUAL = [
+  /\b(?:en|durante|para)\s+(?:el\s+)?(?:primer|segundo|tercer|cuarto)\s+(?:trimestre|semestre)\b/i,
+  /\b(?:en|durante|para)\s+(?:el\s+)?Q[1-4]\b/i,
+  /\ben lo que va del a[nñ]o\b/i,
+  /\ba[nñ]o en curso\b/i,
+  /\b(?:en|durante)\s+(?:este|el\s+[uú]ltimo)\s+(?:mes|trimestre|semestre)\b/i,
+  /\b[uú]ltimos?\s+\d+\s+meses\b/i,
+];
+function _periodoContradictorio(narration, periodos) {
+  if (!Array.isArray(periodos) || !periodos.includes("anual")) return null;   // solo se juzga contra "año cerrado"
+  const text = String(narration || "");
+  for (const re of _PERIODO_CONTRADICE_ANUAL) {
+    const m = re.exec(text);
+    if (m) return `la narración afirma «${m[0].trim()}» pero el dato es del año cerrado`;
+  }
+  return null;
+}
+
 // ── TOTAL DEL NEGOCIO ATRIBUIDO A 1-2 ENTIDADES (owner 2026-07-28, segunda vuelta tras el gate de orden: "yo
 // pediría un guard determinístico que bloquee frases donde una cifra total aparece atribuida a una entidad
 // individual" — "recuperar $5.7M con Lider" cuando $5.7M es el total de 8 clientes, no de Lider solo). Reusa
@@ -851,14 +964,26 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // cual al usuario final. Tan grave como una cifra inventada — BLOQUEA.
   const placeholder = _placeholderSinRellenar(narration);
   if (placeholder) violations.push({ kind: "placeholder-sin-rellenar", detail: placeholder });
-  // (el período/fecha de corte — requisito 3 — NO bloquea acá: se GARANTIZA aparte vía ensurePeriodoDeclared,
-  // aplicado a la narración ANTES de llegar a este guard — ver comentario junto a esa función y answerViaOracle.js.)
+  // 9 · BINDING DE MÉTRICA (CONTRATO v2 · Fase 2, owner 2026-08-07) — cifra REAL narrada bajo la métrica
+  // equivocada. Hasta acá el canon `unit:value` no ataba la etiqueta, así que este error pasaba entero. BLOQUEA:
+  // el valor es verdad pero la afirmación es falsa, que para un asesor es igual de grave que inventar el número.
+  for (const v of _metricBindingViolations(narration, ledger)) violations.push({ kind: "metrica-mal-atribuida", detail: v });
+  // 10 · ATRIBUCIÓN DE ENTIDAD promovida de aviso a BLOQUEO (CONTRATO v2 · Fase 2). El cómputo es el MISMO que ya
+  // existía como advisory desde 2026-07-28 (criterio nítido: una sola entidad cerca, no es la dueña, y la dueña
+  // real no aparece en NINGUNA parte del texto) — no se amplía el criterio, solo se cambia la consecuencia. Ese
+  // criterio ya venía calibrado en producción justamente para no marcar prosa legítima.
+  for (const v of _attributionViolations(narration, ledger, entityNames)) violations.push({ kind: "entidad-mal-atribuida", detail: v });
+  // 11 · PERÍODO CONTRADICTORIO (CONTRATO v2 · Fase 2) — ensurePeriodoDeclared solo AGREGA la cláusula si falta;
+  // nunca validó. Una narración que afirma otro alcance temporal quedaba con dos períodos contradictorios. Acá
+  // BLOQUEA. Sigue SIN exigir que el narrador declare el período (eso disparaba ~33% de fallbacks, ver arriba):
+  // se juzga solo la contradicción explícita, nunca la omisión.
+  const periodoViol = _periodoContradictorio(narration, periodosEsperados(results));
+  if (periodoViol) violations.push({ kind: "periodo-contradictorio", detail: periodoViol });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
-  // atribución (general) y graduación se dejan a criterio del LLM + prompt (como Claude leyendo el Excel). Se
-  // REGISTRAN por si algún día se quieren mirar, pero NO tumban la respuesta (eran los que trababan de más).
+  // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
+  // de entidad DEJÓ de ser aviso: subió a bloqueo en el chequeo 10 de arriba.
   const advisories = [];
-  for (const v of _attributionViolations(narration, ledger, entityNames)) advisories.push({ kind: "atribucion", detail: v });
   const grad = _graduationViolation(narration, trace);
   if (grad) advisories.push({ kind: "graduacion", detail: grad });
   // mecanismo dominante vs acción (turno 9, AVISO — coherencia semántica, no cifra, ver comentario arriba)
