@@ -205,6 +205,39 @@ H("[9] CONSISTENCIA · una sola verdad con el cuadro");
   ok(R.cuadro === c || R.cuadro.rows.length === c.rows.length, "la tabla completa sigue disponible como evidencia opcional");
 }
 
+H("[9a] UNA SOLA VERDAD POR FILA · cada % cierra con sus propios montos (owner 2026-08-07)");
+{
+  // ⚠️ EL DEFECTO QUE ESTO SELLA, cazado por el owner en vivo: la tabla de clientes mostraba Sodimac con 5.1% de
+  // acciones comerciales y el bloque de abajo con 5.4%. Dos cifras del MISMO concepto — y eso, como dijo, destruye
+  // la confianza en todo lo demás. La causa estaba en el dato: `applyScenarioToClientesMargen` re-derivaba
+  // contribución y costo a la venta oficial pero dejaba `rebates` anclado a la venta vieja, así que
+  // `rebates/venta` nunca daba el `pctRebate` declarado. Desde acá, TODO % de una fila tiene que cerrar con sus
+  // propios montos, en los TRES escenarios: si vuelve a divergir, este gate lo caza antes que el owner.
+  for (const esc of ["bonanza", "actual", "crisis"]) {
+    const c = buildCuadroMando("cliente", esc);
+    const malCarga = c.rows.filter((r) => typeof r.carga === "number" && Math.abs((r.acciones / r.ventas) * 100 - r.carga) > 0.06);
+    const malMargen = c.rows.filter((r) => typeof r.margen === "number" && Math.abs((r.contribucion / r.ventas) * 100 - r.margen) > 0.06);
+    ok(malCarga.length === 0, `[${esc}] acciones ÷ venta === la carga declarada, en las ${c.rows.length} filas${malCarga.length ? ` — divergen: ${malCarga.map((r) => `${r.name} ${((r.acciones / r.ventas) * 100).toFixed(2)}% vs ${r.carga}%`).join(" · ")}` : ""}`);
+    ok(malMargen.length === 0, `[${esc}] contribución ÷ venta === el margen declarado, en las ${c.rows.length} filas`);
+    // …y el total no es otra cosa: es la suma de las filas
+    ok(Math.abs(c.rows.reduce((s, r) => s + (r.acciones || 0), 0) - c.total.acciones) < 1, `[${esc}] el total de acciones es la suma de las filas — ${c.total.acciones}K`);
+    ok(Math.abs((c.total.acciones / c.total.ventas) * 100 - c.rows.reduce((s, r) => s + r.acciones, 0) / c.rows.reduce((s, r) => s + r.ventas, 0) * 100) < 0.02,
+      `[${esc}] y el % del negocio sale de esos mismos montos — ${((c.total.acciones / c.total.ventas) * 100).toFixed(2)}%`);
+  }
+  // la vista consume UNA sola de esas cifras: el % que muestra la tabla de "quién sostiene" es el mismo que usa
+  // el bloque de acciones comerciales
+  const vCli = R.sostiene.vistas.find((v) => v.key === "cliente");
+  for (const f of vCli.filas) {
+    const row = R.rows.find((r) => r.name === f.nombre);
+    ok(Math.abs(f.carga - row.carga) < 0.06, `${f.nombre}: la tabla y el dato dicen la MISMA carga — ${f.cargaFmt} / ${row.carga}%`);
+  }
+  const acc = R.deterioro.margen.acciones;
+  for (const f of acc.referencias[0].filas) {
+    const enTabla = vCli.filas.find((x) => x.nombre === f.nombre);
+    ok(enTabla && Math.abs(enTabla.carga - f.carga) < 0.06, `${f.nombre}: el bloque de acciones y la tabla dicen lo MISMO — ${f.cargaFmt} / ${enTabla && enTabla.cargaFmt}`);
+  }
+}
+
 H("[9b] QUIÉN SOSTIENE EL NEGOCIO · el 80% de cada eje, con su fuente declarada (owner 2026-08-07)");
 {
   const S = R.sostiene;

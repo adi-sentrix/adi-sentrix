@@ -132,13 +132,22 @@ export function applyScenarioToClientesMargen(scenarioId, override) {
     const newMargen  = tc ? Math.max(6, +(c.margen + (tc.marginErosion || 0)).toFixed(1)) : c.margen;
     const newVenta   = ventaByName[c.nombre] ?? c.venta;
     const newContrib = Math.round(newVenta * (newMargen / 100));
+    const newPctReb  = tc ? Math.round((c.pctRebate + (tc.rebateDelta || 0)) * 10) / 10 : c.pctRebate;
+    // REBATES RE-DERIVADOS, igual que contribución y costo (owner 2026-08-07, defecto cazado en vivo: la tabla de
+    // clientes mostraba Sodimac con 5.1% de acciones comerciales y el bloque de abajo con 5.4% — dos cifras del
+    // MISMO concepto, y eso destruye la confianza en todo lo demás). La causa: `...c` dejaba pasar el `rebates`
+    // original, calculado sobre la venta PROPIA de clientesMargen, mientras `venta` ya era la oficial de
+    // clientesVentas. Así `rebates / venta` nunca daba el `pctRebate` declarado. Es la MISMA "reconciliación a
+    // medias" que el comentario de arriba describe para la contribución, sobre otra línea. Ahora el % declarado
+    // manda y el monto se recalcula sobre la venta oficial: `rebates / venta === pctRebate`, exacto, en toda fila.
     return {
       ...c,
       venta:        newVenta,
       costo:        newVenta - newContrib,
       contribucion: newContrib,
       margen:       newMargen,
-      pctRebate:    tc ? Math.round((c.pctRebate + (tc.rebateDelta || 0)) * 10) / 10 : c.pctRebate,
+      pctRebate:    newPctReb,
+      rebates:      Math.round(newVenta * (newPctReb / 100)),
     };
   }).sort((a,b) => b.contribucion - a.contribucion);
 }
