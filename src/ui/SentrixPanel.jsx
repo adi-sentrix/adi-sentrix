@@ -1443,15 +1443,15 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
             <ResumenEvolutivo ev={resumenC.evolutivo} onAsk={onAsk}/>
             <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
-            <ResumenComposicion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+            <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
-          <ResumenMovimiento num="02" title="Por qué está pasando"
-            def={"La cuenta de cómo se forma el margen y dónde queda la brecha contra tu benchmark, con el estatus de cada parte: lo probado (medido), lo indicado (localizado) y lo abierto (todavía sin respuesta en el dato). Acá se ve por qué el costo no se puede afirmar como causa: no está medido, sale por diferencia."}>
-            <ResumenMargen R={resumenC} onAsk={onAsk}/>
+          <ResumenMovimiento num="02" title="Dónde se deteriora el resultado"
+            def={"Los dos deterioros, cada uno contra una referencia declarada: la venta que no se alcanzó (contra tu presupuesto o contra el período comparable) y el margen que no se capturó (contra tu benchmark). Arriba, la cuenta de cómo se forma el margen, con el estatus de cada línea — ahí se ve por qué el costo no se puede afirmar como causa: no está medido, sale por diferencia."}>
+            <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           <ResumenMovimiento num="03" title="Qué hacer primero"
-            def={"Las cuentas del plano de decisión ordenadas por lo que combina monto material, deterioro contra tu referencia y evidencia disponible. Cada una lleva a su Ficha Ejecutiva, que es donde la explicación se demuestra cuenta por cuenta."}>
-            <ResumenInsights R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+            def={"Las cuentas cruzadas por los dos deterioros medidos. De ese cruce sale la prioridad — y el grupo que va primero es el peligroso: donde empujar volumen con descuento agrandaría la brecha en vez de cerrarla. Cada fila lleva a su Ficha Ejecutiva, que es donde la explicación se demuestra."}>
+            <ResumenPrioridades R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
         </>) : (
           // LIMITACIÓN DECLARADA, nunca relleno: sin filas de cliente en el período no hay veredicto que sostener.
@@ -1874,36 +1874,39 @@ function ResumenEvolutivo({ ev, onAsk }) {
   );
 }
 
-/* ── LA COMPOSICIÓN DEL NEGOCIO · el gemelo global de la Ficha ──────────────────────────────────────────────────
- * El owner señaló la "Composición de la compra" de la Ficha y pidió lo mismo un nivel arriba: misma tabla, mismas
- * columnas, mismo pie honesto — pero con el NEGOCIO como sujeto. Donde la Ficha muestra ROTACIÓN, acá va ACCIONES
- * COMERCIALES: la rotación es del inventario, no del cliente. Tres vistas declaradas (Grupo 80% · Menor margen ·
- * Todos) y cada fila abre la Ficha de ESE cliente — son todos clientes reales, no hay agregados que no naveguen. */
+/* ── QUIÉN SOSTIENE EL NEGOCIO · el 80% que mueve la aguja, por cuatro perspectivas ────────────────────────────
+ * Owner 2026-08-07: una sola sección basada en el 80%, con Clientes y Familias como las dos vistas principales
+ * (SKU y Canales viven en el mismo selector: son el mismo tipo de corte y no duplican pantalla). Cada eje trae SU
+ * grupo 80% — calculado, no un top-N — y la cartera entera detrás de un switch. Y cada uno declara si concilia con
+ * la venta oficial: decir cuándo una tabla cierra y cuándo es otro corte del dato es lo que un BI no hace. */
 const _RC_TH = { color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" };
 const _RC_TD = { padding: "5px 6px", textAlign: "right", fontFamily: MONO, fontSize: 11.5, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" };
-const _RC_COLW = ["21%", "12%", "11%", "13%", "10%", "12%", "21%"];
-function ResumenComposicion({ R, onFicha, onAsk }) {
-  const comp = R.composicion;
-  const [vista, setVista] = useState(comp.porDefecto);
-  if (!comp || !comp.vistas.length) return null;
-  const v = comp.vistas.find((x) => x.key === vista) || comp.vistas[0];
+const _RC_COLW = ["25%", "12%", "12%", "13%", "11%", "12%", "15%"];
+function ResumenSostiene({ R, onFicha, onAsk }) {
+  const S = R.sostiene;
+  const [eje, setEje] = useState(S ? S.porDefecto : null);
+  const [todos, setTodos] = useState(false);
+  if (!S || !S.vistas.length) return null;
+  const v = S.vistas.find((x) => x.key === eje) || S.vistas[0];
+  const filas = todos ? v.filas : v.filas.filter((f) => f.enGrupo);
+  const navegable = v.key === "cliente" && !!onFicha;   // la Ficha Ejecutiva es de CLIENTE: prometerla en otro eje sería mentir
   return (
     <div style={_RC_CARD}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-        <span style={{ minWidth: 0 }}>
+        <span style={{ minWidth: 0, flex: "1 1 250px" }}>
           <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
-            {comp.titulo}
-            <InfoDot def={"La misma lectura que la Ficha hace de un cliente, pero del negocio entero: cuánto pesa cada cuenta, qué deja y qué le entregás. El gráfico de arriba es el mapa; esta tabla dice a quién hay que investigar. Tres vistas: el GRUPO 80% (el plano de decisión), MENOR MARGEN (las cinco con mayor brecha contra tu benchmark, estén o no en el grupo) y TODOS. Comparando la primera con la última tenés la cola. Donde la Ficha muestra rotación, acá van las acciones comerciales: la rotación es del inventario, no del cliente, y prometerla sería inventar un dato. Tocá un cliente y se abre su Ficha Ejecutiva."} align="left"/>
+            Quién sostiene el negocio
+            <InfoDot def={`El sustento económico del negocio desde cuatro perspectivas del mismo dato: qué CLIENTES y qué FAMILIAS mueven la venta, y —cuando aportan— SKU y canales. Cada eje trae su propio grupo 80%, calculado con el mismo motor de concentración que el resto de la vista, no un top-N fijo. Cada eje declara además si cierra con la venta oficial por cliente: los que no cierran lo dicen, con su diferencia, y sus márgenes NO se reescalan para forzar el cuadre — son justo la cifra que venís a mirar. ${S.limitacion}`} align="left"/>
           </span>
-          <span style={{ display: "block", fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>{v.nota}</span>
+          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{v.lectura}</span>
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span style={{ display: "flex", gap: 3 }}>
-            {comp.vistas.map((x) => (
-              <button key={x.key} onClick={() => setVista(x.key)} aria-pressed={vista === x.key}
-                style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${vista === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: vista === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: vista === x.key ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
-                {x.label} ({x.n})
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {S.vistas.map((x) => (
+              <button key={x.key} onClick={() => { setEje(x.key); setTodos(false); }} aria-pressed={v.key === x.key}
+                style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: v.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: v.key === x.key ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+                {x.label} ({x.grupoN})
               </button>
             ))}
           </span>
@@ -1913,63 +1916,71 @@ function ResumenComposicion({ R, onFicha, onAsk }) {
       <div style={{ overflowX: "auto", marginTop: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 620, tableLayout: "fixed" }}>
           <colgroup>{_RC_COLW.map((w, i) => <col key={i} style={{ width: w }}/>)}</colgroup>
-          <thead><tr>
-            {comp.columnas.map((c) => <th key={c.key} style={{ ..._RC_TH, textAlign: c.align }}>{c.label}</th>)}
-          </tr></thead>
-          <tbody>{v.filas.map((f) => (
+          <thead><tr>{S.columnas.map((c) => <th key={c.key} style={{ ..._RC_TH, textAlign: c.align }}>{c.label}</th>)}</tr></thead>
+          <tbody>{filas.map((f) => (
             <tr key={f.nombre}>
               <td style={{ padding: "5px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {onFicha ? (
+                {navegable ? (
                   <button onClick={() => onFicha(f.nombre)} title={`Abrir la Ficha de ${f.nombre}`}
-                    style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>
-                    {f.nombre}
-                  </button>
+                    style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{f.nombre}</button>
                 ) : <span style={{ color: C.text, fontWeight: 600 }}>{f.nombre}</span>}
-                {vista !== "grupo80" && f.enPlano ? <span title="Está dentro del grupo que explica el 80% de la venta" style={{ marginLeft: 5, fontFamily: MONO, fontSize: 8, color: C.celeste, border: "1px solid rgba(47,184,218,0.4)", borderRadius: 3, padding: "0 3px" }}>80%</span> : null}
+                {todos && f.enGrupo ? <span title="Está dentro del grupo que explica el 80% de la venta" style={{ marginLeft: 5, fontFamily: MONO, fontSize: 8, color: C.celeste, border: "1px solid rgba(47,184,218,0.4)", borderRadius: 3, padding: "0 3px" }}>80%</span> : null}
               </td>
-              <td style={{ ..._RC_TD, color: C.textSub }}>{f.participacionFmt}</td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.pesoFmt}</td>
               <td style={{ ..._RC_TD, color: C.textSub }}>{f.ventaFmt}</td>
               <td style={{ ..._RC_TD, color: C.textSub }}>{f.contribucionFmt}</td>
-              <td style={{ ..._RC_TD, color: f.bajoBenchmark ? C.amber : C.text }} title={f.bajoBenchmark ? `${f.brechaFmt} bajo tu benchmark de ${f.varaRefFmt}` : `sobre tu benchmark de ${f.varaRefFmt}`}>{f.margenFmt}</td>
-              <td style={{ ..._RC_TD, color: C.textSub }}>{f.unidadesFmt}</td>
-              <td style={{ ..._RC_TD, color: f.sobreMeta ? C.amber : C.textSub }} title={f.sobreMeta ? `sobre tu meta de ${p1(POLICY.targetCarga)+"%"}` : `en o bajo tu meta de ${p1(POLICY.targetCarga)+"%"}`}>{f.cargaFmt}</td>
+              <td style={{ ..._RC_TD, color: f.bajoBenchmark ? C.amber : C.text }} title={`contra tu benchmark de ${f.varaFmt}`}>{f.margenFmt}</td>
+              <td style={{ ..._RC_TD, color: f.material ? C.amber : f.bajoBenchmark ? C.textSub : C.green }}>{f.brechaFmt}</td>
+              <td style={{ ..._RC_TD, color: f.sobreMeta ? C.amber : C.textSub }} title={f.sobreMeta ? `sobre tu meta de ${p1(POLICY.targetCarga)}%` : `en o bajo tu meta de ${p1(POLICY.targetCarga)}%`}>{f.cargaFmt}</td>
             </tr>
           ))}</tbody>
         </table>
       </div>
-      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 8 }}>{comp.nota}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        {v.colaN > 0 ? (
+          <button onClick={() => setTodos((t) => !t)}
+            style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            {todos ? `Ver solo el grupo que explica el ${v.grupoPctFmt}` : `Ver ${v.label.toLowerCase()} completos (${v.n})`} {todos ? "▴" : "▾"}
+          </button>
+        ) : <span/>}
+        <span style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+          <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: v.reconcilia ? C.green : C.amber, border: `1px solid ${v.reconcilia ? C.green : C.amber}55`, borderRadius: 3, padding: "1px 5px" }}>{v.reconcilia ? "concilia" : "otro corte"}</span>
+        </span>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{v.notaFuente}</div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 5 }}>{S.nota}</div>
     </div>
   );
 }
 
-/* ── CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea ──────────────────────────────────────
- * El "por qué está pasando" empieza acá: venta − costo conciliado − acciones comerciales = contribución. Cierra
- * exacto por construcción, y ese ES el punto — el COSTO no está medido, sale por diferencia. Marcarlo "conciliado"
- * e "indicado" es lo que sostiene que esta vista jamás diga "revisar costo" como si fuera una causa probada. */
-function ResumenMargen({ R, onAsk }) {
-  const f = R.formacion, p = R.puente, ejes = f && f.ejes;
-  const [eje, setEje] = useState(ejes ? ejes.porDefecto : null);
-  if (!f) return null;
-  const v = ejes ? (ejes.vistas.find((x) => x.key === eje) || ejes.vistas[0]) : null;
-  // PARTICIÓN (probado + abierto = total) vs LOCALIZACIÓN (indicado): el módulo marca cuál es cuál con `esParte`.
+/* ── DÓNDE SE FRENA LA VENTA Y DÓNDE SE DILUYE EL MARGEN ───────────────────────────────────────────────────────
+ * El bloque 02 completo: la identidad del margen como marco, y debajo los DOS deterioros lado a lado. El izquierdo
+ * solo puede afirmarse contra una referencia autorizada, así que declara CUÁL usa — y la descomposición de precio
+ * y volumen aparece únicamente contra el año anterior, que es la única referencia que trae unidades. */
+function ResumenDeterioro({ R, onFicha, onAsk }) {
+  const f = R.formacion, d = R.deterioro, p = R.puente;
+  const [ref, setRef] = useState(d ? d.venta.porDefecto : null);
+  if (!f || !d) return null;
+  const rv = d.venta.referencias.find((x) => x.key === ref) || d.venta.referencias[0];
+  // PARTICIÓN (probado + abierto = la brecha total) vs LOCALIZACIÓN (indicado): el módulo marca cuál es cuál.
   const partes = (p.tramos || []).filter((t) => t.esParte);
-  const localizacion = (p.tramos || []).find((t) => !t.esParte) || null;
   const pctProbado = p.brechaTotal > 0 ? Math.max(1.5, Math.min(100, (p.probado / p.brechaTotal) * 100)) : 0;
+  const _chip = (estatus, texto) => (
+    <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(estatus), border: `1px solid ${_rcEstatusCol(estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{texto || estatus}</span>
+  );
   return (
     <div style={_RC_CARD}>
       <div style={{ ..._RC_HEAD, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
         Cómo se forma el margen
         <InfoDot def={"La cuenta completa, de la venta a la contribución. Cierra exacto — y por eso mismo hay que mirar el estatus de cada línea: la venta y las acciones comerciales están MEDIDAS, el costo NO: se obtiene por diferencia entre las tres. Eso es lo que hace que el costo sea una ruta a investigar y nunca una causa que se pueda afirmar. Si mañana entra el costo real del ERP, esta línea pasa de indicada a probada y la brecha abierta se achica."} align="left"/>
       </div>
-      {/* LA IDENTIDAD COMO TIRA (owner 2026-08-07): cuatro celdas con su operador, para leerla de un vistazo como
-          una cuenta y no como una lista. El estatus va en cada una — es el sello, no un adorno. */}
+      {/* LA IDENTIDAD COMO TIRA: se lee de un vistazo como una cuenta, no como una lista */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(158px, 1fr))", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
         {f.lineas.map((l, i) => (
           <div key={l.key} title={l.nota}
             style={{ padding: "11px 13px", borderLeft: i === 0 ? "none" : `1px solid ${C.border}`, background: l.key === "contribucion" ? "rgba(47,184,218,0.04)" : "transparent", display: "flex", flexDirection: "column", gap: 5 }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ ..._RC_HEAD, fontSize: 9 }}>{l.label}</span>
-              <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(l.estatus), border: `1px solid ${_rcEstatusCol(l.estatus)}55`, borderRadius: 3, padding: "1px 4px" }}>{l.estatus}</span>
+              <span style={{ ..._RC_HEAD, fontSize: 9 }}>{l.label}</span>{_chip(l.estatus)}
             </span>
             <span style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
               {l.signo ? <span style={{ fontFamily: MONO, fontSize: 15, color: C.textMuted }}>{l.signo}</span> : null}
@@ -1980,180 +1991,184 @@ function ResumenMargen({ R, onAsk }) {
         ))}
       </div>
       <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5, marginTop: 8 }}>{f.lectura}</div>
+      {f.lineas.filter((l) => l.estatus !== "probado").map((l) => (
+        <div key={l.key} style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 7, paddingLeft: 10, borderLeft: `2px solid ${_rcEstatusCol(l.estatus)}` }}>
+          <b style={{ color: C.textSub }}>{l.label}:</b> {l.nota}
+        </div>
+      ))}
 
-      {/* ── DÓNDE SE ESTÁ FORMANDO EL MARGEN · el mismo negocio, cortado por familias / SKU / canales ──
-          Primero qué mueve la venta; después la causa medida vs lo que falta investigar. Cada corte DECLARA su
-          fuente y si cierra con la venta oficial: decir cuándo una tabla concilia y cuándo no es justamente lo
-          que un BI no hace. ── */}
-      {v && (
-        <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
-            <span style={{ minWidth: 0, flex: "1 1 260px" }}>
-              <span style={{ display: "block", fontSize: 13.5, color: C.text, fontWeight: 600, lineHeight: 1.4 }}>Dónde se está formando el margen</span>
-              <span style={{ display: "block", fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 3 }}>
-                Primero qué mueve la venta; después, qué parte de la causa está medida y qué falta investigar.
-                <InfoDot def={`El mismo negocio cortado por tres ejes. Cada uno declara su fuente y si cierra con la venta oficial por cliente: hay cortes que concilian al centavo y otros que son otra tabla del dato, y eso se dice en vez de disimularlo — los márgenes nunca se reescalan para forzar el cuadre, porque son justo la cifra que venís a mirar. La BRECHA es la distancia contra tu benchmark; en ámbar, la que llega a ${POLICY.margenBrechaMaterial} pp o más. ${ejes.limitacion}`} align="left"/>
+      <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
+        <div style={{ fontSize: 13.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Dónde se frena la venta y dónde se diluye el margen</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+          {/* ── VENTA NO ALCANZADA · solo contra una referencia AUTORIZADA, y se declara cuál ── */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
+              <span style={{ ..._RC_HEAD, fontSize: 9, display: "flex", alignItems: "center", gap: 4 }}>
+                Venta no alcanzada
+                <InfoDot def={`"Pérdida de ingresos" solo se puede afirmar contra una referencia declarada, así que acá elegís cuál. TU PRESUPUESTO existe por cliente y suma exacto el total del período, pero declara monto y no unidades: contra él no se puede separar precio de volumen. EL AÑO ANTERIOR trae venta Y unidades, así que ahí sí se descompone — y la descomposición cierra exacta (volumen + precio = la diferencia). Separar los dos efectos es aritmética; por qué cayó cada uno es lo que hay que ir a mirar.`} align="left"/>
               </span>
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-              <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                {ejes.vistas.map((x) => (
-                  <button key={x.key} onClick={() => setEje(x.key)} aria-pressed={v.key === x.key}
-                    style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: v.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: v.key === x.key ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
-                    {x.label} ({x.n})
-                  </button>
+              <span style={{ display: "flex", gap: 3 }}>
+                {d.venta.referencias.map((x) => (
+                  <button key={x.key} onClick={() => setRef(x.key)} aria-pressed={rv.key === x.key}
+                    style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${rv.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: rv.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: rv.key === x.key ? C.celeste : C.textMuted, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.label}</button>
                 ))}
               </span>
-              {onAsk ? _btnADI(() => onAsk("¿Por qué está cayendo mi margen?"), "Que ADI lo explique →") : null}
-            </span>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 560, tableLayout: "fixed" }}>
-              <colgroup>{["28%", "13%", "13%", "16%", "13%", "17%"].map((w, i) => <col key={i} style={{ width: w }}/>)}</colgroup>
-              <thead><tr>{ejes.columnas.map((c) => <th key={c.key} style={{ ..._RC_TH, textAlign: c.align }}>{c.label}</th>)}</tr></thead>
-              <tbody>{v.filas.map((fx) => (
-                <tr key={fx.nombre}>
-                  <td style={{ padding: "5px 6px", color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fx.nombre}</td>
-                  <td style={{ ..._RC_TD, color: C.textSub }}>{fx.pesoFmt}</td>
-                  <td style={{ ..._RC_TD, color: C.textSub }}>{fx.ventaFmt}</td>
-                  <td style={{ ..._RC_TD, color: C.textSub }}>{fx.contribucionFmt}</td>
-                  <td style={{ ..._RC_TD, color: fx.bajoBenchmark ? C.amber : C.text }} title={`contra tu benchmark de ${fx.varaFmt}`}>{fx.margenFmt}</td>
-                  <td style={{ ..._RC_TD, color: fx.material ? C.amber : fx.bajoBenchmark ? C.textSub : C.green }}>{fx.brechaFmt}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-          {/* LA CALIDAD DEL DATO, A LA VISTA: si el corte no cierra con la venta oficial, se dice cuánto y por qué */}
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8 }}>
-            <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: v.reconcilia ? C.green : C.amber, border: `1px solid ${v.reconcilia ? C.green : C.amber}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0, marginTop: 2 }}>{v.reconcilia ? "concilia" : "otro corte"}</span>
-            <span style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5 }}>{v.notaFuente}</span>
-          </div>
-        </div>
-      )}
-      {/* ── LECTURA EJECUTIVA · QUÉ SABEMOS ─────────────────────────────────────────────────────────────────────
-          Dos columnas: a la izquierda la conclusión del corte que estás mirando; a la derecha, la graduación del
-          dinero. ⚠️ PARTICIÓN vs LOCALIZACIÓN: probado + abierto = el total (partición real, con su barra); el
-          INDICADO es ESE MISMO dinero visto por cuenta, no una tercera porción — por eso va abajo, separado. ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(268px, 1fr))", gap: 14, marginTop: 14, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
-        <div style={{ paddingLeft: 11, borderLeft: `2px solid ${C.green}` }}>
-          <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 6 }}>Lectura ejecutiva</div>
-          <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.55 }}>{v ? v.lectura : f.lectura}</div>
-          {/* la línea que NO está medida se explica sola, sin que haya que pasar el mouse */}
-          {f.lineas.filter((l) => l.estatus !== "probado").map((l) => (
-            <div key={l.key} style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 8 }}>
-              <b style={{ color: C.textSub }}>{l.label}:</b> {l.nota}
             </div>
-          ))}
-        </div>
-        <div>
-          <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
-            Qué sabemos
-            <InfoDot def={`La brecha contra tu benchmark, ${p.brechaTotalFmt} en total, graduada por lo que la evidencia sostiene. ${p.universo} Se parte en DOS: lo que tiene causa medida y lo que falta aislar — esas dos suman el total. La concentración por cuenta no es una tercera parte: es ese mismo dinero, ubicado.`} align="left"/>
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: C.text, fontVariantNumeric: "tabular-nums" }}>{p.brechaTotalFmt}</span>
-            {/* EL UNIVERSO, VISIBLE: este total incluye cuentas que NO llegan a brecha material, así que es
-                distinto —y mayor— que el material. Sin decirlo, dos cifras parecidas se leen como una
-                contradicción; con esto se leen como lo que son, dos alcances del mismo negocio. */}
-            <span style={{ fontSize: 11, color: C.textMuted }}>
-              toda la cartera, las {R.rows.length} cuentas del negocio · {p.materialFmt} de ese total está en las {p.materialN} con brecha material
-            </span>
-          </div>
-          <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,0.07)", marginTop: 9 }}>
-            <div style={{ width: `${pctProbado}%`, background: C.green, opacity: 0.85 }} title={`${p.probadoFmt} con causa medida`}/>
-            <div style={{ flex: 1, background: "rgba(255,255,255,0.10)" }} title={`${p.abiertoFmt} por aislar`}/>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-            {partes.map((t) => (
-              <div key={t.estatus} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(t.estatus), border: `1px solid ${_rcEstatusCol(t.estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0, marginTop: 2 }}>{t.estatus}</span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textSub, lineHeight: 1.5 }}>
-                  <b style={{ color: C.text, fontWeight: 600 }}>{t.titulo}.</b> {t.detalle}
-                </span>
-                <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: _rcEstatusCol(t.estatus), whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{t.monto}</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: rv.n ? C.text : C.textMuted, fontVariantNumeric: "tabular-nums" }}>{rv.n ? rv.faltaTotalFmt : "—"}</span>
+              <span style={{ fontSize: 11, color: C.textMuted }}>{rv.n ? `en ${rv.n} ${rv.n === 1 ? "cuenta" : "cuentas"} por debajo ${rv.refLabel}` : `ninguna cuenta por debajo ${rv.refLabel}`}</span>
+            </div>
+            {rv.n > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
+                {rv.filas.slice(0, 4).map((x) => (
+                  <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
+                    <span style={{ flex: "0 1 110px", minWidth: 88, fontSize: 11.5, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : x.nombre}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.red, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>−{x.faltaFmt}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.cumplimientoFmt}</span>
+                    {x.pv ? (
+                      <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 9.5, color: C.textMuted, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
+                        title={`volumen ${x.pv.volumenFmt} · precio ${x.pv.precioFmt} — la suma cierra exacto con la diferencia`}>
+                        vol {x.pv.volumenFmt} · pre {x.pv.precioFmt}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+                {rv.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{rv.filas.length - 4} más en la cartera completa.</span>}
               </div>
-            ))}
+            )}
+            <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${rv.n ? C.red : C.green}` }}>{rv.insight}</div>
+            <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{rv.nota}</div>
           </div>
-          {localizacion && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 9, paddingTop: 9, borderTop: `1px dashed ${C.border}` }}>
-              <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol("indicado"), border: `1px solid ${_rcEstatusCol("indicado")}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0, marginTop: 2 }}>indicado</span>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textSub, lineHeight: 1.5 }}>
-                <b style={{ color: C.text, fontWeight: 600 }}>{localizacion.titulo}.</b> {localizacion.detalle}
-              </span>
-              <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: C.amber, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{localizacion.monto}</span>
+
+          {/* ── MARGEN NO CAPTURADO · bajo benchmark, con lo probado y lo abierto ── */}
+          <div>
+            <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
+              Margen no capturado
+              <InfoDot def={`Las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark — el mismo criterio del detector, del cuadro y de lo que ADI responde. "En juego" es la contribución que esa cuenta no captura. Lo PROBADO es el exceso medido de acciones comerciales sobre tu meta: la única parte con una causa cuantificada. El resto queda ABIERTO entre costo, precio y composición, que el motor todavía no aísla — y decirlo es más útil que rellenarlo.`} align="left"/>
             </div>
-          )}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: d.margen.n ? C.text : C.textMuted, fontVariantNumeric: "tabular-nums" }}>{d.margen.n ? d.margen.enJuegoFmt : "—"}</span>
+              <span style={{ fontSize: 11, color: C.textMuted }}>{d.margen.n ? `en ${d.margen.n} ${d.margen.n === 1 ? "cuenta" : "cuentas"} bajo tu benchmark` : "ninguna cuenta cede margen material"}</span>
+            </div>
+            {/* ⚠️ PARTICIÓN vs LOCALIZACIÓN, que el owner selló hace dos rondas: probado + abierto = la brecha
+                TOTAL de la cartera (una partición real, con su barra). El monto de arriba es OTRO universo —
+                las cuentas con brecha material— y por eso lleva su propia etiqueta. Dos cifras parecidas solo
+                se leen bien si cada una dice de dónde sale. */}
+            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px dashed ${C.border}` }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, color: C.textMuted }}>De la brecha total de</span>
+                <span style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600, color: C.text, fontVariantNumeric: "tabular-nums" }}>{p.brechaTotalFmt}</span>
+                <span style={{ fontSize: 11, color: C.textMuted }}>— toda la cartera, las {R.rows.length} cuentas del negocio:</span>
+              </div>
+              <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,0.07)", marginTop: 8 }}>
+                <div style={{ width: `${pctProbado}%`, background: C.green, opacity: 0.85 }} title={`${p.probadoFmt} con causa medida`}/>
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.10)" }} title={`${p.abiertoFmt} por aislar`}/>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 9 }}>
+                {partes.map((t) => (
+                  <div key={t.estatus} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    {_chip(t.estatus)}
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textSub, lineHeight: 1.5 }}>
+                      <b style={{ color: C.text, fontWeight: 600 }}>{t.titulo}.</b> {t.detalle}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: _rcEstatusCol(t.estatus), whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{t.monto}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {d.margen.n > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
+                {d.margen.filas.slice(0, 4).map((x) => (
+                  <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, borderLeft: `2px solid ${_rcEstatusCol(x.estatus)}`, background: "rgba(255,255,255,0.015)" }}>
+                    <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.amber, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.enJuegoFmt}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.brechaFmt}</span>
+                    <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                      {x.probadoFmt ? <span style={{ fontFamily: MONO, fontSize: 9.5, color: C.green, fontVariantNumeric: "tabular-nums" }} title={`acciones comerciales ${x.excesoFmt} sobre tu meta`}>{x.probadoFmt}</span> : null}
+                      {_chip(x.estatus)}
+                    </span>
+                  </div>
+                ))}
+                {d.margen.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{d.margen.filas.length - 4} más en la cartera completa.</span>}
+              </div>
+            )}
+            <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${d.margen.n ? C.amber : C.green}` }}>{d.margen.insight}</div>
+            <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{d.margen.nota}</div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── 5 · LOS INSIGHTS QUE MUEVEN LA AGUJA ──────────────────────────────────────────────────────────────────────
- * Solo del grupo 80% y ya priorizados por el módulo (materialidad + deterioro + evidencia disponible + existencia
- * de una acción concreta). Cada uno declara su estatus de causa y termina en el ÚNICO botón que corresponde:
- * abrir la Ficha de esa entidad, que es donde la explicación existe de verdad. */
-function ResumenInsights({ R, onFicha, onAsk }) {
-  const [todos, setTodos] = useState(false);
-  const lista = R.insights || [];
-  if (!lista.length) {
+/* ── QUÉ HACER PRIMERO · el cruce de los dos deterioros ────────────────────────────────────────────────────────
+ * Owner 2026-08-07: la vista tiene que evitar "el error comercial más peligroso — intentar recuperar ventas
+ * mediante descuentos en cuentas que ya están diluyendo el margen". Por eso las cuentas no vienen en una lista
+ * plana: vienen cruzadas por los DOS deterioros medidos, y el grupo que sale primero es justamente el peligroso. */
+function ResumenPrioridades({ R, onFicha, onAsk }) {
+  const P = R.prioridades;
+  const tono = { alerta: C.red, aviso: C.amber, neutro: C.celeste };
+  if (!P || !P.grupos.length) {
     return (
-      <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, padding: "10px 12px", border: `1px dashed ${C.border}`, borderRadius: 10 }}>
-        Ninguna cuenta del plano de decisión tiene contribución en juego este período — no hay una profundización que el dato justifique.
-      </div>
+      <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, padding: "10px 12px", border: `1px dashed ${C.border}`, borderRadius: 10 }}>{P ? P.encabezado : ""}</div>
     );
   }
-  const visibles = todos ? lista : lista.slice(0, 3);
   return (
     <div>
-      {/* EL ENCABEZADO ES ADAPTATIVO (owner 2026-08-07): promete causa medida solo si el conjunto REALMENTE la
-          tiene. Con otro dato podría no tenerla, y la frase pasaría a afirmar más de lo que la evidencia sostiene. */}
-      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 10, display: "flex", alignItems: "flex-start", gap: 4 }}>
-        <span>{R.encabezadoDecisiones}</span>
-        <InfoDot def={"Las cuentas del plano de decisión con contribución en juego, ordenadas por lo que combina monto material, deterioro contra tu referencia y evidencia disponible. Cada fila declara su estatus de causa: PROBADO cuando una parte ya está medida (el exceso de acciones comerciales sobre tu meta), ABIERTO cuando el monto es material pero todavía falta separar costo, precio y composición. \"Abrir Ficha\" lleva a la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
+      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 11, display: "flex", alignItems: "flex-start", gap: 4 }}>
+        <span>{P.encabezado}</span>
+        <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
       </div>
-      {/* FILAS DE DECISIÓN, no tarjetas de informe: cliente · en juego · probado · acción · qué falta · Ficha */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {visibles.map((i) => (
-          <div key={i.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 13px", borderRadius: 10,
-            border: `1px solid ${C.border}`, borderLeft: `2px solid ${_rcEstatusCol(i.estatusCausa)}`, background: "rgba(255,255,255,0.018)" }}>
-            <span style={{ flex: "0 1 150px", minWidth: 118 }}>
-              <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.entidad}</span>
-              <span style={{ display: "block", fontFamily: MONO, fontSize: 10.5, color: C.amber, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
-                {i.enJuegoFmt} <span style={{ color: _rcEstatusCol(i.estatusCausa), fontSize: 9.5 }}>{i.probadoFmt ? `· ${i.probadoFmt} probado` : "· causa abierta"}</span>
-              </span>
-            </span>
-            <span style={{ flex: "1 1 240px", minWidth: 0, fontSize: 11.5, lineHeight: 1.5 }}>
-              <span style={{ display: "block", color: C.textSub }}>{i.accionCorta}</span>
-              <span style={{ display: "block", color: C.textMuted, fontSize: 11 }}>{i.faltaCorta}</span>
-            </span>
-            {onFicha ? (
-              <button onClick={() => onFicha(i.entidad)} title={`Abrir la Ficha de ${i.entidad}`}
-                style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                Abrir Ficha <span style={{ color: C.celeste }}>→</span>
-              </button>
-            ) : null}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {P.grupos.map((g) => (
+          <div key={g.key}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+              <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>{g.label}</span>
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", textTransform: "uppercase", color: tono[g.tono] || C.textMuted, border: `1px solid ${tono[g.tono] || C.textMuted}55`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
+              <span style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>{g.criterio} {g.porQue}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {g.filas.map((x) => (
+                <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 13px", borderRadius: 10,
+                  border: `1px solid ${C.border}`, borderLeft: `2px solid ${tono[g.tono] || C.border}`, background: "rgba(255,255,255,0.018)" }}>
+                  <span style={{ flex: "0 1 158px", minWidth: 120 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.entidad}</span>
+                    <span style={{ display: "block", fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
+                      {x.faltaVentaFmt ? <span style={{ color: C.red }}>−{x.faltaVentaFmt} venta</span> : null}
+                      {x.faltaVentaFmt && x.enJuegoFmt ? <span style={{ color: C.textMuted }}> · </span> : null}
+                      {x.enJuegoFmt ? <span style={{ color: C.amber }}>{x.enJuegoFmt} margen</span> : null}
+                      {x.probadoFmt ? <span style={{ color: C.green, fontSize: 9.5 }}> · {x.probadoFmt} probado</span> : null}
+                    </span>
+                  </span>
+                  <span style={{ flex: "1 1 230px", minWidth: 0, fontSize: 11.5, lineHeight: 1.5 }}>
+                    <span style={{ display: "block", color: C.textSub }}>{x.accionCorta}</span>
+                    <span style={{ display: "block", color: C.textMuted, fontSize: 11 }}>{x.faltaCorta}</span>
+                  </span>
+                  {onFicha ? (
+                    <button onClick={() => onFicha(x.entidad)} title={`Abrir la Ficha de ${x.entidad}`}
+                      style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                      Abrir Ficha <span style={{ color: C.celeste }}>→</span>
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
-      {lista.length > 3 && (
-        <button onClick={() => setTodos((v) => !v)}
-          style={{ marginTop: 7, background: "transparent", border: "none", color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-          {todos ? "Ver solo los tres primeros" : lista.length === 4 ? "Ver la otra cuenta del plano" : `Ver las otras ${lista.length - 3} cuentas del plano`} {todos ? "▴" : "▾"}
-        </button>
-      )}
-      {/* (La banda "Primera profundización sugerida" se ELIMINÓ · owner 2026-08-07 "no repetir cifras o conceptos
-          en varios bloques": repetía la cuenta, el monto y el probado que la PRIMERA FILA de arriba ya dice, y el
-          encabezado ya indica que se empieza por ahí. El porqué del orden vive en la ayuda del bloque. R.primera
-          sigue en el módulo: es la primera fila, no una pieza aparte.) */}
       {onAsk && R.primera ? (
-        <div style={{ marginTop: 8 }}>{_btnADI(() => onAsk(`Profundiza en ${R.primera.entidad}`), `O que ADI cuente el caso ${R.primera.entidad} →`)}</div>
+        <div style={{ marginTop: 9 }}>{_btnADI(() => onAsk(`Profundiza en ${R.primera.entidad}`), `O que ADI cuente el caso ${R.primera.entidad} →`)}</div>
       ) : null}
     </div>
   );
 }
+
 
 /* ── MESA · CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") ────────────────────────────────────────────────
  * El mismo sello (entender→explicar→actuar) contando EL RESULTADO: la cascada del P&L comercial con las líneas de

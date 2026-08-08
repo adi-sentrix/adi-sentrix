@@ -153,16 +153,8 @@ H("[6] INSIGHTS · solo del plano, priorizados, con estatus de causa");
     "cuando hay causa medida, la acción nombra la palanca que SÍ está medida");
   ok(R.insights.filter((i) => i.estatusCausa === "abierto").every((i) => /aislar/i.test(i.accionCorta)),
     "cuando no la hay, la acción es ir a aislarla — no una causa inventada");
-  // EL ENCABEZADO ES ADAPTATIVO · nunca promete causa medida si el conjunto no la tiene
-  const conCausa = R.insights.filter((i) => i.estatusCausa === "probado").length;
-  ok(!!R.encabezadoDecisiones, `hay encabezado — "${R.encabezadoDecisiones}"`);
-  ok(conCausa > 0 ? /ya está medida/.test(R.encabezadoDecisiones) : !/ya está medida/.test(R.encabezadoDecisiones),
-    `el encabezado solo promete causa medida si REALMENTE la hay — ${conCausa} de ${R.insights.length} la tienen`);
-  // LA IMPLICACIÓN INVERSA es la que protege de verdad: si dice "en todas", tiene que ser cierto en todas.
-  ok(!/en todas una parte de la causa/.test(R.encabezadoDecisiones) || conCausa === R.insights.length,
-    `si promete "en todas", lo es — ${conCausa}/${R.insights.length}`);
-  ok(!/en \d+ de \d+/.test(R.encabezadoDecisiones) || R.encabezadoDecisiones.includes(`en ${conCausa} de ${R.insights.length}`),
-    "y cuando es parcial, el conteo es el real");
+  // (el encabezado de "qué hacer primero" ya NO sale de los insights: sale del CRUCE de los dos deterioros y se
+  //  verifica en la sección [9e], que es donde vive esa lógica.)
 }
 
 H("[7] TOPE DEL GRÁFICO · 12 desktop / 8 móvil, línea acumulada REAL");
@@ -211,39 +203,123 @@ H("[9] CONSISTENCIA · una sola verdad con el cuadro");
   ok(R.cuadro === c || R.cuadro.rows.length === c.rows.length, "la tabla completa sigue disponible como evidencia opcional");
 }
 
-H("[9b] DÓNDE SE ESTÁ FORMANDO EL MARGEN · tres cortes que declaran su fuente (owner 2026-08-07)");
+H("[9b] QUIÉN SOSTIENE EL NEGOCIO · el 80% de cada eje, con su fuente declarada (owner 2026-08-07)");
 {
-  const e = R.formacion.ejes;
-  ok(!!e && e.vistas.length >= 2, `hay cortes del negocio — ${e && e.vistas.map((v) => v.key).join(" · ")}`);
-  ok(e.vistas.some((v) => v.key === "familia"), "por FAMILIAS (lo primero que pidió el owner: qué mueve la venta)");
-  ok(e.vistas.some((v) => v.key === "sku"), "por SKU");
-  ok(e.vistas.some((v) => v.key === "canal"), "por CANALES — el eje de punto de venta que el dato SÍ sostiene");
-  ok(e.columnas.map((c) => c.key).join(",") === "nombre,peso,venta,contribucion,margen,brecha",
-    `seis columnas — ${e.columnas.map((c) => c.label).join(" · ")}`);
+  const S = R.sostiene;
+  ok(!!S && S.vistas.length >= 2, `hay perspectivas del negocio — ${S && S.vistas.map((v) => v.key).join(" · ")}`);
+  ok(S.vistas[0].key === "cliente" && S.vistas.some((v) => v.key === "familia"),
+    "CLIENTES y FAMILIAS son las dos vistas que pidió el owner, con clientes por defecto");
+  ok(S.vistas.some((v) => v.key === "sku") && S.vistas.some((v) => v.key === "canal"),
+    "SKU y CANALES viven en el MISMO selector — no duplican pantalla");
+  ok(S.columnas.map((c) => c.key).join(",") === "nombre,peso,venta,contribucion,margen,brecha,acciones",
+    `siete columnas — ${S.columnas.map((c) => c.label).join(" · ")}`);
+  ok(!S.columnas.some((c) => /rotaci/i.test(c.label)), "sin rotación: es del inventario, no de estos ejes");
   // LA LIMITACIÓN DECLARADA · el corte que se pidió y el dato no sostiene
-  ok(/punto de venta no hay corte posible/i.test(e.limitacion) && /inventario, no venta/i.test(e.limitacion),
-    `la limitación se declara en vez de inventar el corte — "${e.limitacion}"`);
-  ok(!e.vistas.some((v) => /punto de venta|sucursal/i.test(v.label)), "…y no se ofrece un eje que no existe");
-  for (const v of e.vistas) {
-    ok(v.filas.length === v.n && v.n > 0, `${v.label}: ${v.n} filas`);
-    ok(v.filas.every((f, i) => i === 0 || v.filas[i - 1].venta >= f.venta), `${v.label}: ordenadas por venta (qué mueve la venta primero)`);
+  ok(/punto de venta no hay corte posible/i.test(S.limitacion) && /inventario, no venta/i.test(S.limitacion),
+    `la limitación se declara en vez de inventar el corte — "${S.limitacion}"`);
+  ok(!S.vistas.some((v) => /punto de venta|sucursal/i.test(v.label)), "…y no se ofrece un eje que no existe");
+  for (const v of S.vistas) {
+    ok(v.grupoN > 0 && v.grupoN <= v.n, `${v.label}: grupo 80% de ${v.grupoN} sobre ${v.n}`);
+    ok(v.grupoPct >= 80 || v.grupoN === v.n, `${v.label}: el grupo alcanza el 80% — ${v.grupoPctFmt}`);
+    ok(v.grupoN + v.colaN === v.n, `${v.label}: grupo + cola = total (${v.grupoN} + ${v.colaN} = ${v.n})`);
+    ok(v.filas.filter((f) => f.enGrupo).length === v.grupoN, `${v.label}: las filas del grupo están marcadas`);
+    ok(v.filas.every((f, i) => i === 0 || v.filas[i - 1].venta >= f.venta), `${v.label}: ordenadas por venta`);
     const suma = v.filas.reduce((s, f) => s + f.pesoPct, 0);
     ok(Math.abs(suma - 100) < 0.6, `${v.label}: los pesos cubren el corte — ${suma.toFixed(1)}%`);
     ok(v.filas.every((f) => f.varaFmt && typeof f.brecha === "number"), `${v.label}: cada fila trae su REFERENCIA y su brecha`);
-    ok(v.filas.every((f) => f.material === (f.brecha <= -POLICY.margenBrechaMaterial)), `${v.label}: el resalte sigue la brecha material real (${POLICY.margenBrechaMaterial} pp)`);
-    // LA CALIDAD DEL DATO · cada corte dice si cierra con la venta oficial, y si no, cuánto
+    ok(v.filas.every((f) => f.material === (f.brecha <= -POLICY.margenBrechaMaterial)), `${v.label}: el resalte sigue la brecha material (${POLICY.margenBrechaMaterial} pp)`);
+    ok(v.filas.every((f) => f.sobreMeta === (typeof f.carga === "number" && f.carga > POLICY.targetCarga)), `${v.label}: y las acciones comerciales, tu meta de ${POLICY.targetCarga}%`);
+    // LA CALIDAD DEL DATO · cada eje dice si cierra con la venta oficial, y si no, cuánto
     ok(typeof v.reconcilia === "boolean" && !!v.notaFuente, `${v.label}: declara si concilia (${v.reconcilia}) y de dónde sale`);
     if (v.reconcilia) ok(Math.abs(v.totalVenta - R.total.ventas) / R.total.ventas < 0.001, `${v.label}: dice que concilia y ES cierto — ${v.totalVentaFmt}`);
     else ok(/de diferencia/.test(v.notaFuente) && /sin reescalar/.test(v.notaFuente),
       `${v.label}: dice cuánto NO cierra y que los márgenes no se tocaron — ${v.totalVentaFmt}`);
-    // la lectura LOCALIZA, nunca atribuye
     ok(!!v.lectura && !/porque|se debe a|culpa/i.test(v.lectura), `${v.label}: la lectura localiza, no atribuye`);
-    if (v.filas.some((f) => f.material)) ok(/no por qué|falta separar/i.test(v.lectura), `${v.label}: …y lo dice explícito`);
   }
-  // el canal cierra EXACTO porque agrupa las mismas filas del cuadro
-  const canal = e.vistas.find((v) => v.key === "canal");
-  ok(canal.reconcilia && canal.totalVenta === R.total.ventas, `los canales agrupan las MISMAS filas → cierran exacto — ${canal.totalVentaFmt}`);
+  // clientes y canales agrupan las MISMAS filas → cierran exacto por construcción
+  for (const k of ["cliente", "canal"]) {
+    const v = S.vistas.find((x) => x.key === k);
+    if (v) ok(v.reconcilia && v.totalVenta === R.total.ventas, `${v.label}: agrupa las mismas filas del cuadro → cierra exacto (${v.totalVentaFmt})`);
+  }
 }
+
+H("[9c] DÓNDE SE FRENA LA VENTA · solo contra una referencia AUTORIZADA (owner 2026-08-07)");
+{
+  const d = R.deterioro;
+  ok(!!d && d.venta.referencias.length === 2, "dos referencias declaradas para la venta");
+  const ppto = d.venta.referencias.find((x) => x.key === "presupuesto");
+  const ant = d.venta.referencias.find((x) => x.key === "anterior");
+  ok(!!ppto && !!ant, "presupuesto y período comparable");
+  // EL PRESUPUESTO existe por cliente y NO permite descomponer precio/volumen (declara monto, no unidades)
+  ok(ppto.descomponible === false, "contra el PRESUPUESTO no se ofrece precio/volumen: declara monto, no unidades");
+  ok(/declara monto y no unidades/i.test(ppto.nota) && /no existe por familia/i.test(ppto.nota),
+    `…y la nota explica por qué, y que el presupuesto no existe por familia — "${ppto.nota.slice(0, 90)}…"`);
+  ok(ppto.filas.every((f) => !f.pv), "ninguna fila del presupuesto trae descomposición");
+  // EL AÑO ANTERIOR sí trae unidades → la descomposición existe Y CIERRA EXACTA
+  ok(ant.descomponible === true, "contra el AÑO ANTERIOR sí: trae venta y unidades");
+  const conPV = ant.filas.filter((f) => f.pv);
+  ok(ant.n === 0 || conPV.length > 0, `hay descomposición donde el dato la sostiene — ${conPV.length} de ${ant.n}`);
+  ok(conPV.every((f) => f.pv.cierra), "volumen + precio = la diferencia, EXACTO en todas");
+  ok(conPV.every((f) => ["volumen", "precio"].includes(f.pv.dominante)), "cada una declara cuál efecto pesa más");
+  ok(/es aritmética, no una causa/i.test(ant.nota) || /Es aritmética, no una causa/.test(ant.nota),
+    "la nota aclara que separar los efectos es aritmética, no una causa");
+  // las dos listas ordenan por lo que falta, y la cifra cierra con su propia lista
+  for (const r of [ppto, ant]) {
+    ok(r.filas.every((f, i) => i === 0 || r.filas[i - 1].falta >= f.falta), `${r.label}: ordenadas por lo que falta`);
+    ok(Math.abs(r.filas.reduce((s, f) => s + f.falta, 0) - r.faltaTotal) < 1, `${r.label}: el total es la suma de sus filas — ${r.faltaTotalFmt}`);
+    ok(r.filas.every((f) => f.actual < f.referencia), `${r.label}: solo entran las que están por debajo`);
+    ok(!!r.insight, `${r.label}: cierra con un insight — "${r.insight.slice(0, 80)}…"`);
+  }
+  ok(ppto.n === 0 || /por debajo de tu presupuesto/.test(ppto.insight), "el insight del presupuesto nombra su referencia");
+  ok(ant.n === 0 || /del año anterior/.test(ant.insight), "y el del período comparable, la suya");
+}
+
+H("[9d] DÓNDE SE DILUYE EL MARGEN · bajo tu benchmark, con lo probado y lo abierto");
+{
+  const m = R.deterioro.margen;
+  const material = R.rows.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial);
+  ok(m.n === material.length, `las cuentas bajo tu benchmark son las del detector — ${m.n}`);
+  ok(m.filas.every((f, i) => i === 0 || m.filas[i - 1].enJuego >= f.enJuego), "ordenadas por lo que está en juego");
+  ok(Math.abs(m.enJuegoTotal - material.reduce((s, r) => s + (r.enJuego || 0), 0)) < 1, `el total es la suma de sus filas — ${m.enJuegoFmt}`);
+  ok(m.filas.every((f) => f.estatus === (f.probado > 0 ? "probado" : "abierto")), "el estatus de cada fila sigue si hay o no causa medida");
+  ok(m.filas.filter((f) => f.estatus === "probado").every((f) => f.sobreMeta && f.excesoFmt),
+    "lo PROBADO es siempre el exceso medido de acciones comerciales sobre la meta");
+  ok(!!m.insight && /contribución en juego/.test(m.insight), `cierra con un insight — "${m.insight.slice(0, 80)}…"`);
+  ok(!/porque|se debe a/i.test(m.insight), "…que localiza, no atribuye");
+  ok(/necesita aislarse entre costo, precio y composición/.test(m.insight) || m.n === 0,
+    "…y declara qué queda abierto");
+}
+
+H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)");
+{
+  const P = R.prioridades, d = R.deterioro;
+  ok(!!P, "hay prioridades");
+  const bajoV = new Set(d.venta.referencias.find((x) => x.key === "presupuesto").filas.map((f) => f.nombre));
+  const bajoM = new Set(d.margen.filas.map((f) => f.nombre));
+  const esperado = (n) => (bajoV.has(n) && bajoM.has(n) ? "proteger" : bajoM.has(n) ? "recuperarMargen" : bajoV.has(n) ? "recuperarVenta" : null);
+  // el cruce es EXACTO: cada cuenta cae donde su combinación de hechos manda
+  for (const g of P.grupos) for (const f of g.filas)
+    ok(esperado(f.entidad) === g.key, `${f.entidad} → ${g.key} (bajo venta: ${bajoV.has(f.entidad)} · bajo margen: ${bajoM.has(f.entidad)})`);
+  const clasificadas = P.grupos.reduce((s, g) => s + g.filas.length, 0);
+  const debieran = R.rows.filter((r) => esperado(r.name)).length;
+  ok(clasificadas === debieran, `TODAS las cuentas con algún deterioro quedan clasificadas — ${clasificadas} de ${debieran}`);
+  ok(P.grupos.every((g) => g.filas.every((f, i) => i === 0 || g.filas[i - 1].impacto >= f.impacto)), "dentro de cada grupo, ordenadas por impacto");
+  // EL ERROR PELIGROSO · el grupo "proteger" va PRIMERO y su porqué es explícito
+  const prot = P.grupos.find((g) => g.key === "proteger");
+  if (prot) {
+    ok(P.grupos[0].key === "proteger", "el grupo peligroso va PRIMERO");
+    ok(prot.filas.every((f) => bajoV.has(f.entidad) && bajoM.has(f.entidad)), "y solo tiene cuentas que están bajo AMBOS deterioros");
+    ok(/agranda la brecha en vez de cerrarla/.test(prot.porQue), `su porqué es explícito — "${prot.porQue}"`);
+    ok(/agranda la brecha en vez de cerrarla/.test(P.encabezado), "y el encabezado lo advierte arriba de todo");
+  } else {
+    ok(!/agranda la brecha/.test(P.encabezado), "sin cuentas en el grupo peligroso, el encabezado NO advierte de un riesgo que no hay");
+  }
+  ok(P.grupos.every((g) => !!g.criterio && !!g.porQue), "cada grupo declara su criterio y su porqué");
+  ok(P.grupos.every((g) => g.filas.every((f) => !!f.accionCorta && !!f.faltaCorta)), "cada fila trae su acción y qué falta aislar");
+  const nombres = new Set(R.rows.map((r) => r.name));
+  ok(P.grupos.every((g) => g.filas.every((f) => nombres.has(f.entidad))), "toda fila es una cuenta REAL");
+}
+
 
 H("[10] EL AÑO MES A MES · tres series que RECONCILIAN (owner 2026-08-07)");
 {
@@ -273,45 +349,6 @@ H("[10] EL AÑO MES A MES · tres series que RECONCILIAN (owner 2026-08-07)");
   ok(crisis.evolutivo.totalActual === crisis.total.ventas, `en crisis también reconcilia — ${crisis.evolutivo.totalActualFmt}`);
   ok(crisis.evolutivo.vsAnteriorPct < 0, `y la variación sigue al escenario, no al dato crudo — crisis: ${crisis.evolutivo.vsAnteriorFmt}`);
   ok(crisis.kpis[0].pie.includes(crisis.evolutivo.vsAnteriorFmt.replace("+", "")), "el pie del KPI y el evolutivo cuentan la MISMA variación");
-}
-
-H("[11] LA COMPOSICIÓN DEL NEGOCIO · el gemelo global de la Ficha");
-{
-  const c = R.composicion;
-  ok(!!c && c.vistas.length === 3, "tres vistas declaradas");
-  ok(c.vistas.map((v) => v.key).join(",") === "grupo80,menorMargen,todos", `Grupo 80% · Menor margen · Todos — ${c.vistas.map((v) => v.label).join(" · ")}`);
-  ok(c.porDefecto === "grupo80", "abre en el Grupo 80% (el plano de decisión)");
-  ok(c.columnas.length === 7 && c.columnas.map((x) => x.key).includes("acciones"), `siete columnas, con Acciones comerciales — ${c.columnas.map((x) => x.label).join(" · ")}`);
-  ok(!c.columnas.some((x) => /rotaci/i.test(x.label)), "NO hay rotación: es del inventario, no del cliente (sería el primer dato inventado)");
-  const g80 = c.vistas[0], menor = c.vistas[1], todos = c.vistas[2];
-  ok(g80.n === R.plano.n && g80.filas.length === R.plano.n, `Grupo 80% = el plano — ${g80.n} clientes`);
-  ok(todos.n === R.rows.length, `Todos = la cartera completa — ${todos.n}`);
-  // MENOR MARGEN: los 5 con mayor brecha contra el benchmark, SIN importar si están en el 80%
-  const esperado = [...R.rows].filter((r) => typeof r.varaGap === "number").sort((a, b) => a.varaGap - b.varaGap).slice(0, 5).map((r) => r.name);
-  ok(menor.filas.map((f) => f.nombre).join(",") === esperado.join(","), `Menor margen = los 5 de mayor brecha contra tu benchmark — ${esperado.join(" · ")}`);
-  ok(menor.filas.every((f, i) => i === 0 || menor.filas[i - 1].varaGap <= f.varaGap), "vienen ordenados de peor a mejor brecha");
-  ok(menor.filas.some((f) => !f.enPlano), `incluye cuentas FUERA del grupo 80% — ${menor.filas.filter((f) => !f.enPlano).map((f) => f.nombre).join(", ") || "(ninguna en este set)"}`);
-  ok(/estén o no en el grupo 80%/.test(menor.nota) && /dentro del plano/.test(menor.nota), `la vista declara su universo — "${menor.nota}"`);
-  // participación: cierra la cartera (con el redondeo de cada fila declarado)
-  const sumaPart = todos.filas.reduce((s, f) => s + f.participacionPct, 0);
-  ok(Math.abs(sumaPart - 100) < 0.5, `las participaciones de Todos cubren la cartera — ${sumaPart.toFixed(1)}%`);
-  ok(/salvo el redondeo/.test(c.nota), "…y la nota no promete una exactitud que el redondeo rompe");
-  // cada fila declara referencia y estatus visual
-  const f0 = g80.filas[0];
-  for (const campo of ["participacionFmt", "ventaFmt", "contribucionFmt", "margenFmt", "unidadesFmt", "cargaFmt", "varaRefFmt", "bajoBenchmark", "sobreMeta", "enPlano"])
-    ok(campo in f0, `la fila declara \`${campo}\``);
-  ok(g80.filas.every((f) => f.varaRefFmt !== undefined), "toda fila trae su REFERENCIA (el benchmark contra el que se juzga)");
-  ok(g80.filas.every((f) => f.bajoBenchmark === (typeof f.varaGap === "number" && f.varaGap < 0)), "el resalte de margen sigue la brecha real, no un umbral suelto");
-  ok(g80.filas.every((f) => f.sobreMeta === (typeof f.carga === "number" && f.carga > POLICY.targetCarga)), `el resalte de acciones comerciales sigue tu meta de ${POLICY.targetCarga}%`);
-  ok(/meta de/.test(c.nota) && /benchmark de/.test(c.nota), "el pie explica los dos colores con sus varas");
-  // el monto recuperable NO se duplica acá: no es columna ni campo de fila (decisión del owner — vive en los
-  // insights). Se chequea sobre la ESTRUCTURA, que es lo que la vista pinta, no sobre la redacción del pie.
-  ok(!c.columnas.some((x) => /en juego|recuperable/i.test(x.label)), "\"En juego $\" no es una columna de esta tabla");
-  ok(!("enJuego" in f0) && !("enJuegoFmt" in f0), "…ni viaja escondido en la fila");
-  ok(/no se repite acá/.test(c.nota), "…y el pie dice dónde vive, para que no parezca un olvido");
-  // TODAS las filas son clientes reales — no hay agregados que no puedan abrir Ficha
-  const nombres = new Set(R.rows.map((r) => r.name));
-  ok(c.vistas.every((v) => v.filas.every((f) => nombres.has(f.nombre))), "toda fila de toda vista es un cliente REAL (ningún agregado sin Ficha)");
 }
 
 H("[12] CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea");

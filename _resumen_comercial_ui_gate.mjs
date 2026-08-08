@@ -113,17 +113,18 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
     ["Lectura ejecutiva · negocio completo", "1 · veredicto + alcance + KPIs"],
     ["El año, mes a mes", "2 · evolutivo (este año · año anterior · presupuesto)"],
     ["Concentración comercial · 80/20", "3 · gráfico de concentración (el mapa)"],
-    [R.composicion.titulo, "4 · composición por cliente (a quién investigar)"],
-    ["Por qué está pasando", "02 · movimiento POR QUÉ ESTÁ PASANDO"],
-    ["Cómo se forma el margen", "5 · UNA pieza: identidad + brecha con sus estatus"],
+    ["Quién sostiene el negocio", "4 · quién sostiene el negocio (clientes/familias/SKU/canales)"],
+    ["Dónde se deteriora el resultado", "02 · movimiento DÓNDE SE DETERIORA"],
+    ["Cómo se forma el margen", "5 · la identidad del margen"],
+    ["Dónde se frena la venta y dónde se diluye el margen", "6 · los dos deterioros, cada uno con su referencia"],
     ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
-    [R.encabezadoDecisiones, "6 · decisiones prioritarias"],
+    [R.prioridades.encabezado, "7 · decisiones prioritarias, cruzadas"],
     ["Evidencia completa · opcional", "7 · evidencia completa opcional, al final"],
   ];
   const pos = bloques.map(([marca]) => T.indexOf(marca));
   for (let i = 0; i < bloques.length; i++) ok(pos[i] >= 0, `bloque ${bloques[i][1]} presente`);
   ok(pos.every((p, i) => i === 0 || (p > pos[i - 1] && pos[i - 1] >= 0)), `TODOS vienen en la secuencia exacta — ${pos.join(" < ")}`);
-  ok(T.indexOf("Evidencia completa · opcional") > T.indexOf(R.encabezadoDecisiones),
+  ok(T.indexOf("Evidencia completa · opcional") > T.indexOf(R.prioridades.encabezado),
     "la evidencia completa queda al final: está disponible, pero no domina la primera lectura");
   // UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07): el universo 80/20 se declaraba en tres lugares distintos.
   ok(!T.includes("Plano de decisión:"), "la banda \"Plano de decisión\" ya NO existe (su contenido subió al veredicto)");
@@ -147,13 +148,15 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(T.includes(R.tension.reconciliaCorta), "…con la reconciliación compacta de cabeza y cola debajo");
   ok(T.includes(R.puente.brechaTotalFmt) && T.includes(R.puente.probadoFmt) && T.includes(R.puente.abiertoFmt),
     `la brecha muestra total/probado/abierto — ${R.puente.brechaTotalFmt} = ${R.puente.probadoFmt} + ${R.puente.abiertoFmt}`);
-  for (const t of R.puente.tramos) ok(T.includes(t.titulo) && T.includes(t.detalle), `tramo ${t.estatus.toUpperCase()} completo ("${t.titulo}")`);
-  // la LOCALIZACIÓN va después de la partición y separada — no como una tercera porción entre las dos partes
-  ok(T.indexOf(R.puente.tramos.find((x) => !x.esParte).titulo) > T.indexOf(R.puente.tramos.filter((x) => x.esParte)[1].titulo),
-    "la localización se pinta DESPUÉS de la partición, no mezclada entre sus partes");
-  ok(T.includes(`${R.puente.materialFmt} de ese total está en las ${R.puente.materialN} con brecha material`),
-    "el universo del total se declara a la vista, no solo en el tooltip");
+  for (const t of R.puente.tramos.filter((x) => x.esParte)) ok(T.includes(t.titulo) && T.includes(t.detalle), `tramo ${t.estatus.toUpperCase()} completo ("${t.titulo}")`);
+  // la PARTICIÓN (probado + abierto) se pinta junto al margen no capturado, con su universo declarado al lado —
+  // el monto de las cuentas materiales es OTRO alcance y lleva su propia etiqueta.
+  ok(T.includes(`toda la cartera, las ${R.rows.length} cuentas del negocio`), "el universo de la brecha total se declara a la vista");
+  ok(T.includes(R.deterioro.margen.enJuegoFmt) && T.includes("bajo tu benchmark"),
+    "…y el monto de las cuentas materiales lleva SU etiqueta, distinta de la del total");
   ok(["probado", "indicado", "abierto"].every((e) => T.includes(e)), "los tres estatus epistémicos están rotulados a la vista");
+  ok(T.includes(R.deterioro.margen.insight) && /aislarse entre costo, precio y composición/.test(R.deterioro.margen.insight),
+    "y lo que queda ABIERTO se declara en el insight del margen");
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
   ok(T.includes(i0.accionCorta) && T.includes(i0.faltaCorta), "…como FILA DE DECISIÓN: la acción concreta y qué falta aislar");
@@ -199,83 +202,138 @@ H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
   cleanup();
 }
 
-H("[1c] LA COMPOSICIÓN POR CLIENTE · Grupo 80% / Menor margen / Todos");
+H("[1c] QUIÉN SOSTIENE EL NEGOCIO · Clientes / Familias / SKU / Canales");
 {
   const { container } = abrir(evTemporal());
-  const comp = R.composicion;
+  const S = R.sostiene;
   const T = container.textContent;
-  for (const c of comp.columnas) ok(T.includes(c.label), `columna "${c.label}"`);
-  // sobre los ENCABEZADOS reales, no sobre el texto suelto: la ayuda del bloque explica por qué no hay rotación,
-  // y esa explicación no puede hacer fallar al chequeo que verifica justamente eso.
-  // la vista tiene DOS tablas (composición por cliente y formación del margen): se busca la de composición por
-  // su primer encabezado, en vez de barrer todos los <th> de la página.
-  const tablaComp = [...container.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent === comp.columnas[0].label);
-  ok(!!tablaComp, "la tabla de composición está identificada por su primera columna");
-  const th = [...tablaComp.querySelectorAll("th")].map((x) => x.textContent);
-  ok(th.length === comp.columnas.length && comp.columnas.every((c, i) => th[i] === c.label), `tiene EXACTAMENTE las 7 columnas del módulo — ${th.join(" · ")}`);
-  ok(!th.some((h) => /rotaci/i.test(h)), "sin columna Rotación: es del inventario, no del cliente");
-  const g80 = comp.vistas[0];
-  ok(g80.filas.every((f) => T.includes(f.nombre)), `abre en Grupo 80% con sus ${g80.n} clientes`);
-  ok(T.includes(g80.filas[0].participacionFmt) && T.includes(g80.filas[0].cargaFmt), `con sus cifras del módulo (${g80.filas[0].nombre}: ${g80.filas[0].participacionFmt} · ${g80.filas[0].cargaFmt})`);
-  ok(T.includes(g80.nota), "y declara su universo");
-  ok(T.includes(comp.nota), "el pie explica los dos resaltes con sus varas");
-  // "Ver Ficha" SOLO en clientes reales — acá TODAS las filas lo son
+  ok(T.includes("Quién sostiene el negocio"), "el bloque está");
+  for (const c of S.columnas) ok(T.includes(c.label), `columna "${c.label}"`);
+  // la vista tiene VARIAS tablas: se busca la de este bloque por su primer encabezado
+  const tablaDe = (c) => [...c.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent === S.columnas[0].label);
+  const tabla = tablaDe(container);
+  ok(!!tabla, "la tabla está identificada por su primera columna");
+  const th = [...tabla.querySelectorAll("th")].map((x) => x.textContent);
+  ok(th.length === S.columnas.length && S.columnas.every((c, i) => th[i] === c.label), `tiene las 7 columnas del módulo — ${th.join(" · ")}`);
+  ok(!th.some((h) => /rotaci/i.test(h)), "sin columna Rotación: es del inventario, no de estos ejes");
+  const v0 = S.vistas[0];
+  ok(v0.key === "cliente", "abre en CLIENTES");
+  ok(v0.filas.filter((f) => f.enGrupo).every((f) => T.includes(f.nombre)), `con los ${v0.grupoN} del grupo 80%`);
+  ok(T.includes(v0.lectura), "…y su lectura, que localiza dónde se sostiene y dónde se diluye");
+  ok(T.includes(v0.notaFuente), "…y la nota de fuente");
+  ok(T.includes(v0.reconcilia ? "concilia" : "otro corte"), `…rotulado ${v0.reconcilia ? "CONCILIA" : "OTRO CORTE"}`);
+  // "Ver Ficha" SOLO en el eje CLIENTE: la Ficha Ejecutiva es de cliente y prometerla en otro eje sería mentir
   const nombres = new Set(R.rows.map((r) => r.name));
-  const fichaBtns = botones(container).filter((b) => (b.title || "").startsWith("Abrir la Ficha de "));
-  ok(fichaBtns.length > 0 && fichaBtns.every((b) => nombres.has((b.title || "").replace("Abrir la Ficha de ", ""))),
-    `los ${fichaBtns.length} accesos a Ficha apuntan a clientes REALES, ninguno a un agregado`);
-  // el toggle de vistas
-  for (const v of comp.vistas.slice(1)) {
-    const b = conTexto(container, `${v.label} (${v.n})`);
-    ok(!!b, `la vista "${v.label}" se ofrece con su cantidad (${v.n})`);
-    fireEvent.click(b);
-    ok(v.filas.every((f) => container.textContent.includes(f.nombre)), `…y al tocarla muestra sus ${v.n} clientes`);
-    ok(container.textContent.includes(v.nota), "…declarando su universo");
+  const fichas = botones(container).filter((b) => (b.title || "").startsWith("Abrir la Ficha de "));
+  ok(fichas.length > 0 && fichas.every((b) => nombres.has((b.title || "").replace("Abrir la Ficha de ", ""))),
+    `los ${fichas.length} accesos a Ficha apuntan a clientes REALES`);
+  // el switch de la cola
+  if (v0.colaN > 0) {
+    const ver = conTexto(container, `Ver ${v0.label.toLowerCase()} completos (${v0.n})`);
+    ok(!!ver, `se puede abrir la cartera completa del eje (${v0.n})`);
+    fireEvent.click(ver);
+    ok(v0.filas.every((f) => container.textContent.includes(f.nombre)), `…y aparecen los ${v0.n}`);
+    ok([...container.querySelectorAll("span")].some((s) => s.textContent === "80%"), "…con marca en los que están en el grupo 80%");
+    fireEvent.click(conTexto(container, "Ver solo el grupo"));
+    // se mira DENTRO de la tabla del bloque: esa cuenta aparece legítimamente en otros bloques de la vista
+    ok(tablaDe(container) && !tablaDe(container).textContent.includes(v0.filas.filter((f) => !f.enGrupo)[0].nombre),
+      "…y la tabla se vuelve a cerrar al grupo");
   }
-  // MENOR MARGEN: los 5 de mayor brecha, estén o no en el 80% — y la vista lo marca
-  fireEvent.click(conTexto(container, `Menor margen (${comp.vistas[1].n})`));
-  const fuera = comp.vistas[1].filas.filter((f) => !f.enPlano);
-  ok(fuera.length > 0, `incluye ${fuera.length} cuenta(s) fuera del grupo 80% — ${fuera.map((f) => f.nombre).join(", ")}`);
-  ok(comp.vistas[1].filas.some((f) => f.enPlano), "…y también las que sí están dentro");
-  ok([...container.querySelectorAll("span")].some((s) => s.textContent === "80%"), "las que pertenecen al grupo 80% llevan su marca, para no confundir universos");
-  // desde la tabla se abre la Ficha
-  const objetivo = comp.vistas[1].filas[0].nombre;
-  fireEvent.click(botones(container).find((b) => b.title === `Abrir la Ficha de ${objetivo}`));
-  ok(container.textContent.includes(`Importancia de ${objetivo} en tu cartera`), `tocar un cliente de la tabla abre su Ficha (${objetivo})`);
+  // el selector recorre los cuatro ejes, cada uno con SU declaración de calidad de dato
+  for (const v of S.vistas.slice(1)) {
+    const b = conTexto(container, `${v.label} (${v.grupoN})`);
+    ok(!!b, `el eje "${v.label}" se ofrece con su grupo 80% (${v.grupoN})`);
+    fireEvent.click(b);
+    ok(v.filas.filter((f) => f.enGrupo).every((f) => container.textContent.includes(f.nombre)), `…y muestra sus ${v.grupoN}`);
+    ok(container.textContent.includes(v.notaFuente), `…declarando su fuente y su cierre (${v.reconcilia ? "concilia" : "no concilia, y lo dice"})`);
+    ok(container.textContent.includes(v.lectura), "…y su lectura");
+    // fuera del eje cliente NO se ofrece Ficha: no existe Ficha de familia ni de canal. Se mira dentro de ESTA
+    // tabla — los demás bloques de la vista sí ofrecen Ficha, y con razón: hablan de clientes.
+    if (v.key !== "cliente") {
+      const tb = tablaDe(container);
+      ok(!!tb && ![...tb.querySelectorAll("button")].some((x) => (x.title || "").startsWith("Abrir la Ficha de ")),
+        `en ${v.label} la tabla NO promete una Ficha que no existe`);
+    }
+  }
+  // "Puntos de venta" NO se ofrece, y la limitación se declara
+  ok(!botones(container).some((b) => /punto de venta|sucursal/i.test(b.textContent)), "no se ofrece un eje por punto de venta que el dato no sostiene");
+  ok(container.textContent.includes(S.limitacion), "…y la limitación se declara en la ayuda del bloque");
   cleanup();
 }
 
-H("[1d] CÓMO SE FORMA EL MARGEN · la identidad, los tres cortes y la calidad del dato");
+H("[1d] DÓNDE SE DETERIORA EL RESULTADO · la identidad, la venta no alcanzada y el margen no capturado");
 {
   const { container } = abrir(evTemporal());
-  const f = R.formacion, e = f.ejes;
+  const f = R.formacion, d = R.deterioro;
   const T = container.textContent;
+  // la identidad, como marco
   ok(T.includes(f.lectura), `la lectura reparte la venta — "${f.lectura}"`);
   for (const l of f.lineas) ok(T.includes(l.label) && T.includes(l.montoFmt) && T.includes(l.pctFmt), `línea "${l.label}" con ${l.montoFmt} (${l.pctFmt})`);
-  const costo = f.lineas.find((l) => l.key === "costo");
-  ok(T.includes(costo.nota), "el costo explica a la vista POR QUÉ no es una causa (sale por diferencia, no está medido)");
-  ok(T.includes("indicado") && T.includes("probado"), "cada línea lleva su estatus epistémico rotulado");
+  ok(T.includes(f.lineas.find((l) => l.key === "costo").nota), "el costo explica a la vista por qué no es una causa");
+  ok(T.includes("indicado") && T.includes("probado"), "cada línea lleva su estatus rotulado");
   ok(!/revisar costo/i.test(T), "y en ningún lado aparece \"revisar costo\"");
-  // DÓNDE SE ESTÁ FORMANDO EL MARGEN · toggle de tres cortes
-  ok(T.includes("Dónde se está formando el margen"), "el bloque de cortes está");
-  const v0 = e.vistas[0];
-  for (const c of e.columnas) ok(T.includes(c.label), `columna "${c.label}"`);
-  ok(v0.filas.every((fx) => T.includes(fx.nombre)), `abre en ${v0.label} con sus ${v0.n} filas`);
-  ok(T.includes(v0.lectura), "…con su lectura ejecutiva del corte");
-  ok(T.includes(v0.notaFuente), "…y la nota de fuente que dice si concilia");
-  ok(T.includes(v0.reconcilia ? "concilia" : "otro corte"), `…rotulado ${v0.reconcilia ? "CONCILIA" : "OTRO CORTE"}`);
-  // el toggle recorre los tres, y CADA UNO trae su propia declaración de calidad de dato
-  for (const v of e.vistas.slice(1)) {
-    const b = conTexto(container, `${v.label} (${v.n})`);
-    ok(!!b, `el corte "${v.label}" se ofrece con su cantidad (${v.n})`);
-    fireEvent.click(b);
-    ok(v.filas.every((fx) => container.textContent.includes(fx.nombre)), `…y muestra sus ${v.n} filas`);
-    ok(container.textContent.includes(v.notaFuente), `…declarando su fuente y su cierre (${v.reconcilia ? "concilia" : "no concilia, y lo dice"})`);
-    ok(container.textContent.includes(v.lectura), "…y su lectura ejecutiva");
+  ok(T.includes("Dónde se frena la venta y dónde se diluye el margen"), "el bloque de los dos deterioros está");
+
+  // ── VENTA NO ALCANZADA · la referencia se declara y se puede cambiar ──
+  const ppto = d.venta.referencias.find((x) => x.key === "presupuesto");
+  const ant = d.venta.referencias.find((x) => x.key === "anterior");
+  ok(T.includes("Venta no alcanzada"), "el lado de la venta está");
+  const rv0 = d.venta.referencias.find((x) => x.key === d.venta.porDefecto);
+  ok(T.includes(rv0.insight), `abre en "${rv0.label}" con su insight`);
+  ok(T.includes(rv0.nota), "…y con la nota que explica qué autoriza esa referencia");
+  ok(rv0.n === 0 || T.includes(rv0.faltaTotalFmt), `…y el monto que faltó — ${rv0.faltaTotalFmt}`);
+  // contra el PRESUPUESTO no puede haber precio/volumen: declara monto, no unidades
+  if (d.venta.porDefecto === "presupuesto") {
+    ok(!/vol \$/.test(T), "contra el presupuesto NO se muestra descomposición de precio y volumen");
+    ok(/declara monto y no unidades/i.test(T), "…y la vista dice por qué");
   }
-  // "Puntos de venta" NO se ofrece: el dato no lo sostiene, y la limitación se declara
-  ok(!botones(container).some((b) => /punto de venta|sucursal/i.test(b.textContent)), "no se ofrece un corte por punto de venta que el dato no sostiene");
-  ok(container.textContent.includes(e.limitacion), "…y la limitación se declara en la ayuda del bloque");
+  // contra el AÑO ANTERIOR sí, y cierra exacta. Se busca el TOGGLE (lleva aria-pressed): el pie del KPI de
+  // ventas también es un botón y también dice "vs año anterior" — sin este filtro se clickeaba el KPI.
+  const bAnt = botones(container).find((b) => b.hasAttribute("aria-pressed") && b.textContent.includes(ant.label));
+  ok(!!bAnt, `se puede cambiar a "${ant.label}"`);
+  fireEvent.click(bAnt);
+  const T2 = container.textContent;
+  ok(T2.includes(ant.insight), "…con su propio insight");
+  const conPV = ant.filas.filter((x) => x.pv).slice(0, 4);
+  ok(conPV.length === 0 || conPV.every((x) => T2.includes(x.pv.volumenFmt) && T2.includes(x.pv.precioFmt)),
+    `…y la descomposición de precio y volumen, que solo existe contra esta referencia (${conPV.length} filas)`);
+  ok(conPV.every((x) => x.pv.cierra), "volumen + precio cierra exacto con la diferencia");
+
+  // ── MARGEN NO CAPTURADO ──
+  ok(T.includes("Margen no capturado"), "el lado del margen está");
+  ok(T.includes(d.margen.insight), "…con su insight");
+  ok(d.margen.n === 0 || T.includes(d.margen.enJuegoFmt), `…y la contribución en juego — ${d.margen.enJuegoFmt}`);
+  for (const x of d.margen.filas.slice(0, 4)) ok(T.includes(x.nombre) && T.includes(x.enJuegoFmt), `cuenta ${x.nombre} con ${x.enJuegoFmt}`);
+  ok(d.margen.filas.slice(0, 4).filter((x) => x.probadoFmt).every((x) => T.includes(x.probadoFmt)), "…y lo probado de cada una donde lo hay");
+  cleanup();
+}
+
+H("[1e] QUÉ HACER PRIMERO · el cruce, con el grupo peligroso adelante");
+{
+  const { container } = abrir(evTemporal());
+  const P = R.prioridades;
+  const T = container.textContent;
+  ok(T.includes(P.encabezado), `el encabezado sale del cruce — "${P.encabezado}"`);
+  for (const g of P.grupos) {
+    ok(T.includes(g.label), `grupo "${g.label}"`);
+    ok(T.includes(g.criterio) && T.includes(g.porQue), "…con su criterio y su porqué a la vista");
+    for (const x of g.filas) {
+      ok(T.includes(x.entidad), `  ${x.entidad}`);
+      ok(T.includes(x.accionCorta) && T.includes(x.faltaCorta), "  …con su acción y qué falta aislar");
+    }
+  }
+  const prot = P.grupos.find((g) => g.key === "proteger");
+  if (prot) {
+    ok(T.indexOf(prot.label) < Math.min(...P.grupos.filter((g) => g.key !== "proteger").map((g) => T.indexOf(g.label))),
+      "el grupo peligroso se pinta PRIMERO");
+    ok(/agranda la brecha en vez de cerrarla/.test(T), "y el aviso del error comercial está a la vista");
+  }
+  // cada fila abre la Ficha de esa cuenta
+  const primera = P.grupos[0].filas[0];
+  const btn = botones(container).find((b) => b.title === `Abrir la Ficha de ${primera.entidad}`);
+  ok(!!btn, `la fila de ${primera.entidad} ofrece su Ficha`);
+  fireEvent.click(btn);
+  ok(container.textContent.includes(`Importancia de ${primera.entidad} en tu cartera`), `y abre la Ficha de ${primera.entidad}`);
   cleanup();
 }
 
@@ -310,15 +368,16 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
 
 H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (la Ficha REAL, no una vista paralela)");
 {
-  // a · desde un insight
+  // a · desde una fila de decisión (el primer grupo del cruce, que es el que la vista pone adelante)
   {
     const { container } = abrir(evTemporal());
-    const btn = conTexto(container, "Abrir Ficha");
-    ok(!!btn, `el insight de ${R.insights[0].entidad} trae "Abrir Ficha"`);
+    const objetivo = R.prioridades.grupos[0].filas[0].entidad;
+    const btn = botones(container).find((b) => b.title === `Abrir la Ficha de ${objetivo}` && b.textContent.includes("Abrir Ficha"));
+    ok(!!btn, `la fila de decisión de ${objetivo} trae "Abrir Ficha"`);
     fireEvent.click(btn);
-    ok(container.textContent.includes(`Importancia de ${R.insights[0].entidad} en tu cartera`),
-      `abre la Ficha Ejecutiva REAL de ${R.insights[0].entidad} (cara Ficha)`);
-    ok(!container.textContent.includes("Insights que mueven la aguja"), "…y deja la cara Comercial (es navegación, no un panel encima)");
+    ok(container.textContent.includes(`Importancia de ${objetivo} en tu cartera`),
+      `abre la Ficha Ejecutiva REAL de ${objetivo} (cara Ficha)`);
+    ok(!container.textContent.includes("Quién sostiene el negocio"), "…y deja la cara Comercial (es navegación, no un panel encima)");
     cleanup();
   }
   // b · desde la PRIMERA fila de decisión (que es la primera profundización sugerida, ya sin banda aparte)
@@ -417,8 +476,8 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
     `las ${vPlano.length} apariciones de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
   // el TOTAL de la brecha ($5.0M) es un tercer universo y también se declara, A LA VISTA (no solo en el tooltip)
   ok(T.includes(`toda la cartera, las ${R.rows.length} cuentas del negocio`), "el total de la brecha declara su universo a la vista");
-  ok(T.includes(`${R.puente.materialFmt} de ese total está en las ${R.puente.materialN} con brecha material`),
-    "…y publica al lado cuánto de ese total es material, para que las dos cifras se lean juntas sin chocar");
+  ok(T.includes(R.deterioro.margen.enJuegoFmt) && T.includes("bajo tu benchmark"),
+    "…y el monto de las cuentas materiales lleva SU etiqueta, distinta de la del total");
   cleanup();
 }
 
@@ -562,8 +621,8 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
     [R.tension.reconciliaCorta, "la reconciliación cabeza/cola"],
     [R.evolutivo.lectura, "la lectura del año"],
     [R.formacion.lectura, "el reparto de la venta"],
-    [R.composicion.titulo, "el título de la composición"],
-    [R.encabezadoDecisiones, "el encabezado de decisiones"],
+    [R.sostiene.vistas[0].lectura, "la lectura de quién sostiene"],
+    [R.prioridades.encabezado, "el encabezado de decisiones"],
   ]) ok(veces(aguja) === 1, `"${que}" aparece UNA sola vez — ${veces(aguja)}`);
   // el % del plano sobre la oportunidad total vive en la reconciliación Y en el tramo indicado (son dos
   // afirmaciones distintas sobre el mismo hecho); lo que NO puede pasar es que el ALCANCE se repita textual.

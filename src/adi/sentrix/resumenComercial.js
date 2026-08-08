@@ -34,7 +34,7 @@
 import { buildCuadroMando } from "./cuadro.js";
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
-import { applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";   // el corte por familia, con el escenario aplicado
+import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";   // el corte por familia y la venta/presupuesto por cliente, con el escenario aplicado
 import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
 import { buildGlobalEvolution, anchorSerie } from "./temporal.js";   // el año mes a mes (3 series REALES) + el anclaje a la venta oficial
 
@@ -271,16 +271,6 @@ function _insights(plano, rows) {
   return out;
 }
 
-// EL ENCABEZADO DE LAS DECISIONES · adaptativo, nunca una promesa fija (owner 2026-08-07). Prometer que "ya tienen
-// una parte de la causa comprobada" es verdad solo si REALMENTE la tienen: con otro dato, ninguna podría tenerla,
-// y la frase pasaría a afirmar más de lo que la evidencia sostiene. Se arma del propio conjunto.
-function _encabezadoDecisiones(insights) {
-  if (!insights.length) return "No hay cuentas del plano de decisión con contribución en juego este período.";
-  const conCausa = insights.filter((i) => i.estatusCausa === "probado").length;
-  if (!conCausa) return "Empezá por estas cuentas: concentran la mayor oportunidad, aunque en todas la causa todavía hay que aislarla.";
-  if (conCausa === insights.length) return "Empezá por estas cuentas: concentran la mayor oportunidad y en todas una parte de la causa ya está medida.";
-  return `Empezá por estas cuentas: concentran la mayor oportunidad y en ${conCausa} de ${insights.length} una parte de la causa ya está medida.`;
-}
 
 // ── LA VENTA OFICIAL DEL NEGOCIO ───────────────────────────────────────────────────────────────────────────────
 // El ACTUAL sale del total del cuadro — que ya es la suma de `clientesVentas` CON el escenario aplicado. El
@@ -361,149 +351,89 @@ function _evolutivo(oficial) {
   };
 }
 
-// ── LA COMPOSICIÓN DEL NEGOCIO, CLIENTE POR CLIENTE ────────────────────────────────────────────────────────────
-// El gemelo GLOBAL de la "Composición de la compra" de la Ficha (owner 2026-08-07): misma tabla, mismas columnas
-// donde el dato las sostiene, mismo pie honesto. Donde la Ficha muestra ROTACIÓN, acá va ACCIONES COMERCIALES: la
-// rotación es del inventario, no del cliente — prometerla sería el primer dato inventado de la vista.
-// TRES VISTAS declaradas (decisión del owner): Grupo 80% · Menor margen (los 5 con mayor brecha contra tu
-// benchmark, estén o no en el plano) · Todos. La cola del 80/20 se lee comparando la primera con la última.
-const MENOR_MARGEN_N = 5;
-function _composicion(plano, rows, total) {
-  const totalVentas = rows.reduce((s, r) => s + (r.ventas || 0), 0) || 1;
-  const enPlano = new Set(plano.grupo.map((r) => r.name));
-  const fila = (r) => ({
-    nombre: r.name,
-    participacionPct: +(((r.ventas || 0) / totalVentas) * 100).toFixed(1),
-    participacionFmt: _pct(((r.ventas || 0) / totalVentas) * 100),
-    ventaFmt: _M((r.ventas || 0) * 1000),
-    contribucionFmt: _K((r.contribucion || 0) * 1000),
-    margen: typeof r.margen === "number" ? r.margen : null, margenFmt: _pct(r.margen),
-    varaRef: typeof r.varaRef === "number" ? r.varaRef : null, varaRefFmt: _pct(r.varaRef),
-    varaGap: typeof r.varaGap === "number" ? r.varaGap : null, brechaFmt: _pp(r.varaGap),
-    bajoBenchmark: typeof r.varaGap === "number" && r.varaGap < 0,
-    material: typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial,
-    unidades: typeof r.unidades === "number" ? r.unidades : null,
-    unidadesFmt: typeof r.unidades === "number" ? r.unidades.toLocaleString("es-CL") : "—",
-    // ACCIONES COMERCIALES · el % de su venta que se entrega en rebates y descuentos (dato medido por cuenta)
-    carga: typeof r.carga === "number" ? r.carga : null, cargaFmt: _pct(r.carga),
-    sobreMeta: typeof r.carga === "number" && r.carga > POLICY.targetCarga,
-    enPlano: enPlano.has(r.name),
-  });
-  const porVenta = (a, b) => (b.ventas || 0) - (a.ventas || 0);
-  const conMargen = rows.filter((r) => typeof r.varaGap === "number");
-  const menor = [...conMargen].sort((a, b) => a.varaGap - b.varaGap).slice(0, MENOR_MARGEN_N);
-  const menorDentro = menor.filter((r) => enPlano.has(r.name)).length;
-  const vistas = [
-    { key: "grupo80", label: "Grupo 80%", filas: [...plano.grupo].sort(porVenta).map(fila), n: plano.n,
-      nota: `Los ${plano.n} clientes que explican el ${plano.pct}% de las ventas — el plano de decisión.` },
-    { key: "menorMargen", label: "Menor margen", filas: menor.map(fila), n: menor.length,
-      nota: menor.length
-        ? `Los ${menor.length} clientes con mayor brecha contra tu benchmark de ${_pct(menor[0].varaRef)}, estén o no en el grupo 80%: ${menorDentro} ${menorDentro === 1 ? "está" : "están"} dentro del plano y ${menor.length - menorDentro} ${menor.length - menorDentro === 1 ? "queda" : "quedan"} fuera.`
-        : "Ninguna cuenta declara margen en este período." },
-    { key: "todos", label: "Todos", filas: [...rows].sort(porVenta).map(fila), n: rows.length,
-      nota: `La cartera completa: ${rows.length} clientes. Comparala con el Grupo 80% y tenés la cola.` },
-  ];
-  return {
-    // El TÍTULO vive acá, no en la vista: es una afirmación sobre el dato y sigue la misma regla que todo lo demás
-    // — "DÓNDE se diluye", nunca "QUIÉN diluye". Decir que una cuenta diluye el margen sería atribuirle la causa;
-    // lo que el dato sostiene es en qué cuentas se pierde el margen, no que ellas lo produzcan.
-    titulo: "Quién sostiene la venta y dónde se diluye el margen",
-    vistas, porDefecto: "grupo80", totalVentasFmt: _M(totalVentas * 1000),
-    columnas: [
-      { key: "nombre", label: "Cliente", align: "left" },
-      { key: "participacion", label: "Participación", align: "right" },
-      { key: "venta", label: "Venta", align: "right" },
-      { key: "contribucion", label: "Contribución", align: "right" },
-      { key: "margen", label: "Margen", align: "right" },
-      { key: "unidades", label: "Unidades", align: "right" },
-      { key: "acciones", label: "Acciones comerciales", align: "right" },
-    ],
-    nota: `Participación = peso de cada cliente en la venta del negocio; la vista Todos cubre la cartera entera (las filas suman el ${_pct(100)} salvo el redondeo de cada una a un decimal). Margen en ámbar = bajo tu benchmark de ${_pct(total._vara)}. Acciones comerciales = rebates y descuentos como % de la venta de esa cuenta; en ámbar lo que supera tu meta de ${_pct(POLICY.targetCarga)}. El monto recuperable no se repite acá: vive en el bloque de qué hacer primero.`,
-  };
-}
-
-/* ── DÓNDE SE ESTÁ FORMANDO EL MARGEN · el mismo negocio, cortado por tres ejes (owner 2026-08-07) ─────────────
- * "Primero mostrá qué familias mueven la venta; después separá la causa comprobada de lo que falta investigar."
- * Tres cortes, y cada uno DECLARA su fuente y si cierra con la venta oficial — porque no todos cierran, y esa es
- * justamente la diferencia con un BI: acá se dice cuándo una tabla concilia y cuándo es otro corte del dato.
- *
- *   · FAMILIAS  `sfamiliasMargen` con el escenario aplicado. Tabla propia del dataset: su venta y su contribución
- *               NO cierran al centavo con la venta oficial por cliente. Se declara, y NO se reescala: reescalar
- *               la contribución movería los márgenes por familia, que son el dato que se viene a mirar.
- *   · SKU       las MISMAS filas del cuadro de SKU (una sola verdad con esa grilla). Mismo caso que familias.
- *   · CANALES   agrupa las filas del cuadro de CLIENTES por su canal → cierra EXACTO con el total, por
- *               construcción. El canal vive en `clientesVentas`.
+/* ── QUIÉN SOSTIENE EL NEGOCIO · el 80% que mueve la aguja, por cuatro perspectivas ────────────────────────────
+ * Owner 2026-08-07: "una sola sección basada en el 80% que mueve la aguja, con dos vistas — Clientes y Familias".
+ * Se conservan además SKU y Canales en el MISMO selector: son el mismo tipo de corte y no duplican pantalla.
+ * Cada eje trae su propio grupo 80% (calculado con `concentracion()`, no un top-N fijo) y la cartera entera detrás
+ * de un switch. Y cada eje DECLARA su fuente y si cierra con la venta oficial: hay cortes que concilian al centavo
+ * y otros que son otra tabla del dato, y eso se dice en vez de disimularlo — los márgenes nunca se reescalan para
+ * forzar el cuadre, porque son justo la cifra que se viene a mirar.
  *
  * ⚠️ NO HAY "puntos de venta": las sucursales del tenant existen solo con INVENTARIO (`skuInventario.bodega`),
- * sin venta ni contribución. Ofrecer ese corte sería inventarlo; la vista declara la limitación en su lugar.
+ * sin venta ni contribución. El eje real con venta y margen es el CANAL, y ese sí se ofrece.
  */
-const _EJE_MATERIAL = () => POLICY.margenBrechaMaterial;
-function _formacionEjes(scenario, rows, total) {
-  const tVenta = total.ventas || 0, tContrib = total.contribucion || 0;
-  const fila = (nombre, venta, contribucion, unidades, base) => {
+function _sostiene(scenario, rows, total) {
+  const tV = total.ventas || 0, tC = total.contribucion || 0;
+  const fila = (nombre, venta, contribucion, acciones, base) => {
     const margen = venta ? +((contribucion / venta) * 100).toFixed(1) : null;
     const vara = benchmarkOf(base || null);
     const brecha = typeof margen === "number" && typeof vara === "number" ? +(margen - vara).toFixed(1) : null;
+    const carga = typeof acciones === "number" && venta ? +((acciones / venta) * 100).toFixed(1) : null;
     return {
-      nombre, venta, contribucion, unidades,
+      nombre, venta, contribucion,
       ventaFmt: _M(venta * 1000), contribucionFmt: _K(contribucion * 1000),
       margen, margenFmt: _pct(margen), vara, varaFmt: _pct(vara),
       brecha, brechaFmt: typeof brecha === "number" ? `${brecha >= 0 ? "+" : "−"}${Math.abs(brecha).toFixed(1)} pp` : "—",
       bajoBenchmark: typeof brecha === "number" && brecha < 0,
-      material: typeof brecha === "number" && brecha <= -_EJE_MATERIAL(),
+      material: typeof brecha === "number" && brecha <= -POLICY.margenBrechaMaterial,
+      carga, cargaFmt: _pct(carga), sobreMeta: typeof carga === "number" && carga > POLICY.targetCarga,
     };
   };
-  const cerrar = (filas, label, fuente) => {
+  // el 80% de CADA eje sale del mismo motor de concentración que el resto de la vista
+  const armar = (key, label, singular, filas, fuente) => {
+    if (!filas.length) return null;
     const v = filas.reduce((s, f) => s + f.venta, 0), c = filas.reduce((s, f) => s + f.contribucion, 0);
     for (const f of filas) { f.pesoPct = v ? +((f.venta / v) * 100).toFixed(1) : 0; f.pesoFmt = _pct(v ? (f.venta / v) * 100 : 0); }
     filas.sort((a, b) => b.venta - a.venta);
-    const dv = tVenta ? Math.abs(v - tVenta) / tVenta : 0, dc = tContrib ? Math.abs(c - tContrib) / tContrib : 0;
+    const conc = concentracion(filas.map((f) => ({ nombre: f.nombre, valor: f.venta })));
+    const enGrupo = new Set(conc.entidades.map((e) => e.nombre));
+    for (const f of filas) f.enGrupo = enGrupo.has(f.nombre);
+    const grupo = filas.filter((f) => f.enGrupo);
+    const dv = tV ? Math.abs(v - tV) / tV : 0, dc = tC ? Math.abs(c - tC) / tC : 0;
     const reconcilia = dv < 0.001 && dc < 0.001;
+    // LECTURA · localiza dónde se sostiene y dónde se diluye, nunca atribuye la causa
+    // ⚠️ La lectura NO repite "X clientes explican el Y%": eso ya lo dijo el veredicto, una sola vez (regla del
+    // owner: no repetir cifras ni conceptos). Acá se aporta lo único que este bloque puede aportar — dónde, dentro
+    // del grupo que sostiene, se diluye el margen.
+    const mat = grupo.filter((f) => f.material);
+    const _plural = (n, s) => `${n} ${s}${n > 1 && !/SKU/.test(s) ? "s" : ""}`;
+    const lectura = mat.length
+      ? `De ${_plural(grupo.length, singular)} que sostienen la venta, ${mat.map((f) => f.nombre).join(", ")} ${mat.length > 1 ? "quedan" : "queda"} ${mat.map((f) => f.brechaFmt).join(" / ")} bajo tu benchmark de ${_pct(mat[0].vara)}: ahí se sostiene el volumen y ahí se diluye el margen.`
+      : `${_plural(grupo.length, singular)} sostienen la venta, y ning${singular === "familia" ? "una" : "o"} de ese grupo cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`;
     return {
-      filas, n: filas.length, totalVenta: v, totalVentaFmt: _M(v * 1000), totalContribFmt: _K(c * 1000), reconcilia,
-      // LA CALIDAD DEL DATO, DECLARADA — no un asterisco al pie: si el corte no cierra con la venta oficial, se
-      // dice cuánto y por qué, y se dice que los márgenes NO se tocaron para forzar el cuadre.
+      key, label, filas, n: filas.length,
+      grupoN: grupo.length, grupoPct: conc.totalCubiertoPct, grupoPctFmt: _pct(conc.totalCubiertoPct),
+      colaN: filas.length - grupo.length,
+      totalVenta: v, totalVentaFmt: _M(v * 1000), totalContribFmt: _K(c * 1000), reconcilia, lectura,
       notaFuente: reconcilia
-        ? `${fuente} Cierra exacto con la venta oficial del negocio (${_M(tVenta * 1000)}).`
-        : `${fuente} Este corte suma ${_M(v * 1000)} de venta y ${_K(c * 1000)} de contribución, contra ${_M(tVenta * 1000)} y ${_K(tContrib * 1000)} de la venta oficial por cliente (${_pct(dv * 100)} y ${_pct(dc * 100)} de diferencia): son dos cortes del mismo negocio que el dataset no concilia al centavo. Los márgenes son los del dato, sin reescalar — reescalarlos para cuadrar movería justo la cifra que venís a mirar. El peso en venta es sobre el total de esta tabla.`,
-      label,
+        ? `${fuente} Cierra exacto con la venta oficial del negocio (${_M(tV * 1000)}).`
+        : `${fuente} Este corte suma ${_M(v * 1000)} de venta y ${_K(c * 1000)} de contribución, contra ${_M(tV * 1000)} y ${_K(tC * 1000)} de la venta oficial por cliente (${_pct(dv * 100)} y ${_pct(dc * 100)} de diferencia): son dos cortes del mismo negocio que el dataset no concilia al centavo. Los márgenes son los del dato, sin reescalar — reescalarlos para cuadrar movería justo la cifra que venís a mirar. El peso en venta es sobre el total de esta tabla.`,
     };
   };
-  // LECTURA por eje · dinámica, y LOCALIZA (dónde se forma), nunca atribuye la causa.
-  const lecturaDe = (v, singular, plural) => {
-    const mat = v.filas.filter((f) => f.material);
-    if (!mat.length) {
-      const bajo = v.filas.filter((f) => f.bajoBenchmark);
-      return bajo.length
-        ? `Ning${singular === "familia" ? "una" : "ún"} ${singular} cede ${_EJE_MATERIAL()} pp o más contra tu benchmark; ${bajo.length} de ${v.n} queda${bajo.length > 1 ? "n" : ""} apenas por debajo.`
-        : `Tod${singular === "familia" ? "as las" : "os los"} ${plural} operan en o sobre tu benchmark en este corte.`;
-    }
-    const top = mat.slice(0, 2);
-    const nombres = top.map((f) => f.nombre).join(" y ");
-    const peso = top.reduce((s, f) => s + f.pesoPct, 0);
-    return `La brecha se concentra en ${nombres}: ${_pct(peso)} de la venta de este corte y ${top.map((f) => f.brechaFmt).join(" / ")} contra tu benchmark de ${_pct(top[0].vara)}. Es dónde se forma, no por qué: falta separar si viene de costo, de precio o de composición.`;
-  };
 
-  // ── FAMILIAS ──
-  let vFam = null;
+  const vistas = [];
+  // CLIENTES · las mismas filas del cuadro (la venta oficial) → cierra por construcción
+  const vCli = armar("cliente", "Clientes", "cliente",
+    rows.map((r) => fila(r.name, r.ventas || 0, r.contribucion || 0, r.acciones, r)),
+    "Los clientes del período, con la venta oficial por cliente.");
+  if (vCli) vistas.push(vCli);
+  // FAMILIAS · tabla propia del dataset, con el escenario aplicado
   try {
     const fam = applyScenarioToSfamiliasMargen(scenario) || [];
-    if (fam.length) vFam = cerrar(fam.map((f) => fila(f.nombre, f.venta || 0, f.contribucion || 0, f.unidades, f)), "Familias",
+    const v = armar("familia", "Familias", "familia",
+      fam.map((f) => fila(f.nombre, f.venta || 0, f.contribucion || 0, f.rebates, f)),
       "Tabla de familias del período, con el escenario aplicado.");
-  } catch { vFam = null; }
-  // ── SKU · las MISMAS filas del cuadro de SKU (una sola verdad con esa grilla) ──
-  let vSku = null;
+    if (v) vistas.push(v);
+  } catch { /* sin familias → la vista no se ofrece */ }
+  // SKU · tabla propia del dataset
   try {
-    const cs = buildCuadroMando("sku", scenario);
-    const skus = (cs.rows || []).filter((r) => r && !r._total && !r._ref);
-    const tv = _tenantSkus();
-    if (skus.length && tv.size) {
-      vSku = cerrar(skus.map((r) => { const t = tv.get(r.name) || {}; return fila(r.name, t.venta || 0, t.contribucion || 0, t.unidades, t); })
-        .filter((f) => f.venta > 0), "SKU", "Tabla de SKU del período — las mismas filas del cuadro por SKU.");
-    }
-  } catch { vSku = null; }
-  // ── CANALES · agrupa las filas del cuadro de clientes → cierra EXACTO por construcción ──
-  let vCanal = null;
+    const sk = getTenantData()?.skusMargen || [];
+    const v = armar("sku", "SKU", "SKU",
+      sk.map((x) => fila(x.nombre, x.venta || 0, x.contribucion || 0, x.rebates, x)),
+      "Tabla de SKU del período — la misma que alimenta el cuadro por SKU.");
+    if (v) vistas.push(v);
+  } catch { /* sin SKU → la vista no se ofrece */ }
+  // CANALES · los mismos clientes agrupados → cierra exacto por construcción
   try {
     const cv = getTenantData()?.clientesVentas || [];
     const canalDe = new Map(cv.map((c) => [c.nombre, c.canal]).filter(([, k]) => !!k));
@@ -511,39 +441,198 @@ function _formacionEjes(scenario, rows, total) {
       const g = new Map();
       for (const r of rows) {
         const k = canalDe.get(r.name); if (!k) continue;
-        const x = g.get(k) || { venta: 0, contribucion: 0, unidades: 0, n: 0 };
-        x.venta += r.ventas || 0; x.contribucion += r.contribucion || 0; x.unidades += r.unidades || 0; x.n++;
+        const x = g.get(k) || { venta: 0, contribucion: 0, acciones: 0 };
+        x.venta += r.ventas || 0; x.contribucion += r.contribucion || 0; x.acciones += r.acciones || 0;
         g.set(k, x);
       }
-      if (g.size) vCanal = cerrar([...g].map(([k, x]) => ({ ...fila(k, x.venta, x.contribucion, x.unidades, null), cuentas: x.n })), "Canales",
-        "Los mismos clientes de arriba, agrupados por el canal que declara tu dato.");
+      const v = armar("canal", "Canales", "canal",
+        [...g].map(([k, x]) => fila(k, x.venta, x.contribucion, x.acciones, null)),
+        "Los mismos clientes, agrupados por el canal que declara tu dato.");
+      if (v) vistas.push(v);
     }
-  } catch { vCanal = null; }
-
-  const vistas = [];
-  if (vFam) vistas.push({ key: "familia", ...vFam, lectura: lecturaDe(vFam, "familia", "las familias") });
-  if (vSku) vistas.push({ key: "sku", ...vSku, lectura: lecturaDe(vSku, "SKU", "los SKU") });
-  if (vCanal) vistas.push({ key: "canal", ...vCanal, lectura: lecturaDe(vCanal, "canal", "los canales") });
+  } catch { /* sin canal → la vista no se ofrece */ }
   if (!vistas.length) return null;
   return {
-    vistas, porDefecto: vistas[0].key,
+    vistas, porDefecto: "cliente",
     columnas: [
       { key: "nombre", label: "Concepto", align: "left" },
-      { key: "peso", label: "Peso en venta", align: "right" },
+      { key: "peso", label: "Participación", align: "right" },
       { key: "venta", label: "Venta", align: "right" },
       { key: "contribucion", label: "Contribución", align: "right" },
       { key: "margen", label: "Margen", align: "right" },
       { key: "brecha", label: "Brecha", align: "right" },
+      { key: "acciones", label: "Acciones comerciales", align: "right" },
     ],
-    // LA LIMITACIÓN, DECLARADA: el corte que el owner pidió y el dato no sostiene.
-    limitacion: `Por punto de venta no hay corte posible: las sucursales del dato traen inventario, no venta ni contribución. Se enciende con el ERP; inventarlo sería peor que no ofrecerlo.`,
+    nota: `Participación = peso de cada fila en la venta de ESTE corte. Margen en ámbar = bajo tu benchmark; la brecha en ámbar es la que llega a ${POLICY.margenBrechaMaterial} pp o más. Acciones comerciales = rebates y descuentos como % de esa venta; en ámbar lo que supera tu meta de ${_pct(POLICY.targetCarga)}. El monto en juego no se repite acá: vive en el bloque de qué hacer primero.`,
+    limitacion: "Por punto de venta no hay corte posible: las sucursales del dato traen inventario, no venta ni contribución. Se enciende con el ERP; inventarlo sería peor que no ofrecerlo.",
   };
 }
-// las cifras de venta/contribución por SKU viven en `skusMargen` del tenant (el cuadro de SKU trae margen y capital)
-function _tenantSkus() {
-  const xs = getTenantData()?.skusMargen;
-  return new Map(Array.isArray(xs) ? xs.map((x) => [x.nombre, x]) : []);
+
+
+/* ── DÓNDE SE FRENA LA VENTA Y DÓNDE SE DILUYE EL MARGEN ───────────────────────────────────────────────────────
+ * Owner 2026-08-07: «"pérdida de ingresos" solo puede afirmarse si existe una referencia autorizada». Acá están
+ * las dos referencias que el dato SÍ sostiene, y cada una autoriza cosas distintas:
+ *
+ *   · PRESUPUESTO      existe por CLIENTE (`clientesVentas.presupuesto`, suma exacto el presupuesto del KPI) y
+ *                      NO por familia ni por marca. Da el monto que faltó, pero NO permite descomponer precio y
+ *                      volumen: el presupuesto declara plata, no unidades.
+ *   · AÑO ANTERIOR     existe por cliente Y por familia, CON unidades (`unidadesAnt`) → acá sí se puede separar
+ *                      cuánto del retroceso es volumen y cuánto es precio, y la descomposición cierra exacta.
+ *
+ * Por eso la vista declara contra qué mide y solo ofrece precio/volumen donde el dato lo sostiene. Nada de esto
+ * afirma una causa: decir que una cuenta vendió menos unidades es aritmética; decir por qué, no.
+ */
+function _deterioro(scenario, rows, tension, puente) {
+  // SIN try/catch mudo acá: si esta fuente falta, la vista tiene que fallar fuerte y no mostrar "0 cuentas bajo
+  // presupuesto", que se lee como una buena noticia. (Pasó: un import faltante quedó tragado por un catch y la
+  // sección declaraba que nadie estaba bajo presupuesto cuando había tres.)
+  const cv = applyScenarioToClientesVentas(scenario) || [];
+  const porNombre = new Map(rows.map((r) => [r.name, r]));
+  const _falta = (act, ref) => (typeof act === "number" && typeof ref === "number" && act < ref ? ref - act : 0);
+
+  // ── VENTA NO ALCANZADA · contra PRESUPUESTO (solo cliente: es donde el dato lo declara) ──
+  const bajoPpto = cv.filter((c) => _falta(c.actual, c.presupuesto) > 0)
+    .map((c) => ({
+      nombre: c.nombre, actual: c.actual, referencia: c.presupuesto, falta: c.presupuesto - c.actual,
+      actualFmt: _M(c.actual * 1000), referenciaFmt: _M(c.presupuesto * 1000), faltaFmt: _K((c.presupuesto - c.actual) * 1000),
+      cumplimientoFmt: _pct((c.actual / c.presupuesto) * 100),
+      material: porNombre.get(c.nombre) && porNombre.get(c.nombre).varaGap <= -POLICY.margenBrechaMaterial,
+    })).sort((a, b) => b.falta - a.falta);
+  const totalFaltaPpto = bajoPpto.reduce((s, x) => s + x.falta, 0);
+
+  // ── VENTA NO ALCANZADA · contra el AÑO ANTERIOR, con precio/volumen (la descomposición cierra exacta) ──
+  const _pv = (act, und, ant, undAnt) => {
+    if (!(und > 0) || !(undAnt > 0)) return null;
+    const pAnt = ant / undAnt, pAct = act / und;
+    const volumen = (und - undAnt) * pAnt, precio = (pAct - pAnt) * und;
+    return { volumen, precio, cierra: Math.abs(volumen + precio - (act - ant)) < 1,
+      volumenFmt: _K(volumen * 1000), precioFmt: _K(precio * 1000),
+      dominante: Math.abs(volumen) >= Math.abs(precio) ? "volumen" : "precio" };
+  };
+  const bajoAnt = cv.filter((c) => _falta(c.actual, c.anterior) > 0)
+    .map((c) => ({
+      nombre: c.nombre, actual: c.actual, referencia: c.anterior, falta: c.anterior - c.actual,
+      actualFmt: _M(c.actual * 1000), referenciaFmt: _M(c.anterior * 1000), faltaFmt: _K((c.anterior - c.actual) * 1000),
+      cumplimientoFmt: _pct((c.actual / c.anterior) * 100),
+      pv: _pv(c.actual, c.unidades, c.anterior, c.unidadesAnt),
+      material: porNombre.get(c.nombre) && porNombre.get(c.nombre).varaGap <= -POLICY.margenBrechaMaterial,
+    })).sort((a, b) => b.falta - a.falta);
+  const totalFaltaAnt = bajoAnt.reduce((s, x) => s + x.falta, 0);
+
+  const _insightVenta = (lista, total, refLabel, conPV) => {
+    if (!lista.length) return `Ninguna cuenta quedó por debajo ${refLabel}: la venta no se frena contra esa referencia.`;
+    const top = lista.slice(0, 2);
+    const base = `La venta se frena en ${top.map((x) => x.nombre).join(" y ")}${lista.length > top.length ? ` (y ${lista.length - top.length} más)` : ""}: ${_K(total * 1000)} por debajo ${refLabel}.`;
+    if (!conPV) return `${base} Contra esa referencia no se puede separar precio de volumen — el presupuesto declara monto, no unidades.`;
+    const conDatos = lista.filter((x) => x.pv);
+    if (!conDatos.length) return `${base} No hay unidades declaradas para separar precio de volumen.`;
+    const vol = conDatos.filter((x) => x.pv.dominante === "volumen").length;
+    return `${base} En ${vol} de ${conDatos.length} pesa más el volumen que el precio; la aritmética separa los dos efectos, pero por qué cayó cada uno es lo que hay que ir a mirar.`;
+  };
+
+  // ── MARGEN NO CAPTURADO · las cuentas bajo tu benchmark, con lo probado y lo abierto ──
+  const margenFilas = rows.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial)
+    .map((r) => {
+      const exceso = typeof r.carga === "number" ? r.carga - POLICY.targetCarga : null;
+      const probado = exceso > 0 ? (exceso / 100) * (r.ventas || 0) * 1000 : 0;
+      return {
+        nombre: r.name, margenFmt: _pct(r.margen), varaFmt: _pct(r.varaRef), brechaFmt: _pp(r.varaGap),
+        enJuego: r.enJuego || 0, enJuegoFmt: _M(r.enJuego || 0),
+        cargaFmt: _pct(r.carga), sobreMeta: exceso > 0, excesoFmt: exceso > 0 ? _pp(exceso) : null,
+        probado, probadoFmt: probado > 0 ? _K(probado) : null,
+        estatus: probado > 0 ? "probado" : "abierto",
+      };
+    }).sort((a, b) => b.enJuego - a.enJuego);
+  const enJuegoTotal = margenFilas.reduce((s, x) => s + x.enJuego, 0);
+  const probadoTotal = margenFilas.reduce((s, x) => s + x.probado, 0);
+  const conProbado = margenFilas.filter((x) => x.probado > 0).length;
+  const insightMargen = !margenFilas.length
+    ? `Ninguna cuenta cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark: el margen no se diluye de forma material.`
+    : `El margen se diluye en ${margenFilas.slice(0, 2).map((x) => x.nombre).join(" y ")}${margenFilas.length > 2 ? ` y ${margenFilas.length - 2} más` : ""}: ${_M(enJuegoTotal)} de contribución en juego. ${conProbado ? `En ${conProbado} de ${margenFilas.length} una parte está medida — operan sobre tu meta de acciones comerciales, ${_K(probadoTotal)} en total` : "En ninguna hay todavía una parte medida"}; el resto necesita aislarse entre costo, precio y composición.`;
+
+  return {
+    venta: {
+      porDefecto: bajoPpto.length ? "presupuesto" : "anterior",
+      referencias: [
+        { key: "presupuesto", label: "vs presupuesto", refLabel: "de tu presupuesto", filas: bajoPpto, n: bajoPpto.length,
+          faltaTotal: totalFaltaPpto, faltaTotalFmt: _K(totalFaltaPpto * 1000), descomponible: false,
+          insight: _insightVenta(bajoPpto, totalFaltaPpto, "de tu presupuesto", false),
+          nota: "El presupuesto está declarado por CLIENTE y suma exacto el total del período. No existe por familia ni por marca, así que este corte es de clientes; y como declara monto y no unidades, contra él no se puede separar precio de volumen." },
+        { key: "anterior", label: "vs año anterior", refLabel: "del año anterior", filas: bajoAnt, n: bajoAnt.length,
+          faltaTotal: totalFaltaAnt, faltaTotalFmt: _K(totalFaltaAnt * 1000), descomponible: true,
+          insight: _insightVenta(bajoAnt, totalFaltaAnt, "del año anterior", true),
+          nota: "El período comparable trae venta Y unidades, así que acá sí se separa cuánto del retroceso es volumen y cuánto es precio. La descomposición cierra exacta: volumen + precio = la diferencia. Es aritmética, no una causa." },
+      ],
+    },
+    margen: {
+      filas: margenFilas, n: margenFilas.length,
+      enJuegoTotal, enJuegoFmt: _M(enJuegoTotal), probadoFmt: _K(probadoTotal), abiertoFmt: _M(Math.max(0, puente.brechaTotal - probadoTotal)),
+      insight: insightMargen,
+      nota: `Las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark — el mismo criterio del detector y del cuadro. "En juego" es la contribución no capturada de esa cuenta. Lo PROBADO es el exceso medido de acciones comerciales sobre tu meta; el resto queda ABIERTO entre costo, precio y composición, que el motor todavía no aísla.`,
+    },
+  };
 }
+
+/* ── QUÉ HACER PRIMERO · el cruce de los dos deterioros ────────────────────────────────────────────────────────
+ * Owner 2026-08-07: "evita el error comercial más peligroso — intentar recuperar ventas mediante descuentos en
+ * cuentas que ya están diluyendo el margen". Ese cruce es exactamente lo que hace esta función: cada cuenta se
+ * clasifica por DOS ejes que ya están medidos —está bajo su referencia de venta / cede margen material— y de ahí
+ * sale la prioridad. No es una recomendación inventada: es la consecuencia lógica de dos hechos del dato.
+ */
+function _prioridades(rows, deterioro, insights) {
+  const bajoVenta = new Map();
+  for (const r of (deterioro.venta.referencias.find((x) => x.key === "presupuesto") || { filas: [] }).filas) bajoVenta.set(r.nombre, r);
+  const bajoMargen = new Map(deterioro.margen.filas.map((f) => [f.nombre, f]));
+  const porInsight = new Map((insights || []).map((i) => [i.entidad, i]));
+  const grupos = [
+    { key: "proteger", label: "Proteger el margen antes de empujar la venta", tono: "alerta",
+      criterio: "Están bajo su presupuesto Y ceden margen material.",
+      porQue: "Empujar volumen acá con más descuento agranda la brecha en vez de cerrarla: primero hay que recuperar el margen, después la venta." },
+    { key: "recuperarMargen", label: "Recuperar margen", tono: "aviso",
+      criterio: "Cumplen su presupuesto pero ceden margen material.",
+      porQue: "El volumen está; lo que no está es lo que deja cada peso vendido." },
+    { key: "recuperarVenta", label: "Recuperar venta", tono: "neutro",
+      criterio: "Están bajo su presupuesto y su margen no cede de forma material.",
+      porQue: "Acá crecer no cuesta margen: el problema es de volumen o de precio, y eso se puede empujar." },
+  ];
+  const clasificar = (name) => {
+    const v = bajoVenta.has(name), m = bajoMargen.has(name);
+    return v && m ? "proteger" : m ? "recuperarMargen" : v ? "recuperarVenta" : null;
+  };
+  const out = grupos.map((g) => ({ ...g, filas: [] }));
+  const idx = Object.fromEntries(out.map((g, i) => [g.key, i]));
+  for (const r of rows) {
+    const k = clasificar(r.name); if (!k) continue;
+    const v = bajoVenta.get(r.name), m = bajoMargen.get(r.name), i = porInsight.get(r.name);
+    out[idx[k]].filas.push({
+      entidad: r.name,
+      ventaFmt: _M((r.ventas || 0) * 1000),
+      faltaVentaFmt: v ? v.faltaFmt : null,
+      enJuegoFmt: m ? m.enJuegoFmt : null,
+      probadoFmt: m && m.probadoFmt ? m.probadoFmt : null,
+      brechaFmt: m ? m.brechaFmt : null,
+      estatus: m ? m.estatus : "abierto",
+      impacto: (m ? m.enJuego : 0) + (v ? v.falta * 1000 : 0),
+      accionCorta: i ? i.accionCorta : (m && m.sobreMeta ? `Revisar acciones comerciales: opera ${m.excesoFmt} sobre tu meta.` : "Abrir la Ficha y aislar la causa cuenta por cuenta."),
+      faltaCorta: i ? i.faltaCorta : "Falta separar costo, precio y composición.",
+    });
+  }
+  for (const g of out) g.filas.sort((a, b) => b.impacto - a.impacto);
+  const vivos = out.filter((g) => g.filas.length);
+  const proteger = out.find((g) => g.key === "proteger");
+  return {
+    grupos: vivos,
+    // EL ENCABEZADO · adaptativo, y con el aviso solo cuando el cruce REALMENTE lo justifica
+    encabezado: !vivos.length
+      ? "Ninguna cuenta queda bajo su presupuesto ni cede margen material: no hay una prioridad que el dato justifique."
+      : proteger && proteger.filas.length
+        ? `Empezá por acá. ${proteger.filas.length === 1 ? `${proteger.filas[0].entidad} está` : `${proteger.filas.length} cuentas están`} bajo presupuesto Y cediendo margen: empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
+        : "Empezá por acá: las cuentas ordenadas por lo que está en juego, separadas por el tipo de problema que tienen.",
+    // el cruce completo, para el gate y para quien quiera auditarlo
+    total: vivos.reduce((s, g) => s + g.filas.length, 0),
+  };
+}
+
 
 // ── CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea ───────────────────────────────────────
 // venta − costo conciliado − acciones comerciales = contribución. Cierra EXACTO por construcción, y ese es
@@ -586,6 +675,7 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
   const veredicto = _veredicto({ total, plano, tension, variacionPct });
   const puente = _puente(rows, plano, tension);
   const insights = _insights(plano, rows);
+  const deterioro = _deterioro(scenario, rows, tension, puente);
   return {
     alcance: "negocio",
     scenario,
@@ -596,11 +686,12 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
     tension,
     veredicto,
     evolutivo: _evolutivo(oficial),        // 01 · el año mes a mes, tres series, ancladas a la venta oficial
-    composicion: _composicion(plano, rows, total),   // 01 · el gemelo global de la composición de la Ficha
-    formacion: { ..._formacion(total), ejes: _formacionEjes(scenario, rows, total) },   // 02 · la identidad + dónde se forma
+    sostiene: _sostiene(scenario, rows, total),      // 01 · quién sostiene el negocio · clientes/familias/SKU/canales
+    formacion: _formacion(total),          // 02 · venta − costo conciliado − acciones = contribución
+    deterioro,                             // 02 · dónde se frena la venta y dónde se diluye el margen
+    prioridades: _prioridades(rows, deterioro, insights),   // 03 · el cruce de los dos deterioros
     puente,
     insights,
-    encabezadoDecisiones: _encabezadoDecisiones(insights),   // 03 · adaptativo al conjunto, nunca una promesa fija
     primera: insights[0] || null,
     pareto: {
       ventas: buildPareto(plano, "ventas", { maxEntidades }),
