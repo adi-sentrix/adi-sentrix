@@ -1779,7 +1779,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
           {/* el "X clientes explican el Y%" NO se repite acá: ya lo dijo el veredicto (una sola lectura de
               alcance). Este bloque aporta lo que solo él puede aportar — el contraste entre volumen y valor. */}
           <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>
-            Dónde una venta grande deja poco valor: cambiá a Contribución y mirá qué barras se achican.
+            Cambiá a Contribución: las barras que se achican son las que dejan poco.
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -2049,7 +2049,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta
             el precio." Las dos se miden acá, cada una contra su propia referencia y con su monto. ── */}
         <div style={{}}>
-          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Qué mueve el margen: lo que entregás y cómo se movió tu costo contra tu precio</div>
+          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Qué mueve el margen</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y contra tu meta */}
             {acc && (

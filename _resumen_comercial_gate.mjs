@@ -108,8 +108,11 @@ H("[4] VEREDICTO · jerarquía, nunca vacío, nunca causal");
     "…y esas cifras son las del plano y la tensión, no un texto paralelo");
   ok(!/debilit|deterior|dañ|causan|por culpa/i.test(R.veredicto.titular + R.veredicto.soporte),
     "NO afirma causa: dice dónde se concentra la brecha, no que esas cuentas la produzcan");
-  ok(/tu benchmark|tu referencia/.test(R.veredicto.lectura + R.veredicto.soporte) && !/sector|industria|mercado/i.test(R.veredicto.lectura),
-    "la referencia se narra como tuya, nunca sectorial");
+  // ⚠️ `veredicto.lectura` es null desde 2026-08-08 (repetía los 4 KPI). La garantía NO era de ese campo: es que
+  // la referencia se narre como TUYA en la vista y jamás como sectorial. Se comprueba sobre los textos que quedaron.
+  const _refs = [R.veredicto.soporte, R.sostiene.vistas[0].lectura, R.sostiene.nota, R.kpis[2].pie].filter(Boolean).join(" ");
+  ok(/tu benchmark|tu referencia/.test(_refs) && !/sector|industria|mercado/i.test(_refs),
+    "la referencia se narra como TUYA en la vista, nunca sectorial");
   ok(!/rentab/i.test(JSON.stringify(R.veredicto)), "no llama rentabilidad a un margen");
 }
 
@@ -250,7 +253,7 @@ H("[9b] QUIÉN SOSTIENE EL NEGOCIO · el 80% de cada eje, con su fuente declarad
     `siete columnas — ${S.columnas.map((c) => c.label).join(" · ")}`);
   ok(!S.columnas.some((c) => /rotaci/i.test(c.label)), "sin rotación: es del inventario, no de estos ejes");
   // LA LIMITACIÓN DECLARADA · el corte que se pidió y el dato no sostiene
-  ok(/punto de venta no hay corte posible/i.test(S.limitacion) && /inventario, no venta/i.test(S.limitacion),
+  ok(/punto de venta no hay corte/i.test(S.limitacion) && /inventario, no venta/i.test(S.limitacion),
     `la limitación se declara en vez de inventar el corte — "${S.limitacion}"`);
   ok(!S.vistas.some((v) => /punto de venta|sucursal/i.test(v.label)), "…y no se ofrece un eje que no existe");
   for (const v of S.vistas) {
@@ -276,7 +279,7 @@ H("[9b] QUIÉN SOSTIENE EL NEGOCIO · el 80% de cada eje, con su fuente declarad
     const nombrados = v.filas.filter((f) => v.lectura.includes(f.nombre)).map((f) => f.nombre);
     ok(nombrados.length === 0, `${v.label}: la lectura NO nombra entidades — la tabla ya las nombra`, nombrados.join(", "));
     const nMat = v.filas.filter((f) => f.material && f.enGrupo).length;
-    if (nMat > 0) ok(v.grupoN === 1 ? /, y queda /.test(v.lectura) : new RegExp(`\\b${nMat} de ell[oa]s`).test(v.lectura),
+    if (nMat > 0) ok(v.grupoN === 1 ? /, y queda /.test(v.lectura) : new RegExp(`^${nMat} de `).test(v.lectura),
       `${v.label}: dice CUÁNTOS ceden sin nombrarlos — "${v.lectura.slice(0, 74)}…"`);
     // CONCORDANCIA · un grupo de uno no puede decir "1 canal sostienen la venta": es la clase de detalle que
     // hace dudar de todo lo demás de la pantalla
@@ -362,7 +365,7 @@ H("[9d2] LAS DOS CAUSAS DEL MARGEN · acciones comerciales y costo contra precio
     ok(!!r.nota, "…y la vara explica qué pregunta responde");
   }
   ok(meta.total >= prom.total || a.meta >= a.promedio, "la vara más exigente recupera más (o la meta ya está sobre el promedio)");
-  ok(prom.n === 0 || /promedio de tu cartera/.test(a.lectura), `la lectura nombra el promedio — "${a.lectura.slice(0, 90)}…"`);
+  ok(prom.n === 0 || /promedio de tu cartera|tu promedio/.test(a.lectura), `la lectura nombra el promedio — "${a.lectura.slice(0, 90)}…"`);
   ok(prom.n === 0 || (a.lectura.includes(prom.totalFmt) && a.lectura.includes(meta.totalFmt)), "…y da las DOS cifras, para que el owner elija su ambición");
 
   // ── B · COSTO CONTRA PRECIO · la variación, no el nivel ──
@@ -377,7 +380,7 @@ H("[9d2] LAS DOS CAUSAS DEL MARGEN · acciones comerciales y costo contra precio
   ok(c.filas.every((f, i) => i === 0 || c.filas[i - 1].efecto <= f.efecto), "ordenadas: lo que más comprime, primero");
   // ⚠️ EL ESTATUS: es una VARIACIÓN de dos series propias, no el margen contable — va indicado, nunca probado
   ok(c.estatus === "indicado", `el efecto va INDICADO, no probado — ${c.estatus}`);
-  ok(/no cierra al centavo con el margen contable/.test(c.nota) && /su VARIACIÓN/.test(c.nota),
+  ok(/variaci[óo]n/i.test(c.nota) && /no su nivel|no cierra/i.test(c.nota),
     "…y la nota explica por qué: el nivel no reconcilia, la variación sí");
   // la lectura dice la VERDAD del período, sin dramatizar ni inventar un problema que no hay
   ok(c.comprimenN > 0 ? /se comprimió/.test(c.lectura) : /no se comprimió|no estás perdiendo margen/.test(c.lectura),
@@ -422,22 +425,22 @@ H("[9d4] VENDEN MUCHO PERO DEJAN POCO · la brecha partida en sus dos términos 
   }
   // los dos diagnósticos son DISTINTOS y la vista los distingue
   ok(new Set(q.filas.map((f) => f.dominante)).size >= 1, `cada cuenta declara qué término pesa más — ${q.filas.map((f) => `${f.nombre}:${f.dominante}`).join(" · ")}`);
-  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /viene de lo que le entregás/.test(f.lectura)),
+  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /lo que le entregás/.test(f.lectura)),
     "cuando pesa el descuento, la lectura lo dice y da su carga contra la de la cartera");
-  ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /NO viene del descuento/.test(f.lectura)),
+  ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /no el descuento/i.test(f.lectura)),
     "cuando NO pesa el descuento, la lectura lo descarta explícitamente");
   // el CONTEXTO unitario separa "vende más barato" de "compra más caro"
   const conCtx = q.filas.filter((f) => f.contexto);
   ok(conCtx.length > 0, `hay contexto de precio y costo por unidad — ${conCtx.length} de ${q.n}`);
-  ok(conCtx.every((f) => /más caro|más barato/.test(f.contexto) && /costo por unidad/.test(f.contexto)),
+  ok(conCtx.every((f) => /vende .*(más caro|más barato)/i.test(f.contexto) && /compra .*(más caro|más barato)|costo por unidad/i.test(f.contexto)),
     "…que dice si vende más caro o más barato Y si su costo unitario es más alto o más bajo");
   ok(q.tickPromFmt !== "—" && q.costoUniPromFmt !== "—", `contra el promedio PONDERADO de la cartera — ticket ${q.tickPromFmt} · costo ${q.costoUniPromFmt}`);
   // PROPORCIONALIDAD: nunca se afirma que el costo ES la causa
   ok(q.estatus === "indicado", `el análisis va INDICADO — ${q.estatus}`);
   ok(q.filas.every((f) => !/su costo es el problema|por culpa|se debe a/i.test(f.lectura)), "ninguna lectura afirma que el costo sea la causa");
-  ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /Falta separar cuánto es precio y cuánto es costo/.test(f.lectura)),
+  ok(!q.filas.some((f) => f.dominante === "precio/costo") || /[Ff]alta separar cuánto es precio/.test(q.nota),
     "…y donde pesa el término de precio/costo, declara qué falta separar");
-  ok(/dos problemas distintos y se arreglan distinto/.test(q.lectura), `la lectura global cierra con la consecuencia — "${q.lectura.slice(-60)}"`);
+  ok(/causas distintas|dos problemas distintos/.test(q.lectura), `la lectura global cierra con la consecuencia — "${q.lectura.slice(-60)}"`);
 }
 
 H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)");
@@ -459,8 +462,14 @@ H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)"
   if (prot) {
     ok(P.grupos[0].key === "proteger", "el grupo peligroso va PRIMERO");
     ok(prot.filas.every((f) => bajoV.has(f.entidad) && bajoM.has(f.entidad)), "y solo tiene cuentas que están bajo AMBOS deterioros");
-    ok(/agranda la brecha en vez de cerrarla/.test(prot.porQue), `su porqué es explícito — "${prot.porQue}"`);
-    ok(/agranda la brecha en vez de cerrarla/.test(P.encabezado), "y el encabezado lo advierte arriba de todo");
+    // EL AVISO DEL ERROR MÁS CARO, UNA SOLA VEZ (owner 2026-08-08 · "hay mucho texto"): vivía en el encabezado Y
+    // en el porqué del grupo, palabra por palabra, a cinco centímetros de distancia. Ahora el gate exige que esté
+    // EXACTAMENTE una vez: cero lo pierde, dos lo diluyen — y donde tiene que estar es arriba, que es lo primero
+    // que se lee del bloque.
+    const _aviso = (t) => (/agranda la brecha en vez de cerrarla/.test(t || "") ? 1 : 0);
+    ok(_aviso(P.encabezado) === 1, "el encabezado advierte el error más caro: descontar donde el margen ya cede");
+    ok(_aviso(P.encabezado) + _aviso(prot.porQue) === 1, "…y lo dice UNA sola vez: repetirlo a cinco centímetros lo diluye");
+    ok(!!prot.porQue && prot.porQue.length > 20, `el grupo peligroso igual declara su porqué — "${prot.porQue}"`);
   } else {
     ok(!/agranda la brecha/.test(P.encabezado), "sin cuentas en el grupo peligroso, el encabezado NO advierte de un riesgo que no hay");
   }
@@ -489,7 +498,7 @@ H("[10] EL AÑO MES A MES · tres series que RECONCILIAN (owner 2026-08-07)");
   ok(e.series[2].estatus === "indicado" && e.series[0].estatus === "probado",
     `el presupuesto es un plan (indicado), la venta real es dato (probado)`);
   ok(/no se ancla/i.test(e.series[2].nota) && /no existe presupuesto por cliente/i.test(e.series[2].nota), "la serie sin anclar explica POR QUÉ no se ancla");
-  ok(/anclad/.test(e.nota) && /total oficial/.test(e.nota), "la nota del bloque declara el anclaje en vez de esconderlo");
+  ok(/cierran con el KPI|anclad/i.test(e.nota) && /plan/i.test(e.nota), "la nota del bloque declara el anclaje y qué serie NO lo tiene");
   ok(typeof e.vsAnteriorPct === "number" && Math.abs(e.vsAnteriorPct - ((e.series[0].total - e.series[1].total) / e.series[1].total) * 100) < 0.06,
     `la variación se recalcula sobre las series ancladas — ${e.vsAnteriorFmt}`);
   ok(e.lectura.includes(e.maxMes) && e.lectura.includes(e.minMes), `la lectura nombra el mes más alto y el más bajo — ${e.maxMes} / ${e.minMes}`);
@@ -615,6 +624,62 @@ H("[13] LA CARTERA · una sola mirada, y las dos referencias declaradas");
     ok(C.filas.filter((f) => f.vsAnterior.dir === "baja").length > C.filas.length / 2,
       "y la mayoría de las cuentas cae con él: la tabla sigue al escenario, no al tenant crudo");
   }
+}
+
+/* ── [14] ECONOMÍA DEL TEXTO (owner 2026-08-08) ────────────────────────────────────────────────────────────────
+ * "Hay mucho texto, eso puede marear al usuario. Conclusiones más cortas; si queda con dudas preguntará. Directo,
+ * preciso, que se entienda fácil."
+ *
+ * Un techo por texto, no un total: el total se puede cumplir dejando un párrafo y borrando cinco etiquetas. Lo que
+ * se protege es que NINGUNA conclusión suelta se vuelva un párrafo. Los números salen de lo que hoy mide cada una
+ * con holgura, así que un texto que crece un 20% todavía pasa y uno que se duplica no. El detalle profundo no se
+ * pierde: vive en los InfoDot, que se abren cuando el usuario los pide — que es exactamente lo que el owner dijo.
+ */
+H("[14] ECONOMÍA DEL TEXTO · conclusiones cortas, el detalle en el InfoDot");
+{
+  const techo = (ruta, t, max) => ok(typeof t === "string" && t.length <= max,
+    `${ruta} ≤ ${max} — ${typeof t === "string" ? t.length : "?"}`, typeof t === "string" ? t : String(t));
+  const d = R.deterioro, v = R.sostiene.vistas[0];
+  techo("veredicto.soporte", R.veredicto.soporte, 130);
+  techo("tension.reconciliaCorta", R.tension.reconciliaCorta, 110);
+  techo("cartera.lectura", R.cartera.lectura, 110);
+  techo("cartera.resumenTope", R.cartera.resumenTope, 80);
+  techo("cartera.nota", R.cartera.nota, 180);
+  techo("cartera.notaAngosta", R.cartera.notaAngosta, 70);
+  techo("evolutivo.lectura", R.evolutivo.lectura, 130);
+  techo("evolutivo.nota", R.evolutivo.nota, 110);
+  techo("pareto.ventas.nota", R.pareto.ventas.nota, 80);
+  techo("sostiene[0].lectura", v.lectura, 130);
+  techo("sostiene[0].notaFuente", v.notaFuente, 200);
+  techo("sostiene.nota", R.sostiene.nota, 120);
+  techo("acciones.lectura", d.margen.acciones.lectura, 150);
+  techo("acciones.bajo.lectura", d.margen.acciones.bajo.lectura, 190);
+  techo("costoPrecio.lectura", d.margen.costoPrecio.lectura, 200);
+  techo("costoPrecio.nota", d.margen.costoPrecio.nota, 90);
+  techo("porQue.lectura", d.margen.porQue.lectura, 230);
+  techo("porQue.nota", d.margen.porQue.nota, 90);
+  techo("prioridades.encabezado", R.prioridades.encabezado, 160);
+  // LAS FILAS SE MULTIPLICAN: una frase de 300 caracteres en cuatro filas son 1200 de una sola sentada. Por eso
+  // llevan el techo más bajo de la vista, y se mide la PEOR, no el promedio.
+  const peorFila = d.margen.porQue.filas.reduce((m, f) => Math.max(m, (f.lectura || "").length), 0);
+  ok(peorFila <= 120, `la fila más larga de "venden mucho pero dejan poco" ≤ 120 — ${peorFila}`);
+  for (const g of R.prioridades.grupos) {
+    techo(`grupo[${g.key}].criterio`, g.criterio, 60);
+    techo(`grupo[${g.key}].porQue`, g.porQue, 70);
+  }
+  // Y NADA DE ESTO PUEDE HABERSE LOGRADO BORRANDO LA CONCLUSIÓN: cada texto sigue diciendo algo
+  const vacios = [R.cartera.lectura, R.evolutivo.lectura, v.lectura, d.margen.acciones.lectura,
+    d.margen.costoPrecio.lectura, d.margen.porQue.lectura, R.prioridades.encabezado].filter((t) => !t || t.length < 25);
+  ok(vacios.length === 0, "…y ninguna quedó vacía por recortar: todas siguen afirmando algo");
+  // LA CIFRA QUE EL BLOQUE APORTA SIGUE EN SU LECTURA · recortar no puede llevarse el dato
+  ok(R.cartera.lectura.includes(String(R.cartera.filas.filter((f) => f.vsPresupuesto.dir === "baja").length)),
+    "la cartera sigue diciendo cuántas cuentas quedan bajo presupuesto");
+  ok(d.margen.acciones.lectura.includes(d.margen.acciones.referencias[0].totalFmt),
+    `las acciones comerciales siguen diciendo lo recuperable — ${d.margen.acciones.referencias[0].totalFmt}`);
+  ok(R.evolutivo.lectura.includes(R.evolutivo.maxMes) && R.evolutivo.lectura.includes(R.evolutivo.minMes),
+    `el evolutivo sigue nombrando el mes más alto y el más bajo — ${R.evolutivo.maxMes} / ${R.evolutivo.minMes}`);
+  // LA LECTURA DE RESPALDO DEL VEREDICTO SE ELIMINÓ: repetía los cuatro KPI que van justo abajo
+  ok(!R.veredicto.lectura, "la lectura de respaldo del veredicto ya no existe: era la copia literal de los 4 KPI");
 }
 
 console.log(`\n── _resumen_comercial_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

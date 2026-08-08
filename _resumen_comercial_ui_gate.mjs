@@ -141,7 +141,11 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   // EL VEREDICTO: texto del módulo, verbatim
   ok(T.includes(R.veredicto.titular), `el titular es el del módulo — "${R.veredicto.titular}"`);
   ok(T.includes(R.veredicto.soporte), "el soporte que LOCALIZA la tensión es el del módulo, sin prosa nueva");
-  ok(T.includes(R.veredicto.lectura), "la lectura de respaldo (ventas · variación · margen · brecha) también");
+  // ⚠️ LA "LECTURA DE RESPALDO" SE ELIMINÓ (owner 2026-08-08 · "hay mucho texto"): decía las MISMAS cuatro cifras
+  // de los cuatro KPI que van justo abajo, con sus mismos pies. Se verifica que no haya vuelto en otra forma.
+  ok(!R.veredicto.lectura, "la lectura de respaldo ya no existe en el módulo");
+  ok(!/^Vendiste /m.test(T), "…ni quedó su frase suelta en la vista");
+  for (const k of R.kpis) ok(T.includes(k.valor), `pero la cifra sigue a la vista, en su KPI — ${k.label} ${k.valor}`);
   // LOS 4 KPI: los del módulo, y ninguno más
   for (const k of R.kpis) {
     ok(T.includes(k.label) && T.includes(k.valor), `KPI "${k.label}" con su cifra ${k.valor}`);
@@ -285,7 +289,7 @@ H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
   ok(T.includes(e.totalActualFmt) && e.totalActualFmt === R.kpis[0].valor,
     `RECONCILIA a la vista: el cierre del gráfico y el KPI de ventas son el MISMO número — ${e.totalActualFmt}`);
   ok(T.includes(e.lectura), "la lectura del año viene del módulo (cierre, variación, mes más alto y más bajo)");
-  ok(T.includes(e.nota) && /anclad/i.test(e.nota), "…y la nota declara el anclaje en vez de esconder la diferencia entre tablas");
+  ok(T.includes(e.nota) && /cierran con el KPI|anclad/i.test(e.nota), "…y la nota dice qué series cierran con el KPI y cuál es solo un plan");
   ok(e.meses.every((m) => T.includes(m)), `los ${e.meses.length} meses están rotulados`);
   ok(T.includes(e.maxMes) && T.includes(e.maxFmt) && T.includes(e.minMes) && T.includes(e.minFmt),
     `el mes más alto (${e.maxMes} ${e.maxFmt}) y el más bajo (${e.minMes} ${e.minFmt}) se identifican solos`);

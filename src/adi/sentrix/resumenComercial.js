@@ -95,7 +95,8 @@ function _enTension(plano, rows) {
       ? `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)}, todas fuera del plano.`
       : !enCola.length
         ? `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)} — todas dentro del plano.`
-        : `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)} · el plano concentra el ${_pct(concentraPct)} y ${_cuentas(enCola.length)} ${enCola.length === 1 ? "queda" : "quedan"} en la cola por ${_K(tCola)}.`;
+        // Los dos universos y su reconciliación NO se recortan: es la regla dura del owner. Se recorta el relleno.
+        : `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)} · el plano concentra ${_pct(concentraPct)}, la cola ${_K(tCola)}.`;
   // LA RECONCILIACIÓN · los dos universos nombrados y el puente entre ellos, en una sola frase.
   let reconcilia;
   if (!enCartera.length) {
@@ -119,12 +120,11 @@ function _veredicto({ total, plano, tension, variacionPct }) {
   const brecha = typeof total.margen === "number" && typeof total._vara === "number" ? total._vara - total.margen : null;
   const crece = typeof variacionPct === "number" && variacionPct > 0;
   const margenCorto = typeof brecha === "number" && brecha > 0;
-  const lecturaBase = [
-    typeof total.ventas === "number" ? `Vendiste ${_M(total.ventas * 1000)}` : null,
-    typeof variacionPct === "number" ? `${variacionPct >= 0 ? "+" : ""}${variacionPct.toFixed(1)}% contra el año anterior` : null,
-    typeof total.margen === "number" ? `margen de ${_pct(total.margen)}` : null,
-    margenCorto ? `${_pp(brecha)} bajo tu benchmark de ${_pct(total._vara)}` : null,
-  ].filter(Boolean).join(" · ");
+  // ⚠️ LA "LECTURA DE RESPALDO" SE ELIMINÓ (owner 2026-08-08: "hay mucho texto, eso puede marear al usuario").
+  // Decía "Vendiste $99.9M · +7.5% contra el año anterior · margen de 25.1% · 5.0 pp bajo tu benchmark" — las
+  // MISMAS cuatro cifras de los cuatro KPI que van tres centímetros abajo, con sus mismos pies. Era la
+  // duplicación más literal de la vista. El campo se conserva en null: la vista ya lo pinta condicionado.
+  const lecturaBase = null;
 
   // EL ALCANCE, UNA SOLA VEZ (owner 2026-08-07: "hoy el universo 80/20 se explica varias veces"). Esta frase es
   // LA declaración del plano de decisión de toda la vista: reemplaza a la banda "Plano de decisión" y a la banda
@@ -183,7 +183,7 @@ export function buildPareto(plano, metrica = "ventas", { maxEntidades = 10 } = {
     entidadesReales: real.length,
     cruce80: cruce >= 0 ? real[cruce].nombre : null,
     agrupadas: restoCabeza.length,
-    nota: `Las barras muestran ${metrica === "contribucion" ? "contribución" : "venta"} por cliente y la línea el porcentaje acumulado.${cruce >= 0 ? ` El umbral del 80% se alcanza en ${real[cruce].nombre}.` : ""}`,
+    nota: cruce >= 0 ? `El 80% se alcanza en ${real[cruce].nombre}.` : `La línea es el porcentaje acumulado.`,
   };
 }
 
@@ -342,12 +342,10 @@ function _evolutivo(oficial) {
     cumplimientoFmt: tPpto ? _pct((tAct / tPpto) * 100) : "—",
     // LECTURA EJECUTIVA · una sola: cierre del período, variación interanual, cumplimiento presupuestario y los
     // meses que importan. Describe el movimiento con cifras autorizadas; no dice POR QUÉ — eso es el bloque 02.
-    lectura: [
-      `El año cierra en ${_M(tAct * 1000)}`,
-      typeof vsAnt === "number" ? `${_sig(vsAnt)} contra el anterior` : null,
-      tPpto ? `${_pct((tAct / tPpto) * 100)} del presupuesto (${_sig(vsPpto)})` : null,
-    ].filter(Boolean).join(" · ") + `. El mes más alto fue ${ev.meses[iMax]} (${_M(actual[iMax] * 1000)}) y el más bajo ${ev.meses[iMin]} (${_M(actual[iMin] * 1000)})${caida && caida.delta < 0 ? `; la mayor caída del año fue de ${caida.desde} a ${caida.mes} (${_K(Math.abs(caida.delta) * 1000)})` : ""}.`,
-    nota: `Las tres series son dato real del período. Este año y el anterior están anclados al total oficial de venta por cliente, así que el gráfico cierra exacto con el KPI de arriba; el presupuesto es el plan que declaraste y no se ancla.`,
+    // El cierre del año, la variación y el cumplimiento ya están en el KPI y en la leyenda de las tres series.
+    // Acá queda SOLO lo que el gráfico agrega: los meses que importan.
+    lectura: `Mes más alto ${ev.meses[iMax]} (${_M(actual[iMax] * 1000)}), más bajo ${ev.meses[iMin]} (${_M(actual[iMin] * 1000)})${caida && caida.delta < 0 ? `. La mayor caída fue de ${caida.desde} a ${caida.mes} (${_K(Math.abs(caida.delta) * 1000)})` : ""}.`,
+    nota: `El presupuesto es tu plan declarado; las otras dos series cierran con el KPI de arriba.`,
   };
 }
 
@@ -432,22 +430,20 @@ function _cartera(scenario, rows, total) {
     cubrePct, cubreFmt: _pct(cubrePct),
     verTodosLabel: `Ver la cartera completa (${filas.length})`,
     verMenosLabel: `Ver solo las primeras ${tope}`,
-    // LECTURA · describe el movimiento del negocio y hasta ahí llega. Dice cuántas caen y cuántas incumplen;
-    // no dice por qué, que es el bloque 02, ni qué hacer, que es el 03.
-    lectura: [
-      `${filas.length} cuentas componen el negocio`,
-      totalFila.vsAnterior.hay ? `${totalFila.vsAnterior.pctFmt} contra el año anterior` : null,
-      totalFila.vsPresupuesto.hay ? `${totalFila.vsPresupuesto.pctFmt} contra el presupuesto` : null,
-    ].filter(Boolean).join(" · ") + `. ${cae ? `${cae} ${cae > 1 ? "venden" : "vende"} menos que el año pasado` : "Ninguna vende menos que el año pasado"} y ${bajoPpto ? `${bajoPpto} ${bajoPpto > 1 ? "quedan" : "queda"} bajo su presupuesto` : "ninguna queda bajo su presupuesto"}.`,
+    // LECTURA · solo la conclusión. El total del negocio y sus dos variaciones ya están en la fila Total y en
+    // los KPI: repetirlos acá era decir tres veces lo mismo antes de llegar a lo único que la tabla no grita.
+    lectura: `${cae ? `${cae} ${cae > 1 ? "cuentas venden" : "cuenta vende"} menos que el año pasado` : "Ninguna cuenta vende menos que el año pasado"} y ${bajoPpto ? `${bajoPpto} ${bajoPpto > 1 ? "quedan" : "queda"} bajo su presupuesto` : "ninguna queda bajo su presupuesto"}.`,
     resumenTope: resto > 0
-      ? `Las primeras ${tope} concentran el ${_pct(cubrePct)} de la venta. Las otras ${resto} están en la cartera completa.`
-      : `Están las ${filas.length} cuentas del negocio: no hay cartera oculta detrás de este corte.`,
+      ? `Las primeras ${tope} concentran el ${_pct(cubrePct)} de la venta.`
+      : `Están las ${filas.length} cuentas del negocio.`,
     // ⚠️ LA NOTA ES PARA QUIEN DIRIGE EL NEGOCIO, NO PARA NOSOTROS (owner 2026-08-08: "ese cuadro es como interno
     // nuestro, ojo con esas cosas"). Antes justificaba el método —"y no de otra tabla", "los escenarios no lo
     // reescriben", "suma exacto el total del período"—: eso es la defensa del dato ante un auditor, no lo que el
     // usuario necesita para leer la tabla. Lo que SÍ le sirve queda: contra qué se compara cada cifra, qué son
     // esas dos referencias y qué significa el color. El rigor no se pierde por no proclamarlo: vive en los gates.
-    nota: `Venta oficial por cliente, la misma que suma el KPI de arriba (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); el presupuesto, el plan que declaraste (${_M(sPpto * 1000)}). Verde arriba de la referencia, rojo abajo. Cada nombre abre su Ficha.`,
+    // La diferencia entre dato cerrado y plan declarado NO se recorta: es lo que separa una medición de una
+    // intención, y sin eso las dos columnas se leerían como si valieran lo mismo.
+    nota: `Venta oficial por cliente (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); el presupuesto, el plan que declaraste (${_M(sPpto * 1000)}). Verde arriba de la referencia, rojo abajo.`,
     // EN PANTALLA ANGOSTA no caben las siete: siete columnas en 360px obligan a scrollear en horizontal y las dos
     // que dan sentido al bloque —los gaps— quedan fuera del primer vistazo. Se apartan participación y
     // contribución, que son las dos que menos aportan a "cómo viene el negocio", y la vista lo DECLARA en vez de
@@ -525,20 +521,22 @@ function _sostiene(scenario, rows, total) {
     // "1 canal sostienen la venta" es la clase de detalle que hace dudar de todo lo demás.
     const uno = grupo.length === 1, f = singular === "familia";
     const sostienen = `${_plural(grupo.length, singular)} sostien${uno ? "e" : "en"} la venta`;
-    const cierre = `bajo tu benchmark de ${_pct(mat.length ? mat[0].vara : 0)}: ahí se sostiene el volumen y ahí se diluye el margen.`;
+    const cierre = `bajo tu benchmark de ${_pct(mat.length ? mat[0].vara : 0)}.`;   // el "ahí se diluye el margen" lo dice la tabla
     const lectura = mat.length
       ? (uno ? `${sostienen}, y queda ${rango} ${cierre}`
-             : `${sostienen}. ${mat.length} de ${f ? "ellas" : "ellos"} qued${mat.length > 1 ? "an" : "a"} ${rango} ${cierre}`)
+             : `${mat.length} de ${_plural(grupo.length, singular)} que sostienen la venta qued${mat.length > 1 ? "an" : "a"} ${rango} ${cierre}`)
       : (uno ? `${sostienen}, y no cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`
-             : `${sostienen}, y ning${f ? "una" : "o"} de ese grupo cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`);
+             : `${sostienen}, y ning${f ? "una" : "o"} cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`);
     return {
       key, label, filas, n: filas.length,
       grupoN: grupo.length, grupoPct: conc.totalCubiertoPct, grupoPctFmt: _pct(conc.totalCubiertoPct),
       colaN: filas.length - grupo.length,
       totalVenta: v, totalVentaFmt: _M(v * 1000), totalContribFmt: _K(c * 1000), reconcilia, lectura,
+      // El que CIERRA no necesita explicarse: el chip verde ya lo dice. El que NO cierra sí, pero con la
+      // diferencia y nada más — el porqué de no reescalar los márgenes es nuestro, no del usuario.
       notaFuente: reconcilia
-        ? `${fuente} Cierra exacto con la venta oficial del negocio (${_M(tV * 1000)}).`
-        : `${fuente} Este corte suma ${_M(v * 1000)} de venta y ${_K(c * 1000)} de contribución, contra ${_M(tV * 1000)} y ${_K(tC * 1000)} de la venta oficial por cliente (${_pct(dv * 100)} y ${_pct(dc * 100)} de diferencia): son dos cortes del mismo negocio que el dataset no concilia al centavo. Los márgenes son los del dato, sin reescalar — reescalarlos para cuadrar movería justo la cifra que venís a mirar. El peso en venta es sobre el total de esta tabla.`,
+        ? `Cierra exacto con la venta oficial del negocio (${_M(tV * 1000)}).`
+        : `Otro corte del mismo negocio: ${_M(v * 1000)} contra ${_M(tV * 1000)} de la venta oficial (${_pct(dv * 100)} de diferencia). Los márgenes son los del dato, sin reescalar.`,
     };
   };
 
@@ -594,8 +592,10 @@ function _sostiene(scenario, rows, total) {
       { key: "brecha", label: "Brecha", align: "right" },
       { key: "acciones", label: "Acciones comerciales", align: "right" },
     ],
-    nota: `Participación = peso de cada fila en la venta de ESTE corte. Margen en ámbar = bajo tu benchmark; la brecha en ámbar es la que llega a ${POLICY.margenBrechaMaterial} pp o más. Acciones comerciales = rebates y descuentos como % de esa venta; en ámbar lo que supera tu meta de ${_pct(POLICY.targetCarga)}. El monto en juego no se repite acá: vive en el bloque de qué hacer primero.`,
-    limitacion: "Por punto de venta no hay corte posible: las sucursales del dato traen inventario, no venta ni contribución. Se enciende con el ERP; inventarlo sería peor que no ofrecerlo.",
+    // El glosario largo se fue al InfoDot, que es donde vive lo que hay que explicar. Acá queda la clave de color,
+    // que es lo único que no se deduce mirando.
+    nota: `En ámbar: margen bajo tu benchmark, brecha de ${POLICY.margenBrechaMaterial} pp o más, acciones sobre tu meta de ${_pct(POLICY.targetCarga)}.`,
+    limitacion: "Por punto de venta no hay corte: las sucursales del dato traen inventario, no venta. Se enciende con el ERP.",
   };
 }
 
@@ -710,8 +710,9 @@ function _deterioro(scenario, rows, plano, tension, puente) {
     const bajo = {
       filas: bajoFilas, n: bajoFilas.length, ventaFmt: _M(ventaBajo * 1000),
       menorFmt: bajoFilas.length ? bajoFilas[0].cargaFmt : "—", menorNombre: bajoFilas.length ? bajoFilas[0].nombre : null,
+      // NO son plata a capturar y eso no se negocia por brevedad — pero se dice en una línea, no en cuatro.
       lectura: bajoFilas.length
-        ? `Del otro lado hay ${bajoFilas.length} ${bajoFilas.length === 1 ? "cliente que opera" : "clientes que operan"} por debajo del promedio y suman ${_M(ventaBajo * 1000)} de venta — ${bajoFilas[0].nombre} lo hace con ${bajoFilas[0].cargaFmt}. No son plata a capturar: llevarlos al promedio sería entregarles más. Son la prueba, con tus propios clientes, de que se puede vender entregando menos; por qué lo logran es lo que hay que ir a mirar.`
+        ? `${bajoFilas.length} ${bajoFilas.length === 1 ? "cuenta entrega" : "cuentas entregan"} menos que el promedio y suman ${_M(ventaBajo * 1000)}. No son plata a capturar —llevarlos al promedio sería entregarles más—: son la prueba de que se puede vender entregando menos.`
         : `No hay clientes por debajo del promedio: todos entregan lo mismo o más.`,
       estatus: "abierto",
     };
@@ -726,8 +727,8 @@ function _deterioro(scenario, rows, plano, tension, puente) {
           nota: `Tu meta declarada. Es más ambiciosa que el promedio, así que el monto es mayor — y por eso las dos se muestran juntas: una dice qué es alcanzable comparándote con vos mismo, la otra qué te propusiste.` },
       ],
       lectura: alPromedio.n
-        ? `${alPromedio.n} de ${rows.length} clientes entregan más que el promedio de tu cartera (${_pct(promedio, 2)}). Alinearlos con ese promedio recupera ${_K(alPromedio.total)}; llevarlos a tu meta de ${_pct(meta)}, ${_K(aLaMeta.total)}. Es lo único de la brecha con una causa medida cuenta por cuenta.`
-        : `Ninguna cuenta entrega más que el promedio de tu cartera (${_pct(promedio, 2)}): por acciones comerciales no hay margen que rescatar.`,
+        ? `${alPromedio.n} de ${rows.length} cuentas entregan más que tu promedio (${_pct(promedio, 2)}). Alinearlas recupera ${_K(alPromedio.total)}; llevarlas a tu meta de ${_pct(meta)}, ${_K(aLaMeta.total)}.`
+        : `Ninguna cuenta entrega más que tu promedio (${_pct(promedio, 2)}): por acciones comerciales no hay margen que rescatar.`,
     };
   };
   // B · COSTO CONTRA PRECIO — la serie mensual de cada cuenta, de su primer mes a su último
@@ -763,9 +764,9 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       comprimenN: comprimen.length, perdida, perdidaFmt: _K(Math.abs(perdida)),
       ganancia, gananciaFmt: _K(ganancia),
       lectura: comprimen.length
-        ? `En ${comprimen.length} de ${filas.length} cuentas el costo unitario subió más que el precio entre ${desde} y ${hasta}: el margen por unidad se comprimió y eso equivale a ${_K(Math.abs(perdida))} sobre las unidades del período. Empezá por ${comprimen.slice(0, 2).map((f) => f.nombre).join(" y ")}.`
-        : `Entre ${desde} y ${hasta} el costo unitario cedió y el precio subió en las ${filas.length} cuentas: el margen por unidad se expandió, no se comprimió. Por costo no estás perdiendo margen este período — el deterioro viene por el otro lado.`,
-      nota: `Compara el costo unitario contra el precio por unidad de cada cuenta, de ${desde} a ${hasta}. Si el costo sube y el precio no acompaña, el margen por unidad se comprime; multiplicado por las unidades del período, eso es lo que cuesta. Va como INDICADO y no como probado: el nivel de estas dos series no cierra al centavo con el margen contable — lo que vale es su VARIACIÓN, que es cada serie contra sí misma.`,
+        ? `En ${comprimen.length} de ${filas.length} cuentas el costo subió más que el precio: ${_K(Math.abs(perdida))} de margen. Empezá por ${comprimen.slice(0, 2).map((f) => f.nombre).join(" y ")}.`
+        : `El costo cedió y el precio subió en las ${filas.length} cuentas. Por costo no estás perdiendo margen este período.`,
+      nota: `Indicado: lo que vale es la variación de cada serie, no su nivel.`,
       estatus: "indicado",
     };
   };
@@ -818,7 +819,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
         const _sig = (v, suf) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(suf === "pp" ? 2 : 0)}${suf === "pp" ? " pp" : "%"}`;
         // el CONTEXTO unitario, en palabras: vende más caro / más barato · compra más caro / más barato
         const contexto = dTicket == null ? null
-          : `Vende ${dTicket >= 0 ? `${dTicket}% más caro` : `${Math.abs(dTicket)}% más barato`} que el promedio de tu cartera y su costo por unidad es ${dCostoUni >= 0 ? `${dCostoUni}% más alto` : `${Math.abs(dCostoUni)}% más bajo`}.`;
+          : `Vende ${dTicket >= 0 ? `${dTicket}% más caro` : `${Math.abs(dTicket)}% más barato`} y compra ${dCostoUni >= 0 ? `${dCostoUni}% más caro` : `${Math.abs(dCostoUni)}% más barato`}.`;
         return {
           nombre: r.name,
           ventaFmt: _M((r.ventas || 0) * 1000), participacionFmt: _pct(((r.ventas || 0) / tV) * 100),
@@ -829,10 +830,12 @@ function _deterioro(scenario, rows, plano, tension, puente) {
           dCostoUni, dCostoUniFmt: dCostoUni == null ? "—" : _sig(dCostoUni, "%"),
           contexto,
           cierra: Math.abs((efCarga + efCosto) - brecha) < 0.05,
-          // LA RESPUESTA A "¿por qué me deja poco?", con la parte medida primero
+          // LA RESPUESTA A "¿por qué me deja poco?" EN UNA LÍNEA. Los dos términos ya van como cifra al lado del
+          // nombre, con el dominante resaltado; la frase solo dice CUÁL manda. El "falta separar precio de costo"
+          // era idéntico en todas las filas: subió una sola vez a la nota del bloque.
           lectura: dominante === "acciones"
-            ? `${_sig(brecha, "pp")} bajo el promedio de tu cartera, y la mayor parte viene de lo que le entregás: opera con ${_pct(carga)} de acciones comerciales contra el ${_pct(cargaProm, 2)} de la cartera (${_sig(efCarga, "pp")}). El resto (${_sig(efCosto, "pp")}) queda en la relación entre su precio y su costo.`
-            : `${_sig(brecha, "pp")} bajo el promedio de tu cartera, y la mayor parte NO viene del descuento (${_sig(efCarga, "pp")}) sino de la relación entre su precio y su costo (${_sig(efCosto, "pp")}).${contexto ? ` ${contexto}` : ""} Falta separar cuánto es precio y cuánto es costo de producto.`,
+            ? `Pesa lo que le entregás: ${_pct(carga)} de acciones comerciales contra ${_pct(cargaProm, 2)} de tu cartera.`
+            : `Pesa su precio contra su costo, no el descuento.${contexto ? ` ${contexto}` : ""}`,
         };
       })
       .sort((a, b) => b.brecha - a.brecha)   // menos negativo primero… se invierte abajo
@@ -844,8 +847,8 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       filas, n: filas.length,
       margenProm, margenPromFmt: _pct(margenProm), cargaPromFmt: _pct(cargaProm, 2),
       tickPromFmt: tickProm ? `$${tickProm.toFixed(2)}` : "—", costoUniPromFmt: costoUniProm ? `$${costoUniProm.toFixed(2)}` : "—",
-      lectura: `${filas.length} de los ${plano.n} clientes que sostienen la venta dejan menos margen que el promedio de tu cartera (${_pct(margenProm)}). ${porAcciones.length ? `En ${porAcciones.map((f) => f.nombre).join(", ")} pesa más lo que les entregás.` : ""}${porPrecio.length ? ` En ${porPrecio.map((f) => f.nombre).join(", ")} pesa más la relación entre su precio y su costo.` : ""} Son dos problemas distintos y se arreglan distinto.`,
-      nota: `La brecha de cada cuenta contra el promedio de la cartera se parte SIEMPRE en dos términos que suman exacto: lo que le entregás en acciones comerciales (medido cuenta por cuenta) y la relación entre su precio y su costo. El segundo dice cuánto de la brecha NO viene del descuento, pero todavía no separa si vende más barato o compra más caro — para eso está la comparación de precio y costo por unidad contra el promedio ponderado de tu cartera (${tickProm ? `$${tickProm.toFixed(2)}` : "—"} y ${costoUniProm ? `$${costoUniProm.toFixed(2)}` : "—"}).`,
+      lectura: `${filas.length} de ${plano.n} cuentas que sostienen la venta dejan menos margen que tu promedio (${_pct(margenProm)}), y por causas distintas: ${porAcciones.length ? `en ${porAcciones.map((f) => f.nombre).join(", ")} pesa lo que entregás` : ""}${porAcciones.length && porPrecio.length ? "; " : ""}${porPrecio.length ? `en ${porPrecio.map((f) => f.nombre).join(", ")}, su precio contra su costo` : ""}.`,
+      nota: `Falta separar cuánto es precio de venta y cuánto es costo de producto.`,
       estatus: "indicado",
     };
   };
@@ -911,14 +914,14 @@ function _prioridades(rows, deterioro, insights) {
   const porInsight = new Map((insights || []).map((i) => [i.entidad, i]));
   const grupos = [
     { key: "proteger", label: "Proteger el margen antes de empujar la venta", tono: "alerta",
-      criterio: "Están bajo su presupuesto Y ceden margen material.",
-      porQue: "Empujar volumen acá con más descuento agranda la brecha en vez de cerrarla: primero hay que recuperar el margen, después la venta." },
+      criterio: "Bajo presupuesto Y cediendo margen material.",
+      porQue: "Primero recuperar el margen, después la venta." },
     { key: "recuperarMargen", label: "Recuperar margen", tono: "aviso",
       criterio: "Cumplen su presupuesto pero ceden margen material.",
-      porQue: "El volumen está; lo que no está es lo que deja cada peso vendido." },
+      porQue: "El volumen está; falta lo que deja cada peso vendido." },
     { key: "recuperarVenta", label: "Recuperar venta", tono: "neutro",
-      criterio: "Están bajo su presupuesto y su margen no cede de forma material.",
-      porQue: "Acá crecer no cuesta margen: el problema es de volumen o de precio, y eso se puede empujar." },
+      criterio: "Bajo presupuesto, pero su margen no cede.",
+      porQue: "Acá crecer no cuesta margen: se puede empujar." },
   ];
   const clasificar = (name) => {
     const v = bajoVenta.has(name), m = bajoMargen.has(name);
@@ -951,8 +954,9 @@ function _prioridades(rows, deterioro, insights) {
     encabezado: !vivos.length
       ? "Ninguna cuenta queda bajo su presupuesto ni cede margen material: no hay una prioridad que el dato justifique."
       : proteger && proteger.filas.length
-        ? `Empezá por acá. ${proteger.filas.length === 1 ? `${proteger.filas[0].entidad} está` : `${proteger.filas.length} cuentas están`} bajo presupuesto Y cediendo margen: empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
-        : "Empezá por acá: las cuentas ordenadas por lo que está en juego, separadas por el tipo de problema que tienen.",
+        // El aviso del error más caro vive ACÁ y en un solo lugar: antes se repetía en el porqué del grupo.
+        ? `Empezá por ${proteger.filas.length === 1 ? proteger.filas[0].entidad : `las ${proteger.filas.length} cuentas`}: bajo presupuesto Y cediendo margen. Empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
+        : "Las cuentas ordenadas por lo que está en juego, separadas por tipo de problema.",
     // el cruce completo, para el gate y para quien quiera auditarlo
     total: vivos.reduce((s, g) => s + g.filas.length, 0),
   };
