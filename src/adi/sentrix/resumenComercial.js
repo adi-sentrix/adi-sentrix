@@ -442,7 +442,12 @@ function _cartera(scenario, rows, total) {
     resumenTope: resto > 0
       ? `Las primeras ${tope} concentran el ${_pct(cubrePct)} de la venta. Las otras ${resto} están en la cartera completa.`
       : `Están las ${filas.length} cuentas del negocio: no hay cartera oculta detrás de este corte.`,
-    nota: `Las ${filas.length} cuentas del período con su venta OFICIAL por cliente — la misma que suma el KPI de arriba (${_M(tV * 1000)}), así que participación y los dos gaps salen todos de esa cifra y no de otra tabla. El año anterior es dato cerrado (${_M(sAnt * 1000)}) y los escenarios no lo reescriben; el presupuesto es el plan que declaraste (${_M(sPpto * 1000)}) y suma exacto el total del período. Verde arriba de la referencia, rojo abajo. Cada nombre abre su Ficha.`,
+    // ⚠️ LA NOTA ES PARA QUIEN DIRIGE EL NEGOCIO, NO PARA NOSOTROS (owner 2026-08-08: "ese cuadro es como interno
+    // nuestro, ojo con esas cosas"). Antes justificaba el método —"y no de otra tabla", "los escenarios no lo
+    // reescriben", "suma exacto el total del período"—: eso es la defensa del dato ante un auditor, no lo que el
+    // usuario necesita para leer la tabla. Lo que SÍ le sirve queda: contra qué se compara cada cifra, qué son
+    // esas dos referencias y qué significa el color. El rigor no se pierde por no proclamarlo: vive en los gates.
+    nota: `Venta oficial por cliente, la misma que suma el KPI de arriba (${_M(tV * 1000)}). El año anterior es dato cerrado (${_M(sAnt * 1000)}); el presupuesto, el plan que declaraste (${_M(sPpto * 1000)}). Verde arriba de la referencia, rojo abajo. Cada nombre abre su Ficha.`,
     // EN PANTALLA ANGOSTA no caben las siete: siete columnas en 360px obligan a scrollear en horizontal y las dos
     // que dan sentido al bloque —los gaps— quedan fuera del primer vistazo. Se apartan participación y
     // contribución, que son las dos que menos aportan a "cómo viene el negocio", y la vista lo DECLARA en vez de
@@ -456,7 +461,9 @@ function _cartera(scenario, rows, total) {
       { key: "vsAnterior", label: "vs año anterior", align: "right", estatus: "probado" },
       { key: "vsPresupuesto", label: "vs presupuesto", align: "right", estatus: "indicado" },
     ],
-    notaAngosta: "En pantalla angosta quedan venta, margen y los dos gaps. Participación y contribución siguen en la vista de escritorio y en el bloque de quién sostiene el negocio.",
+    // Se sigue diciendo lo que se apartó —esconder una columna en silencio no es opción— pero en seis palabras y
+    // sin explicar la decisión de diseño: al usuario le importa dónde encontrarlas, no por qué no están.
+    notaAngosta: "Participación y contribución, en pantalla ancha.",
   };
 }
 

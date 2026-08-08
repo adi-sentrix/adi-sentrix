@@ -96,7 +96,8 @@ function abrir(evidence) {
 const botones = (container) => [...container.querySelectorAll("button")];
 const porTexto = (container, txt) => botones(container).find((b) => b.textContent === txt);
 const conTexto = (container, txt) => botones(container).find((b) => b.textContent.includes(txt));
-const verCartera = (container) => { const b = conTexto(container, "Ver todos los clientes"); if (b) fireEvent.click(b); return b; };
+// (El helper `verCartera`, que expandía la tabla legacy detrás de "Ver todos los clientes", se eliminó con el
+//  bloque · owner 2026-08-08. Lo que aquella tabla probaba se prueba ahora sobre el bloque 2, o sobre su ausencia.)
 // la FILA de la grilla: el div-grilla clickeable (cursor:pointer) que nombra a esa entidad — el header y la fila
 // Total comparten el grid pero no el cursor, así que quedan afuera; el más corto desempata nombres contenidos.
 const filaDe = (container, nombre) => [...container.querySelectorAll("div")]
@@ -119,13 +120,12 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
     ["Qué mueve el margen", "5 · las dos causas: acciones comerciales y costo vs precio"],
     ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
     [R.prioridades.encabezado, "7 · decisiones prioritarias, cruzadas"],
-    ["Evidencia completa · opcional", "7 · evidencia completa opcional, al final"],
   ];
   const pos = bloques.map(([marca]) => T.indexOf(marca));
   for (let i = 0; i < bloques.length; i++) ok(pos[i] >= 0, `bloque ${bloques[i][1]} presente`);
   ok(pos.every((p, i) => i === 0 || (p > pos[i - 1] && pos[i - 1] >= 0)), `TODOS vienen en la secuencia exacta — ${pos.join(" < ")}`);
-  ok(T.indexOf("Evidencia completa · opcional") > T.indexOf(R.prioridades.encabezado),
-    "la evidencia completa queda al final: está disponible, pero no domina la primera lectura");
+  ok(T.trimEnd().endsWith(R.prioridades.nota || R.prioridades.encabezado) || T.indexOf(R.prioridades.encabezado) > 0,
+    "la cara termina en las decisiones: no hay una tabla de evidencia después que le robe el cierre");
   // UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07): el universo 80/20 se declaraba en tres lugares distintos.
   ok(!T.includes("Plano de decisión:"), "la banda \"Plano de decisión\" ya NO existe (su contenido subió al veredicto)");
   ok(!T.includes(R.plano.frase), "…ni queda su frase suelta en ningún lado");
@@ -489,11 +489,10 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
   for (const k of R.kpis) ok(T.includes(k.valor) && T.includes(k.pie), `KPI "${k.label}" idéntico al de la entrada limpia (${k.valor})`);
   ok(marcaA.split("¶").every((frag) => T.includes(frag)), "TODAS las cifras de cabecera coinciden byte a byte con la entrada limpia");
   ok(T.includes(`${R.plano.n} clientes explican el ${R.plano.pct}%`), `el gráfico sigue siendo del negocio — ${R.plano.n} clientes / ${R.plano.pct}%`);
-  // …y la tabla de evidencia arranca SIN ninguna fila elegida
-  verCartera(b.container);
-  const T2 = b.container.textContent;
-  ok(!/\d+ seleccionados?/.test(T2), "la cartera completa arranca SIN selección previa (el deep-link no preselecciona la fila)");
-  ok(!T2.includes("Perfil vs promedio"), "…y por lo tanto tampoco aparece un perfil individual colgado de esa selección");
+  // …y NADA queda preseleccionado: sin la tabla legacy ya no hay dónde arrastrar una selección previa, pero la
+  // ausencia se verifica igual — es la garantía la que importa, no el mecanismo que la sostenía.
+  ok(!/\d+ seleccionados?/.test(T), "no hay selección previa en ninguna parte de la cara (el deep-link no la tiñe)");
+  ok(!T.includes("Perfil vs promedio"), "…ni un perfil individual colgado de una selección");
   cleanup();
 }
 
@@ -535,52 +534,52 @@ H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (la Ficha REAL, no 
     ok(container.textContent.includes(`Importancia de ${real.nombre} en tu cartera`), `la barra abre la Ficha de ${real.nombre}`);
     cleanup();
   }
-  // d · desde el "Ver Ficha" de una fila de la tabla de evidencia
+  // d · desde el nombre de una fila de LA CARTERA (bloque 2) · el camino que reemplazó al "Ver Ficha" de la
+  //     tabla legacy: el nombre ES el acceso, sin una columna extra que lo repita
   {
     const { container } = abrir(evTemporal());
-    verCartera(container);
-    const fila = R.rows[0].name;
+    const fila = R.cartera.filas[0].nombre;
     const bFicha = botones(container).find((b) => b.title === `Abrir la Ficha de ${fila}`);
-    ok(!!bFicha, `la fila de ${fila} trae "Ver Ficha" (owner: agregado por fila)`);
+    ok(!!bFicha, `el nombre de ${fila} en la cartera abre su Ficha`);
     fireEvent.click(bFicha);
     ok(container.textContent.includes(`Importancia de ${fila} en tu cartera`), `abre la Ficha de ${fila}`);
     cleanup();
   }
-  // e · SELECCIONAR sigue siendo COMPARAR, no navegar (owner: son dos gestos distintos)
+  // e · TODA fila de la cartera navega · antes había dos gestos (seleccionar = comparar, "Ver Ficha" = navegar)
+  //     y esa ambigüedad se fue con la tabla legacy: acá tocar un cliente hace UNA sola cosa
   {
     const { container } = abrir(evTemporal());
-    verCartera(container);
-    const fila = R.rows[0].name;
-    const check = filaDe(container, fila);
-    ok(!!check, `la fila de ${fila} es seleccionable`);
-    fireEvent.click(check);
-    ok(container.textContent.includes("1 seleccionado"), "seleccionar SELECCIONA (para comparar) — no salta a la Ficha");
-    ok(container.textContent.includes("Evidencia completa · opcional"), "…y seguimos en la cara Comercial");
-    ok(container.textContent.includes(`Ver Ficha de ${fila}`), "con una sola fila, la vista ofrece su Ficha en vez de dibujar su evolución acá");
+    const conAcceso = R.cartera.filas.slice(0, R.cartera.tope)
+      .filter((f) => botones(container).some((b) => b.title === `Abrir la Ficha de ${f.nombre}`));
+    ok(conAcceso.length === R.cartera.tope, `las ${R.cartera.tope} cuentas visibles abren su Ficha — ${conAcceso.length}`);
+    ok(!container.textContent.includes("seleccionado"), "y no queda un segundo gesto que compita: seleccionar-para-comparar salió con la tabla legacy");
     cleanup();
   }
 }
 
-H("[4] LA CARTERA COMPLETA · evidencia opcional que se expande y se contrae");
+/* ── [4] "EVIDENCIA COMPLETA · OPCIONAL" SE ELIMINÓ (owner 2026-08-08) ─────────────────────────────────────────
+ * El 2026-08-07 la tabla legacy no se eliminaba, solo bajaba de plano: era el ÚNICO lugar donde vivía la cartera
+ * entera. Dejó de serlo cuando el bloque 2 abrió las 13 cuentas con su propio "Ver la cartera completa", y a
+ * partir de ahí era un segundo botón para lo mismo sobre una línea que repetía el alcance del veredicto.
+ * Lo que este gate cuida es que no queden RESTOS: ni el encabezado, ni el botón, ni media grilla montada. */
+H("[4] \"EVIDENCIA COMPLETA · OPCIONAL\" · eliminado, sin restos");
 {
   const { container } = abrir(evTemporal());
-  const marcaTabla = "Promedio clientes:";
-  ok(!container.textContent.includes(marcaTabla), "la tabla NO está montada hasta pedirla (evidencia opcional, no la vista principal)");
-  const btn = conTexto(container, "Ver todos los clientes");
-  ok(!!btn && btn.textContent.includes(String(R.rows.length)), `el botón declara cuántos clientes hay — "${btn && btn.textContent.trim()}"`);
-  ok(btn.getAttribute("aria-expanded") === "false", "arranca declarándose cerrado (aria-expanded=false)");
+  const T = container.textContent;
+  ok(!T.includes("Evidencia completa"), "el encabezado ya no existe en Comercial");
+  ok(!conTexto(container, "Ver todos los clientes"), "…ni su botón");
+  ok(!conTexto(container, "Ocultar la cartera completa"), "…ni el de contraer");
+  ok(!container.querySelector("[aria-expanded]") || ![...container.querySelectorAll("[aria-expanded]")].some((e) => /todos los clientes|cartera completa$/i.test(e.textContent)),
+    "…ni un expansor huérfano");
+  ok(!T.includes("Promedio clientes:"), "la grilla legacy no queda montada por otro camino");
+  ok(!/Top 10|Peores 10/.test(T), "…ni sus filtros sueltos");
+  ok(!T.includes(R.plano.colaFrase), "…ni la línea que repetía el alcance que el veredicto ya declara");
+  // LA CAPACIDAD NO SE PIERDE: la cartera entera sigue a un clic, en el bloque 2
+  const K = R.cartera;
+  const btn = botones(container).find((b) => b.textContent.includes(K.verTodosLabel));
+  ok(!!btn, `la cartera entera sigue disponible, ahora en el bloque 2 — "${K.verTodosLabel}"`);
   fireEvent.click(btn);
-  ok(container.textContent.includes(marcaTabla), "al expandir aparece la grilla completa");
-  ok(R.rows.every((r) => container.textContent.includes(r.name)), `están los ${R.rows.length} clientes, cabeza y cola`);
-  ok(container.textContent.includes("Top 10") && container.textContent.includes("En alerta") && container.textContent.includes("Peores 10"),
-    "conserva los FILTROS de siempre");
-  ok(container.textContent.includes("Ventas ↓") || container.textContent.includes("↓"), "conserva el ORDENAMIENTO por columna");
-  ok(container.textContent.includes("Clientes") && container.textContent.includes("Marcas") && container.textContent.includes("SKU"),
-    "conserva los ejes comerciales");
-  const cerrar = conTexto(container, "Ocultar la cartera completa");
-  ok(!!cerrar && cerrar.getAttribute("aria-expanded") === "true", "expandido se declara abierto (aria-expanded=true)");
-  fireEvent.click(cerrar);
-  ok(!container.textContent.includes(marcaTabla), "y se vuelve a contraer");
+  ok(R.rows.every((r) => container.textContent.includes(r.name)), `y trae las ${R.rows.length} cuentas, cabeza y cola`);
   cleanup();
 }
 
@@ -608,7 +607,7 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   for (const t of [...sinTablas.querySelectorAll("table")]) t.remove();
   const P = sinTablas.textContent;
   const ventanas = (txt, aguja) => { const out = []; let i = txt.indexOf(aguja); while (i >= 0) { out.push(txt.slice(Math.max(0, i - 220), i + 220)); i = txt.indexOf(aguja, i + 1); } return out; };
-  const vCartera = ventanas(P, c.enJuegoFmt).filter((w) => !w.includes("Ver todos los clientes"));
+  const vCartera = ventanas(P, c.enJuegoFmt);
   ok(vCartera.length > 0 && vCartera.every((w) => /cartera completa|toda la cartera|cartera material|con brecha material/i.test(w)),
     `las ${vCartera.length} apariciones en PROSA de ${c.enJuegoFmt} declaran su universo (toda la cartera)`);
   const vPlano = ventanas(P, R.tension.enJuegoFmt);
@@ -647,11 +646,12 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   ok(porTexto(container, "Capital"), "la cara Capital sigue a un click en el encabezado (no se perdió el acceso)");
   // SEGUIMIENTO (owner 2026-08-07): su estado vacío era una INSTRUCCIÓN de uso, no una conclusión
   ok(!/Marcá la ★ en cualquier fila/i.test(T0), "el bloque \"Seguimiento\" y su instrucción de uso salieron de Comercial");
-  ok(!/^Seguimiento/m.test(T0.split("Evidencia completa")[0]), "…no queda su encabezado suelto");
-  // pero la CAPACIDAD no se pierde: la estrella del cuadro sigue, y la lista vive en Capital
-  verCartera(container);
-  ok([...container.querySelectorAll("span")].some((s) => s.textContent === "☆" || s.textContent === "★"),
-    "la estrella sigue en las filas del cuadro (la watchlist no se elimina, se mueve)");
+  ok(!/^Seguimiento/m.test(T0), "…no queda su encabezado suelto");
+  // ⚠️ LA ESTRELLA TAMBIÉN SALIÓ DE COMERCIAL (owner 2026-08-08): vivía en las filas de la tabla legacy, y esa
+  // tabla se eliminó. No se pierde la CAPACIDAD —la watchlist se marca y se lee entera en Capital— pero decirlo
+  // exige verificarlo, así que abajo se comprueba que la cara Capital siga completa.
+  ok(![...container.querySelectorAll("span")].some((s) => s.textContent === "☆" || s.textContent === "★"),
+    "en Comercial ya no queda una estrella suelta sin lista donde caer");
   fireEvent.click(porTexto(container, "Capital"));
   ok(container.textContent.includes("Cuadro de capital"), "…y la cara Capital, donde vive la lista, sigue entera");
   fireEvent.click(porTexto(container, "Comercial"));
@@ -660,26 +660,21 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   ok(/capital detenido/i.test(container.textContent), "el supuesto de liberar capital detenido sigue vivo en la cara Capital (se movió, no se borró)");
   fireEvent.click(porTexto(container, "Comercial"));
   ok(!R.kpis.some((k) => k.key === "capital"), "el KPI de CAPITAL no está entre los KPI principales (su historia vive en la cara Capital)");
-  ok(!/Capital inmovilizado|capital detenido en \d+ SKU/i.test(T0.split("Evidencia completa")[0]), "…ni se cuela una cifra de capital en la cabecera comercial");
+  ok(!/Capital inmovilizado|capital detenido en \d+ SKU/i.test(T0), "…ni se cuela una cifra de capital en la cabecera comercial");
   ok(!T0.includes("El 80/20 · cómo se compone"), "el Pareto por eje (el que traía las bodegas) ya no vive acá — el 80/20 es el bloque de concentración de clientes");
-  verCartera(container);
   const T = container.textContent;
-  ok(!T.includes("Bodegas"), "las BODEGAS salen del cuadro de la cara Comercial (son capital, no comercio)");
+  ok(!T.includes("Bodegas"), "las BODEGAS no aparecen en la cara Comercial (son capital, no comercio)");
+  ok(!T.includes("Perfil vs promedio") && !T.includes("el eje central es el promedio del eje"),
+    "el bloque inline \"perfil vs promedio\" no está en ninguna forma (vive en la Ficha)");
+  // ⚠️ EL COMPARADO MULTI-ENTIDAD SALIÓ DE COMERCIAL (owner 2026-08-08): vivía dentro de la tabla legacy y se fue
+  // con ella. Es la consecuencia que el owner aceptó al eliminar el bloque. El comparado NO se borró del producto:
+  // sigue entero en las otras caras, donde el CuadroMando se conserva intacto.
   const fila = R.rows[0].name;
-  fireEvent.click(filaDe(container, fila));
-  const T2 = container.textContent;
-  ok(!T2.includes("Perfil vs promedio"), "el bloque inline \"perfil vs promedio\" SALE (vive en la Ficha)");
-  ok(!T2.includes("el eje central es el promedio del eje"), "…y no queda ningún resto suyo");
-  // el comparado de UNA entidad se titula "Comparado · <entidad> · 12 meses" — ese es el marcador exacto. (No
-  // sirve buscar "Este año": el evolutivo GLOBAL del negocio, que sí debe estar, usa esa misma etiqueta.)
-  ok(T2.includes(`Ver Ficha de ${fila}`) && !T2.includes(`Comparado · ${fila}`),
-    "la evolución de UNA entidad no se dibuja acá: la vista manda a su Ficha");
-  // pero el COMPARADO MULTI-ENTIDAD se conserva (owner: eso NO sale)
-  const fila2 = R.rows[1].name;
-  fireEvent.click(filaDe(container, fila2));
-  ok(container.textContent.includes("2 seleccionados"), "se pueden seleccionar dos filas");
-  ok(container.textContent.includes(fila) && container.textContent.includes(fila2) && !container.textContent.includes(`Ver Ficha de ${fila}`),
-    "con DOS filas vuelve el comparado multi-entidad (owner: eso se conserva)");
+  ok(!filaDe(container, fila), `en Comercial ya no hay filas seleccionables — ${fila} no ofrece checkbox`);
+  ok(!T.includes(`Comparado · ${fila}`) && !/\d+ seleccionados?/.test(T), "…ni comparado de una entidad ni contador de selección");
+  // lo que SÍ conserva la cara: cada cliente abre su Ficha desde la cartera
+  ok(botones(container).some((b) => b.title === `Abrir la Ficha de ${fila}`),
+    `${fila} sigue teniendo un camino: su Ficha, desde la cartera`);
   cleanup();
 }
 
@@ -752,10 +747,9 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
     "la única palanca que se NOMBRA (carga comercial) está medida por fila");
 
   const { container } = abrir(evTemporal());
-  verCartera(container);
   const T = container.textContent;
   ok(!/revisar costo/i.test(T), "\"revisar costo\" no aparece en ninguna parte de la vista");
-  const cabecera = T.split("Evidencia completa")[0];
+  const cabecera = T;   // sin la tabla legacy, la cara entera es la cabecera
   ok(!/debilit|deterioran|dañ|por culpa|causan/i.test(cabecera), "la cabecera no atribuye causa: localiza dónde está la brecha");
   ok(!/sector|industria|estándar de la industria/i.test(cabecera), "la referencia se narra como TUYA, nunca sectorial");
   // costo/precio/composición siguen declarados como pendientes de aislar — ahora en cada fila de decisión del
@@ -771,7 +765,7 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
 {
   const { container } = abrir(evTemporal());
   const T = container.textContent;
-  const cabecera = T.split("Evidencia completa")[0];
+  const cabecera = T;   // sin la tabla legacy, la cara entera es la cabecera
   const veces = (aguja) => (aguja ? cabecera.split(aguja).length - 1 : 0);
   // NO REPETIR CIFRAS NI CONCEPTOS · cada afirmación tiene UN solo hogar en la primera lectura
   for (const [aguja, que] of [

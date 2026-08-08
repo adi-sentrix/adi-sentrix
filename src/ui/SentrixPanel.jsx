@@ -1361,7 +1361,6 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   }, [watch]);
   const toggleWatch = (dim, name) => setWatch((w) => (w.some((x) => x.dim === dim && x.name === name) ? w.filter((x) => !(x.dim === dim && x.name === name)) : [...w, { dim, name }]));
   const wl = React.useMemo(() => buildWatchlistEstado(watch, scenario), [watch, scenario]);
-  const cuadroRef = React.useRef(null);   // el ancla de la cartera completa (evidencia opcional, más abajo)
   // ── RESUMEN COMERCIAL (owner 2026-08-07) · TODA la cara Comercial sale de este módulo, con ALCANCE GLOBAL: la
   //    firma no acepta entidad seleccionada, así que ni el deep-link de un cliente ni una selección previa en la
   //    tabla pueden teñirla. El tope del gráfico es lo único que depende de la pantalla (10 entidades en desktop,
@@ -1370,9 +1369,6 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   const resumenC = React.useMemo(() => {
     try { return buildResumenComercial(scenario, { maxEntidades: narrow ? 6 : 10 }); } catch { return null; }
   }, [scenario, narrow]);
-  // LA CARTERA COMPLETA · evidencia OPCIONAL detrás de "Ver todos los clientes" (owner: la tabla no se elimina,
-  // baja de plano). El filtro "En alerta" sigue viviendo dentro de la grilla, que es donde se opera.
-  const [verCartera, setVerCartera] = useState(false);
   // ¿Y SI…? de la cara Comercial: solo supuestos COMERCIALES (owner 2026-08-07 · "mantené el capital en Capital").
   // El de liberar capital detenido no se pierde — es el mismo que ya ofrece el "¿Y si…?" de la cara Capital.
   const simulacionesComerciales = React.useMemo(() => (mesa.simulaciones || []).filter((s) => s.key !== "capital"), [mesa]);
@@ -1457,35 +1453,18 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </>) : (
           // LIMITACIÓN DECLARADA, nunca relleno: sin filas de cliente en el período no hay veredicto que sostener.
           <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-            El resumen comercial necesita la cartera de clientes del período y este escenario no la trae. La cartera completa sigue disponible más abajo.
+            El resumen comercial necesita la cartera de clientes del período y este escenario no la trae. Sin esas filas no hay lectura que sostener, así que no se muestra ninguna.
           </div>
         )}
-        {/* ── EVIDENCIA COMPLETA · OPCIONAL (owner 2026-08-07) ───────────────────────────────────────────────────
-            La tabla NO se elimina: baja de plano. El resumen se construye sobre quienes mueven la aguja; la cartera
-            completa queda un click más abajo, con TODO lo que ya tenía — selección para comparar, comparado
-            multi-entidad, filtros, orden, buscador, watchlist — más "Ver Ficha" por fila. Lo que SALE de acá es
-            solo lo que pertenece a otra cara: el 80/20 por eje (con sus bodegas), la evolución de UNA entidad y el
-            perfil-vs-promedio inline; esa historia vive completa en la Ficha.
-            ALCANCE GLOBAL: arranca SIN selección aunque se haya entrado por el deep-link de un cliente — una
-            selección previa no puede teñir la lectura del negocio. ── */}
-        <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-            <span style={{ display:"flex", alignItems:"center", gap:4 }}>Evidencia completa · opcional<InfoDot def={"La cartera completa, con las columnas de siempre (ventas, unidades, contribución, margen) intactas y la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); con dos filas seleccionadas las muestra lado a lado. La evolución de UNA entidad y su perfil viven en la Ficha: \"Ver Ficha\" en cada fila la abre. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector. \"En juego $\" es el valor que el detector ve en cada fila: ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Seguimiento\"."} align="left"/></span>
-            <button onClick={() => setVerCartera((v) => !v)} aria-expanded={verCartera}
-              title={verCartera ? "Ocultar la cartera completa" : "Ver la cartera completa"}
-              style={{ marginLeft:"auto", padding:"4px 11px", borderRadius:7, border:`1px solid ${verCartera ? "rgba(47,184,218,0.5)" : C.border}`, background: verCartera ? "rgba(47,184,218,0.1)" : "transparent", color: verCartera ? C.celeste : C.textSub, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", textTransform:"none", letterSpacing:"normal", whiteSpace:"nowrap" }}>
-              {verCartera ? "Ocultar la cartera completa" : `Ver todos los clientes${resumenC ? ` (${resumenC.rows.length})` : ""}`} <span style={{ color:C.celeste }}>{verCartera ? "▴" : "▾"}</span>
-            </button>
-          </div>
-          {!verCartera && resumenC && (
-            <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5 }}>
-              La lectura de arriba se construye sobre los {resumenC.plano.n} clientes que explican el {resumenC.plano.pct}% de las ventas. {resumenC.plano.colaFrase}
-            </div>
-          )}
-          {verCartera && (
-            <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa resumen onFicha={irAFicha} onAsk={onAsk} watch={watch} onWatch={toggleWatch}/>
-          )}
-        </div>
+        {/* ── "EVIDENCIA COMPLETA · OPCIONAL" SE ELIMINÓ (owner 2026-08-08) ──────────────────────────────────────
+            El 2026-08-07 la tabla legacy no se eliminaba, solo bajaba de plano: era el único lugar donde vivía la
+            cartera entera. El 2026-08-08 dejó de serlo — "El negocio, cliente por cliente" abre las 13 cuentas con
+            su propio "Ver la cartera completa (13)" —, así que este bloque pasó a ser un segundo botón para lo
+            mismo, encima de una línea que repetía el alcance que el veredicto ya declara arriba.
+            SE VA CON ÉL el CuadroMando de esta cara: selección para comparar, comparado multi-entidad, filtros,
+            orden, buscador y watchlist. El owner lo decidió con esa consecuencia sobre la mesa. Lo que la cara
+            conserva de todo eso: la cartera completa (bloque 1) y "Ver Ficha" por fila, que es el camino real —
+            Comercial DETECTA, la Ficha EXPLICA. El cuadro sigue vivo e intacto en las otras caras. ── */}
         {/* Las tiras legacy "Margen en riesgo" y "Capital detenido" SE ELIMINARON de esta cara (owner
             2026-08-07). La primera repetía, con OTRO universo y sin decirlo, la cifra que el veredicto ya da:
             su alcance vive ahora reconciliado dentro del bloque 1. La segunda es capital, y el capital tiene
@@ -2012,7 +1991,9 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
             Quién sostiene el negocio
             <InfoDot def={`El sustento económico del negocio desde cuatro perspectivas del mismo dato: qué CLIENTES y qué FAMILIAS mueven la venta, y —cuando aportan— SKU y canales. Cada eje trae su propio grupo 80%, calculado con el mismo motor de concentración que el resto de la vista, no un top-N fijo. Cada eje declara además si cierra con la venta oficial por cliente: los que no cierran lo dicen, con su diferencia, y sus márgenes NO se reescalan para forzar el cuadre — son justo la cifra que venís a mirar. ${S.limitacion}`} align="left"/>
           </span>
-          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{v.lectura}</span>
+          {/* LA LECTURA SE FUE ABAJO (owner 2026-08-08: "lo que dice arriba podés decirlo abajo, así no queda
+              repetitivo"). Arriba anticipaba en prosa lo que la tabla muestra tres centímetros después; abajo es
+              la CONCLUSIÓN de lo que se acaba de leer, que es donde una conclusión sirve. */}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
           <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
@@ -2060,6 +2041,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
           <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: v.reconcilia ? C.green : C.amber, border: `1px solid ${v.reconcilia ? C.green : C.amber}55`, borderRadius: 3, padding: "1px 5px" }}>{v.reconcilia ? "concilia" : "otro corte"}</span>
         </span>
       </div>
+      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 9, paddingTop: 9, borderTop: `1px solid ${C.border}` }}>{v.lectura}</div>
       <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{v.notaFuente}</div>
       <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 5 }}>{S.nota}</div>
     </div>

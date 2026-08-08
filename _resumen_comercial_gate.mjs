@@ -589,8 +589,15 @@ H("[13] LA CARTERA · una sola mirada, y las dos referencias declaradas");
   ok(cP.estatus === "indicado", `el presupuesto va INDICADO: es un plan declarado, no una medición — ${cP.estatus}`);
   ok(/plan que declaraste/.test(R.cartera.nota) && /dato cerrado/.test(R.cartera.nota),
     "y la nota explica la diferencia en palabras, no solo con un color");
-  ok(/venta OFICIAL por cliente/.test(R.cartera.nota) && R.cartera.nota.includes(R.kpis[0].valor),
+  ok(/venta oficial por cliente/i.test(R.cartera.nota) && R.cartera.nota.includes(R.kpis[0].valor),
     `la nota declara el universo y lo ancla al KPI — ${R.kpis[0].valor}`);
+  // ⚠️ Y HABLA COMO EL PRODUCTO, NO COMO NOSOTROS (owner 2026-08-08: "ese cuadro es como interno nuestro").
+  // Ningún término del andamiaje interno puede aparecer en texto que el usuario lee.
+  const jerga = /escenario|reescrib|conciliad|reconcili|de otra tabla|hardcode|módulo|dataset|tenant/i;
+  const visibles = [R.cartera.nota, R.cartera.notaAngosta, R.cartera.lectura, R.cartera.resumenTope];
+  ok(visibles.every((t) => !jerga.test(t)), "los textos del bloque no usan jerga interna",
+    visibles.filter((t) => jerga.test(t)).join(" | "));
+  ok(R.cartera.nota.length < 260, `la nota es una nota, no un descargo — ${R.cartera.nota.length} caracteres`);
   // LA LECTURA DESCRIBE, NO ATRIBUYE: puede decir cuántas caen, jamás por qué
   ok(!/porque|debido a|causad|explica por/i.test(R.cartera.lectura), `la lectura no atribuye causa — "${R.cartera.lectura}"`);
   // EL ESCENARIO NO REESCRIBE EL PASADO: anterior y presupuesto son los mismos en los tres
