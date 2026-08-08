@@ -68,9 +68,14 @@ const { buildOracleEvidence } = await import("./src/adi/oracle/sentrixEvidence.j
 const { ledgerBoleta } = await import("./src/adi/oracle/ledger.js");
 const { buildResumenComercial } = await import("./src/adi/sentrix/resumenComercial.js");
 const { buildCuadroMando } = await import("./src/adi/sentrix/cuadro.js");
+// El estado de la Mesa trae `cambios` y `simulaciones`: las dos secciones que SALIERON de la cara Comercial.
+// Se importa justamente para poder afirmar que sus textos NO aparecen — comprobar una ausencia exige tener a mano
+// lo que debería estar ausente; si no, el gate "pasa" porque no busca nada.
+const { buildMesaEstado } = await import("./src/adi/sentrix/mesa.js");
 
 const SCENARIO = "bonanza";
 const R = buildResumenComercial(SCENARIO, { maxEntidades: 10 });
+const MESA = buildMesaEstado(SCENARIO);
 
 function runTurn(plan, scenario = SCENARIO) {
   const { results, unsupported, ledger } = runPlan(plan, { scenario });
@@ -675,6 +680,27 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   // lo que SÍ conserva la cara: cada cliente abre su Ficha desde la cartera
   ok(botones(container).some((b) => b.title === `Abrir la Ficha de ${fila}`),
     `${fila} sigue teniendo un camino: su Ficha, desde la cartera`);
+
+  /* ── LA COLA DE LA CARA · "Cambios detectados" y "¿Y si…?" ELIMINADOS (owner 2026-08-08) ────────────────────
+   * Sobrevivían del shell viejo, cuando Comercial era una lista de señales. Con los tres movimientos armados
+   * quedaron fuera de la línea de razonamiento: lo que decían —el 80/20, la variación contra el año anterior, el
+   * efecto de llevar la carga a la meta— se lee ahora DENTRO de los bloques, con su universo declarado. */
+  ok(!/Cambios detectados/i.test(T), "«Cambios detectados» ya no está en Comercial");
+  ok((MESA.cambios || []).length > 0 && (MESA.cambios || []).every((c) => !T.includes(c.texto)),
+    `…ni ninguno de sus ${(MESA.cambios || []).length} textos suelto por otro camino`);
+  ok(!/^¿Y si…\?/m.test(T), "«¿Y si…?» tampoco");
+  ok((MESA.simulaciones || []).filter((s) => s.key !== "capital").every((s) => !T.includes(s.texto)),
+    "…ni sus supuestos comerciales");
+  // Y NO SE PIERDE NADA QUE NO ESTÉ EN OTRO LADO: los supuestos de capital nunca salieron de la cara Capital
+  fireEvent.click(porTexto(container, "Capital"));
+  ok(/¿Y si/i.test(container.textContent), "los supuestos siguen vivos en la cara Capital (nunca salieron de ahí)");
+  fireEvent.click(porTexto(container, "Comercial"));
+  // LA CARA CIERRA EN LAS DECISIONES · nada cuelga después del bloque 03
+  ok(!/O que ADI cuente el caso/i.test(container.textContent),
+    "…y el enlace duplicado a la primera cuenta salió: cada fila ya trae su \"Abrir Ficha\"");
+  const iDec = container.textContent.indexOf(R.prioridades.encabezado);
+  ok(iDec > 0 && container.textContent.slice(iDec).length < 3000,
+    "la cara termina en qué hacer primero: no queda una cola de señales después");
   cleanup();
 }
 

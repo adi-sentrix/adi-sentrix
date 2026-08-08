@@ -1371,7 +1371,8 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   }, [scenario, narrow]);
   // ¿Y SI…? de la cara Comercial: solo supuestos COMERCIALES (owner 2026-08-07 · "mantené el capital en Capital").
   // El de liberar capital detenido no se pierde — es el mismo que ya ofrece el "¿Y si…?" de la cara Capital.
-  const simulacionesComerciales = React.useMemo(() => (mesa.simulaciones || []).filter((s) => s.key !== "capital"), [mesa]);
+  // (`simulacionesComerciales` murió con el "¿Y si…?" de esta cara · owner 2026-08-08. Los supuestos de capital
+  //  siguen enteros en la cara Capital, que es de donde nunca salieron.)
   // "detecta → EXPLICA": cada insight, la primera profundización sugerida, cada barra del Pareto y el "Ver Ficha"
   // de la tabla abren la Ficha REAL de esa entidad — el MISMO camino del deep-link `_clientLink` (cara Ficha +
   // cliente elegido), no una vista paralela.
@@ -1469,41 +1470,15 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             2026-08-07). La primera repetía, con OTRO universo y sin decirlo, la cifra que el veredicto ya da:
             su alcance vive ahora reconciliado dentro del bloque 1. La segunda es capital, y el capital tiene
             su propia cara — la pestaña Capital sigue a un click en el encabezado. */}
-        {/* ── CAMBIOS DETECTADOS · señales del período, no una sección de reporte. (El bloque «Seguimiento»
-            se ELIMINÓ de esta cara · owner 2026-08-07: su estado vacío era una INSTRUCCIÓN de uso —marcá la
-            estrella y queda acá— y en esta vista cada texto visible tiene que aportar una conclusión. La
-            estrella del cuadro sigue funcionando y la lista vive completa en la cara Capital.) ── */}
-        {mesa.cambios.length > 0 && (
-          <div>
-            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>Cambios detectados<InfoDot def={"El movimiento del período: quién sube y quién cede en venta contra el año anterior, la trayectoria de contribución del año (la misma serie de la ficha — cierra exacto con el cuadro) y las entradas/salidas del grupo 80/20. Tocá una línea y ADI la abre al lado."} align="left"/></div>
-            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-              {mesa.cambios.map((c, i) => (
-                <AskRow key={i} onAsk={onAsk} q={c.ask} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:11.5, color:C.textSub, lineHeight:1.45, padding:"6px 9px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)" }}>
-                  <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>›</span>
-                  <span>{c.texto}</span>
-                </AskRow>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14): supuestos accionables sobre el dato real — cada línea es una
-            pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo).
-            SOLO LOS COMERCIALES (owner 2026-08-07): el supuesto de liberar capital detenido salió de esta cara —
-            ya vive, idéntico, en el "¿Y si…?" de la cara Capital, que es donde el capital se decide. ── */}
-        {(simulacionesComerciales || []).length > 0 && (
-          <div>
-            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>¿Y si…?<InfoDot def={"Supuestos, no datos: cada línea proyecta una acción comercial sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado. Los supuestos sobre el capital viven en la cara Capital."} align="left"/></div>
-            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-              {simulacionesComerciales.map((s, i) => (
-                <AskRow key={i} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
-                  <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
-                  <span style={{ flex:1 }}>{s.texto}</span>
-                  <span style={{ fontFamily:MONO, fontSize:12, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{s.delta}</span>
-                </AskRow>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* ── LA COLA DE LA CARA SE ELIMINÓ · "Cambios detectados" y "¿Y si…?" (owner 2026-08-08) ───────────────
+            Las dos secciones sobrevivían del shell viejo, cuando la cara Comercial era una lista de señales. Con
+            los tres movimientos armados quedaron fuera de la línea de razonamiento: "Qué hacer primero" cierra
+            con las decisiones priorizadas, y después venían tres señales sueltas y dos supuestos que ya no
+            respondían ninguna pregunta abierta — el 80/20, la variación contra el año anterior y el efecto de
+            llevar la carga a la meta se leen ahora dentro de los bloques, con su universo declarado.
+            LA CAPACIDAD NO SE PIERDE: los supuestos de capital ya vivían en el "¿Y si…?" de la cara Capital, y
+            cualquier pregunta sobre el período se le hace a ADI con el botón fijo de esta misma vista.
+            La cara termina donde tiene que terminar: en qué hacer primero. ── */}
         </>)}
         <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
@@ -2278,9 +2253,9 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
           </div>
         ))}
       </div>
-      {onAsk && R.primera ? (
-        <div style={{ marginTop: 9 }}>{_btnADI(() => onAsk(`Profundiza en ${R.primera.entidad}`), `O que ADI cuente el caso ${R.primera.entidad} →`)}</div>
-      ) : null}
+      {/* El enlace "O que ADI cuente el caso <entidad>" se ELIMINÓ (owner 2026-08-08): cada fila ya trae su
+          "Abrir Ficha →", y ofrecer un segundo camino a la MISMA cuenta —la primera de la lista— competía con
+          esa acción en vez de sumarle. Preguntarle a ADI sigue a un clic, con el botón fijo de la vista. */}
     </div>
   );
 }
