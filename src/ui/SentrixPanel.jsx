@@ -1441,6 +1441,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <ResumenMovimiento num="01" title="Qué está pasando"
             def={"El estado del negocio completo: el veredicto con sus cuatro cifras de cabecera, cómo se movió el año contra el anterior y contra tu presupuesto, en quiénes se concentra la venta y cómo se compone la cartera cliente por cliente. Todo con alcance global — ninguna selección previa lo tiñe."}>
             <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
+            <ResumenCartera R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
             <ResumenEvolutivo ev={resumenC.evolutivo} onAsk={onAsk}/>
             <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
             <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
@@ -1663,6 +1664,118 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
           </button>
         ); })}
       </div>
+    </div>
+  );
+}
+
+/* ── 2 · EL NEGOCIO, CLIENTE POR CLIENTE · la primera tabla, antes de cualquier gráfico ────────────────────────
+ * Owner 2026-08-08: bajo los KPI, la lista de clientes con venta, participación, contribución, margen y los dos
+ * gaps —año anterior y presupuesto— con flechas de subida y de bajada; las primeras 10 por defecto y la cartera
+ * completa a un clic. Es la vista global del negocio antes de que aparezca ningún gráfico.
+ *
+ * LA FLECHA ES LA ÚNICA DECISIÓN VISUAL DE ESTE BLOQUE, y ni siquiera es un cálculo: el módulo entrega `dir`
+ * ("sube" / "baja" / "plano") ya resuelto con su umbral muerto, para que un ±0.02% no se dibuje como movimiento
+ * mientras en pantalla se lee "+0.0%". Va `aria-hidden` porque es redundante: el signo ya vive en el porcentaje.
+ * Y los dos gaps NO valen lo mismo — la cabecera lo sella: el año anterior es dato cerrado (probado), el
+ * presupuesto es un plan que el usuario declaró (indicado). Mezclarlos sin decirlo sería tratar una intención
+ * como una medición. */
+// Dos mapas, no uno con columnas removidas: en angosto las cinco que quedan tienen que REPARTIRSE el 100%, o
+// `tableLayout: fixed` deja los porcentajes de escritorio y las cifras salen cortadas con puntos suspensivos —
+// un número truncado es peor que un número al que hay que scrollear.
+const _RC_COLW_CART = {
+  ancho:   { nombre: "22%", peso: "11%", venta: "12%", contribucion: "13%", margen: "10%", vsAnterior: "16%", vsPresupuesto: "16%" },
+  angosto: { nombre: "26%", venta: "16%", margen: "14%", vsAnterior: "22%", vsPresupuesto: "22%" },
+};
+function ResumenCartera({ R, onFicha, onAsk }) {
+  const K = R.cartera;
+  const [todos, setTodos] = useState(false);
+  const angosto = useNarrowViewport();
+  if (!K || !K.filas.length) return null;
+  const filas = todos ? K.filas : K.filas.slice(0, K.tope);
+  // en angosto se apartan participación y contribución: siete columnas en un teléfono empujan los dos gaps —lo
+  // único que este bloque agrega— fuera del primer vistazo. Lo que se aparta se DICE, abajo, con texto del módulo.
+  const cols = angosto ? K.columnas.filter((c) => !c.soloAncho) : K.columnas;
+  const ver = (key) => cols.some((c) => c.key === key);
+  const gapCell = (g, key, fuerte) => (
+    <td key={key} style={{ ..._RC_TD, color: g.hay ? _rcTonoCol(g.tono) : C.textMuted, fontWeight: fuerte ? 600 : 400 }}>
+      {g.hay ? (
+        <span>
+          <span style={{ whiteSpace: "nowrap" }}>
+            {g.dir !== "plano" ? <span aria-hidden="true" style={{ fontSize: 8, marginRight: 3 }}>{g.dir === "sube" ? "▲" : "▼"}</span> : null}
+            {g.pctFmt}
+          </span>
+          <span style={{ display: "block", fontSize: 9.5, color: C.textMuted, lineHeight: 1.3, fontWeight: 400 }}>{g.montoFmt}</span>
+        </span>
+      ) : "—"}
+    </td>
+  );
+  return (
+    <div style={_RC_CARD}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ minWidth: 0, flex: "1 1 250px" }}>
+          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            El negocio, cliente por cliente
+            <InfoDot def={`Tu cartera entera de una sola mirada, con la venta OFICIAL por cliente: la misma que suma el KPI de arriba, así que la participación y los dos gaps salen todos de esa cifra y no de otra tabla del dato. Las dos referencias no valen lo mismo y por eso van selladas distinto: el año anterior es dato cerrado y los escenarios nunca lo reescriben; el presupuesto es el plan que vos declaraste — suma exacto el total del período, pero es una intención, no una medición. Esta tabla dice CÓMO VIENE cada cuenta; dónde se diluye el margen se lee más abajo, contra tu benchmark.`} align="left"/>
+          </span>
+          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{K.lectura}</span>
+        </span>
+        {onAsk ? _btnADI(() => onAsk("¿Qué clientes están por debajo de su presupuesto?"), "Que ADI lo explique →") : null}
+      </div>
+      <div style={{ overflowX: "auto", marginTop: 8 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: angosto ? 11 : 11.5, minWidth: angosto ? 0 : 640, tableLayout: "fixed" }}>
+          <colgroup>{cols.map((c) => <col key={c.key} style={{ width: _RC_COLW_CART[angosto ? "angosto" : "ancho"][c.key] }}/>)}</colgroup>
+          <thead><tr>{cols.map((c) => (
+            <th key={c.key} style={{ ..._RC_TH, textAlign: c.align, verticalAlign: "bottom" }}>
+              {c.label}
+              {/* en angosto el sello baja a su propia línea: al lado del título se monta encima del de la columna
+                  vecina, y un sello ilegible no sella nada */}
+              {c.estatus ? <span style={{ display: angosto ? "block" : "inline", width: angosto ? "fit-content" : undefined, marginLeft: angosto ? "auto" : 4, marginTop: angosto ? 2 : 0, fontSize: 7.5, letterSpacing: "0.5px", color: _rcEstatusCol(c.estatus), border: `1px solid ${_rcEstatusCol(c.estatus)}55`, borderRadius: 3, padding: "1px 4px" }}>{c.estatus}</span> : null}
+            </th>
+          ))}</tr></thead>
+          <tbody>{filas.map((f) => (
+            <tr key={f.nombre}>
+              {/* en angosto el nombre BAJA DE LÍNEA en vez de cortarse: sacrificar ancho de las cifras para que
+                  quepa "Mercado Libre" en una sola línea dejaría truncada la venta, que es peor */}
+              <td style={{ padding: "5px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: angosto ? "normal" : "nowrap" }}>
+                {onFicha ? (
+                  <button onClick={() => onFicha(f.nombre)} title={`Abrir la Ficha de ${f.nombre}`}
+                    style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{f.nombre}</button>
+                ) : <span style={{ color: C.text, fontWeight: 600 }}>{f.nombre}</span>}
+              </td>
+              {ver("peso") ? <td style={{ ..._RC_TD, color: C.textSub }}>{f.pesoFmt}</td> : null}
+              <td style={{ ..._RC_TD, color: C.text }}>{f.ventaFmt}</td>
+              {ver("contribucion") ? <td style={{ ..._RC_TD, color: C.textSub }}>{f.contribucionFmt}</td> : null}
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.margenFmt}</td>
+              {gapCell(f.vsAnterior, "a", false)}
+              {gapCell(f.vsPresupuesto, "p", false)}
+            </tr>
+          ))}</tbody>
+          {/* EL TOTAL ES UNA FILA MÁS y se calcula igual que las otras — contra la suma de las referencias de las
+              filas, no contra un total traído de otra tabla. Por eso su gap coincide con el pie del KPI de ventas. */}
+          <tfoot><tr style={{ borderTop: `1px solid ${C.border}` }}>
+            <td style={{ padding: "7px 6px 4px", color: C.text, fontWeight: 600, fontSize: 11.5, whiteSpace: "nowrap" }}>{K.total.nombre}</td>
+            {ver("peso") ? <td style={{ ..._RC_TD, paddingTop: 7, color: C.textSub }}>{K.total.pesoFmt}</td> : null}
+            <td style={{ ..._RC_TD, paddingTop: 7, color: C.text, fontWeight: 600 }}>{K.total.ventaFmt}</td>
+            {ver("contribucion") ? <td style={{ ..._RC_TD, paddingTop: 7, color: C.text, fontWeight: 600 }}>{K.total.contribucionFmt}</td> : null}
+            <td style={{ ..._RC_TD, paddingTop: 7, color: C.text, fontWeight: 600 }}>{K.total.margenFmt}</td>
+            {gapCell(K.total.vsAnterior, "a", true)}
+            {gapCell(K.total.vsPresupuesto, "p", true)}
+          </tr></tfoot>
+        </table>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        {K.resto > 0 ? (
+          <button onClick={() => setTodos((t) => !t)}
+            style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            {todos ? K.verMenosLabel : K.verTodosLabel} {todos ? "▴" : "▾"}
+          </button>
+        ) : <span/>}
+        <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: C.green, border: `1px solid ${C.green}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>concilia</span>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{K.resumenTope}</div>
+      {angosto ? <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 5 }}>{K.notaAngosta}</div> : null}
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 5 }}>{K.nota}</div>
     </div>
   );
 }

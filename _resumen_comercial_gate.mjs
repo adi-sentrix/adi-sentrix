@@ -512,5 +512,91 @@ H("[12] CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea"
   ok(f.lectura.includes(by.costo.pctFmt) && f.lectura.includes(by.contribucion.pctFmt), `la lectura reparte el 100% de la venta — "${f.lectura}"`);
 }
 
+/* ── [13] LA CARTERA DE UNA SOLA MIRADA (owner 2026-08-08) ─────────────────────────────────────────────────────
+ * "La lista completa de clientes, puede ser un top 10 con botón de ver todos: venta, participación, contribución,
+ * margen, gap vs año anterior, gap vs ppto." Lo que este gate protege NO es que la tabla exista, sino que sus dos
+ * gaps salgan de la MISMA venta que la propia tabla muestra, y que el total sea la suma de sus filas y no una cifra
+ * traída de otra tabla. Es la misma clase de defecto que [9a]: dos caminos para un mismo concepto. */
+H("[13] LA CARTERA · una sola mirada, y las dos referencias declaradas");
+{
+  const K = R.cartera;
+  ok(!!K && K.filas.length === R.rows.length, `están TODAS las cuentas del negocio, no una muestra — ${K && K.filas.length} de ${R.rows.length}`);
+  ok(K.columnas.map((c) => c.key).join(",") === "nombre,peso,venta,contribucion,margen,vsAnterior,vsPresupuesto",
+    `las siete columnas que pidió el owner, en su orden — ${K.columnas.map((c) => c.label).join(" · ")}`);
+  ok(K.tope === Math.min(10, K.filas.length) && K.resto === K.filas.length - K.tope,
+    `el corte por defecto es el top ${K.tope}, con ${K.resto} en la cartera completa`);
+  ok(/cartera completa \(\d+\)/.test(K.verTodosLabel), `y el botón declara cuántas hay detrás — "${K.verTodosLabel}"`);
+  ok(K.resto > 0 ? K.resumenTope.includes(K.cubreFmt) : true, `dice qué % de la venta cubre lo que se ve — ${K.cubreFmt}`);
+  // ORDEN: por venta descendente, sin excepción
+  ok(K.filas.every((f, i) => i === 0 || K.filas[i - 1].venta >= f.venta), "las filas van por venta descendente");
+
+  for (const sc of ["bonanza", "actual", "crisis"]) {
+    const S = buildResumenComercial(sc), C = S.cartera;
+    // LA VENTA DE LA FILA ES LA OFICIAL · la misma del cuadro, cliente por cliente
+    const oficial = new Map(S.rows.map((r) => [r.name, r.ventas || 0]));
+    const desalineadas = C.filas.filter((f) => Math.abs(f.venta - (oficial.get(f.nombre) || 0)) > 0.5);
+    ok(desalineadas.length === 0, `[${sc}] cada fila muestra la venta OFICIAL de su cliente — 0 desalineadas de ${C.filas.length}`);
+    // PARTICIPACIÓN Y TOTAL · la tabla cierra con el KPI de arriba
+    const sv = C.filas.reduce((s, f) => s + f.venta, 0);
+    ok(Math.abs(sv - S.total.ventas) < 0.5, `[${sc}] la venta de las filas suma el total del negocio — ${sv} = ${S.total.ventas}`);
+    ok(C.total.ventaFmt === S.kpis[0].valor, `[${sc}] el total de la tabla ES el KPI de ventas — ${C.total.ventaFmt}`);
+    ok(C.total.contribucionFmt === S.kpis[1].valor, `[${sc}] y su contribución también — ${C.total.contribucionFmt}`);
+    ok(Math.abs(C.filas.reduce((s, f) => s + f.pesoPct, 0) - 100) < 0.3, `[${sc}] la participación reparte el 100% de la venta`);
+    // CADA GAP SALE DE LA VENTA DE SU PROPIA FILA · la trampa de [9a], cerrada acá también
+    const malGap = C.filas.filter((f) => {
+      for (const g of [f.vsAnterior, f.vsPresupuesto]) {
+        if (!g.hay) continue;
+        if (Math.abs((f.venta - g.base) - g.monto) > 0.5) return true;
+        if (Math.abs(+((g.monto / g.base) * 100).toFixed(1) - g.pct) > 0.05) return true;
+      }
+      return false;
+    });
+    ok(malGap.length === 0, `[${sc}] los dos gaps se calculan contra la venta de SU fila — 0 divergencias de ${C.filas.length}`);
+    // EL TOTAL ES LA SUMA DE LAS FILAS, no un número de otra tabla
+    const gA = C.filas.reduce((s, f) => s + (f.vsAnterior.hay ? f.vsAnterior.monto : 0), 0);
+    const gP = C.filas.reduce((s, f) => s + (f.vsPresupuesto.hay ? f.vsPresupuesto.monto : 0), 0);
+    ok(Math.abs(gA - C.total.vsAnterior.monto) < 0.5, `[${sc}] el gap total vs año anterior es la suma de las filas — ${Math.round(gA)}`);
+    ok(Math.abs(gP - C.total.vsPresupuesto.monto) < 0.5, `[${sc}] y el gap total vs presupuesto también — ${Math.round(gP)}`);
+    // Y COINCIDE CON EL PIE DEL KPI · el mismo % que ya declara la card de ventas
+    const pieKpi = (S.kpis[0].pie.match(/-?[\d.]+%/) || [])[0];
+    ok(pieKpi ? Math.abs(parseFloat(pieKpi) - C.total.vsAnterior.pct) < 0.15 : true,
+      `[${sc}] el % del total coincide con el pie del KPI de ventas — ${C.total.vsAnterior.pctFmt} vs ${pieKpi}`);
+    // LA FLECHA NUNCA CONTRADICE AL SIGNO · si el módulo dice "sube", el monto es positivo
+    const flechaMiente = C.filas.concat([C.total]).filter((f) =>
+      [f.vsAnterior, f.vsPresupuesto].some((g) => g.hay && ((g.dir === "sube" && g.monto < 0) || (g.dir === "baja" && g.monto > 0))));
+    ok(flechaMiente.length === 0, `[${sc}] la dirección de la flecha nunca contradice el signo del monto`);
+    // NI UN SOLO NOMBRE HARDCODEADO en los textos que la vista pinta
+    ok(!/Falabella|Lider|Jumbo|Sodimac|Tottus|Paris|Mercado Libre/.test(`${C.lectura} ${C.resumenTope} ${C.nota}`),
+      `[${sc}] los textos del bloque no nombran clientes fijos: salen del dato`);
+  }
+
+  // LAS DOS REFERENCIAS NO VALEN LO MISMO, y el sello lo dice
+  const cA = R.cartera.columnas.find((c) => c.key === "vsAnterior");
+  const cP = R.cartera.columnas.find((c) => c.key === "vsPresupuesto");
+  ok(cA.estatus === "probado", `el año anterior va PROBADO: es dato cerrado — ${cA.estatus}`);
+  ok(cP.estatus === "indicado", `el presupuesto va INDICADO: es un plan declarado, no una medición — ${cP.estatus}`);
+  ok(/plan que declaraste/.test(R.cartera.nota) && /dato cerrado/.test(R.cartera.nota),
+    "y la nota explica la diferencia en palabras, no solo con un color");
+  ok(/venta OFICIAL por cliente/.test(R.cartera.nota) && R.cartera.nota.includes(R.kpis[0].valor),
+    `la nota declara el universo y lo ancla al KPI — ${R.kpis[0].valor}`);
+  // LA LECTURA DESCRIBE, NO ATRIBUYE: puede decir cuántas caen, jamás por qué
+  ok(!/porque|debido a|causad|explica por/i.test(R.cartera.lectura), `la lectura no atribuye causa — "${R.cartera.lectura}"`);
+  // EL ESCENARIO NO REESCRIBE EL PASADO: anterior y presupuesto son los mismos en los tres
+  const bases = ["bonanza", "actual", "crisis"].map((sc) => {
+    const C = buildResumenComercial(sc).cartera;
+    return `${Math.round(C.total.vsAnterior.base)}/${Math.round(C.total.vsPresupuesto.base)}`;
+  });
+  ok(bases[0] === bases[1] && bases[1] === bases[2],
+    `ningún escenario reescribe el año anterior ni el presupuesto — ${bases[0]} en los tres`);
+  // Y EN CRISIS LA TABLA LO DICE: no puede quedar en verde un año que cae
+  {
+    const C = buildResumenComercial("crisis").cartera;
+    ok(C.total.vsAnterior.dir === "baja" && C.total.vsAnterior.tono === "alerta",
+      `en crisis el total cae y se declara como caída — ${C.total.vsAnterior.pctFmt}`);
+    ok(C.filas.filter((f) => f.vsAnterior.dir === "baja").length > C.filas.length / 2,
+      "y la mayoría de las cuentas cae con él: la tabla sigue al escenario, no al tenant crudo");
+  }
+}
+
 console.log(`\n── _resumen_comercial_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

@@ -111,9 +111,10 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   const bloques = [
     ["Qué está pasando", "01 · movimiento QUÉ ESTÁ PASANDO"],
     ["Lectura ejecutiva · negocio completo", "1 · veredicto + alcance + KPIs"],
-    ["El año, mes a mes", "2 · evolutivo (este año · año anterior · presupuesto)"],
-    ["Concentración comercial · 80/20", "3 · gráfico de concentración (el mapa)"],
-    ["Quién sostiene el negocio", "4 · quién sostiene el negocio (clientes/familias/SKU/canales)"],
+    ["El negocio, cliente por cliente", "2 · la cartera de una sola mirada, ANTES de los gráficos"],
+    ["El año, mes a mes", "3 · evolutivo (este año · año anterior · presupuesto)"],
+    ["Concentración comercial · 80/20", "4 · gráfico de concentración (el mapa)"],
+    ["Quién sostiene el negocio", "5 · quién sostiene el negocio (clientes/familias/SKU/canales)"],
     ["Dónde se deteriora el margen", "02 · movimiento DÓNDE SE DETERIORA EL MARGEN"],
     ["Qué mueve el margen", "5 · las dos causas: acciones comerciales y costo vs precio"],
     ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
@@ -165,6 +166,105 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(T.includes(R.pareto.ventas.cruce80), `el cruce real del 80% se nombra — ${R.pareto.ventas.cruce80}`);
   ok(T.includes(R.pareto.ventas.nota), "la nota del gráfico es la del módulo");
   cleanup();
+}
+
+/* ── [1a] LA CARTERA · la primera tabla, con sus flechas (owner 2026-08-08) ────────────────────────────────────
+ * Lo que se protege acá no es el diseño: es que lo que se VE sea lo que el módulo calculó. Las flechas se dibujan
+ * a partir de `dir`, y una flecha que apunte al revés del signo sería peor que no tenerla. */
+H("[1a] EL NEGOCIO, CLIENTE POR CLIENTE · el top 10, la cartera completa y las flechas");
+{
+  const { container } = abrir(evTemporal());
+  const K = R.cartera;
+  const T = container.textContent;
+  ok(T.includes("El negocio, cliente por cliente"), "el bloque está");
+  ok(T.includes(K.lectura), "la lectura es la del módulo, verbatim");
+  // LA TABLA: se identifica por su primer <th>, no barriendo todas (hay tres tablas en la vista)
+  const tabla = [...container.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent?.startsWith("Cliente"));
+  ok(!!tabla, "la tabla existe y su primera columna es Cliente");
+  const ths = [...tabla.querySelectorAll("th")].map((t) => t.textContent);
+  for (const c of K.columnas) ok(ths.some((t) => t.startsWith(c.label)), `columna "${c.label}" presente`);
+  ok(ths.length === 7, `son exactamente las 7 que pidió el owner — ${ths.length}`);
+  ok(/probado/.test(ths[5]) && /indicado/.test(ths[6]), "las dos referencias van SELLADAS distinto en la cabecera: probado / indicado");
+  // POR DEFECTO, EL TOP 10 · y la cola no está a la vista
+  const cuerpo = tabla.querySelector("tbody");
+  ok(cuerpo.querySelectorAll("tr").length === K.tope, `arranca mostrando las primeras ${K.tope}`);
+  const ocultas = K.filas.slice(K.tope);
+  ok(ocultas.every((f) => !cuerpo.textContent.includes(f.nombre)), `las otras ${K.resto} no se dibujan todavía`);
+  ok(T.includes(K.resumenTope), "…y la vista DICE cuánta venta cubre lo que se está viendo");
+  // CADA FILA VISIBLE, con sus seis cifras
+  for (const f of K.filas.slice(0, K.tope)) {
+    const fila = [...cuerpo.querySelectorAll("tr")].find((tr) => tr.textContent.startsWith(f.nombre));
+    ok(!!fila, `fila "${f.nombre}" dibujada`);
+    const td = [...fila.querySelectorAll("td")].map((x) => x.textContent);
+    ok(td[1] === f.pesoFmt && td[2] === f.ventaFmt && td[3] === f.contribucionFmt && td[4] === f.margenFmt,
+      `…con participación ${f.pesoFmt}, venta ${f.ventaFmt}, contribución ${f.contribucionFmt} y margen ${f.margenFmt}`);
+    ok(td[5].includes(f.vsAnterior.pctFmt) && td[5].includes(f.vsAnterior.montoFmt), `…gap vs año anterior ${f.vsAnterior.pctFmt} (${f.vsAnterior.montoFmt})`);
+    ok(td[6].includes(f.vsPresupuesto.pctFmt) && td[6].includes(f.vsPresupuesto.montoFmt), `…gap vs presupuesto ${f.vsPresupuesto.pctFmt} (${f.vsPresupuesto.montoFmt})`);
+    // LA FLECHA SIGUE A `dir`, SIEMPRE
+    const flecha = f.vsAnterior.dir === "sube" ? "▲" : f.vsAnterior.dir === "baja" ? "▼" : null;
+    ok(flecha ? td[5].includes(flecha) : !/[▲▼]/.test(td[5]), `…y su flecha apunta ${f.vsAnterior.dir}`);
+  }
+  // EL TOTAL: una fila más, y ES el KPI de arriba
+  const pie = tabla.querySelector("tfoot");
+  ok(!!pie && pie.textContent.includes(K.total.nombre), "el total cierra la tabla como una fila más");
+  ok(pie.textContent.includes(K.total.ventaFmt) && pie.textContent.includes(K.total.contribucionFmt), `…con la venta ${K.total.ventaFmt} y la contribución ${K.total.contribucionFmt} del negocio`);
+  ok(K.total.ventaFmt === R.kpis[0].valor, "…que son exactamente las del KPI de arriba: la tabla no puede contradecirlo");
+  ok(pie.textContent.includes(K.total.vsAnterior.pctFmt) && pie.textContent.includes(K.total.vsPresupuesto.pctFmt), "…y los dos gaps del total");
+  // LOS COLORES DICEN LO MISMO QUE LOS SIGNOS
+  // jsdom serializa el color como rgb(...) con espacios; se tolera también el hex del tema por si no lo normaliza
+  const verde = /rgb\(\s*16,\s*185,\s*129\s*\)|#10b981/i, rojo = /rgb\(\s*244,\s*63,\s*94\s*\)|#f43f5e/i;
+  const celdas = [...cuerpo.querySelectorAll("tr")].map((tr) => [...tr.querySelectorAll("td")][5]);
+  const bien = celdas.filter((c, i) => {
+    const d = K.filas[i].vsAnterior.dir, col = (c.getAttribute("style") || "") + getComputedStyle(c).color;
+    return d === "sube" ? verde.test(col) : d === "baja" ? rojo.test(col) : true;
+  }).length;
+  ok(bien === celdas.length, `el color acompaña a la dirección en las ${celdas.length} filas visibles`);
+  cleanup();
+}
+
+H("[1a2] LA CARTERA COMPLETA · el botón la abre y la vuelve a cerrar");
+{
+  const { container } = abrir(evTemporal());
+  const K = R.cartera;
+  const btn = botones(container).find((b) => b.textContent.includes(K.verTodosLabel));
+  ok(!!btn, `el botón "${K.verTodosLabel}" está y declara cuántas cuentas hay`);
+  fireEvent.click(btn);
+  const tabla = [...container.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent?.startsWith("Cliente"));
+  ok(tabla.querySelector("tbody").querySelectorAll("tr").length === K.n, `al abrirla se ven las ${K.n} cuentas`);
+  for (const f of K.filas.slice(K.tope)) ok(tabla.textContent.includes(f.nombre), `…incluida "${f.nombre}", que estaba en la cola`);
+  const volver = botones(container).find((b) => b.textContent.includes(K.verMenosLabel));
+  ok(!!volver, `y el botón ofrece volver — "${K.verMenosLabel}"`);
+  fireEvent.click(volver);
+  const t2 = [...container.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent?.startsWith("Cliente"));
+  ok(t2.querySelector("tbody").querySelectorAll("tr").length === K.tope, "vuelve al top y no queda expandida");
+  cleanup();
+}
+
+/* ── [1a3] LA CARTERA EN PANTALLA ANGOSTA · lo que se aparta, se dice ──────────────────────────────────────────
+ * Siete columnas en un teléfono empujan los dos gaps —lo único que este bloque agrega sobre el resto de la vista—
+ * fuera del primer vistazo. Se apartan participación y contribución, y lo que NO se negocia es que la vista lo
+ * declare: esconder una columna sin decirlo es la versión chica de mentir por omisión. */
+H("[1a3] LA CARTERA EN ANGOSTO · los dos gaps sobreviven al teléfono, y lo apartado se declara");
+{
+  _MQ_MATCHES = true;
+  const { container } = abrir(evTemporal());
+  const K = R.cartera;
+  const tabla = [...container.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent?.startsWith("Cliente"));
+  const ths = [...tabla.querySelectorAll("th")].map((t) => t.textContent);
+  ok(ths.length === 5, `en angosto quedan 5 columnas — ${ths.map((t) => t.replace(/probado|indicado/, "").trim()).join(" · ")}`);
+  ok(ths.some((t) => t.startsWith("vs año anterior")) && ths.some((t) => t.startsWith("vs presupuesto")),
+    "los DOS gaps sobreviven: son lo que este bloque aporta");
+  ok(ths.some((t) => t.startsWith("Venta")) && ths.some((t) => t.startsWith("Margen")), "…y la venta y el margen con ellos");
+  ok(!ths.some((t) => t.startsWith("Participación")) && !ths.some((t) => t.startsWith("Contribución")), "participación y contribución se apartan");
+  ok(container.textContent.includes(K.notaAngosta), `…y la vista DICE cuáles se apartó y dónde siguen — "${K.notaAngosta}"`);
+  // las cifras que quedan son las mismas: apartar una columna no puede mover ninguna otra
+  const fila = [...tabla.querySelectorAll("tbody tr")].find((tr) => tr.textContent.startsWith(K.filas[0].nombre));
+  const td = [...fila.querySelectorAll("td")].map((x) => x.textContent);
+  ok(td[1] === K.filas[0].ventaFmt && td[2] === K.filas[0].margenFmt, `${K.filas[0].nombre} conserva sus cifras — ${td[1]} · ${td[2]}`);
+  ok(td[3].includes(K.filas[0].vsAnterior.pctFmt) && td[4].includes(K.filas[0].vsPresupuesto.pctFmt), "…y sus dos gaps intactos");
+  ok(tabla.querySelector("tfoot").textContent.includes(K.total.ventaFmt), "el total sigue cerrando la tabla");
+  cleanup();
+  _MQ_MATCHES = false;
 }
 
 H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
@@ -485,13 +585,35 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   ok(T.includes(R.tension.concentraPctFmt), `el % que el plano concentra de la oportunidad total se muestra y es dinámico — ${R.tension.concentraPctFmt}`);
   // REGLA DURA: cada aparición de la cifra de CARTERA viene con "toda la cartera" cerca; cada una de la del PLANO,
   // con "plano"/"que explican el X%". Se chequea sobre el texto real, no sobre la intención.
+  //
+  // ⚠️ LA PROSA Y LAS TABLAS SE MIDEN CON CRITERIOS DISTINTOS (2026-08-08). Una CELDA declara su universo por su
+  // fila y su columna, y eso es una declaración MÁS FUERTE que la vecindad textual: "$4.7M" bajo la columna Venta
+  // en la fila Ripley no puede leerse como la brecha material del plano, aunque el string sea el mismo. Barrer
+  // ambas cosas con una sola ventana de texto plano daba un falso positivo — y, peor, empujaba a cambiar una cifra
+  // correcta para callar al gate. Así que la prosa se evalúa sin tablas, y las tablas con su propia regla, abajo.
+  const sinTablas = container.cloneNode(true);
+  for (const t of [...sinTablas.querySelectorAll("table")]) t.remove();
+  const P = sinTablas.textContent;
   const ventanas = (txt, aguja) => { const out = []; let i = txt.indexOf(aguja); while (i >= 0) { out.push(txt.slice(Math.max(0, i - 220), i + 220)); i = txt.indexOf(aguja, i + 1); } return out; };
-  const vCartera = ventanas(T, c.enJuegoFmt).filter((w) => !w.includes("Ver todos los clientes"));
+  const vCartera = ventanas(P, c.enJuegoFmt).filter((w) => !w.includes("Ver todos los clientes"));
   ok(vCartera.length > 0 && vCartera.every((w) => /cartera completa|toda la cartera|cartera material|con brecha material/i.test(w)),
-    `las ${vCartera.length} apariciones de ${c.enJuegoFmt} declaran su universo (toda la cartera)`);
-  const vPlano = ventanas(T, R.tension.enJuegoFmt);
+    `las ${vCartera.length} apariciones en PROSA de ${c.enJuegoFmt} declaran su universo (toda la cartera)`);
+  const vPlano = ventanas(P, R.tension.enJuegoFmt);
   ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|el plano concentra|que explican el|Dentro de ellos/i.test(w)),
-    `las ${vPlano.length} apariciones de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
+    `las ${vPlano.length} apariciones en PROSA de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
+  // Y LAS TABLAS, con el criterio que les corresponde: toda celda que rinda uno de esos montos tiene que estar en
+  // una fila con nombre y bajo una columna con título. Si alguna vez una cifra cae en una tabla sin encabezado o
+  // sin fila identificable, esto lo caza igual que la ventana caza la prosa.
+  const colisionan = [c.enJuegoFmt, R.tension.enJuegoFmt];
+  const celdas = [...container.querySelectorAll("td")].filter((td) => colisionan.includes(td.textContent.trim()));
+  const declaradas = celdas.filter((td) => {
+    const tr = td.closest("tr"), tabla = td.closest("table");
+    const th = tabla ? tabla.querySelectorAll("th")[[...tr.children].indexOf(td)] : null;
+    const etiqueta = tr && tr.children[0] ? tr.children[0].textContent.trim() : "";
+    return !!(th && th.textContent.trim() && etiqueta);
+  });
+  ok(celdas.length === declaradas.length,
+    `las ${celdas.length} celdas de tabla que rinden uno de esos montos lo hacen bajo una columna con título y en una fila con nombre`);
   // el recuperable de acciones comerciales es OTRO alcance (las cuentas sobre una referencia de carga, no las de
   // brecha material) y también viene con su universo pegado
   const rec = R.deterioro.margen.acciones.referencias[0];

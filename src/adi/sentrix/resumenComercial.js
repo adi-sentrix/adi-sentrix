@@ -351,6 +351,115 @@ function _evolutivo(oficial) {
   };
 }
 
+/* ── LA CARTERA, DE UNA SOLA MIRADA · la primera tabla de la vista ─────────────────────────────────────────────
+ * Owner 2026-08-08: «bajo esas cards debemos tener la lista completa de clientes, puede ser solo un top 10, y con
+ * un botón de ver todos los clientes por si el usuario quiere ver la cartera completa: venta, participación,
+ * contribución, margen, gap vs año anterior, gap vs ppto. Eso dará una vista global del negocio en el inicio y
+ * luego vendrán los gráficos.»
+ *
+ * CONTESTA OTRA PREGUNTA que "quién sostiene el negocio", y por eso convive con esa tabla sin repetirla: acá se lee
+ * CÓMO VIENE cada cuenta (crece o cae, cumple el plan o no); allá, DÓNDE SE DILUYE el margen (benchmark y acciones
+ * comerciales). Las cuatro columnas que comparten son la identidad de la cuenta; las dos que las distinguen son
+ * justamente las que responden cada pregunta.
+ *
+ * LAS DOS REFERENCIAS NO VALEN LO MISMO Y SE DECLARAN COMO TALES:
+ *   · AÑO ANTERIOR   dato real y cerrado → `probado`. Los escenarios no lo reescriben nunca: modelan ESTE año
+ *                    tomándolo a él como base (`actual = anterior × (1+growth)`).
+ *   · PRESUPUESTO    el plan que el usuario declaró → `indicado`, el mismo sello que ya lleva en el evolutivo. Es
+ *                    una intención, no una medición, aunque sume exacto el total del período.
+ *
+ * Y LO MÁS IMPORTANTE: las dos se miden contra la MISMA venta que muestra la fila —la oficial por cliente, la que
+ * suma el KPI de arriba—, no contra otra tabla del dataset. Que dos bloques de la misma pantalla calculen un mismo
+ * concepto por caminos distintos es exactamente el defecto que costó confianza el 2026-08-07 (ver `[9a]` del gate).
+ */
+function _cartera(scenario, rows, total) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  // La referencia por cliente sale de la MISMA fuente que la venta oficial (regla D8), con el escenario aplicado.
+  // Sin catch mudo: si esta fuente falta, que falle fuerte — una tabla que se dibuja con las dos referencias
+  // vacías se lee como "nadie cae y nadie incumple", que es una buena noticia inventada.
+  const ref = new Map((applyScenarioToClientesVentas(scenario) || []).map((c) => [c.nombre, c]));
+  const tV = total.ventas || 0, tC = total.contribucion || 0;
+
+  // UN GAP = monto, porcentaje, dirección y tono. La dirección es lo que la vista dibuja como flecha; el umbral
+  // muerto evita que un ±0.02% se pinte como movimiento cuando en pantalla se lee "+0.0%".
+  const gap = (venta, base) => {
+    if (typeof base !== "number" || !base) return { hay: false, montoFmt: "—", pctFmt: "—", dir: "plano", tono: "neutro" };
+    const monto = venta - base, pct = +((monto / base) * 100).toFixed(1);
+    const dir = pct >= 0.05 ? "sube" : pct <= -0.05 ? "baja" : "plano";
+    return {
+      hay: true, base, monto, pct,
+      montoFmt: `${monto >= 0 ? "+" : "−"}${_K(Math.abs(monto) * 1000)}`,
+      pctFmt: `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`,
+      dir, tono: dir === "sube" ? "ok" : dir === "baja" ? "alerta" : "neutro",
+    };
+  };
+
+  const filas = rows.map((r) => {
+    const c = ref.get(r.name) || null;
+    const venta = r.ventas || 0, contribucion = r.contribucion || 0;
+    const margen = venta ? +((contribucion / venta) * 100).toFixed(1) : null;
+    return {
+      nombre: r.name,
+      venta, ventaFmt: _M(venta * 1000),
+      pesoPct: tV ? +((venta / tV) * 100).toFixed(1) : 0, pesoFmt: _pct(tV ? (venta / tV) * 100 : 0),
+      contribucion, contribucionFmt: _K(contribucion * 1000),
+      margen, margenFmt: _pct(margen),
+      vsAnterior: gap(venta, c ? c.anterior : null),
+      vsPresupuesto: gap(venta, c ? c.presupuesto : null),
+      sinReferencia: !c,
+    };
+  }).sort((a, b) => b.venta - a.venta);
+
+  // EL TOTAL ES UNA FILA MÁS, y se calcula igual que las otras: contra la SUMA de las referencias de las filas
+  // que sí la tienen, no contra un total traído de otra tabla. Así la columna cierra con lo que está arriba.
+  const sAnt = filas.reduce((s, f) => s + (f.vsAnterior.hay ? f.vsAnterior.base : 0), 0);
+  const sPpto = filas.reduce((s, f) => s + (f.vsPresupuesto.hay ? f.vsPresupuesto.base : 0), 0);
+  const totalFila = {
+    nombre: "Total cartera", venta: tV, ventaFmt: _M(tV * 1000), pesoFmt: "100.0%",
+    contribucionFmt: _K(tC * 1000), margenFmt: _pct(tV ? (tC / tV) * 100 : null),
+    vsAnterior: gap(tV, sAnt || null), vsPresupuesto: gap(tV, sPpto || null),
+  };
+
+  const tope = Math.min(10, filas.length);
+  const cubre = filas.slice(0, tope).reduce((s, f) => s + f.venta, 0);
+  const cubrePct = tV ? +((cubre / tV) * 100).toFixed(1) : 0;
+  const resto = filas.length - tope;
+  const cae = filas.filter((f) => f.vsAnterior.dir === "baja").length;
+  const bajoPpto = filas.filter((f) => f.vsPresupuesto.dir === "baja").length;
+
+  return {
+    filas, total: totalFila, n: filas.length, tope, resto,
+    cubrePct, cubreFmt: _pct(cubrePct),
+    verTodosLabel: `Ver la cartera completa (${filas.length})`,
+    verMenosLabel: `Ver solo las primeras ${tope}`,
+    // LECTURA · describe el movimiento del negocio y hasta ahí llega. Dice cuántas caen y cuántas incumplen;
+    // no dice por qué, que es el bloque 02, ni qué hacer, que es el 03.
+    lectura: [
+      `${filas.length} cuentas componen el negocio`,
+      totalFila.vsAnterior.hay ? `${totalFila.vsAnterior.pctFmt} contra el año anterior` : null,
+      totalFila.vsPresupuesto.hay ? `${totalFila.vsPresupuesto.pctFmt} contra el presupuesto` : null,
+    ].filter(Boolean).join(" · ") + `. ${cae ? `${cae} ${cae > 1 ? "venden" : "vende"} menos que el año pasado` : "Ninguna vende menos que el año pasado"} y ${bajoPpto ? `${bajoPpto} ${bajoPpto > 1 ? "quedan" : "queda"} bajo su presupuesto` : "ninguna queda bajo su presupuesto"}.`,
+    resumenTope: resto > 0
+      ? `Las primeras ${tope} concentran el ${_pct(cubrePct)} de la venta. Las otras ${resto} están en la cartera completa.`
+      : `Están las ${filas.length} cuentas del negocio: no hay cartera oculta detrás de este corte.`,
+    nota: `Las ${filas.length} cuentas del período con su venta OFICIAL por cliente — la misma que suma el KPI de arriba (${_M(tV * 1000)}), así que participación y los dos gaps salen todos de esa cifra y no de otra tabla. El año anterior es dato cerrado (${_M(sAnt * 1000)}) y los escenarios no lo reescriben; el presupuesto es el plan que declaraste (${_M(sPpto * 1000)}) y suma exacto el total del período. Verde arriba de la referencia, rojo abajo. Cada nombre abre su Ficha.`,
+    // EN PANTALLA ANGOSTA no caben las siete: siete columnas en 360px obligan a scrollear en horizontal y las dos
+    // que dan sentido al bloque —los gaps— quedan fuera del primer vistazo. Se apartan participación y
+    // contribución, que son las dos que menos aportan a "cómo viene el negocio", y la vista lo DECLARA en vez de
+    // hacerlas desaparecer en silencio: esconder una columna sin decirlo es la versión chica de mentir por omisión.
+    columnas: [
+      { key: "nombre", label: "Cliente", align: "left" },
+      { key: "peso", label: "Participación", align: "right", soloAncho: true },
+      { key: "venta", label: "Venta", align: "right" },
+      { key: "contribucion", label: "Contribución", align: "right", soloAncho: true },
+      { key: "margen", label: "Margen", align: "right" },
+      { key: "vsAnterior", label: "vs año anterior", align: "right", estatus: "probado" },
+      { key: "vsPresupuesto", label: "vs presupuesto", align: "right", estatus: "indicado" },
+    ],
+    notaAngosta: "En pantalla angosta quedan venta, margen y los dos gaps. Participación y contribución siguen en la vista de escritorio y en el bloque de quién sostiene el negocio.",
+  };
+}
+
 /* ── QUIÉN SOSTIENE EL NEGOCIO · el 80% que mueve la aguja, por cuatro perspectivas ────────────────────────────
  * Owner 2026-08-07: "una sola sección basada en el 80% que mueve la aguja, con dos vistas — Clientes y Familias".
  * Se conservan además SKU y Canales en el MISMO selector: son el mismo tipo de corte y no duplican pantalla.
@@ -879,6 +988,7 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
     plano,
     tension,
     veredicto,
+    cartera: _cartera(scenario, rows, total),        // 01 · la cartera de una sola mirada, antes de los gráficos
     evolutivo: _evolutivo(oficial),        // 01 · el año mes a mes, tres series, ancladas a la venta oficial
     sostiene: _sostiene(scenario, rows, total),      // 01 · quién sostiene el negocio · clientes/familias/SKU/canales
     formacion: _formacion(total),          // 02 · venta − costo conciliado − acciones = contribución
