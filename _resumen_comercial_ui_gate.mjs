@@ -296,6 +296,33 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
   ok(T.includes(cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`),
     `y el efecto en plata — ${cp.comprimenN ? `−${cp.perdidaFmt} perdidos` : `+${cp.gananciaFmt} ganados`}`);
   ok(T.includes("indicado"), "el efecto va rotulado INDICADO: es una variación derivada, no el margen contable");
+
+  // ── EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07) ──
+  const bajo = acc.bajo;
+  ok(T.includes("Del otro lado"), "el otro lado del promedio se muestra");
+  ok(bajo.filas.every((x) => T.includes(x.nombre)), `con las ${bajo.n} cuentas que entregan menos`);
+  ok(T.includes(bajo.lectura), "…y su lectura");
+  ok(/No son plata a capturar/.test(T) && /entregarles más/.test(T),
+    "la vista DICE que llevarlos al promedio sería darles más, no capturar — la trampa queda cerrada a la vista");
+  ok(T.includes(bajo.ventaFmt), `y cuánta venta representan — ${bajo.ventaFmt}`);
+
+  // ── VENDEN MUCHO PERO DEJAN POCO · la brecha en sus dos términos ──
+  const pq = d.margen.porQue;
+  ok(T.includes("Venden mucho pero dejan poco"), "el bloque del porqué está");
+  ok(T.includes(pq.lectura), "…con su lectura global");
+  for (const x of pq.filas) {
+    ok(T.includes(x.nombre) && T.includes(x.margenFmt) && T.includes(x.brechaFmt), `${x.nombre}: margen ${x.margenFmt} y brecha ${x.brechaFmt}`);
+    ok(T.includes(`acciones ${x.efCargaFmt}`) && T.includes(`precio/costo ${x.efCostoFmt}`),
+      `  …con la brecha partida: acciones ${x.efCargaFmt} + precio/costo ${x.efCostoFmt}`);
+    ok(T.includes(x.lectura), "  …y la respuesta a por qué deja poco");
+  }
+  // dos cuentas con el mismo síntoma pueden tener causas OPUESTAS, y la vista las distingue
+  const dominantes = new Set(pq.filas.map((x) => x.dominante));
+  ok(dominantes.size >= 1, `cada cuenta declara qué término pesa más — ${[...dominantes].join(" y ")}`);
+  ok(pq.filas.every((x) => !x.contexto || T.includes(x.contexto)), "y el contexto unitario (vende más caro/barato · compra más caro/barato) está a la vista");
+  // desde acá también se abre la Ficha
+  const obj = pq.filas[0].nombre;
+  ok(botones(container).some((b) => b.title === `Abrir la Ficha de ${obj}`), `${obj} abre su Ficha desde este bloque`);
   cleanup();
 }
 

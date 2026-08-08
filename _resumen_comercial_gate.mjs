@@ -340,6 +340,61 @@ H("[9d2] LAS DOS CAUSAS DEL MARGEN · acciones comerciales y costo contra precio
   ok(!/porque|se debe a|culpa/i.test(c.lectura), "…y describe el movimiento, no lo explica");
 }
 
+H("[9d3] EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07)");
+{
+  const a = R.deterioro.margen.acciones, b = a.bajo;
+  ok(!!b, "el otro lado del promedio existe");
+  const esperado = R.rows.filter((r) => typeof r.carga === "number" && r.carga < a.promedio);
+  ok(b.n === esperado.length, `son los que entregan MENOS que el promedio — ${b.n} de ${R.rows.length}`);
+  ok(b.n + a.referencias[0].n <= R.rows.length, "los dos lados no se superponen: o estás por encima o por debajo");
+  ok(b.filas.every((f) => f.carga < a.promedio), "toda fila del otro lado entrega menos que el promedio");
+  ok(b.filas.every((f, i) => i === 0 || b.filas[i - 1].holgura >= f.holgura), "ordenados por cuánta holgura tienen");
+  // ⚠️ LA TRAMPA QUE ESTO EVITA: llevarlos al promedio sería ENTREGARLES MÁS, no capturar plata.
+  ok(!("recuperable" in (b.filas[0] || {})) && !("totalFmt" in b),
+    "NO se les calcula un 'recuperable': llevarlos al promedio sería darles más, no capturar");
+  ok(/No son plata a capturar/.test(b.lectura) && /entregarles más/.test(b.lectura),
+    `y la lectura lo dice explícito — "${b.lectura.slice(0, 90)}…"`);
+  ok(/prueba/.test(b.lectura), "…y declara para qué SÍ sirven: son la prueba de que se puede vender entregando menos");
+  ok(b.estatus === "abierto", `por qué operan más bajo queda ABIERTO — ${b.estatus}`);
+  ok(b.filas.length === 0 || (b.menorNombre && b.menorFmt), `nombra al que menos entrega — ${b.menorNombre} ${b.menorFmt}`);
+}
+
+H("[9d4] VENDEN MUCHO PERO DEJAN POCO · la brecha partida en sus dos términos (owner 2026-08-07)");
+{
+  const q = R.deterioro.margen.porQue;
+  ok(!!q, "el análisis existe");
+  // el universo: los del grupo 80% (venden mucho) con margen bajo el promedio de la cartera
+  const esperado = R.rows.filter((r) => R.plano.grupo.some((g) => g.name === r.name) && r.margen < q.margenProm);
+  ok(q.n === esperado.length, `son los del grupo 80% bajo el promedio de margen (${q.margenPromFmt}) — ${q.n} de ${R.plano.n}`);
+  ok(q.filas.every((f, i) => i === 0 || q.filas[i - 1].brecha <= f.brecha), "la peor brecha va primero");
+  // ⚠️ LA ARITMÉTICA · la brecha se parte en DOS términos que suman EXACTO, sin residuo
+  ok(q.filas.every((f) => f.cierra), "acciones + precio/costo = la brecha, EXACTO en todas");
+  for (const f of q.filas) {
+    const row = R.rows.find((x) => x.name === f.nombre);
+    ok(Math.abs(f.brecha - (row.margen - q.margenProm)) < 0.02, `${f.nombre}: la brecha es su margen contra el promedio — ${f.brechaFmt}`);
+    ok(Math.abs(f.efCarga - (parseFloat(q.cargaPromFmt) - row.carga)) < 0.02, `${f.nombre}: el término de acciones sale de su carga medida (${f.cargaFmt})`);
+    ok(f.dominante === (Math.abs(f.efCarga) >= Math.abs(f.efCosto) ? "acciones" : "precio/costo"), `${f.nombre}: el término dominante es el de mayor peso — ${f.dominante}`);
+  }
+  // los dos diagnósticos son DISTINTOS y la vista los distingue
+  ok(new Set(q.filas.map((f) => f.dominante)).size >= 1, `cada cuenta declara qué término pesa más — ${q.filas.map((f) => `${f.nombre}:${f.dominante}`).join(" · ")}`);
+  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /viene de lo que le entregás/.test(f.lectura)),
+    "cuando pesa el descuento, la lectura lo dice y da su carga contra la de la cartera");
+  ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /NO viene del descuento/.test(f.lectura)),
+    "cuando NO pesa el descuento, la lectura lo descarta explícitamente");
+  // el CONTEXTO unitario separa "vende más barato" de "compra más caro"
+  const conCtx = q.filas.filter((f) => f.contexto);
+  ok(conCtx.length > 0, `hay contexto de precio y costo por unidad — ${conCtx.length} de ${q.n}`);
+  ok(conCtx.every((f) => /más caro|más barato/.test(f.contexto) && /costo por unidad/.test(f.contexto)),
+    "…que dice si vende más caro o más barato Y si su costo unitario es más alto o más bajo");
+  ok(q.tickPromFmt !== "—" && q.costoUniPromFmt !== "—", `contra el promedio PONDERADO de la cartera — ticket ${q.tickPromFmt} · costo ${q.costoUniPromFmt}`);
+  // PROPORCIONALIDAD: nunca se afirma que el costo ES la causa
+  ok(q.estatus === "indicado", `el análisis va INDICADO — ${q.estatus}`);
+  ok(q.filas.every((f) => !/su costo es el problema|por culpa|se debe a/i.test(f.lectura)), "ninguna lectura afirma que el costo sea la causa");
+  ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /Falta separar cuánto es precio y cuánto es costo/.test(f.lectura)),
+    "…y donde pesa el término de precio/costo, declara qué falta separar");
+  ok(/dos problemas distintos y se arreglan distinto/.test(q.lectura), `la lectura global cierra con la consecuencia — "${q.lectura.slice(-60)}"`);
+}
+
 H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)");
 {
   const P = R.prioridades, d = R.deterioro;

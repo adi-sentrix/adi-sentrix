@@ -482,7 +482,7 @@ function _sostiene(scenario, rows, total) {
  * Por eso la vista declara contra qué mide y solo ofrece precio/volumen donde el dato lo sostiene. Nada de esto
  * afirma una causa: decir que una cuenta vendió menos unidades es aritmética; decir por qué, no.
  */
-function _deterioro(scenario, rows, tension, puente) {
+function _deterioro(scenario, rows, plano, tension, puente) {
   // SIN try/catch mudo acá: si esta fuente falta, la vista tiene que fallar fuerte y no mostrar "0 cuentas bajo
   // presupuesto", que se lee como una buena noticia. (Pasó: un import faltante quedó tragado por un catch y la
   // sección declaraba que nadie estaba bajo presupuesto cuando había tres.)
@@ -564,7 +564,28 @@ function _deterioro(scenario, rows, tension, puente) {
       return { filas: sobre, n: sobre.length, total, totalFmt: _K(total) };
     };
     const alPromedio = vara(promedio), aLaMeta = vara(meta);
+    // ── EL OTRO LADO DEL PROMEDIO (owner 2026-08-07: "¿y qué pasa con los que están bajo ese promedio?") ──
+    // ⚠️ NO son dinero a capturar: llevarlos al promedio sería ENTREGARLES MÁS, y eso pierde margen, no lo gana.
+    // Su valor es otro y es grande: son la PRUEBA, con tus propios clientes, de que se puede vender entregando
+    // menos. Eso es lo que hace creíble el objetivo para los de arriba — no un ideal, tu propia cartera.
+    // Por qué operan más bajo, el dato no lo dice: puede ser poder de negociación, canal o mezcla. Queda ABIERTO.
+    const bajoFilas = rows.filter((r) => typeof r.carga === "number" && r.carga < promedio)
+      .map((r) => ({
+        nombre: r.name, carga: r.carga, cargaFmt: _pct(r.carga),
+        holgura: +(promedio - r.carga).toFixed(2), holguraFmt: `${(promedio - r.carga).toFixed(2)} pp`,
+        ventaFmt: _M((r.ventas || 0) * 1000), margenFmt: _pct(r.margen),
+      })).sort((a, b) => b.holgura - a.holgura);
+    const ventaBajo = rows.filter((r) => typeof r.carga === "number" && r.carga < promedio).reduce((s, r) => s + (r.ventas || 0), 0);
+    const bajo = {
+      filas: bajoFilas, n: bajoFilas.length, ventaFmt: _M(ventaBajo * 1000),
+      menorFmt: bajoFilas.length ? bajoFilas[0].cargaFmt : "—", menorNombre: bajoFilas.length ? bajoFilas[0].nombre : null,
+      lectura: bajoFilas.length
+        ? `Del otro lado hay ${bajoFilas.length} ${bajoFilas.length === 1 ? "cliente que opera" : "clientes que operan"} por debajo del promedio y suman ${_M(ventaBajo * 1000)} de venta — ${bajoFilas[0].nombre} lo hace con ${bajoFilas[0].cargaFmt}. No son plata a capturar: llevarlos al promedio sería entregarles más. Son la prueba, con tus propios clientes, de que se puede vender entregando menos; por qué lo logran es lo que hay que ir a mirar.`
+        : `No hay clientes por debajo del promedio: todos entregan lo mismo o más.`,
+      estatus: "abierto",
+    };
     return {
+      bajo,
       promedio, promedioFmt: _pct(promedio, 2), meta, metaFmt: _pct(meta),
       totalFmt: _M(tA * 1000), sobreVentaFmt: _pct(promedio),
       referencias: [
@@ -619,6 +640,86 @@ function _deterioro(scenario, rows, tension, puente) {
   };
 
 
+  // ── VENDE MUCHO PERO DEJA POCO · POR QUÉ (owner 2026-08-07) ──────────────────────────────────────────────────
+  // "Quiero saber qué clientes venden mucho pero dejan poco margen. ¿Por qué me dejan poco? ¿Tienen mucha acción
+  // comercial? ¿El precio es más barato que el resto y marginamos menos?"
+  //
+  // LA ARITMÉTICA QUE LO RESPONDE, y cierra EXACTA: margen% = 100 − costo% − acciones%. Entonces la brecha de una
+  // cuenta contra el promedio de la cartera se parte SIEMPRE en dos términos, sin residuo:
+  //     brecha = (acciones_promedio − acciones_cuenta) + (costo%_promedio − costo%_cuenta)
+  //              └── el término de ACCIONES ──┘          └── el término de PRECIO/COSTO ──┘
+  // El primero está MEDIDO cuenta por cuenta (pctRebate). El segundo es una diferencia de estructura: dice cuánto
+  // de la brecha NO viene del descuento, pero no dice todavía si es que vende más barato o compra más caro. Para
+  // eso está el contexto unitario de abajo — ticket y costo medio contra el promedio ponderado de la cartera.
+  // Nunca se afirma "su costo es el problema": se dice cuánto pesa cada término y qué falta separar.
+  const _porQue = () => {
+    const tV = rows.reduce((s, r) => s + (r.ventas || 0), 0);
+    const tA = rows.reduce((s, r) => s + (r.acciones || 0), 0);
+    const tC = rows.reduce((s, r) => s + (r.contribucion || 0), 0);
+    if (!tV) return null;
+    const margenProm = +((tC / tV) * 100).toFixed(2);
+    const cargaProm = +((tA / tV) * 100).toFixed(2);
+    const costoProm = +(100 - margenProm - cargaProm).toFixed(2);
+    // contexto unitario: ticket y costo medio del último mes, contra el promedio PONDERADO por unidades
+    const hist = getTenantData()?.historialMargen || {};
+    const uni = new Map();
+    for (const r of rows) {
+      const s = hist[r.name];
+      if (Array.isArray(s) && s.length) { const z = s[s.length - 1]; if (z.ticket > 0 && z.costoMedio > 0) uni.set(r.name, { ticket: z.ticket, costo: z.costoMedio, und: r.unidades || 0 }); }
+    }
+    const undTot = [...uni.values()].reduce((s, x) => s + x.und, 0);
+    const tickProm = undTot ? [...uni.values()].reduce((s, x) => s + x.ticket * x.und, 0) / undTot : null;
+    const costoUniProm = undTot ? [...uni.values()].reduce((s, x) => s + x.costo * x.und, 0) / undTot : null;
+    const enGrupo = new Set(plano.grupo.map((r) => r.name));
+
+    const filas = rows
+      .filter((r) => enGrupo.has(r.name) && typeof r.margen === "number" && r.margen < margenProm)
+      .map((r) => {
+        const carga = typeof r.carga === "number" ? r.carga : 0;
+        const costoPct = +(100 - r.margen - carga).toFixed(2);
+        const brecha = +(r.margen - margenProm).toFixed(2);
+        const efCarga = +(cargaProm - carga).toFixed(2);       // negativo = entrega más que la cartera
+        const efCosto = +(costoProm - costoPct).toFixed(2);    // negativo = su estructura precio/costo pesa más
+        const dominante = Math.abs(efCarga) >= Math.abs(efCosto) ? "acciones" : "precio/costo";
+        const u = uni.get(r.name);
+        const dTicket = u && tickProm ? +(((u.ticket / tickProm) - 1) * 100).toFixed(0) : null;
+        const dCostoUni = u && costoUniProm ? +(((u.costo / costoUniProm) - 1) * 100).toFixed(0) : null;
+        const _sig = (v, suf) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(suf === "pp" ? 2 : 0)}${suf === "pp" ? " pp" : "%"}`;
+        // el CONTEXTO unitario, en palabras: vende más caro / más barato · compra más caro / más barato
+        const contexto = dTicket == null ? null
+          : `Vende ${dTicket >= 0 ? `${dTicket}% más caro` : `${Math.abs(dTicket)}% más barato`} que el promedio de tu cartera y su costo por unidad es ${dCostoUni >= 0 ? `${dCostoUni}% más alto` : `${Math.abs(dCostoUni)}% más bajo`}.`;
+        return {
+          nombre: r.name,
+          ventaFmt: _M((r.ventas || 0) * 1000), participacionFmt: _pct(((r.ventas || 0) / tV) * 100),
+          margen: r.margen, margenFmt: _pct(r.margen), brecha, brechaFmt: _sig(brecha, "pp"),
+          carga, cargaFmt: _pct(carga),
+          efCarga, efCargaFmt: _sig(efCarga, "pp"), efCosto, efCostoFmt: _sig(efCosto, "pp"), dominante,
+          dTicket, dTicketFmt: dTicket == null ? "—" : _sig(dTicket, "%"),
+          dCostoUni, dCostoUniFmt: dCostoUni == null ? "—" : _sig(dCostoUni, "%"),
+          contexto,
+          cierra: Math.abs((efCarga + efCosto) - brecha) < 0.05,
+          // LA RESPUESTA A "¿por qué me deja poco?", con la parte medida primero
+          lectura: dominante === "acciones"
+            ? `${_sig(brecha, "pp")} bajo el promedio de tu cartera, y la mayor parte viene de lo que le entregás: opera con ${_pct(carga)} de acciones comerciales contra el ${_pct(cargaProm, 2)} de la cartera (${_sig(efCarga, "pp")}). El resto (${_sig(efCosto, "pp")}) queda en la relación entre su precio y su costo.`
+            : `${_sig(brecha, "pp")} bajo el promedio de tu cartera, y la mayor parte NO viene del descuento (${_sig(efCarga, "pp")}) sino de la relación entre su precio y su costo (${_sig(efCosto, "pp")}).${contexto ? ` ${contexto}` : ""} Falta separar cuánto es precio y cuánto es costo de producto.`,
+        };
+      })
+      .sort((a, b) => b.brecha - a.brecha)   // menos negativo primero… se invierte abajo
+      .sort((a, b) => a.brecha - b.brecha);  // la peor brecha arriba
+    if (!filas.length) return null;
+    const porAcciones = filas.filter((f) => f.dominante === "acciones");
+    const porPrecio = filas.filter((f) => f.dominante === "precio/costo");
+    return {
+      filas, n: filas.length,
+      margenProm, margenPromFmt: _pct(margenProm), cargaPromFmt: _pct(cargaProm, 2),
+      tickPromFmt: tickProm ? `$${tickProm.toFixed(2)}` : "—", costoUniPromFmt: costoUniProm ? `$${costoUniProm.toFixed(2)}` : "—",
+      lectura: `${filas.length} de los ${plano.n} clientes que sostienen la venta dejan menos margen que el promedio de tu cartera (${_pct(margenProm)}). ${porAcciones.length ? `En ${porAcciones.map((f) => f.nombre).join(", ")} pesa más lo que les entregás.` : ""}${porPrecio.length ? ` En ${porPrecio.map((f) => f.nombre).join(", ")} pesa más la relación entre su precio y su costo.` : ""} Son dos problemas distintos y se arreglan distinto.`,
+      nota: `La brecha de cada cuenta contra el promedio de la cartera se parte SIEMPRE en dos términos que suman exacto: lo que le entregás en acciones comerciales (medido cuenta por cuenta) y la relación entre su precio y su costo. El segundo dice cuánto de la brecha NO viene del descuento, pero todavía no separa si vende más barato o compra más caro — para eso está la comparación de precio y costo por unidad contra el promedio ponderado de tu cartera (${tickProm ? `$${tickProm.toFixed(2)}` : "—"} y ${costoUniProm ? `$${costoUniProm.toFixed(2)}` : "—"}).`,
+      estatus: "indicado",
+    };
+  };
+
+
   // ── MARGEN NO CAPTURADO · las cuentas bajo tu benchmark, con lo probado y lo abierto ──
   const margenFilas = rows.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial)
     .map((r) => {
@@ -661,6 +762,7 @@ function _deterioro(scenario, rows, tension, puente) {
       // LAS DOS CAUSAS del margen, cada una con su referencia y su monto (owner 2026-08-07)
       acciones: _accionesComerciales(),
       costoPrecio: _costoPrecio(),
+      porQue: _porQue(),   // vende mucho pero deja poco: la brecha partida en sus dos términos
     },
   };
 }
@@ -767,7 +869,7 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
   const veredicto = _veredicto({ total, plano, tension, variacionPct });
   const puente = _puente(rows, plano, tension);
   const insights = _insights(plano, rows);
-  const deterioro = _deterioro(scenario, rows, tension, puente);
+  const deterioro = _deterioro(scenario, rows, plano, tension, puente);
   return {
     alcance: "negocio",
     scenario,

@@ -1963,7 +1963,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
   // Arranca en el promedio — es la que el owner pidió: compararte con vos mismo antes que con un ideal.
   const [varaAcc, setVaraAcc] = useState("promedio");
   if (!d) return null;
-  const acc = d.margen.acciones, cp = d.margen.costoPrecio;
+  const acc = d.margen.acciones, cp = d.margen.costoPrecio, pq = d.margen.porQue;
   const ra = acc ? (acc.referencias.find((x) => x.key === varaAcc) || acc.referencias[0]) : null;
   const _chip = (estatus, texto) => (
     <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(estatus), border: `1px solid ${_rcEstatusCol(estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{texto || estatus}</span>
@@ -2016,6 +2016,27 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                   </div>
                 )}
                 <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.green}` }}>{acc.lectura}</div>
+                {/* EL OTRO LADO DEL PROMEDIO (owner 2026-08-07): los que entregan MENOS no son plata a capturar
+                    —llevarlos al promedio sería darles más— pero sí son la prueba, con tus propios clientes, de
+                    que se puede vender entregando menos. Por qué lo logran queda ABIERTO. */}
+                {acc.bajo && acc.bajo.n > 0 && (
+                  <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px dashed ${C.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ ..._RC_HEAD, fontSize: 8.5 }}>Del otro lado</span>{_chip(acc.bajo.estatus)}
+                      <span style={{ fontSize: 11, color: C.textMuted }}>{acc.bajo.n} por debajo · {acc.bajo.ventaFmt} de venta</span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 6px" }}>
+                      {acc.bajo.filas.map((x) => (
+                        <span key={x.nombre} title={`${x.nombre} entrega ${x.cargaFmt} — ${x.holguraFmt} por debajo del promedio · ${x.ventaFmt} de venta · margen ${x.margenFmt}`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
+                          <span style={{ fontSize: 11, color: C.textSub }}>{x.nombre}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.green, fontVariantNumeric: "tabular-nums" }}>{x.cargaFmt}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.55, marginTop: 8 }}>{acc.bajo.lectura}</div>
+                  </div>
+                )}
               </div>
             )}
             {/* B · COSTO CONTRA PRECIO · si el costo sube más que el precio, el margen por unidad se comprime */}
@@ -2046,6 +2067,57 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
               </div>
             )}
           </div>
+
+          {/* ── VENDE MUCHO PERO DEJA POCO · POR QUÉ (owner 2026-08-07) ────────────────────────────────────────
+              La brecha de cada cuenta contra el promedio de la cartera se parte SIEMPRE en dos términos que
+              suman exacto: lo que le entregás (medido) y la relación entre su precio y su costo. Dos cuentas
+              con la misma brecha pueden tener causas opuestas — y se arreglan distinto. ── */}
+          {pq && (
+            <div style={{ marginTop: 15, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>Venden mucho pero dejan poco: por qué</span>
+                {_chip(pq.estatus)}
+                <InfoDot def={pq.nota} align="left"/>
+              </div>
+              <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginBottom: 10 }}>{pq.lectura}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {pq.filas.map((x) => (
+                  <div key={x.nombre} style={{ padding: "10px 13px", borderRadius: 10, border: `1px solid ${C.border}`,
+                    borderLeft: `2px solid ${x.dominante === "acciones" ? C.green : C.amber}`, background: "rgba(255,255,255,0.018)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ flex: "0 1 132px", minWidth: 104 }}>
+                        {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{x.nombre}</span>}
+                        <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: C.textMuted, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{x.ventaFmt} · {x.participacionFmt} de la venta</span>
+                      </span>
+                      <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 13.5, fontWeight: 600, color: C.amber, fontVariantNumeric: "tabular-nums" }}>{x.margenFmt}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.red, fontVariantNumeric: "tabular-nums" }}>{x.brechaFmt}</span>
+                      </span>
+                      {/* LA BRECHA PARTIDA EN SUS DOS TÉRMINOS · el dominante en color, el otro apagado */}
+                      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+                        <span title={`opera con ${x.cargaFmt} de acciones comerciales contra el ${pq.cargaPromFmt} de la cartera`}
+                          style={{ color: x.dominante === "acciones" ? C.green : C.textMuted, fontWeight: x.dominante === "acciones" ? 600 : 400 }}>
+                          acciones {x.efCargaFmt}
+                        </span>
+                        <span style={{ color: C.textMuted }}>·</span>
+                        <span title={x.contexto || "la relación entre su precio y su costo"}
+                          style={{ color: x.dominante === "precio/costo" ? C.amber : C.textMuted, fontWeight: x.dominante === "precio/costo" ? 600 : 400 }}>
+                          precio/costo {x.efCostoFmt}
+                        </span>
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 7 }}>{x.lectura}</div>
+                    {/* EL CONTEXTO UNITARIO va SIEMPRE, no solo cuando domina el término de precio/costo: saber
+                        si vende más caro o más barato que el resto es útil aunque el problema sea el descuento
+                        — es lo que dice si hay lugar para mover el precio o no. */}
+                    {x.contexto && !x.lectura.includes(x.contexto) && (
+                      <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>{x.contexto}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
     </div>
   );
