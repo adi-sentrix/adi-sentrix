@@ -211,6 +211,40 @@ H("[9] CONSISTENCIA · una sola verdad con el cuadro");
   ok(R.cuadro === c || R.cuadro.rows.length === c.rows.length, "la tabla completa sigue disponible como evidencia opcional");
 }
 
+H("[9b] DÓNDE SE ESTÁ FORMANDO EL MARGEN · tres cortes que declaran su fuente (owner 2026-08-07)");
+{
+  const e = R.formacion.ejes;
+  ok(!!e && e.vistas.length >= 2, `hay cortes del negocio — ${e && e.vistas.map((v) => v.key).join(" · ")}`);
+  ok(e.vistas.some((v) => v.key === "familia"), "por FAMILIAS (lo primero que pidió el owner: qué mueve la venta)");
+  ok(e.vistas.some((v) => v.key === "sku"), "por SKU");
+  ok(e.vistas.some((v) => v.key === "canal"), "por CANALES — el eje de punto de venta que el dato SÍ sostiene");
+  ok(e.columnas.map((c) => c.key).join(",") === "nombre,peso,venta,contribucion,margen,brecha",
+    `seis columnas — ${e.columnas.map((c) => c.label).join(" · ")}`);
+  // LA LIMITACIÓN DECLARADA · el corte que se pidió y el dato no sostiene
+  ok(/punto de venta no hay corte posible/i.test(e.limitacion) && /inventario, no venta/i.test(e.limitacion),
+    `la limitación se declara en vez de inventar el corte — "${e.limitacion}"`);
+  ok(!e.vistas.some((v) => /punto de venta|sucursal/i.test(v.label)), "…y no se ofrece un eje que no existe");
+  for (const v of e.vistas) {
+    ok(v.filas.length === v.n && v.n > 0, `${v.label}: ${v.n} filas`);
+    ok(v.filas.every((f, i) => i === 0 || v.filas[i - 1].venta >= f.venta), `${v.label}: ordenadas por venta (qué mueve la venta primero)`);
+    const suma = v.filas.reduce((s, f) => s + f.pesoPct, 0);
+    ok(Math.abs(suma - 100) < 0.6, `${v.label}: los pesos cubren el corte — ${suma.toFixed(1)}%`);
+    ok(v.filas.every((f) => f.varaFmt && typeof f.brecha === "number"), `${v.label}: cada fila trae su REFERENCIA y su brecha`);
+    ok(v.filas.every((f) => f.material === (f.brecha <= -POLICY.margenBrechaMaterial)), `${v.label}: el resalte sigue la brecha material real (${POLICY.margenBrechaMaterial} pp)`);
+    // LA CALIDAD DEL DATO · cada corte dice si cierra con la venta oficial, y si no, cuánto
+    ok(typeof v.reconcilia === "boolean" && !!v.notaFuente, `${v.label}: declara si concilia (${v.reconcilia}) y de dónde sale`);
+    if (v.reconcilia) ok(Math.abs(v.totalVenta - R.total.ventas) / R.total.ventas < 0.001, `${v.label}: dice que concilia y ES cierto — ${v.totalVentaFmt}`);
+    else ok(/de diferencia/.test(v.notaFuente) && /sin reescalar/.test(v.notaFuente),
+      `${v.label}: dice cuánto NO cierra y que los márgenes no se tocaron — ${v.totalVentaFmt}`);
+    // la lectura LOCALIZA, nunca atribuye
+    ok(!!v.lectura && !/porque|se debe a|culpa/i.test(v.lectura), `${v.label}: la lectura localiza, no atribuye`);
+    if (v.filas.some((f) => f.material)) ok(/no por qué|falta separar/i.test(v.lectura), `${v.label}: …y lo dice explícito`);
+  }
+  // el canal cierra EXACTO porque agrupa las mismas filas del cuadro
+  const canal = e.vistas.find((v) => v.key === "canal");
+  ok(canal.reconcilia && canal.totalVenta === R.total.ventas, `los canales agrupan las MISMAS filas → cierran exacto — ${canal.totalVentaFmt}`);
+}
+
 H("[10] EL AÑO MES A MES · tres series que RECONCILIAN (owner 2026-08-07)");
 {
   const e = R.evolutivo;

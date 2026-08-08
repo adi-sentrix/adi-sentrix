@@ -33,8 +33,9 @@
  */
 import { buildCuadroMando } from "./cuadro.js";
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
-import { POLICY } from "../../config/businessPolicy.js";
-import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación sale del tenant activo, nunca del dataset demo
+import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
+import { applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";   // el corte por familia, con el escenario aplicado
+import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
 import { buildGlobalEvolution, anchorSerie } from "./temporal.js";   // el año mes a mes (3 series REALES) + el anclaje a la venta oficial
 
 const _M = (raw) => (typeof raw === "number" ? `$${(raw / 1e6).toFixed(1)}M` : "—");
@@ -421,6 +422,129 @@ function _composicion(plano, rows, total) {
   };
 }
 
+/* ── DÓNDE SE ESTÁ FORMANDO EL MARGEN · el mismo negocio, cortado por tres ejes (owner 2026-08-07) ─────────────
+ * "Primero mostrá qué familias mueven la venta; después separá la causa comprobada de lo que falta investigar."
+ * Tres cortes, y cada uno DECLARA su fuente y si cierra con la venta oficial — porque no todos cierran, y esa es
+ * justamente la diferencia con un BI: acá se dice cuándo una tabla concilia y cuándo es otro corte del dato.
+ *
+ *   · FAMILIAS  `sfamiliasMargen` con el escenario aplicado. Tabla propia del dataset: su venta y su contribución
+ *               NO cierran al centavo con la venta oficial por cliente. Se declara, y NO se reescala: reescalar
+ *               la contribución movería los márgenes por familia, que son el dato que se viene a mirar.
+ *   · SKU       las MISMAS filas del cuadro de SKU (una sola verdad con esa grilla). Mismo caso que familias.
+ *   · CANALES   agrupa las filas del cuadro de CLIENTES por su canal → cierra EXACTO con el total, por
+ *               construcción. El canal vive en `clientesVentas`.
+ *
+ * ⚠️ NO HAY "puntos de venta": las sucursales del tenant existen solo con INVENTARIO (`skuInventario.bodega`),
+ * sin venta ni contribución. Ofrecer ese corte sería inventarlo; la vista declara la limitación en su lugar.
+ */
+const _EJE_MATERIAL = () => POLICY.margenBrechaMaterial;
+function _formacionEjes(scenario, rows, total) {
+  const tVenta = total.ventas || 0, tContrib = total.contribucion || 0;
+  const fila = (nombre, venta, contribucion, unidades, base) => {
+    const margen = venta ? +((contribucion / venta) * 100).toFixed(1) : null;
+    const vara = benchmarkOf(base || null);
+    const brecha = typeof margen === "number" && typeof vara === "number" ? +(margen - vara).toFixed(1) : null;
+    return {
+      nombre, venta, contribucion, unidades,
+      ventaFmt: _M(venta * 1000), contribucionFmt: _K(contribucion * 1000),
+      margen, margenFmt: _pct(margen), vara, varaFmt: _pct(vara),
+      brecha, brechaFmt: typeof brecha === "number" ? `${brecha >= 0 ? "+" : "−"}${Math.abs(brecha).toFixed(1)} pp` : "—",
+      bajoBenchmark: typeof brecha === "number" && brecha < 0,
+      material: typeof brecha === "number" && brecha <= -_EJE_MATERIAL(),
+    };
+  };
+  const cerrar = (filas, label, fuente) => {
+    const v = filas.reduce((s, f) => s + f.venta, 0), c = filas.reduce((s, f) => s + f.contribucion, 0);
+    for (const f of filas) { f.pesoPct = v ? +((f.venta / v) * 100).toFixed(1) : 0; f.pesoFmt = _pct(v ? (f.venta / v) * 100 : 0); }
+    filas.sort((a, b) => b.venta - a.venta);
+    const dv = tVenta ? Math.abs(v - tVenta) / tVenta : 0, dc = tContrib ? Math.abs(c - tContrib) / tContrib : 0;
+    const reconcilia = dv < 0.001 && dc < 0.001;
+    return {
+      filas, n: filas.length, totalVenta: v, totalVentaFmt: _M(v * 1000), totalContribFmt: _K(c * 1000), reconcilia,
+      // LA CALIDAD DEL DATO, DECLARADA — no un asterisco al pie: si el corte no cierra con la venta oficial, se
+      // dice cuánto y por qué, y se dice que los márgenes NO se tocaron para forzar el cuadre.
+      notaFuente: reconcilia
+        ? `${fuente} Cierra exacto con la venta oficial del negocio (${_M(tVenta * 1000)}).`
+        : `${fuente} Este corte suma ${_M(v * 1000)} de venta y ${_K(c * 1000)} de contribución, contra ${_M(tVenta * 1000)} y ${_K(tContrib * 1000)} de la venta oficial por cliente (${_pct(dv * 100)} y ${_pct(dc * 100)} de diferencia): son dos cortes del mismo negocio que el dataset no concilia al centavo. Los márgenes son los del dato, sin reescalar — reescalarlos para cuadrar movería justo la cifra que venís a mirar. El peso en venta es sobre el total de esta tabla.`,
+      label,
+    };
+  };
+  // LECTURA por eje · dinámica, y LOCALIZA (dónde se forma), nunca atribuye la causa.
+  const lecturaDe = (v, singular, plural) => {
+    const mat = v.filas.filter((f) => f.material);
+    if (!mat.length) {
+      const bajo = v.filas.filter((f) => f.bajoBenchmark);
+      return bajo.length
+        ? `Ning${singular === "familia" ? "una" : "ún"} ${singular} cede ${_EJE_MATERIAL()} pp o más contra tu benchmark; ${bajo.length} de ${v.n} queda${bajo.length > 1 ? "n" : ""} apenas por debajo.`
+        : `Tod${singular === "familia" ? "as las" : "os los"} ${plural} operan en o sobre tu benchmark en este corte.`;
+    }
+    const top = mat.slice(0, 2);
+    const nombres = top.map((f) => f.nombre).join(" y ");
+    const peso = top.reduce((s, f) => s + f.pesoPct, 0);
+    return `La brecha se concentra en ${nombres}: ${_pct(peso)} de la venta de este corte y ${top.map((f) => f.brechaFmt).join(" / ")} contra tu benchmark de ${_pct(top[0].vara)}. Es dónde se forma, no por qué: falta separar si viene de costo, de precio o de composición.`;
+  };
+
+  // ── FAMILIAS ──
+  let vFam = null;
+  try {
+    const fam = applyScenarioToSfamiliasMargen(scenario) || [];
+    if (fam.length) vFam = cerrar(fam.map((f) => fila(f.nombre, f.venta || 0, f.contribucion || 0, f.unidades, f)), "Familias",
+      "Tabla de familias del período, con el escenario aplicado.");
+  } catch { vFam = null; }
+  // ── SKU · las MISMAS filas del cuadro de SKU (una sola verdad con esa grilla) ──
+  let vSku = null;
+  try {
+    const cs = buildCuadroMando("sku", scenario);
+    const skus = (cs.rows || []).filter((r) => r && !r._total && !r._ref);
+    const tv = _tenantSkus();
+    if (skus.length && tv.size) {
+      vSku = cerrar(skus.map((r) => { const t = tv.get(r.name) || {}; return fila(r.name, t.venta || 0, t.contribucion || 0, t.unidades, t); })
+        .filter((f) => f.venta > 0), "SKU", "Tabla de SKU del período — las mismas filas del cuadro por SKU.");
+    }
+  } catch { vSku = null; }
+  // ── CANALES · agrupa las filas del cuadro de clientes → cierra EXACTO por construcción ──
+  let vCanal = null;
+  try {
+    const cv = getTenantData()?.clientesVentas || [];
+    const canalDe = new Map(cv.map((c) => [c.nombre, c.canal]).filter(([, k]) => !!k));
+    if (canalDe.size) {
+      const g = new Map();
+      for (const r of rows) {
+        const k = canalDe.get(r.name); if (!k) continue;
+        const x = g.get(k) || { venta: 0, contribucion: 0, unidades: 0, n: 0 };
+        x.venta += r.ventas || 0; x.contribucion += r.contribucion || 0; x.unidades += r.unidades || 0; x.n++;
+        g.set(k, x);
+      }
+      if (g.size) vCanal = cerrar([...g].map(([k, x]) => ({ ...fila(k, x.venta, x.contribucion, x.unidades, null), cuentas: x.n })), "Canales",
+        "Los mismos clientes de arriba, agrupados por el canal que declara tu dato.");
+    }
+  } catch { vCanal = null; }
+
+  const vistas = [];
+  if (vFam) vistas.push({ key: "familia", ...vFam, lectura: lecturaDe(vFam, "familia", "las familias") });
+  if (vSku) vistas.push({ key: "sku", ...vSku, lectura: lecturaDe(vSku, "SKU", "los SKU") });
+  if (vCanal) vistas.push({ key: "canal", ...vCanal, lectura: lecturaDe(vCanal, "canal", "los canales") });
+  if (!vistas.length) return null;
+  return {
+    vistas, porDefecto: vistas[0].key,
+    columnas: [
+      { key: "nombre", label: "Concepto", align: "left" },
+      { key: "peso", label: "Peso en venta", align: "right" },
+      { key: "venta", label: "Venta", align: "right" },
+      { key: "contribucion", label: "Contribución", align: "right" },
+      { key: "margen", label: "Margen", align: "right" },
+      { key: "brecha", label: "Brecha", align: "right" },
+    ],
+    // LA LIMITACIÓN, DECLARADA: el corte que el owner pidió y el dato no sostiene.
+    limitacion: `Por punto de venta no hay corte posible: las sucursales del dato traen inventario, no venta ni contribución. Se enciende con el ERP; inventarlo sería peor que no ofrecerlo.`,
+  };
+}
+// las cifras de venta/contribución por SKU viven en `skusMargen` del tenant (el cuadro de SKU trae margen y capital)
+function _tenantSkus() {
+  const xs = getTenantData()?.skusMargen;
+  return new Map(Array.isArray(xs) ? xs.map((x) => [x.nombre, x]) : []);
+}
+
 // ── CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea ───────────────────────────────────────
 // venta − costo conciliado − acciones comerciales = contribución. Cierra EXACTO por construcción, y ese es
 // justamente el punto epistémico: el COSTO no está medido, se obtiene por diferencia. Declararlo "conciliado" e
@@ -473,7 +597,7 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
     veredicto,
     evolutivo: _evolutivo(oficial),        // 01 · el año mes a mes, tres series, ancladas a la venta oficial
     composicion: _composicion(plano, rows, total),   // 01 · el gemelo global de la composición de la Ficha
-    formacion: _formacion(total),          // 02 · venta − costo conciliado − acciones = contribución
+    formacion: { ..._formacion(total), ejes: _formacionEjes(scenario, rows, total) },   // 02 · la identidad + dónde se forma
     puente,
     insights,
     encabezadoDecisiones: _encabezadoDecisiones(insights),   // 03 · adaptativo al conjunto, nunca una promesa fija

@@ -207,8 +207,12 @@ H("[1c] LA COMPOSICIÓN POR CLIENTE · Grupo 80% / Menor margen / Todos");
   for (const c of comp.columnas) ok(T.includes(c.label), `columna "${c.label}"`);
   // sobre los ENCABEZADOS reales, no sobre el texto suelto: la ayuda del bloque explica por qué no hay rotación,
   // y esa explicación no puede hacer fallar al chequeo que verifica justamente eso.
-  const th = [...container.querySelectorAll("th")].map((x) => x.textContent);
-  ok(th.length === comp.columnas.length && comp.columnas.every((c, i) => th[i] === c.label), `la tabla tiene EXACTAMENTE las 7 columnas del módulo — ${th.join(" · ")}`);
+  // la vista tiene DOS tablas (composición por cliente y formación del margen): se busca la de composición por
+  // su primer encabezado, en vez de barrer todos los <th> de la página.
+  const tablaComp = [...container.querySelectorAll("table")].find((t) => (t.querySelector("th") || {}).textContent === comp.columnas[0].label);
+  ok(!!tablaComp, "la tabla de composición está identificada por su primera columna");
+  const th = [...tablaComp.querySelectorAll("th")].map((x) => x.textContent);
+  ok(th.length === comp.columnas.length && comp.columnas.every((c, i) => th[i] === c.label), `tiene EXACTAMENTE las 7 columnas del módulo — ${th.join(" · ")}`);
   ok(!th.some((h) => /rotaci/i.test(h)), "sin columna Rotación: es del inventario, no del cliente");
   const g80 = comp.vistas[0];
   ok(g80.filas.every((f) => T.includes(f.nombre)), `abre en Grupo 80% con sus ${g80.n} clientes`);
@@ -241,10 +245,10 @@ H("[1c] LA COMPOSICIÓN POR CLIENTE · Grupo 80% / Menor margen / Todos");
   cleanup();
 }
 
-H("[1d] CÓMO SE FORMA EL MARGEN · la identidad con el estatus de cada línea");
+H("[1d] CÓMO SE FORMA EL MARGEN · la identidad, los tres cortes y la calidad del dato");
 {
   const { container } = abrir(evTemporal());
-  const f = R.formacion;
+  const f = R.formacion, e = f.ejes;
   const T = container.textContent;
   ok(T.includes(f.lectura), `la lectura reparte la venta — "${f.lectura}"`);
   for (const l of f.lineas) ok(T.includes(l.label) && T.includes(l.montoFmt) && T.includes(l.pctFmt), `línea "${l.label}" con ${l.montoFmt} (${l.pctFmt})`);
@@ -252,6 +256,26 @@ H("[1d] CÓMO SE FORMA EL MARGEN · la identidad con el estatus de cada línea")
   ok(T.includes(costo.nota), "el costo explica a la vista POR QUÉ no es una causa (sale por diferencia, no está medido)");
   ok(T.includes("indicado") && T.includes("probado"), "cada línea lleva su estatus epistémico rotulado");
   ok(!/revisar costo/i.test(T), "y en ningún lado aparece \"revisar costo\"");
+  // DÓNDE SE ESTÁ FORMANDO EL MARGEN · toggle de tres cortes
+  ok(T.includes("Dónde se está formando el margen"), "el bloque de cortes está");
+  const v0 = e.vistas[0];
+  for (const c of e.columnas) ok(T.includes(c.label), `columna "${c.label}"`);
+  ok(v0.filas.every((fx) => T.includes(fx.nombre)), `abre en ${v0.label} con sus ${v0.n} filas`);
+  ok(T.includes(v0.lectura), "…con su lectura ejecutiva del corte");
+  ok(T.includes(v0.notaFuente), "…y la nota de fuente que dice si concilia");
+  ok(T.includes(v0.reconcilia ? "concilia" : "otro corte"), `…rotulado ${v0.reconcilia ? "CONCILIA" : "OTRO CORTE"}`);
+  // el toggle recorre los tres, y CADA UNO trae su propia declaración de calidad de dato
+  for (const v of e.vistas.slice(1)) {
+    const b = conTexto(container, `${v.label} (${v.n})`);
+    ok(!!b, `el corte "${v.label}" se ofrece con su cantidad (${v.n})`);
+    fireEvent.click(b);
+    ok(v.filas.every((fx) => container.textContent.includes(fx.nombre)), `…y muestra sus ${v.n} filas`);
+    ok(container.textContent.includes(v.notaFuente), `…declarando su fuente y su cierre (${v.reconcilia ? "concilia" : "no concilia, y lo dice"})`);
+    ok(container.textContent.includes(v.lectura), "…y su lectura ejecutiva");
+  }
+  // "Puntos de venta" NO se ofrece: el dato no lo sostiene, y la limitación se declara
+  ok(!botones(container).some((b) => /punto de venta|sucursal/i.test(b.textContent)), "no se ofrece un corte por punto de venta que el dato no sostiene");
+  ok(container.textContent.includes(e.limitacion), "…y la limitación se declara en la ayuda del bloque");
   cleanup();
 }
 
@@ -392,7 +416,7 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|el plano concentra|que explican el|Dentro de ellos/i.test(w)),
     `las ${vPlano.length} apariciones de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
   // el TOTAL de la brecha ($5.0M) es un tercer universo y también se declara, A LA VISTA (no solo en el tooltip)
-  ok(T.includes(`Toda la cartera, las ${R.rows.length} cuentas del negocio`), "el total de la brecha declara su universo a la vista");
+  ok(T.includes(`toda la cartera, las ${R.rows.length} cuentas del negocio`), "el total de la brecha declara su universo a la vista");
   ok(T.includes(`${R.puente.materialFmt} de ese total está en las ${R.puente.materialN} con brecha material`),
     "…y publica al lado cuánto de ese total es material, para que las dos cifras se lean juntas sin chocar");
   cleanup();
@@ -408,6 +432,16 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   ok(!/capital detenido/i.test(T0), "\"Capital detenido\" no aparece en ninguna forma: ni franja, ni supuesto del ¿Y si…?");
   ok(!/verlas en el cuadro/i.test(T0) && !/ver la cara Capital →/i.test(T0), "…ni quedan sus enlaces sueltos");
   ok(porTexto(container, "Capital"), "la cara Capital sigue a un click en el encabezado (no se perdió el acceso)");
+  // SEGUIMIENTO (owner 2026-08-07): su estado vacío era una INSTRUCCIÓN de uso, no una conclusión
+  ok(!/Marcá la ★ en cualquier fila/i.test(T0), "el bloque \"Seguimiento\" y su instrucción de uso salieron de Comercial");
+  ok(!/^Seguimiento/m.test(T0.split("Evidencia completa")[0]), "…no queda su encabezado suelto");
+  // pero la CAPACIDAD no se pierde: la estrella del cuadro sigue, y la lista vive en Capital
+  verCartera(container);
+  ok([...container.querySelectorAll("span")].some((s) => s.textContent === "☆" || s.textContent === "★"),
+    "la estrella sigue en las filas del cuadro (la watchlist no se elimina, se mueve)");
+  fireEvent.click(porTexto(container, "Capital"));
+  ok(container.textContent.includes("Cuadro de capital"), "…y la cara Capital, donde vive la lista, sigue entera");
+  fireEvent.click(porTexto(container, "Comercial"));
   // …y lo que salió NO se perdió: el mismo supuesto vive en la cara Capital
   fireEvent.click(porTexto(container, "Capital"));
   ok(/capital detenido/i.test(container.textContent), "el supuesto de liberar capital detenido sigue vivo en la cara Capital (se movió, no se borró)");
