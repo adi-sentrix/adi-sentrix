@@ -506,9 +506,24 @@ function _sostiene(scenario, rows, total) {
     // del grupo que sostiene, se diluye el margen.
     const mat = grupo.filter((f) => f.material);
     const _plural = (n, s) => `${n} ${s}${n > 1 && !/SKU/.test(s) ? "s" : ""}`;
+    // ⚠️ SIN NOMBRES (owner 2026-08-08: "no es necesario que nombres los clientes en el título, si ya está la
+    // tabla"). La tabla los nombra fila por fila y pinta en ámbar a los que ceden; repetirlos arriba es decir dos
+    // veces lo mismo. Queda el enunciado —cuántos sostienen la venta— y la localización en cifras: CUÁNTOS ceden y
+    // en qué RANGO, que es lo único de esto que la tabla no entrega de un vistazo.
+    const brechas = mat.map((f) => Math.abs(f.brecha)).sort((a, b) => a - b);
+    const rango = brechas.length > 1 && brechas[0] !== brechas[brechas.length - 1]
+      ? `entre ${brechas[0].toFixed(1)} y ${_pp(brechas[brechas.length - 1])}`
+      : _pp(brechas[0]);
+    // El verbo concuerda con el GRUPO, que puede ser de uno (los canales del set demo son un solo eje con venta):
+    // "1 canal sostienen la venta" es la clase de detalle que hace dudar de todo lo demás.
+    const uno = grupo.length === 1, f = singular === "familia";
+    const sostienen = `${_plural(grupo.length, singular)} sostien${uno ? "e" : "en"} la venta`;
+    const cierre = `bajo tu benchmark de ${_pct(mat.length ? mat[0].vara : 0)}: ahí se sostiene el volumen y ahí se diluye el margen.`;
     const lectura = mat.length
-      ? `De ${_plural(grupo.length, singular)} que sostienen la venta, ${mat.map((f) => f.nombre).join(", ")} ${mat.length > 1 ? "quedan" : "queda"} ${mat.map((f) => f.brechaFmt).join(" / ")} bajo tu benchmark de ${_pct(mat[0].vara)}: ahí se sostiene el volumen y ahí se diluye el margen.`
-      : `${_plural(grupo.length, singular)} sostienen la venta, y ning${singular === "familia" ? "una" : "o"} de ese grupo cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`;
+      ? (uno ? `${sostienen}, y queda ${rango} ${cierre}`
+             : `${sostienen}. ${mat.length} de ${f ? "ellas" : "ellos"} qued${mat.length > 1 ? "an" : "a"} ${rango} ${cierre}`)
+      : (uno ? `${sostienen}, y no cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`
+             : `${sostienen}, y ning${f ? "una" : "o"} de ese grupo cede ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark.`);
     return {
       key, label, filas, n: filas.length,
       grupoN: grupo.length, grupoPct: conc.totalCubiertoPct, grupoPctFmt: _pct(conc.totalCubiertoPct),

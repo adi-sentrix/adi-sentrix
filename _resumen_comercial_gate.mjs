@@ -270,6 +270,18 @@ H("[9b] QUIÉN SOSTIENE EL NEGOCIO · el 80% de cada eje, con su fuente declarad
     else ok(/de diferencia/.test(v.notaFuente) && /sin reescalar/.test(v.notaFuente),
       `${v.label}: dice cuánto NO cierra y que los márgenes no se tocaron — ${v.totalVentaFmt}`);
     ok(!!v.lectura && !/porque|se debe a|culpa/i.test(v.lectura), `${v.label}: la lectura localiza, no atribuye`);
+    // SIN NOMBRES EN LA LECTURA (owner 2026-08-08): la tabla los nombra fila por fila y los pinta; repetirlos
+    // arriba es decir dos veces lo mismo. La lectura aporta lo que la tabla NO da de un vistazo: cuántos ceden
+    // y en qué rango. Se verifica contra los nombres REALES del corte, no contra una lista fija.
+    const nombrados = v.filas.filter((f) => v.lectura.includes(f.nombre)).map((f) => f.nombre);
+    ok(nombrados.length === 0, `${v.label}: la lectura NO nombra entidades — la tabla ya las nombra`, nombrados.join(", "));
+    const nMat = v.filas.filter((f) => f.material && f.enGrupo).length;
+    if (nMat > 0) ok(v.grupoN === 1 ? /, y queda /.test(v.lectura) : new RegExp(`\\b${nMat} de ell[oa]s`).test(v.lectura),
+      `${v.label}: dice CUÁNTOS ceden sin nombrarlos — "${v.lectura.slice(0, 74)}…"`);
+    // CONCORDANCIA · un grupo de uno no puede decir "1 canal sostienen la venta": es la clase de detalle que
+    // hace dudar de todo lo demás de la pantalla
+    ok(v.grupoN === 1 ? / sostiene la venta/.test(v.lectura) : / sostienen la venta/.test(v.lectura),
+      `${v.label}: el verbo concuerda con el grupo de ${v.grupoN}`);
   }
   // clientes y canales agrupan las MISMAS filas → cierran exacto por construcción
   for (const k of ["cliente", "canal"]) {

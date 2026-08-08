@@ -2120,7 +2120,10 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                         <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
                         </span>
-                        <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.amber, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`entrega ${x.cargaFmt} de su venta`}>{x.cargaFmt}</span>
+                        {/* ROJO, no ámbar (owner 2026-08-08): esta cifra es lo que la cuenta ENTREGA por encima
+                            del promedio de la cartera — plata que sale. El exceso en pp y el recuperable en verde
+                            se quedan como estaban: son lo que se genera o se recupera, no lo que se cede. */}
+                        <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.red, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`entrega ${x.cargaFmt} de su venta`}>{x.cargaFmt}</span>
                         <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>+{x.excesoFmt}</span>
                         <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.green, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.recuperableFmt}</span>
                       </div>

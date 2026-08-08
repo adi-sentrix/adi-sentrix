@@ -380,6 +380,19 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
   ok(prom.filas.slice(0, 4).every((x) => T.includes(x.nombre) && T.includes(x.recuperableFmt)),
     `las cuentas sobre el promedio con su recuperable — ${prom.filas.slice(0, 2).map((x) => `${x.nombre} ${x.recuperableFmt}`).join(", ")}`);
   ok(T.includes("probado"), "…rotuladas PROBADO: la carga está medida cuenta por cuenta");
+  // EL COLOR SEPARA LO QUE SE CEDE DE LO QUE SE RECUPERA (owner 2026-08-08): la carga en ROJO —es plata que sale,
+  // no una advertencia— y el recuperable en verde. Antes la carga iba en ámbar, el mismo tono de "ojo con esto",
+  // y eso mezclaba dos cosas que el usuario lee distinto.
+  const ROJO = /rgb\(\s*244,\s*63,\s*94\s*\)|#f43f5e/i, VERDE = /rgb\(\s*16,\s*185,\s*129\s*\)|#10b981/i;
+  const spans = [...container.querySelectorAll("span")];
+  for (const x of prom.filas.slice(0, 4)) {
+    const sCarga = spans.filter((s) => s.textContent === x.cargaFmt && /entrega/.test(s.getAttribute("title") || ""));
+    ok(sCarga.length > 0 && sCarga.every((s) => ROJO.test(s.getAttribute("style") || "")),
+      `${x.nombre}: lo que ENTREGA (${x.cargaFmt}) va en rojo — es plata que sale`);
+    const sRec = spans.filter((s) => s.textContent === x.recuperableFmt);
+    ok(sRec.some((s) => VERDE.test(s.getAttribute("style") || "")),
+      `…y lo que se RECUPERA (${x.recuperableFmt}) sigue en verde`);
+  }
   // …y se puede cambiar la referencia a la meta
   const meta = acc.referencias[1];
   const bMeta = botones(container).find((b) => b.hasAttribute("aria-pressed") && b.textContent === meta.refFmt);
