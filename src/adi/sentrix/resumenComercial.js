@@ -530,6 +530,95 @@ function _deterioro(scenario, rows, tension, puente) {
     return `${base} En ${vol} de ${conDatos.length} pesa más el volumen que el precio; la aritmética separa los dos efectos, pero por qué cayó cada uno es lo que hay que ir a mirar.`;
   };
 
+  // ── EL MARGEN, EN SUS DOS CAUSAS (owner 2026-08-07) ──────────────────────────────────────────────────────────
+  // "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta el
+  // precio." Las dos se miden acá, cada una contra su propia referencia, y las dos dicen cuánto vale cerrarlas.
+  //
+  //   A · ACCIONES COMERCIALES · contra DOS varas, porque responden preguntas distintas:
+  //       · el PROMEDIO PONDERADO de tu cartera (acciones ÷ venta del negocio) — la vara realista: "¿qué pasa si
+  //         los que entregan de más se parecen al resto de tu cartera?". Es la que el owner pidió.
+  //       · tu META declarada (POLICY.targetCarga) — la vara aspiracional, más ambiciosa.
+  //       El promedio es PONDERADO, no simple: el simple no reconcilia con el total del negocio.
+  //   B · COSTO CONTRA PRECIO · la serie mensual trae `costoMedio` y `ticket` por entidad, así que se puede ver
+  //       si el costo unitario se movió más que el precio. Si sube el costo y el precio no acompaña, el margen
+  //       unitario se comprime — eso es pérdida, y se cuantifica multiplicando por las unidades del período.
+  //       ⚠️ Es una lectura UNITARIA: `ticket` y `costoMedio` son series propias del dataset y su NIVEL no cierra
+  //       al centavo con el margen contable. Lo que sí vale es su VARIACIÓN, que es cada serie contra sí misma.
+  //       Por eso el efecto va como INDICADO, nunca como probado.
+  const _accionesComerciales = () => {
+    const tV = rows.reduce((s, r) => s + (r.ventas || 0), 0);
+    const tA = rows.reduce((s, r) => s + (r.acciones || 0), 0);
+    const promedio = tV ? +((tA / tV) * 100).toFixed(2) : null;
+    const meta = POLICY.targetCarga;
+    const vara = (ref) => {
+      const sobre = rows.filter((r) => typeof r.carga === "number" && r.carga > ref)
+        .map((r) => ({
+          nombre: r.name, carga: r.carga, cargaFmt: _pct(r.carga),
+          exceso: +(r.carga - ref).toFixed(2), excesoFmt: `${(r.carga - ref).toFixed(2)} pp`,
+          ventaFmt: _M((r.ventas || 0) * 1000),
+          recuperable: ((r.carga - ref) / 100) * (r.ventas || 0) * 1000,
+        }))
+        .map((x) => ({ ...x, recuperableFmt: _K(x.recuperable) }))
+        .sort((a, b) => b.recuperable - a.recuperable);
+      const total = sobre.reduce((s, x) => s + x.recuperable, 0);
+      return { filas: sobre, n: sobre.length, total, totalFmt: _K(total) };
+    };
+    const alPromedio = vara(promedio), aLaMeta = vara(meta);
+    return {
+      promedio, promedioFmt: _pct(promedio, 2), meta, metaFmt: _pct(meta),
+      totalFmt: _M(tA * 1000), sobreVentaFmt: _pct(promedio),
+      referencias: [
+        { key: "promedio", label: "al promedio de tu cartera", refFmt: _pct(promedio, 2), ...alPromedio,
+          nota: `El promedio ponderado de tu cartera: ${_K(tA * 1000)} de acciones comerciales sobre ${_M(tV * 1000)} de venta. Es la vara realista — pregunta qué pasa si los que entregan de más se parecen al resto de tu propia cartera, no a un ideal.` },
+        { key: "meta", label: `a tu meta de ${_pct(meta)}`, refFmt: _pct(meta), ...aLaMeta,
+          nota: `Tu meta declarada. Es más ambiciosa que el promedio, así que el monto es mayor — y por eso las dos se muestran juntas: una dice qué es alcanzable comparándote con vos mismo, la otra qué te propusiste.` },
+      ],
+      lectura: alPromedio.n
+        ? `${alPromedio.n} de ${rows.length} clientes entregan más que el promedio de tu cartera (${_pct(promedio, 2)}). Alinearlos con ese promedio recupera ${_K(alPromedio.total)}; llevarlos a tu meta de ${_pct(meta)}, ${_K(aLaMeta.total)}. Es lo único de la brecha con una causa medida cuenta por cuenta.`
+        : `Ninguna cuenta entrega más que el promedio de tu cartera (${_pct(promedio, 2)}): por acciones comerciales no hay margen que rescatar.`,
+    };
+  };
+  // B · COSTO CONTRA PRECIO — la serie mensual de cada cuenta, de su primer mes a su último
+  const _costoPrecio = () => {
+    const hist = getTenantData()?.historialMargen || {};
+    const filas = rows.map((r) => {
+      const s = hist[r.name];
+      if (!Array.isArray(s) || s.length < 2) return null;
+      const a = s[0], z = s[s.length - 1];
+      if (![a.costoMedio, z.costoMedio, a.ticket, z.ticket].every((v) => typeof v === "number" && v > 0)) return null;
+      const dCostoPct = +(((z.costoMedio / a.costoMedio) - 1) * 100).toFixed(1);
+      const dPrecioPct = +(((z.ticket / a.ticket) - 1) * 100).toFixed(1);
+      const mUniA = a.ticket - a.costoMedio, mUniZ = z.ticket - z.costoMedio;
+      const efectoUni = +(mUniZ - mUniA).toFixed(2);
+      const efecto = efectoUni * (r.unidades || 0) * 1000;   // el dato de venta viene en $K
+      return {
+        nombre: r.name, desde: a.mes, hasta: z.mes,
+        costoA: a.costoMedio, costoZ: z.costoMedio, dCostoPct, dCostoFmt: `${dCostoPct >= 0 ? "+" : ""}${dCostoPct.toFixed(1)}%`,
+        precioA: a.ticket, precioZ: z.ticket, dPrecioPct, dPrecioFmt: `${dPrecioPct >= 0 ? "+" : ""}${dPrecioPct.toFixed(1)}%`,
+        efectoUni, efectoUniFmt: `${efectoUni >= 0 ? "+" : "−"}$${Math.abs(efectoUni).toFixed(2)}`,
+        efecto, efectoFmt: `${efecto >= 0 ? "+" : "−"}${_K(Math.abs(efecto))}`,
+        comprime: efectoUni < 0,
+      };
+    }).filter(Boolean);
+    if (!filas.length) return null;
+    filas.sort((a, b) => a.efecto - b.efecto);   // lo que más comprime, primero
+    const comprimen = filas.filter((f) => f.comprime);
+    const perdida = comprimen.reduce((s, f) => s + f.efecto, 0);
+    const ganancia = filas.filter((f) => !f.comprime).reduce((s, f) => s + f.efecto, 0);
+    const desde = filas[0].desde, hasta = filas[0].hasta;
+    return {
+      filas, n: filas.length, desde, hasta,
+      comprimenN: comprimen.length, perdida, perdidaFmt: _K(Math.abs(perdida)),
+      ganancia, gananciaFmt: _K(ganancia),
+      lectura: comprimen.length
+        ? `En ${comprimen.length} de ${filas.length} cuentas el costo unitario subió más que el precio entre ${desde} y ${hasta}: el margen por unidad se comprimió y eso equivale a ${_K(Math.abs(perdida))} sobre las unidades del período. Empezá por ${comprimen.slice(0, 2).map((f) => f.nombre).join(" y ")}.`
+        : `Entre ${desde} y ${hasta} el costo unitario cedió y el precio subió en las ${filas.length} cuentas: el margen por unidad se expandió, no se comprimió. Por costo no estás perdiendo margen este período — el deterioro viene por el otro lado.`,
+      nota: `Compara el costo unitario contra el precio por unidad de cada cuenta, de ${desde} a ${hasta}. Si el costo sube y el precio no acompaña, el margen por unidad se comprime; multiplicado por las unidades del período, eso es lo que cuesta. Va como INDICADO y no como probado: el nivel de estas dos series no cierra al centavo con el margen contable — lo que vale es su VARIACIÓN, que es cada serie contra sí misma.`,
+      estatus: "indicado",
+    };
+  };
+
+
   // ── MARGEN NO CAPTURADO · las cuentas bajo tu benchmark, con lo probado y lo abierto ──
   const margenFilas = rows.filter((r) => typeof r.varaGap === "number" && r.varaGap <= -POLICY.margenBrechaMaterial)
     .map((r) => {
@@ -569,6 +658,9 @@ function _deterioro(scenario, rows, tension, puente) {
       enJuegoTotal, enJuegoFmt: _M(enJuegoTotal), probadoFmt: _K(probadoTotal), abiertoFmt: _M(Math.max(0, puente.brechaTotal - probadoTotal)),
       insight: insightMargen,
       nota: `Las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark — el mismo criterio del detector y del cuadro. "En juego" es la contribución no capturada de esa cuenta. Lo PROBADO es el exceso medido de acciones comerciales sobre tu meta; el resto queda ABIERTO entre costo, precio y composición, que el motor todavía no aísla.`,
+      // LAS DOS CAUSAS del margen, cada una con su referencia y su monto (owner 2026-08-07)
+      acciones: _accionesComerciales(),
+      costoPrecio: _costoPrecio(),
     },
   };
 }

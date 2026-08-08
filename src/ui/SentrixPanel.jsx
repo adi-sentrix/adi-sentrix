@@ -1960,8 +1960,13 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
 function ResumenDeterioro({ R, onFicha, onAsk }) {
   const f = R.formacion, d = R.deterioro, p = R.puente;
   const [ref, setRef] = useState(d ? d.venta.porDefecto : null);
+  // la vara de las acciones comerciales: el PROMEDIO de tu cartera (realista) o tu META (aspiracional). Arranca en
+  // el promedio — es la que el owner pidió: compararte con vos mismo antes que con un ideal.
+  const [varaAcc, setVaraAcc] = useState("promedio");
   if (!f || !d) return null;
   const rv = d.venta.referencias.find((x) => x.key === ref) || d.venta.referencias[0];
+  const acc = d.margen.acciones, cp = d.margen.costoPrecio;
+  const ra = acc ? (acc.referencias.find((x) => x.key === varaAcc) || acc.referencias[0]) : null;
   // PARTICIÓN (probado + abierto = la brecha total) vs LOCALIZACIÓN (indicado): el módulo marca cuál es cuál.
   const partes = (p.tramos || []).filter((t) => t.esParte);
   const pctProbado = p.brechaTotal > 0 ? Math.max(1.5, Math.min(100, (p.probado / p.brechaTotal) * 100)) : 0;
@@ -2098,6 +2103,79 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             )}
             <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${d.margen.n ? C.amber : C.green}` }}>{d.margen.insight}</div>
             <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{d.margen.nota}</div>
+          </div>
+        </div>
+
+        {/* ── LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07) ──────────────────────────────────────────────────────
+            "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta
+            el precio." Las dos se miden acá, cada una contra su propia referencia y con su monto. ── */}
+        <div style={{ marginTop: 15, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
+          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Qué mueve el margen: lo que entregás y cómo se movió tu costo contra tu precio</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y contra tu meta */}
+            {acc && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
+                  <span style={{ ..._RC_HEAD, fontSize: 9, display: "flex", alignItems: "center", gap: 4 }}>
+                    Acciones comerciales{_chip("probado")}
+                    <InfoDot def={`${acc.referencias[0].nota} ${acc.referencias[1].nota} Cambiá la referencia y el monto se recalcula con las cuentas que quedan por encima de ella.`} align="left"/>
+                  </span>
+                  <span style={{ display: "flex", gap: 3 }}>
+                    {acc.referencias.map((x) => (
+                      <button key={x.key} onClick={() => setVaraAcc(x.key)} aria-pressed={ra.key === x.key}
+                        style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${ra.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: ra.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: ra.key === x.key ? C.celeste : C.textMuted, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.refFmt}</button>
+                    ))}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: ra.n ? C.green : C.textMuted, fontVariantNumeric: "tabular-nums" }}>{ra.n ? ra.totalFmt : "—"}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{ra.n ? `recuperables llevando ${ra.n} ${ra.n === 1 ? "cuenta" : "cuentas"} ${ra.label} (${ra.refFmt})` : `ninguna cuenta entrega más que ${ra.refFmt}`}</span>
+                </div>
+                {ra.n > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
+                    {ra.filas.slice(0, 4).map((x) => (
+                      <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
+                        <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                        </span>
+                        <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.amber, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`entrega ${x.cargaFmt} de su venta`}>{x.cargaFmt}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>+{x.excesoFmt}</span>
+                        <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.green, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.recuperableFmt}</span>
+                      </div>
+                    ))}
+                    {ra.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{ra.filas.length - 4} más.</span>}
+                  </div>
+                )}
+                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.green}` }}>{acc.lectura}</div>
+              </div>
+            )}
+            {/* B · COSTO CONTRA PRECIO · si el costo sube más que el precio, el margen por unidad se comprime */}
+            {cp && (
+              <div>
+                <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
+                  Costo contra precio{_chip(cp.estatus)}
+                  <InfoDot def={cp.nota} align="left"/>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: cp.comprimenN ? C.red : C.green, fontVariantNumeric: "tabular-nums" }}>{cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{cp.comprimenN ? `de margen perdido en ${cp.comprimenN} ${cp.comprimenN === 1 ? "cuenta donde el costo subió" : "cuentas donde el costo subió"} más que el precio` : `de margen ganado: el costo cedió más de lo que el precio subió, de ${cp.desde} a ${cp.hasta}`}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
+                  {cp.filas.slice(0, 4).map((x) => (
+                    <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, borderLeft: `2px solid ${x.comprime ? C.red : C.green}`, background: "rgba(255,255,255,0.015)" }}>
+                      <span style={{ flex: "0 1 106px", minWidth: 84, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                      </span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, color: x.dCostoPct > 0 ? C.red : C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`costo unitario ${x.costoA} → ${x.costoZ}`}>costo {x.dCostoFmt}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, color: x.dPrecioPct > 0 ? C.green : C.red, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`precio por unidad ${x.precioA} → ${x.precioZ}`}>precio {x.dPrecioFmt}</span>
+                      <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: x.comprime ? C.red : C.green, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`${x.efectoUniFmt} por unidad`}>{x.efectoFmt}</span>
+                    </div>
+                  ))}
+                  {cp.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{cp.filas.length - 4} más.</span>}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${cp.comprimenN ? C.red : C.green}` }}>{cp.lectura}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>

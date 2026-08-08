@@ -299,6 +299,32 @@ H("[1d] DÓNDE SE DETERIORA EL RESULTADO · la identidad, la venta no alcanzada 
     `…y la descomposición de precio y volumen, que solo existe contra esta referencia (${conPV.length} filas)`);
   ok(conPV.every((x) => x.pv.cierra), "volumen + precio cierra exacto con la diferencia");
 
+  // ── LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07) ──
+  const acc = d.margen.acciones, cp = d.margen.costoPrecio;
+  ok(T.includes("Qué mueve el margen"), "el bloque de las dos causas está");
+  // A · acciones comerciales, contra el promedio de TU cartera (la vara que pidió el owner) y contra tu meta
+  ok(T.includes("Acciones comerciales") && T.includes(acc.promedioFmt), `el promedio ponderado de la cartera se muestra — ${acc.promedioFmt}`);
+  const prom = acc.referencias[0];
+  ok(T.includes(prom.totalFmt), `y lo recuperable al promedio — ${prom.totalFmt}`);
+  ok(T.includes(acc.lectura), "…con su lectura, que da las dos cifras");
+  ok(prom.filas.slice(0, 4).every((x) => T.includes(x.nombre) && T.includes(x.recuperableFmt)),
+    `las cuentas sobre el promedio con su recuperable — ${prom.filas.slice(0, 2).map((x) => `${x.nombre} ${x.recuperableFmt}`).join(", ")}`);
+  // …y se puede cambiar la vara a la meta
+  const meta = acc.referencias[1];
+  const bMeta = botones(container).find((b) => b.hasAttribute("aria-pressed") && b.textContent === meta.refFmt);
+  ok(!!bMeta, `se puede cambiar la vara a tu meta (${meta.refFmt})`);
+  fireEvent.click(bMeta);
+  ok(container.textContent.includes(meta.totalFmt), `…y el recuperable se recalcula — ${meta.totalFmt}`);
+  ok(meta.filas.slice(0, 4).every((x) => container.textContent.includes(x.nombre)), "…con las cuentas que quedan sobre ESA vara");
+  // B · costo contra precio · la variación de cada serie contra sí misma
+  ok(T.includes("Costo contra precio"), "el lado del costo está");
+  ok(T.includes(cp.lectura), `con su lectura, que sigue al dato — "${cp.lectura.slice(0, 70)}…"`);
+  ok(cp.filas.slice(0, 4).every((x) => T.includes(x.dCostoFmt) && T.includes(x.dPrecioFmt)),
+    "cada cuenta muestra cómo se movió su costo y su precio");
+  ok(T.includes(cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`),
+    `y el efecto en plata — ${cp.comprimenN ? `−${cp.perdidaFmt} perdidos` : `+${cp.gananciaFmt} ganados`}`);
+  ok(T.includes("indicado"), "el efecto va rotulado INDICADO: es una variación derivada, no el margen contable");
+
   // ── MARGEN NO CAPTURADO ──
   ok(T.includes("Margen no capturado"), "el lado del margen está");
   ok(T.includes(d.margen.insight), "…con su insight");

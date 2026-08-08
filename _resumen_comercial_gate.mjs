@@ -13,6 +13,8 @@
 import { buildResumenComercial, buildPareto } from "./src/adi/sentrix/resumenComercial.js";
 import { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";
 import { POLICY } from "./src/config/businessPolicy.js";
+import { getTenantData } from "./src/data/tenantStore.js";
+const getHist = () => getTenantData()?.historialMargen || {};
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -288,6 +290,54 @@ H("[9d] DÓNDE SE DILUYE EL MARGEN · bajo tu benchmark, con lo probado y lo abi
   ok(!/porque|se debe a/i.test(m.insight), "…que localiza, no atribuye");
   ok(/necesita aislarse entre costo, precio y composición/.test(m.insight) || m.n === 0,
     "…y declara qué queda abierto");
+}
+
+H("[9d2] LAS DOS CAUSAS DEL MARGEN · acciones comerciales y costo contra precio (owner 2026-08-07)");
+{
+  const a = R.deterioro.margen.acciones, c = R.deterioro.margen.costoPrecio;
+  // ── A · ACCIONES COMERCIALES · contra DOS varas ──
+  ok(!!a && a.referencias.length === 2, "las acciones comerciales se miden contra dos varas");
+  const prom = a.referencias.find((x) => x.key === "promedio"), meta = a.referencias.find((x) => x.key === "meta");
+  ok(!!prom && !!meta, "el promedio de tu cartera y tu meta declarada");
+  // EL PROMEDIO ES PONDERADO (acciones ÷ venta del negocio), no el promedio simple de los %
+  const tV = R.rows.reduce((s, r) => s + (r.ventas || 0), 0), tA = R.rows.reduce((s, r) => s + (r.acciones || 0), 0);
+  ok(Math.abs(a.promedio - (tA / tV) * 100) < 0.011, `el promedio es PONDERADO por venta, no simple — ${a.promedioFmt}`);
+  ok(a.meta === POLICY.targetCarga, `la meta es la del motor — ${a.metaFmt}`);
+  for (const r of [prom, meta]) {
+    const ref = r.key === "promedio" ? a.promedio : a.meta;
+    const esperado = R.rows.filter((x) => typeof x.carga === "number" && x.carga > ref);
+    ok(r.n === esperado.length, `${r.label}: ${r.n} cuentas por encima de ${r.refFmt}`);
+    ok(r.filas.every((f) => f.exceso > 0), "…y todas las listadas entregan de más, ninguna de menos");
+    const suma = r.filas.reduce((s, f) => s + f.recuperable, 0);
+    ok(Math.abs(suma - r.total) < 1, `el recuperable es la suma de sus filas — ${r.totalFmt}`);
+    // el recuperable de cada fila = exceso × su venta. Aritmética directa, sin factor inventado.
+    ok(r.filas.every((f) => { const row = R.rows.find((x) => x.name === f.nombre); return Math.abs(f.recuperable - (f.exceso / 100) * row.ventas * 1000) < 1; }),
+      `${r.label}: cada recuperable es exceso × venta de esa cuenta`);
+    ok(r.filas.every((f, i) => i === 0 || r.filas[i - 1].recuperable >= f.recuperable), "…ordenadas por lo que vale cerrarlas");
+    ok(!!r.nota, "…y la vara explica qué pregunta responde");
+  }
+  ok(meta.total >= prom.total || a.meta >= a.promedio, "la vara más exigente recupera más (o la meta ya está sobre el promedio)");
+  ok(prom.n === 0 || /promedio de tu cartera/.test(a.lectura), `la lectura nombra el promedio — "${a.lectura.slice(0, 90)}…"`);
+  ok(prom.n === 0 || (a.lectura.includes(prom.totalFmt) && a.lectura.includes(meta.totalFmt)), "…y da las DOS cifras, para que el owner elija su ambición");
+
+  // ── B · COSTO CONTRA PRECIO · la variación, no el nivel ──
+  ok(!!c, "hay lectura de costo contra precio");
+  ok(c.n === R.rows.filter((r) => (getHist()[r.name] || []).length >= 2).length || c.n > 0, `${c.n} cuentas con serie mensual`);
+  ok(!!c.desde && !!c.hasta && c.desde !== c.hasta, `compara de punta a punta del período — ${c.desde} → ${c.hasta}`);
+  ok(c.filas.every((f) => typeof f.dCostoPct === "number" && typeof f.dPrecioPct === "number"), "cada cuenta declara cómo se movió su costo y su precio");
+  ok(c.filas.every((f) => f.comprime === (f.efectoUni < 0)), "«comprime» = el margen por unidad se achicó, no un umbral suelto");
+  // el efecto = (Δmargen unitario) × unidades. Verificable contra la serie cruda.
+  ok(c.filas.every((f) => { const row = R.rows.find((x) => x.name === f.nombre); return Math.abs(f.efecto - f.efectoUni * (row.unidades || 0) * 1000) < 1; }),
+    "el monto es el cambio de margen unitario por las unidades del período");
+  ok(c.filas.every((f, i) => i === 0 || c.filas[i - 1].efecto <= f.efecto), "ordenadas: lo que más comprime, primero");
+  // ⚠️ EL ESTATUS: es una VARIACIÓN de dos series propias, no el margen contable — va indicado, nunca probado
+  ok(c.estatus === "indicado", `el efecto va INDICADO, no probado — ${c.estatus}`);
+  ok(/no cierra al centavo con el margen contable/.test(c.nota) && /su VARIACIÓN/.test(c.nota),
+    "…y la nota explica por qué: el nivel no reconcilia, la variación sí");
+  // la lectura dice la VERDAD del período, sin dramatizar ni inventar un problema que no hay
+  ok(c.comprimenN > 0 ? /se comprimió/.test(c.lectura) : /no se comprimió|no estás perdiendo margen/.test(c.lectura),
+    `la lectura sigue al dato — ${c.comprimenN} de ${c.n} comprimen: "${c.lectura.slice(0, 95)}…"`);
+  ok(!/porque|se debe a|culpa/i.test(c.lectura), "…y describe el movimiento, no lo explica");
 }
 
 H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)");
