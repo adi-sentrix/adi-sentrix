@@ -86,6 +86,15 @@ function _enTension(plano, rows) {
     lista: enCartera, n: enCartera.length, enJuego: tCartera, enJuegoFmt: _M(tCartera),
     colaLista: enCola, colaN: enCola.length, colaEnJuego: tCola, colaEnJuegoFmt: _K(tCola),
   };
+  // LA RECONCILIACIÓN COMPACTA (owner 2026-08-07 · "una sola lectura de alcance") — la versión de una línea que
+  // va bajo el veredicto. Sigue NOMBRANDO los dos universos: esa regla no se negocia por brevedad.
+  const reconciliaCorta = !enCartera.length
+    ? `Ninguna cuenta de la cartera llega a brecha material (${POLICY.margenBrechaMaterial} pp).`
+    : !enPlano.length
+      ? `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)}, todas fuera del plano.`
+      : !enCola.length
+        ? `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)} — todas dentro del plano.`
+        : `Cartera completa: ${_cuentas(enCartera.length)} por ${_M(tCartera)} · el plano concentra el ${_pct(concentraPct)} y ${_cuentas(enCola.length)} ${enCola.length === 1 ? "queda" : "quedan"} en la cola por ${_K(tCola)}.`;
   // LA RECONCILIACIÓN · los dos universos nombrados y el puente entre ellos, en una sola frase.
   let reconcilia;
   if (!enCartera.length) {
@@ -97,7 +106,7 @@ function _enTension(plano, rows) {
   } else {
     reconcilia = `En toda la cartera hay ${_cuentas(enCartera.length)} con brecha material por ${_M(tCartera)}. Las ${enPlano.length} que están dentro del plano de decisión concentran el ${_pct(concentraPct)} de esa oportunidad; ${_cuentas(enCola.length)} ${enCola.length === 1 ? "queda" : "quedan"} en la cola por ${_K(tCola)}.`;
   }
-  return { lista: enPlano, n: enPlano.length, enJuego: tPlano, enJuegoFmt: _M(tPlano), cartera, concentraPct, concentraPctFmt: _pct(concentraPct), reconcilia };
+  return { lista: enPlano, n: enPlano.length, enJuego: tPlano, enJuegoFmt: _M(tPlano), cartera, concentraPct, concentraPctFmt: _pct(concentraPct), reconcilia, reconciliaCorta };
 }
 
 // ── EL VEREDICTO · jerarquía de tres pasos (owner 2026-08-07) ──────────────────────────────────────────────────
@@ -116,31 +125,26 @@ function _veredicto({ total, plano, tension, variacionPct }) {
     margenCorto ? `${_pp(brecha)} bajo tu benchmark de ${_pct(total._vara)}` : null,
   ].filter(Boolean).join(" · ");
 
+  // EL ALCANCE, UNA SOLA VEZ (owner 2026-08-07: "hoy el universo 80/20 se explica varias veces"). Esta frase es
+  // LA declaración del plano de decisión de toda la vista: reemplaza a la banda "Plano de decisión" y a la banda
+  // "Alcance" que vivían aparte. Sigue LOCALIZANDO, nunca atribuyendo: dice dónde está la brecha, no que esas
+  // cuentas la produzcan.
+  const alcance = tension.n > 0
+    ? `${plano.n} clientes explican el ${plano.pct}% de las ventas. Dentro de ellos, ${tension.n} concentran ${tension.enJuegoFmt} de la brecha material.`
+    : `${plano.n} clientes explican el ${plano.pct}% de las ventas. Ninguno tiene una brecha material (${POLICY.margenBrechaMaterial} pp o más bajo su referencia).`;
+
   // SEÑAL CLARA: crece el volumen Y el margen queda corto Y hay cuentas con brecha material adentro del plano.
   if (crece && margenCorto && tension.n > 0) {
-    return {
-      tipo: "senal",
-      titular: "El volumen crece, pero el margen no acompaña.",
-      // LOCALIZA, no atribuye: dice DÓNDE está la brecha, no que esas cuentas sean su causa.
-      soporte: `Dentro de los ${plano.n} clientes que explican el ${plano.pct}% de las ventas, ${tension.n} concentran una brecha material de ${_M(tension.enJuego)}.`,
-      lectura: lecturaBase,
-    };
+    return { tipo: "senal", titular: "El volumen crece, pero el margen no acompaña.", soporte: alcance, lectura: lecturaBase };
   }
   if (margenCorto && tension.n > 0) {
-    return {
-      tipo: "senal",
-      titular: "El margen está bajo tu referencia.",
-      soporte: `Dentro de los ${plano.n} clientes que explican el ${plano.pct}% de las ventas, ${tension.n} concentran una brecha material de ${_M(tension.enJuego)}.`,
-      lectura: lecturaBase,
-    };
+    return { tipo: "senal", titular: "El margen está bajo tu referencia.", soporte: alcance, lectura: lecturaBase };
   }
   // NEUTRAL: sin señal suficiente no se fuerza ninguna conclusión — se lee el dato y se declara el alcance.
   return {
     tipo: "neutral",
     titular: margenCorto ? "El margen está bajo tu referencia." : "El negocio opera en línea con tu referencia.",
-    soporte: tension.n === 0
-      ? `Ningún cliente del grupo que explica el ${plano.pct}% de las ventas tiene una brecha material (${POLICY.margenBrechaMaterial} pp o más bajo su referencia).`
-      : `Se localizaron ${tension.n} cuentas con brecha material dentro del plano de decisión.`,
+    soporte: alcance,
     lectura: lecturaBase,
   };
 }
@@ -200,16 +204,22 @@ function _puente(rows, plano, tension) {
     materialFmt: tension.cartera.enJuegoFmt, materialN: tension.cartera.n,
     probado, probadoFmt: _K(probado),
     abierto, abiertoFmt: _M(abierto),
+    // ⚠️ PARTICIÓN vs LOCALIZACIÓN — la distinción que evita una suma imposible (hallazgo 2026-08-07):
+    // PROBADO + ABIERTO = el total, y eso SÍ es una partición del dinero. El INDICADO es EL MISMO dinero mirado
+    // desde otro ángulo: dice en QUÉ CUENTAS está, no qué porción es. Pintarlos como tres filas iguales bajo un
+    // total invita a sumar los tres, y no suman. Por eso cada tramo declara `esParte`: la vista pinta la
+    // partición como partición y la localización aparte.
     tramos: [
-      { estatus: "probado", monto: _K(probado), titulo: "Acciones comerciales sobre la meta",
-        detalle: `${conExceso.length} ${conExceso.length === 1 ? "cliente opera" : "clientes operan"} con carga comercial sobre tu meta de ${_pct(POLICY.targetCarga)}. Es la única parte de la brecha con una causa comprobada y cuantificada.` },
-      { estatus: "indicado", monto: tension.n ? tension.enJuegoFmt : "—", titulo: "Dónde se concentra la brecha",
-        detalle: tension.n
-          ? `${tension.n} de los ${plano.n} clientes del plano concentran ${tension.enJuegoFmt} — el ${tension.concentraPctFmt} de los ${tension.cartera.enJuegoFmt} que suman las ${tension.cartera.n} cuentas con brecha material de toda la cartera. Es una localización comprobada, no una causa: falta aislar qué la produce en cada cuenta.`
-          : "Ninguna cuenta del plano supera la brecha material; no hay concentración que señalar." },
-      { estatus: "abierto", monto: _M(abierto), titulo: "Pendiente de aislar",
+      { estatus: "probado", esParte: true, monto: _K(probado), titulo: "Acciones comerciales sobre la meta",
+        detalle: `${conExceso.length} ${conExceso.length === 1 ? "cliente opera" : "clientes operan"} con carga comercial sobre tu meta de ${_pct(POLICY.targetCarga)}. Es la única parte de la brecha con una causa medida y cuantificada.` },
+      { estatus: "abierto", esParte: true, monto: _M(abierto), titulo: "Pendiente de aislar",
         detalle: "El resto debe separarse entre costo de producto, precio y composición de la venta. El motor todavía no aisló ninguno de los tres, así que son rutas de investigación abiertas — no causas." },
+      { estatus: "indicado", esParte: false, monto: tension.n ? tension.enJuegoFmt : "—", titulo: "Dónde se concentra la brecha",
+        detalle: tension.n
+          ? `${tension.n} de los ${plano.n} clientes del plano concentran ${tension.enJuegoFmt} — el ${tension.concentraPctFmt} de los ${tension.cartera.enJuegoFmt} que suman las ${tension.cartera.n} cuentas con brecha material de toda la cartera. Es una localización comprobada, no una causa ni una tercera porción: es el MISMO dinero de arriba, visto por cuenta.`
+          : "Ninguna cuenta del plano supera la brecha material; no hay concentración que señalar." },
     ],
+    particionNota: `La brecha se parte en dos: lo que tiene causa medida (${_K(probado)}) y lo que falta aislar (${_M(abierto)}). Suman el total. La concentración por cuenta no es una tercera parte — es ese mismo dinero, ubicado.`,
   };
 }
 
@@ -243,6 +253,14 @@ function _insights(plano, rows) {
         razon: tieneAccion
           ? `Parte de la brecha ya está comprobada: opera ${_pp(excesoPP)} sobre tu meta de acciones comerciales, que equivalen a ${_K(probado)}. El resto necesita aislarse en la Ficha.`
           : `El monto es material, pero la causa todavía no está aislada: hay que separar costo, precio y composición de la venta.`,
+        // FILA DE DECISIÓN (owner 2026-08-07): la acción concreta y qué falta, cada una en una línea corta — la
+        // tarjeta larga se lee como informe; esto se lee como una decisión.
+        accionCorta: tieneAccion
+          ? `Revisar acciones comerciales: opera ${_pp(excesoPP)} sobre tu meta.`
+          : `Abrir la Ficha y aislar la causa cuenta por cuenta.`,
+        faltaCorta: tieneAccion
+          ? `Falta separar costo, precio y composición del resto.`
+          : `Falta separar costo, precio y composición: nada está aislado todavía.`,
         titulo: material ? `${_pp(r.varaGap)} bajo tu referencia` : `Brecha de ${_pp(r.varaGap)}`,
         // PRIORIDAD: materialidad (en juego) + deterioro (brecha) + evidencia (¿hay causa probada?) + acción.
         _score: (r.enJuego || 0) * (1 + (material ? 0.5 : 0)) * (tieneAccion ? 1.35 : 1),
@@ -250,6 +268,17 @@ function _insights(plano, rows) {
     })
     .sort((a, b) => b._score - a._score);
   return out;
+}
+
+// EL ENCABEZADO DE LAS DECISIONES · adaptativo, nunca una promesa fija (owner 2026-08-07). Prometer que "ya tienen
+// una parte de la causa comprobada" es verdad solo si REALMENTE la tienen: con otro dato, ninguna podría tenerla,
+// y la frase pasaría a afirmar más de lo que la evidencia sostiene. Se arma del propio conjunto.
+function _encabezadoDecisiones(insights) {
+  if (!insights.length) return "No hay cuentas del plano de decisión con contribución en juego este período.";
+  const conCausa = insights.filter((i) => i.estatusCausa === "probado").length;
+  if (!conCausa) return "Empezá por estas cuentas: concentran la mayor oportunidad, aunque en todas la causa todavía hay que aislarla.";
+  if (conCausa === insights.length) return "Empezá por estas cuentas: concentran la mayor oportunidad y en todas una parte de la causa ya está medida.";
+  return `Empezá por estas cuentas: concentran la mayor oportunidad y en ${conCausa} de ${insights.length} una parte de la causa ya está medida.`;
 }
 
 // ── LA VENTA OFICIAL DEL NEGOCIO ───────────────────────────────────────────────────────────────────────────────
@@ -318,12 +347,15 @@ function _evolutivo(oficial) {
     maxMes: ev.meses[iMax], maxFmt: _M(actual[iMax] * 1000),
     minMes: ev.meses[iMin], minFmt: _M(actual[iMin] * 1000),
     caida: caida && caida.delta < 0 ? { ...caida, fmt: _K(Math.abs(caida.delta) * 1000) } : null,
-    // LECTURA: describe el movimiento del año con cifras autorizadas. No dice por qué — eso es el bloque 02.
+    cumplimientoPct: tPpto ? +((tAct / tPpto) * 100).toFixed(1) : null,
+    cumplimientoFmt: tPpto ? _pct((tAct / tPpto) * 100) : "—",
+    // LECTURA EJECUTIVA · una sola: cierre del período, variación interanual, cumplimiento presupuestario y los
+    // meses que importan. Describe el movimiento con cifras autorizadas; no dice POR QUÉ — eso es el bloque 02.
     lectura: [
       `El año cierra en ${_M(tAct * 1000)}`,
       typeof vsAnt === "number" ? `${_sig(vsAnt)} contra el anterior` : null,
-      typeof vsPpto === "number" ? `${_sig(vsPpto)} contra tu presupuesto` : null,
-    ].filter(Boolean).join(" · ") + `. El mes más alto fue ${ev.meses[iMax]} (${_M(actual[iMax] * 1000)}) y el más bajo ${ev.meses[iMin]} (${_M(actual[iMin] * 1000)}).`,
+      tPpto ? `${_pct((tAct / tPpto) * 100)} del presupuesto (${_sig(vsPpto)})` : null,
+    ].filter(Boolean).join(" · ") + `. El mes más alto fue ${ev.meses[iMax]} (${_M(actual[iMax] * 1000)}) y el más bajo ${ev.meses[iMin]} (${_M(actual[iMin] * 1000)})${caida && caida.delta < 0 ? `; la mayor caída del año fue de ${caida.desde} a ${caida.mes} (${_K(Math.abs(caida.delta) * 1000)})` : ""}.`,
     nota: `Las tres series son dato real del período. Este año y el anterior están anclados al total oficial de venta por cliente, así que el gráfico cierra exacto con el KPI de arriba; el presupuesto es el plan que declaraste y no se ancla.`,
   };
 }
@@ -371,6 +403,10 @@ function _composicion(plano, rows, total) {
       nota: `La cartera completa: ${rows.length} clientes. Comparala con el Grupo 80% y tenés la cola.` },
   ];
   return {
+    // El TÍTULO vive acá, no en la vista: es una afirmación sobre el dato y sigue la misma regla que todo lo demás
+    // — "DÓNDE se diluye", nunca "QUIÉN diluye". Decir que una cuenta diluye el margen sería atribuirle la causa;
+    // lo que el dato sostiene es en qué cuentas se pierde el margen, no que ellas lo produzcan.
+    titulo: "Quién sostiene la venta y dónde se diluye el margen",
     vistas, porDefecto: "grupo80", totalVentasFmt: _M(totalVentas * 1000),
     columnas: [
       { key: "nombre", label: "Cliente", align: "left" },
@@ -440,6 +476,7 @@ export function buildResumenComercial(scenario = "actual", { maxEntidades = 10 }
     formacion: _formacion(total),          // 02 · venta − costo conciliado − acciones = contribución
     puente,
     insights,
+    encabezadoDecisiones: _encabezadoDecisiones(insights),   // 03 · adaptativo al conjunto, nunca una promesa fija
     primera: insights[0] || null,
     pareto: {
       ventas: buildPareto(plano, "ventas", { maxEntidades }),

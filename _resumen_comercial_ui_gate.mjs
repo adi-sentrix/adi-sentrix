@@ -110,23 +110,27 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(T.includes("MESA DE CONTROL"), "abre la Mesa de Control");
   const bloques = [
     ["Qué está pasando", "01 · movimiento QUÉ ESTÁ PASANDO"],
-    ["Lectura ejecutiva · negocio completo", "1 · veredicto + KPIs"],
+    ["Lectura ejecutiva · negocio completo", "1 · veredicto + alcance + KPIs"],
     ["El año, mes a mes", "2 · evolutivo (este año · año anterior · presupuesto)"],
-    ["Plano de decisión:", "3 · plano de decisión 80/20 declarado"],
-    ["Concentración comercial · 80/20", "4 · gráfico de concentración"],
-    ["Composición del negocio", "5 · composición por cliente"],
+    ["Concentración comercial · 80/20", "3 · gráfico de concentración (el mapa)"],
+    [R.composicion.titulo, "4 · composición por cliente (a quién investigar)"],
     ["Por qué está pasando", "02 · movimiento POR QUÉ ESTÁ PASANDO"],
-    ["Cómo se forma el margen", "6 · formación del margen"],
-    ["Puente de oportunidad", "7 · puente de oportunidad"],
+    ["Cómo se forma el margen", "5 · UNA pieza: identidad + brecha con sus estatus"],
     ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
-    ["Insights que mueven la aguja", "8 · clientes prioritarios"],
-    ["Evidencia completa · opcional", "9 · evidencia completa opcional, al final"],
+    [R.encabezadoDecisiones, "6 · decisiones prioritarias"],
+    ["Evidencia completa · opcional", "7 · evidencia completa opcional, al final"],
   ];
   const pos = bloques.map(([marca]) => T.indexOf(marca));
   for (let i = 0; i < bloques.length; i++) ok(pos[i] >= 0, `bloque ${bloques[i][1]} presente`);
   ok(pos.every((p, i) => i === 0 || (p > pos[i - 1] && pos[i - 1] >= 0)), `TODOS vienen en la secuencia exacta — ${pos.join(" < ")}`);
-  ok(T.indexOf("Evidencia completa · opcional") > T.indexOf("Insights que mueven la aguja"),
+  ok(T.indexOf("Evidencia completa · opcional") > T.indexOf(R.encabezadoDecisiones),
     "la evidencia completa queda al final: está disponible, pero no domina la primera lectura");
+  // UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07): el universo 80/20 se declaraba en tres lugares distintos.
+  ok(!T.includes("Plano de decisión:"), "la banda \"Plano de decisión\" ya NO existe (su contenido subió al veredicto)");
+  ok(!T.includes(R.plano.frase), "…ni queda su frase suelta en ningún lado");
+  ok(!T.includes(R.tension.reconcilia), "la banda ALCANCE larga tampoco: quedó la versión compacta");
+  const vecesPlano = (T.match(new RegExp(`${R.plano.n} clientes explican el ${R.plano.pct.toString().replace(".", "\\.")}%`, "g")) || []).length;
+  ok(vecesPlano === 1, `"X clientes explican el Y%" aparece UNA sola vez en la vista — ${vecesPlano}`);
 
   // EL VEREDICTO: texto del módulo, verbatim
   ok(T.includes(R.veredicto.titular), `el titular es el del módulo — "${R.veredicto.titular}"`);
@@ -139,16 +143,28 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   }
   ok(R.kpis.length === 4, `son exactamente 4 KPI — ${R.kpis.length}`);
   // EL PLANO, EL PUENTE, LOS INSIGHTS: cifras del módulo
-  ok(T.includes(R.plano.frase), "la frase del plano viene armada del módulo (X e Y dinámicos)");
-  ok(T.includes(R.plano.colaFrase), "…y declara qué queda en la cola");
-  ok(T.includes(R.puente.brechaTotalFmt) && T.includes(`${R.puente.probadoFmt} probado`) && T.includes(`${R.puente.abiertoFmt} por aislar`),
-    `el puente muestra total/probado/abierto — ${R.puente.brechaTotalFmt} = ${R.puente.probadoFmt} + ${R.puente.abiertoFmt}`);
+  ok(T.includes(R.veredicto.soporte), "el alcance se declara UNA vez, en el veredicto (X clientes · Y% · N concentran $Z)");
+  ok(T.includes(R.tension.reconciliaCorta), "…con la reconciliación compacta de cabeza y cola debajo");
+  ok(T.includes(R.puente.brechaTotalFmt) && T.includes(R.puente.probadoFmt) && T.includes(R.puente.abiertoFmt),
+    `la brecha muestra total/probado/abierto — ${R.puente.brechaTotalFmt} = ${R.puente.probadoFmt} + ${R.puente.abiertoFmt}`);
   for (const t of R.puente.tramos) ok(T.includes(t.titulo) && T.includes(t.detalle), `tramo ${t.estatus.toUpperCase()} completo ("${t.titulo}")`);
+  // la LOCALIZACIÓN va después de la partición y separada — no como una tercera porción entre las dos partes
+  ok(T.indexOf(R.puente.tramos.find((x) => !x.esParte).titulo) > T.indexOf(R.puente.tramos.filter((x) => x.esParte)[1].titulo),
+    "la localización se pinta DESPUÉS de la partición, no mezclada entre sus partes");
+  ok(T.includes(`${R.puente.materialFmt} de ese total está en las ${R.puente.materialN} con brecha material`),
+    "el universo del total se declara a la vista, no solo en el tooltip");
   ok(["probado", "indicado", "abierto"].every((e) => T.includes(e)), "los tres estatus epistémicos están rotulados a la vista");
   const i0 = R.insights[0];
-  ok(T.includes(i0.entidad) && T.includes(i0.razon) && T.includes(i0.enJuegoFmt), `el primer insight completo — ${i0.entidad} · ${i0.enJuegoFmt}`);
-  ok(T.includes(`${i0.posVenta}° venta · ${i0.posMargen}° margen más bajo`), "…con su posición por venta y por margen");
-  ok(T.includes("Primera profundización sugerida:") && T.includes(R.primera.entidad), `la primera profundización sugerida es ${R.primera.entidad}`);
+  ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
+  ok(T.includes(i0.accionCorta) && T.includes(i0.faltaCorta), "…como FILA DE DECISIÓN: la acción concreta y qué falta aislar");
+  ok(!T.includes(i0.razon), "la tarjeta larga de informe ya no está — quedó la fila corta");
+  // la primera profundización sugerida YA NO es una banda aparte: es la PRIMERA FILA de decisión (owner: no
+  // repetir cifras ni conceptos). Se verifica que ese lugar lo ocupe la cuenta de mayor prioridad del módulo.
+  ok(!T.includes("Primera profundización sugerida:"), "la banda separada de \"primera profundización\" ya no existe");
+  const filasDec = [...container.querySelectorAll("div")]
+    .filter((d) => R.insights.some((i) => d.textContent.startsWith(i.entidad) && d.textContent.includes(i.enJuegoFmt)));
+  ok(filasDec.length > 0 && filasDec[0].textContent.startsWith(R.primera.entidad),
+    `la PRIMERA fila de decisión es la de mayor prioridad — ${R.primera.entidad}`);
   // EL GRÁFICO: las barras del módulo, con sus nombres y montos
   for (const b of R.pareto.ventas.barras) ok(T.includes(b.nombre) && T.includes(b.fmt), `barra "${b.nombre}" (${b.fmt}) dibujada`);
   ok(T.includes(R.pareto.ventas.cruce80), `el cruce real del 80% se nombra — ${R.pareto.ventas.cruce80}`);
@@ -281,11 +297,13 @@ H("[3] NAVEGACIÓN A LA FICHA · detecta acá, explica allá (la Ficha REAL, no 
     ok(!container.textContent.includes("Insights que mueven la aguja"), "…y deja la cara Comercial (es navegación, no un panel encima)");
     cleanup();
   }
-  // b · desde la primera profundización sugerida
+  // b · desde la PRIMERA fila de decisión (que es la primera profundización sugerida, ya sin banda aparte)
   {
     const { container } = abrir(evTemporal());
-    fireEvent.click(conTexto(container, `Ver el caso ${R.primera.entidad}`));
-    ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), `"Ver el caso ${R.primera.entidad}" abre su Ficha`);
+    const btn = botones(container).find((b) => b.title === `Abrir la Ficha de ${R.primera.entidad}`);
+    ok(!!btn, `la fila de ${R.primera.entidad} ofrece su Ficha`);
+    fireEvent.click(btn);
+    ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), `y abre la Ficha de ${R.primera.entidad}`);
     cleanup();
   }
   // c · desde una barra del gráfico de concentración (solo las entidades reales; los agregados no son una entidad)
@@ -357,8 +375,10 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   const { container } = abrir(evTemporal());
   const T = container.textContent;
   const c = R.tension.cartera;
-  ok(T.includes(R.tension.reconcilia), `la frase de reconciliación se muestra entera — "${R.tension.reconcilia}"`);
-  ok(T.includes("Alcance"), "…rotulada como ALCANCE (es una declaración de universo, no un dato más)");
+  // UNA SOLA LECTURA (owner 2026-08-07): la banda ALCANCE se disolvió; su contenido es ahora la segunda línea
+  // del veredicto, en versión compacta — pero sigue nombrando los dos universos, que es lo que no se negocia.
+  ok(T.includes(R.tension.reconciliaCorta), `la reconciliación compacta se muestra entera — "${R.tension.reconciliaCorta}"`);
+  ok(!T.includes(R.tension.reconcilia), "…y NO conviven la versión larga y la corta diciendo lo mismo");
   // los dos montos parecidos conviven, pero SIEMPRE con su universo pegado
   ok(T.includes(c.enJuegoFmt) && T.includes(R.tension.enJuegoFmt), `los dos montos están a la vista — cartera ${c.enJuegoFmt} · plano ${R.tension.enJuegoFmt}`);
   ok(T.includes(R.tension.concentraPctFmt), `el % que el plano concentra de la oportunidad total se muestra y es dinámico — ${R.tension.concentraPctFmt}`);
@@ -366,14 +386,14 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   // con "plano"/"que explican el X%". Se chequea sobre el texto real, no sobre la intención.
   const ventanas = (txt, aguja) => { const out = []; let i = txt.indexOf(aguja); while (i >= 0) { out.push(txt.slice(Math.max(0, i - 220), i + 220)); i = txt.indexOf(aguja, i + 1); } return out; };
   const vCartera = ventanas(T, c.enJuegoFmt).filter((w) => !w.includes("Ver todos los clientes"));
-  ok(vCartera.length > 0 && vCartera.every((w) => /toda la cartera|cartera material|cuentas con brecha material/i.test(w)),
+  ok(vCartera.length > 0 && vCartera.every((w) => /cartera completa|toda la cartera|cartera material|con brecha material/i.test(w)),
     `las ${vCartera.length} apariciones de ${c.enJuegoFmt} declaran su universo (toda la cartera)`);
   const vPlano = ventanas(T, R.tension.enJuegoFmt);
-  ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|que explican el/i.test(w)),
+  ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|el plano concentra|que explican el|Dentro de ellos/i.test(w)),
     `las ${vPlano.length} apariciones de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
-  // el TOTAL del puente ($5.0M) es un tercer universo y también se declara
-  ok(T.includes(R.puente.universo), "el total del puente declara que incluye cuentas sin brecha material");
-  ok(T.includes(`${R.puente.materialFmt} está en las ${R.puente.materialN} cuentas con brecha material`),
+  // el TOTAL de la brecha ($5.0M) es un tercer universo y también se declara, A LA VISTA (no solo en el tooltip)
+  ok(T.includes(`Toda la cartera, las ${R.rows.length} cuentas del negocio`), "el total de la brecha declara su universo a la vista");
+  ok(T.includes(`${R.puente.materialFmt} de ese total está en las ${R.puente.materialN} con brecha material`),
     "…y publica al lado cuánto de ese total es material, para que las dos cifras se lean juntas sin chocar");
   cleanup();
 }
@@ -493,6 +513,56 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   ok(!/sector|industria|estándar de la industria/i.test(cabecera), "la referencia se narra como TUYA, nunca sectorial");
   ok(/rutas de investigación abiertas — no causas/.test(T), "costo, precio y composición quedan declarados como rutas ABIERTAS");
   ok(!/rentabilidad/i.test(cabecera), "no le llama rentabilidad a un margen");
+  cleanup();
+}
+
+H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-07)");
+{
+  const { container } = abrir(evTemporal());
+  const T = container.textContent;
+  const cabecera = T.split("Evidencia completa")[0];
+  const veces = (aguja) => (aguja ? cabecera.split(aguja).length - 1 : 0);
+  // NO REPETIR CIFRAS NI CONCEPTOS · cada afirmación tiene UN solo hogar en la primera lectura
+  for (const [aguja, que] of [
+    [R.veredicto.soporte, "la lectura de alcance"],
+    [R.tension.reconciliaCorta, "la reconciliación cabeza/cola"],
+    [R.evolutivo.lectura, "la lectura del año"],
+    [R.formacion.lectura, "el reparto de la venta"],
+    [R.composicion.titulo, "el título de la composición"],
+    [R.encabezadoDecisiones, "el encabezado de decisiones"],
+  ]) ok(veces(aguja) === 1, `"${que}" aparece UNA sola vez — ${veces(aguja)}`);
+  // el % del plano sobre la oportunidad total vive en la reconciliación Y en el tramo indicado (son dos
+  // afirmaciones distintas sobre el mismo hecho); lo que NO puede pasar es que el ALCANCE se repita textual.
+  ok(veces(`${R.plano.n} clientes explican`) === 1, "el 80/20 se declara una vez, no en cada bloque");
+  // TOOLTIPS para lo explicativo: los InfoDot llevan las definiciones largas, no el cuerpo de la vista
+  const tips = [...container.querySelectorAll(".adi-tip")].map((x) => x.textContent);
+  ok(tips.length >= 8, `las definiciones y el modo de uso viven en tooltips — ${tips.length} en la vista`);
+  ok(tips.some((t) => t.length > 200), "…y son las piezas largas (lo extenso no está en el cuerpo)");
+  // EL BOTÓN FLOTANTE NO PUEDE TAPAR CONTENIDO
+  const flot = conTexto(container, "Preguntar a ADI sobre esta vista");
+  ok(!!flot, "el botón flotante de ADI está");
+  // se mide el padding COMPUTADO, no el string del atributo: jsdom colapsa `padding` + `paddingBottom` en el
+  // shorthand `padding: 18px 18px 74px`, así que buscar "padding-bottom" en el texto nunca acertaría.
+  const scroller = [...container.querySelectorAll("div")].find((d) => /overflow-y:\s*auto/i.test(d.getAttribute("style") || ""));
+  ok(!!scroller, "el contenedor con scroll de la Mesa está");
+  const pb = scroller ? parseInt(getComputedStyle(scroller).paddingBottom || "0", 10) : 0;
+  ok(pb >= 60, `reserva colchón abajo para que el botón flotante no se pose sobre el contenido — ${pb}px`);
+  cleanup();
+}
+
+H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)");
+{
+  const { container } = abrir(evTemporal());
+  // jsdom serializa el color con espacios (`rgba(47, 184, 218, 0.5)`), así que el patrón los tolera.
+  const CELESTE = /rgba\(\s*47,\s*184,\s*218/i;
+  const cardsCeleste = [...container.querySelectorAll("div")]
+    .filter((d) => new RegExp(`border:\\s*1px solid ${CELESTE.source}`, "i").test(d.getAttribute("style") || "")).length;
+  ok(cardsCeleste === 0, `ninguna card de CONTENIDO lleva borde celeste completo — ${cardsCeleste}`);
+  // pero el acento SIGUE vivo donde se interactúa: pills activas, accesos a Ficha, botones de ADI
+  const controlesCeleste = botones(container).filter((b) => CELESTE.test(b.getAttribute("style") || "")).length;
+  ok(controlesCeleste >= 5, `el celeste sigue marcando lo interactivo — ${controlesCeleste} controles`);
+  const textoCeleste = [...container.querySelectorAll("span,div")].filter((d) => CELESTE.test(d.getAttribute("style") || "")).length;
+  ok(controlesCeleste >= textoCeleste, `y hay más celeste en controles que en decoración — ${controlesCeleste} vs ${textoCeleste}`);
   cleanup();
 }
 

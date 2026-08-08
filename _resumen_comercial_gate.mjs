@@ -81,8 +81,16 @@ H("[3b] LOS DOS UNIVERSOS RECONCILIAN, Y LA VISTA LO DICE (owner 2026-08-07)");
     `el total del puente declara su universo — "${R.puente.universo}"`);
   ok(R.puente.brechaTotal >= c.enJuego, `y es ≥ que el material, porque lo contiene — ${R.puente.brechaTotalFmt} ⊇ ${c.enJuegoFmt}`);
   ok(R.puente.materialFmt === c.enJuegoFmt && R.puente.materialN === c.n, "el puente publica la parte material con su cuenta, para que las dos cifras no queden sueltas");
-  ok(R.tension.n === 0 || (R.puente.tramos[1].detalle.includes(c.enJuegoFmt) && R.puente.tramos[1].detalle.includes(R.tension.concentraPctFmt)),
+  const indicado = R.puente.tramos.find((t) => t.estatus === "indicado");
+  ok(R.tension.n === 0 || (indicado.detalle.includes(c.enJuegoFmt) && indicado.detalle.includes(R.tension.concentraPctFmt)),
     "el tramo INDICADO también nombra los dos universos y el % — nunca $X y $Y juntos sin decir de dónde salen");
+  // LA LECTURA DE ALCANCE COMPACTA (owner 2026-08-07 · "una sola lectura de alcance"): breve, pero con los dos
+  // universos nombrados igual — la brevedad no puede costar la claridad de universo.
+  const rc = R.tension.reconciliaCorta;
+  ok(!!rc && rc.length < R.tension.reconcilia.length, `hay una versión compacta — "${rc}"`);
+  ok(/cartera completa/i.test(rc) && (/plano/i.test(rc) || c.colaN === 0), "…que sigue nombrando los dos universos");
+  ok(c.n === 0 || rc.includes(c.enJuegoFmt), "…con el monto de la cartera");
+  ok(c.colaN === 0 || (rc.includes(R.tension.concentraPctFmt) && rc.includes(c.colaEnJuegoFmt)), "…el % que concentra el plano y lo que queda en la cola");
 }
 
 H("[4] VEREDICTO · jerarquía, nunca vacío, nunca causal");
@@ -90,8 +98,12 @@ H("[4] VEREDICTO · jerarquía, nunca vacío, nunca causal");
   ok(R.veredicto && R.veredicto.titular && R.veredicto.soporte, `el bloque NUNCA queda vacío — "${R.veredicto.titular}"`);
   ok(["senal", "neutral"].includes(R.veredicto.tipo), `declara su tipo — ${R.veredicto.tipo}`);
   ok(/El volumen crece, pero el margen no acompaña\.|El margen está bajo tu referencia\.|El negocio opera en línea/.test(R.veredicto.titular), "usa un titular de la jerarquía acordada");
-  ok(/Dentro de los \d+ clientes que explican el [\d.]+% de las ventas, \d+ concentran una brecha material de/.test(R.veredicto.soporte),
-    `el soporte LOCALIZA con los dos universos — "${R.veredicto.soporte}"`);
+  // UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07): el soporte ES la declaración del plano — reemplazó a la banda
+  // "Plano de decisión" y a la banda "Alcance", que decían lo mismo con otras palabras.
+  ok(/^\d+ clientes explican el [\d.]+% de las ventas\. Dentro de ellos, \d+ concentran \$[\d.]+M de la brecha material\.$/.test(R.veredicto.soporte),
+    `el soporte declara el alcance en UNA frase, con X, Y, N y $Z dinámicos — "${R.veredicto.soporte}"`);
+  ok(R.veredicto.soporte.includes(String(R.plano.n)) && R.veredicto.soporte.includes(String(R.plano.pct)) && R.veredicto.soporte.includes(R.tension.enJuegoFmt),
+    "…y esas cifras son las del plano y la tensión, no un texto paralelo");
   ok(!/debilit|deterior|dañ|causan|por culpa/i.test(R.veredicto.titular + R.veredicto.soporte),
     "NO afirma causa: dice dónde se concentra la brecha, no que esas cuentas la produzcan");
   ok(/tu benchmark|tu referencia/.test(R.veredicto.lectura + R.veredicto.soporte) && !/sector|industria|mercado/i.test(R.veredicto.lectura),
@@ -104,11 +116,22 @@ H("[5] PUENTE · total = probado + abierto, y lo abierto se declara abierto");
   ok(Math.abs(R.puente.brechaTotal - (R.puente.probado + R.puente.abierto)) < 1, `RECONCILIA: ${R.puente.brechaTotalFmt} = ${R.puente.probadoFmt} + ${R.puente.abiertoFmt}`);
   ok(R.puente.probado > 0 && R.puente.probado < R.puente.brechaTotal, "lo probado es una PARTE, nunca el total");
   const t = R.puente.tramos;
-  ok(t.length === 3 && t[0].estatus === "probado" && t[1].estatus === "indicado" && t[2].estatus === "abierto", `tres tramos con estatus explícito — ${t.map((x) => x.estatus).join(" → ")}`);
-  ok(/costo de producto, precio y composición/.test(t[2].detalle) && /rutas de investigación abiertas — no causas/.test(t[2].detalle),
+  const byEst = Object.fromEntries(t.map((x) => [x.estatus, x]));
+  ok(t.length === 3 && byEst.probado && byEst.indicado && byEst.abierto, `tres tramos con estatus explícito — ${t.map((x) => x.estatus).join(" → ")}`);
+  // ⚠️ PARTICIÓN vs LOCALIZACIÓN — probado + abierto = el total; el indicado es ESE MISMO dinero visto por
+  // cuenta, no una tercera porción. Sin esta distinción la vista invita a sumar tres cifras que no suman.
+  ok(byEst.probado.esParte === true && byEst.abierto.esParte === true && byEst.indicado.esParte === false,
+    "la PARTICIÓN (probado + abierto) se distingue de la LOCALIZACIÓN (indicado)");
+  ok(Math.abs(R.puente.probado + R.puente.abierto - R.puente.brechaTotal) < 1,
+    `y las dos partes SUMAN el total — ${R.puente.probadoFmt} + ${R.puente.abiertoFmt} = ${R.puente.brechaTotalFmt}`);
+  ok(/no es una tercera parte|no una causa ni una tercera porción/.test(byEst.indicado.detalle) || R.tension.n === 0,
+    "el tramo indicado declara que NO es una tercera porción del total");
+  ok(/se parte en dos/i.test(R.puente.particionNota) && /no es una tercera parte/i.test(R.puente.particionNota),
+    `la nota de partición lo dice explícito — "${R.puente.particionNota}"`);
+  ok(/costo de producto, precio y composición/.test(byEst.abierto.detalle) && /rutas de investigación abiertas — no causas/.test(byEst.abierto.detalle),
     "costo, precio y mix quedan ABIERTOS, nunca presentados como causas comprobadas");
-  ok(/acciones comerciales/i.test(t[0].titulo) && !/toda la brecha|explica la brecha/i.test(t[0].detalle), "la carga comercial NO se lleva toda la brecha");
-  ok(/localización comprobada, no una causa/.test(t[1].detalle) || R.tension.n === 0, "la concentración se declara localización, no causa");
+  ok(/acciones comerciales/i.test(byEst.probado.titulo) && !/toda la brecha|explica la brecha/i.test(byEst.probado.detalle), "la carga comercial NO se lleva toda la brecha");
+  ok(/localización comprobada, no una causa/.test(byEst.indicado.detalle) || R.tension.n === 0, "la concentración se declara localización, no causa");
 }
 
 H("[6] INSIGHTS · solo del plano, priorizados, con estatus de causa");
@@ -123,6 +146,23 @@ H("[6] INSIGHTS · solo del plano, priorizados, con estatus de causa");
   ok(scores.every((s, k) => k === 0 || scores[k - 1] >= s), "vienen priorizados (materialidad + deterioro + evidencia + acción)");
   ok(R.primera && R.primera.entidad === i0.entidad, `la primera profundización sugerida es la de mayor prioridad — ${R.primera.entidad}`);
   ok(R.insights.every((i) => !/revisar costo/i.test(i.razon)), "ninguno dice 'revisar costo' (el costo no está probado)");
+  // FILAS DE DECISIÓN (owner 2026-08-07): acción concreta + qué falta aislar, cada una en una línea corta
+  ok(R.insights.every((i) => i.accionCorta && i.faltaCorta), "cada uno trae su acción concreta y qué falta aislar, en corto");
+  ok(R.insights.every((i) => i.accionCorta.length < 90 && i.faltaCorta.length < 90), "…y son cortas de verdad (fila de decisión, no párrafo)");
+  ok(R.insights.filter((i) => i.estatusCausa === "probado").every((i) => /acciones comerciales/i.test(i.accionCorta)),
+    "cuando hay causa medida, la acción nombra la palanca que SÍ está medida");
+  ok(R.insights.filter((i) => i.estatusCausa === "abierto").every((i) => /aislar/i.test(i.accionCorta)),
+    "cuando no la hay, la acción es ir a aislarla — no una causa inventada");
+  // EL ENCABEZADO ES ADAPTATIVO · nunca promete causa medida si el conjunto no la tiene
+  const conCausa = R.insights.filter((i) => i.estatusCausa === "probado").length;
+  ok(!!R.encabezadoDecisiones, `hay encabezado — "${R.encabezadoDecisiones}"`);
+  ok(conCausa > 0 ? /ya está medida/.test(R.encabezadoDecisiones) : !/ya está medida/.test(R.encabezadoDecisiones),
+    `el encabezado solo promete causa medida si REALMENTE la hay — ${conCausa} de ${R.insights.length} la tienen`);
+  // LA IMPLICACIÓN INVERSA es la que protege de verdad: si dice "en todas", tiene que ser cierto en todas.
+  ok(!/en todas una parte de la causa/.test(R.encabezadoDecisiones) || conCausa === R.insights.length,
+    `si promete "en todas", lo es — ${conCausa}/${R.insights.length}`);
+  ok(!/en \d+ de \d+/.test(R.encabezadoDecisiones) || R.encabezadoDecisiones.includes(`en ${conCausa} de ${R.insights.length}`),
+    "y cuando es parcial, el conteo es el real");
 }
 
 H("[7] TOPE DEL GRÁFICO · 12 desktop / 8 móvil, línea acumulada REAL");
