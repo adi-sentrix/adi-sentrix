@@ -94,7 +94,12 @@ function _clientes(s) {
     // "En alerta" = ROJO contra TU vara (PASE 2 · antes benchmark−6 literal, ajeno al criterio C.2): una verdad con
     // el chevron y con los items del detector de margen del diagnose — el bloque "En alerta" de la Mesa cuenta lo mismo.
     const va = _vara(c.margen, c);
-    const accion = gap <= -3 ? (costoPct > 100 - avgM - avgCarga ? "revisar costo" : "renegociar carga")
+    // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): la acción de una fila no puede AFIRMAR una causa que el motor
+    // no aisló. La carga comercial SÍ está medida por cuenta (`pctRebate` contra POLICY.targetCarga) — "renegociar
+    // carga" descansa sobre evidencia. El costo NO: `costoPct` es un RESIDUO (100 − margen − carga), no una
+    // medición, así que "revisar costo" nombraba una causa que el dato no demuestra. La rama honesta declara la
+    // causa ABIERTA y manda a investigarla, que es exactamente lo que el motor puede sostener.
+    const accion = gap <= -3 ? (costoPct > 100 - avgM - avgCarga ? "investigar causa" : "renegociar carga")
       : gap >= 3 ? "referencia" : "sostener";
     return { name: c.nombre, ventas: cv ? cv.actual : c.venta, unidades: c.unidades, acciones: c.rebates, margen: c.margen, contribucion: c.contribucion, carga, gap, accion, alert: va.vara === "rojo", ...va, mov: null };
   });
@@ -182,7 +187,9 @@ function _asesor(dimension, s, rows) {
     for (const r of rows) {
       const m = mg.get(r.name), c = cg.get(r.name);
       if (m) {
-        const causa = r.accion === "renegociar carga" ? " por carga comercial" : r.accion === "revisar costo" ? " por estructura de costo" : "";
+        // MISMA regla en la microlectura: solo se NOMBRA la palanca que el motor midió (la carga). Donde el
+        // residuo apuntaba al costo, la línea declara la causa por aislar en vez de atribuirla.
+        const causa = r.accion === "renegociar carga" ? " por carga comercial" : r.accion === "investigar causa" ? " · causa por aislar" : "";
         r.lectura = `Cede ${Math.abs(r.varaGap)} pp contra tu benchmark${causa} · ${_money(m.usd)} en juego`;
         r.enJuego = m.usd;
       } else if (c) {

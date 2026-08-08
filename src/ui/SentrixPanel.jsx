@@ -19,6 +19,7 @@ import { METRIC_DEFS } from "../adi/sentrix/glossary.js";   // brick 4 · catál
 import { diagnosisCharts } from "../adi/sentrix/surface.js";   // brick 5 · el motor decide qué gráficos según el foco (LLM-ready)
 import { buildControlRing } from "../adi/sentrix/control.js";   // brick 7 · Control · la tabla-ring (foco vs promedio vs par vs mejor)
 import { buildCuadroMando, CUADRO_DIMS } from "../adi/sentrix/cuadro.js";   // 4ª lente · Cuadro de mando · la grilla operable
+import { buildResumenComercial } from "../adi/sentrix/resumenComercial.js";   // RESUMEN COMERCIAL (owner 2026-08-07) · la cara Comercial entera — veredicto/KPIs/plano 80-20/pareto/puente/insights ya armados y formateados (alcance SIEMPRE global: la firma no acepta selección) · cero cálculo en React
 import { buildMesaEstado, buildWatchlistEstado } from "../adi/sentrix/mesa.js";   // MESA 2.0 · semáforo contra TU vara + acción priorizada + "qué cambió" + alertas/watchlist (reusa diagnose/POLICY/temporal/cuadro · una verdad)
 import { buildMesaCapital, buildCuadroCapital, CUADRO_CAPITAL_EJES, CAPITAL_ESTADOS } from "../adi/sentrix/mesaCapital.js";   // CARA CAPITAL (owner 2026-07-15) · el mismo sello sobre el inventario — detectores existentes, cero cálculo en UI
 import { buildMesaResultado, pnlMesaLink, pnlExportData } from "../adi/sentrix/mesaResultado.js";   // CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") · la cascada del P&L comercial — buildPnlCascade, cero cálculo en UI · pnlMesaLink = deep-link puro (evidencia P&L → cara Resultado con su alcance) · pnlExportData = copiar/CSV de lo que se está viendo (una verdad)
@@ -1360,10 +1361,25 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   }, [watch]);
   const toggleWatch = (dim, name) => setWatch((w) => (w.some((x) => x.dim === dim && x.name === name) ? w.filter((x) => !(x.dim === dim && x.name === name)) : [...w, { dim, name }]));
   const wl = React.useMemo(() => buildWatchlistEstado(watch, scenario), [watch, scenario]);
-  // "verlas en el cuadro" · el contador de alerta navega al cuadro ya filtrado (informa/navega — no dispara a ADI)
-  const cuadroRef = React.useRef(null);
-  const [alertTick, setAlertTick] = useState(0);
-  const verEnCuadro = (e) => { e.stopPropagation(); setAlertTick((t) => t + 1); if (cuadroRef.current) cuadroRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const cuadroRef = React.useRef(null);   // el ancla de la cartera completa (evidencia opcional, más abajo)
+  // ── RESUMEN COMERCIAL (owner 2026-08-07) · TODA la cara Comercial sale de este módulo, con ALCANCE GLOBAL: la
+  //    firma no acepta entidad seleccionada, así que ni el deep-link de un cliente ni una selección previa en la
+  //    tabla pueden teñirla. El tope del gráfico es lo único que depende de la pantalla (10 entidades en desktop,
+  //    6 en móvil — el módulo arma solo el "resto de cabeza" y la "cola"). Cero cálculo acá.
+  const narrow = useNarrowViewport();
+  const resumenC = React.useMemo(() => {
+    try { return buildResumenComercial(scenario, { maxEntidades: narrow ? 6 : 10 }); } catch { return null; }
+  }, [scenario, narrow]);
+  // LA CARTERA COMPLETA · evidencia OPCIONAL detrás de "Ver todos los clientes" (owner: la tabla no se elimina,
+  // baja de plano). El filtro "En alerta" sigue viviendo dentro de la grilla, que es donde se opera.
+  const [verCartera, setVerCartera] = useState(false);
+  // ¿Y SI…? de la cara Comercial: solo supuestos COMERCIALES (owner 2026-08-07 · "mantené el capital en Capital").
+  // El de liberar capital detenido no se pierde — es el mismo que ya ofrece el "¿Y si…?" de la cara Capital.
+  const simulacionesComerciales = React.useMemo(() => (mesa.simulaciones || []).filter((s) => s.key !== "capital"), [mesa]);
+  // "detecta → EXPLICA": cada insight, la primera profundización sugerida, cada barra del Pareto y el "Ver Ficha"
+  // de la tabla abren la Ficha REAL de esa entidad — el MISMO camino del deep-link `_clientLink` (cara Ficha +
+  // cliente elegido), no una vista paralela.
+  const irAFicha = (nombre) => { if (!nombre) return; setFichaCliente(nombre); setCara("ficha"); };
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
   // header de MOVIMIENTO (el sello entender→explicar→actuar): número celeste + título ejecutivo + su "i"
@@ -1402,7 +1418,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </div>
         <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
-      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
+      {/* paddingBottom extra cuando el botón flotante de ADI está: SIN esto el botón tapa la última línea de la
+          vista y el contenido queda inalcanzable abajo (owner 2026-08-07: "el botón flotante no puede cubrir
+          contenido"). El colchón es del alto del botón más su margen. */}
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, paddingBottom: cara === "comercial" && onAsk ? 74 : 18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
         {cara === "ficha" ? (
@@ -1413,135 +1432,89 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         ) : cara === "capital" ? (
           <MesaCapitalCara capital={capital} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={toggleWatch} wl={wl}/>
         ) : (<>
-        {/* ── RESUMEN SUPERIOR · 4 KPI compactos con estado contra TU vara (Mesa 3.0 — owner 2026-08-06: "mesa de
-            control interactiva, no informe narrativo"). Sin prosa fija: la lectura de ADI vive en su respuesta,
-            no clavada acá. Cada tarjeta es una pregunta ("explicar" aparece al pasar el mouse). ── */}
-        <div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9 }}>
-            {resumen.kpis.map((k, i) => { const e = mesa.estados[k.key]; const col = e ? semCol[e.estado] : null;
-              // CONEXIÓN (cara Capital · owner 2026-07-15): el KPI de capital SALTA a la cara Capital (navega/informa,
-              // no dispara) — su historia completa vive en la otra cara de la misma Mesa.
-              const esCapital = k.key === "capital";
-              return (
-              <button key={i} onClick={esCapital ? () => setCara("capital") : onAsk && e ? () => onAsk(e.ask) : undefined}
-                title={esCapital ? "Ver la cara Capital de la Mesa" : onAsk && e ? `Preguntale a ADI: ${e.ask}` : undefined}
-                style={{ position:"relative", background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && e ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
-                onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 1; }}
-                onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 0; }}>
-                {onAsk && e && !esCapital && (
-                  <span className="kpi-explain" style={{ position:"absolute", top:8, right:9, fontFamily:MONO, fontSize:8, letterSpacing:"0.4px", textTransform:"uppercase", color:C.celeste, opacity:0, transition:"opacity 0.15s" }}>explicar →</span>
-                )}
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
-                  <span style={{ fontSize:10.5, color:C.textMuted }}>{k.label}</span>
-                  {col && <span style={{ width:7, height:7, borderRadius:"50%", background:col, boxShadow:`0 0 6px ${col}aa`, flexShrink:0 }}/>}
-                </div>
-                <div style={{ fontSize:16, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{k.value}</div>
-                {e && <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.35 }}>{e.linea}</div>}
-              </button>
-            ); })}
+        {/* ── RESUMEN COMERCIAL · el DETECTOR (owner 2026-08-07) ─────────────────────────────────────────────────
+            La cara ya no abre con una grilla: abre con el VEREDICTO del negocio completo y sus 4 KPIs, declara el
+            PLANO de decisión (el grupo que explica el 80%), muestra dónde se concentra la venta, parte la brecha en
+            probado / indicado / abierto, y remata en los insights que llevan a la Ficha de cada entidad. La cartera
+            completa queda de evidencia opcional, más abajo. TODO sale de `resumenC` — cero cálculo acá. ── */}
+        {resumenC ? (<>
+          <ResumenMovimiento num="01" title="Qué está pasando"
+            def={"El estado del negocio completo: el veredicto con sus cuatro cifras de cabecera, cómo se movió el año contra el anterior y contra tu presupuesto, en quiénes se concentra la venta y cómo se compone la cartera cliente por cliente. Todo con alcance global — ninguna selección previa lo tiñe."}>
+            <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
+            <ResumenEvolutivo ev={resumenC.evolutivo} onAsk={onAsk}/>
+            <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+            <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+          </ResumenMovimiento>
+          <ResumenMovimiento num="02" title="Dónde se deteriora el margen"
+            def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregás en acciones comerciales (contra el promedio de tu cartera o contra tu meta) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
+            <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+          </ResumenMovimiento>
+          <ResumenMovimiento num="03" title="Qué hacer primero"
+            def={"Las cuentas cruzadas por los dos deterioros medidos. De ese cruce sale la prioridad — y el grupo que va primero es el peligroso: donde empujar volumen con descuento agrandaría la brecha en vez de cerrarla. Cada fila lleva a su Ficha Ejecutiva, que es donde la explicación se demuestra."}>
+            <ResumenPrioridades R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+          </ResumenMovimiento>
+        </>) : (
+          // LIMITACIÓN DECLARADA, nunca relleno: sin filas de cliente en el período no hay veredicto que sostener.
+          <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
+            El resumen comercial necesita la cartera de clientes del período y este escenario no la trae. La cartera completa sigue disponible más abajo.
           </div>
-        </div>
-        {/* ── ALERTAS · franja compacta tipo command center (comercial/margen + inventario/capital) — señales, no
-            bloques de reporte. Cada una lleva a la vista (Capital) o abre la explicación de ADI. ── */}
-        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-          <button onClick={onAsk ? () => onAsk(mesa.alertas.ask) : undefined}
-            title={onAsk ? `Preguntale a ADI: ${mesa.alertas.ask}` : undefined}
-            style={{ display:"flex", alignItems:"center", gap:9, width:"100%", padding:"9px 12px", borderRadius:10,
-              border:`1px solid ${mesa.alertas.n ? "rgba(217,154,90,0.4)" : C.border}`, background: mesa.alertas.n ? "rgba(217,154,90,0.05)" : "rgba(255,255,255,0.015)",
-              color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-            onMouseEnter={(ev) => { ev.currentTarget.style.background = mesa.alertas.n ? "rgba(217,154,90,0.1)" : "rgba(255,255,255,0.03)"; }}
-            onMouseLeave={(ev) => { ev.currentTarget.style.background = mesa.alertas.n ? "rgba(217,154,90,0.05)" : "rgba(255,255,255,0.015)"; }}>
-            <span style={{ width:7, height:7, borderRadius:"50%", background: mesa.alertas.n ? C.amber : C.green, boxShadow:`0 0 6px ${mesa.alertas.n ? C.amber : C.green}aa`, flexShrink:0 }}/>
-            <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color: mesa.alertas.n ? C.amber : C.textMuted, flexShrink:0 }}>Margen en riesgo</span>
-            <span style={{ fontSize:12, color: mesa.alertas.n ? C.text : C.textSub, lineHeight:1.4 }}>{mesa.alertas.linea}</span>
-            <InfoDot def={`Las cuentas con brecha material contra tu benchmark: margen ${POLICY.margenBrechaMaterial} pp o más abajo y monto material — la misma cuenta del diagnóstico y del chevron rojo del cuadro (una sola verdad). El valor en juego es la contribución no capturada anual de esas cuentas. Tocá la tira y ADI abre la lista; "verlas en el cuadro" filtra la grilla.`} align="left"/>
-            {mesa.alertas.n > 0 && (
-              <span onClick={verEnCuadro} title="Filtrar el cuadro de mando en alerta"
-                style={{ marginLeft:"auto", flexShrink:0, fontSize:11, color:C.celeste, whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, border:"1px solid rgba(47,184,218,0.35)" }}>
-                verlas en el cuadro →
-              </span>
-            )}
-          </button>
-          {/* CONEXIÓN (cara Capital · owner 2026-07-15): la pata de inventario — los SKU críticos con su capital
-              detenido (el mismo detector del diagnose · una verdad). Click = pregunta; el salto a la cara Capital
-              navega (informa, no dispara). */}
-          {capital.alertas.n > 0 && (
-            <button onClick={onAsk ? () => onAsk(capital.alertas.ask) : undefined}
-              title={onAsk ? `Preguntale a ADI: ${capital.alertas.ask}` : undefined}
-              style={{ display:"flex", alignItems:"center", gap:9, width:"100%", padding:"9px 12px", borderRadius:10,
-                border:"1px solid rgba(217,154,90,0.4)", background:"rgba(217,154,90,0.05)",
-                color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-              onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(217,154,90,0.1)"; }}
-              onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(217,154,90,0.05)"; }}>
-              <span style={{ width:7, height:7, borderRadius:"50%", background:C.amber, boxShadow:`0 0 6px ${C.amber}aa`, flexShrink:0 }}/>
-              <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color:C.amber, flexShrink:0 }}>Capital detenido</span>
-              <span style={{ fontSize:12, color:C.text, lineHeight:1.4 }}>{capital.alertas.linea}</span>
-              <InfoDot def={"La pata de inventario de la alerta: los SKU críticos del detector de capital (sin rotación según tu benchmark) con su capital detenido — la misma cuenta de la cara Capital y del diagnóstico (una sola verdad). Tocá la tira y ADI abre esa historia; \"ver la cara Capital\" cambia la cara de la Mesa."} align="left"/>
-              <span onClick={(e) => { e.stopPropagation(); setCara("capital"); }} title="Ver la cara Capital de la Mesa"
-                style={{ marginLeft:"auto", flexShrink:0, fontSize:11, color:C.celeste, whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, border:"1px solid rgba(47,184,218,0.35)" }}>
-                ver la cara Capital →
-              </span>
-            </button>
-          )}
-        </div>
-        {/* ── ZONA PRINCIPAL · el Cuadro de mando (gráfico comparado + tabla operable) sube al frente — es lo
-            primero que se explora, no la "sala de máquinas" al final (owner 2026-08-06). Click en una fila,
-            en el gráfico o en una columna: todo sigue siendo pregunta a ADI, igual que antes. ── */}
+        )}
+        {/* ── EVIDENCIA COMPLETA · OPCIONAL (owner 2026-08-07) ───────────────────────────────────────────────────
+            La tabla NO se elimina: baja de plano. El resumen se construye sobre quienes mueven la aguja; la cartera
+            completa queda un click más abajo, con TODO lo que ya tenía — selección para comparar, comparado
+            multi-entidad, filtros, orden, buscador, watchlist — más "Ver Ficha" por fila. Lo que SALE de acá es
+            solo lo que pertenece a otra cara: el 80/20 por eje (con sus bodegas), la evolución de UNA entidad y el
+            perfil-vs-promedio inline; esa historia vive completa en la Ficha.
+            ALCANCE GLOBAL: arranca SIN selección aunque se haya entrado por el deep-link de un cliente — una
+            selección previa no puede teñir la lectura del negocio. ── */}
         <div ref={cuadroRef}>
-          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de mando · todas tus cifras, operables<InfoDot def={"La grilla completa del negocio: las columnas de siempre (ventas, unidades, contribución, margen) intactas, con la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla y la sigue: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); tocá UNA fila y la ves contra su año anterior (celeste = este año · perlas = el anterior, donde el dato lo declara); tocá DOS y las ves lado a lado — con la métrica (Ventas · Contribución · Margen) en su encabezado, igual para clientes, SKU y marcas. Debajo, el 80/20 del mismo eje. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector — la historia de por qué está en alerta (en Todos/Top/Peores la tabla queda limpia). \"En juego $\" es el valor que el detector ve en cada fila (contribución sin capturar de la cuenta · capital detenido del SKU): ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Seguimiento\"."} align="left"/></div>
-          <CuadroMando key={"mesa-" + scenario + (_clientLink ? "-" + _clientLink.cliente : "")} scenario={scenario} initialDim="cliente" initialSel={_clientLink ? [_clientLink.cliente] : null} mesa onAsk={onAsk} watch={watch} onWatch={toggleWatch} alertSignal={alertTick}/>
-        </div>
-        {/* ── SEGUIMIENTO + CAMBIOS DETECTADOS · compactos, plegados, señales — no secciones de reporte. "Por qué
-            pasa" y "Qué hacer primero" ya NO son secciones fijas acá: viajan dentro de la respuesta de ADI cuando
-            preguntás (el contrato de respuesta de ADI ya cierra con qué/por qué/qué hacer). ── */}
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div>
-            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>Seguimiento{wl.items.length > 0 ? ` (${wl.items.length})` : ""}<InfoDot def={"Tu lista de seguimiento: marcá la estrella en cualquier fila del cuadro (cliente, SKU, marca o bodega) y queda acá con su cifra clave y su estado contra tu benchmark — verde en línea, ámbar cerca, rojo abajo; en bodega el estado marca SKU críticos. Tocá un seguido y ADI lo abre al lado; la estrella lo saca de la lista. Se guarda en este navegador."} align="left"/></div>
-            {wl.items.length === 0 ? (
-              <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5, padding:"8px 10px", border:`1px dashed ${C.border}`, borderRadius:9 }}>
-                Marcá la <span style={{ color:C.celeste }}>★</span> en cualquier fila del cuadro y queda acá.
-              </div>
-            ) : (
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:6 }}>
-                {wl.items.map((it) => { const col = it.vara ? semCol[it.vara] : null; return (
-                  <button key={it.dim + "·" + it.nombre} onClick={onAsk && it.ask ? () => onAsk(it.ask) : undefined}
-                    title={onAsk && it.ask ? `Preguntale a ADI: ${it.ask}` : undefined}
-                    style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 9px", borderRadius:8, border:`1px solid ${C.border}`,
-                      background:"rgba(255,255,255,0.02)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left",
-                      cursor: onAsk && it.ask ? "pointer" : "default", transition:"background 0.15s" }}
-                    onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
-                    onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
-                    <span onClick={(e) => { e.stopPropagation(); toggleWatch(it.dim, it.nombre); }} title="Dejar de seguir"
-                      style={{ color:C.celeste, fontSize:10, lineHeight:1, flexShrink:0, cursor:"pointer" }}>★</span>
-                    <span style={{ fontSize:11, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{it.nombre}</span>
-                    {col && <span style={{ width:6, height:6, borderRadius:"50%", background:col, boxShadow:`0 0 5px ${col}aa`, flexShrink:0 }}/>}
-                    <span style={{ fontSize:11, fontWeight:600, color:C.textSub, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{it.cifra}</span>
-                  </button>
-                ); })}
-              </div>
-            )}
+          <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span style={{ display:"flex", alignItems:"center", gap:4 }}>Evidencia completa · opcional<InfoDot def={"La cartera completa, con las columnas de siempre (ventas, unidades, contribución, margen) intactas y la lectura de ADI sumada encima. El COMPARADO vive sobre la tabla: sin selección muestra TU NEGOCIO (la suma del eje — cierra exacto con la fila Total); con dos filas seleccionadas las muestra lado a lado. La evolución de UNA entidad y su perfil viven en la Ficha: \"Ver Ficha\" en cada fila la abre. En la vista \"En alerta\", cada fila trae bajo el nombre la microlectura del detector. \"En juego $\" es el valor que el detector ve en cada fila: ordená por ahí y tenés la prioridad de un directorio. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. El punto junto al nombre marca entradas y salidas del bloque 80/20. Ordená por cualquier columna y filtrá (Top 10 · Peores 10 · En alerta · buscador). El chevron del margen marca tu benchmark: verde en línea, ámbar cerca, rojo bajo. La estrella sigue esa fila en \"Seguimiento\"."} align="left"/></span>
+            <button onClick={() => setVerCartera((v) => !v)} aria-expanded={verCartera}
+              title={verCartera ? "Ocultar la cartera completa" : "Ver la cartera completa"}
+              style={{ marginLeft:"auto", padding:"4px 11px", borderRadius:7, border:`1px solid ${verCartera ? "rgba(47,184,218,0.5)" : C.border}`, background: verCartera ? "rgba(47,184,218,0.1)" : "transparent", color: verCartera ? C.celeste : C.textSub, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", textTransform:"none", letterSpacing:"normal", whiteSpace:"nowrap" }}>
+              {verCartera ? "Ocultar la cartera completa" : `Ver todos los clientes${resumenC ? ` (${resumenC.rows.length})` : ""}`} <span style={{ color:C.celeste }}>{verCartera ? "▴" : "▾"}</span>
+            </button>
           </div>
-          {mesa.cambios.length > 0 && (
-            <div>
-              <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>Cambios detectados<InfoDot def={"El movimiento del período: quién sube y quién cede en venta contra el año anterior, la trayectoria de contribución del año (la misma serie de la ficha — cierra exacto con el cuadro) y las entradas/salidas del grupo 80/20. Tocá una línea y ADI la abre al lado."} align="left"/></div>
-              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                {mesa.cambios.map((c, i) => (
-                  <AskRow key={i} onAsk={onAsk} q={c.ask} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:11.5, color:C.textSub, lineHeight:1.45, padding:"6px 9px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)" }}>
-                    <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>›</span>
-                    <span>{c.texto}</span>
-                  </AskRow>
-                ))}
-              </div>
+          {!verCartera && resumenC && (
+            <div style={{ fontSize:11.5, color:C.textMuted, lineHeight:1.5 }}>
+              La lectura de arriba se construye sobre los {resumenC.plano.n} clientes que explican el {resumenC.plano.pct}% de las ventas. {resumenC.plano.colaFrase}
             </div>
           )}
+          {verCartera && (
+            <CuadroMando key={"mesa-" + scenario} scenario={scenario} initialDim="cliente" mesa resumen onFicha={irAFicha} onAsk={onAsk} watch={watch} onWatch={toggleWatch}/>
+          )}
         </div>
-        {/* ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14): supuestos accionables sobre el dato real — cada línea es una
-            pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo) ── */}
-        {(mesa.simulaciones || []).length > 0 && (
+        {/* Las tiras legacy "Margen en riesgo" y "Capital detenido" SE ELIMINARON de esta cara (owner
+            2026-08-07). La primera repetía, con OTRO universo y sin decirlo, la cifra que el veredicto ya da:
+            su alcance vive ahora reconciliado dentro del bloque 1. La segunda es capital, y el capital tiene
+            su propia cara — la pestaña Capital sigue a un click en el encabezado. */}
+        {/* ── CAMBIOS DETECTADOS · señales del período, no una sección de reporte. (El bloque «Seguimiento»
+            se ELIMINÓ de esta cara · owner 2026-08-07: su estado vacío era una INSTRUCCIÓN de uso —marcá la
+            estrella y queda acá— y en esta vista cada texto visible tiene que aportar una conclusión. La
+            estrella del cuadro sigue funcionando y la lista vive completa en la cara Capital.) ── */}
+        {mesa.cambios.length > 0 && (
           <div>
-            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>¿Y si…?<InfoDot def={"Supuestos, no datos: cada línea proyecta una acción sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta, liberar el capital detenido. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado."} align="left"/></div>
+            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>Cambios detectados<InfoDot def={"El movimiento del período: quién sube y quién cede en venta contra el año anterior, la trayectoria de contribución del año (la misma serie de la ficha — cierra exacto con el cuadro) y las entradas/salidas del grupo 80/20. Tocá una línea y ADI la abre al lado."} align="left"/></div>
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              {mesa.cambios.map((c, i) => (
+                <AskRow key={i} onAsk={onAsk} q={c.ask} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:11.5, color:C.textSub, lineHeight:1.45, padding:"6px 9px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)" }}>
+                  <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>›</span>
+                  <span>{c.texto}</span>
+                </AskRow>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* ── ¿Y SI…? (SIMULATE S4 · owner 2026-07-14): supuestos accionables sobre el dato real — cada línea es una
+            pregunta que dispara la proyección de ADI al lado (doctrina: supuesto ≠ dato · el Δ es efecto directo).
+            SOLO LOS COMERCIALES (owner 2026-08-07): el supuesto de liberar capital detenido salió de esta cara —
+            ya vive, idéntico, en el "¿Y si…?" de la cara Capital, que es donde el capital se decide. ── */}
+        {(simulacionesComerciales || []).length > 0 && (
+          <div>
+            <div style={{ ...head, marginBottom:7, display:"flex", alignItems:"center", gap:4 }}>¿Y si…?<InfoDot def={"Supuestos, no datos: cada línea proyecta una acción comercial sobre tu dato real — llevar la carga a tu target, un movimiento porcentual de venta. El monto es el efecto directo que ADI calcula del dato; la reacción del mercado (volumen, precio de salida) no se predice y ADI lo declara. Tocá una línea y ADI corre esa proyección al lado. Los supuestos sobre el capital viven en la cara Capital."} align="left"/></div>
             <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-              {mesa.simulaciones.map((s, i) => (
+              {simulacionesComerciales.map((s, i) => (
                 <AskRow key={i} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
                   <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
                   <span style={{ flex:1 }}>{s.texto}</span>
@@ -1573,6 +1546,647 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     </div>
   );
 }
+
+/* ══ MESA · CARA COMERCIAL · RESUMEN COMERCIAL (owner 2026-08-07) ═══════════════════════════════════════════════
+ * LA TESIS: «Resumen comercial DETECTA → la Ficha EXPLICA → Sentrix DEMUESTRA». La cara deja de abrir con una
+ * grilla de datos y abre con la SEÑAL del negocio, que termina llevándote a la entidad donde vale la pena
+ * profundizar. Seis bloques, en este orden: veredicto + KPIs · plano de decisión · concentración · puente de
+ * oportunidad · insights · evidencia completa (opcional).
+ *
+ * ALCANCE SIEMPRE GLOBAL. Todo sale de `buildResumenComercial(scenario)`, cuya firma NO acepta entidad
+ * seleccionada: no hay por dónde contaminar la vista. La tabla de evidencia arranca sin selección aunque se haya
+ * entrado por el deep-link de un cliente.
+ *
+ * CERO CÁLCULO EN REACT. Veredicto, KPIs, plano 80/20, barras del Pareto (con su línea acumulada calculada sobre
+ * TODAS las entidades reales), puente e insights vienen armados y formateados del módulo — la misma aritmética del
+ * cuadro, del diagnóstico y de lo que ADI dice. Estos componentes ORDENAN píxeles; si una cifra no está autorizada,
+ * se muestra la limitación en vez de rellenarla.
+ *
+ * PROPORCIONALIDAD SEMÁNTICA. La vista LOCALIZA la tensión y nunca afirma la causa: los textos son los del módulo,
+ * sin prosa inventada acá. Lo único que la UI agrega es el color del estatus — probado (verde), indicado (ámbar),
+ * abierto (neutro) —, que es justamente la graduación epistémica hecha visible.
+ */
+// ANCHO · el MISMO mecanismo del resto de la app (App.jsx: matchMedia 760px — bajo ese ancho Sentrix deja de ser
+// una columna lateral y pasa a overlay a pantalla completa). Solo define el tope del gráfico: 10 entidades en
+// desktop, 6 en móvil; el módulo arma el "resto de la cabeza" y la "cola" con lo que quede afuera.
+function useNarrowViewport(query = "(max-width: 760px)") {
+  const [narrow, setNarrow] = useState(() => { try { return window.matchMedia(query).matches; } catch { return false; } });
+  useEffect(() => {
+    let mq = null;
+    try { mq = window.matchMedia(query); } catch { return undefined; }
+    if (!mq || !mq.addEventListener) return undefined;
+    const on = (e) => setNarrow(!!e.matches);
+    setNarrow(!!mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return narrow;
+}
+
+const _RC_HEAD = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase" };
+// EL SELLO DE LOS TRES MOVIMIENTOS (qué está pasando · por qué está pasando · qué hacer primero) — el MISMO que
+// ya usa la cara Capital. Que las caras compartan el esqueleto es lo que hace que el usuario aprenda a leer una
+// vez y le sirva en las cuatro; un BI, en cambio, te obliga a reaprender cada pantalla.
+function ResumenMovimiento({ num, title, def, children }) {
+  return (
+    <div>
+      <div style={{ ..._RC_HEAD, marginBottom: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: C.textSub }}>
+        <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span>{title}<InfoDot def={def} align="left"/>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
+    </div>
+  );
+}
+// la GRADUACIÓN epistémica hecha color (el sello del contrato v2 · probado/indicado/abierto)
+const _rcEstatusCol = (e) => (e === "probado" ? C.green : e === "indicado" ? C.amber : C.textMuted);
+const _rcTonoCol = (t) => (t === "ok" ? C.green : t === "alerta" ? C.red : t === "aviso" ? C.amber : C.textMuted);
+// CARD DE CONTENIDO · borde NEUTRO (owner 2026-08-07: "menos bordes celestes; reservarlos para selección e
+// interacción"). Con cinco cards celestes seguidas el acento dejaba de acentuar: todo gritaba y nada guiaba.
+// Ahora el celeste queda para lo que se toca — pills activas, botones, la fila seleccionada — y el contenido
+// respira en gris.
+const _RC_CARD = {
+  padding: "14px 16px 12px", borderRadius: 12, border: `1px solid ${C.border}`,
+  background: "rgba(255,255,255,0.018)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+};
+
+/* ── 1 · EL VEREDICTO + LOS 4 KPI ──────────────────────────────────────────────────────────────────────────────
+ * El bloque nunca queda vacío y la conclusión nunca se fuerza: el módulo entrega titular/soporte/lectura ya
+ * graduados (señal o neutral) y acá solo se pintan. El KPI de CAPITAL ya no está: su historia completa vive en la
+ * cara Capital (owner 2026-08-07), así que los cuatro que quedan son todos comerciales. */
+function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
+  // las preguntas son las que el motor YA tiene probadas (mesa.estados / la simulación de carga) — la UI no
+  // inventa preguntas nuevas: una pregunta que ADI no puede responder es peor que ninguna.
+  const askDe = (key) => {
+    const e = mesa && mesa.estados ? mesa.estados[key] : null;
+    if (e && e.ask) return e.ask;
+    if (key === "acciones") { const s = (mesa && mesa.simulaciones || []).find((x) => x.key === "carga"); return s ? s.ask : null; }
+    return null;
+  };
+  const v = R.veredicto;
+  return (
+    <div>
+      <div style={{ ..._RC_HEAD, marginBottom: 9, display: "flex", alignItems: "center", gap: 4 }}>
+        Lectura ejecutiva · negocio completo
+        <InfoDot def={"La señal del negocio entero, no de una entidad: se construye sobre todos tus clientes del período y ninguna selección previa la tiñe. El titular LOCALIZA dónde está la tensión y hasta ahí llega: que N cuentas concentren una brecha es una afirmación que el dato sostiene; POR QUÉ la concentran es lo que hay que ir a demostrar, cuenta por cuenta, en su Ficha. La referencia siempre es TU benchmark — el que vos fijaste."} align="left"/>
+      </div>
+      <div style={{ padding: "13px 16px", borderRadius: 12, borderLeft: `3px solid ${v.tipo === "senal" ? C.celeste : C.borderLight}`,
+        border: `1px solid ${C.border}`, borderLeftWidth: 3, borderLeftColor: v.tipo === "senal" ? C.celeste : C.borderLight,
+        background: "linear-gradient(90deg, rgba(47,184,218,0.06), rgba(47,184,218,0.01) 55%, transparent)", marginBottom: 10 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: C.text, lineHeight: 1.35, letterSpacing: "-0.1px" }}>{v.titular}</div>
+        {/* UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07: "hoy el universo 80/20 se explica varias veces").
+            Antes esto vivía repartido en tres lugares — este soporte, una banda ALCANCE y una banda "Plano de
+            decisión" — diciendo lo mismo con distintas palabras. Ahora: la declaración del plano, y debajo una
+            línea que reconcilia cabeza y cola nombrando sus universos (esa parte no se negocia por brevedad). */}
+        <div style={{ fontSize: 12.5, color: C.textSub, lineHeight: 1.55, marginTop: 6 }}>
+          {v.soporte}
+          <InfoDot def={`El grupo mínimo cuya venta acumulada alcanza el 80% — el mismo cálculo del diagnóstico y del cuadro, no un top-N fijo. Dentro de él, "brecha material" no es "bajo tu benchmark": son las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más, porque una diferencia chica no mueve una decisión. Los clientes de la cola no entran a esta lectura inicial; aparecen al expandir la cartera completa, al final.`} align="left"/>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>
+          {R.tension.reconciliaCorta}
+          <InfoDot def={"Dos universos con el MISMO criterio de materialidad y distinto alcance: la cartera completa (todo el negocio) y el plano de decisión (el grupo que explica el 80% de la venta). El primero dimensiona la oportunidad total; el segundo dice por dónde empezar. Cierran exacto: lo del plano más lo de la cola es lo de la cartera. Nunca vas a ver dos montos parecidos sin que diga de qué universo sale cada uno."} align="left"/>
+        </div>
+        {v.lectura ? (
+          <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`, fontVariantNumeric: "tabular-nums" }}>{v.lectura}</div>
+        ) : null}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 9 }}>
+        {R.kpis.map((k) => { const ask = askDe(k.key); const clic = !!(onAsk && ask); return (
+          <button key={k.key} onClick={clic ? () => onAsk(ask) : undefined} title={clic ? `Preguntale a ADI: ${ask}` : undefined}
+            style={{ position: "relative", background: "rgba(255,255,255,0.02)", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", cursor: clic ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4, transition: "background 0.15s, border-color 0.15s" }}
+            onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; if (clic) ev.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 1; }}
+            onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; ev.currentTarget.style.borderColor = C.border; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 0; }}>
+            {clic && <span className="kpi-explain" style={{ position: "absolute", top: 8, right: 9, fontFamily: MONO, fontSize: 8, letterSpacing: "0.4px", textTransform: "uppercase", color: C.celeste, opacity: 0, transition: "opacity 0.15s" }}>explicar →</span>}
+            <span style={{ fontSize: 10.5, color: C.textMuted }}>{k.label}</span>
+            <span style={{ fontSize: 19, fontWeight: 600, color: C.text, fontFamily: MONO, letterSpacing: "0.2px", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{k.valor}</span>
+            <span style={{ fontSize: 10, color: _rcTonoCol(k.tono), lineHeight: 1.35 }}>{k.pie}</span>
+          </button>
+        ); })}
+      </div>
+    </div>
+  );
+}
+
+/* (El bloque "Plano de decisión" se ELIMINÓ · owner 2026-08-07: el universo 80/20 se explicaba tres veces —
+ * en el soporte del veredicto, en una banda ALCANCE y en esta franja. Quedó UNA sola lectura, arriba, en
+ * ResumenVeredictoKPIs. El gráfico de abajo se conserva: es el mapa, no una repetición.) */
+
+/* ── 3 · LA CONCENTRACIÓN · 80/20 con toggle Ventas / Contribución ─────────────────────────────────────────────
+ * Contrastar las dos métricas es el punto: dónde una venta grande deja poco valor. Las barras vienen ACOTADAS del
+ * módulo (10 entidades + resto de cabeza + cola en desktop · 6 + resto + cola en móvil) pero la línea acumulada y
+ * el cruce del 80% se calcularon con TODAS las entidades reales — agrupar es una decisión de dibujo, jamás de
+ * aritmética. Cada barra de entidad real abre su Ficha; los agregados no (no son una entidad). */
+function ResumenConcentracion({ R, onFicha, onAsk }) {
+  const [met, setMet] = useState("ventas");
+  const [hov, setHov] = useState(null);
+  const P = R.pareto[met] || R.pareto.ventas;
+  const barras = P.barras || [];
+  const n = barras.length;
+  if (!n) return null;
+  const W = 620, H = 176, padL = 10, padR = 10, padT = 16, padB = 8;
+  const plotH = H - padT - padB;
+  const slot = (W - padL - padR) / n;
+  const bw = Math.min(48, Math.max(10, slot - 12));
+  const xc = (i) => padL + (i + 0.5) * slot;
+  const maxV = Math.max(...barras.map((b) => b.valor || 0), 1);
+  const yBar = (v) => (H - padB) - ((v || 0) / maxV) * plotH * 0.84;
+  const yCum = (p) => padT + (1 - (p || 0) / 100) * plotH;
+  const dCum = _mono(barras.map((_, i) => xc(i)), barras.map((b) => yCum(b.acumuladoPct)));
+  const iCorte = Math.max(0, barras.findIndex((b) => b.acumuladoPct >= 80));
+  const fillDe = (b, activo) => (b.tipo === "entidad"
+    ? (activo ? "rgba(47,184,218,0.92)" : "rgba(47,184,218,0.62)")
+    : b.tipo === "resto-cabeza" ? "rgba(47,184,218,0.24)" : "rgba(255,255,255,0.14)");
+  const pill = (k, label) => (
+    <button key={k} onClick={() => setMet(k)} aria-pressed={met === k}
+      style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${met === k ? "rgba(47,184,218,0.5)" : C.border}`, background: met === k ? "rgba(47,184,218,0.10)" : "transparent", color: met === k ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</button>
+  );
+  return (
+    <div style={_RC_CARD}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            Concentración comercial · 80/20
+            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva lavanda el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambiá a Contribución para ver dónde una venta grande deja poco valor. Tocá la barra de un cliente y se abre su Ficha."} align="left"/>
+          </span>
+          {/* el "X clientes explican el Y%" NO se repite acá: ya lo dijo el veredicto (una sola lectura de
+              alcance). Este bloque aporta lo que solo él puede aportar — el contraste entre volumen y valor. */}
+          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>
+            Dónde una venta grande deja poco valor: cambiá a Contribución y mirá qué barras se achican.
+          </span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ display: "flex", gap: 3 }}>{pill("ventas", "Ventas")}{pill("contribucion", "Contribución")}</span>
+          {onAsk ? _btnADI(() => onAsk(met === "ventas" ? "¿Qué clientes explican el 80% de mi venta?" : "¿En cuántos clientes se concentra mi contribución?"), "Que ADI lo explique →") : null}
+        </span>
+      </div>
+      {/* el gráfico entero scrollea en horizontal en anchos chicos — nunca se comprime hasta volverse ilegible */}
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: Math.max(300, n * 52), position: "relative", touchAction: "pan-y" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+            <defs>
+              <linearGradient id="rcBar" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={C.celeste} stopOpacity="0.85"/>
+                <stop offset="100%" stopColor={C.celeste} stopOpacity="0.32"/>
+              </linearGradient>
+            </defs>
+            <line x1={padL} x2={W - padR} y1={yCum(80)} y2={yCum(80)} stroke={C.amber} strokeWidth="1" strokeDasharray="5 3" opacity="0.35"/>
+            {barras.map((b, i) => (
+              <rect key={b.nombre} x={xc(i) - bw / 2} y={yBar(b.valor)} width={bw} height={Math.max(1, (H - padB) - yBar(b.valor))} rx="2"
+                fill={b.tipo === "entidad" ? "url(#rcBar)" : fillDe(b, false)}
+                opacity={hov == null || hov === i ? 1 : 0.5}
+                style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms cubic-bezier(.2,.7,.3,1) ${i * 28}ms both` }}/>
+            ))}
+            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18"/>
+            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95"/>
+            <circle cx={xc(iCorte)} cy={yCum(barras[iCorte].acumuladoPct)} r="5.5" fill={C.amber} opacity="0.2"/>
+            <circle cx={xc(iCorte)} cy={yCum(barras[iCorte].acumuladoPct)} r="2.8" fill={C.amber}/>
+            <rect x="0" y="0" width={W} height={H} fill="transparent"
+              onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - r.left) / Math.max(1, r.width); setHov(Math.max(0, Math.min(n - 1, Math.floor((rel * W - padL) / slot)))); }}
+              onPointerLeave={() => setHov(null)}/>
+          </svg>
+          {hov != null && barras[hov] && (
+            <div style={{ position: "absolute", top: -2, left: `${(xc(hov) / W) * 100}%`, transform: hov > n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+              pointerEvents: "none", background: "#161616", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "3px 9px",
+              fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: C.textMuted, zIndex: 2 }}>
+              <b style={{ color: C.text }}>{barras[hov].nombre}</b> · <span style={{ color: C.celeste }}>{barras[hov].fmt}</span> · <span style={{ color: barras[hov].acumuladoPct <= 80 ? C.green : C.textMuted }}>acum {barras[hov].acumuladoPct}%</span>
+            </div>
+          )}
+          {/* etiquetas · la de una entidad REAL es un botón que abre su Ficha; los agregados no lo son */}
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, columnGap: 2, padding: "0 1.6%", marginTop: 5 }}>
+            {barras.map((b) => {
+              const clicable = b.tipo === "entidad" && !!onFicha;
+              return (
+                <button key={b.nombre} onClick={clicable ? () => onFicha(b.nombre) : undefined} disabled={!clicable}
+                  title={clicable ? `Abrir la Ficha de ${b.nombre}` : b.tipo === "cola" ? "Los clientes fuera del plano de decisión · se ven al expandir la cartera completa" : "Los clientes de la cabeza que no entran en el gráfico · se ven al expandir la cartera completa"}
+                  style={{ background: "transparent", border: "none", padding: 0, textAlign: "center", overflow: "hidden", cursor: clicable ? "pointer" : "default", fontFamily: MONO }}>
+                  <span style={{ display: "block", fontSize: 9.5, color: b.tipo === "entidad" ? C.textSub : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.nombre}</span>
+                  <span style={{ display: "block", fontSize: 9, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{b.fmt}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {/* el pie aporta SOLO lo que el gráfico sabe y el veredicto no dijo: dónde se cruza el 80% de verdad */}
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 10, paddingTop: 9, borderTop: `1px solid ${C.border}` }}>
+        {P.nota}{P.agrupadas ? ` ${P.agrupadas === 1 ? "1 cliente de la cabeza se agrupó" : `${P.agrupadas} clientes de la cabeza se agruparon`} para que el gráfico se lea; la curva y el cruce salen de los ${P.entidadesReales}.` : ""}
+      </div>
+    </div>
+  );
+}
+
+/* ── EL AÑO, MES A MES · tres líneas que reconcilian ───────────────────────────────────────────────────────────
+ * El owner lo pidió de vuelta: "es súper fácil identificar puntos bajos y altos, debería tener la línea año
+ * anterior y presupuesto". Las tres series vienen del módulo YA ancladas a la venta oficial — por eso el total del
+ * gráfico cierra exacto con el KPI de arriba, que es justo lo que un BI no te garantiza. El presupuesto NO se
+ * ancla (es un plan, no tiene contraparte por cliente) y la vista lo declara en vez de disimularlo.
+ * Cada serie lleva su estatus: probado el dato real, indicado el plan. */
+const _RC_SERIE_COL = { actual: C.elec, anterior: C.teal, presupuesto: C.lav };
+function ResumenEvolutivo({ ev, onAsk }) {
+  const [oculta, setOculta] = useState({});            // las TRES arrancan visibles (regla del owner)
+  const [hov, setHov] = useState(null);
+  if (!ev || !ev.series || !ev.series.length) return null;
+  const vivas = ev.series.filter((s) => !oculta[s.key]);
+  const meses = ev.meses, n = meses.length;
+  const W = 620, H = 186, padL = 42, padR = 14, padT = 16, padB = 24;
+  const vals = vivas.flatMap((s) => s.valores);
+  const lo0 = vals.length ? Math.min(...vals) : 0, hi0 = vals.length ? Math.max(...vals) : 1;
+  const pad = (hi0 - lo0) * 0.12 || 1, ylo = Math.max(0, lo0 - pad), yhi = hi0 + pad;
+  const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * (W - padL - padR));
+  const yAt = (v) => padT + (1 - (v - ylo) / (yhi - ylo || 1)) * (H - padT - padB);
+  const serieActual = ev.series.find((s) => s.key === "actual");
+  const iMax = serieActual ? serieActual.valores.indexOf(Math.max(...serieActual.valores)) : -1;
+  const iMin = serieActual ? serieActual.valores.indexOf(Math.min(...serieActual.valores)) : -1;
+  const grid = [yhi, (yhi + ylo) / 2, ylo];
+  return (
+    <div style={_RC_CARD}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            El año, mes a mes
+            <InfoDot def={"Las tres series del período: este año, el año anterior y el presupuesto que declaraste. Las dos reales están ANCLADAS al total oficial de venta por cliente, así que el cierre del gráfico es el mismo número del KPI de arriba — no dos verdades al lado. El presupuesto no se ancla porque no existe presupuesto por cliente contra el cual conciliarlo, y eso se dice. Tocá una serie de la leyenda para apagarla y pasá el cursor para ver mes por mes. Los puntos marcados son el mes más alto y el más bajo del año en foco."} align="left"/>
+          </span>
+          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{ev.lectura}</span>
+        </span>
+        {onAsk ? <span style={{ flexShrink: 0 }}>{_btnADI(() => onAsk("¿Cómo viene la venta mes a mes este año?"), "Que ADI lo explique →")}</span> : null}
+      </div>
+      {/* la leyenda ES el control: cada serie con su total y su estatus (probado / indicado) */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 8 }}>
+        {ev.series.map((s) => { const off = !!oculta[s.key]; const col = _RC_SERIE_COL[s.key] || C.textMuted; return (
+          <button key={s.key} onClick={() => setOculta((o) => ({ ...o, [s.key]: !o[s.key] }))} title={s.nota}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", opacity: off ? 0.4 : 1, transition: "opacity 0.15s" }}>
+            <span style={{ width: 14, height: 0, borderTop: `${s.key === "actual" ? 2.5 : 2}px ${s.key === "actual" ? "solid" : "dashed"} ${col}`, flexShrink: 0 }}/>
+            <span style={{ fontSize: 11.5, color: off ? C.textMuted : C.textSub }}>{s.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: off ? C.textMuted : col, fontVariantNumeric: "tabular-nums" }}>{s.totalFmt}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(s.estatus), border: `1px solid ${_rcEstatusCol(s.estatus)}55`, borderRadius: 3, padding: "1px 4px" }}>{s.estatus}</span>
+          </button>
+        ); })}
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 300, position: "relative", touchAction: "pan-y" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+            {grid.map((g, i) => (
+              <g key={i}>
+                <line x1={padL} x2={W - padR} y1={yAt(g)} y2={yAt(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                <text x={padL - 6} y={yAt(g) + 3} textAnchor="end" fontFamily={MONO} fontSize="8.5" fill={C.textMuted}>{`$${(g / 1000).toFixed(1)}M`}</text>
+              </g>
+            ))}
+            {vivas.map((s) => {
+              const col = _RC_SERIE_COL[s.key] || C.textMuted;
+              const d = _mono(s.valores.map((_, i) => xAt(i)), s.valores.map((v) => yAt(v)));
+              return <path key={s.key} d={d} fill="none" stroke={col} strokeWidth={s.key === "actual" ? 2.2 : 1.5}
+                strokeDasharray={s.key === "actual" ? undefined : "5 4"} strokeLinejoin="round" opacity={s.key === "actual" ? 1 : 0.85}/>;
+            })}
+            {/* el mes más alto y el más bajo del año en foco — describe el movimiento, nunca su causa */}
+            {!oculta.actual && serieActual && iMax >= 0 && (<>
+              <circle cx={xAt(iMax)} cy={yAt(serieActual.valores[iMax])} r="3.4" fill={C.green}/>
+              <circle cx={xAt(iMin)} cy={yAt(serieActual.valores[iMin])} r="3.4" fill={C.red}/>
+            </>)}
+            {hov != null && <line x1={xAt(hov)} x2={xAt(hov)} y1={padT} y2={H - padB} stroke="rgba(255,255,255,0.16)" strokeWidth="1"/>}
+            {meses.map((m, i) => (
+              <text key={m} x={xAt(i)} y={H - 7} textAnchor="middle" fontFamily={MONO} fontSize="8.5" fill={i === iMax ? C.green : i === iMin ? C.red : C.textMuted}>{m}</text>
+            ))}
+            <rect x="0" y="0" width={W} height={H} fill="transparent"
+              onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - r.left) / Math.max(1, r.width); setHov(Math.max(0, Math.min(n - 1, Math.round(((rel * W) - padL) / ((W - padL - padR) / Math.max(n - 1, 1)))))); }}
+              onPointerLeave={() => setHov(null)}/>
+          </svg>
+          {hov != null && (
+            <div style={{ position: "absolute", top: 0, left: `${(xAt(hov) / W) * 100}%`, transform: hov > n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+              pointerEvents: "none", background: "#161616", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "5px 9px",
+              fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: C.textMuted, zIndex: 2 }}>
+              <b style={{ color: C.text }}>{meses[hov]}</b>
+              {vivas.map((s) => (
+                <span key={s.key} style={{ display: "block", color: _RC_SERIE_COL[s.key] }}>{s.label}: ${(s.valores[hov] / 1000).toFixed(1)}M</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8, fontSize: 10.5, color: C.textMuted }}>
+        <span><span style={{ color: C.green }}>●</span> mes más alto · {ev.maxMes} {ev.maxFmt}</span>
+        <span><span style={{ color: C.red }}>●</span> mes más bajo · {ev.minMes} {ev.minFmt}</span>
+        {ev.caida ? <span>mayor caída · {ev.caida.desde}→{ev.caida.mes} {ev.caida.fmt}</span> : null}
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{ev.nota}</div>
+    </div>
+  );
+}
+
+/* ── QUIÉN SOSTIENE EL NEGOCIO · el 80% que mueve la aguja, por cuatro perspectivas ────────────────────────────
+ * Owner 2026-08-07: una sola sección basada en el 80%, con Clientes y Familias como las dos vistas principales
+ * (SKU y Canales viven en el mismo selector: son el mismo tipo de corte y no duplican pantalla). Cada eje trae SU
+ * grupo 80% — calculado, no un top-N — y la cartera entera detrás de un switch. Y cada uno declara si concilia con
+ * la venta oficial: decir cuándo una tabla cierra y cuándo es otro corte del dato es lo que un BI no hace. */
+const _RC_TH = { color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" };
+const _RC_TD = { padding: "5px 6px", textAlign: "right", fontFamily: MONO, fontSize: 11.5, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" };
+const _RC_COLW = ["25%", "12%", "12%", "13%", "11%", "12%", "15%"];
+function ResumenSostiene({ R, onFicha, onAsk }) {
+  const S = R.sostiene;
+  const [eje, setEje] = useState(S ? S.porDefecto : null);
+  const [todos, setTodos] = useState(false);
+  if (!S || !S.vistas.length) return null;
+  const v = S.vistas.find((x) => x.key === eje) || S.vistas[0];
+  const filas = todos ? v.filas : v.filas.filter((f) => f.enGrupo);
+  const navegable = v.key === "cliente" && !!onFicha;   // la Ficha Ejecutiva es de CLIENTE: prometerla en otro eje sería mentir
+  return (
+    <div style={_RC_CARD}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ minWidth: 0, flex: "1 1 250px" }}>
+          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            Quién sostiene el negocio
+            <InfoDot def={`El sustento económico del negocio desde cuatro perspectivas del mismo dato: qué CLIENTES y qué FAMILIAS mueven la venta, y —cuando aportan— SKU y canales. Cada eje trae su propio grupo 80%, calculado con el mismo motor de concentración que el resto de la vista, no un top-N fijo. Cada eje declara además si cierra con la venta oficial por cliente: los que no cierran lo dicen, con su diferencia, y sus márgenes NO se reescalan para forzar el cuadre — son justo la cifra que venís a mirar. ${S.limitacion}`} align="left"/>
+          </span>
+          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{v.lectura}</span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {S.vistas.map((x) => (
+              <button key={x.key} onClick={() => { setEje(x.key); setTodos(false); }} aria-pressed={v.key === x.key}
+                style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: v.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: v.key === x.key ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+                {x.label} ({x.grupoN})
+              </button>
+            ))}
+          </span>
+          {onAsk ? _btnADI(() => onAsk("¿Quiénes son mis principales clientes por venta?"), "Que ADI lo explique →") : null}
+        </span>
+      </div>
+      <div style={{ overflowX: "auto", marginTop: 8 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 620, tableLayout: "fixed" }}>
+          <colgroup>{_RC_COLW.map((w, i) => <col key={i} style={{ width: w }}/>)}</colgroup>
+          <thead><tr>{S.columnas.map((c) => <th key={c.key} style={{ ..._RC_TH, textAlign: c.align }}>{c.label}</th>)}</tr></thead>
+          <tbody>{filas.map((f) => (
+            <tr key={f.nombre}>
+              <td style={{ padding: "5px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {navegable ? (
+                  <button onClick={() => onFicha(f.nombre)} title={`Abrir la Ficha de ${f.nombre}`}
+                    style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{f.nombre}</button>
+                ) : <span style={{ color: C.text, fontWeight: 600 }}>{f.nombre}</span>}
+                {todos && f.enGrupo ? <span title="Está dentro del grupo que explica el 80% de la venta" style={{ marginLeft: 5, fontFamily: MONO, fontSize: 8, color: C.celeste, border: "1px solid rgba(47,184,218,0.4)", borderRadius: 3, padding: "0 3px" }}>80%</span> : null}
+              </td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.pesoFmt}</td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.ventaFmt}</td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.contribucionFmt}</td>
+              <td style={{ ..._RC_TD, color: f.bajoBenchmark ? C.amber : C.text }} title={`contra tu benchmark de ${f.varaFmt}`}>{f.margenFmt}</td>
+              <td style={{ ..._RC_TD, color: f.material ? C.amber : f.bajoBenchmark ? C.textSub : C.green }}>{f.brechaFmt}</td>
+              <td style={{ ..._RC_TD, color: f.sobreMeta ? C.amber : C.textSub }} title={f.sobreMeta ? `sobre tu meta de ${p1(POLICY.targetCarga)}%` : `en o bajo tu meta de ${p1(POLICY.targetCarga)}%`}>{f.cargaFmt}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        {v.colaN > 0 ? (
+          <button onClick={() => setTodos((t) => !t)}
+            style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            {todos ? `Ver solo el grupo que explica el ${v.grupoPctFmt}` : `Ver ${v.label.toLowerCase()} completos (${v.n})`} {todos ? "▴" : "▾"}
+          </button>
+        ) : <span/>}
+        <span style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+          <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: v.reconcilia ? C.green : C.amber, border: `1px solid ${v.reconcilia ? C.green : C.amber}55`, borderRadius: 3, padding: "1px 5px" }}>{v.reconcilia ? "concilia" : "otro corte"}</span>
+        </span>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{v.notaFuente}</div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 5 }}>{S.nota}</div>
+    </div>
+  );
+}
+
+/* ── DÓNDE SE FRENA LA VENTA Y DÓNDE SE DILUYE EL MARGEN ───────────────────────────────────────────────────────
+ * El bloque 02 completo: la identidad del margen como marco, y debajo los DOS deterioros lado a lado. El izquierdo
+ * solo puede afirmarse contra una referencia autorizada, así que declara CUÁL usa — y la descomposición de precio
+ * y volumen aparece únicamente contra el año anterior, que es la única referencia que trae unidades. */
+function ResumenDeterioro({ R, onFicha, onAsk }) {
+  const d = R.deterioro;
+  // la referencia de las acciones comerciales: el PROMEDIO de tu cartera (realista) o tu META (aspiracional).
+  // Arranca en el promedio — es la que el owner pidió: compararte con vos mismo antes que con un ideal.
+  const [varaAcc, setVaraAcc] = useState("promedio");
+  if (!d) return null;
+  const acc = d.margen.acciones, cp = d.margen.costoPrecio, pq = d.margen.porQue;
+  const ra = acc ? (acc.referencias.find((x) => x.key === varaAcc) || acc.referencias[0]) : null;
+  const _chip = (estatus, texto) => (
+    <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(estatus), border: `1px solid ${_rcEstatusCol(estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{texto || estatus}</span>
+  );
+  return (
+    <div style={_RC_CARD}>
+      {/* SOLO LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07: "dejá solo lo que está en la foto"). Salieron de
+          esta sección la identidad venta−costo−acciones=contribución, la VENTA NO ALCANZADA y el detalle de
+          MARGEN NO CAPTURADO. Los datos siguen vivos en el módulo: `deterioro.venta` es lo que alimenta el
+          cruce del bloque 03 —una cuenta bajo presupuesto Y bajo benchmark es la que no hay que empujar con
+          descuento—, así que sacarlos de la vista no rompe esa lectura. */}
+        {/* ── LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07) ──────────────────────────────────────────────────────
+            "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta
+            el precio." Las dos se miden acá, cada una contra su propia referencia y con su monto. ── */}
+        <div style={{}}>
+          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Qué mueve el margen: lo que entregás y cómo se movió tu costo contra tu precio</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y contra tu meta */}
+            {acc && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
+                  <span style={{ ..._RC_HEAD, fontSize: 9, display: "flex", alignItems: "center", gap: 4 }}>
+                    Acciones comerciales{_chip("probado")}
+                    <InfoDot def={`${acc.referencias[0].nota} ${acc.referencias[1].nota} Cambiá la referencia y el monto se recalcula con las cuentas que quedan por encima de ella.`} align="left"/>
+                  </span>
+                  <span style={{ display: "flex", gap: 3 }}>
+                    {acc.referencias.map((x) => (
+                      <button key={x.key} onClick={() => setVaraAcc(x.key)} aria-pressed={ra.key === x.key}
+                        style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${ra.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: ra.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: ra.key === x.key ? C.celeste : C.textMuted, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.refFmt}</button>
+                    ))}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: ra.n ? C.green : C.textMuted, fontVariantNumeric: "tabular-nums" }}>{ra.n ? ra.totalFmt : "—"}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{ra.n ? `recuperables llevando ${ra.n} ${ra.n === 1 ? "cuenta" : "cuentas"} ${ra.label} (${ra.refFmt})` : `ninguna cuenta entrega más que ${ra.refFmt}`}</span>
+                </div>
+                {ra.n > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
+                    {ra.filas.slice(0, 4).map((x) => (
+                      <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
+                        <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                        </span>
+                        <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.amber, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`entrega ${x.cargaFmt} de su venta`}>{x.cargaFmt}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>+{x.excesoFmt}</span>
+                        <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.green, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.recuperableFmt}</span>
+                      </div>
+                    ))}
+                    {ra.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{ra.filas.length - 4} más.</span>}
+                  </div>
+                )}
+                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.green}` }}>{acc.lectura}</div>
+                {/* EL OTRO LADO DEL PROMEDIO (owner 2026-08-07): los que entregan MENOS no son plata a capturar
+                    —llevarlos al promedio sería darles más— pero sí son la prueba, con tus propios clientes, de
+                    que se puede vender entregando menos. Por qué lo logran queda ABIERTO. */}
+                {acc.bajo && acc.bajo.n > 0 && (
+                  <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px dashed ${C.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ ..._RC_HEAD, fontSize: 8.5 }}>Del otro lado</span>{_chip(acc.bajo.estatus)}
+                      <span style={{ fontSize: 11, color: C.textMuted }}>{acc.bajo.n} por debajo · {acc.bajo.ventaFmt} de venta</span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 6px" }}>
+                      {acc.bajo.filas.map((x) => (
+                        <span key={x.nombre} title={`${x.nombre} entrega ${x.cargaFmt} — ${x.holguraFmt} por debajo del promedio · ${x.ventaFmt} de venta · margen ${x.margenFmt}`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
+                          <span style={{ fontSize: 11, color: C.textSub }}>{x.nombre}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.green, fontVariantNumeric: "tabular-nums" }}>{x.cargaFmt}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.55, marginTop: 8 }}>{acc.bajo.lectura}</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* B · COSTO CONTRA PRECIO · si el costo sube más que el precio, el margen por unidad se comprime */}
+            {cp && (
+              <div>
+                <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
+                  Costo contra precio{_chip(cp.estatus)}
+                  <InfoDot def={cp.nota} align="left"/>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: cp.comprimenN ? C.red : C.green, fontVariantNumeric: "tabular-nums" }}>{cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`}</span>
+                  <span style={{ fontSize: 11, color: C.textMuted }}>{cp.comprimenN ? `de margen perdido en ${cp.comprimenN} ${cp.comprimenN === 1 ? "cuenta donde el costo subió" : "cuentas donde el costo subió"} más que el precio` : `de margen ganado: el costo cedió más de lo que el precio subió, de ${cp.desde} a ${cp.hasta}`}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
+                  {cp.filas.slice(0, 4).map((x) => (
+                    <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, borderLeft: `2px solid ${x.comprime ? C.red : C.green}`, background: "rgba(255,255,255,0.015)" }}>
+                      <span style={{ flex: "0 1 106px", minWidth: 84, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                      </span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, color: x.dCostoPct > 0 ? C.red : C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`costo unitario ${x.costoA} → ${x.costoZ}`}>costo {x.dCostoFmt}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, color: x.dPrecioPct > 0 ? C.green : C.red, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`precio por unidad ${x.precioA} → ${x.precioZ}`}>precio {x.dPrecioFmt}</span>
+                      <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: x.comprime ? C.red : C.green, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`${x.efectoUniFmt} por unidad`}>{x.efectoFmt}</span>
+                    </div>
+                  ))}
+                  {cp.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{cp.filas.length - 4} más.</span>}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${cp.comprimenN ? C.red : C.green}` }}>{cp.lectura}</div>
+              </div>
+            )}
+          </div>
+
+          {/* ── VENDE MUCHO PERO DEJA POCO · POR QUÉ (owner 2026-08-07) ────────────────────────────────────────
+              La brecha de cada cuenta contra el promedio de la cartera se parte SIEMPRE en dos términos que
+              suman exacto: lo que le entregás (medido) y la relación entre su precio y su costo. Dos cuentas
+              con la misma brecha pueden tener causas opuestas — y se arreglan distinto. ── */}
+          {pq && (
+            <div style={{ marginTop: 15, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>Venden mucho pero dejan poco: por qué</span>
+                {_chip(pq.estatus)}
+                <InfoDot def={pq.nota} align="left"/>
+              </div>
+              <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginBottom: 10 }}>{pq.lectura}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {pq.filas.map((x) => (
+                  <div key={x.nombre} style={{ padding: "10px 13px", borderRadius: 10, border: `1px solid ${C.border}`,
+                    borderLeft: `2px solid ${x.dominante === "acciones" ? C.green : C.amber}`, background: "rgba(255,255,255,0.018)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ flex: "0 1 132px", minWidth: 104 }}>
+                        {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{x.nombre}</span>}
+                        <span style={{ display: "block", fontFamily: MONO, fontSize: 9.5, color: C.textMuted, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{x.ventaFmt} · {x.participacionFmt} de la venta</span>
+                      </span>
+                      <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 13.5, fontWeight: 600, color: C.amber, fontVariantNumeric: "tabular-nums" }}>{x.margenFmt}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.red, fontVariantNumeric: "tabular-nums" }}>{x.brechaFmt}</span>
+                      </span>
+                      {/* LA BRECHA PARTIDA EN SUS DOS TÉRMINOS · el dominante en color, el otro apagado */}
+                      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
+                        <span title={`opera con ${x.cargaFmt} de acciones comerciales contra el ${pq.cargaPromFmt} de la cartera`}
+                          style={{ color: x.dominante === "acciones" ? C.green : C.textMuted, fontWeight: x.dominante === "acciones" ? 600 : 400 }}>
+                          acciones {x.efCargaFmt}
+                        </span>
+                        <span style={{ color: C.textMuted }}>·</span>
+                        <span title={x.contexto || "la relación entre su precio y su costo"}
+                          style={{ color: x.dominante === "precio/costo" ? C.amber : C.textMuted, fontWeight: x.dominante === "precio/costo" ? 600 : 400 }}>
+                          precio/costo {x.efCostoFmt}
+                        </span>
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 7 }}>{x.lectura}</div>
+                    {/* EL CONTEXTO UNITARIO va SIEMPRE, no solo cuando domina el término de precio/costo: saber
+                        si vende más caro o más barato que el resto es útil aunque el problema sea el descuento
+                        — es lo que dice si hay lugar para mover el precio o no. */}
+                    {x.contexto && !x.lectura.includes(x.contexto) && (
+                      <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>{x.contexto}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+    </div>
+  );
+}
+
+/* ── QUÉ HACER PRIMERO · el cruce de los dos deterioros ────────────────────────────────────────────────────────
+ * Owner 2026-08-07: la vista tiene que evitar "el error comercial más peligroso — intentar recuperar ventas
+ * mediante descuentos en cuentas que ya están diluyendo el margen". Por eso las cuentas no vienen en una lista
+ * plana: vienen cruzadas por los DOS deterioros medidos, y el grupo que sale primero es justamente el peligroso. */
+function ResumenPrioridades({ R, onFicha, onAsk }) {
+  const P = R.prioridades;
+  const tono = { alerta: C.red, aviso: C.amber, neutro: C.celeste };
+  if (!P || !P.grupos.length) {
+    return (
+      <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, padding: "10px 12px", border: `1px dashed ${C.border}`, borderRadius: 10 }}>{P ? P.encabezado : ""}</div>
+    );
+  }
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 11, display: "flex", alignItems: "flex-start", gap: 4 }}>
+        <span>{P.encabezado}</span>
+        <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {P.grupos.map((g) => (
+          <div key={g.key}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+              <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>{g.label}</span>
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", textTransform: "uppercase", color: tono[g.tono] || C.textMuted, border: `1px solid ${tono[g.tono] || C.textMuted}55`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
+              <span style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>{g.criterio} {g.porQue}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {g.filas.map((x) => (
+                <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 13px", borderRadius: 10,
+                  border: `1px solid ${C.border}`, borderLeft: `2px solid ${tono[g.tono] || C.border}`, background: "rgba(255,255,255,0.018)" }}>
+                  <span style={{ flex: "0 1 158px", minWidth: 120 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.entidad}</span>
+                    <span style={{ display: "block", fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
+                      {x.faltaVentaFmt ? <span style={{ color: C.red }}>−{x.faltaVentaFmt} venta</span> : null}
+                      {x.faltaVentaFmt && x.enJuegoFmt ? <span style={{ color: C.textMuted }}> · </span> : null}
+                      {x.enJuegoFmt ? <span style={{ color: C.amber }}>{x.enJuegoFmt} margen</span> : null}
+                      {x.probadoFmt ? <span style={{ color: C.green, fontSize: 9.5 }}> · {x.probadoFmt} probado</span> : null}
+                    </span>
+                  </span>
+                  <span style={{ flex: "1 1 230px", minWidth: 0, fontSize: 11.5, lineHeight: 1.5 }}>
+                    <span style={{ display: "block", color: C.textSub }}>{x.accionCorta}</span>
+                    <span style={{ display: "block", color: C.textMuted, fontSize: 11 }}>{x.faltaCorta}</span>
+                  </span>
+                  {onFicha ? (
+                    <button onClick={() => onFicha(x.entidad)} title={`Abrir la Ficha de ${x.entidad}`}
+                      style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                      Abrir Ficha <span style={{ color: C.celeste }}>→</span>
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {onAsk && R.primera ? (
+        <div style={{ marginTop: 9 }}>{_btnADI(() => onAsk(`Profundiza en ${R.primera.entidad}`), `O que ADI cuente el caso ${R.primera.entidad} →`)}</div>
+      ) : null}
+    </div>
+  );
+}
+
 
 /* ── MESA · CARA RESULTADO (owner 2026-07-15 "sí, parte por p&l") ────────────────────────────────────────────────
  * El mismo sello (entender→explicar→actuar) contando EL RESULTADO: la cascada del P&L comercial con las líneas de
@@ -2779,7 +3393,11 @@ function ControlRing({ ring, rd }) {
 // microlectura del detector bajo el nombre (PASE 1b: visible SOLO en el modo "En alerta") · columna "En juego $" ·
 // la Acción como chip que pregunta a ADI · dot de movimiento 80/20. El gráfico COMPARADO vs año anterior vive en
 // la FICHA (owner 2026-07-15: "no en la tabla" — grande y siempre visible al tocar una fila, FichaEvolutivo).
-function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mesa = false, onAsk = null, watch = null, onWatch = null, alertSignal = 0 }) {
+// RESUMEN COMERCIAL (owner 2026-08-07) · `resumen` baja la grilla a EVIDENCIA de la cara Comercial: conserva todo
+// lo operable (selección para comparar, comparado multi-entidad, filtros, orden, buscador, watchlist) y saca lo que
+// ahora pertenece a la Ficha — el 80/20 por eje (con sus bodegas), la evolución de UNA entidad y el perfil inline
+// vs promedio. `onFicha` es el camino a la Ficha real del cliente (el MISMO que abre el deep-link del perfil).
+function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mesa = false, resumen = false, onAsk = null, onFicha = null, watch = null, onWatch = null }) {
   const [dim, setDim] = useState(initialDim || "cliente");
   // PERFIL ÚNICO (owner 2026-08-06): initialSel llega del deep-link de clientMesaLink — la fila ya viene
   // seleccionada al abrir (la Ficha aparece de una), sin perder la selección manual normal del resto de casos.
@@ -2789,8 +3407,8 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
   const [onlySel, setOnlySel] = useState(false);      // "solo seleccionados" → filtra al resto (el filtro del owner)
   const [mode, setMode] = useState("all");            // all | top | bottom | alert
   const [scope, setScope] = useState("global");       // global | fecha (honesto)
-  // "verlas en el cuadro" del bloque En alerta (PASE 2): navega la grilla al filtro en alerta de clientes (mismo criterio)
-  useEffect(() => { if (alertSignal) { setDim("cliente"); setMode("alert"); setOnlySel(false); } }, [alertSignal]);
+  // (el deep-link "verlas en el cuadro" murió con la tira legacy de alerta · owner 2026-08-07 — el filtro
+  //  "En alerta" vive donde se opera: en la propia grilla, un click más abajo)
   const cm = buildCuadroMando(dim, scenario);
   const cols = cm.columns;
   const primary = cols.find((c) => c.key !== "accion") || cols[0];
@@ -2836,7 +3454,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
     <button key={key} onClick={onClick} style={{ padding:"4px 10px", borderRadius:6, fontSize:11.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap",
       background: active ? "rgba(255,255,255,0.1)" : "transparent", border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, color: active ? C.text : C.textMuted }}>{label}</button>
   );
-  const actionColor = (a) => (/revisar|renegociar|liquidar|acelerar|precio|mix|lento/.test(a) ? C.amber : /referencia/.test(a) ? C.green : C.textMuted);
+  const actionColor = (a) => (/revisar|renegociar|liquidar|acelerar|precio|mix|lento|investigar/.test(a) ? C.amber : /referencia/.test(a) ? C.green : C.textMuted);
   // ICONO DE ESTADO del margen (owner: el margen con icono, no color en el número · identifica rojo/ámbar/verde) ·
   // MESA 2.0 (owner 2026-07-14): el semáforo es contra TU VARA (benchmarkOf · criterio C.2 · misma brecha material
   // del detector — viene calculado del módulo cuadro.js, cero cálculo acá) · fallback vs-prom para filas sin vara.
@@ -2858,16 +3476,38 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
         const selRows = sel.map((nm) => cm.rows.find((r) => r.name === nm)).filter(Boolean);
         const aRow = selRows[0] || null;
         const bRow = selRows.length >= 2 ? selRows[1] : null;
+        // RESUMEN COMERCIAL: la evolución de UNA entidad sale de la cara Comercial (owner 2026-08-07) — con una
+        // sola fila seleccionada la tabla ofrece su Ficha en vez de dibujar acá su año contra el anterior. El
+        // comparado del NEGOCIO (sin selección) y el MULTI-ENTIDAD (dos filas) se conservan: son alcance global
+        // y comparación, no el perfil de una entidad.
+        if (resumen && selRows.length === 1) {
+          return (
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", fontSize:11.5, color:C.textMuted, lineHeight:1.5, padding:"9px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
+              <span><b style={{ color:C.text }}>{aRow.name}</b> seleccionado. Su evolución, composición y brecha viven en la Ficha; seleccioná una segunda fila para compararlas acá.</span>
+              {onFicha && dim === "cliente" ? (
+                <button onClick={() => onFicha(aRow.name)} title={`Abrir la Ficha de ${aRow.name}`}
+                  style={{ marginLeft:"auto", padding:"4px 11px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+                  Ver Ficha de {aRow.name} <span style={{ color:C.celeste }}>→</span>
+                </button>
+              ) : null}
+            </div>
+          );
+        }
         return <ComparadoCard negocio={!aRow} dim={dim} a={aRow ? aRow.name : null} rowA={aRow} b={bRow ? bRow.name : null} rowB={bRow} onAsk={mesa ? onAsk : null}/>;
       })()}
-      {/* PASE 1d · el 80/20 DEBAJO del comparado — mismo comportamiento: eje + selección. */}
-      {mesa && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
+      {/* PASE 1d · el 80/20 DEBAJO del comparado — mismo comportamiento: eje + selección. En la cara Comercial el
+          80/20 ES el bloque de concentración de arriba (clientes, alcance global), así que el Pareto por eje —con
+          sus bodegas— no se repite acá (owner 2026-08-07). */}
+      {mesa && !resumen && <MesaPareto dim={dim} scenario={scenario} sel={sel.length === 1 ? sel[0] : null} onAsk={onAsk}/>}
       {/* PASE 1e (owner): los FILTROS pertenecen a la TABLA — viven pegados a ella, debajo de los gráficos.
           Los gráficos igual los siguen (eje + selección): sin filas seleccionadas muestran el negocio. */}
       {/* dimensión + alcance */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
         <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-          {CUADRO_DIMS.map((d) => pill(dim === d.key, d.label, () => { setDim(d.key); setSel([]); setSortKey(primary.key); }, d.key))}
+          {/* RESUMEN COMERCIAL: las BODEGAS salen de la cara Comercial (owner 2026-08-07) — su grilla es de
+              capital (stock, inmovilizado, rotación), no de comercio, y vive completa en la cara Capital. Los
+              tres ejes comerciales quedan intactos con todos sus filtros. */}
+          {(resumen ? CUADRO_DIMS.filter((d) => d.key !== "bodega") : CUADRO_DIMS).map((d) => pill(dim === d.key, d.label, () => { setDim(d.key); setSel([]); setSortKey(primary.key); }, d.key))}
         </div>
         <div style={{ display:"flex", gap:5 }}>
           {pill(scope === "global", "Global", () => setScope("global"), "g")}
@@ -2940,6 +3580,15 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
                       onMouseEnter={(e) => { e.currentTarget.style.color = C.celeste; e.currentTarget.style.borderColor = "rgba(47,184,218,0.45)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>ADI</button>
                   ) : null}
+                  {/* VER FICHA por fila (owner 2026-08-07): seleccionar = comparar dentro de Comercial · "Ver Ficha"
+                      = profundizar. Navega, nunca dispara a ADI. Solo en el eje cliente: la Ficha Ejecutiva es de
+                      cliente y prometer una que no existe sería peor que no ofrecerla. */}
+                  {onFicha && dim === "cliente" ? (
+                    <button onClick={(e) => { e.stopPropagation(); onFicha(r.name); }} title={`Abrir la Ficha de ${r.name}`}
+                      style={{ padding:"1px 7px", borderRadius:5, border:"1px solid rgba(47,184,218,0.3)", background:"transparent", color:C.celeste, fontSize:8.5, fontFamily:MONO, letterSpacing:"0.5px", cursor:"pointer", flexShrink:0, transition:"all 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.1)"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.3)"; }}>VER FICHA</button>
+                  ) : null}
                 </span>
                 {cols.map((c) => c.key === "accion" ? (
                   // PASE 1 · la Acción como CHIP: click = la pregunta del detector a ADI (anti-BI: pregunta, nunca dispara)
@@ -2993,12 +3642,15 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
       {/* al seleccionar UNA fila → la FICHA (perfil vs promedio). PASE 1f (owner): el "Perfil comparado" por ejes
           se ELIMINÓ — con DOS seleccionadas la comparación es el comparado temporal de ARRIBA (dual); en la lente
           Control (sin Mesa) sigue el dumbbell original de clientes. */}
-      {sel.length === 1 && mesa && (
+      {/* RESUMEN COMERCIAL (owner 2026-08-07): el bloque inline "perfil vs promedio" SALE de la cara Comercial —
+          esa historia vive completa en la Ficha, a la que llevan el "Ver Ficha" de cada fila y el aviso de arriba.
+          El resto de las lentes lo conservan intacto. */}
+      {sel.length === 1 && mesa && !resumen && (
         <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} onAsk={onAsk}/>
       )}
       {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Tocá una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Ficha\" abre su Ficha Ejecutiva" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );

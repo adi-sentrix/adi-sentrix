@@ -10,6 +10,7 @@ import { ChatADI } from "./ChatADI.jsx";
 // pieza más pesada de la UI y no hace falta para el primer paint del chat; se parte del bundle principal y se
 // PREFETCHEA en idle apenas monta la app (ver useEffect abajo) → cuando el usuario abre la Mesa ya está cargado.
 const SentrixPanel = React.lazy(() => import("./SentrixPanel.jsx"));
+import { GuiaInicio, guiaAbreSola } from "./GuiaInicio.jsx";   // guía de inicio (owner 2026-08-07) · la división del trabajo ADI/Sentrix, no un tour de features
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
@@ -90,6 +91,12 @@ export default function App({ animate = true }) {
   // ChatADI registra su handler acá; el panel lo invoca. Prefill + focus — el usuario confirma con Enter (sin gasto por misclick).
   const askRef = useRef(null);
   const resetRef = useRef(null);   // el cubo del header = volver al halo central (resetea el chat al inicio)
+  // GUÍA DE INICIO (owner 2026-08-07) · se abre SOLA en la primera visita (sin marca en localStorage) y después solo
+  // desde el botón "¿Cómo funciona?" del header. El estado inicial se lee UNA vez, en el lazy initializer: leerlo en
+  // cada render reabriría la guía apenas otro estado del header cambie.
+  const [guiaAbierta, setGuiaAbierta] = useState(() => guiaAbreSola());
+  // ejecuta un ejemplo de la guía por el MISMO camino que un chip del hero (ChatADI registra su submitSpec acá)
+  const runRef = useRef(null);
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
@@ -134,7 +141,23 @@ export default function App({ animate = true }) {
           </div>
         </div>
 
-        <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+        <div className="hdr-acciones" style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+          {/* ¿CÓMO FUNCIONA? · la puerta PERMANENTE a la guía de inicio (owner 2026-08-07). Discreto a propósito: es
+              una ayuda que se pide, no una acción del negocio — por eso ghost neutro y no el celeste sólido del CTA
+              de la Mesa. En pantallas angostas queda solo el "?" (la etiqueta se oculta como el resto del header). */}
+          <button data-testid="guia-abrir" onClick={() => setGuiaAbierta((v) => !v)}
+            title="Cómo se reparten el trabajo ADI y Sentrix, y qué le podés preguntar"
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:9, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
+              border:`1px solid ${guiaAbierta ? "rgba(47,184,218,0.55)" : "rgba(17,17,17,0.12)"}`,
+              background: guiaAbierta ? "rgba(47,184,218,0.10)" : "#ffffff",
+              color: guiaAbierta ? "#1791b4" : "#565656", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, transition:"all 0.15s" }}
+            onMouseEnter={(e) => { if (!guiaAbierta) { e.currentTarget.style.background = "rgba(17,17,17,0.04)"; e.currentTarget.style.color = "#131313"; } }}
+            onMouseLeave={(e) => { if (!guiaAbierta) { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.color = "#565656"; } }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 2.4"/><line x1="12" y1="17" x2="12" y2="17"/>
+            </svg>
+            <span className="hdr-guia-label">¿Cómo funciona?</span>
+          </button>
           {/* MESA DE CONTROL · Sentrix en operación (owner 2026-07-07): el modo "vivo mi negocio acá" — todas las cifras a
               la mano (KPIs · focos con $ · el 80/20 · el cuadro operable) con ADI al lado. Toggle: abre/cierra el panel. */}
           {/* CTA como en la landing: celeste sólido, texto blanco, radio 9 · activo = celeste más profundo */}
@@ -203,7 +226,8 @@ export default function App({ animate = true }) {
               onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
               openEvidenceId={openId}
               registerAsk={(fn) => { askRef.current = fn; }}
-              registerReset={(fn) => { resetRef.current = fn; }}/>
+              registerReset={(fn) => { resetRef.current = fn; }}
+              registerRun={(fn) => { runRef.current = fn; }}/>
           </div>
           {openEv && (isMobile ? (
             /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */
@@ -229,6 +253,15 @@ export default function App({ animate = true }) {
         </div>
       </main>
 
+      {/* GUÍA DE INICIO · fuera del <main> porque es `position:fixed` sobre toda la app y no debe heredar el
+          `overflow:hidden` del layout. Tocar un ejemplo la cierra y ejecuta la pregunta: la explicación se
+          convierte en el primer turno, en vez de quedar como un folleto que hay que recordar. */}
+      {guiaAbierta && (
+        <GuiaInicio
+          onCerrar={() => setGuiaAbierta(false)}
+          onEjecutar={(spec, label) => { setGuiaAbierta(false); if (runRef.current) runRef.current(spec, label); }}/>
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
@@ -248,6 +281,12 @@ export default function App({ animate = true }) {
         /* responsive del header · ocultar progresivamente lo menos esencial (deja escenario + badge de modo) */
         @media (max-width: 1040px) { .hdr-date { display:none !important; } }
         @media (max-width: 900px)  { .hdr-live-text { display:none !important; } }
+        /* el botón de la guía sobrevive SIEMPRE (es la puerta a la ayuda) · en angosto queda solo el "?" */
+        @media (max-width: 900px)  { .hdr-guia-label { display:none !important; } }
+        /* teléfonos de 360px: los hijos del header son flexShrink:0, así que lo único que cede es la separación.
+           Medido con el header de producción (sin el selector de escenarios, que es dev-only): 370px a gap:14 —
+           entra en 375 pero no en 360. A gap:8 baja a ~346 y entra en los dos. */
+        @media (max-width: 420px)  { .hdr-acciones { gap:8px !important; } }
         @media (max-width: 620px)  { .hdr-esc-label, .hdr-esc-word, .hdr-live, .hdr-datos { display:none !important; } }
         /* MOBILE (owner 2026-07-08 · primera impresión desde el celular): header lean (logo + Mesa + IA) ·
            inputs a 16px para que iOS no haga zoom-jump al tocar el campo */

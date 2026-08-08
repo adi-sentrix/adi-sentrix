@@ -202,7 +202,9 @@ for (const [tipo, foco] of [["client", "Falabella"], ["sku", "SAM-TV55"], ["marc
 
 // ── (2) ESTÁTICO · UI .jsx (textos que React emite directo) sin comentarios ──
 const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/[^\n]*/g, "$1");
-for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/InlineChart.jsx"]) {
+// GuiaInicio.jsx entra al barrido (owner 2026-08-07): la guía de inicio es de las PRIMERAS palabras que lee un
+// usuario nuevo — si el registro se rompe, se rompe en la peor pantalla posible.
+for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/InlineChart.jsx", "src/ui/GuiaInicio.jsx"]) {
   const src = stripComments(fs.readFileSync(path.join(root, f), "utf8"));
   let m, re = new RegExp(BANNED.source, "gi"), n = 0;
   while ((m = re.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") }); }
