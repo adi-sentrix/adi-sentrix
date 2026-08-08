@@ -389,18 +389,23 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
   ok(prom.filas.slice(0, 4).every((x) => T.includes(x.nombre) && T.includes(x.recuperableFmt)),
     `las cuentas sobre el promedio con su recuperable — ${prom.filas.slice(0, 2).map((x) => `${x.nombre} ${x.recuperableFmt}`).join(", ")}`);
   ok(T.includes("probado"), "…rotuladas PROBADO: la carga está medida cuenta por cuenta");
-  // EL COLOR SEPARA LO QUE SE CEDE DE LO QUE SE RECUPERA (owner 2026-08-08): la carga en ROJO —es plata que sale,
-  // no una advertencia— y el recuperable en verde. Antes la carga iba en ámbar, el mismo tono de "ojo con esto",
-  // y eso mezclaba dos cosas que el usuario lee distinto.
+  /* EL COLOR, EN LA CIFRA PRINCIPAL Y EN LA CARGA — y en ninguna otra (owner 2026-08-08, dos rondas):
+   *   · la CARGA por cuenta va en ROJO: es plata que sale. Lo pidió explícito.
+   *   · el TITULAR del bloque ($293K recuperables) va en verde: es el número que hay que mirar primero.
+   *   · el recuperable POR FILA va en blanco. Pintarlo también le quitaba al titular lo único que el color le
+   *     daba. "Solo debe estar en verde los números principales; los otros en blanco."
+   * Se verifica el par completo: si el titular pierde el verde, el bloque se queda sin jerarquía. */
   const ROJO = /rgb\(\s*244,\s*63,\s*94\s*\)|#f43f5e/i, VERDE = /rgb\(\s*16,\s*185,\s*129\s*\)|#10b981/i;
   const spans = [...container.querySelectorAll("span")];
+  const sTitular = spans.filter((s) => s.textContent === prom.totalFmt && VERDE.test(s.getAttribute("style") || ""));
+  ok(sTitular.length > 0, `el titular del bloque (${prom.totalFmt}) es el que va en verde`);
   for (const x of prom.filas.slice(0, 4)) {
     const sCarga = spans.filter((s) => s.textContent === x.cargaFmt && /entrega/.test(s.getAttribute("title") || ""));
     ok(sCarga.length > 0 && sCarga.every((s) => ROJO.test(s.getAttribute("style") || "")),
       `${x.nombre}: lo que ENTREGA (${x.cargaFmt}) va en rojo — es plata que sale`);
     const sRec = spans.filter((s) => s.textContent === x.recuperableFmt);
-    ok(sRec.some((s) => VERDE.test(s.getAttribute("style") || "")),
-      `…y lo que se RECUPERA (${x.recuperableFmt}) sigue en verde`);
+    ok(sRec.length > 0 && sRec.every((s) => !VERDE.test(s.getAttribute("style") || "")),
+      `…y su recuperable (${x.recuperableFmt}) va en blanco: el verde es del titular`);
   }
   // …y se puede cambiar la referencia a la meta
   const meta = acc.referencias[1];
@@ -428,23 +433,55 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
     "la vista DICE que llevarlos al promedio sería darles más, no capturar — la trampa queda cerrada a la vista");
   ok(T.includes(bajo.ventaFmt), `y cuánta venta representan — ${bajo.ventaFmt}`);
 
-  // ── VENDEN MUCHO PERO DEJAN POCO · la brecha en sus dos términos ──
-  const pq = d.margen.porQue;
-  ok(T.includes("Venden mucho pero dejan poco"), "el bloque del porqué está");
-  ok(T.includes(pq.lectura), "…con su lectura global");
+  // "VENDEN MUCHO PERO DEJAN POCO" se MUDÓ a "Quién sostiene el negocio" (owner 2026-08-08) · se verifica que
+  // NO haya quedado también acá: mudarlo y dejar una copia sería peor que no moverlo.
+  // se mide sobre la SECCIÓN 02, no sobre la vista entera: el botón nuevo vive arriba y nombraría un falso positivo
+  const s02 = T.slice(T.indexOf("Dónde se deteriora el margen"), T.indexOf("Qué hacer primero"));
+  ok(!/[Vv]enden mucho pero dejan poco/.test(s02), "el porqué ya no vive en el bloque 02: se mudó a quién sostiene");
+  ok(!s02.includes(d.margen.porQue.lectura), "…ni quedó su lectura suelta");
+  cleanup();
+}
+
+/* ── [1d2] EL PORQUÉ, PEGADO A LA TABLA QUE LO NECESITA (owner 2026-08-08) ─────────────────────────────────────
+ * "Las cuentas que venden mucho y dejan poco margen deberíamos integrarlas en la sección de la segunda foto; tal
+ * vez podría dejar un botón que diga «clientes que venden mucho pero dejan poco margen: por qué», y ahí se
+ * despliega." Son filas de ESA tabla: vivían a dos pantallas de distancia y el lector tenía que acordarse de
+ * quiénes eran. Va CERRADO por defecto — la pregunta la hace quien la tiene, no la pantalla. */
+H("[1d2] VENDEN MUCHO PERO DEJAN POCO · dentro de quién sostiene, y cerrado por defecto");
+{
+  const { container } = abrir(evTemporal());
+  const pq = R.deterioro.margen.porQue;
+  const btn = botones(container).find((b) => /venden mucho pero dejan poco margen: por qué/i.test(b.textContent));
+  ok(!!btn, `el botón está y declara cuántas cuentas hay — "${btn && btn.textContent.trim()}"`);
+  ok(btn.textContent.includes(String(pq.n)), `…con el conteo real — ${pq.n}`);
+  ok(btn.getAttribute("aria-expanded") === "false", "arranca CERRADO: la pregunta la hace quien la tiene");
+  ok(!pq.filas.some((x) => container.textContent.includes(x.lectura)), "…y su contenido no está montado todavía");
+  // VIVE DENTRO DE LA TARJETA de quién sostiene, no como un bloque suelto debajo: se comprueba por ancestro, que
+  // es lo que de verdad determina si está integrado o solo cerca.
+  const tarjeta = [...container.querySelectorAll("div")]
+    .filter((dv) => dv.textContent.includes("Quién sostiene el negocio") && dv.querySelector("table"))
+    .sort((a, b) => a.textContent.length - b.textContent.length)[0];
+  ok(!!tarjeta && tarjeta.contains(btn), "el botón vive DENTRO de la tarjeta de quién sostiene, no suelto debajo");
+  const T2 = container.textContent;
+  ok(T2.indexOf("Quién sostiene el negocio") < T2.indexOf("Clientes que venden mucho pero dejan poco"),
+    "…y después de la tabla que explica, no antes");
+  fireEvent.click(btn);
+  const T3 = container.textContent;
+  ok(T3.includes(pq.lectura), "al abrirlo aparece la lectura global");
   for (const x of pq.filas) {
-    ok(T.includes(x.nombre) && T.includes(x.margenFmt) && T.includes(x.brechaFmt), `${x.nombre}: margen ${x.margenFmt} y brecha ${x.brechaFmt}`);
-    ok(T.includes(`acciones ${x.efCargaFmt}`) && T.includes(`precio/costo ${x.efCostoFmt}`),
+    ok(T3.includes(x.nombre) && T3.includes(x.margenFmt) && T3.includes(x.brechaFmt), `${x.nombre}: margen ${x.margenFmt} y brecha ${x.brechaFmt}`);
+    ok(T3.includes(`acciones ${x.efCargaFmt}`) && T3.includes(`precio/costo ${x.efCostoFmt}`),
       `  …con la brecha partida: acciones ${x.efCargaFmt} + precio/costo ${x.efCostoFmt}`);
-    ok(T.includes(x.lectura), "  …y la respuesta a por qué deja poco");
+    ok(T3.includes(x.lectura), "  …y la respuesta a por qué deja poco");
   }
-  // dos cuentas con el mismo síntoma pueden tener causas OPUESTAS, y la vista las distingue
-  const dominantes = new Set(pq.filas.map((x) => x.dominante));
-  ok(dominantes.size >= 1, `cada cuenta declara qué término pesa más — ${[...dominantes].join(" y ")}`);
-  ok(pq.filas.every((x) => !x.contexto || T.includes(x.contexto)), "y el contexto unitario (vende más caro/barato · compra más caro/barato) está a la vista");
-  // desde acá también se abre la Ficha
+  ok(pq.filas.every((x) => !x.contexto || T3.includes(x.contexto)), "y el contexto unitario está a la vista");
   const obj = pq.filas[0].nombre;
   ok(botones(container).some((b) => b.title === `Abrir la Ficha de ${obj}`), `${obj} abre su Ficha desde este bloque`);
+  // SOLO EN EL EJE CLIENTE: el análisis se construye cuenta por cuenta; prometerlo en familias sería mentir
+  const bFam = botones(container).find((b) => b.hasAttribute("aria-pressed") && /^Familias/.test(b.textContent));
+  fireEvent.click(bFam);
+  ok(!botones(container).some((b) => /venden mucho pero dejan poco margen: por qué/i.test(b.textContent)),
+    "en el eje Familias no se ofrece: el análisis es por cuenta");
   cleanup();
 }
 

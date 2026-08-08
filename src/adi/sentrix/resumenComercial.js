@@ -594,7 +594,7 @@ function _sostiene(scenario, rows, total) {
     ],
     // El glosario largo se fue al InfoDot, que es donde vive lo que hay que explicar. Acá queda la clave de color,
     // que es lo único que no se deduce mirando.
-    nota: `En ámbar: margen bajo tu benchmark, brecha de ${POLICY.margenBrechaMaterial} pp o más, acciones sobre tu meta de ${_pct(POLICY.targetCarga)}.`,
+    nota: `En ámbar: brecha de ${POLICY.margenBrechaMaterial} pp o más y acciones sobre tu meta de ${_pct(POLICY.targetCarga)}.`,
     limitacion: "Por punto de venta no hay corte: las sucursales del dato traen inventario, no venta. Se enciende con el ERP.",
   };
 }
