@@ -473,6 +473,25 @@ H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)"
   } else {
     ok(!/agranda la brecha/.test(P.encabezado), "sin cuentas en el grupo peligroso, el encabezado NO advierte de un riesgo que no hay");
   }
+  /* ── LA ACCIÓN Y EL PENDIENTE, UNA VEZ POR GRUPO (owner 2026-08-08) ────────────────────────────────────────
+   * "En la lista de recuperar margen todas dicen lo mismo, revisar acciones comerciales etc. Es mejor un título,
+   * dejar los clientes y con el pp que operan y lo que se recuperaría." Las cuatro filas repetían la MISMA frase
+   * salvo por dos números: 40 palabras para encontrar 2 cifras. */
+  for (const g of P.grupos) {
+    const verbos = new Set(g.filas.map((f) => (f.accionCorta || "").split(":")[0].trim()));
+    ok(verbos.size !== 1 || !!g.accionTitulo,
+      `${g.label}: cuando todas comparten la acción, sube al título — "${g.accionTitulo}"`);
+    ok(!g.accionTitulo || !/\d/.test(g.accionTitulo),
+      `${g.label}: el título es el VERBO, sin el número que distingue a cada fila — "${g.accionTitulo}"`);
+    const faltas = new Set(g.filas.map((f) => f.faltaCorta));
+    ok(faltas.size !== 1 || g.faltaComun === [...faltas][0],
+      `${g.label}: el pendiente también sube, una sola vez`);
+    // Y CADA FILA CONSERVA LO QUE LA DISTINGUE: sin esto, "resumir" habría sido "borrar"
+    const conExceso = g.filas.filter((f) => f.excesoFmt);
+    ok(conExceso.every((f) => /pp$/.test(f.excesoFmt)), `${g.label}: cada fila trae su pp sobre la meta — ${conExceso.length} de ${g.filas.length}`);
+    ok(g.filas.every((f) => f.excesoFmt || f.probadoFmt || f.faltaVentaFmt),
+      `${g.label}: ninguna fila queda sin una cifra propia que la justifique`);
+  }
   ok(P.grupos.every((g) => !!g.criterio && !!g.porQue), "cada grupo declara su criterio y su porqué");
   ok(P.grupos.every((g) => g.filas.every((f) => !!f.accionCorta && !!f.faltaCorta)), "cada fila trae su acción y qué falta aislar");
   const nombres = new Set(R.rows.map((r) => r.name));

@@ -943,9 +943,25 @@ function _prioridades(rows, deterioro, insights) {
       impacto: (m ? m.enJuego : 0) + (v ? v.falta * 1000 : 0),
       accionCorta: i ? i.accionCorta : (m && m.sobreMeta ? `Revisar acciones comerciales: opera ${m.excesoFmt} sobre tu meta.` : "Abrir la Ficha y aislar la causa cuenta por cuenta."),
       faltaCorta: i ? i.faltaCorta : "Falta separar costo, precio y composición.",
+      // ⚠️ LOS DOS DATOS QUE DISTINGUEN A UNA FILA DE OTRA, sueltos y no dentro de una frase (owner 2026-08-08:
+      // "todas dicen lo mismo… es mejor un título, dejar los clientes y con el pp que operan y lo que se
+      // recuperaría"). La frase era idéntica en las cuatro filas salvo por estos dos números: repetirla cuatro
+      // veces obligaba a leer 40 palabras para encontrar 2 cifras.
+      excesoFmt: m && m.sobreMeta ? m.excesoFmt : null,
     });
   }
   for (const g of out) g.filas.sort((a, b) => b.impacto - a.impacto);
+  // LA ACCIÓN Y EL PENDIENTE SUBEN AL GRUPO cuando TODAS sus filas dicen lo mismo — que es el caso real: dentro de
+  // un grupo el problema es el mismo por construcción, porque el grupo ES el criterio. Si alguna vez difieren, se
+  // queda por fila y no se promete un encabezado que no cubre a todos.
+  // Se compara el VERBO, no la frase entera: "Revisar acciones comerciales: opera 1.0 pp sobre tu meta" y la de
+  // 1.9 pp son la MISMA acción con distinto número, y ese número ya viaja suelto en `excesoFmt`.
+  const _verbo = (t) => (t || "").split(":")[0].trim().replace(/\.$/, "");
+  const _comun = (xs, f) => (xs.length && xs.every((x) => f(x) === f(xs[0])) ? f(xs[0]) : null);
+  for (const g of out) {
+    g.accionTitulo = _comun(g.filas, (x) => _verbo(x.accionCorta));
+    g.faltaComun = _comun(g.filas, (x) => x.faltaCorta);
+  }
   const vivos = out.filter((g) => g.filas.length);
   const proteger = out.find((g) => g.key === "proteger");
   return {

@@ -2128,13 +2128,16 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta
             el precio." Las dos se miden acá, cada una contra su propia referencia y con su monto. ── */}
         <div style={{}}>
-          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Qué mueve el margen</div>
+          <div style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center", marginBottom: 10 }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            Qué mueve el margen
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y contra tu meta */}
             {acc && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
-                  <span style={{ ..._RC_HEAD, fontSize: 9, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ ..._RC_HEAD, fontSize: 9, color: C.celeste, display: "flex", alignItems: "center", gap: 4 }}>
                     Acciones comerciales{_chip("probado")}
                     <InfoDot def={`${acc.referencias[0].nota} ${acc.referencias[1].nota} Cambiá la referencia y el monto se recalcula con las cuentas que quedan por encima de ella.`} align="left"/>
                   </span>
@@ -2168,35 +2171,16 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                   </div>
                 )}
                 <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.border}` }}>{acc.lectura}</div>
-                {/* EL OTRO LADO DEL PROMEDIO (owner 2026-08-07): los que entregan MENOS no son plata a capturar
-                    —llevarlos al promedio sería darles más— pero sí son la prueba, con tus propios clientes, de
-                    que se puede vender entregando menos. Por qué lo logran queda ABIERTO. */}
-                {acc.bajo && acc.bajo.n > 0 && (
-                  <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px dashed ${C.border}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                      <span style={{ ..._RC_HEAD, fontSize: 8.5 }}>Del otro lado</span>{_chip(acc.bajo.estatus)}
-                      <span style={{ fontSize: 11, color: C.textMuted }}>{acc.bajo.n} por debajo · {acc.bajo.ventaFmt} de venta</span>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 6px" }}>
-                      {acc.bajo.filas.map((x) => (
-                        <span key={x.nombre} title={`${x.nombre} entrega ${x.cargaFmt} — ${x.holguraFmt} por debajo del promedio · ${x.ventaFmt} de venta · margen ${x.margenFmt}`}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
-                          <span style={{ fontSize: 11, color: C.textSub }}>{x.nombre}</span>
-                          {/* en blanco: ocho chips verdes seguidos leen como ocho buenas noticias, y estas cuentas
-                              NO son plata a capturar — el propio texto de abajo lo dice */}
-                          <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.textSub, fontVariantNumeric: "tabular-nums" }}>{x.cargaFmt}</span>
-                        </span>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.55, marginTop: 8 }}>{acc.bajo.lectura}</div>
-                  </div>
-                )}
+                {/* "DEL OTRO LADO" SE ELIMINÓ (owner 2026-08-08: "eso no aporta mucho"). Listaba las 8 cuentas
+                    que entregan por debajo del promedio. Era honesto —decía explícito que NO son plata a capturar—
+                    pero justamente por eso no movía ninguna decisión: ocho chips y tres líneas para concluir que
+                    ahí no hay nada que hacer. El dato sigue en el módulo (acciones.bajo) si alguna vez vuelve. */}
               </div>
             )}
             {/* B · COSTO CONTRA PRECIO · si el costo sube más que el precio, el margen por unidad se comprime */}
             {cp && (
               <div>
-                <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ ..._RC_HEAD, fontSize: 9, color: C.celeste, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
                   Costo contra precio{_chip(cp.estatus)}
                   <InfoDot def={cp.nota} align="left"/>
                 </div>
@@ -2242,52 +2226,63 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
       <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, padding: "10px 12px", border: `1px dashed ${C.border}`, borderRadius: 10 }}>{P ? P.encabezado : ""}</div>
     );
   }
-  // UNA TARJETA POR BLOQUE, como en la Ficha: adentro las filas son filas, no cajas.
+  /* UNA CARD POR GRUPO (owner 2026-08-08: "tenés muchas cosas mezcladas, ordenalas bien; puede ser cards
+   * separadas, no quiero desorden"). Cada grupo es un problema distinto y ahora se ve así.
+   *
+   * Y LA ACCIÓN SUBE AL TÍTULO. "Fijate que en la lista de recuperar margen todas dicen lo mismo, revisar acciones
+   * comerciales etc. Es mejor un título, dejar los clientes y con el pp que operan y lo que se recuperaría." Las
+   * cuatro filas repetían la MISMA frase salvo por dos números: 40 palabras para encontrar 2 cifras. Ahora el
+   * verbo se dice una vez arriba, el pendiente una vez abajo, y cada fila deja solo lo que la distingue. */
   return (
-    <div style={_RC_CARD}>
-      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 11, display: "flex", alignItems: "flex-start", gap: 4 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 4 }}>
         <span>{P.encabezado}</span>
         <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {P.grupos.map((g) => (
-          <div key={g.key}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-              <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>{g.label}</span>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", textTransform: "uppercase", color: C.textMuted, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
-              <span style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>{g.criterio} {g.porQue}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              {g.filas.map((x, i) => (
-                <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "9px 2px",
-                  borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
-                  <span style={{ flex: "0 1 158px", minWidth: 120 }}>
-                    <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.entidad}</span>
-                    <span style={{ display: "block", fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
-                      {x.faltaVentaFmt ? <span style={{ color: C.textSub }}>−{x.faltaVentaFmt} venta</span> : null}
-                      {x.faltaVentaFmt && x.enJuegoFmt ? <span style={{ color: C.textMuted }}> · </span> : null}
-                      {x.enJuegoFmt ? <span style={{ color: C.textSub }}>{x.enJuegoFmt} margen</span> : null}
-                      {x.probadoFmt ? <span style={{ color: C.textSub, fontSize: 9.5 }}> · {x.probadoFmt} <span style={{ color: C.green, letterSpacing: "0.5px" }}>probado</span></span> : null}
-                    </span>
-                  </span>
-                  <span style={{ flex: "1 1 230px", minWidth: 0, fontSize: 11.5, lineHeight: 1.5 }}>
-                    <span style={{ display: "block", color: C.textSub }}>{x.accionCorta}</span>
-                    <span style={{ display: "block", color: C.textMuted, fontSize: 11 }}>{x.faltaCorta}</span>
-                  </span>
-                  {onFicha ? (
-                    <button onClick={() => onFicha(x.entidad)} title={`Abrir la Ficha de ${x.entidad}`}
-                      style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                      Abrir Ficha <span style={{ color: C.celeste }}>→</span>
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+      {P.grupos.map((g) => (
+        <div key={g.key} style={_RC_CARD}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ ..._RC_HEAD, color: C.celeste }}>{g.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", color: C.textMuted, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
           </div>
-        ))}
-      </div>
+          <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.5, marginTop: 5 }}>
+            {g.criterio} {g.porQue}
+            {/* LA ACCIÓN, UNA VEZ · solo si TODAS las filas del grupo comparten el verbo (el módulo lo resuelve) */}
+            {g.accionTitulo ? <span style={{ color: C.text, fontWeight: 600 }}> {g.accionTitulo}.</span> : null}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
+            {g.filas.map((x, i) => (
+              <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 2px",
+                borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
+                <span style={{ flex: "0 1 150px", minWidth: 116, fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.entidad}</span>
+                {/* LO QUE DISTINGUE A ESTA FILA DE LA DE AL LADO, y nada más: cuánto opera sobre la meta y cuánto
+                    se recupera si vuelve a ella. Si no aplica (grupo de venta), lo que falta contra su plan. */}
+                <span style={{ flex: "1 1 210px", minWidth: 0, display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", fontFamily: MONO, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
+                  {x.excesoFmt ? (
+                    <span style={{ color: C.textSub }}>+{x.excesoFmt} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, color: C.textMuted }}>sobre tu meta</span></span>
+                  ) : null}
+                  {x.probadoFmt ? (
+                    <span style={{ color: C.text, fontWeight: 600 }}>{x.probadoFmt} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, fontWeight: 400, color: C.textMuted }}>recuperable</span></span>
+                  ) : null}
+                  {!x.probadoFmt && x.faltaVentaFmt ? (
+                    <span style={{ color: C.textSub }}>−{x.faltaVentaFmt} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, color: C.textMuted }}>contra su plan</span></span>
+                  ) : null}
+                </span>
+                {onFicha ? (
+                  <button onClick={() => onFicha(x.entidad)} title={`Abrir la Ficha de ${x.entidad}`}
+                    style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                    Abrir Ficha <span style={{ color: C.celeste }}>→</span>
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {/* EL PENDIENTE, UNA VEZ POR GRUPO · era idéntico en todas las filas y no se negocia que esté */}
+          {g.faltaComun ? <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{g.faltaComun}</div> : null}
+        </div>
+      ))}
       {/* El enlace "O que ADI cuente el caso <entidad>" se ELIMINÓ (owner 2026-08-08): cada fila ya trae su
           "Abrir Ficha →", y ofrecer un segundo camino a la MISMA cuenta —la primera de la lista— competía con
           esa acción en vez de sumarle. Preguntarle a ADI sigue a un clic, con el botón fijo de la vista. */}

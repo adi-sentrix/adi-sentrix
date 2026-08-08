@@ -161,15 +161,20 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(["probado", "indicado"].every((e) => T.includes(e)), "cada causa lleva su estatus epistémico rotulado");
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
-  ok(T.includes(i0.accionCorta) && T.includes(i0.faltaCorta), "…como FILA DE DECISIÓN: la acción concreta y qué falta aislar");
+  const _g0 = R.prioridades.grupos.find((g) => g.filas.some((f) => f.entidad === i0.entidad));
+  ok(!!_g0 && T.includes(_g0.accionTitulo || i0.accionCorta), "la acción concreta está a la vista, en el título de su grupo");
+  ok(!!_g0 && T.includes(_g0.faltaComun || i0.faltaCorta), "…y qué falta aislar, al pie del grupo");
   ok(!T.includes(i0.razon), "la tarjeta larga de informe ya no está — quedó la fila corta");
   // la primera profundización sugerida YA NO es una banda aparte: es la PRIMERA FILA de decisión (owner: no
   // repetir cifras ni conceptos). Se verifica que ese lugar lo ocupe la cuenta de mayor prioridad del módulo.
   ok(!T.includes("Primera profundización sugerida:"), "la banda separada de \"primera profundización\" ya no existe");
-  const filasDec = [...container.querySelectorAll("div")]
-    .filter((d) => R.insights.some((i) => d.textContent.startsWith(i.entidad) && d.textContent.includes(i.enJuegoFmt)));
-  ok(filasDec.length > 0 && filasDec[0].textContent.startsWith(R.primera.entidad),
-    `la PRIMERA fila de decisión es la de mayor prioridad — ${R.primera.entidad}`);
+  // Con una CARD por grupo (owner 2026-08-08), la prioridad se lee en el ORDEN de las cards: el grupo peligroso
+  // primero. Se comprueba sobre la posición real en el texto, que es lo que el usuario recorre.
+  const _gs = R.prioridades.grupos;
+  ok(_gs.length < 2 || T.indexOf(_gs[0].label) < T.indexOf(_gs[1].label),
+    `el grupo peligroso abre el bloque 03 — "${_gs[0].label}"`);
+  ok(_gs[0].filas[0].entidad === R.primera.entidad || _gs.some((g) => g.filas[0].entidad === R.primera.entidad),
+    `y la cuenta de mayor prioridad encabeza su grupo — ${R.primera.entidad}`);
   // EL GRÁFICO: las barras del módulo, con sus nombres y montos
   for (const b of R.pareto.ventas.barras) ok(T.includes(b.nombre) && T.includes(b.fmt), `barra "${b.nombre}" (${b.fmt}) dibujada`);
   ok(T.includes(R.pareto.ventas.cruce80), `el cruce real del 80% se nombra — ${R.pareto.ventas.cruce80}`);
@@ -426,12 +431,16 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
 
   // ── EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07) ──
   const bajo = acc.bajo;
-  ok(T.includes("Del otro lado"), "el otro lado del promedio se muestra");
-  ok(bajo.filas.every((x) => T.includes(x.nombre)), `con las ${bajo.n} cuentas que entregan menos`);
-  ok(T.includes(bajo.lectura), "…y su lectura");
-  ok(/No son plata a capturar/.test(T) && /entregarles más/.test(T),
-    "la vista DICE que llevarlos al promedio sería darles más, no capturar — la trampa queda cerrada a la vista");
-  ok(T.includes(bajo.ventaFmt), `y cuánta venta representan — ${bajo.ventaFmt}`);
+  /* "DEL OTRO LADO" SE ELIMINÓ (owner 2026-08-08: "eso no aporta mucho"). Era honesto —decía explícito que NO son
+   * plata a capturar— pero justamente por eso no movía ninguna decisión: ocho chips y tres líneas para concluir
+   * que ahí no hay nada que hacer. El DATO sigue en el módulo, y eso también se verifica: si alguna vez vuelve a
+   * la vista, vuelve completo y con su advertencia, no como un recuperable inventado. */
+  ok(!T.includes("Del otro lado"), "«Del otro lado» ya no está en la vista");
+  ok(!T.includes(bajo.lectura), "…ni su lectura suelta");
+  ok(bajo.n > 0 && !("recuperable" in (bajo.filas[0] || {})),
+    `pero el dato sigue en el módulo, sin recuperable inventado — ${bajo.n} cuentas`);
+  ok(/No son plata a capturar/.test(bajo.lectura) && /entregarles más/.test(bajo.lectura),
+    "y conserva su advertencia: si vuelve a la vista, vuelve con la trampa cerrada");
 
   // "VENDEN MUCHO PERO DEJAN POCO" se MUDÓ a "Quién sostiene el negocio" (owner 2026-08-08) · se verifica que
   // NO haya quedado también acá: mudarlo y dejar una copia sería peor que no moverlo.
@@ -496,7 +505,8 @@ H("[1e] QUÉ HACER PRIMERO · el cruce, con el grupo peligroso adelante");
     ok(T.includes(g.criterio) && T.includes(g.porQue), "…con su criterio y su porqué a la vista");
     for (const x of g.filas) {
       ok(T.includes(x.entidad), `  ${x.entidad}`);
-      ok(T.includes(x.accionCorta) && T.includes(x.faltaCorta), "  …con su acción y qué falta aislar");
+      ok(!x.excesoFmt || T.includes(`+${x.excesoFmt}`), `  …con el ${x.excesoFmt} que opera sobre la meta`);
+      ok(!x.probadoFmt || T.includes(x.probadoFmt), `  …y lo que se recuperaría (${x.probadoFmt})`);
     }
   }
   const prot = P.grupos.find((g) => g.key === "proteger");
@@ -868,6 +878,27 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
  * La referencia es "Composición de la compra" de la Ficha: tarjeta de borde neutro y color SOLO donde significa
  * algo — el margen bajo benchmark, la rotación bajo el piso. Una barra de color POR FILA multiplica el acento por
  * la cantidad de filas: lo que quería ser un semáforo termina siendo ruido, y cuando todo resalta nada resalta. */
+/* ── [11c] LOS ENCABEZADOS, EN CELESTE (owner 2026-08-08) ──────────────────────────────────────────────────────
+ * "Los títulos y encabezados deben ir en celeste." Algunos ya lo eran y otros no, que es peor que ninguno: el
+ * usuario no puede aprender a reconocer "esto es un encabezado" si el color cambia de bloque en bloque. Se
+ * comprueba sobre los títulos REALES de la vista, no sobre una lista fija. */
+H("[11c] ENCABEZADOS EN CELESTE · uno solo, y el mismo, en toda la cara");
+{
+  const { container } = abrir(evTemporal());
+  const CELESTE = /rgba?\(\s*47,\s*184,\s*218/i;
+  const titulos = ["El negocio, cliente por cliente", "El año, mes a mes", "Concentración comercial",
+    "Quién sostiene el negocio", "Qué mueve el margen", "Acciones comerciales", "Costo contra precio",
+    ...R.prioridades.grupos.map((g) => g.label)];
+  // Un ENCABEZADO se identifica por su forma (mayúsculas + tracking), no por ser el elemento más corto que
+  // contiene ese texto: "Acciones comerciales" también es la etiqueta de un KPI, y esa no es un encabezado.
+  const esEncabezado = (e) => /text-transform:\s*uppercase/i.test(e.getAttribute("style") || "");
+  const sinCeleste = titulos.filter((t) => ![...container.querySelectorAll("div,span")]
+    .some((e) => e.textContent.trim().toUpperCase().startsWith(t.toUpperCase())
+      && esEncabezado(e) && CELESTE.test(e.getAttribute("style") || "")));
+  ok(sinCeleste.length === 0, `los ${titulos.length} encabezados de la cara van en celeste`, sinCeleste.join(" | "));
+  cleanup();
+}
+
 H("[11b] BORDES NEUTROS · el color vive en las cifras, no en los marcos");
 {
   const { container } = abrir(evTemporal());
