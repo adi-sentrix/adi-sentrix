@@ -153,7 +153,14 @@ H("[6] INSIGHTS · solo del plano, priorizados, con estatus de causa");
   ok(R.insights.every((i) => !/revisar costo/i.test(i.razon)), "ninguno dice 'revisar costo' (el costo no está probado)");
   // FILAS DE DECISIÓN (owner 2026-08-07): acción concreta + qué falta aislar, cada una en una línea corta
   ok(R.insights.every((i) => i.accionCorta && i.faltaCorta), "cada uno trae su acción concreta y qué falta aislar, en corto");
-  ok(R.insights.every((i) => i.accionCorta.length < 90 && i.faltaCorta.length < 90), "…y son cortas de verdad (fila de decisión, no párrafo)");
+  /* ⚠️ LA ACCIÓN SIGUE CORTA; EL PENDIENTE CRECIÓ A PROPÓSITO (owner 2026-08-08: «"falta separar costo precio",
+   * ¿qué es eso? No se entiende»). Decía en tres palabras técnicas lo que hay que decir en una frase de castellano.
+   * Acá la brevedad y la claridad tiran para lados opuestos y gana la claridad: un texto corto que nadie entiende
+   * no es corto, es inútil. El techo sube solo para ese campo, y sigue existiendo para que no vuelva a ser un
+   * párrafo. */
+  ok(R.insights.every((i) => i.accionCorta.length < 90), "la acción sigue siendo una línea corta");
+  ok(R.insights.every((i) => i.faltaCorta.length < 175 && !/composici[óo]n de la venta/i.test(i.faltaCorta)),
+    "…y el pendiente se explica en castellano, sin la jerga de «separar composición»");
   ok(R.insights.filter((i) => i.estatusCausa === "probado").every((i) => /acciones comerciales/i.test(i.accionCorta)),
     "cuando hay causa medida, la acción nombra la palanca que SÍ está medida");
   ok(R.insights.filter((i) => i.estatusCausa === "abierto").every((i) => /aislar/i.test(i.accionCorta)),
@@ -487,10 +494,21 @@ H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)"
     ok(faltas.size !== 1 || g.faltaComun === [...faltas][0],
       `${g.label}: el pendiente también sube, una sola vez`);
     // Y CADA FILA CONSERVA LO QUE LA DISTINGUE: sin esto, "resumir" habría sido "borrar"
-    const conExceso = g.filas.filter((f) => f.excesoFmt);
-    ok(conExceso.every((f) => /pp$/.test(f.excesoFmt)), `${g.label}: cada fila trae su pp sobre la meta — ${conExceso.length} de ${g.filas.length}`);
-    ok(g.filas.every((f) => f.excesoFmt || f.probadoFmt || f.faltaVentaFmt),
+    ok(g.filas.every((f) => (f.cifras || []).length > 0),
       `${g.label}: ninguna fila queda sin una cifra propia que la justifique`);
+    /* ⚠️ UNA SOLA REFERENCIA POR FILA (owner 2026-08-08: "¿cuál meta? No hables de metas"). Al pasar del target al
+     * promedio de la cartera, la acción heredada del insight seguía midiendo contra la meta: Falabella mostraba
+     * "entrega 1.0 pp de más" al lado de un "+0.42 pp sobre el promedio". Dos números del MISMO concepto en la
+     * misma fila — el defecto de [9a] otra vez, ahora en el texto. El gate lo cierra: si la fila nombra un pp en
+     * su acción, tiene que ser EL MISMO que muestra su cifra. */
+    for (const f of g.filas) {
+      ok(!/\bmeta\b/i.test(`${f.accionCorta} ${(f.cifras || []).map((c) => c.etiqueta).join(" ")}`),
+        `${g.label} · ${f.entidad}: no habla de metas — la referencia es el promedio de su cartera`);
+      const enAccion = (f.accionCorta.match(/([\d.]+) pp/) || [])[1];
+      const enCifra = ((f.cifras || []).map((c) => c.valor).join(" ").match(/\+([\d.]+) pp/) || [])[1];
+      ok(!enAccion || !enCifra || enAccion === enCifra,
+        `${g.label} · ${f.entidad}: el pp de la acción y el de la cifra son el MISMO — ${enAccion} / ${enCifra}`);
+    }
   }
   ok(P.grupos.every((g) => !!g.criterio && !!g.porQue), "cada grupo declara su criterio y su porqué");
   ok(P.grupos.every((g) => g.filas.every((f) => !!f.accionCorta && !!f.faltaCorta)), "cada fila trae su acción y qué falta aislar");
@@ -683,7 +701,7 @@ H("[14] ECONOMÍA DEL TEXTO · conclusiones cortas, el detalle en el InfoDot");
   const peorFila = d.margen.porQue.filas.reduce((m, f) => Math.max(m, (f.lectura || "").length), 0);
   ok(peorFila <= 120, `la fila más larga de "venden mucho pero dejan poco" ≤ 120 — ${peorFila}`);
   for (const g of R.prioridades.grupos) {
-    techo(`grupo[${g.key}].criterio`, g.criterio, 60);
+    techo(`grupo[${g.key}].criterio`, g.criterio, 90);
     techo(`grupo[${g.key}].porQue`, g.porQue, 70);
   }
   // Y NADA DE ESTO PUEDE HABERSE LOGRADO BORRANDO LA CONCLUSIÓN: cada texto sigue diciendo algo

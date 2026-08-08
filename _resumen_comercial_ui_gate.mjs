@@ -162,7 +162,8 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
   const _g0 = R.prioridades.grupos.find((g) => g.filas.some((f) => f.entidad === i0.entidad));
-  ok(!!_g0 && T.includes(_g0.accionTitulo || i0.accionCorta), "la acción concreta está a la vista, en el título de su grupo");
+  ok(!!_g0 && T.includes(_g0.accionTitulo || _g0.filas.find((f) => f.entidad === i0.entidad).accionCorta),
+    "la acción concreta está a la vista: en el título del grupo, o en la fila si el grupo quedó mezclado");
   ok(!!_g0 && T.includes(_g0.faltaComun || i0.faltaCorta), "…y qué falta aislar, al pie del grupo");
   ok(!T.includes(i0.razon), "la tarjeta larga de informe ya no está — quedó la fila corta");
   // la primera profundización sugerida YA NO es una banda aparte: es la PRIMERA FILA de decisión (owner: no
@@ -505,8 +506,10 @@ H("[1e] QUÉ HACER PRIMERO · el cruce, con el grupo peligroso adelante");
     ok(T.includes(g.criterio) && T.includes(g.porQue), "…con su criterio y su porqué a la vista");
     for (const x of g.filas) {
       ok(T.includes(x.entidad), `  ${x.entidad}`);
-      ok(!x.excesoFmt || T.includes(`+${x.excesoFmt}`), `  …con el ${x.excesoFmt} que opera sobre la meta`);
-      ok(!x.probadoFmt || T.includes(x.probadoFmt), `  …y lo que se recuperaría (${x.probadoFmt})`);
+      // Las cifras de la fila las decide el módulo según el problema del grupo, y se miden contra el PROMEDIO de
+      // la cartera — no contra una meta que el usuario no fijó (owner 2026-08-08).
+      for (const c of x.cifras) ok(T.includes(c.valor) && T.includes(c.etiqueta), `  …${c.valor} ${c.etiqueta}`);
+      ok(!/\bmeta\b/i.test(x.cifras.map((c) => c.etiqueta).join(" ")), "  …y ninguna habla de una «meta» ajena");
     }
   }
   const prot = P.grupos.find((g) => g.key === "proteger");
@@ -831,7 +834,8 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   ok(!/sector|industria|estándar de la industria/i.test(cabecera), "la referencia se narra como TUYA, nunca sectorial");
   // costo/precio/composición siguen declarados como pendientes de aislar — ahora en cada fila de decisión del
   // bloque 03, que es donde el usuario decide, y en la nota del costo contra precio.
-  ok(/separar costo, precio y composición/i.test(T), "costo, precio y composición quedan declarados como pendientes de aislar");
+  ok(/cu[áa]nto es lo que cuesta el producto|cu[áa]nto de la brecha es lo que cuesta/i.test(T),
+    "lo que falta aislar se declara en castellano, no como «separar composición»");
   ok(R.deterioro.margen.costoPrecio.estatus === "indicado" && T.includes("indicado"),
     "y el efecto costo/precio nunca se presenta como probado");
   ok(!/rentabilidad/i.test(cabecera), "no le llama rentabilidad a un margen");

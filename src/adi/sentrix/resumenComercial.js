@@ -257,11 +257,15 @@ function _insights(plano, rows) {
         // FILA DE DECISIÓN (owner 2026-08-07): la acción concreta y qué falta, cada una en una línea corta — la
         // tarjeta larga se lee como informe; esto se lee como una decisión.
         accionCorta: tieneAccion
-          ? `Revisar acciones comerciales: opera ${_pp(excesoPP)} sobre tu meta.`
+          ? `Revisar acciones comerciales: entrega ${_pp(excesoPP)} de más.`
           : `Abrir la Ficha y aislar la causa cuenta por cuenta.`,
+        // ⚠️ EN CASTELLANO, NO EN JERGA (owner 2026-08-08: "«falta separar costo precio», ¿qué es eso? No se
+        // entiende"). Decía en tres palabras técnicas lo que hay que decir en una frase: del resto de la brecha
+        // todavía no sabemos cuánto pesa lo que cuesta el producto, cuánto el precio al que se vende y cuánto la
+        // mezcla de lo que se vendió. Eso es lo que la Ficha va a separar.
         faltaCorta: tieneAccion
-          ? `Falta separar costo, precio y composición del resto.`
-          : `Falta separar costo, precio y composición: nada está aislado todavía.`,
+          ? `Del resto de la brecha todavía no sabemos cuánto es lo que cuesta el producto, cuánto el precio al que lo vendés y cuánto la mezcla de lo que vendiste.`
+          : `Todavía no sabemos cuánto de la brecha es lo que cuesta el producto, cuánto el precio al que lo vendés y cuánto la mezcla de lo que vendiste.`,
         titulo: material ? `${_pp(r.varaGap)} bajo tu referencia` : `Brecha de ${_pp(r.varaGap)}`,
         // PRIORIDAD: materialidad (en juego) + deterioro (brecha) + evidencia (¿hay causa probada?) + acción.
         _score: (r.enJuego || 0) * (1 + (material ? 0.5 : 0)) * (tieneAccion ? 1.35 : 1),
@@ -912,16 +916,27 @@ function _prioridades(rows, deterioro, insights) {
   for (const r of (deterioro.venta.referencias.find((x) => x.key === "presupuesto") || { filas: [] }).filas) bajoVenta.set(r.nombre, r);
   const bajoMargen = new Map(deterioro.margen.filas.map((f) => [f.nombre, f]));
   const porInsight = new Map((insights || []).map((i) => [i.entidad, i]));
+  /* ⚠️ CONTRA EL PROMEDIO DE LA CARTERA, NO CONTRA UNA "META" (owner 2026-08-08: "¿cuál meta? No hables de metas;
+   * las metas las fija el cliente, no nosotros"). Tiene razón: una meta es una decisión de negocio que el usuario
+   * toma, y presentar la nuestra como suya es ponerle palabras en la boca. El promedio de SU cartera no tiene ese
+   * problema — sale de su propio dato y es la comparación que él mismo pidió: "compararme conmigo mismo". La meta
+   * sigue existiendo como referencia OPCIONAL en el bloque 02, donde se elige explícitamente. */
+  const alPromedio = new Map(((deterioro.margen.acciones.referencias.find((x) => x.key === "promedio") || { filas: [] }).filas)
+    .map((f) => [f.nombre, f]));
+  const promedioFmt = deterioro.margen.acciones.promedioFmt;
   const grupos = [
     { key: "proteger", label: "Proteger el margen antes de empujar la venta", tono: "alerta",
       criterio: "Bajo presupuesto Y cediendo margen material.",
       porQue: "Primero recuperar el margen, después la venta." },
     { key: "recuperarMargen", label: "Recuperar margen", tono: "aviso",
-      criterio: "Cumplen su presupuesto pero ceden margen material.",
-      porQue: "El volumen está; falta lo que deja cada peso vendido." },
+      criterio: "Venden lo que planeaste, pero cada peso vendido deja menos de lo que debería.",
+      porQue: "El volumen no es el problema." },
+    // ⚠️ EN CASTELLANO (owner 2026-08-08: "debe explicarse más fácil, no se entiende; explicalo sencillo").
+    // "Bajo presupuesto pero su margen no cede" es la definición del criterio, no una explicación: obliga al
+    // lector a traducirla. Se dice lo que le pasa a la cuenta y qué puede hacer, en ese orden.
     { key: "recuperarVenta", label: "Recuperar venta", tono: "neutro",
-      criterio: "Bajo presupuesto, pero su margen no cede.",
-      porQue: "Acá crecer no cuesta margen: se puede empujar." },
+      criterio: "Venden menos de lo que planeaste, pero su margen está sano.",
+      porQue: "Podés empujarles volumen sin resignar margen." },
   ];
   const clasificar = (name) => {
     const v = bajoVenta.has(name), m = bajoMargen.has(name);
@@ -941,24 +956,69 @@ function _prioridades(rows, deterioro, insights) {
       brechaFmt: m ? m.brechaFmt : null,
       estatus: m ? m.estatus : "abierto",
       impacto: (m ? m.enJuego : 0) + (v ? v.falta * 1000 : 0),
-      accionCorta: i ? i.accionCorta : (m && m.sobreMeta ? `Revisar acciones comerciales: opera ${m.excesoFmt} sobre tu meta.` : "Abrir la Ficha y aislar la causa cuenta por cuenta."),
-      faltaCorta: i ? i.faltaCorta : "Falta separar costo, precio y composición.",
+      /* ⚠️ LA ACCIÓN SE ARMA CON LA MISMA REFERENCIA QUE LA CIFRA DE LA FILA, y por eso NO se hereda del insight
+       * cuando la cuenta entrega de más: el insight mide contra la meta y la fila contra el promedio de la
+       * cartera, así que una misma cuenta salía diciendo "entrega 1.0 pp de más" al lado de un "+0.42 pp". Dos
+       * números del MISMO concepto en la misma fila — el defecto exacto que costó la confianza el 2026-08-07. */
+      accionCorta: alPromedio.has(r.name)
+        ? `Revisar acciones comerciales: entrega ${alPromedio.get(r.name).excesoFmt} de más.`
+        : (i ? i.accionCorta : "Abrir la Ficha y aislar la causa cuenta por cuenta."),
+      faltaCorta: i ? i.faltaCorta : "Todavía no sabemos cuánto de la brecha es lo que cuesta el producto, cuánto el precio al que lo vendés y cuánto la mezcla de lo que vendiste.",
       // ⚠️ LOS DOS DATOS QUE DISTINGUEN A UNA FILA DE OTRA, sueltos y no dentro de una frase (owner 2026-08-08:
       // "todas dicen lo mismo… es mejor un título, dejar los clientes y con el pp que operan y lo que se
       // recuperaría"). La frase era idéntica en las cuatro filas salvo por estos dos números: repetirla cuatro
       // veces obligaba a leer 40 palabras para encontrar 2 cifras.
-      excesoFmt: m && m.sobreMeta ? m.excesoFmt : null,
+      // Y los dos salen de la MISMA referencia —el promedio de la cartera—, no uno de una y otro de otra.
+      excesoFmt: alPromedio.has(r.name) ? alPromedio.get(r.name).excesoFmt : null,
+      recuperableFmt: alPromedio.has(r.name) ? alPromedio.get(r.name).recuperableFmt : null,
+      referenciaFmt: promedioFmt,
+      _k: k, _m: m, _v: v, _sobrePromedio: alPromedio.has(r.name),
     });
   }
   for (const g of out) g.filas.sort((a, b) => b.impacto - a.impacto);
   // LA ACCIÓN Y EL PENDIENTE SUBEN AL GRUPO cuando TODAS sus filas dicen lo mismo — que es el caso real: dentro de
   // un grupo el problema es el mismo por construcción, porque el grupo ES el criterio. Si alguna vez difieren, se
   // queda por fila y no se promete un encabezado que no cubre a todos.
-  // Se compara el VERBO, no la frase entera: "Revisar acciones comerciales: opera 1.0 pp sobre tu meta" y la de
-  // 1.9 pp son la MISMA acción con distinto número, y ese número ya viaja suelto en `excesoFmt`.
+  // Se compara el VERBO, no la frase entera: "Revisar acciones comerciales: entrega 1.0 pp de más" y la de 1.9 pp
+  // son la MISMA acción con distinto número, y ese número ya viaja suelto en `excesoFmt`.
   const _verbo = (t) => (t || "").split(":")[0].trim().replace(/\.$/, "");
   const _comun = (xs, f) => (xs.length && xs.every((x) => f(x) === f(xs[0])) ? f(xs[0]) : null);
   for (const g of out) {
+    g.accionTitulo = _comun(g.filas, (x) => _verbo(x.accionCorta));
+    g.faltaComun = _comun(g.filas, (x) => x.faltaCorta);
+    /* ── LAS CIFRAS QUE LLEVA CADA FILA, decididas ACÁ y no en la vista ────────────────────────────────────────
+     * Cada grupo tiene un problema distinto, así que cada uno se mide con lo suyo: donde el problema es el margen
+     * se muestra la palanca medida (cuánto entrega de más sobre el promedio de su cartera y cuánto vuelve si se
+     * alinea); donde el problema es la venta, cuánto vendió de menos.
+     *
+     * ⚠️ Y CUANDO NO HAY PALANCA MEDIDA, se dice lo que sí se sabe en vez de dejar la fila vacía. Al cambiar la
+     * referencia de la meta al promedio de la cartera (owner 2026-08-08), una cuenta que entregaba MÁS que la meta
+     * puede entregar MENOS que el promedio: su margen cede igual, pero el descuento no lo explica. Esa fila
+     * muestra su brecha de margen y lo que tiene en juego, y su acción es abrir la Ficha — que es la verdad. */
+    for (const f of g.filas) {
+      const c = [];
+      if (g.key !== "recuperarVenta" && f._sobrePromedio) {
+        c.push({ valor: `+${f.excesoFmt}`, etiqueta: `sobre el promedio de tu cartera (${promedioFmt})`, tono: "neutro" });
+        c.push({ valor: f.recuperableFmt, etiqueta: "recuperable si se alinea", tono: "ok" });
+      } else if (g.key !== "recuperarVenta" && f._m) {
+        c.push({ valor: `−${f._m.brechaFmt}`, etiqueta: "de margen contra tu benchmark", tono: "neutro" });
+        c.push({ valor: f._m.enJuegoFmt, etiqueta: "en juego", tono: "neutro" });
+      }
+      if (f._v) c.push({ valor: `−${f._v.faltaFmt}`, etiqueta: "menos de lo que planeaste", tono: "neutro" });
+      f.cifras = c;
+      // la acción de la fila sigue a lo que la fila realmente tiene, no al grupo
+      if (g.key !== "recuperarVenta" && !f._sobrePromedio) f.accionCorta = "Abrir la Ficha y aislar la causa cuenta por cuenta.";
+      if (g.key === "recuperarVenta") {
+        // El problema de este grupo es de VOLUMEN y su margen no cede: la acción es la misma para todas, y el
+        // pendiente de margen no aplica —no hay brecha que descomponer—. Lo que sí falta es otra cosa: contra el
+        // presupuesto no se puede separar precio de volumen, porque el plan declara monto y no unidades.
+        f.accionCorta = "Abrir la Ficha y aislar la causa cuenta por cuenta.";
+        f.faltaCorta = "Contra el presupuesto no se puede separar cuánto es precio y cuánto es volumen: el plan declara monto, no unidades.";
+      }
+      delete f._k; delete f._m; delete f._v; delete f._sobrePromedio;
+    }
+    // recalculado DESPUÉS de ajustar las acciones fila por fila: si el grupo quedó mezclado, no hay título común
+    // y cada fila se queda con la suya — un encabezado que no cubre a todos es peor que la repetición.
     g.accionTitulo = _comun(g.filas, (x) => _verbo(x.accionCorta));
     g.faltaComun = _comun(g.filas, (x) => x.faltaCorta);
   }

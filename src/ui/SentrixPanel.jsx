@@ -2258,14 +2258,18 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
                 {/* LO QUE DISTINGUE A ESTA FILA DE LA DE AL LADO, y nada más: cuánto opera sobre la meta y cuánto
                     se recupera si vuelve a ella. Si no aplica (grupo de venta), lo que falta contra su plan. */}
                 <span style={{ flex: "1 1 210px", minWidth: 0, display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", fontFamily: MONO, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
-                  {x.excesoFmt ? (
-                    <span style={{ color: C.textSub }}>+{x.excesoFmt} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, color: C.textMuted }}>sobre tu meta</span></span>
-                  ) : null}
-                  {x.probadoFmt ? (
-                    <span style={{ color: C.text, fontWeight: 600 }}>{x.probadoFmt} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, fontWeight: 400, color: C.textMuted }}>recuperable</span></span>
-                  ) : null}
-                  {!x.probadoFmt && x.faltaVentaFmt ? (
-                    <span style={{ color: C.textSub }}>−{x.faltaVentaFmt} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, color: C.textMuted }}>contra su plan</span></span>
+                  {/* LAS CIFRAS VIENEN DECIDIDAS DEL MÓDULO: cuáles y con qué etiqueta depende del problema del
+                      grupo, y esa decisión no es de dibujo. El verde queda para el recuperable —la única cifra
+                      que dice cuánta plata hay del otro lado de la acción— y el resto va en blanco. */}
+                  {(x.cifras || []).map((c, j) => (
+                    <span key={j} style={{ color: c.tono === "ok" ? C.green : C.textSub, fontWeight: c.tono === "ok" ? 600 : 400 }}>
+                      {c.valor} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, fontWeight: 400, color: C.textMuted }}>{c.etiqueta}</span>
+                    </span>
+                  ))}
+                  {/* si el grupo quedó MEZCLADO no hay acción común arriba, y entonces cada fila declara la suya:
+                      una cuenta sin palanca medida no puede heredar "revisar acciones comerciales" */}
+                  {!g.accionTitulo ? (
+                    <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, color: C.textMuted }}>{x.accionCorta}</span>
                   ) : null}
                 </span>
                 {onFicha ? (
