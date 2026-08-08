@@ -114,9 +114,8 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
     ["El año, mes a mes", "2 · evolutivo (este año · año anterior · presupuesto)"],
     ["Concentración comercial · 80/20", "3 · gráfico de concentración (el mapa)"],
     ["Quién sostiene el negocio", "4 · quién sostiene el negocio (clientes/familias/SKU/canales)"],
-    ["Dónde se deteriora el resultado", "02 · movimiento DÓNDE SE DETERIORA"],
-    ["Cómo se forma el margen", "5 · la identidad del margen"],
-    ["Dónde se frena la venta y dónde se diluye el margen", "6 · los dos deterioros, cada uno con su referencia"],
+    ["Dónde se deteriora el margen", "02 · movimiento DÓNDE SE DETERIORA EL MARGEN"],
+    ["Qué mueve el margen", "5 · las dos causas: acciones comerciales y costo vs precio"],
     ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
     [R.prioridades.encabezado, "7 · decisiones prioritarias, cruzadas"],
     ["Evidencia completa · opcional", "7 · evidencia completa opcional, al final"],
@@ -146,17 +145,10 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   // EL PLANO, EL PUENTE, LOS INSIGHTS: cifras del módulo
   ok(T.includes(R.veredicto.soporte), "el alcance se declara UNA vez, en el veredicto (X clientes · Y% · N concentran $Z)");
   ok(T.includes(R.tension.reconciliaCorta), "…con la reconciliación compacta de cabeza y cola debajo");
-  ok(T.includes(R.puente.brechaTotalFmt) && T.includes(R.puente.probadoFmt) && T.includes(R.puente.abiertoFmt),
-    `la brecha muestra total/probado/abierto — ${R.puente.brechaTotalFmt} = ${R.puente.probadoFmt} + ${R.puente.abiertoFmt}`);
-  for (const t of R.puente.tramos.filter((x) => x.esParte)) ok(T.includes(t.titulo) && T.includes(t.detalle), `tramo ${t.estatus.toUpperCase()} completo ("${t.titulo}")`);
-  // la PARTICIÓN (probado + abierto) se pinta junto al margen no capturado, con su universo declarado al lado —
-  // el monto de las cuentas materiales es OTRO alcance y lleva su propia etiqueta.
-  ok(T.includes(`toda la cartera, las ${R.rows.length} cuentas del negocio`), "el universo de la brecha total se declara a la vista");
-  ok(T.includes(R.deterioro.margen.enJuegoFmt) && T.includes("bajo tu benchmark"),
-    "…y el monto de las cuentas materiales lleva SU etiqueta, distinta de la del total");
-  ok(["probado", "indicado", "abierto"].every((e) => T.includes(e)), "los tres estatus epistémicos están rotulados a la vista");
-  ok(T.includes(R.deterioro.margen.insight) && /aislarse entre costo, precio y composición/.test(R.deterioro.margen.insight),
-    "y lo que queda ABIERTO se declara en el insight del margen");
+  // LAS DOS CAUSAS del margen (lo único que quedó en el movimiento 02, owner 2026-08-07)
+  ok(T.includes(R.deterioro.margen.acciones.referencias[0].totalFmt), `lo recuperable en acciones comerciales — ${R.deterioro.margen.acciones.referencias[0].totalFmt}`);
+  ok(T.includes(R.deterioro.margen.costoPrecio.lectura), "y la lectura de costo contra precio");
+  ok(["probado", "indicado"].every((e) => T.includes(e)), "cada causa lleva su estatus epistémico rotulado");
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
   ok(T.includes(i0.accionCorta) && T.includes(i0.faltaCorta), "…como FILA DE DECISIÓN: la acción concreta y qué falta aislar");
@@ -261,61 +253,41 @@ H("[1c] QUIÉN SOSTIENE EL NEGOCIO · Clientes / Familias / SKU / Canales");
   cleanup();
 }
 
-H("[1d] DÓNDE SE DETERIORA EL RESULTADO · la identidad, la venta no alcanzada y el margen no capturado");
+H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
 {
   const { container } = abrir(evTemporal());
-  const f = R.formacion, d = R.deterioro;
+  const d = R.deterioro, acc = d.margen.acciones, cp = d.margen.costoPrecio;
   const T = container.textContent;
-  // la identidad, como marco
-  ok(T.includes(f.lectura), `la lectura reparte la venta — "${f.lectura}"`);
-  for (const l of f.lineas) ok(T.includes(l.label) && T.includes(l.montoFmt) && T.includes(l.pctFmt), `línea "${l.label}" con ${l.montoFmt} (${l.pctFmt})`);
-  ok(T.includes(f.lineas.find((l) => l.key === "costo").nota), "el costo explica a la vista por qué no es una causa");
-  ok(T.includes("indicado") && T.includes("probado"), "cada línea lleva su estatus rotulado");
-  ok(!/revisar costo/i.test(T), "y en ningún lado aparece \"revisar costo\"");
-  ok(T.includes("Dónde se frena la venta y dónde se diluye el margen"), "el bloque de los dos deterioros está");
-
-  // ── VENTA NO ALCANZADA · la referencia se declara y se puede cambiar ──
-  const ppto = d.venta.referencias.find((x) => x.key === "presupuesto");
-  const ant = d.venta.referencias.find((x) => x.key === "anterior");
-  ok(T.includes("Venta no alcanzada"), "el lado de la venta está");
-  const rv0 = d.venta.referencias.find((x) => x.key === d.venta.porDefecto);
-  ok(T.includes(rv0.insight), `abre en "${rv0.label}" con su insight`);
-  ok(T.includes(rv0.nota), "…y con la nota que explica qué autoriza esa referencia");
-  ok(rv0.n === 0 || T.includes(rv0.faltaTotalFmt), `…y el monto que faltó — ${rv0.faltaTotalFmt}`);
-  // contra el PRESUPUESTO no puede haber precio/volumen: declara monto, no unidades
-  if (d.venta.porDefecto === "presupuesto") {
-    ok(!/vol \$/.test(T), "contra el presupuesto NO se muestra descomposición de precio y volumen");
-    ok(/declara monto y no unidades/i.test(T), "…y la vista dice por qué");
-  }
-  // contra el AÑO ANTERIOR sí, y cierra exacta. Se busca el TOGGLE (lleva aria-pressed): el pie del KPI de
-  // ventas también es un botón y también dice "vs año anterior" — sin este filtro se clickeaba el KPI.
-  const bAnt = botones(container).find((b) => b.hasAttribute("aria-pressed") && b.textContent.includes(ant.label));
-  ok(!!bAnt, `se puede cambiar a "${ant.label}"`);
-  fireEvent.click(bAnt);
-  const T2 = container.textContent;
-  ok(T2.includes(ant.insight), "…con su propio insight");
-  const conPV = ant.filas.filter((x) => x.pv).slice(0, 4);
-  ok(conPV.length === 0 || conPV.every((x) => T2.includes(x.pv.volumenFmt) && T2.includes(x.pv.precioFmt)),
-    `…y la descomposición de precio y volumen, que solo existe contra esta referencia (${conPV.length} filas)`);
-  ok(conPV.every((x) => x.pv.cierra), "volumen + precio cierra exacto con la diferencia");
-
-  // ── LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07) ──
-  const acc = d.margen.acciones, cp = d.margen.costoPrecio;
   ok(T.includes("Qué mueve el margen"), "el bloque de las dos causas está");
-  // A · acciones comerciales, contra el promedio de TU cartera (la vara que pidió el owner) y contra tu meta
+  // SOLO ESO (owner 2026-08-07 "dejá solo lo que está en la foto"): la identidad, la venta no alcanzada y el
+  // detalle de margen no capturado salieron de esta sección.
+  const seccion = T.slice(T.indexOf("Dónde se deteriora el margen"), T.indexOf("Qué hacer primero"));
+  ok(!seccion.includes("Cómo se forma el margen"), "la identidad venta−costo−acciones=contribución ya no está acá");
+  ok(!seccion.includes("Venta no alcanzada"), "«Venta no alcanzada» ya no está acá");
+  ok(!seccion.includes("Margen no capturado"), "«Margen no capturado» ya no está acá");
+  ok(!seccion.includes("Dónde se frena la venta"), "…ni su encabezado");
+  ok(!seccion.includes(R.formacion.lectura), "…ni la lectura del reparto de la venta");
+  ok(!seccion.includes(d.venta.referencias[0].insight), "…ni el insight de la venta no alcanzada");
+  // pero el DATO sigue vivo: es lo que alimenta el cruce del bloque 03
+  ok(d.venta.referencias.length === 2 && d.margen.filas.length >= 0,
+    "el dato de venta y margen sigue en el módulo — es lo que cruza el bloque 03");
+
+  // A · acciones comerciales, contra el promedio de TU cartera y contra tu meta
   ok(T.includes("Acciones comerciales") && T.includes(acc.promedioFmt), `el promedio ponderado de la cartera se muestra — ${acc.promedioFmt}`);
   const prom = acc.referencias[0];
   ok(T.includes(prom.totalFmt), `y lo recuperable al promedio — ${prom.totalFmt}`);
   ok(T.includes(acc.lectura), "…con su lectura, que da las dos cifras");
   ok(prom.filas.slice(0, 4).every((x) => T.includes(x.nombre) && T.includes(x.recuperableFmt)),
     `las cuentas sobre el promedio con su recuperable — ${prom.filas.slice(0, 2).map((x) => `${x.nombre} ${x.recuperableFmt}`).join(", ")}`);
-  // …y se puede cambiar la vara a la meta
+  ok(T.includes("probado"), "…rotuladas PROBADO: la carga está medida cuenta por cuenta");
+  // …y se puede cambiar la referencia a la meta
   const meta = acc.referencias[1];
   const bMeta = botones(container).find((b) => b.hasAttribute("aria-pressed") && b.textContent === meta.refFmt);
-  ok(!!bMeta, `se puede cambiar la vara a tu meta (${meta.refFmt})`);
+  ok(!!bMeta, `se puede cambiar la referencia a tu meta (${meta.refFmt})`);
   fireEvent.click(bMeta);
   ok(container.textContent.includes(meta.totalFmt), `…y el recuperable se recalcula — ${meta.totalFmt}`);
-  ok(meta.filas.slice(0, 4).every((x) => container.textContent.includes(x.nombre)), "…con las cuentas que quedan sobre ESA vara");
+  ok(meta.filas.slice(0, 4).every((x) => container.textContent.includes(x.nombre)), "…con las cuentas que quedan sobre ESA referencia");
+
   // B · costo contra precio · la variación de cada serie contra sí misma
   ok(T.includes("Costo contra precio"), "el lado del costo está");
   ok(T.includes(cp.lectura), `con su lectura, que sigue al dato — "${cp.lectura.slice(0, 70)}…"`);
@@ -324,13 +296,6 @@ H("[1d] DÓNDE SE DETERIORA EL RESULTADO · la identidad, la venta no alcanzada 
   ok(T.includes(cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`),
     `y el efecto en plata — ${cp.comprimenN ? `−${cp.perdidaFmt} perdidos` : `+${cp.gananciaFmt} ganados`}`);
   ok(T.includes("indicado"), "el efecto va rotulado INDICADO: es una variación derivada, no el margen contable");
-
-  // ── MARGEN NO CAPTURADO ──
-  ok(T.includes("Margen no capturado"), "el lado del margen está");
-  ok(T.includes(d.margen.insight), "…con su insight");
-  ok(d.margen.n === 0 || T.includes(d.margen.enJuegoFmt), `…y la contribución en juego — ${d.margen.enJuegoFmt}`);
-  for (const x of d.margen.filas.slice(0, 4)) ok(T.includes(x.nombre) && T.includes(x.enJuegoFmt), `cuenta ${x.nombre} con ${x.enJuegoFmt}`);
-  ok(d.margen.filas.slice(0, 4).filter((x) => x.probadoFmt).every((x) => T.includes(x.probadoFmt)), "…y lo probado de cada una donde lo hay");
   cleanup();
 }
 
@@ -500,10 +465,11 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   const vPlano = ventanas(T, R.tension.enJuegoFmt);
   ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|el plano concentra|que explican el|Dentro de ellos/i.test(w)),
     `las ${vPlano.length} apariciones de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
-  // el TOTAL de la brecha ($5.0M) es un tercer universo y también se declara, A LA VISTA (no solo en el tooltip)
-  ok(T.includes(`toda la cartera, las ${R.rows.length} cuentas del negocio`), "el total de la brecha declara su universo a la vista");
-  ok(T.includes(R.deterioro.margen.enJuegoFmt) && T.includes("bajo tu benchmark"),
-    "…y el monto de las cuentas materiales lleva SU etiqueta, distinta de la del total");
+  // el recuperable de acciones comerciales es OTRO alcance (las cuentas sobre una referencia de carga, no las de
+  // brecha material) y también viene con su universo pegado
+  const rec = R.deterioro.margen.acciones.referencias[0];
+  ok(ventanas(T, rec.totalFmt).every((w) => /promedio de tu cartera|recuperables llevando/i.test(w)),
+    `${rec.totalFmt} declara de dónde sale: las cuentas sobre el promedio de la cartera`);
   cleanup();
 }
 
@@ -630,7 +596,11 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   const cabecera = T.split("Evidencia completa")[0];
   ok(!/debilit|deterioran|dañ|por culpa|causan/i.test(cabecera), "la cabecera no atribuye causa: localiza dónde está la brecha");
   ok(!/sector|industria|estándar de la industria/i.test(cabecera), "la referencia se narra como TUYA, nunca sectorial");
-  ok(/rutas de investigación abiertas — no causas/.test(T), "costo, precio y composición quedan declarados como rutas ABIERTAS");
+  // costo/precio/composición siguen declarados como pendientes de aislar — ahora en cada fila de decisión del
+  // bloque 03, que es donde el usuario decide, y en la nota del costo contra precio.
+  ok(/separar costo, precio y composición/i.test(T), "costo, precio y composición quedan declarados como pendientes de aislar");
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado" && T.includes("indicado"),
+    "y el efecto costo/precio nunca se presenta como probado");
   ok(!/rentabilidad/i.test(cabecera), "no le llama rentabilidad a un margen");
   cleanup();
 }
@@ -646,7 +616,8 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
     [R.veredicto.soporte, "la lectura de alcance"],
     [R.tension.reconciliaCorta, "la reconciliación cabeza/cola"],
     [R.evolutivo.lectura, "la lectura del año"],
-    [R.formacion.lectura, "el reparto de la venta"],
+    [R.deterioro.margen.acciones.lectura, "la lectura de acciones comerciales"],
+    [R.deterioro.margen.costoPrecio.lectura, "la lectura de costo contra precio"],
     [R.sostiene.vistas[0].lectura, "la lectura de quién sostiene"],
     [R.prioridades.encabezado, "el encabezado de decisiones"],
   ]) ok(veces(aguja) === 1, `"${que}" aparece UNA sola vez — ${veces(aguja)}`);

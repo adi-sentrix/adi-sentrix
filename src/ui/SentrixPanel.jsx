@@ -1445,8 +1445,8 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
             <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
-          <ResumenMovimiento num="02" title="Dónde se deteriora el resultado"
-            def={"Los dos deterioros, cada uno contra una referencia declarada: la venta que no se alcanzó (contra tu presupuesto o contra el período comparable) y el margen que no se capturó (contra tu benchmark). Arriba, la cuenta de cómo se forma el margen, con el estatus de cada línea — ahí se ve por qué el costo no se puede afirmar como causa: no está medido, sale por diferencia."}>
+          <ResumenMovimiento num="02" title="Dónde se deteriora el margen"
+            def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregás en acciones comerciales (contra el promedio de tu cartera o contra tu meta) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
             <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           <ResumenMovimiento num="03" title="Qué hacer primero"
@@ -1958,158 +1958,27 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
  * solo puede afirmarse contra una referencia autorizada, así que declara CUÁL usa — y la descomposición de precio
  * y volumen aparece únicamente contra el año anterior, que es la única referencia que trae unidades. */
 function ResumenDeterioro({ R, onFicha, onAsk }) {
-  const f = R.formacion, d = R.deterioro, p = R.puente;
-  const [ref, setRef] = useState(d ? d.venta.porDefecto : null);
-  // la vara de las acciones comerciales: el PROMEDIO de tu cartera (realista) o tu META (aspiracional). Arranca en
-  // el promedio — es la que el owner pidió: compararte con vos mismo antes que con un ideal.
+  const d = R.deterioro;
+  // la referencia de las acciones comerciales: el PROMEDIO de tu cartera (realista) o tu META (aspiracional).
+  // Arranca en el promedio — es la que el owner pidió: compararte con vos mismo antes que con un ideal.
   const [varaAcc, setVaraAcc] = useState("promedio");
-  if (!f || !d) return null;
-  const rv = d.venta.referencias.find((x) => x.key === ref) || d.venta.referencias[0];
+  if (!d) return null;
   const acc = d.margen.acciones, cp = d.margen.costoPrecio;
   const ra = acc ? (acc.referencias.find((x) => x.key === varaAcc) || acc.referencias[0]) : null;
-  // PARTICIÓN (probado + abierto = la brecha total) vs LOCALIZACIÓN (indicado): el módulo marca cuál es cuál.
-  const partes = (p.tramos || []).filter((t) => t.esParte);
-  const pctProbado = p.brechaTotal > 0 ? Math.max(1.5, Math.min(100, (p.probado / p.brechaTotal) * 100)) : 0;
   const _chip = (estatus, texto) => (
     <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(estatus), border: `1px solid ${_rcEstatusCol(estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{texto || estatus}</span>
   );
   return (
     <div style={_RC_CARD}>
-      <div style={{ ..._RC_HEAD, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
-        Cómo se forma el margen
-        <InfoDot def={"La cuenta completa, de la venta a la contribución. Cierra exacto — y por eso mismo hay que mirar el estatus de cada línea: la venta y las acciones comerciales están MEDIDAS, el costo NO: se obtiene por diferencia entre las tres. Eso es lo que hace que el costo sea una ruta a investigar y nunca una causa que se pueda afirmar. Si mañana entra el costo real del ERP, esta línea pasa de indicada a probada y la brecha abierta se achica."} align="left"/>
-      </div>
-      {/* LA IDENTIDAD COMO TIRA: se lee de un vistazo como una cuenta, no como una lista */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(158px, 1fr))", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-        {f.lineas.map((l, i) => (
-          <div key={l.key} title={l.nota}
-            style={{ padding: "11px 13px", borderLeft: i === 0 ? "none" : `1px solid ${C.border}`, background: l.key === "contribucion" ? "rgba(47,184,218,0.04)" : "transparent", display: "flex", flexDirection: "column", gap: 5 }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ ..._RC_HEAD, fontSize: 9 }}>{l.label}</span>{_chip(l.estatus)}
-            </span>
-            <span style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-              {l.signo ? <span style={{ fontFamily: MONO, fontSize: 15, color: C.textMuted }}>{l.signo}</span> : null}
-              <span style={{ fontFamily: MONO, fontSize: 19, fontWeight: 600, color: l.key === "contribucion" ? C.celeste : C.text, fontVariantNumeric: "tabular-nums", letterSpacing: "0.2px" }}>{l.montoFmt}</span>
-              <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{l.pctFmt}</span>
-            </span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5, marginTop: 8 }}>{f.lectura}</div>
-      {f.lineas.filter((l) => l.estatus !== "probado").map((l) => (
-        <div key={l.key} style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 7, paddingLeft: 10, borderLeft: `2px solid ${_rcEstatusCol(l.estatus)}` }}>
-          <b style={{ color: C.textSub }}>{l.label}:</b> {l.nota}
-        </div>
-      ))}
-
-      <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
-        <div style={{ fontSize: 13.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Dónde se frena la venta y dónde se diluye el margen</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-          {/* ── VENTA NO ALCANZADA · solo contra una referencia AUTORIZADA, y se declara cuál ── */}
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
-              <span style={{ ..._RC_HEAD, fontSize: 9, display: "flex", alignItems: "center", gap: 4 }}>
-                Venta no alcanzada
-                <InfoDot def={`"Pérdida de ingresos" solo se puede afirmar contra una referencia declarada, así que acá elegís cuál. TU PRESUPUESTO existe por cliente y suma exacto el total del período, pero declara monto y no unidades: contra él no se puede separar precio de volumen. EL AÑO ANTERIOR trae venta Y unidades, así que ahí sí se descompone — y la descomposición cierra exacta (volumen + precio = la diferencia). Separar los dos efectos es aritmética; por qué cayó cada uno es lo que hay que ir a mirar.`} align="left"/>
-              </span>
-              <span style={{ display: "flex", gap: 3 }}>
-                {d.venta.referencias.map((x) => (
-                  <button key={x.key} onClick={() => setRef(x.key)} aria-pressed={rv.key === x.key}
-                    style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${rv.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: rv.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: rv.key === x.key ? C.celeste : C.textMuted, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.label}</button>
-                ))}
-              </span>
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: rv.n ? C.text : C.textMuted, fontVariantNumeric: "tabular-nums" }}>{rv.n ? rv.faltaTotalFmt : "—"}</span>
-              <span style={{ fontSize: 11, color: C.textMuted }}>{rv.n ? `en ${rv.n} ${rv.n === 1 ? "cuenta" : "cuentas"} por debajo ${rv.refLabel}` : `ninguna cuenta por debajo ${rv.refLabel}`}</span>
-            </div>
-            {rv.n > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
-                {rv.filas.slice(0, 4).map((x) => (
-                  <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
-                    <span style={{ flex: "0 1 110px", minWidth: 88, fontSize: 11.5, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : x.nombre}
-                    </span>
-                    <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.red, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>−{x.faltaFmt}</span>
-                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.cumplimientoFmt}</span>
-                    {x.pv ? (
-                      <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 9.5, color: C.textMuted, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
-                        title={`volumen ${x.pv.volumenFmt} · precio ${x.pv.precioFmt} — la suma cierra exacto con la diferencia`}>
-                        vol {x.pv.volumenFmt} · pre {x.pv.precioFmt}
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-                {rv.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{rv.filas.length - 4} más en la cartera completa.</span>}
-              </div>
-            )}
-            <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${rv.n ? C.red : C.green}` }}>{rv.insight}</div>
-            <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{rv.nota}</div>
-          </div>
-
-          {/* ── MARGEN NO CAPTURADO · bajo benchmark, con lo probado y lo abierto ── */}
-          <div>
-            <div style={{ ..._RC_HEAD, fontSize: 9, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
-              Margen no capturado
-              <InfoDot def={`Las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más contra tu benchmark — el mismo criterio del detector, del cuadro y de lo que ADI responde. "En juego" es la contribución que esa cuenta no captura. Lo PROBADO es el exceso medido de acciones comerciales sobre tu meta: la única parte con una causa cuantificada. El resto queda ABIERTO entre costo, precio y composición, que el motor todavía no aísla — y decirlo es más útil que rellenarlo.`} align="left"/>
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: d.margen.n ? C.text : C.textMuted, fontVariantNumeric: "tabular-nums" }}>{d.margen.n ? d.margen.enJuegoFmt : "—"}</span>
-              <span style={{ fontSize: 11, color: C.textMuted }}>{d.margen.n ? `en ${d.margen.n} ${d.margen.n === 1 ? "cuenta" : "cuentas"} bajo tu benchmark` : "ninguna cuenta cede margen material"}</span>
-            </div>
-            {/* ⚠️ PARTICIÓN vs LOCALIZACIÓN, que el owner selló hace dos rondas: probado + abierto = la brecha
-                TOTAL de la cartera (una partición real, con su barra). El monto de arriba es OTRO universo —
-                las cuentas con brecha material— y por eso lleva su propia etiqueta. Dos cifras parecidas solo
-                se leen bien si cada una dice de dónde sale. */}
-            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px dashed ${C.border}` }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 11, color: C.textMuted }}>De la brecha total de</span>
-                <span style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600, color: C.text, fontVariantNumeric: "tabular-nums" }}>{p.brechaTotalFmt}</span>
-                <span style={{ fontSize: 11, color: C.textMuted }}>— toda la cartera, las {R.rows.length} cuentas del negocio:</span>
-              </div>
-              <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,0.07)", marginTop: 8 }}>
-                <div style={{ width: `${pctProbado}%`, background: C.green, opacity: 0.85 }} title={`${p.probadoFmt} con causa medida`}/>
-                <div style={{ flex: 1, background: "rgba(255,255,255,0.10)" }} title={`${p.abiertoFmt} por aislar`}/>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 9 }}>
-                {partes.map((t) => (
-                  <div key={t.estatus} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                    {_chip(t.estatus)}
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.textSub, lineHeight: 1.5 }}>
-                      <b style={{ color: C.text, fontWeight: 600 }}>{t.titulo}.</b> {t.detalle}
-                    </span>
-                    <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: _rcEstatusCol(t.estatus), whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{t.monto}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {d.margen.n > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
-                {d.margen.filas.slice(0, 4).map((x) => (
-                  <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, borderLeft: `2px solid ${_rcEstatusCol(x.estatus)}`, background: "rgba(255,255,255,0.015)" }}>
-                    <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
-                    </span>
-                    <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: C.amber, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.enJuegoFmt}</span>
-                    <span style={{ fontFamily: MONO, fontSize: 10, color: C.textMuted, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{x.brechaFmt}</span>
-                    <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                      {x.probadoFmt ? <span style={{ fontFamily: MONO, fontSize: 9.5, color: C.green, fontVariantNumeric: "tabular-nums" }} title={`acciones comerciales ${x.excesoFmt} sobre tu meta`}>{x.probadoFmt}</span> : null}
-                      {_chip(x.estatus)}
-                    </span>
-                  </div>
-                ))}
-                {d.margen.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{d.margen.filas.length - 4} más en la cartera completa.</span>}
-              </div>
-            )}
-            <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${d.margen.n ? C.amber : C.green}` }}>{d.margen.insight}</div>
-            <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{d.margen.nota}</div>
-          </div>
-        </div>
-
+      {/* SOLO LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07: "dejá solo lo que está en la foto"). Salieron de
+          esta sección la identidad venta−costo−acciones=contribución, la VENTA NO ALCANZADA y el detalle de
+          MARGEN NO CAPTURADO. Los datos siguen vivos en el módulo: `deterioro.venta` es lo que alimenta el
+          cruce del bloque 03 —una cuenta bajo presupuesto Y bajo benchmark es la que no hay que empujar con
+          descuento—, así que sacarlos de la vista no rompe esa lectura. */}
         {/* ── LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07) ──────────────────────────────────────────────────────
             "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta
             el precio." Las dos se miden acá, cada una contra su propia referencia y con su monto. ── */}
-        <div style={{ marginTop: 15, paddingTop: 13, borderTop: `1px solid ${C.borderLight}` }}>
+        <div style={{}}>
           <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>Qué mueve el margen: lo que entregás y cómo se movió tu costo contra tu precio</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {/* A · ACCIONES COMERCIALES · contra el promedio de tu cartera Y contra tu meta */}
@@ -2178,7 +2047,6 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 }
