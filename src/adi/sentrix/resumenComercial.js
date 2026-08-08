@@ -924,13 +924,23 @@ function _prioridades(rows, deterioro, insights) {
   const alPromedio = new Map(((deterioro.margen.acciones.referencias.find((x) => x.key === "promedio") || { filas: [] }).filas)
     .map((f) => [f.nombre, f]));
   const promedioFmt = deterioro.margen.acciones.promedioFmt;
+  /* ⚠️ EL GRUPO "PROTEGER EL MARGEN" SE ELIMINÓ (owner 2026-08-08, decisión tomada con la consecuencia declarada).
+   * Eran las cuentas bajo presupuesto Y cediendo margen. La card confundía: repetía casi palabra por palabra el
+   * encabezado que va justo arriba.
+   *
+   * LO QUE NO SE PIERDE, y es lo que importa: esas cuentas siguen existiendo y siguen yendo PRIMERO — ahora dentro
+   * de "Recuperar margen", ordenadas adelante, y con su cifra de venta a la vista. Y el AVISO del error más caro
+   * —descontar donde el margen ya se diluye— sigue en el encabezado del bloque, que es donde se lee primero. El
+   * grupo era el envase; la advertencia era el contenido, y esa no se toca.
+   *
+   * Un margen que cede manda sobre una venta que falta: por eso quien tiene los dos problemas cae en margen. */
   const grupos = [
-    { key: "proteger", label: "Proteger el margen antes de empujar la venta", tono: "alerta",
-      criterio: "Bajo presupuesto Y cediendo margen material.",
-      porQue: "Primero recuperar el margen, después la venta." },
+    // ⚠️ El porqué dejó de decir "el volumen no es el problema": al absorber a las cuentas que ADEMÁS venden menos
+    // de lo planeado, esa frase pasó a ser falsa para parte del grupo. Ahora explica el orden, que es lo que
+    // reemplazó a la card eliminada.
     { key: "recuperarMargen", label: "Recuperar margen", tono: "aviso",
-      criterio: "Venden lo que planeaste, pero cada peso vendido deja menos de lo que debería.",
-      porQue: "El volumen no es el problema." },
+      criterio: "Cada peso que venden deja menos de lo que debería.",
+      porQue: "Arriba van las que además venden menos de lo planeado." },
     // ⚠️ EN CASTELLANO (owner 2026-08-08: "debe explicarse más fácil, no se entiende; explicalo sencillo").
     // "Bajo presupuesto pero su margen no cede" es la definición del criterio, no una explicación: obliga al
     // lector a traducirla. Se dice lo que le pasa a la cuenta y qué puede hacer, en ese orden.
@@ -938,9 +948,10 @@ function _prioridades(rows, deterioro, insights) {
       criterio: "Venden menos de lo que planeaste, pero su margen está sano.",
       porQue: "Podés empujarles volumen sin resignar margen." },
   ];
+  const ambos = rows.filter((r) => bajoVenta.has(r.name) && bajoMargen.has(r.name)).map((r) => r.name);
   const clasificar = (name) => {
     const v = bajoVenta.has(name), m = bajoMargen.has(name);
-    return v && m ? "proteger" : m ? "recuperarMargen" : v ? "recuperarVenta" : null;
+    return m ? "recuperarMargen" : v ? "recuperarVenta" : null;
   };
   const out = grupos.map((g) => ({ ...g, filas: [] }));
   const idx = Object.fromEntries(out.map((g, i) => [g.key, i]));
@@ -975,7 +986,12 @@ function _prioridades(rows, deterioro, insights) {
       _k: k, _m: m, _v: v, _sobrePromedio: alPromedio.has(r.name),
     });
   }
-  for (const g of out) g.filas.sort((a, b) => b.impacto - a.impacto);
+  // Ordenadas por impacto, PERO las que arrastran los dos deterioros van primero: la card que las separaba se
+  // eliminó, así que su prioridad tiene que sobrevivir en el orden — si no, sacar el envase habría sacado también
+  // la jerarquía que el envase transmitía.
+  const _ambos = new Set(ambos);
+  for (const g of out) g.filas.sort((a, b) =>
+    (_ambos.has(b.entidad) - _ambos.has(a.entidad)) || (b.impacto - a.impacto));
   // LA ACCIÓN Y EL PENDIENTE SUBEN AL GRUPO cuando TODAS sus filas dicen lo mismo — que es el caso real: dentro de
   // un grupo el problema es el mismo por construcción, porque el grupo ES el criterio. Si alguna vez difieren, se
   // queda por fila y no se promete un encabezado que no cubre a todos.
@@ -1017,22 +1033,36 @@ function _prioridades(rows, deterioro, insights) {
       }
       delete f._k; delete f._m; delete f._v; delete f._sobrePromedio;
     }
-    // recalculado DESPUÉS de ajustar las acciones fila por fila: si el grupo quedó mezclado, no hay título común
-    // y cada fila se queda con la suya — un encabezado que no cubre a todos es peor que la repetición.
-    g.accionTitulo = _comun(g.filas, (x) => _verbo(x.accionCorta));
+    /* ⚠️ TÍTULO PARA LA MAYORÍA, Y LA EXCEPCIÓN SE DECLARA. Antes: si una sola fila difería, el título desaparecía
+     * y las CINCO volvían a repetir su frase — o sea que una excepción arruinaba la lectura de todo el grupo. Y al
+     * revés, poner el título sin marcar la excepción sería prometer una acción que no cubre a todos.
+     * La salida es que el título lleve la acción dominante y SOLO las filas que se apartan digan la suya. */
+    const verbos = g.filas.map((x) => _verbo(x.accionCorta));
+    const cuenta = verbos.reduce((m, v) => m.set(v, (m.get(v) || 0) + 1), new Map());
+    const [dominante] = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0] || [null];
+    g.accionTitulo = dominante && cuenta.get(dominante) > g.filas.length / 2 ? dominante : null;
+    for (const f of g.filas) f.accionVisible = !g.accionTitulo || _verbo(f.accionCorta) !== g.accionTitulo;
     g.faltaComun = _comun(g.filas, (x) => x.faltaCorta);
+    /* ⚠️ CUANDO EL GRUPO ES MIXTO, EL PENDIENTE NO PUEDE DESAPARECER. Si las filas declaran pendientes distintos
+     * no hay uno "común" que poner al pie — y sin esto la vista no mostraba NINGUNO, que es exactamente perder la
+     * declaración por un tecnicismo. Se publican los DISTINTOS, deduplicados: van todos al pie, sin repetirse una
+     * vez por fila. Decir menos veces no puede convertirse en no decir. */
+    g.faltas = [...new Set(g.filas.map((x) => x.faltaCorta).filter(Boolean))];
   }
   const vivos = out.filter((g) => g.filas.length);
-  const proteger = out.find((g) => g.key === "proteger");
   return {
     grupos: vivos,
-    // EL ENCABEZADO · adaptativo, y con el aviso solo cuando el cruce REALMENTE lo justifica
+    /* EL ENCABEZADO · adaptativo, y con el aviso solo cuando el cruce REALMENTE lo justifica.
+     * ⚠️ ACÁ vive ahora el aviso del error más caro. Al eliminarse la card que agrupaba a las cuentas con los dos
+     * deterioros (owner 2026-08-08), esta frase quedó como su ÚNICO hogar — y por eso no se toca: es la única
+     * línea de la vista que impide el movimiento que más cuesta, descontar donde el margen ya se diluye. */
     encabezado: !vivos.length
       ? "Ninguna cuenta queda bajo su presupuesto ni cede margen material: no hay una prioridad que el dato justifique."
-      : proteger && proteger.filas.length
-        // El aviso del error más caro vive ACÁ y en un solo lugar: antes se repetía en el porqué del grupo.
-        ? `Empezá por ${proteger.filas.length === 1 ? proteger.filas[0].entidad : `las ${proteger.filas.length} cuentas`}: bajo presupuesto Y cediendo margen. Empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
+      : ambos.length
+        ? `Empezá por ${ambos.length === 1 ? ambos[0] : `las ${ambos.length} cuentas que están bajo presupuesto Y cediendo margen`}${ambos.length === 1 ? ": vende menos de lo planeado Y cede margen" : ""}. Empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
         : "Las cuentas ordenadas por lo que está en juego, separadas por tipo de problema.",
+    // el cruce sigue publicado aunque ya no tenga card propia: es lo que el encabezado afirma y el gate verifica
+    ambos,
     // el cruce completo, para el gate y para quien quiera auditarlo
     total: vivos.reduce((s, g) => s + g.filas.length, 0),
   };

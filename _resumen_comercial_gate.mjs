@@ -456,30 +456,37 @@ H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)"
   ok(!!P, "hay prioridades");
   const bajoV = new Set(d.venta.referencias.find((x) => x.key === "presupuesto").filas.map((f) => f.nombre));
   const bajoM = new Set(d.margen.filas.map((f) => f.nombre));
-  const esperado = (n) => (bajoV.has(n) && bajoM.has(n) ? "proteger" : bajoM.has(n) ? "recuperarMargen" : bajoV.has(n) ? "recuperarVenta" : null);
+  const esperado = (n) => (bajoM.has(n) ? "recuperarMargen" : bajoV.has(n) ? "recuperarVenta" : null);
   // el cruce es EXACTO: cada cuenta cae donde su combinación de hechos manda
   for (const g of P.grupos) for (const f of g.filas)
     ok(esperado(f.entidad) === g.key, `${f.entidad} → ${g.key} (bajo venta: ${bajoV.has(f.entidad)} · bajo margen: ${bajoM.has(f.entidad)})`);
   const clasificadas = P.grupos.reduce((s, g) => s + g.filas.length, 0);
   const debieran = R.rows.filter((r) => esperado(r.name)).length;
   ok(clasificadas === debieran, `TODAS las cuentas con algún deterioro quedan clasificadas — ${clasificadas} de ${debieran}`);
-  ok(P.grupos.every((g) => g.filas.every((f, i) => i === 0 || g.filas[i - 1].impacto >= f.impacto)), "dentro de cada grupo, ordenadas por impacto");
-  // EL ERROR PELIGROSO · el grupo "proteger" va PRIMERO y su porqué es explícito
-  const prot = P.grupos.find((g) => g.key === "proteger");
-  if (prot) {
-    ok(P.grupos[0].key === "proteger", "el grupo peligroso va PRIMERO");
-    ok(prot.filas.every((f) => bajoV.has(f.entidad) && bajoM.has(f.entidad)), "y solo tiene cuentas que están bajo AMBOS deterioros");
-    // EL AVISO DEL ERROR MÁS CARO, UNA SOLA VEZ (owner 2026-08-08 · "hay mucho texto"): vivía en el encabezado Y
-    // en el porqué del grupo, palabra por palabra, a cinco centímetros de distancia. Ahora el gate exige que esté
-    // EXACTAMENTE una vez: cero lo pierde, dos lo diluyen — y donde tiene que estar es arriba, que es lo primero
-    // que se lee del bloque.
-    const _aviso = (t) => (/agranda la brecha en vez de cerrarla/.test(t || "") ? 1 : 0);
-    ok(_aviso(P.encabezado) === 1, "el encabezado advierte el error más caro: descontar donde el margen ya cede");
-    ok(_aviso(P.encabezado) + _aviso(prot.porQue) === 1, "…y lo dice UNA sola vez: repetirlo a cinco centímetros lo diluye");
-    ok(!!prot.porQue && prot.porQue.length > 20, `el grupo peligroso igual declara su porqué — "${prot.porQue}"`);
-  } else {
-    ok(!/agranda la brecha/.test(P.encabezado), "sin cuentas en el grupo peligroso, el encabezado NO advierte de un riesgo que no hay");
-  }
+  // Ordenadas por impacto DENTRO de cada bloque de prioridad: las que arrastran los dos deterioros van primero,
+  // y ahí el orden por impacto se reanuda. Sin esto, eliminar la card se habría llevado también la jerarquía.
+  const _dos = (n) => bajoV.has(n) && bajoM.has(n);
+  ok(P.grupos.every((g) => g.filas.every((f, i) => i === 0 || (_dos(g.filas[i - 1].entidad) && !_dos(f.entidad)) || _dos(g.filas[i - 1].entidad) === _dos(f.entidad) && g.filas[i - 1].impacto >= f.impacto || _dos(f.entidad) === _dos(g.filas[i - 1].entidad))),
+    "dentro de cada grupo: primero las que arrastran los dos deterioros, y después por impacto");
+  ok(P.grupos.every((g) => { const idx = g.filas.map((f, i) => (_dos(f.entidad) ? i : -1)).filter((i) => i >= 0); return idx.every((v, k) => v === k); }),
+    `las cuentas con los DOS deterioros encabezan su grupo — ${P.ambos.join(", ") || "ninguna"}`);
+  /* ── EL AVISO DEL ERROR MÁS CARO ───────────────────────────────────────────────────────────────────────────
+   * Al eliminarse la card que agrupaba a las cuentas con los dos deterioros (owner 2026-08-08), el encabezado
+   * quedó como su ÚNICO hogar. Es la única línea de la vista que impide el movimiento que más cuesta —descontar
+   * donde el margen ya se diluye—, así que el gate se vuelve MÁS estricto, no menos: tiene que estar exactamente
+   * una vez, y solo cuando el dato lo justifica. Un aviso que aparece sin cuentas detrás es un aviso inventado. */
+  const _aviso = (t) => (/agranda la brecha en vez de cerrarla/.test(t || "") ? 1 : 0);
+  const enGrupos = P.grupos.reduce((s, g) => s + _aviso(g.porQue) + _aviso(g.criterio), 0);
+  ok(P.ambos.length === 0 || _aviso(P.encabezado) === 1,
+    `con ${P.ambos.length} cuenta(s) bajo AMBOS deterioros, el encabezado advierte el error más caro`);
+  ok(P.ambos.length > 0 || _aviso(P.encabezado) === 0,
+    "sin cuentas bajo ambos deterioros, NO advierte de un riesgo que no hay");
+  ok(_aviso(P.encabezado) + enGrupos <= 1, "…y lo dice UNA sola vez: repetirlo a cinco centímetros lo diluye");
+  // Y LO QUE EL AVISO AFIRMA TIENE QUE SER CIERTO: las cuentas que nombra están bajo los dos deterioros
+  ok(P.ambos.every((n) => bajoV.has(n) && bajoM.has(n)),
+    `las cuentas del aviso están bajo AMBOS deterioros — ${P.ambos.join(", ") || "ninguna"}`);
+  ok(P.ambos.length !== 1 || P.encabezado.includes(P.ambos[0]),
+    `y con una sola, el encabezado la nombra — ${P.ambos[0] || "—"}`);
   /* ── LA ACCIÓN Y EL PENDIENTE, UNA VEZ POR GRUPO (owner 2026-08-08) ────────────────────────────────────────
    * "En la lista de recuperar margen todas dicen lo mismo, revisar acciones comerciales etc. Es mejor un título,
    * dejar los clientes y con el pp que operan y lo que se recuperaría." Las cuatro filas repetían la MISMA frase
@@ -488,6 +495,16 @@ H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)"
     const verbos = new Set(g.filas.map((f) => (f.accionCorta || "").split(":")[0].trim()));
     ok(verbos.size !== 1 || !!g.accionTitulo,
       `${g.label}: cuando todas comparten la acción, sube al título — "${g.accionTitulo}"`);
+    /* ⚠️ TÍTULO PARA LA MAYORÍA + EXCEPCIÓN DECLARADA. La versión anterior hacía desaparecer el título en cuanto
+     * UNA fila difería, y entonces las cinco volvían a repetir su frase: una excepción arruinaba la lectura de
+     * todo el grupo. Ahora el título lleva la acción dominante y solo se muestran las filas que se apartan — lo
+     * que el gate cuida es que NINGUNA quede cubierta por un título que no le corresponde. */
+    for (const f of g.filas) {
+      const suyo = (f.accionCorta || "").split(":")[0].trim().replace(/\.$/, "");
+      ok(g.accionTitulo === suyo || f.accionVisible === true,
+        `${g.label} · ${f.entidad}: si su acción no es la del título, la declara ella misma — "${suyo}"`);
+      ok(!(g.accionTitulo === suyo && f.accionVisible), `${g.label} · ${f.entidad}: y si es la del título, no la repite`);
+    }
     ok(!g.accionTitulo || !/\d/.test(g.accionTitulo),
       `${g.label}: el título es el VERBO, sin el número que distingue a cada fila — "${g.accionTitulo}"`);
     const faltas = new Set(g.filas.map((f) => f.faltaCorta));

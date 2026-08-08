@@ -2266,9 +2266,10 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
                       {c.valor} <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, fontWeight: 400, color: C.textMuted }}>{c.etiqueta}</span>
                     </span>
                   ))}
-                  {/* si el grupo quedó MEZCLADO no hay acción común arriba, y entonces cada fila declara la suya:
-                      una cuenta sin palanca medida no puede heredar "revisar acciones comerciales" */}
-                  {!g.accionTitulo ? (
+                  {/* SOLO LA EXCEPCIÓN SE DECLARA: el título del grupo lleva la acción dominante, y la fila que se
+                      aparta dice la suya. Una cuenta sin palanca medida no puede heredar "revisar acciones
+                      comerciales", pero por una excepción no se repite la frase en las otras cuatro. */}
+                  {x.accionVisible ? (
                     <span style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 11, color: C.textMuted }}>{x.accionCorta}</span>
                   ) : null}
                 </span>
@@ -2283,8 +2284,11 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
               </div>
             ))}
           </div>
-          {/* EL PENDIENTE, UNA VEZ POR GRUPO · era idéntico en todas las filas y no se negocia que esté */}
-          {g.faltaComun ? <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{g.faltaComun}</div> : null}
+          {/* EL PENDIENTE, AL PIE Y SIN REPETIRSE · si las filas declaran pendientes distintos van los DISTINTOS,
+              no ninguno: decir menos veces no puede convertirse en no decir. */}
+          {(g.faltas || []).map((t, j) => (
+            <div key={j} style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: j === 0 ? 7 : 3 }}>{t}</div>
+          ))}
         </div>
       ))}
       {/* El enlace "O que ADI cuente el caso <entidad>" se ELIMINÓ (owner 2026-08-08): cada fila ya trae su

@@ -164,7 +164,8 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   const _g0 = R.prioridades.grupos.find((g) => g.filas.some((f) => f.entidad === i0.entidad));
   ok(!!_g0 && T.includes(_g0.accionTitulo || _g0.filas.find((f) => f.entidad === i0.entidad).accionCorta),
     "la acción concreta está a la vista: en el título del grupo, o en la fila si el grupo quedó mezclado");
-  ok(!!_g0 && T.includes(_g0.faltaComun || i0.faltaCorta), "…y qué falta aislar, al pie del grupo");
+  ok(!!_g0 && (_g0.faltas || []).length > 0 && _g0.faltas.every((t) => T.includes(t)),
+    "…y qué falta aislar, al pie del grupo — todos los distintos, ninguno de más");
   ok(!T.includes(i0.razon), "la tarjeta larga de informe ya no está — quedó la fila corta");
   // la primera profundización sugerida YA NO es una banda aparte: es la PRIMERA FILA de decisión (owner: no
   // repetir cifras ni conceptos). Se verifica que ese lugar lo ocupe la cuenta de mayor prioridad del módulo.
@@ -173,9 +174,14 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   // primero. Se comprueba sobre la posición real en el texto, que es lo que el usuario recorre.
   const _gs = R.prioridades.grupos;
   ok(_gs.length < 2 || T.indexOf(_gs[0].label) < T.indexOf(_gs[1].label),
-    `el grupo peligroso abre el bloque 03 — "${_gs[0].label}"`);
-  ok(_gs[0].filas[0].entidad === R.primera.entidad || _gs.some((g) => g.filas[0].entidad === R.primera.entidad),
-    `y la cuenta de mayor prioridad encabeza su grupo — ${R.primera.entidad}`);
+    `el margen abre el bloque 03 — "${_gs[0].label}"`);
+  /* El orden cambió a propósito (owner 2026-08-08): la card que separaba a las cuentas con los DOS deterioros se
+   * eliminó, así que su prioridad sobrevive en el ORDEN — van primero dentro de su grupo. "La de mayor impacto
+   * encabeza" ya no describe la regla vigente; describe la anterior. */
+  const _ambos = new Set(R.prioridades.ambos);
+  ok(_gs.every((g) => g.filas.map((f) => (_ambos.has(f.entidad) ? 1 : 0)).every((v, k, a) => k === 0 || a[k - 1] >= v)),
+    `las cuentas con los dos deterioros encabezan su grupo — ${R.prioridades.ambos.join(", ") || "ninguna"}`);
+  ok(!R.prioridades.ambos.length || T.includes(R.prioridades.ambos[0]), "…y el encabezado del bloque las nombra");
   // EL GRÁFICO: las barras del módulo, con sus nombres y montos
   for (const b of R.pareto.ventas.barras) ok(T.includes(b.nombre) && T.includes(b.fmt), `barra "${b.nombre}" (${b.fmt}) dibujada`);
   ok(T.includes(R.pareto.ventas.cruce80), `el cruce real del 80% se nombra — ${R.pareto.ventas.cruce80}`);
