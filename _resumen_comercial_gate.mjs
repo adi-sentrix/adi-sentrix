@@ -171,5 +171,97 @@ H("[9] CONSISTENCIA · una sola verdad con el cuadro");
   ok(R.cuadro === c || R.cuadro.rows.length === c.rows.length, "la tabla completa sigue disponible como evidencia opcional");
 }
 
+H("[10] EL AÑO MES A MES · tres series que RECONCILIAN (owner 2026-08-07)");
+{
+  const e = R.evolutivo;
+  ok(!!e && Array.isArray(e.series) && e.series.length === 3, `las TRES series están — ${e && e.series.map((s) => s.key).join(" · ")}`);
+  ok(e.series.map((s) => s.key).join(",") === "actual,anterior,presupuesto", "este año · año anterior · presupuesto, en ese orden");
+  // LA RECONCILIACIÓN QUE PEDÍA EL OWNER: el cierre del gráfico ES el total del negocio, no otro número parecido
+  ok(e.totalActual === R.total.ventas, `el total del evolutivo ES el del negocio — ${e.totalActualFmt} === ${R.total.ventas}K`);
+  ok(e.series[0].totalFmt === R.kpis[0].valor, `…y por lo tanto el MISMO que muestra el KPI de ventas — ${e.series[0].totalFmt}`);
+  for (const s of e.series) {
+    const suma = s.valores.reduce((a, v) => a + v, 0);
+    ok(suma === s.total, `la serie "${s.key}" suma exactamente su total declarado — ${suma} === ${s.total}`);
+    ok(s.valores.length === e.meses.length, `…y tiene un valor por mes (${s.valores.length})`);
+  }
+  ok(e.series[0].anclada && e.series[1].anclada && !e.series[2].anclada,
+    "este año y el anterior se anclan a la venta oficial; el presupuesto NO — y se declara");
+  ok(e.series[2].estatus === "indicado" && e.series[0].estatus === "probado",
+    `el presupuesto es un plan (indicado), la venta real es dato (probado)`);
+  ok(/no se ancla/i.test(e.series[2].nota) && /no existe presupuesto por cliente/i.test(e.series[2].nota), "la serie sin anclar explica POR QUÉ no se ancla");
+  ok(/anclad/.test(e.nota) && /total oficial/.test(e.nota), "la nota del bloque declara el anclaje en vez de esconderlo");
+  ok(typeof e.vsAnteriorPct === "number" && Math.abs(e.vsAnteriorPct - ((e.series[0].total - e.series[1].total) / e.series[1].total) * 100) < 0.06,
+    `la variación se recalcula sobre las series ancladas — ${e.vsAnteriorFmt}`);
+  ok(e.lectura.includes(e.maxMes) && e.lectura.includes(e.minMes), `la lectura nombra el mes más alto y el más bajo — ${e.maxMes} / ${e.minMes}`);
+  ok(!/porque|debido a|causa/i.test(e.lectura), "la lectura DESCRIBE el movimiento del año, no lo explica (eso es el bloque 02)");
+  // el defecto que esto cerró: la variación salía del tenant CRUDO, ajena al escenario
+  const crisis = buildResumenComercial("crisis");
+  ok(crisis.evolutivo.totalActual === crisis.total.ventas, `en crisis también reconcilia — ${crisis.evolutivo.totalActualFmt}`);
+  ok(crisis.evolutivo.vsAnteriorPct < 0, `y la variación sigue al escenario, no al dato crudo — crisis: ${crisis.evolutivo.vsAnteriorFmt}`);
+  ok(crisis.kpis[0].pie.includes(crisis.evolutivo.vsAnteriorFmt.replace("+", "")), "el pie del KPI y el evolutivo cuentan la MISMA variación");
+}
+
+H("[11] LA COMPOSICIÓN DEL NEGOCIO · el gemelo global de la Ficha");
+{
+  const c = R.composicion;
+  ok(!!c && c.vistas.length === 3, "tres vistas declaradas");
+  ok(c.vistas.map((v) => v.key).join(",") === "grupo80,menorMargen,todos", `Grupo 80% · Menor margen · Todos — ${c.vistas.map((v) => v.label).join(" · ")}`);
+  ok(c.porDefecto === "grupo80", "abre en el Grupo 80% (el plano de decisión)");
+  ok(c.columnas.length === 7 && c.columnas.map((x) => x.key).includes("acciones"), `siete columnas, con Acciones comerciales — ${c.columnas.map((x) => x.label).join(" · ")}`);
+  ok(!c.columnas.some((x) => /rotaci/i.test(x.label)), "NO hay rotación: es del inventario, no del cliente (sería el primer dato inventado)");
+  const g80 = c.vistas[0], menor = c.vistas[1], todos = c.vistas[2];
+  ok(g80.n === R.plano.n && g80.filas.length === R.plano.n, `Grupo 80% = el plano — ${g80.n} clientes`);
+  ok(todos.n === R.rows.length, `Todos = la cartera completa — ${todos.n}`);
+  // MENOR MARGEN: los 5 con mayor brecha contra el benchmark, SIN importar si están en el 80%
+  const esperado = [...R.rows].filter((r) => typeof r.varaGap === "number").sort((a, b) => a.varaGap - b.varaGap).slice(0, 5).map((r) => r.name);
+  ok(menor.filas.map((f) => f.nombre).join(",") === esperado.join(","), `Menor margen = los 5 de mayor brecha contra tu benchmark — ${esperado.join(" · ")}`);
+  ok(menor.filas.every((f, i) => i === 0 || menor.filas[i - 1].varaGap <= f.varaGap), "vienen ordenados de peor a mejor brecha");
+  ok(menor.filas.some((f) => !f.enPlano), `incluye cuentas FUERA del grupo 80% — ${menor.filas.filter((f) => !f.enPlano).map((f) => f.nombre).join(", ") || "(ninguna en este set)"}`);
+  ok(/estén o no en el grupo 80%/.test(menor.nota) && /dentro del plano/.test(menor.nota), `la vista declara su universo — "${menor.nota}"`);
+  // participación: cierra la cartera (con el redondeo de cada fila declarado)
+  const sumaPart = todos.filas.reduce((s, f) => s + f.participacionPct, 0);
+  ok(Math.abs(sumaPart - 100) < 0.5, `las participaciones de Todos cubren la cartera — ${sumaPart.toFixed(1)}%`);
+  ok(/salvo el redondeo/.test(c.nota), "…y la nota no promete una exactitud que el redondeo rompe");
+  // cada fila declara referencia y estatus visual
+  const f0 = g80.filas[0];
+  for (const campo of ["participacionFmt", "ventaFmt", "contribucionFmt", "margenFmt", "unidadesFmt", "cargaFmt", "varaRefFmt", "bajoBenchmark", "sobreMeta", "enPlano"])
+    ok(campo in f0, `la fila declara \`${campo}\``);
+  ok(g80.filas.every((f) => f.varaRefFmt !== undefined), "toda fila trae su REFERENCIA (el benchmark contra el que se juzga)");
+  ok(g80.filas.every((f) => f.bajoBenchmark === (typeof f.varaGap === "number" && f.varaGap < 0)), "el resalte de margen sigue la brecha real, no un umbral suelto");
+  ok(g80.filas.every((f) => f.sobreMeta === (typeof f.carga === "number" && f.carga > POLICY.targetCarga)), `el resalte de acciones comerciales sigue tu meta de ${POLICY.targetCarga}%`);
+  ok(/meta de/.test(c.nota) && /benchmark de/.test(c.nota), "el pie explica los dos colores con sus varas");
+  // el monto recuperable NO se duplica acá: no es columna ni campo de fila (decisión del owner — vive en los
+  // insights). Se chequea sobre la ESTRUCTURA, que es lo que la vista pinta, no sobre la redacción del pie.
+  ok(!c.columnas.some((x) => /en juego|recuperable/i.test(x.label)), "\"En juego $\" no es una columna de esta tabla");
+  ok(!("enJuego" in f0) && !("enJuegoFmt" in f0), "…ni viaja escondido en la fila");
+  ok(/no se repite acá/.test(c.nota), "…y el pie dice dónde vive, para que no parezca un olvido");
+  // TODAS las filas son clientes reales — no hay agregados que no puedan abrir Ficha
+  const nombres = new Set(R.rows.map((r) => r.name));
+  ok(c.vistas.every((v) => v.filas.every((f) => nombres.has(f.nombre))), "toda fila de toda vista es un cliente REAL (ningún agregado sin Ficha)");
+}
+
+H("[12] CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea");
+{
+  const f = R.formacion;
+  ok(!!f && f.lineas.length === 4, "cuatro líneas: venta · costo conciliado · acciones comerciales · contribución");
+  ok(/Venta − Costo conciliado − Acciones comerciales = Contribución/.test(f.identidad), `la identidad se declara — "${f.identidad}"`);
+  ok(f.cierra === true, "y CIERRA exacto sobre los totales del negocio");
+  const by = Object.fromEntries(f.lineas.map((l) => [l.key, l]));
+  ok(by.venta.montoFmt === R.kpis[0].valor, `la venta es la MISMA del KPI — ${by.venta.montoFmt}`);
+  ok(by.contribucion.montoFmt === R.kpis[1].valor, `la contribución también — ${by.contribucion.montoFmt}`);
+  ok(by.acciones.montoFmt === R.kpis[3].valor, `y las acciones comerciales — ${by.acciones.montoFmt}`);
+  // EL PUNTO EPISTÉMICO: el costo NO está medido
+  ok(by.costo.estatus === "indicado", `el costo se declara INDICADO — ${by.costo.estatus}`);
+  ok(by.venta.estatus === "probado" && by.acciones.estatus === "probado" && by.contribucion.estatus === "probado", "las otras tres son dato medido (probado)");
+  ok(/por diferencia/.test(by.costo.nota) && /nunca se afirma como causa/.test(by.costo.nota), `la nota del costo explica por qué no es una causa — "${by.costo.nota.slice(0, 80)}…"`);
+  ok(/conciliado/i.test(by.costo.label), "hasta el nombre de la línea lo dice: costo CONCILIADO, no costo medido");
+  ok(!/revisar costo|el costo explica|por estructura de costo/i.test(JSON.stringify(f)), "en ningún lado se presenta el costo como causa comprobada");
+  // la aritmética, contra las cifras del cuadro
+  const venta = R.total.ventas, contrib = R.total.contribucion, acc = R.total.acciones;
+  ok(Math.abs((venta - contrib - acc) - (venta * (parseFloat(by.costo.pctFmt) / 100))) < venta * 0.001,
+    `el % del costo sale de la misma resta — ${by.costo.pctFmt} de ${by.venta.montoFmt}`);
+  ok(f.lectura.includes(by.costo.pctFmt) && f.lectura.includes(by.contribucion.pctFmt), `la lectura reparte el 100% de la venta — "${f.lectura}"`);
+}
+
 console.log(`\n── _resumen_comercial_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);

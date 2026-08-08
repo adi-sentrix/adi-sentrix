@@ -1435,11 +1435,23 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             probado / indicado / abierto, y remata en los insights que llevan a la Ficha de cada entidad. La cartera
             completa queda de evidencia opcional, más abajo. TODO sale de `resumenC` — cero cálculo acá. ── */}
         {resumenC ? (<>
-          <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
-          <ResumenPlano R={resumenC}/>
-          <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
-          <ResumenPuente R={resumenC}/>
-          <ResumenInsights R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+          <ResumenMovimiento num="01" title="Qué está pasando"
+            def={"El estado del negocio completo: el veredicto con sus cuatro cifras de cabecera, cómo se movió el año contra el anterior y contra tu presupuesto, en quiénes se concentra la venta y cómo se compone la cartera cliente por cliente. Todo con alcance global — ninguna selección previa lo tiñe."}>
+            <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
+            <ResumenEvolutivo ev={resumenC.evolutivo} onAsk={onAsk}/>
+            <ResumenPlano R={resumenC}/>
+            <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+            <ResumenComposicion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+          </ResumenMovimiento>
+          <ResumenMovimiento num="02" title="Por qué está pasando"
+            def={"La cuenta de cómo se forma el margen y dónde queda la brecha contra tu benchmark, con el estatus de cada parte: lo probado (medido), lo indicado (derivado o localizado) y lo abierto (todavía sin respuesta en el dato). Acá se ve por qué el costo no se puede afirmar como causa: no está medido, sale por diferencia."}>
+            <ResumenFormacion R={resumenC}/>
+            <ResumenPuente R={resumenC}/>
+          </ResumenMovimiento>
+          <ResumenMovimiento num="03" title="Qué hacer primero"
+            def={"Las cuentas del plano de decisión ordenadas por lo que combina monto material, deterioro contra tu referencia y evidencia disponible. Cada una lleva a su Ficha Ejecutiva, que es donde la explicación se demuestra cuenta por cuenta."}>
+            <ResumenInsights R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
+          </ResumenMovimiento>
         </>) : (
           // LIMITACIÓN DECLARADA, nunca relleno: sin filas de cliente en el período no hay veredicto que sostener.
           <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
@@ -1598,6 +1610,19 @@ function useNarrowViewport(query = "(max-width: 760px)") {
 }
 
 const _RC_HEAD = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase" };
+// EL SELLO DE LOS TRES MOVIMIENTOS (qué está pasando · por qué está pasando · qué hacer primero) — el MISMO que
+// ya usa la cara Capital. Que las caras compartan el esqueleto es lo que hace que el usuario aprenda a leer una
+// vez y le sirva en las cuatro; un BI, en cambio, te obliga a reaprender cada pantalla.
+function ResumenMovimiento({ num, title, def, children }) {
+  return (
+    <div>
+      <div style={{ ..._RC_HEAD, marginBottom: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: C.textSub }}>
+        <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span>{title}<InfoDot def={def} align="left"/>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
+    </div>
+  );
+}
 // la GRADUACIÓN epistémica hecha color (el sello del contrato v2 · probado/indicado/abierto)
 const _rcEstatusCol = (e) => (e === "probado" ? C.green : e === "indicado" ? C.amber : C.textMuted);
 const _rcTonoCol = (t) => (t === "ok" ? C.green : t === "alerta" ? C.red : t === "aviso" ? C.amber : C.textMuted);
@@ -1798,6 +1823,207 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
       <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 8 }}>
         {P.nota}{P.agrupadas ? ` ${P.agrupadas === 1 ? "1 cliente de la cabeza se agrupó" : `${P.agrupadas} clientes de la cabeza se agruparon`} para que el gráfico se lea; la curva y el cruce salen de los ${P.entidadesReales}.` : ""}
       </div>
+    </div>
+  );
+}
+
+/* ── EL AÑO, MES A MES · tres líneas que reconcilian ───────────────────────────────────────────────────────────
+ * El owner lo pidió de vuelta: "es súper fácil identificar puntos bajos y altos, debería tener la línea año
+ * anterior y presupuesto". Las tres series vienen del módulo YA ancladas a la venta oficial — por eso el total del
+ * gráfico cierra exacto con el KPI de arriba, que es justo lo que un BI no te garantiza. El presupuesto NO se
+ * ancla (es un plan, no tiene contraparte por cliente) y la vista lo declara en vez de disimularlo.
+ * Cada serie lleva su estatus: probado el dato real, indicado el plan. */
+const _RC_SERIE_COL = { actual: C.elec, anterior: C.teal, presupuesto: C.lav };
+function ResumenEvolutivo({ ev, onAsk }) {
+  const [oculta, setOculta] = useState({});            // las TRES arrancan visibles (regla del owner)
+  const [hov, setHov] = useState(null);
+  if (!ev || !ev.series || !ev.series.length) return null;
+  const vivas = ev.series.filter((s) => !oculta[s.key]);
+  const meses = ev.meses, n = meses.length;
+  const W = 620, H = 186, padL = 42, padR = 14, padT = 16, padB = 24;
+  const vals = vivas.flatMap((s) => s.valores);
+  const lo0 = vals.length ? Math.min(...vals) : 0, hi0 = vals.length ? Math.max(...vals) : 1;
+  const pad = (hi0 - lo0) * 0.12 || 1, ylo = Math.max(0, lo0 - pad), yhi = hi0 + pad;
+  const xAt = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * (W - padL - padR));
+  const yAt = (v) => padT + (1 - (v - ylo) / (yhi - ylo || 1)) * (H - padT - padB);
+  const serieActual = ev.series.find((s) => s.key === "actual");
+  const iMax = serieActual ? serieActual.valores.indexOf(Math.max(...serieActual.valores)) : -1;
+  const iMin = serieActual ? serieActual.valores.indexOf(Math.min(...serieActual.valores)) : -1;
+  const grid = [yhi, (yhi + ylo) / 2, ylo];
+  return (
+    <div style={_RC_CARD}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            El año, mes a mes
+            <InfoDot def={"Las tres series del período: este año, el año anterior y el presupuesto que declaraste. Las dos reales están ANCLADAS al total oficial de venta por cliente, así que el cierre del gráfico es el mismo número del KPI de arriba — no dos verdades al lado. El presupuesto no se ancla porque no existe presupuesto por cliente contra el cual conciliarlo, y eso se dice. Tocá una serie de la leyenda para apagarla y pasá el cursor para ver mes por mes. Los puntos marcados son el mes más alto y el más bajo del año en foco."} align="left"/>
+          </span>
+          <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{ev.lectura}</span>
+        </span>
+        {onAsk ? <span style={{ flexShrink: 0 }}>{_btnADI(() => onAsk("¿Cómo viene la venta mes a mes este año?"), "Que ADI lo explique →")}</span> : null}
+      </div>
+      {/* la leyenda ES el control: cada serie con su total y su estatus (probado / indicado) */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 8 }}>
+        {ev.series.map((s) => { const off = !!oculta[s.key]; const col = _RC_SERIE_COL[s.key] || C.textMuted; return (
+          <button key={s.key} onClick={() => setOculta((o) => ({ ...o, [s.key]: !o[s.key] }))} title={s.nota}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", opacity: off ? 0.4 : 1, transition: "opacity 0.15s" }}>
+            <span style={{ width: 14, height: 0, borderTop: `${s.key === "actual" ? 2.5 : 2}px ${s.key === "actual" ? "solid" : "dashed"} ${col}`, flexShrink: 0 }}/>
+            <span style={{ fontSize: 11.5, color: off ? C.textMuted : C.textSub }}>{s.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 600, color: off ? C.textMuted : col, fontVariantNumeric: "tabular-nums" }}>{s.totalFmt}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(s.estatus), border: `1px solid ${_rcEstatusCol(s.estatus)}55`, borderRadius: 3, padding: "1px 4px" }}>{s.estatus}</span>
+          </button>
+        ); })}
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 300, position: "relative", touchAction: "pan-y" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+            {grid.map((g, i) => (
+              <g key={i}>
+                <line x1={padL} x2={W - padR} y1={yAt(g)} y2={yAt(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                <text x={padL - 6} y={yAt(g) + 3} textAnchor="end" fontFamily={MONO} fontSize="8.5" fill={C.textMuted}>{`$${(g / 1000).toFixed(1)}M`}</text>
+              </g>
+            ))}
+            {vivas.map((s) => {
+              const col = _RC_SERIE_COL[s.key] || C.textMuted;
+              const d = _mono(s.valores.map((_, i) => xAt(i)), s.valores.map((v) => yAt(v)));
+              return <path key={s.key} d={d} fill="none" stroke={col} strokeWidth={s.key === "actual" ? 2.2 : 1.5}
+                strokeDasharray={s.key === "actual" ? undefined : "5 4"} strokeLinejoin="round" opacity={s.key === "actual" ? 1 : 0.85}/>;
+            })}
+            {/* el mes más alto y el más bajo del año en foco — describe el movimiento, nunca su causa */}
+            {!oculta.actual && serieActual && iMax >= 0 && (<>
+              <circle cx={xAt(iMax)} cy={yAt(serieActual.valores[iMax])} r="3.4" fill={C.green}/>
+              <circle cx={xAt(iMin)} cy={yAt(serieActual.valores[iMin])} r="3.4" fill={C.red}/>
+            </>)}
+            {hov != null && <line x1={xAt(hov)} x2={xAt(hov)} y1={padT} y2={H - padB} stroke="rgba(255,255,255,0.16)" strokeWidth="1"/>}
+            {meses.map((m, i) => (
+              <text key={m} x={xAt(i)} y={H - 7} textAnchor="middle" fontFamily={MONO} fontSize="8.5" fill={i === iMax ? C.green : i === iMin ? C.red : C.textMuted}>{m}</text>
+            ))}
+            <rect x="0" y="0" width={W} height={H} fill="transparent"
+              onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const rel = (e.clientX - r.left) / Math.max(1, r.width); setHov(Math.max(0, Math.min(n - 1, Math.round(((rel * W) - padL) / ((W - padL - padR) / Math.max(n - 1, 1)))))); }}
+              onPointerLeave={() => setHov(null)}/>
+          </svg>
+          {hov != null && (
+            <div style={{ position: "absolute", top: 0, left: `${(xAt(hov) / W) * 100}%`, transform: hov > n / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)",
+              pointerEvents: "none", background: "#161616", border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: "5px 9px",
+              fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: C.textMuted, zIndex: 2 }}>
+              <b style={{ color: C.text }}>{meses[hov]}</b>
+              {vivas.map((s) => (
+                <span key={s.key} style={{ display: "block", color: _RC_SERIE_COL[s.key] }}>{s.label}: ${(s.valores[hov] / 1000).toFixed(1)}M</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8, fontSize: 10.5, color: C.textMuted }}>
+        <span><span style={{ color: C.green }}>●</span> mes más alto · {ev.maxMes} {ev.maxFmt}</span>
+        <span><span style={{ color: C.red }}>●</span> mes más bajo · {ev.minMes} {ev.minFmt}</span>
+        {ev.caida ? <span>mayor caída · {ev.caida.desde}→{ev.caida.mes} {ev.caida.fmt}</span> : null}
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 6 }}>{ev.nota}</div>
+    </div>
+  );
+}
+
+/* ── LA COMPOSICIÓN DEL NEGOCIO · el gemelo global de la Ficha ──────────────────────────────────────────────────
+ * El owner señaló la "Composición de la compra" de la Ficha y pidió lo mismo un nivel arriba: misma tabla, mismas
+ * columnas, mismo pie honesto — pero con el NEGOCIO como sujeto. Donde la Ficha muestra ROTACIÓN, acá va ACCIONES
+ * COMERCIALES: la rotación es del inventario, no del cliente. Tres vistas declaradas (Grupo 80% · Menor margen ·
+ * Todos) y cada fila abre la Ficha de ESE cliente — son todos clientes reales, no hay agregados que no naveguen. */
+const _RC_TH = { color: C.textMuted, fontFamily: MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${C.border}`, padding: "4px 6px" };
+const _RC_TD = { padding: "5px 6px", textAlign: "right", fontFamily: MONO, fontSize: 11.5, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis" };
+const _RC_COLW = ["21%", "12%", "11%", "13%", "10%", "12%", "21%"];
+function ResumenComposicion({ R, onFicha, onAsk }) {
+  const comp = R.composicion;
+  const [vista, setVista] = useState(comp.porDefecto);
+  if (!comp || !comp.vistas.length) return null;
+  const v = comp.vistas.find((x) => x.key === vista) || comp.vistas[0];
+  return (
+    <div style={_RC_CARD}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
+            Composición del negocio
+            <InfoDot def={"La misma lectura que la Ficha hace de un cliente, pero del negocio entero: cuánto pesa cada cuenta, qué deja y qué le entregás. Tres vistas: el GRUPO 80% (el plano de decisión), MENOR MARGEN (las cinco con mayor brecha contra tu benchmark, estén o no en el grupo) y TODOS. Comparando la primera con la última tenés la cola. Donde la Ficha muestra rotación, acá van las acciones comerciales: la rotación es del inventario, no del cliente, y prometerla sería inventar un dato. Tocá un cliente y se abre su Ficha Ejecutiva."} align="left"/>
+          </span>
+          <span style={{ display: "block", fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>{v.nota}</span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ display: "flex", gap: 3 }}>
+            {comp.vistas.map((x) => (
+              <button key={x.key} onClick={() => setVista(x.key)} aria-pressed={vista === x.key}
+                style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${vista === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: vista === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: vista === x.key ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+                {x.label} ({x.n})
+              </button>
+            ))}
+          </span>
+          {onAsk ? _btnADI(() => onAsk("¿Quiénes son mis principales clientes por venta?"), "Que ADI lo explique →") : null}
+        </span>
+      </div>
+      <div style={{ overflowX: "auto", marginTop: 8 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 620, tableLayout: "fixed" }}>
+          <colgroup>{_RC_COLW.map((w, i) => <col key={i} style={{ width: w }}/>)}</colgroup>
+          <thead><tr>
+            {comp.columnas.map((c) => <th key={c.key} style={{ ..._RC_TH, textAlign: c.align }}>{c.label}</th>)}
+          </tr></thead>
+          <tbody>{v.filas.map((f) => (
+            <tr key={f.nombre}>
+              <td style={{ padding: "5px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {onFicha ? (
+                  <button onClick={() => onFicha(f.nombre)} title={`Abrir la Ficha de ${f.nombre}`}
+                    style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>
+                    {f.nombre}
+                  </button>
+                ) : <span style={{ color: C.text, fontWeight: 600 }}>{f.nombre}</span>}
+                {vista !== "grupo80" && f.enPlano ? <span title="Está dentro del grupo que explica el 80% de la venta" style={{ marginLeft: 5, fontFamily: MONO, fontSize: 8, color: C.celeste, border: "1px solid rgba(47,184,218,0.4)", borderRadius: 3, padding: "0 3px" }}>80%</span> : null}
+              </td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.participacionFmt}</td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.ventaFmt}</td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.contribucionFmt}</td>
+              <td style={{ ..._RC_TD, color: f.bajoBenchmark ? C.amber : C.text }} title={f.bajoBenchmark ? `${f.brechaFmt} bajo tu benchmark de ${f.varaRefFmt}` : `sobre tu benchmark de ${f.varaRefFmt}`}>{f.margenFmt}</td>
+              <td style={{ ..._RC_TD, color: C.textSub }}>{f.unidadesFmt}</td>
+              <td style={{ ..._RC_TD, color: f.sobreMeta ? C.amber : C.textSub }} title={f.sobreMeta ? `sobre tu meta de ${p1(POLICY.targetCarga)+"%"}` : `en o bajo tu meta de ${p1(POLICY.targetCarga)+"%"}`}>{f.cargaFmt}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 8 }}>{comp.nota}</div>
+    </div>
+  );
+}
+
+/* ── CÓMO SE FORMA EL MARGEN · la identidad, con el estatus de cada línea ──────────────────────────────────────
+ * El "por qué está pasando" empieza acá: venta − costo conciliado − acciones comerciales = contribución. Cierra
+ * exacto por construcción, y ese ES el punto — el COSTO no está medido, sale por diferencia. Marcarlo "conciliado"
+ * e "indicado" es lo que sostiene que esta vista jamás diga "revisar costo" como si fuera una causa probada. */
+function ResumenFormacion({ R }) {
+  const f = R.formacion;
+  if (!f) return null;
+  return (
+    <div style={{ ...CARD_SIDES, borderRadius: 12, padding: "14px 16px", background: "rgba(255,255,255,0.02)" }}>
+      <div style={{ ..._RC_HEAD, marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+        Cómo se forma el margen
+        <InfoDot def={"La cuenta completa, de la venta a la contribución. Cierra exacto — y por eso mismo hay que mirar el estatus de cada línea: la venta y las acciones comerciales están MEDIDAS, el costo NO: se obtiene por diferencia entre las tres. Eso es lo que hace que el costo sea una ruta a investigar y nunca una causa que se pueda afirmar. Si mañana entra el costo real del ERP, esta línea pasa de indicada a probada y la brecha abierta se achica."} align="left"/>
+      </div>
+      <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>{f.lectura}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 11 }}>
+        {f.lineas.map((l) => (
+          <div key={l.key} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 0", borderTop: l.key === "contribucion" ? `1px solid ${C.borderLight}` : "none" }}>
+            <span style={{ fontFamily: MONO, fontSize: 13, color: C.textMuted, width: 12, flexShrink: 0, textAlign: "center" }}>{l.signo}</span>
+            <span style={{ flex: "1 1 150px", minWidth: 0, fontSize: 12.5, color: C.text, fontWeight: l.key === "contribucion" ? 600 : 400 }} title={l.nota}>{l.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.6px", textTransform: "uppercase", color: _rcEstatusCol(l.estatus), border: `1px solid ${_rcEstatusCol(l.estatus)}55`, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>{l.estatus}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: C.textMuted, width: 56, textAlign: "right", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{l.pctFmt}</span>
+            <span style={{ fontFamily: MONO, fontSize: 13.5, fontWeight: 600, color: l.key === "contribucion" ? C.celeste : C.text, width: 78, textAlign: "right", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{l.montoFmt}</span>
+          </div>
+        ))}
+      </div>
+      {/* la línea que NO está medida se explica sola, sin que haya que pasar el mouse */}
+      {f.lineas.filter((l) => l.estatus !== "probado").map((l) => (
+        <div key={l.key} style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${_rcEstatusCol(l.estatus)}` }}>
+          <b style={{ color: C.textSub }}>{l.label}:</b> {l.nota}
+        </div>
+      ))}
     </div>
   );
 }

@@ -103,22 +103,30 @@ const filaDe = (container, nombre) => [...container.querySelectorAll("div")]
   .filter((d) => { const s = d.getAttribute("style") || ""; return /grid-template-columns/.test(s) && /cursor:\s*pointer/.test(s) && d.textContent.includes(nombre); })
   .sort((a, b) => a.textContent.length - b.textContent.length)[0];
 
-H("[1] LOS SEIS BLOQUES · en orden, con las cifras del módulo (cero cálculo en React)");
+H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner");
 {
   const { container } = abrir(evTemporal());
   const T = container.textContent;
   ok(T.includes("MESA DE CONTROL"), "abre la Mesa de Control");
   const bloques = [
+    ["Qué está pasando", "01 · movimiento QUÉ ESTÁ PASANDO"],
     ["Lectura ejecutiva · negocio completo", "1 · veredicto + KPIs"],
-    ["Plano de decisión:", "2 · plano de decisión 80/20 declarado"],
-    ["Concentración comercial · 80/20", "3 · gráfico de concentración"],
-    ["Puente de oportunidad", "4 · puente de oportunidad"],
-    ["Insights que mueven la aguja", "5 · insights"],
-    ["Evidencia completa · opcional", "6 · evidencia completa opcional"],
+    ["El año, mes a mes", "2 · evolutivo (este año · año anterior · presupuesto)"],
+    ["Plano de decisión:", "3 · plano de decisión 80/20 declarado"],
+    ["Concentración comercial · 80/20", "4 · gráfico de concentración"],
+    ["Composición del negocio", "5 · composición por cliente"],
+    ["Por qué está pasando", "02 · movimiento POR QUÉ ESTÁ PASANDO"],
+    ["Cómo se forma el margen", "6 · formación del margen"],
+    ["Puente de oportunidad", "7 · puente de oportunidad"],
+    ["Qué hacer primero", "03 · movimiento QUÉ HACER PRIMERO"],
+    ["Insights que mueven la aguja", "8 · clientes prioritarios"],
+    ["Evidencia completa · opcional", "9 · evidencia completa opcional, al final"],
   ];
   const pos = bloques.map(([marca]) => T.indexOf(marca));
   for (let i = 0; i < bloques.length; i++) ok(pos[i] >= 0, `bloque ${bloques[i][1]} presente`);
-  ok(pos.every((p, i) => i === 0 || (p > pos[i - 1] && pos[i - 1] >= 0)), `los seis vienen EN ORDEN — ${pos.join(" < ")}`);
+  ok(pos.every((p, i) => i === 0 || (p > pos[i - 1] && pos[i - 1] >= 0)), `TODOS vienen en la secuencia exacta — ${pos.join(" < ")}`);
+  ok(T.indexOf("Evidencia completa · opcional") > T.indexOf("Insights que mueven la aguja"),
+    "la evidencia completa queda al final: está disponible, pero no domina la primera lectura");
 
   // EL VEREDICTO: texto del módulo, verbatim
   ok(T.includes(R.veredicto.titular), `el titular es el del módulo — "${R.veredicto.titular}"`);
@@ -145,6 +153,89 @@ H("[1] LOS SEIS BLOQUES · en orden, con las cifras del módulo (cero cálculo e
   for (const b of R.pareto.ventas.barras) ok(T.includes(b.nombre) && T.includes(b.fmt), `barra "${b.nombre}" (${b.fmt}) dibujada`);
   ok(T.includes(R.pareto.ventas.cruce80), `el cruce real del 80% se nombra — ${R.pareto.ventas.cruce80}`);
   ok(T.includes(R.pareto.ventas.nota), "la nota del gráfico es la del módulo");
+  cleanup();
+}
+
+H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
+{
+  const { container } = abrir(evTemporal());
+  const T = container.textContent;
+  const e = R.evolutivo;
+  for (const s of e.series) {
+    ok(T.includes(s.label) && T.includes(s.totalFmt), `serie "${s.label}" con su total ${s.totalFmt}`);
+    const b = botones(container).find((x) => x.textContent.includes(s.label) && x.textContent.includes(s.totalFmt));
+    ok(!!b && b.textContent.includes(s.estatus), `…rotulada ${s.estatus.toUpperCase()} y apagable desde la leyenda`);
+  }
+  ok(T.includes(e.totalActualFmt) && e.totalActualFmt === R.kpis[0].valor,
+    `RECONCILIA a la vista: el cierre del gráfico y el KPI de ventas son el MISMO número — ${e.totalActualFmt}`);
+  ok(T.includes(e.lectura), "la lectura del año viene del módulo (cierre, variación, mes más alto y más bajo)");
+  ok(T.includes(e.nota) && /anclad/i.test(e.nota), "…y la nota declara el anclaje en vez de esconder la diferencia entre tablas");
+  ok(e.meses.every((m) => T.includes(m)), `los ${e.meses.length} meses están rotulados`);
+  ok(T.includes(e.maxMes) && T.includes(e.maxFmt) && T.includes(e.minMes) && T.includes(e.minFmt),
+    `el mes más alto (${e.maxMes} ${e.maxFmt}) y el más bajo (${e.minMes} ${e.minFmt}) se identifican solos`);
+  // las tres arrancan VISIBLES (regla del owner) y la leyenda las apaga
+  const legPpto = botones(container).find((x) => x.textContent.includes("Presupuesto") && x.textContent.includes(e.series[2].totalFmt));
+  const svgAntes = container.querySelectorAll("path").length;
+  fireEvent.click(legPpto);
+  ok(container.querySelectorAll("path").length < svgAntes, "apagar una serie la saca del dibujo (arrancaban las TRES prendidas)");
+  fireEvent.click(legPpto);
+  ok(container.querySelectorAll("path").length === svgAntes, "…y volver a tocarla la devuelve");
+  cleanup();
+}
+
+H("[1c] LA COMPOSICIÓN POR CLIENTE · Grupo 80% / Menor margen / Todos");
+{
+  const { container } = abrir(evTemporal());
+  const comp = R.composicion;
+  const T = container.textContent;
+  for (const c of comp.columnas) ok(T.includes(c.label), `columna "${c.label}"`);
+  // sobre los ENCABEZADOS reales, no sobre el texto suelto: la ayuda del bloque explica por qué no hay rotación,
+  // y esa explicación no puede hacer fallar al chequeo que verifica justamente eso.
+  const th = [...container.querySelectorAll("th")].map((x) => x.textContent);
+  ok(th.length === comp.columnas.length && comp.columnas.every((c, i) => th[i] === c.label), `la tabla tiene EXACTAMENTE las 7 columnas del módulo — ${th.join(" · ")}`);
+  ok(!th.some((h) => /rotaci/i.test(h)), "sin columna Rotación: es del inventario, no del cliente");
+  const g80 = comp.vistas[0];
+  ok(g80.filas.every((f) => T.includes(f.nombre)), `abre en Grupo 80% con sus ${g80.n} clientes`);
+  ok(T.includes(g80.filas[0].participacionFmt) && T.includes(g80.filas[0].cargaFmt), `con sus cifras del módulo (${g80.filas[0].nombre}: ${g80.filas[0].participacionFmt} · ${g80.filas[0].cargaFmt})`);
+  ok(T.includes(g80.nota), "y declara su universo");
+  ok(T.includes(comp.nota), "el pie explica los dos resaltes con sus varas");
+  // "Ver Ficha" SOLO en clientes reales — acá TODAS las filas lo son
+  const nombres = new Set(R.rows.map((r) => r.name));
+  const fichaBtns = botones(container).filter((b) => (b.title || "").startsWith("Abrir la Ficha de "));
+  ok(fichaBtns.length > 0 && fichaBtns.every((b) => nombres.has((b.title || "").replace("Abrir la Ficha de ", ""))),
+    `los ${fichaBtns.length} accesos a Ficha apuntan a clientes REALES, ninguno a un agregado`);
+  // el toggle de vistas
+  for (const v of comp.vistas.slice(1)) {
+    const b = conTexto(container, `${v.label} (${v.n})`);
+    ok(!!b, `la vista "${v.label}" se ofrece con su cantidad (${v.n})`);
+    fireEvent.click(b);
+    ok(v.filas.every((f) => container.textContent.includes(f.nombre)), `…y al tocarla muestra sus ${v.n} clientes`);
+    ok(container.textContent.includes(v.nota), "…declarando su universo");
+  }
+  // MENOR MARGEN: los 5 de mayor brecha, estén o no en el 80% — y la vista lo marca
+  fireEvent.click(conTexto(container, `Menor margen (${comp.vistas[1].n})`));
+  const fuera = comp.vistas[1].filas.filter((f) => !f.enPlano);
+  ok(fuera.length > 0, `incluye ${fuera.length} cuenta(s) fuera del grupo 80% — ${fuera.map((f) => f.nombre).join(", ")}`);
+  ok(comp.vistas[1].filas.some((f) => f.enPlano), "…y también las que sí están dentro");
+  ok([...container.querySelectorAll("span")].some((s) => s.textContent === "80%"), "las que pertenecen al grupo 80% llevan su marca, para no confundir universos");
+  // desde la tabla se abre la Ficha
+  const objetivo = comp.vistas[1].filas[0].nombre;
+  fireEvent.click(botones(container).find((b) => b.title === `Abrir la Ficha de ${objetivo}`));
+  ok(container.textContent.includes(`Importancia de ${objetivo} en tu cartera`), `tocar un cliente de la tabla abre su Ficha (${objetivo})`);
+  cleanup();
+}
+
+H("[1d] CÓMO SE FORMA EL MARGEN · la identidad con el estatus de cada línea");
+{
+  const { container } = abrir(evTemporal());
+  const f = R.formacion;
+  const T = container.textContent;
+  ok(T.includes(f.lectura), `la lectura reparte la venta — "${f.lectura}"`);
+  for (const l of f.lineas) ok(T.includes(l.label) && T.includes(l.montoFmt) && T.includes(l.pctFmt), `línea "${l.label}" con ${l.montoFmt} (${l.pctFmt})`);
+  const costo = f.lineas.find((l) => l.key === "costo");
+  ok(T.includes(costo.nota), "el costo explica a la vista POR QUÉ no es una causa (sale por diferencia, no está medido)");
+  ok(T.includes("indicado") && T.includes("probado"), "cada línea lleva su estatus epistémico rotulado");
+  ok(!/revisar costo/i.test(T), "y en ningún lado aparece \"revisar costo\"");
   cleanup();
 }
 
@@ -312,7 +403,9 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   const T2 = container.textContent;
   ok(!T2.includes("Perfil vs promedio"), "el bloque inline \"perfil vs promedio\" SALE (vive en la Ficha)");
   ok(!T2.includes("el eje central es el promedio del eje"), "…y no queda ningún resto suyo");
-  ok(T2.includes(`Ver Ficha de ${fila}`) && !/Este año/.test(T2),
+  // el comparado de UNA entidad se titula "Comparado · <entidad> · 12 meses" — ese es el marcador exacto. (No
+  // sirve buscar "Este año": el evolutivo GLOBAL del negocio, que sí debe estar, usa esa misma etiqueta.)
+  ok(T2.includes(`Ver Ficha de ${fila}`) && !T2.includes(`Comparado · ${fila}`),
     "la evolución de UNA entidad no se dibuja acá: la vista manda a su Ficha");
   // pero el COMPARADO MULTI-ENTIDAD se conserva (owner: eso NO sale)
   const fila2 = R.rows[1].name;

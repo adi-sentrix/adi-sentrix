@@ -54,6 +54,11 @@ const _anchor = (serie, total) => {
   out[out.length - 1] += total - _sum(out);
   return out;
 };
+// EXPORTADO (owner 2026-08-07 · Resumen comercial): el evolutivo de la cara Comercial tiene que cerrar con la venta
+// OFICIAL por cliente, y la serie mensual vive en OTRA tabla del dataset (difieren ~0.1%). Se reusa ESTA técnica en
+// vez de copiarla: reescala la curva y deja el residuo en el último mes, así el total queda exacto y la FORMA del
+// año (picos, valles, caídas) intacta. Aditivo puro — no cambia una sola línea del comportamiento existente.
+export const anchorSerie = _anchor;
 
 // Construye el evolutivo GLOBAL de ventas desde la serie real. Devuelve datos + análisis (sin render).
 export function buildGlobalEvolution() {
