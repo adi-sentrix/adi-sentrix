@@ -2088,7 +2088,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                     {ra.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{ra.filas.length - 4} más.</span>}
                   </div>
                 )}
-                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.green}` }}>{acc.lectura}</div>
+                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.border}` }}>{acc.lectura}</div>
                 {/* EL OTRO LADO DEL PROMEDIO (owner 2026-08-07): los que entregan MENOS no son plata a capturar
                     —llevarlos al promedio sería darles más— pero sí son la prueba, con tus propios clientes, de
                     que se puede vender entregando menos. Por qué lo logran queda ABIERTO. */}
@@ -2125,7 +2125,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
                   {cp.filas.slice(0, 4).map((x) => (
-                    <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, borderLeft: `2px solid ${x.comprime ? C.red : C.green}`, background: "rgba(255,255,255,0.015)" }}>
+                    <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
                       <span style={{ flex: "0 1 106px", minWidth: 84, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
                       </span>
@@ -2136,7 +2136,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                   ))}
                   {cp.filas.length > 4 && <span style={{ fontSize: 10.5, color: C.textMuted }}>+{cp.filas.length - 4} más.</span>}
                 </div>
-                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${cp.comprimenN ? C.red : C.green}` }}>{cp.lectura}</div>
+                <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.55, marginTop: 9, paddingLeft: 10, borderLeft: `2px solid ${C.border}` }}>{cp.lectura}</div>
               </div>
             )}
           </div>
@@ -2156,7 +2156,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {pq.filas.map((x) => (
                   <div key={x.nombre} style={{ padding: "10px 13px", borderRadius: 10, border: `1px solid ${C.border}`,
-                    borderLeft: `2px solid ${x.dominante === "acciones" ? C.green : C.amber}`, background: "rgba(255,255,255,0.018)" }}>
+                    background: "rgba(255,255,255,0.018)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ flex: "0 1 132px", minWidth: 104 }}>
                         {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{x.nombre}</span>}
@@ -2225,7 +2225,7 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {g.filas.map((x) => (
                 <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 13px", borderRadius: 10,
-                  border: `1px solid ${C.border}`, borderLeft: `2px solid ${tono[g.tono] || C.border}`, background: "rgba(255,255,255,0.018)" }}>
+                  border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.018)" }}>
                   <span style={{ flex: "0 1 158px", minWidth: 120 }}>
                     <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.entidad}</span>
                     <span style={{ display: "block", fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>

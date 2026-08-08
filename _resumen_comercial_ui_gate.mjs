@@ -826,6 +826,31 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
   cleanup();
 }
 
+/* ── [11b] BORDES NEUTROS, COLOR EN LAS CIFRAS (owner 2026-08-08) ──────────────────────────────────────────────
+ * "No quiero exageración de color; los bordes deben ser como los de la tercera foto, eso respeta nuestro diseño."
+ * La referencia es "Composición de la compra" de la Ficha: tarjeta de borde neutro y color SOLO donde significa
+ * algo — el margen bajo benchmark, la rotación bajo el piso. Una barra de color POR FILA multiplica el acento por
+ * la cantidad de filas: lo que quería ser un semáforo termina siendo ruido, y cuando todo resalta nada resalta. */
+H("[11b] BORDES NEUTROS · el color vive en las cifras, no en los marcos");
+{
+  const { container } = abrir(evTemporal());
+  const VERDE = /rgb\(\s*16,\s*185,\s*129/i, AMBAR = /rgb\(\s*253,\s*224,\s*71/i, ROJO = /rgb\(\s*244,\s*63,\s*94/i;
+  const conBordeColor = [...container.querySelectorAll("div")].filter((d) => {
+    const st = d.getAttribute("style") || "";
+    const bl = /border-left:[^;]*/i.exec(st);
+    return bl && [VERDE, AMBAR, ROJO].some((c) => c.test(bl[0]));
+  });
+  ok(conBordeColor.length === 0, `ninguna tarjeta lleva barra de color en el borde — ${conBordeColor.length}`,
+    conBordeColor.slice(0, 3).map((d) => d.textContent.slice(0, 50)).join(" | "));
+  // …PERO EL COLOR NO DESAPARECE: sigue donde significa algo. Si esto cae, el recorte se pasó de largo.
+  const conCifraColor = [...container.querySelectorAll("span")].filter((s) => {
+    const st = s.getAttribute("style") || "";
+    return /color:/i.test(st) && [VERDE, AMBAR, ROJO].some((c) => c.test(st)) && /[\d.]/.test(s.textContent);
+  });
+  ok(conCifraColor.length >= 20, `y las cifras siguen coloreadas donde significa algo — ${conCifraColor.length}`);
+  cleanup();
+}
+
 H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)");
 {
   const { container } = abrir(evTemporal());
