@@ -1564,9 +1564,9 @@ const _rcTonoCol = (t) => (t === "ok" ? C.green : t === "alerta" ? C.red : t ===
 // Ahora el celeste queda para lo que se toca — pills activas, botones, la fila seleccionada — y el contenido
 // respira en gris.
 const _RC_CARD = {
-  padding: "14px 16px 12px", borderRadius: 12, border: `1px solid ${C.border}`,
-  background: "rgba(255,255,255,0.018)",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+  padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(47,184,218,0.25)",
+  background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
 };
 
 /* ── 1 · EL VEREDICTO + LOS 4 KPI ──────────────────────────────────────────────────────────────────────────────
@@ -2235,14 +2235,16 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
  * plana: vienen cruzadas por los DOS deterioros medidos, y el grupo que sale primero es justamente el peligroso. */
 function ResumenPrioridades({ R, onFicha, onAsk }) {
   const P = R.prioridades;
-  const tono = { alerta: C.red, aviso: C.amber, neutro: C.celeste };
+  // (el mapa de tonos murió con las barras y el contador de color · owner 2026-08-08: el orden de los grupos ES
+  //  la prioridad, y el grupo peligroso va primero con su aviso escrito. No hace falta pintarlo además.)
   if (!P || !P.grupos.length) {
     return (
       <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, padding: "10px 12px", border: `1px dashed ${C.border}`, borderRadius: 10 }}>{P ? P.encabezado : ""}</div>
     );
   }
+  // UNA TARJETA POR BLOQUE, como en la Ficha: adentro las filas son filas, no cajas.
   return (
-    <div>
+    <div style={_RC_CARD}>
       <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, marginBottom: 11, display: "flex", alignItems: "flex-start", gap: 4 }}>
         <span>{P.encabezado}</span>
         <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
@@ -2252,20 +2254,20 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
           <div key={g.key}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
               <span style={{ fontSize: 12.5, color: C.text, fontWeight: 600 }}>{g.label}</span>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", textTransform: "uppercase", color: tono[g.tono] || C.textMuted, border: `1px solid ${tono[g.tono] || C.textMuted}55`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", textTransform: "uppercase", color: C.textMuted, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
               <span style={{ fontSize: 11, color: C.textMuted, lineHeight: 1.5 }}>{g.criterio} {g.porQue}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              {g.filas.map((x) => (
-                <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 13px", borderRadius: 10,
-                  border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.018)" }}>
+              {g.filas.map((x, i) => (
+                <div key={x.entidad} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "9px 2px",
+                  borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
                   <span style={{ flex: "0 1 158px", minWidth: 120 }}>
                     <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.entidad}</span>
                     <span style={{ display: "block", fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
-                      {x.faltaVentaFmt ? <span style={{ color: C.red }}>−{x.faltaVentaFmt} venta</span> : null}
+                      {x.faltaVentaFmt ? <span style={{ color: C.textSub }}>−{x.faltaVentaFmt} venta</span> : null}
                       {x.faltaVentaFmt && x.enJuegoFmt ? <span style={{ color: C.textMuted }}> · </span> : null}
-                      {x.enJuegoFmt ? <span style={{ color: C.amber }}>{x.enJuegoFmt} margen</span> : null}
-                      {x.probadoFmt ? <span style={{ color: C.green, fontSize: 9.5 }}> · {x.probadoFmt} probado</span> : null}
+                      {x.enJuegoFmt ? <span style={{ color: C.textSub }}>{x.enJuegoFmt} margen</span> : null}
+                      {x.probadoFmt ? <span style={{ color: C.textSub, fontSize: 9.5 }}> · {x.probadoFmt} <span style={{ color: C.green, letterSpacing: "0.5px" }}>probado</span></span> : null}
                     </span>
                   </span>
                   <span style={{ flex: "1 1 230px", minWidth: 0, fontSize: 11.5, lineHeight: 1.5 }}>

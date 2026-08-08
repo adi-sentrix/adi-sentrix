@@ -879,12 +879,23 @@ H("[11b] BORDES NEUTROS · el color vive en las cifras, no en los marcos");
   });
   ok(conBordeColor.length === 0, `ninguna tarjeta lleva barra de color en el borde — ${conBordeColor.length}`,
     conBordeColor.slice(0, 3).map((d) => d.textContent.slice(0, 50)).join(" | "));
-  // …PERO EL COLOR NO DESAPARECE: sigue donde significa algo. Si esto cae, el recorte se pasó de largo.
-  const conCifraColor = [...container.querySelectorAll("span")].filter((s) => {
-    const st = s.getAttribute("style") || "";
-    return /color:/i.test(st) && [VERDE, AMBAR, ROJO].some((c) => c.test(st)) && /[\d.]/.test(s.textContent);
-  });
-  ok(conCifraColor.length >= 20, `y las cifras siguen coloreadas donde significa algo — ${conCifraColor.length}`);
+  /* …PERO EL COLOR NO DESAPARECE. Un CONTEO no sirve de piso: el owner bajó el listón dos veces y un número fijo
+   * obliga a inventar color para cumplirlo. Se nombran los CINCO LUGARES donde el color tiene que sobrevivir,
+   * porque cada uno lo tiene por un motivo distinto y perder cualquiera es perder una señal, no un adorno. */
+  const T = container.textContent;
+  const coloreado = (txt, re) => [...container.querySelectorAll("span,td")]
+    .some((e) => e.textContent.trim() === txt && re.test(e.getAttribute("style") || ""));
+  const K = R.cartera, A = R.deterioro.margen.acciones;
+  ok(coloreado(A.referencias[0].totalFmt, VERDE), `el titular de lo recuperable sigue en verde — ${A.referencias[0].totalFmt}`);
+  ok(coloreado(A.referencias[0].filas[0].cargaFmt, ROJO), `la carga por cuenta sigue en rojo (pedido explícito) — ${A.referencias[0].filas[0].cargaFmt}`);
+  const filaSube = K.filas.find((f) => f.vsAnterior.dir === "sube"), filaBaja = K.filas.find((f) => f.vsAnterior.dir === "baja");
+  ok(!filaSube || [...container.querySelectorAll("td")].some((td) => td.textContent.includes(filaSube.vsAnterior.pctFmt) && VERDE.test(td.getAttribute("style") || "")),
+    "los gaps que suben siguen en verde");
+  ok(!filaBaja || [...container.querySelectorAll("td")].some((td) => td.textContent.includes(filaBaja.vsAnterior.pctFmt) && ROJO.test(td.getAttribute("style") || "")),
+    "…y los que bajan, en rojo");
+  const material = R.sostiene.vistas[0].filas.find((f) => f.material);
+  ok(!material || coloreado(material.brechaFmt, AMBAR), `la brecha material sigue en ámbar — ${material && material.brechaFmt}`);
+  ok(/5\.0 pp bajo tu benchmark|bajo tu benchmark/.test(T), "y el KPI de margen sigue declarando su brecha");
   cleanup();
 }
 
@@ -893,9 +904,18 @@ H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)"
   const { container } = abrir(evTemporal());
   // jsdom serializa el color con espacios (`rgba(47, 184, 218, 0.5)`), así que el patrón los tolera.
   const CELESTE = /rgba\(\s*47,\s*184,\s*218/i;
-  const cardsCeleste = [...container.querySelectorAll("div")]
-    .filter((d) => new RegExp(`border:\\s*1px solid ${CELESTE.source}`, "i").test(d.getAttribute("style") || "")).length;
-  ok(cardsCeleste === 0, `ninguna card de CONTENIDO lleva borde celeste completo — ${cardsCeleste}`);
+  /* ⚠️ REGLA ACTUALIZADA (owner 2026-08-08, dicho dos veces: "los bordes deben ser como los de la foto que te
+   * adjunto, es un ejemplo" — la Ficha). El 2026-08-07 la queja fue "menos bordes celestes" y las tarjetas del
+   * Resumen se neutralizaron; ahora el owner señala el panel de la Ficha como EL estándar de la casa, y ese panel
+   * lleva celeste al 25% con un degradado suave. Las dos instrucciones no se contradicen: lo que molestaba era el
+   * celeste FUERTE repartido por todos lados. Así que la regla pasa a ser una GRADACIÓN, que es más útil que una
+   * prohibición: 0.25 para el marco de un bloque · 0.4 o más SOLO para lo que se toca. */
+  const bordeFuerte = [...container.querySelectorAll("div")]
+    .filter((d) => /border:\s*1px solid rgba\(\s*47,\s*184,\s*218,\s*0?\.[4-9]/i.test(d.getAttribute("style") || "")).length;
+  ok(bordeFuerte === 0, `ninguna card de contenido usa el celeste FUERTE (≥0.4): ese es el del control — ${bordeFuerte}`);
+  const cardsPanel = [...container.querySelectorAll("div")]
+    .filter((d) => /border:\s*1px solid rgba\(\s*47,\s*184,\s*218,\s*0?\.25/i.test(d.getAttribute("style") || "")).length;
+  ok(cardsPanel > 0, `los bloques usan el MISMO panel que la Ficha (celeste 0.25 + degradado) — ${cardsPanel} tarjetas`);
   // pero el acento SIGUE vivo donde se interactúa: pills activas, accesos a Ficha, botones de ADI
   const controlesCeleste = botones(container).filter((b) => CELESTE.test(b.getAttribute("style") || "")).length;
   ok(controlesCeleste >= 5, `el celeste sigue marcando lo interactivo — ${controlesCeleste} controles`);
