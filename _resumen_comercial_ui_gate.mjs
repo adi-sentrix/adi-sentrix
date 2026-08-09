@@ -840,7 +840,7 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   ok(!/sector|industria|estándar de la industria/i.test(cabecera), "la referencia se narra como TUYA, nunca sectorial");
   // costo/precio/composición siguen declarados como pendientes de aislar — ahora en cada fila de decisión del
   // bloque 03, que es donde el usuario decide, y en la nota del costo contra precio.
-  ok(/cu[áa]nto es lo que cuesta el producto|cu[áa]nto de la brecha es lo que cuesta/i.test(T),
+  ok(/cu[áa]nto es el costo del producto|cu[áa]nto es lo que cuesta el producto/i.test(T) && /mezcla de lo que vendiste/i.test(T),
     "lo que falta aislar se declara en castellano, no como «separar composición»");
   ok(R.deterioro.margen.costoPrecio.estatus === "indicado" && T.includes("indicado"),
     "y el efecto costo/precio nunca se presenta como probado");

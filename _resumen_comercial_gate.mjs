@@ -510,6 +510,15 @@ H("[9e] QUÉ HACER PRIMERO · el cruce de los dos deterioros (owner 2026-08-07)"
     const faltas = new Set(g.filas.map((f) => f.faltaCorta));
     ok(faltas.size !== 1 || g.faltaComun === [...faltas][0],
       `${g.label}: el pendiente también sube, una sola vez`);
+    /* ⚠️ NI SIQUIERA CASI-DUPLICADOS (owner 2026-08-08: "aparece dos veces la misma explicación sobre lo que falta
+     * aislar"). Deduplicar por string EXACTO no alcanza: dos frases que dicen lo mismo y arrancan distinto pasan
+     * el filtro y se leen como una repetición, que es justo lo que el owner ve. El gate compara el NÚCLEO —lo que
+     * queda al normalizar y sacar el arranque— porque eso es lo que el ojo compara. */
+    const nucleo = (t) => t.toLowerCase().replace(/[^a-záéíóúñ ]/g, "").split(" ").filter((w) => w.length > 3).slice(-12).join(" ");
+    const nucleos = (g.faltas || []).map(nucleo);
+    ok(new Set(nucleos).size === nucleos.length,
+      `${g.label}: los ${nucleos.length} pendientes del pie dicen cosas DISTINTAS, no la misma con otro arranque`,
+      (g.faltas || []).join("  ||  "));
     // Y CADA FILA CONSERVA LO QUE LA DISTINGUE: sin esto, "resumir" habría sido "borrar"
     ok(g.filas.every((f) => (f.cifras || []).length > 0),
       `${g.label}: ninguna fila queda sin una cifra propia que la justifique`);

@@ -263,9 +263,13 @@ function _insights(plano, rows) {
         // entiende"). Decía en tres palabras técnicas lo que hay que decir en una frase: del resto de la brecha
         // todavía no sabemos cuánto pesa lo que cuesta el producto, cuánto el precio al que se vende y cuánto la
         // mezcla de lo que se vendió. Eso es lo que la Ficha va a separar.
-        faltaCorta: tieneAccion
-          ? `Del resto de la brecha todavía no sabemos cuánto es lo que cuesta el producto, cuánto el precio al que lo vendés y cuánto la mezcla de lo que vendiste.`
-          : `Todavía no sabemos cuánto de la brecha es lo que cuesta el producto, cuánto el precio al que lo vendés y cuánto la mezcla de lo que vendiste.`,
+        /* ⚠️ UNA SOLA FRASE PARA LOS DOS CASOS (owner 2026-08-08: "aparece dos veces la misma explicación sobre lo
+         * que falta aislar"). Antes había dos variantes —"del resto de la brecha…" para las cuentas con palanca
+         * medida y "todavía no sabemos cuánto de la brecha…" para las que no— que al juntarse en el pie del mismo
+         * grupo se leían como la misma frase dos veces. Y el matiz que las separaba se dice mejor así: "lo que las
+         * acciones comerciales no explican" cubre a las dos —para una es una parte, para la otra es todo— y de
+         * paso nombra QUÉ explica el resto, que es más de lo que decía "del resto". */
+        faltaCorta: `Lo que las acciones comerciales no explican todavía no está separado: cuánto es el costo del producto, cuánto el precio de venta y cuánto la mezcla de lo que vendiste.`,
         titulo: material ? `${_pp(r.varaGap)} bajo tu referencia` : `Brecha de ${_pp(r.varaGap)}`,
         // PRIORIDAD: materialidad (en juego) + deterioro (brecha) + evidencia (¿hay causa probada?) + acción.
         _score: (r.enJuego || 0) * (1 + (material ? 0.5 : 0)) * (tieneAccion ? 1.35 : 1),
@@ -974,7 +978,7 @@ function _prioridades(rows, deterioro, insights) {
       accionCorta: alPromedio.has(r.name)
         ? `Revisar acciones comerciales: entrega ${alPromedio.get(r.name).excesoFmt} de más.`
         : (i ? i.accionCorta : "Abrir la Ficha y aislar la causa cuenta por cuenta."),
-      faltaCorta: i ? i.faltaCorta : "Todavía no sabemos cuánto de la brecha es lo que cuesta el producto, cuánto el precio al que lo vendés y cuánto la mezcla de lo que vendiste.",
+      faltaCorta: i ? i.faltaCorta : "Lo que las acciones comerciales no explican todavía no está separado: cuánto es el costo del producto, cuánto el precio de venta y cuánto la mezcla de lo que vendiste.",
       // ⚠️ LOS DOS DATOS QUE DISTINGUEN A UNA FILA DE OTRA, sueltos y no dentro de una frase (owner 2026-08-08:
       // "todas dicen lo mismo… es mejor un título, dejar los clientes y con el pp que operan y lo que se
       // recuperaría"). La frase era idéntica en las cuatro filas salvo por estos dos números: repetirla cuatro
