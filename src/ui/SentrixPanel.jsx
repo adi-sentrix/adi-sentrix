@@ -2693,6 +2693,7 @@ function ResumenCapitalLista({ lista, tono, onAsk }) {
  * Dos filtros, los que pidió el owner: todo el inventario, o solo lo inmovilizado. */
 function CapitalBarras({ barras, onAsk }) {
   const [vista, setVista] = useState((barras && barras.porDefecto) || "general");
+  const [hov, setHov] = useState(null);
   if (!barras || !barras.vistas.length) return null;
   const v = barras.vistas.find((x) => x.key === vista) || barras.vistas[0];
   return (
@@ -2709,31 +2710,52 @@ function CapitalBarras({ barras, onAsk }) {
         </span>
         <Num>{v.totalFmt}</Num>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        {v.barras.map((b) => (
-          <div key={b.sku} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <div style={{ display: "flex", flexDirection: "column" }} onMouseLeave={() => setHov(null)}>
+        {v.barras.map((b, i) => {
+          const activa = hov == null || hov === i;
+          // la unidad entra ADENTRO solo si la barra le da lugar; si no, sale al borde en tono menor. Un número
+          // recortado a la mitad es peor que un número afuera.
+          const cabe = b.anchoPct >= 16;
+          return (
+          <div key={b.sku} onMouseEnter={() => setHov(i)}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 6px", margin: "0 -6px", borderRadius: 7,
+              background: hov === i ? "rgba(255,255,255,0.035)" : "transparent", transition: "background 0.15s, opacity 0.15s",
+              opacity: activa ? 1 : 0.55 }}>
             {/* el estado va como PUNTO de semáforo, no pintando la barra entera: el mismo idioma del cuadro y la
                 misma regla del owner — el color resalta, no decora. La barra queda de un solo tono. */}
-            <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: b.estado ? _capCol(b.estadoColor) : "transparent",
-              boxShadow: b.estado ? `0 0 5px ${_capCol(b.estadoColor)}99` : "none" }}/>
-            <span style={{ flex: "0 0 112px", fontSize: 11.5, fontWeight: b.agrupado ? 400 : 600, color: b.agrupado ? C.textMuted : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: b.estado ? _capCol(b.estadoColor) : "transparent",
+              boxShadow: b.estado ? `0 0 6px ${_capCol(b.estadoColor)}88` : "none" }}/>
+            <span style={{ flex: "0 0 108px", fontSize: 11, letterSpacing: "0.1px", fontWeight: b.agrupado ? 400 : 600, color: b.agrupado ? C.textMuted : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {b.ask && onAsk ? (
                 <button onClick={() => onAsk(b.ask)} title={`Preguntale a ADI: ${b.ask}${b.estadoLabel ? ` · ${b.estadoLabel}` : ""}`}
-                  style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{b.sku}</button>
+                  style={{ background: "transparent", border: "none", padding: 0, color: "inherit", fontSize: 11, letterSpacing: "0.1px", fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{b.sku}</button>
               ) : b.sku}
             </span>
-            <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ position: "relative", width: `${Math.max(b.anchoPct, 4)}%`, height: 21, borderRadius: 4,
-                background: b.agrupado ? "rgba(255,255,255,0.10)" : C.celeste, opacity: b.agrupado ? 1 : 0.88,
-                display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 7, boxSizing: "border-box", overflow: "hidden" }}
-                title={b.estadoLabel ? `${b.sku} · ${b.estadoLabel}` : b.sku}>
+            {/* EL RIEL · la barra vive dentro de una pista del ancho completo. Es lo que ordena el gráfico: sin él
+                las barras flotan y el monto de cada fila queda a una distancia distinta, que es lo que se veía
+                barato. Con riel, los montos caen todos en la misma columna y se comparan de arriba a abajo. */}
+            <span style={{ flex: 1, minWidth: 0, position: "relative", height: 20, borderRadius: 5,
+              background: "rgba(255,255,255,0.035)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.035)" }}
+              title={b.estadoLabel ? `${b.sku} · ${b.estadoLabel}` : b.sku}>
+              <span style={{ position: "absolute", inset: "0 auto 0 0", width: `${Math.max(b.anchoPct, 3)}%`, borderRadius: 5,
+                background: b.agrupado
+                  ? "linear-gradient(180deg, rgba(255,255,255,0.155), rgba(255,255,255,0.075))"
+                  : `linear-gradient(180deg, ${C.celeste}, rgba(37,150,180,0.92))`,
+                boxShadow: b.agrupado ? "none" : `inset 0 1px 0 rgba(255,255,255,0.28), 0 1px 10px ${C.celeste}33`,
+                display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8, boxSizing: "border-box", overflow: "hidden",
+                transformOrigin: "left center", animation: `adiRise 460ms cubic-bezier(.2,.7,.3,1) ${i * 26}ms both` }}>
                 {/* las unidades DENTRO, en tono menor: la barra mide capital, la unidad acompaña */}
-                {b.und != null ? <span style={{ fontFamily: MONO, fontSize: 10, color: b.agrupado ? C.textMuted : "rgba(0,0,0,0.60)", fontWeight: 600, whiteSpace: "nowrap" }}>{b.und.toLocaleString("es-CL")}</span> : null}
+                {b.und != null && cabe ? <span style={{ fontFamily: MONO, fontSize: 9.5, fontVariantNumeric: "tabular-nums", color: b.agrupado ? C.textMuted : "rgba(3,26,33,0.72)", fontWeight: 700, whiteSpace: "nowrap" }}>{b.und.toLocaleString("es-CL")}</span> : null}
               </span>
-              <Num>{b.usdFmt}</Num>
+              {b.und != null && !cabe ? (
+                <span style={{ position: "absolute", top: 0, bottom: 0, left: `calc(${Math.max(b.anchoPct, 3)}% + 7px)`, display: "flex", alignItems: "center",
+                  fontFamily: MONO, fontSize: 9.5, fontVariantNumeric: "tabular-nums", color: C.textMuted, whiteSpace: "nowrap" }}>{b.und.toLocaleString("es-CL")}</span>
+              ) : null}
             </span>
+            {/* el valorizado, en columna fija: alineado a la derecha se lee la escala de un barrido vertical */}
+            <span style={{ flex: "0 0 52px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}><Num>{b.usdFmt}</Num></span>
           </div>
-        ))}
+        ); })}
       </div>
       {/* la clave del punto · sin ella el semáforo es un código interno */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 13px", marginTop: 9 }}>
@@ -2918,10 +2940,13 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
     </div>
   );
   const vistaCorte = (cap.cortes && cap.cortes.vistas.find((v) => v.key === corte)) || (cap.cortes && cap.cortes.vistas[0]);
+  // la referencia de largo de las barras del bloque 02 · la fila más grande llena el riel, las demás se miden
+  // contra ella. Es dibujo, no aritmética: los montos y los porcentajes salen intactos del módulo.
+  const maxFila = vistaCorte ? Math.max(...vistaCorte.filas.map((f) => f.usd || 0), 1) : 1;
   return (<>
     {/* ── 01 · QUÉ ESTÁ PASANDO · veredicto + KPIs + distribución + el inventario general, cerrado ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está detenido — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Tocá un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
+      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está inmovilizado — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Tocá un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
       {/* EL VEREDICTO · localiza dónde está el capital y dónde falta. NO afirma la venta perdida por quiebre:
           eso no está medido en este dato. */}
       {cap.veredicto ? (
@@ -2947,8 +2972,10 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
             style={{ position:"relative", background: abierta ? "rgba(47,184,218,0.07)" : "rgba(255,255,255,0.02)", border:`1px solid ${abierta ? "rgba(47,184,218,0.5)" : C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: tabla ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s, border-color 0.15s" }}
             onMouseEnter={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
             onMouseLeave={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
-              <span style={{ fontSize:10.5, color:C.textMuted }}>{k.label}</span>
+            {/* minHeight de dos líneas: "Capital inmovilizado" envuelve y sin esto los cuatro titulares quedaban
+                a alturas distintas — cuatro cards que se leen juntas tienen que alinear sus cifras */}
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:6, minHeight:27 }}>
+              <span style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.28 }}>{k.label}</span>
               {col && <span style={{ width:7, height:7, borderRadius:"50%", background:col, boxShadow:`0 0 6px ${col}aa`, flexShrink:0 }}/>}
             </div>
             <div style={{ fontSize:16, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{k.value}</div>
@@ -3042,17 +3069,31 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
                 {/* la cabeza del 80/20 se marca; la cola queda atenuada, sin desaparecer */}
                 {f.enGrupo ? <span style={{ fontFamily:MONO, fontSize:8, color:C.celeste, border:"1px solid rgba(47,184,218,0.4)", borderRadius:3, padding:"0 4px" }}>80%</span> : null}
               </div>
-              {/* la barra: el capital de ESTA fila repartido en sus estados */}
-              <div style={{ display:"flex", height:8, borderRadius:4, overflow:"hidden", marginTop:7, background:"rgba(255,255,255,0.04)" }}>
-                {f.tramos.map((t) => (
-                  <span key={t.key} title={`${t.label}: ${t.usdFmt} (${t.pct}%)`}
-                    style={{ width:`${Math.max(t.pct, 2)}%`, background:_capCol(t.color), opacity:0.75 }}/>
-                ))}
+              {/* LA BARRA APILADA · el capital de ESTA fila repartido en sus estados. Dos cambios de fondo
+                  (owner 2026-08-09, "mejorá las barras"):
+                  · EL LARGO AHORA DICE ALGO. Antes las cuatro bodegas tenían la barra del mismo largo: $64K y $13K
+                    se dibujaban igual y solo el número los separaba. Ahora la barra se mide contra la fila más
+                    grande, así que el largo es la MAGNITUD y el reparto interno sigue siendo la MEZCLA. Los
+                    porcentajes de la leyenda no cambian: siguen siendo dentro de la fila.
+                  · Mismo acabado que el gráfico de arriba: riel con borde interior, degradado vertical por tramo y
+                    una hairline del color del fondo entre tramos — sin ella dos colores contiguos se funden. */}
+              <div style={{ height:10, borderRadius:5, marginTop:8, overflow:"hidden",
+                background:"rgba(255,255,255,0.035)", boxShadow:"inset 0 0 0 1px rgba(255,255,255,0.045)" }}>
+                <div style={{ display:"flex", height:"100%", borderRadius:5, overflow:"hidden",
+                  width:`${Math.max((f.usd / maxFila) * 100, 3)}%` }}>
+                  {f.tramos.map((t, ti) => (
+                    <span key={t.key} title={`${t.label}: ${t.usdFmt} (${t.pct}%)`}
+                      style={{ width:`${Math.max(t.pct, 2)}%`,
+                        background:`linear-gradient(180deg, ${_capCol(t.color)}, ${_capCol(t.color)}a8)`,
+                        boxShadow: ti ? "inset 1.5px 0 0 rgba(11,11,11,0.9)" : "none",
+                        transformOrigin:"left center", animation:`adiRise 460ms cubic-bezier(.2,.7,.3,1) ${ti * 45}ms both` }}/>
+                  ))}
+                </div>
               </div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:"3px 12px", marginTop:6, fontSize:10.5, color:C.textMuted }}>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"3px 13px", marginTop:7, fontSize:10.5, color:C.textMuted }}>
                 {f.tramos.map((t) => (
                   <span key={t.key} style={{ display:"flex", alignItems:"center", gap:5 }}>
-                    <span style={{ width:7, height:7, borderRadius:2, background:_capCol(t.color), flexShrink:0 }}/>
+                    <span style={{ width:7, height:7, borderRadius:"50%", background:_capCol(t.color), flexShrink:0 }}/>
                     {t.label} <Num>{t.usdFmt}</Num> <span>{t.pct}%</span>
                   </span>
                 ))}
@@ -3213,7 +3254,7 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
         </div>
       </div>
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Ordená por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital detenido que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
+        Ordená por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital inmovilizado que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
       </div>
     </div>
   );

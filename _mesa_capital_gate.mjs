@@ -407,6 +407,39 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     (bloqueCapital.match(/[^.]*cobertura[^.]*/i) || [""])[0].slice(0, 120));
 }
 
+/* ── (20) CANDADO "INMOVILIZADO" · una palabra para una cosa (owner 2026-08-09) ────────────────────────────────
+ * La cara decía "capital detenido" mientras la Ficha, el glosario y los propios composers de ADI ya decían
+ * "capital inmovilizado" — y encima el filtro del gráfico nuevo también. Dos palabras para el mismo dinero en la
+ * misma pantalla. Se unificó en INMOVILIZADO, que es la palabra que ya existía en el resto del producto.
+ * ⚠️ LO QUE NO CAMBIÓ, A PROPÓSITO: las `ask` que Sentrix le manda a ADI. Ese texto es la ENTRADA de ADI, su
+ * vocabulario es contrato suyo y tocarlo estaba fuera de alcance en este pase. Por eso el candado permite las
+ * preguntas y prohíbe todo lo demás: si mañana alguien escribe un rótulo con la palabra vieja, salta acá.
+ * Se barre el CÓDIGO —no la ejecución— porque una rama de texto que hoy no se dispara igual va a producción. */
+{
+  const src = fs.readFileSync(path.join(root, "src/adi/sentrix/mesaCapital.js"), "utf8");
+  const sinComentarios = src.replace(/\/\*[^]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n");
+  const lits = sinComentarios.match(/"[^"\n]*detenid[^"\n]*"|'[^'\n]*detenid[^'\n]*'|`[^`\n]*detenid[^`\n]*`/gi) || [];
+  // permitido: la clave interna `"detenido"` (no se lee en pantalla) y las preguntas que van a ADI
+  // ojo con `\b` después de una vocal acentuada: `é` no es `\w`, así que no hay borde y la prueba falla siempre
+  const esAsk = (s) => /^["'`]\s*(¿|Por qué\s)/.test(s);
+  const esClave = (s) => s === '"detenido"';
+  const colados = lits.filter((s) => !esAsk(s) && !esClave(s));
+  ok(colados.length === 0, "candado-inmovilizado-modulo", colados.join(" | ").slice(0, 180));
+  // …y en los textos escritos a mano de la cara Capital, que el módulo no controla
+  const panel = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8");
+  const sinCom = panel.replace(/\/\*[^]*?\*\//g, "").replace(/\{\s*\/\*[^]*?\*\/\s*\}/g, "");
+  const ini = sinCom.indexOf("function MesaCapitalCara"), fin = sinCom.indexOf("function CuadroCapital");
+  const bloque = ini >= 0 && fin > ini ? sinCom.slice(ini, fin) : "";
+  ok(bloque.length > 0 && !/detenid/i.test(bloque), "candado-inmovilizado-cara",
+    (bloque.match(/[^.]*detenid[^.]*/i) || [""])[0].slice(0, 140));
+  // el rótulo del estado y el KPI son LA misma palabra (si se separan, la card y la leyenda dejan de coincidir)
+  ok(CAPITAL_ESTADOS.capital_frenado.label === "inmovilizado", "candado-inmovilizado-estado", CAPITAL_ESTADOS.capital_frenado.label);
+  for (const sc of ["bonanza", "tension", "crisis"]) {
+    const k = buildMesaCapital(sc).kpis.find((x) => x.key === "detenido");
+    ok(k.label === "Capital inmovilizado", `candado-inmovilizado-kpi@${sc}`, k.label);
+  }
+}
+
 // los rótulos/definiciones de los estados también van formales (una sola vez — no dependen del escenario)
 for (const [k, e] of Object.entries(CAPITAL_ESTADOS)) {
   const m = `${e.label} ${e.def} ${e.ask}`.match(INFORMAL);
