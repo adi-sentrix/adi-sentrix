@@ -27,7 +27,7 @@
  * Registro EJECUTIVO y lenguaje formal en todo texto emitido (_registro_gate · benchmark, no vara).
  * Puro · client-side · CERO cálculo nuevo (agrupar y formatear lo que el motor ya afirma) · motor sellado intacto. */
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
-import { diagnoseInventario } from "../diagnosis/economicDiagnosis.js";
+import { diagnoseInventario, concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY } from "../../config/businessPolicy.js";
 /* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
  * comercial no reconcilian en unidad, moneda ni período: `skusMargen.venta` viene en MILES ($100.0M anuales) y
@@ -79,7 +79,9 @@ export function buildMesaCapital(scenario) {
   const dist = (e) => D.dist[e] || { usd: 0, count: 0, pct: 0 };
   const frenado = dist("capital_frenado"), quiebre = dist("riesgo_quiebre"), sobre = dist("sobrestock"), sano = dist("capital_sano");
   const criticos = D.perSku.filter((s) => s.estado === "capital_frenado" && bySku[s.sku] && bySku[s.sku].alerta === "crit").length;
-  const rotMedia = _r1(_mean(inv, (r) => r.rotacion));
+  const _rotPond = (rs) => { const cap = rs.reduce((a, r) => a + (r.stockUSD ?? r.capital ?? 0), 0);
+    return cap ? _r1(rs.reduce((a, r) => a + r.rotacion * (r.stockUSD ?? r.capital ?? 0), 0) / cap) : 0; };
+  const rotMedia = _rotPond(inv);
 
   // ── EL MAPA DEL CAPITAL · la tira de flujo (los tramos del motor suman EXACTO el total — el gate lo verifica) ──
   const tramos = _ORDEN.filter((e) => dist(e).usd > 0).map((e) => ({
@@ -102,15 +104,18 @@ export function buildMesaCapital(scenario) {
       estado: !frenado.usd ? "verde" : criticos ? "rojo" : "ambar",
       linea: frenado.usd ? `${frenado.count} SKU sin rotación${criticos ? ` · ${criticos} crítico${criticos > 1 ? "s" : ""}` : ""}` : "sin capital detenido material",
       ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario" },
-    { key: "quiebres", label: "Quiebres próximos", value: `${quiebre.count} SKU`,
+    // ⚠️ EN LA MISMA UNIDAD QUE SUS HERMANAS (owner 2026-08-09). Antes el titular era "3 SKU" mientras las otras
+    // tres decían plata: cuatro cards que se leen juntas y no se podían comparar — y la cifra más grande de la
+    // pantalla ($36K en riesgo, MÁS que los $33K detenidos) quedaba escondida detrás de un conteo.
+    { key: "quiebres", label: "Quiebres próximos", value: _money(quiebre.usd),
       estado: !quiebre.count ? "verde" : D.quiebreMaterial ? "rojo" : "ambar",
-      linea: quiebre.count ? `${_money(quiebre.usd)} rotan rápido y con pocos días de inventario` : "sin quiebres a la vista",
+      linea: quiebre.count ? `${quiebre.count} SKU rotan rápido y con pocos días de inventario` : "sin quiebres a la vista",
       ask: quiebre.count ? "¿Qué reponer por quiebre?" : "Ver todo el inventario" },
     // la ask cuenta LO MISMO que la línea (auditoría de asks 2026-07-15: preguntaba los SKU sin venta +90d —
     // 2 SKU/$22K — mientras la línea habla del criterio de DETENCIÓN — 3 SKU/$33K: dos cifras para un click)
-    { key: "rotacion", label: "Rotación media", value: `${rotMedia}x`,
+    { key: "rotacion", label: "Rotación media", value: `${rotMedia.toFixed(1)}x`,
       estado: rotMedia >= POLICY.rotacionMin ? "verde" : "rojo",
-      linea: `benchmark ${POLICY.rotacionMin}x — por debajo, el capital se considera detenido`,
+      linea: `ponderada por capital · benchmark ${POLICY.rotacionMin}x — por debajo, el capital se considera detenido`,
       ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario" },
   ];
 
@@ -237,7 +242,24 @@ export function buildMesaCapital(scenario) {
         ask: `¿Cuánto capital tengo en ${n}?` };
     }).sort((a, b) => b.usd - a.usd);
     const suma = filas.reduce((a, f) => a + f.usd, 0);
-    return { key, label, filas, n: filas.length, suma, sumaFmt: _money(suma), reconcilia: suma === D.total };
+    /* ── LA REGLA 80/20 SOBRE EL CAPITAL (owner 2026-08-09) ──────────────────────────────────────────────────
+     * Cuántas bodegas (o familias) concentran el 80% del capital. Con 4 la respuesta es casi trivial, pero con
+     * 40 bodegas o 200 familias es LA pregunta — y el mismo motor de concentración que usa la cara Comercial
+     * responde las dos, así que no se inventa un criterio nuevo. `enGrupo` marca las filas de la cabeza. */
+    const conc = concentracion(filas.map((f) => ({ nombre: f.nombre, valor: f.usd })));
+    const enGrupo = new Set(conc.entidades.map((e) => e.nombre));
+    for (const f of filas) f.enGrupo = enGrupo.has(f.nombre);
+    const cabeza = filas.filter((f) => f.enGrupo), cola = filas.filter((f) => !f.enGrupo);
+    const usdCabeza = cabeza.reduce((a, f) => a + f.usd, 0);
+    const pareto = {
+      regla: conc.regla, n: conc.cantidadEntidades, cubrePct: conc.totalCubiertoPct,
+      usdFmt: _money(usdCabeza), colaN: cola.length, colaUsdFmt: _money(suma - usdCabeza),
+      // la frase se arma acá, no en la vista, y nombra los dos universos: cabeza y cola cierran con el total
+      lectura: cola.length
+        ? `${conc.cantidadEntidades} de ${filas.length} ${label.toLowerCase()} concentran el ${conc.totalCubiertoPct}% del capital (${_money(usdCabeza)}); ${cola.length === 1 ? "la otra queda" : `las otras ${cola.length} quedan`} con ${_money(suma - usdCabeza)}.`
+        : `Hacen falta las ${filas.length} ${label.toLowerCase()} para juntar el ${conc.umbral * 100}% del capital: está repartido parejo.`,
+    };
+    return { key, label, filas, n: filas.length, suma, sumaFmt: _money(suma), reconcilia: suma === D.total, pareto };
   };
   const cortes = {
     porDefecto: "bodega",
@@ -337,10 +359,11 @@ export function buildMesaCapital(scenario) {
         _COL("benchmark", "Tu benchmark"), _COL("desvio", "Desviación"), _COL("usd", "Valor inventario"), _COL("stockUnd", "Unidades")],
       filas: [...new Set(D.perSku.map((s) => s.familia))].map((fam) => {
         const rs = _todas.filter((f) => f.familia === fam);
-        const rot = _r1(_mean(rs, (f) => f.rotacion)), usd = rs.reduce((a, f) => a + f.usd, 0);
+        const usd = rs.reduce((a, f) => a + f.usd, 0);
+        const rot = _rotPond(rs.map((f) => ({ rotacion: f.rotacion, stockUSD: f.usd })));
         const desv = POLICY.rotacionMin ? Math.round(((rot - POLICY.rotacionMin) / POLICY.rotacionMin) * 100) : 0;
         return { familia: fam, sku: fam, n: rs.length,
-          rotacion: rot, rotacionFmt: `${rot}x`,
+          rotacion: rot, rotacionFmt: `${rot.toFixed(1)}x`,
           benchmark: POLICY.rotacionMin, benchmarkFmt: `${POLICY.rotacionMin}x`,
           desvio: desv, desvioFmt: `${desv >= 0 ? "+" : ""}${desv}%`, bajoBenchmark: rot < POLICY.rotacionMin,
           usd, usdFmt: _money(usd), pctInv: _pctInv(usd),

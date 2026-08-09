@@ -2686,13 +2686,26 @@ function ResumenCapitalLista({ lista, tono, onAsk }) {
  * ⚠️ LO QUE FALTA SE DICE, NO SE INVENTA. Cada tabla declara qué columna no puede traer y por qué — lead time del
  * proveedor, estado de la orden de compra y la causa de una detención no están en el dato, y la causa no se puede
  * inferir sin historial de stock. Decirlo es más útil que rellenarlo: nombra exactamente qué habría que conectar. */
+const _CAP_PAGINA = 50;   // cuántas filas se dibujan de una vez · el resto entra con "ver más"
 function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   const [bodega, setBodega] = useState("todas");
   const [familia, setFamilia] = useState("todas");
+  const [q, setQ] = useState("");
+  const [tope, setTope] = useState(_CAP_PAGINA);
   if (!tabla) return null;
   const bodegas = [...new Set(tabla.filas.map((f) => f.bodega).filter(Boolean))];
   const familias = [...new Set(tabla.filas.map((f) => f.familia).filter(Boolean))];
-  const filas = tabla.filas.filter((f) => (bodega === "todas" || f.bodega === bodega) && (familia === "todas" || f.familia === familia));
+  /* ── PENSADO PARA MILES DE SKU, NO PARA TRECE (owner 2026-08-09) ──────────────────────────────────────────
+   * Con 1.000+ SKU, dibujar la tabla entera es inusable (y lento). Tres cosas resuelven eso a la vez: un
+   * buscador que filtra sobre TODO el universo —no sobre lo que se ve—, filtros por bodega y familia, y un tope
+   * de filas dibujadas con su "ver más". El conteo dice siempre cuántas hay detrás: una tabla que corta en
+   * silencio se lee como si eso fuera todo, que es la peor forma de mentir con una tabla. */
+  const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const nq = _norm(q.trim());
+  const filtradas = tabla.filas.filter((f) =>
+    (bodega === "todas" || f.bodega === bodega) && (familia === "todas" || f.familia === familia) &&
+    (!nq || _norm(f.sku).includes(nq) || _norm(f.bodega).includes(nq) || _norm(f.familia).includes(nq)));
+  const filas = filtradas.slice(0, tope);
   const celda = (f, c) => {
     if (c.key === "sku") return f.sku;
     if (c.key === "familia") return f.familia;
@@ -2735,12 +2748,13 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
         <span style={{ fontSize: 11, color: C.textMuted }}>{tabla.n} {tabla.n === 1 ? "fila" : "filas"} · {tabla.objetivo}</span>
         <button onClick={onCerrar} style={{ marginLeft: "auto", background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>Cerrar ▴</button>
       </div>
-      {(bodegas.length > 1 || familias.length > 1) && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-          {bodegas.length > 1 ? filtro(bodega, setBodega, bodegas, "Todas las bodegas") : null}
-          {familias.length > 1 ? filtro(familia, setFamilia, familias, "Todas las familias") : null}
-        </div>
-      )}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+        <input value={q} onChange={(e) => { setQ(e.target.value); setTope(_CAP_PAGINA); }}
+          placeholder={`Buscar entre ${tabla.n} ${tabla.n === 1 ? "fila" : "filas"}…`} aria-label="Buscar SKU"
+          style={{ flex: "0 1 230px", minWidth: 150, padding: "5px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.03)", color: C.text, fontSize: 11.5, fontFamily: "'DM Sans', system-ui, sans-serif", outline: "none" }}/>
+        {bodegas.length > 1 ? filtro(bodega, setBodega, bodegas, "Todas las bodegas") : null}
+        {familias.length > 1 ? filtro(familia, setFamilia, familias, "Todas las familias") : null}
+      </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 640 }}>
           <thead><tr>{tabla.columnas.map((c) => (
@@ -2764,7 +2778,22 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
           ))}</tbody>
         </table>
       </div>
-      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>Ordenada {tabla.orden}</div>
+      {/* SIEMPRE se dice cuántas hay detrás: una tabla que corta en silencio se lee como si eso fuera todo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 7 }}>
+        <span style={{ fontSize: 10.5, color: C.textMuted }}>
+          {filtradas.length === tabla.n
+            ? `${filas.length} de ${tabla.n}`
+            : `${filas.length} de ${filtradas.length} que coinciden · ${tabla.n} en total`}
+        </span>
+        {filtradas.length > filas.length ? (
+          <button onClick={() => setTope((t) => t + _CAP_PAGINA)}
+            style={{ background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+            Ver {Math.min(_CAP_PAGINA, filtradas.length - filas.length)} más ▾
+          </button>
+        ) : null}
+        {filtradas.length === 0 ? <span style={{ fontSize: 11, color: C.textSub }}>Ningún SKU coincide con esa búsqueda.</span> : null}
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>Ordenada {tabla.orden}</div>
       {(tabla.faltan || []).map((t, i) => (
         <div key={i} style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>⚠ {t}</div>
       ))}
@@ -2778,7 +2807,8 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
   // el cuadro operable vive DENTRO de 01, cerrado (owner 2026-08-08, decisión 4) — Capital NO repite el error de
   // Comercial, donde eliminar el contenedor se llevó la operabilidad entera. Acá solo baja de plano.
-  const [verCuadro, setVerCuadro] = useState(false);
+  // (`verCuadro` murió con "Ver inventario general" · owner 2026-08-09: la card "Capital total" abre la misma
+  //  grilla, con buscador y filtros. Tener las dos era la misma tabla dos veces.)
   const [corte, setCorte] = useState((cap.cortes && cap.cortes.porDefecto) || "bodega");
   const [verDetalle, setVerDetalle] = useState(false);
   // cada KPI abre SU tabla (owner 2026-08-09): la card ya no dispara la pregunta a ADI — la pregunta vive dentro
@@ -2854,21 +2884,13 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         <CapitalDrill tabla={cap.drill[drill]} ask={(cap.kpis.find((k) => k.key === drill) || {}).ask}
           onAsk={onAsk} onCerrar={() => setDrill(null)}/>
       ) : null}
-      {/* ── EL INVENTARIO GENERAL · el cuadro operable, cerrado (owner 2026-08-08, decisión 4) ──────────────────
-          Conserva TODO: ejes SKU/Bodegas, filtros, búsqueda, orden, alertas, la estrella de la watchlist y las
-          columnas relevantes (disponible · valorizado · rotación · días de inventario · última venta · estado ·
-          acción). Baja de plano, no se elimina — es la lección de Comercial. */}
-      <div style={{ marginTop:10 }}>
-        <button onClick={() => setVerCuadro((v) => !v)} aria-expanded={verCuadro}
-          style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", padding:0, color:C.celeste, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-          {verCuadro ? "Ocultar el inventario general" : `Ver inventario general (${cap.n} SKU)`} <span>{verCuadro ? "▴" : "▾"}</span>
-        </button>
-        {verCuadro && (
-          <div style={{ marginTop:9 }}>
-            <CuadroCapital key={"mesacap-" + scenario} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={onWatch}/>
-          </div>
-        )}
-      </div>
+      {/* ── "VER INVENTARIO GENERAL" SE ELIMINÓ (owner 2026-08-09) ──────────────────────────────────────────────
+          El cuadro entero quedó redundante: la card "Capital total" abre las mismas 13 filas con las mismas
+          columnas, más buscador y filtros pensados para miles de SKU. Tener las dos era la misma tabla dos veces.
+          ⚠️ SE VA CON ÉL LA ESTRELLA DE LA WATCHLIST, que vivía solo acá — Comercial ya la había perdido, así que
+          ahora no queda ninguna cara donde marcar un seguido. La lista "Lo que yo sigo" sigue mostrando lo ya
+          marcado, pero no hay dónde agregar. Está avisado al owner; si decide recuperarla, va en el detalle de
+          Capital total, que es donde ahora vive la grilla. */}
     </div>
     {/* ── LO QUE YO SIGO · transversal (la MISMA watchlist de la cara comercial — la estrella del cuadro de capital
         también suma acá · una lista, dos caras) ── */}
@@ -2918,13 +2940,20 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           </span>
           <span style={{ fontFamily:MONO, fontSize:7.5, letterSpacing:"0.5px", textTransform:"uppercase", color: vistaCorte.reconcilia ? C.green : C.amber, border:`1px solid ${vistaCorte.reconcilia ? C.green : C.amber}55`, borderRadius:3, padding:"1px 5px" }}>{vistaCorte.reconcilia ? "concilia" : "otro corte"}</span>
         </div>
+        {/* LA REGLA 80/20 SOBRE EL CAPITAL (owner 2026-08-09) · la frase viene del módulo y nombra los dos
+            universos, cabeza y cola, que cierran con el total */}
+        {vistaCorte.pareto ? (
+          <div style={{ fontSize:12, color:C.text, lineHeight:1.5, marginBottom:8 }}>{vistaCorte.pareto.lectura}</div>
+        ) : null}
         <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
           {vistaCorte.filas.map((f) => (
-            <div key={f.nombre} style={{ padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.018)" }}>
+            <div key={f.nombre} style={{ padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.018)", opacity: f.enGrupo === false ? 0.62 : 1 }}>
               <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
                 <span style={{ fontSize:12.5, fontWeight:600, color:C.text, flex:"0 1 auto" }}>{f.nombre}</span>
                 <Num>{f.usdFmt}</Num>
                 <span style={{ fontSize:10.5, color:C.textMuted }}>{f.pctTotal}% del capital · {f.n} SKU</span>
+                {/* la cabeza del 80/20 se marca; la cola queda atenuada, sin desaparecer */}
+                {f.enGrupo ? <span style={{ fontFamily:MONO, fontSize:8, color:C.celeste, border:"1px solid rgba(47,184,218,0.4)", borderRadius:3, padding:"0 4px" }}>80%</span> : null}
               </div>
               {/* la barra: el capital de ESTA fila repartido en sus estados */}
               <div style={{ display:"flex", height:8, borderRadius:4, overflow:"hidden", marginTop:7, background:"rgba(255,255,255,0.04)" }}>

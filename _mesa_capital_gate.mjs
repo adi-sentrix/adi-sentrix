@@ -213,6 +213,45 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     `veredicto-no-atribuye@${sc}`, "el veredicto localiza, no atribuye causa");
 }
 
+/* ── (16) CADA CARD CIERRA CON SU PROPIA TABLA (owner 2026-08-09) ─────────────────────────────────────────────
+ * "Las cifras no cuadran entre ellas; necesitamos única fuente de verdad sin inventar nada." Tenía razón: el KPI
+ * de rotación mostraba 5,8x —media SIMPLE de las 13 filas— y su propia tabla mostraba familias de 3,9x a 7,9x,
+ * cuya media da 5,97x. El usuario abría la card y NO podía llegar al número de arriba desde lo de abajo.
+ * Ahora las dos se ponderan por capital, así que las familias RECOMPONEN el total. El gate rehace esa cuenta. */
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  const mc = buildMesaCapital(sc);
+  const D = diagnoseInventario(applyScenarioToSkuInventario(sc) || [], {});
+  const t = mc.drill.rotacion;
+  const cap = t.filas.reduce((a, f) => a + f.usd, 0);
+  const recompuesta = cap ? t.filas.reduce((a, f) => a + f.rotacion * f.usd, 0) / cap : 0;
+  const kpiRot = parseFloat(mc.kpis.find((k) => k.key === "rotacion").value);
+  ok(Math.abs(recompuesta - kpiRot) <= 0.1, `rotacion-recomponible@${sc}`,
+    `el KPI dice ${kpiRot}x y sus familias recomponen ${recompuesta.toFixed(2)}x`);
+  ok(cap === D.total, `rotacion-tabla-cierra@${sc}`, `la tabla de familias suma ${cap} vs total ${D.total}`);
+  // LAS CUATRO CARDS EN LA MISMA UNIDAD donde tiene sentido: tres en plata, la de rotación en veces.
+  const enPlata = mc.kpis.filter((k) => /^\$/.test(String(k.value))).length;
+  ok(enPlata === 3, `kpis-misma-unidad@${sc}`, `${enPlata} de 4 cards en plata — las tres de capital deben serlo`);
+  // Y CADA CARD ABRE EXACTAMENTE SU UNIVERSO: la tabla no puede traer filas de otro estado
+  const porEstado = { detenido: "capital_frenado", quiebres: "riesgo_quiebre" };
+  for (const [k, estado] of Object.entries(porEstado)) {
+    const filas = mc.drill[k].filas;
+    ok(filas.every((f) => f.estado === estado), `drill-${k}-solo-su-universo@${sc}`, `alguna fila no es ${estado}`);
+    ok(filas.length === (D.dist[estado] || { count: 0 }).count, `drill-${k}-completo@${sc}`,
+      `${filas.length} filas vs ${(D.dist[estado] || {}).count} del motor`);
+    const suma = filas.reduce((a, f) => a + f.usd, 0);
+    ok(suma === (D.dist[estado] || { usd: 0 }).usd, `drill-${k}-suma@${sc}`, `${suma} vs ${(D.dist[estado] || {}).usd}`);
+  }
+  ok(mc.drill.capital.filas.length === D.perSku.length, `drill-capital-completo@${sc}`);
+  // EL 80/20 · cabeza + cola cierran con el total del corte, igual que en Comercial
+  for (const v of mc.cortes.vistas) {
+    const cabeza = v.filas.filter((f) => f.enGrupo).reduce((a, f) => a + f.usd, 0);
+    const colaU = v.filas.filter((f) => !f.enGrupo).reduce((a, f) => a + f.usd, 0);
+    ok(cabeza + colaU === v.suma, `pareto-${v.key}-cierra@${sc}`, `${cabeza}+${colaU} vs ${v.suma}`);
+    ok(!!v.pareto && typeof v.pareto.lectura === "string" && v.pareto.lectura.length > 20,
+      `pareto-${v.key}-lectura@${sc}`, "el 80/20 se declara en una frase del módulo");
+  }
+}
+
 /* ── (15) EL CANDADO DE LA DECISIÓN 2, BARRIDO SOBRE EL CÓDIGO ────────────────────────────────────────────────
  * No alcanza con revisar la salida del módulo: la palabra también vive en textos escritos a mano en la vista y
  * en el glosario, que es JUSTO donde alguien va a buscar la definición. Se barre el archivo, no la ejecución.
