@@ -2692,6 +2692,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   const [familia, setFamilia] = useState("todas");
   const [q, setQ] = useState("");
   const [tope, setTope] = useState(_CAP_PAGINA);
+  const [abierto, setAbierto] = useState(null);   // el SKU cuyo "a quién le vendés esto" está desplegado
   if (!tabla) return null;
   const bodegas = [...new Set(tabla.filas.map((f) => f.bodega).filter(Boolean))];
   const familias = [...new Set(tabla.filas.map((f) => f.familia).filter(Boolean))];
@@ -2767,20 +2768,50 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
               {c.label}{c.nota ? <span style={{ color: C.textMuted, fontWeight: 400 }}> ·{c.nota}</span> : null}
             </th>
           ))}</tr></thead>
-          <tbody>{filas.map((f) => (
-            <tr key={f.sku}>
+          <tbody>{filas.map((f) => (<React.Fragment key={f.sku}>
+            <tr>
               {tabla.columnas.map((c) => (
                 <td key={c.key} style={{ ..._RC_TD, textAlign: c.align, color: colorCelda(f, c),
                   fontWeight: c.key === "sku" || (c.key === "usd" && f.destacar) ? 600 : 400,
                   fontFamily: c.align === "left" ? "'DM Sans', system-ui, sans-serif" : MONO }}>
-                  {c.key === "sku" && onAsk ? (
-                    <button onClick={() => onAsk(f.ask)} title={`Preguntale a ADI: ${f.ask}`}
-                      style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{celda(f, c)}</button>
+                  {c.key === "sku" ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      {onAsk ? (
+                        <button onClick={() => onAsk(f.ask)} title={`Preguntale a ADI: ${f.ask}`}
+                          style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{celda(f, c)}</button>
+                      ) : celda(f, c)}
+                      {/* A QUIÉN LE CALZA ESTE PRODUCTO · solo donde el módulo lo trae (los detenidos) */}
+                      {f.compradores ? (
+                        <button onClick={() => setAbierto(abierto === f.sku ? null : f.sku)} aria-expanded={abierto === f.sku}
+                          title={`A quién le vendés ${f.sku}`}
+                          style={{ background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+                          {abierto === f.sku ? "▴" : "▾ a quién"}
+                        </button>
+                      ) : null}
+                    </span>
                   ) : celda(f, c)}
                 </td>
               ))}
             </tr>
-          ))}</tbody>
+            {f.compradores && abierto === f.sku ? (
+              <tr>
+                <td colSpan={tabla.columnas.length} style={{ padding: "2px 6px 10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(f.compradores.estatus), border: `1px solid ${_rcEstatusCol(f.compradores.estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{f.compradores.estatus}</span>
+                    <span style={{ fontSize: 10.5, color: C.textMuted }}>a quién le vendés esto hoy</span>
+                    {f.compradores.filas.map((c2) => (
+                      <span key={c2.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
+                        <span style={{ fontSize: 11, color: C.textSub }}>{c2.nombre}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.text, fontVariantNumeric: "tabular-nums" }}>{c2.pctFmt}</span>
+                      </span>
+                    ))}
+                    {f.compradores.resto > 0 ? <span style={{ fontSize: 10.5, color: C.textMuted }}>+{f.compradores.resto} más</span> : null}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.textMuted, lineHeight: 1.5, marginTop: 5 }}>{tabla.compradoresNota}</div>
+                </td>
+              </tr>
+            ) : null}
+          </React.Fragment>))}</tbody>
         </table>
       </div>
       {/* SIEMPRE se dice cuántas hay detrás: una tabla que corta en silencio se lee como si eso fuera todo */}

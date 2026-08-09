@@ -252,6 +252,35 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   }
 }
 
+/* ── (17) "A QUIÉN LE VENDÉS LO DETENIDO" · nombres y porcentajes, ni un peso (owner 2026-08-09) ───────────────
+ * La matriz cliente×SKU es del universo COMERCIAL y el SKU detenido del de inventario. Se toma el reparto para
+ * saber a quién le calza el producto —la pregunta accionable— y el monto se descarta en el acto: un "$X" al lado
+ * de "$14K detenidos" se leería como que ese cliente tiene $14K parados. El gate verifica las tres cosas que lo
+ * hacen honesto: que no sobreviva plata, que vaya sellado `indicado` (la matriz se construye por afinidad, no es
+ * una transacción observada), y que la imposibilidad de "quiénes dejaron de comprar" esté DECLARADA. */
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  const det = buildMesaCapital(sc).drill.detenido;
+  const conC = det.filas.filter((f) => f.compradores);
+  ok(det.filas.length === 0 || conC.length === det.filas.length, `compradores-en-todos@${sc}`,
+    `${conC.length} de ${det.filas.length} filas detenidas traen a quién le calza`);
+  for (const f of conC) {
+    const campos = new Set(f.compradores.filas.flatMap((c) => Object.keys(c)));
+    ok([...campos].every((k) => ["nombre", "pct", "pctFmt"].includes(k)), `compradores-sin-plata-${f.sku}@${sc}`,
+      `campos: ${[...campos].join(",")} — solo nombre y participación`);
+    ok(!/\$/.test(JSON.stringify(f.compradores)), `compradores-sin-signo-peso-${f.sku}@${sc}`);
+    ok(f.compradores.filas.every((c) => c.pct >= 1 && c.pct <= 100), `compradores-pct-valido-${f.sku}@${sc}`);
+    ok(f.compradores.estatus === "indicado", `compradores-indicado-${f.sku}@${sc}`,
+      "la matriz se construye por afinidad: no es una transacción observada");
+    // y no puede pisar el orden: la fila sigue ordenada por días sin venta, no por comprador
+    ok(f.compradores.filas.every((c, i) => i === 0 || f.compradores.filas[i - 1].pct >= c.pct),
+      `compradores-orden-${f.sku}@${sc}`, "los compradores van por peso descendente");
+  }
+  ok(/dejaron de comprar/i.test((det.faltan || []).join(" ")), `falta-dejaron-de-comprar@${sc}`,
+    "la imposibilidad se declara, no se deja una columna hueca");
+  ok(/afinidad/i.test(det.compradoresNota || "") && /participaci[óo]n/i.test(det.compradoresNota || ""),
+    `compradores-nota@${sc}`, "la nota dice que es estimación y por qué va en participación");
+}
+
 /* ── (15) EL CANDADO DE LA DECISIÓN 2, BARRIDO SOBRE EL CÓDIGO ────────────────────────────────────────────────
  * No alcanza con revisar la salida del módulo: la palabra también vive en textos escritos a mano en la vista y
  * en el glosario, que es JUSTO donde alguien va a buscar la definición. Se barre el archivo, no la ejecución.

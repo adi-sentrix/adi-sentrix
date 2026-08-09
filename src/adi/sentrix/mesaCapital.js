@@ -29,6 +29,8 @@
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { diagnoseInventario, concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY } from "../../config/businessPolicy.js";
+// Solo para saber A QUIÉN le calza un producto detenido. De acá NO entra plata: ver `_compradoresDe`.
+import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 /* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
  * comercial no reconcilian en unidad, moneda ni período: `skusMargen.venta` viene en MILES ($100.0M anuales) y
  * `stockUSD` en dólares crudos ($135.000 de inventario); además las unidades vendidas que declara cada fuente
@@ -300,6 +302,26 @@ export function buildMesaCapital(scenario) {
    * (obsolescencia / sobrecompra / temporada) no están en el dato — y la causa no se puede inferir sin historial
    * de stock. Cada tabla DECLARA lo que le falta, que es justo lo que haría falta para completar su decisión. */
   const _pctInv = (usd) => (D.total ? Math.round((usd / D.total) * 100) : 0);
+  /* ── A QUIÉN LE VENDÉS HOY LO QUE ESTÁ DETENIDO (owner 2026-08-09) ──────────────────────────────────────────
+   * Responde la pregunta accionable —"¿a quién le ofrezco la salida?"— sin cruzar universos. Se toma SOLO el
+   * reparto, se convierte a PARTICIPACIÓN y se descarta el monto en el acto: la venta viene en escala comercial y
+   * el inventario en dólares crudos, así que un "$X" al lado de "$14K detenidos" se leería como que ese cliente
+   * tiene $14K parados. Acá no sobrevive ni un peso de ese universo — solo nombres y porcentajes.
+   *
+   * ⚠️ Y VA COMO `indicado`, no como dato: la matriz cliente×SKU del set se CONSTRUYE por afinidad de marca y
+   * familia (el propio módulo lo declara y se reemplaza por la matriz real cuando llegue el ERP). Es una
+   * estimación de a quién le calza el producto, no una transacción observada. La vista lo dice. */
+  const _compradoresDe = (sku) => {
+    let lista = [];
+    try { lista = compradoresSku(sku) || []; } catch { return null; }
+    const tot = lista.reduce((a, x) => a + (x.value || 0), 0);
+    if (!tot) return null;
+    const filas = lista.map((x) => ({ nombre: x.name, pct: Math.round((x.value / tot) * 100) }))
+      .filter((x) => x.pct >= 1).sort((a, b) => b.pct - a.pct);
+    return { estatus: "indicado", n: filas.length,
+      filas: filas.slice(0, 5).map((x) => ({ ...x, pctFmt: `${x.pct}%` })),
+      resto: Math.max(0, filas.length - 5) };
+  };
   const _filaDrill = (s) => {
     const r = bySku[s.sku] || {};
     return { sku: s.sku, bodega: s.bodega, familia: s.familia,
@@ -332,13 +354,19 @@ export function buildMesaCapital(scenario) {
     },
     detenido: {
       key: "detenido", titulo: "Capital detenido", objetivo: "Qué capital no está trabajando y desde cuándo.",
+      compradoresNota: "Quién compra hoy ese producto, por su peso en la venta del SKU. Es una ESTIMACIÓN por afinidad de marca y familia —no una transacción observada— y por eso va en participación, nunca en plata: la venta y el inventario no se miden en la misma unidad.",
       columnas: [_COL("sku", "SKU", "left"), _COL("diasSinVenta", "Días sin venta"), _COL("usd", "Valor detenido"),
         _COL("margenPct", "Margen", "right", "del inventario"), _COL("rotacion", "Rotación", "right", "declarada"),
         _COL("bodega", "Bodega", "left"), _COL("accion", "Acción", "left")],
-      filas: _todas.filter((f) => f.estado === "capital_frenado").sort((a, b) => (b.diasSinVenta || 0) - (a.diasSinVenta || 0)),
+      filas: _todas.filter((f) => f.estado === "capital_frenado")
+        .sort((a, b) => (b.diasSinVenta || 0) - (a.diasSinVenta || 0))
+        .map((f) => ({ ...f, compradores: _compradoresDe(f.sku) })),
       orden: "por días sin venta: primero lo que lleva más tiempo quieto.",
       totalFmt: _money(frenado.usd), n: frenado.count,
-      faltan: ["Por qué se detuvo —obsolescencia, sobrecompra, temporada— no está en el dato y no se puede inferir sin historial de stock."],
+      faltan: [
+        "Por qué se detuvo —obsolescencia, sobrecompra, temporada— no está en el dato y no se puede inferir sin historial de stock.",
+        "Quiénes lo compraban y dejaron de comprar tampoco: no existe historia por cliente y producto, solo el total de cada cliente. Se enciende con el ERP, que trae la transacción con fecha.",
+      ],
     },
     quiebres: {
       key: "quiebres", titulo: "Quiebres próximos", objetivo: "Qué se queda sin stock antes.",
