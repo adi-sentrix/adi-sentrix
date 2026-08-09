@@ -758,9 +758,13 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   ok(!/^¿Y si…\?/m.test(T), "«¿Y si…?» tampoco");
   ok((MESA.simulaciones || []).filter((s) => s.key !== "capital").every((s) => !T.includes(s.texto)),
     "…ni sus supuestos comerciales");
-  // Y NO SE PIERDE NADA QUE NO ESTÉ EN OTRO LADO: los supuestos de capital nunca salieron de la cara Capital
+  /* ⚠️ ACTUALIZADO 2026-08-09: cuando "¿Y si…?" salió de Comercial, esta aserción decía que los supuestos seguían
+   * vivos en Capital. Ya no: el owner los eliminó también de ahí, con el mismo criterio ("no aporta" — proyectaban
+   * en condicional lo que las cards ya afirman). Así que la garantía cambia de "se movió" a "se eliminó de las
+   * dos caras", y el DATO sigue en el módulo por si vuelve. Decir "se movió" cuando ya no está sería mentir. */
   fireEvent.click(porTexto(container, "Capital"));
-  ok(/¿Y si/i.test(container.textContent), "los supuestos siguen vivos en la cara Capital (nunca salieron de ahí)");
+  ok(!/¿Y si/i.test(container.textContent), "«¿Y si…?» tampoco está en Capital: el owner lo eliminó de las dos caras");
+  ok((MESA.simulaciones || []).length > 0, "…pero el dato sigue en el módulo, intacto, por si vuelve");
   fireEvent.click(porTexto(container, "Comercial"));
   // LA CARA CIERRA EN LAS DECISIONES · nada cuelga después del bloque 03
   ok(!/O que ADI cuente el caso/i.test(container.textContent),

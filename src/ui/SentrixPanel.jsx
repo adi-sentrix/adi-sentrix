@@ -2710,7 +2710,12 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
     if (c.key === "sku") return f.sku;
     if (c.key === "familia") return f.familia;
     if (c.key === "bodega") return f.bodega || "—";
-    if (c.key === "estado") return f.estadoLabel;
+    if (c.key === "estado") return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: _capCol(f.estadoColor), boxShadow: `0 0 5px ${_capCol(f.estadoColor)}99`, flexShrink: 0 }}/>
+        {f.estadoLabel}
+      </span>
+    );
     if (c.key === "accion") return f.accion;
     if (c.key === "usd") return f.usdFmt;
     if (c.key === "rotacion") return f.rotacionFmt;
@@ -2724,7 +2729,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
     return f[c.key] ?? "—";
   };
   const colorCelda = (f, c) => {
-    if (c.key === "estado") return _capCol(f.estadoColor);
+    if (c.key === "estado") return C.text;   // la palabra en blanco; el color vive en el punto
     if (c.key === "doh" && f.urgente) return C.red;                    // menos de 5 días: se corta ya
     if (c.key === "desvio") return f.bajoBenchmark ? C.amber : C.textSub;
     if (c.key === "usd") return f.destacar ? C.text : C.textSub;       // el capital grande, destacado
@@ -2810,7 +2815,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   // (`verCuadro` murió con "Ver inventario general" · owner 2026-08-09: la card "Capital total" abre la misma
   //  grilla, con buscador y filtros. Tener las dos era la misma tabla dos veces.)
   const [corte, setCorte] = useState((cap.cortes && cap.cortes.porDefecto) || "bodega");
-  const [verDetalle, setVerDetalle] = useState(false);
+  // (`verDetalle` murió con el detalle sin encabezados · owner 2026-08-09)
   // cada KPI abre SU tabla (owner 2026-08-09): la card ya no dispara la pregunta a ADI — la pregunta vive dentro
   // del detalle, que es donde el usuario ya tiene el contexto para hacerla.
   const [drill, setDrill] = useState(null);
@@ -2838,28 +2843,8 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
         <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{cap.mapa.lectura}
       </div>
-      {/* la tira de flujo · cada tramo pregunta */}
-      <div style={{ display:"flex", height:22, borderRadius:7, overflow:"hidden", border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.03)" }}>
-        {cap.mapa.tramos.map((t) => (
-          <button key={t.key} onClick={onAsk ? () => onAsk(t.ask) : undefined}
-            title={`${t.label} · ${t.usdFmt} · ${t.n} SKU${onAsk ? ` — preguntale a ADI: ${t.ask}` : ""}`}
-            style={{ width:`${Math.max(t.pct, 3)}%`, background:_capCol(t.color), opacity:0.72, border:"none", padding:0, cursor: onAsk ? "pointer" : "default", transition:"opacity 0.15s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.72"; }}/>
-        ))}
-      </div>
-      {/* la leyenda con su $ · también pregunta */}
-      <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 14px", marginTop:8 }}>
-        {cap.mapa.tramos.map((t) => (
-          <button key={t.key} onClick={onAsk ? () => onAsk(t.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${t.ask}` : undefined}
-            style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, color:C.textSub, background:"transparent", border:"none", padding:0, cursor: onAsk ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-            <span style={{ width:8, height:8, borderRadius:2, background:_capCol(t.color), flexShrink:0 }}/>
-            <span>{t.label}</span>
-            <Num>{t.usdFmt}</Num>
-            <span style={{ fontSize:10, color:C.textMuted }}>· {t.n} SKU</span>
-          </button>
-        ))}
-      </div>
+      {/* LA TIRA DE ESTADOS SE ELIMINÓ (owner 2026-08-09): repetía por tercera vez las cuatro cifras que ya
+          dicen la línea de ADI y las cards, y la barra por estado ya vive en cada bodega del bloque 02. */}
       {/* los KPIs de la cara · capital total · detenido · quiebres próximos · rotación media */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9, marginTop:9 }}>
         {cap.kpis.map((k) => { const col = semCol[k.estado]; const abierta = drill === k.key;
@@ -2974,27 +2959,9 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           ))}
         </div>
         <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:7 }}>{cap.cortes.nota}</div>
-        {/* EL DETALLE POR SKU · accionable, cerrado */}
-        <button onClick={() => setVerDetalle((v) => !v)} aria-expanded={verDetalle}
-          style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", padding:0, marginTop:8, color:C.celeste, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-          {verDetalle ? "Ocultar el detalle por SKU" : `Ver el detalle por SKU (${cap.cortes.detalle.length})`} <span>{verDetalle ? "▴" : "▾"}</span>
-        </button>
-        {verDetalle && (
-          <div style={{ display:"flex", flexDirection:"column", marginTop:8 }}>
-            {cap.cortes.detalle.map((d, i) => (
-              <AskRow key={d.nombre} onAsk={onAsk} q={d.ask}
-                style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"7px 2px", borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
-                <span style={{ flex:"0 1 130px", minWidth:104, fontSize:12, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.nombre}</span>
-                <span style={{ flex:"0 1 96px", fontSize:10.5, color:C.textMuted }}>{d.bodega}</span>
-                <span style={{ display:"flex", alignItems:"baseline", gap:10, flexWrap:"wrap", fontFamily:MONO, fontSize:11, fontVariantNumeric:"tabular-nums", color:C.textSub }}>
-                  <span>{d.usdFmt}</span><span>{d.rotacionFmt}</span><span>{d.dohFmt} inv.</span>
-                  {d.diasSinVenta ? <span>{d.diasSinVenta}d sin venta</span> : null}
-                </span>
-                <span style={{ marginLeft:"auto", fontSize:10.5, color:_capCol(d.estadoColor), flexShrink:0 }}>{d.estadoLabel}</span>
-              </AskRow>
-            ))}
-          </div>
-        )}
+        {/* EL "DETALLE POR SKU" SE ELIMINÓ (owner 2026-08-09): era una lista sin encabezados —había que
+            adivinar qué era cada número— y la card "Capital total" ya abre los mismos SKU con columnas
+            nombradas, buscador y filtros. Era una mala versión de algo que ya está bien hecho. */}
       </>) : (
         <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin cortes disponibles para el capital del período.</div>
       )}
@@ -3018,22 +2985,8 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         {cap.limitaciones.join(" ")}
       </div>
     )}
-    {/* ── ¿Y SI…? · supuestos sobre el capital (liberar lo cuantifica el composer de simulate · reponer es honesto:
-        la proyección de reposición no existe en este pase — la pregunta abre lo probado del motor) ── */}
-    {(cap.simulaciones || []).length > 0 && (
-      <div>
-        <MovHead title="¿Y si…?" def={"Supuestos, no datos: liberar el capital detenido es una proyección que ADI corre sobre tu dato real (el composer la cuantifica); reponer los quiebres se responde con lo que el motor puede afirmar — la venta en riesgo de un quiebre no se proyecta todavía, y ADI lo declara. Tocá una línea y ADI abre esa historia al lado."}/>
-        <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-          {cap.simulaciones.map((s) => (
-            <AskRow key={s.key} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
-              <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
-              <span style={{ flex:1 }}>{s.texto}</span>
-              <span style={{ fontFamily:MONO, fontSize:12, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{s.delta}</span>
-            </AskRow>
-          ))}
-        </div>
-      </div>
-    )}
+    {/* "¿Y SI…?" SE ELIMINÓ (owner 2026-08-09: "no aporta") — el mismo criterio con que salió de Comercial:
+        proyectaba lo que ya dicen las cards ($33K detenidos, $36K en quiebre) envuelto en un condicional. */}
     {/* (El "Cuadro de capital" ya NO va suelto al final: subió DENTRO de 01, cerrado bajo "Ver inventario
         general" — owner 2026-08-08, decisión 4. Es el mismo componente con toda su operabilidad; lo único que
         cambió es la altura a la que vive. Tenerlo dos veces sería mostrar la misma tabla dos veces.) */}
