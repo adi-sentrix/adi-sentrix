@@ -19,7 +19,7 @@ export const METRIC_DEFS = {
   "Capital": "El valor del inventario: lo que tenés invertido en stock.",
   "Inmovilizado": "El stock que no rota (en alerta o rotación < 2): capital detenido.",
   "Rotación": "Cuántas veces el stock se vende y se repone en el período. Más alta = mejor.",
-  "DOH": "Días de cobertura: cuántos días dura el stock al ritmo de venta actual. Más alto = más lento.",
+  "DOH": "Días de inventario: cuántos días dura el stock al ritmo de venta actual. Más alto = más lento.",
   "SKUs en alerta": "Cantidad de SKUs marcados crítico o de cuidado (lento o sin venta).",
   "Peor sin venta": "El SKU que más días lleva sin registrar una venta.",
   "% del inmov. total": "Qué parte del capital inmovilizado total concentra esta bodega.",
@@ -75,12 +75,12 @@ export const CONCEPT_DEFS = {
   rotacion: {
     aka: "rotación",
     def: "Es cuántas veces el stock se vende y se repone en el período. Más alta, mejor: el capital invertido en inventario trabaja más veces.",
-    distingue: "La rotación cuenta las vueltas del stock; el **DOH** mide lo mismo en días de cobertura.",
+    distingue: "La rotación cuenta las vueltas del stock; los **días de inventario** miden lo mismo en días.",
   },
   doh: {
     aka: "DOH",
-    def: "DOH es los días de cobertura: cuántos días dura el stock al ritmo de venta actual. Más alto, más lento sale el inventario y más capital queda invertido en él.",
-    distingue: "El DOH mide la cobertura en días; la **rotación** mide lo mismo en vueltas del stock por período.",
+    def: "Son los días de inventario: cuántos días dura el stock al ritmo de venta actual. Más alto, más lento sale el inventario y más capital queda invertido en él. En pantalla aparece como «Días inv.».",
+    distingue: "Los días de inventario lo miden en días; la **rotación** mide lo mismo en vueltas del stock por período.",
   },
 };
 

@@ -718,7 +718,11 @@ H("[5] LO QUE SALE DE COMERCIAL · tiras legacy · capital · bodegas · evoluci
   ok(![...container.querySelectorAll("span")].some((s) => s.textContent === "☆" || s.textContent === "★"),
     "en Comercial ya no queda una estrella suelta sin lista donde caer");
   fireEvent.click(porTexto(container, "Capital"));
-  ok(container.textContent.includes("Cuadro de capital"), "…y la cara Capital, donde vive la lista, sigue entera");
+  const _verInv = botones(container).find((b) => /Ver inventario general/i.test(b.textContent));
+  ok(!!_verInv, "…y la cara Capital ofrece su inventario operable");
+  fireEvent.click(_verInv);
+  ok([...container.querySelectorAll("span")].some((s) => s.textContent === "☆" || s.textContent === "★"),
+    "…con la estrella de la watchlist, que es donde la lista vive ahora");
   fireEvent.click(porTexto(container, "Comercial"));
   // …y lo que salió NO se perdió: el mismo supuesto vive en la cara Capital
   fireEvent.click(porTexto(container, "Capital"));
@@ -809,7 +813,9 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
 {
   const { container } = abrir(evTemporal());
   fireEvent.click(porTexto(container, "Capital"));
-  ok(container.textContent.includes("Cuadro de capital") && container.textContent.includes("Qué está pasando"), "la cara CAPITAL rinde completa");
+  ok(container.textContent.includes("Qué está pasando") && container.textContent.includes("Dónde ocurre") && container.textContent.includes("Qué hacer primero"),
+    "la cara CAPITAL rinde sus tres movimientos");
+  ok(botones(container).some((b) => /Ver inventario general/i.test(b.textContent)), "…y conserva el inventario operable, cerrado");
   ok(container.textContent.includes("Qué hacer primero"), "…con sus tres movimientos");
   fireEvent.click(porTexto(container, "Resultado"));
   ok(/P&L|resultado después de gastos|Resultado/i.test(container.textContent), "la cara RESULTADO rinde");

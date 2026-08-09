@@ -1243,7 +1243,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
                   <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:cpColor, textTransform:"uppercase" }}>La otra punta · {cp.label}</span>
                 </div>
                 <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55 }}>
-                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(cp.usd)}</span> ({cp.pct}%) en {cp.count} SKU{cp.estado === "riesgo_quiebre" ? " que rotan rápido con poca cobertura — se van a cortar" : " que no rotan y retienen el capital"}.
+                  <span style={{ fontFamily:MONO, color:C.text }}>{_fm(cp.usd)}</span> ({cp.pct}%) en {cp.count} SKU{cp.estado === "riesgo_quiebre" ? " que rotan rápido y con pocos días de inventario — se van a cortar" : " que no rotan y retienen el capital"}.
                   {cp.familias && cp.familias.length ? <> Sobre todo en {cp.familias[0].nombre}.</> : null}
                 </div>
               </div>
@@ -2631,18 +2631,82 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
  * existentes · POLICY · cero cálculo acá). "Qué cambió" NO aparece: sin historial de stock no se fabrica (honesto).
  * Anti-BI: cada tramo, KPI, foco, línea y chip es una PREGUNTA gate-proven — o navega, nunca muda. */
 const _capCol = (c) => ({ green: C.green, amber: C.amber, red: C.red, cyan: C.celeste }[c] || C.textMuted);
+/* ── UNA LISTA DEL BLOQUE 03 DE CAPITAL · acción en el título, tope de 5, el resto a un clic ───────────────────
+ * Owner 2026-08-08 (decisión 6): "máximo 5 SKU por lista para que escale a empresas grandes; el resto en Ver
+ * todos". En el demo entran los 3 reales de cada grupo, así que el botón no aparece — pero el tope existe.
+ * La ACCIÓN va una sola vez, en el encabezado del grupo: dentro de un frente el problema es el mismo por
+ * construcción, y repetirla por fila fue exactamente lo que hubo que deshacer en Comercial. */
+function ResumenCapitalLista({ lista, tono, onAsk }) {
+  const [todos, setTodos] = useState(false);
+  if (!lista) return null;
+  const filas = todos ? lista.filas : lista.filas.slice(0, lista.tope);
+  return (
+    <div style={{ ...CARD_SIDES, borderRadius: 12, padding: "12px 14px", background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: 6 }}>
+      <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase", color: C.celeste }}>{lista.titulo}</span>
+        <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", color: C.textMuted, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px" }}>{lista.n}</span>
+        <Num color={tono}>{lista.usdFmt}</Num>
+      </span>
+      <span style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.5 }}>
+        {lista.criterio} <span style={{ color: C.text, fontWeight: 600 }}>{lista.accion}</span>
+      </span>
+      {filas.length === 0 ? (
+        <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.5 }}>Nada urgente en este frente — el dato no marca casos.</div>
+      ) : filas.map((f, i) => (
+        <AskRow key={f.sku} onAsk={onAsk} q={f.ask}
+          style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap", fontSize: 11.5, color: C.textSub, lineHeight: 1.45, paddingTop: i === 0 ? 3 : 6, borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
+          <span style={{ color: C.text, fontWeight: 600, fontSize: 12, flexShrink: 0 }}>{f.sku}</span>
+          <span style={{ fontSize: 10.5, color: C.textMuted, flexShrink: 0 }}>{f.bodega}</span>
+          <span style={{ minWidth: 0, fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>{f.linea}</span>
+        </AskRow>
+      ))}
+      {lista.resto > 0 && (
+        <button onClick={() => setTodos((t) => !t)} aria-expanded={todos}
+          style={{ alignSelf: "flex-start", background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+          {todos ? `Ver solo los primeros ${lista.tope}` : `Ver todos (${lista.n})`} {todos ? "▴" : "▾"}
+        </button>
+      )}
+      {onAsk && filas.length > 0 && (
+        <button onClick={() => onAsk(lista.ask)} title={`Preguntale a ADI: ${lista.ask}`}
+          style={{ alignSelf: "flex-start", marginTop: 2, padding: "5px 11px", borderRadius: 7, border: "1px solid rgba(47,184,218,0.5)", background: "rgba(47,184,218,0.08)", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", transition: "background 0.15s" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
+          Que ADI lo ordene <span style={{ color: C.celeste }}>→</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, onWatch = null, wl = { items: [] } }) {
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
+  // el cuadro operable vive DENTRO de 01, cerrado (owner 2026-08-08, decisión 4) — Capital NO repite el error de
+  // Comercial, donde eliminar el contenedor se llevó la operabilidad entera. Acá solo baja de plano.
+  const [verCuadro, setVerCuadro] = useState(false);
+  const [corte, setCorte] = useState((cap.cortes && cap.cortes.porDefecto) || "bodega");
+  const [verDetalle, setVerDetalle] = useState(false);
   const MovHead = ({ num, title, def }) => (
     <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
     </div>
   );
+  const vistaCorte = (cap.cortes && cap.cortes.vistas.find((v) => v.key === corte)) || (cap.cortes && cap.cortes.vistas[0]);
   return (<>
-    {/* ── 01 · QUÉ ESTÁ PASANDO · EL MAPA DEL CAPITAL (la tira de flujo · los tramos del motor suman el total) ── */}
+    {/* ── 01 · QUÉ ESTÁ PASANDO · veredicto + KPIs + distribución + el inventario general, cerrado ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está detenido — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · cobertura ${POLICY.dohMax} días). Los tramos suman exacto tu capital total. Tocá un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
+      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está detenido — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Tocá un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
+      {/* EL VEREDICTO · localiza dónde está el capital y dónde falta. NO afirma la venta perdida por quiebre:
+          eso no está medido en este dato. */}
+      {cap.veredicto ? (
+        <div style={{ padding:"13px 16px", borderRadius:12, border:`1px solid ${C.border}`, borderLeftWidth:3,
+          borderLeftColor: cap.veredicto.tipo === "senal" ? C.celeste : C.borderLight,
+          background:"linear-gradient(90deg, rgba(47,184,218,0.06), rgba(47,184,218,0.01) 55%, transparent)", marginBottom:10 }}>
+          <div style={{ fontSize:17, fontWeight:600, color:C.text, lineHeight:1.35, letterSpacing:"-0.1px" }}>{cap.veredicto.titular}</div>
+          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, marginTop:6 }}>{cap.veredicto.soporte}</div>
+          {cap.veredicto.cierre ? <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, marginTop:4 }}>{cap.veredicto.cierre}</div> : null}
+        </div>
+      ) : null}
       <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
         <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{cap.mapa.lectura}
       </div>
@@ -2685,6 +2749,21 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           </button>
         ); })}
       </div>
+      {/* ── EL INVENTARIO GENERAL · el cuadro operable, cerrado (owner 2026-08-08, decisión 4) ──────────────────
+          Conserva TODO: ejes SKU/Bodegas, filtros, búsqueda, orden, alertas, la estrella de la watchlist y las
+          columnas relevantes (disponible · valorizado · rotación · días de inventario · última venta · estado ·
+          acción). Baja de plano, no se elimina — es la lección de Comercial. */}
+      <div style={{ marginTop:10 }}>
+        <button onClick={() => setVerCuadro((v) => !v)} aria-expanded={verCuadro}
+          style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", padding:0, color:C.celeste, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+          {verCuadro ? "Ocultar el inventario general" : `Ver inventario general (${cap.n} SKU)`} <span>{verCuadro ? "▴" : "▾"}</span>
+        </button>
+        {verCuadro && (
+          <div style={{ marginTop:9 }}>
+            <CuadroCapital key={"mesacap-" + scenario} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={onWatch}/>
+          </div>
+        )}
+      </div>
     </div>
     {/* ── LO QUE YO SIGO · transversal (la MISMA watchlist de la cara comercial — la estrella del cuadro de capital
         también suma acá · una lista, dos caras) ── */}
@@ -2716,53 +2795,95 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         </div>
       </div>
     )}
-    {/* ── 02 · POR QUÉ PASA · los focos de capital con su $ (la dist del motor · solo los materiales) ── */}
+    {/* ── 02 · DÓNDE OCURRE · el MISMO capital por bodega, por familia y por SKU ──────────────────────────────
+        Abre por BODEGA (owner 2026-08-08, decisión 5: ahí está el patrón operativo más fuerte).
+        ⚠️ La bodega LOCALIZA, no explica ni habilita transferencias — las dos cosas se dicen, sin volverlas el
+        tema. Los tres cortes reparten el mismo total y el gate lo verifica fila por fila. */}
     <div>
-      <MovHead num="02" title="Por qué pasa" def={"Los focos de capital con su valor: qué está detenido (sin rotación según tu benchmark), qué se corta (quiebre próximo) y dónde sobra (cobertura excesiva) — las mismas cuentas del diagnóstico (una sola verdad). Tocá un foco y ADI lo desglosa al lado."}/>
-      {cap.focos.length > 0 ? (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
-          {cap.focos.map((f) => (
-            <button key={f.key} onClick={onAsk ? () => onAsk(f.ask) : undefined}
-              title={onAsk ? `Preguntale a ADI: ${f.ask}` : undefined}
-              style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
-              <span style={{ fontSize:14.5, fontWeight:600, color:C.celeste, fontFamily:MONO, letterSpacing:"0.2px" }}>{f.usdFmt}</span>
-              <span style={{ fontSize:11, color:C.textSub, lineHeight:1.3 }}>{f.label} <span style={{ color:C.celeste }}>→</span></span>
-            </button>
+      <MovHead num="02" title="Dónde ocurre" def={`El mismo capital repartido de tres maneras: por bodega, por familia y por SKU. Cada corte suma exacto tu capital total (${cap.totalFmt}) — son el mismo dinero visto distinto, no tres cuentas. La barra de cada fila muestra en qué estado está su capital. Ojo con la lectura: que un problema se concentre en una bodega dice DÓNDE está, no por qué; y como cada SKU aparece en una sola bodega, este dato no permite evaluar si conviene mover stock de una a otra.`}/>
+      {cap.cortes && vistaCorte ? (<>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+          <span style={{ display:"flex", gap:3 }}>
+            {cap.cortes.vistas.map((v) => (
+              <button key={v.key} onClick={() => setCorte(v.key)} aria-pressed={vistaCorte.key === v.key}
+                style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${vistaCorte.key === v.key ? "rgba(47,184,218,0.5)" : C.border}`, background: vistaCorte.key === v.key ? "rgba(47,184,218,0.10)" : "transparent", color: vistaCorte.key === v.key ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+                {v.label} ({v.n})
+              </button>
+            ))}
+          </span>
+          <span style={{ fontFamily:MONO, fontSize:7.5, letterSpacing:"0.5px", textTransform:"uppercase", color: vistaCorte.reconcilia ? C.green : C.amber, border:`1px solid ${vistaCorte.reconcilia ? C.green : C.amber}55`, borderRadius:3, padding:"1px 5px" }}>{vistaCorte.reconcilia ? "concilia" : "otro corte"}</span>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+          {vistaCorte.filas.map((f) => (
+            <div key={f.nombre} style={{ padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.018)" }}>
+              <div style={{ display:"flex", alignItems:"baseline", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12.5, fontWeight:600, color:C.text, flex:"0 1 auto" }}>{f.nombre}</span>
+                <Num>{f.usdFmt}</Num>
+                <span style={{ fontSize:10.5, color:C.textMuted }}>{f.pctTotal}% del capital · {f.n} SKU</span>
+              </div>
+              {/* la barra: el capital de ESTA fila repartido en sus estados */}
+              <div style={{ display:"flex", height:8, borderRadius:4, overflow:"hidden", marginTop:7, background:"rgba(255,255,255,0.04)" }}>
+                {f.tramos.map((t) => (
+                  <span key={t.key} title={`${t.label}: ${t.usdFmt} (${t.pct}%)`}
+                    style={{ width:`${Math.max(t.pct, 2)}%`, background:_capCol(t.color), opacity:0.75 }}/>
+                ))}
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"3px 12px", marginTop:6, fontSize:10.5, color:C.textMuted }}>
+                {f.tramos.map((t) => (
+                  <span key={t.key} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    <span style={{ width:7, height:7, borderRadius:2, background:_capCol(t.color), flexShrink:0 }}/>
+                    {t.label} <Num>{t.usdFmt}</Num> <span>{t.pct}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-      ) : (
-        <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin focos materiales en el capital del período — el inventario rota en línea.</div>
-      )}
-    </div>
-    {/* ── 03 · QUÉ HACER PRIMERO · QUÉ REPONGO / QUÉ LIQUIDO (dos listas accionables del dato) ── */}
-    <div>
-      <MovHead num="03" title="Qué hacer primero" def={"Dos listas accionables del dato: QUÉ REPONGO (quiebre próximo con venta alta — el stock no llega a la próxima compra; ordenado por lo que vende) y QUÉ LIQUIDO (capital detenido por monto — sin rotación según tu benchmark). Cada línea lleva su valor y su pregunta; el botón de cada lista le pide a ADI el orden completo."}/>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:9 }}>
-        {[cap.reponer, cap.liquidar].map((lista, li) => (
-          <div key={li} style={{ ...CARD_SIDES, borderRadius:12, padding:"12px 14px", background:"rgba(255,255,255,0.02)", display:"flex", flexDirection:"column", gap:6 }}>
-            <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color: li === 0 ? C.red : C.amber }}>{lista.titulo}</span>
-            {lista.items.length === 0 ? (
-              <div style={{ fontSize:11.5, color:C.textSub, lineHeight:1.5 }}>Nada urgente en este frente — el dato no marca casos.</div>
-            ) : lista.items.map((it) => (
-              <AskRow key={it.sku} onAsk={onAsk} q={it.ask} style={{ display:"flex", alignItems:"baseline", gap:8, fontSize:11.5, color:C.textSub, lineHeight:1.45 }}>
-                <span style={{ color:C.text, fontWeight:600, fontSize:11.5, flexShrink:0 }}>{it.sku}</span>
-                <span style={{ minWidth:0 }}>{it.linea}</span>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:7 }}>{cap.cortes.nota}</div>
+        {/* EL DETALLE POR SKU · accionable, cerrado */}
+        <button onClick={() => setVerDetalle((v) => !v)} aria-expanded={verDetalle}
+          style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", padding:0, marginTop:8, color:C.celeste, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+          {verDetalle ? "Ocultar el detalle por SKU" : `Ver el detalle por SKU (${cap.cortes.detalle.length})`} <span>{verDetalle ? "▴" : "▾"}</span>
+        </button>
+        {verDetalle && (
+          <div style={{ display:"flex", flexDirection:"column", marginTop:8 }}>
+            {cap.cortes.detalle.map((d, i) => (
+              <AskRow key={d.nombre} onAsk={onAsk} q={d.ask}
+                style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"7px 2px", borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
+                <span style={{ flex:"0 1 130px", minWidth:104, fontSize:12, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.nombre}</span>
+                <span style={{ flex:"0 1 96px", fontSize:10.5, color:C.textMuted }}>{d.bodega}</span>
+                <span style={{ display:"flex", alignItems:"baseline", gap:10, flexWrap:"wrap", fontFamily:MONO, fontSize:11, fontVariantNumeric:"tabular-nums", color:C.textSub }}>
+                  <span>{d.usdFmt}</span><span>{d.rotacionFmt}</span><span>{d.dohFmt} inv.</span>
+                  {d.diasSinVenta ? <span>{d.diasSinVenta}d sin venta</span> : null}
+                </span>
+                <span style={{ marginLeft:"auto", fontSize:10.5, color:_capCol(d.estadoColor), flexShrink:0 }}>{d.estadoLabel}</span>
               </AskRow>
             ))}
-            {onAsk && lista.items.length > 0 && (
-              <button onClick={() => onAsk(lista.ask)} title={`Preguntale a ADI: ${lista.ask}`}
-                style={{ alignSelf:"flex-start", marginTop:2, padding:"5px 11px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
-                {li === 0 ? "Qué reponer, en orden" : "Qué liberar, en orden"} <span style={{ color:C.celeste }}>→</span>
-              </button>
-            )}
           </div>
+        )}
+      </>) : (
+        <div style={{ fontSize:12, color:C.textSub, lineHeight:1.5 }}>Sin cortes disponibles para el capital del período.</div>
+      )}
+    </div>
+    {/* ── 03 · QUÉ HACER PRIMERO · dos grupos, con la acción en el título (owner 2026-08-08, decisiones 6 y 9) ──
+        Máximo 5 por lista, el resto detrás de "ver todos" — para que escale a una empresa grande.
+        Las cuatro acciones permitidas son textuales del owner: el detenido dice "evaluar salida comercial", NO
+        "liquidar" — que un SKU no rote no prueba que haya que rematarlo. */}
+    <div>
+      <MovHead num="03" title="Qué hacer primero" def={"Dos frentes, con la evidencia propia del inventario: PROTEGER LA VENTA son los SKU que rotan rápido y a los que les quedan pocos días de inventario (ordenados por urgencia: primero el que se queda sin stock antes); RECUPERAR LIQUIDEZ son los que no rotan según tu benchmark, ordenados por el capital que inmovilizan. Ninguna de las dos listas usa cifras de venta comercial: el inventario y la venta no reconcilian en unidad ni en período, así que cruzarlos daría un número falso. Cada línea lleva su pregunta; el botón le pide a ADI el orden completo."}/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:9 }}>
+        {[cap.reponer, cap.liquidar].map((lista, li) => (
+          <ResumenCapitalLista key={li} lista={lista} tono={li === 0 ? C.red : C.amber} onAsk={onAsk}/>
         ))}
       </div>
     </div>
+    {/* ── LO QUE ESTA CARA NO PUEDE AFIRMAR · declarado, no disimulado ── */}
+    {(cap.limitaciones || []).length > 0 && (
+      <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.55, padding:"9px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
+        <span style={{ ...head, marginRight:6 }}>Lo que este dato no permite afirmar</span>
+        {cap.limitaciones.join(" ")}
+      </div>
+    )}
     {/* ── ¿Y SI…? · supuestos sobre el capital (liberar lo cuantifica el composer de simulate · reponer es honesto:
         la proyección de reposición no existe en este pase — la pregunta abre lo probado del motor) ── */}
     {(cap.simulaciones || []).length > 0 && (
@@ -2779,12 +2900,9 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         </div>
       </div>
     )}
-    {/* ── CUADRO DE CAPITAL · la tabla hermana (la de ventas NO se toca) ── */}
-    <div>
-      <div style={{ ...head, marginBottom:9, display:"flex", alignItems:"center", gap:4 }}>Cuadro de capital · tu inventario, operable<InfoDot def={"La grilla del capital: cada SKU (o bodega) con sus columnas clásicas — Stock, Capital, Rotación, DOH — más el Estado que el motor le asigna contra tu benchmark (rotación 2x · cobertura 120 días): en rango, quiebre próximo, sobrestock o detenido. \"En juego $\" es el capital detenido que el detector afirma en esa fila. En la vista \"En alerta\", cada fila trae su microlectura — la historia de por qué. La Acción es un chip: tocalo y ADI te dice cómo ejecutarla. La estrella sigue esa fila en \"Lo que yo sigo\" (la misma lista de la cara comercial). Sin comparado de 12 meses: no existe serie mensual de stock por SKU — se enciende con el ERP (la serie de venta no la sustituye)."} align="left"/></div>
-      <CuadroCapital key={"mesacap-" + scenario} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={onWatch}/>
-    </div>
-    <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La cara Capital cuenta el mismo sello sobre tu inventario: qué está pasando (el mapa del capital), por qué pasa (los focos con su valor) y qué hacer primero (qué repongo · qué liquido). Todo es pregunta: tocá un tramo, un KPI o una línea y ADI lo abre al lado. Cifras de dato real; el movimiento del período se enciende con el historial de stock del ERP.</div>
+    {/* (El "Cuadro de capital" ya NO va suelto al final: subió DENTRO de 01, cerrado bajo "Ver inventario
+        general" — owner 2026-08-08, decisión 4. Es el mismo componente con toda su operabilidad; lo único que
+        cambió es la altura a la que vive. Tenerlo dos veces sería mostrar la misma tabla dos veces.) */}
   </>);
 }
 
@@ -2906,7 +3024,7 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
         </div>
       </div>
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Ordená por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · cobertura {POLICY.dohMax}d) — tocalo y ADI abre esa historia · el "En juego $" es el capital detenido que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
+        Ordená por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital detenido que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
       </div>
     </div>
   );
@@ -4788,7 +4906,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
           </>
         ) : (
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
-            Ningún producto que le vendés a {name} está hoy detenido ni con rotación lenta según tu benchmark de rotación/cobertura.
+            Ningún producto que le vendés a {name} está hoy detenido ni con rotación lenta según tu benchmark de rotación y días de inventario.
           </div>
         )}
       </div>

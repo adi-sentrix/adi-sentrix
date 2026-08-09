@@ -139,8 +139,16 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const f of mc.focos) { check(`mesacap · foco ${f.key} (${sc})`, f.label); check(`mesacap · foco ${f.key} ask (${sc})`, f.ask); }
   for (const [lista, tag] of [[mc.reponer, "reponer"], [mc.liquidar, "liquidar"]]) {
     check(`mesacap · ${tag} titulo (${sc})`, lista.titulo); check(`mesacap · ${tag} ask (${sc})`, lista.ask);
-    for (const it of lista.items) { check(`mesacap · ${tag} ${it.sku} línea (${sc})`, it.linea); check(`mesacap · ${tag} ${it.sku} ask (${sc})`, it.ask); }
+    // el criterio y la acción del grupo también son superficie (owner 2026-08-08: la acción subió al encabezado)
+    check(`mesacap · ${tag} criterio (${sc})`, lista.criterio); check(`mesacap · ${tag} acción (${sc})`, lista.accion);
+    for (const it of lista.filas) { check(`mesacap · ${tag} ${it.sku} línea (${sc})`, it.linea); check(`mesacap · ${tag} ${it.sku} ask (${sc})`, it.ask); }
   }
+  // el veredicto, los cortes y las limitaciones son texto nuevo de la cara: van al mismo registro
+  check(`mesacap · veredicto titular (${sc})`, mc.veredicto.titular);
+  check(`mesacap · veredicto soporte (${sc})`, mc.veredicto.soporte);
+  if (mc.veredicto.cierre) check(`mesacap · veredicto cierre (${sc})`, mc.veredicto.cierre);
+  check(`mesacap · cortes nota (${sc})`, mc.cortes.nota);
+  (mc.limitaciones || []).forEach((t, i) => check(`mesacap · limitación ${i} (${sc})`, t));
   for (const s of mc.simulaciones) { check(`mesacap · ysi ${s.key} (${sc})`, s.texto); check(`mesacap · ysi ${s.key} ask (${sc})`, s.ask); }
   check(`mesacap · alertas línea (${sc})`, mc.alertas.linea); check(`mesacap · alertas ask (${sc})`, mc.alertas.ask);
   for (const eje of ["sku", "bodega"]) {

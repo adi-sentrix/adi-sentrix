@@ -6,15 +6,21 @@
  *     verdad con el composer de inventario y el detector del diagnose) · los tramos SUMAN EXACTO el total.
  *   - kpis: capital total · detenido · quiebres próximos · rotación media — semáforo del dato (cero umbral nuevo).
  *   - focos: por qué pasa, con su $ (detenido · quiebre próximo · sobrestock — la dist del motor).
- *   - reponer/liquidar: QUÉ HACER PRIMERO en dos listas — quiebre próximo con venta alta (join real con skusMargen,
- *     mismo cruce del top_sellers) · detenido por capital (items del detector).
+ *   - veredicto: la historia SELLADA por el owner (2026-08-08) — localiza dónde está el capital y dónde falta, y
+ *     NUNCA afirma la venta perdida por quiebre: eso no está medido en este dato y queda abierto.
+ *   - cortes: el MISMO capital por bodega y por familia, más el detalle por SKU. Los tres cierran con el total.
+ *     ⚠️ La bodega LOCALIZA, no explica ni habilita transferencias (ningún SKU está en más de una).
+ *   - reponer/liquidar: QUÉ HACER PRIMERO en dos listas, priorizadas con EVIDENCIA PROPIA DE CAPITAL — días de
+ *     inventario y rotación para el quiebre, capital y última venta para el detenido. Sin una sola cifra de venta
+ *     comercial: ver el porqué en el comentario del import.
+ *   - limitaciones: lo que la cara no puede afirmar, dicho en la vista.
  *   - simulaciones: "¿y si libero…?" (el composer de simulate YA cuantifica) · "¿y si repongo…?" honesto (la
  *     reposición no se cuantifica en este pase — la línea pregunta y ADI responde con lo probado; venta-en-riesgo
  *     es pase 2, toca motor).
  *   - alertas: la pata de inventario del "En alerta" (SKU críticos · $ detenido).
  *   - "Qué cambió" NO existe acá: sin historial de stock no se fabrica (el bloque no aparece — honesto).
  * + buildCuadroCapital: la tabla HERMANA del cuadro (la de ventas NO se toca) — eje SKU/bodega con columnas
- *   clásicas legibles (Stock · Capital · Rotación · DOH · Estado vs benchmark · "En juego $" · Acción), microlectura
+ *   legibles (Disponible · Valorizado · Rotación · Días inv. · Última venta · Estado · "En juego $" · Acción), microlectura
  *   solo con señal del detector, chip Acción con su pregunta. Comparado de 12 meses NO: no existe serie mensual de
  *   stock por SKU y la serie de venta NO la sustituye en silencio.
  * Cada tramo, KPI, foco, línea y chip lleva su PREGUNTA a ADI (anti-BI: nada mudo) — todas por _promise_gate.
@@ -22,8 +28,12 @@
  * Puro · client-side · CERO cálculo nuevo (agrupar y formatear lo que el motor ya afirma) · motor sellado intacto. */
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { diagnoseInventario } from "../diagnosis/economicDiagnosis.js";
-import { skusMargen } from "../../data/skusMargen.js";
 import { POLICY } from "../../config/businessPolicy.js";
+/* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
+ * comercial no reconcilian en unidad, moneda ni período: `skusMargen.venta` viene en MILES ($100.0M anuales) y
+ * `stockUSD` en dólares crudos ($135.000 de inventario); además las unidades vendidas que declara cada fuente
+ * difieren entre 4x y 35x por SKU. Cualquier cruce produce una cifra falsa. No importarlo es el sello: lo que no
+ * entra al módulo no se puede colar a un texto. Si algún día ambas fuentes se concilian, esto se revisa acá. */
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _mean = (a, f) => (a.length ? a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0) / a.length : 0);
@@ -38,13 +48,13 @@ const _money = (v) => {
 // no de la fila: el composer de inventario responde la punta completa — ahí vive la historia) ──
 export const CAPITAL_ESTADOS = {
   capital_sano:    { label: "en rango",        color: "green", ask: "Ver todo el inventario",
-    def: "Rota dentro de tu benchmark (rotación sobre " + POLICY.rotacionMin + "x y cobertura bajo " + POLICY.dohMax + " días) — capital trabajando." },
+    def: "Rota dentro de tu benchmark (rotación sobre " + POLICY.rotacionMin + "x y menos de " + POLICY.dohMax + " días de inventario) — capital trabajando." },
   riesgo_quiebre:  { label: "quiebre próximo", color: "red",   ask: "¿Qué reponer por quiebre?",
-    def: "Rota rápido (" + POLICY.quiebreRotMin + "x o más) con cobertura corta (" + POLICY.quiebreDohMax + " días o menos): el stock no alcanza hasta la próxima compra." },
+    def: "Rota rápido (" + POLICY.quiebreRotMin + "x o más) y le quedan " + POLICY.quiebreDohMax + " días de inventario o menos: el stock no alcanza hasta la próxima compra." },
   sobrestock:      { label: "sobrestock",      color: "cyan",  ask: "¿Dónde sobra inventario?",
-    def: "Vende, pero con cobertura excesiva (entre " + POLICY.sobrestockDohMin + " y " + POLICY.dohMax + " días): capital inmovilizado de más." },
+    def: "Vende, pero le quedan entre " + POLICY.sobrestockDohMin + " y " + POLICY.dohMax + " días de inventario: capital inmovilizado de más." },
   capital_frenado: { label: "detenido",        color: "amber", ask: "¿Dónde está detenido mi capital?",
-    def: "Sin rotación según tu benchmark (rotación bajo " + POLICY.rotacionMin + "x o cobertura sobre " + POLICY.dohMax + " días): capital que no trabaja." },
+    def: "Sin rotación según tu benchmark (rotación bajo " + POLICY.rotacionMin + "x o más de " + POLICY.dohMax + " días de inventario): capital que no trabaja." },
 };
 const _ORDEN = ["capital_sano", "riesgo_quiebre", "sobrestock", "capital_frenado"];
 const _RANK = { capital_frenado: 0, riesgo_quiebre: 1, sobrestock: 2, capital_sano: 3 };
@@ -88,7 +98,7 @@ export function buildMesaCapital(scenario) {
       ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario" },
     { key: "quiebres", label: "Quiebres próximos", value: `${quiebre.count} SKU`,
       estado: !quiebre.count ? "verde" : D.quiebreMaterial ? "rojo" : "ambar",
-      linea: quiebre.count ? `${_money(quiebre.usd)} rotan rápido con cobertura corta` : "sin quiebres a la vista",
+      linea: quiebre.count ? `${_money(quiebre.usd)} rotan rápido y con pocos días de inventario` : "sin quiebres a la vista",
       ask: quiebre.count ? "¿Qué reponer por quiebre?" : "Ver todo el inventario" },
     // la ask cuenta LO MISMO que la línea (auditoría de asks 2026-07-15: preguntaba los SKU sin venta +90d —
     // 2 SKU/$22K — mientras la línea habla del criterio de DETENCIÓN — 3 SKU/$33K: dos cifras para un click)
@@ -102,27 +112,50 @@ export function buildMesaCapital(scenario) {
   const focos = [];
   if (frenado.usd) focos.push({ key: "detenido", usdFmt: _money(frenado.usd), label: `detenido en ${frenado.count} SKU sin rotación`, ask: "Por qué el capital está detenido" });
   if (quiebre.usd) focos.push({ key: "quiebre", usdFmt: _money(quiebre.usd), label: `en ${quiebre.count} SKU con quiebre próximo`, ask: "¿Qué reponer por quiebre?" });
-  if (sobre.usd) focos.push({ key: "sobrestock", usdFmt: _money(sobre.usd), label: `en sobrestock · cobertura excesiva`, ask: "¿Dónde sobra inventario?" });
+  if (sobre.usd) focos.push({ key: "sobrestock", usdFmt: _money(sobre.usd), label: `en sobrestock · demasiados días de inventario`, ask: "¿Dónde sobra inventario?" });
 
-  // ── 03 · QUÉ REPONGO / QUÉ LIQUIDO · dos listas accionables (los mismos cruces del motor/composer) ──
-  const ventaBy = {}; for (const s of skusMargen) ventaBy[s.nombre] = s.venta;   // venta anual $K (join real · el del top_sellers)
+  /* ── 03 · QUÉ HACER PRIMERO · dos listas accionables ───────────────────────────────────────────────────────
+   * ⚠️ SIN UNA SOLA CIFRA DE VENTA COMERCIAL (owner 2026-08-08, decisión 7). Hasta acá esta lista ordenaba por
+   * `skusMargen.venta` y mostraba "vende $12.3M al año · 15d de cobertura" al lado de "$14K detenidos". Son dos
+   * universos que el dataset NO reconcilia: `skusMargen.venta` viene en MILES (la escala comercial, $100.0M de
+   * venta anual) y `stockUSD` en dólares crudos ($135.000 de inventario) — y peor, las unidades vendidas que
+   * declara cada fuente difieren entre 4x y 35x por SKU. Un SKU que vendiera $12.3M al año no puede tener $11K de
+   * stock con 15 días de inventario. La cifra era falsa y estaba a la vista.
+   *
+   * La prioridad ahora sale de EVIDENCIA PROPIA DE CAPITAL, que es la única conmensurable consigo misma: rotación,
+   * días de inventario, stock disponible, valorización y última venta. El import de `skusMargen` se eliminó del
+   * módulo entero — es el sello más fuerte: lo que no se importa no se puede colar. */
+  const TOPE = 5;   // decisión 6 del owner: máximo 5 por lista, el resto detrás de "ver todos"
+  const _fila = (s) => ({ sku: s.sku, bodega: s.bodega, capital: s.capital, capitalFmt: _money(s.capital),
+    rotacion: _r1(s.rotacion), rotacionFmt: `${_r1(s.rotacion)}x`, doh: Math.round(s.doh), dohFmt: `${Math.round(s.doh)}d`,
+    stockUnd: (bySku[s.sku] || {}).stockUnd ?? null,
+    diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
+    critico: !!(bySku[s.sku] && bySku[s.sku].alerta === "crit") });
+  // QUIEBRE PRÓXIMO · ordenado por urgencia real: menos días de inventario primero. Es el que se queda sin stock
+  // antes, y eso lo dice su propio dato — no la venta de otra tabla.
+  const _quiebreFilas = D.perSku.filter((s) => s.estado === "riesgo_quiebre").map(_fila)
+    .sort((a, b) => a.doh - b.doh || b.capital - a.capital);
   const reponer = {
-    titulo: "Qué repongo",
-    items: D.perSku.filter((s) => s.estado === "riesgo_quiebre")
-      .map((s) => ({ sku: s.sku, ventaK: ventaBy[s.sku] || 0, doh: s.doh, rotacion: s.rotacion }))
-      .sort((a, b) => b.ventaK - a.ventaK).slice(0, 4)
-      .map((s) => ({ sku: s.sku, usdFmt: _money(s.ventaK * 1000),
-        linea: `vende ${_money(s.ventaK * 1000)} al año · ${Math.round(s.doh)}d de cobertura`,
-        ask: `Profundiza en ${s.sku}` })),
+    titulo: "Proteger la venta", criterio: "Rotan rápido y les quedan pocos días de inventario.",
+    accion: "Revisar reposición y abastecimiento.",
+    n: _quiebreFilas.length, tope: Math.min(TOPE, _quiebreFilas.length), resto: Math.max(0, _quiebreFilas.length - TOPE),
+    usd: quiebre.usd, usdFmt: _money(quiebre.usd),
+    filas: _quiebreFilas.map((f) => ({ ...f,
+      linea: `${f.dohFmt} de inventario · rota ${f.rotacionFmt}${f.stockUnd != null ? ` · ${f.stockUnd} disponibles` : ""} · ${f.capitalFmt}`,
+      ask: `Profundiza en ${f.sku}` })),
     ask: "¿Qué reponer por quiebre?",
   };
+  // DETENIDO · ordenado por capital: lo que más plata inmoviliza primero.
+  const _frenadoFilas = D.perSku.filter((s) => s.estado === "capital_frenado").map(_fila)
+    .sort((a, b) => b.capital - a.capital);
   const liquidar = {
-    titulo: "Qué liquido",
-    items: D.perSku.filter((s) => s.estado === "capital_frenado")
-      .sort((a, b) => b.capital - a.capital).slice(0, 4)
-      .map((s) => ({ sku: s.sku, usdFmt: _money(s.capital),
-        linea: `${_money(s.capital)} detenidos${typeof s.diasSinVenta === "number" && s.diasSinVenta > 0 ? ` · sin venta hace ${s.diasSinVenta}d` : ""}${bySku[s.sku] && bySku[s.sku].alerta === "crit" ? " · crítico" : ""}`,
-        ask: `¿Cómo libero el capital de ${s.sku}?` })),
+    titulo: "Recuperar liquidez", criterio: "No rotan según tu benchmark: el capital no trabaja.",
+    accion: "Evaluar salida comercial.",
+    n: _frenadoFilas.length, tope: Math.min(TOPE, _frenadoFilas.length), resto: Math.max(0, _frenadoFilas.length - TOPE),
+    usd: frenado.usd, usdFmt: _money(frenado.usd),
+    filas: _frenadoFilas.map((f) => ({ ...f,
+      linea: `${f.capitalFmt} detenidos · rota ${f.rotacionFmt}${f.diasSinVenta ? ` · sin venta hace ${f.diasSinVenta}d` : ""}${f.critico ? " · crítico" : ""}`,
+      ask: `¿Cómo libero el capital de ${f.sku}?` })),
     ask: "¿Qué SKU libero primero?",
   };
 
@@ -151,7 +184,83 @@ export function buildMesaCapital(scenario) {
     ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario",
   };
 
-  return { kpis, mapa, focos, reponer, liquidar, simulaciones, alertas };
+  /* ── 01 · EL VEREDICTO · la historia SELLADA por el owner (2026-08-08, decisión 8) ──────────────────────────
+   * LOCALIZA, nunca atribuye: dice dónde está el capital y dónde falta, y NO dice "por eso perdés ventas" — la
+   * venta no realizada por quiebre no está medida en este dato y queda ABIERTA.
+   * El titular es fijo cuando el dato da la señal (hay detenido Y hay quiebre a la vez); si no la da, la lectura
+   * cae a su rama neutral en vez de forzar una conclusión que el dato no sostiene. */
+  const _haySenal = frenado.usd > 0 && quiebre.count > 0;
+  const _diasMin = _frenadoFilas.length ? Math.min(..._frenadoFilas.map((f) => f.diasSinVenta || 0)) : 0;
+  const _dohMax = _quiebreFilas.length ? Math.max(..._quiebreFilas.map((f) => f.doh)) : 0;
+  const _rotMin = _quiebreFilas.length ? Math.min(..._quiebreFilas.map((f) => f.rotacion)) : 0;
+  const veredicto = _haySenal
+    ? { tipo: "senal",
+        titular: "Tu capital está donde no se vende, y escasea donde sí.",
+        soporte: `${_money(frenado.usd)} llevan ${_diasMin} días o más sin venta. Al mismo tiempo, ${_money(quiebre.usd)} rotan sobre ${_rotMin}x y les quedan ${_dohMax} días de inventario o menos.`,
+        cierre: "Primero protegé los SKU de alta salida; después frená compras o evaluá salida para los detenidos." }
+    : frenado.usd
+      ? { tipo: "senal", titular: "Hay capital que no está trabajando.",
+          soporte: `${_money(frenado.usd)} (${frenado.pct}% del inventario) no rotan según tu benchmark. No hay SKU con quiebre próximo.`, cierre: null }
+      : quiebre.count
+        ? { tipo: "senal", titular: "El inventario rota, pero hay stock al límite.",
+            soporte: `${_money(quiebre.usd)} rotan rápido y les quedan ${_dohMax} días de inventario o menos. No hay capital detenido material.`, cierre: null }
+        : { tipo: "neutral", titular: "El inventario está trabajando en rango.",
+            soporte: `${sano.pct}% del capital rota dentro de tu benchmark, sin quiebres próximos ni capital detenido.`, cierre: null };
+
+  /* ── 02 · DÓNDE OCURRE · el MISMO capital por tres cortes, y los tres cierran ────────────────────────────────
+   * Abre por BODEGA (owner, decisión 5: ahí está el patrón operativo más fuerte), con Familia como segunda vista
+   * y SKU como detalle accionable.
+   * ⚠️ LA BODEGA LOCALIZA, NO EXPLICA NI HABILITA TRANSFERENCIAS. Que el capital detenido se concentre en una
+   * bodega no prueba que la bodega sea la causa; y como ningún SKU está en más de una, mover stock de una a otra
+   * no es una acción que este dato pueda evaluar. Las dos cosas se declaran en la vista, sin volverlas el tema. */
+  const _porEstado = (rs, totalUsd) => _ORDEN.filter((e) => rs.some((r) => r.estado === e)).map((e) => {
+    const f = rs.filter((r) => r.estado === e), usd = f.reduce((a, r) => a + r.capital, 0);
+    return { key: e, label: CAPITAL_ESTADOS[e].label, color: CAPITAL_ESTADOS[e].color,
+      usd, usdFmt: _money(usd), n: f.length, pct: totalUsd ? Math.round((usd / totalUsd) * 100) : 0 };
+  }).sort((a, b) => b.usd - a.usd);
+  const _corte = (key, label, campo) => {
+    const names = [...new Set(D.perSku.map((s) => s[campo]))];
+    const filas = names.map((n) => {
+      const rs = D.perSku.filter((s) => s[campo] === n);
+      const usd = rs.reduce((a, r) => a + r.capital, 0);
+      const tramos = _porEstado(rs, usd);
+      const dom = tramos.find((t) => t.key !== "capital_sano") || tramos[0];
+      return { nombre: n, usd, usdFmt: _money(usd), n: rs.length,
+        pctTotal: D.total ? Math.round((usd / D.total) * 100) : 0, tramos,
+        dominante: dom ? dom.key : null, dominanteLabel: dom ? dom.label : null, dominantePct: dom ? dom.pct : 0,
+        ask: `¿Cuánto capital tengo en ${n}?` };
+    }).sort((a, b) => b.usd - a.usd);
+    const suma = filas.reduce((a, f) => a + f.usd, 0);
+    return { key, label, filas, n: filas.length, suma, sumaFmt: _money(suma), reconcilia: suma === D.total };
+  };
+  const cortes = {
+    porDefecto: "bodega",
+    vistas: [_corte("bodega", "Bodegas", "bodega"), _corte("familia", "Familias", "familia")],
+    // el detalle accionable por SKU: el mismo capital, fila por fila, con su estado
+    detalle: D.perSku.map((s) => ({ nombre: s.sku, bodega: s.bodega, familia: s.familia,
+      usd: s.capital, usdFmt: _money(s.capital), rotacionFmt: `${_r1(s.rotacion)}x`, dohFmt: `${Math.round(s.doh)}d`,
+      diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
+      estado: s.estado, estadoLabel: CAPITAL_ESTADOS[s.estado].label, estadoColor: CAPITAL_ESTADOS[s.estado].color,
+      ask: `Profundiza en ${s.sku}` })).sort((a, b) => b.usd - a.usd),
+    nota: "La bodega muestra dónde está concentrado el capital, no por qué. Cada corte reparte el mismo total.",
+  };
+
+  /* ── LO QUE ESTA CARA NO PUEDE AFIRMAR, dicho en la vista ────────────────────────────────────────────────────
+   * Se declaran, no se disimulan. La de transferencias va PRIMERA porque es la que el usuario va a esperar. */
+  const _bodegasPorSku = {}; for (const s of D.perSku) (_bodegasPorSku[s.sku] = _bodegasPorSku[s.sku] || new Set()).add(s.bodega);
+  const _multiBodega = Object.values(_bodegasPorSku).filter((b) => b.size > 1).length;
+  const limitaciones = [
+    _multiBodega === 0
+      ? "Transferir entre bodegas no se puede evaluar: cada SKU aparece en una sola."
+      : `${_multiBodega} SKU están en más de una bodega: ahí sí se puede comparar su colocación.`,
+    "Sin historial de stock no se puede mostrar cómo evolucionó el capital ni anticipar qué se va a detener.",
+    "La rotación es un valor declarado del dato: no se recalcula desde stock y unidades.",
+    "Las sucursales del dato son bodegas —traen inventario, no venta—, así que no hay corte por punto de venta.",
+  ];
+
+  return { veredicto, kpis, mapa, cortes, focos, reponer, liquidar, simulaciones, alertas, limitaciones,
+    total: D.total, totalFmt: _money(D.total), n: D.perSku.length,
+    nBodegas: [...new Set(D.perSku.map((s) => s.bodega))].length };
 }
 
 /* ── CUADRO DE CAPITAL · la tabla hermana (eje SKU/bodega · columnas clásicas legibles · el cuadro de ventas NO
@@ -164,17 +273,18 @@ export const CUADRO_CAPITAL_EJES = [
 ];
 const COLS_CAPITAL = {
   sku: [
-    { key: "stock", label: "Stock", fmt: "int", sort: "desc" },
-    { key: "capital", label: "Capital", fmt: "moneyk", sort: "desc", defKey: "Capital" },
+    { key: "stock", label: "Disponible", fmt: "int", sort: "desc" },
+    { key: "capital", label: "Valorizado", fmt: "moneyk", sort: "desc", defKey: "Capital" },
     { key: "rotacion", label: "Rotación", fmt: "x", sort: "desc", defKey: "Rotación" },
-    { key: "doh", label: "DOH", fmt: "d", sort: "asc", defKey: "DOH" },
+    { key: "doh", label: "Días inv.", fmt: "d", sort: "asc", defKey: "DOH" },
+    { key: "ultimaVenta", label: "Última venta", fmt: "texto", sort: "desc" },
     { key: "estado", label: "Estado", fmt: "estado" },
     { key: "enJuego", label: "En juego $", fmt: "usd", sort: "desc", adv: true },
     { key: "accion", label: "Acción", fmt: "accion" },
   ],
   bodega: [
-    { key: "stock", label: "Stock", fmt: "int", sort: "desc" },
-    { key: "capital", label: "Capital", fmt: "moneyk", sort: "desc", defKey: "Capital" },
+    { key: "stock", label: "Disponible", fmt: "int", sort: "desc" },
+    { key: "capital", label: "Valorizado", fmt: "moneyk", sort: "desc", defKey: "Capital" },
     { key: "rotacion", label: "Rotación", fmt: "x", sort: "desc", defKey: "Rotación" },
     { key: "criticos", label: "SKU crít.", fmt: "int", sort: "asc" },
     { key: "estado", label: "Estado", fmt: "estado" },
@@ -203,7 +313,7 @@ export function buildCuadroCapital(eje = "sku", scenario = "bonanza") {
         estadoColor: crit ? "red" : detUsd ? "amber" : "green",
         enJuego: detUsd || null, alert: crit > 0 || detUsd > 0,
         lectura: detUsd ? `${_money(detUsd)} detenidos en ${det.length} SKU sin rotación${crit ? ` · ${crit} crítico${crit > 1 ? "s" : ""}` : ""}` : null,
-        accion: detUsd ? "liquidar lento" : "sostener",
+        accion: detUsd ? "evaluar salida comercial" : "sostener",
         accionAsk: detUsd ? `¿Cómo libero el capital detenido en ${b}?` : `¿Cuánto capital tengo en ${b}?`,
       };
     });
@@ -214,12 +324,14 @@ export function buildCuadroCapital(eje = "sku", scenario = "bonanza") {
       const quiebre = s.estado === "riesgo_quiebre";
       return {
         name: r.sku, stock: r.stockUnd, capital: r.stockUSD, rotacion: _r1(r.rotacion), doh: Math.round(r.doh),
+        diasSinVenta: typeof r.diasSinVenta === "number" ? r.diasSinVenta : null,
+        ultimaVenta: typeof r.diasSinVenta !== "number" ? "—" : r.diasSinVenta === 0 ? "hoy" : `hace ${r.diasSinVenta}d`,
         estado: s.estado, estadoRank: _RANK[s.estado], estadoLabel: E.label, estadoColor: E.color,
         enJuego: detenido ? r.stockUSD : null, alert: detenido || quiebre,
         lectura: detenido
-          ? `${_money(r.stockUSD)} detenidos${r.bodega ? ` en ${r.bodega}` : ""} · rotación ${_r1(r.rotacion)}x · ${Math.round(r.doh)}d de cobertura${typeof r.diasSinVenta === "number" && r.diasSinVenta > 0 ? ` · sin venta hace ${r.diasSinVenta}d` : ""}${r.alerta === "crit" ? " · crítico" : ""}`
-          : quiebre ? `Rota ${_r1(r.rotacion)}x con ${Math.round(r.doh)}d de cobertura — reposición antes del corte` : null,
-        accion: detenido ? "liquidar" : quiebre ? "reponer" : s.estado === "sobrestock" ? "frenar compra" : "sostener",
+          ? `${_money(r.stockUSD)} detenidos${r.bodega ? ` en ${r.bodega}` : ""} · rotación ${_r1(r.rotacion)}x · ${Math.round(r.doh)}d de inventario${typeof r.diasSinVenta === "number" && r.diasSinVenta > 0 ? ` · sin venta hace ${r.diasSinVenta}d` : ""}${r.alerta === "crit" ? " · crítico" : ""}`
+          : quiebre ? `Rota ${_r1(r.rotacion)}x y le quedan ${Math.round(r.doh)}d de inventario — reposición antes del corte` : null,
+        accion: detenido ? "evaluar salida comercial" : quiebre ? "revisar reposición" : s.estado === "sobrestock" ? "frenar o ajustar reposición" : "sostener",
         accionAsk: detenido ? `¿Cómo libero el capital de ${r.sku}?`
           : quiebre ? "¿Qué reponer por quiebre?"
           : s.estado === "sobrestock" ? "¿Dónde sobra inventario?"
