@@ -252,6 +252,37 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   }
 }
 
+/* ── (18) EL EJE DE TIEMPO · una segunda partición del mismo capital (owner 2026-08-09) ───────────────────────
+ * Se evaluaron siete visualizaciones de dashboard logístico y esta fue la única que el dato sostiene y que aporta:
+ * el mismo total partido por "desde cuándo", ortogonal a la partición por estado. Lo que el gate cuida es lo que
+ * la vuelve honesta: que cierre exacto como los otros cortes, que se llame DÍAS SIN VENTA —no "antigüedad en
+ * bodega", que exigiría una fecha de recepción que no existe— y que NO se presente como una causa. */
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  const mc = buildMesaCapital(sc);
+  const D = diagnoseInventario(applyScenarioToSkuInventario(sc) || [], {});
+  const edad = mc.cortes.vistas.find((v) => v.key === "edad");
+  ok(!!edad, `corte-edad-existe@${sc}`);
+  if (edad) {
+    ok(edad.suma === D.total, `corte-edad-cierra@${sc}`, `${edad.suma} vs ${D.total}`);
+    // ORDEN CRONOLÓGICO: un eje de tiempo leído por capital no dice nada
+    const orden = ["0–30 días", "31–60 días", "61–90 días", "Más de 90 días"];
+    const pos = edad.filas.map((f) => orden.indexOf(f.nombre));
+    ok(pos.every((v, i) => v >= 0 && (i === 0 || pos[i - 1] < v)), `corte-edad-cronologico@${sc}`, pos.join(","));
+    // SE LLAMA POR SU NOMBRE · "antigüedad/almacenado/aging" prometería una fecha de recepción que no existe
+    const txt = `${edad.label} ${edad.pareto.lectura} ${edad.filas.map((f) => f.nombre).join(" ")}`;
+    ok(/d[íi]as sin venta/i.test(edad.label), `corte-edad-nombre@${sc}`, `se llama «${edad.label}»`);
+    ok(!/almacenad|en bodega hace|aging|antig[üu]edad en/i.test(txt), `corte-edad-no-promete-almacenaje@${sc}`,
+      "sin fecha de recepción no se puede hablar de tiempo almacenado");
+    // NO ES UNA CAUSA · el bloque enmarca, no explica
+    ok(!/porque|se debe a|la causa/i.test(txt), `corte-edad-no-atribuye@${sc}`, txt.slice(0, 90));
+    ok(/no por qu[ée]|dice desde cu[áa]ndo/i.test(edad.pareto.lectura) || !/m[áa]s de 60/i.test(edad.pareto.lectura),
+      `corte-edad-declara-limite@${sc}`, "cuando afirma antigüedad, aclara que no explica");
+  }
+  // los TRES cortes siguen cerrando: agregar un eje no puede romper la reconciliación de los otros
+  ok(mc.cortes.vistas.length === 3 && mc.cortes.vistas.every((v) => v.suma === D.total),
+    `tres-cortes-cierran@${sc}`, mc.cortes.vistas.map((v) => `${v.key}:${v.suma}`).join(" "));
+}
+
 /* ── (17) "A QUIÉN LE VENDÉS LO DETENIDO" · nombres y porcentajes, ni un peso (owner 2026-08-09) ───────────────
  * La matriz cliente×SKU es del universo COMERCIAL y el SKU detenido del de inventario. Se toma el reparto para
  * saber a quién le calza el producto —la pregunta accionable— y el monto se descarta en el acto: un "$X" al lado

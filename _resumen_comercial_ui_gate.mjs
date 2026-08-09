@@ -820,7 +820,7 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
 {
   const { container } = abrir(evTemporal());
   fireEvent.click(porTexto(container, "Capital"));
-  ok(container.textContent.includes("Qué está pasando") && container.textContent.includes("Dónde ocurre") && container.textContent.includes("Qué hacer primero"),
+  ok(container.textContent.includes("Qué está pasando") && container.textContent.includes("Dónde y desde cuándo") && container.textContent.includes("Qué hacer primero"),
     "la cara CAPITAL rinde sus tres movimientos");
   ok(botones(container).some((b) => /Ver el detalle \(/i.test(b.textContent)), "…y cada KPI abre su propio detalle");
   ok(container.textContent.includes("Qué hacer primero"), "…con sus tres movimientos");

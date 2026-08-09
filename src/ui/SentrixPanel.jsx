@@ -2943,7 +2943,12 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         ⚠️ La bodega LOCALIZA, no explica ni habilita transferencias — las dos cosas se dicen, sin volverlas el
         tema. Los tres cortes reparten el mismo total y el gate lo verifica fila por fila. */}
     <div>
-      <MovHead num="02" title="Dónde ocurre" def={`El mismo capital repartido de tres maneras: por bodega, por familia y por SKU. Cada corte suma exacto tu capital total (${cap.totalFmt}) — son el mismo dinero visto distinto, no tres cuentas. La barra de cada fila muestra en qué estado está su capital. Ojo con la lectura: que un problema se concentre en una bodega dice DÓNDE está, no por qué; y como cada SKU aparece en una sola bodega, este dato no permite evaluar si conviene mover stock de una a otra.`}/>
+      {/* ── EL TÍTULO DICE LO QUE EL BLOQUE PUEDE DAR (owner 2026-08-09) ────────────────────────────────────────
+          El brief original lo llamaba "por qué está pasando", pero este dato no trae la causa: no hay
+          obsolescencia, ni sobrecompra, ni temporada, y ya se declara que no se pueden inferir. Lo que sí hay son
+          los dos ejes que enmarcan el problema —dónde está el capital y desde cuándo no se mueve—, así que eso
+          es lo que promete el título. Prometer causa sería repetir el "revisar costo" de Comercial. */}
+      <MovHead num="02" title="Dónde y desde cuándo" def={`El mismo capital repartido de tres maneras: por bodega, por familia y por días sin venta. Cada corte suma exacto tu capital total (${cap.totalFmt}) — son el mismo dinero visto distinto, no tres cuentas, y la barra de cada fila muestra en qué estado está. Los dos ejes enmarcan el problema pero ninguno lo explica: que se concentre en una bodega dice DÓNDE está, y la antigüedad dice DESDE CUÁNDO; por qué se detuvo —obsolescencia, sobrecompra, temporada— no está en este dato. Y como cada SKU aparece en una sola bodega, tampoco se puede evaluar si conviene mover stock de una a otra. Ojo con los días: son días SIN VENTA, no días almacenado — no hay fecha de recepción en el dato.`}/>
       {cap.cortes && vistaCorte ? (<>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8 }}>
           <span style={{ display:"flex", gap:3 }}>

@@ -263,16 +263,43 @@ export function buildMesaCapital(scenario) {
     };
     return { key, label, filas, n: filas.length, suma, sumaFmt: _money(suma), reconcilia: suma === D.total, pareto };
   };
+  /* ── EL EJE DE TIEMPO · el MISMO capital partido por "desde cuándo" (owner 2026-08-09) ──────────────────────
+   * Es la partición ORTOGONAL a la de estados: las dos cubren el 100% del capital y se cruzan sin solaparse. Y es
+   * lo que convierte "detenido" de una categoría en una URGENCIA — que algo lleve 90 días quieto no es lo mismo
+   * que lleve 20, aunque el estado sea idéntico.
+   *
+   * ⚠️ SE LLAMA POR SU NOMBRE: son DÍAS SIN VENTA, no antigüedad en bodega. No hay fecha de recepción en el dato,
+   * así que no se puede decir cuánto lleva el stock almacenado. Llamarlo "aging" sería la trampa de «cobertura».
+   * ⚠️ Y NO ES UNA CAUSA: dice desde cuándo, no por qué. El por qué —obsolescencia, sobrecompra, temporada— sigue
+   * declarado como lo que el dato no permite afirmar. */
+  const _TRAMOS_EDAD = [[0, 30, "0–30 días"], [31, 60, "31–60 días"], [61, 90, "61–90 días"], [91, Infinity, "Más de 90 días"]];
+  for (const s of D.perSku) {
+    const d = typeof s.diasSinVenta === "number" ? s.diasSinVenta : 0;
+    s._edad = (_TRAMOS_EDAD.find(([lo, hi]) => d >= lo && d <= hi) || _TRAMOS_EDAD[0])[2];
+  }
+  const _corteEdad = () => {
+    const v = _corte("edad", "Días sin venta", "_edad");
+    // el orden es CRONOLÓGICO, no por capital: el eje es el tiempo y leerlo desordenado no dice nada
+    const rank = Object.fromEntries(_TRAMOS_EDAD.map(([, , l], i) => [l, i]));
+    v.filas.sort((a, b) => rank[a.nombre] - rank[b.nombre]);
+    for (const f of v.filas) f.enGrupo = false;   // el 80/20 no aplica a un eje de tiempo
+    const viejo = v.filas.filter((f) => rank[f.nombre] >= 2).reduce((a, f) => a + f.usd, 0);
+    v.pareto = { ...v.pareto,
+      lectura: viejo
+        ? `${_money(viejo)} llevan más de 60 días sin venderse — ${Math.round((viejo / D.total) * 100)}% de tu capital. La antigüedad dice desde cuándo, no por qué.`
+        : `Ningún capital lleva más de 60 días sin venderse.` };
+    return v;
+  };
   const cortes = {
     porDefecto: "bodega",
-    vistas: [_corte("bodega", "Bodegas", "bodega"), _corte("familia", "Familias", "familia")],
+    vistas: [_corte("bodega", "Bodegas", "bodega"), _corte("familia", "Familias", "familia"), _corteEdad()],
     // el detalle accionable por SKU: el mismo capital, fila por fila, con su estado
     detalle: D.perSku.map((s) => ({ nombre: s.sku, bodega: s.bodega, familia: s.familia,
       usd: s.capital, usdFmt: _money(s.capital), rotacionFmt: `${_r1(s.rotacion)}x`, dohFmt: `${Math.round(s.doh)}d`,
       diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
       estado: s.estado, estadoLabel: CAPITAL_ESTADOS[s.estado].label, estadoColor: CAPITAL_ESTADOS[s.estado].color,
       ask: `Profundiza en ${s.sku}` })).sort((a, b) => b.usd - a.usd),
-    nota: "La bodega muestra dónde está concentrado el capital, no por qué. Cada corte reparte el mismo total.",
+    nota: "Los tres cortes reparten el mismo capital: cambia el eje, no el total. Ninguno explica la causa — la bodega dice dónde está y los días dicen desde cuándo no se mueve.",
   };
 
   /* ── LO QUE ESTA CARA NO PUEDE AFIRMAR, dicho en la vista ────────────────────────────────────────────────────
