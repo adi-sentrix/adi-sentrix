@@ -2678,6 +2678,101 @@ function ResumenCapitalLista({ lista, tono, onAsk }) {
   );
 }
 
+/* ── EL DETALLE DE UN KPI DE CAPITAL · la tabla que se abre al tocar su card (owner 2026-08-09) ────────────────
+ * Cada card abre EL universo que esa card cuenta — no el inventario entero cuatro veces. Filtros por bodega y por
+ * familia arriba (el owner los pidió por manejar varios almacenes), y las alertas visuales que definió: el capital
+ * grande destacado, y en rojo lo que se queda sin stock en menos de 5 días.
+ *
+ * ⚠️ LO QUE FALTA SE DICE, NO SE INVENTA. Cada tabla declara qué columna no puede traer y por qué — lead time del
+ * proveedor, estado de la orden de compra y la causa de una detención no están en el dato, y la causa no se puede
+ * inferir sin historial de stock. Decirlo es más útil que rellenarlo: nombra exactamente qué habría que conectar. */
+function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
+  const [bodega, setBodega] = useState("todas");
+  const [familia, setFamilia] = useState("todas");
+  if (!tabla) return null;
+  const bodegas = [...new Set(tabla.filas.map((f) => f.bodega).filter(Boolean))];
+  const familias = [...new Set(tabla.filas.map((f) => f.familia).filter(Boolean))];
+  const filas = tabla.filas.filter((f) => (bodega === "todas" || f.bodega === bodega) && (familia === "todas" || f.familia === familia));
+  const celda = (f, c) => {
+    if (c.key === "sku") return f.sku;
+    if (c.key === "familia") return f.familia;
+    if (c.key === "bodega") return f.bodega || "—";
+    if (c.key === "estado") return f.estadoLabel;
+    if (c.key === "accion") return f.accion;
+    if (c.key === "usd") return f.usdFmt;
+    if (c.key === "rotacion") return f.rotacionFmt;
+    if (c.key === "doh") return f.dohFmt;
+    if (c.key === "margenPct") return f.margenFmt;
+    if (c.key === "benchmark") return f.benchmarkFmt;
+    if (c.key === "desvio") return f.desvioFmt;
+    if (c.key === "diasSinVenta") return f.diasSinVenta == null ? "—" : `${f.diasSinVenta}d`;
+    if (c.key === "ventaDiaria") return f.ventaDiaria == null ? "—" : `${f.ventaDiaria}/d`;
+    if (c.key === "stockUnd") return f.stockUnd == null ? "—" : f.stockUnd.toLocaleString("es-CL");
+    return f[c.key] ?? "—";
+  };
+  const colorCelda = (f, c) => {
+    if (c.key === "estado") return _capCol(f.estadoColor);
+    if (c.key === "doh" && f.urgente) return C.red;                    // menos de 5 días: se corta ya
+    if (c.key === "desvio") return f.bajoBenchmark ? C.amber : C.textSub;
+    if (c.key === "usd") return f.destacar ? C.text : C.textSub;       // el capital grande, destacado
+    return C.textSub;
+  };
+  const filtro = (valor, set, opciones, label) => (
+    <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+      {["todas", ...opciones].map((o) => (
+        <button key={o} onClick={() => set(o)} aria-pressed={valor === o}
+          style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${valor === o ? "rgba(47,184,218,0.5)" : C.border}`, background: valor === o ? "rgba(47,184,218,0.10)" : "transparent", color: valor === o ? C.celeste : C.textMuted, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+          {o === "todas" ? label : o}
+        </button>
+      ))}
+    </span>
+  );
+  return (
+    <div style={{ ..._RC_CARD, marginTop: 9 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ ..._RC_HEAD, color: C.celeste }}>{tabla.titulo}</span>
+        <Num>{tabla.totalFmt}</Num>
+        <span style={{ fontSize: 11, color: C.textMuted }}>{tabla.n} {tabla.n === 1 ? "fila" : "filas"} · {tabla.objetivo}</span>
+        <button onClick={onCerrar} style={{ marginLeft: "auto", background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>Cerrar ▴</button>
+      </div>
+      {(bodegas.length > 1 || familias.length > 1) && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+          {bodegas.length > 1 ? filtro(bodega, setBodega, bodegas, "Todas las bodegas") : null}
+          {familias.length > 1 ? filtro(familia, setFamilia, familias, "Todas las familias") : null}
+        </div>
+      )}
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 640 }}>
+          <thead><tr>{tabla.columnas.map((c) => (
+            <th key={c.key} style={{ ..._RC_TH, textAlign: c.align }} title={c.nota ? `${c.label} — ${c.nota}` : undefined}>
+              {c.label}{c.nota ? <span style={{ color: C.textMuted, fontWeight: 400 }}> ·{c.nota}</span> : null}
+            </th>
+          ))}</tr></thead>
+          <tbody>{filas.map((f) => (
+            <tr key={f.sku}>
+              {tabla.columnas.map((c) => (
+                <td key={c.key} style={{ ..._RC_TD, textAlign: c.align, color: colorCelda(f, c),
+                  fontWeight: c.key === "sku" || (c.key === "usd" && f.destacar) ? 600 : 400,
+                  fontFamily: c.align === "left" ? "'DM Sans', system-ui, sans-serif" : MONO }}>
+                  {c.key === "sku" && onAsk ? (
+                    <button onClick={() => onAsk(f.ask)} title={`Preguntale a ADI: ${f.ask}`}
+                      style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{celda(f, c)}</button>
+                  ) : celda(f, c)}
+                </td>
+              ))}
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>Ordenada {tabla.orden}</div>
+      {(tabla.faltan || []).map((t, i) => (
+        <div key={i} style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>⚠ {t}</div>
+      ))}
+      {onAsk && ask ? <div style={{ marginTop: 8 }}>{_btnADI(() => onAsk(ask), "Que ADI lo explique →")}</div> : null}
+    </div>
+  );
+}
+
 function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, onWatch = null, wl = { items: [] } }) {
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
@@ -2686,6 +2781,9 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   const [verCuadro, setVerCuadro] = useState(false);
   const [corte, setCorte] = useState((cap.cortes && cap.cortes.porDefecto) || "bodega");
   const [verDetalle, setVerDetalle] = useState(false);
+  // cada KPI abre SU tabla (owner 2026-08-09): la card ya no dispara la pregunta a ADI — la pregunta vive dentro
+  // del detalle, que es donde el usuario ya tiene el contexto para hacerla.
+  const [drill, setDrill] = useState(null);
   const MovHead = ({ num, title, def }) => (
     <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
@@ -2734,21 +2832,28 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       </div>
       {/* los KPIs de la cara · capital total · detenido · quiebres próximos · rotación media */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9, marginTop:9 }}>
-        {cap.kpis.map((k) => { const col = semCol[k.estado]; return (
-          <button key={k.key} onClick={onAsk && k.ask ? () => onAsk(k.ask) : undefined}
-            title={onAsk && k.ask ? `Preguntale a ADI: ${k.ask}` : undefined}
-            style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: onAsk && k.ask ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s" }}
-            onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
-            onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
+        {cap.kpis.map((k) => { const col = semCol[k.estado]; const abierta = drill === k.key;
+          const tabla = cap.drill && cap.drill[k.key]; return (
+          <button key={k.key} onClick={tabla ? () => setDrill(abierta ? null : k.key) : undefined}
+            aria-pressed={abierta} title={tabla ? `Ver ${tabla.titulo.toLowerCase()} (${tabla.n})` : undefined}
+            style={{ position:"relative", background: abierta ? "rgba(47,184,218,0.07)" : "rgba(255,255,255,0.02)", border:`1px solid ${abierta ? "rgba(47,184,218,0.5)" : C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: tabla ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s, border-color 0.15s" }}
+            onMouseEnter={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
+            onMouseLeave={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
               <span style={{ fontSize:10.5, color:C.textMuted }}>{k.label}</span>
               {col && <span style={{ width:7, height:7, borderRadius:"50%", background:col, boxShadow:`0 0 6px ${col}aa`, flexShrink:0 }}/>}
             </div>
             <div style={{ fontSize:16, fontWeight:600, color:C.text, fontFamily:MONO, letterSpacing:"0.2px", fontVariantNumeric:"tabular-nums" }}>{k.value}</div>
             <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.35 }}>{k.linea}</div>
+            {tabla ? <span style={{ fontSize:10, color:C.celeste, fontWeight:600, marginTop:2 }}>{abierta ? "Ocultar el detalle ▴" : `Ver el detalle (${tabla.n}) ▾`}</span> : null}
           </button>
         ); })}
       </div>
+      {/* EL DETALLE DE LA CARD ABIERTA · una tabla por KPI, con el universo que ese KPI cuenta */}
+      {drill && cap.drill && cap.drill[drill] ? (
+        <CapitalDrill tabla={cap.drill[drill]} ask={(cap.kpis.find((k) => k.key === drill) || {}).ask}
+          onAsk={onAsk} onCerrar={() => setDrill(null)}/>
+      ) : null}
       {/* ── EL INVENTARIO GENERAL · el cuadro operable, cerrado (owner 2026-08-08, decisión 4) ──────────────────
           Conserva TODO: ejes SKU/Bodegas, filtros, búsqueda, orden, alertas, la estrella de la watchlist y las
           columnas relevantes (disponible · valorizado · rotación · días de inventario · última venta · estado ·

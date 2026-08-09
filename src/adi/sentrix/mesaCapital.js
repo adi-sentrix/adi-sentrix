@@ -56,6 +56,12 @@ export const CAPITAL_ESTADOS = {
   capital_frenado: { label: "detenido",        color: "amber", ask: "¿Dónde está detenido mi capital?",
     def: "Sin rotación según tu benchmark (rotación bajo " + POLICY.rotacionMin + "x o más de " + POLICY.dohMax + " días de inventario): capital que no trabaja." },
 };
+// LAS CUATRO ACCIONES PERMITIDAS, textuales del owner (2026-08-08, decisión 9) · una por estado y ninguna otra.
+// El detenido dice EVALUAR una salida: que un SKU no rote no prueba que haya que rematarlo.
+const ACCION_POR_ESTADO = {
+  capital_frenado: "evaluar salida comercial", riesgo_quiebre: "revisar reposición",
+  sobrestock: "frenar o ajustar reposición", capital_sano: "sostener",
+};
 const _ORDEN = ["capital_sano", "riesgo_quiebre", "sobrestock", "capital_frenado"];
 const _RANK = { capital_frenado: 0, riesgo_quiebre: 1, sobrestock: 2, capital_sano: 3 };
 
@@ -258,7 +264,96 @@ export function buildMesaCapital(scenario) {
     "Las sucursales del dato son bodegas —traen inventario, no venta—, así que no hay corte por punto de venta.",
   ];
 
-  return { veredicto, kpis, mapa, cortes, focos, reponer, liquidar, simulaciones, alertas, limitaciones,
+  /* ── EL DETALLE DE CADA KPI · una tabla por card (owner 2026-08-09) ─────────────────────────────────────────
+   * "Que cada card muestre lo que corresponda, y al hacer clic se vea una tabla." Cada KPI abre EL universo que
+   * ese KPI cuenta — no el inventario entero cuatro veces.
+   *
+   * ⚠️ LOS DÍAS SON UN VALOR DECLARADO, NO UNA CUENTA. El owner pidió calcular "días para quiebre = stock ÷ venta
+   * diaria". Se verificó: esa cuenta NO coincide con el `doh` del dato en 11 de las 13 filas (PHI-SHAVER9 daría
+   * 21,5 y el dato dice 15). Y `doh` es el campo con el que el MOTOR decide qué está en quiebre. Mostrar la cuenta
+   * al lado del estado sería poner dos números del mismo concepto en la misma tabla — el defecto que ya costó
+   * caro. Se muestra el declarado, y la tabla dice que es declarado.
+   *
+   * ⚠️ LO QUE NO EXISTE NO SE INVENTA: lead time del proveedor, estado de la orden de compra y "causa sugerida"
+   * (obsolescencia / sobrecompra / temporada) no están en el dato — y la causa no se puede inferir sin historial
+   * de stock. Cada tabla DECLARA lo que le falta, que es justo lo que haría falta para completar su decisión. */
+  const _pctInv = (usd) => (D.total ? Math.round((usd / D.total) * 100) : 0);
+  const _filaDrill = (s) => {
+    const r = bySku[s.sku] || {};
+    return { sku: s.sku, bodega: s.bodega, familia: s.familia,
+      estado: s.estado, estadoLabel: CAPITAL_ESTADOS[s.estado].label, estadoColor: CAPITAL_ESTADOS[s.estado].color,
+      usd: s.capital, usdFmt: _money(s.capital), pctInv: _pctInv(s.capital),
+      stockUnd: r.stockUnd ?? null, ventaDiaria: r.ventaDiaria ?? null,
+      rotacion: _r1(s.rotacion), rotacionFmt: `${_r1(s.rotacion)}x`,
+      doh: Math.round(s.doh), dohFmt: `${Math.round(s.doh)}d`,
+      diasSinVenta: typeof s.diasSinVenta === "number" ? s.diasSinVenta : null,
+      margenPct: typeof r.margenPct === "number" ? r.margenPct : null,
+      margenFmt: typeof r.margenPct === "number" ? `${r.margenPct}%` : "—",
+      critico: r.alerta === "crit",
+      accion: ACCION_POR_ESTADO[s.estado],
+      ask: `Profundiza en ${s.sku}`,
+      // ALERTAS VISUALES (owner): el capital grande se destaca, y la urgencia real también
+      destacar: s.capital > 5000, urgente: s.estado === "riesgo_quiebre" && Math.round(s.doh) < 5,
+    };
+  };
+  const _COL = (key, label, align = "right", nota = null) => ({ key, label, align, nota });
+  const _todas = D.perSku.map(_filaDrill);
+  const drill = {
+    capital: {
+      key: "capital", titulo: "Todo el inventario", objetivo: "Dónde está concentrado tu capital y en qué estado.",
+      columnas: [_COL("sku", "SKU", "left"), _COL("estado", "Estado", "left"), _COL("usd", "Valor inventario"),
+        _COL("stockUnd", "Unidades"), _COL("rotacion", "Rotación", "right", "declarada"),
+        _COL("doh", "Días inv.", "right", "declarado"), _COL("bodega", "Bodega", "left")],
+      filas: [..._todas].sort((a, b) => b.usd - a.usd),   // Pareto: el capital primero
+      orden: "de mayor a menor capital: arriba están los SKU que concentran tu inventario.",
+      totalFmt: _money(D.total), n: _todas.length, faltan: [],
+    },
+    detenido: {
+      key: "detenido", titulo: "Capital detenido", objetivo: "Qué capital no está trabajando y desde cuándo.",
+      columnas: [_COL("sku", "SKU", "left"), _COL("diasSinVenta", "Días sin venta"), _COL("usd", "Valor detenido"),
+        _COL("margenPct", "Margen", "right", "del inventario"), _COL("rotacion", "Rotación", "right", "declarada"),
+        _COL("bodega", "Bodega", "left"), _COL("accion", "Acción", "left")],
+      filas: _todas.filter((f) => f.estado === "capital_frenado").sort((a, b) => (b.diasSinVenta || 0) - (a.diasSinVenta || 0)),
+      orden: "por días sin venta: primero lo que lleva más tiempo quieto.",
+      totalFmt: _money(frenado.usd), n: frenado.count,
+      faltan: ["Por qué se detuvo —obsolescencia, sobrecompra, temporada— no está en el dato y no se puede inferir sin historial de stock."],
+    },
+    quiebres: {
+      key: "quiebres", titulo: "Quiebres próximos", objetivo: "Qué se queda sin stock antes.",
+      columnas: [_COL("sku", "SKU", "left"), _COL("doh", "Días inv.", "right", "declarado"),
+        _COL("ventaDiaria", "Venta diaria", "right", "unidades"), _COL("stockUnd", "Stock actual"),
+        _COL("rotacion", "Rotación", "right", "declarada"), _COL("usd", "Valor inventario"), _COL("bodega", "Bodega", "left")],
+      filas: _todas.filter((f) => f.estado === "riesgo_quiebre").sort((a, b) => a.doh - b.doh),
+      orden: "por días de inventario: primero el que se queda sin stock antes.",
+      totalFmt: _money(quiebre.usd), n: quiebre.count,
+      faltan: [
+        "El lead time del proveedor no está en el dato: sin él no se puede decir cuáles se quiebran ANTES de que llegue la reposición, que es la pregunta que ordena esta lista.",
+        "El estado de las órdenes de compra tampoco: no se sabe qué ya está pedido ni en tránsito.",
+      ],
+    },
+    rotacion: {
+      key: "rotacion", titulo: "Rotación por familia", objetivo: "Qué familias arrastran la rotación hacia abajo.",
+      columnas: [_COL("familia", "Familia", "left"), _COL("rotacion", "Rotación", "right", "promedio de la familia"),
+        _COL("benchmark", "Tu benchmark"), _COL("desvio", "Desviación"), _COL("usd", "Valor inventario"), _COL("stockUnd", "Unidades")],
+      filas: [...new Set(D.perSku.map((s) => s.familia))].map((fam) => {
+        const rs = _todas.filter((f) => f.familia === fam);
+        const rot = _r1(_mean(rs, (f) => f.rotacion)), usd = rs.reduce((a, f) => a + f.usd, 0);
+        const desv = POLICY.rotacionMin ? Math.round(((rot - POLICY.rotacionMin) / POLICY.rotacionMin) * 100) : 0;
+        return { familia: fam, sku: fam, n: rs.length,
+          rotacion: rot, rotacionFmt: `${rot}x`,
+          benchmark: POLICY.rotacionMin, benchmarkFmt: `${POLICY.rotacionMin}x`,
+          desvio: desv, desvioFmt: `${desv >= 0 ? "+" : ""}${desv}%`, bajoBenchmark: rot < POLICY.rotacionMin,
+          usd, usdFmt: _money(usd), pctInv: _pctInv(usd),
+          stockUnd: rs.reduce((a, f) => a + (f.stockUnd || 0), 0),
+          destacar: usd > 5000, ask: `¿Cuánto capital tengo en ${fam}?` };
+      }).sort((a, b) => a.rotacion - b.rotacion),   // la peor rotación primero: es la que arrastra
+      orden: "de menor a mayor rotación: arriba, las que más arrastran.",
+      totalFmt: _money(D.total), n: [...new Set(D.perSku.map((s) => s.familia))].length,
+      faltan: ["El benchmark es uno solo para todas las familias, el que declaraste. El dato no trae una meta por familia."],
+    },
+  };
+
+  return { veredicto, kpis, mapa, cortes, focos, reponer, liquidar, simulaciones, alertas, limitaciones, drill,
     total: D.total, totalFmt: _money(D.total), n: D.perSku.length,
     nBodegas: [...new Set(D.perSku.map((s) => s.bodega))].length };
 }
