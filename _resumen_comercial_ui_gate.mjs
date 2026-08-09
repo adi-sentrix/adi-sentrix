@@ -68,6 +68,9 @@ const { buildOracleEvidence } = await import("./src/adi/oracle/sentrixEvidence.j
 const { ledgerBoleta } = await import("./src/adi/oracle/ledger.js");
 const { buildResumenComercial } = await import("./src/adi/sentrix/resumenComercial.js");
 const { buildCuadroMando } = await import("./src/adi/sentrix/cuadro.js");
+// La cara Capital entra a este gate solo por su gráfico de barras: es la ÚNICA superficie donde el módulo calcula
+// un set (cabeza + cola agrupada) que la vista podría dibujar incompleto sin que la aritmética se entere.
+const { buildMesaCapital } = await import("./src/adi/sentrix/mesaCapital.js");
 // El estado de la Mesa trae `cambios` y `simulaciones`: las dos secciones que SALIERON de la cara Comercial.
 // Se importa justamente para poder afirmar que sus textos NO aparecen — comprobar una ausencia exige tener a mano
 // lo que debería estar ausente; si no, el gate "pasa" porque no busca nada.
@@ -832,6 +835,50 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
   ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), "…y arma la Ficha Ejecutiva del cliente elegido");
   fireEvent.click(porTexto(container, "Comercial"));
   ok(container.textContent.includes(R.veredicto.titular), "y volver a Comercial devuelve el resumen del negocio, sin arrastrar la entidad de la Ficha");
+  cleanup();
+}
+
+/* [8b] LAS BARRAS DE CAPITAL · lo que el módulo calcula tiene que ser lo que se DIBUJA (owner 2026-08-09) ──────
+ * `_mesa_capital_gate` ya prueba que la aritmética cierra. Lo que falta probar es lo único que el usuario ve: que
+ * las barras estén en pantalla con su monto, que las UNIDADES —el número que el owner pidió adentro— salgan de
+ * verdad, que el filtro cambie el set, y que la cola agrupada se dibuje. Un gráfico correcto que no se renderiza
+ * es un gráfico roto; uno que se renderiza sin la cola miente sin que la aritmética se entere. */
+H("[8b] LAS BARRAS DE CAPITAL · monto al final, unidades adentro, dos filtros");
+{
+  const { container } = abrir(evTemporal());
+  fireEvent.click(porTexto(container, "Capital"));
+  const CAP = buildMesaCapital(SCENARIO);
+  const gen = CAP.barras.vistas.find((v) => v.key === "general");
+  const inm = CAP.barras.vistas.find((v) => v.key === "inmovilizado");
+  // EL BARRIDO VA ACOTADO AL GRÁFICO, no a la cara: los SKU también viven en los focos, en las listas del bloque
+  // 03 y en los cortes, así que buscar sobre `container` diría que "todo está en pantalla" sin haber mirado el
+  // gráfico. Se toma la tarjeta que contiene el filtro y se lee SOLO ella.
+  const btn = botones(container).find((b) => b.textContent.includes("Inmovilizado ("));
+  ok(!!btn, "el filtro «Inmovilizado» está a un click");
+  // el botón cuelga de un <span>, así que `closest("div")` da la fila de encabezado y su padre es LA TARJETA.
+  // Un nivel más arriba entrarían las KPI cards —que también dicen "en rango"— y el barrido dejaría de ser del gráfico.
+  const card = btn.closest("div").parentElement;
+  const G = () => card.textContent;
+  ok(G().includes("Capital por producto"), "el bloque 01 dibuja «Capital por producto»");
+  ok(gen.barras.every((b) => G().includes(b.sku)), `las ${gen.barras.length} barras del inventario general están en el gráfico`);
+  ok(gen.barras.every((b) => G().includes(b.usdFmt)), "…cada una con su monto formateado");
+  // LAS UNIDADES ADENTRO · el pedido textual del owner ("podrían ir las unidades en medio de la barra")
+  ok(gen.barras.every((b) => G().includes(b.und.toLocaleString("es-CL"))), "…y sus unidades");
+  ok(G().includes(gen.lectura), "la lectura del módulo se dibuja tal cual (la frase se arma en el módulo)");
+  ok(gen.leyenda.every((l) => G().includes(l.label)), `la clave del semáforo está dibujada (${gen.leyenda.map((l) => l.label).join(" · ")})`);
+  // LA COLA SE DIBUJA · si el módulo agrupó, la barra agrupada tiene que estar en pantalla, no solo en el objeto
+  const agrup = gen.barras.find((b) => b.agrupado);
+  ok(!agrup || G().includes(agrup.sku), `la cola agrupada se dibuja${agrup ? ` («${agrup.sku}»)` : " (no hubo cola)"}`);
+  // EL FILTRO CAMBIA EL SET · y el que se va, se va del gráfico
+  fireEvent.click(btn);
+  ok(inm.barras.every((b) => G().includes(b.sku)), `al filtrar quedan los ${inm.n} inmovilizados`);
+  ok(G().includes(inm.totalFmt), `…con su total ${inm.totalFmt}`);
+  // la leyenda ACOMPAÑA al filtro: en "Inmovilizado" hay un solo estado, y prometer los otros tres sería falso
+  const fuera = gen.leyenda.filter((l) => !inm.leyenda.some((i) => i.estado === l.estado));
+  ok(inm.leyenda.length === 1 && fuera.every((l) => !G().includes(l.label)),
+    `…y la clave se reduce al único estado presente (salen ${fuera.map((l) => l.label).join(" · ")})`);
+  const salieron = gen.barras.filter((b) => !b.agrupado && !inm.barras.some((i) => i.sku === b.sku));
+  ok(salieron.length > 0 && salieron.every((b) => !G().includes(b.sku)), `…y los ${salieron.length} que no están detenidos salen del gráfico`);
   cleanup();
 }
 

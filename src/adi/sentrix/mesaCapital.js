@@ -431,7 +431,56 @@ export function buildMesaCapital(scenario) {
     },
   };
 
-  return { veredicto, kpis, mapa, cortes, focos, reponer, liquidar, simulaciones, alertas, limitaciones, drill,
+  /* ── CAPITAL POR PRODUCTO, DE UN VISTAZO · barras horizontales por valorizado (owner 2026-08-09) ─────────────
+   * Es la lectura más rápida que tiene la cara: sin ejes, ordenado de mayor a menor y con el monto al final de la
+   * barra. La UNIDAD dentro de la barra agrega lo que ninguna otra vista muestra — que $11K en 140 unidades y
+   * $13K en 18 son dos problemas de compra distintos (barato-muchos contra caro-pocos).
+   *
+   * ⚠️ LA BARRA MIDE CAPITAL, y por eso el monto va al final y las unidades adentro en tono menor: si el largo
+   * fuera ambiguo, dos magnitudes en una misma forma se leerían mal. Todas las barras van del MISMO tono (el owner
+   * pidió el gráfico de barras azules, y pintar cada una de su color rompe su regla: el color resalta, no decora).
+   * El estado viaja en un punto de semáforo, con su LEYENDA — un punto de color sin clave es un código interno.
+   * ⚠️ PENSADO PARA MILES: con 1.000 SKU una barra por SKU es ilegible, así que se dibujan las primeras y el
+   * resto va agrupado en una barra propia — que sigue sumando el total. Nunca se corta en silencio. */
+  const _TOPE_BARRAS = 10;
+  const _vistaBarras = (key, label, filtro, nota) => {
+    const rs = D.perSku.filter(filtro).map((s) => ({
+      sku: s.sku, bodega: s.bodega, usd: s.capital, usdFmt: _money(s.capital),
+      und: (bySku[s.sku] || {}).stockUnd ?? null,
+      estado: s.estado, estadoLabel: CAPITAL_ESTADOS[s.estado].label, estadoColor: CAPITAL_ESTADOS[s.estado].color,
+      ask: `Profundiza en ${s.sku}`,
+    })).sort((a, b) => b.usd - a.usd);
+    const total = rs.reduce((a, r) => a + r.usd, 0);
+    const und = rs.reduce((a, r) => a + (r.und || 0), 0);
+    const cabeza = rs.slice(0, _TOPE_BARRAS), cola = rs.slice(_TOPE_BARRAS);
+    const usdCola = cola.reduce((a, r) => a + r.usd, 0);
+    const max = cabeza.length ? cabeza[0].usd : 1;
+    const barras = cabeza.map((r) => ({ ...r, anchoPct: Math.round((r.usd / max) * 100) }));
+    if (cola.length) barras.push({ sku: `Otros ${cola.length}`, usd: usdCola, usdFmt: _money(usdCola),
+      und: cola.reduce((a, r) => a + (r.und || 0), 0), anchoPct: Math.round((usdCola / max) * 100),
+      estado: null, estadoLabel: null, estadoColor: "neutro", agrupado: true, ask: null });
+    // LA LEYENDA DEL PUNTO · solo los estados que esta vista realmente contiene, en el orden del gráfico. Con los
+    // cuatro fijos, la vista "Inmovilizado" mostraría tres claves que no aparecen en ninguna barra.
+    const leyenda = [];
+    for (const r of cabeza) if (!leyenda.some((l) => l.estado === r.estado))
+      leyenda.push({ estado: r.estado, label: r.estadoLabel, color: r.estadoColor });
+    return { key, label, n: rs.length, total, totalFmt: _money(total), und,
+      barras, colaN: cola.length, nota, leyenda,
+      lectura: cola.length
+        ? `${_money(total)} en ${rs.length} SKU y ${und.toLocaleString("es-CL")} unidades. Se dibujan los ${_TOPE_BARRAS} de mayor valor; los otros ${cola.length} van agrupados en la última barra.`
+        : `${_money(total)} en ${rs.length} SKU y ${und.toLocaleString("es-CL")} unidades.` };
+  };
+  const barras = {
+    porDefecto: "general",
+    vistas: [
+      _vistaBarras("general", "Inventario general", () => true,
+        "La barra mide capital; el número dentro son las unidades."),
+      _vistaBarras("inmovilizado", "Inmovilizado", (s) => s.estado === "capital_frenado",
+        "Solo el capital que no rota según tu benchmark — el mismo criterio del KPI de capital detenido."),
+    ],
+  };
+
+  return { veredicto, kpis, mapa, cortes, focos, reponer, liquidar, simulaciones, alertas, limitaciones, drill, barras,
     total: D.total, totalFmt: _money(D.total), n: D.perSku.length,
     nBodegas: [...new Set(D.perSku.map((s) => s.bodega))].length };
 }

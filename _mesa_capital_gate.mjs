@@ -283,6 +283,78 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
     `tres-cortes-cierran@${sc}`, mc.cortes.vistas.map((v) => `${v.key}:${v.suma}`).join(" "));
 }
 
+/* ── (19) LAS BARRAS · el reparto por SKU, sin corte silencioso (owner 2026-08-09, tras el dashboard Power BI) ──
+ * El owner trajo dos gráficos y preguntó por el de barras azules: monto al final, unidades adentro, dos filtros.
+ * Un gráfico de barras es la superficie MÁS FÁCIL de volver deshonesta sin querer: se dibujan los 10 primeros, el
+ * ojo lee "esto es todo" y la cola desaparece. Por eso lo que este bloque cuida no es el dibujo sino la aritmética:
+ *   · cabeza + barra agrupada == el total de la vista, al peso · y ese total == el mismo capital del motor;
+ *   · si algo quedó fuera de las 10, la lectura lo DICE (cuántos y que van agrupados) — nunca se corta callado;
+ *   · las unidades también cierran: es el segundo número que el usuario lee y nadie lo verifica solo;
+ *   · la barra agrupada no es preguntable ni tiene estado: "Otros 3" no es un SKU y no se puede diagnosticar;
+ *   · el filtro "Inmovilizado" contiene EXACTAMENTE los capital_frenado del motor — el mismo universo del KPI. */
+for (const sc of ["bonanza", "tension", "crisis"]) {
+  const mc = buildMesaCapital(sc);
+  const D = diagnoseInventario(applyScenarioToSkuInventario(sc) || [], {});
+  const B = mc.barras;
+  ok(!!B && Array.isArray(B.vistas) && B.vistas.length === 2, `barras-existen@${sc}`, B ? `${B.vistas.length} vistas` : "no hay");
+  ok(!!B && B.vistas.some((v) => v.key === B.porDefecto), `barras-default-valido@${sc}`, B ? B.porDefecto : "");
+  for (const v of (B ? B.vistas : [])) {
+    // (a) NI UN PESO PERDIDO · cabeza + cola agrupada == total de la vista. Esta es LA verificación del bloque:
+    //     un top-N que no declara su cola miente por omisión aunque cada barra individual sea correcta.
+    const suma = v.barras.reduce((a, b) => a + b.usd, 0);
+    ok(suma === v.total, `barras-cierran-${v.key}@${sc}`, `${suma} vs ${v.total}`);
+    const sumaUnd = v.barras.reduce((a, b) => a + (b.und || 0), 0);
+    ok(sumaUnd === v.und, `barras-unidades-cierran-${v.key}@${sc}`, `${sumaUnd} vs ${v.und}`);
+    // (b) EL TOTAL ES EL DEL MOTOR · no una suma paralela que empiece a derivar
+    const esperado = v.key === "general" ? D.total : D.perSku.filter((s) => s.estado === "capital_frenado").reduce((a, s) => a + s.capital, 0);
+    ok(v.total === esperado, `barras-total-vs-motor-${v.key}@${sc}`, `${v.total} vs ${esperado}`);
+    ok(v.n === (v.key === "general" ? D.perSku.length : D.perSku.filter((s) => s.estado === "capital_frenado").length),
+      `barras-n-vs-motor-${v.key}@${sc}`, `${v.n}`);
+    // (c) LA COLA SE DECLARA · si hay agrupados, la lectura dice cuántos; si no hay, no promete un corte que no hubo
+    const agrup = v.barras.filter((b) => b.agrupado);
+    ok(agrup.length === (v.colaN > 0 ? 1 : 0), `barras-una-agrupada-${v.key}@${sc}`, `${agrup.length} agrupadas, cola ${v.colaN}`);
+    if (v.colaN > 0) {
+      ok(new RegExp(`\\b${v.colaN}\\b`).test(v.lectura) && /agrupad/i.test(v.lectura),
+        `barras-declara-cola-${v.key}@${sc}`, v.lectura.slice(0, 120));
+      // la agrupada NO es preguntable ni diagnosticable: "Otros 3" no es un SKU
+      ok(agrup[0].ask === null && agrup[0].estado === null, `barras-agrupada-muda-${v.key}@${sc}`, `${agrup[0].ask}`);
+      ok(agrup[0] === v.barras[v.barras.length - 1], `barras-agrupada-ultima-${v.key}@${sc}`);
+    } else {
+      ok(!/agrupad|se dibujan|otros/i.test(v.lectura), `barras-sin-cola-no-promete-${v.key}@${sc}`, v.lectura.slice(0, 120));
+    }
+    // (d) ORDEN DESCENDENTE en la cabeza y ancho proporcional al mayor (la primera llena la fila)
+    const cab = v.barras.filter((b) => !b.agrupado);
+    ok(cab.every((b, i) => i === 0 || cab[i - 1].usd >= b.usd), `barras-orden-desc-${v.key}@${sc}`,
+      cab.map((b) => b.usd).join(">"));
+    ok(cab.length > 0 && cab[0].anchoPct === 100, `barras-ancho-referencia-${v.key}@${sc}`, cab.length ? `${cab[0].anchoPct}%` : "vacía");
+    ok(v.barras.every((b) => b.anchoPct >= 0 && b.anchoPct <= 100), `barras-ancho-en-rango-${v.key}@${sc}`);
+    // (e) CADA BARRA REAL ES PREGUNTABLE (anti-BI: no hay elemento mudo) y trae su monto ya formateado
+    ok(cab.every((b) => b.ask && b.usdFmt && b.estadoLabel), `barras-cabeza-preguntable-${v.key}@${sc}`);
+    // (e2) LA LEYENDA DEL PUNTO · un color sin clave es un código interno. Y tiene que ser EXACTAMENTE los estados
+    //      dibujados: si sobra una clave, promete un estado que no está; si falta, deja un punto sin explicar.
+    const presentes = [...new Set(cab.map((b) => b.estado))];
+    ok(v.leyenda.length === presentes.length && v.leyenda.every((l) => presentes.includes(l.estado)),
+      `barras-leyenda-exacta-${v.key}@${sc}`, `${v.leyenda.map((l) => l.estado).join(",")} vs ${presentes.join(",")}`);
+    ok(v.leyenda.every((l) => l.label === CAPITAL_ESTADOS[l.estado].label && l.color === CAPITAL_ESTADOS[l.estado].color),
+      `barras-leyenda-una-fuente-${v.key}@${sc}`, "rótulo y color salen de CAPITAL_ESTADOS, no de una copia");
+    // (f) REGISTRO FORMAL y sin causalidad: el gráfico ubica el capital, no explica por qué está ahí
+    const txt = `${v.label} ${v.nota} ${v.lectura}`;
+    const inf = txt.match(INFORMAL);
+    ok(!inf, `barras-registro-${v.key}@${sc}`, inf ? `«${inf[0]}»` : "");
+    ok(!/porque|se debe a|la causa|por culpa/i.test(txt), `barras-no-atribuye-${v.key}@${sc}`, txt.slice(0, 100));
+    // (g) EL SELLO DE LOS DOS UNIVERSOS · acá no entra ni una cifra del universo comercial
+    ok(!/\$[\d.,]+\s*M\b/.test(txt) && !/vend[eió]|factur/i.test(txt), `barras-un-solo-universo-${v.key}@${sc}`, txt.slice(0, 100));
+  }
+  // (h) EL FILTRO INMOVILIZADO ES EL MISMO UNIVERSO DEL KPI · si se separan, la cara dice dos verdades
+  const inm = B && B.vistas.find((v) => v.key === "inmovilizado");
+  const frenados = new Set(D.perSku.filter((s) => s.estado === "capital_frenado").map((s) => s.sku));
+  ok(!!inm && inm.barras.filter((b) => !b.agrupado).every((b) => frenados.has(b.sku)),
+    `barras-inmovilizado-mismo-universo@${sc}`);
+  const kpiDet = mc.kpis.find((k) => k.key === "detenido");
+  ok(!!inm && !!kpiDet && inm.totalFmt === kpiDet.value, `barras-inmovilizado-vs-kpi@${sc}`,
+    `${inm ? inm.totalFmt : "-"} vs ${kpiDet ? kpiDet.value : "-"}`);
+}
+
 /* ── (17) "A QUIÉN LE VENDÉS LO DETENIDO" · nombres y porcentajes, ni un peso (owner 2026-08-09) ───────────────
  * La matriz cliente×SKU es del universo COMERCIAL y el SKU detenido del de inventario. Se toma el reparto para
  * saber a quién le calza el producto —la pregunta accionable— y el monto se descarta en el acto: un "$X" al lado

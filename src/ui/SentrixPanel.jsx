@@ -2686,6 +2686,68 @@ function ResumenCapitalLista({ lista, tono, onAsk }) {
  * ⚠️ LO QUE FALTA SE DICE, NO SE INVENTA. Cada tabla declara qué columna no puede traer y por qué — lead time del
  * proveedor, estado de la orden de compra y la causa de una detención no están en el dato, y la causa no se puede
  * inferir sin historial de stock. Decirlo es más útil que rellenarlo: nombra exactamente qué habría que conectar. */
+/* ── CAPITAL POR PRODUCTO · barras horizontales, la lectura más rápida de la cara (owner 2026-08-09) ───────────
+ * Ordenadas de mayor a menor, con el monto al FINAL de la barra: se lee sin ejes y sin leyenda. Las unidades van
+ * DENTRO, en tono menor, porque agregan lo que ninguna otra vista muestra — que $11K en 140 unidades y $13K en 18
+ * son dos problemas de compra distintos. La barra mide capital; por eso el monto manda y la unidad acompaña.
+ * Dos filtros, los que pidió el owner: todo el inventario, o solo lo inmovilizado. */
+function CapitalBarras({ barras, onAsk }) {
+  const [vista, setVista] = useState((barras && barras.porDefecto) || "general");
+  if (!barras || !barras.vistas.length) return null;
+  const v = barras.vistas.find((x) => x.key === vista) || barras.vistas[0];
+  return (
+    <div style={{ ..._RC_CARD, marginTop: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <span style={{ ..._RC_HEAD, color: C.celeste }}>Capital por producto</span>
+        <span style={{ display: "flex", gap: 3 }}>
+          {barras.vistas.map((x) => (
+            <button key={x.key} onClick={() => setVista(x.key)} aria-pressed={v.key === x.key}
+              style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: v.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: v.key === x.key ? C.celeste : C.textMuted, fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+              {x.label} ({x.n})
+            </button>
+          ))}
+        </span>
+        <Num>{v.totalFmt}</Num>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {v.barras.map((b) => (
+          <div key={b.sku} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            {/* el estado va como PUNTO de semáforo, no pintando la barra entera: el mismo idioma del cuadro y la
+                misma regla del owner — el color resalta, no decora. La barra queda de un solo tono. */}
+            <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: b.estado ? _capCol(b.estadoColor) : "transparent",
+              boxShadow: b.estado ? `0 0 5px ${_capCol(b.estadoColor)}99` : "none" }}/>
+            <span style={{ flex: "0 0 112px", fontSize: 11.5, fontWeight: b.agrupado ? 400 : 600, color: b.agrupado ? C.textMuted : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {b.ask && onAsk ? (
+                <button onClick={() => onAsk(b.ask)} title={`Preguntale a ADI: ${b.ask}${b.estadoLabel ? ` · ${b.estadoLabel}` : ""}`}
+                  style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{b.sku}</button>
+              ) : b.sku}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ position: "relative", width: `${Math.max(b.anchoPct, 4)}%`, height: 21, borderRadius: 4,
+                background: b.agrupado ? "rgba(255,255,255,0.10)" : C.celeste, opacity: b.agrupado ? 1 : 0.88,
+                display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 7, boxSizing: "border-box", overflow: "hidden" }}
+                title={b.estadoLabel ? `${b.sku} · ${b.estadoLabel}` : b.sku}>
+                {/* las unidades DENTRO, en tono menor: la barra mide capital, la unidad acompaña */}
+                {b.und != null ? <span style={{ fontFamily: MONO, fontSize: 10, color: b.agrupado ? C.textMuted : "rgba(0,0,0,0.60)", fontWeight: 600, whiteSpace: "nowrap" }}>{b.und.toLocaleString("es-CL")}</span> : null}
+              </span>
+              <Num>{b.usdFmt}</Num>
+            </span>
+          </div>
+        ))}
+      </div>
+      {/* la clave del punto · sin ella el semáforo es un código interno */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 13px", marginTop: 9 }}>
+        {v.leyenda.map((l) => (
+          <span key={l.estado} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: C.textMuted }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: _capCol(l.color), flexShrink: 0 }}/>{l.label}
+          </span>
+        ))}
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textMuted, lineHeight: 1.5, marginTop: 7 }}>{v.lectura} {v.nota}</div>
+    </div>
+  );
+}
+
 const _CAP_PAGINA = 50;   // cuántas filas se dibujan de una vez · el resto entra con "ver más"
 function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   const [bodega, setBodega] = useState("todas");
@@ -2900,6 +2962,10 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         <CapitalDrill tabla={cap.drill[drill]} ask={(cap.kpis.find((k) => k.key === drill) || {}).ask}
           onAsk={onAsk} onCerrar={() => setDrill(null)}/>
       ) : null}
+      {/* DÓNDE ESTÁ TU PLATA · el reparto por SKU, en barras. Va en 01 porque el owner lo pidió para que "se
+          entienda al entrar" (2026-08-09). No repite las cards: ellas dan los totales por estado, esto da el
+          reparto por producto — y las unidades adentro muestran lo que ninguna otra vista de la cara muestra. */}
+      <CapitalBarras barras={cap.barras} onAsk={onAsk}/>
       {/* ── "VER INVENTARIO GENERAL" SE ELIMINÓ (owner 2026-08-09) ──────────────────────────────────────────────
           El cuadro entero quedó redundante: la card "Capital total" abre las mismas 13 filas con las mismas
           columnas, más buscador y filtros pensados para miles de SKU. Tener las dos era la misma tabla dos veces.
