@@ -3,7 +3,7 @@
  * interacción. El MURO sigue: solo puede usar las cifras de `cifras_autorizadas` (verbatim); el guard lo valida
  * después. Acá NO hay texto determinístico previo — el narrador escribe la respuesta entera. Aún en sombra.
  */
-import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
+import { MODE_KEYS, buildModeDispatch, buildRepairNarrateDoctrine } from "./conversationalContract.js";
 import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTION } from "./responsePreference.js";
 import { buildNarrationContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 1: el payload se proyecta del contrato sellado, nunca de plan/results crudos
 import { ADI_EPISTEMIC_NOTE_ENABLED } from "../../config/voiceFlags.js";   // CONTRATO v2 · la PRESENTACIÓN del estatus epistémico va detrás de flag (el SELLO no)
@@ -31,7 +31,12 @@ import { preguntaPorTraslado, declaraLimiteTransferencia, limiteTransferenciaDec
 // `hayContextoVista` (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): mismo criterio de economía que
 // `mode`/`responsePref` de arriba — el bloque CONTEXTO DE PANTALLA solo se manda cuando el payload de ESTE turno
 // trae de verdad la línea `contexto_vista` (lo decide handleNarrateC leyendo el payload, no una adivinanza).
-export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayContextoVista = false) {
+// `reparacion` (Contrato Conversacional v1.2, owner 2026-08-10): el objeto sellado del turno (o null). MISMA
+// economía que `mode`/`responsePref`/`hayContextoVista` de arriba — buildRepairNarrateDoctrine devuelve cadena
+// vacía sin él, así que el 99% de los turnos, que no corrigen nada, no pagan un solo token por estas reglas.
+// Sexto argumento OPCIONAL a propósito: los callers que llaman con cinco producen el MISMO system, byte por byte.
+export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null) {
+  const doctrinaReparacion = buildRepairNarrateDoctrine(reparacion);
   return `${persona}
 
 TU TAREA (narrar): sos la voz de ADI —un CONTROLLER SENIOR con mirada de CFO— que le habla al dueño del negocio. El motor ya calculó y validó TODO; vos NO muestras datos: armás la DECISIÓN. Interpretás, relacionás, aconsejás. Tu valor es el criterio ejecutivo, no repetir la tabla.
@@ -40,7 +45,7 @@ REGLA INNEGOCIABLE DE CIFRAS: escribí SOLO cifras que estén en "cifras_autoriz
   ⚠ EL ERROR MÁS FRECUENTE — LA PROPORCIÓN DE ADORNO. Al recomendar, NO le cuelgues a la acción un porcentaje que no está en el dato: "los cinco SKU que explican el 70% de las ventas", "los clientes que representan el 60% de la brecha", "recuperar al menos un 10% del margen", "apuntá a mejorar un 5%" — NI reformulada en "puntos porcentuales" para esquivar el "%" ("establecé un objetivo de subir 5 puntos porcentuales" es el MISMO invento con otra ropa). Esas cifras suenan bien y son INVENTADAS — te van a rebotar y el turno se pierde. Una participación (share) o una meta de recuperación SOLO se escriben si vienen en cifras_autorizadas. Si no las tenés, nombrá la acción SIN el porcentaje: "empezá por los cinco SKU de mayor contribución" (no "…que explican el 70%"), "cerrá la brecha con el Cliente A y el Cliente B" (no "…que son el 60%"). La acción bien nombrada no necesita una cifra falsa. Los números dentro de "datos.facts" son para que RAZONES el patrón; si vas a escribir uno, tiene que estar (o derivarse por suma/resta) de cifras_autorizadas.
 
 ${buildModeDispatch(mode)}
-${isDefaultPref(responsePref) ? "" : `\n${buildPrefDispatch()}\n`}
+${doctrinaReparacion ? `\n${doctrinaReparacion}\n` : ""}${isDefaultPref(responsePref) ? "" : `\n${buildPrefDispatch()}\n`}
 LA ESTRUCTURA — CONTÁS LA HISTORIA, SIEMPRE EN ESTE ARCO (proporcional a la pregunta; EXCEPCIÓN: modo=clarify de arriba lo reemplaza entero, modo=decision arranca directo por el punto 3):
 (1) QUÉ ESTÁ PASANDO — abrí con la lectura, el titular con su cifra (el hallazgo, no un inventario de datos).
 (2) POR QUÉ PASA — la causa, graduada con honestidad: si el dato la prueba, afirmala (PROBADO); si es una señal, decila como señal (INDICADO); si la causa raíz no se cierra con este dato, declaralo (ABIERTO) — jamás la inventes. Mismo vocabulario de gradación que usás al abrir el cálculo en modo evidencia (ver el modo EVIDENCIA en conversationalContract.js) — es UN solo criterio de honestidad para toda la narración, no una regla aparte de ese modo. No hace falta etiquetar cada oración con la palabra literal (eso es rigidez de formulario, no el objetivo) — alcanza con que la gradación real (afirmación/señal/límite declarado) sea consistente en cualquier modo que la use, del panorama completo a la decisión directa.
@@ -785,6 +790,10 @@ export function projectClaimsOnlyPayload(contract) {
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Turno sin causas parciales, sin
     // referencia y sin niveles de cascada → cadena vacía → la clave ni aparece.
     ...(buildProporcionalidadDoctrina(claims) ? { instruccion_proporcionalidad: buildProporcionalidadDoctrina(claims) } : {}),
+    // REPARACIÓN CONTEXTUAL (Contrato v1.2) — viaja igual en este modo: es una DECLARACIÓN sellada del contrato
+    // (qué clase de turno es, y de quién es cada cifra), no una fuente cruda. Sin ella, claims-only no podría
+    // distinguir una corrección de un desacuerdo ni marcar el tercer universo, que es justo lo que §5.1 exige.
+    ...(c.reparacion ? { reparacion: c.reparacion } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     cifras_autorizadas: claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor, ..._semanticaDe(cl, _ctxSujeto(claims)) })),
     ...(c.memoria ? { memoria_interaccion: c.memoria } : {}),
@@ -904,6 +913,12 @@ export function projectNarratePayload(contract) {
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Un turno sin causas parciales, sin
     // referencia y sin niveles de cascada devuelve cadena vacía y la clave ni siquiera aparece en el payload.
     ...(buildProporcionalidadDoctrina(claims) ? { instruccion_proporcionalidad: buildProporcionalidadDoctrina(claims) } : {}),
+    // REPARACIÓN CONTEXTUAL (Contrato v1.2, owner 2026-08-10) — SOLO en un turno que corrige, discrepa o trae una
+    // cifra del usuario viva. Mismo principio de payload mínimo que todas las de arriba: un turno normal no agrega
+    // ni una llave, y el system tampoco suma un párrafo (buildRepairNarrateDoctrine devuelve "" sin esto).
+    // Es la DECLARACIÓN de qué clase de turno es y de qué cifra es de quién — no trae ninguna cifra autorizada:
+    // el valor que aporta el usuario es texto suyo, y sigue sin poder entrar a `cifras_autorizadas`.
+    ...(c.reparacion ? { reparacion: c.reparacion } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     datos,
     cifras_autorizadas,

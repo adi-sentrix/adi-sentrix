@@ -225,7 +225,11 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt }
   // el system suma el bloque que explica QUÉ es y —sobre todo— qué NO es (no trae cifras, y nada se deriva de ahí).
   // Condicional por la MISMA razón que las dos doctrinas de arriba: el 100% de los turnos que no vienen de Sentrix
   // no paga ni un token por una regla que no van a usar.
-  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista);
+  // reparacion (owner 2026-08-10, Contrato Conversacional v1.2): si el payload declara que este turno es una
+  // corrección, un desacuerdo o trae una cifra del usuario viva, el system suma la doctrina de reparación. Misma
+  // condicionalidad —y la misma razón— que las tres de arriba: se lee del payload, no se adivina, y un turno que
+  // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
+  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
   const _tNarr = Date.now();   // telemetría: latencia de NARRAR (observación pura, owner 2026-08-10)
   const { text: narration, usage, model: modeloEfectivo } = await getAdapter(provider).narrate(payload, { model, system });
   const _t0n = _tNarr; const _rn = { ok: true, narration, usage, modelUsed: model, modelo: modeloEfectivo || model, modelReason: routed ? routed.reason : "static:sin router" };

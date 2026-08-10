@@ -65,6 +65,10 @@ import { REFERENCIA_PROCEDENCIA, METRICAS_DE_REFERENCIA } from "../../config/bus
 // los claims ya están sellados — así la graduación PROBADO/INDICADO/ABIERTO nombra las métricas REALES del turno en
 // vez de repetir doctrina genérica. Se sella dentro del mismo árbol congelado, no al lado.
 import { ANSWER_SHAPES, buildAnswerShapeInstruction } from "./progressiveDisclosure.js";
+// REPARACIÓN CONTEXTUAL (Contrato v1.2, owner 2026-08-10): el vocabulario cerrado sale del contrato versionado y
+// los supuestos vivos del estado canónico — el contrato de narración no inventa ninguno de los dos.
+import { REPAIR_KINDS, REPAIR_FIELD_KEYS } from "./conversationalContract.js";
+import { supuestosUsuarioVivos } from "./conversationScope.js";
 // EL TIPO DE LA CIFRA (owner 2026-08-09, decisiones 1 y 2): el sello y las reglas de verificabilidad son las MISMAS
 // que aplica `fig()`. Acá sólo se refina con el eje, que este módulo sí sabe resolver — nunca se redefine.
 import { SELLOS, refinarPorEje, PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";
@@ -372,6 +376,31 @@ export function buildAllowedActions(claims) {
   return [...money, ...resto].map((a, i) => ({ ...a, prioridad: i + 1 }));
 }
 
+// ── REPARACIÓN CONTEXTUAL · Contrato Conversacional v1.2 (owner 2026-08-10) ────────────────────────────────────
+// buildReparacion({ plan, mem }) → el objeto de reparación SELLADO, o null en el 99% de los turnos.
+// DOS FUENTES, ninguna nueva: `plan.reparacion` (qué declaró PLAN de ESTE turno) y los supuestos aportados por el
+// usuario que siguen vivos en el estado canónico (mem.conversationScope.current.supuestos). No hace falta un
+// argumento más en ninguna firma: `plan` y `mem` ya viajaban enteros hasta acá.
+// Un supuesto del usuario VIVO viaja aunque este turno no sea una reparación — es justamente el caso que §5.1
+// cubre: la cifra sigue siendo suya "mientras siga viva en la conversación", no solo en el turno que la aportó.
+export function buildReparacion({ plan, mem } = {}) {
+  const r = plan && plan.reparacion && typeof plan.reparacion === "object" && !Array.isArray(plan.reparacion) ? plan.reparacion : null;
+  const tipo = r && REPAIR_KINDS.includes(r.tipo) ? r.tipo : null;
+  const supuestos = supuestosUsuarioVivos(mem && mem.conversationScope)
+    .map((s) => ({ origen: "usuario", valor: String(s.valor), metrica: s.metrica || null, periodo: s.periodo || null }));
+  if (!tipo && !supuestos.length) return null;
+  return {
+    tipo,
+    corrige: r && Array.isArray(r.corrige) ? r.corrige.filter((k) => REPAIR_FIELD_KEYS.includes(k)) : [],
+    ambigua: !!(r && r.ambigua),
+    // la cifra que el usuario afirma EN ESTE TURNO — viaja para que la narración pueda contrastarla contra la
+    // oficial. Es texto suyo, no una cifra autorizada: nunca entra al ledger ni a `cifras_autorizadas`.
+    dato: r && r.dato && typeof r.dato === "object" ? { metrica: r.dato.metrica || null, valor: r.dato.valor == null ? null : String(r.dato.valor), periodo: r.dato.periodo || null } : null,
+    aceptado: !!(r && r.aceptado),
+    supuestos,
+  };
+}
+
 // ── SCOPE CONTRACT ─────────────────────────────────────────────────────────────────────────────────────────────
 // El ALCANCE como campo de PRIMERA CLASE (hoy vive disperso en plan.scope + call.args + mem.conversationScope +
 // una docena de coercers). Se sella DESPUÉS de que answerViaOracle ya coercionó/validó, así que lo que entra acá
@@ -530,6 +559,10 @@ export function buildNarrationContract({
     supuestos,
     acciones,
     preguntasAbiertas,
+    // REPARACIÓN CONTEXTUAL (Contrato v1.2) — null en cualquier turno que no corrija, no discrepe y no tenga una
+    // cifra del usuario viva, que es el default. Queda DENTRO del árbol que _deepFreeze congela, así que la
+    // procedencia del tercer universo es tan inmutable como el resto del contrato.
+    reparacion: buildReparacion({ plan, mem }),
     politicaExtension,
     // ── material de FORMA ya resuelto por el motor (no es "results crudos": son decisiones tomadas) ──
     forma: {
