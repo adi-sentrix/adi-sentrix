@@ -9,6 +9,10 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { gatewayFetch } from "./src/adi/llm/gatewayFetch.js";
+import fsSync from "node:fs";
+import { instalarTelemetria } from "./src/adi/llm/telemetrySink.js";
+import { toolNames } from "./src/adi/oracle/toolRegistry.js";
+const TOOL_NAMES = toolNames();
 
 const PORT = process.env.PORT || 8080;
 const DIST = path.resolve("dist");
@@ -62,4 +66,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`ADI en http://localhost:${PORT} · gateway /api/adi-spec + /api/adi-narrate · key del env (server-side · provider=${process.env.LLM_PROVIDER || "anthropic"})`));
+// ── TELEMETRÍA · EL DESTINO REAL (owner 2026-08-10) ────────────────────────────────────────────────────────────
+// El gateway corre EN ESTE proceso, así que este es el único host desde el que la telemetría de las dos llamadas
+// pagadas puede quedar en un archivo auditable. Apagado por defecto: sin ADI_TELEMETRY_FILE no se instala nada y
+// el server se comporta exactamente como antes. Se declara qué se instaló —o por qué no— en el log de arranque:
+// una telemetría que uno CREE encendida es peor que una apagada, y ese error ya se pagó una vez.
+const _telemetria = instalarTelemetria({
+  ruta: process.env.ADI_TELEMETRY_FILE || null,
+  tools: TOOL_NAMES,   // el registro REAL del motor, no una lista copiada acá
+  fs: fsSync,
+});
+
+server.listen(PORT, () => {
+  console.log(`ADI en http://localhost:${PORT} · gateway /api/adi-spec + /api/adi-narrate · key del env (server-side · provider=${process.env.LLM_PROVIDER || "anthropic"})`);
+  console.log(_telemetria.instalado
+    ? `[adi-server] telemetría → ${process.env.ADI_TELEMETRY_FILE} (JSONL · sin prompts, entidades ni cifras)`
+    : `[adi-server] telemetría APAGADA · ${_telemetria.motivo}`);
+});

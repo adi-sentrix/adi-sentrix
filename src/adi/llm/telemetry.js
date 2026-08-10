@@ -30,6 +30,10 @@ export const RESULTADOS = ["ok", "rechazado", "error", "rate_limited", "bloquead
 // "hubo un reintento" y "el prompt es caro" son afirmaciones que nadie puede verificar (ver CLAUDE.md §3).
 const CAMPOS = ["traceId", "proveedor", "modelo", "etapa", "intento", "resultado", "reasonCode",
   "tokens_in", "tokens_in_cache", "tokens_in_fresh", "tokens_out", "latencia_ms", "ruta_deterministica", "tools"];
+// EXPORTADA para que el destino real (telemetrySink.js) vuelva a aplicar el MISMO filtro antes de escribir a
+// disco, en vez de confiar en que `emit` ya lo hizo. Una copia de la lista allá sería una segunda verdad que se
+// desincroniza al primer campo nuevo — y el candado dejaría pasar justo lo que se agregó sin declarar.
+export const CAMPOS_TELEMETRIA = Object.freeze([...CAMPOS]);
 
 // CERO TEXTO LIBRE (owner 2026-08-10). La versión anterior guardaba un `motivo` redactado, y el owner cazó el
 // hueco: redactar los dígitos no impide que un nombre de entidad viaje dentro del motivo del guard. Ahora el
