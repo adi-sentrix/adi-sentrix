@@ -17,7 +17,7 @@ import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId } from "./telemetr
 import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
-import { buildPlanSystem, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
+import { buildPlanSystem, buildPlanSystemSegments, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
 import { buildNarrateSystemC } from "../oracle/narratePromptC.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
@@ -180,8 +180,15 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
   // NARRAR (handleNarrateC más abajo) sigue recibiendo ADI_PERSONA completa, sin cambios.
   // el 4º argumento decide si la doctrina de CONTEXTO DE PANTALLA entra al system: SOLO cuando este turno trae de
   // verdad la línea (mismo criterio que handleNarrateC con `payload.contexto_vista`). Lo lee del body, no lo adivina.
-  const system = buildPlanSystem(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
+  // SEGMENTADO PARA QUE EL CACHÉ PEGUE (owner 2026-08-10, cierre de la certificación live — ver el bloque grande
+  // en planPrompt.js). El contenido NO cambia: `fijo + variable` es byte por byte el mismo string que devolvía
+  // `buildPlanSystem`, y un gate lo verifica. Lo que cambia es DÓNDE queda el corte del caché: antes iba después
+  // de la memoria de sesión y del escenario, así que cualquier sesión con un nombre guardado —o cualquier turno
+  // que llegara desde Sentrix— perdía los 7.617 tokens fijos enteros, el 96% de la llamada. Ni una regla de
+  // negocio se recorta: sólo viajan declarados por separado el 99,8% estable y el resto.
+  const _seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
     !!(typeof vistaLinea === "string" && vistaLinea.trim()));
+  const system = [{ text: _seg.fijo, cache: true }, { text: _seg.variable, cache: false }];
   const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
   // TELEMETRÍA (owner 2026-08-10) · observación pura: mide, no decide. Con el sink apagado —el default— no
   // hace nada. Nunca lanza, así que no puede tumbar un turno. Ver telemetry.js para los 9 campos y el candado.

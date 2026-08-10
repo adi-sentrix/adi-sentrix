@@ -116,6 +116,33 @@ export const DOCTRINA_CONTEXTO_VISTA = `· CONTEXTO DE PANTALLA (owner 2026-08-0
 // turnos sin Sentrix no recibe. Su gemelo de NARRAR (buildNarrateSystemC, `hayContextoVista`) ya se manda condicional
 // por esta misma razón y con este mismo criterio; acá faltaba. Con `hayVista=false` el system vuelve a ser byte por
 // byte el de antes del contrato, que es la línea base más segura; con la línea presente, no cambia nada.
+// ── SEGMENTACIÓN DEL CONTRATO · FIJO vs VARIABLE (owner 2026-08-10, cierre de la certificación live) ───────────
+// LO MEDIDO: las 9 llamadas de PLAN consumieron 8.880–8.891 tokens de entrada cada una. La variación TOTAL entre
+// las nueve preguntas es de 11 tokens — o sea que la pregunta del usuario no pesa nada y el 96% de cada llamada
+// es el MISMO texto, repetido nueve veces: ~77.000 de los 105.699 tokens de entrada de la corrida.
+// Desglosado sobre este archivo: el system son 30.534 caracteres (~7.634 tokens) y PLAN_TOOL otros ~925. De esos
+// 30.534, **30.469 son idénticos en todos los turnos** (99,8%): sólo el escenario, la memoria de sesión y —cuando
+// el turno viene de Sentrix— la doctrina de pantalla cambian, entre 65 y 900 caracteres.
+//
+// POR QUÉ NO PEGABA EL CACHÉ. El adapter de Anthropic marca `cache_control` sobre el system, pero lo manda como UN
+// solo bloque: el punto de corte del caché queda DESPUÉS de la memoria y el escenario. El caché de prefijo exige
+// coincidencia exacta hasta el corte, así que basta que la sesión tenga un nombre guardado —o que el turno venga
+// de Sentrix— para perder los 7.617 tokens fijos enteros. El texto estable estaba, del lado equivocado del corte.
+//
+// LA SALIDA, y es la que el owner nombró: segmentar el contrato. NO se recorta ni una regla de negocio ni se toca
+// la capacidad de interpretar — `fijo + variable` es BYTE POR BYTE el mismo string que devuelve `buildPlanSystem`,
+// y hay un gate que lo verifica. Lo único que cambia es CÓMO viaja: el adapter puede poner el corte del caché
+// donde de verdad termina lo estable. Con el sink de telemetría prendido, `tokens_in_cache` lo hace visible.
+export function buildPlanSystemSegments(persona, memBlock, scenario, hayVista = false) {
+  const completo = buildPlanSystem(persona, memBlock, scenario, hayVista);
+  // el corte es la primera línea que depende del turno. `hayVista` inserta su doctrina JUSTO antes del escenario,
+  // así que buscar el escenario (que siempre está) deja la doctrina de pantalla del lado variable, donde va.
+  const marca = hayVista ? DOCTRINA_CONTEXTO_VISTA : "· Escenario de datos actual:";
+  const i = completo.indexOf(marca);
+  if (i <= 0) return { fijo: completo, variable: "" };   // defensivo: sin corte reconocible, se manda como siempre
+  return { fijo: completo.slice(0, i), variable: completo.slice(i) };
+}
+
 export function buildPlanSystem(persona, memBlock, scenario, hayVista = false) {
   return `${persona}
 

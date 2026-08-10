@@ -75,6 +75,15 @@ const _usage = (u) => (u ? {
 //      por defecto de cada modelo (así se midió en el benchmark, es el comportamiento real de producción).
 const _isReasoningFamily = (model) => /^gpt-5/i.test(model || "");
 
+// SYSTEM SEGMENTADO (owner 2026-08-10, cierre de la certificación live · MISMO contrato que anthropic.js): el
+// caller puede mandar `system` como STRING o como ARRAY de segmentos `[{text, cache}, …]`. Acá se CONCATENAN en
+// orden y listo — OpenAI no tiene un corte declarativo: su caché de prefijo es automático sobre el prefijo del
+// request. Lo que sí importa, y por eso el contrato vale igual para los dos proveedores, es que lo ESTABLE vaya
+// PRIMERO: un prefijo que cambia por la memoria de sesión no se cachea en ningún proveedor. El resultado con un
+// string es byte-idéntico al de siempre.
+const _systemText = (system) => (typeof system === "string" ? system
+  : (Array.isArray(system) ? system : []).filter((s) => s && typeof s.text === "string").map((s) => s.text).join(""));
+
 export const openaiAdapter = {
   name: "openai",
   keyEnv: "OPENAI_API_KEY",
@@ -85,7 +94,7 @@ export const openaiAdapter = {
     const reasoning = _isReasoningFamily(model);
     const body = {
       model,
-      messages: [{ role: "system", content: system }, { role: "user", content: text }],
+      messages: [{ role: "system", content: _systemText(system) }, { role: "user", content: text }],
       tools: [{ type: "function", function: { name: tool.name, description: tool.description, parameters: tool.schema } }],
       tool_choice: { type: "function", function: { name: tool.name } },
     };
@@ -111,7 +120,7 @@ export const openaiAdapter = {
     const body = {
       model,
       messages: [
-        { role: "system", content: system },
+        { role: "system", content: _systemText(system) },
         { role: "user", content: JSON.stringify(validatedOutput) },
       ],
     };

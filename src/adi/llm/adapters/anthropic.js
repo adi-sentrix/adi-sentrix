@@ -43,6 +43,29 @@ function _usage(u) {
   return { ...u, cachedTokens };
 }
 
+// ── SYSTEM SEGMENTADO · dónde va el corte del caché (owner 2026-08-10, cierre de la certificación live) ────────
+// `system` puede llegar como STRING (todo lo existente, sin cambios) o como ARRAY de segmentos
+// `[{text, cache:true|false}, …]`. Con string, el comportamiento es byte-idéntico al de siempre: un bloque con
+// `cache_control`. Con array, el `cache_control` va SOLO en el último segmento marcado `cache` — que es donde de
+// verdad termina el texto estable.
+//
+// POR QUÉ IMPORTA: el caché de prefijo de Anthropic exige coincidencia EXACTA hasta el punto de corte. Mandando
+// todo en un bloque, el corte quedaba después de la memoria de sesión y del escenario, así que un turno con
+// nombre guardado —o con contexto de pantalla— perdía los 7.617 tokens fijos ENTEROS. El texto estable estaba;
+// estaba del lado equivocado del corte. Acá no se recorta nada: sólo se mueve el corte a donde corresponde.
+// La jerarquía del proveedor es tools → system → messages, así que un corte al final del system fijo también
+// cachea el schema de la tool (~925 tokens más) sin pedir nada extra.
+function _systemBlocks(system) {
+  if (typeof system === "string") return [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+  const segs = (Array.isArray(system) ? system : []).filter((s) => s && typeof s.text === "string" && s.text.length);
+  if (!segs.length) return null;
+  let ultimoCacheable = -1;
+  segs.forEach((s, i) => { if (s.cache) ultimoCacheable = i; });
+  return segs.map((s, i) => (i === ultimoCacheable
+    ? { type: "text", text: s.text, cache_control: { type: "ephemeral" } }
+    : { type: "text", text: s.text }));
+}
+
 async function _call(body) {
   // Usa la conexión DEL ENTORNO si existe (ANTHROPIC_BASE_URL = proxy que inyecta auth · Claude Code/SDK).
   // Si hay key/token explícitos en env, se agregan. La key NUNCA se imprime en logs.
@@ -77,7 +100,7 @@ export const anthropicAdapter = {
   async parse(text, { system, tool, model }) {
     const data = await _call({
       model, max_tokens: 1024,
-      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      system: _systemBlocks(system),
       tools: [{ name: tool.name, description: tool.description, input_schema: tool.schema }],
       tool_choice: { type: "tool", name: tool.name },
       messages: [{ role: "user", content: text }],
@@ -97,7 +120,7 @@ export const anthropicAdapter = {
     if (!system) throw new Error("narrate() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
     const data = await _call({
       model, max_tokens: 1024,
-      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      system: _systemBlocks(system),
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
