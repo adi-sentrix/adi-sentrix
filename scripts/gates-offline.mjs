@@ -76,6 +76,18 @@ for (const f of archivos) {
   let src = "";
   try { src = readFileSync(join(ROOT, f), "utf8"); } catch { /* ilegible → tratarlo como live, nunca correrlo a ciegas */ live.push({ file: f, motivo: "no se pudo leer" }); continue; }
   const hit = LIVE.find(([re]) => re.test(src));
+  // INSPECCIÓN ESTÁTICA (owner 2026-08-10) · escape ESTRECHO y por archivo, nunca una relajación global del
+  // clasificador. Un gate que LEE código fuente como texto (para certificar que el cableado existe) menciona
+  // inevitablemente los símbolos del gateway y queda marcado LIVE — y un gate que no corre no certifica nada.
+  // Las tres condiciones son acumulativas y se verifican acá, no se confía en la declaración:
+  //   (a) declara el marcador en su cabecera,  (b) NO importa nada del gateway ni del adapter,
+  //   (c) NO invoca a nadie: ni fetch, ni handlePlan/handleNarrateC, ni callPlan/callNarrate.
+  // El candado de RUNTIME sigue aplicándose igual (--import offline-guard): si este escape se usara mal, el
+  // proceso muere con exit 97 antes de tocar la red. Esto solo devuelve el gate a la suite; no lo desprotege.
+  const declara = /@inspeccion-estatica/.test(src);
+  const importaGateway = /^\s*import[^\n]*from\s+["'][^"']*(gatewayCore|providerAdapter|adapters\/)/m.test(src);
+  const invoca = /\b(handlePlan|handleNarrateC|handleNarrate|callPlan|callNarrate)\s*\(/.test(src) || /\bfetch\s*\(/.test(src);
+  if (hit && declara && !importaGateway && !invoca) { offline.push(f); continue; }
   if (hit) live.push({ file: f, motivo: hit[1] });
   else offline.push(f);
 }

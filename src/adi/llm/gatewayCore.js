@@ -13,6 +13,7 @@ import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
 import { chooseModel } from "./modelRouter.js";
+import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId } from "./telemetry.js";   // observación pura (owner 2026-08-10)
 import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
@@ -182,8 +183,14 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
   const system = buildPlanSystem(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
     !!(typeof vistaLinea === "string" && vistaLinea.trim()));
   const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
+  // TELEMETRÍA (owner 2026-08-10) · observación pura: mide, no decide. Con el sink apagado —el default— no
+  // hace nada. Nunca lanza, así que no puede tumbar un turno. Ver telemetry.js para los 9 campos y el candado.
+  const _t0 = Date.now();
   const { spec: plan, usage } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
-  return { ok: true, plan, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
+  const r = { ok: true, plan, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
+  emitTelemetria(desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "plan",
+    intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta: r, ruta_deterministica: false }));
+  return r;
 }
 
 // NARRAR-C (Pasada 2): el CLIENTE ya corrió el batch y arma el payload (pregunta + datos + cifras_autorizadas +
@@ -209,8 +216,12 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt }
   // Condicional por la MISMA razón que las dos doctrinas de arriba: el 100% de los turnos que no vienen de Sentrix
   // no paga ni un token por una regla que no van a usar.
   const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista);
+  const _tNarr = Date.now();   // telemetría: latencia de NARRAR (observación pura, owner 2026-08-10)
   const { text: narration, usage } = await getAdapter(provider).narrate(payload, { model, system });
-  return { ok: true, narration, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
+  const _t0n = _tNarr; const _rn = { ok: true, narration, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
+  emitTelemetria(desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "narrar",
+    intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0n, respuesta: _rn, ruta_deterministica: false }));
+  return _rn;
 }
 
 // path → handler (para los wrappers que enrutan por URL)
