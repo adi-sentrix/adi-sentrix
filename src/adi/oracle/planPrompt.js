@@ -95,23 +95,22 @@ export const PLAN_TOOL = {
       // `corrige` es lo que hace que la invalidación sea ESTRUCTURAL: el motor apaga del estado canónico lo que
       // deja de ser compatible con esos campos (ver camposQueSeInvalidan en conversationalContract.js), en vez de
       // confiar en que el prompt se acuerde de no arrastrarlo.
+      // LAS DESCRIPCIONES SON MÍNIMAS A PROPÓSITO (owner 2026-08-10): las REGLAS viven una sola vez, en la
+      // doctrina del system (buildRepairPlanDoctrine). Repetirlas acá costaba ~700 caracteres de prompt en TODOS
+      // los turnos para decir dos veces lo mismo — el schema solo tiene que dejar claro QUÉ va en cada campo.
       reparacion: {
         type: "object", additionalProperties: false,
-        description: "SOLO en un turno de corrección/desacuerdo/dato aportado (ver la doctrina CORRECCIÓN en el system). Omitilo en cualquier otro turno.",
+        description: "Solo en un turno de corrección/desacuerdo/dato aportado — ver la doctrina CORRECCIÓN.",
         properties: {
-          tipo: { type: "string", enum: REPAIR_KINDS, description: "correccion=el usuario cambia el foco · desacuerdo=discute la interpretación, no el alcance · dato_usuario=aporta una cifra propia." },
-          corrige: {
-            type: "array", items: { type: "string", enum: REPAIR_FIELD_KEYS },
-            description: "SOLO si tipo=correccion y sabés QUÉ cambió: los campos corregidos. Poné todos los que el usuario cambió en este turno, ninguno más — cada uno invalida contexto real.",
-          },
-          ambigua: { type: "boolean", description: "true SOLO si el usuario señala un error SIN decir cuál. Con esto en true, calls DEBE quedar vacío y 'corrige' vacío: no se recalcula nada hasta saberlo." },
-          pregunta: { type: "string", description: "SOLO si ambigua=true: LA ÚNICA pregunta de precisión, con el contexto del turno anterior y nombrando solo lo que ahí pudo fallar." },
+          tipo: { type: "string", enum: REPAIR_KINDS },
+          corrige: { type: "array", items: { type: "string", enum: REPAIR_FIELD_KEYS }, description: "Los campos que el usuario cambió; ninguno más." },
+          ambigua: { type: "boolean", description: "Señaló un error sin decir cuál." },
+          pregunta: { type: "string", description: "Solo si ambigua: la única pregunta de precisión." },
           dato: {
             type: "object", additionalProperties: false,
-            description: "SOLO si tipo=dato_usuario: la cifra que el usuario afirma, tal como la dijo.",
-            properties: { metrica: { type: "string" }, valor: { type: "string", description: "El número con su unidad, verbatim del usuario (ej. \"$20M\", \"32%\")." }, periodo: { type: "string" } },
+            properties: { metrica: { type: "string" }, valor: { type: "string", description: "El número con su unidad, verbatim del usuario." }, periodo: { type: "string" } },
           },
-          aceptado: { type: "boolean", description: "true SOLO si en ESTE turno el usuario autorizó tratar su cifra como supuesto ('usá ese número', 'tomalo como supuesto')." },
+          aceptado: { type: "boolean", description: "Autorizó tratar su cifra como supuesto." },
         },
       },
       memoryUpdate: {
