@@ -17,6 +17,8 @@ import { rawRecordFor, guessDimension, fieldLabel } from "./entityRecord.js";
 import { datasetCapability, temporalCapability, entityExplorable } from "../sentrix/capability.js";
 import { buildMarginReceipt, buildCapitalReceipt } from "../sentrix/kpis.js";
 import { buildMesaEstado, buildAccionFrom } from "../sentrix/mesa.js";
+import { addressFromEvidence, formatAddress } from "../sentrix/address.js";   // dirección canónica ADI↔Sentrix (owner 2026-08-09) · puro, sin UI
+import { PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";   // la etiqueta corta del marco mixto (decisión 5)
 
 // _mergeFacts(results) → un solo objeto con los facts panel-ready de TODAS las calls del plan (last-wins en claves
 // repetidas — normalmente no colisionan, cada tool aporta las suyas). defineConcept no aporta nada visual; no rompe nada.
@@ -65,11 +67,15 @@ function _entityReading(results, scenario) {
 // contador de turno (buildOracleEvidence no recibe ninguno de los 4 args fijos): mismo plan+figs+scenario → mismo
 // turnId, siempre (misma garantía de pureza byte-exacta que ya exige ledger.js/toolRunner.js). Sirve para que un
 // consumidor (ej. "vistas adaptativas") deduplique/cachee sin depender de un reloj ni de un contador externo.
-function _fnv1a(s) {
+// EXPORTADA (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): viewContext.js:viewContextKey hashea la
+// identidad del contexto de pantalla con ESTA MISMA función — un solo hash en el repo, nunca dos que puedan
+// divergir. El alias privado se conserva para no tocar los usos internos de este archivo.
+export function fnv1a(s) {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(16).padStart(8, "0");
 }
+const _fnv1a = fnv1a;
 function _turnId(plan, figs, scenario) {
   const seed = JSON.stringify({
     intent: (plan && plan.intent) || null,
@@ -155,6 +161,10 @@ function _periodHuman(results) {
   for (const r of results || []) {
     const f = r && r.facts;
     if (!f) continue;
+    // MARCO MIXTO (owner 2026-08-09, decisión 5): desde que el período sale de la naturaleza de cada cifra, un
+    // resultado puede declarar los DOS marcos, y su `facts.periodo` es una frase larga escrita para INSTRUIR al
+    // narrador. Acá la evidencia MUESTRA el marco: va la etiqueta corta, no el párrafo.
+    if (Array.isArray(f.periodos) && f.periodos.length > 1) return PERIODO_MIXTO_ETIQUETA;
     if (typeof f.periodo === "string" && f.periodo) return f.periodo;
     if (f.marco_temporal && typeof f.marco_temporal.periodo === "string" && f.marco_temporal.periodo) return f.marco_temporal.periodo;
   }
@@ -388,7 +398,14 @@ export function buildOracleEvidence({ plan, results, figs, scenario, unsupported
   // respondió. Gated a `reading` truthy: sin lectura de contribución no hay Ficha que mostrar (mismo criterio que
   // el legacy).
   const isProfileRequest = reading && calls.some((c) => c && c.tool === "entityProfile");
-  return {
+  const spec = buildEvidenceSpec({ plan, results, figs, scenario, unsupported });
+  // ── LA DIRECCIÓN CANÓNICA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ────────────────────────
+  // `address` es el puntero —nunca un payload— a la pieza de Sentrix que DEMUESTRA lo que este turno afirma:
+  // `sentrix://<vista>/<seccion>/<slug>?eje=…&entidad=…`. Se deriva de reglas determinísticas sobre el plan y el
+  // evidenceSpec (nunca de la prosa de la respuesta) y la traducción tool→componente sale del propio manifiesto de
+  // vistas, no de una tabla hardcodeada. Con ella, "Ver evidencia en Sentrix" abre la vista, la sección, la entidad
+  // y el filtro EXACTOS; sin ella (tool sin componente declarado) el panel cae a su ruteo de siempre.
+  const base = {
     ...merged,
     ...(reading ? { reading } : {}),
     ...(isProfileRequest ? { _profileRequest: true } : {}),
@@ -398,6 +415,13 @@ export function buildOracleEvidence({ plan, results, figs, scenario, unsupported
     intent: (plan && plan.intent) || null,
     scope: (plan && plan.scope) || null,
     plan: { intent: (plan && plan.intent) || null, calls: calls.map((c) => c.tool) },
-    evidenceSpec: buildEvidenceSpec({ plan, results, figs, scenario, unsupported }),
+    evidenceSpec: spec,
   };
+  let address = null;
+  try { address = formatAddress(addressFromEvidence(base, { plan, scenario })); } catch { address = null; }
+  if (address) {
+    base.address = address;
+    if (base.evidenceSpec) base.evidenceSpec = { ...base.evidenceSpec, address };
+  }
+  return base;
 }

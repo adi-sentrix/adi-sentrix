@@ -18,14 +18,23 @@ import {
   composeSpecContribucion, composeSpecSimulate, composeSpecSimulateCarga, composeSpecSimulateCapital, composeSpecSimulateCosto,
   composeSpecComposicion, composeSpecClientCapital,
 } from "../specRetrieval.js";
-import { CONCEPT_DEFS, matchConcept } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo")
+import { resolveGlossary } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo") · resuelve slug, etiqueta de pantalla y frase libre
 import { fig } from "../boleta.js";                                    // cifra autorizada (para inyectar el benchmark en el perfil)
 import { POLICY, costModelOf, benchmarkOf } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
-import { buildEntityRecord, buildGrid, buildTension, guessDimension, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre + la vara autorizada por campo
+import { buildEntityRecord, buildGrid, buildTension, guessDimension, guessDimensionDetallado, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre (con sus colisiones · decisión 8) + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
-import { buildGlobalEvolution } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
+import { buildGlobalEvolution, buildGlobalEvolutionAnclada } from "../sentrix/temporal.js";                       // la curva REAL del negocio (para el marco temporal y la dirección ya calculada)
 import { concentracion } from "../diagnosis/economicDiagnosis.js";                   // 80/20 · la MISMA función del detector de concentración de Sentrix
+// TRANSFERIR ENTRE BODEGAS (decisión 13): la ÚNICA cuenta de "¿se puede evaluar mover stock?" — la misma que
+// consultan la cara Capital, el ring de bodega y la lectura ejecutiva. ADI la lee de acá, nunca la recalcula.
+import { transferenciaCapability } from "../sentrix/capability.js";
+import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";            // las filas de inventario del escenario ACTIVO (las mismas que pinta la cara)
 import { SOURCES } from "../../config/contract/sourceManifest.js";                   // carga scenario-aware de clientesVentas/clientesMargen (posición en cartera)
+import { METRICS } from "../../config/contract/metricRegistry.js";                   // el vocabulario DECLARADO de ejes (decisión 8): la única lista, no se escribe una segunda
+// EL P&L (decisión 3): `composePnl` es el contrato sellado del resultado y `buildPnlCascade` la cuenta que lo
+// sostiene; `pnlDefined`/`pnlDisponibilidad`/`pnlEjesDisponibles`/`pnlEntidadCanon` son su disponibilidad
+// data-driven y su canon de alcance. `pnlRead` (abajo) los ENVUELVE — no reimplementa ni una suma.
+import { composePnl, buildPnlCascade, pnlDefined, pnlDisponibilidad, pnlEjesDisponibles, pnlEntidadCanon } from "../pnl.js";
 
 const _loadSrc = (source, scenario) => { const s = SOURCES[source]; if (!s) return []; return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || []; };
 
@@ -82,6 +91,78 @@ function _crossGuard(filters, allowed) {
 }
 const _crossFail = (cov) => ({ facts: null, boleta: [], coverage: cov });
 
+// ── EJE QUE LA TOOL NO ABRE (owner 2026-08-09, decisión 8) ───────────────────────────────────────────────────────
+// EL DEFECTO QUE CIERRA, medido: los composers comerciales resuelven su eje con un fallback SILENCIOSO
+// (`const dim = _MLBL[dimension] ? dimension : "cliente"`, specRetrieval.js). Pedirles el eje `bodega` —las
+// sucursales, que en este dato son bodegas de inventario y no tienen venta ni presupuesto propios— devolvía el
+// ranking de CUENTAS con `supported: true`: «Por local, ¿quién queda bajo el plan?» se contestaba con Lider,
+// Falabella y Jumbo. Cifras reales contestando otra pregunta, sin una sola violación numérica que lo delate. La
+// decisión 8 es textual: «si una tool no soporta bodega, familia, SKU, cliente u otro eje, debe DECLINAR
+// explícitamente. Nunca devolver filas de otro eje con supported:true».
+//
+// CÓMO SE DETECTA SIN ESCRIBIR UNA SEGUNDA LISTA DE EJES. Acá no hay ninguna tabla a mano de qué eje sirve cada
+// tool: eso sería una segunda verdad esperando desalinearse del composer. Se leen DOS señales que ya existen:
+//   (a) LO QUE EL COMPOSER DECLARA · `facts.dimension` es el eje que de verdad sirvió (el `dim` de DESPUÉS del
+//       fallback). Si difiere del que el plan pidió, el fallback actuó.
+//   (b) DE QUIÉN SON LAS FILAS · los sujetos de la boleta pasados por `guessDimensionDetallado` — el mismo
+//       resolvedor data-driven que ya usan `entityProfile`/`entityRecord`/`trend` para autocorregir el eje. Si
+//       ninguna entidad reconocible de la respuesta pertenece al eje pedido, las filas son de otro eje aunque el
+//       composer haya declarado el nombre correcto (el pivot interno de `vs_anterior` por SKU es exactamente ese
+//       caso: declara `sku` y devuelve clientes).
+// Cualquiera de las dos alcanza para declinar. El día que un composer sume un eje de verdad, las dos señales lo
+// acompañan solas.
+//
+// NO SE APLICA a la rama `gap` (el "hueco honesto"): ahí el pivot a otro eje es DELIBERADO y viaja declarado en
+// `facts.<lente>.focus = "gap:…"` con su `gapLabel`, así que el narrador ya sabe que está mirando lo más cercano.
+// EL NOMBRE DEL EJE, NO SU ORTOGRAFÍA. El plan lo escribe en lenguaje natural y llega en plural o con mayúscula
+// ("clientes", "SKU", "Familias"). Eso nunca fue un eje distinto, pero los composers indexan su mapa de ejes con
+// la clave exacta en minúscula: `_MLBL["SKU"]` es `undefined` y caían al mismo fallback silencioso que `bodega` —
+// «el margen por SKU» se contestaba con el ranking de CUENTAS. Se canoniza contra el vocabulario DECLARADO de
+// ejes (`metricRegistry.METRICS[*].axes`, la única lista de ejes del contrato: no se escribe una segunda acá) y
+// se le pasa al composer la forma que sí entiende. Lo que después de canonizar sigue sin ser un eje del
+// contrato —"vendedor", "proveedor"— viaja tal cual y termina declinando, que es lo correcto.
+const _EJES_DECLARADOS = [...new Set(Object.values(METRICS).flatMap((m) => (m && m.axes) || []))];
+const _normEje = (x) => String(x == null ? "" : x).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+function _ejeCanon(x) {
+  const n = _normEje(x);
+  if (!n) return "";
+  for (const e of _EJES_DECLARADOS) { const c = _normEje(e); if (n === c || n === `${c}s` || n === `${c}es`) return c; }
+  return n;   // no es un eje declarado → se conserva tal cual (y la guarda de abajo lo declina)
+}
+const _ejesDe = (nombre) => {
+  const d = guessDimensionDetallado(nombre);
+  if (d && Array.isArray(d.opciones) && d.opciones.length) return d.opciones.map((o) => _ejeCanon(o.dimension));
+  return d && d.dimension ? [_ejeCanon(d.dimension)] : [];
+};
+// → true (sirvió el eje pedido) · false (sirvió otro) · null (ninguna entidad reconocible: no se puede juzgar)
+function _filasDelEje(pedido, boleta) {
+  const eje = _ejeCanon(pedido);
+  const sujetos = [...new Set((boleta || []).map((f) => String((f && f.label) || "").split(" · ")[0].trim()).filter(Boolean))];
+  let reconocibles = 0;
+  for (const s of sujetos) {
+    const ejes = _ejesDe(s);
+    if (!ejes.length) continue;          // benchmark, medida, totales… no son entidades: no informan
+    reconocibles++;
+    if (ejes.includes(eje)) return true;
+  }
+  return reconocibles === 0 ? null : false;
+}
+// _ejeNoAbierto(pedido, res) → la cobertura de declinación, o null si el eje pedido sí es el que se sirvió.
+function _ejeNoAbierto(pedido, res, alternativas = []) {
+  const eje = _ejeCanon(pedido);
+  if (!eje) return null;                                             // el plan no pidió eje → nada que verificar
+  if (!res || !res.coverage || res.coverage.supported !== true) return null;
+  const declarado = res.facts && typeof res.facts.dimension === "string" ? res.facts.dimension : null;
+  const porDeclaracion = !!declarado && _ejeCanon(declarado) !== eje;
+  const porFilas = _filasDelEje(eje, res.boleta) === false;
+  if (!porDeclaracion && !porFilas) return null;
+  return {
+    supported: false, eje, ejeServido: declarado || null,
+    reason: `no puedo abrir esta lectura por '${eje}': el dato no baja a ese eje${declarado && declarado !== eje ? ` y la cuenta se serviría por '${declarado}', que son otras filas` : " y las filas que quedan son de otro eje"} — devolverlas como si fueran de '${eje}' sería contestar otra pregunta`,
+    alternativas,
+  };
+}
+
 // queryMetric · ranking/lista de una métrica × un eje (ventas por cliente, margen por marca…). entityScope (Etapa 2,
 // owner 2026-08-03, continuidad conversacional universal): forwarding mecánico a composeSpecRetrieval — "de esos
 // SKU, ¿cuál vendió más?" acota el ranking al subconjunto en vez de traer el eje entero.
@@ -124,7 +205,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
   // mostraban la correcta, MISMA entidad, MISMO turno. benchmarkOf(rawRec) es el ÚNICO punto que respeta la
   // precedencia real (criterio > fila > POLICY) — el mismo que ya usa REFERENCIA_CAMPO.margen (entityRecord.js).
   if (r.coverage && r.coverage.supported) {
-    const rawRec = rawRecordFor(dim, entity);
+    const rawRec = rawRecordFor(dim, entity, scenario);
     const bench = benchmarkOf(rawRec);
     if (typeof bench === "number" && isFinite(bench)) {
       r.facts = { ...r.facts, benchmarkMargen: `${bench}%`, nota: "compará el margen contra el benchmark antes de calificarlo" };
@@ -159,7 +240,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
     // hay es venta ÷ unidades = precio realizado; mismo override de nombre que ya usó el mockup aprobado).
     // SOLO cliente: `unidades` solo existe en clientesVentas.
     if (dim === "cliente") {
-      const rawRec = rawRecordFor(dim, entity);
+      const rawRec = rawRecordFor(dim, entity, scenario);
       const ventaK = rawRec && (typeof rawRec.venta === "number" ? rawRec.venta : rawRec.actual);
       if (rawRec && typeof rawRec.unidades === "number" && rawRec.unidades > 0 && typeof ventaK === "number") {
         const ticket = Math.round((ventaK * 1000) / rawRec.unidades);
@@ -208,7 +289,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
 function entityComposicion({ dimension, entity, scenario } = {}) {
   const r = _pack(composeSpecComposicion({ dimension, entity, scenario }), `no tengo composición por familia para '${entity}' en el eje '${dimension}'`);
   if (r.coverage && r.coverage.supported && r.facts.composicion && Array.isArray(r.facts.composicion.familias) && r.facts.composicion.familias.length) {
-    const rawRec = rawRecordFor(dimension, entity);
+    const rawRec = rawRecordFor(dimension, entity, scenario);
     const bench = benchmarkOf(rawRec);
     if (typeof bench === "number" && isFinite(bench)) {
       r.facts = { ...r.facts, benchmarkMargen: `${bench}%` };
@@ -223,32 +304,46 @@ function entityComposicion({ dimension, entity, scenario } = {}) {
   return r;
 }
 
-// entityCapitalLigado · capital detenido CRUZADO contra el mix del cliente (owner 2026-08-07, "capital ligado a
-// su mix — deberían aparecer el valorizado y unidades, incluso la bodega"): mismo criterio de "detenido" del
-// detector de capital, acotado a los SKU que este cliente compra. Solo eje cliente.
+// entityCapitalLigado · inventario inmovilizado cruzado contra el surtido del cliente (owner 2026-08-07, "capital
+// ligado a su mix — deberían aparecer el valorizado y unidades, incluso la bodega"): mismo criterio de
+// inmovilizado del detector de capital. Solo eje cliente.
+//
+// DECISIÓN 9 (owner 2026-08-09, hallazgo J): esta tool devolvía el MISMO subtotal y los MISMOS SKU —
+// byte-idénticos— para las 13 cuentas, porque el "mix" del cliente sale de una matriz de afinidad modelada que
+// alcanza TODOS los SKU con inventario. Era el inventario global con el nombre de un cliente encima. Ahora el
+// composer mide la relación primero (`clientCapitalRelacion`) y, cuando no existe, DECLINA con la razón medida:
+// `coverage.supported=false` + `coverage.relacion` + `coverage.reason` verificable — cero afirmación
+// cliente-específica. El narrador ya sabe qué hacer con una tool que declina (doctrina HONESTIDAD).
 function entityCapitalLigado({ dimension, entity, scenario } = {}) {
-  return _pack(composeSpecClientCapital({ dimension, entity, scenario }), `${entity} no tiene capital detenido en su mix`);
+  const r = composeSpecClientCapital({ dimension, entity, scenario });
+  if (r && r.unsupported) {
+    return {
+      facts: null, boleta: [],
+      coverage: { supported: false, relacion: r.relacion, reason: r.reason, alternativas: Array.isArray(r.alternativas) ? r.alternativas : [], cobertura: r.cobertura || null },
+    };
+  }
+  return _pack(r, `no hay capital inmovilizado en el surtido de ${entity}`);
 }
 
 // entityRecord · LA FILA COMPLETA de una entidad: TODAS sus columnas reales del dato (unidades, valor de inventario,
 // rotación, cobertura, días sin venta, estado, ventas, margen, contribución, rebate, precio…). Para preguntas
 // concretas de campo ("unidades del SKU X", "el rebate de Falabella", "todo de LG-DRYER8KG"). El LLM lee lo que
 // necesita y calcula si hace falta. Cada columna-cifra va autorizada → no inventa.
-function entityRecord({ dimension, entity } = {}) {
+function entityRecord({ dimension, entity, scenario } = {}) {
   let dim = dimension;
-  let r = buildEntityRecord(dim, entity);
+  let r = buildEntityRecord(dim, entity, scenario);
   // AUTO-CORRECCIÓN DE EJE · mismo mecanismo que entityProfile (ver su comentario arriba): el plan puede acertar
   // la entidad y errar el eje ("Sodimac" con dimension:"marca") — reintentá con guessDimension antes de declinar.
   if (!r && entity != null) {
     const guessed = guessDimension(entity);
-    if (guessed && guessed !== dim) { dim = guessed; r = buildEntityRecord(dim, entity); }
+    if (guessed && guessed !== dim) { dim = guessed; r = buildEntityRecord(dim, entity, scenario); }
   }
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
   // REFERENCIA AUTORIZADA por campo (owner "piensa bien" 2026-07-29, contrato de lectura mínima): si esta fila
   // trae un campo con vara declarada (margen/carga/rotación/cobertura), autorizamos TAMBIÉN esa vara real —
   // benchmarkOf/POLICY, la MISMA que ya usan diagnose/marginRead/mechanisms.js — para que cualquier narración
   // (determinística o libre) pueda citarla sin que el guard la rechace. Nunca un promedio de cartera inventado.
-  const rawRec = rawRecordFor(dim, entity);
+  const rawRec = rawRecordFor(dim, entity, scenario);
   let boleta = r.boleta;
   if (rawRec) for (const [token, refDef] of Object.entries(REFERENCIA_CAMPO)) {
     const lbl = fieldLabel(token);
@@ -271,8 +366,8 @@ function entityRecord({ dimension, entity } = {}) {
 // HONESTO con la razón exacta (no hay tabla puente eje↔SKU en el dato) — nunca inventa el cruce.
 // entityScope (Etapa 2, owner 2026-08-03): forwarding mecánico a buildTension — "de esos SKU, ¿quién sostiene
 // contribución vs consume capital?" cruza solo el subconjunto en vez del eje entero.
-function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null } = {}) {
-  const r = buildTension(dimension, { metricA, metricB, limit, dirA, dirB, entityScope });
+function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null, scenario } = {}) {
+  const r = buildTension(dimension, { metricA, metricB, limit, dirA, dirB, entityScope, scenario });
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no puedo cruzar esas dos métricas por '${dimension}'` } };
   if (r.unsupported) return { facts: null, boleta: [], coverage: { supported: false, reason: r.unsupported } };
   return { facts: { ...r.facts, lens: "cuadro", entityType: dimension }, boleta: r.boleta, coverage: { supported: true, figCount: r.boleta.length } };
@@ -283,9 +378,21 @@ function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD"
 // Ej: "los 5 mejores SKU con ventas, costo medio, precio y margen de contribución" → {dimension:"sku",sortBy:"venta",limit:5}.
 // entityScope (Etapa 2, owner 2026-08-03): forwarding mecánico a buildGrid — "de esos clientes, armame la tabla"
 // acota la grilla al subconjunto en vez de traer el top-N del eje entero.
-function gridTable({ dimension, sortBy = null, dir = "desc", limit = 20, entityScope = null } = {}) {
-  const r = buildGrid(dimension, { sortBy, dir, limit, entityScope });
+// `scenario` (owner 2026-08-09, decisión 4): `runPlan` ya inyectaba el escenario del turno en TODA call — esta tool
+// simplemente no lo declaraba, así que lo descartaba en silencio y contestaba el dato base mirara el usuario lo que
+// mirara. Ahora viaja hasta `_sources` (entityRecord.js), que lo resuelve con el MISMO `scenarioLoad` del contrato.
+function gridTable({ dimension, sortBy = null, dir = "desc", limit = 20, entityScope = null, scenario } = {}) {
+  const r = buildGrid(dimension, { sortBy, dir, limit, entityScope, scenario });
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no puedo armar la grilla del eje '${dimension}'` } };
+  // DECISIÓN 8 · una grilla VACÍA no es una respuesta: `buildGrid` devuelve `{count:0, totalCount:0, rows:[]}` para
+  // un eje que no tiene columnas propias en el dato (bodega, canal) y esto salía `supported:true` con cero cifras —
+  // un turno que dice que puede y no trae nada. `totalCount` es la cuenta ANTES de cualquier alcance, así que
+  // distingue "el eje no existe" de "el filtro dejó cero filas", que sí es una respuesta legítima.
+  if (r.facts && r.facts.totalCount === 0) {
+    return { facts: null, boleta: [], coverage: { supported: false, eje: dimension,
+      reason: `no tengo una grilla por '${dimension}': ese eje no trae columnas propias en el dato — armarla con filas de otro eje sería contestar otra pregunta`,
+      alternativas: ["la grilla por cliente", "la grilla por SKU"] } };
+  }
   // lens:"cuadro" + entityType (SENTRIX ES LA EVIDENCIA): abre el Cuadro de mando en ESTE eje — las filas que ADI
   // acaba de nombrar en la tabla quedan marcadas (espejo vía boleta), en vez de dejar el panel en lo que mostraba antes.
   return { facts: { ...r.facts, lens: "cuadro", entityType: dimension }, boleta: r.boleta, coverage: { supported: true, figCount: r.boleta.length, rowCount: r.facts.count } };
@@ -350,6 +457,18 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
       ...contrapunta, nota: "estado INDEPENDIENTE del capital detenido — no es su causa, y sus familias no son las de los SKU detenidos",
     } } };
   }
+  // TRANSFERIR ENTRE BODEGAS (owner 2026-08-09, decisión 13): la respuesta natural a "tenés capital detenido en
+  // Valparaíso" es "moverlo a donde se vende", y el dato no permite ni evaluarla — ningún SKU está en más de una
+  // bodega, así que no hay dos colocaciones que comparar. Sentrix ya retiró la recomendación de sus tres
+  // superficies (cara Capital · ring de bodega · lectura ejecutiva); ADI la recibía igual, porque la respuesta trae
+  // el capital PARTIDO POR BODEGA y nada declaraba el límite. Se declara acá, leyendo la MISMA cuenta
+  // (`transferenciaCapability`) sobre las MISMAS filas que la cara está pintando — nunca una segunda
+  // implementación del hecho. `evaluable:true` (el día que un SKU aparezca en dos bodegas) hace que esto
+  // desaparezca solo y la recomendación vuelva sin tocar código.
+  if (r.coverage && r.coverage.supported) {
+    const cap = transferenciaCapability(applyScenarioToSkuInventario(scenario));
+    if (!cap.evaluable) r.facts = { ...r.facts, limite_transferencia: { ...cap, nota: "no propongas transferir, mover ni redistribuir stock entre bodegas: el dato no permite comprobar que ese movimiento sea posible. La medida que SÍ está sostenida sobre el capital detenido es liquidar o rotar donde ya está" } };
+  }
   return r;
 }
 
@@ -367,9 +486,13 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
 // para un SKU fuera del tope). Es aritmética simple sobre filas ya traídas, sin costo de traer más datos.
 function marginRead({ filters = {}, scenario, focus = "bajo_benchmark", dimension = "cliente", negativo = false, pct = false, gap = null, entityScope = null } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
-  const raw = composeSpecMargin({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension, negativo, pct, gap, entityScope });
+  const dim = _ejeCanon(dimension) || dimension;   // "SKU"/"clientes" → el eje que el composer sí indexa
+  const raw = composeSpecMargin({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, negativo, pct, gap, entityScope });
   const r = _pack(raw, `no hay lectura de margen para el eje '${dimension}' con estos filtros`);
-  if (dimension !== "cliente" && r.coverage && r.coverage.supported) {
+  // DECISIÓN 8 · el eje que el composer no abre se DECLINA (nunca las filas de otro eje). La rama `gap` queda fuera:
+  // ahí el pivot es deliberado y viaja declarado en `facts.margin.focus`.
+  if (!gap) { const no = _ejeNoAbierto(dim, r, ["el margen por cliente", "el margen por familia", "el margen por marca"]); if (no) return _crossFail(no); }
+  if (dim !== "cliente" && r.coverage && r.coverage.supported) {
     const panel = raw && raw.evidence && raw.evidence.margin && raw.evidence.margin.panel;
     const rows = panel && panel.rows;
     const bench = panel && typeof panel.bench === "number" ? panel.bench : null;
@@ -389,15 +512,26 @@ function marginRead({ filters = {}, scenario, focus = "bajo_benchmark", dimensio
 // salesRead · lectura de ventas por eje (vs período anterior · pivot · brecha).
 function salesRead({ filters = {}, scenario, focus = "vs_anterior", dimension = "cliente", gap = null, pivotFocus = null, entityScope = null } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
-  return _pack(composeSpecVentas({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension, gap, pivotFocus, entityScope }),
+  const dim = _ejeCanon(dimension) || dimension;   // "SKU"/"clientes" → el eje que el composer sí indexa
+  const r = _pack(composeSpecVentas({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, gap, pivotFocus, entityScope }),
     `no hay lectura de ventas para el eje '${dimension}' con estos filtros`);
+  // DECISIÓN 8 · dos formas del mismo defecto quedan cerradas acá: el eje inexistente (`bodega` → el composer caía
+  // a `cliente`) y el pivot INTERNO que conserva el nombre del eje pedido (`vs_anterior` por SKU declara `sku` y
+  // devuelve clientes, porque por SKU no hay año anterior — la aclaración vivía en el `opener`, que `_pack` no
+  // entrega al oráculo). La rama `gap` queda fuera: su pivot viaja declarado en `facts.ventas.focus`/`gapLabel`.
+  if (!gap) { const no = _ejeNoAbierto(dim, r, ["la venta por cliente", "la venta por familia", "la venta por marca"]); if (no) return _crossFail(no); }
+  return r;
 }
 
 // contributionRead · lectura de contribución por eje (ranking · no capturada · por entidad).
 function contributionRead({ filters = {}, scenario, focus = "rank", dimension = "cliente", entity = null, entityScope = null } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
-  return _pack(composeSpecContribucion({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension, entity, entityScope }),
+  const dim = _ejeCanon(dimension) || dimension;   // "SKU"/"clientes" → el eje que el composer sí indexa
+  const r = _pack(composeSpecContribucion({ filters: _isObj(filters) ? filters : {}, scenario, focus, dimension: dim, entity, entityScope }),
     `no hay lectura de contribución para el eje '${dimension}' con estos filtros`);
+  // DECISIÓN 8 · mismo criterio que marginRead/salesRead (este composer comparte el fallback silencioso a `cliente`).
+  const no = _ejeNoAbierto(dim, r, ["la contribución por cliente", "la contribución por familia", "la contribución por marca"]);
+  return no ? _crossFail(no) : r;
 }
 
 // simulate · "¿y si…?" sobre una métrica × eje con un transform (supuesto → efecto). El guard exige graduación (Fase 2).
@@ -476,10 +610,10 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
     }
   }
   let dim = dimension || "cliente";
-  let raw = rawRecordFor(dim, entity);
+  let raw = rawRecordFor(dim, entity, scenario);
   if (!raw && entity != null) {
     const guessed = guessDimension(entity);
-    if (guessed && guessed !== dim) { dim = guessed; raw = rawRecordFor(dim, entity); }
+    if (guessed && guessed !== dim) { dim = guessed; raw = rawRecordFor(dim, entity, scenario); }
   }
   if (!raw || typeof raw.venta !== "number") {
     return { facts: null, boleta: [], coverage: { supported: false, reason: `no encuentro '${entity}' en el eje '${dimension}'` } };
@@ -557,15 +691,133 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };
 }
 
+// ── pnlRead · EL RESULTADO DEL NEGOCIO (owner 2026-08-09 · decisión 3 · hallazgo L) ─────────────────────────────
+// LA CONFUSIÓN QUE MATA. Sin esta tool, "¿cuál es el resultado del negocio después de gastos?" caía al oráculo sin
+// ninguna tool de P&L y se contestaba con la CONTRIBUCIÓN. Contribución y resultado son DOS NIVELES DISTINTOS de la
+// misma cascada: la contribución es lo que queda ANTES de los gastos declarados, el resultado lo que queda DESPUÉS.
+// Servir una por la otra no es un matiz de vocabulario — es responder otra pregunta con una cifra real.
+//
+// ENVUELVE, NO RECALCULA. `composePnl` (pnl.js) ya es el contrato: emite la cascada sellada (ingreso − costo −
+// carga − gastos == resultado, exacto por construcción) con TODA su boleta autorizada, y `buildPnlCascade` es la
+// MISMA función de la que se sirven la cara Resultado y el cuadro por entidad. Acá no hay una segunda aritmética:
+// se llama al composer, se le quita la presentación (opener/suggestions) y se empaqueta como {facts, boleta,
+// coverage} igual que `_pack` hace con los demás. La cifra que devuelve esta tool es, byte a byte, la que muestra
+// Sentrix en la cara Resultado.
+//
+// POR QUÉ NO SE LLAMA A composePnl SIN LÍNEAS. Sin P&L declarado, `composePnl` responde con la GUÍA del flujo — y
+// para eso ABRE un draft en el módulo (`sinPnl()`: `_draft = {stage:"gastos"}`). Una tool del oráculo es pura por
+// contrato y no puede dejar al usuario a mitad de un flujo conversacional que nadie pidió. Con P&L sin declarar,
+// esta tool DECLINA honesto (decisión 8) y el narrador guía; el flujo guiado lo abre la ruta conversacional, que es
+// la que sabe conducirlo.
+// EJES: `pnlDisponibilidad()` es data-driven (un eje entra si la base del P&L trae la venta desglosada hacia él).
+// SKU/bodega/canal NO están: la tool declina con el motivo DECLARADO por el propio contrato, nunca prorratea sobre
+// un eje sin venta (decisión 8: si una tool no soporta un eje, lo dice — jamás devuelve filas de otro).
+function pnlRead({ focus = "resultado", entity = null, dimension = null, scenario } = {}) {
+  const _no = (reason, alternativas = []) => ({ facts: null, boleta: [], coverage: { supported: false, reason, ...(alternativas.length ? { alternativas } : {}) } });
+  if (!pnlDefined()) {
+    return _no("el P&L no está declarado para este negocio: sin las líneas de gasto (y su % sobre la venta) la cuenta llega hasta la CONTRIBUCIÓN y no hay resultado después de gastos que afirmar. La contribución NO es el resultado.",
+      ["la contribución del negocio (el nivel que sí está cerrado)", "declarar las líneas de gasto para abrir el resultado"]);
+  }
+  // ALCANCE. `entity` gana sobre `dimension` (es el pedido más específico). El nombre se resuelve contra el canon
+  // REAL del P&L —el mismo resolvedor del flujo conversacional—, nunca contra el fraseo del plan.
+  let pi = null, dim = null;
+  if (entity != null && String(entity).trim()) {
+    const c = pnlEntidadCanon(entity);
+    if (!c) return _no(`no encuentro a '${entity}' entre las entidades que el P&L puede alcanzar`, pnlEjesDisponibles().map((d) => `el P&L por ${d.label.sing}`));
+    if (!c.covered) {
+      const d = pnlDisponibilidad().find((x) => x.eje === c.eje);
+      return _no(`${c.nombre} existe, pero ${(d && d.motivo) || `la venta del P&L no baja desglosada a ${c.eje}`} — prorratear sobre un eje sin venta desglosada inventaría la cifra`, pnlEjesDisponibles().map((x) => `el P&L por ${x.label.sing}`));
+    }
+    pi = { action: "resultado_scoped", entidad: c.nombre, eje: c.eje, covered: true };
+    dim = c.eje;
+  } else if (dimension != null && String(dimension).trim()) {
+    const d = pnlDisponibilidad().find((x) => x.eje === dimension);
+    if (!d) return _no(`'${dimension}' no es un eje del negocio`, pnlEjesDisponibles().map((x) => `el P&L por ${x.label.sing}`));
+    if (!d.available) return _no(`${d.motivo} — el P&L no se puede abrir por ${d.label.sing} sin inventar el prorrateo`, pnlEjesDisponibles().map((x) => `el P&L por ${x.label.sing}`));
+    pi = { action: "tabla_eje", eje: dimension };
+    dim = dimension;
+  } else if (focus === "linea" || focus === "peso" || focus === "gastos") {
+    pi = { action: "peso" };
+  } else {
+    pi = { action: "resultado" };
+  }
+  const r = composePnl(pi, null, { scenario });
+  const ev = (r && r.evidence) || {};
+  const boleta = Array.isArray(ev.boleta) ? ev.boleta : [];
+  if (!boleta.length) return _no("el P&L no pudo armarse con estos parámetros");
+  // LOS NIVELES, explícitos. `buildPnlCascade` es la MISMA función que acaba de correr adentro del composer (pura,
+  // mismo escenario, mismas líneas ⇒ mismas cifras): acá se lee para poder DECLARAR el nivel de cada peldaño, que
+  // es justo lo que faltaba para que "contribución" y "resultado" dejaran de ser intercambiables.
+  // `buildPnlCascade` normaliza el eje base por sí sola (opts.dimension === _BASE_EJE cae al mismo camino), así que
+  // el eje se le pasa tal cual: quién es el eje base lo decide el DATO en pnl.js, no un nombre escrito acá.
+  const c = buildPnlCascade(scenario, null, dim ? { dimension: dim } : null);
+  const _p1 = (v) => `${Math.round(v * 10) / 10}%`;
+  // ── LA CASCADA DEL ALCANCE QUE SE PIDIÓ, no la del negocio (defecto real, medido) ─────────────────────────────
+  // Con `entity`, la boleta que devuelve el composer es la de ESA entidad ("Resultado · Falabella $3.0M") pero los
+  // `facts` describían la cascada del NEGOCIO: el narrador leía «Contribución $25.0M · Resultado del negocio
+  // $18.5M» como respuesta a «¿cuánto me deja Falabella después de gastos?» — una cifra real contestando otra
+  // pregunta, exactamente el modo de falla que esta tool existe para cerrar, y encima con 6 de esas 8 cifras FUERA
+  // de la boleta de ese turno (sin autorizar: el guard las habría rechazado). `porEntidad` es la MISMA cuenta que
+  // ya emitió el composer —no hay aritmética nueva— y cada valor coincide byte a byte con su fila de la boleta.
+  const ent = pi.action === "resultado_scoped" ? (c.porEntidad || []).find((x) => x.nombre === pi.entidad) || null : null;
+  const cascadaNegocio = {
+    Ingreso: _moneyK(c.ingresoK), Costo: _moneyK(c.costoK), "Margen bruto": _moneyK(c.margenBrutoK),
+    "Carga comercial": _moneyK(c.cargaK), Contribución: _moneyK(c.contribK),
+    "Gastos declarados": _moneyK(c.totalGastosK), "Resultado del negocio": _moneyK(c.resultadoK),
+    "Resultado sobre la venta": _p1(c.resultadoPct),
+  };
+  const cascadaEntidad = ent && {
+    [`Ingreso · ${ent.nombre}`]: _moneyK(ent.ventaK), [`Costo · ${ent.nombre}`]: _moneyK(ent.costoK),
+    [`Margen bruto · ${ent.nombre}`]: _moneyK(ent.margenBrutoK), [`Carga comercial · ${ent.nombre}`]: _moneyK(ent.cargaK),
+    [`Contribución · ${ent.nombre}`]: _moneyK(ent.contribK), [`Gastos prorrateados · ${ent.nombre}`]: _moneyK(ent.gastoK),
+    [`Resultado · ${ent.nombre}`]: _moneyK(ent.resultadoK), [`Resultado % · ${ent.nombre}`]: _p1(ent.resultadoPct),
+  };
+  // el ancla del negocio en el turno scopeado se limita a las DOS cifras que la boleta de ese turno sí autoriza
+  // (el resultado del negocio y su %) — cualquier otra sería una cifra que el narrador no puede afirmar.
+  const facts = {
+    pnl: true,                       // SENTRIX ES LA EVIDENCIA: abre la cara Resultado (address.js, rama evidence.pnl)
+    alcance: pi.action === "resultado_scoped" ? pi.entidad : "negocio",
+    ...(pi.action === "resultado_scoped" ? { entidad: pi.entidad } : {}),
+    dimension: dim || "negocio",
+    periodo: "año cerrado — los 12 meses ya ocurrieron",
+    nivel_respondido: pi.action === "peso" ? "gastos_declarados" : "resultado_final",
+    // scopeado sin fila (no debería ocurrir: el canon y `porEntidad` salen de la misma base) → NO se cae a la
+    // cascada del negocio, que sería otra vez la cifra equivocada; se declara sólo lo que la boleta autoriza.
+    ...(cascadaEntidad ? { cascada: cascadaEntidad } : pi.action === "resultado_scoped" ? {} : { cascada: cascadaNegocio }),
+    ...(pi.action === "resultado_scoped" ? { contexto_negocio: { "Resultado del negocio": _moneyK(c.resultadoK), "Resultado % · negocio": _p1(c.resultadoPct) } } : {}),
+    // los gastos del alcance pedido: mismo % declarado, aplicado a la venta de ESA entidad (la cifra que la
+    // boleta ya trae como "Gasto · <línea> · <entidad>"), nunca el monto del negocio dentro de un turno scopeado.
+    supuestos: c.gastos.map((g) => ({
+      linea: g.nombre, supuesto: _p1(g.pct), origen: g.origen,
+      ...(ent ? { monto: _moneyK((ent.ventaK * g.pct) / 100) } : pi.action === "resultado_scoped" ? {} : { monto: _moneyK(g.usdK) }),
+    })),
+    // LA DISTINCIÓN, dicha sin una sola cifra (para que no dependa de que el narrador la derive ni agregue una
+    // cifra al universo autorizado): son dos peldaños, no dos nombres del mismo.
+    nota_nivel: "«contribución» y «resultado» son DOS niveles distintos de esta misma cascada: la contribución es lo que queda ANTES de los gastos declarados; el resultado del negocio es lo que queda DESPUÉS. Si la pregunta dice resultado, utilidad, estado de resultados o «después de gastos», la respuesta es el RESULTADO — nunca la contribución.",
+    graduacion: "hasta la contribución el dato es probado (venta y margen del período); los gastos son supuestos declarados por el usuario como % sobre la venta, así que el resultado y su % son INDICADOS y se mueven con esos supuestos.",
+    ...(ev.tablaM ? { tablaM: ev.tablaM } : {}),
+    ...(ev.entityList ? { entityList: ev.entityList } : {}),
+  };
+  return { facts, boleta, coverage: { supported: true, figCount: boleta.length, nivel: facts.nivel_respondido } };
+}
+
 // defineConcept · definición AUTORIZADA de un concepto del negocio (del glosario curado). Antídoto al "inventa algo":
 // la definición NO la improvisa el LLM, viene del dato. Devuelve texto (sin cifras). El narrador la dice en su voz
 // SIN cambiar el significado (ver narratePromptC). `concept` = el término o la frase del usuario.
+// COBERTURA DE ETIQUETAS DE PANTALLA (owner 2026-08-09, decisión 10 · hallazgo K): la resolución ya no es
+// "slug exacto o expresión regular" —30 de 39 etiquetas visibles declinaban con eso, incluidas las dos que el
+// owner renombró—, sino la escalera completa de `resolveGlossary`: slug → etiqueta declarada (índice DERIVADO del
+// manifiesto de vistas y del registro de métricas) → frase libre → null honesto. Lo que no tiene entrada sigue
+// declinando: el defecto que se cierra acá es el inverso —contestar la definición de OTRO concepto—, y por eso
+// "margen bruto" y "margen de contribución" ahora resuelven a dos entradas distintas.
 function defineConcept({ concept } = {}) {
   const term = String(concept || "");
-  const slug = CONCEPT_DEFS[term] ? term : matchConcept(term);
-  const d = slug && CONCEPT_DEFS[slug];
+  const d = resolveGlossary(term);
   if (!d) return { facts: null, boleta: [], coverage: { supported: false, reason: `no tengo una definición curada para '${term}'` } };
-  return { facts: { concepto: d.aka, definicion: d.def, distingue: d.distingue, es_definicion: true }, boleta: [], coverage: { supported: true } };
+  return {
+    facts: { concepto: d.aka, definicion: d.def, ...(d.distingue ? { distingue: d.distingue } : {}), es_definicion: true },
+    boleta: [], coverage: { supported: true, fuente: d.fuente },
+  };
 }
 
 // trend · LA SERIE MENSUAL (el evolutivo) — mes a mes / mensual / evolución / un mes / Q1-Q4 / semestre / rango. Envuelve
@@ -580,7 +832,7 @@ function defineConcept({ concept } = {}) {
 const _FUTURO = /\b(mes|semana|trimestre|semestre|a[nñ]o)\s+(que\s+viene|entrante|pr[oó]xim\w+)|\bpr[oó]xim\w+\s+\d*\s*(mes|semana|trimestre|semestre|a[nñ]o)|\bque\s+viene\b|\bvenider\w+|\bpron[oó]stic\w+|\bproyect\w+\s+(a|para|los|las)?\s*futur|\ba\s+futuro\b|\bvoy\s+a\s+vender\b|\bva\s+a\s+vender\b/i;
 const _FUTURO_TXT = "El dato llega hasta el cierre del año; no tengo serie a futuro, así que no puedo pronosticar. Sí puedo mostrarte cómo viene la venta mes a mes hasta el cierre y a qué ritmo venías creciendo — desde ahí armamos el objetivo.";
 
-function trend({ metric = "ventas", dimension = null, entity = null, period = null, periodo = null } = {}) {
+function trend({ metric = "ventas", dimension = null, entity = null, period = null, periodo = null, scenario } = {}) {
   // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): aunque la tool DECLINE (esa métrica no tiene mensual), si ya sabemos
   // de qué entidad/eje se hablaba, el panel debe poder abrir SU cuadro — no quedarse sin nada. dimension explícito
   // gana; si solo vino `entity`, lo inferimos (trend no exige dimension cuando hay entity).
@@ -590,7 +842,7 @@ function trend({ metric = "ventas", dimension = null, entity = null, period = nu
   if (_FUTURO.test(praw))
     return { facts: { limite_temporal: _FUTURO_TXT, ..._evScope }, boleta: [], coverage: { supported: false, reason: _FUTURO_TXT, alternativas: ["la venta mes a mes hasta el cierre", "el ritmo de crecimiento del año"] } };
   const p = periodo || (praw ? detectPeriodo(praw) : null);
-  const r = composeSpecTemporal({ metric, dimension, entity, periodo: p });
+  const r = composeSpecTemporal({ metric, dimension, entity, periodo: p, scenario });
   // límite declarado (resultado/inventario/canal/margen-matriz) → coverage=false CON el texto honesto + alternativas → el narrador GUÍA
   if (r && r.reason === "declarada")
     return { facts: { limite_temporal: r.texto, ..._evScope }, boleta: [], coverage: { supported: false, reason: r.texto, alternativas: Array.isArray(r.sugerencias) ? r.sugerencias : [] } };
@@ -603,7 +855,7 @@ function trend({ metric = "ventas", dimension = null, entity = null, period = nu
   }
   if (dimGuess && !out.facts.entityType) out.facts = { ...out.facts, entityType: dimGuess };
 
-  const g = buildGlobalEvolution();
+  const g = buildGlobalEvolutionAnclada(scenario) || buildGlobalEvolution();
   const meses = (g && Array.isArray(g.meses)) ? g.meses : [];
   // MARCO TEMPORAL: sin esto el narrador no sabe que el año está CERRADO y recetaba acciones sobre meses ya pasados
   // ("aprovechá la campaña de noviembre") o trataba un mes del histórico como si fuera el presente.
@@ -638,7 +890,7 @@ export const TOOLS = {
   queryMetric, entityProfile, entityRecord, gridTable, tensionRead, compareEntities, diagnose, executiveSummary,
   inventoryStatus, marginRead, salesRead, contributionRead, trend,
   simulate, simulateCarga, simulateCapital, simulateCosto, simulateGeneral, defineConcept,
-  entityComposicion, entityCapitalLigado,
+  entityComposicion, entityCapitalLigado, pnlRead,
 };
 
 // toolNames() → los nombres registrados (base del catálogo que verá el LLM en la Pasada 1 · Fase 3).

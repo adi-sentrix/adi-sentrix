@@ -94,7 +94,11 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
       opener += `La cuenta está cediendo margen: aproximadamente **$${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
       opener += `**Mecanismo disponible**: el cruce margen vs carga comercial es la lectura natural · si ${c.nombre} tiene carga sobre promedio (${avgCarga.toFixed(1)}%), la palanca de rebate opera antes que la de precio.`;
     } else if (gapVsBench >= 0) {
-      opener += `La cuenta sostiene margen sobre el promedio de la cartera.`;
+      // MISMO DEFECTO QUE comparisons.js (owner 2026-08-09, decisión 1 · hallazgo N): la rama entra por
+      // `gapVsBench >= 0` —está sobre la VARA— y la frase nombraba el PROMEDIO. Y acá era peor: dos líneas más
+      // arriba este mismo texto ya imprimió el promedio interno real de la cartera, que es otro número. Dos
+      // referencias distintas con el mismo nombre en el mismo párrafo.
+      opener += `La cuenta sostiene margen sobre tu benchmark.`;
     } else {
       opener += `Margen razonable pero hay espacio · existen 2 palancas disponibles: composición del mix y carga comercial.`;
     }

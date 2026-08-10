@@ -159,7 +159,11 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
 // ── ARQUITECTURA C · Fase 3 · las dos pasadas del oráculo (detrás del flag · fallback intacto) ──────────────────
 // PLAN (Pasada 1): texto (+ hilo + memoria de interacción) → PLAN estructurado (qué tools llamar, con qué alcance).
 // El BATCH determinístico corre en el CLIENTE (runPlan · puro); solo las 2 llamadas al LLM pasan por acá.
-export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt } = {}, env) {
+// `vistaLinea` (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix): UNA línea de ≤240 caracteres, sin
+// cifras, que declara qué está mirando el usuario en Sentrix (ver viewContext.js:projectViewContextForPlan). El
+// gateway no la interpreta ni la construye — la pasa tal cual a buildPlanUserMessage, que decide dónde va. Opcional:
+// un turno sin panel abierto manda undefined y el mensaje de PLAN queda byte-idéntico al de siempre.
+export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt, vistaLinea } = {}, env) {
   const acc = await _access(access, env);
   if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
   if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
@@ -173,8 +177,11 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
   // ADI_PERSONA_PLAN (owner 2026-08-03, Fase 1 eficiencia de Mini — ver persona.js): SOLO acá, PLAN tiene tool_choice
   // forzado a JSON (nunca redacta prosa) — la doctrina de narración de ADI_PERSONA completa es costo sin efecto.
   // NARRAR (handleNarrateC más abajo) sigue recibiendo ADI_PERSONA completa, sin cambios.
-  const system = buildPlanSystem(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual");
-  const user = buildPlanUserMessage(history, text);
+  // el 4º argumento decide si la doctrina de CONTEXTO DE PANTALLA entra al system: SOLO cuando este turno trae de
+  // verdad la línea (mismo criterio que handleNarrateC con `payload.contexto_vista`). Lo lee del body, no lo adivina.
+  const system = buildPlanSystem(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
+    !!(typeof vistaLinea === "string" && vistaLinea.trim()));
+  const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
   const { spec: plan, usage } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
   return { ok: true, plan, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
 }
@@ -197,7 +204,11 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt }
   // para que la doctrina de "MODO DE CONVERSACIÓN" mande SOLO el modo de ESTE turno, no los 7 completos.
   // mem.responsePref (owner 2026-08-03, Fase 2 eficiencia de Mini — ver responsePreference.js): el bloque de
   // doctrina de preferencia de FORMATO ahora solo se manda si la SESIÓN tiene una preferencia persistida no-default.
-  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref);
+  // contexto_vista (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): si el payload trae la línea de pantalla,
+  // el system suma el bloque que explica QUÉ es y —sobre todo— qué NO es (no trae cifras, y nada se deriva de ahí).
+  // Condicional por la MISMA razón que las dos doctrinas de arriba: el 100% de los turnos que no vienen de Sentrix
+  // no paga ni un token por una regla que no van a usar.
+  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista);
   const { text: narration, usage } = await getAdapter(provider).narrate(payload, { model, system });
   return { ok: true, narration, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
 }

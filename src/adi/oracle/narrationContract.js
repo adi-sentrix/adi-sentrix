@@ -39,15 +39,20 @@
 // Object.freeze es superficial: congela el objeto pero no sus hijos. Un contrato "sellado" cuyo `claims[3].valor`
 // se puede reescribir no es un contrato. _deepFreeze recorre y congela todo el árbol. Tolera ciclos (WeakSet) por
 // seguridad, aunque el contrato se construye acíclico por diseño.
-function _deepFreeze(obj, seen = new WeakSet()) {
+// EXPORTADA (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix · mejora A): el ViewContext de Sentrix se sella
+// con ESTA MISMA primitiva, no con una copia — ver viewContext.js:sealViewContext. El alias privado `_deepFreeze`
+// se conserva para no tocar los usos internos de este archivo. Idempotente: volver a congelar un árbol ya congelado
+// no cuesta nada, que es lo que permite sellar en el borde de transporte Y de nuevo dentro del contrato.
+export function deepFreeze(obj, seen = new WeakSet()) {
   if (obj === null || typeof obj !== "object" || seen.has(obj)) return obj;
   seen.add(obj);
   for (const k of Object.getOwnPropertyNames(obj)) {
     const v = obj[k];
-    if (v && typeof v === "object") _deepFreeze(v, seen);
+    if (v && typeof v === "object") deepFreeze(v, seen);
   }
   return Object.freeze(obj);
 }
+const _deepFreeze = deepFreeze;
 
 // ── PARSE DEL LABEL DE BOLETA ──────────────────────────────────────────────────────────────────────────────────
 // La convención "Entidad · Concepto" (boleta.js/fig + specRetrieval.js) es la MISMA que ya leen _groupByEntity /
@@ -55,26 +60,64 @@ function _deepFreeze(obj, seen = new WeakSet()) {
 // separador es una cifra del NEGOCIO (sin dueño), no una entidad anónima — se marca entidad:null, nunca inventada.
 import { resolveEntityRef } from "./entityIndex.js";                              // Fase 3 · el eje REAL de un nombre, O(1) por tenant
 import { REFERENCIA_PROCEDENCIA, METRICAS_DE_REFERENCIA } from "../../config/businessPolicy.js";   // procedencia de la vara (una verdad, junto a benchmarkOf)
+// CONTRATO DE RESPUESTA PROPORCIONAL (owner · Concordancia ADI ↔ Sentrix): la FORMA del turno se decide en
+// progressiveDisclosure.js (junto a resolveTablePolicy, que es la misma clase de decisión) y se COMPONE acá, donde
+// los claims ya están sellados — así la graduación PROBADO/INDICADO/ABIERTO nombra las métricas REALES del turno en
+// vez de repetir doctrina genérica. Se sella dentro del mismo árbol congelado, no al lado.
+import { ANSWER_SHAPES, buildAnswerShapeInstruction } from "./progressiveDisclosure.js";
+// EL TIPO DE LA CIFRA (owner 2026-08-09, decisiones 1 y 2): el sello y las reglas de verificabilidad son las MISMAS
+// que aplica `fig()`. Acá sólo se refina con el eje, que este módulo sí sabe resolver — nunca se redefine.
+import { SELLOS, refinarPorEje, PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";
 
 const _SEP = " · ";
+// SEGUNDA RED DEL HALLAZGO G (owner 2026-08-09). La primera es `ledger._labelDe`, que ya no emite el nombre pelado.
+// Ésta no depende de aquélla: si CUALQUIER ruta (un composer viejo, una boleta derivada de texto, un tenant nuevo)
+// vuelve a emitir un label sin separador que ES el nombre de una entidad real del catálogo, acá se recupera igual
+// el dueño en vez de leerlo como cifra DEL NEGOCIO. El caso que importa —"Tu negocio cerró el año en $19.4M",
+// siendo $19.4M de Falabella— dejaba de verse justamente porque el claim salía sin entidad.
+// Un label SIN separador que NO resuelve contra el catálogo sigue siendo, como siempre, una cifra del negocio.
 function _splitLabel(label) {
   const s = String(label == null ? "" : label);
   const i = s.indexOf(_SEP);
-  if (i < 0) return { entidad: null, metrica: s.trim() };
-  return { entidad: s.slice(0, i).trim() || null, metrica: s.slice(i + _SEP.length).trim() };
+  if (i >= 0) return { entidad: s.slice(0, i).trim() || null, metrica: s.slice(i + _SEP.length).trim() };
+  const solo = s.trim();
+  if (solo && resolveEntityRef(solo).estado === "resuelto") return { entidad: solo, metrica: solo };
+  return { entidad: null, metrica: solo };
 }
 
-// ── ESTATUS EPISTÉMICO ─────────────────────────────────────────────────────────────────────────────────────────
-// probado  · la cifra sale del dato tal cual (source "actual", sin fórmula) — se puede afirmar.
-// indicado · la cifra es DERIVADA por el motor (tiene fórmula, o source "computed": brechas, excesos, proyecciones)
-//            — es real y auditable, pero es una CUENTA sobre el dato, no una lectura directa; se afirma como tal.
-// abierto  · no vive acá: lo que no se puede afirmar no es un claim, es una pregunta abierta (ver buildOpenQuestions).
-// Deriva del fig, NUNCA del texto ni del prompt — por eso es determinístico y portable entre proveedores.
-function _estatusDe(fig) {
+// ── ESTATUS EPISTÉMICO (owner 2026-08-09, decisión 2 · reescrito sobre el TIPO de la cifra) ────────────────────
+// probado  · dato directo, o cálculo determinístico exacto RECONCILIADO con sus componentes, sin supuestos.
+// indicado · estimación, distribución, afinidad, supuesto o inferencia modelada. Incluye dos casos que la versión
+//            anterior sellaba `probado` por no mirar más que `formula`/`source`:
+//              · la DERIVADA que no reconcilia — la contribución del cliente sale de venta oficial × margen en
+//                todos los escenarios y difiere del literal almacenado en 13 de 13 filas ($4.3M vs $4.1M);
+//              · el campo DECLARADO por la fuente que el dato no reconstruye — días de inventario cierra contra
+//                stock ÷ venta diaria en 3 de 13 filas, y rotación contra 365 ÷ días en 0 de 13.
+// abierto  · lo que el dato no permite calcular ni aislar (ver también buildOpenQuestions).
+// EL SELLO YA VIENE EN EL FIG (`tipo.sello`, boleta.js + config/contract/figureType.js): acá no se recalcula, se
+// LEE — una sola verdad. Lo único que se agrega es lo que este módulo sabe y el fig no podía saber: el EJE real de
+// la entidad, que decide si `contribución`/`costo`/`acciones comerciales` son la lectura almacenada (sku, marca:
+// cierran 13/13 y 5/5) o la re-derivada del motor (cliente, familia, canal: no cierra en ninguna fila).
+function _estatusDe(fig, eje = null) {
   if (!fig) return "probado";
-  if (fig.formula) return "indicado";
-  if (fig.source && fig.source !== "actual") return "indicado";
-  return "probado";
+  const base = (fig.tipo && SELLOS.includes(fig.tipo.sello)) ? fig.tipo.sello
+    : (fig.formula || (fig.source && fig.source !== "actual")) ? "indicado" : "probado";
+  if (base !== "probado") return base;                  // el refinamiento por eje sólo puede BAJAR de probado
+  // El ESCENARIO de la cifra (estampado por ledger.recordCall) decide en los ejes que sólo re-derivan bajo
+  // transformación: la contribución por FAMILIA es la re-agregación de clientes re-derivados en bonanza/tensión/
+  // crisis, pero en «actual» es el literal almacenado y cierra 4/4 — sellarla indicado ahí marcaba un dato real
+  // como estimación (decisión 2 del owner, corregido tras medir eje × escenario y no sólo «actual»).
+  return refinarPorEje(fig.label, eje, fig.tipo && fig.tipo.escenario, _uni(fig)) ? "indicado" : base;
+}
+// la unidad y el universo del TIPO acotan la regla por eje a las cifras de las que de verdad habla (ver
+// figureType.js): sin esto, «Costo medio unitario» —un literal que no se mueve nunca— caía bajo la regla del costo.
+const _uni = (fig) => ({ unidad: (fig && fig.unit) || null, universo: (fig && fig.tipo && fig.tipo.universo) || null });
+// _razonEstatus(fig, eje) → por qué esa cifra tiene ese sello. Viaja en el claim para que la respuesta pueda
+// nombrarlo con la razón real del dato en vez de una fórmula genérica de prompt.
+function _razonEstatus(fig, eje = null) {
+  const porEje = refinarPorEje(fig && fig.label, eje, fig && fig.tipo && fig.tipo.escenario, _uni(fig));
+  if (porEje && (!fig.tipo || fig.tipo.sello === "probado")) return porEje.razon;
+  return (fig && fig.tipo && fig.tipo.verificabilidadRazon) || null;
 }
 
 // ══ REGLA DE PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07) ═════════════════════════════════════════════════════
@@ -156,7 +199,12 @@ export function buildClaims(ledgerFigs, { eje = null, periodo = null } = {}) {
       unidad: f.unit || null,
       valor: f.value,                     // string YA formateado (verbatim, una sola verdad con el texto)
       valorRaw: typeof f.raw === "number" ? f.raw : null,
-      estatus: _estatusDe(f),
+      estatus: _estatusDe(f, suj.eje),
+      estatusRazon: _razonEstatus(f, suj.eje),
+      // EL TIPO COMPLETO (decisión 1) viaja con el claim: moneda, escala, período, escenario, universo,
+      // entidad/dimensión, fuente y unidad. El guard lo lee para juzgar cruces entre universos que no reconcilian.
+      tipo: f.tipo || null,
+      universo: (f.tipo && f.tipo.universo) || null,
       // PROCEDENCIA · una REFERENCIA no es una medición del negocio. Las tres capas de benchmarkOf son internas
       // de la empresa, así que se narra "tu benchmark"/"tu referencia" — nunca sectorial (ver businessPolicy.js).
       procedencia: METRICAS_DE_REFERENCIA.includes(metrica) ? REFERENCIA_PROCEDENCIA : null,
@@ -330,7 +378,12 @@ export function buildAllowedActions(claims) {
 // es el alcance YA validado contra el catálogo del tenant — este objeto es la única verdad río abajo.
 // `periodo` sale del dato (facts.periodo sellado por el composer) y cae al escenario solo si el dato no lo declara:
 // nunca se inventa un período que el dato no sostenga.
-export function sealScopeContract({ plan, results, scenario = null, requestContext = null, pref = null } = {}) {
+// `viewContext` (owner 2026-08-09, Contrato de Concordancia · mejora A) — el CONTEXTO DE PANTALLA entra como UN
+// CAMPO MÁS del alcance sellado (`scope.vista`), no como un objeto congelado al lado. Consecuencia directa: queda
+// dentro del árbol que _deepFreeze congela al final de buildNarrationContract, así que `isSealed(contract)` —la
+// función que ya existía— afirma también la inmutabilidad del ViewContext, sin una línea nueva de verificación.
+// Es DECLARACIÓN de qué está mirando el usuario: no trae cifras, y el narrador nunca puede derivar una de acá.
+export function sealScopeContract({ plan, results, scenario = null, requestContext = null, pref = null, viewContext = null } = {}) {
   const list = Array.isArray(results) ? results : [];
   const scope = (plan && plan.scope) || null;
   const entidades = scope && Array.isArray(scope.entities) ? scope.entities.filter(Boolean).slice() : [];
@@ -342,11 +395,15 @@ export function sealScopeContract({ plan, results, scenario = null, requestConte
     if (f.entityType) { eje = f.entityType; break; }
     if (f.dimension) { eje = f.dimension; break; }
   }
-  // el período: sellado por el composer si existe; si no, el escenario del turno.
+  // el período: sellado por el composer si existe; si no, el escenario del turno. Un resultado de marco MIXTO
+  // (decisión 5: venta del año cerrado y stock de la foto de hoy en la misma call) trae en `facts.periodo` la
+  // frase larga que INSTRUYE al narrador — el alcance sellado lo DECLARA, así que va la etiqueta corta.
   let periodo = null;
   for (const r of list) {
     const f = r && r.facts;
-    if (f && f.periodo) { periodo = f.periodo; break; }
+    if (!f) continue;
+    if (Array.isArray(f.periodos) && f.periodos.length > 1) { periodo = PERIODO_MIXTO_ETIQUETA; break; }
+    if (f.periodo) { periodo = f.periodo; break; }
   }
   if (!periodo && scenario) periodo = scenario;
   const metricas = [];
@@ -372,6 +429,8 @@ export function sealScopeContract({ plan, results, scenario = null, requestConte
     declarado: scope || null,
     filtros,
     metricas,
+    // CONTEXTO DE PANTALLA (mejora A) — null en cualquier turno que no venga de Sentrix, que es el default.
+    vista: viewContext || null,
     modo: (plan && plan.mode) || "default",
     contentScope: (pref && pref.contentScope) || "full",
     detalle: (pref && pref.detailLevel) || "standard",
@@ -383,7 +442,7 @@ export function sealScopeContract({ plan, results, scenario = null, requestConte
 // naturalidad, pero no agregar ni modificar entidades, métricas, períodos, causalidad, acciones o supuestos fuera
 // de ese contrato". Esto lo declara como DATO (no como párrafo de prompt) para que Fase 2 pueda verificarlo y para
 // que sea legible por cualquier proveedor.
-export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "auto" }) {
+export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "auto", formaRespuesta = null }) {
   return {
     puedeRedactarLibre: true,               // la naturalidad es del LLM — no se toca
     puedeAgregarEntidades: false,
@@ -403,9 +462,29 @@ export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "a
     //   auto      · el resto — decide el narrador con los detectores de forma; el guard no juzga
     // El guard valida LA POLÍTICA DECIDIDA para este turno, nunca una prohibición general de tablas.
     tablePolicy: ["forbidden", "required", "auto"].includes(tablePolicy) ? tablePolicy : "auto",
+    // FORMA DE RESPUESTA DEL TURNO (owner 2026-08-09, contrato de respuesta proporcional — ver
+    // progressiveDisclosure.js:resolveAnswerShape). Se declara acá, junto a tablePolicy, por la MISMA razón: es una
+    // decisión de PRESENTACIÓN ya tomada por el motor, y declararla como dato (no como párrafo de prompt) es lo que
+    // permite que el guard la valide y que cualquier proveedor la lea igual. Cuatro estados:
+    //   solo_dato            · el usuario pidió el dato pelado (o su equivalente semántico) — manda `pref`
+    //   explicar_componente  · "explicame este gráfico" con contexto de pantalla — qué mide / universo / patrón /
+    //                          qué sabemos de la causa / qué revisar primero
+    //   puntual              · una pregunta concreta: se responde DIRECTO y después solo lo necesario (nunca informe)
+    //   tres_reglas          · el default del owner: qué pasa · por qué (probado/indicado/abierto) · qué hacer primero
+    formaRespuesta: ["solo_dato", "explicar_componente", "puntual", "tres_reglas"].includes(formaRespuesta) ? formaRespuesta : null,
     densidad: scope ? scope.contentScope : "full",
     detalle: scope ? scope.detalle : "standard",
   };
+}
+
+// _memoriaSinVista(mem) → la memoria de interacción SIN la key `viewContext`. Ver la nota junto a `memoria:` en
+// buildNarrationContract para el porqué. Devuelve la MISMA referencia cuando no hay nada que sacar, así que el
+// contrato —y el payload proyectado— quedan byte-idénticos en el 100% de los turnos que no vienen de Sentrix.
+function _memoriaSinVista(mem) {
+  if (!mem || typeof mem !== "object") return mem || null;
+  if (!Object.prototype.hasOwnProperty.call(mem, "viewContext")) return mem;
+  const { viewContext: _descartado, ...resto } = mem;
+  return resto;
 }
 
 // ── EL CONTRATO ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -414,14 +493,23 @@ export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "a
 // pero YA está DENTRO del contrato, sellado: nadie río abajo lo lee de `results`. Fase 1b lo reemplaza por claims.
 export function buildNarrationContract({
   text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy = "auto", scenario = null, requestContext = null,
+  viewContext = null, instruccionForma = null, formaRespuesta = null,
 } = {}) {
-  const scope = sealScopeContract({ plan, results, scenario, requestContext, pref });
+  const scope = sealScopeContract({ plan, results, scenario, requestContext, pref, viewContext });
   const claims = buildClaims(ledgerFigs, { eje: scope.eje, periodo: scope.periodo });
   const relaciones = buildRelations(claims);
   const preguntasAbiertas = buildOpenQuestions(results);
   const supuestos = buildSupuestos({ plan, results });
   const acciones = buildAllowedActions(claims);
-  const politicaExtension = buildExtensionPolicy({ scope, claims, acciones, tablePolicy });
+  // CONTRATO DE RESPUESTA PROPORCIONAL — la forma se DECIDE en progressiveDisclosure.js (resolveAnswerShape, con su
+  // precedencia explícita) y se COMPONE acá, que es donde los claims y las preguntas abiertas ya están sellados: así
+  // la graduación PROBADO/INDICADO/ABIERTO nombra las métricas REALES de este turno en vez de repetir doctrina.
+  // `instruccionForma` explícita gana (un caller que ya la compuso no se recompone); si no viene, se deriva.
+  const formaValida = ANSWER_SHAPES.includes(formaRespuesta) ? formaRespuesta : null;
+  const instruccionFormaFinal = instruccionForma
+    || buildAnswerShapeInstruction(formaValida, { viewContext, claims, preguntasAbiertas })
+    || null;
+  const politicaExtension = buildExtensionPolicy({ scope, claims, acciones, tablePolicy, formaRespuesta: formaValida });
   const datos = (results || []).map((r) => ({
     tool: r.tool,
     disponible: !!(r.coverage && r.coverage.supported),
@@ -448,16 +536,32 @@ export function buildNarrationContract({
       modo: scope.modo,
       clarifyStreak: (plan && plan.clarifyStreak) || null,
       instruccionOrientacion: instruccionOrientacion || null,
-      // DIVULGACIÓN PROGRESIVA (owner 2026-08-07): qué decir en vez de la tabla que NO se trajo. Va en 
+      // DIVULGACIÓN PROGRESIVA (owner 2026-08-07): qué decir en vez de la tabla que NO se trajo. Va en
       // porque es una instrucción de FORMA del turno, igual que la orientación — no es un claim ni un dato.
       instruccionDisclosure: instruccionDisclosure || null,
+      // CONTRATO DE RESPUESTA PROPORCIONAL (owner 2026-08-09): la instrucción que corresponde a `formaRespuesta`
+      // (ver progressiveDisclosure.js:buildAnswerShapeInstruction). Misma naturaleza que las dos de arriba: una
+      // decisión de FORMA ya tomada por el motor, no un dato ni un claim. Null en el default (tres_reglas), que es
+      // exactamente lo que el narrador ya hace hoy — un turno normal no agrega ni una llave al payload.
+      instruccionForma: instruccionFormaFinal,
+      formaRespuesta: formaValida,
       // el plan sigue viajando SOLO para los detectores de forma que hoy lo consultan (perfil completo, orden por
       // monto). Fase 1b los mueve a consumir `claims`/`scope` y este campo desaparece.
       _planCalls: (plan && Array.isArray(plan.calls) ? plan.calls : []).map((c) => ({ tool: c && c.tool })),
     },
     datos,
     hiloReciente,
-    memoria: mem || null,
+    // MEMORIA DE INTERACCIÓN — viaja al narrador como `memoria_interaccion` (narratePromptC.js, las DOS
+    // proyecciones). `mem.viewContext` se EXCLUYE acá, y no es una limpieza cosmética: answerViaOracle.js persiste
+    // el ViewContext sellado como key hermana de conversationScope, así que sin este filtro el OBJETO entero
+    // (componentId, evidenceIds, key, dataSnapshotId, tenantId, controles y la lista cruda de
+    // `seleccion.entidades`) entraba al prompt por la puerta de atrás — exactamente lo que la frontera declarada en
+    // viewContext.js y en _lineaVista prohíbe ("nunca el objeto ViewContext"), y saltándose la proyección que a
+    // propósito colapsa una selección de N entidades en un CONTEO en vez de nombrarlas.
+    // El contexto de pantalla YA entra al contrato por su única puerta legítima: `scope.vista` (sealScopeContract),
+    // desde donde `_lineaVista` lo proyecta como UNA línea de ≤240 caracteres y sin cifras. Dos representaciones de
+    // lo mismo en el mismo prompt serían, además, la segunda verdad que el contrato prohíbe.
+    memoria: _memoriaSinVista(mem),
     pref: pref || null,
     // trazabilidad: para auditar de dónde salió el contrato sin volver a los crudos.
     _fuente: { figs: Array.isArray(ledgerFigs) ? ledgerFigs.length : 0, results: Array.isArray(results) ? results.length : 0 },

@@ -13,9 +13,10 @@ import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared,
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
-import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, composeProsaEjecutiva, resolveTablePolicy } from "./progressiveDisclosure.js";   // divulgación progresiva: el detalle vive en la Ficha, y se poda ANTES del batch
+import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, composeProsaEjecutiva, resolveTablePolicy, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
+import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
 import { MODE_KEYS } from "./conversationalContract.js";
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
@@ -27,7 +28,13 @@ import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, bui
 // mem.conversationScope, con mem.lastOffer/mem.recentSubjects "pelados" como shim de compatibilidad para
 // fixtures viejos. withOfertaPendiente (abajo) es el ÚNICO punto que escribe el lado canónico — ver el comentario
 // "CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4" al final de conversationScope.js para el detalle completo.
-import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline, withOfertaPendiente } from "./conversationScope.js";
+import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline, withOfertaPendiente, resolveComponentReference, DEICTIC_PLURAL_RE } from "./conversationScope.js";
+// CONTRATO DE CONCORDANCIA ADI ↔ SENTRIX (owner 2026-08-09) — el CONTEXTO DE PANTALLA. Este archivo es el único
+// punto del oráculo que lo orquesta: lo SELLA al entrar (nunca confía en lo que llegó de la UI), lo INVALIDA cuando
+// cambia la pantalla o el tema, lo proyecta como UNA LÍNEA para PLAN, lo usa como backstop determinístico del
+// alcance, y lo persiste como key hermana de conversationScope. Ni una cifra viaja por acá: la evidencia se la
+// sigue pidiendo PLAN a las tools (ver viewContext.js para la frontera completa).
+import { sealViewContext, invalidateViewContext, viewContextEntry, projectViewContextForPlan, projectViewContextForCoercion } from "./viewContext.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 2 (owner 2026-08-03) — toolContracts.js declara, POR TOOL, si admite
 // una lista de entidades (y cómo: entityScope nativo · lista de cardinalidad fija · fan-out a N calls) o si genuina-
 // mente NO admite varias a la vez (decline + oferta de correrlas por separado, nunca cambia de eje en silencio).
@@ -40,9 +47,13 @@ import { emptyConversationScope, updateConversationScope, resolveConversationRef
 import { applyMultiEntityScope, applySingleEntityScope } from "./toolContracts.js";
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
+import { figFor } from "../boleta.js";                              // la ÚNICA lectura sancionada de una fig ya autorizada
+import { PERIODO_TXT } from "../../config/contract/figureType.js";  // las dos frases canónicas del marco temporal, declaradas una sola vez
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
 import { detectCriteriaIntent } from "../criteria.js";   // C.2 memoria de criterio (owner 2026-07-31, fix adi-oraculo-criterio-no-invocado): la ruta oráculo nunca la corría
 import { composeCriteria } from "../conversation.js";     // UNA VERDAD: reusa la MISMA composición (setCriterion/forgetCriterion) de la ruta legacy, nunca la reimplementa acá
+import { pnlOraclePlan } from "../pnl.js";                // decisión 3 · el plan determinístico del RESULTADO (P&L) — evita que "resultado" se conteste con la CONTRIBUCIÓN
+import { clientCapitalRelacion } from "../specRetrieval.js";   // decisión 9 · ¿el dato sostiene la relación cliente×SKU? (la MISMA medición que usa el composer, nunca un criterio paralelo)
 
 // ── BACKOFF ante RATE-LIMIT real (owner 2026-08-03, investigación cruzada de los 5 gates de Arquitectura C:
 // clarify_mode/multimodo/provider_certification/plan/tension) — hallazgo transversal CONFIRMADO en vivo, múltiples
@@ -199,6 +210,20 @@ function _coerceTensionArgs(text, calls) {
 // al MISMO set con el MISMO tratamiento (simulateGeneral ya exige su propio `entity`/`dimension` — nunca corre
 // global — así que para ella este backstop es inerte pero inofensivo, no un caso especial nuevo).
 const _ENTITY_FILTER_TOOLS = new Set(["marginRead", "contributionRead", "diagnose", "queryMetric", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral"]);
+/* ── EL CTA DE LA RESPUESTA · «Ver … en Sentrix» (owner 2026-08-09) ────────────────────────────────────────────
+ * Se compone de la DIRECCIÓN que `buildOracleEvidence` ya dejó en la evidencia (address.js, determinística sobre
+ * el plan y el evidenceSpec). Tres garantías: (1) sin dirección resoluble devuelve null y no se pinta botón;
+ * (2) la etiqueta sale de la dirección, así que dice a dónde lleva de verdad ("Ver la ficha de X en Sentrix", no
+ * "Ver en Sentrix"); (3) el payload no transporta cifras — es un puntero, y las cifras siguen saliendo de las
+ * tools cuando el panel se abre. */
+function _sentrixActionDe(evidence) {
+  try {
+    const addr = parseAddress(evidence && evidence.address);
+    if (!addr) return null;
+    return buildSentrixActionFromAddress(addr, { moduleChip: null });
+  } catch { return null; }
+}
+
 function _coerceEntityScopedFilters(plan, calls) {
   const arr = Array.isArray(calls) ? calls : [];
   if (!plan || !plan.scope || plan.scope.level !== "entity") return arr;
@@ -216,6 +241,86 @@ function _coerceEntityScopedFilters(plan, calls) {
   });
 }
 
+// ── CONTEXTO DE PANTALLA → ALCANCE (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix) ──────────────────
+// _coerceViewScope(plan, vcProj, text, maxCalls) → plan' — backstop DETERMINÍSTICO, en la MISMA cadena y con la
+// MISMA precedencia que _coerceEntityScopedFilters/applySingleEntityScope: PLAN es el mecanismo principal (entiende
+// la expresión libre y ahora VE la línea de contexto de pantalla), y esto SOLO cubre el patrón inequívoco que el
+// LLM no puede resolver solo — "explicame este gráfico" / "cuáles de estos clientes" con el panel abierto.
+//
+// LAS TRES CONDICIONES, todas obligatorias (nunca pisa un plan que ya resolvió bien):
+//   a) hay contexto de pantalla proyectado (el usuario estaba mirando algo);
+//   b) el texto trae un deíctico de COMPONENTE o de entidades — sin deíctico, el turno se sostiene solo y no hay
+//      nada que anclar (una pregunta autónoma con el panel abierto sigue siendo una pregunta autónoma);
+//   c) PLAN no resolvió nada concreto: scope sin entidades utilizables y NO global (si dijo "el negocio", el
+//      contexto ya se descartó antes de llegar acá — ver invalidateViewContext).
+//
+// QUÉ HACE, en este orden:
+//   1. ALCANCE — si la pantalla declara entidades seleccionadas, las fija en plan.scope (una → "entity", varias →
+//      "list", que río abajo recoge applySingleEntityScope/applyMultiEntityScope, sin mecanismo nuevo). Si en vez
+//      de entidades declara un FILTRO (el camino O(1): 300 clientes viajan como criterio, nunca como lista), se
+//      inyecta en args.filters de las tools que lo aceptan — el MISMO conjunto _ENTITY_FILTER_TOOLS de arriba.
+//   2. EVIDENCIA — si el plan quedó SIN calls (el caso típico de "explicame este gráfico": el LLM entiende que hay
+//      que explicar pero no sabe qué pedir), se siembran las calls que el MANIFIESTO declara para ese componente.
+//      Eso es exactamente "el PLAN pide la evidencia a las tools en vez de recibir tablas": la pantalla dice QUÉ
+//      componente es, el manifiesto dice con qué tools se demuestra, y el motor las corre. Si el componente no
+//      tiene contraparte en el oráculo, `evidencia` viene vacío y NO se siembra nada — la respuesta declarará el
+//      límite (vcProj.sinTool), nunca contestará con la cifra de otra aritmética creyendo que es la misma.
+function _coerceViewScope(plan, vcProj, text, maxCalls = 6, compRef = null) {
+  if (!plan || !vcProj) return plan;
+  const t = String(text || "");
+  // apunta al COMPONENTE ("explicame este gráfico") vs. apunta a las ENTIDADES ("cuáles de estos clientes"). La
+  // primera la resuelve resolveComponentReference (conversationScope.js) contra el contexto sellado; la segunda es
+  // el deíctico plural de siempre. Sin ninguna de las dos, el turno se sostiene solo y acá no se toca nada.
+  const apuntaAlComponente = !!(compRef && compRef.kind === "resolved");
+  if (!apuntaAlComponente && !DEICTIC_PLURAL_RE.test(t)) return plan;
+  const scope = plan.scope || null;
+  if (scope && scope.level === "global") return plan;   // el usuario cambió de tema — la pantalla no manda
+  const yaResueltas = (scope && Array.isArray(scope.entities)) ? scope.entities.filter((e) => e && guessDimension(e)) : [];
+  if (yaResueltas.length) return plan;   // PLAN ya ancló entidades reales: no se le superpone un segundo criterio
+
+  let out = plan;
+  const entidades = Array.isArray(vcProj.entidades) ? vcProj.entidades.filter((e) => e && guessDimension(e)) : [];
+  if (entidades.length) {
+    out = { ...out, scope: { ...(scope || {}), level: entidades.length > 1 ? "list" : "entity", entities: entidades } };
+  } else {
+    const filtros = (vcProj.filtros && typeof vcProj.filtros === "object") ? vcProj.filtros : {};
+    const keys = Object.keys(filtros);
+    if (keys.length) {
+      const calls = Array.isArray(out.calls) ? out.calls : [];
+      out = { ...out, calls: calls.map((c) => {
+        if (!c || !_ENTITY_FILTER_TOOLS.has(c.tool)) return c;
+        const args = (c.args && typeof c.args === "object" && !Array.isArray(c.args)) ? c.args : {};
+        if (args.filters && typeof args.filters === "object" && Object.keys(args.filters).length) return c;   // el plan ya acotó: no se pisa
+        return { ...c, args: { ...args, filters: { ...filtros } } };
+      }) };
+    }
+  }
+
+  // 2 · siembra de evidencia SOLO si el plan quedó vacío. Nunca agrega calls a un plan que ya pidió algo: el
+  // usuario preguntó una cosa, no dos, y duplicar el batch sería pagar tokens por una lectura que nadie pidió.
+  const callsActuales = Array.isArray(out.calls) ? out.calls.filter(Boolean) : [];
+  if (apuntaAlComponente && !callsActuales.length && Array.isArray(vcProj.evidencia) && vcProj.evidencia.length) {
+    const room = Math.max(0, Number(maxCalls) || 6);
+    const sembradas = vcProj.evidencia
+      .filter((e) => e && e.tool)
+      .slice(0, room)
+      // EL `focus` ES PARTE DE LA CALL, NO UNA ANOTACIÓN (corrección 2026-08-09, pase de regresión). El manifiesto
+      // lo declara como campo hermano de `args` porque el índice inverso tool→componente lo indexa aparte, pero al
+      // SEMBRAR la call tiene que viajar DENTRO de args: es el argumento con el que la tool decide de qué subconjunto
+      // habla. Sin esto, "explicá este gráfico" sobre el Pareto sembraba salesRead con su focus default
+      // ("vs_anterior") en vez de "concentracion", y sobre el KPI de quiebres traía capital detenido — la respuesta
+      // correcta a OTRA pregunta, con cifras reales y por eso invisible para los guards de cifras.
+      // `args.focus` explícito gana: si el manifiesto ya lo puso adentro, no se pisa.
+      .map((e) => {
+        const args = { ...(e.args || {}) };
+        if (e.focus && !args.focus) args.focus = e.focus;
+        return { tool: e.tool, args };
+      });
+    if (sembradas.length) out = { ...out, calls: sembradas, intent: out.intent === "ack" ? "answer" : out.intent };
+  }
+  return out;
+}
+
 // ── RUTA DETERMINÍSTICA · consulta simple entidad+métrica (owner "pase quirúrgico de confiabilidad" 2026-07-29,
 // requisito 1) — "¿cuál es el margen de Falabella?" no necesita que un LLM narre libre: el motor YA tiene la cifra
 // exacta, autorizada, con su período. Saltea la Pasada 2 (narrar) ENTERA para este caso puntual — cero chance de
@@ -229,18 +334,19 @@ function _coerceEntityScopedFilters(plan, calls) {
 //   · EXACTAMENTE 1 métrica nombrada en el TEXTO CRUDO de la pregunta (reusa _extractTensionMetrics, ya probado
 //     para tensionRead) — 0 métricas = pide el registro completo (mejor servido por el narrador); 2+ = comparación
 //     o cruce (también mejor servido por el narrador, que puede tejer la relación entre ambas).
-// _SNAPSHOT_TOKENS (owner 2026-07-31, hallazgo en vivo, "Inventario y capital inmovilizado") — toolRunner.js
-// (_PERIODO_HOY/_stampPeriodo) solo reconoce 'inventoryStatus' como tool de "foto a hoy"; cuando la MISMA pregunta
-// de negocio (capital inmovilizado / valor de inventario / rotación) se resuelve para un SKU puntual vía
-// entityRecord (porque inventoryStatus no filtra por SKU), el período quedaba estampado "año cerrado" — inconsistente
-// y engañoso para un concepto que es una foto del stock a hoy, no un acumulado anual. entityRecord trae una FILA
-// MIXTA (campos anuales como venta/margen JUNTO a campos de foto como stock/rotación/DOH) — un solo `res.facts.periodo`
-// por tool no puede ser correcto para ambos a la vez. Acá, en la ruta determinística de UN SOLO CAMPO (donde el
-// token exacto que se va a narrar YA se conoce), el criterio deriva del CAMPO pedido, no de la tool que respondió:
-// si el token es un campo de INVENTARIO/FOTO (stock, rotación, cobertura), el período es "hoy" sin importar que la
-// tool haya sido entityRecord y no inventoryStatus.
-const _SNAPSHOT_TOKENS = new Set(["stockUSD", "rotacion", "doh"]);
-const _PERIODO_HOY_TXT = "foto de inventario a hoy — no es un promedio anual";   // mismo texto canónico que toolRunner.js
+// EL PERÍODO DE LA CITA PUNTUAL SALE DEL TIPO DE ESA CIFRA (owner 2026-07-31, hallazgo en vivo "Inventario y
+// capital inmovilizado"; owner 2026-08-09, decisión 5). Cuando la MISMA pregunta de negocio (capital inmovilizado /
+// valor de inventario / rotación) se resuelve para un SKU puntual vía entityRecord (porque inventoryStatus no
+// filtra por SKU), el período quedaba estampado "año cerrado" — engañoso para un concepto que es una foto del
+// stock a hoy. entityRecord trae una FILA MIXTA (venta y margen del año cerrado JUNTO a stock, rotación y días de
+// inventario de la foto de hoy), así que `facts.periodo` —que ahora declara los DOS marcos— no puede ser el marco
+// de UNA cita puntual. Acá el token exacto que se va a narrar YA se conoce, así que se lee el marco de SU PROPIA
+// fig: el que el contrato ya le puso al tiparla (`figureType.UNIVERSOS[universo].periodo`).
+// Esto reemplaza un `_SNAPSHOT_TOKENS = new Set(["stockUSD","rotacion","doh"])` escrito a mano acá: era la MISMA
+// regla que el contrato ya declaraba, mantenida en paralelo. Con el tipo, además, cubre sola los campos que esa
+// lista no nombraba (cobertura, días sin venta, % del inventario) sin agregarle una línea.
+// Un CONTEO no declara marco propio (hereda el de lo que cuenta: "Unidades vendidas" es del año cerrado,
+// "Unidades en stock" de la foto) → ahí cae al marco que declara el resultado completo, como antes.
 
 function _simpleEntityMetric(q, plan, calls, results) {
   if (!plan || plan.intent !== "answer") return null;
@@ -259,7 +365,9 @@ function _simpleEntityMetric(q, plan, calls, results) {
   const dimension = calls[0].args && calls[0].args.dimension;
   const rec = dimension ? rawRecordFor(dimension, entity) : null;
   const rawValue = rec && typeof rec[token] === "number" ? rec[token] : null;
-  const periodo = _SNAPSHOT_TOKENS.has(token) ? _PERIODO_HOY_TXT : (r.facts.periodo || null);
+  const figCampo = figFor(r.boleta || [], entity, label);           // la fig EXACTA que se va a citar
+  const famCampo = figCampo && figCampo.tipo ? figCampo.tipo.periodo : null;   // "hoy" | "anual" | null (conteo)
+  const periodo = (famCampo && PERIODO_TXT[famCampo]) || r.facts.periodo || null;
   return { entity, label, token, value: r.facts[label], periodo, rec, rawValue };
 }
 
@@ -631,10 +739,25 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario) {
 // oráculo ON, "comparalos" tras seleccionar 2 filas nunca veía esa selección. Se pasa tal cual a
 // resolveConversationReference (conversationScope.js) como UN CANDIDATO MÁS del pool — mismas 4 reglas de
 // validación que cualquier otra fuente (tenant/existencia/dimensión/ambigüedad), nunca un atajo que las salte.
-export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null, uiSignals = null } = {}) {
+// `viewContext` (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix) — OPCIONAL, el CONTEXTO DE PANTALLA del
+// turno (ver viewContext.js). Dos entradas, una sola verdad: el argumento explícito (caller headless/gates) o
+// `uiSignals.viewContext`, que es como llega desde la UI — el hook de Sentrix lo publica con setUISignal, así que
+// ADI lo recibe AUNQUE el usuario haya escrito a mano sin pulsar ningún CTA (requisito 2 del owner). No se
+// construye acá ni se adivina: si no viene, el turno se comporta exactamente como hoy.
+export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null, uiSignals = null, viewContext = null } = {}) {
   if (typeof callPlan !== "function" || typeof callNarrate !== "function") return null;
   const q = (text || "").trim();
   if (!q) return null;
+  // SELLADO AL ENTRAR — el contexto llega de la UI, así que NO se le cree nada hasta que valide: sealViewContext
+  // lo verifica contra ENTITIES/METRICS/SURFACE/el manifiesto, aplica el candado O(1) y lo congela. Un contexto
+  // inválido devuelve null y el turno sigue exactamente como hoy (nunca rompe, nunca se usa a medias).
+  const vistaFresca = sealViewContext(viewContext || (uiSignals && uiSignals.viewContext) || null);
+  // lo que quedó del turno anterior (key hermana de mem.conversationScope, escrita al final de este mismo archivo).
+  const vistaPrev = (mem && mem.viewContext && typeof mem.viewContext === "object") ? mem.viewContext : null;
+  // `vistaCtx` es el contexto VIGENTE para este turno. Arranca con la invalidación que se puede evaluar ANTES de
+  // PLAN (tenant + TTL); después de PLAN se recalcula con la regla de cambio de tema (scope.level="global"), que
+  // es la única que necesita el plan para decidirse. Ver invalidateViewContext.
+  let vistaCtx = invalidateViewContext(vistaPrev, vistaFresca, { plan: null, requestContext, turno: Array.isArray(history) ? history.length : 0 });
   // GUARD DE TENANT (owner 2026-07-29, multiempresa): `requestContext` es OPCIONAL para no romper compatibilidad
   // con los ~30 gates/callers existentes que todavía no lo pasan — pero SI viene, se valida ANTES de tocar el
   // motor. tenantStore.js guarda el tenant activo en una variable global de módulo (correcto para el modelo hoy:
@@ -830,7 +953,18 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada, múltiples entidades)", scope: { level: "list", entities: pendingEntities, dimension: pendingSimulationPrev.dimension }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, ...resolvedPendingSim } }] }
     : (resolvedPendingSim && pendingEntities.length === 1)
     ? { intent: "answer", mode: "simulacion", rationale: "simulación pendiente resuelta (variable faltante contestada)", scope: { level: "entity", entities: pendingEntities }, calls: [{ tool: "simulateGeneral", args: { dimension: pendingSimulationPrev.dimension, entity: pendingEntities[0], ...resolvedPendingSim } }] }
-    : null;
+    // ── EL RESULTADO DEL NEGOCIO (owner 2026-08-09 · decisión 3 · hallazgo L) ────────────────────────────────
+    // ÚLTIMA rama de la cadena a propósito: sólo entra cuando ninguna de las de arriba reclamó el turno, así que
+    // ni la aceptación de una oferta, ni el retorno posicional, ni una simulación pendiente cambian de comporta-
+    // miento. Lo que cierra: "¿cuál es el resultado del negocio después de gastos?" (y estado de resultados /
+    // utilidad / P&L) no las reclama `detectPnlIntent` —la red del flujo guiado, que sigue intacta— así que
+    // llegaban acá, PLAN elegía contributionRead y ADI contestaba la CONTRIBUCIÓN como si fuera el resultado:
+    // dos niveles financieros distintos, cifra real, pregunta equivocada. Con el lenguaje inequívoco el plan lo
+    // arma el motor (mismo principio que los tres bypasses de arriba: lo determinístico no se le delega al LLM) y
+    // PLAN ni se invoca; con lenguaje ambiguo `pnlOraclePlan` devuelve null y PLAN decide normal — `pnlRead` ya
+    // está en su catálogo. La lectura la resuelve `composePnl`, el contrato de siempre: una sola verdad.
+    : pnlOraclePlan(q)
+    || null;
   // conversationScope (Etapa 1) solo interviene sobre un plan REAL de PLAN — los planes sintéticos de arriba
   // (oferta aceptada / retorno posicional / simulación pendiente) ya resolvieron su propio scope de forma
   // determinística por otros mecanismos ya probados (dialogueState.js) — no se les superpone un segundo criterio.
@@ -856,11 +990,17 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // payload de NARRAR), esta lectura ya lo capturaría sin más cambios acá. Sin ese cableado, queda `null` — honesto,
   // nunca un cero fingido — no es una promesa de que HOY viaje, es la plomería lista para cuando viaje.
   const planAttemptTrace = [];
+  // CONTEXTO DE PANTALLA → PLAN (owner 2026-08-09): UNA LÍNEA de ≤240 caracteres, sin una sola cifra de negocio.
+  // Es TODO lo que el LLM ve de Sentrix — nunca la salida del builder, nunca filas, nunca series, nunca el objeto.
+  // Con eso alcanza para que "explicame este gráfico" tenga referente y para que PLAN pida a las tools la evidencia
+  // de ESA métrica, ESE eje y ESE período. `null` cuando no hay panel abierto → el mensaje de PLAN queda
+  // byte-idéntico al de siempre (ver planPrompt.js:buildPlanUserMessage, tercer argumento opcional).
+  const vistaLinea = projectViewContextForPlan(vistaCtx);
   if (!plan) {
     let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" arriba — NUNCA avanza ante un 429/error de infra
     for (let attempt = 0; attempt < 3; attempt++) {
       let p;
-      try { p = await callPlan({ text: q, history, mem, scenario, requestContext, attempt: modelAttempt }); }
+      try { p = await callPlan({ text: q, history, mem, scenario, requestContext, vistaLinea, attempt: modelAttempt }); }
       catch (e) {
         const rateLimited = e && e.code === "rate_limited";
         planAttemptTrace.push({ attempt, ok: false, reason: rateLimited ? "rate_limited (429)" : "error de red/gateway", usage: null });
@@ -893,8 +1033,20 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // en scope.entities (o el texto trae un deíctico/ordinal que PLAN no tiene forma de resolver sin este dato
   // estructurado). Corre ANTES del batch — si la referencia es ambigua o rechazable, corta acá, igual que la
   // aceptación huérfana/retorno ambiguo de arriba (nunca gasta un batch/narración sobre una referencia sin resolver).
+  // ── CONTEXTO DE PANTALLA · INVALIDACIÓN DEFINITIVA DEL TURNO (owner 2026-08-09) ─────────────────────────────
+  // Recién ACÁ existe el plan, y con él la única señal de CAMBIO REAL DE TEMA que este motor reconoce
+  // (scope.level="global", la misma que ya usa updateConversationScope — no se inventa un segundo clasificador).
+  // Si el usuario dijo "el negocio"/"en general", el contexto anterior NO puede contaminar nada: se descarta acá,
+  // y con eso desaparece de la deixis, del backstop de alcance, del payload de NARRAR y de la memoria del turno.
+  vistaCtx = invalidateViewContext(vistaPrev, vistaFresca, { plan, requestContext, turno: Array.isArray(history) ? history.length : 0 });
+  // vcProj: la proyección ESTRUCTURAL para el motor (entidades/filtros/evidencia declarada). Nunca va al prompt.
+  const vcProj = projectViewContextForCoercion(vistaCtx);
+  // referencia de COMPONENTE ("explicame este gráfico") — solo LOCALIZA la pieza; no trae ni una cifra. Su
+  // consumidor es la forma de la respuesta (resolveAnswerShape más abajo) y el backstop de alcance de acá.
+  const compRef = resolveComponentReference(q, vistaCtx);
+
   if (!planWasSynthetic) {
-    const scopeRef = resolveConversationReference(q, plan, conversationScopePrev, requestContext, uiSignals);
+    const scopeRef = resolveConversationReference(q, plan, conversationScopePrev, requestContext, uiSignals, vistaCtx);
     if (scopeRef.kind === "ambiguous") {
       const composed = composeReferenceAmbiguity(scopeRef.options);
       const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
@@ -905,6 +1057,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (out) return out;
     } else if (scopeRef.kind === "resolved") {
       plan = { ...plan, scope: { level: scopeRef.entities.length > 1 ? "list" : "entity", entities: scopeRef.entities } };
+    } else if (scopeRef.kind === "resolved-scope") {
+      // EL CAMINO O(1): la referencia se resolvió a un CRITERIO, no a una lista de nombres ("cuáles de estos
+      // clientes" sobre 300 filas). Viaja como args.filters de las tools que lo aceptan — NUNCA como
+      // scope.entities, que obligaría a materializar los 300 nombres que el contrato prohíbe transportar.
+      const f = scopeRef.filtros && typeof scopeRef.filtros === "object" ? scopeRef.filtros : null;
+      if (f && Object.keys(f).length) {
+        plan = { ...plan, calls: (Array.isArray(plan.calls) ? plan.calls : []).map((c) => {
+          if (!c || !_ENTITY_FILTER_TOOLS.has(c.tool)) return c;
+          const args = (c.args && typeof c.args === "object" && !Array.isArray(c.args)) ? c.args : {};
+          if (args.filters && typeof args.filters === "object" && Object.keys(args.filters).length) return c;
+          return { ...c, args: { ...args, filters: { ...f } } };
+        }) };
+      }
     }
   }
 
@@ -914,6 +1079,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
   const hasThread = (Array.isArray(history) && history.length > 0) || recentNarrationsPrev.length > 0 || !!priorOffer;
   plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread, recentSubjectsPrev) };
+  // CONTEXTO DE PANTALLA → ALCANCE Y EVIDENCIA (owner 2026-08-09, ver _coerceViewScope arriba). Corre ACÁ, entre
+  // _coerceEntityScopedFilters y applySingleEntityScope, a propósito: lo que este backstop fija en plan.scope lo
+  // recogen después las dos etapas de entityScope que ya existen (N=1 y N>1) sin ningún mecanismo nuevo, y lo que
+  // siembra en plan.calls entra al batch como cualquier otra call. Es inerte en todo turno sin panel abierto.
+  if (!planWasSynthetic && vcProj) plan = _coerceViewScope(plan, vcProj, q, maxCalls, compRef);
   // CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 3 (ver toolContracts.js:applySingleEntityScope) — corre DESPUÉS de
   // _coerceEntityScopedFilters (arriba, sin tocar) para cubrir las tools que ese mecanismo pre-Etapa-3 no alcanza
   // (entityProfile/entityRecord/trend/gridTable/tensionRead/inventoryStatus) cuando el scope ya trae EXACTAMENTE 1
@@ -960,8 +1130,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (dimension === "cliente" || !dimension) {
         const hasComposicion = plan.calls.some((c) => c && c.tool === "entityComposicion" && (c.entity || (c.args && c.args.entity)) === entity);
         if (!hasComposicion) extra.push({ tool: "entityComposicion", args: { dimension: "cliente", entity } });
+        // CAPITAL LIGADO · sólo si el dato sostiene la relación cliente×SKU (owner 2026-08-09, decisión 9): con
+        // el tenant demo esa relación es una afinidad modelada que alcanza TODO el inventario, así que la tool
+        // declina — agregarla igual gastaba un slot del plan en una call que no puede responder. La medición es
+        // la MISMA que usa el composer (clientCapitalRelacion), nunca un criterio paralelo.
         const hasCapitalLigado = plan.calls.some((c) => c && c.tool === "entityCapitalLigado" && (c.entity || (c.args && c.args.entity)) === entity);
-        if (!hasCapitalLigado) extra.push({ tool: "entityCapitalLigado", args: { dimension: "cliente", entity } });
+        if (!hasCapitalLigado && clientCapitalRelacion({ entity, scenario }).estado !== "unsupported") {
+          extra.push({ tool: "entityCapitalLigado", args: { dimension: "cliente", entity } });
+        }
       }
       const room = Math.max(0, maxCalls - plan.calls.length);
       if (room > 0 && extra.length) plan = { ...plan, calls: [...plan.calls, ...extra.slice(0, room)] };
@@ -1092,6 +1268,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // (a diferencia de ofertaPendiente/lastOffer, que solo existen DESPUÉS de que la narración exista), así que acá
   // sí queda correctamente poblado para la lectura mid-turno de NARRATE (getRecentSubjects vía persona.js).
   mem2 = { ...mem2, conversationScope: { ...conversationScopeNow, recentSubjects: recentSubjectsNow } };
+  // CONTEXTO DE PANTALLA · MEMORIA DEL TURNO (owner 2026-08-09) — key HERMANA de conversationScope, escrita en el
+  // MISMO punto y con la misma convención de `turno` (history.length), nunca una memoria paralela con su propio
+  // ciclo de vida. Guarda el contexto YA invalidado de este turno: si el usuario cambió de tema (scope global),
+  // `vistaCtx` es null y acá se persiste null — el turno siguiente arranca sin nada que heredar, que es
+  // exactamente lo que impide la contaminación. Si no cambió, el turno siguiente puede reusarlo por
+  // VIEW_CONTEXT_TTL_TURNOS aunque el usuario haya cerrado el panel.
+  mem2 = { ...mem2, viewContext: viewContextEntry(vistaCtx, history.length) };
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
@@ -1137,10 +1320,27 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   //      narrador libre"); ahora responde determinísticamente que no hay información autorizada suficiente,
   //      citando la razón REAL si algún tool ya la declaró, y cierra pidiendo la precisión que falta — nunca
   //      inventa, nunca se abstiene en silencio.
+  // CONTRATO DE RESPUESTA · "SOLO EL DATO" = DATO + PERÍODO + ALCANCE, NADA MÁS (owner 2026-08-09). Los dos
+  // primeros ya estaban (composeFromLedger da el dato, ensurePeriodoDeclared el período); el ALCANCE faltaba, y sin
+  // él una tabla de cifras no dice sobre QUÉ universo está medida — que es justamente lo que hace que una cifra
+  // pelada se pueda leer mal. Se compone del alcance YA sellado (sealScopeContract, la misma función que usa el
+  // contrato de narración) y sin ningún número, así que no introduce ninguna cifra que el guard deba autorizar.
+  // Solo cuando hubo dato: al mensaje de "no tengo información" no le corresponde declarar alcance de nada.
+  // EL ALCANCE ES ADITIVO, NUNCA UNA CONDICIÓN DE FALLA (revisión 2026-08-09). Esta rama NO tiene reparación río
+  // abajo: la de más abajo excluye explícitamente data_only/results_only, así que un `guardC` en rojo acá no
+  // degrada — hace que answerViaOracle devuelva null y el oráculo se abstenga del turno entero. La línea de alcance
+  // se compone de `plan.scope.entities` y de `args.filters`, que son texto EMITIDO POR EL LLM del PLAN: basta un
+  // nombre apenas corrido de su forma canónica para que el guard lo lea como entidad corrupta. Por eso se prueba
+  // PRIMERO con alcance y, si el guard lo rechaza, se reintenta SIN él — ese segundo texto es byte-idéntico al que
+  // esta rama componía antes de que el alcance existiera, así que la mejora no puede empeorar ningún turno.
   if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
-    const composed = composeFromLedger(figs, pref.contentScope) || composeNoDataMessage(results);
-    const c = ensurePeriodoDeclared(composed, periodos);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
+    const desdeLedger = composeFromLedger(figs, pref.contentScope);
+    const base = desdeLedger || composeNoDataMessage(results);
+    const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
+    for (const candidato of (alcanceLinea ? [`${base}\n\n${alcanceLinea}`, base] : [base])) {
+      const c = ensurePeriodoDeclared(candidato, periodos);
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; break; }
+    }
   }
 
   // ── ORIENTACIÓN INICIAL MID-CONVERSACIÓN (Fase 3, la tarea que la nombra) — disparador DETERMINÍSTICO (mismo
@@ -1159,6 +1359,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // No es una sugerencia: viaja sellada en el contrato (politicaExtension.tablePolicy) y guardC valida LA
   // DECIDIDA. `required` gana sobre `forbidden`: si el usuario pidió la tabla, se le tabula lo que haya.
   const tablePolicy = resolveTablePolicy({ text: q, podado: _disclosure.podado });
+  // CONTRATO DE RESPUESTA PROPORCIONAL (owner 2026-08-09) — la MISMA clase de decisión que tablePolicy, un eje más:
+  // cuánta respuesta le corresponde a este turno. Se computa acá, junto a ella, porque necesita exactamente lo mismo
+  // (el texto, el plan ya resuelto y la preferencia efectiva) y su único consumidor es el payload de NARRAR.
+  //   solo_dato · explicar_componente · puntual · tres_reglas · null (otro contrato ya gobierna la forma)
+  // La precedencia vive ENTERA en resolveAnswerShape (progressiveDisclosure.js): `pref` gana siempre, clarify
+  // reemplaza el arco, y recién después opinan el contexto de pantalla y la forma de la pregunta.
+  const formaRespuesta = resolveAnswerShape({ text: q, plan, viewContext: vistaCtx, pref });
 
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
   // results_only YA se resolvieron arriba, SIEMPRE (con datos o sin ellos) — la condición de abajo los excluye
@@ -1199,7 +1406,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // hiccup transitorio en ESE intento específico no debe tirar el turno completo: reintenta (mismo presupuesto de
     // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, attempt: modelAttempt }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext: vistaCtx, formaRespuesta, attempt: modelAttempt }); }
     catch (e) {
       narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message), usage: null });
       const wait = _rateLimitBackoffMs(e);
@@ -1336,13 +1543,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // fórmula) nunca sale narrada como si fuera un hecho medido. Corre DESPUÉS de recentNarrations a propósito: la
   // nota es del renderer, no del narrador — no debe entrar en la memoria de repetición ni en extractOffer.
   const textoFinal = gradeIndicatedClaims(narration, claims, pref.contentScope);
+  // la evidencia se arma UNA vez y se reusa: el CTA se compone de su `address` (misma referencia, nunca una
+  // segunda construcción que pudiera divergir de lo que el panel abre).
+  const evidence = buildOracleEvidence({ plan, results, figs, scenario, unsupported });
 
   return {
     r: normalizeResponse({
       text: textoFinal,
       route: "oracle",
       claims,
-      evidence: buildOracleEvidence({ plan, results, figs, scenario, unsupported }),
+      evidence,
       // trazabilidad multiempresa (owner 2026-07-29): qué tenant/snapshot/esquema respondió este turno — nunca se
       // manda al LLM (no es parte del contrato conversacional), solo viaja en la evidencia para auditoría/debug.
       ...(requestContext ? { requestContext: { tenantId: requestContext.tenantId, dataSnapshotId: requestContext.dataSnapshotId, conversationId: requestContext.conversationId, schemaVersion: requestContext.schemaVersion } } : {}),
@@ -1361,13 +1571,17 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // intento, SOLO debug/telemetría (nunca condiciona el motor). Se cruza en ChatADI.jsx con el modelo/latencia/
       // costo real de cada intento (capturado en el fetch) para dejar el ruteo observable por turno completo.
       ...((planAttemptTrace.length || narrateAttemptTrace.length) ? { retryTrace: { plan: planAttemptTrace, narrate: narrateAttemptTrace } } : {}),
-      // suggestions/sentrixAction siguen en null A PROPÓSITO (Fase 4): el motor YA tiene con qué llenarlos
-      // (mem2.lastOffer es literalmente la próxima acción ofrecida, y el alcance sellado da el módulo del CTA),
-      // pero encenderlos hace aparecer chips y un botón donde hoy no hay ninguno — un cambio VISIBLE que no se
-      // puede validar sin corridas en vivo. Además el CTA está inerte por otra razón: App.jsx monta <ChatADI> sin
-      // `onSentrixAction`, así que hoy el botón no se renderiza en ninguna ruta. Queda reportado, no encendido.
+      // `suggestions` sigue en null A PROPÓSITO (Fase 4): el motor tiene con qué llenarlo (mem2.lastOffer es
+      // literalmente la próxima acción ofrecida) pero encenderlo hace aparecer chips donde hoy no hay ninguno.
       suggestions: null,
-      sentrixAction: null,
+      // ── EL CTA, ENCENDIDO (owner 2026-08-09 · objetivo 3 del Contrato de Concordancia) ────────────────────────
+      // "Si ADI afirma algo, «Ver evidencia en Sentrix» abre la vista, sección, entidad y filtro EXACTOS que lo
+      // respaldan." El botón estaba doblemente inerte: acá devolvía null y App.jsx montaba <ChatADI> sin
+      // `onSentrixAction`. Las dos mitades quedan cerradas. La acción se compone DESDE LA DIRECCIÓN (address.js,
+      // determinística sobre el plan y el evidenceSpec — nunca sobre la prosa), y devuelve null cuando no hay
+      // dirección resoluble: no se pinta un botón que no lleva a ningún lado. `normalizeSentrixAction`
+      // (responseContract.js) valida la forma río abajo, así que un CTA mal formado se descarta, no viaja roto.
+      sentrixAction: _sentrixActionDe(evidence),
     }),
     mem: mem2,
   };

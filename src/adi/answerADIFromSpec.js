@@ -356,7 +356,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
     if (spec.operation === "temporal") {
       const tl = spec.temporal || { tipo: "mes_a_mes" };
       const dimT = spec.dimension === "canal" ? "canal" : (tl.desglose ? spec.dimension : null);
-      const resp = composeSpecTemporal({ metric: spec.metric, dimension: dimT, entity: spec.entity || null, periodo: tl.tipo ? tl : null });
+      const resp = composeSpecTemporal({ metric: spec.metric, dimension: dimT, entity: spec.entity || null, periodo: tl.tipo ? tl : null, scenario });
       if (resp && resp.reason === "declarada") {
         const out0 = _plain(resp.texto, { route: "temporal_declarado", intent: "spec", ctx, offer: [] });
         out0.suggestions = resp.sugerencias || null;

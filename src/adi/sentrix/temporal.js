@@ -9,6 +9,7 @@ import { ventasMensuales, ventasKPI } from "../../data/baseKpis.js";
 import { historialMargen, clientesMargen, clientesVentas, marcasVentas, marcasMargen, sfamiliasVentas, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { onTenantChange } from "../../data/tenantStore.js";   // F1 multiempresa · las anclas del período se re-arman en initTenant
+import { getVentasKPI } from "../../engine/metrics.js";       // el total de ventas DEL ESCENARIO (el mismo que lee la card de la Mesa) — ver buildGlobalEvolutionAnclada
 
 const _sum = (a) => a.reduce((x, y) => x + y, 0);
 const _round1 = (n) => Math.round(n * 10) / 10;
@@ -102,6 +103,49 @@ export function buildGlobalEvolution() {
     meses, actual, anterior, presupuesto, seq24, n, nSeq: seq24.length,
     max, min, maxMes, minMes, drop, growth,
     totAct, totAnt, totPpto, vsAnterior, vsPresupuesto,
+  };
+}
+
+/* ── LA CURVA DEL NEGOCIO, ANCLADA · UNA implementación para las DOS puntas ────────────────────────────────────
+ * (owner 2026-08-09, decisión 4 · hallazgo C: "Sentrix y ADI deben consumir LA MISMA transformación de escenario,
+ *  nunca implementaciones paralelas")
+ *
+ * EL DEFECTO QUE CIERRA. `buildGlobalEvolution()` devuelve la serie CRUDA de `ventasMensuales`: no conoce el
+ * escenario y no cierra con la venta oficial por cliente (Σ mensual = 100.000 · Σ clientesVentas = 99.887 en
+ * bonanza, 92.828 en tensión, 81.091 en crisis). El evolutivo de Sentrix ya resolvía las dos cosas anclando con
+ * `anchorSerie`; `composeSpecTemporal` llamaba a `buildGlobalEvolution()` pelado. Resultado medido: la pantalla
+ * decía $99.9M / $92.8M / $81.1M y `trend` contestaba $100.0M en los tres — cifra real, escenario ajeno.
+ *
+ * QUÉ ANCLA Y QUÉ NO. Las dos series con contraparte oficial por cliente (este año, año anterior) se re-escalan a
+ * ese total; el PRESUPUESTO no, porque es un plan declarado y no tiene contraparte por cliente contra la cual
+ * conciliarlo. Es la misma regla que ya declaraba la leyenda del gráfico, ahora en un solo lugar.
+ *
+ * DE DÓNDE SALE EL ANCLA. `getVentasKPI(null, null, scenario)` — la MISMA llamada que hace `sentrix/mesa.js` para
+ * la card de ventas, y el total que el owner ya declaró como una sola verdad con la respuesta de ADI (2026-07-15).
+ * Es scenario-aware (`SCENARIO_TRANSFORMS[scn].kpis.ventas`: 99.999 · 92.892 · 81.182), a diferencia de
+ * `ventasKPI`, que es un literal fijo y es el que hacía que la tool contestara lo mismo en los tres escenarios.
+ * NO se usa `deriveKpis` (Σ de las filas transformadas: 99.887 · 92.828 · 81.091) aunque sea el total de la cara
+ * Comercial: son dos anclas separadas por el ~0,1% que el dataset arrastra entre `ventasKPI` y Σ`clientesVentas`,
+ * y elegir cuál es LA venta oficial es decisión del owner. Acá se conserva la que ADI ya tenía comprometida y el
+ * resto queda declarado en el manifiesto.
+ */
+export function ventaOficialDelPeriodo(scenario = "actual") {
+  const k = getVentasKPI(null, null, scenario) || {};
+  return { actual: k.totalActual || null, anterior: k.totalAnterior || null };
+}
+// `oficial` explícito gana sobre el escenario: el llamador que YA resolvió su venta oficial (Sentrix, desde el
+// total del cuadro) sigue anclando contra la suya, byte-idéntico — lo que se comparte es el anclaje, no el ancla.
+export function buildGlobalEvolutionAnclada(scenario = "actual", oficial = null) {
+  const ev = buildGlobalEvolution();
+  if (!ev || !ev.n || !Array.isArray(ev.actual)) return null;
+  const of = oficial || ventaOficialDelPeriodo(scenario);
+  return {
+    ...ev,
+    actual:      of && of.actual   ? _anchor(ev.actual, of.actual)     : ev.actual,
+    anterior:    of && of.anterior ? _anchor(ev.anterior, of.anterior) : ev.anterior,
+    presupuesto: ev.presupuesto,
+    oficial: of || null,
+    anclada: { actual: !!(of && of.actual), anterior: !!(of && of.anterior), presupuesto: false },
   };
 }
 

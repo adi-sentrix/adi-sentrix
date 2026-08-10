@@ -10,6 +10,7 @@
  */
 import { parseFigures } from "../boleta.js";
 import { buildClaims } from "./narrationContract.js";   // Proporcionalidad Semántica: el guard lee el MISMO sello que el narrador
+import { reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";   // decisiones 1 y 11: el TIPO de la cifra y qué reconcilia con qué
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -359,24 +360,43 @@ const _CAUSA_TOTAL = /\b(la (?:principal|mayor) causa|la causa principal|se debe
 // El hueco medido: _attributionViolations solo juzga cuando hay UNA entidad cerca; "el negocio" no es una entidad,
 // así que entidad→negocio pasaba SIEMPRE, en los seis ejes. Acá se cierra con el mismo criterio nítido invertido:
 // la cifra es de una entidad, la ventana declara sujeto-negocio, y la dueña NO aparece en NINGUNA parte del texto.
-function _sujetoGeneralizado(narration, claims) {
+//
+// EL SEGUNDO HUECO, ESTRUCTURAL (owner 2026-08-09, hallazgo G): el filtro era `sujetoTipo === "entidad"`, y ese
+// campo depende de que el LABEL venga con el separador " · ". Cuando el ledger etiquetaba con el nombre PELADO
+// —11 claims de marginRead, 9 de salesRead— el claim salía `sujetoTipo: "negocio"` y este chequeo se lo saltaba:
+// era ciego EXACTAMENTE en el caso que existe para atrapar. Medido antes del arreglo: «Tu negocio cerró el año en
+// $19.4M» (siendo $19.4M de Falabella) pasaba con ok=true, verdict "fiel".
+// Ahora el dueño se resuelve con `_duenoDelClaim`, que NO depende del parseo del label: si el label nombra una de
+// las entidades REALES del turno (misma fuente tenant-safe que ya usan los chequeos 3/5/10), esa es la dueña.
+// Un label sin entidad reconocible sigue sin juzgarse — un concepto ("Capital inmovilizado · total") no tiene dueña
+// que ocultar, y marcarlo sería el falso positivo que este criterio nítido evita desde el principio.
+function _duenoDelClaim(c, entityNames) {
+  if (c.sujetoTipo === "entidad" && c.entidad) return c.entidad;
+  const lbl = String((c && c.etiqueta) || "");
+  if (!lbl) return null;
+  const owners = _figEntityOwners(lbl, entityNames || []);
+  return owners.length === 1 ? owners[0] : null;   // dos entidades en el mismo label → ambiguo, no se juzga
+}
+function _sujetoGeneralizado(narration, claims, entityNames = []) {
   const out = [];
   const text = String(narration || "");
   const masked = _maskFigures(text);
   const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const textoNorm = norm(text);
   for (const c of claims) {
-    if (!c || c.sujetoTipo !== "entidad" || !c.entidad || !c.valor) continue;
-    if (textoNorm.includes(norm(c.entidad))) continue;   // la dueña está nombrada: no hay generalización
+    if (!c || !c.valor) continue;
+    const dueno = _duenoDelClaim(c, entityNames);
+    if (!dueno) continue;
+    if (textoNorm.includes(norm(dueno))) continue;   // la dueña está nombrada: no hay generalización
     let idx = -1;
     while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
       const [lo, hi] = _localWindow(masked, idx, 90);
       const ventana = text.slice(lo, hi);
       if (!_SUJETO_NEGOCIO.test(ventana) && !_EXPANSION.test(ventana)) continue;
       // si en la misma ventana aparece OTRA entidad, el caso es ambiguo → no se juzga (criterio nítido)
-      const otras = claims.filter((x) => x.sujetoTipo === "entidad" && x.entidad && x.entidad !== c.entidad && norm(ventana).includes(norm(x.entidad)));
+      const otras = (entityNames || []).filter((n) => n !== dueno && norm(ventana).includes(norm(n)));
       if (otras.length) continue;
-      out.push(`"${c.valor}" es de ${c.entidad} (${c.eje || "entidad"}) pero se narra como si fuera del negocio, sin nombrarla: "${ventana.trim().slice(0, 110)}"`);
+      out.push(`"${c.valor}" es de ${dueno} (${c.eje || "entidad"}) pero se narra como si fuera del negocio, sin nombrarla: "${ventana.trim().slice(0, 110)}"`);
       break;
     }
   }
@@ -418,6 +438,79 @@ function _causaSobredimensionada(narration, claims) {
       if (!_CAUSA_TOTAL.test(ventana)) continue;
       out.push(`"${c.valor}" (${c.etiqueta}) explica una PARTE comprobada, pero se narra como la explicación completa: "${ventana.trim().slice(0, 110)}"`);
       break;
+    }
+  }
+  return out;
+}
+
+// ══ 17 · CRUCE DE UNIVERSOS QUE NO RECONCILIAN (owner 2026-08-09, decisiones 1 y 11) ═══════════════════════════
+// EL CASO, TEXTUAL: «SAM-TV55 factura $13.3M y sostiene ese volumen con $13K de inventario: menos de un día de
+// cobertura». Las DOS cifras son reales y las dos están autorizadas: $13.3M es la venta del SKU (skusMargen.venta,
+// almacenada en MILES) y $13K su stock (skuInventario.stockUSD, en dólares CRUDOS). El muro numérico no tenía nada
+// que objetar —canon `money:$13.3M` y `money:$13K`, ambos en el ledger— y la oración pasaba con ok=true. La mentira
+// no está en ningún número: está en la RELACIÓN, porque los dos números viven en universos separados por ×1000 de
+// escala (y por unidades del mismo SKU que difieren 4x–35x entre las dos fuentes). Dividir uno por otro no da
+// cobertura: da basura, y esa basura sonaba a insight.
+//
+// QUÉ HACE. Cada cifra del ledger declara su `tipo.universo` (boleta.js + config/contract/figureType.js) y el
+// contrato declara qué universo reconcilia con cuál y por qué (DIVERGENCIAS). Acá se juzga una sola cosa: dos
+// cifras de universos DECLARADAMENTE divergentes, atadas por una construcción RELACIONAL, dentro de la MISMA
+// oración. BLOQUEA — es la clase de afirmación que cambia la decisión del que lee.
+//
+// POR QUÉ EXIGE LA CONSTRUCCIÓN RELACIONAL, y no basta con la coexistencia: el propio motor emite listas donde las
+// dos cifras conviven sin relacionarse ("• SAM-TV55: vende $13.3M — stock 18 unidades ($13K), 58 días de
+// inventario"). Esa enumeración es texto SELLADO del composer; bloquearla dejaría inservible toda narración de
+// `inventoryStatus{top_sellers}` sin corregir ninguna afirmación falsa. Mismo criterio nítido que el resto de la
+// Fase 2: falso negativo antes que falso positivo.
+const _CRUCE_RELACIONAL = /\b(sostiene\w*|sosteniendo|soporta\w*|soportando|cubre\w*|cubriendo|alcanza para|apenas alcanza|por cada|equivale\w*|equivalente a|frente a|versus|vs\.?|comparad[oa]s? con|en relaci[oó]n (?:a|con)|respecto (?:a|de)|proporci[oó]n|ratio|con (?:apenas|solo|s[oó]lo|tan solo)|menos de (?:un|una|\w+) d[ií]as? de (?:cobertura|inventario))\b/i;
+// _oraciones(text) → [[lo,hi]] · límites calculados sobre el texto con las cifras ENMASCARADAS, para que el punto
+// decimal de "$13.3M" no corte una oración en falso (mismo motivo y misma técnica que el chequeo 9).
+function _oraciones(text) {
+  const masked = _maskFigures(text);
+  const out = [];
+  let start = 0;
+  for (let i = 0; i < masked.length; i++) {
+    if (_SENT_END.test(masked[i])) { if (i + 1 > start) out.push([start, i + 1]); start = i + 1; }
+  }
+  if (start < masked.length) out.push([start, masked.length]);
+  return out;
+}
+// canon → Set(universo). Un mismo valor puede pertenecer a más de un universo en el mismo turno (dos cifras
+// distintas que se formatean igual): eso se conserva, y abajo sólo se marca cuando NINGUNA combinación reconcilia.
+function _universeOwners(ledger) {
+  const owners = new Map();
+  for (const f of (ledger && ledger.figs) || []) {
+    const u = f && f.tipo && f.tipo.universo;
+    if (!u || !UNIVERSOS[u]) continue;
+    if (!owners.has(f.canon)) owners.set(f.canon, new Set());
+    owners.get(f.canon).add(u);
+  }
+  return owners;
+}
+function _cruceDeUniversos(narration, ledger) {
+  const owners = _universeOwners(ledger);
+  if (owners.size < 2) return [];
+  const text = String(narration || "");
+  const out = [];
+  const vistos = new Set();
+  for (const [lo, hi] of _oraciones(text)) {
+    const oracion = text.slice(lo, hi);
+    if (!_CRUCE_RELACIONAL.test(oracion)) continue;   // sin construcción que ATE las dos cifras → no se juzga
+    const figs = parseFigures(oracion).filter((f) => owners.has(f.canon));
+    for (let i = 0; i < figs.length; i++) for (let j = i + 1; j < figs.length; j++) {
+      const a = figs[i], b = figs[j];
+      if (a.canon === b.canon) continue;
+      const ua = [...owners.get(a.canon)], ub = [...owners.get(b.canon)];
+      // sólo se marca si TODAS las lecturas posibles del par divergen: si alguna combinación reconcilia, la
+      // oración tiene una lectura honesta y no se juzga (mismo principio que la ambigüedad del chequeo 9).
+      const veredictos = [];
+      for (const x of ua) for (const y of ub) veredictos.push(reconcilian(x, y));
+      if (!veredictos.length || !veredictos.every((v) => v.estado === "divergent")) continue;
+      const clave = `${a.canon}|${b.canon}`;
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      const A = UNIVERSOS[ua[0]], Bu = UNIVERSOS[ub[0]];
+      out.push(`«${a.text}» (${A.etiqueta}) y «${b.text}» (${Bu.etiqueta}) se relacionan en la misma oración y NO reconcilian: ${veredictos[0].razon}`);
     }
   }
   return out;
@@ -846,13 +939,21 @@ function _familiaDePeriodo(texto) {
 }
 // periodosEsperados(results) → array de familias ("anual"/"hoy") presentes este turno · [] si ninguna tool trajo
 // cifras (turnos ack/define/redirect sin calls, o tools sin boleta) → ensurePeriodoDeclared no toca nada.
+// `facts.periodos` MANDA sobre la frase (owner 2026-08-09, decisión 5): desde que el marco sale de la naturaleza
+// de cada cifra, un resultado puede ser MIXTO (la fila completa de un SKU trae venta del año cerrado y stock de la
+// foto de hoy) y leer eso con un regex sobre la frase se quedaría con UNA sola familia — la respuesta terminaría
+// declarando un marco y callando el otro. El array es la declaración estructurada; la frase sigue como respaldo
+// para cualquier composer que estampe su propio `periodo` sin pasar por `_stampPeriodo`.
 export function periodosEsperados(results) {
   const set = new Set();
   for (const r of results || []) {
-    const p = r && r.facts && (r.facts.periodo || (r.facts.marco_temporal && r.facts.marco_temporal.periodo));
+    const f = r && r.facts;
+    if (!f) continue;
+    if (Array.isArray(f.periodos) && f.periodos.length) { for (const x of f.periodos) if (_PERIODO_FAMILIAS[x]) set.add(x); continue; }
+    const p = f.periodo || (f.marco_temporal && f.marco_temporal.periodo);
     if (p) { const fam = _familiaDePeriodo(p); if (fam) set.add(fam); }
   }
-  return [...set];
+  return ["anual", "hoy"].filter((x) => set.has(x));
 }
 function _periodoDeclarado(narration, familias) {
   const text = String(narration || "");
@@ -1009,6 +1110,64 @@ function _isCalc2(raw, unit, authFigs, entityNames) {
   return false;
 }
 
+// ── 18 · TRANSFERENCIA NO EVALUABLE (owner 2026-08-09, decisión 13) ────────────────────────────────────────────
+// EL DEFECTO QUE CIERRA. La respuesta natural a "tenés $25K detenidos en Valparaíso y $8K en Antofagasta" es
+// "movelo a donde se vende". Ese movimiento NO se puede evaluar sobre este dato: ningún SKU aparece en más de una
+// bodega, así que no hay dos colocaciones que comparar — el usuario no puede ejecutarlo y nosotros no podemos
+// comprobarlo. Sentrix ya retiró la recomendación de sus tres superficies; ADI la seguía pudiendo decir, con
+// cifras REALES y por eso invisible a todo el muro numérico. Misma familia que el chequeo 7
+// (`simulacion-sin-costo-concluye`): la tool DECLARA su límite y la narración no puede concluir por encima de él.
+//
+// DISPARA SOLO SI LA TOOL LO DECLARÓ. `facts.limite_transferencia` lo pone `inventoryStatus` leyendo
+// `transferenciaCapability` — la misma cuenta de Sentrix, sobre las filas del escenario activo. El día que un SKU
+// esté en dos bodegas, la declaración desaparece y este chequeo se apaga solo: no hay ninguna regla escrita acá
+// sobre cuántas bodegas tiene este tenant.
+//
+// CRITERIO NÍTIDO (mismo principio que el resto de la Fase 2 — falso negativo antes que falso positivo): hacen
+// falta LAS TRES cosas en la MISMA oración: (a) un verbo de traslado, (b) el objeto trasladado (stock/inventario/
+// capital/mercadería/unidades/SKU) y (c) que el traslado sea ENTRE UBICACIONES — la frase "entre bodegas" o dos
+// bodegas distintas NOMBRADAS, tomadas del propio resultado (nunca de una lista fija). Y la oración NEGADA queda
+// fuera: declinar bien es exactamente lo que se busca, así que "no puedo evaluar mover stock entre bodegas" tiene
+// que pasar. "Rotar", "liquidar" y "bajar a lista" no son traslados y nunca caen.
+const _TRASLADO_VERBO = /\b(transfer\w+|traslad\w+|reubic\w+|redistribu\w+|reasign\w+|mover|muev\w+|movi[eé]ndo\w*|mand[aá]\w*|env[ií]\w+|llev[aá]\w*)\b/i;
+const _TRASLADO_OBJETO = /\b(stock|inventario|capital|mercader[ií]a|unidades|producto\w*|sku)\b/i;
+const _TRASLADO_ENTRE = /\bentre\s+(bodegas?|sucursal\w*|locales?|centros?|dep[oó]sitos?)\b|\b(?:a|hacia)\s+(?:otra|otro)\s+(bodega|sucursal|local|dep[oó]sito)\b/i;
+const _TRASLADO_NEGADO = /\bno\s+(?:puedo|podemos|se\s+puede|es\s+posible|permite|permiten|alcanza|hay\s+(?:forma|manera|c[oó]mo)|tengo\s+c[oó]mo)\b|\bimposible\b|\bsin\s+poder\b|\bno\s+es\s+evaluable\b|\bno\s+recomiendo\b|\bevitar\b/i;
+// las bodegas del INVENTARIO COMPLETO, no las del foco que se está mirando: la recomendación mueve stock hacia una
+// bodega que puede no estar en la respuesta (el foco "capital detenido" trae Valparaíso y Antofagasta, y la frase
+// que hay que impedir dice "…a Santiago"). El catálogo viaja en la propia declaración de la tool, que lo saca de
+// `transferenciaCapability` — nunca hay un nombre de tenant escrito acá.
+function _bodegasDeclaradas(results) {
+  const out = new Set();
+  for (const r of results || []) {
+    const lim = r && r.facts && r.facts.limite_transferencia;
+    for (const b of (lim && lim.bodegasNombres) || []) if (b) out.add(String(b));
+    const inv = r && r.facts && r.facts.inventory;
+    for (const b of (inv && inv.byBodega) || []) if (b && b.bodega) out.add(String(b.bodega));
+    for (const s of (inv && inv.bySku) || []) if (s && s.bodega) out.add(String(s.bodega));
+  }
+  return [...out];
+}
+const _esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function _transferenciaNoEvaluable(narration, results) {
+  const declarado = (results || []).some((r) => r && r.facts && r.facts.limite_transferencia && r.facts.limite_transferencia.evaluable === false);
+  if (!declarado) return null;
+  const text = String(narration || "");
+  const bodegas = _bodegasDeclaradas(results);
+  for (const [lo, hi] of _oraciones(text)) {
+    const o = text.slice(lo, hi);
+    if (_TRASLADO_NEGADO.test(o)) continue;                       // la declinación honesta NO se castiga
+    if (!_TRASLADO_VERBO.test(o) || !_TRASLADO_OBJETO.test(o)) continue;
+    const nombradas = bodegas.filter((b) => new RegExp(`\\b${_esc(b)}\\b`, "i").test(o));
+    // dos ubicaciones nombradas · la frase "entre bodegas" · o una dirección explícita hacia UNA bodega real
+    // ("…movelo a Santiago"): las tres son el mismo movimiento, y ninguna es evaluable sobre este dato.
+    const direccion = bodegas.some((b) => new RegExp(`\\b(?:a|hacia|desde|hasta)\\s+(?:la\\s+(?:bodega|sucursal)\\s+(?:de\\s+)?)?${_esc(b)}\\b`, "i").test(o));
+    if (!_TRASLADO_ENTRE.test(o) && nombradas.length < 2 && !direccion) continue;
+    return `la respuesta propone mover stock entre bodegas («${o.trim().slice(0, 120)}») y ese movimiento NO es evaluable sobre este dato: cada SKU aparece en una sola bodega, así que no hay dos colocaciones que comparar`;
+  }
+  return null;
+}
+
 // _placeholderSinRellenar(narration) → texto del placeholder | null (owner 2026-07-31, hallazgo en vivo, auditoría
 // integral) — cuando PLAN deja `calls` vacío pese a que la doctrina lo prohíbe (ver
 // answerViaOracle.js/_hasEmptyRedirectCalls), NARRATE a veces redacta la respuesta con placeholders LITERALES sin
@@ -1106,7 +1265,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // sello vive en narrationContract.buildClaims y acá solo se lee. Si el turno no trae boleta, no hay nada que
   // juzgar y los cuatro salen vacíos solos.
   const claimsPS = buildClaims(figs);
-  for (const v of _sujetoGeneralizado(narration, claimsPS)) violations.push({ kind: "sujeto-generalizado", detail: v });
+  for (const v of _sujetoGeneralizado(narration, claimsPS, entityNames)) violations.push({ kind: "sujeto-generalizado", detail: v });
   const procViol = _procedenciaNoAutorizada(narration, claimsPS);
   if (procViol) violations.push({ kind: "procedencia-no-autorizada", detail: procViol });
   const nivelViol = _nivelNoAutorizado(narration, claimsPS);
@@ -1119,6 +1278,16 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   else if (tablePolicy === "required" && !_tieneTabla(narration)) {
     violations.push({ kind: "tabla-faltante", detail: "el turno pidió explícitamente una tabla (o la serie mes a mes / un desglose) y la respuesta no trae ninguna — responder en prosa lo que se pidió tabulado también es incumplir" });
   }
+  // 17 · CRUCE DE UNIVERSOS (owner 2026-08-09, decisiones 1 y 11) — dos cifras REALES de universos que el contrato
+  // declara divergentes (venta comercial en miles ↔ inventario en dólares crudos), atadas por una construcción
+  // relacional en la misma oración. BLOQUEA: los números son verdad y la relación es falsa, que para quien decide
+  // es peor que un número inventado — suena a insight y no lo es. Ver _cruceDeUniversos arriba.
+  for (const v of _cruceDeUniversos(narration, ledger)) violations.push({ kind: "cruce-de-universos", detail: v });
+  // 18 · TRANSFERENCIA NO EVALUABLE (owner 2026-08-09, decisión 13) — la tool declaró que mover stock entre bodegas
+  // no se puede evaluar sobre este dato y la narración lo recomienda igual. BLOQUEA por la misma razón que el
+  // chequeo 7: es una conclusión que el dato no respalda, dicha con cifras reales. Ver _transferenciaNoEvaluable.
+  const transf = _transferenciaNoEvaluable(narration, results);
+  if (transf) violations.push({ kind: "transferencia-no-evaluable", detail: transf });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución

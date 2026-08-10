@@ -49,6 +49,12 @@
  * (history: tope 3, más-reciente-primero, nunca incluye a `current`)
  */
 import { guessDimension } from "./entityRecord.js";
+import { PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";   // la etiqueta corta del marco mixto (decisión 5)
+// DEIXIS DE COMPONENTE (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): la expresión vive en
+// progressiveDisclosure.js —donde se decide la FORMA de la respuesta, que la necesita para "explicame este
+// gráfico"— y acá se importa. NUNCA se declara una segunda: mismo criterio que DEICTIC_PLURAL_RE (que vive acá y
+// scenarioIntent.js importa de acá).
+import { DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";
 
 // bodega/canal sumados Etapa 1 (owner 2026-08-04, "cierre de los límites restantes"): guessDimension
 // (entityRecord.js) ya los reconoce vía ENTITIES.bodega/canal (entityRegistry.js) — este Set gatea buildEntityList
@@ -191,7 +197,14 @@ export function updateConversationScope(scopePrev, { plan, calls, results, turno
 
   const dimension = built ? built.dimension : guessDimension(entities[0]);
   const dominant = Array.isArray(calls) && calls[0];
-  const periodoHallado = arr.map((r) => r && r.facts && r.facts.periodo).find(Boolean) || null;
+  // el período que se RECUERDA del turno (persona.js lo surfacea como "período ya mostrado"): la etiqueta corta,
+  // no la frase que instruye al narrador — un resultado de marco MIXTO trae un párrafo ahí (decisión 5).
+  const periodoHallado = arr.map((r) => {
+    const f = r && r.facts;
+    if (!f) return null;
+    if (Array.isArray(f.periodos) && f.periodos.length > 1) return PERIODO_MIXTO_ETIQUETA;
+    return f.periodo || null;
+  }).find(Boolean) || null;
   const ordenHallado = (built && built.orden) || null;
   const filtrosDominante = (dominant && dominant.args && dominant.args.filters && typeof dominant.args.filters === "object" && !Array.isArray(dominant.args.filters)) ? dominant.args.filters : null;
   // metrica: best-effort (token del vocabulario compartido, cuando la call lo declara explícito) — NUNCA autoridad
@@ -356,7 +369,76 @@ function _uiSignalsGroup(uiSignals) {
   return entities.length >= 2 ? { dimension, entities } : null;
 }
 
-export function resolveConversationReference(text, plan, scopePrev, requestContext, uiSignals) {
+// ── CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix) ──────────────────────────────
+// _viewContextGroup(vc) → GEMELO de _uiSignalsGroup (arriba): el ViewContext sellado entra al pool como UN
+// CANDIDATO MÁS, con la MISMA disciplina — cada entidad se REVALIDA con guessDimension (nunca se confía en lo que
+// viajó de la UI), el eje declarado por la vista es HINT y no autoridad, y si sobrevive junto a `current` sin
+// coincidir es AMBIGÜEDAD REAL (se pregunta), nunca "gana la pantalla en silencio".
+// DIFERENCIA ÚNICA con el gemelo, deliberada: acá basta 1 entidad. `mesaSel` con un solo checkbox no es un grupo
+// ("comparalos" con uno solo no significa nada), pero una selección de UNA fila en una vista SÍ es un referente
+// legítimo de "este cliente"/"ese SKU".
+function _viewContextGroup(vc) {
+  if (!vc || typeof vc !== "object") return null;
+  const sel = vc.seleccion;
+  if (!sel || typeof sel !== "object" || sel.modo !== "explicita") return null;
+  const raw = Array.isArray(sel.entidades) ? sel.entidades.filter((e) => typeof e === "string" && e) : [];
+  if (!raw.length) return null;
+  const dims = raw.map((e) => guessDimension(e));
+  const dimension = (typeof vc.eje === "string" && _AXES.has(vc.eje)) ? vc.eje : dims.find(Boolean) || null;
+  if (!dimension) return null;
+  const entities = raw.filter((e, i) => dims[i] === dimension);
+  return entities.length ? { dimension, entities } : null;
+}
+
+// _viewContextFiltroGroup(vc) → el camino O(1) para "cuáles de estos clientes" cuando lo que hay en pantalla son
+// 300 filas: NO hay lista de nombres que referenciar (no puede haberla, ver el candado de viewContext.js), hay un
+// FILTRO. Se devuelve como `resolved-scope`, que el llamador traduce a args.filters — nunca a scope.entities.
+function _viewContextFiltroGroup(vc) {
+  if (!vc || typeof vc !== "object") return null;
+  const sel = vc.seleccion;
+  const desdeSeleccion = (sel && sel.modo === "filtro" && sel.filtro && typeof sel.filtro === "object") ? sel.filtro : null;
+  const desdeVista = (vc.filtros && typeof vc.filtros === "object" && Object.keys(vc.filtros).length) ? vc.filtros : null;
+  const filtros = desdeSeleccion || desdeVista;
+  if (!filtros || !Object.keys(filtros).length) return null;
+  const dimension = (typeof vc.eje === "string" && _AXES.has(vc.eje)) ? vc.eje : null;
+  return { dimension, filtros, n: (sel && Number.isFinite(sel.n)) ? sel.n : null };
+}
+
+// DEICTIC_COMPONENT_RE — el deíctico de COMPONENTE, no de entidad: "este gráfico", "esa tabla", "ese punto", "los
+// de arriba", "este número", "acá". Es un eje DISTINTO de DEICTIC_PLURAL_RE (que apunta a un grupo de entidades):
+// acá el referente es la PIEZA que el usuario está mirando. Sin ViewContext no resuelve nada — y eso es correcto:
+// sin pantalla declarada, "este gráfico" es genuinamente irresoluble y PLAN sigue con su criterio normal.
+// SU CASA ES progressiveDisclosure.js (donde se decide la FORMA de la respuesta, que necesita la misma expresión):
+// acá se IMPORTA, nunca se declara una segunda — mismo principio que DEICTIC_PLURAL_RE, que vive acá y scenarioIntent
+// importa de acá. Una sola verdad por expresión, sin dos regex que puedan divergir.
+
+// resolveComponentReference(text, viewContext) → {kind:"resolved", componentId, componente} | {kind:"none"}
+// Solo LOCALIZA: dice a qué pieza apunta el deíctico y qué declara esa pieza (qué mide, en qué eje, con qué
+// universo, con qué período y con qué sello). NUNCA trae cifras — las sigue pidiendo PLAN a las tools.
+export function resolveComponentReference(text, viewContext) {
+  const t = String(text || "");
+  if (!viewContext || typeof viewContext !== "object" || !viewContext.componentId) return { kind: "none" };
+  if (!DEICTIC_COMPONENT_RE.test(t)) return { kind: "none" };
+  return {
+    kind: "resolved",
+    componentId: viewContext.componentId,
+    componente: {
+      vista: viewContext.vista || null,
+      seccion: viewContext.seccion || null,
+      tipo: viewContext.tipo || null,
+      titulo: viewContext.titulo || null,
+      metrica: viewContext.metrica || null,
+      eje: viewContext.eje || null,
+      periodo: viewContext.periodo || null,
+      escenario: viewContext.escenario || null,
+      universo: viewContext.universo || null,
+      comparacion: viewContext.comparacion || null,
+      estatus: viewContext.estatus || null,
+    },
+  };
+}
+
+export function resolveConversationReference(text, plan, scopePrev, requestContext, uiSignals, viewContext) {
   const t = String(text || "");
   const tenantCheck = validateScopeTenant(scopePrev, requestContext);
 
@@ -397,11 +479,28 @@ export function resolveConversationReference(text, plan, scopePrev, requestConte
   // uiGroup (Etapa 3) — SIEMPRE candidato disponible (no depende de `wantsRecall`: la selección de la Mesa es
   // estado VIVO de la pantalla, no un tema conversacional "de antes" que haya que recordar explícitamente).
   const uiGroup = _uiSignalsGroup(uiSignals);
-  const basePool = wantsRecall ? [current, ...historyList, uiGroup] : [current, uiGroup];
+  // viewGroup (owner 2026-08-09) — el contexto de pantalla, con el MISMO trato que uiGroup: estado VIVO de lo que
+  // el usuario está mirando, siempre candidato, nunca autoridad. TENANT: el ViewContext ya viene validado/sellado
+  // por answerViaOracle (invalidateViewContext descarta el de otra empresa ANTES de llegar acá) — esta segunda
+  // verificación es la red por si algún caller futuro lo pasara sin ese paso; nunca se cruza dato entre empresas.
+  const vcTenantOk = !viewContext || !requestContext || !requestContext.tenantId || viewContext.tenantId === requestContext.tenantId;
+  const vcSafe = vcTenantOk ? viewContext : null;
+  const viewGroup = _viewContextGroup(vcSafe);
+  const basePool = wantsRecall ? [current, ...historyList, uiGroup, viewGroup] : [current, uiGroup, viewGroup];
   const pool = basePool.filter((g) => g && Array.isArray(g.entities) && g.entities.length && g.dimension && g.dimension !== "cartera");
-  if (!pool.length) return { kind: "none" };   // no había NADA estructurado que referenciar — no es un rechazo, es "no aplica"
 
   const hint = _dimHint(t);
+  if (!pool.length) {
+    // Sin NINGUNA lista de nombres que referenciar. Antes de declarar "no aplica", el camino O(1): si la pantalla
+    // declara un FILTRO (una selección de 300 clientes, un universo acotado), "cuáles de estos clientes" SÍ tiene
+    // referente — solo que es un criterio, no una lista. Se devuelve como alcance, para args.filters.
+    const filtroGroup = _viewContextFiltroGroup(vcSafe);
+    if (filtroGroup && (!hint || !filtroGroup.dimension || filtroGroup.dimension === hint)) {
+      return { kind: "resolved-scope", dimension: filtroGroup.dimension || hint || null, filtros: { ...filtroGroup.filtros }, n: filtroGroup.n };
+    }
+    return { kind: "none" };   // no había NADA estructurado que referenciar — no es un rechazo, es "no aplica"
+  }
+
   const filtered = hint ? pool.filter((g) => g.dimension === hint) : pool;
   if (!filtered.length) return { kind: "decline", reason: "sin_referente" };   // SÍ había scope, pero de otra dimensión — rechazo explícito, no silencio
 

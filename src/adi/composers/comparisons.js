@@ -118,7 +118,12 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
       opener += `**Lectura**: ambas operan bajo benchmark · ${peorMargen.nombre} es el caso más crítico con ${Math.abs(peorMargen.margen - benchmark).toFixed(1)}pp bajo benchmark. La palanca disponible opera sobre ${palancaDisponible}.`;
     }
   } else if (diffMargen !== null && A.margen >= benchmark && B.margen >= benchmark) {
-    opener += `**Lectura**: ambas cuentas sostienen margen sobre el promedio de la cartera.`;
+    // LA VARA NO ES EL PROMEDIO (owner 2026-08-09, decisión 1 · hallazgo N). Esta rama entra porque las dos cuentas
+    // están sobre el BENCHMARK (`A.margen >= benchmark && B.margen >= benchmark`), y la frase decía "sobre el
+    // promedio de la cartera": nombraba una referencia que no es la que se comparó. El promedio ponderado real de
+    // la cartera es varios puntos MÁS BAJO que la vara, así que la afirmación era además más floja de lo que el
+    // dato permite. Texto determinístico que no pasa por guardC — se corrige en el origen.
+    opener += `**Lectura**: ambas cuentas sostienen margen sobre el benchmark de cartera.`;
   } else if (diffMargen !== null) {
     const enriesgo = A.margen < benchmark ? A : B;
     opener += `**Lectura**: ${enriesgo.nombre} es la que cede margen · la palanca opera sobre esa cuenta · la otra es estructuralmente sana en margen.`;

@@ -36,7 +36,7 @@ import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";   // el corte por familia y la venta/presupuesto por cliente, con el escenario aplicado
 import { getTenantData } from "../../data/tenantStore.js";   // multiempresa: la variación y el canal salen del tenant activo, nunca del dataset demo
-import { buildGlobalEvolution, anchorSerie } from "./temporal.js";   // el año mes a mes (3 series REALES) + el anclaje a la venta oficial
+import { buildGlobalEvolutionAnclada } from "./temporal.js";   // el año mes a mes (3 series REALES) YA ancladas a la venta oficial — una sola implementación, compartida con trend/composeSpecTemporal
 
 const _M = (raw) => (typeof raw === "number" ? `$${(raw / 1e6).toFixed(1)}M` : "—");
 const _K = (raw) => (typeof raw === "number" ? (Math.abs(raw) >= 1e6 ? `$${(raw / 1e6).toFixed(1)}M` : `$${Math.round(raw / 1000)}K`) : "—");
@@ -311,13 +311,16 @@ function _variacionAnual(of = _ventasOficiales()) {
 // series con contraparte oficial (este año, año anterior) se ANCLAN a ella con `anchorSerie`: se reescala la curva
 // y el residuo cae en el último mes — el total queda EXACTO y la forma del año (picos, valles, caídas) intacta.
 // El PRESUPUESTO no se ancla: es un plan declarado, no tiene contraparte por cliente. Se dice, no se disimula.
+// EL ANCLAJE VIVE EN UN SOLO LUGAR (owner 2026-08-09, decisión 4 · hallazgo C): la mecánica que estaba acá
+// —anclar las dos series con contraparte oficial, dejar el presupuesto sin anclar— se mudó a
+// `temporal.buildGlobalEvolutionAnclada`, que ahora consumen TAMBIÉN `composeSpecTemporal`/`trend`. Antes eran dos
+// caminos: el gráfico anclaba y la tool no, así que la misma pregunta daba $99.9M en pantalla y $100.0M en el chat.
+// Sentrix sigue pasando SU `oficial` (el total del cuadro), así que su salida es byte-idéntica a la anterior.
 function _evolutivo(oficial) {
   let ev = null;
-  try { ev = buildGlobalEvolution(); } catch { return null; }
-  if (!ev || !ev.n || !Array.isArray(ev.actual)) return null;
-  const actual = oficial && oficial.actual ? anchorSerie(ev.actual, oficial.actual) : ev.actual;
-  const anterior = oficial && oficial.anterior ? anchorSerie(ev.anterior, oficial.anterior) : ev.anterior;
-  const presupuesto = ev.presupuesto;
+  try { ev = buildGlobalEvolutionAnclada(null, oficial); } catch { return null; }
+  if (!ev) return null;
+  const { actual, anterior, presupuesto } = ev;
   const suma = (s) => (Array.isArray(s) ? s.reduce((a, v) => a + (Number(v) || 0), 0) : 0);
   const tAct = suma(actual), tAnt = suma(anterior), tPpto = suma(presupuesto);
   const vsAnt = tAnt ? +(((tAct - tAnt) / tAnt) * 100).toFixed(1) : null;

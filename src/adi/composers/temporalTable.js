@@ -12,7 +12,7 @@
  * foto de hoy · canal mensual sin desglose → cada límite se DECLARA y redirige a donde el dato sí llega.
  * LA HISTORIA primero (tendencia · mejor/peor mes · quién tracciona — registro ejecutivo, cifras una por línea,
  * todas en la boleta) + LA TABLA estructurada en la evidencia (tabla_matriz → InlineChart). */
-import { buildGlobalEvolution, buildEntityEvolutionComparado, resolveEntityName, reconcileMonthly } from "../sentrix/temporal.js";
+import { buildGlobalEvolution, buildGlobalEvolutionAnclada, buildEntityEvolutionComparado, resolveEntityName, reconcileMonthly } from "../sentrix/temporal.js";
 import { clientesMargen, marcasMargen, sfamiliasMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { fig } from "../boleta.js";
@@ -84,7 +84,10 @@ export function temporalDeclarado(metric) {
 }
 
 // ── EL COMPOSER · {metric, dimension?, entity?, periodo} → historia + tabla | null ──
-export function composeSpecTemporal({ metric, dimension = null, entity = null, periodo = null } = {}) {
+// `scenario` (owner 2026-08-09, decisión 4 · hallazgo C): la rama GLOBAL leía `buildGlobalEvolution()` pelado —
+// serie cruda de `ventasMensuales`, ajena al escenario y sin anclar a la venta oficial por cliente. Ahora entra por
+// `buildGlobalEvolutionAnclada`, la MISMA función que ancla el evolutivo de Sentrix.
+export function composeSpecTemporal({ metric, dimension = null, entity = null, periodo = null, scenario = "actual" } = {}) {
   if (dimension === "canal") return temporalDeclarado("canal");   // el mes a mes por canal no está desglosado en el dato
   const met = metric === "ventas" ? "venta" : metric;   // canon del contrato → canon del historial
   if (!["venta", "contribucion", "margen"].includes(met)) return temporalDeclarado(metric);
@@ -196,7 +199,7 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
 
   // ── GLOBAL (la curva real del negocio · ventasMensuales con año anterior y presupuesto) ──
   if (met === "venta") {
-    const g = buildGlobalEvolution();
+    const g = buildGlobalEvolutionAnclada(scenario);
     if (!g || !g.n) return null;
     const meses = _rangoMeses(g.meses, p), serie = _rangoSerie(g.actual, p), sAnt = _rangoSerie(g.anterior, p), sPpto = _rangoSerie(g.presupuesto, p);
     const tot = _sum(serie), totAnt = _sum(sAnt), totPpto = _sum(sPpto);

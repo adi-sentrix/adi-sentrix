@@ -92,7 +92,7 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
 
   const _voz2 = (typeof VOZ2_ENABLED !== "undefined" && VOZ2_ENABLED);
   const lectura = _voz2
-    ? `Las ${top3.length} ${cuentasWord} aportan ${fmtM(totalContribTier)} al año (${pctSales}% de las ventas de la cartera), pero todas rinden por debajo del promedio de la cartera (${POLICY.benchmark}%). La diferencia se concentra en la carga comercial, que está entre ${rangoCarga} y por encima de lo sano internamente (${bestPractice}%). Cada punto adicional en esa carga reduce el aporte que la cuenta podría generar.`
+    ? `Las ${top3.length} ${cuentasWord} aportan ${fmtM(totalContribTier)} al año (${pctSales}% de las ventas de la cartera), pero todas rinden por debajo del benchmark de cartera (${POLICY.benchmark}%). La diferencia se concentra en la carga comercial, que está entre ${rangoCarga} y por encima de lo sano internamente (${bestPractice}%). Cada punto adicional en esa carga reduce el aporte que la cuenta podría generar.`
     : `Las ${top3.length} ${cuentasWord} sostienen ${fmtM(totalContribTier)} anuales en contribución agregada (${pctSales}% del total de ventas cartera) pero operan con márgenes entre ${rangoMargen}, todos bajo el benchmark de cartera (${POLICY.benchmark}%). La presión sobre el margen unitario proviene de carga comercial alta (${rangoCarga}, sobre la mejor práctica interna de ${bestPractice}%). Cada punto de carga sobre la mejor práctica se traduce directamente en contribución que no se captura.`;
 
   // ── FOCO · acción accionable con cliente líder + recuperable
@@ -141,14 +141,21 @@ export function composeCommercialErosionResponse(m, scan, scenarioId) {
       best_practice_carga: POLICY.targetCarga,
       gap_carga_pp: +(top_instance.carga_pct - POLICY.targetCarga).toFixed(1),
       contribucion_principal_M: top_instance.contribucion_M,
-      recuperable_principal_USD: top_instance.recuperable_at_target_3_5,
+      // el campo se llama _USD pero el valor viene en K (misma unidad que recuperable_total_K, ver el FIX de
+      // V_VISUAL más arriba). Se convierte acá para que el nombre y el contenido digan lo mismo.
+      recuperable_principal_USD: recuperablePalanca,
       recuperable_agregado_K: m.aggregate.recuperable_total_K,
       top3_clientes: top3.map(t => t.clientName),
     },
     focus: `Palanca de carga comercial sobre ${top_instance.clientName}`,
     confidence: "alta",
     materialMetrics: [
-      `${fmtK(top_instance.recuperable_at_target_3_5)} recuperable`,
+      // FIX DE ESCALA (owner 2026-08-09, decisión 1 · "$194 vs $194K"): `recuperable_at_target_3_5` viene en K
+      // —el FIX de V_VISUAL de más arriba ya lo dice y por eso `recuperablePalanca` lo multiplica por 1000—, pero
+      // ESTA línea lo pasaba CRUDO a fmtK, que trata cualquier valor <1000 como dólares y omite la "K": la misma
+      // palanca aparecía como "$194K recuperable" en el foco y "$194 recuperable" en las métricas materiales, en
+      // el mismo turno. Se reusa la variable ya convertida — una sola verdad, no una segunda multiplicación.
+      `${fmtK(recuperablePalanca)} recuperable`,
       `${top_instance.carga_pct}% carga`,
       `${top_instance.margen_pct}% margen`,
     ],
@@ -226,7 +233,7 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
 
   const _voz2 = (typeof VOZ2_ENABLED !== "undefined" && VOZ2_ENABLED);
   const lectura = _voz2
-    ? `Las ${top.length} ${cuentasWord} ${rangoYoY}, pero ese crecimiento rinde poco: sus márgenes operan entre ${rangoMargen}, todos por debajo del promedio de la cartera (${benchmark}%). Venden más, pero ese crecimiento no se transforma en aporte al mismo ritmo — alrededor de ${totalRecuperableStr} anuales de contribución no llega a capturarse.`
+    ? `Las ${top.length} ${cuentasWord} ${rangoYoY}, pero ese crecimiento rinde poco: sus márgenes operan entre ${rangoMargen}, todos por debajo del benchmark de cartera (${benchmark}%). Venden más, pero ese crecimiento no se transforma en aporte al mismo ritmo — alrededor de ${totalRecuperableStr} anuales de contribución no llega a capturarse.`
     : `Las ${top.length} ${cuentasWord} ${rangoYoY} pero capturan ese crecimiento a costa de margen unitario. Sus márgenes operan entre ${rangoMargen}, todos bajo el benchmark de cartera (${benchmark}%). El crecimiento es estructuralmente diluido: el volumen incremental no convierte a contribución al mismo ritmo. Aproximadamente ${totalRecuperableStr} anuales de contribución se pierden por este mecanismo.`;
 
   // ── FOCO · cliente líder con materialidad y recuperable
@@ -235,8 +242,11 @@ export function composeQualityGrowthDeteriorationResponse(m, scan, scenarioId) {
 
   let focoText;
   if (erosionLider) {
-    // Si el líder también está en erosion, tenemos carga y recuperable
-    const recuperableLider = erosionLider.recuperable_at_target_3_5;
+    // Si el líder también está en erosion, tenemos carga y recuperable.
+    // FIX DE ESCALA (owner 2026-08-09, decisión 1 · el mismo "$194 vs $194K" de composeCommercialErosionResponse):
+    // `recuperable_at_target_3_5` viene en K y fmtK espera dólares — sin el ×1000 la palanca del líder se narraba
+    // como "$194" en vez de "$194K", mil veces más chica, en una oración que recomienda una acción.
+    const recuperableLider = erosionLider.recuperable_at_target_3_5 * 1000;
     focoText = `Mecanismo disponible: ${top_instance.clientName} combina mayor materialidad de cartera (${fmtM(lider_contribAbs)} de contribución) y mayor controlabilidad operativa (carga comercial ${erosionLider.carga_pct}%) · zona donde la palanca tiene mayor impacto cuantificable. Una reducción gradual desde ${erosionLider.carga_pct}% hacia ${POLICY.targetCarga}% recuperaría aproximadamente ${fmtK(recuperableLider)} anuales sin sacrificar volumen presente.`;
   } else {
     // Sin datos de carga · foco basado en materialidad y deterioro de margen

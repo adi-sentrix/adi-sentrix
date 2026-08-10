@@ -24,7 +24,8 @@ trend{metric,dimension?,entity?,period?} — LA SERIE MENSUAL / evolutivo. Usalo
 simulateCarga{} — "¿y si bajo la carga comercial al target?". simulateCapital{} — "¿y si libero el capital detenido?".
 simulateCosto{pct,dimension?,scope?,filters?} — "¿y si bajo/subo el costo medio de mis peores SKU/marca/familia/clientes un X%?". pct es un NÚMERO con el signo de la dirección que pidió el usuario: si dice "bajar 3%" mandá el número negativo -3; si dice "subir 2%" mandá el número positivo 2 (NO escribas el símbolo "%" ni un texto tipo "pct:-3" — solo el número, en el campo JSON "pct" del objeto args). Rango operable: entre -50 y 50 — fuera de ese rango la tool declina honesto (no es un supuesto realista, no lo fuerces). dimension default "sku". scope: "bajo_benchmark" (default, "mis peores") o "all" (todo el eje/filtro). Calcula margen y contribución NUEVOS vía costo — NO uses el "simulate" genérico para esto (no cubre costo) ni inventes la aritmética vos mismo (costo × factor no está autorizada si la calculás a mano).
 simulateGeneral{dimension,entity,variableA:{campo,delta_pct},variableB:{campo,delta_pct}} — "si subo el precio 5% a Falabella pero pierdo 10% de volumen, ¿me conviene?": DOS variables (precio Y volumen) covariando sobre UNA entidad puntual — a diferencia de las demás simulate*, que mueven una sola palanca sobre un eje entero. campo de cada variable es SIEMPRE "precioLista" (la de precio) o "unidades" (la de volumen) — nunca otro valor, y las DOS variables son OBLIGATORIAS, una de cada campo (NUNCA dupliques el mismo campo en las dos). delta_pct = el % con el signo de la dirección que pidió el usuario (subir 5% → 5; bajar 10% → -10), igual convención que simulateCosto. Rango operable por variable: entre -50 y 50. Calcula ventas SIEMPRE; margen/costo/contribución SOLO si el negocio declaró su modelo de costo (la tool lo sabe, vos no lo decidís) — si no está autorizado, la tool responde igual con ventas y una limitación honesta; NUNCA es un error, no reintentes con otra tool.
-defineConcept{concept} — definición AUTORIZADA de un concepto del negocio (contribución no capturada, carga comercial, rebate, benchmark, margen, contribución, rotación, DOH). Usalo SIEMPRE que pregunten "qué es X" / "a qué te referís con X" / "explicame X" — NUNCA definas de memoria.`;
+pnlRead{dimension?,entity?,focus?} — EL RESULTADO DEL NEGOCIO (el P&L / estado de resultados): la cascada completa ingreso − costo − carga comercial − gastos declarados = RESULTADO, con su % sobre la venta. Usalo SIEMPRE que pregunten por el "resultado" (del negocio, final, neto, operacional, del ejercicio), la "utilidad", la "ganancia neta", el "estado de resultados", el "P&L", o cualquier cosa "después de gastos". OJO — LA CONFUSIÓN QUE MÁS DAÑO HACE: contribución y resultado son DOS NIVELES DISTINTOS de la misma cascada. La contribución es lo que queda ANTES de los gastos declarados; el resultado, DESPUÉS. Si preguntan por el RESULTADO, NUNCA uses contributionRead — la cifra sería real y la pregunta, otra. Sin args = el negocio completo. entity = el P&L de UNA cuenta/marca/familia ("¿cuánto me deja Falabella después de gastos?"). dimension = la tabla del P&L por ese eje ("el resultado por familia"): sólo cliente/marca/familia — por SKU, bodega o canal la venta del P&L no baja desglosada y la tool declina honesto (no la fuerces). focus:"linea" = qué línea de gasto pesa más. Si el negocio todavía no declaró sus líneas de gasto, la tool declina honesto y explica que la cuenta llega hasta la contribución: ESO es la respuesta correcta, no reintentes con otra tool.
+defineConcept{concept} — definición AUTORIZADA del glosario. Cubre los conceptos del negocio (contribución no capturada, carga comercial, acciones comerciales, rebate, benchmark, margen de contribución, margen bruto, contribución, resultado del negocio, rotación, días de inventario), el vocabulario del alcance (universo, grupo 80, la cola, eje, brecha, en juego, vara, meta, presupuesto), los estados del inventario (capital inmovilizado, riesgo de quiebre, sobrestock) y el sello de cada cifra (probado, indicado, abierto). Usalo SIEMPRE que pregunten "qué es X" / "a qué te referís con X" / "explicame X" — NUNCA definas de memoria. El arg "concept" = el término TAL COMO lo escribió el usuario, incluida la etiqueta que ve en pantalla ("Días inv.", "En juego $", "Acciones comerciales"): la tool resuelve la etiqueta contra el glosario. OJO: "margen bruto" y "margen de contribución" son DOS conceptos distintos — pasá el que el usuario nombró, sin normalizarlo al otro.`;
 
 // PLAN_TOOL · el schema del plan (tool neutral · el adapter lo fuerza). calls[].args es objeto abierto (cada tool
 // define sus campos en el catálogo). scope hace EXPLÍCITO el alcance para que "del negocio" nunca herede una entidad.
@@ -71,7 +72,7 @@ export const PLAN_TOOL = {
         items: {
           type: "object", additionalProperties: false,
           properties: {
-            tool: { type: "string", enum: ["queryMetric", "entityProfile", "entityRecord", "gridTable", "tensionRead", "compareEntities", "diagnose", "executiveSummary", "inventoryStatus", "marginRead", "salesRead", "contributionRead", "trend", "simulate", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral", "defineConcept"] },
+            tool: { type: "string", enum: ["queryMetric", "entityProfile", "entityRecord", "gridTable", "tensionRead", "compareEntities", "diagnose", "executiveSummary", "inventoryStatus", "marginRead", "salesRead", "contributionRead", "trend", "simulate", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral", "defineConcept", "pnlRead"] },
             args: { type: "object", additionalProperties: true, description: "Args de la tool según el catálogo (metric, dimension, entity, entities, filters, focus, limit)." },
           },
           required: ["tool", "args"],
@@ -105,9 +106,17 @@ export const PLAN_TOOL = {
   },
 };
 
+// La doctrina de CONTEXTO DE PANTALLA, aparte porque es CONDICIONAL (ver `hayVista` abajo). Texto sin cambios.
+export const DOCTRINA_CONTEXTO_VISTA = `· CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix): si el turno trae una línea "Contexto de pantalla", el usuario está mirando ESO mientras escribe. Resolvé contra esa vista los deícticos de PIEZA ("este gráfico", "esta tabla", "ese punto", "estos clientes", "esos SKU", "los de arriba", "acá"), y pedí a las tools la evidencia de ESA métrica, ESE eje y ESE período — el usuario espera la MISMA cifra que tiene delante, no otra lectura del mismo tema. La línea NO TRAE CIFRAS y NUNCA las inventes desde ella: dice QUÉ está mirando, no cuánto vale; las cifras siguen saliendo EXCLUSIVAMENTE de las tools. Y no manda sobre el turno: si el usuario nombra otra entidad, otro eje, otra métrica o "el negocio", eso PISA el contexto de pantalla — manda lo que dice AHORA, la pantalla es solo el telón de fondo.`;
+
 // buildPlanSystem(persona, memBlock, scenario) → system de la Pasada 1. La DOCTRINA vive acá: entendé libre, pero
 // solo PEDÍS datos por las tools; no inventás cifras (eso lo trae el motor y lo valida el guard).
-export function buildPlanSystem(persona, memBlock, scenario) {
+// `hayVista` (corrección 2026-08-09, pase de regresión): el bullet CONTEXTO DE PANTALLA entraba en el system de
+// TODOS los turnos —209 tokens, 2.9% del prompt de PLAN— para explicar cómo tratar una línea que el 100% de los
+// turnos sin Sentrix no recibe. Su gemelo de NARRAR (buildNarrateSystemC, `hayContextoVista`) ya se manda condicional
+// por esta misma razón y con este mismo criterio; acá faltaba. Con `hayVista=false` el system vuelve a ser byte por
+// byte el de antes del contrato, que es la línea base más segura; con la línea presente, no cambia nada.
+export function buildPlanSystem(persona, memBlock, scenario, hayVista = false) {
   return `${persona}
 
 TU TAREA AHORA (planificación): leé el turno del usuario en el contexto del hilo y emití un PLAN de qué datos necesitás. NO redactás la respuesta todavía; NO inventás cifras. Solo decidís qué tools llamar y con qué alcance.
@@ -140,7 +149,7 @@ ${buildPrefDoctrine()}
 · TRATO/IDENTIDAD: si da una instrucción de cómo tratarlo → llená memoryUpdate. "llámame X" → nombre:X. "trátame de usted" → trato:usted; "de tú"/"tuteame" → trato:tu. "no uses tecnicismos" → tecnicismo:bajo. "no me muestres tablas" → tablas:false. "prioriza lo financiero/el impacto económico" → prioridad:financiero. Si SOLO da la instrucción → intent="ack", calls=[]. Si además pregunta algo → intent="answer" con sus calls. (Las correcciones de verbosidad/detalle — "háblame más directo", "sin rodeos", "explícame con más detalle" — NO van acá, son "pref", ver arriba.)
 · Elegí las tools mínimas que respondan de verdad. Una respuesta "overview"/"resumen"/"insight del negocio" puede pedir varias (ej. executiveSummary, o diagnose + queryMetric) — pero con el alcance correcto.
 · TEMPORAL: para "mes a mes", "mensual", "evolución", "cómo viene mes a mes", un trimestre/Q, un semestre, un mes puntual, un rango de meses, o "esto mismo mes a mes" → usá la tool 'trend' (metric + dimension o entity + period). El dato mensual REAL es VENTAS y CONTRIBUCIÓN (la propia tool declara honesto lo que no: resultado/P&L mensual, inventario mensual, canal mensual, margen en matriz por eje). CONSERVÁ EL ALCANCE DEL TURNO ANTERIOR: si venías hablando de un EJE (los SKU, los clientes, las marcas) y ahora piden "esto mismo mes a mes", pasá ese eje → dimension:"sku"/"cliente"/"marca" (NO el negocio global: cambiarle el alcance al usuario sin avisar es peor que no responder). Si venías de UNA entidad, pasá entity. Si en un seguimiento la métrica anterior no tiene mensual (ej. costo medio), pedí 'trend' de la que SÍ (ventas/contribución) sobre el MISMO eje — no la foto actual. FUTURO/pronóstico NO existe (no hay serie a futuro): eso sí, intent="answer" y el narrador aclara que no proyecta.
-· Escenario de datos actual: ${scenario}.
+${hayVista ? DOCTRINA_CONTEXTO_VISTA + "\n" : ""}· Escenario de datos actual: ${scenario}.
 
 ${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 }
@@ -151,8 +160,16 @@ ${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 // `.slice(0,220)` además del slice por cantidad (un turno verboso, o una narración larga de ADI en el hilo, podía
 // inflar el prompt de PLAN sin límite). MISMO mecanismo ya probado de NARRAR, copiado byte a byte — el slice(-8) NO
 // se toca (la ventana de turnos ya es correcta), solo se acota la LONGITUD de cada turno dentro de esa ventana.
-export function buildPlanUserMessage(history, text) {
+// CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix) — `vistaLinea` es UNA SOLA LÍNEA
+// de ≤240 caracteres, SIN cifras, producida por viewContext.js:projectViewContextForPlan a partir del ViewContext
+// sellado. Es TODO lo que el LLM ve de la pantalla: nunca viajan filas, series, tablas, la salida del builder ni el
+// objeto de contexto — la evidencia se la sigue pidiendo el PLAN a las tools. Tercer argumento OPCIONAL a propósito:
+// los ~30 callers/gates que llaman con dos argumentos siguen produciendo el MISMO mensaje, byte por byte.
+// Va ANTES del turno actual (y después del hilo) porque es TELÓN DE FONDO, no el pedido: lo último que el modelo lee
+// tiene que ser lo que el usuario acaba de escribir, que es lo que manda (ver la doctrina "CONTEXTO DE PANTALLA").
+export function buildPlanUserMessage(history, text, vistaLinea = null) {
   const h = Array.isArray(history) ? history.slice(-8) : [];
   const hist = h.map((m) => `${m.role === "user" ? "Usuario" : "ADI"}: ${String(m.gist || m.text || "").slice(0, 220)}`).join("\n");
-  return `${hist ? `Hilo reciente:\n${hist}\n\n` : ""}Turno actual del usuario: «${text}»`;
+  const vista = typeof vistaLinea === "string" && vistaLinea.trim() ? `${vistaLinea.trim()}\n\n` : "";
+  return `${hist ? `Hilo reciente:\n${hist}\n\n` : ""}${vista}Turno actual del usuario: «${text}»`;
 }

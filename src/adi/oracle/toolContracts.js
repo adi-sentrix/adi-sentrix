@@ -82,8 +82,12 @@ export const TOOL_CONTRACTS = {
     inputsObligatorios: ["dimension", "entity"], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: false, escribeEntityList: true,
   },
-  // entityCapitalLigado · capital detenido cruzado contra el mix de UN cliente (SKU/bodega/valorizado/unidades/
-  // días sin venta). Solo eje cliente, misma razón que entityComposicion.
+  // entityCapitalLigado · inventario inmovilizado cruzado contra el surtido de UN cliente (SKU/bodega/valorizado/
+  // unidades/días sin venta). Solo eje cliente, misma razón que entityComposicion.
+  // DECISIÓN 9 (owner 2026-08-09): el eje soportado NO alcanza — esta tool además exige que el DATO sostenga la
+  // relación cliente×SKU. Con `datasetCapability().crosses.atomic === false` y una afinidad modelada que alcanza
+  // todo el inventario, DECLINA (supported:false + relación + razón medida) en vez de servir el inventario global
+  // con el nombre de un cliente encima. La medición vive en `specRetrieval.clientCapitalRelacion`.
   entityCapitalLigado: {
     dimensionesSoportadas: ["cliente"],
     entidad: "single", aceptaEntidadPuntual: true, multiCardinality: null,
@@ -238,6 +242,24 @@ export const TOOL_CONTRACTS = {
     entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
     inputsObligatorios: ["concept"], supuestosRequeridos: null, operacionValida: ["define"],
     entityScopeNativo: false, escribeEntityList: false,
+  },
+  // pnlRead · EL RESULTADO DEL NEGOCIO (owner 2026-08-09, decisión 3). Envuelve `composePnl`: la cascada del
+  // negocio (default), la de UNA entidad, o la tabla por eje.
+  // `dimensionesSoportadas` declara lo que la tool sabe PEDIR; qué ejes están realmente disponibles lo decide el
+  // DATO en cada tenant (`pnlDisponibilidad()`: un eje entra sólo si la base del P&L trae la venta desglosada
+  // hacia él) y la tool declina con el motivo declarado cuando no — SKU, bodega y canal no entran acá porque el
+  // P&L no baja desglosado a ellos en ningún tenant conocido, y prorratear sobre un eje sin venta sería inventar
+  // la cifra (decisión 8: si no lo soporta, lo dice; nunca devuelve filas de otro eje).
+  // `supuestosRequeridos`: es la ÚNICA tool del catálogo cuyo resultado depende de un supuesto DECLARADO por el
+  // usuario (las líneas de gasto y su % sobre la venta). Sin ellas no hay resultado que afirmar — declina, no
+  // estima. `entidad:"single"`: un P&L de 2+ entidades a la vez mezclaría prorrateos de bases distintas; el
+  // alcance multi-entidad del P&L es la TABLA POR EJE (`dimension`), que sí cierra exacto contra el negocio.
+  pnlRead: {
+    dimensionesSoportadas: ["cliente", "marca", "familia"],
+    entidad: "single", aceptaEntidadPuntual: true, multiCardinality: null,
+    inputsObligatorios: [], supuestosRequeridos: ["líneas de gasto declaradas (% sobre la venta)"], operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: true,
+    notas: "envuelve composePnl (pnl.js) — no recalcula: la cifra es byte-igual a la de la cara Resultado de Sentrix. Sin P&L declarado DECLINA (nunca abre el flujo guiado: eso deja estado conversacional y una tool es pura).",
   },
 };
 

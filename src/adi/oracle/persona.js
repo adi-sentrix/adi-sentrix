@@ -72,6 +72,25 @@ Transmití cinco cosas a la vez, sin nombrarlas:
 · CERCANÍA PROFESIONAL — entendé a la persona sin perder nivel ejecutivo.
 · CONTINUIDAD — recordá cómo quiere trabajar, qué decidió y cómo prefiere que la traten.`;
 
+// ── EL CANDADO O(1) DE LA MEMORIA (owner 2026-08-09, hallazgo del frente de ESCALA — medido, no supuesto) ───────
+// `conversationScope.current.entities` NO tiene tope: buildEntityList (conversationScope.js) toma TODA entidad
+// distinta que aparezca en la boleta del turno. En el tenant demo son 13 nombres y nadie lo nota; en un tenant de
+// 5.200 SKU, UN turno de ranking del eje entero deja 5.200 nombres ahí — y esta función los escribía TODOS, unidos
+// por comas, en el bloque de memoria que va al system de PLAN **y** al de NARRAR. Medido: el bloque pasa de 1.114 B
+// a 73.210 B, y ese sobrecosto NO es del turno que pidió el ranking: se paga en CADA turno posterior, en las DOS
+// pasadas, aunque el usuario escriba "hola", hasta que el scope se reemplace.
+// LA FRONTERA, la misma de todo el contrato: el MOTOR conserva la lista completa (mem.conversationScope no se toca,
+// y resolveConversationReference —que es la AUTORIDAD determinística sobre "estos/esos"— la sigue leyendo entera);
+// lo que se acota es la PROYECCIÓN al prompt. Por encima del tope no se manda una lista RECORTADA sino el CONTEO:
+// una lista a medias es peor que ninguna, porque PLAN la copiaría a scope.entities y estrecharía el alcance en
+// silencio a las primeras N — exactamente el error que este bloque existe para evitar.
+// EL VALOR, y por qué 24 y no menos: el tenant demo produce hasta 13 entidades con una sola tool (los tres ejes
+// por-fila tienen 13 filas) y gridTable rankea top-20 por default. Con un tope de 12 la línea cambiaba en 5 de los
+// 12 flujos del demo — medido —, o sea que el candado le habría cambiado el prompt a lo que hoy está en producción.
+// 24 queda por encima de todo lo que el demo puede emitir (no-op verificado, línea byte-idéntica en los 12 flujos)
+// y muy por debajo del punto donde la lista deja de ser una SEÑAL y pasa a ser un volcado de dato.
+export const MEMORY_SCOPE_ENTITIES_MAX = 24;
+
 // renderInteractionMemory(mem) → bloque legible de la MEMORIA DE INTERACCIÓN para inyectar en el prompt. Las 4 capas
 // (identidad · preferencias · estado · contexto). Vacío → "" (sin ruido). Es la configuración ejecutiva del usuario.
 export function renderInteractionMemory(mem) {
@@ -121,7 +140,13 @@ export function renderInteractionMemory(mem) {
     // PLAN — sin esto, "¿y el mes/año anterior?" (referencia de PERÍODO, no de entidad) no tenía forma de saber a
     // qué período CONCRETO se refería "el actual" para poder pedir el anterior. La resolución sigue siendo de PLAN
     // (comprensión) — esto es SOLO la señal, mismo principio que entidades/tool en la misma línea.
-    L.push(`· Alcance activo de la conversación: dimensión=${cs.dimension || "?"}, entidades=[${cs.entities.join(", ")}]${cs.tool ? ` (tool=${cs.tool})` : ""}${cs.periodo ? ` · período ya mostrado: ${cs.periodo}` : ""} — si el usuario dice "estos/esos/los mismos" sin nombrar de nuevo, es A ESTO que se refiere; si pregunta "¿y el período/mes/año anterior?", es sobre este MISMO alcance, pidiendo el período previo.`);
+    // ≤ MEMORY_SCOPE_ENTITIES_MAX → exactamente el mismo texto de siempre, byte por byte (el caso del 100% de los
+    // turnos del demo). Por encima, el conteo en vez de los nombres — ver la nota del candado, arriba.
+    const _grande = cs.entities.length > MEMORY_SCOPE_ENTITIES_MAX;
+    const _ents = _grande
+      ? `${cs.entities.length} entidades (el motor tiene la lista completa; NO la copies ni la recortes a scope.entities — si el usuario dice "estos/esos", dejá scope.entities vacío y el motor aplica el alcance entero)`
+      : `[${cs.entities.join(", ")}]`;
+    L.push(`· Alcance activo de la conversación: dimensión=${cs.dimension || "?"}, entidades=${_ents}${cs.tool ? ` (tool=${cs.tool})` : ""}${cs.periodo ? ` · período ya mostrado: ${cs.periodo}` : ""} — si el usuario dice "estos/esos/los mismos" sin nombrar de nuevo, es A ESTO que se refiere; si pregunta "¿y el período/mes/año anterior?", es sobre este MISMO alcance, pidiendo el período previo.`);
   }
   if (!L.length) return "";
   return `MEMORIA DE INTERACCIÓN (cómo trabaja esta persona — respetala):\n${L.join("\n")}`;

@@ -4,9 +4,9 @@
  * (como Claude leyendo el Excel). Es "el motor le entrega la sábana completa". Cada columna-cifra va a la boleta
  * (autorizada) → el guard sigue garantizando que no invente. Multiempresa-safe: lee las fachadas live-binding.
  */
-import { clientesMargen, clientesVentas, marcasMargen, marcasVentas, sfamiliasMargen, sfamiliasVentas, skuInventario } from "../../data/demoData.js";
-import { skusMargen } from "../../data/skusMargen.js";
-import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
+import { clientesVentas, marcasVentas, skuInventario } from "../../data/demoData.js";
+import { SOURCES } from "../../config/contract/sourceManifest.js";   // el CONTRATO decide cómo cada fuente se mueve con el escenario (scenarioLoad) — ver _srcRows
+import { applyScenarioToSfamiliasVentas } from "../../engine/scenarios.js";   // el eje FAMILIA no tiene su Ventas en el manifiesto: entra por la MISMA función del motor que ya usan concentration.js y specRetrieval — ver _sources
 import { fig } from "../boleta.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
@@ -50,8 +50,8 @@ export const TEXT_LABELS = new Set(Object.values(F).filter((m) => m.u === "text"
 // rawRecordFor(dimension, entity) → el registro CRUDO (números sin formatear) de UNA entidad, case/acento-
 // insensitive — para el llamador que necesita el VALOR numérico para comparar (nunca para mostrar: lo que se
 // muestra siempre es el fig() ya formateado y autorizado en la boleta, una sola verdad).
-export function rawRecordFor(dimension, entity) {
-  return _rawRecord(dimension, resolveEntity(dimension, entity));
+export function rawRecordFor(dimension, entity, scenario = "actual") {
+  return _rawRecord(dimension, resolveEntity(dimension, entity, scenario), scenario);
 }
 
 // REFERENCIA_CAMPO — la VARA AUTORIZADA de cada campo comparable (owner "piensa bien, estás de acuerdo con esta
@@ -79,15 +79,49 @@ export const REFERENCIA_ANTERIOR = {
 // fuentes por dimensión (fachadas live-binding · multiempresa). Cada fuente trae su PROPIO keyField: skuInventario
 // identifica el SKU por `sku`, pero skusMargen lo identifica por `nombre` (bug corregido: antes se perdían las
 // columnas comerciales del SKU — costoMedio, precioLista, margen, contribución — por filtrar todo por `sku`).
-function _sources(dimension) {
+//
+// EL ESCENARIO ENTRA POR EL CONTRATO, NO POR UNA SEGUNDA COPIA (owner 2026-08-09, decisión 4: "Sentrix y ADI deben
+// consumir LA MISMA transformación de escenario, nunca implementaciones paralelas"). `_srcRows` no transforma nada:
+// delega en el `scenarioLoad` que `sourceManifest` ya declara para esa fuente — que es el MISMO `applyScenarioTo*`
+// del motor que consume Sentrix (cuadro.js `_clientes`: applyScenarioToClientesMargen + applyScenarioToClientesVentas)
+// y el MISMO que specRetrieval usa vía `_load`. Una fuente que el manifiesto declara `scenarioLoad: null` es
+// SCENARIO-BLIND POR DECLARACIÓN (skusMargen, marcasMargen) y sigue devolviendo su literal: respetar esa declaración
+// es parte del contrato, no un olvido.
+//
+// ANTES: este archivo leía los imports CRUDOS y clavaba `applyScenarioToClientesMargen("actual")` a mano, así que
+// buildGrid/buildTension/buildEntityRecord/rawRecordFor contestaban con el dato del escenario base pasara lo que
+// pasara — 65 cifras de gridTable quedaban QUIETAS mientras la pantalla se movía (Falabella en crisis: pantalla
+// $15.8M, ledger $19.4M). Medido por `_concordancia_numerica_gate` [3].
+const _srcRows = (name, scenario) => {
+  const s = SOURCES[name];
+  if (!s) return [];
+  return (typeof s.scenarioLoad === "function" ? s.scenarioLoad(scenario) : s.load()) || [];
+};
+function _sources(dimension, scenario = "actual") {
   const A = (x) => (Array.isArray(x) ? x : []);
   switch (dimension) {
-    case "sku": return [{ rows: A(skuInventario), key: "sku" }, { rows: A(skusMargen), key: "nombre" }];
+    case "sku": return [{ rows: A(_srcRows("skuInventario", scenario)), key: "sku" }, { rows: A(_srcRows("skusMargen", scenario)), key: "nombre" }];
     // cliente: `venta` viene reconciliada contra clientesVentas.actual (owner 2026-07-29, D8 — una sola verdad de
     // venta por cliente), NO el import crudo de clientesMargen. margen/costo/contribución quedan tal cual clientesMargen.
-    case "cliente": return [{ rows: A(applyScenarioToClientesMargen("actual")), key: "nombre" }, { rows: A(clientesVentas), key: "nombre" }];
-    case "marca": return [{ rows: A(marcasMargen), key: "nombre" }, { rows: A(marcasVentas), key: "nombre" }];
-    case "familia": return [{ rows: A(sfamiliasMargen), key: "nombre" }, { rows: A(sfamiliasVentas), key: "nombre" }];
+    case "cliente": return [{ rows: A(_srcRows("clientesMargen", scenario)), key: "nombre" }, { rows: A(_srcRows("clientesVentas", scenario)), key: "nombre" }];
+    // marca/familia: la fuente de VENTAS de esos dos ejes no está declarada en `sourceManifest` (sólo su Margen).
+    //
+    // FAMILIA entra por `applyScenarioToSfamiliasVentas` — la MISMA función que ya consumen el Pareto de Sentrix
+    // (`sentrix/concentration.js:32`) y `specRetrieval._ventasRows`, no una segunda copia. Hacía falta porque el
+    // import crudo NO es el mismo dato: ese transform no preserva `anterior`/`presupuesto` verbatim, los RE-DERIVA
+    // haciendo roll-up de `clientesVentas` (la venta oficial por cliente, D8). Medido en el eje familia: el crudo
+    // dice `anterior` 30.350 y sin `presupuesto`, el roll-up dice 31.844 y 32.600 — un 4,9% de brecha. Con `venta`
+    // ya viniendo del lado Margen scenario-aware, dejar `anterior` en el literal hacía que entityRecord y salesRead
+    // contestaran dos años anteriores distintos para la MISMA familia en bonanza/tensión/crisis (en "actual" no se
+    // notaba: ahí el transform devuelve el crudo tal cual). `actual` se sigue descartando en el merge porque `venta`
+    // ya llegó del lado Margen (ver `_rawRecord`).
+    //
+    // MARCA queda entero sobre el literal, a propósito: el manifiesto declara `marcasMargen.scenarioLoad: null`, así
+    // que su mitad Margen no se mueve. Mover sólo la mitad Ventas armaría la fila mitad-escenario / mitad-literal que
+    // esto justamente evita. Cablear el eje MARCA completo (existe `applyScenarioToMarcasMargen`, sin usar) mueve
+    // cifras de producto y sigue siendo decisión del owner — es el pendiente ya declarado.
+    case "marca": return [{ rows: A(_srcRows("marcasMargen", scenario)), key: "nombre" }, { rows: A(marcasVentas), key: "nombre" }];
+    case "familia": return [{ rows: A(_srcRows("sfamiliasMargen", scenario)), key: "nombre" }, { rows: A(applyScenarioToSfamiliasVentas(scenario)), key: "nombre" }];
     default: return null;
   }
 }
@@ -118,7 +152,7 @@ function _derived(rec) {
 // de cualquier comparación — mismo patrón `_norm` de coerceChain.js/temporalTable.js, duplicado a propósito (capas
 // distintas del pipeline, no vale acoplarlas por una función de 1 línea).
 const _norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
-export function resolveEntity(dimension, entity) {
+export function resolveEntity(dimension, entity, scenario = "actual") {
   if (entity == null) return entity;
   // CONTRATO v2 · FASE 3: primero el índice Map por eje/tenant (O(1) — ver entityIndex.js). El scan lineal de
   // abajo queda como RED: cubre cualquier fuente que el índice no cachee (ej. el eje cliente que acá se lee
@@ -127,7 +161,7 @@ export function resolveEntity(dimension, entity) {
   const canon = resolveCanonical(dimension, entity);
   if (canon) return canon;
   const target = _norm(entity);
-  for (const e of _allEntities(dimension)) if (_norm(e) === target) return e;
+  for (const e of _allEntities(dimension, scenario)) if (_norm(e) === target) return e;
   return entity;   // sin match → tal cual (el caller declina honesto, no se inventa un nombre)
 }
 
@@ -136,10 +170,10 @@ export function resolveEntity(dimension, entity) {
 // omite si `venta` ya llegó de la fuente Margen (siempre primera en _sources) para no emitir un fig() duplicado
 // con el mismo label y (antes del fix D8) valores distintos — hallazgo real: los 2 sobrevivían en el boleta array,
 // autorizando cualquiera de los dos números a la narración.
-function _rawRecord(dimension, entity) {
-  const srcs = _sources(dimension);
+function _rawRecord(dimension, entity, scenario = "actual") {
+  const srcs = _sources(dimension, scenario);
   if (!srcs || entity == null) return null;
-  const canon = resolveEntity(dimension, entity);
+  const canon = resolveEntity(dimension, entity, scenario);
   const rec = {};
   for (const s of srcs) for (const r of s.rows) if (r && String(r[s.key]) === String(canon)) for (const k of Object.keys(r)) {
     if (k === "actual" && rec.venta != null) continue;
@@ -201,8 +235,8 @@ function _groupBySourceRows(sourceName) {
   if (sourceName === "clientesVentas") return clientesVentas;
   return null;
 }
-function _axisNames(dimension) {
-  const direct = _sources(dimension);
+function _axisNames(dimension, scenario = "actual") {
+  const direct = _sources(dimension, scenario);
   if (direct) return direct;
   const E = ENTITIES[dimension];
   if (!E || !E.isGroupBy) return null;
@@ -215,8 +249,8 @@ function _axisNames(dimension) {
 // para sku/cliente/marca/familia (nadie llama esta función con dimension="bodega"/"canal" hoy — gridTable/
 // tensionRead/buildEntityRecord no las soportan, ver toolContracts.js), y ahora también sirve como base de
 // resolveEntity() para bodega/canal (normalización case/acento-insensitive, guessDimension de abajo).
-function _allEntities(dimension) {
-  const srcs = _axisNames(dimension); if (!srcs) return [];
+function _allEntities(dimension, scenario = "actual") {
+  const srcs = _axisNames(dimension, scenario); if (!srcs) return [];
   const seen = new Set(); const out = [];
   for (const s of srcs) for (const r of s.rows) { const id = r && r[s.key]; if (id != null && !seen.has(String(id))) { seen.add(String(id)); out.push(String(id)); } }
   return out;
@@ -256,10 +290,10 @@ export function guessDimensionDetallado(entity) {
   return { dimension: hits[0].dimension, colision: hits.length > 1, opciones: hits };
 }
 
-// buildEntityRecord(dimension, entity) → { facts, boleta } | null
-export function buildEntityRecord(dimension, entity) {
-  const canon = resolveEntity(dimension, entity);
-  const rec = _rawRecord(dimension, canon);
+// buildEntityRecord(dimension, entity, scenario) → { facts, boleta } | null
+export function buildEntityRecord(dimension, entity, scenario = "actual") {
+  const canon = resolveEntity(dimension, entity, scenario);
+  const rec = _rawRecord(dimension, canon, scenario);
   if (!rec) return null;
   const r = _formatRecord(canon, rec);
   r.facts.entityType = dimension;
@@ -268,8 +302,8 @@ export function buildEntityRecord(dimension, entity) {
 
 // axisHasField(dimension, field) → true si ALGUNA fuente de ese eje trae esa columna numérica (turno 14 del
 // veredicto de 18 turnos: base de buildTension — determina qué cruces existen REALMENTE en el dato).
-export function axisHasField(dimension, field) {
-  const srcs = _sources(dimension);
+export function axisHasField(dimension, field, scenario = "actual") {
+  const srcs = _sources(dimension, scenario);
   if (!srcs) return false;
   return srcs.some((s) => s.rows.some((r) => r && typeof r[field] === "number"));
 }
@@ -294,16 +328,16 @@ function _applyEntityScope(ents, entityScope) {
   return scoped.length ? scoped : ents;
 }
 
-export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null } = {}) {
-  const hasA = axisHasField(dimension, metricA), hasB = axisHasField(dimension, metricB);
+export function buildTension(dimension, { metricA = "contribucion", metricB = "stockUSD", limit = 10, dirA = "desc", dirB = "desc", entityScope = null, scenario = "actual" } = {}) {
+  const hasA = axisHasField(dimension, metricA, scenario), hasB = axisHasField(dimension, metricB, scenario);
   const lblA = (F[metricA] && F[metricA].l) || metricA, lblB = (F[metricB] && F[metricB].l) || metricB;
   if (!hasA || !hasB) {
     const falta = !hasA && !hasB ? `${lblA} ni ${lblB}` : !hasA ? lblA : lblB;
     return { unsupported: `${lblA} y ${lblB} no se miden juntas por ${dimension} — falta ${falta} en ese eje (no hay tabla puente ${dimension}↔SKU en el dato).` };
   }
-  let ents = _allEntities(dimension); if (!ents.length) return null;
+  let ents = _allEntities(dimension, scenario); if (!ents.length) return null;
   ents = _applyEntityScope(ents, entityScope);
-  const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e) }))
+  const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e, scenario) }))
     .filter((x) => x.rec && typeof x.rec[metricA] === "number" && typeof x.rec[metricB] === "number");
   if (recs.length < 2) return null;
   // DIRECCIÓN por métrica (owner 2026-07-29, hallazgo en vivo): "quién CEDE más margen" pide el margen más BAJO
@@ -341,11 +375,11 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
 // LA GRILLA: top-N entidades × TODAS sus columnas (el motor arma la tabla junta y exacta; el LLM elige qué columnas
 // mostrar). sortBy = campo crudo por el que rankear (venta/contribucion/stockUSD/rotacion/margen…) o su etiqueta.
 const _LABEL2FIELD = Object.fromEntries(Object.entries(F).map(([k, m]) => [m.l.toLowerCase(), k]));
-export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20, entityScope = null } = {}) {
-  let ents = _allEntities(dimension); if (!ents.length) return null;
+export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20, entityScope = null, scenario = "actual" } = {}) {
+  let ents = _allEntities(dimension, scenario); if (!ents.length) return null;
   ents = _applyEntityScope(ents, entityScope);   // Etapa 2: "de esos clientes, armame la tabla" — ver _applyEntityScope arriba
   const field = (sortBy && (F[sortBy] ? sortBy : _LABEL2FIELD[String(sortBy).toLowerCase()])) || (F["venta"] ? "venta" : (F["contribucion"] ? "contribucion" : "stockUSD"));
-  const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e) })).filter((x) => x.rec);
+  const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e, scenario) })).filter((x) => x.rec);
   recs.sort((a, b) => { const av = a.rec[field], bv = b.rec[field]; const an = typeof av === "number" ? av : -Infinity, bn = typeof bv === "number" ? bv : -Infinity; return dir === "asc" ? an - bn : bn - an; });
   const top = recs.slice(0, Math.max(1, limit));
   // RESTO (owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 2: "en todo top-N, informa 'N de total' y
