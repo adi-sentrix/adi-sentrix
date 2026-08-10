@@ -16,6 +16,7 @@ import { SELLOS } from "../../config/contract/figureType.js";
 // por el que una palabra termina significando dos cosas.
 const _DEF_VS_PROMEDIO = "La distancia del margen de la fila contra el promedio SIMPLE de las filas de la vista, en puntos porcentuales. Es el promedio de las cuentas, una por una: no es el promedio ponderado por venta de la cartera, que es el que reconcilia con el total del negocio.";
 const _DEF_VS_PROMEDIO_ALERTA = "Cuánto MENOS (o más) stock en alerta concentra esta bodega frente al promedio de las bodegas, en puntos porcentuales. El signo va al revés que el «vs prom» de clientes/SKU/marcas: acá positivo = mejor (menos stock en alerta), y se mide sobre participación de capital, no sobre margen.";
+const _DEF_MARGEN_INVENTARIO = "El margen que declara la ficha de inventario de ese SKU. NO es el margen comercial del año, que sale de otra tabla y para varios SKU da distinto: son dos universos declarados —la foto del inventario a hoy y la venta comercial del período— y no reconcilian entre sí, así que se leen por separado y nunca se restan ni se comparan como si fueran la misma cifra.";
 
 export const METRIC_DEFS = {
   // — comercial / cliente —
@@ -55,6 +56,9 @@ export const METRIC_DEFS = {
   // la columna del asesor en el Cuadro · una etiqueta por universo (antes las dos decían «En juego $»: $5.0M de
   // contribución del año en la pestaña Clientes contra $33K de capital de hoy en Marcas/SKU/Bodegas, 151x)
   "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo tu benchmark o carga comercial sobre tu meta, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
+  // el margen de la FOTO DE INVENTARIO, que no es el margen comercial del mismo SKU (dos universos declarados, sin
+  // reconciliación posible): por eso la columna lleva el calificador en el nombre y no sólo en la nota de cabecera
+  "Margen inv.": _DEF_MARGEN_INVENTARIO, "Margen de inventario": _DEF_MARGEN_INVENTARIO,
   // — gráficos (el "i" de cada gráfico) —
   "Evolución del negocio": "La película de las ventas mes a mes: este año, año anterior y presupuesto. Dato REAL. Pasá el cursor por la curva para ver cada mes.",
   "Concentración": "El principio 80/20: pocos elementos explican la mayor parte del total. El bloque azul es el que cruza el 80.0% · el % es el REAL del dato, no forzado.",

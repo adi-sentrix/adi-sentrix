@@ -394,7 +394,12 @@ export function buildMesaCapital(scenario) {
       key: "detenido", titulo: "Capital inmovilizado", objetivo: "Qué capital no está trabajando y desde cuándo.",
       compradoresNota: "Quién compra hoy ese producto, por su peso en la venta del SKU. Es una ESTIMACIÓN por afinidad de marca y familia —no una transacción observada— y por eso va en participación, nunca en plata: la venta y el inventario no se miden en la misma unidad.",
       columnas: [_COL("sku", "SKU", "left"), _COL("diasSinVenta", "Días sin venta"), _COL("usd", "Valor inmovilizado"),
-        _COL("margenPct", "Margen", "right", "del inventario"), _COL("rotacion", "Rotación", "right", "declarada"),
+        // «Margen inv.» y no «Margen» (owner 2026-08-10): este campo es skuInventario.margenPct, del universo de la
+        // foto de inventario, y NO es el margen comercial que ADI cita para el mismo SKU (skusMargen.margen).
+        // Difieren en 9 de 13 SKU, hasta 6pp (LG-AIR9000: 22% acá, 28% en la boleta), y con esa brecha el veredicto
+        // material/no material contra el benchmark se da vuelta. Los dos universos NO reconcilian y no se los hace
+        // reconciliar: se los distingue por nombre. La nota «del inventario» ya estaba, pero iba de subtítulo.
+        _COL("margenPct", "Margen inv.", "right", "del inventario"), _COL("rotacion", "Rotación", "right", "declarada"),
         _COL("bodega", "Bodega", "left"), _COL("accion", "Acción", "left")],
       filas: _todas.filter((f) => f.estado === "capital_frenado")
         .sort((a, b) => (b.diasSinVenta || 0) - (a.diasSinVenta || 0))
@@ -537,13 +542,26 @@ export function buildCuadroCapital(eje = "sku", scenario = "bonanza") {
       const det = rs.filter((r) => estadoDe[r.sku].estado === "capital_frenado");
       const detUsd = det.reduce((a, r) => a + r.stockUSD, 0);
       const crit = rs.filter((r) => r.alerta === "crit").length;
-      const est = crit ? "capital_frenado" : detUsd ? "capital_frenado" : "capital_sano";
+      // EL ESTADO DE LA BODEGA SALE DE SUS SKU (owner 2026-08-10). Antes esta rama tenía su PROPIA regla binaria
+      // —crítico o capital detenido → capital_frenado, si no capital_sano— reutilizando LAS MISMAS CLAVES del enum
+      // con otro predicado. Consecuencia medida: «quiebre próximo» y «sobrestock» eran inalcanzables por
+      // construcción (0 ocurrencias en las 4 bodegas), justo los dos estados que cortan venta y atan caja de más; y
+      // Santiago publicaba «en rango» en verde con $30.000 de sus $63.800 —el 47%— en quiebre próximo en el otro
+      // eje. Además, cualquier consumidor que leyera `row.estado` obtenía un significado distinto según el eje.
+      // Ahora la bodega hereda el PEOR estado presente entre sus SKU, con el mismo `_RANK` que ordena el eje SKU:
+      // una sola clasificación, el mismo vocabulario, y el glosario (CONCEPT_DEFS.estado) vuelve a describirla.
+      const estados = rs.map((r) => estadoDe[r.sku].estado);
+      const est = estados.slice().sort((a, b2) => _RANK[a] - _RANK[b2])[0] || "capital_sano";
+      const nEnEse = estados.filter((e) => e === est).length;
+      const E = CAPITAL_ESTADOS[est];
       return {
         name: b, stock: rs.reduce((a, r) => a + r.stockUnd, 0), capital: rs.reduce((a, r) => a + r.stockUSD, 0),
         rotacion: _r1(_mean(rs, (r) => r.rotacion)), criticos: crit,
-        estado: est, estadoRank: crit ? 0 : detUsd ? 1 : 3,
-        estadoLabel: crit ? `${crit} SKU crítico${crit > 1 ? "s" : ""}` : detUsd ? "capital inmovilizado" : "en rango",
-        estadoColor: crit ? "red" : detUsd ? "amber" : "green",
+        estado: est, estadoRank: _RANK[est],
+        // el conteo va en la etiqueta para que «el peor estado» no se lea como «toda la bodega está así». Los SKU
+        // críticos siguen teniendo su propia columna («SKU crít.»): son un atributo del dato, no un estado del motor.
+        estadoLabel: `${E.label} (${nEnEse} de ${rs.length} SKU)`,
+        estadoColor: E.color,
         enJuego: detUsd || null, alert: crit > 0 || detUsd > 0,
         lectura: detUsd ? `${_money(detUsd)} inmovilizados en ${det.length} SKU sin rotación${crit ? ` · ${crit} crítico${crit > 1 ? "s" : ""}` : ""}` : null,
         accion: detUsd ? "evaluar salida comercial" : "sostener",
