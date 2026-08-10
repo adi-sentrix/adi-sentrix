@@ -20,6 +20,11 @@
  * APLICA A LOS CUATRO EJES (cliente, familia, marca, sku): el criterio es la FORMA de la consulta, no el eje.
  * Puro, sin estado, sin red — gate-testable como el resto de los detectores de este directorio.
  */
+// ÚNICA dependencia de este módulo, y a propósito una HOJA: viewManifest.js no importa nada, así que este archivo
+// sigue siendo consumible por conversationScope.js / narrationContract.js / answerViaOracle.js sin ningún riesgo de
+// ciclo (ver la nota de DEICTIC_COMPONENT_RE, más abajo). Se importa el NOMBRE de la cara —no se copia— para que
+// ADI nunca la llame distinto de como la llama la pantalla.
+import { VISTA_LABEL } from "../sentrix/viewManifest.js";
 
 // ── ¿PIDIÓ LA SERIE TEMPORAL? ──────────────────────────────────────────────────────────────────────────────────
 // No es una lista cerrada de frases: son las FAMILIAS de pedido temporal que el producto reconoce. Cubre la forma
@@ -187,4 +192,253 @@ export function buildDisclosureInstruction({ podado = [], entidad = null } = {})
   if (!podado.length) return "";
   const quien = entidad ? `de ${entidad}` : "de esta entidad";
   return `DIVULGACIÓN PROGRESIVA — esta es una consulta GENERAL ${quien}: respondé QUÉ PASA, POR QUÉ y QUÉ HACER PRIMERO, en prosa ejecutiva. NO armes ninguna tabla: no tenés autorizado el detalle (${podado.join(" · ")}) porque el usuario no lo pidió, y ese detalle vive en la Ficha de Sentrix. La prioridad SÍ se nombra concreta y con su monto (eso es una frase, no una tabla). Cerrá ofreciendo la Ficha —"Ver ficha en Sentrix"— para el detalle, nunca prometiendo que "podés profundizar" sin decir dónde. Si el usuario después pide la evolución, el mes a mes o la composición, ahí sí se la traés.`;
+}
+
+/* ══ CONTRATO DE RESPUESTA PROPORCIONAL (owner · Contrato de Concordancia ADI ↔ Sentrix) ═══════════════════════════
+ * "Por defecto las tres reglas (1 qué pasa / 2 por qué, distinguiendo PROBADO-INDICADO-ABIERTO / 3 qué hacer
+ *  primero con una sugerencia concreta). Una pregunta puntual NO se convierte en informe: primero responde directo,
+ *  después solo la interpretación necesaria. Si pide 'solo el dato' o equivalente semántico: dato, período y
+ *  alcance, nada más. Para 'explicame este gráfico': qué mide, cuál es su universo, qué patrón importa, qué sabemos
+ *  de su causa y qué conviene revisar primero."
+ *
+ * POR QUÉ VIVE ACÁ Y NO EN UN MÓDULO NUEVO. La FORMA de la respuesta ya se decidía en este archivo (resolveTablePolicy
+ * es exactamente eso: una decisión de presentación del turno, con tres estados, sellada en el contrato y validada por
+ * el guard). La forma proporcional es la MISMA clase de decisión, un eje más — no un segundo contrato de respuesta,
+ * no una segunda preferencia. `pref` (responsePreference.js) sigue siendo la ÚNICA fuente de "solo el dato"/"solo la
+ * acción" y de su detección: acá se la CONSULTA, nunca se la reimplementa.
+ *
+ * LA FRONTERA CON pref, para que no haya dos verdades:
+ *   · pref  = lo que el USUARIO pidió sobre cómo recibir la respuesta (data_only/action_only/results_only/brief).
+ *             Detectado por comprensión en PLAN (buildPrefDoctrine) + la red determinística (_coercePref).
+ *   · shape = la PROPORCIÓN que le corresponde a este turno cuando el usuario NO pidió nada especial: puntual,
+ *             explicar un componente de Sentrix, o el arco completo. Se deriva del texto + el plan + el ViewContext.
+ * Cuando pref dice algo, pref GANA — shape ni siquiera opina (ver resolveAnswerShape, precedencia 1).
+ *
+ * PURO · SIN ESTADO · SIN LLM · gate-testable, igual que el resto de este archivo.
+ */
+
+// LAS CUATRO FORMAS. `null` NO es una forma: es "este turno no agrega ninguna instrucción de forma" (porque ya la
+// gobierna otro contrato — la preferencia de respuesta o el modo clarify, que reemplaza el arco entero).
+export const ANSWER_SHAPES = ["solo_dato", "explicar_componente", "puntual", "tres_reglas"];
+
+// ── DEIXIS DE COMPONENTE · UNA sola definición, acá ────────────────────────────────────────────────────────────
+// "este gráfico", "esa barra", "ese punto", "los de arriba", "este número", "acá". Apunta a lo que el usuario tiene
+// EN PANTALLA — es un eje DISTINTO de la deixis de ENTIDAD ("estos clientes", "esos SKU"), que vive en
+// conversationScope.js con su propio motor de resolución. Las DOS puntas que la necesitan (la forma de la respuesta,
+// acá; la resolución de referencias, conversationScope.js) importan ESTA — nunca declaran una segunda.
+// Vive en este archivo, y no en conversationScope.js, por una razón de dependencias: este módulo es PURO y su única
+// importación es un módulo HOJA (viewManifest.js, que no importa nada), así que puede ser consumido por
+// conversationScope.js, narrationContract.js y answerViaOracle.js sin ningún riesgo de ciclo. Al revés no era
+// cierto — y por eso cualquier import que se agregue acá tiene que seguir siendo de una hoja.
+// OJO CON `\b` Y LOS ACENTOS (mismo cuidado ya documentado arriba en _TEMPORAL/_DESGLOSE): en JavaScript `\b` es
+// ASCII, así que NO cierra después de "á" — `\bac[aá]\b` no reconoce "acá" (el caso real que se escribe). Se cierra
+// con una lookahead negativa de letra (acentuadas incluidas) en vez de `\b`.
+// OJO CON EL PLURAL MASCULINO: `est[ae]s?` NO reconoce "estos"/"esos" (les falta la "o") — cazado por la prueba del
+// detector con "esos números", que es exactamente como se escribe. La clase correcta es `[aeo]`.
+export const DEICTIC_COMPONENT_RE = new RegExp([
+  // "este/esta/estos/estas + <pieza de pantalla>"
+  "\\best[aeo]s?\\s+(?:gr[aá]fic|tabl|vist|pantall|secci[oó]n|kpi|card|tarjet|barra|l[ií]nea|curva|columna|cuadro|panel|bloque|lectura|cifra|n[uú]mero|dato|punto|fila|celda|indicador|serie)",
+  // "ese/esa/esos/esas + <pieza de pantalla>" (el punto de una serie, la barra del pareto, la fila de la tabla)
+  "\\bes[aeo]s?\\s+(?:gr[aá]fic|tabl|punt|barr|fil|celda|dato|l[ií]nea|columna|curva|kpi|cifra|n[uú]mero|cuadro|bloque|indicador|serie)",
+  // posicional sobre lo que se ve
+  "\\b(?:los|las)\\s+de\\s+arriba\\b",
+  "\\b(?:el|la)\\s+(?:primer[ao]|[uú]ltim[ao])\\s+(?:de\\s+)?(?:la\\s+)?(?:tabla|lista|columna|serie)\\b",
+  // "acá", "lo que estoy viendo", "en pantalla"
+  "\\bac[aá](?![a-z\\u00e0-\\u00ff])",
+  "\\blo\\s+que\\s+(?:estoy\\s+)?(?:veo|viendo|aparece)\\b",
+  "\\ben\\s+pantalla\\b",
+  // EL PRONOMBRE PELADO — "explicame esto", "¿por qué pasó esto?", "¿y esto?". Es la PRIMERA forma que el owner
+  // enumeró ("debe entender «esto», «ese gráfico», «los de arriba»…") y la que faltaba: las alternativas de arriba
+  // exigen todas un sustantivo de pantalla detrás del demostrativo, así que "esto" a secas —que es exactamente
+  // como se escribe cuando ya se está señalando algo— no resolvía nada. Cazado por la prueba de deixis del gate
+  // de concordancia semántica, con las tres formas reales.
+  // NEUTRO ESTRICTO, y ese es todo el candado: la lookahead de letra hace que "esto"/"eso" NO matcheen dentro de
+  // "estos"/"esos" (que son deixis de ENTIDAD y tienen su propio motor en conversationScope.js) ni de "estoy",
+  // y el \b inicial evita "peso"/"esposo". El neutro en español no puede referirse a una entidad con nombre —
+  // sólo a una cosa señalada—, así que apuntar a la pieza en pantalla es la única lectura posible.
+  // Ningún consumidor se dispara solo con esto: `resolveAnswerShape` exige ADEMÁS un ViewContext vivo y un verbo
+  // de explicación, y `resolveComponentReference` exige el ViewContext. Sin pantalla declarada, "esto" sigue
+  // siendo irresoluble — que es lo correcto.
+  "\\b(?:esto|eso)(?![a-z\\u00e0-\\u00ff])",
+].join("|"), "i");
+
+// ── LOS CUATRO VERBOS QUE SEPARAN LAS FORMAS ───────────────────────────────────────────────────────────────────
+// Explicar un componente ("qué mide esto"), pedir la causa ("por qué pasó"), pedir la acción ("qué hago") y pedir el
+// panorama ("resumen"). No son listas cerradas de frases: son las FAMILIAS que el producto ya reconoce en su propia
+// doctrina de modos (conversationalContract.js) — acá solo se las lee para dimensionar la respuesta, nunca para
+// elegir el modo (eso lo sigue haciendo PLAN por comprensión).
+// EL MISMO CUIDADO DE ACENTOS, otra vez y en el lugar que más dolía: `\bpor\s+qu[eé]\b` NO reconoce "por qué" —
+// "é" no es carácter de palabra para `\b` (ASCII), así que el cierre nunca ocurre y la causa quedaba sin detectar.
+// Cazado por la prueba del detector: "¿por qué cayó el margen?" se clasificaba como pregunta PUNTUAL, es decir
+// exactamente el turno que MÁS necesita el arco completo. Se cierra con lookahead de letra, nunca con `\b`.
+const _FINP = "(?![a-z\\u00e0-\\u00ff])";   // fin de palabra REAL (tolera la vocal acentuada final)
+const _EXPLICA_RE = /\bexplic\w*|\bqu[eé]\s+(?:significa|quiere\s+decir|mide|muestra|representa|refleja|es\b)|\bc[oó]mo\s+(?:se\s+)?(?:lee|leo|interpret\w*)\b|\bqu[eé]\s+me\s+(?:dice|est[aá]\s+diciendo)\b/i;
+const _CAUSA_RE = new RegExp(`\\bpor\\s+qu[eé]${_FINP}|\\bporqu[eé]${_FINP}|\\ba\\s+qu[eé]\\s+se\\s+debe\\b|\\bqu[eé]\\s+(?:lo\\s+)?(?:explica|caus\\w*|provoc\\w*|origin\\w*)\\b|\\bmotivo\\b|\\bra[zs][oó]n\\s+de\\b`, "i");
+const _ACCION_RE = /\bqu[eé]\s+(?:hago|hacemos|hacer|deber[ií]a|conviene|prioriz\w*|recomend\w*|recomiend\w*|sigue)\b|\bpor\s+d[oó]nde\s+(?:empiezo|arranco|parto|empezar)\b|\bcu[aá]l\s+(?:ataco|prioriz\w*|primero)\b|\bplan\s+de\s+acci[oó]n\b|\bqu[eé]\s+revis\w*\s+primero\b/i;
+const _PANORAMA_RE = /\bresumen\b|\bpanorama\b|\bdiagn[oó]stico\b|\bc[oó]mo\s+(?:viene|va|est[aá])\s+(?:el\s+)?(?:negocio|la\s+empresa|todo)\b|\bfoto\s+completa\b|\bcontame\s+(?:de|del|sobre)\b|\bperfil\s+de\b/i;
+
+// Interrogativa real o pedido directo de un dato. La forma "puntual" exige UNA de las dos — un enunciado suelto
+// ("el margen de Falabella viene raro") no es una pregunta puntual, es material de diagnóstico.
+const _PREGUNTA_RE = new RegExp(`^\\s*[¿?]|\\?\\s*$|^\\s*(?:cu[aá]nt|cu[aá]l|qui[eé]n|d[oó]nde|cu[aá]ndo|qu[eé]${_FINP})`, "i");
+const _PEDIDO_DATO_RE = /^\s*(?:dame|d[ae]me|decime|dime|mostrame|mu[eé]strame|traeme|tr[aá]eme|pasame|p[aá]same|quiero\s+(?:saber|ver)|necesito\s+(?:saber|ver))\b/i;
+
+// esPreguntaPuntual({text, plan}) → true si el turno es UNA pregunta concreta sobre UNA cosa, sin pedir causa,
+// acción, panorama ni detalle. La señal es doble y las dos tienen que dar: la FORMA del texto (pregunta o pedido de
+// dato) y lo que el PLAN resolvió (modo default — es decir, ninguno de los 6 modos con contrato propio — con pocas
+// llamadas y sin un perfil/resumen de por medio). El plan ya hizo la comprensión; acá no se vuelve a adivinar.
+export function esPreguntaPuntual({ text = "", plan = null } = {}) {
+  const t = String(text || "");
+  if (!t.trim()) return false;
+  if (_CAUSA_RE.test(t) || _ACCION_RE.test(t) || _PANORAMA_RE.test(t)) return false;
+  // pedir la serie, el desglose o una tabla es pedir DETALLE: eso tiene su propia forma (tabla obligatoria), y una
+  // respuesta "directa y corta" ahí sería incumplir lo que se pidió.
+  if (pideDetalleTemporal(t) || pideDetalleComposicion(t) || pideTablaExplicita(t)) return false;
+  if (!(_PREGUNTA_RE.test(t) || _PEDIDO_DATO_RE.test(t))) return false;
+  const modo = (plan && plan.mode) || "default";
+  if (modo !== "default") return false;   // los otros 6 modos YA tienen su propio contrato de forma
+  const calls = (plan && Array.isArray(plan.calls)) ? plan.calls.filter(Boolean) : [];
+  if (calls.some((c) => c.tool === "entityProfile" || c.tool === "executiveSummary")) return false;
+  return calls.length <= 2;
+}
+
+// ── LA DECISIÓN · un solo lugar, con precedencia explícita ─────────────────────────────────────────────────────
+// resolveAnswerShape({text, plan, viewContext, pref}) → "solo_dato" | "explicar_componente" | "puntual" |
+//                                                       "tres_reglas" | null
+//   1. pref.contentScope ≠ "full" GANA SIEMPRE. data_only/results_only → "solo_dato". action_only → null: su
+//      dispatch ya existe entero (buildPrefDispatch + blockInstructionFor, responsePreference.js) y duplicarlo acá
+//      sería exactamente la segunda verdad que el contrato prohíbe.
+//   2. modo clarify → null: su contrato REEMPLAZA el arco completo (conversationalContract.js), no se le superpone
+//      ninguna forma.
+//   3. hay ViewContext + deixis de componente + verbo de explicación → "explicar_componente".
+//   4. pregunta puntual → "puntual" (directo primero, interpretación mínima después).
+//   5. resto → "tres_reglas" (el default que fijó el owner).
+export function resolveAnswerShape({ text = "", plan = null, viewContext = null, pref = null } = {}) {
+  const alcance = (pref && pref.contentScope) || "full";
+  if (alcance === "data_only" || alcance === "results_only") return "solo_dato";
+  if (alcance === "action_only") return null;
+  if (plan && plan.mode === "clarify") return null;
+  const t = String(text || "");
+  if (viewContext && DEICTIC_COMPONENT_RE.test(t) && _EXPLICA_RE.test(t)) return "explicar_componente";
+  if (esPreguntaPuntual({ text: t, plan })) return "puntual";
+  return "tres_reglas";
+}
+
+// ── LA GRADUACIÓN, ATADA A ESTE TURNO (no doctrina genérica) ───────────────────────────────────────────────────
+// El owner: "el POR QUÉ distingue PROBADO / INDICADO / ABIERTO". Esa gradación YA existe como criterio en el system
+// prompt, pero ahí es genérica: no sabe QUÉ cifras de ESTE turno son medición directa y cuáles son una cuenta del
+// motor. El sello sí lo sabe — `claim.estatus` sale del fig (formula/source), nunca del texto. Esto lo pone delante
+// del narrador en el momento en que escribe, nombrando las métricas concretas.
+// PAYLOAD MÍNIMO (mismo principio que nivel_aclaracion/preferencia_respuesta): si TODO el turno es probado y no hay
+// ninguna pregunta abierta, no hay nada que graduar → cadena vacía → la clave ni aparece.
+const _MAX_METRICAS_GRADUACION = 4;
+function _metricasPorEstatus(claims, estatus) {
+  const out = [];
+  for (const c of (Array.isArray(claims) ? claims : [])) {
+    if (!c || c.estatus !== estatus || !c.metrica) continue;
+    if (!out.includes(c.metrica)) out.push(c.metrica);
+    if (out.length >= _MAX_METRICAS_GRADUACION) break;
+  }
+  return out;
+}
+export function buildGraduacionInstruction(claims = [], preguntasAbiertas = []) {
+  const indicadas = _metricasPorEstatus(claims, "indicado");
+  const probadas = _metricasPorEstatus(claims, "probado");
+  const abiertas = (Array.isArray(preguntasAbiertas) ? preguntasAbiertas : []).filter(Boolean);
+  if (!indicadas.length && !abiertas.length) return "";   // nada que graduar: todo es medición directa
+  const partes = [];
+  if (probadas.length) partes.push(`PROBADO (medición directa, se afirma): ${probadas.join(" · ")}.`);
+  if (indicadas.length) partes.push(`INDICADO (cuenta del motor sobre el dato, se dice como señal y nunca como hecho ya realizado): ${indicadas.join(" · ")}.`);
+  if (abiertas.length) partes.push(`ABIERTO${abiertas[0] && abiertas[0].motivo ? ` (${abiertas[0].motivo})` : ""}: declaralo como límite y ofrecé lo que sí podés traer, nunca lo completes con una causa que el dato no da.`);
+  return `EL POR QUÉ VA GRADUADO CON LO DE ESTE TURNO — ${partes.join(" ")} No hace falta escribir las etiquetas literales: lo que no puede fallar es que una cuenta del motor no se narre como medición.`;
+}
+
+// ── LAS INSTRUCCIONES DE FORMA, UNA POR CADA FORMA QUE SE DESVÍA DEL DEFAULT ───────────────────────────────────
+// PUNTUAL: el pedido explícito del owner — "primero responde directo, después solo la interpretación necesaria".
+const PUNTUAL_INSTRUCTION = "FORMA DE ESTA RESPUESTA — PREGUNTA PUNTUAL, NO UN INFORME. Abrí con la RESPUESTA a lo que se preguntó: el dato con su unidad, su entidad y su período, en la PRIMERA oración. Recién después, y SOLO si aporta algo que el dato no dice solo, sumá una frase de lectura (la comparación contra la referencia, o qué mirar). Está PROHIBIDO desplegar el arco completo acá: nada de panorama, nada de recorrer otras entidades que no se preguntaron, nada de cerrar con un plan de acción de varios frentes. Si la respuesta entera entra en dos oraciones, que sean dos oraciones — no la estires para que parezca un análisis.";
+
+// SOLO EL DATO: la instrucción NO se compone acá a propósito. El alcance data_only/results_only ya tiene su
+// enforcement completo y estructural en responsePreference.js (blockInstructionFor/buildPrefDispatch) y en
+// answerViaOracle.js, donde estos dos alcances ni siquiera invocan al narrador — la respuesta se COMPONE desde la
+// boleta. Escribir acá una segunda instrucción para lo mismo sería la duplicación que el contrato prohíbe. Lo que
+// SÍ faltaba de "dato, período y alcance" era el ALCANCE, y eso se resuelve donde se compone: buildAlcanceLine.
+export function buildAlcanceLine(scope) {
+  if (!scope || typeof scope !== "object") return "";
+  const partes = [];
+  const ents = Array.isArray(scope.entidades) ? scope.entidades.filter(Boolean) : [];
+  if (ents.length === 1) partes.push(String(ents[0]));
+  else if (ents.length > 1) partes.push(ents.slice(0, 3).map(String).join(", ") + (ents.length > 3 ? " y las demás cuentas del pedido" : ""));
+  else if (scope.eje) partes.push(`todo el eje ${scope.eje}`);
+  else partes.push("el negocio completo");
+  if (ents.length && scope.eje) partes.push(`eje ${scope.eje}`);
+  const filtros = (scope.filtros && typeof scope.filtros === "object") ? Object.entries(scope.filtros) : [];
+  for (const [k, v] of filtros) if (v != null && v !== "") partes.push(`${k}: ${v}`);
+  // sin conteos ni cifras: es una declaración de alcance, no un dato más (y así nunca introduce un número que el
+  // guard no tenga autorizado).
+  return `Alcance: ${partes.join(" · ")}.`;
+}
+
+// EXPLICAR UN COMPONENTE: los cinco movimientos que pidió el owner, compuestos DESDE el ViewContext. El contexto
+// dice QUÉ está mirando el usuario — nunca cuánto vale nada: las cifras siguen saliendo de cifras_autorizadas.
+// Duck-typed a propósito: lee los campos del ViewContext que existan y omite los que no. Así vale igual con el
+// contexto sellado completo y con uno parcial, y nunca rompe el turno por un campo ausente.
+// El nombre de la cara sale del MANIFIESTO (`VISTA_LABEL`, importado arriba), no de una copia local: una segunda
+// tabla acá —aunque hoy fuera idéntica— haría que algún día ADI nombre la cara distinto de como la nombra Sentrix,
+// que es exactamente la contradicción que este frente existe para cerrar.
+// `_TIPO_LABEL` SÍ es de acá: `TIPOS` declara los tipos válidos, pero no su forma de decirlos en una oración.
+const _TIPO_LABEL = {
+  vista: "la vista completa", veredicto: "una lectura ejecutiva", kpi: "un indicador de cabecera", tabla: "una tabla",
+  serie: "una serie de tiempo", barra: "un gráfico de barras", lista: "una lista", tira: "una tira de reconciliación",
+};
+export function buildComponentExplainInstruction(viewContext, claims = []) {
+  const vc = viewContext && typeof viewContext === "object" ? viewContext : null;
+  const vista = vc && vc.vista ? (VISTA_LABEL[vc.vista] || String(vc.vista)) : null;
+  const tipo = vc && vc.tipo ? (_TIPO_LABEL[vc.tipo] || String(vc.tipo)) : null;
+  const donde = vc ? [vista, vc.seccion ? `sección ${vc.seccion}` : null, vc.componentId || null].filter(Boolean).join(" › ") : null;
+
+  const mide = [];
+  if (vc && vc.metrica) mide.push(String(vc.metrica));
+  if (vc && vc.eje) mide.push(`por ${vc.eje}`);
+  if (vc && vc.periodo) mide.push(`en el período: ${vc.periodo}`);
+  if (vc && vc.escenario) mide.push(`escenario ${vc.escenario}`);
+
+  const uni = vc && vc.universo && typeof vc.universo === "object" ? vc.universo : null;
+  const universo = uni ? [uni.label || uni.kind || null, uni.cierraCon ? `cierra con ${uni.cierraCon}` : null].filter(Boolean).join(" — ") : null;
+
+  const sello = vc && vc.estatus ? String(vc.estatus) : null;
+  // EL LÍMITE DECLARADO, no sólo la divergencia (owner 2026-08-09, decisión 11). Antes esta línea sólo se inyectaba
+  // cuando el componente declaraba una divergencia numérica; un componente cuya cifra NO EXISTE en la evidencia
+  // declarada (`unsupported` — el pie que ninguna tool entrega, la partición que nadie produce) no decía nada, y el
+  // silencio se leía como "todo cierra". Ahora entra el límite de los dos estados que no son `reconciled`, y sólo
+  // de esos: repetirle al modelo la razón de una cifra que SÍ cierra es ruido que no cambia ninguna respuesta.
+  const _conc = vc && vc.concordancia && typeof vc.concordancia === "object" ? vc.concordancia : null;
+  const divergencia = _conc && _conc.estado !== "reconciled" && _conc.razon ? String(_conc.razon) : null;
+  const comparacion = vc && vc.comparacion ? String(vc.comparacion) : null;
+
+  const pasos = [
+    `(1) QUÉ MIDE — ${mide.length ? mide.join(", ") : "la métrica que muestra ese componente, con su unidad"}${tipo ? `; el componente es ${tipo}` : ""}.`,
+    `(2) CUÁL ES SU UNIVERSO — ${universo || "sobre qué conjunto está calculado (todo el negocio, un grupo, una selección) y contra qué cierra"}${comparacion ? `. La comparación que muestra es contra ${comparacion}` : ""}.`,
+    "(3) QUÉ PATRÓN IMPORTA — lo que de verdad hay que leer ahí, usando SOLO las cifras autorizadas de este turno (el máximo, el mínimo, la concentración, la brecha). Si una cifra no está autorizada, no la nombres.",
+    `(4) QUÉ SABEMOS DE SU CAUSA — graduado${sello ? ` (el sello de este componente es «${sello}»)` : ""}: si el dato la prueba, afirmala; si es una señal, decila como señal; si no se cierra con este dato, declaralo abierto y decí qué haría falta.${divergencia ? ` LÍMITE DECLARADO de este componente: ${divergencia} — nombralo en vez de tapar la diferencia.` : ""}`,
+    "(5) QUÉ CONVIENE REVISAR PRIMERO — una sola cosa, concreta, con su cifra si la tenés autorizada.",
+  ];
+
+  return `FORMA DE ESTA RESPUESTA — EXPLICAR LO QUE EL USUARIO TIENE EN PANTALLA${donde ? ` (${donde})` : ""}. Está mirando ESE componente y pide que se lo expliques, así que la respuesta recorre estos cinco movimientos, en PROSA corrida y sin rótulos ni numeración visible:\n  ${pasos.join("\n  ")}\nEL CONTEXTO DE PANTALLA NO TRAE CIFRAS y nunca las inventes desde él: dice QUÉ está mirando el usuario, no cuánto vale. Toda cifra sigue saliendo de cifras_autorizadas, verbatim. Y no describas la interfaz ("el gráfico tiene tres series de colores"): explicá el NEGOCIO que ese componente mide.`;
+}
+
+// buildAnswerShapeInstruction(shape, {viewContext, claims, preguntasAbiertas}) → la instrucción de NIVEL DE TURNO,
+// o "" cuando la forma no necesita decir nada nuevo. Devolver "" es una decisión, no un olvido:
+//   · "tres_reglas"  el arco de 3 movimientos YA es la doctrina del system (LA ESTRUCTURA, narratePromptC.js).
+//                    Repetirlo en el payload sería pagar tokens por nada. Lo único que SÍ se agrega es la
+//                    graduación atada a las cifras de este turno, y solo si hay algo que graduar.
+//   · "solo_dato"    su enforcement es estructural (ver arriba): el narrador ni se invoca.
+//   · null           otro contrato ya gobierna la forma (preferencia de respuesta o clarify).
+export function buildAnswerShapeInstruction(shape, { viewContext = null, claims = [], preguntasAbiertas = [] } = {}) {
+  if (shape === "explicar_componente") {
+    const explicar = buildComponentExplainInstruction(viewContext, claims);
+    const grad = buildGraduacionInstruction(claims, preguntasAbiertas);
+    return grad ? `${explicar}\n${grad}` : explicar;
+  }
+  if (shape === "puntual") return PUNTUAL_INSTRUCTION;
+  if (shape === "tres_reglas") return buildGraduacionInstruction(claims, preguntasAbiertas);
+  return "";
 }
