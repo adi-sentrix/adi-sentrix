@@ -1202,15 +1202,48 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // Se hace ANTES del batch, en el mismo punto donde el resto de la reparación se aplica, para que la invalidación
   // llegue a la memoria que ve el narrador y no solo al estado que se persiste.
   let _reparacion = _reparacionDe(plan);
-  if (planWasSynthetic && !_reparacion) {
+  // ── EL RESPALDO ESTRUCTURAL (owner 2026-08-10, tras la primera corrida pagada) ────────────────────────────────
+  // LA CERTIFICACIÓN LO CAZÓ EN LA PRIMERA SONDA: el planificador respondió bien —trajo las calls, el batch corrió,
+  // el guard no rechazó nada— pero NO emitió el objeto `reparacion`. Era un campo opcional del esquema, así que
+  // toda la conducta del contrato colgaba de que el modelo se acordara de llenarlo. Ahora el esquema lo exige
+  // (y admite `null`), y además el motor tiene un respaldo por si igual llega vacío.
+  //
+  // NO MIRA EL TEXTO. `inferirCorrige` compara DOS ESTRUCTURAS —el alcance canónico anterior contra el que este
+  // plan resolvió— y nombra qué campos del contrato cambiaron. Es el patrón de siempre acá: el modelo es el
+  // mecanismo principal, el respaldo determinístico cubre lo que omite.
+  //
+  // DÓNDE PUEDE ACTIVARSE, y es angosto a propósito:
+  //   · con `intent="redirect"` y sin reparación declarada — el turno DICE que reencauza pero no dice qué;
+  //   · con un plan SINTÉTICO (rutas que no consultan al planificador, donde nadie pudo declararla).
+  // DÓNDE NO: en una consulta normal (`intent="answer"` no sintético, ni siquiera se evalúa), en un desacuerdo o
+  // en un dato aportado (ahí `_reparacion` YA existe con su tipo, así que este bloque no corre), y en un cambio
+  // de tema, que llega como `answer` y por lo tanto tampoco.
+  //
+  // SI LA DIFERENCIA NO ALCANZA, ES AMBIGUA. Un redirect sin reparación declarada Y sin ningún cambio estructural
+  // que leer significa que el usuario reencauzó algo que no podemos ver: adivinar ahí sería exactamente lo que §1
+  // prohíbe. Se trata como corrección ambigua — una sola pregunta de precisión, sin recalcular y sin narrar.
+  const _puedeInferir = !_reparacion && (planWasSynthetic || plan.intent === "redirect");
+  if (_puedeInferir) {
     const _inferido = inferirCorrige(conversationScopePrev, plan);
-    if (_inferido.length) _reparacion = { tipo: "correccion", corrige: _inferido, ambigua: false, pregunta: null, dato: null, aceptado: false, inferida: true };
+    if (_inferido.length) {
+      _reparacion = { tipo: "correccion", corrige: _inferido, ambigua: false, pregunta: null, dato: null, aceptado: false, inferida: true };
+    } else if (plan.intent === "redirect" && !planWasSynthetic) {
+      _reparacion = { tipo: "correccion", corrige: [], ambigua: true, pregunta: null, dato: null, aceptado: false, inferida: true };
+    }
   }
   // `calls` VACÍO ADEMÁS DEL FLAG (owner 2026-08-10, revisión de la sección 8): si el plan se declara ambiguo pero
   // trajo calls, se contradice igual que cuando declara `corrige` — y descartar un batch bueno para preguntar algo
   // le cuesta al usuario un turno entero. Ante la contradicción vale siempre lo RESPONDIBLE.
-  const _ambiguaSinCalls = _esReparacionAmbigua(plan) && !(Array.isArray(plan.calls) && plan.calls.length);
-  if (!planWasSynthetic && _ambiguaSinCalls) {
+  // DOS CAMINOS A LA PREGUNTA DE PRECISIÓN, y la diferencia importa:
+  //   · DECLARADA por el planificador → se exige `calls` vacío. Si trajo calls se contradice, y ante la
+  //     contradicción vale lo respondible: descartar un batch bueno le cuesta un turno entero al usuario.
+  //   · INFERIDA por el motor (redirect sin reparación y sin ningún cambio estructural) → se corta AUNQUE haya
+  //     calls, y no es la misma decisión: acá el motor SABE que el alcance no cambió, así que esas calls
+  //     reproducirían el turno que el usuario acaba de decir que está mal. Ejecutarlas es pagar por repetirse.
+  const _repAmbigua = !!(_reparacion && _reparacion.ambigua);
+  const _sinCalls = !(Array.isArray(plan.calls) && plan.calls.length);
+  const _cortaPorAmbigua = _repAmbigua && (_sinCalls || _reparacion.inferida === true);
+  if (!planWasSynthetic && _cortaPorAmbigua) {
     // stripLanguageLeaks (owner 2026-08-10, defecto 4 de la certificación live): la pregunta la REDACTA el LLM y
     // los prompts que lo guían están escritos en voseo — sin esto sale «decime cuál» en un producto cuyo registro
     // es tuteo neutro. Es la MISMA garantía de runtime que ya se le aplica a toda narración libre; acá se extiende
