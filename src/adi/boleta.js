@@ -5,7 +5,7 @@
  * Regla madre: ADI calcula y valida; el LLM entiende y narra.
  *
  * Figura de boleta:
- *   { label, value, unit, raw, mandatory, source, formula, context, canon }
+ *   { label, value, unit, raw, mandatory, source, formula, context, tipo, canon }
  *   · label     semántico ("Falabella · contribución no capturada")
  *   · value     formateado VERBATIM ("$1.6M") — idéntico a lo que muestra el texto (una sola verdad)
  *   · unit      "money" | "pct" | "ratio" | "days" | "count"
@@ -14,8 +14,20 @@
  *   · source    "actual" | "computed"   ← RESERVADO para simulaciones (Fase futura)
  *   · formula   string | null           ← RESERVADO: fórmula auditable ("actual $4.27M × 1.03")
  *   · context   escenario o pregunta ("simulate ventas@cliente +3%")
+ *   · tipo      EL TIPO DE LA CIFRA (ver abajo)
  *   · canon     clave canónica "unit:value" para el match unit-aware del guard (interna)
+ *
+ * EL TIPO (owner 2026-08-09, decisiones 1 y 2). `unit: "money"` NO alcanza: lo comparten la venta comercial (que
+ * se almacena en MILES), el inventario (dólares CRUDOS) y el precio unitario ($ por unidad). Con sólo `unit`, esta
+ * oración —dos cifras REALES— pasaba el muro entera:
+ *     «SAM-TV55 factura $13.3M y sostiene ese volumen con $13K de inventario: menos de un día de cobertura»
+ * Por eso TODA cifra emitida por `fig()` declara, sin excepción y sin que el composer tenga que acordarse:
+ *     tipo = { unidad, moneda, escala, periodo, escenario, universo, entidad, dimension, fuente,
+ *              sello, verificabilidad, verificabilidadRazon }
+ * El vocabulario y las reglas viven en config/contract/figureType.js (declaradas, con su evidencia medida); acá
+ * sólo se aplican. Es el TIPO, no un guard por ratio: ninguna ruta puede emitir una cifra sin él.
  */
+import { deriveFigureType } from "../config/contract/figureType.js";
 
 // formateador canónico · MISMA escala que specRetrieval._money (money en $ CRUDOS)
 const _moneyC = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
@@ -30,8 +42,23 @@ const _fmtC = (raw, unit) =>
 // fig(label, value, opts) → figura de boleta normalizada. `value` es el string YA formateado por el composer.
 // `gancho`: cifra AUTORIZADA que NO está en el texto determinístico (owner 2026-07-09 · fuera la muletilla) —
 // contexto opcional para que el narrador la use SOLO si viene al caso. Exenta del check "verbatim en el texto".
-export function fig(label, value, { unit = "money", raw = null, mandatory = false, source = "actual", formula = null, context = null, gancho = false } = {}) {
-  return { label, value: String(value), unit, raw, mandatory, source, formula, context, ...(gancho ? { gancho: true } : {}), canon: `${unit}:${String(value).replace(/\s/g, "")}` };
+//
+// OPCIONES DE TIPO (decisiones 1 y 2 · todas OPCIONALES: lo que el composer no declara se DERIVA del contrato, así
+// que ningún call-site existente tiene que cambiar y ninguno puede quedarse sin tipo):
+//   moneda · escala · periodo · escenario · universo · entidad · dimension · fuente   ← decisión 1
+//   sello ("probado"|"indicado"|"abierto") · reconcilia (true = la cuenta CIERRA contra sus componentes)
+//   declarada (true = la fuente la declara y el dato no la reconstruye)               ← decisión 2
+export function fig(label, value, opts = {}) {
+  const {
+    unit = "money", raw = null, mandatory = false, source = "actual", formula = null, context = null, gancho = false,
+    moneda, escala, periodo, escenario = null, universo, entidad, dimension = null, fuente = null,
+    sello = null, reconcilia = null, declarada = false,
+  } = opts;
+  const tipo = deriveFigureType({
+    label, unit, source, formula,
+    moneda, escala, periodo, escenario, universo, entidad, dimension, fuente, sello, reconcilia, declarada,
+  });
+  return { label, value: String(value), unit, raw, mandatory, source, formula, context, ...(gancho ? { gancho: true } : {}), tipo, canon: `${unit}:${String(value).replace(/\s/g, "")}` };
 }
 
 // isNamedInBoleta(boleta, nombre) → true si ADI NOMBRÓ esa entidad (una cifra de la boleta lleva su nombre en el label).
@@ -124,10 +151,15 @@ export function figFor(figs, entidad, metrica) {
 // boletaFromText(text) → boleta DERIVADA del texto de un composer SELLADO (rutas del motor: compare de marca/cliente/bodega,
 // que no pueden emitir boleta propia sin tocar el motor). Unit-aware: value = la cifra VERBATIM del texto CON su unidad →
 // el guard autoriza EXACTAMENTE las cifras de ADI y bloquea drift/garble (1.3× → "13 veces"). El closer del contrato no se toca.
+// El `canon` acá NO se recalcula desde el value (por eso no pasa por `fig()`): `parseFigures` ya lo canonizó desde
+// el RAW ("94 días" → "days:94d"), y reconstruirlo del texto verbatim rompería el match unit-aware del guard. El
+// TIPO sí se deriva igual — una cifra sin tipo es exactamente lo que la decisión 1 prohíbe.
 export function boletaFromText(text, { context = null, mandatory = false } = {}) {
   return parseFigures(text).map((f) => ({
     label: f.text, value: f.text, unit: f.unit, raw: f.raw,
-    mandatory, source: "actual", formula: null, context, canon: f.canon,
+    mandatory, source: "actual", formula: null, context,
+    tipo: deriveFigureType({ label: f.text, unit: f.unit, source: "actual", formula: null }),
+    canon: f.canon,
   }));
 }
 
@@ -140,7 +172,11 @@ export function ensureBoletaCoversText(boleta, text, { context = null } = {}) {
   const seenVerb = new Set(base.map((f) => String(f.value).replace(/\s/g, "")));
   for (const f of parseFigures(text)) {
     if (!seenCanon.has(f.canon) && !seenVerb.has(String(f.text).replace(/\s/g, ""))) {
-      base.push({ label: f.text, value: f.text, unit: f.unit, raw: f.raw, mandatory: false, source: "actual", formula: null, context, canon: f.canon });
+      base.push({
+        label: f.text, value: f.text, unit: f.unit, raw: f.raw, mandatory: false, source: "actual", formula: null, context,
+        tipo: deriveFigureType({ label: f.text, unit: f.unit, source: "actual", formula: null }),
+        canon: f.canon,
+      });
       seenCanon.add(f.canon);
     }
   }

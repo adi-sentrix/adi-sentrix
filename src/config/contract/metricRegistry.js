@@ -66,6 +66,26 @@ export const METRICS = {
       familia: { source: "sfamiliasMargen", field: "costo" },
     },
   },
+  // ACCIONES COMERCIALES EN DINERO (owner 2026-08-09, decisión 6 · hallazgo E). `carga` estaba declarada SÓLO como
+  // pct (pctRebate), así que el KPI más visible de la cara Comercial —"Acciones comerciales", el MONTO— no tenía
+  // ninguna métrica del contrato detrás: ninguna tool del oráculo podía devolverlo y la card quedaba sin
+  // equivalente. Son la misma realidad en dos unidades y por eso son DOS métricas, no una con dos caras: el
+  // vocabulario del owner las separa a propósito — "carga comercial" es la MÉTRICA (%), "acciones comerciales" es
+  // lo que se revisa y se negocia (el $). Declarada sólo en los ejes donde el sourceManifest declara el campo
+  // `rebates`: cliente y SKU. Marca y familia lo traen en el dato pero el contrato no lo declara, y una métrica
+  // sobre un campo no declarado sería justo la segunda verdad que este contrato existe para evitar.
+  acciones: {
+    label: "Acciones comerciales", unit: "money", scale: { cliente: "K", sku: "K" },
+    polarity: "lowerIsBetter",
+    formula: "venta * pctRebate / 100",   // ← METADATA · el validador chequea que el campo almacenado cierre
+    target: "targetCarga",                // la meta se expresa en % de la venta (POLICY) · misma vara que `carga`
+    axes: ["cliente", "sku"],
+    scenarioAware: { cliente: true, sku: false },
+    sourceByAxis: {
+      cliente: { source: "clientesMargen", field: "rebates" },
+      sku:     { source: "skusMargen",     field: "rebates" },
+    },
+  },
   carga: {  // carga comercial = pctRebate
     label: "Carga comercial", unit: "pct", polarity: "lowerIsBetter",
     target: "targetCarga", bestPractice: "bestPracticeCarga",   // → businessPolicy

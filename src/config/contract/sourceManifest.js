@@ -41,8 +41,16 @@ export const SOURCES = {
     load: () => skusMargen,
     scenarioLoad: null,                                          // ← SCENARIO-BLIND (el motor no ajusta skusMargen · info declarada)
     keyField: "nombre",
-    schema: { nombre: "string", tipo: "enum(sku)", marca: "string", sfamilia: "string", venta: "money(raw)",
-              costo: "money(raw)", rebates: "money(raw)", contribucion: "money(raw)", pctRebate: "pct", margen: "pct",
+    // ESCALA ALINEADA (owner 2026-08-09, decisión 1). Acá decía `money(raw)` mientras metricRegistry declaraba
+    // `scale: { sku: "K" }` para las MISMAS columnas: el contrato afirmaba dos cosas del mismo campo, que es
+    // exactamente el desalineamiento que ya había roto Capital. Manda `money(K)`, y no por convención: Σ
+    // skusMargen.venta = 100.000, que es el mismo $100.0M que Sentrix muestra como venta del negocio y el mismo
+    // total que suman clientesVentas, marcasMargen y sfamiliasMargen. `raw` habría hecho que el SKU líder valiera
+    // $13.3K contra los $13.3M del motor — dos verdades para la misma cifra.
+    // costoMedio/precioLista siguen siendo money(unit): son $ por unidad, crudos, y por eso `unidades × precioLista`
+    // NO cierra contra `venta` — divergencia declarada en config/contract/figureType.js, no un error de este schema.
+    schema: { nombre: "string", tipo: "enum(sku)", marca: "string", sfamilia: "string", venta: "money(K)",
+              costo: "money(K)", rebates: "money(K)", contribucion: "money(K)", pctRebate: "pct", margen: "pct",
               benchmark: "pct", unidades: "count", costoMedio: "money(unit)", precioLista: "money(unit)" },
   },
   skuInventario: {

@@ -8,21 +8,35 @@
  *
  * NO importado por el pipeline vivo en Fase 0: se ejercita solo desde el arnés de sombra (_oracle_shadow.mjs).
  */
-import { createLedger, recordCall } from "./ledger.js";
+import { createLedger, recordCall, tiparBoleta } from "./ledger.js";
 import { TOOLS } from "./toolRegistry.js";
+import { periodoDeFiguras, PERIODO_TXT } from "../../config/contract/figureType.js";
 
 // PERÍODO/FECHA DE CORTE (owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 3: "toda respuesta
 // numérica debe declarar período o fecha de corte"): UN solo punto de inyección para TODAS las tools — evita tocar
-// cada composer/tool individual (eso sería el refactor amplio que el owner pidió NO hacer). El dato es un año
-// CERRADO salvo `inventoryStatus` (foto de HOY, no un promedio anual — ver temporal.js). `trend` ya trae su propio
-// `marco_temporal` más específico (mes a mes) → no se pisa. `defineConcept` no es numérico → sin boleta, sin período.
-const _PERIODO_HOY = new Set(["inventoryStatus"]);
-const _PERIODO_ANUAL = "año cerrado — los 12 meses ya ocurrieron";
-const _PERIODO_HOY_TXT = "foto de inventario a hoy — no es un promedio anual";
-function _stampPeriodo(name, res) {
+// cada composer/tool individual (eso sería el refactor amplio que el owner pidió NO hacer). `trend` ya trae su
+// propio `marco_temporal` más específico (mes a mes) → no se pisa. `defineConcept` no es numérico → sin boleta,
+// sin período.
+//
+// EL MARCO ES DE LA CIFRA, NO DE LA TOOL (owner 2026-08-09, decisión 5 · hallazgo D). Acá vivía un
+// `_PERIODO_HOY = new Set(["inventoryStatus"])`: una lista de TOOLS. Fallaba en las dos direcciones, las dos
+// medidas sobre el dato real:
+//   · la cara Capital entera salía "año cerrado" — `queryMetric{capital}` (13/13 figs de inventario),
+//     `queryMetric{rotacion}` (13/13) y `simulateCapital` (6/6) no estaban en el Set;
+//   · y al revés, `inventoryStatus{top_sellers}` estampaba "foto de inventario a hoy" sobre 5 figs de VENTA ANUAL.
+// Mover tools de una lista a la otra no arregla ninguno de los dos: la fila completa de un SKU (`entityRecord`)
+// es genuinamente MIXTA. El marco sale ahora del TIPO de cada cifra (`figureType.UNIVERSOS[x].periodo`, el mismo
+// que ya declara moneda y escala), leyendo las figs YA TIPADAS que el ledger va a grabar — no una segunda pasada.
+// `facts.periodos` viaja estructurado al lado del texto para que ningún consumidor tenga que leer la frase con un
+// regex; `facts.periodo` sigue siendo la frase canónica, y para un resultado mixto NOMBRA LOS DOS marcos.
+function _stampPeriodo(res, figsTipadas) {
   if (!res || !res.facts || res.facts.periodo || res.facts.marco_temporal) return;
   if (!Array.isArray(res.boleta) || !res.boleta.length) return;   // sin cifras reales → no aplica
-  res.facts.periodo = _PERIODO_HOY.has(name) ? _PERIODO_HOY_TXT : _PERIODO_ANUAL;
+  const { familias, texto } = periodoDeFiguras(figsTipadas);
+  // ninguna cifra declara marco (un resultado de puros conteos: un conteo hereda el marco de lo que cuenta y por
+  // eso su universo no declara período) → queda el marco del negocio, que es el que este punto ya estampaba.
+  res.facts.periodo = texto || PERIODO_TXT.anual;
+  res.facts.periodos = familias.length ? familias : ["anual"];
 }
 
 // runPlan(plan, opts) → { ledger, results, trace, unsupported }
@@ -64,8 +78,11 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
       res = { facts: null, boleta: [], coverage: { supported: false, reason: `error en tool '${name}': ${String((e && e.message) || e)}` } };
     }
     if (!res || typeof res !== "object") res = { facts: null, boleta: [], coverage: { supported: false, reason: "tool sin resultado" } };
-    _stampPeriodo(name, res);
-    recordCall(ledger, { tool: name, callId, scope, args }, res);
+    // el tipado corre UNA vez: lo necesita el período (la naturaleza de cada cifra) y es lo mismo que el ledger graba.
+    const meta = { tool: name, callId, scope, args };
+    const figsTipadas = tiparBoleta(meta, res);
+    _stampPeriodo(res, figsTipadas);
+    recordCall(ledger, meta, res, figsTipadas);
     results.push({ callId, tool: name, ...res });
     if (!res.coverage || res.coverage.supported === false) unsupported.push({ callId, tool: name, reason: res.coverage && res.coverage.reason });
   });

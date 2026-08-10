@@ -13,6 +13,10 @@
  */
 
 import { fig } from "../boleta.js";
+// EL TIPO DE LA CIFRA (owner 2026-08-09, decisión 1): el ledger es el ÚNICO punto por el que pasan todas las
+// cifras de todas las calls, así que es donde se completan los campos del tipo que el composer no puede conocer
+// —el escenario del turno, la tool de origen, y el DOMINIO cuando la etiqueta sola no alcanza a decirlo.
+import { conDominioDelTurno, dominioDeFacts } from "../../config/contract/figureType.js";
 
 // createLedger() → ledger vacío. figs: la boleta plana acumulada (cada fig con .origin). calls: el trace por call.
 export function createLedger() {
@@ -48,8 +52,34 @@ const _entityOf = (node) => { for (const k of _ENTITY_KEYS) if (node[k] != null 
 // _humanizeKey: la CLAVE del campo numérico (antes usada tal cual como si fuera el label completo) se combina
 // como "Entidad · Concepto" (misma convención que boleta.js fig(), reforzada en toda la sesión 2026-08-02) —
 // nunca la entidad sola (dos campos numéricos del mismo nodo colisionarían bajo el mismo label).
-const _KEYLABEL = { doh: "Días de cobertura", diasSinVenta: "Días sin venta", pct: "% del total", porcentaje: "% del total", rotacion: "Rotación", yoy: "YoY" };
+const _KEYLABEL = {
+  doh: "Días de cobertura", diasSinVenta: "Días sin venta", pct: "% del total", porcentaje: "% del total",
+  rotacion: "Rotación", yoy: "YoY",
+  // HALLAZGO G (owner 2026-08-09) · las claves que más aparecen en los facts de los paneles, para que el segundo
+  // segmento del label diga algo de negocio y no la clave cruda de un objeto ("valFmt" → "Valor").
+  venta: "Venta", ventas: "Venta", val: "Valor", valFmt: "Valor", usd: "Monto", monto: "Monto",
+  contribucion: "Contribución", margen: "Margen", capital: "Capital", stockUSD: "Stock", stockUnd: "Stock (unidades)",
+  vendidoMes: "Vendido en el mes", ventaDiaria: "Venta diaria", markup: "Markup", costShare: "Peso del costo",
+  benchmark: "Benchmark", brecha: "Brecha", pctRebate: "Carga comercial", rebates: "Acciones comerciales",
+};
 const _humanizeKey = (k) => _KEYLABEL[k] || k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+// _labelDe(entidad, clave) → la etiqueta CANÓNICA "Entidad · Concepto" (owner 2026-08-09, hallazgo G).
+// EL DEFECTO QUE CIERRA: acá se etiquetaba con el nombre PELADO de la entidad ("Falabella") cuando el nodo la
+// traía. Río abajo, `narrationContract._splitLabel` parte en el PRIMER " · " y define —correctamente— que un label
+// SIN separador es una cifra DEL NEGOCIO, sin dueño. Resultado medido: 11 claims de marginRead y 9 de salesRead
+// quedaban tipados `sujetoTipo: "negocio"` siendo de un cliente, y esta oración pasaba el muro con ok=true:
+//     «Tu negocio cerró el año en $19.4M»   ($19.4M es Falabella; el negocio vende $100.0M)
+// Con el separador, el claim recupera su dueño y el chequeo 12 de guardC —que juzga exactamente ese caso— lo ve.
+// Sin entidad reconocible se conserva la clave sola: hay valores genuinamente globales que llegan así
+// ("headlineSub", "comparacion.vs_anio_anterior") y NO deben inventarse un dueño.
+const _normL = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+function _labelDe(entidad, clave) {
+  const e = entidad == null ? "" : String(entidad).trim();
+  const k = clave == null ? "" : String(clave).trim();
+  if (!e) return k;
+  if (!k || _normL(k) === _normL(e)) return e;   // la clave ES el nombre (no agrega concepto) → no se duplica
+  return `${e} · ${_humanizeKey(k)}`;
+}
 export function enrichFromFacts(boleta, facts) {
   if (!facts || typeof facts !== "object") return boleta;
   const seen = new Set(boleta.map((f) => f.canon));
@@ -67,9 +97,11 @@ export function enrichFromFacts(boleta, facts) {
     if (Array.isArray(node)) { node.forEach((x) => walk(x, entity, key)); return; }
     if (typeof node === "object") {
       const ent = _entityOf(node) || entity || null;
-      if (typeof node.usd === "number" && node.entidad) add(String(node.entidad), _moneyE(node.usd));   // findings (diagnose): usd crudo
+      // findings (diagnose): usd crudo. El concepto sale del propio finding (`tipo`/`concepto`/`label`) y si no
+      // trae ninguno queda "Monto" — nunca el nombre pelado (hallazgo G).
+      if (typeof node.usd === "number" && node.entidad) add(_labelDe(node.entidad, node.concepto || node.metrica || node.tipo || node.label || "monto"), _moneyE(node.usd));
       for (const [k, v] of Object.entries(node)) {
-        if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) mm.forEach((g) => add(ent || k, g)); }
+        if (typeof v === "string") { const mm = v.match(_FIGRE); if (mm) mm.forEach((g) => add(_labelDe(ent, k), g)); }
         else if (typeof v === "number" && Number.isFinite(v)) {
           // crudos por unidad-según-clave · SOLO días/%/x (el $ se omite por la ambigüedad de escala K/crudo)
           const ku = _KEYUNIT.find(([re]) => re.test(k));
@@ -88,7 +120,7 @@ export function enrichFromFacts(boleta, facts) {
           // redondeo que ya usan los demás campos de esta rama, no una regla nueva — nunca citado en la práctica
           // con el float completo (0/26 en la muestra de auditoría), así que esto es consistencia pura, no un
           // cambio de comportamiento observable.
-          add(`${ent} · ${_humanizeKey(k)}`, ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`);
+          add(_labelDe(ent, k), ku[1] === "days" ? `${Math.round(v)}d` : ku[1] === "ratio" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}%`);
         } else walk(v, ent, k);
       }
       return;
@@ -103,11 +135,12 @@ export function enrichFromFacts(boleta, facts) {
 //   result = { facts, boleta:fig[], coverage }  (contrato uniforme de una tool-oráculo)
 // entityLabel se toma del label de la fig (donde el composer ya pone la entidad: "Falabella · Margen") — semilla
 // del binding cifra↔entidad que la Fase 2 usa para validar la atribución.
-export function recordCall(ledger, { tool, callId, scope = null, args = null } = {}, result) {
-  const base = (result && Array.isArray(result.boleta)) ? result.boleta.slice() : [];
-  // enriquece con las cifras REALES de los facts que la boleta curada no cubría (baja abstenciones · guardC intacto)
-  const boleta = enrichFromFacts(base, result && result.facts);
-  const stamped = boleta.map((f) => ({ ...f, origin: { tool, callId, scope, entityLabel: (f && f.label) || null } }));
+export function recordCall(ledger, { tool, callId, scope = null, args = null } = {}, result, boletaYaTipada = null) {
+  // `boletaYaTipada`: la MISMA boleta que produce `tiparBoleta`, cuando el llamador ya la calculó (toolRunner la
+  // necesita ANTES de grabar para poder derivar el período de la NATURALEZA de las cifras — decisión 5). Se reusa
+  // en vez de recalcularla: dos pasadas de `enrichFromFacts` sobre los mismos facts sería trabajo duplicado y, peor,
+  // una segunda implementación del tipado conviviendo con esta.
+  const stamped = Array.isArray(boletaYaTipada) ? boletaYaTipada : tiparBoleta({ tool, callId, scope, args }, result);
   ledger.figs.push(...stamped);
   ledger.calls.push({
     tool, callId, scope, args: args || null,
@@ -115,6 +148,44 @@ export function recordCall(ledger, { tool, callId, scope = null, args = null } =
     figCount: stamped.length,
   });
   return ledger;
+}
+
+// tiparBoleta(meta, result) → las figs de UNA call, enriquecidas desde sus facts y con el TIPO completo + la
+// procedencia. Es EXACTAMENTE lo que el ledger graba; se exporta para que `toolRunner` pueda leer el tipo de las
+// cifras antes de estamparlas —el período sale de la naturaleza de la cifra, y esa naturaleza vive en el tipo— sin
+// abrir una segunda transformación en paralelo.
+export function tiparBoleta({ tool, callId, scope = null, args = null } = {}, result) {
+  const base = (result && Array.isArray(result.boleta)) ? result.boleta.slice() : [];
+  // enriquece con las cifras REALES de los facts que la boleta curada no cubría (baja abstenciones · guardC intacto)
+  const boleta = enrichFromFacts(base, result && result.facts);
+  // EL TIPO SE COMPLETA ACÁ (decisión 1, owner 2026-08-09). Dos campos del tipo NO los puede saber el composer
+  // porque no son suyos, son DEL TURNO: el ESCENARIO con el que corrió la tool y la FUENTE (qué tool trajo la
+  // cifra). El ledger es el único punto por el que pasan TODAS las cifras de TODAS las calls — estamparlos acá es
+  // lo que garantiza que ninguna quede sin declararlos, sin tocar un solo composer. Lo que el composer SÍ declaró
+  // (un escenario de simulación, una fuente más precisa) manda: nunca se pisa.
+  const escenarioDelTurno = (args && args.scenario) || null;
+  // `dimension` SÓLO del arg homónimo: `scope` puede traer una ENTIDAD ("Falabella") y no un eje, y estampar eso
+  // como dimensión sería exactamente la mala tipificación que este paso corrige. El eje real de cada cifra lo
+  // resuelve `buildClaims` contra el catálogo del tenant.
+  const dimDelTurno = (args && typeof args.dimension === "string" && args.dimension) || null;
+  // EL DOMINIO DEL TURNO, leído de lo que la tool ya declara (facts.lens/facts.metrica). Corrige SÓLO las cifras
+  // cuya etiqueta no da ninguna señal de mundo: "Antofagasta · % del total" y "Materiales de Construcción ·
+  // Familia" son inventario en un turno de capital, y por lo tanto la FOTO DE HOY — sin esto quedaban tipadas como
+  // venta comercial del año cerrado. Nunca pisa una etiqueta que sí habla ("SAM-TV55 · Venta" sigue siendo venta
+  // aunque la tool sea inventoryStatus, que es justo el caso de `top_sellers`).
+  const dominioDelTurno = dominioDeFacts(result && result.facts);
+  return boleta.map((f) => ({
+    ...f,
+    ...(f && f.tipo ? {
+      tipo: {
+        ...conDominioDelTurno(f.tipo, f.label, dominioDelTurno),
+        escenario: f.tipo.escenario || escenarioDelTurno,
+        fuente: f.tipo.fuente || tool || null,
+        dimension: f.tipo.dimension || dimDelTurno,
+      },
+    } : {}),
+    origin: { tool, callId, scope, entityLabel: (f && f.label) || null },
+  }));
 }
 
 // ledgerBoleta(ledger) → la boleta plana del turno (unión de todas las calls). Compat directo con
