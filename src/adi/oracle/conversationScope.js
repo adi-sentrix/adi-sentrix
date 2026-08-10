@@ -146,6 +146,42 @@ export function applyRepairToScope(scopeRoot, reparacion) {
   return out;
 }
 
+// ── inferirCorrige(scopePrev, plan) → string[] · LA REPARACIÓN CUANDO NADIE PUDO DECLARARLA ────────────────────
+// EL HUECO QUE CIERRA, y es general, no de una tool: hay rutas que arman un plan SINTÉTICO sin consultar a PLAN
+// (la lectura determinística del P&L es la que llega hasta el batch). Ahí `reparacion` no existe —el objeto lo
+// emite PLAN, y PLAN no corrió— así que una corrección que caiga en esas rutas no invalidaba nada: el narrador
+// seguía recibiendo la oferta y los temas del turno equivocado, y ni la doctrina de reconocimiento ni el chequeo
+// de evidencia se activaban.
+//
+// NO ES UN DETECTOR DE FRASES ni un segundo clasificador: no mira el texto del usuario en ningún momento. Compara
+// DOS ESTRUCTURAS —el alcance canónico del turno anterior y el que este plan resolvió— y nombra qué campos del
+// contrato cambiaron. Si no cambió nada, devuelve vacío y la ruta determinística queda exactamente igual que hoy:
+// una consulta normal no paga nada, no pierde su bypass y no cambia de comportamiento.
+//
+// SOLO PARA PLANES SINTÉTICOS. Cuando PLAN sí corre, él declara la reparación por comprensión, que es el
+// mecanismo principal del contrato; superponerle esta inferencia sería un segundo criterio sobre lo mismo.
+export function inferirCorrige(scopePrev, plan) {
+  const cur = (scopePrev && scopePrev.current) || null;
+  if (!cur || !plan || !plan.scope) return [];
+  const out = [];
+  const nivelPrev = cur.dimension === "cartera" ? "global" : (Array.isArray(cur.entities) && cur.entities.length ? "entity" : null);
+  const nivelAhora = plan.scope.level || null;
+  const entsPrev = Array.isArray(cur.entities) ? cur.entities : [];
+  const entsAhora = Array.isArray(plan.scope.entities) ? plan.scope.entities.filter(Boolean) : [];
+  // ALCANCE: se pasó de una entidad al negocio entero (o al revés). Es el cambio más grande y el que más contexto
+  // deja incompatible, así que se nombra como tal y no como una corrección de entidad.
+  if (nivelPrev && nivelAhora && nivelPrev !== nivelAhora) out.push("alcance");
+  // ENTIDAD: mismo nivel, otra entidad. Se compara por nombre canónico, que es lo que las dos puntas ya usan.
+  else if (entsPrev.length && entsAhora.length && !entsAhora.some((e) => entsPrev.includes(e))) out.push("entidad");
+  // MÉTRICA: la que declara la call dominante contra la que quedó registrada. Es best-effort de los dos lados
+  // (el scope la guarda como best-effort, ver updateConversationScope) — por eso solo se nombra cuando las DOS
+  // existen y difieren: una ausencia no es un cambio.
+  const dom = Array.isArray(plan.calls) && plan.calls[0];
+  const metAhora = (dom && dom.args && (dom.args.metric || dom.args.metricA || dom.args.sortBy)) || null;
+  if (cur.metrica && metAhora && cur.metrica !== metAhora) out.push("metrica");
+  return out;
+}
+
 // ── EL TERCER UNIVERSO · la cifra que aporta el usuario (§5.1) ─────────────────────────────────────────────────
 // "Queda marcada como suya en cada lugar donde aparezca · nunca se suma a un total sellado por el motor · todo
 // cálculo derivado hereda su procedencia · se invalida junto con el resto del contexto incompatible."

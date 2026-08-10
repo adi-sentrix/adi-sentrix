@@ -31,7 +31,7 @@ import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, bui
 // fixtures viejos. withOfertaPendiente (abajo) es el ÚNICO punto que escribe el lado canónico — ver el comentario
 // "CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4" al final de conversationScope.js para el detalle completo.
 import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline, withOfertaPendiente, resolveComponentReference, DEICTIC_PLURAL_RE,
-  applyRepairToScope, composePrecisionQuestion, withSupuestoUsuario } from "./conversationScope.js";
+  applyRepairToScope, composePrecisionQuestion, withSupuestoUsuario, inferirCorrige } from "./conversationScope.js";
 // CONTRATO DE CONCORDANCIA ADI ↔ SENTRIX (owner 2026-08-09) — el CONTEXTO DE PANTALLA. Este archivo es el único
 // punto del oráculo que lo orquesta: lo SELLA al entrar (nunca confía en lo que llegó de la UI), lo INVALIDA cuando
 // cambia la pantalla o el tema, lo proyecta como UNA LÍNEA para PLAN, lo usa como backstop determinístico del
@@ -1194,7 +1194,18 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   //     y "temas recientes: Falabella" — la combinación silenciosa que §1 prohíbe.
   // (c) DESACUERDO / DATO APORTADO → NO invalidan nada (applyRepairToScope los devuelve tal cual): el alcance no
   //     cambió. Lo que cambia es cómo se narra, y eso viaja sellado en el contrato de narración.
-  const _reparacion = _reparacionDe(plan);
+  // LA REPARACIÓN TAMBIÉN LLEGA A LAS RUTAS QUE NO CONSULTAN A PLAN (owner 2026-08-10, cierre general — la que se
+  // notaba era la lectura determinística del P&L). Ahí `plan.reparacion` no puede existir: el objeto lo emite PLAN
+  // y PLAN no corrió. `inferirCorrige` no mira el texto del usuario ni agrega una llamada: compara el alcance
+  // canónico del turno anterior contra el que este plan resolvió y nombra qué campos del contrato cambiaron. Si no
+  // cambió nada devuelve vacío y la ruta determinística queda idéntica — una consulta normal no paga ni cambia.
+  // Se hace ANTES del batch, en el mismo punto donde el resto de la reparación se aplica, para que la invalidación
+  // llegue a la memoria que ve el narrador y no solo al estado que se persiste.
+  let _reparacion = _reparacionDe(plan);
+  if (planWasSynthetic && !_reparacion) {
+    const _inferido = inferirCorrige(conversationScopePrev, plan);
+    if (_inferido.length) _reparacion = { tipo: "correccion", corrige: _inferido, ambigua: false, pregunta: null, dato: null, aceptado: false, inferida: true };
+  }
   // `calls` VACÍO ADEMÁS DEL FLAG (owner 2026-08-10, revisión de la sección 8): si el plan se declara ambiguo pero
   // trajo calls, se contradice igual que cuando declara `corrige` — y descartar un batch bueno para preguntar algo
   // le cuesta al usuario un turno entero. Ante la contradicción vale siempre lo RESPONDIBLE.
@@ -1215,7 +1226,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (out) return out;
     }
   }
-  if (!planWasSynthetic && _reparacion) {
+  // sin `!planWasSynthetic`: la INVALIDACIÓN vale igual venga la reparación declarada por PLAN o inferida de la
+  // estructura. Lo que sigue reservado al plan real es el corte por ambigüedad de arriba — un plan sintético no
+  // puede ser ambiguo, porque nadie interpretó nada.
+  if (_reparacion) {
     const scopeReparado = applyRepairToScope(conversationScopePrev, _reparacion);
     if (scopeReparado !== conversationScopePrev) {
       // las entidades que la reparación dejó sin efecto, leídas del ANTES vs. el DESPUÉS del propio estado.
@@ -1496,7 +1510,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // construcciones paralelas serían la forma más fácil de llegar a que el narrador cumpla una regla y el candado
   // le cobre otra (el mismo defecto que ya se pagó con tablePolicy). Se compone DESPUÉS de escribir el scope
   // fresco en mem2 porque los supuestos vivos del usuario salen de ahí. Null en cualquier turno normal.
-  const reparacionSellada = buildReparacion({ plan, mem: mem2 });
+  const reparacionSellada = buildReparacion({ plan, mem: mem2, reparacion: _reparacion });
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).

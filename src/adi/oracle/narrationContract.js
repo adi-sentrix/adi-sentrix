@@ -440,10 +440,14 @@ export function cifrasDelUsuario(reparacion) {
   return out;
 }
 
-export function buildReparacion({ plan, mem } = {}) {
+// `reparacion` (owner 2026-08-10, integración general del P&L): una reparación YA RESUELTA por el motor. La usan
+// las rutas que arman un plan sintético sin consultar a PLAN, donde `plan.reparacion` no puede existir y la
+// reparación se infiere de la estructura (ver inferirCorrige). Se pasa entera para que el narrador y el guard
+// juzguen EXACTAMENTE lo mismo que el estado ya invalidó — nunca una segunda derivación acá.
+export function buildReparacion({ plan, mem, reparacion = null } = {}) {
   // UNA SOLA LECTURA del objeto crudo (ver normalizeReparacion): el intent y la contradicción `ambigua`+`corrige`
   // se resuelven ahí, una vez, para que el guard, el estado y el prompt no puedan juzgar tres cosas distintas.
-  const r = normalizeReparacion(plan);
+  const r = reparacion || normalizeReparacion(plan);
   const supuestos = supuestosUsuarioVivos(mem && mem.conversationScope)
     .map((s) => ({ origen: "usuario", valor: String(s.valor), metrica: s.metrica || null, periodo: s.periodo || null }));
   if (!r && !supuestos.length) return null;
