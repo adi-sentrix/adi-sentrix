@@ -4,7 +4,7 @@
  * dato sostiene, fila PROMEDIO de referencia (la ley de las lentes), acción DERIVADA, alerta honesta. Scenario-aware
  * (el "periodo"). Serie temporal por-entidad NO existe (sintética) → "global/actual" es real; el corte por fecha
  * fina por-entidad es el límite honesto (se enciende con el ERP). Puro · client-side · el panel solo renderiza. */
-import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToMarcasVentas, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
+import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToMarcasVentas, applyScenarioToMarcasMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { marcasMargen } from "../../data/demoData.js";   // margen/contribución/rebates de MARCA (la grilla mostraba 0.0% — bug cazado 2026-07-10)
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";   // Mesa 2.0 · el semáforo de cada fila contra TU vara (criterio C.2 del owner manda)
@@ -175,9 +175,20 @@ function _skus(s) {
 function _marcas(s) {
   // JOIN con marcasMargen (una verdad): margen/contribución/rebates viven ahí — antes se leía solo marcasVentas
   // (que no los trae) y la grilla mostraba contribución $0 y margen 0.0% (bug cazado en vivo 2026-07-10).
+  //
+  // LA FILA ENTERA RESPONDE AL ESCENARIO (owner 2026-08-10). Acá se leía `marcasMargen` CRUDO para
+  // contribución/margen/rebates mientras `ventas` venía del escenario: una fila mitad-escenario / mitad-literal.
+  // Consecuencias medidas, todas visibles en pantalla: (1) la fila no cerraba consigo misma — Samsung en crisis
+  // mostraba Ventas $26.9M, Contribución $7.643M y Margen 24,2%, cuando 7.643/26.947 = 28,4%, 4,2pp de desvío;
+  // (2) la fila Total SUBÍA el margen en crisis (29,8%) mientras la de Clientes caía (18,4%), o sea el tablero
+  // contradecía la dirección del escenario que estaba mostrando; (3) la Ficha de la misma marca ya usaba
+  // `applyScenarioToMarcasMargen` y decía $6.521M para el mismo Samsung — dos contribuciones simultáneas para la
+  // misma marca, con el mismo chip de escenario arriba. Se consume la MISMA función del motor que ya usa la Ficha:
+  // no se inventa ningún ajuste, se deja de leer el literal a medias.
   const V = applyScenarioToMarcasVentas(s) || [];
-  const avgM = _mean(marcasMargen, (x) => x.margen || 0);
-  const rows = marcasMargen.map((m) => {
+  const MM = applyScenarioToMarcasMargen(s) || [];
+  const avgM = _mean(MM, (x) => x.margen || 0);
+  const rows = MM.map((m) => {
     const v = V.find((x) => x.nombre === m.nombre);
     const gap = _r1((m.margen || 0) - avgM);
     return { name: m.nombre, ventas: v ? v.actual : m.venta, acciones: m.rebates, contribucion: m.contribucion || 0, margen: _r1(m.margen || 0), gap, accion: gap <= -3 ? "revisar mix" : "sostener", alert: false, ..._vara(m.margen, m), mov: null };

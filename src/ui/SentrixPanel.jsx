@@ -4878,7 +4878,11 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
           <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{titulo}</span>
-          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por sus familias o sus SKU (elegís la vista); un SKU, por los clientes que lo compran — y cada composición SUMA EXACTO la cifra del cuadro (una sola verdad). El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando."} align="left"/>
+          {/* el límite lo DECLARA el módulo (concentration.js `_limite`), no este componente: acá solo se concatena.
+              Antes la frase afirmaba «SUMA EXACTO … (una sola verdad)» en todos los ejes, y en dos no suma —marca
+              (una marca sin cliente no entra al gráfico y sí al Cuadro) y SKU (dato sin ajuste por escenario)—.
+              Una limitación se declara en pantalla; afirmar el cierre donde no cierra es el defecto, no el texto. */}
+          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por sus familias o sus SKU (elegís la vista); un SKU, por los clientes que lo compran — y cada composición suma la cifra del cuadro. El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando." + (con && con.limite ? ` · ${con.limite.texto}` : "")} align="left"/>
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:8 }}>
           {dim === "cliente" && sel && (
