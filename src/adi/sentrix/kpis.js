@@ -209,7 +209,7 @@ export function buildMarginReceipt(focus, scenario) {
   return { entityType: "client", focus, venta, lines, comparison, confianza, limites, dominant: d.dominant, thesis: d.thesis };
 }
 
-// EL RECIBO FRÍO de una BODEGA (inventario) · la cuenta del capital: capital = sano (rota) + inmovilizado (atrapado)
+// EL RECIBO FRÍO de una BODEGA (inventario) · la cuenta del capital: capital = sin alerta (rota) + stock en alerta
 // → cierra exacto. Misma forma que el de cliente (lines/comparison/confianza/limites) → UN componente los renderiza
 // ambos. Fuentes ERP · comparación vs promedio de bodegas · límites honestos de inventario. Puro · testable.
 export function buildCapitalReceipt(focus, scenario) {
@@ -217,31 +217,34 @@ export function buildCapitalReceipt(focus, scenario) {
   const allInv = applyScenarioToSkuInventario(s) || [];
   const inv = allInv.filter((x) => x.bodega === focus);
   if (!inv.length) return null;
-  const inmov = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;   // def canónica
+  // STOCK EN ALERTA · misma regla que _bodegaKPIs, y por la misma razón NO se llama «inmovilizado»: esa palabra es
+  // del detector (owner 2026-08-10). Este descompuesto decía «Inmovilizado (atrapado)» sobre la regla de alerta,
+  // así que la Ficha de una bodega atribuía capital inmovilizado donde la cara Capital declaraba $0.
+  const enAlerta = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
   const cap = inv.reduce((a, x) => a + x.stockUSD, 0);
-  const inmovCap = inv.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
+  const inmovCap = inv.filter(enAlerta).reduce((a, x) => a + x.stockUSD, 0);
   const sano = cap - inmovCap;
   const inmovPct = cap ? inmovCap / cap * 100 : 0, sanoPct = 100 - inmovPct;
   const rot = inv.reduce((a, x) => a + x.rotacion, 0) / inv.length;
   const lines = [
     { label: "Capital en stock",       usd: cap,      pct: 100,           sign: "",  source: "ERP · valor de inventario",         tone: "base"  },
-    { label: "Capital que rota (sano)", usd: sano,     pct: _r1(sanoPct),  sign: "−", source: "rotación ≥ 2 · sin alerta",         tone: "base"  },
-    { label: "Inmovilizado (atrapado)", usd: inmovCap, pct: _r1(inmovPct), sign: "=", source: "en alerta o rotación < 2",          tone: "carga", strong: true },
+    { label: "Capital sin alerta",      usd: sano,     pct: _r1(sanoPct),  sign: "−", source: "rotación ≥ 2 · sin alerta",         tone: "base"  },
+    { label: "Stock en alerta",         usd: inmovCap, pct: _r1(inmovPct), sign: "=", source: "en alerta o rotación < 2",          tone: "carga", strong: true },
   ];
   // comparación vs el promedio de las bodegas (+ = mejor: menos inmovilizado / más rotación)
   const names = [...new Set(allInv.map((x) => x.bodega))];
   const per = names.map((b) => {
     const r = allInv.filter((x) => x.bodega === b), c = r.reduce((a, x) => a + x.stockUSD, 0);
-    const im = r.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
+    const im = r.filter(enAlerta).reduce((a, x) => a + x.stockUSD, 0);
     return { inmovPct: c ? im / c * 100 : 0, rot: r.reduce((a, x) => a + x.rotacion, 0) / r.length };
   });
   const avgInmovPct = per.reduce((a, x) => a + x.inmovPct, 0) / per.length;
   const avgRot = per.reduce((a, x) => a + x.rot, 0) / per.length;
   const comparison = [
-    { label: "Inmovilización vs promedio", base: `${_p1(avgInmovPct)}%`, gap: _r1(avgInmovPct - inmovPct), unit: "pp" },   // + = menos inmov = mejor
+    { label: "Stock en alerta vs promedio", base: `${_p1(avgInmovPct)}%`, gap: _r1(avgInmovPct - inmovPct), unit: "pp" },   // + = menos inmov = mejor
     { label: "Rotación vs promedio",       base: `${_r1(avgRot)}x`,      gap: _r1(rot - avgRot),            unit: "x"  },   // + = rota más = mejor
   ];
-  const confianza = { level: "Alta", reason: "dato del ERP point-in-time — sin estimaciones (sano + inmovilizado = capital, cierra exacto)" };
+  const confianza = { level: "Alta", reason: "dato del ERP point-in-time — sin estimaciones (capital sin alerta + stock en alerta = capital, cierra exacto)" };
   const limites = [   // honestos, propios de inventario (no hay serie temporal · no hay proyección por SKU)
     `La evolución del capital de ${focus} mes a mes: el inventario es point-in-time, no hay serie histórica — se enciende con el ERP.`,
     `Cuándo se venderá cada SKU: solo tengo el ritmo de rotación actual, no una proyección por fecha.`,

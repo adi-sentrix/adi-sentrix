@@ -53,7 +53,11 @@ const _entityOf = (node) => { for (const k of _ENTITY_KEYS) if (node[k] != null 
 // como "Entidad · Concepto" (misma convención que boleta.js fig(), reforzada en toda la sesión 2026-08-02) —
 // nunca la entidad sola (dos campos numéricos del mismo nodo colisionarían bajo el mismo label).
 const _KEYLABEL = {
-  doh: "Días de cobertura", diasSinVenta: "Días sin venta", pct: "% del total", porcentaje: "% del total",
+  // «Días de inventario», no «Días de cobertura» (owner 2026-08-10): es el MISMO campo `doh` que entityRecord ya
+  // etiqueta así, y «cobertura» es la palabra que se retiró del producto porque llegó a nombrar dos campos
+  // distintos del dato. Dos nombres para una cifra autorizada es la mitad fácil del problema, pero es la mitad
+  // que hace que el usuario crea que le están hablando de dos cosas.
+  doh: "Días de inventario", diasSinVenta: "Días sin venta", pct: "% del total", porcentaje: "% del total",
   rotacion: "Rotación", yoy: "YoY",
   // HALLAZGO G (owner 2026-08-09) · las claves que más aparecen en los facts de los paneles, para que el segundo
   // segmento del label diga algo de negocio y no la clave cruda de un objeto ("valFmt" → "Valor").

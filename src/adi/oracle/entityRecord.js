@@ -399,7 +399,7 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
 // usan las otras tres tools) ordenaba por un campo que `_rawRecord` descarta. Ahora: gana EL PRIMERO declarado,
 // los alias no reclaman etiqueta, y una colisión nueva se ve en el momento de cargarse en vez de servir la fila
 // del campo equivocado en silencio.
-const LABEL_COLLISIONS = [];
+export const LABEL_COLLISIONS = [];   // exportada para que `_ambiguedad_terminos_gate` la afirme vacía (candado)
 const _LABEL2FIELD = (() => {
   const out = {};
   for (const [k, m] of Object.entries(F)) {

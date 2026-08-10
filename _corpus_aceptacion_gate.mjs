@@ -194,7 +194,7 @@ pregunta(6, "Los quiebres próximos son $36K, ¿en qué SKU?", "responde",
     const stgo = (inv.byBodega || []).find((b) => /santiago/i.test(b.bodega));
     ok(!!stgo && figs.some((f) => sujetoDe(f) === stgo.bodega),
       `la bodega que concentra el riesgo entra con su cifra — ${stgo && stgo.bodega} ${stgo && stgo.pct}%`);
-    const malos = figsDe(figs, /Riesgo de quiebre|Días de cobertura|Rotación|Capital detenido/).filter((f) => f.tipo && f.tipo.periodo !== "hoy");
+    const malos = figsDe(figs, /Riesgo de quiebre|Días de inventario|Rotación|Capital detenido/).filter((f) => f.tipo && f.tipo.periodo !== "hoy");
     ok(malos.length === 0, "TODA cifra de inventario declara la foto de hoy, nunca el año cerrado (decisión 5)",
       malos.slice(0, 4).map((f) => `${f.label}→${f.tipo.periodo}`).join(" · "));
     const g = guard(`El riesgo de quiebre suma ${total && total.value} y se concentra en ${skus.slice(0, 3).join(", ")}.`);

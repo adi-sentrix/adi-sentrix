@@ -902,11 +902,11 @@ export const VIEW_MANIFEST = {
     vista: "capital", seccion: "otro", tipo: "lista", label: "El recibo de la cuenta · capital de una bodega",
     builder: "recibo:bodega", campo: "lines", universoCampo: "lines", entidadCampo: "focus",
     metrica: "capital", eje: "bodega", periodo: "foto de inventario a hoy",
-    universo: { kind: "seleccion", label: "las tres líneas del capital de una bodega, cada una con su fuente", cierraCon: "sano + inmovilizado = capital, cierra exacto por construcción" },
+    universo: { kind: "seleccion", label: "las tres líneas del capital de una bodega, cada una con su fuente", cierraCon: "capital sin alerta + stock en alerta = capital, cierra exacto por construcción" },
     comparacion: "promedio_cartera", estatusDefault: "probado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
     sinTool: null,
-    concordancia: { estado: "unsupported", campos: ["lines[label='Capital que rota (sano)']", "comparison", "limites"],
+    concordancia: { estado: "unsupported", campos: ["lines[label='Capital sin alerta']", "comparison", "limites"],
       razon: "el capital inmovilizado de la bodega es el mismo subconjunto que autoriza `inventoryStatus{focus:'frenado'}` y usa la misma definición canónica (en alerta o rotación < 2). Lo que la tool no emite es el COMPLEMENTO —el capital que sí rota, que esta pieza obtiene por resta—, ni la comparación contra el promedio de bodegas, ni los límites: no hay serie mensual de stock, así que la evolución del capital de una bodega no existe en el dato y la fecha de venta de cada SKU tampoco" },
   },
 
