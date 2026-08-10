@@ -10,6 +10,7 @@
  *   · applyVoiceCalibration
  */
 import { _fmtMoneyK } from "../engine/formatters.js";
+import { RANKING_EXTREMES_METRICS } from "../config/rankingData.js";   // la ESCALA DECLARADA de cada métrica del ranking (ver _fmtRankMoney)
 import { EXECUTIVE_REFRAMES } from "../config/signalRules.js";
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
 import { skuInventario } from "../data/demoData.js";
@@ -75,6 +76,23 @@ function _ordinalSpanishMasc(n) {
 // ── composeOpeningOrdinal · apertura para rank_position ≥ 2 ──────────────
 // Cuando hay topN≥2 · cada entity posterior abre con ordinal · NO con
 // "es tu peor" (que solo aplica al #1). Patrón asesor: jerarquía clara.
+// _fmtRankMoney(valor, metricKey) → $ con la ESCALA QUE LA MÉTRICA DECLARA (owner 2026-08-10). `_fmtMoneyK` asume
+// que TODO llega en miles, y `unit:"$"` de RANKING_EXTREMES_METRICS cubre las dos escalas: contribución/ventas
+// vienen en miles (money(K)) y `stockUSD` en dólares crudos (money(raw)). Con la asunción fija, el capital de un
+// SKU se narraba "$18.60M" donde son $18.6K — 1000x — y el inventario total quedaba por encima de la venta anual
+// del negocio, que es justo la cifra que haría parecer que los dos universos reconcilian. Los dos universos NO
+// reconcilian por declaración: acá se LEE la escala, no se adivina.
+function _fmtRankMoney(value, metricKey) {
+  const spec = RANKING_EXTREMES_METRICS[metricKey];
+  if (spec && spec.scale !== "K") {
+    const v = Number(value) || 0, a = Math.abs(v);
+    if (a >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
+    if (a >= 1e3) return `$${Math.round(v / 1e3)}K`;
+    return `$${Math.round(v)}`;
+  }
+  return _fmtMoneyK(value);
+}
+
 function composeOpeningOrdinal(signals) {
   const w = signals.what;
   if (!w) return "";
@@ -82,7 +100,7 @@ function composeOpeningOrdinal(signals) {
   const valStr = w.unit === "%" ? `${w.value.toFixed(1)}%` :
                  w.unit === "x" ? `${w.value.toFixed(1)}x` :
                  w.unit === "d" ? `${Math.round(w.value)}d` :
-                 w.unit === "$" ? _fmtMoneyK(w.value) :
+                 w.unit === "$" ? _fmtRankMoney(w.value, w.metricKey) :
                  String(w.value);
   const directionLabel = signals.direction === "best" ? "mejor" : "peor";
   const entityNounSingular = w.entityType === "client" ? "cliente" : "SKU";
@@ -195,7 +213,7 @@ function composeRankingGroupNarrative(items, posture, ctx) {
     const v = w.unit === "%" ? `${w.value.toFixed(1)}%`
             : w.unit === "x" ? `${w.value.toFixed(1)}x`
             : w.unit === "d" ? `${Math.round(w.value)}d`
-            : w.unit === "$" ? _fmtMoneyK(w.value)   // FIX (V_VISUAL 2026-07-03) · faltaba el caso money → mostraba "4271" crudo en vez de "$4.27M" (espeja la línea del narrador single-item)
+            : w.unit === "$" ? _fmtRankMoney(w.value, w.metricKey)   // FIX (V_VISUAL 2026-07-03) · faltaba el caso money → mostraba "4271" crudo en vez de "$4.27M" (espeja la línea del narrador single-item) · ESCALA DECLARADA desde 2026-08-10 (ver _fmtRankMoney)
             : String(w.value);
     return `${w.entity} (${v})`;
   });

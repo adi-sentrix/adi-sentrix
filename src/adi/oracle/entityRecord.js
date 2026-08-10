@@ -16,17 +16,31 @@ const _money = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e
 
 // META de cada columna real: etiqueta clara (que NO se pise con otra) + unidad + escala ($ en miles K vs crudo).
 // text = no es cifra (contexto). Si una columna no está acá, se ignora (no rompe).
+//
+// UNA ETIQUETA, UN CAMPO (owner 2026-08-10, barrido de ambigüedad de términos). El caso peligroso no es que dos
+// palabras nombren la misma cosa: es que la MISMA palabra nombre dos cosas distintas. Un barrido ingenuo lo da por
+// concordante y pasa de largo. Acá vivían tres colisiones, las tres medidas:
+//   · `margen` (skusMargen · universo tasa_comercial, año cerrado) y `margenPct` (skuInventario · universo
+//     tasa_inventario, foto de hoy) declaraban las dos «Margen». Difieren en 9 de 13 SKU, hasta 6pp (LG-AIR9000
+//     28% comercial vs 22% inventario), y `margenPct` es el campo con que economicDiagnosis.js:149 clasifica.
+//     NO se reconcilian (los dos universos no cierran, por declaración): se DISTINGUEN por nombre.
+//   · `venta` y `actual` declaraban las dos «Ventas». `actual` es un ALIAS que `_rawRecord` descarta a propósito,
+//     así que el campo nunca existe en el registro — pero ganaba el `_LABEL2FIELD` y rompía el orden de buildGrid.
+//   · `doh` («Cobertura (DOH)») y `cobertura` («Cobertura») entraban las DOS a la misma boleta, las dos
+//     autorizadas, difiriendo en 8 de 13 SKU y hasta 28 días (SAM-TV55: 58d vs 30d). La decisión del owner ya
+//     está tomada: `doh` es la única verdad y en pantalla se llama «Días de inventario». `cobertura` es un
+//     duplicado redondeado y por eso NO ENTRA (se declina, no se le busca un nombre).
 const F = {
   // $ en MILES (comercial): el valor guardado × 1000 = dólares
-  venta: { l: "Ventas", u: "money", k: true }, actual: { l: "Ventas", u: "money", k: true }, anterior: { l: "Ventas año anterior", u: "money", k: true },
+  venta: { l: "Ventas", u: "money", k: true }, actual: { l: "Ventas", u: "money", k: true, alias: "venta" }, anterior: { l: "Ventas año anterior", u: "money", k: true },
   presupuesto: { l: "Presupuesto de ventas", u: "money", k: true }, contribucion: { l: "Contribución", u: "money", k: true },
   costo: { l: "Costo", u: "money", k: true }, rebates: { l: "Rebate (monto $)", u: "money", k: true },
   // $ CRUDO (precios unitarios, valor de stock)
   stockUSD: { l: "Valor de inventario", u: "money" }, precioLista: { l: "Precio de lista", u: "money" }, costoMedio: { l: "Costo medio unitario", u: "money" },
   // porcentajes
-  margen: { l: "Margen", u: "pct" }, margenPct: { l: "Margen", u: "pct" }, pctRebate: { l: "Rebate (%)", u: "pct" }, benchmark: { l: "Benchmark de margen", u: "pct" }, pctInv: { l: "% del inventario total", u: "pct" },
-  // ratio / días
-  rotacion: { l: "Rotación", u: "ratio" }, doh: { l: "Cobertura (DOH)", u: "days" }, cobertura: { l: "Cobertura", u: "days" }, diasSinVenta: { l: "Días sin venta", u: "days" },
+  margen: { l: "Margen", u: "pct" }, margenPct: { l: "Margen de inventario", u: "pct" }, pctRebate: { l: "Rebate (%)", u: "pct" }, benchmark: { l: "Benchmark de margen", u: "pct" }, pctInv: { l: "% del inventario total", u: "pct" },
+  // ratio / días · `cobertura` NO está y no es un olvido: ver la nota de arriba (duplicado redondeado de `doh`).
+  rotacion: { l: "Rotación", u: "ratio" }, doh: { l: "Días de inventario", u: "days" }, diasSinVenta: { l: "Días sin venta", u: "days" },
   // CONTEOS (unidades)
   stockUnd: { l: "Unidades en stock", u: "count" }, unidades: { l: "Unidades vendidas", u: "count" }, unidadesAnt: { l: "Unidades vendidas año anterior", u: "count" }, vendidoMes: { l: "Unidades vendidas en el mes", u: "count" }, ventaDiaria: { l: "Venta diaria (unidades)", u: "count" },
   // texto / contexto (no es cifra)
@@ -184,15 +198,19 @@ function _rawRecord(dimension, entity, scenario = "actual") {
 
 // _formatRecord(entity, rec) → { facts, boleta } · formatea cada columna (cruda + derivada) con su unidad.
 // DEDUP por LABEL (integridad #1-quater, auditoría adversarial 2026-07-31, CONFIRMADO en vivo): 2+ columnas crudas
-// distintas pueden mapear al MISMO label humano en `F` (ej. `margen` y `margenPct` → ambas "Margen", una de
-// skusMargen, otra de skuInventario — mismo patrón que el alias `actual`/`venta` ya dedupeado en _rawRecord de
-// arriba, pero acá la colisión es de LABEL, no de key cruda, así que sobrevivía). Antes: `add()` empujaba un fig
-// NUEVO por cada key, así que "LG-AIR9000 · Margen" podía aparecer 2 VECES en `boleta` con valores distintos
-// (22% y 28%) — `facts["Margen"]` ya resolvía correctamente al último (28%, el que ADI narraba y kpis.js mostraba),
-// pero `figFor()` (boleta.js) devuelve el PRIMER match del array → la fig STALE (22%), divergiendo de ADI Y de
-// Sentrix aunque AMBOS ya estuvieran de acuerdo entre sí. Fix: cuando el label ya se emitió, REEMPLAZA el fig en
-// vez de duplicarlo — mismo "último gana" que `facts` ya aplica, ahora también en `boleta` (una sola verdad, no dos
-// arrays desincronizados).
+// distintas podían mapear al MISMO label humano en `F` (ej. `margen` y `margenPct` → ambas "Margen", una de
+// skusMargen, otra de skuInventario). Antes: `add()` empujaba un fig NUEVO por cada key, así que "LG-AIR9000 ·
+// Margen" aparecía 2 VECES en `boleta` con valores distintos (22% y 28%) — `facts["Margen"]` resolvía al último
+// (28%), pero `figFor()` (boleta.js) devuelve el PRIMER match → la fig STALE (22%), divergiendo de ADI Y de Sentrix
+// aunque AMBOS ya estuvieran de acuerdo entre sí. Este dedup lo tapaba: cuando el label ya se emitió, REEMPLAZA el
+// fig en vez de duplicarlo.
+//
+// EL DEDUP YA NO ES LO QUE EVITA LA CONTRADICCIÓN (owner 2026-08-10). Tapar la colisión con "último gana" dejaba
+// vivo el problema real: las dos cifras seguían siendo legítimas y distintas, y cuál sobrevivía dependía del orden
+// de escritura de `F`. Ahora cada campo tiene ETIQUETA PROPIA («Margen» comercial vs «Margen de inventario»), así
+// que la boleta puede traer las dos SIN MENTIR y el narrador sabe de cuál universo habla cada una. El dedup queda
+// como RED — si mañana alguien vuelve a declarar dos campos con la misma etiqueta, no se duplica el fig — y el
+// candado de `_LABEL2FIELD` (abajo) además deja la colisión visible en vez de resolverla en silencio.
 function _formatRecord(entity, rec) {
   const facts = { entidad: entity };
   const boleta = [];
@@ -374,11 +392,53 @@ export function buildTension(dimension, { metricA = "contribucion", metricB = "s
 // buildGrid(dimension, {sortBy, dir, limit}) → { facts:{rows, sortBy, dimension}, boleta } | null
 // LA GRILLA: top-N entidades × TODAS sus columnas (el motor arma la tabla junta y exacta; el LLM elige qué columnas
 // mostrar). sortBy = campo crudo por el que rankear (venta/contribucion/stockUSD/rotacion/margen…) o su etiqueta.
-const _LABEL2FIELD = Object.fromEntries(Object.entries(F).map(([k, m]) => [m.l.toLowerCase(), k]));
+// _LABEL2FIELD · etiqueta visible → campo crudo. CANDADO DE COLISIÓN (owner 2026-08-10): antes se armaba con
+// Object.fromEntries, así que ante dos campos con la MISMA etiqueta ganaba EL ÚLTIMO ESCRITO — sin aviso. Con eso,
+// `_LABEL2FIELD["margen"]` resolvía a `margenPct` y `_LABEL2FIELD["ventas"]` a `actual`: la MAYÚSCULA del sortBy
+// decidía el campo (sortBy:"margen" → comercial, sortBy:"Margen" → inventario) y `ventas` (la clave canónica que
+// usan las otras tres tools) ordenaba por un campo que `_rawRecord` descarta. Ahora: gana EL PRIMERO declarado,
+// los alias no reclaman etiqueta, y una colisión nueva se ve en el momento de cargarse en vez de servir la fila
+// del campo equivocado en silencio.
+const LABEL_COLLISIONS = [];
+const _LABEL2FIELD = (() => {
+  const out = {};
+  for (const [k, m] of Object.entries(F)) {
+    if (m.alias) continue;                       // `actual` es alias de `venta`: no reclama la etiqueta «Ventas»
+    const key = m.l.toLowerCase();
+    if (out[key]) { LABEL_COLLISIONS.push({ etiqueta: m.l, campos: [out[key], k] }); continue; }
+    out[key] = k;
+  }
+  return out;
+})();
+// SINÓNIMOS DE ENTRADA · la clave CANÓNICA de cada métrica en los otros tres registros del sistema (METRICS,
+// RANKING_EXTREMES_METRICS, METRIC_REGISTRY, QI_METRIC_VOCAB) es el plural `ventas`, y el planificador la emite así
+// en `metric` para todas las demás tools. buildGrid aceptaba solo el singular `venta`; el plural caía en el campo
+// alias y servía una lista SIN ORDENAR con el sello de orden puesto. Esto no cambia el vocabulario que Sentrix le
+// manda a ADI: SUMA la forma canónica a la que ya se aceptaba.
+const _SORT_SYNONYMS = { ventas: "venta", capital: "stockUSD", cobertura: "doh", "dias de inventario": "doh", "días de inventario": "doh" };
+// _resolveSortField(sortBy) → { field, ok } · `ok:false` = el token no se reconoce (el llamador decide).
+function _resolveSortField(sortBy) {
+  if (!sortBy) return { field: F["venta"] ? "venta" : (F["contribucion"] ? "contribucion" : "stockUSD"), ok: true };
+  if (F[sortBy] && !F[sortBy].alias) return { field: sortBy, ok: true };
+  const low = String(sortBy).toLowerCase();
+  if (F[sortBy] && F[sortBy].alias) return { field: F[sortBy].alias, ok: true };
+  if (_SORT_SYNONYMS[low] && F[_SORT_SYNONYMS[low]]) return { field: _SORT_SYNONYMS[low], ok: true };
+  if (_LABEL2FIELD[low]) return { field: _LABEL2FIELD[low], ok: true };
+  return { field: F["venta"] ? "venta" : "contribucion", ok: false };
+}
 export function buildGrid(dimension, { sortBy = null, dir = "desc", limit = 20, entityScope = null, scenario = "actual" } = {}) {
   let ents = _allEntities(dimension, scenario); if (!ents.length) return null;
   ents = _applyEntityScope(ents, entityScope);   // Etapa 2: "de esos clientes, armame la tabla" — ver _applyEntityScope arriba
-  const field = (sortBy && (F[sortBy] ? sortBy : _LABEL2FIELD[String(sortBy).toLowerCase()])) || (F["venta"] ? "venta" : (F["contribucion"] ? "contribucion" : "stockUSD"));
+  const { field } = _resolveSortField(sortBy);
+  // DECLINAR ANTES QUE SELLAR UN ORDEN QUE NO SE APLICÓ (owner 2026-08-10). Si el eje no trae esa columna, el sort
+  // caía a -Infinity para TODAS las filas (un no-op que conserva el orden de entrada) y la tool igual sellaba
+  // «descendente por X» — que es justo lo que el narrador CITA en vez de re-inferir. Resultado medido: «los 5
+  // clientes de mejor margen» devolvía Falabella 22% cuando el mejor real es La Polar 34%, con la tabla mostrando
+  // 22 → 24 → 21.5 → 23.5 → 28 bajo un sello de orden descendente. Ahora se dice que esa columna no existe en ese eje.
+  if (sortBy && !axisHasField(dimension, field, scenario)) {
+    const lbl = (F[field] && F[field].l) || field;
+    return { unsupported: `«${lbl}» no se mide por ${dimension} — esa columna no existe en ese eje del dato, así que no puedo ordenar por ella (no te doy una tabla con un orden que no apliqué).` };
+  }
   const recs = ents.map((e) => ({ e, rec: _rawRecord(dimension, e, scenario) })).filter((x) => x.rec);
   recs.sort((a, b) => { const av = a.rec[field], bv = b.rec[field]; const an = typeof av === "number" ? av : -Infinity, bn = typeof bv === "number" ? bv : -Infinity; return dir === "asc" ? an - bn : bn - an; });
   const top = recs.slice(0, Math.max(1, limit));

@@ -384,6 +384,10 @@ function tensionRead({ dimension, metricA = "contribucion", metricB = "stockUSD"
 function gridTable({ dimension, sortBy = null, dir = "desc", limit = 20, entityScope = null, scenario } = {}) {
   const r = buildGrid(dimension, { sortBy, dir, limit, entityScope, scenario });
   if (!r) return { facts: null, boleta: [], coverage: { supported: false, reason: `no puedo armar la grilla del eje '${dimension}'` } };
+  // ORDEN PEDIDO POR UNA COLUMNA QUE ESE EJE NO TIENE (owner 2026-08-10): `buildGrid` ahora DECLINA en vez de
+  // servir la lista sin ordenar con el sello «descendente por X» puesto — mismo contrato `unsupported` que ya usa
+  // `buildTension`. Degradar honesto acá vale más que una tabla cuyo orden sellado la propia columna desmiente.
+  if (r.unsupported) return { facts: null, boleta: [], coverage: { supported: false, eje: dimension, reason: r.unsupported } };
   // DECISIÓN 8 · una grilla VACÍA no es una respuesta: `buildGrid` devuelve `{count:0, totalCount:0, rows:[]}` para
   // un eje que no tiene columnas propias en el dato (bodega, canal) y esto salía `supported:true` con cero cifras —
   // un turno que dice que puede y no trae nada. `totalCount` es la cuenta ANTES de cualquier alcance, así que

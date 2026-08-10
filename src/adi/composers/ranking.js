@@ -177,9 +177,18 @@ export function _formatMetricValue(value, metricKey) {
   if (spec.unit === "x") return `${value.toFixed(1)}x`;
   if (spec.unit === "d") return `${Math.round(value)}d`;
   if (spec.unit === "$") {
-    // Heurística escala: ≥1000 → K · ≥1M → M
-    if (value >= 1000) return `$${(value/1000).toFixed(2)}M`;
-    return `$${Math.round(value)}K`;
+    // ESCALA DECLARADA, NO ADIVINADA (owner 2026-08-10). Antes acá vivía la heurística «≥1000 → M», que asumía que
+    // todo `unit:"$"` venía en MILES. `stockUSD` viene en dólares CRUDOS (sourceManifest: money(raw)), así que un
+    // stock de 18.600 dólares se servía como "$18.60M" — 1000x — y el total del inventario salía $135,00M contra
+    // los $135,0K reales: una cifra de inventario MAYOR que la venta anual del negocio, justo la que haría parecer
+    // que los dos universos reconcilian. `scale` lo declara en config/rankingData.js y acá SOLO se lee.
+    const enMiles = spec.scale === "K";
+    const usd = enMiles ? value * 1000 : value;
+    // MISMA convención de redondeo que el `_money` de la boleta y de qiRetrieval (K entero), para que la misma
+    // cifra no se lea "$18.6K" por una ruta y "$19K" por la otra — una sola verdad también en la presentación.
+    if (Math.abs(usd) >= 1e6) return `$${(usd / 1e6).toFixed(2)}M`;
+    if (Math.abs(usd) >= 1e3) return `$${Math.round(usd / 1e3)}K`;
+    return `$${Math.round(usd)}`;
   }
   return String(value);
 }

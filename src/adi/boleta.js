@@ -135,16 +135,24 @@ export function guardAgainstBoleta(narration, boleta) {
 // Margen" al buscar "Falabella"); la métrica se busca como substring de CUALQUIER segmento restante (tolera
 // "Margen" vs "Margen actual"/"Margen supuesto").
 const _normFF = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+// EXACTO ANTES QUE PARCIAL (owner 2026-08-10, barrido de ambigüedad de términos). El match del concepto era
+// `s.includes(met)`, así que un token corto se comía a la etiqueta larga que lo CONTIENE: pedir "Margen" para un
+// SKU devolvía «SKU · Margen de inventario» (skuInventario.margenPct, universo de la foto de hoy) porque esa fuente
+// se recorre primero, no «SKU · Margen» (skusMargen, el universo comercial que muestra kpis.js). Los dos son
+// legítimos y NO reconcilian — por eso tienen nombres distintos; lo que estaba mal era que el lector no distinguía.
+// Dos pasadas: primero la igualdad EXACTA de segmento, y sólo si nadie la cumple, el `includes` histórico (que
+// sigue haciendo falta para tokens parciales del plan, ej. "contribucion" → "Margen de contribución").
 export function figFor(figs, entidad, metrica) {
   if (!Array.isArray(figs) || !entidad || !metrica) return null;
   const ent = _normFF(entidad), met = _normFF(metrica);
   if (!ent || !met) return null;
-  for (const f of figs) {
-    if (!f || typeof f.label !== "string") continue;
+  const _delaEntidad = (f) => {
+    if (!f || typeof f.label !== "string") return null;
     const segs = f.label.split("·").map((s) => _normFF(s));
-    if (!segs.some((s) => s === ent || s.includes(ent))) continue;
-    if (segs.some((s) => s.includes(met))) return f;
-  }
+    return segs.some((s) => s === ent || s.includes(ent)) ? segs : null;
+  };
+  for (const f of figs) { const segs = _delaEntidad(f); if (segs && segs.some((s) => s === met)) return f; }
+  for (const f of figs) { const segs = _delaEntidad(f); if (segs && segs.some((s) => s.includes(met))) return f; }
   return null;
 }
 
