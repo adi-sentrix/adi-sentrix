@@ -705,6 +705,109 @@ export function detectPnlIntent(q) {
   return null;
 }
 
+/* ══ EL LENGUAJE DEL RESULTADO (owner 2026-08-09 · decisión 3 · hallazgo L) ══════════════════════════════════════
+ * EL DEFECTO QUE CIERRA. `detectPnlIntent` (arriba) es la red del FLUJO GUIADO: entiende «armemos mi P&L», «cambia
+ * logística a 2%», «¿cuánto me queda después de gastos?». Pero medido sobre el dato real, NO entiende las formas
+ * más naturales de pedir lo mismo — «¿cuál es el resultado del negocio después de gastos?», «el estado de
+ * resultados», «¿cuánta utilidad deja el negocio?», «P&L» a secas: las siete devuelven null. Y cuando la red
+ * devuelve null, ChatADI le da el turno al oráculo (`_oracleOn() && !detectPnlIntent(q)`), que sin una tool de P&L
+ * contestaba la CONTRIBUCIÓN como si fuera el resultado. Son DOS NIVELES FINANCIEROS DISTINTOS: la contribución es
+ * lo que queda antes de los gastos declarados; el resultado, lo que queda después. Confundirlos no es un matiz de
+ * redacción — es responder otra pregunta con una cifra real, el peor modo de falla del producto.
+ *
+ * QUÉ ES ESTO Y QUÉ NO. Es la MISMA función de siempre —reconocer que el turno pide el resultado— expresada para la
+ * ruta oráculo: devuelve el ALCANCE del pedido (negocio · una entidad · un eje) y la tool canónica `pnlRead` lo
+ * ejecuta contra `composePnl`, el contrato que ya existe. NO reimplementa ningún cálculo, NO toca `detectPnlIntent`
+ * (que sigue byte-idéntica: lo que la red vieja ya reclama, lo sigue reclamando, y lo resuelve el MISMO composer,
+ * así que las dos rutas convergen en la misma cifra) y NO abre el flujo guiado.
+ *
+ * SE ABSTIENE (devuelve null) en cuatro casos, todos por la misma razón: hay otro mecanismo que ya sabe hacerlo
+ * mejor y secuestrarle el turno sería peor que no entender.
+ *   · flujo guiado abierto (`_draft`)      → el flujo manda; su propia red lo resuelve etapa por etapa.
+ *   · condicional/simulación (`_SIMQ_RE`)  → «¿y si bajo logística a 2%?» es simulate_line, no una lectura.
+ *   · meta de venta (`_metaVentaIntent`)   → «¿cuánto vender para que me deje $500K?» es otra pregunta.
+ *   · «utilidad» en su sentido NO financiero («la utilidad de este análisis») → veto explícito, ver `_UTIL_VETO`.
+ * Todo sobre texto NORMALIZADO (sin acentos): el bug de `\b` después de vocal acentuada está documentado arriba y
+ * en criteria.js — acá no se repite. */
+// las cuatro familias que el owner nombró + las dos que el criterio de éxito exige, cada una con su razón
+// auditable (la tool la declara en `coverage`/`facts`, así que por qué se activó nunca queda implícito).
+const _PNL_LECTURA_FAMILIAS = [
+  { re: /\bestado\s+de\s+resultados?\b|\bestado\s+de\s+perdidas\s+y\s+ganancias\b/, razon: "«estado de resultados» es el nombre contable del P&L" },
+  { re: /\bp\s*&\s*l\b|\bpnl\b|\bpyl\b|\bp\s+y\s+l\b/, razon: "el usuario nombró el P&L" },
+  { re: /\bresultados?\s+(?:final(?:es)?|neto|operacional|comercial|del\s+ejercicio|del\s+ano|del\s+periodo)\b/, razon: "«resultado final/neto/operacional» es el último nivel de la cascada, no la contribución" },
+  { re: /\bresultado\b[^.?!]{0,30}\b(?:del?\s+negocio|de\s+mi\s+negocio|de\s+la\s+empresa|de\s+mi\s+empresa|de\s+la\s+compania|de\s+la\s+operacion)\b/, razon: "«el resultado del negocio» pide la cascada completa del negocio" },
+  { re: /\bdespues\s+de\s+(?:los\s+)?gastos\b/, razon: "«después de gastos» es, por definición, el nivel que está debajo de la contribución" },
+  // «utilidad» SOLO en su forma financiera. Sin este anclaje, «la utilidad de este análisis» entraría al P&L.
+  // OJO con «qué utilidad»: en español es, de lejos, la forma NO financiera («¿qué utilidad me da esto?», «¿qué
+  // utilidad le ves a esto?», «¿qué utilidad tendría para mí?») — medido, reclamaba 5 de 7 preguntas meta reales.
+  // El interrogativo que SÍ pide plata es «cuánta utilidad», «cuál es la utilidad» o «qué utilidad + verbo de
+  // rendimiento» (dejó/tuvo/generó), así que «qué» sólo entra anclado a ese verbo, nunca suelto.
+  { re: /\butilidad(?:es)?\s+(?:neta|bruta|operacional|final|contable|del\s+ejercicio|del\s+negocio|de\s+la\s+empresa|del\s+ano|del\s+periodo)\b|\b(?:cuanta|cuanto|cual\s+es\s+(?:la|mi|nuestra)|mi|nuestra)\s+utilidad(?:es)?\b|\butilidad(?:es)?\s+(?:que\s+)?(?:deja|dejo|dejan|dejaron|genera|generamos|genero|generaron|queda|quedo|tiene|tenemos|tuvo|tuve|tuvimos|tuvieron)\b/, razon: "«utilidad» es el resultado del negocio dicho en registro contable" },
+  // «ganancia» con los mismos anclajes financieros (nunca la palabra suelta: «ganancia de 3 puntos» es otra cosa).
+  { re: /\bgananci(?:a|as)\s+(?:neta|final|del\s+negocio|de\s+la\s+empresa|del\s+ejercicio)\b|\b(?:cuanta|cuantas|cual\s+es\s+(?:la|mi|nuestra))\s+gananci(?:a|as)\b/, razon: "«ganancia neta/del negocio» nombra el mismo nivel que el resultado" },
+];
+// el sentido NO financiero de «utilidad» (utilidad = para qué sirve algo). Veta el turno entero: es un uso de la
+// palabra que no habla de dinero, y contestarlo con la cascada sería exactamente el error que este módulo corrige.
+// Se veta por el COMPLEMENTO, no por el verbo: lo que delata el sentido no-financiero es de QUÉ se predica la
+// utilidad (un análisis, un reporte, una herramienta, "esto"), no cómo se pregunta. Por eso el verbo intermedio es
+// una lista amplia y opcional ("¿qué utilidad TIENE el reporte?" · "¿la utilidad DE este análisis?").
+// («práctica/real/concreta» son adjetivos que sólo acompañan al sentido no financiero; un infinitivo de complemento
+//  —«qué utilidad tiene MEDIR esto»— tampoco es plata: la utilidad financiera nunca se predica de una acción.)
+const _UTIL_VETO = /\butilidad(?:es)?\s+(?:de\s+|que\s+|tiene[n]?\s+|tendria[n]?\s+|aporta[n]?\s+|aportaria[n]?\s+|nos\s+da\s+|sirve\s+|practica\s+|real\s+|concreta\s+)*(?:est[aeo]\w*|eso|aquello|hacer|usar|tener|saber|medir|calcular|revisar|mirar|analizar|seguir|un\s|una\s|el\s+reporte|el\s+informe|el\s+analisis|el\s+dato|los\s+datos|la\s+informacion|la\s+herramienta|la\s+tabla|el\s+grafico|el\s+ejercicio\s+de)/;
+// el alcance GLOBAL dicho explícito — misma regla de alcance que planPrompt.js: «el negocio» es un sujeto NUEVO
+// que pisa cualquier entidad anterior, y acá también pisa a una entidad nombrada de paso.
+const _PNL_GLOBAL = /\b(?:del?\s+negocio|de\s+mi\s+negocio|negocio\s+completo|de\s+la\s+empresa|de\s+mi\s+empresa|en\s+general|toda\s+la\s+cartera|global|consolidado)\b/;
+
+/* detectPnlLectura(q) → { focus, entity, dimension, covered, motivo } | null
+ *   focus "resultado" = el negocio completo · "entidad" = una cuenta/marca/familia · "eje" = la tabla del eje.
+ * PURA respecto del texto (lee el estado del módulo igual que `detectPnlIntent`: draft + líneas + canon). */
+export function detectPnlLectura(q) {
+  const t = String(q || "").trim();
+  if (!t) return null;
+  if (_draft) return null;                       // el flujo guiado manda mientras esté abierto
+  if (_SIMQ_RE.test(t)) return null;             // condicional → simulación, no lectura
+  if (_metaVentaIntent(t)) return null;          // «cuánto vender para que me deje $X» → otra pregunta
+  const n = _norm(t);
+  if (_UTIL_VETO.test(n)) return null;           // «la utilidad de este análisis» no es plata
+  const fam = _PNL_LECTURA_FAMILIAS.find((f) => f.re.test(n));
+  if (!fam) return null;
+  // ALCANCE. Una entidad del canon nombrada gana (es el pedido más específico); después el eje pedido
+  // («por familia»); si el usuario dijo «del negocio» o no nombró nada, es la cascada del negocio.
+  const ent = _PNL_GLOBAL.test(n) ? null : _pnlEntityEn(t);
+  if (ent) return { focus: "entidad", entity: ent.nombre, dimension: ent.eje, covered: ent.covered, motivo: fam.razon };
+  const ej = _ejePedido(t);
+  if (ej) return { focus: "eje", entity: null, dimension: ej.eje, covered: null, motivo: fam.razon };
+  return { focus: "resultado", entity: null, dimension: null, covered: null, motivo: fam.razon };
+}
+
+/* pnlOraclePlan(q) → el PLAN del oráculo para un turno de P&L, o null · DETERMINÍSTICO, sin LLM.
+ * Por qué existe: que la respuesta a «¿cuál es el resultado del negocio después de gastos?» sea el RESULTADO y no
+ * la contribución no puede depender de que un modelo elija bien la tool. Cuando el lenguaje es inequívoco, el plan
+ * lo arma el motor —mismo mecanismo y mismo lugar que los otros bypasses pre-PLAN de answerViaOracle.js (oferta
+ * aceptada · retorno posicional · simulación pendiente)— y PLAN ni se invoca. Cuando NO es inequívoco, esto
+ * devuelve null y PLAN decide normal, con `pnlRead` ya en su catálogo.
+ * El `tool` que nombra es el de toolRegistry.js; el gate `_pnl_canonico_gate.mjs` verifica que exista en TOOLS. */
+export function pnlOraclePlan(q) {
+  const d = detectPnlLectura(q);
+  if (!d) return null;
+  const args = d.focus === "entidad" ? { entity: d.entity, dimension: d.dimension }
+    : d.focus === "eje" ? { dimension: d.dimension }
+    : {};
+  return {
+    intent: "answer", mode: "default",
+    rationale: `lectura del resultado (P&L) resuelta determinísticamente — ${d.motivo}`,
+    scope: d.focus === "entidad"
+      ? { level: "entity", entities: [d.entity], dimension: d.dimension }
+      : { level: "global" },
+    calls: [{ tool: "pnlRead", args }],
+  };
+}
+
+/* pnlEntidadCanon(nombre) → { nombre, eje, covered } | null · el canon del ALCANCE del P&L, expuesto para que la
+ * tool `pnlRead` resuelva el nombre que emite PLAN contra los nombres REALES del dato (nunca contra el fraseo).
+ * Es exactamente el mismo resolvedor que usa el flujo conversacional — una verdad, no una copia. */
+export function pnlEntidadCanon(nombre) { return _pnlEntityEn(String(nombre == null ? "" : nombre)); }
+
 /* ── EL CONTRATO DEL P&L (owner 2026-07-26: "no habíamos quedado que ADI iba a guiar? no será mejor hacer un
  * contrato para el P&L?" · tras ver «armemos mi p&l» → un MENÚ de comandos «cambia X» · «saca una línea»…):
  * el territorio entero se arma sobre un arco de ASESOR, no un catálogo de sintaxis. Tres estados de respuesta:
