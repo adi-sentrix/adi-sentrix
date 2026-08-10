@@ -217,6 +217,10 @@ if (_corre) {
       });
       const cumple = planReal ? !!sonda.espera(planReal) : false;
       resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", plan: planReal, retryTrace: r && r.r && r.r.retryTrace, texto: r && r.r && r.r.text });
+      // UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA (owner, autorización 2026-08-10). No es lo mismo que un tope:
+      // acá el producto respondió y respondió mal, así que seguir gastando en las sondas siguientes es pagar por
+      // confirmar un defecto que ya está confirmado. Se conserva lo corrido y se declara lo que quedó sin cubrir.
+      if (!cumple) cortada = `la sonda ${sonda.id} no cumplió — la corrida se detiene sin reintentar`;
     } catch (e) {
       const esCerrojo = /^CERROJO/.test(String(e && e.message));
       if (esCerrojo) cortada = String(e.message);
