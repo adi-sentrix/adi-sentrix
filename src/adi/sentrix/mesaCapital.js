@@ -29,6 +29,8 @@
 import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { diagnoseInventario, concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY } from "../../config/businessPolicy.js";
+import { rotacionPonderada } from "./headline.js";   // la ÚNICA rotación media del producto (ponderada por capital)
+import { transferenciaCapability } from "./capability.js";   // la ÚNICA cuenta de "¿se puede evaluar transferir?"
 // Solo para saber A QUIÉN le calza un producto detenido. De acá NO entra plata: ver `_compradoresDe`.
 import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 /* ⚠️ `skusMargen` NO SE IMPORTA ACÁ, Y ES A PROPÓSITO (owner 2026-08-08, decisión 7). El inventario y la venta
@@ -81,8 +83,11 @@ export function buildMesaCapital(scenario) {
   const dist = (e) => D.dist[e] || { usd: 0, count: 0, pct: 0 };
   const frenado = dist("capital_frenado"), quiebre = dist("riesgo_quiebre"), sobre = dist("sobrestock"), sano = dist("capital_sano");
   const criticos = D.perSku.filter((s) => s.estado === "capital_frenado" && bySku[s.sku] && bySku[s.sku].alerta === "crit").length;
-  const _rotPond = (rs) => { const cap = rs.reduce((a, r) => a + (r.stockUSD ?? r.capital ?? 0), 0);
-    return cap ? _r1(rs.reduce((a, r) => a + r.rotacion * (r.stockUSD ?? r.capital ?? 0), 0) / cap) : 0; };
+  // LA ROTACIÓN MEDIA VIVE EN UN SOLO LUGAR (owner 2026-08-09, decisión 6 · hallazgo E): `_rotPond` era local de este
+  // builder, así que la tabla de drill de más abajo —y la tool del oráculo— podían tener su propia idea de qué
+  // significa "rotación media". Tenían: 6,0x acá y 5,8x ahí, con el mismo nombre y en la misma cara. Ahora la
+  // implementación es única y la importan los dos lados (headline.js).
+  const _rotPond = rotacionPonderada;
   const rotMedia = _rotPond(inv);
 
   // ── EL MAPA DEL CAPITAL · la tira de flujo (los tramos del motor suman EXACTO el total — el gate lo verifica) ──
@@ -188,9 +193,14 @@ export function buildMesaCapital(scenario) {
     ask: "¿Qué reponer por quiebre?",
   });
 
-  // ── EN ALERTA · la pata de inventario (SKU críticos · $ detenido) — para la tira compartida de la Mesa ──
+  /* ── EN ALERTA · la pata de inventario (SKU críticos · $ detenido) — para la tira compartida de la Mesa ──
+   * EL CAMPO DICE QUÉ CAPITAL ES (owner 2026-08-09, decisión 6 · hallazgo E). Este monto se llamaba `usd`, el mismo
+   * nombre genérico con que las filas del mapa nombran SU capital. En una fila eso no es ambiguo —la fila declara
+   * de qué estado habla—, pero acá es un AGREGADO sin identidad de fila: leído por su nombre, "usd" dice «capital»
+   * y el número es el capital INMOVILIZADO, no el total. Un lector automático que contraste esta cifra contra el
+   * capital del inventario compara $33K contra $135K y los dos son correctos: el que miente es el nombre. */
   const alertas = {
-    n: criticos, usd: frenado.usd, usdFmt: _money(frenado.usd),
+    n: criticos, inmovilizado: frenado.usd, inmovilizadoFmt: _money(frenado.usd),
     linea: criticos
       ? `${criticos} SKU crítico${criticos > 1 ? "s" : ""} · ${_money(frenado.usd)} de capital inmovilizado`
       : frenado.usd ? `${_money(frenado.usd)} de capital inmovilizado · sin SKU críticos` : "Capital rotando en rango — sin alertas de inventario.",
@@ -304,12 +314,13 @@ export function buildMesaCapital(scenario) {
 
   /* ── LO QUE ESTA CARA NO PUEDE AFIRMAR, dicho en la vista ────────────────────────────────────────────────────
    * Se declaran, no se disimulan. La de transferencias va PRIMERA porque es la que el usuario va a esperar. */
-  const _bodegasPorSku = {}; for (const s of D.perSku) (_bodegasPorSku[s.sku] = _bodegasPorSku[s.sku] || new Set()).add(s.bodega);
-  const _multiBodega = Object.values(_bodegasPorSku).filter((b) => b.size > 1).length;
+  // LA CUENTA VIVE EN UN SOLO LADO (owner 2026-08-09, decisión 13). Esta cara DECLARA el límite y el ring de bodega
+  // RETIRA la recomendación por el mismo hecho: si cada uno lo contara por su cuenta, el día que el dato cambie una
+  // superficie se enteraría y la otra no — que es exactamente cómo la tarjeta "Rotar / transferir" terminó
+  // recomendando lo que esta línea declara inevaluable.
+  const _transf = transferenciaCapability(inv);
   const limitaciones = [
-    _multiBodega === 0
-      ? "Transferir entre bodegas no se puede evaluar: cada SKU aparece en una sola."
-      : `${_multiBodega} SKU están en más de una bodega: ahí sí se puede comparar su colocación.`,
+    _transf.motivo,
     "Sin historial de stock no se puede mostrar cómo evolucionó el capital ni anticipar qué se va a detener.",
     "La rotación es un valor declarado del dato: no se recalcula desde stock y unidades.",
     "Las sucursales del dato son bodegas —traen inventario, no venta—, así que no hay corte por punto de venta.",
@@ -562,9 +573,16 @@ export function buildCuadroCapital(eje = "sku", scenario = "bonanza") {
     });
   }
   const tCap = rows.reduce((a, r) => a + r.capital, 0), tEJ = rows.reduce((a, r) => a + (r.enJuego || 0), 0);
+  /* LA MISMA ROTACIÓN MEDIA QUE LA CARD (owner 2026-08-09, decisión 6 · hallazgo E). Acá había un
+   * `_r1(_mean(inv, r => r.rotacion))` —promedio SIMPLE— mientras la card de arriba mostraba el ponderado por
+   * capital: 5,8x y 6,0x con la misma etiqueta, en la misma pantalla. El pie de esta tabla lo pinta
+   * (`SentrixPanel.jsx`: "rotación media {cc.rotacionMedia}x"), así que no era código muerto: era la segunda
+   * verdad, visible. Queda la ponderada, que es la que el manifiesto declara y la que responde la pregunta del
+   * negocio — cuántas veces rota el DINERO, no el SKU promedio. */
+  const rotMedia = rotacionPonderada(inv);
   const total = { name: "Total", stock: rows.reduce((a, r) => a + r.stock, 0), capital: tCap,
-    rotacion: _r1(_mean(inv, (r) => r.rotacion)), criticos: eje === "bodega" ? rows.reduce((a, r) => a + r.criticos, 0) : null,
+    rotacion: rotMedia, criticos: eje === "bodega" ? rows.reduce((a, r) => a + r.criticos, 0) : null,
     doh: null, estado: null, enJuego: tEJ || null, accion: "", _total: true };
   const meta = CUADRO_CAPITAL_EJES.find((d) => d.key === eje) || CUADRO_CAPITAL_EJES[0];
-  return { eje, label: meta.label, plural: meta.plural, columns: COLS_CAPITAL[eje] || COLS_CAPITAL.sku, rows, total, n: rows.length, rotacionMedia: _r1(_mean(inv, (r) => r.rotacion)) };
+  return { eje, label: meta.label, plural: meta.plural, columns: COLS_CAPITAL[eje] || COLS_CAPITAL.sku, rows, total, n: rows.length, rotacionMedia: rotMedia };
 }

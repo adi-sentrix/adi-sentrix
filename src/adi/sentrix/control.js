@@ -7,6 +7,7 @@
 import { applyScenarioToClientesVentas, applyScenarioToClientesMargen, applyScenarioToSkuInventario } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { buildMarginDecomposition } from "./kpis.js";
+import { transferenciaCapability } from "./capability.js";   // la MISMA cuenta que declara el límite en la cara Capital
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _inmovilizado = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;   // def canónica (= tira/Pareto)
@@ -209,6 +210,33 @@ function _bodegaRing(focus, scenario) {
     ],
     rows,
     quickWinK: Math.round(c.critCap),      // liquidar lo CRÍTICO ahora
-    estructuralK: Math.round(c.inmovCap),  // rotar/mover TODO el inmovilizado (más lento)
+    estructuralK: Math.round(c.inmovCap),  // ROTAR todo el inmovilizado (más lento) · "mover" sólo si es evaluable
+    // ¿SE PUEDE RECOMENDAR TRANSFERIR? (owner 2026-08-09, decisión 13 · hallazgo M) La tarjeta estructural del
+    // panel decía "Rotar / transferir el stock lento · mover lo lento a donde se vende", que es exactamente lo que
+    // `mesaCapital.limitaciones` declara INEVALUABLE dos pantallas más allá: ningún SKU está en más de una bodega,
+    // así que no hay colocación alternativa que comparar ni movimiento que comprobar. La palanca REAL que queda —
+    // rotar o rebajar— sigue en pie y con su mismo monto; lo que se retira es la mitad que el dato no sostiene.
+    // Va como DATO del motor, no como texto borrado en la vista: el día que un SKU aparezca en dos bodegas,
+    // `evaluable` se enciende solo y la vista vuelve a ofrecer la transferencia sin que nadie edite nada.
+    //
+    // Y EL TEXTO SE EMITE ACÁ, no en el panel. Con el rótulo escrito en la vista, "condicionar la tarjeta" era un
+    // ternario que cualquier edición de copy podía deshacer sin que ningún candado se enterara — la recomendación
+    // volvería sin el dato que la sostiene. Con el título y el detalle derivados del mismo hecho que los habilita,
+    // no hay forma de escribir "transferir" en pantalla sin que `evaluable` sea true.
+    transferencia: caminoEstructural(transferenciaCapability(inv)),
+  };
+}
+
+// el camino ESTRUCTURAL de una bodega: la palanca de fondo sobre el capital inmovilizado. Rotar y rebajar se
+// pueden siempre; MOVER exige que el dato permita evaluarlo (ver `transferenciaCapability`). Exportada a propósito:
+// es una función PURA del hecho, así que el gate puede probar las dos ramas —con y sin SKU en dos bodegas— sin
+// tener que fabricar un dataset entero para ver volver la recomendación.
+export function caminoEstructural(cap) {
+  return {
+    ...cap,
+    titulo: cap.evaluable ? "Rotar / transferir el stock lento" : "Rotar el stock lento",
+    detalle: cap.evaluable
+      ? "todo el capital inmovilizado · mover lo lento a donde se vende o rebajar · la medida de fondo, más lenta"
+      : `todo el capital inmovilizado · darle salida donde está o rebajar · la medida de fondo, más lenta. ${cap.motivo}`,
   };
 }

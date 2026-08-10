@@ -14,6 +14,7 @@
 import { applyScenarioToSkuInventario, applyScenarioToClientesMargen } from "../../engine/scenarios.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { invKPI } from "../../data/baseKpis.js";
+import { transferenciaCapability } from "./capability.js";   // la ÚNICA cuenta de "¿se puede evaluar transferir?"
 
 // inmovilizado Def2 canónica (igual que el spine/warehouse): alerta crit/warn O rotación < 2.
 const _esInmov = (r) => r.alerta === "crit" || r.alerta === "warn" || r.rotacion < 2;
@@ -113,9 +114,15 @@ function _readCostStructure(signals) {
 // ── render · capital por bodega · concentración + lentitud (el foco = la bodega con más capital frenado) ──
 function _readCapital(signals) {
   const w = signals.what, d = signals.why.driver, im = signals.implication;
-  const rec = d.lento
+  // LA MISMA REGLA QUE LA TARJETA ESTRUCTURAL DEL RING (owner 2026-08-09, decisión 13 · hallazgo M): recomendar
+  // "transferencia de stock" es proponer lo que la cara Capital declara inevaluable mientras ningún SKU esté en
+  // dos bodegas. `d.transferible` lo trae el productor de signals desde la MISMA cuenta; si el signal viene de
+  // otra fuente y no lo declara, se falla CERRADO (no se recomienda lo que no se puede comprobar).
+  const rec = (d.lento && d.transferible)
     ? "antes de comprar más, revisaría salida comercial y transferencia de stock"
-    : "revisaría la salida comercial de los SKUs detenidos";
+    : d.lento
+      ? "antes de comprar más, revisaría la salida comercial de los SKUs detenidos donde están"
+      : "revisaría la salida comercial de los SKUs detenidos";
   return {
     kind: "capital_concentration",
     domain: "inventario", metric: "capital", subset: "inmovilizado (Def2)", focusType: "bodega",
@@ -161,8 +168,12 @@ export function buildSkuMarginSignals(skuName) {
 
 // capital/bodega → signals(capital_concentration): agregación de inmovilizado (Def2) por bodega · el foco + por qué.
 export function buildCapitalSignals(scenario) {
-  const inv = applyScenarioToSkuInventario(scenario).filter(_esInmov);
+  const invTodo = applyScenarioToSkuInventario(scenario) || [];
+  const inv = invTodo.filter(_esInmov);
   if (!inv.length) return null;
+  // ¿se puede EVALUAR mover stock entre bodegas? Se pregunta sobre el inventario COMPLETO (la colocación de un SKU
+  // no depende de si está inmovilizado) y con la misma función que usa la cara Capital para declarar su límite.
+  const _transf = transferenciaCapability(invTodo);
   const totalInmov = inv.reduce((s, r) => s + r.stockUSD, 0);
   const byBodega = {};
   for (const r of inv) (byBodega[r.bodega] = byBodega[r.bodega] || []).push(r);
@@ -182,7 +193,8 @@ export function buildCapitalSignals(scenario) {
   return {
     what: { entity: focus.bodega, value: focus.capital, unit: "$", metric: "capital", entityType: "bodega" },
     why: { mechanism: "capital_concentration", origin: "internal", target_entity: focus.bodega,
-           driver: { mechanism: "capital_concentration", dohAvg: focus.dohAvg, rotAvg: focus.rotAvg, dohBench, pct, lento } },
+           driver: { mechanism: "capital_concentration", dohAvg: focus.dohAvg, rotAvg: focus.rotAvg, dohBench, pct, lento,
+                     transferible: _transf.evaluable } },
     implication: { ranking, totalInmov, sensitive: sensitive.sku, sensitiveDoh: sensitive.doh },
   };
 }

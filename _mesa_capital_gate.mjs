@@ -10,17 +10,22 @@
  *   (7) la pata de inventario del "En alerta" cuenta los MISMOS críticos del dato.
  * Corre sin key (determinístico) · La cara comercial NO se toca acá (sus gates ya la cubren). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_mcge.js"), out = path.join(root, "_mcgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_mcge.tmp${process.pid}.js`), out = path.join(root, `_mcgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS } from "./src/adi/sentrix/mesaCapital.js";',
   'export { diagnoseInventario } from "./src/adi/diagnosis/economicDiagnosis.js";',
   'export { applyScenarioToSkuInventario } from "./src/engine/scenarios.js";',
   'export { composeSpecDiagnose } from "./src/adi/specRetrieval.js";',
+  // decisión 13 · las OTRAS dos superficies que recomiendan sobre este mismo inventario
+  'export { buildControlRing, caminoEstructural } from "./src/adi/sentrix/control.js";',
+  'export { buildCapitalSignals, buildReadingFromSignals } from "./src/adi/sentrix/reading.js";',
+  'export { transferenciaCapability } from "./src/adi/sentrix/capability.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, diagnoseInventario, applyScenarioToSkuInventario, composeSpecDiagnose } = M;
+const { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, diagnoseInventario, applyScenarioToSkuInventario, composeSpecDiagnose,
+        buildControlRing, caminoEstructural, buildCapitalSignals, buildReadingFromSignals, transferenciaCapability } = M;
 
 let pass = 0, fail = 0; const rotos = [];
 const ok = (cond, tag, detail) => { if (cond) pass++; else { fail++; rotos.push({ tag, detail: detail || "" }); } };
@@ -95,7 +100,10 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   // (7) la pata de inventario del "En alerta" cuenta los MISMOS críticos del dato (frenado + alerta crit)
   const critOracle = D.perSku.filter((s) => s.estado === "capital_frenado").filter((s) => { const r = inv.find((x) => x.sku === s.sku); return r && r.alerta === "crit"; }).length;
   ok(mc.alertas.n === critOracle, `alertas-criticos@${sc}`, `pata ${mc.alertas.n} vs dato ${critOracle}`);
-  ok(mc.alertas.usd === detSubtotal, `alertas-usd@${sc}`, `pata ${mc.alertas.usd} vs detector ${detSubtotal}`);
+  // el campo se llama `inmovilizado` desde 2026-08-09 (decisión 6): la assertion es la MISMA —este dinero es el
+  // subtotal del detector, no el capital del inventario— y ese es justo el motivo del nombre nuevo. Se llamaba
+  // `usd`, y leído por su nombre un agregado sin identidad de fila decía «capital» valiendo el inmovilizado.
+  ok(mc.alertas.inmovilizado === detSubtotal, `alertas-inmovilizado@${sc}`, `pata ${mc.alertas.inmovilizado} vs detector ${detSubtotal}`);
 }
 
 /* ══ LAS DECISIONES DEL OWNER DEL 2026-08-08, SELLADAS ═══════════════════════════════════════════════════════
@@ -177,6 +185,32 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   ok(multi > 0 || (mc.limitaciones || []).some((t) => /transferir entre bodegas no se puede evaluar/i.test(t)),
     `limite-transferencia-declarado@${sc}`, "si no se puede evaluar, hay que decirlo");
   ok((mc.limitaciones || []).length >= 3, `limitaciones-declaradas@${sc}`, "la cara declara lo que no puede afirmar");
+
+  /* ── (11b) DECISIÓN 13 · LAS OTRAS DOS SUPERFICIES QUE RECOMIENDAN SOBRE EL MISMO INVENTARIO ────────────────
+   * El candado de arriba cubría la cara Capital, y la contradicción vivía FUERA de ella: la tarjeta estructural
+   * del ring de bodega ("Rotar / transferir el stock lento · mover lo lento a donde se vende") y la lectura
+   * ejecutiva del capital ("revisaría salida comercial y transferencia de stock") proponían exactamente lo que
+   * esta cara declara inevaluable. Se verifican las TRES juntas y contra UNA sola cuenta: si alguna se entera de
+   * que el dato cambió y otra no, vuelve la contradicción por la ventana. */
+  const capTransf = transferenciaCapability(inv);
+  ok(capTransf.evaluable === (multi > 0), `transferencia-capability@${sc}`,
+    `la cuenta compartida dice evaluable=${capTransf.evaluable} y el oráculo cuenta ${multi} SKU en más de una bodega`);
+  ok(mc.limitaciones[0] === capTransf.motivo, `transferencia-una-sola-cuenta@${sc}`,
+    "la cara Capital tiene que declarar el límite CON la cuenta compartida, no con una suya");
+  for (const bod of [...new Set(inv.map((x) => x.bodega))]) {
+    const ring = buildControlRing("bodega", bod, sc);
+    if (!ring) continue;
+    ok(!!ring.transferencia && ring.transferencia.evaluable === capTransf.evaluable, `ring-transferencia-declarada@${sc}/${bod}`,
+      "el ring tiene que traer el hecho, para que la tarjeta se condicione al dato y no a mano");
+  }
+  const sig = buildCapitalSignals(sc);
+  if (sig) {
+    ok(sig.why.driver.transferible === capTransf.evaluable, `lectura-transferible@${sc}`,
+      "la lectura ejecutiva lee la MISMA cuenta");
+    const rec = String(buildReadingFromSignals(sig).recommendation || "");
+    ok(capTransf.evaluable || !/transferenci|transferi|redistribu|mover stock/i.test(rec), `lectura-sin-transferencia@${sc}`,
+      `la lectura ejecutiva recomienda transferir sin poder evaluarlo: «${rec}»`);
+  }
 
   /* ── (12) DECISIÓN 6 · TOPE DE 5 POR LISTA ────────────────────────────────────────────────────────────────
    * Para que escale a una empresa grande. Y el resto no se pierde: se declara cuántos quedan. */
@@ -444,6 +478,51 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
 for (const [k, e] of Object.entries(CAPITAL_ESTADOS)) {
   const m = `${e.label} ${e.def} ${e.ask}`.match(INFORMAL);
   ok(!m, `registro-estado-${k}`, m ? `«${m[0]}»` : "");
+}
+
+/* ── DECISIÓN 13 · LA TARJETA VUELVE SOLA CUANDO EL DATO LA SOSTIENE ────────────────────────────────────────────
+ * Retirar la recomendación de transferir no puede ser un texto borrado a mano: eso la mata para siempre, incluso
+ * el día que el ERP traiga el mismo SKU en dos bodegas. La condición vive en el DATO, y acá se prueba en las dos
+ * direcciones sobre el mismo inventario real: tal como está → no evaluable; con UNA fila duplicada en otra bodega
+ * → evaluable, con su motivo cambiado. Si alguien vuelve a hardcodear el `false`, esta prueba se cae. */
+{
+  const base = applyScenarioToSkuInventario("bonanza") || [];
+  const hoy = transferenciaCapability(base);
+  ok(hoy.evaluable === false && /no se puede evaluar/i.test(hoy.motivo), "transferencia-hoy-no-evaluable", hoy.motivo);
+
+  const otraBodega = [...new Set(base.map((x) => x.bodega))].find((b) => b !== base[0].bodega);
+  const conDuplicado = [...base, { ...base[0], bodega: otraBodega }];
+  const manana = transferenciaCapability(conDuplicado);
+  ok(manana.evaluable === true && manana.skusMultiBodega === 1 && /más de una bodega/i.test(manana.motivo),
+    "transferencia-vuelve-sola", `evaluable=${manana.evaluable} · multi=${manana.skusMultiBodega} · «${manana.motivo}»`);
+
+  // LA TARJETA DEL PANEL. El texto de la tarjeta estructural lo emite el MOTOR (`_caminoEstructural`), no la vista:
+  // por eso el candado se puede pedir sobre la fuente sin ambigüedad — dentro del ControlRing no puede quedar NI UNA
+  // palabra de transferencia escrita a mano, porque cualquier literal ahí sería una recomendación que el dato no
+  // condiciona. (Mismo método de lectura de fuente que el candado de "inmovilizado" de más arriba.)
+  const src = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8")
+    .replace(/\/\*[^]*?\*\//g, "").replace(/\{\s*\/\*[^]*?\*\/\s*\}/g, "");
+  const iR = src.indexOf("function ControlRing"), fR = src.indexOf("function CuadroMando");
+  const ring = iR >= 0 && fR > iR ? src.slice(iR, fR) : "";
+  ok(ring.length > 0 && !/transferi|mover lo lento|redistribu/i.test(ring), "panel-transferencia-condicionada",
+    `el ControlRing escribe la transferencia a mano en vez de recibirla del motor: «${(ring.match(/[^\n]*(transferi|mover lo lento|redistribu)[^\n]*/i) || [""])[0].trim().slice(0, 120)}»`);
+  // la tarjeta que la vista pinta HOY, con el dato real: sin transferencia y con el límite dicho
+  // el título NO puede proponerla y el detalle NO puede describir el movimiento; el límite, en cambio, SÍ tiene que
+  // estar dicho (callarlo sería el otro modo de deshonestidad: retirar la palanca sin explicar por qué).
+  const hoyCard = buildControlRing("bodega", base[0].bodega, "bonanza").transferencia;
+  ok(!/transferi|redistribu/i.test(hoyCard.titulo) && !/mover lo lento/i.test(hoyCard.detalle) && /no se puede evaluar/i.test(hoyCard.detalle),
+    "panel-tarjeta-sin-transferencia", `la tarjeta estructural sigue proponiendo transferir: «${hoyCard.titulo} · ${hoyCard.detalle}»`);
+  // y la MISMA función, con el mismo SKU en dos bodegas, la recupera entera: la recomendación no está borrada
+  const mananaCard = caminoEstructural(manana);
+  ok(/transferir/i.test(mananaCard.titulo) && /mover lo lento/i.test(mananaCard.detalle),
+    "panel-tarjeta-vuelve-sola", `con el dato que la sostiene la tarjeta no vuelve: «${mananaCard.titulo} · ${mananaCard.detalle}»`);
+
+  // y la lectura ejecutiva vuelve a proponerla con ese mismo hecho — la condición es una, no una por superficie
+  const sig = buildCapitalSignals("bonanza");
+  const recSi = buildReadingFromSignals({ ...sig, why: { ...sig.why, driver: { ...sig.why.driver, lento: true, transferible: true } } }).recommendation;
+  const recNo = buildReadingFromSignals({ ...sig, why: { ...sig.why, driver: { ...sig.why.driver, lento: true, transferible: false } } }).recommendation;
+  ok(/transferencia/i.test(recSi) && !/transferencia/i.test(recNo), "lectura-condicionada-al-dato",
+    `con dato: «${recSi}» · sin dato: «${recNo}»`);
 }
 
 console.log(`── _mesa_capital_gate: ${pass} verificaciones · ${fail} rotas ──`);

@@ -74,6 +74,48 @@ function _metricsFor(entityType) {
   return [];
 }
 
+// ── TRANSFERIR STOCK ENTRE BODEGAS · ¿el dato permite siquiera EVALUARLO? (owner 2026-08-09, decisión 13) ──────
+// Mover stock de una bodega a otra sólo se puede evaluar si el MISMO SKU vive en más de una: sin eso no hay dos
+// colocaciones que comparar, y "transferir" es una recomendación sin objeto — el usuario no puede ejecutarla ni
+// nosotros comprobarla. Hoy ningún SKU está en dos bodegas, así que la recomendación se retira; pero se retira POR
+// EL DATO, no a mano: esto CUENTA sobre las mismas filas que la cara está pintando (las del escenario activo), y el
+// día que un SKU aparezca en dos bodegas `evaluable` se enciende solo y la recomendación vuelve sin tocar código.
+//
+// UNA SOLA CUENTA PARA TODAS LAS SUPERFICIES. La cara Capital (`mesaCapital.limitaciones`), el ring de bodega
+// (`control.js`) y la lectura ejecutiva (`reading.js`) preguntan ACÁ. Tres implementaciones del mismo hecho es
+// exactamente cómo se llega a que una superficie recomiende lo que la otra declara inevaluable.
+//   rows = las filas de inventario YA transformadas por el escenario (`applyScenarioToSkuInventario`). El escenario
+//   no reasigna bodegas, pero se recibe igual para que ninguna superficie cuente sobre un dato distinto del que
+//   muestra. Sin `rows`, cae al inventario base del tenant.
+export function transferenciaCapability(rows = null) {
+  const inv = Array.isArray(rows) && rows.length ? rows : (skuInventario || []);
+  const porSku = new Map();
+  for (const x of inv) {
+    if (!x || !x.sku || !x.bodega) continue;
+    if (!porSku.has(x.sku)) porSku.set(x.sku, new Set());
+    porSku.get(x.sku).add(x.bodega);
+  }
+  const multi = [...porSku.values()].filter((b) => b.size > 1).length;
+  const bodegas = new Set(inv.map((x) => x && x.bodega).filter(Boolean));
+  return {
+    evaluable: multi > 0,
+    skusMultiBodega: multi,
+    skus: porSku.size,
+    bodegas: bodegas.size,
+    // LOS NOMBRES, no sólo la cuenta (owner 2026-08-09, decisión 13 · segunda mitad): quien tiene que impedir la
+    // recomendación necesita saber ENTRE QUÉ ubicaciones se estaría proponiendo el movimiento, y ese catálogo tiene
+    // que salir del dato —nunca de una lista escrita en el guard, que sería un nombre de tenant hardcodeado. Lo
+    // consume `guardC` (chequeo 18) vía el `limite_transferencia` que declara `inventoryStatus`. Aditivo: `bodegas`
+    // sigue siendo la cuenta que ya leen la cara Capital, el ring y la lectura ejecutiva.
+    bodegasNombres: [...bodegas].sort(),
+    // el texto que la vista muestra cuando declara el límite. Se conserva palabra por palabra el que la cara
+    // Capital ya declaraba: es el que el owner selló y el que `_mesa_capital_gate` verifica.
+    motivo: multi > 0
+      ? `${multi} SKU están en más de una bodega: ahí sí se puede comparar su colocación.`
+      : "Transferir entre bodegas no se puede evaluar: cada SKU aparece en una sola.",
+  };
+}
+
 // ── EXPLORABLE · §7 del doc · declara qué se puede explorar desde ESTA entidad, DATA-DRIVEN + HONESTO.
 // Lo que el dato sostiene se ofrece; lo que necesita granularidad que no existe (cruce a entidad relacionada)
 // se BLOQUEA con razón (regla madre · Ejemplo 5 Situación B). El motor de Sentrix (paso 3) lo consume; el LLM
