@@ -62,8 +62,11 @@ ok("§2 · el normalizador exige intent='redirect' (una reparación colgada de u
 ok("el motor NO re-decide la ambigüedad: delega en el normalizador",
   /const _reparacionDe = \(plan\) => normalizeReparacion\(plan\)/.test(MOTOR)
   && /function _esReparacionAmbigua[\s\S]{0,200}?return !!\(r && r\.ambigua\)/.test(MOTOR));
-ok("…y el corte por ambigüedad exige además que NO haya calls (nunca se descarta un batch respondible)",
-  /_esReparacionAmbigua\(plan\) && !\(Array\.isArray\(plan\.calls\) && plan\.calls\.length\)/.test(MOTOR));
+// DOS CAMINOS A LA PREGUNTA, con reglas distintas y a propósito: una ambigüedad DECLARADA por el planificador
+// exige `calls` vacío (si trajo calls se contradice, y vale lo respondible); una INFERIDA por el motor corta
+// aunque haya calls, porque ahí el motor SABE que el alcance no cambió y esas calls repetirían el turno malo.
+ok("…y el corte por ambigüedad distingue la declarada de la inferida",
+  /const _cortaPorAmbigua = _repAmbigua && \(_sinCalls \|\| _reparacion\.inferida === true\)/.test(MOTOR));
 ok("la pregunta de precisión tiene una segunda candidata: nunca cae en silencio si el guard rechaza la primera",
   /for \(const candidata of \[pregunta, stripLanguageLeaks\(_propia\)\]\)/.test(MOTOR));
 
@@ -130,8 +133,15 @@ section("5b · LA RUTA QUE NO CONSULTA A PLAN · integración general, sin detec
   const SCOPE = leer("./src/adi/oracle/conversationScope.js");
   ok("la reparación se infiere comparando ESTRUCTURAS, no el texto del usuario",
     /export function inferirCorrige\(scopePrev, plan\)/.test(SCOPE) && !/inferirCorrige[\s\S]{0,1200}?\btext\b/.test(SCOPE));
-  ok("…y solo se usa cuando el plan es SINTÉTICO (donde nadie pudo declararla)",
-    /if \(planWasSynthetic && !_reparacion\)/.test(MOTOR));
+  // DÓNDE PUEDE ACTIVARSE, y es angosto: un plan sintético (nadie pudo declararla) o un `redirect` que dice que
+  // reencauza pero no dice qué. En una consulta normal —`answer` no sintético— ni se evalúa; en un desacuerdo o un
+  // dato aportado la reparación YA existe con su tipo, así que el bloque no corre.
+  ok("…y solo se evalúa en un plan SINTÉTICO o en un redirect sin reparación declarada",
+    /const _puedeInferir = !_reparacion && \(planWasSynthetic \|\| plan\.intent === "redirect"\)/.test(MOTOR));
+  ok("si la diferencia no alcanza para identificar la corrección, se trata como AMBIGUA (nunca se adivina)",
+    /_reparacion = \{ tipo: "correccion", corrige: \[\], ambigua: true/.test(MOTOR));
+  ok("el esquema exige `reparacion` en todos los turnos, y admite null",
+    /required: \["intent", "mode", "rationale", "calls", "reparacion"\]/.test(PLANP) && /type: \["object", "null"\]/.test(PLANP));
   ok("la invalidación corre igual venga declarada o inferida (sin la guarda de plan sintético)",
     /if \(_reparacion\) \{[\r\n]+\s*const scopeReparado = applyRepairToScope/.test(MOTOR));
   ok("el narrador y el guard juzgan la MISMA reparación que el estado ya invalidó",

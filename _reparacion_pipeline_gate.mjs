@@ -300,6 +300,93 @@ section("8 · P&L · la ruta que NO consulta a PLAN también repara (integració
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("8b · EL RESPALDO ESTRUCTURAL · adversarial (lo que cazó la certificación pagada)");
+// La primera corrida pagada murió en la primera sonda: el planificador respondió bien pero NO emitió el objeto
+// `reparacion` — era opcional. Ahora el esquema lo exige y admite `null`, y el motor infiere de la ESTRUCTURA
+// cuando igual llega vacío. Estas pruebas atacan las dos mitades: que el respaldo funcione, y —sobre todo— que
+// NO se active donde no corresponde, que es la forma en que un respaldo se convierte en un defecto.
+{
+  const baseR = async () => (await answerViaOracle({
+    text: "¿cómo viene el margen de Falabella?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  })).mem;
+
+  // (a) OMITIDO · (b) NULL · (c) OBJETO INCOMPLETO — las tres formas en que el planificador puede no declararla.
+  for (const [caso, reparacion] of [["omitido", undefined], ["null", null], ["incompleto", { corrige: ["entidad"] }]]) {
+    const mem0 = await baseR();
+    let memX = null;
+    const r = await answerViaOracle({
+      text: "no, era Lider", history: [], mem: mem0, scenario: "actual",
+      callPlan: async () => { const p = { intent: "redirect", mode: "default", rationale: caso, scope: { level: "entity", entities: ["Lider"] }, calls: [CALL("Lider")] }; if (reparacion !== undefined) p.reparacion = reparacion; return p; },
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia("Entendido, era Lider.", "Lider")(args); },
+    });
+    const b = renderInteractionMemory(memX || {});
+    ok(`respaldo · reparacion ${caso}: la corrección igual invalida (la oferta anterior no viaja)`,
+      !!(r && r.r && r.r.text) && !/rebate de Falabella/.test(b), b);
+    ok(`respaldo · reparacion ${caso}: el alcance activo ya es la entidad corregida`, /Alcance activo[^\n]*Lider/.test(b) || !/Alcance activo/.test(b), b);
+  }
+
+  // (d) CONSULTA NORMAL · cambio de entidad con intent="answer" → el respaldo NI SE EVALÚA. Un cambio de tema no
+  // es una corrección, y tratarlo como tal cancelaría ofertas legítimas en media conversación.
+  {
+    const mem0 = await baseR();
+    let memX = null;
+    await answerViaOracle({
+      text: "¿y cómo viene Lider?", history: [], mem: mem0, scenario: "actual",
+      callPlan: async () => planNormal("Lider"),
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia("Lider:", "Lider")(args); },
+    });
+    ok("respaldo · un CAMBIO DE TEMA normal (intent=answer) NO dispara el respaldo: la oferta sigue viva",
+      /rebate de Falabella/.test(renderInteractionMemory(memX || {})), renderInteractionMemory(memX || {}));
+  }
+
+  // (e) DESACUERDO y (f) DATO APORTADO declarados → el respaldo no corre (la reparación YA existe con su tipo),
+  // así que el alcance NO se invalida aunque la entidad del plan coincida o difiera.
+  for (const tipo of ["desacuerdo", "dato_usuario"]) {
+    const mem0 = await baseR();
+    const r = await answerViaOracle({
+      text: tipo === "desacuerdo" ? "no creo que sea por los rebates" : "las ventas fueron $20M", history: [], mem: mem0, scenario: "actual",
+      callPlan: async () => ({ intent: "redirect", mode: "default", rationale: tipo, scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: tipo === "desacuerdo" ? { tipo } : { tipo, dato: { metrica: "ventas", valor: "$20M" } } }),
+      callNarrate: async (args) => narrarConEvidencia("Lo tomo.", "Falabella")(args),
+    });
+    ok(`respaldo · un ${tipo.toUpperCase()} declarado NO se convierte en corrección: el alcance se conserva`,
+      r.mem.conversationScope.current.entities.join(",") === "Falabella", JSON.stringify(r.mem.conversationScope.current.entities));
+  }
+
+  // (g) AMBIGUA POR CONSTRUCCIÓN · redirect sin reparación Y sin ningún cambio estructural que leer. No se puede
+  // identificar qué corregir, así que se pregunta — y se corta ANTES del batch aunque el plan traiga calls,
+  // porque esas calls reproducirían el turno que el usuario acaba de decir que está mal.
+  {
+    const mem0 = await baseR();
+    let narrado = 0;
+    const r = await answerViaOracle({
+      text: "eso no es lo que te pedí", history: [], mem: mem0, scenario: "actual",
+      callPlan: async () => ({ intent: "redirect", mode: "default", rationale: "sin declarar y sin cambio", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")] }),
+      callNarrate: async () => { narrado++; return "no debería llamarse"; },
+    });
+    ok("respaldo · sin diferencia legible, se trata como AMBIGUA: pregunta y no recalcula", narrado === 0 && /\?/.test(r.r.text), r.r.text);
+    ok("respaldo · …y el contexto queda intacto esperando la respuesta (§4)",
+      !!(getLastOffer(r.mem) && /rebate de Falabella/.test(getLastOffer(r.mem).texto || "")));
+  }
+
+  // (h) MÚLTIPLES DIMENSIONES · entidad y métrica cambian a la vez → se infieren las dos, y la intersección de la
+  // matriz decide qué sobrevive (que es menos que lo que sobreviviría a cada una por separado).
+  {
+    const mem0 = await baseR();
+    let memX = null;
+    await answerViaOracle({
+      text: "no, las ventas de Lider", history: [], mem: mem0, scenario: "actual",
+      callPlan: async () => ({ intent: "redirect", mode: "default", rationale: "dos dimensiones", scope: { level: "entity", entities: ["Lider"] }, calls: [{ tool: "queryMetric", args: { metric: "ventas", dimension: "cliente" } }] }),
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia("Las ventas:", "Lider")(args); },
+    });
+    const b = renderInteractionMemory(memX || {});
+    ok("respaldo · con DOS dimensiones cambiadas, invalida por las dos (nada de Falabella sobrevive)",
+      !/Falabella/.test(b), b);
+  }
+}
+
 section("9 · LAS OCHO DIMENSIONES, DECLARADAS Y CONTADAS");
 // Confirmación explícita pedida por el owner: entidad más las siete restantes, todas con prueba de punta a punta
 // en ESTE archivo. La lista se compara contra el contrato, así que si mañana se agrega un campo corregible y

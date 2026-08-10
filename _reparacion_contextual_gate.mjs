@@ -382,7 +382,11 @@ function vocabularioValido(node) {
     Object.entries(node).every(([k, v]) => (VOCAB_JSON_SCHEMA.has(k) ? vocabularioValido(v) : true));
 }
 const repSchema = PLAN_TOOL.schema.properties.reparacion;
-ok("el schema declara `reparacion` (sin esto el modelo no puede emitirla: additionalProperties=false)", !!repSchema && repSchema.type === "object");
+// REQUERIDO Y NULLABLE (owner 2026-08-10, tras la primera corrida pagada). Era opcional, y la certificación lo
+// cazó en la primera sonda: el modelo base simplemente lo omitió. Ahora tiene que decidir explícitamente.
+ok("el schema declara `reparacion` como REQUERIDO y nullable",
+  !!repSchema && Array.isArray(repSchema.type) && repSchema.type.includes("object") && repSchema.type.includes("null")
+  && PLAN_TOOL.schema.required.includes("reparacion"), JSON.stringify(repSchema && repSchema.type));
 ok("usa SOLO vocabulario JSON-Schema que los dos adapters pasan verbatim", vocabularioValido(repSchema));
 ok("el schema entero sobrevive un round-trip JSON (es lo que viaja a los dos proveedores)",
   JSON.stringify(JSON.parse(JSON.stringify(PLAN_TOOL.schema))) === JSON.stringify(PLAN_TOOL.schema));
@@ -414,10 +418,12 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
 // del system y otra en las descripciones del schema— y eso costaba ~700 caracteres en TODOS los turnos para decir
 // lo mismo dos veces. Ahora las reglas viven una sola vez, en la doctrina; el schema solo declara QUÉ va en cada
 // campo. Ni una regla de negocio se recortó, y la lista de abajo lo verifica una por una.
-ok("PLAN system crece menos de 1.400 caracteres", planSystem - BASE.planSystem < 1400, `+${planSystem - BASE.planSystem}`);
+ok("PLAN system crece menos de 1.500 caracteres", planSystem - BASE.planSystem < 1500, `+${planSystem - BASE.planSystem}`);
 ok("PLAN_TOOL crece menos de 1.000 caracteres", planTool - BASE.planTool < 1000, `+${planTool - BASE.planTool}`);
-ok("el crecimiento TOTAL de PLAN queda bajo 600 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 600, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// el tope subió de 600 a 620 al volver `reparacion` requerida y nullable: el campo pasó a `required` y el tipo a
+// unión, y eso se paga en el esquema. Se declara el número exacto en vez de dejar el tope holgado.
+ok("el crecimiento TOTAL de PLAN queda bajo 620 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 620, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {
