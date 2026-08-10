@@ -88,6 +88,25 @@ for (const f of archivos) {
   const importaGateway = /^\s*import[^\n]*from\s+["'][^"']*(gatewayCore|providerAdapter|adapters\/)/m.test(src);
   const invoca = /\b(handlePlan|handleNarrateC|handleNarrate|callPlan|callNarrate)\s*\(/.test(src) || /\bfetch\s*\(/.test(src);
   if (hit && declara && !importaGateway && !invoca) { offline.push(f); continue; }
+  // ── INYECCIÓN SIMULADA (owner 2026-08-10, Contrato v1.2) · el SEGUNDO escape, con la misma disciplina ────────
+  // EL PROBLEMA QUE CIERRA: `answerViaOracle` no sabe hablar con ningún proveedor — recibe las dos pasadas como
+  // argumentos (`callPlan`/`callNarrate`). Un gate que se las pasa a mano ejercita el motor ENTERO sin abrir un
+  // socket, pero nombra esos dos símbolos y queda LIVE. Resultado hasta hoy: ~20 gates de oráculo —los únicos que
+  // miden el COSTO REAL de un turno y la memoria que ve el narrador— quedaban fuera de la suite y solo corrían a
+  // mano. Un gate que hay que acordarse de correr no es una garantía.
+  // CUATRO CONDICIONES ACUMULATIVAS, todas verificadas acá — la declaración nunca alcanza sola:
+  //   (a) declara el marcador,
+  //   (b) NO importa el gateway ni un adapter (los únicos módulos del repo que hablan con un proveedor),
+  //   (c) NO contiene `fetch(` — ninguna salida cruda,
+  //   (d) NO importa nada de `src/ui/` : ahí viven `_fetchPlanC`/`_fetchNarrateC`, las ÚNICAS implementaciones
+  //       reales de esas dos funciones. Sin (d), un gate podría declarar el marcador y pasar las de producción.
+  // Y el candado de RUNTIME se aplica igual: si este escape se usara mal, el proceso muere con exit 97 antes de
+  // abrir el socket y el runner sale con exit 2 denunciando la clasificación. El scan clasifica; el candado
+  // garantiza — la misma doctrina que este archivo declara desde su cabecera.
+  const declaraInyeccion = /@inyeccion-simulada/.test(src);
+  const importaUI = /^\s*import[^\n]*from\s+["'][^"']*(src\/ui\/|\/ui\/[A-Za-z])/m.test(src);
+  const salidaCruda = /\bfetch\s*\(/.test(src);
+  if (hit && declaraInyeccion && !importaGateway && !importaUI && !salidaCruda) { offline.push(f); continue; }
   if (hit) live.push({ file: f, motivo: hit[1] });
   else offline.push(f);
 }
