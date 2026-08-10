@@ -125,6 +125,21 @@ ok("no se agregó una memoria: los supuestos usan el campo que el shape ya reser
 ok("el criterio de compatibilidad vive en el contrato versionado, no en el motor",
   /camposQueSeInvalidan/.test(leer("./src/adi/oracle/conversationScope.js")) && !/camposQueSeInvalidan/.test(MOTOR));
 
+section("5b · LA RUTA QUE NO CONSULTA A PLAN · integración general, sin detector de frases");
+{
+  const SCOPE = leer("./src/adi/oracle/conversationScope.js");
+  ok("la reparación se infiere comparando ESTRUCTURAS, no el texto del usuario",
+    /export function inferirCorrige\(scopePrev, plan\)/.test(SCOPE) && !/inferirCorrige[\s\S]{0,1200}?\btext\b/.test(SCOPE));
+  ok("…y solo se usa cuando el plan es SINTÉTICO (donde nadie pudo declararla)",
+    /if \(planWasSynthetic && !_reparacion\)/.test(MOTOR));
+  ok("la invalidación corre igual venga declarada o inferida (sin la guarda de plan sintético)",
+    /if \(_reparacion\) \{[\r\n]+\s*const scopeReparado = applyRepairToScope/.test(MOTOR));
+  ok("el narrador y el guard juzgan la MISMA reparación que el estado ya invalidó",
+    /buildReparacion\(\{ plan, mem: mem2, reparacion: _reparacion \}\)/.test(MOTOR));
+  ok("§7 · no se agregó una llamada: la ruta sintética sigue sin invocar a PLAN",
+    cuenta(MOTOR, /await\s+callPlan\s*\(/g) === 1);
+}
+
 section("6 · LOS ADAPTERS SIGUEN SIN SABER NADA DE ADI (§8.12)");
 for (const a of ["openai", "anthropic"]) {
   const src = leer(`./src/adi/llm/adapters/${a}.js`);

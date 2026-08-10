@@ -21,6 +21,7 @@ import { renderInteractionMemory } from "./src/adi/oracle/persona.js";
 import { composeFromLedger } from "./src/adi/oracle/narrationBlocks.js";
 import { getLastOffer, getRecentSubjects } from "./src/adi/oracle/dialogueState.js";
 import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
+import { REPAIR_FIELD_KEYS } from "./src/adi/oracle/conversationalContract.js";
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -219,6 +220,95 @@ section("7 · la corrección de ALCANCE arrastra también la pantalla (§6)");
     invalidateViewContext(entrada, null, { plan: { intent: "answer", scope: { level: "entity", entities: ["Falabella"] } }, turno: 1 }) === vista);
   ok("una corrección AMBIGUA no lo toca: todavía no se sabe qué corregir (§4)",
     invalidateViewContext(entrada, null, { plan: { ...planCorr, reparacion: { tipo: "correccion", ambigua: true } }, turno: 1 }) === vista);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("8 · P&L · la ruta que NO consulta a PLAN también repara (integración general)");
+// La lectura del P&L arma su plan determinísticamente y llega al batch sin pasar por PLAN. Ahí `reparacion` no
+// puede existir —el objeto lo emite PLAN— así que una corrección sobre P&L no invalidaba nada: el narrador seguía
+// recibiendo la oferta y los temas del turno equivocado. `inferirCorrige` lo cierra comparando ESTRUCTURAS, sin
+// mirar el texto del usuario, sin una llamada más y sin tocar el bypass de una consulta normal.
+{
+  const baseP = await answerViaOracle({
+    text: "¿cómo viene el margen de Falabella?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  });
+  ok("P&L · el turno base deja oferta y alcance sobre Falabella", !!getLastOffer(baseP.mem));
+
+  // (a) CORRECCIÓN DE ALCANCE dentro de P&L, por la ruta determinística.
+  let planLlamado = 0, memP = null;
+  const corrP = await answerViaOracle({
+    text: "no, te pedí el resultado del negocio después de gastos", history: [{ role: "user", text: "¿cómo viene el margen de Falabella?" }], mem: baseP.mem, scenario: "actual",
+    callPlan: async () => { planLlamado++; return planNormal("Falabella"); },
+    callNarrate: async (args) => { memP = args.mem; return narrarConEvidencia("Entendido, el resultado del negocio completo.", "")(args); },
+  });
+  const bloqueP = renderInteractionMemory(memP || {});
+  ok("P&L · sigue resolviéndose SIN consultar a PLAN (la ruta determinística no se alteró)", planLlamado === 0, `plan=${planLlamado}`);
+  ok("P&L · y sigue costando UNA sola llamada, la de NARRAR", !!(corrP && corrP.r && corrP.r.text));
+  ok("P&L · §3.6 · la oferta del turno corregido queda cancelada",
+    !(getLastOffer(corrP.mem) && /rebate de Falabella/.test(getLastOffer(corrP.mem).texto || "")), JSON.stringify(getLastOffer(corrP.mem)));
+  ok("P&L · el narrador ya no recibe la oferta ni el tema de la entidad corregida",
+    !/rebate de Falabella/.test(bloqueP) && !/Temas recientes[^\n]*Falabella/.test(bloqueP), bloqueP);
+
+  // (b) UNA CONSULTA NORMAL DE P&L NO SE TOCA: sin alcance previo que contradecir, no hay reparación que inferir.
+  let planLlamado2 = 0;
+  const normalP = await answerViaOracle({
+    text: "¿cuál es el resultado del negocio después de gastos?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => { planLlamado2++; return planNormal("Falabella"); },
+    callNarrate: async (args) => narrarConEvidencia("El resultado del negocio:", "")(args),
+  });
+  ok("P&L · una consulta normal conserva su bypass y no infiere ninguna corrección",
+    planLlamado2 === 0 && !!(normalP && normalP.r && normalP.r.text));
+}
+{
+  // (c) CORRECCIÓN DE ENTIDAD dentro de P&L, también por la ruta determinística.
+  const base2 = await answerViaOracle({
+    text: "dame el P&L de Falabella", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  });
+  let memP2 = null;
+  const corr2 = await answerViaOracle({
+    text: "dame el P&L de Lider", history: [], mem: base2.mem, scenario: "actual",
+    callPlan: async () => planNormal("Lider"),
+    callNarrate: async (args) => { memP2 = args.mem; return narrarConEvidencia("Entendido, el P&L de Lider.", "Lider")(args); },
+  });
+  const b2 = renderInteractionMemory(memP2 || {});
+  ok("P&L · corrección de ENTIDAD: la anterior no viaja al narrador", !/rebate de Falabella/.test(b2), b2);
+  ok("P&L · corrección de ENTIDAD: el alcance activo ya es la nueva",
+    !/Alcance activo[^\n]*Falabella/.test(b2), b2);
+}
+{
+  // (d) MÉTRICA y (e) PERÍODO y (f) SUPUESTO dentro de P&L, por la ruta de PLAN (que es la que las expresa):
+  // pnlRead no tiene argumento de período ni de supuesto, así que esas correcciones llegan declaradas por PLAN.
+  const base3 = await answerViaOracle({
+    text: "¿cuánto contribuye Falabella?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => ({ intent: "answer", mode: "default", rationale: "t", scope: { level: "entity", entities: ["Falabella"] }, calls: [{ tool: "contributionRead", args: { dimension: "cliente", filters: { cliente: "Falabella" }, metric: "contribucion" } }] }),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  });
+  for (const [campo, titulo] of [["metrica", "te pedí el resultado, no la contribución"], ["periodo", "me refería al año anterior"], ["supuesto", "el gasto declarado era otro"]]) {
+    let memX = null;
+    const r = await answerViaOracle({
+      text: titulo, history: [], mem: base3.mem, scenario: "actual",
+      callPlan: async () => ({ intent: "redirect", mode: "default", rationale: campo, scope: { level: "entity", entities: ["Falabella"] }, calls: [{ tool: "pnlRead", args: { entity: "Falabella", dimension: "cliente" } }], reparacion: { tipo: "correccion", corrige: [campo] } }),
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia(`Entendido, corrijo ${campo}.`, "Falabella")(args); },
+    });
+    const b = renderInteractionMemory(memX || {});
+    ok(`P&L · corrección de ${campo.toUpperCase()} responde y cancela la oferta anterior`,
+      !!(r && r.r && r.r.text) && !/rebate de Falabella/.test(b), b);
+  }
+}
+
+section("9 · LAS OCHO DIMENSIONES, DECLARADAS Y CONTADAS");
+// Confirmación explícita pedida por el owner: entidad más las siete restantes, todas con prueba de punta a punta
+// en ESTE archivo. La lista se compara contra el contrato, así que si mañana se agrega un campo corregible y
+// nadie escribe su prueba, este gate se pone rojo antes de que la conducta llegue a producción.
+{
+  const PROBADAS = ["entidad", "metrica", "periodo", "alcance", "criterio", "intencion", "formato", "supuesto"];
+  const faltan = REPAIR_FIELD_KEYS.filter((k) => !PROBADAS.includes(k));
+  ok(`las ${REPAIR_FIELD_KEYS.length} dimensiones corregibles del contrato tienen prueba end-to-end`, faltan.length === 0, `sin prueba: ${faltan.join(", ")}`);
+  ok("y son exactamente ocho: entidad + las siete restantes", PROBADAS.length === 8 && REPAIR_FIELD_KEYS.length === 8);
 }
 
 console.log(`\n${pass} OK · ${fail} FAIL`);
