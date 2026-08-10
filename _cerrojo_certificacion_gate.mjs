@@ -61,7 +61,14 @@ section("3 · LOS TOPES SON LOS DEL CONTRATO Y LOS DEL OWNER");
   const previstas = SONDAS.reduce((n, s) => n + (s.sinNarrar ? 1 : 2), 0);
   ok(`las 6 sondas prevén ${previstas} llamadas · ≤ ${LLAMADAS_ESPERADAS} esperadas · ≤ ${TOPE_LLAMADAS} tope`,
     previstas <= LLAMADAS_ESPERADAS && LLAMADAS_ESPERADAS <= TOPE_LLAMADAS, String(previstas));
-  ok("cada sonda declara qué espera del plan REAL y por qué", SONDAS.every((s) => typeof s.espera === "function" && s.porQue && s.texto && s.id));
+  ok("cada sonda declara sus condiciones NOMBRADAS, y por qué", SONDAS.every((s) => Array.isArray(s.condiciones) && s.condiciones.length
+    && s.condiciones.every(([n, f]) => typeof n === "string" && n && typeof f === "function") && s.porQue && s.texto && s.id));
+  ok("las condiciones son evaluables sobre un plan cualquiera sin romperse",
+    SONDAS.every((s) => s.condiciones.every(([, f]) => { try { f({}); return true; } catch { return false; } })));
+  // la primera corrida pagada murió sin decir POR QUÉ: el arnés sólo dijo "no cumple". Cada sonda tiene que poder
+  // señalar la condición exacta que falló, o una corrida fallida rinde menos de lo que costó.
+  ok("una sonda que no cumple puede nombrar exactamente qué falló",
+    SONDAS[0].condiciones.filter(([, f]) => !f({ intent: "answer", calls: [] })).map(([n]) => n).length >= 3);
   const ids = SONDAS.map((s) => s.id);
   ok("las sondas no se repiten", new Set(ids).size === ids.length, ids.join(","));
 }
@@ -82,6 +89,16 @@ section("4 · EL ARNÉS NO PUEDE GASTAR POR ACCIDENTE");
   ok("una sonda cortada por el cerrojo detiene la corrida entera (no se reintenta ni se recorta)",
     /if \(cortada\)/.test(SRC) && /NO CORRIDA/.test(SRC));
   ok("el contexto previo se siembra, no se paga", /scopeSembrado/.test(SRC) && /no se paga|se SIEMBRA/.test(SRC));
+  // el registro de diagnóstico no puede filtrar dato del cliente: son vocabularios cerrados nuestros.
+  ok("registra la FORMA del plan (intención, presencia de reparación, dimensiones, tools)",
+    /intent: planReal\.intent/.test(SRC) && /reparacion: planReal\.reparacion === undefined \? "OMITIDA"/.test(SRC)
+    && /declaradas:/.test(SRC) && /inferidas: inferirCorrige/.test(SRC) && /tools: \(planReal\.calls \|\| \[\]\)\.map/.test(SRC));
+  ok("registra la condición EXACTA que falló", /condiciones que fallaron/.test(SRC) && /const fallas = planReal/.test(SRC));
+  ok("la pregunta de precisión se CUENTA, no se transcribe (nada del cliente al log)",
+    /preguntas: planReal\.reparacion && typeof planReal\.reparacion\.pregunta === "string"/.test(SRC)
+    && !/pregunta: planReal\.reparacion\.pregunta[^.]/.test(SRC));
+  ok("no se vuelca el texto de la respuesta ni el plan crudo al reporte",
+    !/texto: r && r\.r && r\.r\.text/.test(SRC) && !/plan: planReal/.test(SRC));
 }
 
 console.log(`\n${pass} OK · ${fail} FAIL`);

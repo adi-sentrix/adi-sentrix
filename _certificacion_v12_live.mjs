@@ -27,6 +27,7 @@ import { instalarTelemetria, telemetriaInstalada } from "./src/adi/llm/telemetry
 import { toolNames } from "./src/adi/oracle/toolRegistry.js";
 import { estimateCostUSD } from "./src/adi/llm/modelPricing.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
+import { inferirCorrige } from "./src/adi/oracle/conversationScope.js";
 
 export const TOPE_LLAMADAS = 15;
 export const TOPE_USD = 0.40;
@@ -89,9 +90,14 @@ export const SONDAS = [
     contexto: "el turno anterior habló del margen de Falabella",
     texto: "no, era Lider",
     mem: () => scopeSembrado({ entities: ["Falabella"] }),
-    espera: (plan) => plan.intent === "redirect" && plan.reparacion && plan.reparacion.tipo === "correccion"
-      && (plan.reparacion.corrige || []).includes("entidad") && !plan.reparacion.ambigua
-      && Array.isArray(plan.calls) && plan.calls.length > 0,
+    condiciones: [
+      ["intent=redirect", (p) => p.intent === "redirect"],
+      ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
+      ["tipo=correccion", (p) => p.reparacion && p.reparacion.tipo === "correccion"],
+      ["corrige incluye entidad", (p) => p.reparacion && (p.reparacion.corrige || []).includes("entidad")],
+      ["no se declara ambigua", (p) => p.reparacion && !p.reparacion.ambigua],
+      ["trae calls", (p) => Array.isArray(p.calls) && p.calls.length > 0],
+    ],
     porQue: "§3 · identifica qué cambió, no deja calls vacío y no se declara ambigua",
   },
   {
@@ -99,9 +105,14 @@ export const SONDAS = [
     contexto: "el turno anterior mostró el margen de Falabella contra el benchmark",
     texto: "ese número no me cuadra",
     mem: () => scopeSembrado({ entities: ["Falabella"] }),
-    espera: (plan) => plan.intent === "redirect" && plan.reparacion && plan.reparacion.ambigua === true
-      && !(plan.calls || []).length && typeof plan.reparacion.pregunta === "string"
-      && (plan.reparacion.pregunta.match(/\?/g) || []).length === 1,
+    condiciones: [
+      ["intent=redirect", (p) => p.intent === "redirect"],
+      ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
+      ["ambigua=true", (p) => p.reparacion && p.reparacion.ambigua === true],
+      ["calls vacio", (p) => !(p.calls || []).length],
+      ["trae pregunta", (p) => p.reparacion && typeof p.reparacion.pregunta === "string"],
+      ["UNA sola pregunta", (p) => p.reparacion && ((p.reparacion.pregunta || "").match(/\?/g) || []).length === 1],
+    ],
     porQue: "§4 · UNA sola pregunta, sin calls, sin recalcular",
     sinNarrar: true,   // esta sonda corta antes de NARRAR por diseño del contrato: cuesta 1 llamada, no 2
   },
@@ -110,8 +121,12 @@ export const SONDAS = [
     contexto: "el turno anterior atribuyó el margen bajo a las acciones comerciales",
     texto: "no creo que sea por los rebates",
     mem: () => scopeSembrado({ entities: ["Falabella"] }),
-    espera: (plan) => plan.reparacion && plan.reparacion.tipo === "desacuerdo"
-      && !(plan.reparacion.corrige || []).length && Array.isArray(plan.calls) && plan.calls.length > 0,
+    condiciones: [
+      ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
+      ["tipo=desacuerdo", (p) => p.reparacion && p.reparacion.tipo === "desacuerdo"],
+      ["sin corrige", (p) => p.reparacion && !(p.reparacion.corrige || []).length],
+      ["trae calls", (p) => Array.isArray(p.calls) && p.calls.length > 0],
+    ],
     porQue: "§5 · discute la interpretación, no el alcance: conserva y vuelve a pedir la evidencia",
   },
   {
@@ -119,9 +134,12 @@ export const SONDAS = [
     contexto: "el turno anterior dio la venta de Falabella",
     texto: "las ventas de Falabella fueron $20M",
     mem: () => scopeSembrado({ entities: ["Falabella"], metrica: "ventas" }),
-    espera: (plan) => plan.reparacion && plan.reparacion.tipo === "dato_usuario"
-      && plan.reparacion.dato && /20/.test(String(plan.reparacion.dato.valor || ""))
-      && Array.isArray(plan.calls) && plan.calls.length > 0,
+    condiciones: [
+      ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
+      ["tipo=dato_usuario", (p) => p.reparacion && p.reparacion.tipo === "dato_usuario"],
+      ["declara la cifra del usuario", (p) => p.reparacion && p.reparacion.dato && /20/.test(String(p.reparacion.dato.valor || ""))],
+      ["trae calls (la cifra oficial)", (p) => Array.isArray(p.calls) && p.calls.length > 0],
+    ],
     porQue: "§5 · declara la cifra del usuario y pide la oficial para mostrar la discrepancia",
   },
   {
@@ -129,9 +147,12 @@ export const SONDAS = [
     contexto: "el turno anterior dio el margen de Falabella",
     texto: "te pedí las ventas, no el margen",
     mem: () => scopeSembrado({ entities: ["Falabella"] }),
-    espera: (plan) => plan.reparacion && plan.reparacion.tipo === "correccion"
-      && (plan.reparacion.corrige || []).includes("metrica")
-      && !(plan.reparacion.corrige || []).includes("entidad"),
+    condiciones: [
+      ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
+      ["tipo=correccion", (p) => p.reparacion && p.reparacion.tipo === "correccion"],
+      ["corrige incluye metrica", (p) => p.reparacion && (p.reparacion.corrige || []).includes("metrica")],
+      ["NO incluye entidad", (p) => p.reparacion && !(p.reparacion.corrige || []).includes("entidad")],
+    ],
     porQue: "§1 · se modifica ÚNICAMENTE lo corregido: la entidad no entra en `corrige`",
   },
   {
@@ -139,10 +160,13 @@ export const SONDAS = [
     contexto: "el turno anterior habló sólo de Falabella",
     texto: "te pedí del negocio, no de una cuenta",
     mem: () => scopeSembrado({ entities: ["Falabella"] }),
-    espera: (plan) => plan.reparacion && plan.reparacion.tipo === "correccion"
-      && (plan.reparacion.corrige || []).some((c) => c === "alcance" || c === "entidad")
-      && plan.scope && plan.scope.level === "global"
-      && !(plan.calls || []).some((c) => c && c.args && c.args.filters && Object.keys(c.args.filters).length),
+    condiciones: [
+      ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
+      ["tipo=correccion", (p) => p.reparacion && p.reparacion.tipo === "correccion"],
+      ["corrige alcance o entidad", (p) => p.reparacion && (p.reparacion.corrige || []).some((c) => c === "alcance" || c === "entidad")],
+      ["scope global", (p) => p.scope && p.scope.level === "global"],
+      ["sin filtro heredado", (p) => !(p.calls || []).some((c) => c && c.args && c.args.filters && Object.keys(c.args.filters).length)],
+    ],
     porQue: "§1 · alcance global, SIN filtro heredado de la entidad anterior",
   },
 ];
@@ -215,8 +239,30 @@ if (_corre) {
           return res.narration;
         },
       });
-      const cumple = planReal ? !!sonda.espera(planReal) : false;
-      resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", plan: planReal, retryTrace: r && r.r && r.r.retryTrace, texto: r && r.r && r.r.text });
+      // ── EL DIAGNÓSTICO, SIN DATOS DEL CLIENTE (owner 2026-08-10, tras la primera corrida) ─────────────────────
+      // La corrida anterior costó dos llamadas y dejó la causa por INFERENCIA: el arnés sólo dijo "no cumple". Una
+      // corrida fallida tiene que rendir lo que cuesta. Se registra la FORMA del plan —qué intención, si vino la
+      // reparación, qué dimensiones declaró o infirió el motor, qué tools eligió— y la condición EXACTA que falló.
+      // Nada de esto es dato del cliente: son valores de vocabularios cerrados nuestros (intent, tipo, campos del
+      // contrato, nombres de tool). La pregunta de precisión se cuenta, no se transcribe.
+      const forma = planReal ? {
+        intent: planReal.intent || null,
+        reparacion: planReal.reparacion === undefined ? "OMITIDA" : planReal.reparacion === null ? "null" : "presente",
+        tipo: (planReal.reparacion && planReal.reparacion.tipo) || null,
+        declaradas: (planReal.reparacion && planReal.reparacion.corrige) || [],
+        ambigua: !!(planReal.reparacion && planReal.reparacion.ambigua),
+        preguntas: planReal.reparacion && typeof planReal.reparacion.pregunta === "string" ? (planReal.reparacion.pregunta.match(/\?/g) || []).length : 0,
+        scope: (planReal.scope && planReal.scope.level) || null,
+        tools: (planReal.calls || []).map((c) => c && c.tool).filter(Boolean),
+        // lo que el RESPALDO habría deducido de la estructura, para separar "el modelo no lo dijo" de
+        // "el motor tampoco podía verlo" — la distinción que decide qué se arregla después.
+        inferidas: inferirCorrige(sonda.mem().conversationScope, planReal),
+      } : null;
+      const fallas = planReal ? sonda.condiciones.filter(([, f]) => { try { return !f(planReal); } catch { return true; } }).map(([n]) => n) : ["no llegó ningún plan"];
+      const cumple = fallas.length === 0;
+      resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", fallas, forma, retryTrace: r && r.r && r.r.retryTrace });
+      console.log(`  ${sonda.id} · ${cumple ? "CUMPLE" : "NO CUMPLE"} · forma=${JSON.stringify(forma)}`);
+      if (!cumple) console.log(`  ${sonda.id} · condiciones que fallaron: ${fallas.join(" · ")}`);
       // UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA (owner, autorización 2026-08-10). No es lo mismo que un tope:
       // acá el producto respondió y respondió mal, así que seguir gastando en las sondas siguientes es pagar por
       // confirmar un defecto que ya está confirmado. Se conserva lo corrido y se declara lo que quedó sin cubrir.
