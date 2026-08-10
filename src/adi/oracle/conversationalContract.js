@@ -112,7 +112,14 @@ export const REPAIR_KINDS = ["correccion", "desacuerdo", "dato_usuario"];
 
 // Los campos REALES de ConversationScopeEntry (conversationScope.js) que una corrección puede tocar. Es esta lista
 // —no una copia— la que hace que "invalidar lo incompatible" sea estructura y no una intención del prompt.
-export const SCOPE_FIELDS = ["dimension", "entities", "selection", "periodo", "filtros", "metrica", "origen", "ofertaPendiente", "supuestos"];
+// COMPLETA, y el gate lo verifica contra el shape real (owner 2026-08-10, revisión de la sección 8): la primera
+// versión listaba 9 de los 13 campos y dejaba `tool`, `operacion`, `modo` y `faltantes` fuera de toda invalidación
+// posible. `tool` era el que más se notaba: tras "te pedí ventas, no margen", el prompt del turno siguiente seguía
+// declarando "(tool=marginRead)" como alcance activo — justo la herramienta que el usuario acababa de corregir.
+// Es exactamente el modo de falla que el comentario de REPAIR_FIELDS dice evitar, y esta lista ya había nacido
+// incompleta respecto del shape que declara copiar.
+export const SCOPE_FIELDS = ["dimension", "entities", "selection", "periodo", "filtros", "metrica", "tool",
+  "operacion", "modo", "origen", "ofertaPendiente", "supuestos", "faltantes"];
 
 // LO CORREGIBLE (§2) — y, en cada uno, QUÉ SOBREVIVE.
 // `conserva` es la AUTORIDAD, deliberadamente, y no su complemento: la regla del owner es "se conserva lo
@@ -125,13 +132,20 @@ export const SCOPE_FIELDS = ["dimension", "entities", "selection", "periodo", "f
 export const REPAIR_FIELDS = [
   { key: "entidad",   conserva: ["periodo", "metrica"],                                            pregunta: "¿de qué entidad estabas hablando?" },
   { key: "metrica",   conserva: ["dimension", "entities", "periodo", "filtros", "supuestos"],      pregunta: "¿qué métrica querías?" },
-  { key: "periodo",   conserva: ["dimension", "entities", "metrica", "filtros"],                   pregunta: "¿a qué período te referías?" },
+  { key: "periodo",   conserva: ["dimension", "entities", "metrica", "filtros", "tool"],           pregunta: "¿a qué período te referías?" },
   { key: "alcance",   conserva: ["periodo", "metrica"],                                            pregunta: "¿lo querías del negocio completo o de una entidad puntual?" },
   { key: "criterio",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "supuestos"], pregunta: "¿contra qué criterio querías compararlo?" },
   { key: "intencion", conserva: ["dimension", "entities", "periodo", "filtros"],                   pregunta: "¿qué querías que resolviera con eso?" },
   { key: "formato",   conserva: SCOPE_FIELDS,                                                      pregunta: "¿cómo preferís verlo?" },
-  { key: "supuesto",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica"],        pregunta: "¿qué supuesto habría que cambiar?" },
+  { key: "supuesto",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "tool"], pregunta: "¿qué supuesto habría que cambiar?" },
 ];
+// LO SIEMPRE INCOMPATIBLE. Ninguna corrección real —ni una que no sepamos leer— deja en pie la oferta que colgaba
+// de la respuesta equivocada, la evidencia que la sostenía, ni el orden sellado con el criterio anterior. Es el
+// PISO de la invalidación: lo que se apaga aunque `corrige` venga vacío. Sin este piso, la única alternativa ante
+// una corrección ilegible era borrar el scope entero — y eso rompe la otra mitad de §1 ("se modifica ÚNICAMENTE
+// lo corregido"): el usuario terminaba teniendo que redeclarar entidad, métrica y período por haber contestado
+// la pregunta de precisión que ADI le hizo.
+export const REPAIR_SIEMPRE_INCOMPATIBLE = ["ofertaPendiente", "origen", "selection"];
 export const REPAIR_FIELD_KEYS = REPAIR_FIELDS.map((f) => f.key);
 const _repairByKey = new Map(REPAIR_FIELDS.map((f) => [f.key, f]));
 export function repairField(key) { return _repairByKey.get(key) || null; }
@@ -143,7 +157,12 @@ export function repairField(key) { return _repairByKey.get(key) || null; }
 // no sabemos leer se trata como la más amplia posible, nunca como inofensiva.
 export function camposQueSobreviven(corrige) {
   const keys = (Array.isArray(corrige) ? corrige : []).filter((k) => _repairByKey.has(k));
-  if (!keys.length) return new Set();
+  // SIN CAMPOS LEGIBLES no se borra todo: se apaga el PISO (ver REPAIR_SIEMPRE_INCOMPATIBLE) y sobrevive el resto.
+  // Es la corrección de un defecto real de la primera versión, no una relajación: una corrección que no sabemos
+  // leer —el LLM omitió `corrige`, o el usuario acaba de contestar la pregunta de precisión— borraba entidad,
+  // dimensión, período, métrica y filtros de un saque, y el usuario tenía que redeclarar la conversación entera.
+  // La oferta, la evidencia y el orden sellado del turno equivocado igual mueren, que es lo que §1 protege.
+  if (!keys.length) return new Set(SCOPE_FIELDS.filter((f) => !REPAIR_SIEMPRE_INCOMPATIBLE.includes(f)));
   let vivos = null;
   for (const k of keys) {
     const c = new Set(_repairByKey.get(k).conserva);
@@ -154,6 +173,36 @@ export function camposQueSobreviven(corrige) {
 export function camposQueSeInvalidan(corrige) {
   const vivos = camposQueSobreviven(corrige);
   return SCOPE_FIELDS.filter((f) => !vivos.has(f));
+}
+
+// ── normalizeReparacion(plan) → el objeto CANÓNICO, o null ─────────────────────────────────────────────────────
+// UNA SOLA LECTURA para los cuatro consumidores (el motor, el estado, el contrato de narración y el guard). La
+// primera versión dejaba que cada uno resolviera por su cuenta dos cosas, y resolvían distinto:
+//   · LA CONTRADICCIÓN `ambigua:true` + `corrige:["entidad"]`. El motor la trataba como resuelta (recalculaba) y
+//     el estado y el guard como ambigua (no invalidaban nada, no exigían evidencia). Resultado medido leyendo el
+//     código: ADI contestaba sobre la entidad nueva mientras su memoria seguía cargando la oferta, los temas y el
+//     período de la vieja — la combinación silenciosa que §1 prohíbe, entrando por la puerta que la iba a cerrar.
+//   · EL INTENT. `reparacion` colgada de un turno `answer` activaba la pregunta de precisión (descartando calls
+//     buenas) o el chequeo de evidencia del guard. §2 es explícito: la reparación vive DENTRO de intent="redirect".
+// Acá se resuelven las dos, una vez, y todos leen lo mismo. `ambigua` sale ya reconciliada: ante la contradicción
+// vale lo RESUELTO, nunca la pregunta — preguntar lo que el usuario ya contestó es peor que recalcular de más.
+export function normalizeReparacion(plan) {
+  const p = (plan && typeof plan === "object") ? plan : null;
+  if (!p || p.intent !== "redirect") return null;
+  const r = p.reparacion;
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  if (!REPAIR_KINDS.includes(r.tipo)) return null;
+  const corrige = Array.isArray(r.corrige) ? r.corrige.filter((k) => _repairByKey.has(k)) : [];
+  return {
+    tipo: r.tipo,
+    corrige,
+    ambigua: r.tipo === "correccion" && r.ambigua === true && corrige.length === 0,
+    pregunta: typeof r.pregunta === "string" ? r.pregunta : null,
+    dato: (r.dato && typeof r.dato === "object" && !Array.isArray(r.dato))
+      ? { metrica: r.dato.metrica || null, valor: r.dato.valor == null ? null : String(r.dato.valor), periodo: r.dato.periodo || null }
+      : null,
+    aceptado: r.aceptado === true,
+  };
 }
 
 // LA OFERTA NUNCA SOBREVIVE A UNA CORRECCIÓN REAL (§3.6 "cancelar ofertas anteriores que ya no correspondan" ·
@@ -168,11 +217,11 @@ export const REPAIR_INVARIANTS = Object.freeze({
 // ── DOCTRINA PARA LA PASADA 1 (PLAN) ──────────────────────────────────────────────────────────────────────────
 // Reemplaza al bullet "· CORRECCIÓN:" que planPrompt.js traía suelto desde v1.1 — no se suma al lado de él.
 export function buildRepairPlanDoctrine() {
-  return `· CORRECCIÓN / DESACUERDO / DATO APORTADO → intent="redirect" + el objeto "reparacion". Son TRES cosas distintas y se declaran distinto:
-  (a) CORRECCIÓN ("no, era Lider", "te pedí ventas, no margen", "me refería al último trimestre", "te pedí del negocio y me hablás de X") → reparacion.tipo="correccion" y reparacion.corrige=[${REPAIR_FIELD_KEYS.join("|")}] con lo que el usuario cambió (uno o varios). Poné el scope corregido Y ESTA VEZ SÍ las calls que entregan la respuesta corregida — no dejes calls vacío. NUNCA arrastres el período, el filtro, el criterio ni la entidad del turno anterior si no siguen siendo compatibles con lo corregido: el motor invalida lo incompatible, pero vos no lo vuelvas a pedir.
-  (b) CORRECCIÓN AMBIGUA — el usuario dice que algo está mal SIN decir qué ("eso no es así", "está mal", "ese número no me cuadra", "no era eso") → reparacion.tipo="correccion" con reparacion.ambigua=true y reparacion.pregunta = UNA sola pregunta de precisión, redactada con el contexto del turno anterior y nombrando SOLO lo que de verdad pudo haber fallado ahí (si el turno no tenía comparación, no preguntes por el criterio; si fue de una sola entidad, no preguntes "¿cuál cliente?"). En ese caso calls DEBE quedar VACÍO: no se recalcula nada hasta saber qué corregir. Esto NO es un error de plan — es la respuesta correcta.
-  (c) DESACUERDO — el usuario discute la INTERPRETACIÓN, no el alcance ("no creo que sea por los rebates", "yo no lo veo así") → reparacion.tipo="desacuerdo", sin "corrige": el alcance NO cambia. Volvé a pedir la MISMA evidencia para poder separar lo probado de lo indicado y lo abierto.
-  (d) DATO APORTADO — el usuario afirma una cifra propia ("las ventas fueron $20M") → reparacion.tipo="dato_usuario" con reparacion.dato={metrica,valor} tal como él lo dijo, y las calls que traen LA CIFRA OFICIAL de esa misma métrica y alcance. La cifra del usuario NUNCA reemplaza al dato del motor: se muestra la discrepancia. Si en ESTE turno el usuario autoriza tratarla como supuesto ("sí, usá ese número", "tomalo como supuesto"), agregá reparacion.aceptado=true.`;
+  return `· CORRECCIÓN / DESACUERDO / DATO APORTADO → intent="redirect" + "reparacion". Son TRES cosas distintas:
+  (a) CORRECCIÓN ("no, era Lider", "te pedí ventas, no margen", "me refería al último trimestre", "te pedí del negocio y me hablás de X") → tipo="correccion" + corrige=[${REPAIR_FIELD_KEYS.join("|")}] con lo que cambió. Poné el scope corregido —si corrige el ALCANCE, normalmente level="global" y SIN filtro— y ESTA VEZ SÍ las calls que traen la respuesta corregida: nunca calls vacío. Reconocé breve y entregá. NO arrastres período, filtro, criterio ni entidad del turno anterior si dejaron de ser compatibles.
+  (b) AMBIGUA — dice que algo está mal SIN decir qué ("eso no es así", "ese número no me cuadra") → tipo="correccion", ambigua=true, pregunta=UNA de precisión, con el contexto del turno anterior y nombrando SOLO lo que ahí pudo fallar (sin comparación no preguntes por el criterio; con una sola entidad no preguntes cuál). calls VACÍO: no se recalcula nada hasta saberlo. No es un plan roto, es la respuesta correcta.
+  (c) DESACUERDO — discute la INTERPRETACIÓN, no el alcance ("no creo que sea por los rebates") → tipo="desacuerdo", sin corrige: el alcance NO cambia. Volvé a pedir la MISMA evidencia, para separar lo probado de lo indicado y lo abierto.
+  (d) DATO APORTADO — afirma una cifra propia ("las ventas fueron $20M") → tipo="dato_usuario", dato={metrica,valor} tal como lo dijo, y las calls que traen LA CIFRA OFICIAL de esa métrica y alcance. Su cifra NUNCA reemplaza al dato del motor: se muestra la discrepancia. Si en ESTE turno autoriza tratarla como supuesto ("usá ese número"), aceptado=true.`;
 }
 
 // ── DOCTRINA PARA LA PASADA 2 (NARRAR) ────────────────────────────────────────────────────────────────────────
@@ -180,7 +229,12 @@ export function buildRepairPlanDoctrine() {
 // ni un token por reglas que no va a usar. `reparacion` es el objeto YA sellado del contrato de narración.
 export function buildRepairNarrateDoctrine(reparacion) {
   const r = (reparacion && typeof reparacion === "object") ? reparacion : null;
-  if (!r || !REPAIR_KINDS.includes(r.tipo)) return "";
+  // LA DOCTRINA NO PUEDE CALLARSE MIENTRAS EL CANDADO SIGUE ARMADO (defecto real, owner 2026-08-10). Esta guarda
+  // exigía un `tipo` válido, pero el objeto viaja también con `tipo: null` — el caso de un turno normal con un
+  // supuesto del usuario todavía vivo, o sea el SEGUNDO turno de usar la función. Ahí el narrador no recibía una
+  // sola línea sobre el tercer universo y el guard sí lo juzgaba: exactamente "el prompt dice una cosa y el
+  // candado cobra otra", que es el defecto que este repo ya pagó una vez con la política de tablas.
+  if (!r || (!REPAIR_KINDS.includes(r.tipo) && !(Array.isArray(r.supuestos) && r.supuestos.length))) return "";
   const partes = [];
   if (r.tipo === "correccion") {
     const qué = Array.isArray(r.corrige) && r.corrige.length ? r.corrige.join(" y ") : "el foco";

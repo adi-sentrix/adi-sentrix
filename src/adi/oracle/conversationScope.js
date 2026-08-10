@@ -100,8 +100,9 @@ export function withOfertaPendiente(scope, offer) {
 // _vaciar(campo) → el valor NEUTRO de cada campo del scope. Vaciar no es borrar la key: el shape de
 // ConversationScopeEntry no cambia nunca (los ~30 lectores del scope siguen encontrando lo que esperan).
 const _NEUTRO = {
-  dimension: null, entities: [], selection: null, periodo: null, filtros: null,
-  metrica: null, origen: { callId: null, boletaLabels: [] }, ofertaPendiente: null, supuestos: [],
+  dimension: null, entities: [], selection: null, periodo: null, filtros: null, metrica: null,
+  tool: null, operacion: null, modo: null,
+  origen: { callId: null, boletaLabels: [] }, ofertaPendiente: null, supuestos: [], faltantes: [],
 };
 
 // applyRepairToScope(scopeRoot, reparacion) → scopeRoot' — PURA, no muta.
@@ -115,20 +116,32 @@ export function applyRepairToScope(scopeRoot, reparacion) {
   // desacuerdo y dato aportado NO son correcciones de alcance: no invalidan nada (§5 — "conserva la evidencia").
   if (!r || r.tipo !== "correccion" || r.ambigua) return prev;
   const invalidar = camposQueSeInvalidan(r.corrige);
-  if (!invalidar.length || !prev.current) return prev;
+  if (!invalidar.length) return prev;
 
-  const current = { ...prev.current };
-  // las entidades que esta corrección deja sin efecto — se sacan también de la señal `recentSubjects` para que no
-  // reaparezcan como "tema reciente" en el prompt del turno siguiente (§7).
-  const retiradas = invalidar.includes("entities") && Array.isArray(prev.current.entities) ? prev.current.entities.slice() : [];
-  for (const campo of invalidar) {
-    if (!Object.prototype.hasOwnProperty.call(_NEUTRO, campo)) continue;
-    const v = _NEUTRO[campo];
-    current[campo] = Array.isArray(v) ? [] : (v && typeof v === "object") ? { ...v } : v;
+  // SIN `current` LA REPARACIÓN NO ES UN NO-OP (defecto real, owner 2026-08-10). `current` queda en null cuando
+  // ningún turno anterior produjo entidades en boleta — el caso EXACTO de un turno cuya tool declinó honesto. Pero
+  // ese turno igual dejó `recentSubjects` poblado (se deriva de plan.scope, no de results) y una oferta viva en el
+  // shim `mem.lastOffer` (su entidad también sale del plan). Con la guarda anterior, corregir la entidad después
+  // de un turno declinado no invalidaba nada: la oferta de la entidad equivocada sobrevivía, y un "dale" dos
+  // turnos después la ejecutaba. Ahora la purga de la señal corre igual, con o sin `current`.
+  const entidadesPrevias = (prev.current && Array.isArray(prev.current.entities)) ? prev.current.entities.slice() : [];
+  const retiradas = invalidar.includes("entities") ? entidadesPrevias : [];
+  const out = { ...prev };
+  if (prev.current) {
+    const current = { ...prev.current };
+    for (const campo of invalidar) {
+      if (!Object.prototype.hasOwnProperty.call(_NEUTRO, campo)) continue;
+      const v = _NEUTRO[campo];
+      current[campo] = Array.isArray(v) ? [] : (v && typeof v === "object") ? { ...v } : v;
+    }
+    out.current = current;
   }
-  const out = { ...prev, current };
-  if (retiradas.length && Array.isArray(prev.recentSubjects)) {
-    out.recentSubjects = prev.recentSubjects.filter((s) => !(s && retiradas.includes(s.entidad)));
+  // `recentSubjects` se purga por la ENTIDAD retirada cuando la hay; y cuando no hay `current` del cual leerla
+  // —el turno declinado— se purga la que la propia señal declara como más reciente, que es la que ADI usó para
+  // responder mal. Nunca se toca `history`: el contrato invalida el contexto DE LA CORRECCIÓN, no la conversación.
+  if (invalidar.includes("entities") && Array.isArray(prev.recentSubjects) && prev.recentSubjects.length) {
+    const objetivo = retiradas.length ? retiradas : [prev.recentSubjects[0] && prev.recentSubjects[0].entidad].filter(Boolean);
+    out.recentSubjects = prev.recentSubjects.filter((s) => !(s && objetivo.includes(s.entidad)));
   }
   return out;
 }
@@ -140,11 +153,40 @@ export function applyRepairToScope(scopeRoot, reparacion) {
 // Se guarda SOLO cuando el usuario autorizó tratarla como supuesto: una cifra suya que todavía no aceptó es una
 // discrepancia que se muestra y se pregunta, no un supuesto vivo.
 export const SUPUESTOS_USUARIO_MAX = 3;
+// _supuestosHeredados(prevCurrent, dimensionNueva, entidadesNuevas) → los supuestos del usuario que SIGUEN
+// vigentes en el alcance de este turno. Sobrevive el que no declaró alcance (aportado sobre el negocio completo,
+// sin entidad: no hay alcance que contradecir) y el que comparte eje Y al menos una entidad con el turno nuevo.
+// Cualquier otro cambió de alcance y muere, que es lo que pide el cuarto bullet de §5.1.
+function _supuestosHeredados(prevCurrent, dimensionNueva, entidadesNuevas, tenantNuevo) {
+  const prev = (prevCurrent && Array.isArray(prevCurrent.supuestos)) ? prevCurrent.supuestos : [];
+  if (!prev.length) return [];
+  // TENANT PRIMERO (defecto real, owner 2026-08-10): hasta este contrato NINGÚN campo de negocio cruzaba turnos
+  // —`current` se reconstruía entero— así que la herencia convierte al supuesto en el primer dato que podría
+  // cruzar la frontera entre empresas. Mismo criterio que validateScopeTenant: ante la duda se descarta ENTERO.
+  const tenantPrev = (prevCurrent && prevCurrent.tenant && prevCurrent.tenant.tenantId) || null;
+  const tenantAhora = (tenantNuevo && tenantNuevo.tenantId) || null;
+  if (tenantPrev && tenantAhora && tenantPrev !== tenantAhora) return [];
+  const ents = new Set(Array.isArray(entidadesNuevas) ? entidadesNuevas : []);
+  return prev.filter((s) => {
+    if (!s || s.origen !== "usuario") return false;
+    const a = s.alcance;
+    if (!a || !a.dimension || !Array.isArray(a.entities) || !a.entities.length) return true;   // sin alcance declarado
+    if (dimensionNueva && a.dimension !== dimensionNueva) return false;
+    return a.entities.some((e) => ents.has(e));
+  });
+}
 export function withSupuestoUsuario(scope, dato, turno = null) {
   if (!scope || !scope.current || !dato || typeof dato !== "object") return scope || null;
   const valor = dato.valor == null ? "" : String(dato.valor).trim();
   if (!valor) return scope;
-  const nuevo = { origen: "usuario", valor, metrica: dato.metrica ? String(dato.metrica) : null, periodo: dato.periodo ? String(dato.periodo) : null, turno };
+  // EL SUPUESTO GUARDA SU ALCANCE (owner 2026-08-10, revisión de la sección 8). Sin esto, una cifra aportada sobre
+  // Falabella seguía viva —y autorizada en el guard— cuando la conversación pasaba a Lider: el cuarto bullet de
+  // §5.1 dice que se invalida "cuando cambia el alcance", y el alcance no se podía comparar porque no se guardaba.
+  const alcance = {
+    dimension: scope.current.dimension || null,
+    entities: Array.isArray(scope.current.entities) ? scope.current.entities.slice() : [],
+  };
+  const nuevo = { origen: "usuario", valor, metrica: dato.metrica ? String(dato.metrica) : null, periodo: dato.periodo ? String(dato.periodo) : null, alcance, turno };
   const prev = Array.isArray(scope.current.supuestos) ? scope.current.supuestos : [];
   // mismo LRU que el resto del estado conversacional: el más reciente primero, sin duplicar la misma cifra.
   const sin = prev.filter((s) => !(s && s.origen === "usuario" && s.valor === nuevo.valor && (s.metrica || null) === nuevo.metrica));
@@ -168,12 +210,15 @@ export function composePrecisionQuestion(scopeRoot, reparacion) {
   if (propia) return propia;
   const cur = (scopeRoot && scopeRoot.current) || null;
   const candidatos = [];
-  if (cur && Array.isArray(cur.entities) && cur.entities.length > 1) candidatos.push("entidad");
-  else if (cur && Array.isArray(cur.entities) && cur.entities.length === 1) candidatos.push("entidad");
+  if (cur && Array.isArray(cur.entities) && cur.entities.length) candidatos.push("entidad");
   if (cur && cur.metrica) candidatos.push("metrica");
   if (cur && cur.periodo) candidatos.push("periodo");
   if (cur && cur.selection) candidatos.push("criterio");
-  const nombres = { entidad: "la entidad", metrica: "la métrica", periodo: "el período", criterio: "el criterio" };
+  // LA CIFRA es corregible según §4 aunque no sea un campo del alcance (§2): "lo corregible puede ser la entidad,
+  // la métrica, el período, el alcance, el criterio o LA CIFRA". Si el turno anterior mostró cifras, "ese número
+  // no me cuadra" es una de las lecturas plausibles y la pregunta tiene que poder nombrarla.
+  if (cur && cur.origen && Array.isArray(cur.origen.boletaLabels) && cur.origen.boletaLabels.length) candidatos.push("cifra");
+  const nombres = { entidad: "la entidad", metrica: "la métrica", periodo: "el período", criterio: "el criterio", cifra: "la cifra" };
   const lista = candidatos.map((k) => nombres[k]).filter(Boolean);
   if (!lista.length) return "Dime qué parte está mal y la corrijo — ¿la pregunta que entendí, o el dato que traje?";
   const ultimo = lista.pop();
@@ -329,14 +374,14 @@ export function updateConversationScope(scopePrev, { plan, calls, results, turno
       callId: (builtFrom && builtFrom.callId) || (arr[0] && arr[0].callId) || null,
       boletaLabels: (builtFrom && Array.isArray(builtFrom.boleta)) ? builtFrom.boleta.slice(0, 8).map((f) => f.label) : [],
     },
-    // EL SUPUESTO DEL USUARIO SE HEREDA (Contrato v1.2 §5.1, owner 2026-08-10): "queda marcada como suya en cada
-    // lugar donde aparezca, MIENTRAS SIGA VIVA EN LA CONVERSACIÓN". Este objeto se reconstruye entero en cada
-    // turno con entidades nuevas, así que sin esta línea la cifra del usuario duraba exactamente un turno — y una
-    // procedencia que se olvida sola es peor que no tenerla: la cifra sigue en el hilo y deja de estar marcada.
+    // EL SUPUESTO DEL USUARIO SE HEREDA, PERO SOLO DENTRO DE SU ALCANCE (Contrato v1.2 §5.1, owner 2026-08-10).
+    // "Queda marcada como suya MIENTRAS SIGA VIVA EN LA CONVERSACIÓN" y "se invalida junto con el resto del
+    // contexto incompatible cuando cambia el alcance" — las dos mitades de la misma regla. Este objeto se
+    // reconstruye entero en cada turno con entidades nuevas: sin heredar, la cifra duraba un turno y la
+    // procedencia se olvidaba sola (peor que no tenerla, porque la cifra sigue en el hilo sin marca); heredando
+    // sin condición, una cifra aportada sobre Falabella seguía autorizada en el guard hablando de Lider.
     // Solo los de ORIGEN usuario: los supuestos que sella un composer de simulación son del turno que los produjo.
-    // La rama de cambio real de tema (scope global, más arriba) NO hereda — ahí sí cambió el alcance, que es la
-    // condición exacta con la que §5.1 los invalida.
-    supuestos: (prev.current && Array.isArray(prev.current.supuestos)) ? prev.current.supuestos.filter((s) => s && s.origen === "usuario") : [],
+    supuestos: _supuestosHeredados(prev.current, dimension, entities, tenant),
     faltantes: [],
     ofertaPendiente: null,
     tenant,
