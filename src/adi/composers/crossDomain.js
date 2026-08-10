@@ -181,7 +181,12 @@ function composePriorityRecommendationV2(scenarioId) {
   const b2 = `Partiría por ${cliente_nombre} · bajar carga de ${carga_actual.toFixed(1)}% a ${target_carga.toFixed(1)}% recupera aproximadamente $${recuperable}K anuales.`;
 
   // ── BLOQUE 3 · EVIDENCIA (cifras concatenadas · Executive V1) ─────────
-  const b3 = `Ventas $${venta_M}M · Contribución $${contrib_M}M · Margen ${margen_pct}% · ${(benchmark - margen_pct).toFixed(1)}pp bajo benchmark · Carga ${gap_pp}pp sobre referencia.`;
+  // CADA GAP NOMBRA SU VARA (owner 2026-08-10). «sobre referencia» a secas era ambiguo justo donde más importa: la
+  // línea de ARRIBA acaba de decir «bajar carga de 4,5% a 3,5%» (la meta operativa) y este gap está medido contra
+  // la MEJOR PRÁCTICA INTERNA (3,0%), que es otro umbral. Contra la vara que el propio párrafo nombró una línea
+  // antes, el gap sería 1,0pp, no 1,5pp: dos varas vivas en dos renglones consecutivos, sin decir cuál es cuál. El
+  // número no cambia — cambia que ahora dice de dónde sale. Mismo patrón honesto que executiveReport.js ya usa.
+  const b3 = `Ventas $${venta_M}M · Contribución $${contrib_M}M · Margen ${margen_pct}% · ${(benchmark - margen_pct).toFixed(1)}pp bajo benchmark · Carga ${gap_pp}pp sobre la mejor práctica interna (${bestPractice.toFixed(1)}%).`;
 
   // ── BLOQUE 4 · QUÉ LO EXPLICA (observable · Executive V1) ─────────────
   // BRIEF MICRO 1 (#D-EXEC-15-3 fix) · V1 LOCKED · evita duplicación con B1 ETLG.
@@ -300,6 +305,11 @@ function composeM1Donde(archetype, domains, scenarioId) {
     // Filtro: cuentas con margen bajo benchmark Y carga sobre target (no
     // sobre bestPractice). Asegura que las cuentas listadas efectivamente
     // tienen recuperable positivo al target 3.5%.
+    // LA ORACIÓN NOMBRA LA VARA CON QUE SE CALCULÓ (owner 2026-08-10). El filtro y el monto se hacen contra
+    // `targetCarga` (el comentario de arriba ya lo decía), pero el texto los atribuía a «la mejor práctica
+    // interna», que es OTRO umbral de POLICY. Medido: con la meta operativa son 6 cuentas y $619K; con la vara que
+    // la frase nombraba, 7 cuentas y $1.002K — 62% más de plata y una cuenta más. El usuario recibía un monto y una
+    // población atribuidos a una vara que no los produjo. La cuenta no se toca: el texto dice cuál usó.
     const target_carga = POLICY.targetCarga;
     const tier1WithPressure = margenes.filter(c =>
       c.margen < benchmark && c.pctRebate > target_carga
@@ -331,10 +341,10 @@ function composeM1Donde(archetype, domains, scenarioId) {
     if (typeof ADI_CAPITAL_DEF_CANONICA_ENABLED !== "undefined" && ADI_CAPITAL_DEF_CANONICA_ENABLED) {
       const _canon = _capitalInmovilizado(skuInventario);
       const _estrictoK = Math.round(_canon.estricto60d / 1000);
-      return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K detenidos en stock entre SKUs con alerta operativa; de eso, aproximadamente $${_estrictoK}K corresponde a stock sin venta por más de 60 días), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre la mejor práctica interna (aproximadamente $${fugaK}K anuales recuperables).`;
+      return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K detenidos en stock entre SKUs con alerta operativa; de eso, aproximadamente $${_estrictoK}K corresponde a stock sin venta por más de 60 días), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
     }
 
-    return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K detenidos en stock entre SKUs con alerta operativa), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre la mejor práctica interna (aproximadamente $${fugaK}K anuales recuperables).`;
+    return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K detenidos en stock entre SKUs con alerta operativa), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
   }
 
   if (archetype === "calidad_crecimiento") {
@@ -393,7 +403,9 @@ function composeM1Donde(archetype, domains, scenarioId) {
 
 function composeM2ComoOpera(archetype, domains, scenarioId) {
   if (archetype === "fuga_distribuida") {
-    return `La contribución bajo benchmark deteriora resultado operativo mes a mes: cada punto de carga comercial sobre la mejor práctica interna se traduce en margen que no se captura. El capital inmovilizado opera distinto: no aparece en el P&L mensual, pero reduce velocidad de conversión de caja y limita capacidad de reinversión comercial.`;
+    // misma vara que la de M1 para este arquetipo: la meta operativa de carga, que es la que arma la población y el
+    // monto. Nombrar acá la mejor práctica interna describía el mecanismo contra un umbral distinto del que se midió.
+    return `La contribución bajo benchmark deteriora resultado operativo mes a mes: cada punto de carga comercial sobre tu meta operativa de carga (${POLICY.targetCarga.toFixed(1)}%) se traduce en margen que no se captura. El capital inmovilizado opera distinto: no aparece en el P&L mensual, pero reduce velocidad de conversión de caja y limita capacidad de reinversión comercial.`;
   }
 
   if (archetype === "calidad_crecimiento") {

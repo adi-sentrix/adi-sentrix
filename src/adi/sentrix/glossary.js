@@ -262,9 +262,13 @@ export const CONCEPT_DEFS = {
   },
   meta: {
     aka: "meta",
-    etiquetas: ["meta", "tu meta", "meta de carga"],
-    def: "Es el valor objetivo declarado para una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera la meta es lo que queda para revisar.",
-    distingue: "La meta es un objetivo declarado; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre la meta y aun así bajo el benchmark.",
+    etiquetas: ["meta", "tu meta", "meta de carga", "meta operativa de carga", "mejor práctica interna", "mejor practica interna"],
+    // DOS UMBRALES VIVOS, NO UNO (owner 2026-08-10). La política declara META OPERATIVA de carga y MEJOR PRÁCTICA
+    // INTERNA, y son distintas: sobre la misma cartera seleccionan poblaciones y montos recuperables distintos. El
+    // glosario declaraba «meta» en singular, así que «¿qué cuentas están sobre la meta de carga?» no tenía una sola
+    // respuesta y los textos podían atribuir una cifra a la vara que no la produjo.
+    def: "Es el valor objetivo declarado para una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera la meta es lo que queda para revisar. En carga comercial conviven DOS umbrales declarados: la META OPERATIVA, que es contra la que se selecciona y se valoriza lo recuperable, y la MEJOR PRÁCTICA INTERNA, más exigente, que marca hasta dónde llegó la mejor cuenta del negocio. No dan la misma lista ni el mismo monto, y por eso cada lectura dice con cuál de las dos se calculó.",
+    distingue: "La meta es un objetivo declarado; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre la meta y aun así bajo el benchmark. Y la mejor práctica interna no es la meta: es más exigente, así que siempre marca más cuentas y más plata.",
   },
   presupuesto: {
     aka: "presupuesto",

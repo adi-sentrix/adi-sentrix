@@ -28,7 +28,15 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     };
   }
 
-  // Promedios de cartera · benchmarks internos
+  // PROMEDIO SIMPLE, Y SE LLAMA ASÍ (owner 2026-08-10). Estas dos cuentas son la media SIMPLE de las filas, y el
+  // texto las nombraba «el promedio de la cartera» / «el promedio interno de la cartera» — que es como el glosario
+  // AUTORIZADO (CONCEPT_DEFS.promedio_cartera, el que `defineConcept` le sirve al usuario) define OTRA cosa: el
+  // promedio PONDERADO POR VENTA, el único que reconcilia con el total del negocio. Los dos números no coinciden
+  // (margen 27,8% simple contra 25,1% ponderado; carga 3,9% contra 4,1%), y la diferencia INVIERTE el signo de la
+  // lectura: Paris queda «1,3pp debajo» del simple y 1,4pp ARRIBA del ponderado, y su carga «sobre» el simple está
+  // BAJO el ponderado. ADI definía el término de una forma y medía con la otra en el turno siguiente.
+  // No se cambia la cuenta —eso movería veredictos y es decisión del owner—: se DECLINA el nombre. Lo que se llama
+  // «el promedio de la cartera» es el ponderado; esto es «el promedio simple de las cuentas», y lo dice.
   const avgCarga = dataset.reduce((s, x) => s + (x.pctRebate || 0), 0) / dataset.length;
   const avgMargen = dataset
     .filter(x => x.margen !== null && x.margen !== undefined)
@@ -44,7 +52,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     const gapVsAvg = c.pctRebate - avgCarga;
     const totalCarga = c.rebates;
 
-    opener = `La carga comercial de ${c.nombre} es **${c.pctRebate}%** · ${Math.abs(gapVsAvg).toFixed(1)} puntos ${gapVsAvg >= 0 ? "sobre" : "bajo"} el promedio de la cartera (${avgCarga.toFixed(1)}%).\n\n`;
+    opener = `La carga comercial de ${c.nombre} es **${c.pctRebate}%** · ${Math.abs(gapVsAvg).toFixed(1)} puntos ${gapVsAvg >= 0 ? "sobre" : "bajo"} el promedio simple de las cuentas (${avgCarga.toFixed(1)}%).\n\n`;
     opener += `En valor absoluto representa **$${(totalCarga/1000).toFixed(2)}M anuales** de rebate sobre ventas de $${(c.venta/1000).toFixed(1)}M. `;
 
     // Thresholds calibrados · D-1.5.B-HOTFIX-3-VOZ-CARGA-MODERADA firmada
@@ -53,11 +61,11 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
       opener += `**Mecanismo disponible**: la lectura natural es si ese ${c.pctRebate}% retorna volumen incremental al benchmark o solo compensa presión comercial sin upside.`;
     } else if (gapVsAvg > 0.3) {
       // FRASE FOUNDER FIRMADA
-      opener += `Se ubica moderadamente sobre el promedio de cartera · no explica por sí sola todo el deterioro, pero sí refuerza la necesidad de revisar la carga comercial.`;
+      opener += `Se ubica moderadamente sobre ese promedio simple · no explica por sí sola todo el deterioro, pero sí refuerza la necesidad de revisar la carga comercial.`;
     } else if (gapVsAvg < -1) {
       opener += `Es una de las cuentas con carga más liviana · margen libre para crecer comercialmente sin deterioro.`;
     } else {
-      opener += `Está en línea con el promedio · sin presión particular de renegociación pero tampoco margen estructural.`;
+      opener += `Está en línea con ese promedio simple · sin presión particular de renegociación pero tampoco margen estructural.`;
     }
 
     suggestions = filterTextualSuggestions([
@@ -87,12 +95,12 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     const gapVsAvgInternal = c.margen - avgMargen;
 
     opener = `${c.nombre} opera con margen **${c.margen}%** · ${Math.abs(gapVsBench).toFixed(1)} puntos ${gapVsBench >= 0 ? "sobre" : "bajo"} tu benchmark (${benchmark}%).\n\n`;
-    opener += `Frente al promedio interno de la cartera (${avgMargen.toFixed(1)}%), está ${Math.abs(gapVsAvgInternal).toFixed(1)}pp ${gapVsAvgInternal >= 0 ? "arriba" : "debajo"}. `;
+    opener += `Frente al promedio simple de las cuentas (${avgMargen.toFixed(1)}%), está ${Math.abs(gapVsAvgInternal).toFixed(1)}pp ${gapVsAvgInternal >= 0 ? "arriba" : "debajo"}. `;
 
     if (gapVsBench < -3) {
       const destruccion = Math.round(c.venta * (benchmark - c.margen) / 100);
       opener += `La cuenta está cediendo margen: aproximadamente **$${destruccion}K anuales** de contribución no capturada por estar bajo benchmark.\n\n`;
-      opener += `**Mecanismo disponible**: el cruce margen vs carga comercial es la lectura natural · si ${c.nombre} tiene carga sobre promedio (${avgCarga.toFixed(1)}%), la palanca de rebate opera antes que la de precio.`;
+      opener += `**Mecanismo disponible**: el cruce margen vs carga comercial es la lectura natural · si ${c.nombre} tiene carga sobre ese promedio simple (${avgCarga.toFixed(1)}%), la palanca de rebate opera antes que la de precio.`;
     } else if (gapVsBench >= 0) {
       // MISMO DEFECTO QUE comparisons.js (owner 2026-08-09, decisión 1 · hallazgo N): la rama entra por
       // `gapVsBench >= 0` —está sobre la VARA— y la frase nombraba el PROMEDIO. Y acá era peor: dos líneas más
