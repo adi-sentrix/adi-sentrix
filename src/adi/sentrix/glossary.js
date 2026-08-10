@@ -11,6 +11,12 @@ import { VIEW_MANIFEST, VISTA_LABEL, UNIVERSO_KINDS, COMPARACIONES } from "./vie
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { SELLOS } from "../../config/contract/figureType.js";
 
+// Una definición, dos escrituras de la MISMA cabecera (la abreviada que se ve en la grilla y el defKey largo del
+// catálogo de columnas). Se declara UNA vez y se referencia dos: dos strings copiados son exactamente el mecanismo
+// por el que una palabra termina significando dos cosas.
+const _DEF_VS_PROMEDIO = "La distancia del margen de la fila contra el promedio SIMPLE de las filas de la vista, en puntos porcentuales. Es el promedio de las cuentas, una por una: no es el promedio ponderado por venta de la cartera, que es el que reconcilia con el total del negocio.";
+const _DEF_VS_PROMEDIO_ALERTA = "Cuánto MENOS (o más) stock en alerta concentra esta bodega frente al promedio de las bodegas, en puntos porcentuales. El signo va al revés que el «vs prom» de clientes/SKU/marcas: acá positivo = mejor (menos stock en alerta), y se mide sobre participación de capital, no sobre margen.";
+
 export const METRIC_DEFS = {
   // — comercial / cliente —
   "Ventas": "El total facturado en el período (ventas netas).",
@@ -23,11 +29,20 @@ export const METRIC_DEFS = {
   // el «i» de esta columna decía "el benchmark de la industria" y contradecía, dentro del MISMO archivo, a la
   // entrada `benchmark` del catálogo, que declara que la vara NO viene de una fuente sectorial (owner 2026-08-09).
   "vs benchmark": "Distancia del margen contra TU benchmark: la referencia que define tu negocio, no una del sector.",
-  "vs promedio": "La distancia del margen contra el promedio interno de tus clientes (en puntos porcentuales).",
+  "vs promedio": _DEF_VS_PROMEDIO, "vs prom": _DEF_VS_PROMEDIO,   // la cabecera abreviada y el defKey largo, LA MISMA definición (una sola constante · no dos strings que puedan divergir)
   // — inventario / bodega —
   "Capital": "El valor del inventario: lo que tenés invertido en stock.",
-  "Inmovilizado": "El stock que no rota (en alerta o rotación < 2): capital detenido.",
-  "Rotación": "Cuántas veces el stock se vende y se repone en el período. Más alta = mejor.",
+  // «INMOVILIZADO» ES DEL DETECTOR (owner 2026-08-10). Esta entrada declaraba la regla de STOCK EN ALERTA (alerta
+  // operativa o rotación < 2) mientras CONCEPT_DEFS.capital_inmovilizado —en este mismo archivo— declara la del
+  // detector, y `resolveGlossary("Inmovilizado")` sirve el CONCEPTO: la explicación describía $33.200 sobre una
+  // columna que mostraba $55.800. Las dos reglas siguen existiendo porque miden cosas distintas; lo que se terminó
+  // es que compartan la palabra.
+  "Inmovilizado": "La parte del capital que el detector clasifica como detenida: rotación bajo tu piso o días de inventario sobre tu techo. No es el stock en alerta, que es otra regla y otra cifra.",
+  "Stock en alerta": "El capital en SKU con alerta operativa (crítico o de cuidado) o con rotación bajo 2. Es una señal de operación, más amplia que el capital inmovilizado del detector: un SKU puede estar en alerta y aun así rotar sobre tu piso y estar bajo tu techo de días.",
+  "% en alerta": "Qué parte del capital de esta bodega está en SKU con alerta operativa o rotación bajo 2.",
+  "% del stock en alerta": "Qué parte del stock en alerta de todo el negocio concentra esta bodega.",
+  "vs promedio en alerta": _DEF_VS_PROMEDIO_ALERTA, "vs prom en alerta": _DEF_VS_PROMEDIO_ALERTA,
+  "Rotación": "Cuántas veces el stock se vende y se repone en el período. Más alta = mejor. En las filas Total se publica ponderada por capital, que es la única rotación media del producto.",
   "DOH": "Días de inventario: cuántos días dura el stock al ritmo de venta actual. Más alto = más lento.",
   "SKUs en alerta": "Cantidad de SKUs marcados crítico o de cuidado (lento o sin venta).",
   "Peor sin venta": "El SKU que más días lleva sin registrar una venta.",
@@ -37,8 +52,9 @@ export const METRIC_DEFS = {
   "Participación": "Qué parte del total de la vista explica esta fila.",
   "Última venta": "Hace cuánto se registró la última venta de este SKU.",
   "SKU crít.": "Cuántos SKU de esta bodega están inmovilizados y además marcados como críticos.",
-  "% del inmov. total": "Qué parte del capital inmovilizado total concentra esta bodega.",
-  "vs promedio inmov": "Cuánto MENOS (o más) capital inmovilizado concentra esta bodega frente al promedio (positivo = mejor que el promedio).",
+  // la columna del asesor en el Cuadro · una etiqueta por universo (antes las dos decían «En juego $»: $5.0M de
+  // contribución del año en la pestaña Clientes contra $33K de capital de hoy en Marcas/SKU/Bodegas, 151x)
+  "Contribución en juego": "La contribución que el detector afirma que esta cuenta no está capturando: margen bajo tu benchmark o carga comercial sobre tu meta, valorizado sobre su venta anual. Es dinero del resultado, no capital en stock.",
   // — gráficos (el "i" de cada gráfico) —
   "Evolución del negocio": "La película de las ventas mes a mes: este año, año anterior y presupuesto. Dato REAL. Pasá el cursor por la curva para ver cada mes.",
   "Concentración": "El principio 80/20: pocos elementos explican la mayor parte del total. El bloque azul es el que cruza el 80.0% · el % es el REAL del dato, no forzado.",
@@ -260,9 +276,13 @@ export const CONCEPT_DEFS = {
   },
   promedio_cartera: {
     aka: "el promedio de la cartera",
-    etiquetas: ["promedio de la cartera", "promedio de tu cartera", "promedio ponderado", "vs prom", "vs promedio", "promedio_cartera"],
+    // «vs prom» / «vs promedio» SALEN de estas etiquetas (owner 2026-08-10): son las CABECERAS de una columna que
+    // publica el promedio SIMPLE de las filas, no este ponderado. Mientras estuvieron acá, el índice le ganaba a
+    // METRIC_DEFS y la "i" de esa columna explicaba el ponderado (25,1%) sobre una cifra calculada con el simple
+    // (27,8%) — 2,7pp de brecha bajo la misma palabra. Cada una resuelve ahora a su propia entrada de METRIC_DEFS.
+    etiquetas: ["promedio de la cartera", "promedio de tu cartera", "promedio ponderado", "promedio_cartera"],
     def: "Es la referencia interna: el valor de la métrica para el conjunto de la cartera, ponderado por venta. Ubica a cada cuenta contra el resto del negocio, no contra una referencia externa.",
-    distingue: "El promedio ponderado no es el promedio simple de las filas: el ponderado reconcilia con el total del negocio y el simple no. Y no es el **benchmark**, que es una referencia declarada, no observada.",
+    distingue: "El promedio ponderado no es el promedio simple de las filas: el ponderado reconcilia con el total del negocio y el simple no, y en esta cartera no dan lo mismo. La columna «vs prom» de las grillas mide contra el SIMPLE, no contra este. Y no es el **benchmark**, que es una referencia declarada, no observada.",
   },
   // ── el sello (decisión 2 del owner · SELLOS de config/contract/figureType.js) ─────────────────────────────────
   probado: {

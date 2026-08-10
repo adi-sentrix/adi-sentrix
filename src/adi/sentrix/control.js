@@ -10,7 +10,12 @@ import { buildMarginDecomposition } from "./kpis.js";
 import { transferenciaCapability } from "./capability.js";   // la MISMA cuenta que declara el límite en la cara Capital
 
 const _r1 = (n) => Math.round(n * 10) / 10;
-const _inmovilizado = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;   // def canónica (= tira/Pareto)
+// STOCK EN ALERTA (owner 2026-08-10) · alerta operativa O rotación bajo el piso — la regla que ADI llama "Def2".
+// NO es el detector (`capital_frenado`: rotación < POLICY.rotacionMin O días de inventario > POLICY.dohMax), que es
+// el dueño de la palabra «inmovilizado» en el producto. Las dos se llamaban igual en pantalla y dan cifras
+// distintas: 5 SKU / $55.800 esta, 3 SKU / $33.200 el detector. La Ficha de Santiago atribuía $12.800 «Inmovilizado»
+// mientras la cara Capital declaraba a Santiago íntegramente en rango ($0). La cuenta no cambia: cambia el nombre.
+const _enAlerta = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
 
 // EL MOTOR arma el ring según el foco (LLM-ready) · null si el tipo no se sostiene → el panel cae al placeholder.
 export function buildControlRing(focusType, focus, scenario) {
@@ -166,7 +171,7 @@ function _bodegaStats(inv, name) {
   const rows = inv.filter((x) => x.bodega === name);
   if (!rows.length) return null;
   const capital = rows.reduce((a, x) => a + x.stockUSD, 0);
-  const inmovCap = rows.filter(_inmovilizado).reduce((a, x) => a + x.stockUSD, 0);
+  const inmovCap = rows.filter(_enAlerta).reduce((a, x) => a + x.stockUSD, 0);
   const critCap = rows.filter((x) => x.alerta === "crit").reduce((a, x) => a + x.stockUSD, 0);
   const rot = rows.reduce((a, x) => a + x.rotacion, 0) / rows.length;
   return { name, capital, inmovCap, critCap, rotacion: rot, inmovPct: capital ? inmovCap / capital * 100 : 0, n: rows.length };
@@ -203,10 +208,12 @@ function _bodegaRing(focus, scenario) {
   return {
     entityType: "bodega", focus, lever: "rotación", leverLabel: "stock inmovilizado", framingVerb: "retiene capital en",
     columns: [
-      { key: "capital",      label: "Capital",      fmt: "money", defKey: "Capital" },
-      { key: "inmovilizado", label: "Inmovilizado", fmt: "money", defKey: "Inmovilizado" },
-      { key: "rotacion",     label: "Rotación",     fmt: "x",     defKey: "Rotación" },
-      { key: "gap",          label: "vs prom",      fmt: "pp",    defKey: "vs promedio inmov" },
+      { key: "capital",      label: "Capital",         fmt: "money", defKey: "Capital" },
+      { key: "inmovilizado", label: "Stock en alerta", fmt: "money", defKey: "Stock en alerta" },
+      { key: "rotacion",     label: "Rotación",        fmt: "x",     defKey: "Rotación" },
+      // el gap del eje bodega ya tenía defKey PROPIO (la Ficha sabía que no es el mismo «vs prom» que cliente/SKU/
+      // marca); ahora también lo dice la cabecera, y el Cuadro dejó de colapsar los dos sentidos en una palabra.
+      { key: "gap",          label: "vs prom en alerta", fmt: "pp",  defKey: "vs promedio en alerta" },
     ],
     rows,
     quickWinK: Math.round(c.critCap),      // liquidar lo CRÍTICO ahora

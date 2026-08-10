@@ -10,11 +10,21 @@ import { marcasMargen } from "../../data/demoData.js";   // margen/contribución
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";   // Mesa 2.0 · el semáforo de cada fila contra TU vara (criterio C.2 del owner manda)
 import { composeSpecDiagnose } from "../specRetrieval.js";   // PASE 1 Cuadro 2.0 · la capa del asesor por fila = los MISMOS detectores del diagnose (una verdad con la Mesa)
 import { concentracion } from "../diagnosis/economicDiagnosis.js";   // PASE 1 · el punto de movimiento 80/20 (motor · hoy vs año anterior — mismo cálculo del "Qué cambió")
+import { rotacionPonderada } from "./rotacion.js";   // LA rotación media del producto (ponderada por capital) · la MISMA que publica la cara Capital — ver la fila Total
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
 const _mean = (a, f) => (a.length ? _sum(a, f) / a.length : 0);
-const _inmov = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
+// STOCK EN ALERTA ≠ CAPITAL INMOVILIZADO (owner 2026-08-10). Esta regla —alerta operativa O rotación bajo el piso,
+// la que ADI llama "Def2"— NO es la del detector (`capital_frenado`: rotación < POLICY.rotacionMin O días de
+// inventario > POLICY.dohMax), y las dos se llamaban «Inmovilizado» en pantalla. Medido en bonanza: esta regla marca
+// 5 SKU y $55.800 (41,3% del capital); el detector marca 3 SKU y $33.200 (24,6%). Por bodega la contradicción es
+// total, no de matiz: Santiago sale «Inmovilizado $12.800» en esta columna y $0 en la cara Capital, y Concepción
+// $9.800 contra $0 — porque SAM-TV55 (rotación 3,6x, 58 días) y PHI-IRON-PRO (2,4x, 95 días) arrastran alerta warn
+// pero rotan sobre la vara y están bajo el techo de días. La palabra «inmovilizado» queda para el detector, que es
+// el que el glosario declara como concepto y el que sostiene los cuatro estados; esta regla se llama por lo que
+// mide: STOCK EN ALERTA. La cuenta no cambia — cambia el nombre, que era lo que estaba mal.
+const _enAlerta = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
 const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
   if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
@@ -41,7 +51,16 @@ export const CUADRO_DIMS = [
 // PASE 1 Cuadro 2.0 (regla de oro del owner 2026-07-15: las columnas clásicas INTACTAS — la voz del asesor se SUMA):
 // "En juego $" es ADITIVA, al final antes de la Acción — el monto del detector por fila (adv: capa del asesor →
 // perfil/comparación la saltan: no es una métrica de la entidad, es la lectura de ADI sobre ella).
-const _EN_JUEGO = { key: "enJuego", label: "En juego $", fmt: "usd", sort: "desc", adv: true };
+//
+// CADA EJE NOMBRA SU UNIVERSO (owner 2026-08-10). Esta columna era UNA sola constante compartida por las cuatro
+// dimensiones, y se llena con DOS detectores distintos: en Clientes es contribución no capturada del año (derivada
+// de la venta anual en miles), en Marcas/SKU/Bodegas es capital inmovilizado HOY (stockUSD, dólares crudos). Medido
+// en bonanza: $5.010.844 contra $33.200 — 151x — bajo el mismo encabezado y el mismo formateador. No es un problema
+// de escala (las dos van en dólares crudos): son cosas económicamente distintas, y «¿cuánto tengo en juego?» se
+// contestaba $5.0M o $33K según la pestaña. Dos montos parecidos de universos distintos nunca van bajo la misma
+// palabra. La constante se parte en dos etiquetas; el monto y el detector no se tocan.
+const _EN_JUEGO_CONTRIB = { key: "enJuego", label: "Contribución en juego", fmt: "usd", sort: "desc", adv: true };
+const _EN_JUEGO_CAPITAL = { key: "enJuego", label: "Capital inmovilizado", fmt: "usd", sort: "desc", adv: true };
 const COLS = {
   cliente: [
     { key: "ventas", label: "Ventas", fmt: "money", sort: "desc" },
@@ -49,25 +68,30 @@ const COLS = {
     { key: "acciones", label: "Acciones de precios", fmt: "money", sort: "asc" },   // rebates/descuentos ($) · menos = mejor
     { key: "contribucion", label: "Contribución", fmt: "money", sort: "desc" },
     { key: "margen", label: "Margen", fmt: "pct", sort: "desc", tone: "margen" },
-    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap" },
-    _EN_JUEGO,
+    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap", defKey: "vs promedio" },
+    _EN_JUEGO_CONTRIB,
     { key: "accion", label: "Acción", fmt: "accion" },
   ],
   bodega: [
-    { key: "capital", label: "Capital", fmt: "moneyk", sort: "desc" },
-    { key: "inmovilizado", label: "Inmovilizado", fmt: "moneyk", sort: "asc", tone: "inmov" },
-    { key: "inmovPct", label: "% inmov.", fmt: "pct", sort: "asc", tone: "inmov" },
-    { key: "rotacion", label: "Rotación", fmt: "x", sort: "desc" },
-    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap" },
-    _EN_JUEGO,
+    { key: "capital", label: "Capital", fmt: "moneyk", sort: "desc", defKey: "Capital" },
+    { key: "inmovilizado", label: "Stock en alerta", fmt: "moneyk", sort: "asc", tone: "inmov", defKey: "Stock en alerta" },
+    { key: "inmovPct", label: "% en alerta", fmt: "pct", sort: "asc", tone: "inmov", defKey: "% en alerta" },
+    { key: "rotacion", label: "Rotación", fmt: "x", sort: "desc", defKey: "Rotación" },
+    // «vs prom» del eje bodega mide OTRA COSA que la de los otros tres ejes y con el SIGNO INVERTIDO a propósito:
+    // acá es (promedio − fila) de % en alerta, así que positivo = MENOS stock en alerta = mejor. En cliente/SKU/marca
+    // es (fila − promedio) de MARGEN. Santiago publicaba «+29,8» donde, con la convención de los otros ejes, sería
+    // −29,8: 59,6 pp de vuelco y veredicto opuesto bajo la misma cabecera. La Ficha ya lo sabía (dos defKey), el
+    // Cuadro lo colapsaba en una sola palabra.
+    { key: "gap", label: "vs prom en alerta", fmt: "pp", sort: "desc", tone: "gap", defKey: "vs promedio en alerta" },
+    _EN_JUEGO_CAPITAL,
     { key: "accion", label: "Acción", fmt: "accion" },
   ],
   sku: [
     { key: "margen", label: "Margen", fmt: "pct", sort: "desc", tone: "margen" },
     { key: "capital", label: "Capital", fmt: "moneyk", sort: "desc" },
     { key: "rotacion", label: "Rotación", fmt: "x", sort: "desc" },
-    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap" },
-    _EN_JUEGO,
+    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap", defKey: "vs promedio" },
+    _EN_JUEGO_CAPITAL,
     { key: "accion", label: "Acción", fmt: "accion" },
   ],
   marca: [
@@ -76,8 +100,8 @@ const COLS = {
     { key: "acciones", label: "Acciones de precios", fmt: "money", sort: "asc" },
     { key: "contribucion", label: "Contribución", fmt: "money", sort: "desc" },
     { key: "margen", label: "Margen", fmt: "pct", sort: "desc", tone: "margen" },
-    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap" },
-    _EN_JUEGO,
+    { key: "gap", label: "vs prom", fmt: "pp", sort: "desc", tone: "gap", defKey: "vs promedio" },
+    _EN_JUEGO_CAPITAL,
     { key: "accion", label: "Acción", fmt: "accion" },
   ],
 };
@@ -115,7 +139,7 @@ function _bodegas(s) {
   const stat = (b) => {
     const r = inv.filter((x) => x.bodega === b);
     const capital = r.reduce((a, x) => a + x.stockUSD, 0);
-    const inmovilizado = r.filter(_inmov).reduce((a, x) => a + x.stockUSD, 0);
+    const inmovilizado = r.filter(_enAlerta).reduce((a, x) => a + x.stockUSD, 0);
     return { name: b, capital, inmovilizado, inmovPct: capital ? _r1(inmovilizado / capital * 100) : 0, rotacion: _r1(_mean(r, (x) => x.rotacion)), alertCount: r.filter((x) => x.alerta === "crit").length };
   };
   const all = names.map(stat);
@@ -126,7 +150,10 @@ function _bodegas(s) {
     return { ...x, gap, accion, alert: x.alertCount > 0 };
   });
   const tCap = _sum(all, (x) => x.capital), tInm = _sum(all, (x) => x.inmovilizado);
-  const total = { name: "Total", capital: tCap, inmovilizado: tInm, inmovPct: tCap ? _r1(tInm / tCap * 100) : 0, rotacion: _r1(_mean(all, (x) => x.rotacion)), gap: null, accion: "", _total: true };
+  // LA ROTACIÓN DEL NEGOCIO ES UNA SOLA (owner 2026-08-10 · cierra la decisión 6, que dejó a cuadro.js afuera): la
+  // fila Total publicaba el promedio SIMPLE de las medias por bodega (5,3x) mientras la cara Capital publica la
+  // ponderada por capital (6,0x) bajo la misma palabra. Se consume la MISMA función, sobre las filas del inventario.
+  const total = { name: "Total", capital: tCap, inmovilizado: tInm, inmovPct: tCap ? _r1(tInm / tCap * 100) : 0, rotacion: rotacionPonderada(inv), gap: null, accion: "", _total: true };
   return { rows, total, avg: { name: "Promedio", capital: _mean(all, (x) => x.capital), inmovilizado: _mean(all, (x) => x.inmovilizado), inmovPct: _r1(avgInmovPct), rotacion: _r1(_mean(all, (x) => x.rotacion)), gap: 0, accion: "—", _ref: true } };
 }
 
@@ -139,7 +166,9 @@ function _skus(s) {
     const accion = (i.rotacion != null && i.rotacion < 2) ? "stock lento" : gap <= -3 ? "revisar precio" : "sostener";
     return { name: x.nombre, margen: x.margen, capital: i.stockUSD || 0, rotacion: _r1(i.rotacion || 0), gap, accion, alert: i.alerta === "crit", ..._vara(x.margen, x) };
   });
-  const total = { name: "Total", margen: _r1(avgM), capital: _sum(rows, (r) => r.capital), rotacion: _r1(_mean(rows, (r) => r.rotacion)), gap: null, accion: "", _total: true };
+  // misma unificación que el eje bodega: la fila Total del Cuadro y la card de Capital dicen LA rotación del
+  // negocio, ponderada por capital — no el promedio simple de los SKU (5,8x contra 6,0x, con el mismo nombre).
+  const total = { name: "Total", margen: _r1(avgM), capital: _sum(rows, (r) => r.capital), rotacion: rotacionPonderada(inv), gap: null, accion: "", _total: true };
   return { rows, total, avg: { name: "Promedio", margen: _r1(avgM), capital: _mean(rows, (r) => r.capital), rotacion: _r1(_mean(rows, (r) => r.rotacion)), gap: 0, accion: "—", _ref: true } };
 }
 

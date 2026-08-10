@@ -37,15 +37,12 @@ import { UNIVERSOS } from "../../config/contract/figureType.js";   // el PERÍOD
 const _r1 = (n) => Math.round(n * 10) / 10;
 
 /* ── LA ROTACIÓN MEDIA · UNA implementación, la ponderada por capital ─────────────────────────────────────────
- * Acepta las dos formas de fila que conviven en el producto (`stockUSD` del inventario crudo, `capital` del
- * diagnóstico) porque son la misma columna con dos nombres, no dos conceptos. Sin capital no hay ponderación
- * posible y devuelve 0 — nunca cae al promedio simple en silencio, que es exactamente cómo nació la segunda verdad. */
-export function rotacionPonderada(rows) {
-  const rs = Array.isArray(rows) ? rows : [];
-  const cap = rs.reduce((a, r) => a + (Number(r && (r.stockUSD ?? r.capital)) || 0), 0);
-  if (!cap) return 0;
-  return _r1(rs.reduce((a, r) => a + (Number(r && r.rotacion) || 0) * (Number(r && (r.stockUSD ?? r.capital)) || 0), 0) / cap);
-}
+ * El cuerpo se mudó a `./rotacion.js` el 2026-08-10 (sin tocar la cuenta) para que `cuadro.js` pueda consumirlo:
+ * este archivo IMPORTA cuadro.js, así que el Cuadro no podía importar de acá sin un ciclo — y seguía publicando un
+ * promedio SIMPLE local en su fila Total (5,3x eje bodega · 5,8x eje SKU contra los 6,0x de la cara Capital).
+ * Se re-exporta para que todo importador existente (mesaCapital.js, _totales_cabecera_gate) siga igual. */
+export { rotacionPonderada } from "./rotacion.js";
+import { rotacionPonderada } from "./rotacion.js";
 
 /* ── LAS DOS FUENTES OFICIALES, memoizadas por tenant+escenario ───────────────────────────────────────────────
  * `buildCuadroMando` arrastra la capa de asesor (que corre el diagnose), así que llamarlo por cada fila de un

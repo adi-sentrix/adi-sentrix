@@ -25,7 +25,15 @@ export function buildEntityKPIs(focusType, focus, scenario) {
   return [];   // familia: próximo · el resto del Diagnóstico igual se muestra
 }
 
-// ── SKU · el dato del producto a la mano (skusMargen · $ raw → _fCap) · la liga = la familia ──
+// ── SKU · el dato del producto a la mano (skusMargen · $ en MILES → _fM) · la liga = la familia ──
+// ESCALA DEL CONTRATO (owner 2026-08-10). Acá se usaba `_fCap` (que divide por mil para llevar dólares CRUDOS a
+// $K) sobre `venta` y `contribucion`, que sourceManifest declara `money(K)` — el SKU líder salía "$13.3K" contra
+// los $13.3M que muestran el Pareto de SKU, el motor de ADI y el propio contrato. Es el escenario que
+// sourceManifest:48-49 dice haber evitado, aplicado al contrato y a _marcaKPIs y no a esta función.
+// Y no era sólo un dígito: en el eje SKU el Cuadro muestra «Capital» en $K correctos (stockUSD, dólares crudos)
+// al lado de esta Ficha, así que 9 de 13 SKU se leían como «inmoviliza más capital del que vende en un año»
+// (MAK-COMP-AIR 4,94x) y los totales quedaban $135,0K de capital contra $100,0K de venta. Eso es hacer CERRAR
+// dos universos que NO reconcilian, que es exactamente lo prohibido. `_fCap` sólo toca campos `money(raw)`.
 function _skuKPIs(name) {
   const sku = skusMargen.find((x) => x.nombre === name);
   if (!sku) return [];
@@ -35,8 +43,8 @@ function _skuKPIs(name) {
   const bench = benchmarkOf(sku);   // integridad #1: nunca sku.benchmark crudo — respeta _benchmarkOverride (memoria de criterio)
   return [
     { label: "Margen", value: _p1(sku.margen) + "%", sub: `${_pp(sku.margen - bench)} vs bench`, tone: sku.margen >= bench ? "up" : "down" },
-    { label: "Ventas", value: _fCap(sku.venta), sub: `${sku.unidades} unidades` },
-    { label: "Contribución", value: _fCap(sku.contribucion), sub: `${_p1(sku.contribucion / sku.venta * 100)}% de venta` },
+    { label: "Ventas", value: _fM(sku.venta), sub: `${sku.unidades} unidades` },
+    { label: "Contribución", value: _fM(sku.contribucion), sub: `${_p1(sku.contribucion / sku.venta * 100)}% de venta` },
     { label: "Costo", value: _p1(costoPct) + "%", sub: "del precio", tone: "warn" },
     { label: "Carga comercial", value: _p1(sku.pctRebate) + "%", sub: "rebate sobre venta", tone: "warn" },
     { label: "Precio lista", value: "$" + Math.round(sku.precioLista), sub: `costo unitario $${Math.round(sku.costoMedio)}` },
@@ -245,21 +253,28 @@ function _bodegaKPIs(name, s) {
   const allInv = applyScenarioToSkuInventario(s) || [];
   const inv = allInv.filter((x) => x.bodega === name);
   if (!inv.length) return [];
-  const inmov = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;   // def canónica (alerta o rotación<2)
+  // STOCK EN ALERTA · alerta operativa O rotación bajo el piso. NO es el detector de capital inmovilizado (owner
+  // 2026-08-10): esa palabra es del detector (`capital_frenado`), que sobre este mismo dato marca 3 SKU / $33.200
+  // contra los 5 SKU / $55.800 de esta regla. Los Lentes anclaban «% del inmov. total» a $55.8K mientras la cara
+  // Capital publicaba $33K como el total — mismo nombre, dos denominadores. La cuenta no cambia: cambia el nombre.
+  const enAlerta = (x) => (x.alerta && x.alerta !== "ok") || x.rotacion < 2;
   const cap = inv.reduce((a, x) => a + x.stockUSD, 0);
-  const inmovCap = inv.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
+  const enAlertaCap = inv.filter(enAlerta).reduce((a, x) => a + x.stockUSD, 0);
   const rot = inv.reduce((a, x) => a + x.rotacion, 0) / inv.length;
   const doh = inv.reduce((a, x) => a + x.doh, 0) / inv.length;
-  const enAlerta = inv.filter((x) => x.alerta && x.alerta !== "ok").length;
+  const nEnAlerta = inv.filter((x) => x.alerta && x.alerta !== "ok").length;
   const peor = inv.reduce((m, x) => (x.diasSinVenta > m.d ? { d: x.diasSinVenta, sku: x.sku } : m), { d: 0, sku: "" });
-  const totInmov = allInv.filter(inmov).reduce((a, x) => a + x.stockUSD, 0);
+  const totEnAlerta = allInv.filter(enAlerta).reduce((a, x) => a + x.stockUSD, 0);
   return [
     { label: "Capital", value: _fCap(cap), sub: `${inv.length} SKUs` },
-    { label: "Inmovilizado", value: _fCap(inmovCap), sub: `${_p1(inmovCap / cap * 100)}%`, tone: "down" },
+    { label: "Stock en alerta", value: _fCap(enAlertaCap), sub: `${_p1(enAlertaCap / cap * 100)}%`, tone: "down" },
     { label: "Rotación", value: _r1(rot) + "x", sub: "", tone: rot < 3 ? "down" : null },
-    { label: "DOH", value: Math.round(doh) + "d", sub: "días de cobertura" },
-    { label: "SKUs en alerta", value: `${enAlerta} / ${inv.length}`, sub: "", tone: "warn" },
+    // «Días de inventario» es el nombre del producto para esta métrica y `doh` el único campo (candado del owner):
+    // el rótulo decía «DOH» con sublínea «días de cobertura», la palabra que se retiró justamente porque llegó a
+    // nombrar dos campos distintos del dato (`doh` y `cobertura`, hasta 28 días de diferencia en un mismo SKU).
+    { label: "Días de inventario", value: Math.round(doh) + "d", sub: "promedio de la bodega" },
+    { label: "SKUs en alerta", value: `${nEnAlerta} / ${inv.length}`, sub: "", tone: "warn" },
     { label: "Peor sin venta", value: peor.d + "d", sub: peor.sku },
-    { label: "% del inmov. total", value: totInmov ? `${_p1(inmovCap / totInmov * 100)}%` : "—", sub: `de ${_fCap(totInmov)}`, tone: "down" },
+    { label: "% del stock en alerta", value: totEnAlerta ? `${_p1(enAlertaCap / totEnAlerta * 100)}%` : "—", sub: `de ${_fCap(totEnAlerta)}`, tone: "down" },
   ];
 }
