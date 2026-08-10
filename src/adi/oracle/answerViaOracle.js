@@ -11,14 +11,15 @@ import { runPlan } from "./toolRunner.js";
 import { emit as emitTelemetria, nuevoTraceId } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
-import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, markUserProvenance } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract, buildReparacion } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta · v1.2: la reparación sellada, la MISMA que ve el narrador
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
 import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, composeProsaEjecutiva, resolveTablePolicy, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
-import { MODE_KEYS, REPAIR_KINDS } from "./conversationalContract.js";
+import { MODE_KEYS, normalizeReparacion } from "./conversationalContract.js";
+import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
@@ -754,6 +755,23 @@ function _resolvePendingSimulation(text, pending) {
   const hasEntity = !!(pending && (pending.entity || (Array.isArray(pending.entities) && pending.entities.length)));
   if (!pending || !pending.missingCampo || !pending.known || !hasEntity) return null;
   const t = String(text || "");
+  // SI EL TURNO NOMBRA OTRA ENTIDAD, NO ESTÁ CONTESTANDO: ESTÁ CORRIGIENDO (Contrato v1.2 §1, owner 2026-08-10).
+  // Este resolver solo miraba el porcentaje, así que "no, era Lider — bajá 5% las unidades" resolvía la simulación
+  // pendiente de FALABELLA con cifras reales: el plan sintético se arma sin pasar por PLAN, la corrección nunca
+  // existe para el motor, y ADI simula la entidad equivocada. Se abandona el pendiente y PLAN corre normal, que
+  // es lo que este mismo mecanismo ya hace ante cualquier otra respuesta que no conteste la pregunta.
+  const propias = new Set([pending.entity, ...(Array.isArray(pending.entities) ? pending.entities : [])].filter(Boolean).map((e) => String(e).toLowerCase()));
+  // el índice se construye perezoso y depende del tenant activo: si no está disponible, esto no puede tumbar el
+  // turno — se cae al comportamiento de siempre (falso negativo antes que un error), igual que el resto de las
+  // lecturas defensivas de este archivo.
+  try {
+    for (const eje of ["cliente", "sku", "marca", "familia"]) {
+      for (const nombre of axisEntityNames(eje)) {
+        if (propias.has(String(nombre).toLowerCase())) continue;
+        if (new RegExp(`\\b${String(nombre).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(t)) return null;
+      }
+    }
+  } catch { /* sin índice disponible: no se juzga */ }
   let missingDelta;
   if (ZERO_EXPLICIT_RE.test(t)) missingDelta = 0;
   else {
@@ -775,18 +793,13 @@ function _resolvePendingSimulation(text, pending) {
 // ── REPARACIÓN CONTEXTUAL · Contrato Conversacional v1.2 (owner 2026-08-10) ────────────────────────────────────
 // Lectores DEFENSIVOS del objeto `reparacion` que emite PLAN. Nunca asumen que viene: el 99% de los turnos no lo
 // trae, y un objeto mal formado del LLM no puede cambiar el comportamiento de un turno normal.
-function _reparacionDe(plan) {
-  const r = plan && plan.reparacion;
-  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
-  if (!REPAIR_KINDS.includes(r.tipo)) return null;
-  return r;
-}
+const _reparacionDe = (plan) => normalizeReparacion(plan);
 // AMBIGUA = el usuario señaló un error sin decir cuál (§4). Se exige `corrige` VACÍO además del flag: si el plan
 // dice a la vez "es ambigua" y "corrigió la entidad", se contradice — y ante la contradicción vale lo resuelto
 // (hay algo concreto que corregir), nunca la pregunta, que dejaría al usuario contestando lo que ya contestó.
 function _esReparacionAmbigua(plan) {
   const r = _reparacionDe(plan);
-  return !!(r && r.tipo === "correccion" && r.ambigua === true && !(Array.isArray(r.corrige) && r.corrige.length));
+  return !!(r && r.ambigua);   // `ambigua` YA viene reconciliada por el normalizador: acá no se re-decide nada
 }
 // La otra mitad —una corrección RESUELTA, la que SÍ sabe qué cambió— no necesita un predicado acá: el guard le
 // exige evidencia leyendo la reparación SELLADA (guardC.js, chequeo 20) y el estado invalida lo incompatible
@@ -891,6 +904,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // eso, el narrador seguía recibiendo la oferta y los temas de la entidad equivocada (ver applyRepairToScope).
   let priorOffer = getLastOffer(mem);
   let recentSubjectsPrev = getRecentSubjects(mem);
+  // EL MODO DEL HILO NO ES CONTEXTO DE LA ENTIDAD CORREGIDA (owner 2026-08-10, revisión de la sección 8).
+  // _coerceMode hereda el modo del sujeto más reciente ante una elipsis; si lee la lista YA reparada, corregir
+  // "no, era Lider" después de "¿qué recomendás para Falabella?" pierde el mode=decision y el usuario recibe un
+  // dato pelado cuando seguía pidiendo una recomendación. Se conserva la lista original SOLO para esa inferencia:
+  // cómo veníamos hablando no es una propiedad de la entidad que se corrigió.
+  const recentSubjectsParaModo = recentSubjectsPrev;
   const recentNarrationsPrev = Array.isArray(mem && mem.recentNarrations) ? mem.recentNarrations : [];
   // conversationScope (Etapa 1, ver conversationScope.js) — leído ACÁ, ANTES de PLAN, mismo principio que
   // priorOffer/recentSubjectsPrev arriba: el estado del turno ANTERIOR es lo único que puede autorizar una
@@ -1176,20 +1195,40 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // (c) DESACUERDO / DATO APORTADO → NO invalidan nada (applyRepairToScope los devuelve tal cual): el alcance no
   //     cambió. Lo que cambia es cómo se narra, y eso viaja sellado en el contrato de narración.
   const _reparacion = _reparacionDe(plan);
-  if (!planWasSynthetic && _esReparacionAmbigua(plan)) {
+  // `calls` VACÍO ADEMÁS DEL FLAG (owner 2026-08-10, revisión de la sección 8): si el plan se declara ambiguo pero
+  // trajo calls, se contradice igual que cuando declara `corrige` — y descartar un batch bueno para preguntar algo
+  // le cuesta al usuario un turno entero. Ante la contradicción vale siempre lo RESPONDIBLE.
+  const _ambiguaSinCalls = _esReparacionAmbigua(plan) && !(Array.isArray(plan.calls) && plan.calls.length);
+  if (!planWasSynthetic && _ambiguaSinCalls) {
     // stripLanguageLeaks (owner 2026-08-10, defecto 4 de la certificación live): la pregunta la REDACTA el LLM y
     // los prompts que lo guían están escritos en voseo — sin esto sale «decime cuál» en un producto cuyo registro
     // es tuteo neutro. Es la MISMA garantía de runtime que ya se le aplica a toda narración libre; acá se extiende
     // al único texto nuevo que el LLM escribe fuera del loop de NARRAR. No es una capa: es la función que existe.
     const pregunta = stripLanguageLeaks(composePrecisionQuestion(conversationScopePrev, _reparacion));
-    const out = _composedBypassResult(pregunta, mem, recentNarrationsPrev, scenario, true);
-    if (out) return out;
+    // DOS CANDIDATAS, NUNCA UN SILENCIO (owner 2026-08-10): la pregunta que redacta el LLM puede citar la cifra en
+    // disputa («¿el $13.3M que te mostré, o el período?») y este bypass corre con la boleta vacía, así que guardC
+    // la rechaza como cifra no autorizada y devolvía null — el turno seguía de largo y el usuario recibía "no
+    // tengo información" en vez de la pregunta. La red es la versión determinística, que no cita ninguna cifra.
+    const _propia = composePrecisionQuestion(conversationScopePrev, null);
+    for (const candidata of [pregunta, stripLanguageLeaks(_propia)]) {
+      const out = _composedBypassResult(candidata, mem, recentNarrationsPrev, scenario, true);
+      if (out) return out;
+    }
   }
   if (!planWasSynthetic && _reparacion) {
     const scopeReparado = applyRepairToScope(conversationScopePrev, _reparacion);
     if (scopeReparado !== conversationScopePrev) {
+      // las entidades que la reparación dejó sin efecto, leídas del ANTES vs. el DESPUÉS del propio estado.
+      const _antes = (conversationScopePrev.current && conversationScopePrev.current.entities) || [];
+      const _despues = new Set((scopeReparado.current && scopeReparado.current.entities) || []);
+      const _retiradas = _antes.filter((e) => !_despues.has(e));
       conversationScopePrev = scopeReparado;
-      recentSubjectsPrev = Array.isArray(scopeReparado.recentSubjects) ? scopeReparado.recentSubjects : recentSubjectsPrev;
+      // el SHIM también se filtra (defecto real): con una `mem` persistida antes del dual-write de Etapa 4 el
+      // scope no trae `recentSubjects`, se caía a la lista sin filtrar y la entidad corregida seguía viva como
+      // "tema reciente" — el canal exacto que §7 cierra.
+      recentSubjectsPrev = Array.isArray(scopeReparado.recentSubjects)
+        ? scopeReparado.recentSubjects
+        : recentSubjectsPrev.filter((s) => !(s && _retiradas.includes(s.entidad)));
       // la oferta muere con la evidencia que la sostenía (§3.6): si `ofertaPendiente` no sobrevivió a esta
       // corrección, tampoco puede sobrevivir el shim `mem.lastOffer` — son dual-write de lo mismo (Etapa 4), y
       // dejar uno vivo reabriría la divergencia que ese dual-write existe para impedir.
@@ -1230,7 +1269,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // más abajo, y si solo corregíamos la variable suelta, el narrador seguía viendo plan.calls SIN corregir (bug real
   // cazado en el propio testing de este fix: el batch corría bien pero el narrador quedaba desincronizado del dato).
   const hasThread = (Array.isArray(history) && history.length > 0) || recentNarrationsPrev.length > 0 || !!priorOffer;
-  plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread, recentSubjectsPrev) };
+  plan = { ...plan, calls: _coerceEntityScopedFilters(plan, _coerceTensionArgs(q, Array.isArray(plan.calls) ? plan.calls : [])), mode: _coerceMode(q, plan, hasThread, recentSubjectsParaModo) };
   // CONTEXTO DE PANTALLA → ALCANCE Y EVIDENCIA (owner 2026-08-09, ver _coerceViewScope arriba). Corre ACÁ, entre
   // _coerceEntityScopedFilters y applySingleEntityScope, a propósito: lo que este backstop fija en plan.scope lo
   // recogen después las dos etapas de entityScope que ya existen (N=1 y N>1) sin ningún mecanismo nuevo, y lo que
@@ -1493,7 +1532,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
     const det = ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q);
-    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada }).ok) { narration = det; deterministic = true; }
+    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = det; deterministic = true; }
   }
 
   // ── data_only / results_only: GARANTÍA POR CONSTRUCCIÓN, SIN EXCEPCIÓN (owner 2026-07-29, residuales 2 y 3) ──
@@ -1527,7 +1566,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
     for (const candidato of (alcanceLinea ? [`${base}\n\n${alcanceLinea}`, base] : [base])) {
       const c = ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -1643,7 +1682,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureCountAuthorized(n, ledger, results);
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope });
     narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, usage: null });
     if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
     // FORMA INCUMPLIDA → SALIDA DETERMINÍSTICA, SIN OTRA LLAMADA (owner 2026-08-07). Reintentar sería gastar una
@@ -1659,7 +1698,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         let c = ensurePeriodoDeclared(alt, periodos);
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
-        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada }).ok) {
+        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
           narration = c; narrationRepaired = true;
           // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
           // SEGUNDA entrada con el MISMO `attempt` y `guardOk:false`, así que el trace de un turno reparado al
@@ -1702,7 +1741,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // oraciones de resguardo violarían eso — no se aplican ahí.
     if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
     c = ensureTransferenciaDeclarada(c, results, q);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada }).ok) { narration = c; narrationRepaired = true; }
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = c; narrationRepaired = true; }
   }
   if (!narration) return null;   // ni narrar ni reparar desde la boleta autorizada funcionó → C se abstiene (fallback a la ruta vieja)
 
@@ -1741,7 +1780,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // GRADUACIÓN EPISTÉMICA (pendiente obligatorio de Fase 4): una cifra `indicado` (derivada por el motor, con
   // fórmula) nunca sale narrada como si fuera un hecho medido. Corre DESPUÉS de recentNarrations a propósito: la
   // nota es del renderer, no del narrador — no debe entrar en la memoria de repetición ni en extractOffer.
-  const textoFinal = gradeIndicatedClaims(narration, claims, pref.contentScope);
+  let textoFinal = gradeIndicatedClaims(narration, claims, pref.contentScope);
+  // EL TERCER UNIVERSO · LA MARCA (Contrato v1.2 §5.1, owner 2026-08-10). Corre PEGADO a gradeIndicatedClaims
+  // porque es la misma clase de garantía y el mismo instante: una nota del RENDERER sobre el texto ya validado.
+  // Estampa la procedencia en cada aparición de una cifra del usuario y el marco de estimación en cada cifra que
+  // la aritmética muestra derivada de ella. Sin esto, la única forma de cumplir §5.1 era exigirle al narrador que
+  // usara ciertas palabras — que era el defecto, no la solución. No-op sin cifras del usuario vivas.
+  textoFinal = markUserProvenance(textoFinal, reparacionSellada, figs);
   // la evidencia se arma UNA vez y se reusa: el CTA se compone de su `address` (misma referencia, nunca una
   // segunda construcción que pudiera divergir de lo que el panel abre).
   const evidence = buildOracleEvidence({ plan, results, figs, scenario, unsupported });
