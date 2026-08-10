@@ -5,7 +5,7 @@
  * (2) UNA VERDAD: el 28% aparece en la lectura, la palanca y el diagnose recalculan · (3) "olvidá" RESTAURA byte-igual ·
  * (4) fuera de rango → honesto, no guarda · (5) propose nunca guarda solo (regla del owner) · (6) headless-safe. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_cre.js"), out = path.join(root, "_crb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_cre.tmp${process.pid}.js`), out = path.join(root, `_crb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

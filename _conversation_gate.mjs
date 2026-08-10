@@ -4,7 +4,8 @@
  * La calidad de CLASIFICACIÓN del LLM #1 se valida en vivo (con key) — acá probamos que, dado el turn_type, ADI resuelve bien.
  * Secciones V2-V6 declaradas abajo como comentarios: SOLO se testea lo implementado (nada de tests pendientes en verde). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_cge.js"), out = path.join(root, "_cgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(); const entry = path.join(root, `_conversation_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_conversation_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, composeCompareNotYet, updateMemoria, extractOffer } from "./src/adi/conversation.js";',
   'export { coerceSpec } from "./src/adi/coerceChain.js";',

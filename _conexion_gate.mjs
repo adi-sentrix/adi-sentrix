@@ -5,7 +5,9 @@
  *   (2) la MATRIZ cliente×SKU cierra EXACTO por cliente (venta y contribución del cuadro, al peso) — la composición
  *       que muestra el Pareto de la Ficha ES la del cuadro. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_cge.js"), out = path.join(root, "_cgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs): compartir el archivo de bundle entre gates los
+// hace pisarse cuando corren a la vez, y `gates:offline` fallaba de forma intermitente por eso.
+const root = process.cwd(); const entry = path.join(root, `_conexion_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_conexion_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { buildEntityEvolution } from "./src/adi/sentrix/temporal.js";',
   'export { composicionCliente, compradoresSku, _matrixMarginals } from "./src/data/clienteSkuMatrix.js";',

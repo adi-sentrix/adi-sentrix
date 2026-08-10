@@ -4,7 +4,7 @@
  * diagnose (mismo raw). Además: 1pp = venta×1% en los ejes sin detector · figuras con source:"computed"+formula (auditables)
  * · el scope heredado ("de esos…") recorta también la palanca. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_lve.js"), out = path.join(root, "_lvb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_lve.tmp${process.pid}.js`), out = path.join(root, `_lvb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

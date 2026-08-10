@@ -4,7 +4,7 @@
  * last.entityList como entityScope → el composer FILTRA por nombre. Verificaciones data-independientes (intersección exacta,
  * subconjunto, y control negativo de que un follow-up NO deíctico no scopea). Protege que la continuidad no se degrade. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_coe.js"), out = path.join(root, "_cob.mjs");
+const root = process.cwd(); const entry = path.join(root, `_coe.tmp${process.pid}.js`), out = path.join(root, `_cob.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

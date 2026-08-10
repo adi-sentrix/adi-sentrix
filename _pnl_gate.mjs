@@ -15,7 +15,7 @@
  *       movimientos) · las ADMINISTRATIVAS del flujo siguen verbatim kind "criteria" · la boleta autoriza el
  *       universo completo (texto + tabla) · guard-reject → cae al piso byte-igual · directiva del narrador */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_plge.js"), out = path.join(root, "_plgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_plge.tmp${process.pid}.js`), out = path.join(root, `_plgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',

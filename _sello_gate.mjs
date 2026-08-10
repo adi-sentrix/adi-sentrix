@@ -11,7 +11,9 @@
  *       bodega responde el MONTO total y su estado aunque no haya capital detenido.
  * Todo lo verificable SIN LLM corre acá; la verificación narrada de punta a punta vive en _mesa_review.mjs (real). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_sge.js"), out = path.join(root, "_sgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs): compartía `_sgb.mjs` con _spec_gate.mjs y, al
+// correr los dos a la vez, este cargaba el bundle del otro (coerceSpec "no es una función").
+const root = process.cwd(); const entry = path.join(root, `_sello_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_sello_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',

@@ -4,7 +4,8 @@
  * (4) idempotente (aplicar 2x = 1x). (5) number-safe (ninguna cifra cambia). (6) preserva recomendaciones reales
  * ("es importante que revises…"). Puro string · sin key · no toca motor/seam. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_vge.js"), out = path.join(root, "_vgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(); const entry = path.join(root, `_voice_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_voice_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, 'export { stripRoboticVoice, stripOutOfDataOffers, stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";\n');
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
@@ -131,7 +132,7 @@ for (const c of leakCases) {
   else { fail++; console.log(`  ✗ ${c.n}\n     out: ${JSON.stringify(got)}\n     exp: ${JSON.stringify(c.out)}`); }
 }
 // ── JERARQUÍA DEL ASESOR en el prompt del narrador (Frente A.2): lockear las directivas clave contra regresiones ──
-const entry2 = path.join(root, "_vge2.js"), out2 = path.join(root, "_vgb2.mjs");
+const entry2 = path.join(root, `_voice_gate_entry_2.tmp${process.pid}.js`), out2 = path.join(root, `_voice_gate_bundle_2.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry2, 'export { NARRATE_GENERAL, NARRATE_SELLO, NARRATE_RESUMEN_ARC, buildNarrateSystem } from "./src/adi/llm/narratePrompt.js";\n');
 await esbuild.build({ entryPoints: [entry2], bundle: true, outfile: out2, format: "esm", platform: "node", logLevel: "silent" });
 const M2 = await import(pathToFileURL(out2).href + "?t=" + Math.random());

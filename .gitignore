@@ -6,6 +6,11 @@ _oracle_bundle.mjs
 _app_bundle.mjs
 _ui_bundle.mjs
 _*_gate_bundle.mjs
+# cada gate escribe su entrada/bundle con un nombre PROPIO DEL PROCESO (`.tmp<pid>`): dos corridas simultáneas
+# —dos suites, o un gate a mano mientras corre la suite— se pisaban el archivo y `gates:offline` fallaba de
+# forma intermitente. El gate los borra al terminar; estos patrones tapan lo que queda cuando muere antes.
+_*.tmp[0-9]*.js
+_*.tmp[0-9]*.mjs
 _oracle/_mono_*
 _oracle/*_bundle.mjs
 _oracle/_*_entry.jsx

@@ -8,7 +8,7 @@
  *   (2) ESTÁTICO · los .jsx de UI (textos que React emite directo) sin comentarios → limpios.
  * Nace con el SELLO EJECUTIVO ([[adi-sello-ejecutivo]]) · corre sin key (determinístico). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_rge.js"), out = path.join(root, "_rgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_rge.tmp${process.pid}.js`), out = path.join(root, `_rgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

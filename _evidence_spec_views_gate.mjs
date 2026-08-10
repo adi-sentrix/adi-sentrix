@@ -36,7 +36,7 @@ globalThis.localStorage = dom.window.localStorage;
 globalThis.__ADI_PROFILE__ = "dev";   // flagProfile.js: perfil dev → FEATURE+EXPERIMENTAL+DEV_TOOLS ON (Sentrix shell incl.)
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const bundlePath = path.join(root, "_evidence_spec_views_gate_bundle.mjs");
+const bundlePath = path.join(root, `_evidence_spec_views_gate_bundle.tmp${process.pid}.mjs`);
 await esbuild.build({
   entryPoints: [path.join(root, "_evidence_spec_views_gate_entry.jsx")],
   bundle: true, outfile: bundlePath, format: "esm", platform: "node", jsx: "automatic",

@@ -4,7 +4,8 @@
  * "diagnóstico genérico de 3 focos"; los focos lideran con lo específico; los huecos avisan honesto; Q20/Q21 van a
  * inventario (no al genérico ni a compare); Q7 avisa el hueco de serie mensual (no cae en compare-necesita-2-entidades). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_vge.js"), out = path.join(root, "_vgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(); const entry = path.join(root, `_ventas_focus_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_ventas_focus_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { detectVentasFocus } from "./src/adi/ventasFocus.js";',
   'export { detectInventoryFocus } from "./src/adi/inventoryFocus.js";',

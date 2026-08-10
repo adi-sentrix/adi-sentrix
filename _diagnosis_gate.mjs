@@ -2,7 +2,7 @@
  * Lockea que ADI calcula el diagnóstico económico (cliente) y el de inventario (SKU) determinista, contra el dato real:
  * patrón · origen · escala/calidad/impacto · estados de inventario · distribución · materialidad del quiebre. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_dge.js"), out = path.join(root, "_dgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_dge.tmp${process.pid}.js`), out = path.join(root, `_dgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { diagnoseClientes, diagnoseInventario, diagnoseInventarioSku, concentracion } from "./src/adi/diagnosis/economicDiagnosis.js";',
   'export { clientesVentas, clientesMargen, skuInventario } from "./src/data/demoData.js";',

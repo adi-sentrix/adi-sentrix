@@ -12,7 +12,7 @@
  * Determinístico · sin key. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 import { execSync } from "child_process";
-const root = process.cwd(); const entry = path.join(root, "_tne.js"), out = path.join(root, "_tnb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_tne.tmp${process.pid}.js`), out = path.join(root, `_tnb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { initTenant } from "./src/data/tenantStore.js";',
   'export { TENANTS } from "./src/data/tenants/index.js";',

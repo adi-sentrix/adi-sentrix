@@ -8,7 +8,7 @@
  * v1: territorio P&L (donde nació la regla). Crecer por familia: sumar respuestas al corpus, no reestructurar.
  * Determinístico · sin key. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_ege.js"), out = path.join(root, "_egb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_ege.tmp${process.pid}.js`), out = path.join(root, `_egb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceFloor } from "./src/adi/coerceChain.js";',
   'export { composePnl, pnlExplain, pnlRecommend, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, buildPnlCascade } from "./src/adi/pnl.js";',

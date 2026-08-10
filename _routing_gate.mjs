@@ -4,7 +4,7 @@
  * NO ambiguos + los bugs que el barrido cazó (compare-hijack "vs el año pasado" · "SKU frenados" · "ajustar precios" ·
  * "80% de cuántos" · "plata pegada en stock" · SIM_PCT con "30%"/"80%"). Protege que el ruteo no se degrade. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_roe.js"), out = path.join(root, "_rob.mjs");
+const root = process.cwd(); const entry = path.join(root, `_roe.tmp${process.pid}.js`), out = path.join(root, `_rob.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, ['export { coerceSpec } from "./src/adi/coerceChain.js";', 'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";', 'export { answerConversational, composeMeta } from "./src/adi/conversation.js";', 'export { shouldNarrate } from "./src/adi/llm/numberGuard.js";'].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());

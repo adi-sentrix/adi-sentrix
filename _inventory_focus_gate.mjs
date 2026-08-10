@@ -3,7 +3,7 @@
  * punta · (2) answerADIFromSpec ejecuta el spec ya coerceado y produce la RESPUESTA. Cierra los huecos que el smoke en vivo
  * encontró: capital@familia degradaba (axis) · "90 días" se leía como simulación · exceso/sobrestock respondían frenado. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_ife.js"), out = path.join(root, "_ifb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_ife.tmp${process.pid}.js`), out = path.join(root, `_ifb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { detectInventoryFocus } from "./src/adi/inventoryFocus.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',

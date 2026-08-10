@@ -8,7 +8,7 @@
  *   (4) LA HISTORIA REAL SE CONSERVA: Ripley cayó vs el año anterior → su ghost queda ARRIBA del actual (el ÷1.081
  *       uniforme lo habría dibujado abajo — la mentira que este gate caza). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_ccge.js"), out = path.join(root, "_ccgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_ccge.tmp${process.pid}.js`), out = path.join(root, `_ccgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { buildEntityEvolution, buildEntityEvolutionComparado, buildNegocioEvolution } from "./src/adi/sentrix/temporal.js";',
   'export { clientesVentas, marcasVentas, clientesMargen } from "./src/data/demoData.js";',

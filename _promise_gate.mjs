@@ -6,7 +6,7 @@
  * turno emisor); (3) VEREDICTO — falla si alguna promete y degrada (spec_blocked_* · "No tengo a…" · executor-error).
  * Clarificación se tolera (pregunta de vuelta ≠ promesa rota) pero se reporta. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_pge.js"), out = path.join(root, "_pgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_pge.tmp${process.pid}.js`), out = path.join(root, `_pgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

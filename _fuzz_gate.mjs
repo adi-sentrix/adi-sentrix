@@ -7,7 +7,7 @@
  *   3. NUNCA filtra un error crudo de JS al texto del usuario ("Cannot read", "TypeError", stack traces).
  * (executor-error con texto limpio de producto es el último recurso aceptable; el crash no.) */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_fze.js"), out = path.join(root, "_fzb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_fze.tmp${process.pid}.js`), out = path.join(root, `_fzb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, ['export { coerceSpec } from "./src/adi/coerceChain.js";', 'export { answerConversational } from "./src/adi/conversation.js";'].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());

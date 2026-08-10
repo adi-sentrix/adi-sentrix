@@ -4,7 +4,8 @@
  * Uso: node _spec_gate.mjs   (exit 1 si algún test falla · para CI). El gate del MOTOR (16/0) corre aparte: node _gate.mjs
  */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(), out = path.join(root, "_sgb.mjs");
+// nombre PROPIO de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(), out = path.join(root, `_spec_gate_bundle.tmp${process.pid}.mjs`);
 await esbuild.build({ entryPoints: [path.join(root, "src/adi/answerADIFromSpec.js")], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(out); } catch {}

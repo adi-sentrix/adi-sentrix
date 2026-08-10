@@ -7,7 +7,8 @@
  *   ERROR     → executor-error / texto vacío / error crudo (no debe existir — el fuzz lo cubre)
  * Output: _matrix_gate.json + resumen por consola. La FASE 2 (fraseos reales vía LLM) se corre aparte. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_mge.js"), out = path.join(root, "_mgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(); const entry = path.join(root, `_matrix_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_matrix_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
   'export { METRICS } from "./src/config/contract/metricRegistry.js";',

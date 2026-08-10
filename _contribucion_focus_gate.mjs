@@ -3,7 +3,7 @@
  * (caían al genérico o se las robaban ventas/margen). Check MADRE: ninguna cae al genérico; los conceptos propios de
  * contribución (concentración 80/20 · origen volumen-vs-calidad · no capturada · alta-venta-baja-contribución) responden. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_cge2.js"), out = path.join(root, "_cgb2.mjs");
+const root = process.cwd(); const entry = path.join(root, `_cge2.tmp${process.pid}.js`), out = path.join(root, `_cgb2.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { detectContribucionFocus } from "./src/adi/contribucionFocus.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',

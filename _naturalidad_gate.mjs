@@ -8,7 +8,7 @@
  *   4 · SIN re-narración idéntica → una definición/sí-no es su propio composer (route "define"), NO re-narra la lectura;
  *       y no ROBA los re-lens legítimos ("de esos, ¿cuánto margen ceden?") ni las lecturas reales. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_nge.js"), out = path.join(root, "_ngb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_nge.tmp${process.pid}.js`), out = path.join(root, `_ngb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational, composeDefine } from "./src/adi/conversation.js";',

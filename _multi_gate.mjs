@@ -5,7 +5,7 @@
  * peor margen" = alto_volumen · "venta bajo el mínimo" = pct · "compará A y B" = compare) · (2) secciones con su verdad
  * (entity-scoped · hueco honesto donde el eje no existe) · (3) boleta mergeada (mandatorias de ambas) · (4) evidence.multi. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_mue.js"), out = path.join(root, "_mub.mjs");
+const root = process.cwd(); const entry = path.join(root, `_mue.tmp${process.pid}.js`), out = path.join(root, `_mub.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

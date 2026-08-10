@@ -2,7 +2,7 @@
  * Regla de producto: si el dato existe → ADI responde · si no existe → NO inventa (el hueco se declara acá también).
  * Crece por set (inventario primero). Prueba que el MOTOR ya produce la respuesta con el dato de hoy. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_qge.js"), out = path.join(root, "_qgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_qge.tmp${process.pid}.js`), out = path.join(root, `_qgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { diagnoseInventario, diagnoseInventarioSku, diagnoseSkus, concentracion } from "./src/adi/diagnosis/economicDiagnosis.js";',
   'export { skuInventario } from "./src/data/demoData.js";',

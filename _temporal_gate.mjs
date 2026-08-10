@@ -10,7 +10,7 @@
  *   [6] PROTECCIONES · simulate/P&L/lecturas sin periodo intactos · chips del espejo reclaman · guard == boleta
  *   [7] REGISTRO ejecutivo + despacho a la UI (tabla_matriz) */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_tge.js"), out = path.join(root, "_tgb.mjs");
+const root = process.cwd(); const entry = path.join(root, `_tge.tmp${process.pid}.js`), out = path.join(root, `_tgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { detectPeriodo, composeSpecTemporal } from "./src/adi/composers/temporalTable.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',

@@ -57,7 +57,7 @@ if (typeof dom.window.matchMedia !== "function") {
 delete globalThis.fetch;
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const bundlePath = path.join(root, "_guia_inicio_gate_bundle.mjs");
+const bundlePath = path.join(root, `_guia_inicio_gate_bundle.tmp${process.pid}.mjs`);
 await esbuild.build({
   entryPoints: [path.join(root, "_guia_inicio_gate_entry.jsx")],
   bundle: true, outfile: bundlePath, format: "esm", platform: "node", jsx: "automatic",

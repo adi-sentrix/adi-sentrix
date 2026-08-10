@@ -5,7 +5,8 @@
  * (2) un "de esos…" scopeado marca evidence.scopedInherited (el chip del panel) y uno normal NO · (3) nombres cortos
  * no producen falsos positivos. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_mge.js"), out = path.join(root, "_mgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(); const entry = path.join(root, `_mirror_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_mirror_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',

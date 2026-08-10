@@ -4,7 +4,8 @@
  * hallazgo del smoke en vivo: 23/25 caían al "diagnóstico genérico de 3 focos" (respondían otra pregunta). El check MADRE:
  * NINGUNA respuesta cae al genérico; las 18 respondibles lideran con lo específico; las 7 avisan honesto + pivot. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_mge.js"), out = path.join(root, "_mgb.mjs");
+// nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
+const root = process.cwd(); const entry = path.join(root, `_margen_focus_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_margen_focus_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { detectMarginFocus } from "./src/adi/marginFocus.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',

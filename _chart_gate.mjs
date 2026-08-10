@@ -3,7 +3,10 @@
  * Lockea: pareto para contribución · evolutivo para ventas · barras para ranking/overview del contrato ·
  * NULL para degrades/saludos/follow-ups (nunca un gráfico pegado a una repregunta o a un límite declarado). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
-const root = process.cwd(); const entry = path.join(root, "_cge.js"), out = path.join(root, "_cgb.mjs");
+// nombres PROPIOS de este gate: dos gates que compartan el archivo de bundle se pisan entre sí si corren a la vez
+// (uno borra el .mjs que el otro acaba de escribir → ERR_MODULE_NOT_FOUND, o carga el bundle del otro → "no es una
+// función"). Era la causa de los fallos intermitentes de `gates:offline`. Un archivo por gate, sin excepción.
+const root = process.cwd(); const entry = path.join(root, `_chart_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_chart_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
   'export { chartForEvidence } from "./src/adi/sentrix/chartSpec.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',

@@ -52,7 +52,7 @@ dom.window.matchMedia = (query) => ({
 });
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const bundlePath = path.join(root, "_resumen_comercial_ui_gate_bundle.mjs");
+const bundlePath = path.join(root, `_resumen_comercial_ui_gate_bundle.tmp${process.pid}.mjs`);
 // entry por STDIN: el gate es autosuficiente — no depende de ningún archivo suelto en la raíz para poder correr.
 await esbuild.build({
   stdin: { contents: `export { SentrixPanel } from "./src/ui/SentrixPanel.jsx";`, resolveDir: root, loader: "jsx", sourcefile: "_resumen_comercial_ui_entry.jsx" },
