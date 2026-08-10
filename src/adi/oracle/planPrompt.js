@@ -4,7 +4,7 @@
  * corrección, la definición, la deixis y los seguimientos — sin regex. El plan es JSON-válido por construcción
  * (tool_choice forzado sobre PLAN_TOOL). NO calcula ni inventa cifras: solo decide qué datos pedir. Aún en sombra.
  */
-import { MODE_KEYS, buildModeDoctrine } from "./conversationalContract.js";
+import { MODE_KEYS, buildModeDoctrine, buildRepairPlanDoctrine, REPAIR_KINDS, REPAIR_FIELD_KEYS } from "./conversationalContract.js";
 import { DETAIL_LEVELS, CONTENT_SCOPES, buildPrefDoctrine } from "./responsePreference.js";
 
 // CATÁLOGO que ve el LLM · una línea por tool: qué responde + qué args. Colapsa el `focus` (arg, no regex).
@@ -88,6 +88,32 @@ export const PLAN_TOOL = {
         type: "array", items: { type: "string" },
         description: "SOLO para simulaciones de 2 variables con una faltante: la pregunta EXACTA que hace falta responder para completar el supuesto (ej. '¿cuánto esperás que cambie el volumen/unidades vendidas?'). Si viene no-vacío, calls debe quedar vacío — no ejecutes la simulación a medias.",
       },
+      // reparacion (Contrato Conversacional v1.2, owner 2026-08-10) — QUÉ clase de reencauce es este turno y QUÉ
+      // cambió. Va PEGADO a intent="redirect", que ya existía: no se agrega un modo ni una intención nueva (§2/§7
+      // del contrato). Sin esto, "no, era Lider" y "no creo que sea por los rebates" llegaban idénticos al motor —
+      // el primero exige recalcular e invalidar lo incompatible; el segundo, conservar la evidencia y graduarla.
+      // `corrige` es lo que hace que la invalidación sea ESTRUCTURAL: el motor apaga del estado canónico lo que
+      // deja de ser compatible con esos campos (ver camposQueSeInvalidan en conversationalContract.js), en vez de
+      // confiar en que el prompt se acuerde de no arrastrarlo.
+      reparacion: {
+        type: "object", additionalProperties: false,
+        description: "SOLO en un turno de corrección/desacuerdo/dato aportado (ver la doctrina CORRECCIÓN en el system). Omitilo en cualquier otro turno.",
+        properties: {
+          tipo: { type: "string", enum: REPAIR_KINDS, description: "correccion=el usuario cambia el foco · desacuerdo=discute la interpretación, no el alcance · dato_usuario=aporta una cifra propia." },
+          corrige: {
+            type: "array", items: { type: "string", enum: REPAIR_FIELD_KEYS },
+            description: "SOLO si tipo=correccion y sabés QUÉ cambió: los campos corregidos. Poné todos los que el usuario cambió en este turno, ninguno más — cada uno invalida contexto real.",
+          },
+          ambigua: { type: "boolean", description: "true SOLO si el usuario señala un error SIN decir cuál. Con esto en true, calls DEBE quedar vacío y 'corrige' vacío: no se recalcula nada hasta saberlo." },
+          pregunta: { type: "string", description: "SOLO si ambigua=true: LA ÚNICA pregunta de precisión, con el contexto del turno anterior y nombrando solo lo que ahí pudo fallar." },
+          dato: {
+            type: "object", additionalProperties: false,
+            description: "SOLO si tipo=dato_usuario: la cifra que el usuario afirma, tal como la dijo.",
+            properties: { metrica: { type: "string" }, valor: { type: "string", description: "El número con su unidad, verbatim del usuario (ej. \"$20M\", \"32%\")." }, periodo: { type: "string" } },
+          },
+          aceptado: { type: "boolean", description: "true SOLO si en ESTE turno el usuario autorizó tratar su cifra como supuesto ('usá ese número', 'tomalo como supuesto')." },
+        },
+      },
       memoryUpdate: {
         type: "object", additionalProperties: false,
         description: "Solo si el usuario dio una instrucción de trato/identidad ('llámame X', 'trátame de usted', 'háblame más directo', 'no me muestres tablas', 'prioriza lo financiero').",
@@ -167,7 +193,7 @@ REGLA DE ARGUMENTOS (dos errores que rompen la respuesta):
 
 Otras reglas:
 · Entendé la intención real, no las palabras sueltas. Corto o largo, formal o informal, con errores — entendé igual.
-· CORRECCIÓN: si el usuario reclama que te enfocaste mal ("te pedí del negocio y me hablás de X", "no me refería a esa cuenta") → intent="redirect", scope al alcance correcto (normalmente global sin filtro), Y ESTA VEZ SÍ incluí las calls que entregan la respuesta corregida (no dejes calls vacío: replanteá y traé el dato bueno). Reconocé breve y entregá.
+${buildRepairPlanDoctrine()}
 · DEFINICIÓN: si pregunta qué significa un concepto ("qué es X", "a qué te referís con X", "explicame X") → intent="define" Y SIEMPRE llamá defineConcept: calls=[{tool:"defineConcept", args:{concept:"<el concepto tal como lo nombra el usuario, ej: contribución no capturada>"}}]. NUNCA dejes calls vacío en una definición — la definición sale del glosario, no de tu memoria.
 · SIMULACIÓN DE 2 VARIABLES ("si subo el precio X% pero pierdo/gano Y% de volumen, ¿conviene?" — precio Y volumen a la vez, sobre UNA entidad puntual): eso es simulateGeneral, NUNCA simulateCosto/simulate genérico (esos mueven una sola palanca sobre un eje entero, no dos sobre una entidad). Si el usuario nombró AMBAS variables con su % → armá la call normal. Si solo nombró UNA ("si subo el precio 5%, ¿conviene?", sin decir qué pasa con el volumen) → NO asumas la otra en 0% (0% no es lo mismo que "no dijo nada" — inventar esa cifra es peor que preguntar): dejá calls VACÍO y llená supuestos_faltantes con la pregunta exacta que falta (ej. "¿cuánto esperás que cambie el volumen/unidades vendidas?"). Esto es DISTINTO de mode=clarify (que es sobre CÓMO explicar algo ya calculado) — acá directamente no hay datos suficientes para calcular nada todavía.
 · MODO (elegí SIEMPRE uno, por comprensión — no cambia QUÉ pedís, solo CÓMO se va a narrar; seguí pidiendo los mismos datos que la pregunta necesita en cualquier modo):
