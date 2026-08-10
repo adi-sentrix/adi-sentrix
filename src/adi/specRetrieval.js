@@ -18,8 +18,15 @@ import { buildCompareEvolution as _cmpEvolution } from "./sentrix/temporal.js"; 
 import { detectVirtuousException } from "./proactive.js";   // gancho opcional del diagnóstico (fuera la muletilla · owner 2026-07-09)
 import { deriveBusinessThesis } from "./composers/thesis.js";
 import { skusMargen as _skusM } from "../data/skusMargen.js";   // SKU: venta+unidades (sin anterior/ppto)
-import { ventasKPI as _vKPI } from "../data/baseKpis.js";       // totales de cartera (100K vs 92.9K vs 97K)
+import { ventasKPI as _vKPI } from "../data/baseKpis.js";       // totales de cartera BASE (100K vs 92.9K vs 97K) — sólo como red si deriveKpis no resuelve
+// LAS MISMAS TRANSFORMACIONES QUE CONSUME SENTRIX (owner 2026-08-09, decisión 4) — no una segunda copia:
+// `applyScenarioToMarcasVentas` es literalmente la que llama `sentrix/cuadro.js:_marcas`, y `deriveKpis` la que ya
+// usa `composers/simulation.js`. clientesVentas/clientesMargen siguen entrando por el contrato (`_load`).
+import { applyScenarioToMarcasVentas, applyScenarioToSfamiliasVentas } from "../engine/scenarios.js";
+import { getVentasKPI } from "../engine/metrics.js";   // el MISMO total del escenario que lee la card de ventas de la Mesa (sentrix/mesa.js) — decisión owner 2026-07-15: card y ADI, una verdad
 import { composicionCliente, composicionClientePorFamilia } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (la MISMA que usa el Pareto de Sentrix — cierra exacto con el cuadro)
+import { datasetCapability } from "./sentrix/capability.js";   // LA declaración canónica de qué cruces sostiene el dato cargado (crosses.atomic) — la misma que ya bloquea "productos que le vendo a este cliente" en entityExplorable
+import { headlineTotal } from "./sentrix/headline.js";   // los TOTALES DE CABECERA (decisión 6): la MISMA fuente oficial que pinta la card, nunca la suma del ranking
 
 // carga la fuente vía el CONTRATO: scenarioLoad (scenario-aware) si el manifest lo declara, si no el load base.
 function _load(source, scenario) {
@@ -43,6 +50,38 @@ const _money = (v) => {
 };
 // escala del contrato: money(K) = valor en MILES de $ → a dólares reales antes de formatear (money(raw) = $ crudo)
 const _fmt = (v, unit, scale) => (unit === "money" ? _money(scale === "K" ? v * 1000 : v) : unit === "pct" ? `${v}%` : unit === "ratio" ? `${v.toFixed(1)}x` : unit === "days" ? `${Math.round(v)}d` : String(v));
+// _rawC(v, unit, scale) → el `raw` de la boleta EN DÓLARES, la misma escala que ya muestra `_fmt` (owner 2026-08-09,
+// decisión 1: la escala se declara, no se adivina). El resto del motor emite `raw: x * 1000` para los montos en
+// miles; estos dos composers pasaban `x.value` CRUDO, así que la MISMA cifra viajaba como 4275 desde queryMetric y
+// como 4275000 desde contributionRead. `_isCalc` (guardC) hace aritmética con esos `raw` para autorizar cálculos:
+// con las dos escalas en el mismo pool, 4275 + 3839 = 8114 autorizaba «$8K» para una suma que vale $8.1M — un
+// error de ×1000 cruzando el muro con las dos cifras de origen reales. Medido antes del arreglo y cerrado por
+// `_verif_raw_falsa2`. Sólo toca `money`: el resto de las unidades no tiene escala que normalizar.
+const _rawC = (v, unit, scale) => (unit === "money" && scale === "K" ? v * 1000 : v);
+
+/* ── LA CIFRA DE CABECERA · la MISMA que muestra la card, no la suma del ranking ─────────────────────────────
+ * (owner 2026-08-09, decisión 6 · hallazgo E)
+ * `_figHeadline(metrica, eje, escenario)` → la fig del total oficial, o null si ese corte no tiene cabecera
+ * declarada. Toda la verdad numérica vive en `sentrix/headline.js` (que es el builder de la pantalla); acá sólo se
+ * formatea y se declara. Tres cosas importan y por eso están explícitas:
+ *   · `mandatory: false` — autoriza la cifra sin obligar al narrador a decirla. La misma convención con la que
+ *     `contributionRead` ya emite "Contribución total", que es el único total que el oráculo tenía bien.
+ *   · el `raw` viene en dólares desde `headline.js` (la escala del universo ya aplicada), igual que `_rawC`.
+ *   · `universo`, `periodo`, `entidad`, `fuente` y `formula` viajan DECLARADOS: una cifra sin dueño ni marco es
+ *     justo lo que la decisión 1 prohíbe, y un total del negocio es la cifra más fácil de citar sin sujeto.
+ * Un ranking ACOTADO (filtros, entityScope o limit) NO lleva cabecera: el total del negocio al lado de un
+ * subconjunto sería un dato correcto respondiendo otra pregunta — que es el modo de falla que este frente caza. */
+function _figHeadline(metrica, eje, scenario, { acotado = false } = {}) {
+  if (acotado) return null;
+  const h = headlineTotal(metrica, eje, scenario);
+  if (!h) return null;
+  const valor = h.unidad === "money" ? _money(h.raw) : h.unidad === "pct" ? `${_p1(h.valor)}%` : h.unidad === "ratio" ? `${h.valor.toFixed(1)}x` : String(h.valor);
+  return fig(h.label, valor, {
+    unit: h.unidad, raw: h.raw, mandatory: false, context: `${h.sujeto} · cifra de cabecera`,
+    universo: h.universo, periodo: h.periodo, escenario: scenario || null,
+    entidad: h.sujeto, dimension: eje, fuente: h.fuente, formula: h.formula,
+  });
+}
 
 // composeSpecRetrieval({metric, dimension, filters, scenario, limit, sort, entityScope}) → {opener, evidence} | null
 // entityScope (Etapa 2, owner 2026-08-03, continuidad conversacional universal — generalización mecánica del MISMO
@@ -112,7 +151,12 @@ export function composeSpecRetrieval({ metric, dimension, filters = {}, scenario
   const opener = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""} · escenario ${scenario}.\n\n${lines}`;
   // BOLETA (primera clase): cada fila del ranking es una cifra autorizada · value == x.fmt del texto (una sola verdad)
   const _bctx = `${m.label} por ${ent.label.sing}${filt ? ` (${filt})` : ""}`;
-  const bol = outRows.map((x) => fig(`${x.name} · ${m.label}`, x.fmt, { unit: m.unit, raw: x.value, context: _bctx }));
+  const bol = outRows.map((x) => fig(`${x.name} · ${m.label}`, x.fmt, { unit: m.unit, raw: _rawC(x.value, m.unit, _sc), context: _bctx }));
+  // …y la CIFRA DE CABECERA del mismo corte, cuando el producto la muestra (decisión 6): sin esto, la pantalla
+  // afirma un total y la evidencia que ella misma declara sólo trae el ranking — ADI no puede contrastar su propia
+  // cabecera. Va al final, igual que "Contribución total" en contributionRead, y sólo sobre el eje completo.
+  const _headline = _figHeadline(metric, dimension, scenario, { acotado: !!filt || !!limit || !!(entityScope && entityScope.entities && entityScope.entities.length) });
+  if (_headline) bol.push(_headline);
   return {
     opener,
     suggestions: null,
@@ -175,13 +219,15 @@ export function composeSpecDive({ dimension, entity, scenario }) {
     if (v != null) {
       const fmt = _fmt(v, m.unit, m.scale && m.scale[dimension]);
       lines.push(`${m.label}: ${fmt}`);
-      metrics.push({ label: m.label, value: v, fmt, unit: m.unit, polarity: m.polarity });   // Fase 2b · para que el closer lea la TENSIÓN
+      // `raw` normalizado a dólares (ver _rawC); `value` se conserva CRUDO porque `metrics` viaja a los facts y el
+      // closer lo lee con la escala declarada de la métrica — cambiarlo movería lo que el narrador ve.
+      metrics.push({ label: m.label, value: v, raw: _rawC(v, m.unit, m.scale && m.scale[dimension]), fmt, unit: m.unit, polarity: m.polarity });   // Fase 2b · para que el closer lea la TENSIÓN
     }
   }
   if (!lines.length) return null;                          // entidad no encontrada en ningún source → el seam degrada honesto
   const opener = `${entity} (${ent.label.sing}) · escenario ${scenario}.\n\n${lines.join(" · ")}`;
   // BOLETA (primera clase): cada métrica del perfil es una cifra autorizada · value == fmt del texto (una sola verdad)
-  const bol = metrics.map((mm) => fig(`${entity} · ${mm.label}`, mm.fmt, { unit: mm.unit, raw: mm.value, context: `${entity} (${ent.label.sing})` }));
+  const bol = metrics.map((mm) => fig(`${entity} · ${mm.label}`, mm.fmt, { unit: mm.unit, raw: mm.raw, context: `${entity} (${ent.label.sing})` }));
   return { opener, suggestions: null, sentrixAction: null, evidence: { entidad: entity, entityType: dimension, dimension, lens: "cuadro", metrics, boleta: bol } };
 }
 
@@ -206,7 +252,7 @@ export function composeSpecComposicion({ dimension, entity, scenario = "actual" 
   // ya usa la matriz para el $ — cierran con el total del cliente (una sola verdad), no un conteo aparte.
   const _invRows = _load("skuInventario", scenario);
   const _rotBySku = new Map(_invRows.map((r) => [r.sku, typeof r.rotacion === "number" ? r.rotacion : null]));
-  const _cliRow = _cVentas.find((c) => c.nombre === entity);
+  const _cliRow = _load("clientesVentas", scenario).find((c) => c.nombre === entity);
   const _cliUnits = _cliRow && typeof _cliRow.unidades === "number" ? _cliRow.unidades : null;
   // COMPOSICIÓN POR SKU (owner 2026-08-07, Ficha Ejecutiva real: "participación, venta, contribución y margen"
   // también a nivel SKU, no solo familia) — mismo cierre exacto que `familias` arriba (misma matriz cliente×SKU,
@@ -262,16 +308,73 @@ export function composeSpecComposicion({ dimension, entity, scenario = "actual" 
   };
 }
 
-// composeSpecClientCapital({dimension, entity, scenario}) → capital detenido, CRUZADO contra los SKU que compra
-// el cliente (owner 2026-08-07, "capital ligado a su mix... deberían aparecer el valorizado y unidades, incluso
+// ── LA RELACIÓN CLIENTE×SKU, ANTES DE AFIRMAR NADA (owner 2026-08-09, decisión 9 · hallazgo J) ──────────────────
+// clientCapitalRelacion({entity, scenario}) → de qué naturaleza es el vínculo entre ESTE cliente y los SKU con
+// inventario, medido sobre el dato cargado. Tres estados explícitos (decisión 11: nada devuelve `null` mudo
+// cuando hay una divergencia conocida — se declara con razón verificable):
+//
+//   · "observada"           el dato registra QUÉ SKU le vendés a cada cliente (transacciones atómicas). El cruce
+//                           es una lectura: la cifra puede sellarse como el resto de las lecturas.
+//   · "afinidad_modelada"   no hay transacciones atómicas, pero la estimación de afinidad SÍ ACOTA: el mix de
+//                           este cliente deja fuera parte del inventario. La cifra existe, pero es una
+//                           INFERENCIA MODELADA → sello `indicado`, y nunca capital PERTENECIENTE al cliente.
+//   · "unsupported"         no hay transacciones atómicas Y la estimación no acota nada: el mix abarca TODOS los
+//                           SKU con inventario, los mismos para cualquier cuenta. El cruce devolvería el
+//                           inventario COMPLETO del negocio con el nombre de un cliente encima. Medido en el
+//                           tenant demo: la tool servía el mismo subtotal y los mismos SKU, byte-idénticos, para
+//                           las 13 cuentas. Acá NO se afirma nada del cliente — se declina con la razón.
+//
+// `crosses.atomic` es la MISMA declaración canónica que ya bloquea la vista "productos que le vendo a este
+// cliente" en `sentrix/capability.js:entityExplorable` — este composer dejó de contradecirla. Y la cobertura se
+// MIDE contra el dato (cuántos SKU con inventario quedan dentro del mix), no se asume: si mañana el ERP trae la
+// matriz real, el estado cambia solo, sin tocar esta función.
+export function clientCapitalRelacion({ entity, scenario = "actual" } = {}) {
+  const base = { entidad: entity || null, skusInventario: 0, skusEnMix: 0, atomico: false };
+  if (!entity) return { ...base, estado: "unsupported", relacion: "sin_entidad", razon: "no se indicó de qué cliente" };
+  const atomico = !!(datasetCapability().crosses && datasetCapability().crosses.atomic);
+  const kSF = _sf("capital", "sku");
+  const src = kSF && SOURCES[kSF.source];
+  if (!kSF || !src) return { ...base, atomico, estado: "unsupported", relacion: "sin_fuente", razon: "el contrato no declara una fuente de inventario por SKU" };
+  const inv = _load(kSF.source, scenario);
+  const universo = new Set(inv.map((r) => String(r[src.keyField])));
+  const mix = composicionCliente(entity, "ventas");
+  if (!mix || !mix.length) return { ...base, atomico, skusInventario: universo.size, estado: "unsupported", relacion: "sin_mix", razon: `no encuentro el surtido de ${entity} en el dato` };
+  const mixSet = new Set(mix.map((r) => String(r.name)));
+  const dentro = [...universo].filter((s) => mixSet.has(s));
+  const medido = { ...base, atomico, skusInventario: universo.size, skusEnMix: dentro.length };
+  if (atomico) return { ...medido, estado: "observada", relacion: "observada", razon: "el dato registra qué SKU se le vendió a cada cliente" };
+  if (dentro.length >= universo.size) {
+    return {
+      ...medido, estado: "unsupported", relacion: "sin_relacion",
+      razon: `el dato no registra qué SKU le vendés a cada cliente: la relación cliente×SKU es una estimación de afinidad, y para ${entity} abarca los ${universo.size} SKU con inventario — los mismos que para cualquier otra cuenta. Cruzar el inventario contra ese surtido devolvería el inventario completo del negocio con el nombre de un cliente encima, no capital atribuible a ${entity}`,
+      alternativas: ["el capital inmovilizado del negocio, por bodega y por antigüedad"],
+    };
+  }
+  return {
+    ...medido, estado: "afinidad_modelada", relacion: "afinidad_modelada",
+    razon: `el dato no registra qué SKU le vendés a cada cliente: la relación es una estimación de afinidad que asocia ${dentro.length} de los ${universo.size} SKU con inventario al surtido de ${entity}`,
+  };
+}
+
+// composeSpecClientCapital({dimension, entity, scenario}) → inventario inmovilizado, cruzado contra el surtido del
+// cliente (owner 2026-08-07, "capital ligado a su mix... deberían aparecer el valorizado y unidades, incluso
 // la bodega"): MISMO criterio de "detenido" que el detector de capital (rotación bajo tu mínimo o cobertura
-// sobre tu máximo, POLICY — una sola vara para todo ADI), acotado al surtido REAL de este cliente
-// (composicionCliente, la misma matriz que ya cierra exacto con Sentrix). No invoca el detector comercial (a
-// diferencia de composeSpecDiagnose con entityScope de SKU, que sin querer corre el foco comercial SIN acotar —
-// un scope de SKU no intersecta filas por cliente — así que este composer recalcula el criterio de capital
-// directo, sin ese efecto secundario). Null si ningún SKU de su mix está detenido (honesto, nada que reportar).
+// sobre tu máximo, POLICY — una sola vara para todo ADI). No invoca el detector comercial (a diferencia de
+// composeSpecDiagnose con entityScope de SKU, que sin querer corre el foco comercial SIN acotar — un scope de SKU
+// no intersecta filas por cliente — así que este composer recalcula el criterio de capital directo, sin ese
+// efecto secundario).
+//
+// DECISIÓN 9 (owner 2026-08-09): antes de cruzar nada, se consulta `clientCapitalRelacion`. Si el vínculo no
+// existe en el dato, esto DECLINA con la razón medida — devuelve `{unsupported:true, ...}`, no una cifra con el
+// nombre de un cliente encima. Si el vínculo es una AFINIDAD MODELADA, la cifra sale pero sellada `indicado` y
+// con el sujeto correcto: el inventario es del NEGOCIO, el cliente es solo la asociación estimada. Null (sin
+// afirmación) si ningún SKU alcanzado está inmovilizado — honesto, nada que reportar.
 export function composeSpecClientCapital({ dimension, entity, scenario }) {
   if (dimension !== "cliente" || !entity) return null;
+  const rel = clientCapitalRelacion({ entity, scenario });
+  if (rel.estado === "unsupported") {
+    return { unsupported: true, relacion: rel.relacion, reason: rel.razon, alternativas: rel.alternativas || [], cobertura: rel };
+  }
   const skuRows = composicionCliente(entity, "ventas");
   if (!skuRows || !skuRows.length) return null;
   const skuSet = new Set(skuRows.map((r) => r.name));
@@ -289,17 +392,29 @@ export function composeSpecClientCapital({ dimension, entity, scenario }) {
   if (!items.length) return null;
   items.sort((a, b) => b.usd - a.usd);
   const subtotal = items.reduce((s, it) => s + it.usd, 0);
+  const observada = rel.estado === "observada";
+  // EL SUJETO DE LA CIFRA (decisión 7): con relación OBSERVADA el cliente califica el surtido ("productos que le
+  // vendés a X"); con afinidad MODELADA ni siquiera eso — el sujeto es TU inventario y el cliente es una
+  // asociación estimada. En los dos casos el capital es del negocio, nunca del cliente.
+  const sujeto = observada ? `productos que le vendés a ${entity}` : `SKU asociados al surtido de ${entity} por afinidad estimada`;
+  const sello = observada ? undefined : "indicado";
   const lines = items.map((it) => `${it.sku} (${it.bodega}): ${_money(it.usd)}${typeof it.unidades === "number" ? `, ${it.unidades} unidades` : ""}${typeof it.diasSinVenta === "number" ? `, ${it.diasSinVenta}d sin venta` : ""}${it.critico ? " · crítico" : ""}`);
-  const opener = `De los productos que le vendés a ${entity}, ${items.length} ${items.length === 1 ? "está" : "están"} con capital detenido en tu inventario (${_money(subtotal)} entre ${items.length === 1 ? "ese" : "todos"}):\n\n${lines.join("\n")}`;
-  const bol = [fig(`${entity} · capital detenido en su mix · subtotal`, _money(subtotal), { unit: "money", raw: subtotal, mandatory: true, context: `capital detenido en SKU que compra ${entity} — es inventario, no plata de ${entity}` })];
+  const opener = `De los ${sujeto}, ${items.length} ${items.length === 1 ? "está" : "están"} con capital inmovilizado en tu inventario (${_money(subtotal)} entre ${items.length === 1 ? "ese" : "todos"}):\n\n${lines.join("\n")}`;
+  const _ctx = `capital inmovilizado del negocio en ${sujeto} — es inventario tuyo, no de ${entity}`;
+  const _figOpts = (extra) => ({ periodo: "hoy", universo: "inventario", dimension: "sku", ...(sello ? { sello } : {}), ...extra });
+  const bol = [fig(`Inventario · capital inmovilizado en ${sujeto} · subtotal`, _money(subtotal), _figOpts({ unit: "money", raw: subtotal, mandatory: true, context: _ctx, entidad: null }))];
   items.forEach((it) => {
-    bol.push(fig(`${it.sku} · capital detenido`, _money(it.usd), { unit: "money", raw: it.usd, context: `en el mix de ${entity}` }));
-    if (typeof it.unidades === "number") bol.push(fig(`${it.sku} · unidades detenidas`, `${it.unidades}`, { unit: "unit", raw: it.unidades, context: `en el mix de ${entity}` }));
-    if (typeof it.diasSinVenta === "number") bol.push(fig(`${it.sku} · días sin venta`, `${it.diasSinVenta}d`, { unit: "days", raw: it.diasSinVenta, context: `en el mix de ${entity}` }));
+    bol.push(fig(`${it.sku} · capital inmovilizado`, _money(it.usd), _figOpts({ unit: "money", raw: it.usd, context: _ctx })));
+    if (typeof it.unidades === "number") bol.push(fig(`${it.sku} · unidades inmovilizadas`, `${it.unidades}`, _figOpts({ unit: "unit", raw: it.unidades, context: _ctx })));
+    if (typeof it.diasSinVenta === "number") bol.push(fig(`${it.sku} · días sin venta`, `${it.diasSinVenta}d`, _figOpts({ unit: "days", raw: it.diasSinVenta, context: _ctx })));
   });
   return {
     opener, suggestions: null, sentrixAction: null,
-    evidence: { entidad: entity, entityType: "cliente", dimension: "cliente", lens: "cuadro", capitalLigado: { subtotal, items }, boleta: bol },
+    evidence: {
+      entidad: entity, entityType: "cliente", dimension: "cliente", lens: "cuadro",
+      capitalLigado: { subtotal, items, relacion: rel.relacion, sujeto, propiedad: "negocio", nota: rel.razon },
+      boleta: bol,
+    },
   };
 }
 
@@ -1245,6 +1360,13 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
   // lo nombran: el bug del foco palancas que caía al piso por "omitir" el 30.1% que su texto nunca dijo).
   bol.push(fig("Benchmark de margen", `${_p1(bench)}%`, { unit: "pct", raw: bench, mandatory: lines.join(" ").includes(`${_p1(bench)}%`), context: _ctx }));
   bol.push(fig(`${L.p} bajo el benchmark`, String(below.length), { unit: "count", raw: below.length, mandatory: false, context: _ctx }));
+  // EL MARGEN DEL NEGOCIO, la cifra de la card (owner 2026-08-09, decisión 6 · hallazgo E). Esta tool entregaba las
+  // BRECHAS por cliente y la VARA, pero nunca el margen ponderado de la cartera — que es exactamente lo que la
+  // cabecera "Margen promedio" muestra. Sin él, ADI tenía autorizada la vara (30,1%) y ninguna de las dos cifras
+  // que el usuario está mirando. Sólo sobre el eje completo y sin filtros: el margen del negocio al lado de un
+  // subconjunto respondería otra pregunta.
+  const _headline = _figHeadline("margen", dim, scenario, { acotado: !!(filters.marca || filters.familia || filters.bodega) || !!(entityScope && entityScope.entities && entityScope.entities.length) });
+  if (_headline) bol.push(_headline);
   return {
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,
@@ -1263,31 +1385,52 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
 const _pctChg = (a, b) => (b ? (a - b) / b * 100 : 0);
 const _sgnp = (v) => (v >= 0 ? "+" : "");
 const _VLBL = { cliente: { s: "cliente", p: "clientes", art: "Los" }, sku: { s: "SKU", p: "SKU", art: "Los" }, familia: { s: "familia", p: "familias", art: "Las" }, marca: { s: "marca", p: "marcas", art: "Las" }, canal: { s: "canal", p: "canales", art: "Los" } };
-function _ventasByCanal() {
+// EL ESCENARIO ENTRA POR EL CONTRATO (owner 2026-08-09, decisión 4 · hallazgo B). Estas cuatro funciones leían los
+// imports CRUDOS (`_cVentas`/`_mVentas`/`_fVentas`), así que `composeSpecVentas` RECIBÍA `scenario` y lo tiraba:
+// salesRead contestaba $100.0M en bonanza, tensión y crisis mientras la pantalla mostraba $99.9M / $92.8M / $81.1M.
+// La corrección NO agrega una segunda transformación: `_load` delega en el `scenarioLoad` que sourceManifest declara
+// —el mismo `applyScenarioToClientesVentas` que consume Sentrix— y marca/familia usan las agregaciones del propio
+// motor (`applyScenarioToMarcasVentas`/`applyScenarioToSfamiliasVentas`, las MISMAS que llama `cuadro.js`).
+// `skusMargen` sigue literal: el manifiesto lo declara scenario-blind.
+function _ventasByCanal(scenario) {
   const g = {};
-  for (const r of _cVentas) { const k = r.canal || "—"; const gg = (g[k] = g[k] || { nombre: k, actual: 0, anterior: 0, unidades: 0, unidadesAnt: 0, presupuesto: 0 }); gg.actual += r.actual || 0; gg.anterior += r.anterior || 0; gg.unidades += r.unidades || 0; gg.unidadesAnt += r.unidadesAnt || 0; gg.presupuesto += r.presupuesto || 0; }
+  for (const r of _load("clientesVentas", scenario)) { const k = r.canal || "—"; const gg = (g[k] = g[k] || { nombre: k, actual: 0, anterior: 0, unidades: 0, unidadesAnt: 0, presupuesto: 0 }); gg.actual += r.actual || 0; gg.anterior += r.anterior || 0; gg.unidades += r.unidades || 0; gg.unidadesAnt += r.unidadesAnt || 0; gg.presupuesto += r.presupuesto || 0; }
   return Object.values(g);
 }
-function _ventasRows(dim) {
-  if (dim === "marca") return _mVentas;
-  if (dim === "familia") return _fVentas;
-  if (dim === "canal") return _ventasByCanal();
+function _ventasRows(dim, scenario) {
+  if (dim === "marca") return applyScenarioToMarcasVentas(scenario) || _mVentas;
+  if (dim === "familia") return applyScenarioToSfamiliasVentas(scenario) || _fVentas;
+  if (dim === "canal") return _ventasByCanal(scenario);
   if (dim === "sku") return _skusM.map((s) => ({ nombre: s.nombre, actual: s.venta, unidades: s.unidades, marca: s.marca, sfamilia: s.sfamilia }));   // sin anterior/ppto
-  return _cVentas;
+  return _load("clientesVentas", scenario);
 }
 // presupuesto sólo existe por CLIENTE → para marca/familia/canal se hace ROLL-UP de clientesVentas por ese eje (agregado honesto)
-function _pptoByDim(dim) {
-  if (dim === "cliente") return _cVentas.map((r) => ({ nombre: r.nombre, actual: r.actual, presupuesto: r.presupuesto }));
+function _pptoByDim(dim, scenario) {
+  const cv = _load("clientesVentas", scenario);
+  if (dim === "cliente") return cv.map((r) => ({ nombre: r.nombre, actual: r.actual, presupuesto: r.presupuesto }));
   const key = dim === "familia" ? "sfamilia" : dim === "marca" ? "marca" : dim === "canal" ? "canal" : null;
   if (!key) return [];   // sku → sin ppto
   const g = {};
-  for (const r of _cVentas) { const k = r[key] || "—"; const gg = (g[k] = g[k] || { nombre: k, actual: 0, presupuesto: 0 }); gg.actual += r.actual || 0; gg.presupuesto += r.presupuesto || 0; }
+  for (const r of cv) { const k = r[key] || "—"; const gg = (g[k] = g[k] || { nombre: k, actual: 0, presupuesto: 0 }); gg.actual += r.actual || 0; gg.presupuesto += r.presupuesto || 0; }
   return Object.values(g);
 }
 // bloque de un foco REAL → { lines, suggestions, bol } · reusable como pivot de un hueco
-function _ventasFocusBlock(focus, dim, filters, entityScope) {
+function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
   const L = _VLBL[dim] || _VLBL.cliente;
-  let rows = _scopeRows(_ventasRows(dim), filters, entityScope);
+  // TOTALES DEL ESCENARIO, no del literal base (hallazgo B, segunda mitad). `_vKPI` es el KPI de `baseKpis.js`:
+  // FIJO — 100.000 en bonanza, en tensión y en crisis. Por eso salesRead contestaba $100.0M mientras la pantalla
+  // mostraba $92.8M / $81.1M: un error de hasta 23%.
+  //
+  // POR QUÉ `getVentasKPI` Y NO `deriveKpis`. Son DOS totales distintos, los dos scenario-aware, separados por el
+  // ~0,1% que el propio dataset arrastra entre `ventasKPI` y Σ`clientesVentas` (99.999 vs 99.887 en bonanza):
+  //   · `getVentasKPI(null, null, scenario)` es EXACTAMENTE la llamada que hace `sentrix/mesa.js` para la card de
+  //     ventas. El owner ya decidió el 2026-07-15 que esa card y la respuesta que abre su click son UNA verdad.
+  //   · `deriveKpis(scenario)` suma las filas transformadas — el total de la cara Comercial.
+  // Se elige la primera porque es la que ADI ya tenía comprometida por decisión del owner; el 0,1% contra la fila
+  // Total de la cartera queda DECLARADO en el manifiesto, no escondido. Cuál de los dos es "la venta oficial" es
+  // decisión del owner, no de este paso (ver el residual reportado).
+  const _kpi = getVentasKPI(null, null, scenario) || _vKPI;
+  let rows = _scopeRows(_ventasRows(dim, scenario), filters, entityScope);
   if (!rows.length) return null;
   const _m = (v) => _money(v * 1000);   // ventas en MILES → $ real (escala del contrato · el total de cartera es ~$100M · consistente con el resumen ejecutivo)
   const bol = [];
@@ -1295,15 +1438,15 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   if (focus === "vs_presupuesto") {
     // el TOTAL viene de la KPI autoritativa (100K vs 97K = +3.1%); el desglose por eje = roll-up de clientesVentas.
     // Con ENTITYSCOPE ("de esos, ¿cómo van contra el plan?") el total honesto es el del SUBCONJUNTO (roll-up), no la KPI.
-    const allP = _pptoByDim(dim);
+    const allP = _pptoByDim(dim, scenario);
     const rowsP = _scopeRows(allP, {}, entityScope);
     const scoped = rowsP.length > 0 && rowsP.length < allP.length;
-    const totA = scoped ? rowsP.reduce((a, r) => a + (r.actual || 0), 0) : _vKPI.totalActual;
-    const totP = scoped ? rowsP.reduce((a, r) => a + (r.presupuesto || 0), 0) : _vKPI.totalPresupuesto;
+    const totA = scoped ? rowsP.reduce((a, r) => a + (r.actual || 0), 0) : _kpi.totalActual;
+    const totP = scoped ? rowsP.reduce((a, r) => a + (r.presupuesto || 0), 0) : _kpi.totalPresupuesto;
     const tp = _pctChg(totA, totP);
     const totLine = `La venta va ${_sgnp(tp)}${_p1(tp)}% ${tp >= 0 ? "sobre" : "bajo"} presupuesto (${_m(totA)} vs ${_m(totP)}).`;
     if (!rowsP.length) {   // sku → sin ppto propio
-      return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_vKPI.totalActual), { unit: "money", raw: _vKPI.totalActual * 1000, mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_vKPI.totalPresupuesto), { unit: "money", raw: _vKPI.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" })] };
+      return { lines: [`${totLine} Por ${L.s} no tengo presupuesto propio — sólo por cliente (y al total). El desglose de cumplimiento por ${L.s} no es posible.`, `Por cliente sí puedo mostrarte quién se despega del plan.`], suggestions: ["Desviación vs presupuesto por cliente", "Cómo vamos vs el año anterior"], bol: [fig("Venta total", _m(_kpi.totalActual), { unit: "money", raw: _kpi.totalActual * 1000, mandatory: true, context: "vs presupuesto" }), fig("Presupuesto total", _m(_kpi.totalPresupuesto), { unit: "money", raw: _kpi.totalPresupuesto * 1000, mandatory: false, context: "vs presupuesto" })] };
     }
     const withDev = rowsP.map((r) => ({ ...r, dev: (r.actual || 0) - r.presupuesto, devp: _pctChg(r.actual || 0, r.presupuesto) })).sort((a, b) => b.dev - a.dev);
     const over = withDev.filter((r) => r.dev > 0), under = withDev.filter((r) => r.dev < 0).sort((a, b) => a.dev - b.dev);
@@ -1325,11 +1468,21 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
 
   if (focus === "vs_anterior" || focus === "explica_yoy") {
     let useRows = rows, note = "", LL = L;
-    if (!rows.some((r) => typeof r.anterior === "number")) { useRows = _cVentas; LL = _VLBL.cliente; note = `Por ${L.s} no tengo el año anterior (sólo venta actual) — te lo doy por cliente, que es el eje con YoY.`; }   // sku → pivot a cliente
+    // MISMO CRITERIO QUE `vs_presupuesto` (arriba, owner 2026-07-15): sin alcance acotado el titular del NEGOCIO es
+    // el KPI del escenario —la misma cifra que la card de ventas de la Mesa—, no la Σ de las filas, que difiere
+    // ~0,1% por el desajuste que el dataset arrastra entre `ventasKPI` y `clientesVentas`. Con "de esos clientes…"
+    // el total honesto vuelve a ser el del SUBCONJUNTO, sumando sus filas. Antes esto no hacía falta porque las
+    // filas eran las CRUDAS y sumaban 100.000 por casualidad; con el escenario aplicado ya no coinciden.
+    const _todasY = _ventasRows(dim, scenario);
+    let _scopedY = rows.length > 0 && rows.length < _todasY.length;
+    if (!rows.some((r) => typeof r.anterior === "number")) { useRows = _load("clientesVentas", scenario); LL = _VLBL.cliente; note = `Por ${L.s} no tengo el año anterior (sólo venta actual) — te lo doy por cliente, que es el eje con YoY.`; _scopedY = false; }   // sku → pivot al eje cliente COMPLETO
     const conA = useRows.filter((r) => typeof r.anterior === "number");
     const mov = conA.map((r) => ({ nombre: r.nombre, d: (r.actual || 0) - (r.anterior || 0), p: _pctChg(r.actual || 0, r.anterior || 0) }));
     const up = mov.filter((r) => r.d > 0).sort((a, b) => b.d - a.d), down = mov.filter((r) => r.d < 0).sort((a, b) => a.d - b.d);
-    const tot = conA.reduce((a, r) => a + (r.actual || 0), 0), totAnt = conA.reduce((a, r) => a + (r.anterior || 0), 0), tp = _pctChg(tot, totAnt);
+    const _totFilas = conA.reduce((a, r) => a + (r.actual || 0), 0), _totAntFilas = conA.reduce((a, r) => a + (r.anterior || 0), 0);
+    const tot = !_scopedY && typeof _kpi.totalActual === "number" ? _kpi.totalActual : _totFilas;
+    const totAnt = !_scopedY && typeof _kpi.totalAnterior === "number" ? _kpi.totalAnterior : _totAntFilas;
+    const tp = _pctChg(tot, totAnt);
     const lines = [
       note,
       `La venta va ${_sgnp(tp)}${_p1(tp)}% vs el año anterior (${_m(tot)} vs ${_m(totAnt)}, ${_sgnp(tot - totAnt)}${_m(tot - totAnt)}).`,
@@ -1364,7 +1517,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   }
 
   if (focus === "caida_clientes") {
-    const conA = _scopeRows(_cVentas, {}, entityScope).filter((r) => typeof r.anterior === "number");   // "de esos, ¿cuáles se cayeron?" respeta el alcance heredado
+    const conA = _scopeRows(_load("clientesVentas", scenario), {}, entityScope).filter((r) => typeof r.anterior === "number");   // "de esos, ¿cuáles se cayeron?" respeta el alcance heredado
     const down = conA.map((r) => ({ nombre: r.nombre, d: (r.actual || 0) - (r.anterior || 0), p: _pctChg(r.actual || 0, r.anterior || 0), du: (r.unidades || 0) - (r.unidadesAnt || 0) })).filter((r) => r.d < 0).sort((a, b) => a.d - b.d);
     if (!down.length) return { lines: [`Ningún cliente redujo su compra vs el año anterior — todos crecen o se mantienen. No te invento una fuga que no existe.`], suggestions: ["Crecimiento YoY por cliente", "Cómo vamos vs presupuesto"], bol: [] };
     const lines = [
@@ -1396,7 +1549,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope) {
   }
 
   if (focus === "mix_familia") {
-    const rowsF = _scopeRows(_fVentas, {}, entityScope).filter((r) => typeof r.anterior === "number");   // scope heredado (sólo intersecta si lo heredado son familias)
+    const rowsF = _scopeRows(_ventasRows("familia", scenario), {}, entityScope).filter((r) => typeof r.anterior === "number");   // scope heredado (sólo intersecta si lo heredado son familias)
     const tot = rowsF.reduce((a, r) => a + (r.actual || 0), 0), totA0 = rowsF.reduce((a, r) => a + (r.anterior || 0), 0);
     const mix = rowsF.map((r) => ({ nombre: r.nombre, sNow: tot ? (r.actual || 0) / tot * 100 : 0, sAnt: totA0 ? (r.anterior || 0) / totA0 * 100 : 0 })).map((r) => ({ ...r, dpp: r.sNow - r.sAnt })).sort((a, b) => b.dpp - a.dpp);
     const gan = mix[0], per = mix[mix.length - 1];
@@ -1470,7 +1623,7 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
     const g = _VGAP[gap] || _VGAP.sin_sucursal;
     const pf = pivotFocus || (gap === "sin_frecuencia" ? "caida_clientes" : gap === "sin_ticket" ? "precio_realizado" : gap === "sin_serie_mensual" ? "vs_anterior" : "vs_anterior");
     const pivotDim = pf === "mix_familia" ? "familia" : pf === "rank_venta" ? "sku" : "cliente";
-    const block = _ventasFocusBlock(pf, pivotDim, {}) || { lines: [`Puedo mostrarte la venta vs el año anterior por cliente.`], suggestions: [], bol: [] };
+    const block = _ventasFocusBlock(pf, pivotDim, {}, null, scenario) || { lines: [`Puedo mostrarte la venta vs el año anterior por cliente.`], suggestions: [], bol: [] };
     const lines = [
       `No te puedo ${g.no}: falta ${g.falta}. No lo invento.`,
       `Lo más cercano que SÍ tengo:`,
@@ -1479,7 +1632,7 @@ export function composeSpecVentas({ filters = {}, scenario, focus = "vs_anterior
     return { opener: lines.filter(Boolean).join("\n\n"), suggestions: block.suggestions.length ? block.suggestions : ["Cómo vamos vs el año anterior", "Cómo vamos vs presupuesto"], sentrixAction: null,
       evidence: { lens: "ventas", metrica: "ventas", dimension: pivotDim, ...(block.orden ? { orden: block.orden } : {}), boleta: block.bol, ventas: { focus: "gap:" + gap, pivot: pf, gapLabel: g.no, panel: block.panel || null } } };
   }
-  const block = _ventasFocusBlock(focus, dim, filters, entityScope);
+  const block = _ventasFocusBlock(focus, dim, filters, entityScope, scenario);
   if (!block) return null;
   // ORDEN SELLADO (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0): _ventasFocusBlock declara
   // `orden` SOLO en los focos de un único criterio sin cruce de signo (rank_venta/concentracion/mix_familia/
@@ -1506,7 +1659,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
   const bench = _benchOf(rows[0]);
   const totC = rows.reduce((a, r) => a + (r.contribucion || 0), 0) || 1;
   const _ctx = "contribución";
-  const dc = dim === "cliente" ? diagnoseClientes(_cVentas, _marginRows("cliente", scenario)) : {};
+  const dc = dim === "cliente" ? diagnoseClientes(_load("clientesVentas", scenario), _marginRows("cliente", scenario)) : {};
   const _share = (c) => +(c / totC * 100).toFixed(1);
   let lines = [], suggestions = [], bol = [], panel = null;
   // ORDEN SELLADO por la tool (owner 2026-08-03, MISMO patrón que composeSpecMargin/commit 9184ec0) — SOLO en los
@@ -1620,7 +1773,14 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     suggestions = ["Quién sostiene la contribución", "De dónde viene la contribución"];
   }
 
-  bol.push(fig("Contribución total", _mVenta(totC), { unit: "money", raw: totC * 1000, mandatory: false, context: _ctx }));
+  // LA CONTRIBUCIÓN TOTAL, CON SU DUEÑO (owner 2026-08-09, decisión 6 + 7). Este era el ÚNICO total de cabecera que
+  // el oráculo ya devolvía bien — y viajaba sin declarar de quién es, de qué universo ni de qué período: la cifra
+  // más citable del turno era también la más fácil de atribuir mal. Cuando el corte tiene cabecera declarada sale
+  // por el camino canónico (la misma fuente oficial que pinta la card); si el ranking está ACOTADO —otro eje, un
+  // filtro, un alcance heredado— ese total es el del SUBCONJUNTO y sigue por el camino de siempre, porque el total
+  // del negocio ahí respondería otra pregunta.
+  const _headlineC = _figHeadline("contribucion", dim, scenario, { acotado: !!(filters.marca || filters.familia || filters.bodega || filters.cliente) || !!(entityScope && entityScope.entities && entityScope.entities.length) });
+  bol.push(_headlineC || fig("Contribución total", _mVenta(totC), { unit: "money", raw: totC * 1000, mandatory: false, context: _ctx }));
   return {
     opener: lines.filter(Boolean).join("\n\n"),
     suggestions,

@@ -7,6 +7,7 @@ import { MODE_KEYS, buildModeDispatch } from "./conversationalContract.js";
 import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTION } from "./responsePreference.js";
 import { buildNarrationContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 1: el payload se proyecta del contrato sellado, nunca de plan/results crudos
 import { ADI_EPISTEMIC_NOTE_ENABLED } from "../../config/voiceFlags.js";   // CONTRATO v2 · la PRESENTACIÓN del estatus epistémico va detrás de flag (el SELLO no)
+import { projectViewContextForPlan } from "./viewContext.js";   // Concordancia ADI↔Sentrix: el contexto de pantalla viaja como UNA LÍNEA sin cifras, nunca como objeto ni como tabla
 
 // buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
 // narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
@@ -22,7 +23,10 @@ import { ADI_EPISTEMIC_NOTE_ENABLED } from "../../config/voiceFlags.js";   // CO
 // bloque de system, en cambio, ahora es condicional a `mem.responsePref` (la preferencia PERSISTENTE de sesión):
 // solo se manda si la sesión efectivamente tiene una preferencia no-default — un turno normal, sin nada persistido,
 // no paga ese costo de tokens para una doctrina que no va a usar.
-export function buildNarrateSystemC(persona, memBlock, mode, responsePref) {
+// `hayContextoVista` (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): mismo criterio de economía que
+// `mode`/`responsePref` de arriba — el bloque CONTEXTO DE PANTALLA solo se manda cuando el payload de ESTE turno
+// trae de verdad la línea `contexto_vista` (lo decide handleNarrateC leyendo el payload, no una adivinanza).
+export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayContextoVista = false) {
   return `${persona}
 
 TU TAREA (narrar): sos la voz de ADI —un CONTROLLER SENIOR con mirada de CFO— que le habla al dueño del negocio. El motor ya calculó y validó TODO; vos NO muestras datos: armás la DECISIÓN. Interpretás, relacionás, aconsejás. Tu valor es el criterio ejecutivo, no repetir la tabla.
@@ -80,7 +84,9 @@ SAGRADO (invariantes): NOMBRES exactos (nunca confundas el nombre de una entidad
   SUPERLATIVOS CONSISTENTES: si decís "el/la mayor", "la mayor oportunidad", "el más alto/bajo" de una entidad, esa cifra tiene que ser la más grande/chica ENTRE LAS QUE ESTÁS MOSTRANDO — nunca uses un superlativo si hay otro número de la MISMA métrica, en la MISMA respuesta o en cifras_autorizadas, que lo contradice. Si tu elección NO es la de mayor monto pero la elegís igual (por brecha, urgencia, riesgo, facilidad), DECÍ el criterio explícito: "no es el mayor monto, pero sí el margen más deteriorado" (o el que corresponda) — nunca dejes una superioridad implícita que un número visible desmiente.
   TOTAL DEL NEGOCIO ≠ SUMA DE LOS QUE NOMBRÁS: una cifra etiquetada como total/global (ej. "Medida · cerrar brecha al piso", "Contribución no capturada · total", cualquier fig sin nombre de entidad o con "negocio"/"total"/"al piso") es del NEGOCIO COMPLETO, no de las 1-2 entidades que estás recomendando — NUNCA la cuelgues de esas entidades como si ellas solas la explicaran ("el Cliente A y el Cliente B representan una brecha de $X" es FALSO si $X es el total de N clientes, no la suma de esos 2). Si querés dar escala usando el total, ACLARALO como marco, no como suma: "son parte de una brecha total del negocio de $X" — nunca "representan/explican/suman $X" cuando $X es más grande que lo que esas entidades aportan.
 
-SEGUIMIENTOS (deixis): si viene "hilo_reciente", usalo para resolver a QUÉ refiere un seguimiento — "esto mismo", "y eso", "lo anterior", "de esos", "mes a mes" apuntan a lo que ACABÁS de decir. "dame esto mismo pero mes a mes" = la MISMA lectura del turno anterior, ahora por mes (llega por la tool trend con la serie real). NO arranques un diagnóstico nuevo ni cambies de tema: seguí en el mismo hilo.
+${hayContextoVista ? `CONTEXTO DE PANTALLA (llega en "contexto_vista"): el usuario te está escribiendo DESDE Sentrix y esa línea dice qué vista, sección, componente, métrica, eje, período, escenario, universo y filtros tiene delante en este momento. Usalo para dos cosas y solo dos: (a) resolver a qué apunta "este gráfico"/"esta tabla"/"ese punto"/"estos clientes"/"esos SKU", y (b) hablar de LO QUE ESTÁ MIRANDO en vez de abrir un tema distinto. NO TRAE NINGUNA CIFRA y jamás derives una de ahí —ni un total, ni un conteo, ni un porcentaje—: todas las cifras siguen saliendo de "cifras_autorizadas", verbatim. Tampoco describas la interfaz ("el gráfico tiene tres series"): explicá el NEGOCIO que ese componente mide. Y si el usuario nombra otra cosa, manda lo que pide AHORA — la pantalla informa, nunca decide por él.
+
+` : ""}SEGUIMIENTOS (deixis): si viene "hilo_reciente", usalo para resolver a QUÉ refiere un seguimiento — "esto mismo", "y eso", "lo anterior", "de esos", "mes a mes" apuntan a lo que ACABÁS de decir. "dame esto mismo pero mes a mes" = la MISMA lectura del turno anterior, ahora por mes (llega por la tool trend con la serie real). NO arranques un diagnóstico nuevo ni cambies de tema: seguí en el mismo hilo.
   CAMBIO DE CRITERIO ENTRE TURNOS: si en un turno anterior priorizaste una entidad (ej. "comenzá por el Cliente A") y ahora tu respuesta prioriza OTRA sobre el mismo grupo (ej. el Cliente B), NO lo dejes flotando como si no hubiera pasado — nombrá el cambio de criterio en una frase ("antes priorizaba por monto recuperable; acá el corte es la brecha de margen, y ahí el Cliente B pesa más"). Sin esa frase, dos respuestas que priorizan distinto sobre el mismo grupo leen como una contradicción.
 
 SERIE TEMPORAL (llega de la tool trend · facts.tablaM = meses × valores + la boleta trae cada mes/total; facts.variacionMensual/mejorMes/peorMes traen el % de variación YA CALCULADO por mes — ver abajo): esto es un PANORAMA, no una consulta puntual — le corresponde el arco completo (ver LA ESTRUCTURA arriba), aplicado a una serie de tiempo en vez de a una entidad:
@@ -92,8 +98,9 @@ SERIE TEMPORAL (llega de la tool trend · facts.tablaM = meses × valores + la b
   EL ALCANCE DE LA SERIE ES EL QUE DICE EL DATO, no el que pidió el usuario: mirá el título de la tabla y los campos del dato (ej. "Venta del negocio" vs "Cliente A — venta"). Si el usuario preguntó por UNA entidad pero el dato que llegó es DEL NEGOCIO, decí que es del negocio y aclaralo en una frase ("la serie que tengo acá es la del negocio completo") — JAMÁS le pongas el nombre de la entidad a una serie que no es suya. Vale para cualquier dato: la cifra conserva el dueño que trae el dato.
 
 PERFIL COMPLETO DE UN CLIENTE (llega facts.composicion.familias — venta/contribución/margen por familia, y/o
-facts.capitalLigado — capital detenido en los SKU que ese cliente compra — owner 2026-08-07, "eso nos hace
-diferentes"): con estos datos disponibles, el mecanismo agregado (carga/acciones comerciales en %) YA NO es
+facts.capitalLigado — inventario inmovilizado del NEGOCIO que el motor pudo relacionar con el surtido de ese
+cliente; llega SÓLO cuando el dato sostiene esa relación, y trae en facts.capitalLigado.relacion de qué
+naturaleza es — owner 2026-08-07, "eso nos hace diferentes"): con estos datos disponibles, el mecanismo agregado (carga/acciones comerciales en %) YA NO es
 necesariamente el hallazgo más fuerte — puede haber uno más nítido escondido en el mix. Sentrix YA muestra esta
 composición como tabla/gráfico en su propio panel — tu trabajo es SINTETIZAR en prosa qué pasa, por qué y qué
 hacer primero. NUNCA reconstruyas la tabla de familias en markdown (mismo criterio que SERIE TEMPORAL más
@@ -138,6 +145,12 @@ sostienen tu lectura, en prosa, no una fila por familia).
   inventario es TUYO, no de Falabella, aunque los SKU sean los que ella compra. La frase correcta siempre pone
   TU inventario como sujeto del capital y a [cliente] como quien compra esos SKU: "de los productos que le
   vendés a Falabella, $X están detenidos en tu inventario" (nunca al revés, nunca "[cliente] tiene/posee...").
+  DE QUÉ NATURALEZA ES ESA RELACIÓN lo dice facts.capitalLigado.relacion, y CAMBIA lo que podés afirmar (owner
+  2026-08-09, decisión 9): con "observada" el dato registra qué SKU se le vendió a esa cuenta y vale la frase de
+  arriba; con "afinidad_modelada" la relación es una ESTIMACIÓN, no una venta registrada — ahí decilo así ("son
+  SKU asociados a su surtido por afinidad estimada") y nunca la presentes como el surtido comprobado del cliente.
+  Si facts.capitalLigado NO llegó, es porque el dato no sostiene esa relación: NO la supongas ni la reconstruyas
+  desde el inventario global — el capital inmovilizado del negocio no se vuelve del cliente por nombrarlo cerca.
   Si tenés una acción sobre el mecanismo Y esto además trae algo real, dale su propio espacio como una SEGUNDA
   acción concreta (un segundo frente, no un aparte apurado) — nombrá el/los SKU, su $ y sus días sin venta;
   nunca lo omitas si está en la boleta, y nunca lo mezcles con la brecha de margen (son dos cosas distintas: una
@@ -550,7 +563,10 @@ const ORDEN_MONTO_INSTRUCTION = "El usuario pidió orden EXPLÍCITO por dinero/m
 // (el adapter lo serializa · no lo stringifiques acá para no doblar el JSON). El HILO RECIENTE viaja para que los
 // seguimientos deícticos ("esto mismo", "y eso", "mes a mes") se resuelvan contra lo que ya se dijo — sin él, el
 // narrador no sabe a qué refiere "esto" y improvisa.
-export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy = "auto", scenario, requestContext, claimsOnly = false }) {
+// `viewContext`/`formaRespuesta`/`instruccionForma` (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): el
+// contexto de PANTALLA y la FORMA proporcional del turno. Los tres son OPCIONALES y su ausencia es el default de
+// hoy — un turno que no viene de Sentrix y no pidió nada especial produce el MISMO payload byte a byte.
+export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy = "auto", scenario, requestContext, claimsOnly = false, viewContext = null, formaRespuesta = null, instruccionForma = null }) {
   // CONTRATO v2 · FASE 1 (owner 2026-08-07): el payload deja de armarse desde `plan`/`results` crudos. Se SELLA
   // primero un NarrationContract inmutable (narrationContract.js) y el payload es una PROYECCIÓN PURA de ese
   // contrato — projectNarratePayload no recibe ni puede mirar plan/results. La garantía "el LLM no puede modificar
@@ -558,7 +574,7 @@ export function buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem,
   // prompt se lo prohíba, es que no hay otra cosa que ver. Esta firma NO cambia (los ~30 callers/gates que la
   // consumen siguen andando igual) y el payload resultante es BYTE-IDÉNTICO al anterior — verificado por
   // _narration_contract_gate.mjs, que compara la proyección contra la construcción legacy caso por caso.
-  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, scenario, requestContext });
+  const contract = buildNarrationContract({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, scenario, requestContext, viewContext, formaRespuesta, instruccionForma });
   return claimsOnly ? projectClaimsOnlyPayload(contract) : projectNarratePayload(contract);
 }
 
@@ -644,6 +660,9 @@ export function projectClaimsOnlyPayload(contract) {
     ...(modo === "clarify" ? { nivel_aclaracion: forma.clarifyStreak || 1 } : {}),
     // ALCANCE sellado (no el eco del plan): sobre qué, en qué eje, en qué período — ya validado contra el catálogo.
     alcance: { eje: scope.eje, entidades: scope.entidades, nivel: scope.nivel, periodo: scope.periodo, filtros: scope.filtros },
+    // CONTEXTO DE PANTALLA (Concordancia ADI↔Sentrix): UNA línea, ≤240 caracteres, SIN cifras — dice qué está
+    // mirando el usuario, nunca cuánto vale. Ver la nota extensa en projectNarratePayload, más abajo.
+    ...(_lineaVista(scope) ? { contexto_vista: _lineaVista(scope) } : {}),
     // AFIRMACIONES con su estatus epistémico — reemplazan a `datos`/facts.
     afirmaciones: claims.map((cl) => ({
       id: cl.id, entidad: cl.entidad, metrica: cl.metrica, periodo: cl.periodo,
@@ -655,7 +674,12 @@ export function projectClaimsOnlyPayload(contract) {
     relaciones_autorizadas: c.relaciones || {},
     acciones_permitidas: c.acciones || [],
     ...(Array.isArray(c.supuestos) && c.supuestos.length ? { supuestos: c.supuestos } : {}),
-    ...(Array.isArray(c.preguntasAbiertas) && c.preguntasAbiertas.length ? { preguntas_abiertas: c.preguntasAbiertas } : {}),
+    // PREGUNTAS ABIERTAS · lo que el turno NO pudo contestar. En claims-only viaja el MOTIVO y la alternativa,
+    // nunca el NOMBRE INTERNO de la tool: ese es el eco del plan, exactamente la fuente cruda que este modo
+    // promete no mandar (y que `_claims_only_gate` vigila en todo el árbol). Se veía recién ahora porque hasta
+    // que `entityCapitalLigado` empezó a declinar honesto (decisión 9), ningún plan del gate producía una.
+    ...(Array.isArray(c.preguntasAbiertas) && c.preguntasAbiertas.length
+      ? { preguntas_abiertas: c.preguntasAbiertas.map(({ tool: _t, ...q }) => q) } : {}),
     politica_respuesta: c.politicaExtension || {},
     // las instrucciones de FORMA siguen siendo decisiones del motor (no fuentes crudas) — se conservan para que
     // la comparación de calidad contra el modo actual sea justa: solo cambia el ORIGEN del contenido, no la forma.
@@ -670,6 +694,8 @@ export function projectClaimsOnlyPayload(contract) {
     ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
     ...(forma.instruccionOrientacion ? { instruccion_orientacion: forma.instruccionOrientacion } : {}),
     ...(forma.instruccionDisclosure ? { instruccion_divulgacion: forma.instruccionDisclosure } : {}),
+    // CONTRATO DE RESPUESTA PROPORCIONAL (owner 2026-08-09) — ver projectNarratePayload para la nota completa.
+    ...(forma.instruccionForma ? { instruccion_forma_respuesta: forma.instruccionForma } : {}),
     // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): doctrina de NIVEL DE TURNO, no del system — solo viaja si
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Turno sin causas parciales, sin
     // referencia y sin niveles de cascada → cadena vacía → la clave ni aparece.
@@ -683,6 +709,13 @@ export function projectClaimsOnlyPayload(contract) {
 // projectNarratePayload(contract) → el OBJETO de datos para la Pasada 2, derivado EXCLUSIVAMENTE del contrato
 // sellado. Es la frontera dura del contrato v2: si un dato no está en el contrato, el narrador no lo ve. Pura.
 const _politicaTabla = (c) => ((c && c.politicaExtension && c.politicaExtension.tablePolicy) || "auto");
+// _lineaVista(scope) → la ÚNICA forma en que el contexto de pantalla llega al LLM: una oración de ≤240 caracteres,
+// proyectada por viewContext.js del ViewContext sellado (`scope.vista`, ver sealScopeContract · mejora A).
+// LO QUE NO VIAJA, y es la mitad del contrato: filas, tablas, series, la salida del builder, la lista de entidades,
+// cifras formateadas, los controles crudos ni el objeto ViewContext. El contexto IDENTIFICA qué está mirando el
+// usuario; las cifras siguen saliendo EXCLUSIVAMENTE de cifras_autorizadas. Null en todo turno que no venga de
+// Sentrix — que es el default, y por eso un turno normal no agrega ni una llave al payload.
+const _lineaVista = (scope) => ((scope && scope.vista) ? projectViewContextForPlan(scope.vista) : null);
 const TABLA_OBLIGATORIA_INSTRUCTION = "ESTE TURNO PIDIÓ UNA TABLA (explícitamente, o pidiendo la serie mes a mes / un desglose). La tabla es OBLIGATORIA: armala en MARKDOWN real, con fila de encabezado y fila separadora \"|---|---|\". Una fila por período o por entidad; una columna por concepto autorizado. Responder esto en prosa, o resumirlo en dos frases, es NO cumplir lo que se pidió. La tabla tampoco es el cierre: después de ella, en prosa corrida, contá qué muestra — el mejor y el peor tramo, la variación, y qué hacer con eso.";
 const SIN_TABLA_INSTRUCTION = "ESTE TURNO NO TIENE TABLA AUTORIZADA. Respondé en PROSA ejecutiva: qué pasa, por qué y qué hacer primero. Prohibido armar una tabla markdown Y prohibido el listado tabular equivalente (3+ líneas seguidas del tipo \"Etiqueta: cifra\" o \"- Etiqueta — cifra\"): las dos formas son lo mismo con distinta puntuación, y las dos se bloquean. Tabular las pocas cifras que tenés sería reconstruir el detalle con MENOS información que la ficha de Sentrix, que es donde vive. La prioridad SÍ va nombrada con su monto — eso es una frase, no una tabla.";
 export function projectNarratePayload(contract) {
@@ -714,6 +747,9 @@ export function projectNarratePayload(contract) {
     // entendió (cero cifras, ejemplo concreto). Threaded vía plan.clarifyStreak desde answerViaOracle.js.
     ...(modo === "clarify" ? { nivel_aclaracion: forma.clarifyStreak || 1 } : {}),
     alcance: scope.declarado || null,
+    // CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): ver _lineaVista arriba. Una
+    // línea, sin cifras, solo cuando el turno se escribió desde Sentrix — con o sin CTA de por medio.
+    ...(_lineaVista(scope) ? { contexto_vista: _lineaVista(scope) } : {}),
     // PREFERENCIA DE RESPUESTA (owner 2026-07-29) — SOLO viaja si es distinta del default (mismo principio de
     // payload mínimo que nivel_aclaracion arriba): un turno normal, sin pedido de formato, no le agrega NADA nuevo
     // al prompt del narrador — cero riesgo de drift para el 100% de los turnos que nunca tocan esta feature.
@@ -772,6 +808,13 @@ export function projectNarratePayload(contract) {
     ...(instruccionOrientacion ? { instruccion_orientacion: instruccionOrientacion } : {}),
     // DIVULGACIÓN PROGRESIVA: la Ficha como destino del detalle. Solo viaja si de verdad se podó algo.
     ...(forma.instruccionDisclosure ? { instruccion_divulgacion: forma.instruccionDisclosure } : {}),
+    // CONTRATO DE RESPUESTA PROPORCIONAL (owner 2026-08-09) — la FORMA que le corresponde a ESTE turno, decidida en
+    // progressiveDisclosure.js:resolveAnswerShape y compuesta sobre los claims sellados. Mismo principio de payload
+    // mínimo que todas las de arriba: el default del owner (las tres reglas) YA es la doctrina del system
+    // (LA ESTRUCTURA), así que en un turno normal esta llave solo aparece si hay algo real que graduar
+    // (probado vs indicado, o una pregunta abierta). Una pregunta puntual trae la instrucción de "directo primero";
+    // "explicame este gráfico" trae los cinco movimientos compuestos desde el contexto de pantalla.
+    ...(forma.instruccionForma ? { instruccion_forma_respuesta: forma.instruccionForma } : {}),
     // PROPORCIONALIDAD SEMÁNTICA (owner 2026-08-07): doctrina de NIVEL DE TURNO, no del system — solo viaja si
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Un turno sin causas parciales, sin
     // referencia y sin niveles de cascada devuelve cadena vacía y la clave ni siquiera aparece en el payload.

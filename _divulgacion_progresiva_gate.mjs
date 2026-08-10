@@ -105,7 +105,13 @@ H("[6] NO SE PIERDE LA LECTURA · qué pasa, por qué y la prioridad siguen auto
   ok(tiene(/· Ventas$/), "QUÉ PASA: las ventas de la entidad siguen");
   ok(tiene(/· Margen$/) && tiene(/^Benchmark de margen$/) && tiene(/brecha de margen/i), "POR QUÉ: margen, referencia y brecha siguen");
   ok(tiene(/exceso de acciones comerciales/i), "LA PALANCA cuantificada sigue (el 'qué hacer primero')");
-  ok(tiene(/capital detenido/i), "el capital detenido sigue (el segundo frente)");
+  // EL "SEGUNDO FRENTE" ERA UNA AFIRMACIÓN QUE EL DATO NO SOSTIENE (owner 2026-08-09, decisión 9 · hallazgo J):
+  // el capital detenido que esta línea daba por bueno salía de `entityCapitalLigado`, que devolvía el inventario
+  // GLOBAL —mismo subtotal, mismos SKU— para las 13 cuentas. Ahora la tool declina cuando no hay relación
+  // cliente×SKU en el dato, así que no queda ninguna cifra de capital con nombre de cliente que conservar. Lo que
+  // esta sección tiene que garantizar es lo contrario de lo que pedía: que NO reaparezca por otra vía.
+  // Ver `_capital_ligado_cliente_gate.mjs` para la prueba completa de la decisión 9.
+  ok(!tiene(/capital (detenido|inmovilizado)/i), "y NINGUNA cifra de capital se le atribuye al cliente (decisión 9)");
   ok(!figs.some((f) => /^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/i.test(String(f.label || ""))), "y NO queda ninguna cifra de mes suelto");
   ok(!figs.some((f) => /· participación$/i.test(String(f.label || ""))), "ni ninguna fila de composición por familia");
   ok(!figs.some((f) => /(unidades detenidas|d[ií]as sin venta)/i.test(String(f.label || ""))), "ni las columnas del capital que solo se leen en tabla");
