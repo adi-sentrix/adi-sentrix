@@ -475,7 +475,13 @@ export function composeInterpreta(trace, profile, context = {}) {
     case "benchmark_gap": {
       firstSentence = composeReasoningSentence(trace, profile);
       secondSentence = `El margen opera en ${margenPct}%, ${gapBp} puntos bajo el benchmark de cartera (${benchmarkValue}%).`;
-      thirdSentence = `La brecha es estructural: la cuenta no captura el margen promedio de la categoría, lo que erosiona la contribución unitaria del negocio.`;
+      // LA VARA NO ES UN PROMEDIO, Y MENOS UNO DE AFUERA (owner 2026-08-09). La oración anterior compara contra el
+      // BENCHMARK declarado y ésta renombraba esa misma comparación como "el margen promedio de la categoría": dos
+      // errores encimados — presenta una referencia declarada como un hecho observado sobre una población, y le
+      // inventa una autoridad sectorial que el dato no tiene (la misma que `narratePromptC.referencia` le prohíbe
+      // al narrador y que `businessPolicy` declara inexistente). Texto determinístico: no pasa por guardC, se
+      // corrige en el origen.
+      thirdSentence = `La brecha es estructural: la cuenta no alcanza la referencia que definiste para tu cartera, y esa distancia erosiona la contribución unitaria del negocio.`;
       break;
     }
     case "dependency_risk": {
@@ -614,7 +620,14 @@ export function composeContextualiza(trace, profile, incrementalGrowth, fullData
       bullets.push("única posición Tier 1 con margen bajo benchmark");
     }
   } else if (profile && profile.tier === 1) {
-    bullets.push("posición Tier 1 con margen sobre el promedio de las cuentas grandes");
+    // LA RAMA MIDE CONTRA EL BENCHMARK, ASÍ QUE ES EL BENCHMARK LO QUE SE NOMBRA (owner 2026-08-09). Se entra acá
+    // porque `gapBenchmark <= 0` —el margen está en o sobre la VARA declarada— y el texto decía "sobre el promedio
+    // de las cuentas grandes": un estadístico de una población que nadie calculó. Con el dato de hoy el promedio
+    // ponderado de la cartera (25,1%) corre 5 puntos POR DEBAJO de la vara (30,1%), así que la frase además
+    // afirmaba bastante menos de lo que el dato permite. Y el empate se dice empate, no "sobre".
+    bullets.push(gapBenchmark < 0
+      ? "posición Tier 1 con margen sobre tu benchmark de cartera"
+      : "posición Tier 1 con margen en línea con tu benchmark de cartera");
   } else if (profile && profile.poderNegociacion === "Alto" && profile.tier === 2) {
     bullets.push("Tier 2 con poder de negociación alto por canal o crecimiento");
   } else if (profile && profile.cargaComercial === "Alta") {

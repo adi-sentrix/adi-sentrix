@@ -180,9 +180,15 @@ export function buildMarginReceipt(focus, scenario) {
     { label: "Margen",           usd: margenUSD, pct: d.margen,   sign: "=", source: "derivado · venta − costo − carga",   tone: "margen", strong: true },
   ];
   const benchmark = cm ? benchmarkOf(cm) : null;   // integridad #1: nunca cm.benchmark crudo — respeta _benchmarkOverride (memoria de criterio)
+  // LAS DOS FILAS SON DOS COSAS DISTINTAS Y LA ETIQUETA LO TIENE QUE DECIR (owner 2026-08-09). La de arriba es un
+  // HECHO calculado sobre la cartera (promedio de los márgenes de las filas); la de abajo es una VARA DECLARADA que
+  // resuelve `benchmarkOf` con las tres capas INTERNAS del negocio —el criterio que el usuario fijó, el benchmark
+  // por fila del tenant, `POLICY.benchmark`—. Ninguna viene de una fuente sectorial, así que rotularla "Benchmark
+  // industria" le inventaba una autoridad de afuera y volvía un objetivo un dato de mercado: exactamente lo que
+  // `businessPolicy` documenta y `narratePromptC.referencia` le prohíbe decir al narrador. Se dice "Tu benchmark".
   const comparison = [                                                          // + = mejor · unidad pp
     { label: "Promedio interno", base: `${_p1(d.avgM)}%`, gap: d.gap, unit: "pp" },
-    ...(benchmark != null ? [{ label: "Benchmark industria", base: `${_p1(benchmark)}%`, gap: _r1(d.margen - benchmark), unit: "pp" }] : []),
+    ...(benchmark != null ? [{ label: "Tu benchmark", base: `${_p1(benchmark)}%`, gap: _r1(d.margen - benchmark), unit: "pp" }] : []),
   ];
   const confianza = { level: "Alta", reason: "cuenta cerrada con dato del período — sin estimaciones (venta − costo − carga = margen, cierra exacto)" };
   // LÍMITES honestos · derivados de la capa de disponibilidad (no inventados)

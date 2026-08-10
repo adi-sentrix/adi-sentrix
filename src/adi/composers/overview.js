@@ -86,7 +86,23 @@ export function composeModuleOverview(scenarioId, moduloId) {
     // ── Lectura · pattern estructural + outlier (R8)
     let m3 = "";
     if (scenarioId === "bonanza" && fastest) {
-      m3 = `${fastest.nombre} crece ${pct1(fastest.g)} con apenas ${fastest.pctRebate}% de carga comercial, mientras la cartera promedio opera entre 3% y 5%. El motor de eficiencia está fuera del top de concentración.`;
+      // UN PROMEDIO ES UN HECHO CALCULADO, NO UNA BANDA ESCRITA A MANO (owner 2026-08-09). Decía "la cartera
+      // promedio opera entre 3% y 5%": una afirmación empírica sobre la población, clavada, y falsa por los dos
+      // extremos —el rango real de carga va de 1,8% a 5,5%— con un piso que además coincide con
+      // `POLICY.bestPracticeCarga`, o sea que presentaba un umbral declarado como si fuera lo que la cartera hace.
+      // Se calcula sobre las mismas filas y se dice cuál promedio es.
+      // DÓNDE VIVE ESTO: rama de ROLLBACK. `VOICE_EXEC_MODULE_OVERVIEW_ENABLED` está en true, así que hoy el
+      // overview lo sirve V2 y este texto no sale a pantalla; sale el día que alguien baje el flag. Se corrige
+      // igual —una salida de rollback que afirma algo falso sigue siendo algo falso que el usuario puede leer— y
+      // se deja anotado que ROMPE la promesa "legacy bitwise" de esa bandera: para este literal, a propósito.
+      const _cargaPonderada = (() => {
+        const tv = dataset.reduce((s, c) => s + (c.actual || 0), 0);
+        if (!tv) return null;
+        return +((dataset.reduce((s, c) => s + ((c.pctRebate || 0) / 100) * (c.actual || 0), 0) / tv) * 100).toFixed(1);
+      })();
+      m3 = _cargaPonderada != null
+        ? `${fastest.nombre} crece ${pct1(fastest.g)} con apenas ${fastest.pctRebate}% de carga comercial, mientras el promedio ponderado de la cartera es ${_cargaPonderada}%. El motor de eficiencia está fuera del top de concentración.`
+        : `${fastest.nombre} crece ${pct1(fastest.g)} con apenas ${fastest.pctRebate}% de carga comercial. El motor de eficiencia está fuera del top de concentración.`;
     } else if (scenarioId === "tension") {
       const tier1Growth = top3.map(c => ((c.actual - c.anterior) / c.anterior) * 100);
       const flatNames = top3.filter((c, i) => Math.abs(tier1Growth[i]) < 3).map(c => c.nombre).join(" y ");

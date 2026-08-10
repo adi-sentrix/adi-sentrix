@@ -20,7 +20,9 @@ export const METRIC_DEFS = {
   "Ticket prom.": "Venta promedio por unidad vendida.",
   "Costo unitario": "Lo que cuesta cada unidad, y su peso sobre la venta.",
   "Unidades": "Cantidad de unidades vendidas en el período.",
-  "vs benchmark": "Distancia del margen contra el benchmark de la industria.",
+  // el «i» de esta columna decía "el benchmark de la industria" y contradecía, dentro del MISMO archivo, a la
+  // entrada `benchmark` del catálogo, que declara que la vara NO viene de una fuente sectorial (owner 2026-08-09).
+  "vs benchmark": "Distancia del margen contra TU benchmark: la referencia que define tu negocio, no una del sector.",
   "vs promedio": "La distancia del margen contra el promedio interno de tus clientes (en puntos porcentuales).",
   // — inventario / bodega —
   "Capital": "El valor del inventario: lo que tenés invertido en stock.",

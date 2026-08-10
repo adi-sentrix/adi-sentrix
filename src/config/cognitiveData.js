@@ -101,7 +101,11 @@ export const POOL_CONCLUYE_BASE = {
   "Margen alto con baja carga comercial": [
     "La cuenta es la excepción virtuosa de la cartera.",
     "Combinación poco común de rentabilidad y crecimiento sin costo comercial.",
-    "Modelo de cuenta deseable: rinde sobre promedio y no exige carga comercial.",
+    // decía "rinde sobre promedio": una comparación contra una población que nadie calcula en esta rama —el pool
+    // cuelga del `rolEstrategico` DECLARADO del tenant, no de una medición— y que además cambia de verdad según qué
+    // promedio se le ponga detrás (Mercado Libre queda arriba del ponderado y abajo del simple). Se dice lo que el
+    // rol declara y nada más (owner 2026-08-09).
+    "Modelo de cuenta deseable: sostiene su margen sin exigir carga comercial alta.",
   ],
   "Margen sano con carga moderada": [
     "La cuenta opera dentro de un perfil saludable.",

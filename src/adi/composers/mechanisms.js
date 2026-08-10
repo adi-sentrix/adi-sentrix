@@ -7,7 +7,8 @@ import { buildResponseContract, filterTextualSuggestions } from "../helpers.js";
 import { _buildEntityId } from "../router.js";
 import { MECHANISM_REGISTRY } from "../../config/mechanisms.js";
 import { VOZ2_ENABLED, VOICE_NARRATIVE_LAYER_ENABLED } from "../../config/voiceFlags.js";
-import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
+import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";   // el margen de las filas nombradas · para no AFIRMAR el veredicto de margen sin medirlo
 
 // ── r7_* formatters · copiados verbatim de 41cc33d8 (L19886-19901) ──
 // Usados por composeCustomerDependencyRiskResponse (M y listInstances) y composeMechanismScan (K).
@@ -295,8 +296,30 @@ export function composeCustomerDependencyRiskResponse(m, scan, scenarioId) {
     ? `Cuando pocas cuentas concentran buena parte de la cartera, perder cualquiera golpea fuerte y reemplazarla cuesta.`
     : `La dependencia aumenta cuando pocas cuentas concentran proporción mayor de la cartera. Cualquier pérdida estructural sobre estas cuentas tiene impacto desproporcionado, y la capacidad de reemplazo se vuelve crítica.`;
 
+  // EL PROMEDIO NO ES LA VARA, Y EL CONTEO TIENE QUE SER EL DE LA VARA QUE SE NOMBRA (owner 2026-08-09).
+  // Dos defectos en una sola oración, los dos introducidos por la reescritura VOZ2 (que es la viva):
+  //   (a) decía "rinden por debajo del promedio" sobre lo que el resto del módulo mide contra el BENCHMARK. En el
+  //       escenario de crisis eso es directamente falso: Mercado Libre opera 26% —bajo el benchmark de 30,1% pero
+  //       MUY por encima del promedio ponderado de la cartera (18,4%)—, así que la misma frase afirma lo contrario
+  //       de lo que el dato dice según qué referencia se le ponga detrás.
+  //   (b) el conteo no era el de ninguna vara: `customer_dependency_risk.detect` selecciona SOLO por participación
+  //       (≥10%) y nunca mira el margen, pero la frase afirmaba el veredicto de margen sobre las tres. Una frase
+  //       corregida con la población vieja sigue mintiendo, así que el veredicto se DERIVA de las mismas filas.
+  const _margenRows = applyScenarioToClientesMargen(scenarioId) || [];
+  const _tres = top3_names.map(n => _margenRows.find(r => r && r.nombre === n)).filter(r => r && typeof r.margen === "number");
+  const _bajoVara = _tres.filter(r => r.margen < benchmarkOf(r));
+  const _varas = [...new Set(_tres.map(r => benchmarkOf(r)))];
+  const _varaTxt = _varas.length === 1 ? ` (${_varas[0]}%)` : "";   // con varas distintas por fila no se cita una sola cifra
+  const _perfilMargen = _tres.length === 0
+    ? ""                                                            // sin margen a la vista no se afirma nada del margen
+    : _bajoVara.length === _tres.length
+      ? `, rinden por debajo de tu benchmark${_varaTxt}`
+      : _bajoVara.length === 0
+        ? `, sostienen su margen sobre tu benchmark${_varaTxt}`
+        : `, ${_bajoVara.length} de ${_tres.length} rinden por debajo de tu benchmark${_varaTxt}`;
+
   const M3 = _voz2dep
-    ? `Las tres comparten el mismo perfil: pesan mucho, rinden por debajo del promedio y sostienen carga comercial alta. Reemplazarlas exige reconstruir simultáneamente volumen, margen y mecanismo comercial.`
+    ? `Las tres comparten el mismo perfil: pesan mucho${_perfilMargen} y sostienen carga comercial alta. Reemplazarlas exige reconstruir simultáneamente volumen, margen y mecanismo comercial.`
     : `Las tres cuentas operan con el mismo patrón estructural: alta participación, margen bajo benchmark, carga comercial sostenida. La dependencia no es solo de volumen: es del modelo comercial actual que estas cuentas absorben. Reemplazarlas exige reconstruir simultáneamente volumen, margen y mecanismo comercial.`;
 
   const M4 = `La palanca prioritaria es diversificación proactiva de Tier 2 mientras los Tier 1 siguen activos. El objetivo no es reemplazar volumen, es construir capacidad comercial alternativa con perfil de margen sano antes de que la salida sea forzada.`;
