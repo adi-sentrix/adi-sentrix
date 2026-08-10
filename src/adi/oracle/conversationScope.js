@@ -55,6 +55,10 @@ import { PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";   
 // gráfico"— y acá se importa. NUNCA se declara una segunda: mismo criterio que DEICTIC_PLURAL_RE (que vive acá y
 // scenarioIntent.js importa de acá).
 import { DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";
+// REPARACIÓN CONTEXTUAL (Contrato v1.2, owner 2026-08-10): el CRITERIO de compatibilidad vive en el contrato
+// versionado —igual que los 7 modos—, la MECÁNICA de aplicarlo sobre el estado canónico vive acá. Una sola verdad
+// por lado: este archivo nunca decide qué sobrevive, y el contrato nunca toca el estado.
+import { camposQueSeInvalidan } from "./conversationalContract.js";
 
 // bodega/canal sumados Etapa 1 (owner 2026-08-04, "cierre de los límites restantes"): guessDimension
 // (entityRecord.js) ya los reconoce vía ENTITIES.bodega/canal (entityRegistry.js) — este Set gatea buildEntityList
@@ -77,6 +81,104 @@ export function emptyConversationScope() {
 export function withOfertaPendiente(scope, offer) {
   if (!scope || !scope.current) return scope || null;
   return { ...scope, current: { ...scope.current, ofertaPendiente: offer || null } };
+}
+
+/* ══ REPARACIÓN CONTEXTUAL · Contrato Conversacional v1.2 (owner 2026-08-10) ═══════════════════════════════════
+ * "Se modifica únicamente lo corregido y se conserva SOLO el contexto que sigue siendo compatible."
+ *
+ * ACÁ VIVE LA MECÁNICA; el CRITERIO (qué sobrevive a qué) vive en conversationalContract.js, versionado con el
+ * resto del contrato. Se aplica sobre el MISMO estado canónico que ya existe —mem.conversationScope— sin crear ni
+ * una memoria, capa ni modo paralelo: invalidar es apagar campos de `current`, no guardar un registro nuevo.
+ *
+ * POR QUÉ NO SE TOCA `history`: el contrato invalida el contexto DE LA CORRECCIÓN, no la conversación entera. Un
+ * tema anterior legítimo (uno que el usuario nunca corrigió) sigue siendo un referente válido para "esos de
+ * antes". Lo que sí queda garantizado es que la entidad corregida no vuelve por la puerta de atrás: no se archiva
+ * en `history` (updateConversationScope solo archiva ante un cambio real de tema) y se saca de `recentSubjects`,
+ * que es la señal que el prompt le muestra al LLM como "temas recientes".
+ */
+
+// _vaciar(campo) → el valor NEUTRO de cada campo del scope. Vaciar no es borrar la key: el shape de
+// ConversationScopeEntry no cambia nunca (los ~30 lectores del scope siguen encontrando lo que esperan).
+const _NEUTRO = {
+  dimension: null, entities: [], selection: null, periodo: null, filtros: null,
+  metrica: null, origen: { callId: null, boletaLabels: [] }, ofertaPendiente: null, supuestos: [],
+};
+
+// applyRepairToScope(scopeRoot, reparacion) → scopeRoot' — PURA, no muta.
+// Corre ANTES del batch de este turno, sobre el scope del turno ANTERIOR: lo que sale de acá es el contexto que
+// esta corrección deja vivo, y es lo que van a leer la resolución de referencias, el prompt de NARRAR y
+// updateConversationScope. Una reparación ambigua (§4) NUNCA llega acá: mientras no se sepa qué corregir, el
+// contexto no se toca — el llamador corta antes.
+export function applyRepairToScope(scopeRoot, reparacion) {
+  const prev = (scopeRoot && typeof scopeRoot === "object") ? scopeRoot : emptyConversationScope();
+  const r = (reparacion && typeof reparacion === "object") ? reparacion : null;
+  // desacuerdo y dato aportado NO son correcciones de alcance: no invalidan nada (§5 — "conserva la evidencia").
+  if (!r || r.tipo !== "correccion" || r.ambigua) return prev;
+  const invalidar = camposQueSeInvalidan(r.corrige);
+  if (!invalidar.length || !prev.current) return prev;
+
+  const current = { ...prev.current };
+  // las entidades que esta corrección deja sin efecto — se sacan también de la señal `recentSubjects` para que no
+  // reaparezcan como "tema reciente" en el prompt del turno siguiente (§7).
+  const retiradas = invalidar.includes("entities") && Array.isArray(prev.current.entities) ? prev.current.entities.slice() : [];
+  for (const campo of invalidar) {
+    if (!Object.prototype.hasOwnProperty.call(_NEUTRO, campo)) continue;
+    const v = _NEUTRO[campo];
+    current[campo] = Array.isArray(v) ? [] : (v && typeof v === "object") ? { ...v } : v;
+  }
+  const out = { ...prev, current };
+  if (retiradas.length && Array.isArray(prev.recentSubjects)) {
+    out.recentSubjects = prev.recentSubjects.filter((s) => !(s && retiradas.includes(s.entidad)));
+  }
+  return out;
+}
+
+// ── EL TERCER UNIVERSO · la cifra que aporta el usuario (§5.1) ─────────────────────────────────────────────────
+// "Queda marcada como suya en cada lugar donde aparezca · nunca se suma a un total sellado por el motor · todo
+// cálculo derivado hereda su procedencia · se invalida junto con el resto del contexto incompatible."
+// Vive en ConversationScopeEntry.supuestos —el campo que el shape original ya reservaba— no en una memoria nueva.
+// Se guarda SOLO cuando el usuario autorizó tratarla como supuesto: una cifra suya que todavía no aceptó es una
+// discrepancia que se muestra y se pregunta, no un supuesto vivo.
+export const SUPUESTOS_USUARIO_MAX = 3;
+export function withSupuestoUsuario(scope, dato, turno = null) {
+  if (!scope || !scope.current || !dato || typeof dato !== "object") return scope || null;
+  const valor = dato.valor == null ? "" : String(dato.valor).trim();
+  if (!valor) return scope;
+  const nuevo = { origen: "usuario", valor, metrica: dato.metrica ? String(dato.metrica) : null, periodo: dato.periodo ? String(dato.periodo) : null, turno };
+  const prev = Array.isArray(scope.current.supuestos) ? scope.current.supuestos : [];
+  // mismo LRU que el resto del estado conversacional: el más reciente primero, sin duplicar la misma cifra.
+  const sin = prev.filter((s) => !(s && s.origen === "usuario" && s.valor === nuevo.valor && (s.metrica || null) === nuevo.metrica));
+  return { ...scope, current: { ...scope.current, supuestos: [nuevo, ...sin].slice(0, SUPUESTOS_USUARIO_MAX) } };
+}
+// supuestosUsuarioVivos(scope) → los supuestos APORTADOS POR EL USUARIO que siguen vigentes. Lee del scope
+// canónico; devuelve [] cuando no hay ninguno, que es el 100% de los turnos normales.
+export function supuestosUsuarioVivos(scope) {
+  const sup = scope && scope.current && Array.isArray(scope.current.supuestos) ? scope.current.supuestos : [];
+  return sup.filter((s) => s && s.origen === "usuario" && s.valor);
+}
+
+// ── LA PREGUNTA DE PRECISIÓN (§4) ──────────────────────────────────────────────────────────────────────────────
+// "ADI hace UNA SOLA pregunta, enfocada en las alternativas plausibles según el contexto. No enumera opciones que
+// no correspondan." El mecanismo PRINCIPAL es que PLAN la redacte con el contexto del turno (reparacion.pregunta);
+// esto es la red determinística para cuando no la trae — y por eso nombra SOLO lo que el turno anterior realmente
+// tenía: si no hubo comparación no pregunta por el criterio, si hubo una sola entidad no pregunta cuál.
+export function composePrecisionQuestion(scopeRoot, reparacion) {
+  const r = (reparacion && typeof reparacion === "object") ? reparacion : {};
+  const propia = typeof r.pregunta === "string" ? r.pregunta.trim() : "";
+  if (propia) return propia;
+  const cur = (scopeRoot && scopeRoot.current) || null;
+  const candidatos = [];
+  if (cur && Array.isArray(cur.entities) && cur.entities.length > 1) candidatos.push("entidad");
+  else if (cur && Array.isArray(cur.entities) && cur.entities.length === 1) candidatos.push("entidad");
+  if (cur && cur.metrica) candidatos.push("metrica");
+  if (cur && cur.periodo) candidatos.push("periodo");
+  if (cur && cur.selection) candidatos.push("criterio");
+  const nombres = { entidad: "la entidad", metrica: "la métrica", periodo: "el período", criterio: "el criterio" };
+  const lista = candidatos.map((k) => nombres[k]).filter(Boolean);
+  if (!lista.length) return "Dime qué parte está mal y la corrijo — ¿la pregunta que entendí, o el dato que traje?";
+  const ultimo = lista.pop();
+  const enumeracion = lista.length ? `${lista.join(", ")} o ${ultimo}` : ultimo;
+  return `Antes de rehacerlo, dime qué corrijo: ¿${enumeracion}?`;
 }
 
 // ── buildEntityList(toolName, result) → {dimension, entities, orden} | null ────────────────────────────────────
@@ -227,7 +329,14 @@ export function updateConversationScope(scopePrev, { plan, calls, results, turno
       callId: (builtFrom && builtFrom.callId) || (arr[0] && arr[0].callId) || null,
       boletaLabels: (builtFrom && Array.isArray(builtFrom.boleta)) ? builtFrom.boleta.slice(0, 8).map((f) => f.label) : [],
     },
-    supuestos: [],
+    // EL SUPUESTO DEL USUARIO SE HEREDA (Contrato v1.2 §5.1, owner 2026-08-10): "queda marcada como suya en cada
+    // lugar donde aparezca, MIENTRAS SIGA VIVA EN LA CONVERSACIÓN". Este objeto se reconstruye entero en cada
+    // turno con entidades nuevas, así que sin esta línea la cifra del usuario duraba exactamente un turno — y una
+    // procedencia que se olvida sola es peor que no tenerla: la cifra sigue en el hilo y deja de estar marcada.
+    // Solo los de ORIGEN usuario: los supuestos que sella un composer de simulación son del turno que los produjo.
+    // La rama de cambio real de tema (scope global, más arriba) NO hereda — ahí sí cambió el alcance, que es la
+    // condición exacta con la que §5.1 los invalida.
+    supuestos: (prev.current && Array.isArray(prev.current.supuestos)) ? prev.current.supuestos.filter((s) => s && s.origen === "usuario") : [],
     faltantes: [],
     ofertaPendiente: null,
     tenant,

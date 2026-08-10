@@ -13,10 +13,14 @@
  * el texto YA ARMADO (system + tool + user) como string/objeto opaco y solo saben hablarle a su proveedor. Cambiar
  * de modelo/proveedor = cambiar el adapter; este contrato no se toca.
  */
-export const CONTRACT_VERSION = "adi-conversational-contract@1.1.0";
+export const CONTRACT_VERSION = "adi-conversational-contract@1.2.0";
 // 1.0.0 (Fase 1, 2026-07-29): mode default|clarify.
 // 1.1.0 (Fase 2, 2026-07-29): + diagnostico|decision|simulacion|seguimiento|evidencia · clarify en 2 niveles
 //   (nivel_aclaracion 1=máximo 1 cifra indispensable · 2+=cero cifras, ejemplo concreto).
+// 1.2.0 (Contrato Conversacional v1.2 · REPARACIÓN CONTEXTUAL, owner 2026-08-10): + qué puede corregirse, qué
+//   contexto SOBREVIVE a cada corrección, corrección ambigua, desacuerdo y dato aportado por el usuario. NO
+//   agrega ni un modo: la reparación viaja DENTRO del intent="redirect" que ya existía (§2 del contrato). Los 7
+//   modos de arriba quedan intactos — un turno de corrección sigue eligiendo su modo como cualquier otro.
 
 // MODES — cada modo: { key, whenToUse (doctrina de la Pasada 1: cuándo elegirlo), narrate (contrato de la Pasada 2:
 // cómo responder en ese modo) }. `narrate` puede REFERENCIAR secciones compartidas de narratePromptC.js (LA
@@ -88,4 +92,106 @@ export function buildModeDispatch(mode) {
   const header = `MODO DE CONVERSACIÓN (viene en "modo" — decide la FORMA de tu respuesta; las reglas de CIFRAS/FORMATO/SAGRADO de abajo valen SIEMPRE, sin importar el modo):\n\n`;
   const list = (typeof mode === "string" && _byKey.has(mode)) ? [_byKey.get(mode)] : MODES;
   return header + list.map((m) => `· ${m.key} — ${m.narrate}`).join("\n\n");
+}
+
+/* ══ REPARACIÓN CONTEXTUAL · Contrato Conversacional v1.2 (owner 2026-08-10) ═══════════════════════════════════
+ * "Cuando el usuario corrige a ADI, se modifica únicamente lo corregido y se conserva SOLO el contexto que sigue
+ * siendo compatible." Igual que MODES, esto es DATO —no un párrafo de prompt suelto—: la matriz de compatibilidad
+ * se puede probar sin un LLM y vale igual contra cualquier adapter. La MECÁNICA (aplicar la invalidación sobre el
+ * estado canónico) vive en conversationScope.js; acá vive el CRITERIO.
+ *
+ * NO SE AGREGA UN MODO (§2/§7 del contrato): la reparación viaja dentro del `intent="redirect"` que ya existía y
+ * el turno sigue eligiendo uno de los 7 modos de arriba como cualquier otro.
+ */
+
+// TRES CLASES DE MENSAJE que hasta v1.1 llegaban todas como "redirect" y se trataban igual (§5).
+//   correccion   — el usuario dice que ADI se enfocó mal. Cambia lo corregido y recalcula.
+//   desacuerdo   — el usuario discute la INTERPRETACIÓN, no el alcance. NUNCA se sacrifica la evidencia.
+//   dato_usuario — el usuario aporta una cifra propia. No reemplaza al motor: es un TERCER UNIVERSO (§5.1).
+export const REPAIR_KINDS = ["correccion", "desacuerdo", "dato_usuario"];
+
+// Los campos REALES de ConversationScopeEntry (conversationScope.js) que una corrección puede tocar. Es esta lista
+// —no una copia— la que hace que "invalidar lo incompatible" sea estructura y no una intención del prompt.
+export const SCOPE_FIELDS = ["dimension", "entities", "selection", "periodo", "filtros", "metrica", "origen", "ofertaPendiente", "supuestos"];
+
+// LO CORREGIBLE (§2) — y, en cada uno, QUÉ SOBREVIVE.
+// `conserva` es la AUTORIDAD, deliberadamente, y no su complemento: la regla del owner es "se conserva lo
+// compatible", NO "se conserva el resto". Con una lista de lo que muere, un campo nuevo del scope nacería
+// sobreviviendo a toda corrección sin que nadie lo decidiera; con una lista de lo que vive, nace invalidándose —
+// que es el default seguro. `camposQueSeInvalidan` deriva el complemento, nunca al revés.
+// `pregunta` es el texto de PRECISIÓN de último recurso para la corrección ambigua (§4): el mecanismo principal es
+// que el LLM redacte la suya con el contexto del turno (ver `pregunta` en el schema de PLAN) — esto es la red
+// determinística para cuando no la trae, y por eso nombra SOLO lo que de verdad pudo haber fallado.
+export const REPAIR_FIELDS = [
+  { key: "entidad",   conserva: ["periodo", "metrica"],                                            pregunta: "¿de qué entidad estabas hablando?" },
+  { key: "metrica",   conserva: ["dimension", "entities", "periodo", "filtros", "supuestos"],      pregunta: "¿qué métrica querías?" },
+  { key: "periodo",   conserva: ["dimension", "entities", "metrica", "filtros"],                   pregunta: "¿a qué período te referías?" },
+  { key: "alcance",   conserva: ["periodo", "metrica"],                                            pregunta: "¿lo querías del negocio completo o de una entidad puntual?" },
+  { key: "criterio",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "supuestos"], pregunta: "¿contra qué criterio querías compararlo?" },
+  { key: "intencion", conserva: ["dimension", "entities", "periodo", "filtros"],                   pregunta: "¿qué querías que resolviera con eso?" },
+  { key: "formato",   conserva: SCOPE_FIELDS,                                                      pregunta: "¿cómo preferís verlo?" },
+  { key: "supuesto",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica"],        pregunta: "¿qué supuesto habría que cambiar?" },
+];
+export const REPAIR_FIELD_KEYS = REPAIR_FIELDS.map((f) => f.key);
+const _repairByKey = new Map(REPAIR_FIELDS.map((f) => [f.key, f]));
+export function repairField(key) { return _repairByKey.get(key) || null; }
+
+// camposQueSobreviven(corrige[]) → Set de campos del scope que siguen siendo compatibles.
+// INTERSECCIÓN, no unión: si el usuario corrigió la entidad Y el período, solo sobrevive lo que sobrevive a las
+// DOS correcciones. Una unión conservaría, por ejemplo, el período de la entidad vieja — exactamente la
+// combinación silenciosa que §1 prohíbe. Sin campos corregidos reconocibles no sobrevive nada: una corrección que
+// no sabemos leer se trata como la más amplia posible, nunca como inofensiva.
+export function camposQueSobreviven(corrige) {
+  const keys = (Array.isArray(corrige) ? corrige : []).filter((k) => _repairByKey.has(k));
+  if (!keys.length) return new Set();
+  let vivos = null;
+  for (const k of keys) {
+    const c = new Set(_repairByKey.get(k).conserva);
+    vivos = vivos === null ? c : new Set([...vivos].filter((x) => c.has(x)));
+  }
+  return vivos;
+}
+export function camposQueSeInvalidan(corrige) {
+  const vivos = camposQueSobreviven(corrige);
+  return SCOPE_FIELDS.filter((f) => !vivos.has(f));
+}
+
+// LA OFERTA NUNCA SOBREVIVE A UNA CORRECCIÓN REAL (§3.6 "cancelar ofertas anteriores que ya no correspondan" ·
+// §7 "no se permite que reaparezcan ofertas invalidadas"): `ofertaPendiente` no está en ningún `conserva` salvo el
+// de "formato", que no toca el alcance. Se afirma acá como invariante para que un cambio futuro de la matriz de
+// arriba tenga que romper este chequeo antes de romper la conducta.
+export const REPAIR_INVARIANTS = Object.freeze({
+  ofertaMuereSalvoFormato: REPAIR_FIELDS.every((f) => f.key === "formato" || !f.conserva.includes("ofertaPendiente")),
+  evidenciaMuereSalvoFormato: REPAIR_FIELDS.every((f) => f.key === "formato" || !f.conserva.includes("origen")),
+});
+
+// ── DOCTRINA PARA LA PASADA 1 (PLAN) ──────────────────────────────────────────────────────────────────────────
+// Reemplaza al bullet "· CORRECCIÓN:" que planPrompt.js traía suelto desde v1.1 — no se suma al lado de él.
+export function buildRepairPlanDoctrine() {
+  return `· CORRECCIÓN / DESACUERDO / DATO APORTADO → intent="redirect" + el objeto "reparacion". Son TRES cosas distintas y se declaran distinto:
+  (a) CORRECCIÓN ("no, era Lider", "te pedí ventas, no margen", "me refería al último trimestre", "te pedí del negocio y me hablás de X") → reparacion.tipo="correccion" y reparacion.corrige=[${REPAIR_FIELD_KEYS.join("|")}] con lo que el usuario cambió (uno o varios). Poné el scope corregido Y ESTA VEZ SÍ las calls que entregan la respuesta corregida — no dejes calls vacío. NUNCA arrastres el período, el filtro, el criterio ni la entidad del turno anterior si no siguen siendo compatibles con lo corregido: el motor invalida lo incompatible, pero vos no lo vuelvas a pedir.
+  (b) CORRECCIÓN AMBIGUA — el usuario dice que algo está mal SIN decir qué ("eso no es así", "está mal", "ese número no me cuadra", "no era eso") → reparacion.tipo="correccion" con reparacion.ambigua=true y reparacion.pregunta = UNA sola pregunta de precisión, redactada con el contexto del turno anterior y nombrando SOLO lo que de verdad pudo haber fallado ahí (si el turno no tenía comparación, no preguntes por el criterio; si fue de una sola entidad, no preguntes "¿cuál cliente?"). En ese caso calls DEBE quedar VACÍO: no se recalcula nada hasta saber qué corregir. Esto NO es un error de plan — es la respuesta correcta.
+  (c) DESACUERDO — el usuario discute la INTERPRETACIÓN, no el alcance ("no creo que sea por los rebates", "yo no lo veo así") → reparacion.tipo="desacuerdo", sin "corrige": el alcance NO cambia. Volvé a pedir la MISMA evidencia para poder separar lo probado de lo indicado y lo abierto.
+  (d) DATO APORTADO — el usuario afirma una cifra propia ("las ventas fueron $20M") → reparacion.tipo="dato_usuario" con reparacion.dato={metrica,valor} tal como él lo dijo, y las calls que traen LA CIFRA OFICIAL de esa misma métrica y alcance. La cifra del usuario NUNCA reemplaza al dato del motor: se muestra la discrepancia. Si en ESTE turno el usuario autoriza tratarla como supuesto ("sí, usá ese número", "tomalo como supuesto"), agregá reparacion.aceptado=true.`;
+}
+
+// ── DOCTRINA PARA LA PASADA 2 (NARRAR) ────────────────────────────────────────────────────────────────────────
+// CONDICIONAL, misma economía que buildModeDispatch/`hayContextoVista`: un turno que no es una reparación no paga
+// ni un token por reglas que no va a usar. `reparacion` es el objeto YA sellado del contrato de narración.
+export function buildRepairNarrateDoctrine(reparacion) {
+  const r = (reparacion && typeof reparacion === "object") ? reparacion : null;
+  if (!r || !REPAIR_KINDS.includes(r.tipo)) return "";
+  const partes = [];
+  if (r.tipo === "correccion") {
+    const qué = Array.isArray(r.corrige) && r.corrige.length ? r.corrige.join(" y ") : "el foco";
+    partes.push(`ESTE TURNO ES UNA CORRECCIÓN (el usuario cambió ${qué}). RECONOCELA EN UNA FRASE Y ENTREGÁ DE INMEDIATO la respuesta corregida ("Entendido: preguntabas por X, no por Y. X vende $…"). Sin disculpas extensas, sin explicar tu proceso interno, sin repetir el turno equivocado. Lo que el usuario NO corrigió sigue valiendo; lo que quedó incompatible ya no está en tus datos — no lo reconstruyas de memoria ni des por vigente una oferta, una entidad o una evidencia del turno anterior.`);
+  } else if (r.tipo === "desacuerdo") {
+    partes.push(`ESTE TURNO ES UN DESACUERDO: el usuario discute tu interpretación, no tu alcance. NO le des la razón sacrificando la evidencia y NO te retractes de una cifra que el motor selló. Reconocé el punto y separá explícitamente lo PROBADO (lo que el dato confirma), lo INDICADO (la señal que sostenía tu lectura) y lo ABIERTO (lo que con este dato no se puede cerrar — y decí qué haría falta). Si su objeción es razonable, decilo: la honestidad acá es reconocer el límite de la evidencia, no cambiar la conclusión para complacer.`);
+  } else if (r.tipo === "dato_usuario") {
+    partes.push(`ESTE TURNO TRAE UNA CIFRA DEL USUARIO y NO reemplaza al dato del motor. Mostrá la DISCREPANCIA con las dos cifras nombradas por su dueño ("mi dato es $X; el tuyo, $Y") y pedí la fuente, o autorización para tratarla como supuesto. Nunca la presentes como propia ni la corrijas en silencio.`);
+  }
+  if (Array.isArray(r.supuestos) && r.supuestos.length) {
+    partes.push(`SUPUESTO APORTADO POR EL USUARIO, VIVO EN ESTA CONVERSACIÓN: ${r.supuestos.map((s) => `${s.metrica ? s.metrica + " " : ""}${s.valor}`).join(" · ")}. Es un TERCER UNIVERSO, distinto del dato del motor: (1) marcalo como SUYO en CADA lugar donde lo escribas ("según tu dato", "la cifra que aportaste") — no alcanza con decirlo una vez al principio; (2) NUNCA lo sumes, lo promedies ni lo consolides con una cifra sellada por el motor, ni lo metas dentro de un total que el producto presenta como propio; (3) todo lo que derives de él es ESCENARIO o ESTIMACIÓN, jamás un dato probado por ADI — decilo así en la misma oración.`);
+  }
+  return `REPARACIÓN CONTEXTUAL (Contrato v1.2):\n  · ${partes.join("\n  · ")}`;
 }
