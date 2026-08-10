@@ -32,6 +32,9 @@ import { resolveGlossary } from "./src/adi/sentrix/glossary.js";
 import { headlineTotal } from "./src/adi/sentrix/headline.js";
 import { transferenciaCapability } from "./src/adi/sentrix/capability.js";
 import { ensureTransferenciaDeclarada } from "./src/adi/oracle/narratePromptC.js";   // la garantía C1: se prueba tal como corre en producción
+// LA RUTA PUNTUAL DEL MOTOR (defecto C2) — las dos funciones PURAS que componen la respuesta determinística, sin
+// proveedor de por medio: acá se mide la salida REAL del motor, no una narración hipotética escrita en el gate.
+import { simpleEntityMetric, rutaDeterministica } from "./src/adi/oracle/answerViaOracle.js";
 import { applyScenarioToSkuInventario } from "./src/engine/scenarios.js";
 import { SELLOS, PERIODOS } from "./src/config/contract/figureType.js";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -66,7 +69,7 @@ const pregunta = (n, q, espera, calls, prueba) => CORPUS.push({ n, q, espera, ca
  * se estaban dividiendo entre sí. La respuesta correcta da las dos cifras con SU marco y no las cruza. */
 pregunta(1, "¿Cuánto vende SAM-TV55 y cuánto stock tiene?", "responde",
   [{ tool: "entityRecord", args: { dimension: "sku", entity: "SAM-TV55" } }],
-  ({ figs, results, guard }) => {
+  ({ figs, results, guard, q, calls }) => {
     const venta = figDe(figs, /^SAM-TV55 · Ventas$/);
     const stock = figDe(figs, /^SAM-TV55 · Valor de inventario$/);
     ok(results[0].coverage.supported === true, "entityRecord responde por el SKU");
@@ -87,7 +90,23 @@ pregunta(1, "¿Cuánto vende SAM-TV55 y cuánto stock tiene?", "responde",
     const gM = guard(mala);
     ok(gM.violations.some((v) => v.kind === "cruce-de-universos"), "atar el inventario a la venta se BLOQUEA (cruce-de-universos)",
       `verdict=${gM.verdict} · ${JSON.stringify(gM.violations.map((v) => v.kind))}`);
-    return `venta ${venta && venta.value} (anual) · stock ${stock && stock.value} (hoy) · el cruce bloquea`;
+    // LA RESPUESTA QUE EL MOTOR COMPONE DE VERDAD (owner 2026-08-10, certificación live · defecto C2). Hasta acá
+    // el gate probaba que la lectura correcta PODÍA pasar el muro. En vivo, la que salió fue otra: sólo el stock,
+    // sin la venta y sin declinarla — porque el extractor de métricas era sustantivo puro y no reconocía "vende",
+    // así que el motor creyó que la pregunta tenía UNA sola métrica. Se mide la salida REAL, no una hipotética.
+    const plan1 = { intent: "answer", mode: "default", scope: { level: "entity", entities: ["SAM-TV55"] }, calls };
+    const simple = simpleEntityMetric(q, plan1, calls, results);
+    ok(!!simple && simple.campos && simple.campos.length === 2,
+      "el motor reconoce LAS DOS métricas de la pregunta (incluida la forma verbal «vende»)",
+      simple ? `campos=${JSON.stringify((simple.campos || []).map((x) => x.token))}` : "no se activó la ruta puntual");
+    const texto = simple ? rutaDeterministica({ contentScope: "full", detailLevel: "standard" }, simple) : "";
+    ok(/venta de SAM-TV55/i.test(texto) && /valor de inventario de SAM-TV55/i.test(texto),
+      "entrega LAS DOS cifras — la venta ya no se pierde en silencio", texto);
+    ok(/no se comparan entre sí/i.test(texto) && /universos distintos/i.test(texto),
+      "y DECLARA por qué no se comparan, en vez de omitir una", texto);
+    const gDet = guard(texto);
+    ok(gDet.ok, "esa respuesta compuesta pasa el muro (sin cifras que el ledger no autorice)", JSON.stringify(gDet.violations));
+    return `venta ${venta && venta.value} (anual) · stock ${stock && stock.value} (hoy) · el cruce bloquea · las 2 se entregan con su universo declarado`;
   });
 
 /* ══ 2 · «Por local, ¿quién queda bajo el plan?» ══════════════════════════════════════════════════════════════
@@ -521,7 +540,7 @@ for (const c of CORPUS) {
     results.map((r) => `${r.tool}=${r.coverage && r.coverage.supported}`).join(" · "));
   let evidencia = "";
   try {
-    evidencia = c.prueba({ ledger, results, figs, guard, guardCon, q: c.q }) || "";
+    evidencia = c.prueba({ ledger, results, figs, guard, guardCon, q: c.q, calls: c.calls }) || "";
   } catch (e) {
     FAIL++; console.log("    ✗ la prueba explotó: " + String((e && e.message) || e));
     evidencia = `EXCEPCIÓN: ${String((e && e.message) || e)}`;

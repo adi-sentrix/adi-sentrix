@@ -48,7 +48,7 @@ import { applyMultiEntityScope, applySingleEntityScope } from "./toolContracts.j
 import { assertTenantContext } from "./requestContext.js";
 import { fieldLabel, rawRecordFor, REFERENCIA_CAMPO, REFERENCIA_ANTERIOR, guessDimension } from "./entityRecord.js";
 import { figFor } from "../boleta.js";                              // la ÚNICA lectura sancionada de una fig ya autorizada
-import { PERIODO_TXT } from "../../config/contract/figureType.js";  // las dos frases canónicas del marco temporal, declaradas una sola vez
+import { PERIODO_TXT, reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";  // las dos frases canónicas del marco temporal + qué universo reconcilia con cuál (la MISMA declaración que usa guardC)
 import { detectScenarioIntent, extractSignedPct, extractScenarioVariable, ZERO_EXPLICIT_RE } from "./scenarioIntent.js";
 import { detectCriteriaIntent } from "../criteria.js";   // C.2 memoria de criterio (owner 2026-07-31, fix adi-oraculo-criterio-no-invocado): la ruta oráculo nunca la corría
 import { composeCriteria } from "../conversation.js";     // UNA VERDAD: reusa la MISMA composición (setCriterion/forgetCriterion) de la ruta legacy, nunca la reimplementa acá
@@ -105,16 +105,23 @@ function _isPlanContentError(e) {
 // del plan — sin importar qué haya elegido el LLM. Solo toca calls que el LLM YA enrutó a tensionRead (no decide
 // por su cuenta que algo "es" una pregunta de tensión — esa decisión sigue siendo del plan), así que no hay riesgo
 // de secuestrar un turno que no lo era.
+// FORMAS VERBALES, NO SOLO SUSTANTIVOS (owner 2026-08-10, certificación live · defecto C2). Esta tabla era
+// SUSTANTIVA pura: reconocía "ventas" pero no "vende". Consecuencia medida en vivo con «¿cuánto VENDE SAM-TV55 y
+// cuánto stock tiene?»: el extractor encontró UNA sola métrica (stock), la ruta determinística creyó que era una
+// pregunta puntual de una métrica y contestó SOLO el inventario — la venta no se declinó, se perdió en silencio,
+// que es peor. El hueco no era del caso: era del léxico. Un usuario pregunta con verbos («cuánto vende»,
+// «cuánto cuesta», «cuánto rota», «cuánto contribuye») al menos tan seguido como con sustantivos, y las dos
+// formas tienen que llegar al mismo token. Se agregan las conjugaciones, no la frase probada.
 const _TENSION_METRIC_MAP = [
-  [/\bcontribuci[oó]n(?:es)?\b/i, "contribucion"],
-  [/\bmargen(?:es)?\b/i, "margen"],
+  [/\bcontribuci[oó]n(?:es)?\b|\bcontribu[yií]\w*\b/i, "contribucion"],
+  [/\bmargen(?:es)?\b|\bmargina\w*\b/i, "margen"],
   [/\bcapital\b|\binventario\b|\bstock\b/i, "stockUSD"],
-  [/\brotaci[oó]n\b/i, "rotacion"],
+  [/\brotaci[oó]n\b|\brot[aá]\w*\b/i, "rotacion"],
   [/\bcobertura\b|\bdoh\b/i, "doh"],
   [/\bcosto\s+medio\b/i, "costoMedio"],
-  [/\bcostos?\b(?!\s+medio)/i, "costo"],
+  [/\bcostos?\b(?!\s+medio)|\bcuesta\w*\b|\bcuestan\b/i, "costo"],
   [/\bprecio(?:s)?\s+de\s+lista\b/i, "precioLista"],
-  [/\bventas?\b/i, "venta"],
+  [/\bventas?\b|\bvend[eií]\w*\b|\bvendemos\b/i, "venta"],
   [/\bunidades\b/i, "unidades"],
   [/\brebates?\b|\bpct\s*rebate\b/i, "pctRebate"],
 ];
@@ -331,9 +338,20 @@ function _coerceViewScope(plan, vcProj, text, maxCalls = 6, compRef = null) {
 //   · intent=answer · scope.level=entity con EXACTAMENTE 1 entidad (plan.scope, ver planPrompt.js)
 //   · UNA sola call, a entityRecord (el único tool que devuelve una FILA completa direccionable por campo)
 //   · resultado soportado (coverage.supported=true — la entidad/eje existió)
-//   · EXACTAMENTE 1 métrica nombrada en el TEXTO CRUDO de la pregunta (reusa _extractTensionMetrics, ya probado
-//     para tensionRead) — 0 métricas = pide el registro completo (mejor servido por el narrador); 2+ = comparación
-//     o cruce (también mejor servido por el narrador, que puede tejer la relación entre ambas).
+//   · AL MENOS 1 métrica nombrada en el TEXTO CRUDO de la pregunta (reusa _extractTensionMetrics, ya probado para
+//     tensionRead) — 0 métricas = pide el registro completo (mejor servido por el narrador).
+//
+// VARIAS MÉTRICAS EN UNA PREGUNTA (owner 2026-08-10, certificación live · defecto C2). Antes esto exigía
+// EXACTAMENTE 1 y cedía al narrador con 2+. Medido en vivo, «¿cuánto vende SAM-TV55 y cuánto stock tiene?» no llegó
+// a ceder: el extractor sólo veía UNA métrica (ver la tabla de arriba), así que esta ruta contestó el inventario y
+// la venta desapareció sin declinarse. Con el léxico arreglado el turno tendría 2 métricas y se iría al narrador —
+// pero eso deja a la suerte del muestreo justo lo que el owner marcó como obligatorio: "debió entregar las DOS y
+// declarar por qué no se comparan". Acá se entregan las dos por construcción, gratis y sin una llamada.
+//   · Se responde SOLO si TODAS las métricas nombradas están en esta fila. Si falta alguna, se cede al narrador
+//     entero — media respuesta determinística sería el mismo defecto con otro disfraz.
+//   · La relación entre universos NO se decide acá: la declara `reconcilian` (config/contract/figureType.js), la
+//     misma función con la que el guard bloquea el cruce. Una segunda opinión sobre qué reconcilia con qué es
+//     exactamente cómo se llega a que el motor afirme lo que el muro prohíbe.
 // EL PERÍODO DE LA CITA PUNTUAL SALE DEL TIPO DE ESA CIFRA (owner 2026-07-31, hallazgo en vivo "Inventario y
 // capital inmovilizado"; owner 2026-08-09, decisión 5). Cuando la MISMA pregunta de negocio (capital inmovilizado /
 // valor de inventario / rotación) se resuelve para un SKU puntual vía entityRecord (porque inventoryStatus no
@@ -348,6 +366,13 @@ function _coerceViewScope(plan, vcProj, text, maxCalls = 6, compRef = null) {
 // Un CONTEO no declara marco propio (hereda el de lo que cuenta: "Unidades vendidas" es del año cerrado,
 // "Unidades en stock" de la foto) → ahí cae al marco que declara el resultado completo, como antes.
 
+// EXPORTADAS PARA QUE UN GATE OFFLINE LAS PUEDA MEDIR (owner 2026-08-10, defecto C2 — mismo criterio con el que
+// `periodoDeclarado` se exportó desde guardC.js: un gate que mantiene su propia copia de la regla se desincroniza
+// y termina certificando otra cosa). Las dos son PURAS: no llaman al proveedor, así que el gate que las use sigue
+// siendo offline. `_simpleEntityMetric`/`_rutaDeterministica` conservan su nombre interno; esto solo las publica.
+export function simpleEntityMetric(q, plan, calls, results) { return _simpleEntityMetric(q, plan, calls, results); }
+export function rutaDeterministica(pref, simple) { return _rutaDeterministica(pref, simple); }
+
 function _simpleEntityMetric(q, plan, calls, results) {
   if (!plan || plan.intent !== "answer") return null;
   if (!plan.scope || plan.scope.level !== "entity" || !Array.isArray(plan.scope.entities) || plan.scope.entities.length !== 1) return null;
@@ -356,19 +381,27 @@ function _simpleEntityMetric(q, plan, calls, results) {
   const r = results[0];
   if (!r || !r.coverage || r.coverage.supported !== true || !r.facts) return null;
   const tokens = _extractTensionMetrics(q);
-  if (tokens.length !== 1) return null;
-  const token = tokens[0].token;
-  const label = fieldLabel(token);
-  if (!label || r.facts[label] == null) return null;   // el campo no está en ESTE registro → cede al narrador, no inventa
+  if (!tokens.length) return null;
   const entity = r.facts.entidad || plan.scope.entities[0];
   if (!entity) return null;
   const dimension = calls[0].args && calls[0].args.dimension;
   const rec = dimension ? rawRecordFor(dimension, entity) : null;
-  const rawValue = rec && typeof rec[token] === "number" ? rec[token] : null;
-  const figCampo = figFor(r.boleta || [], entity, label);           // la fig EXACTA que se va a citar
-  const famCampo = figCampo && figCampo.tipo ? figCampo.tipo.periodo : null;   // "hoy" | "anual" | null (conteo)
-  const periodo = (famCampo && PERIODO_TXT[famCampo]) || r.facts.periodo || null;
-  return { entity, label, token, value: r.facts[label], periodo, rec, rawValue };
+  const campos = [];
+  for (const { token } of tokens) {
+    const label = fieldLabel(token);
+    if (!label || r.facts[label] == null) return null;   // el campo no está en ESTE registro → cede al narrador ENTERO, no contesta a medias
+    const figCampo = figFor(r.boleta || [], entity, label);           // la fig EXACTA que se va a citar
+    const famCampo = figCampo && figCampo.tipo ? figCampo.tipo.periodo : null;   // "hoy" | "anual" | null (conteo)
+    campos.push({
+      label, token, value: r.facts[label],
+      periodo: (famCampo && PERIODO_TXT[famCampo]) || r.facts.periodo || null,
+      universo: (figCampo && figCampo.tipo && figCampo.tipo.universo) || null,
+      rawValue: rec && typeof rec[token] === "number" ? rec[token] : null,
+    });
+  }
+  // el primero conserva la forma de siempre (label/token/value/periodo/rawValue en la raíz) para no cambiarle el
+  // contrato a `periodosSimple` ni a los ~30 callers/gates que ya lo leen así; `campos` es aditivo.
+  return { entity, rec, campos, ...campos[0] };
 }
 
 // ── LECTURA MÍNIMA para la ruta determinística (owner "piensa bien, estás de acuerdo con esta respuesta?"
@@ -428,18 +461,53 @@ function _lecturaMinima(token, rec, rawValue) {
   return null;   // sin referencia autorizada — el caller ofrece análisis, no inventa una lectura
 }
 
-function _rutaDeterministica(pref, { entity, label, token, value, periodo, rec, rawValue }) {
+const _periodoTxt = (periodo) => (periodo ? (/a[nñ]o cerrado/i.test(periodo) ? "en el año cerrado" : /foto.*hoy/i.test(periodo) ? "a la fecha de hoy" : null) : null);
+function _oracionCampo(entity, { label, token, value, periodo }) {
   const m = _METRICA_ORACION[token] || { articulo: "el", plural: false, sustantivo: label.toLowerCase() };
-  const verbo = m.plural ? "son" : "es";
   const art = m.articulo.charAt(0).toUpperCase() + m.articulo.slice(1);
-  const periodoTxt = periodo ? (/a[nñ]o cerrado/i.test(periodo) ? "en el año cerrado" : /foto.*hoy/i.test(periodo) ? "a la fecha de hoy" : null) : null;
-  const oracion = `${art} ${m.sustantivo} de ${entity} ${verbo} ${value}${periodoTxt ? `, ${periodoTxt}` : ""}.`;
-  if (pref.contentScope === "data_only") return oracion;   // requisito 7 generalizado: el usuario pidió SOLO el dato — se respeta, sin análisis
-  if (typeof rawValue !== "number") return oracion;   // defensivo: sin crudo para comparar, no debería pasar
-  const lectura = _lecturaMinima(token, rec, rawValue);
-  if (lectura) return `${oracion} ${lectura}`;
+  const p = _periodoTxt(periodo);
+  return `${art} ${m.sustantivo} de ${entity} ${m.plural ? "son" : "es"} ${value}${p ? `, ${p}` : ""}.`;
+}
+// _lineaUniversos(campos) → la frase que DECLARA por qué dos cifras del turno no se comparan, o null.
+// EL VEREDICTO NO SE DECIDE ACÁ: lo da `reconcilian` (config/contract/figureType.js), la MISMA función con la que
+// guardC bloquea el cruce. Una segunda opinión sobre qué reconcilia con qué es exactamente cómo se llega a que el
+// motor afirme lo que el muro prohíbe.
+// LA FRASE SE COMPONE DE LAS PROPIEDADES DECLARADAS, NO DEL `razon` DEL CONTRATO. Ese texto está escrito para
+// quien lee el contrato y trae CIFRAS ("×1000 de diferencia", "entre 4x y 35x") que este turno no tiene
+// autorizadas — el guard lo bloqueó, con razón, la primera vez que se intentó pegarlo tal cual. Acá se dicen las
+// MISMAS diferencias sin un solo número: escala, marco temporal y unidad salen de `UNIVERSOS[x]`, así que la
+// afirmación sigue siendo del contrato y no hay ninguna cifra que autorizar.
+// Va en ORACIÓN APARTE de las dos citas, para que ninguna construcción relacional las ate (ver _cruceDeUniversos).
+const _Y = (s) => (/^[ií]/i.test(String(s || "")) ? "e" : "y");   // «venta comercial» E «inventario»
+function _lineaUniversos(campos) {
+  for (let i = 0; i < campos.length; i++) for (let j = i + 1; j < campos.length; j++) {
+    const a = campos[i], b = campos[j];
+    if (!a.universo || !b.universo || a.universo === b.universo) continue;
+    if (reconcilian(a.universo, b.universo).estado !== "divergent") continue;
+    const A = UNIVERSOS[a.universo], B = UNIVERSOS[b.universo];
+    const motivos = [];
+    if (A.unidad !== B.unidad) motivos.push("miden unidades distintas");
+    if (A.escala !== B.escala) motivos.push("se almacenan en escalas distintas");
+    if (A.periodo !== B.periodo) motivos.push("cubren marcos temporales distintos");
+    return `Las dos cifras no se comparan entre sí: «${A.etiqueta}» ${_Y(B.etiqueta)} «${B.etiqueta}» son universos distintos${motivos.length ? ` —${motivos.join(" y ")}—` : ""}, así que ninguna operación entre ellas cierra sobre este dato.`;
+  }
+  return null;
+}
+function _rutaDeterministica(pref, simple) {
+  const { entity, rec } = simple;
+  const campos = Array.isArray(simple.campos) && simple.campos.length ? simple.campos : [simple];
+  const oraciones = campos.map((c) => _oracionCampo(entity, c));
+  // LAS DOS CIFRAS Y POR QUÉ NO SE COMPARAN (owner 2026-08-10, defecto C2): evitar el cruce estuvo BIEN, omitir una
+  // de las dos estuvo mal. La declaración va incluso bajo data_only: no es análisis, es el marco sin el cual la
+  // cifra pelada se puede leer mal — el mismo criterio con el que "solo el dato" ya incluye período y alcance.
+  const universos = campos.length > 1 ? _lineaUniversos(campos) : null;
+  const base = oraciones.join(" ") + (universos ? ` ${universos}` : "");
+  if (pref.contentScope === "data_only") return base;   // requisito 7 generalizado: el usuario pidió SOLO el dato — se respeta, sin análisis
+  // la lectura mínima es de UNA métrica contra SU vara declarada: con varias, cada una trae la suya si la tiene.
+  const lecturas = campos.map((c) => (typeof c.rawValue === "number" ? _lecturaMinima(c.token, rec, c.rawValue) : null)).filter(Boolean);
+  if (lecturas.length) return `${base} ${lecturas.join(" ")}`;
   // brief: la oferta de análisis es contexto NO indispensable — se recorta. standard: se ofrece, como siempre.
-  return pref.detailLevel === "brief" ? oracion : `${oracion} Si querés, puedo analizarlo con más detalle.`;
+  return pref.detailLevel === "brief" ? base : `${base} Si querés, puedo analizarlo con más detalle.`;
 }
 
 // ── MODO CONVERSACIONAL · capa de rol operativa (Fase 1: default|clarify · Fase 2: + diagnostico/decision/
@@ -1303,7 +1371,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // Usar el `periodos` genérico acá agregaría una cláusula "(Datos del año cerrado.)" CONTRADICTORIA al lado de
     // la oración que ya dice "a la fecha de hoy" — derivamos la familia esperada del MISMO periodo ya resuelto
     // para esta cita puntual, no del genérico de toda la tool-call.
-    const periodosSimple = /a[nñ]o cerrado/i.test(simple.periodo || "") ? ["anual"] : /foto.*hoy/i.test(simple.periodo || "") ? ["hoy"] : periodos;
+    // UNA FAMILIA POR CAMPO CITADO (owner 2026-08-10, defecto C2): con dos métricas de universos distintos, el
+    // marco de la PRIMERA no es el marco de la respuesta — «vende $X (año cerrado)» y «stock $Y (foto de hoy)»
+    // conviven en el mismo texto y los DOS tienen que quedar declarados, como ya exige el corpus de aceptación.
+    const _famDe = (p) => (/a[nñ]o cerrado/i.test(p || "") ? "anual" : /foto.*hoy/i.test(p || "") ? "hoy" : null);
+    const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
+    const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
     const det = ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
