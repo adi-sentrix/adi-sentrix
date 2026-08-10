@@ -29,6 +29,13 @@ import { isNamedInBoleta } from "../adi/boleta.js";   // ESPEJO Sentrix↔ADI (F
 import { buildResumenEjecutivo } from "../adi/specRetrieval.js";   // MESA DE CONTROL · KPIs + lectura + focos del diagnose (una verdad · lo mismo que el hero)
 import { POLICY, benchmarkOf } from "../config/businessPolicy.js";   // Perfil comparado · la línea de benchmark/target (criterio-aware: si el owner fijó su vara, ES su vara)
 import { setUISignal } from "../adi/uiSignals.js";   // memoria UI (owner 2026-07-08) · lo que el usuario hace en la Mesa informa el contexto de ADI
+// CONTRATO DE CONCORDANCIA ADI ↔ SENTRIX (owner 2026-08-09) · la EMISIÓN: cada pieza declara qué está mostrando
+// (derivado de su builder, nunca escrito a mano) y los botones "Que ADI lo explique" mandan ese contexto
+// ESTRUCTURADO además de la pregunta. `address.js` es la dirección canónica única que resuelven las dos puntas:
+// reemplaza a pnlMesaLink/clientMesaLink/_tLink cuando la respuesta trae `evidence.address`, y cae a
+// `legacyAddressFrom` (mismo comportamiento byte-a-byte) cuando no.
+import { useViewContext, useVistaContext } from "./useViewContext.js";
+import { parseAddress, resolveAddress, legacyAddressFrom } from "../adi/sentrix/address.js";
 import { ADI_PROFILE } from "../config/flagProfile.js";   // perfil activo · sub-paths incompletos (placeholder Control · fecha por-entidad EJEMPLO) SOLO en dev
 import { TOOLS } from "../adi/oracle/toolRegistry.js";   // FICHA EJECUTIVA (owner 2026-08-07): misma boleta/políticas que ADI — entityProfile/entityComposicion/entityCapitalLigado/trend, funciones puras sin LLM, cero cálculo paralelo en React
 const _isDev = ADI_PROFILE === "dev";
@@ -1319,8 +1326,22 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // aparece de una, sola, sin el Cuadro/Pareto/Comparado genéricos de la cara Comercial mezclados encima.
   // Mismo patrón que _pnlLink/_tLink.
   const _clientLink = clientMesaLink(evidence);
-  const [fichaCliente, setFichaCliente] = useState(_clientLink ? _clientLink.cliente : null);
+  /* ── LA DIRECCIÓN CANÓNICA (Contrato de Concordancia, owner 2026-08-09) ────────────────────────────────────
+   * Una sola gramática resuelve QUÉ abre esta evidencia: `sentrix://<vista>/<seccion>/<slug>?…`. Si la respuesta
+   * trae `address` (el camino nuevo), manda esa; si no, `legacyAddressFrom` produce EXACTAMENTE la misma
+   * {cara, eje, foco} que daban los tres resolvedores viejos, así que el comportamiento actual queda intacto.
+   * Lo que la dirección agrega sobre el camino viejo son los CONTROLES: abrir la vista, la sección, la entidad Y
+   * el filtro exactos, no solo la cara. */
+  const _addr = React.useMemo(() => {
+    const a = parseAddress(evidence && evidence.address);
+    return a || legacyAddressFrom(evidence);
+  }, [evidence]);
+  const _link = React.useMemo(() => resolveAddress(_addr), [_addr]);
+  const [fichaCliente, setFichaCliente] = useState(
+    (_link && _link.cara === "ficha" && _link.entidad) || (_clientLink ? _clientLink.cliente : null)
+  );
   const [cara, setCara] = useState(() => {
+    if (_link && _link.conocido) return _link.cara;
     if (_pnlLink) return _pnlLink.cara;
     if (_clientLink) return "ficha";
     if (_tLink) return "comercial";
@@ -1342,8 +1363,16 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // cascada puede scopear a una fila (espejo del comparado del cuadro). Estado local — el click informa, nunca dispara.
   const [pnlEje, setPnlEje] = useState(_pnlLink ? _pnlLink.eje : null);            // null → el eje primario (cliente)
   const [pnlFoco, setPnlFoco] = useState(_pnlLink ? _pnlLink.foco : null);         // { eje, nombre } → la cascada scopeada a esa fila
-  // «Ampliar» sobre OTRA respuesta P&L con la Mesa ya abierta → re-enfoca (la evidencia nueva manda su alcance)
+  // «Ampliar»/«Ver evidencia» sobre OTRA respuesta con la Mesa ya abierta → re-enfoca (la evidencia nueva manda
+  // su alcance). Con dirección resoluble se aplica ELLA (cara + eje + foco + controles); sin ella, las tres ramas
+  // legacy siguen exactamente como estaban.
   useEffect(() => {
+    if (_link && _link.conocido) {
+      setCara(_link.cara);
+      if (_link.cara === "resultado") { setPnlEje(_link.eje); setPnlFoco(_link.foco); }
+      if (_link.cara === "ficha" && _link.entidad) setFichaCliente(_link.entidad);
+      return;
+    }
     if (_pnlLink) { setCara(_pnlLink.cara); setPnlEje(_pnlLink.eje); setPnlFoco(_pnlLink.foco); }
     else if (_clientLink) { setCara("ficha"); setFichaCliente(_clientLink.cliente); }
     else if (_tLink) setCara("comercial");
@@ -1377,6 +1406,23 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // de la tabla abren la Ficha REAL de esa entidad — el MISMO camino del deep-link `_clientLink` (cara Ficha +
   // cliente elegido), no una vista paralela.
   const irAFicha = (nombre) => { if (!nombre) return; setFichaCliente(nombre); setCara("ficha"); };
+  /* ── EL CONTEXTO AMBIENTE DE LA PANTALLA (requisito 2 del owner) ──────────────────────────────────────────
+   * "Si el usuario escribe desde Sentrix, ADI recibe ese contexto AUNQUE NO haya pulsado un CTA." Mientras la Mesa
+   * está abierta, la cara activa publica su contexto de VISTA por uiSignals; cualquier pieza que el usuario toque
+   * después lo REFINA al componente puntual. Al cerrar el panel el contexto se limpia solo — una vista cerrada no
+   * puede seguir tiñendo el turno siguiente. El builder de cada cara es el que ya alimenta la pantalla: cero
+   * cálculo nuevo, cero contexto escrito a mano.
+   * Se llaman los CUATRO hooks siempre (regla de hooks) y solo el de la cara activa publica. */
+  const _oV = { scenario };
+  useVistaContext("comercial", cara === "comercial" ? resumenC : null, _oV);
+  useVistaContext("capital", cara === "capital" ? capital : null, _oV);
+  useVistaContext("resultado", cara === "resultado" ? resultado : null, _oV);
+  // la cara Ficha publica su propio ambiente DENTRO de MesaFichaCara: es la única que necesita la lectura del
+  // módulo para nombrar su sujeto, y esa lectura vive ahí (acá tendríamos que escribirlo a mano, que es justo lo
+  // que la mejora B prohíbe).
+  // el flotante "Preguntar a ADI sobre esta vista" manda el contexto de la VISTA comercial completa, no el de la
+  // última pieza tocada: es el catch-all de la pantalla, y su contexto tiene que decir eso mismo.
+  const { ask: askVistaComercial } = useViewContext("comercial/otro/vista", resumenC, { scenario, onAsk });
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
   // header de MOVIMIENTO (el sello entender→explicar→actuar): número celeste + título ejecutivo + su "i"
@@ -1406,7 +1452,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
             {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["ficha", "Ficha"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
-                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "La Ficha Ejecutiva de un cliente: perfil, brecha, evolución, composición, posición y capital ligado"}
+                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "La Ficha Ejecutiva de un cliente: perfil, brecha, evolución, composición y posición en la cartera"}
                 style={{ padding:"4px 12px", fontSize:11, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
                   background: cara === k ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
                   color: cara === k ? C.text : C.textMuted, transition:"all 0.15s" }}>{lbl}</button>
@@ -1424,7 +1470,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         {cara === "ficha" ? (
           <MesaFichaCara entity={fichaCliente} scenario={scenario} onAsk={onAsk} onSelect={setFichaCliente}/>
         ) : cara === "resultado" ? (
-          <MesaResultadoCara resultado={resultado} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}
+          <MesaResultadoCara resultado={resultado} scenario={scenario} onAsk={onAsk} onEje={(k) => { setPnlEje(k); setPnlFoco(null); }} onFoco={setPnlFoco}
             onExport={() => pnlExportData(scenario, pnlEje, pnlFoco)}/>
         ) : cara === "capital" ? (
           <MesaCapitalCara capital={capital} scenario={scenario} onAsk={onAsk} watch={watch} onWatch={toggleWatch} wl={wl}/>
@@ -1439,7 +1485,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             def={"El estado del negocio completo: el veredicto con sus cuatro cifras de cabecera, cómo se movió el año contra el anterior y contra tu presupuesto, en quiénes se concentra la venta y cómo se compone la cartera cliente por cliente. Todo con alcance global — ninguna selección previa lo tiñe."}>
             <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
             <ResumenCartera R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
-            <ResumenEvolutivo ev={resumenC.evolutivo} onAsk={onAsk}/>
+            <ResumenEvolutivo ev={resumenC.evolutivo} R={resumenC} onAsk={onAsk}/>
             <ResumenConcentracion R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
             <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
@@ -1487,8 +1533,8 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           no descendiente, del contenedor overflow:auto de arriba) — un position:absolute adentro de un
           overflow:auto queda clippeado a su caja de scroll aunque el offset se calcule contra un ancestro más
           arriba; comprobado en vivo: el botón existía en el DOM pero el click nunca llegaba. ── */}
-      {cara === "comercial" && onAsk && (
-        <button onClick={() => onAsk("¿Qué es lo más importante que debería ver en la vista Comercial?")}
+      {cara === "comercial" && askVistaComercial && (
+        <button onClick={() => askVistaComercial("¿Qué es lo más importante que debería ver en la vista Comercial?")}
           title="Preguntale a ADI sobre esta vista completa"
           style={{ position:"absolute", right:16, bottom:16, display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:999,
             background:C.celeste, color:"#04262e", border:"none", fontSize:12, fontWeight:700, cursor:"pointer",
@@ -1574,6 +1620,22 @@ const _RC_CARD = {
  * graduados (señal o neutral) y acá solo se pintan. El KPI de CAPITAL ya no está: su historia completa vive en la
  * cara Capital (owner 2026-08-07), así que los cuatro que quedan son todos comerciales. */
 function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
+  // ── EMISIÓN DEL CONTEXTO (Contrato de Concordancia, owner 2026-08-09) ─────────────────────────────────────
+  // Una llamada por pieza que el usuario puede señalar. El contexto NO se escribe acá: se DERIVA de `R` (la
+  // salida viva de buildResumenComercial) cruzada con el manifiesto. Lo único que la UI aporta es qué componente
+  // es cada botón — que es justamente lo que la UI sabe y el módulo no.
+  const _o = { scenario: R.scenario, onAsk };
+  const vVeredicto = useViewContext("comercial/01/veredicto", R, _o);
+  const vRecon = useViewContext("comercial/01/reconciliacion-universos", R, _o);
+  const vKpiVentas = useViewContext("comercial/01/kpi-ventas", R, _o);
+  const vKpiContrib = useViewContext("comercial/01/kpi-contribucion", R, _o);
+  const vKpiMargen = useViewContext("comercial/01/kpi-margen", R, _o);
+  const vKpiAcciones = useViewContext("comercial/01/kpi-acciones-comerciales", R, _o);
+  // el KPI y su contexto se emparejan por la MISMA llave que el módulo emite (`k.key`), nunca por posición: si
+  // mañana el módulo reordena sus KPI, cada botón sigue mandando el contexto de SU cifra.
+  const askKpi = {
+    ventas: vKpiVentas.ask, contribucion: vKpiContrib.ask, margen: vKpiMargen.ask, acciones: vKpiAcciones.ask,
+  };
   // las preguntas son las que el motor YA tiene probadas (mesa.estados / la simulación de carga) — la UI no
   // inventa preguntas nuevas: una pregunta que ADI no puede responder es peor que ninguna.
   const askDe = (key) => {
@@ -1601,7 +1663,12 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
           {v.soporte}
           <InfoDot def={`El grupo mínimo cuya venta acumulada alcanza el 80% — el mismo cálculo del diagnóstico y del cuadro, no un top-N fijo. Dentro de él, "brecha material" no es "bajo tu benchmark": son las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más, porque una diferencia chica no mueve una decisión. Los clientes de la cola no entran a esta lectura inicial; aparecen al expandir la cartera completa, al final.`} align="left"/>
         </div>
-        <div style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4 }}>
+        {/* la línea de reconciliación pasa a ser PREGUNTABLE (no cambia su tipografía ni su lugar: solo gana el
+            click y el título). Es la única pieza del bloque que declara DOS universos, y "¿por qué hay dos montos
+            parecidos?" es la pregunta que más la busca — ahora viaja con el contexto de ESA tira, no del veredicto. */}
+        <div style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4, ...(vRecon.ask ? { cursor: "pointer" } : {}) }}
+          title={vRecon.ask ? "Preguntale a ADI: ¿Cuál es la diferencia entre la cartera completa y el plano de decisión?" : undefined}
+          onClick={vRecon.ask ? () => vRecon.ask("¿Cuál es la diferencia entre la cartera completa y el plano de decisión?") : undefined}>
           {R.tension.reconciliaCorta}
           <InfoDot def={"Dos universos con el MISMO criterio de materialidad y distinto alcance: la cartera completa (todo el negocio) y el plano de decisión (el grupo que explica el 80% de la venta). El primero dimensiona la oportunidad total; el segundo dice por dónde empezar. Cierran exacto: lo del plano más lo de la cola es lo de la cartera. Nunca vas a ver dos montos parecidos sin que diga de qué universo sale cada uno."} align="left"/>
         </div>
@@ -1610,8 +1677,8 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
         ) : null}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 9 }}>
-        {R.kpis.map((k) => { const ask = askDe(k.key); const clic = !!(onAsk && ask); return (
-          <button key={k.key} onClick={clic ? () => onAsk(ask) : undefined} title={clic ? `Preguntale a ADI: ${ask}` : undefined}
+        {R.kpis.map((k) => { const ask = askDe(k.key); const emitir = askKpi[k.key] || vVeredicto.ask; const clic = !!(emitir && ask); return (
+          <button key={k.key} onClick={clic ? () => emitir(ask) : undefined} title={clic ? `Preguntale a ADI: ${ask}` : undefined}
             style={{ position: "relative", background: "rgba(255,255,255,0.02)", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", cursor: clic ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4, transition: "background 0.15s, border-color 0.15s" }}
             onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; if (clic) ev.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 1; }}
             onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; ev.currentTarget.style.borderColor = C.border; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 0; }}>
@@ -1648,6 +1715,13 @@ function ResumenCartera({ R, onFicha, onAsk }) {
   const K = R.cartera;
   const [todos, setTodos] = useState(false);
   const angosto = useNarrowViewport();
+  // EMISIÓN · el control `todos` es estado declarado del componente (el manifiesto lo lista), así que viaja: "estos
+  // clientes" con la tabla recortada significa las 10 visibles, y con la cartera abierta significa las 13. La
+  // diferencia la decide el contexto, no una suposición del narrador.
+  const { ask: askCartera } = useViewContext("comercial/01/tabla-cartera", R, {
+    scenario: R.scenario, onAsk, controles: { todos: todos ? "1" : "0" },
+    seleccion: { modo: "todas", n: K && K.filas ? (todos ? K.filas.length : Math.min(K.tope || K.filas.length, K.filas.length)) : 0 },
+  });
   if (!K || !K.filas.length) return null;
   const filas = todos ? K.filas : K.filas.slice(0, K.tope);
   // en angosto se apartan participación y contribución: siete columnas en un teléfono empujan los dos gaps —lo
@@ -1678,7 +1752,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
           </span>
           <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{K.lectura}</span>
         </span>
-        {onAsk ? _btnADI(() => onAsk("¿Qué clientes están por debajo de su presupuesto?"), "Que ADI lo explique →") : null}
+        {askCartera ? _btnADI(() => askCartera("¿Qué clientes están por debajo de su presupuesto?"), "Que ADI lo explique →") : null}
       </div>
       <div style={{ overflowX: "auto", marginTop: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: angosto ? 11 : 11.5, minWidth: angosto ? 0 : 640, tableLayout: "fixed" }}>
@@ -1751,6 +1825,12 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
   const [met, setMet] = useState("ventas");
   const [hov, setHov] = useState(null);
   const P = R.pareto[met] || R.pareto.ventas;
+  // EMISIÓN · la pill Ventas/Contribución NO es un detalle de dibujo: cambia la MÉTRICA del gráfico, así que cambia
+  // el componente que el usuario está mirando. Dos entradas del manifiesto, una por métrica, y la que viaja es la
+  // activa — "explicame este gráfico" no puede resolverse contra la barra que el usuario apagó.
+  const vParVentas = useViewContext("comercial/01/pareto-ventas", R, { scenario: R.scenario, onAsk, controles: { met } });
+  const vParContrib = useViewContext("comercial/01/pareto-contribucion", R, { scenario: R.scenario, onAsk, controles: { met } });
+  const askPareto = (met === "contribucion" ? vParContrib.ask : vParVentas.ask);
   const barras = P.barras || [];
   const n = barras.length;
   if (!n) return null;
@@ -1788,7 +1868,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ display: "flex", gap: 3 }}>{pill("ventas", "Ventas")}{pill("contribucion", "Contribución")}</span>
-          {onAsk ? _btnADI(() => onAsk(met === "ventas" ? "¿Qué clientes explican el 80% de mi venta?" : "¿En cuántos clientes se concentra mi contribución?"), "Que ADI lo explique →") : null}
+          {askPareto ? _btnADI(() => askPareto(met === "ventas" ? "¿Qué clientes explican el 80% de mi venta?" : "¿En cuántos clientes se concentra mi contribución?"), "Que ADI lo explique →") : null}
         </span>
       </div>
       {/* el gráfico entero scrollea en horizontal en anchos chicos — nunca se comprime hasta volverse ilegible */}
@@ -1854,9 +1934,16 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
  * ancla (es un plan, no tiene contraparte por cliente) y la vista lo declara en vez de disimularlo.
  * Cada serie lleva su estatus: probado el dato real, indicado el plan. */
 const _RC_SERIE_COL = { actual: C.elec, anterior: C.teal, presupuesto: C.lav };
-function ResumenEvolutivo({ ev, onAsk }) {
+function ResumenEvolutivo({ ev, R = null, onAsk }) {
   const [oculta, setOculta] = useState({});            // las TRES arrancan visibles (regla del owner)
   const [hov, setHov] = useState(null);
+  // EMISIÓN · el contexto se deriva de `R` (la salida completa del builder), no de `ev`: el manifiesto declara el
+  // path `evolutivo` contra buildResumenComercial, y esa es la única forma de que el componente no dependa de que
+  // alguien recuerde qué pedacito le pasaron por props. Las series apagadas viajan como control declarado.
+  const { ask: askEvo } = useViewContext("comercial/01/evolutivo-serie", R, {
+    scenario: R && R.scenario, onAsk,
+    controles: { oculta: Object.keys(oculta).filter((k) => oculta[k]).sort().join(",") || "ninguna" },
+  });
   if (!ev || !ev.series || !ev.series.length) return null;
   const vivas = ev.series.filter((s) => !oculta[s.key]);
   const meses = ev.meses, n = meses.length;
@@ -1881,7 +1968,7 @@ function ResumenEvolutivo({ ev, onAsk }) {
           </span>
           <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{ev.lectura}</span>
         </span>
-        {onAsk ? <span style={{ flexShrink: 0 }}>{_btnADI(() => onAsk("¿Cómo viene la venta mes a mes este año?"), "Que ADI lo explique →")}</span> : null}
+        {askEvo ? <span style={{ flexShrink: 0 }}>{_btnADI(() => askEvo("¿Cómo viene la venta mes a mes este año?"), "Que ADI lo explique →")}</span> : null}
       </div>
       {/* la leyenda ES el control: cada serie con su total y su estatus (probado / indicado) */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 8 }}>
@@ -1957,6 +2044,18 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
   const S = R.sostiene;
   const [eje, setEje] = useState(S ? S.porDefecto : null);
   const [todos, setTodos] = useState(false);
+  // EMISIÓN · CUATRO componentes, uno por eje, porque son cuatro UNIVERSOS distintos (clientes concilia con la
+  // venta oficial; familias y SKU son otro corte y lo declaran). El eje activo y el switch 80%/completos son
+  // controles declarados: "cuáles de estos" significa cosas distintas en cada combinación, y el contexto lo dice
+  // en vez de dejar que el narrador lo suponga.
+  const _vEje = S && S.vistas.length ? (S.vistas.find((x) => x.key === eje) || S.vistas[0]) : null;
+  const _ctrl = { eje: _vEje ? _vEje.key : "", todos: todos ? "1" : "0" };
+  const _o = { scenario: R.scenario, onAsk, controles: _ctrl };
+  const vSosCliente = useViewContext("comercial/01/sostiene-clientes", R, _o);
+  const vSosFamilia = useViewContext("comercial/01/sostiene-familias", R, _o);
+  const vSosSku = useViewContext("comercial/01/sostiene-sku", R, _o);
+  const vSosCanal = useViewContext("comercial/01/sostiene-canales", R, _o);
+  const askSostiene = ({ cliente: vSosCliente.ask, familia: vSosFamilia.ask, sku: vSosSku.ask, canal: vSosCanal.ask })[_vEje ? _vEje.key : ""] || vSosCliente.ask;
   if (!S || !S.vistas.length) return null;
   const v = S.vistas.find((x) => x.key === eje) || S.vistas[0];
   const filas = todos ? v.filas : v.filas.filter((f) => f.enGrupo);
@@ -1983,7 +2082,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
               </button>
             ))}
           </span>
-          {onAsk ? _btnADI(() => onAsk("¿Quiénes son mis principales clientes por venta?"), "Que ADI lo explique →") : null}
+          {askSostiene ? _btnADI(() => askSostiene("¿Quiénes son mis principales clientes por venta?"), "Que ADI lo explique →") : null}
         </span>
       </div>
       <div style={{ overflowX: "auto", marginTop: 8 }}>
@@ -2026,7 +2125,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
       {/* EL PORQUÉ, PEGADO A LA TABLA QUE LO NECESITA (owner 2026-08-08) · solo en el eje CLIENTE: el análisis se
           construye cuenta por cuenta y prometerlo en familias o SKU sería prometer algo que no existe. */}
       {v.key === "cliente" && R.deterioro && R.deterioro.margen ? (
-        <ResumenPorQue pq={R.deterioro.margen.porQue} onFicha={onFicha}/>
+        <ResumenPorQue pq={R.deterioro.margen.porQue} R={R} onFicha={onFicha} onAsk={onAsk}/>
       ) : null}
     </div>
   );
@@ -2044,12 +2143,19 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
  * La aritmética que responde: la brecha de una cuenta contra el promedio se parte SIEMPRE en dos términos que
  * suman exacto — lo que le entregás (medido) y la relación entre su precio y su costo. Dos cuentas con la misma
  * brecha pueden tener causas opuestas, y se arreglan distinto. */
-function ResumenPorQue({ pq, onFicha }) {
+function ResumenPorQue({ pq, R = null, onFicha, onAsk = null }) {
   const [abierto, setAbierto] = useState(false);
+  // EMISIÓN SIN BOTÓN NUEVO: este bloque no tiene "Que ADI lo explique" y no se le agrega uno (las visuales no se
+  // tocan). Lo que sí hace es INFORMAR el contexto al desplegarse — la regla del owner desde 2026-07-08: el click
+  // informa, nunca dispara. Si después el usuario escribe "¿por qué este cliente me deja poco margen?" en el chat,
+  // ADI ya sabe que lo está preguntando sobre ESTA descomposición y no sobre el margen en general.
+  const { ctx: ctxPorQue } = useViewContext("comercial/01/porque-vende-mucho-deja-poco", R, {
+    scenario: R && R.scenario, onAsk, controles: { abierto: abierto ? "1" : "0" },
+  });
   if (!pq || !pq.filas.length) return null;
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.borderLight}` }}>
-      <button onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}
+      <button onClick={() => setAbierto((a) => { const n = !a; if (n && ctxPorQue) setUISignal({ viewContext: ctxPorQue }); return n; })} aria-expanded={abierto}
         style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "left" }}>
         Clientes que venden mucho pero dejan poco margen: por qué ({pq.n}) <span>{abierto ? "▴" : "▾"}</span>
       </button>
@@ -2111,6 +2217,15 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
   // la referencia de las acciones comerciales: el PROMEDIO de tu cartera (realista) o tu META (aspiracional).
   // Arranca en el promedio — es la que el owner pidió: compararte con vos mismo antes que con un ideal.
   const [varaAcc, setVaraAcc] = useState("promedio");
+  // EMISIÓN · la pill de referencia (promedio de tu cartera / tu meta) NO es un filtro cosmético: cambia la VARA y
+  // con ella el universo y el monto recuperable. Son dos entradas del manifiesto y viaja la activa — además, la de
+  // "promedio de tu cartera" está declarada `sinTool` (ninguna tool conoce esa vara), así que ADI puede decir el
+  // límite en vez de contestar con la cifra de la meta creyendo que es la misma.
+  const _oD = { scenario: R.scenario, onAsk, controles: { varaAcc } };
+  const vAccProm = useViewContext("comercial/02/acciones-vs-promedio-cartera", R, _oD);
+  const vAccMeta = useViewContext("comercial/02/acciones-vs-meta", R, _oD);
+  const vCostoPrecio = useViewContext("comercial/02/costo-contra-precio", R, { scenario: R.scenario, onAsk });
+  const ctxAcc = (varaAcc === "meta" ? vAccMeta.ctx : vAccProm.ctx);
   if (!d) return null;
   const acc = d.margen.acciones, cp = d.margen.costoPrecio, pq = d.margen.porQue;
   const ra = acc ? (acc.referencias.find((x) => x.key === varaAcc) || acc.referencias[0]) : null;
@@ -2143,7 +2258,9 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                   </span>
                   <span style={{ display: "flex", gap: 3 }}>
                     {acc.referencias.map((x) => (
-                      <button key={x.key} onClick={() => setVaraAcc(x.key)} aria-pressed={ra.key === x.key}
+                      // cambiar de vara INFORMA el contexto (nunca dispara): el turno siguiente sabe contra qué
+                      // referencia está mirando el usuario, que es de dónde salen dos montos distintos y legítimos.
+                      <button key={x.key} onClick={() => { setVaraAcc(x.key); const c = (x.key === "meta" ? vAccMeta.ctx : vAccProm.ctx); if (c) setUISignal({ viewContext: c }); }} aria-pressed={ra.key === x.key}
                         style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${ra.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: ra.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: ra.key === x.key ? C.celeste : C.textMuted, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.refFmt}</button>
                     ))}
                   </span>
@@ -2157,7 +2274,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                     {ra.filas.slice(0, 4).map((x) => (
                       <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
                         <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                          {onFicha ? <button onClick={() => { if (ctxAcc) setUISignal({ viewContext: ctxAcc }); onFicha(x.nombre); }} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
                         </span>
                         {/* ROJO, no ámbar (owner 2026-08-08): esta cifra es lo que la cuenta ENTREGA por encima
                             del promedio de la cartera — plata que sale. El exceso en pp y el recuperable en verde
@@ -2192,7 +2309,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                   {cp.filas.slice(0, 4).map((x) => (
                     <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
                       <span style={{ flex: "0 1 106px", minWidth: 84, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
+                        {onFicha ? <button onClick={() => { if (vCostoPrecio.ctx) setUISignal({ viewContext: vCostoPrecio.ctx }); onFicha(x.nombre); }} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{x.nombre}</span>}
                       </span>
                       <span style={{ fontFamily: MONO, fontSize: 10, color: C.textSub, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`costo unitario ${x.costoA} → ${x.costoZ}`}>costo {x.dCostoFmt}</span>
                       <span style={{ fontFamily: MONO, fontSize: 10, color: C.textSub, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`precio por unidad ${x.precioA} → ${x.precioZ}`}>precio {x.dPrecioFmt}</span>
@@ -2219,6 +2336,11 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
  * plana: vienen cruzadas por los DOS deterioros medidos, y el grupo que sale primero es justamente el peligroso. */
 function ResumenPrioridades({ R, onFicha, onAsk }) {
   const P = R.prioridades;
+  // EMISIÓN · el encabezado (el cruce) y los grupos son dos componentes: el primero está declarado `sinTool`
+  // —ninguna tool produce la INTERSECCIÓN de los dos deterioros— y el segundo tiene su divergencia declarada. Con
+  // eso ADI puede explicar el cruce nombrando su límite, en vez de responder con el foco suelto de diagnose.
+  const vCruce = useViewContext("comercial/03/encabezado-cruce", R, { scenario: R.scenario, onAsk });
+  const vGrupos = useViewContext("comercial/03/grupos-prioridad", R, { scenario: R.scenario, onAsk });
   // (el mapa de tonos murió con las barras y el contador de color · owner 2026-08-08: el orden de los grupos ES
   //  la prioridad, y el grupo peligroso va primero con su aviso escrito. No hace falta pintarlo además.)
   if (!P || !P.grupos.length) {
@@ -2236,7 +2358,10 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 4 }}>
-        <span>{P.encabezado}</span>
+        {/* el encabezado del cruce pasa a ser preguntable — mismo texto, mismo lugar: gana el click y el título */}
+        <span style={vCruce.ask ? { cursor: "pointer" } : undefined}
+          title={vCruce.ask ? "Preguntale a ADI: ¿Por qué debo empezar por estas cuentas?" : undefined}
+          onClick={vCruce.ask ? () => vCruce.ask("¿Por qué debo empezar por estas cuentas?") : undefined}>{P.encabezado}</span>
         <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
       </div>
       {P.grupos.map((g) => (
@@ -2274,7 +2399,8 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
                   ) : null}
                 </span>
                 {onFicha ? (
-                  <button onClick={() => onFicha(x.entidad)} title={`Abrir la Ficha de ${x.entidad}`}
+                  // el click informa el contexto del GRUPO de prioridad y después abre la Ficha (nunca dispara)
+                  <button onClick={() => { if (vGrupos.ctx) setUISignal({ viewContext: vGrupos.ctx }); onFicha(x.entidad); }} title={`Abrir la Ficha de ${x.entidad}`}
                     style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
@@ -2305,7 +2431,21 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
  * firme) vs los supuestos declarados (trazo punteado ámbar). TODO de mesaResultado.js/buildPnlCascade (cero cálculo
  * acá — la cascada cierra exacto, una verdad con las lecturas de ADI). Empty state honesto: sin P&L declarado, la
  * cara lo dice y OFRECE armarlo (prefill del flujo guiado — el click informa/precarga, nunca dispara). */
-function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco = null, onExport = null }) {
+function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje = null, onFoco = null, onExport = null }) {
+  /* ── EMISIÓN DEL CONTEXTO · cara Resultado ────────────────────────────────────────────────────────────────
+   * La cascada es el caso donde el sello importa más: hasta la contribución es dato probado, de ahí para abajo
+   * son SUPUESTOS declarados por el usuario. El contexto lo transporta, así que ADI puede explicar el resultado
+   * sin presentar un supuesto como una medición. Con el P&L sin declarar (`defined:false`) el campo no resuelve y
+   * `campoOpcional` hace que no se emita contexto — que es lo correcto: no hay cascada que explicar todavía. */
+  const _oR = { scenario, onAsk };
+  const vPnlCascada = useViewContext("resultado/01/cascada", mr, {
+    ..._oR, controles: { cascadaFoco: (mr && mr.alcance && mr.alcance.nombre) || "" },
+  });
+  const vPnlCuadro = useViewContext("resultado/01/cuadro", mr, {
+    ..._oR, controles: { pnlEje: (mr && mr.cuadro && mr.cuadro.eje) || "", pnlFoco: (mr && mr.alcance && mr.alcance.nombre) || "" },
+  });
+  const askPnl = vPnlCascada.ask || (typeof onAsk === "function" ? (q) => onAsk(q, null) : null);
+  const askCuadro = vPnlCuadro.ask || askPnl;
   // EXPORT/COPIAR (mejora 8 · 2026-07-26): lo que se está viendo (eje + foco activos) sale a Excel/Sheets —
   // Copiar = TSV al portapapeles · CSV = descarga. El click exporta, nunca dispara a ADI (patrón de la Mesa).
   const [copiado, setCopiado] = useState(false);
@@ -2373,8 +2513,8 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, padding:"46px 26px", border:`1px dashed ${C.border}`, borderRadius:14, textAlign:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:14.5, color:C.text, fontWeight:600 }}>{mr.empty.titulo}<InfoDot def={"La cara Resultado arma tu P&L comercial: la cascada ingreso → costo → margen bruto → carga → contribución → TUS líneas de gasto → resultado. Las líneas las defines tú conversando con ADI, como % sobre la venta (decisión v1 — drivers más finos llegan con la contabilidad real). Hasta la contribución todo es dato probado; tus gastos entran como supuestos declarados."} align="left"/></div>
         <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.65, maxWidth:520 }}>{mr.empty.texto}</div>
-        {onAsk ? (
-          <button onClick={() => onAsk(mr.empty.prefill)} title={`Preguntale a ADI: ${mr.empty.prefill}`}
+        {askPnl ? (
+          <button onClick={() => askPnl(mr.empty.prefill)} title={`Preguntale a ADI: ${mr.empty.prefill}`}
             style={{ padding:"9px 18px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
@@ -2399,8 +2539,8 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
       {/* ── ALCANCE DE LA CASCADA (pase 2): chip del foco + volver al negocio (el click informa, nunca dispara) ── */}
       {mr.alcance && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9 }}>
-          <button onClick={onAsk ? () => onAsk(mr.alcance.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${mr.alcance.ask}` : undefined}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11.5, fontWeight:600, cursor: onAsk ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+          <button onClick={askPnl ? () => askPnl(mr.alcance.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.alcance.ask}` : undefined}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11.5, fontWeight:600, cursor: askPnl ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
             <span style={{ color:C.celeste, fontFamily:MONO, fontSize:10 }}>⌖</span> P&L de {mr.alcance.nombre} <span style={{ color:C.celeste }}>→</span>
           </button>
           {onFoco && (
@@ -2416,7 +2556,7 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
       </div>
       <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
         {mr.cascada.map((r) => (
-          <AskRow key={r.key} onAsk={onAsk} q={r.ask} style={{ display:"flex", alignItems:"center", gap:9, padding: r.kind === "resultado" ? "10px 12px" : "7px 12px", borderRadius:9, ...rowStyle(r) }}>
+          <AskRow key={r.key} onAsk={askPnl} q={r.ask} style={{ display:"flex", alignItems:"center", gap:9, padding: r.kind === "resultado" ? "10px 12px" : "7px 12px", borderRadius:9, ...rowStyle(r) }}>
             <span style={{ display:"flex", alignItems:"center", gap:6, minWidth:0, flex:1 }}>
               <span style={{ fontSize: r.kind === "resultado" ? 12.5 : 12, color: r.kind === "resultado" ? C.text : C.textSub, fontWeight: r.subtotal || r.kind === "resultado" ? 600 : 400 }}>{r.label}</span>
               {/* SUPUESTO EDITABLE: el % abre un campo compacto (misma primitiva del chat · no dispara a ADI) */}
@@ -2485,9 +2625,9 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
       </div>
       {/* CORDURA HONESTA · resultado negativo declarado arriba (nunca silencioso) */}
       {mr.alerta && (
-        <button onClick={onAsk ? () => onAsk(mr.alerta.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${mr.alerta.ask}` : undefined}
+        <button onClick={askPnl ? () => askPnl(mr.alerta.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.alerta.ask}` : undefined}
           style={{ display:"flex", alignItems:"center", gap:9, width:"100%", marginTop:9, padding:"9px 12px", borderRadius:10,
-            border:"1px solid rgba(248,113,113,0.4)", background:"rgba(248,113,113,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default" }}>
+            border:"1px solid rgba(248,113,113,0.4)", background:"rgba(248,113,113,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: askPnl ? "pointer" : "default" }}>
           <span style={{ width:7, height:7, borderRadius:"50%", background:C.red, boxShadow:`0 0 6px ${C.red}aa`, flexShrink:0 }}/>
           <span style={{ fontFamily:MONO, fontSize:9.5, fontWeight:600, letterSpacing:"1px", textTransform:"uppercase", color:C.red, flexShrink:0 }}>Resultado negativo</span>
           <span style={{ fontSize:12, color:C.text, lineHeight:1.4 }}>{mr.alerta.linea}</span>
@@ -2499,8 +2639,8 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
       <MovHead num="02" title="Por qué pasa" def={"La línea de gasto que más resultado consume, con su valor anual — del propio P&L que declaraste (una sola verdad con la respuesta de ADI). Tocá el foco y ADI ordena todas tus líneas por peso."}/>
       {mr.foco ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:8 }}>
-          <button onClick={onAsk ? () => onAsk(mr.foco.ask) : undefined} title={onAsk ? `Preguntale a ADI: ${mr.foco.ask}` : undefined}
-            style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: onAsk ? "pointer" : "default", transition:"background 0.15s" }}
+          <button onClick={askPnl ? () => askPnl(mr.foco.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.foco.ask}` : undefined}
+            style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: askPnl ? "pointer" : "default", transition:"background 0.15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
             <span style={{ fontSize:14.5, fontWeight:600, color:C.celeste, fontFamily:MONO, letterSpacing:"0.2px" }}>{mr.foco.usdFmt}</span>
@@ -2521,8 +2661,8 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
             <span style={{ fontFamily:MONO, fontSize:14, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums" }}>{mr.accion.usdFmt}</span>
           </div>
           <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, marginBottom:10 }}>{mr.accion.detalle}</div>
-          {onAsk && (
-            <button onClick={() => onAsk(mr.accion.ask)} title={`Preguntale a ADI: ${mr.accion.ask}`}
+          {askPnl && (
+            <button onClick={() => askPnl(mr.accion.ask)} title={`Preguntale a ADI: ${mr.accion.ask}`}
               style={{ padding:"7px 14px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
@@ -2540,7 +2680,7 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
         <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — el cálculo directo de ese cambio, sin predecir si es viable operarlo así. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Tocá una línea y ADI corre esa cuenta al lado."}/>
         <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
           {mr.simulaciones.map((s) => (
-            <AskRow key={s.key} onAsk={onAsk} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
+            <AskRow key={s.key} onAsk={askPnl} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
               <span style={{ color:C.celeste, fontFamily:MONO, flexShrink:0, marginTop:1 }}>¿?</span>
               <span style={{ flex:1 }}>{s.texto}</span>
               <span style={{ fontFamily:MONO, fontSize:12, color:C.amber, fontWeight:600, whiteSpace:"nowrap", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{s.delta}</span>
@@ -2590,7 +2730,7 @@ function MesaResultadoCara({ resultado: mr, onAsk = null, onEje = null, onFoco =
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
             {mr.cuadro.rows.map((r) => (
-              <AskRow key={r.name} onAsk={onAsk} q={r.ask} style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, alignItems:"center", padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)", fontFamily:MONO, fontSize:11.5, fontVariantNumeric:"tabular-nums" }}>
+              <AskRow key={r.name} onAsk={askCuadro} q={r.ask} style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr 1fr 0.8fr 1fr 1fr 0.8fr", gap:6, alignItems:"center", padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:8, background:"rgba(255,255,255,0.015)", fontFamily:MONO, fontSize:11.5, fontVariantNumeric:"tabular-nums" }}>
                 <span style={{ display:"flex", alignItems:"center", gap:5, minWidth:0 }}>
                   {onFoco && (
                     <button onClick={(ev) => { ev.stopPropagation(); onFoco({ eje: mr.cuadro.eje, nombre: r.name }); }}
@@ -2922,6 +3062,16 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   );
 }
 
+/* El KPI que emite el módulo ↔ el componente declarado en el manifiesto. Vive FUERA de la cara a propósito: es una
+ * tabla estática de emparejamiento, no estado de render. La llave de la izquierda es la del builder (interna, nadie
+ * la lee en pantalla); el componentId de la derecha usa la palabra del producto — «inmovilizado», una sola palabra
+ * para una sola cosa (candado de vocabulario del owner, `_mesa_capital_gate`). */
+const _CAP_KPI_COMPONENTES = [
+  ["capital",  "capital/01/kpi-capital"],
+  ["detenido", "capital/01/kpi-inmovilizado"],
+  ["quiebres", "capital/01/kpi-quiebres"],
+  ["rotacion", "capital/01/kpi-rotacion"],
+];
 function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, onWatch = null, wl = { items: [] } }) {
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
@@ -2934,6 +3084,34 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   // cada KPI abre SU tabla (owner 2026-08-09): la card ya no dispara la pregunta a ADI — la pregunta vive dentro
   // del detalle, que es donde el usuario ya tiene el contexto para hacerla.
   const [drill, setDrill] = useState(null);
+  /* ── EMISIÓN DEL CONTEXTO · cara Capital (Contrato de Concordancia, owner 2026-08-09) ─────────────────────
+   * El eje de esta cara es el SKU y su unidad es el capital valorizado, no la venta comercial: es exactamente la
+   * clase de confusión que el contexto viene a impedir cuando el usuario pregunta "y esto contra qué se compara".
+   * Cada pieza deriva de `cap` (la salida viva de buildMesaCapital) y su control activo viaja declarado. */
+  const _oC = { scenario, onAsk };
+  const _oCdrill = { ..._oC, controles: { drill: drill || "" } };
+  const vCapVeredicto = useViewContext("capital/01/veredicto", cap, _oC);
+  const vCapMapa = useViewContext("capital/01/mapa", cap, _oC);
+  const vCapCortes = useViewContext("capital/01/cortes", cap, { ..._oC, controles: { corte } });
+  const vCapReponer = useViewContext("capital/01/reponer", cap, _oC);
+  const vCapLiquidar = useViewContext("capital/01/liquidar", cap, _oC);
+  const vCapBarras = useViewContext("capital/01/barras", cap, _oC);
+  // las cuatro cards, en el MISMO orden del emparejamiento de módulo (ver _CAP_KPI_COMPONENTES arriba): el KPI se
+  // empareja con su componente por la llave que emite el builder, jamás por la posición en pantalla.
+  const _hooksKpi = [
+    useViewContext(_CAP_KPI_COMPONENTES[0][1], cap, _oCdrill),
+    useViewContext(_CAP_KPI_COMPONENTES[1][1], cap, _oCdrill),
+    useViewContext(_CAP_KPI_COMPONENTES[2][1], cap, _oCdrill),
+    useViewContext(_CAP_KPI_COMPONENTES[3][1], cap, _oCdrill),
+  ];
+  const ctxKpiCap = Object.fromEntries(_CAP_KPI_COMPONENTES.map(([k], i) => [k, _hooksKpi[i]]));
+  // la pregunta de la lectura del mapa sale del propio módulo (la del KPI de capital inmovilizado), nunca de un
+  // literal escrito en la vista: el vocabulario de lo que se le manda a ADI es contrato del módulo.
+  const _askMapa = ((cap.kpis || []).find((k) => k.key === _CAP_KPI_COMPONENTES[1][0]) || {}).ask || null;
+  // `capital/01/focos`, `capital/01/simulaciones` y `capital/01/alertas` están declarados en el manifiesto pero HOY
+  // NO SE PINTAN en esta cara (el owner los sacó el 2026-08-09 junto con la tira de estados y el "¿Y si…?"). No se
+  // les cablea emisor: un contexto de algo que no está en pantalla haría que ADI resolviera "esto" contra una
+  // pieza que el usuario no está viendo. Quedan declarados para cuando vuelvan — es alcance pendiente, no mudo.
   const MovHead = ({ num, title, def }) => (
     <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
@@ -2958,7 +3136,12 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           {cap.veredicto.cierre ? <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, marginTop:4 }}>{cap.veredicto.cierre}</div> : null}
         </div>
       ) : null}
-      <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
+      {/* la lectura del mapa pasa a ser preguntable (mismo texto, mismo lugar: gana el click y el título). La
+          PREGUNTA no se escribe acá: es la que el módulo ya emite para ese KPI — una sola verdad, y así el
+          vocabulario del producto lo sigue fijando el módulo, no la vista. */}
+      <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9, ...(vCapMapa.ask && _askMapa ? { cursor:"pointer" } : {}) }}
+        title={vCapMapa.ask && _askMapa ? `Preguntale a ADI: ${_askMapa}` : undefined}
+        onClick={vCapMapa.ask && _askMapa ? () => vCapMapa.ask(_askMapa) : undefined}>
         <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{cap.mapa.lectura}
       </div>
       {/* LA TIRA DE ESTADOS SE ELIMINÓ (owner 2026-08-09): repetía por tercera vez las cuatro cifras que ya
@@ -2966,8 +3149,11 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       {/* los KPIs de la cara · capital total · detenido · quiebres próximos · rotación media */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:9, marginTop:9 }}>
         {cap.kpis.map((k) => { const col = semCol[k.estado]; const abierta = drill === k.key;
-          const tabla = cap.drill && cap.drill[k.key]; return (
-          <button key={k.key} onClick={tabla ? () => setDrill(abierta ? null : k.key) : undefined}
+          const tabla = cap.drill && cap.drill[k.key];
+          const vK = ctxKpiCap[k.key] || vCapVeredicto; return (
+          // abrir el detalle de una card INFORMA su contexto: la pregunta que el usuario haga después ya llega
+          // sabiendo qué card tiene abierta y no el total de la cara (dos universos, dos cifras legítimas).
+          <button key={k.key} onClick={tabla ? () => { setDrill(abierta ? null : k.key); if (!abierta && vK && vK.ctx) setUISignal({ viewContext: vK.ctx }); } : undefined}
             aria-pressed={abierta} title={tabla ? `Ver ${tabla.titulo.toLowerCase()} (${tabla.n})` : undefined}
             style={{ position:"relative", background: abierta ? "rgba(47,184,218,0.07)" : "rgba(255,255,255,0.02)", border:`1px solid ${abierta ? "rgba(47,184,218,0.5)" : C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: tabla ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s, border-color 0.15s" }}
             onMouseEnter={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
@@ -2987,12 +3173,12 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       {/* EL DETALLE DE LA CARD ABIERTA · una tabla por KPI, con el universo que ese KPI cuenta */}
       {drill && cap.drill && cap.drill[drill] ? (
         <CapitalDrill tabla={cap.drill[drill]} ask={(cap.kpis.find((k) => k.key === drill) || {}).ask}
-          onAsk={onAsk} onCerrar={() => setDrill(null)}/>
+          onAsk={(ctxKpiCap[drill] && ctxKpiCap[drill].ask) || vCapVeredicto.ask} onCerrar={() => setDrill(null)}/>
       ) : null}
       {/* DÓNDE ESTÁ TU PLATA · el reparto por SKU, en barras. Va en 01 porque el owner lo pidió para que "se
           entienda al entrar" (2026-08-09). No repite las cards: ellas dan los totales por estado, esto da el
           reparto por producto — y las unidades adentro muestran lo que ninguna otra vista de la cara muestra. */}
-      <CapitalBarras barras={cap.barras} onAsk={onAsk}/>
+      <CapitalBarras barras={cap.barras} onAsk={vCapBarras.ask}/>
       {/* ── "VER INVENTARIO GENERAL" SE ELIMINÓ (owner 2026-08-09) ──────────────────────────────────────────────
           El cuadro entero quedó redundante: la card "Capital total" abre las mismas 13 filas con las mismas
           columnas, más buscador y filtros pensados para miles de SKU. Tener las dos era la misma tabla dos veces.
@@ -3046,7 +3232,8 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:8 }}>
           <span style={{ display:"flex", gap:3 }}>
             {cap.cortes.vistas.map((v) => (
-              <button key={v.key} onClick={() => setCorte(v.key)} aria-pressed={vistaCorte.key === v.key}
+              // cambiar de corte cambia el EJE que el usuario mira (bodega / familia / edad): informa el contexto
+              <button key={v.key} onClick={() => { setCorte(v.key); if (vCapCortes.ctx) setUISignal({ viewContext: vCapCortes.ctx }); }} aria-pressed={vistaCorte.key === v.key}
                 style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${vistaCorte.key === v.key ? "rgba(47,184,218,0.5)" : C.border}`, background: vistaCorte.key === v.key ? "rgba(47,184,218,0.10)" : "transparent", color: vistaCorte.key === v.key ? C.celeste : C.textMuted, fontSize:10.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
                 {v.label} ({v.n})
               </button>
@@ -3117,7 +3304,9 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
       <MovHead num="03" title="Qué hacer primero" def={"Dos frentes, con la evidencia propia del inventario: PROTEGER LA VENTA son los SKU que rotan rápido y a los que les quedan pocos días de inventario (ordenados por urgencia: primero el que se queda sin stock antes); RECUPERAR LIQUIDEZ son los que no rotan según tu benchmark, ordenados por el capital que inmovilizan. Ninguna de las dos listas usa cifras de venta comercial: el inventario y la venta no reconcilian en unidad ni en período, así que cruzarlos daría un número falso. Cada línea lleva su pregunta; el botón le pide a ADI el orden completo."}/>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:9 }}>
         {[cap.reponer, cap.liquidar].map((lista, li) => (
-          <ResumenCapitalLista key={li} lista={lista} tono={li === 0 ? C.red : C.amber} onAsk={onAsk}/>
+          // cada lista manda SU contexto: reponer se mide en días de inventario y liberar se mide en capital
+          // inmovilizado. Son dos universos y dos métricas — un solo contexto para las dos sería el error de siempre.
+          <ResumenCapitalLista key={li} lista={lista} tono={li === 0 ? C.red : C.amber} onAsk={li === 0 ? vCapReponer.ask : vCapLiquidar.ask}/>
         ))}
       </div>
     </div>
@@ -3816,11 +4005,19 @@ function ControlRing({ ring, rd }) {
                   value={`+${money(ring.quickWinK)}`}
                   detail="lo marcado crítico (120d+ / sin venta) · liberás ese capital ahora"/>
               )}
-              {ring.estructuralK > 0 && (
+              {/* LA TRANSFERENCIA SE OFRECE SÓLO SI EL DATO LA SOSTIENE (owner 2026-08-09, decisión 13 · hallazgo M).
+                  Esta tarjeta recomendaba "transferir / mover lo lento a donde se vende" mientras la cara Capital
+                  declaraba, en su propia vista, que transferir entre bodegas NO se puede evaluar porque ningún SKU
+                  está en más de una. Ni la condición NI EL TEXTO viven acá: los dos salen del motor
+                  (`control.js` → `capability.transferenciaCapability`, la MISMA cuenta que produce esa limitación),
+                  justamente para que "condicionar la tarjeta" no sea un ternario de copy que una edición futura
+                  pueda deshacer sin que el dato cambie. El monto de la palanca no se toca — lo que se retira es la
+                  mitad que el dato no sostiene. Si mañana un SKU aparece en dos bodegas, la tarjeta vuelve sola. */}
+              {ring.estructuralK > 0 && ring.transferencia && (
                 <PathCard tag="Estructural" tagColor={C.amber}
-                  title="Rotar / transferir el stock lento"
+                  title={ring.transferencia.titulo}
                   value={`hasta +${money(ring.estructuralK)}`}
-                  detail="todo el capital inmovilizado · mover lo lento a donde se vende o rebajar · la medida de fondo, más lenta"/>
+                  detail={ring.transferencia.detalle}/>
               )}
             </>
           ) : (
@@ -4909,7 +5106,19 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
   const minMargenFamilia = familias.reduce((min, x) => (typeof x.margen === "number" && (!min || x.margen < min.margen) ? x : min), null);
   const topEsElPeor = topFamilia && minMargenFamilia && topFamilia.nombre === minMargenFamilia.nombre;
 
-  const items = (cap && cap.coverage && cap.coverage.supported) ? cap.facts.capitalLigado.items : [];
+  // CAPITAL LIGADO · decisión 9 del owner (2026-08-09): la tool ya no atribuye inventario a un cliente cuando el
+  // dato no sostiene esa relación — declina con la razón medida. La Ficha la MUESTRA en vez de rellenar: sin
+  // relación válida no hay tabla ni acción por cliente, hay una limitación declarada.
+  const _capSup = !!(cap && cap.coverage && cap.coverage.supported);
+  const _capRazon = (cap && cap.coverage && cap.coverage.reason) || null;
+  const items = _capSup ? cap.facts.capitalLigado.items : [];
+  const _capRelacion = _capSup ? cap.facts.capitalLigado.relacion : ((cap && cap.coverage && cap.coverage.relacion) || null);
+  const _capObservada = _capRelacion === "observada";
+  const _capSujeto = _capObservada ? `productos que le vendés a ${name}` : `SKU asociados al surtido de ${name} por afinidad estimada`;
+  const _capTitulo = !_capSup
+    ? `Inventario inmovilizado y ${name}`
+    : _capObservada ? `Inventario de baja rotación en productos que compra ${name}`
+    : `Inventario inmovilizado asociado al surtido de ${name}`;
   const pos = f.posicionCartera || null;
 
   // IMPORTANCIA EN LA CARTERA + CLASIFICACIÓN (owner 2026-08-07, "diréctamente, sin jerga"): un 2×2 de VOLUMEN
@@ -5090,12 +5299,22 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
         )}
       </div>
 
-      {/* 7 · INVENTARIO DE BAJA ROTACIÓN EN PRODUCTOS QUE COMPRA {name} — SKU/bodega/valorizado/unidades/estado,
-          severidad detenido/crítico(rojo) vs rotación lenta/atención(ámbar). Owner 2026-08-07: título directo,
-          lectura que separa lo detenido de lo de rotación lenta, cierre con la prioridad concreta. */}
+      {/* 7 · INVENTARIO INMOVILIZADO Y ESTE CLIENTE — SKU/bodega/valorizado/unidades/estado, severidad
+          detenido/crítico(rojo) vs rotación lenta/atención(ámbar). Owner 2026-08-07: título directo, lectura que
+          separa lo detenido de lo de rotación lenta, cierre con la prioridad concreta.
+          DECISIÓN 9 (owner 2026-08-09): el título y la lectura los manda la RELACIÓN que declara la tool, no el
+          supuesto de que exista. Sin relación válida en el dato no hay tabla ni prioridad por cliente: se declara
+          la limitación con la razón medida y se remite a la cara Capital, que es donde ese inventario sí tiene
+          dueño (el negocio). Antes esta tarjeta mostraba el inventario global con el nombre de cada cliente
+          encima — el mismo subtotal y los mismos SKU para las 13 cuentas. */}
       <div style={_panelStyle}>
-        <span style={_panelTitle}>{_dot}Inventario de baja rotación en productos que compra {name}</span>
-        {items.length > 0 ? (
+        <span style={_panelTitle}>{_dot}{_capTitulo}</span>
+        {!_capSup ? (
+          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8, lineHeight: 1.55 }}>
+            {_capRazon ? <>{_capRazon}.</> : <>El dato disponible no permite atribuir inventario inmovilizado a {name}.</>}
+            {" "}El capital inmovilizado del negocio se lee completo en la cara Capital, por bodega y por antigüedad.
+          </div>
+        ) : items.length > 0 ? (
           <>
             <div style={{ marginTop: 10, overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, minWidth: 420 }}>
@@ -5119,11 +5338,12 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
             </div>
             <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, marginTop: 8 }}>
               {_criticos.length > 0 && _lentos.length > 0
-                ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en productos que le vendés a {name}.</>
+                ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>
                 : _criticos.length > 0
-                  ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en productos que le vendés a {name}.</>
-                  : <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en productos que le vendés a {name}.</>}
+                  ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en {_capSujeto}.</>
+                  : <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>}
               {" "}Es capital de tu negocio, no de {name}.
+              {!_capObservada ? <> La asociación con {name} es una estimación de afinidad, no una venta registrada.</> : null}
             </div>
             {_capTopMonto && (
               <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${C.celeste}` }}>
@@ -5132,11 +5352,11 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                   : <>Priorizá <b>{_capTopMonto.sku}</b>: es el mayor monto ({_fmUsd(_capTopMonto.usd)}){typeof _capTopMonto.diasSinVenta === "number" ? <> y lleva {_capTopMonto.diasSinVenta} días sin venta</> : null}.</>}
               </div>
             )}
-            {_btn(`Pedile a ADI el detalle de este inventario de ${name} →`, `¿Qué capital tenés detenido en los productos que le vendés a ${name}?`)}
+            {_btn(`Pedile a ADI el detalle de este inventario →`, `¿Qué capital tenés inmovilizado en ${_capSujeto}?`)}
           </>
         ) : (
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
-            Ningún producto que le vendés a {name} está hoy detenido ni con rotación lenta según tu benchmark de rotación y días de inventario.
+            Ningún SKU de los {_capSujeto} está hoy detenido ni con rotación lenta según tu benchmark de rotación y días de inventario.
           </div>
         )}
       </div>
@@ -5152,6 +5372,19 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
 function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
   const cm = React.useMemo(() => buildCuadroMando("cliente", scenario), [scenario]);
   const names = cm.rows.map((r) => r.name);
+  /* ── EMISIÓN DEL CONTEXTO · cara Ficha ────────────────────────────────────────────────────────────────────
+   * Acá el contexto lleva algo que ninguna otra cara lleva: UNA entidad. Se deriva de la lectura del módulo
+   * (buildReadingFromSignals sobre las señales de contribución del cliente) — el mismo builder que el manifiesto
+   * declara —, así que el sujeto sale del dato y no de la UI. Sin cliente elegido no hay contexto de ficha: no
+   * hay ficha que explicar. */
+  const rdFicha = React.useMemo(() => {
+    if (!entity) return null;
+    try { return buildReadingFromSignals(buildClientContribSignals(entity, scenario)); } catch { return null; }
+  }, [entity, scenario]);
+  const { ask: askFicha } = useViewContext("ficha/otro/ficha-cliente", rdFicha, {
+    scenario, onAsk, ambient: true,
+    seleccion: entity ? { modo: "explicita", n: 1, entidades: [entity] } : null,
+  });
   const [busca, setBusca] = useState("");
   const _normB = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const filtered = busca.trim() ? names.filter((n) => _normB(n).includes(_normB(busca))) : names;
@@ -5171,7 +5404,7 @@ function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
           {filtered.length === 0 && <span style={{ fontSize: 11.5, color: C.textMuted }}>Sin coincidencias.</span>}
         </div>
       </div>
-      {entity ? <FichaEjecutivaCliente name={entity} scenario={scenario} onAsk={onAsk}/> : (
+      {entity ? <FichaEjecutivaCliente name={entity} scenario={scenario} onAsk={askFicha || onAsk}/> : (
         <div style={{ fontSize: 12, color: C.textMuted }}>Elegí un cliente arriba para ver su Ficha Ejecutiva.</div>
       )}
     </div>

@@ -213,11 +213,15 @@ function _claimsOnlyOn() {
 // retorno de estas dos funciones (siguen devolviendo el plan/narración PELADOS, byte-igual a siempre — así ningún
 // mock existente en los gates, que llama callPlan/callNarrate ignorando args extra, se entera del cambio). Solo
 // answerViaOracle.js/buildAdiTurnLLM (abajo) lo usan, para dejar el ruteo observable por turno sin tocar el motor.
-async function _fetchPlan({ text, history, mem, scenario, requestContext, attempt, _onRouted }) {
+// `vistaLinea` (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix): la ÚNICA forma en que el contexto de
+// pantalla llega al LLM — una oración de ≤240 caracteres, sin cifras, que answerViaOracle.js proyecta del
+// ViewContext sellado (nunca el objeto, nunca filas, nunca la salida del builder). Se reenvía tal cual al gateway,
+// que la pasa a buildPlanUserMessage. Si el turno no vino de Sentrix es undefined y el body queda igual que hoy.
+async function _fetchPlan({ text, history, mem, scenario, requestContext, attempt, vistaLinea, _onRouted }) {
   const t0 = Date.now();
   const res = await fetch("/api/adi-plan", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt }),
+    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, vistaLinea }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
@@ -226,10 +230,16 @@ async function _fetchPlan({ text, history, mem, scenario, requestContext, attemp
   return data.plan;
 }
 // Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
-async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, attempt, _onRouted }) {
+// El BATCH ya corrió acá; answerViaOracle le pasa a callNarrate TODAS las decisiones de forma que tomó el motor y
+// esta función las reenvía tal cual a buildNarrateUserMessageC. HALLAZGO (owner 2026-08-09, al cablear el contrato de
+// respuesta): `instruccionDisclosure` y `tablePolicy` YA se calculaban en answerViaOracle.js y guardC.js YA validaba
+// tablePolicy, pero esta función los descartaba al desestructurar — o sea que en la ruta REAL de producción el guard
+// bloqueaba una tabla que el prompt nunca había prohibido, y exigía una que nunca había pedido. El propio contrato de
+// presentación lo declara como invariante: "el prompt y el candado tienen que decir lo MISMO". Se reenvían los dos.
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, attempt, _onRouted }) {
   // claimsOnly: modo del Contrato v2 detrás de flag (owner 2026-08-07) — cambia lo que el narrador LEE, no lo que
   // el guard exige. Apagado por defecto: el payload que sale de acá es el mismo verificado en vivo.
-  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, requestContext, claimsOnly: _claimsOnlyOn() });
+  const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, requestContext, claimsOnly: _claimsOnlyOn() });
   const t0 = Date.now();
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
@@ -278,7 +288,12 @@ async function _narrateResult(r, onPhase) {
 
 // `onPhase` (mejora 9 · 2026-07-26): callback opcional — el pipeline avisa su paso REAL y el "Pensando" lo refleja
 // (0=entendiendo · 1=armando la cuenta · 2=redactando · 3=verificando). Sin callback, todo sigue igual (gates/sweeps intactos).
-export async function buildAdiTurnLLM(question, context, scenario, recentTurns, onPhase) {
+// `viewContext` (owner 2026-08-09 · Contrato de Concordancia ADI↔Sentrix): el CONTEXTO DE PANTALLA sellado que
+// emitió Sentrix — qué vista/sección/componente/métrica/período/universo tiene delante el usuario. NO trae cifras
+// ni filas: solo identifica lo que está mirando, para que "explicame este gráfico" tenga contra qué resolverse.
+// Viaja por el MISMO canal que ya usan las señales de UI (uiSignals) y además explícito, para que el motor no
+// tenga que adivinar de dónde leerlo.
+export async function buildAdiTurnLLM(question, context, scenario, recentTurns, onPhase, viewContext = null) {
   const _ph = typeof onPhase === "function" ? onPhase : () => {};
   const q = (question || "").trim();
   let r, narrated = false;
@@ -310,7 +325,12 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       // que ya lee la ruta legacy (coerceChain.js línea ~472, "comparalos" contra la selección de la Mesa) — sin
       // esto, la selección de checkboxes de la Mesa era un camino PARALELO invisible para el oráculo (ver el
       // comentario de cabecera de answerViaOracle.js sobre `uiSignals`).
-      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: tracedCallPlan, callNarrate: tracedCallNarrate, requestContext, uiSignals: getUISignals() });
+      // El contexto de pantalla entra por los DOS caminos que convergen en el mismo objeto: explícito (el usuario
+      // pulsó "Que ADI lo explique" en una pieza concreta) y ambiente (la vista abierta lo publicó en uiSignals).
+      // El explícito gana; si no hay, manda el de la pantalla. Sin panel abierto no viaja nada.
+      const _vc = viewContext || (getUISignals() || {}).viewContext || null;
+      const o = await answerViaOracle({ text: q, history, mem, scenario, callPlan: tracedCallPlan, callNarrate: tracedCallNarrate, requestContext,
+        uiSignals: { ...getUISignals(), ...(_vc ? { viewContext: _vc } : {}) }, viewContext: _vc });
       if (o && o.r) {
         _ph(3);
         // `routing` (observable por turno): cruza routingTrace (modelo/motivo/ms/costo, del fetch) con
@@ -486,12 +506,15 @@ export function AdiMessageBody({ text }) {
 }
 
 // ── Botón Sentrix por mensaje (verbatim del piso) ──
-function SentrixButton({ sentrixAction, onSentrixAction }) {
+// `msgId` (owner 2026-08-09 · Contrato de Concordancia): el CTA abre la dirección EXACTA que respalda la
+// afirmación, y el shell necesita el id del mensaje para marcar cuál evidencia está abierta — el mismo mecanismo
+// que ya usa "Ver evidencia en Sentrix".
+function SentrixButton({ sentrixAction, onSentrixAction, msgId = null }) {
   if (!sentrixAction || !onSentrixAction || !sentrixAction.label) return null;
   return (
     <div style={{ marginLeft:44, marginTop:2, display:"flex", alignItems:"center", gap:8 }}>
       <button
-        onClick={() => onSentrixAction(sentrixAction.payload)}
+        onClick={() => onSentrixAction(sentrixAction.payload, msgId)}
         style={{
           display:"flex", alignItems:"center", gap:6, padding:"7px 14px",
           background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.14)",
@@ -704,6 +727,8 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const isSubmittingRef = useRef(false);
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
+  // el contexto de pantalla que dejó el último "Que ADI lo explique" · se consume (y se limpia) al enviar el turno
+  const pendingVcRef = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -719,8 +744,16 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
 
   // B.2 · BIDIRECCIONAL (la mesa habla): Sentrix pre-carga una pregunta acá (click en una fila del panel) → prefill +
   // focus. El usuario confirma con Enter — sin auto-envío (cero gasto por misclick, la decisión sigue siendo del usuario).
+  // CONTRATO DE CONCORDANCIA (owner 2026-08-09): el `ask` de Sentrix ahora trae DOS cosas — la pregunta (que se
+  // precarga, como siempre) y el CONTEXTO ESTRUCTURADO de la pieza que el usuario tocó. El contexto queda en un ref
+  // y viaja con el turno cuando el usuario confirme, INCLUSO SI REESCRIBE LA PREGUNTA A MANO: lo que importa es qué
+  // estaba mirando, no qué texto quedó en el input. El prefill NO cambia (el click informa, nunca dispara).
   useEffect(() => {
-    if (typeof registerAsk === "function") registerAsk((q) => { setInput(String(q || "")); const ta = inputRef.current; if (ta) ta.focus(); });
+    if (typeof registerAsk === "function") registerAsk((q, vc) => {
+      setInput(String(q || ""));
+      pendingVcRef.current = vc || null;
+      const ta = inputRef.current; if (ta) ta.focus();
+    });
   }, [registerAsk]);
 
   // el CUBO del header (App) = VOLVER AL HALO CENTRAL (owner 2026-07-14): resetea el diálogo al inicio —
@@ -750,6 +783,10 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     // corre y termina en el mismo tick: no hay ventana para reentrar.
     if (isSubmittingRef.current) return;
     setInput("");
+    // el contexto de pantalla del turno: el de la pieza que el usuario tocó, si tocó alguna. Se consume UNA vez —
+    // dejarlo pegado teñiría el turno siguiente, que es justo lo que la invalidación del contrato impide.
+    const vcTurno = pendingVcRef.current;
+    pendingVcRef.current = null;
 
     // ── CAMINO LLM (flag ON · async): user msg + "Pensando…" ahora; resolvemos async y reemplazamos el placeholder ──
     if (ADI_LLM_ENABLED) {
@@ -760,7 +797,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       setSuggestionsVisible(false);
       setThinkPhase(0);   // arranca en "Entendiendo la pregunta" (LLM #1 en vuelo) · el pipeline reporta los saltos reales
       // recentTurns SIEMPRE del ref (messagesRef.current), NUNCA de `messages` — ver la nota junto a su declaración.
-      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messagesRef.current, setThinkPhase).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
+      buildAdiTurnLLM(q, ctxRef.current || context, scenario, messagesRef.current, setThinkPhase, vcTurno).then((turn) => {   // ctxRef = contexto FRESCO (lastEvidence del turno previo · no la closure stale)
         setMessages(prev => prev.map(m => (m.id === adiId ? { ...turn.adiMsg, id: adiId } : m)));
         _applyTurn(turn, adiId);
       }).finally(() => { isSubmittingRef.current = false; });   // libera la guardia siempre (éxito o excepción no atrapada) — nunca deja el chat bloqueado
@@ -890,7 +927,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                   </div>
                 </div>
                 {!isPending && !isTyping && <SourceBadge source={msg._source}/>}
-                <SentrixButton sentrixAction={msg.sentrixAction} onSentrixAction={onSentrixAction}/>
+                <SentrixButton sentrixAction={msg.sentrixAction} onSentrixAction={onSentrixAction} msgId={msg.id}/>
                 <EvidenceButton evidence={msg.evidence} active={openEvidenceId === msg.id}
                   onOpenEvidence={onOpenEvidence ? (ev) => onOpenEvidence(ev, msg.id) : null}/>
                 {/* Suggestions del turno vigente · aparecen al terminar el typewriter */}

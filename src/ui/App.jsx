@@ -16,6 +16,7 @@ import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
+import { parseAddress, evidenceForAddress } from "../adi/sentrix/address.js";   // dirección canónica ADI↔Sentrix (owner 2026-08-09) · el CTA de una respuesta abre vista+sección+entidad+filtro exactos
 
 initCriteria();   // ANTES del primer render: el hero/resumen ya miden contra la vara del owner si hay criterios guardados
 initPnl();        // ídem: la cara Resultado de la Mesa ya arranca con el P&L declarado del owner (localStorage)
@@ -87,6 +88,20 @@ export default function App({ animate = true }) {
   const [maxed, setMaxed]     = useState(false);  // agrandado
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
+  /* ── EL CABLE QUE FALTABA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ──────────────────────────
+   * `sentrixAction` estaba INERTE por dos motivos a la vez: answerViaOracle lo devolvía en null y, aunque lo
+   * hubiera devuelto, este componente montaba <ChatADI> SIN `onSentrixAction`, así que el botón no se renderizaba
+   * en ninguna ruta. Acá se cierra la segunda mitad: el CTA de una respuesta abre la DIRECCIÓN EXACTA que la
+   * respalda —vista, sección, entidad y filtro—, no "la Mesa" a secas.
+   * `payload.address` es la gramática canónica (`sentrix://<vista>/<seccion>/<slug>?…`, address.js). Si no viene o
+   * no parsea, se abre la Mesa como siempre: un CTA nunca deja al usuario en una pantalla rota. */
+  const openFromAddress = (payload, msgId) => {
+    const addr = payload && payload.address ? parseAddress(payload.address) : null;
+    const ev = addr ? evidenceForAddress(addr, scenario) : null;
+    setOpenEv(ev || { lens: "mesa", periodo: scenario });
+    setOpenId(msgId || "mesa");
+    setMaxed(false);
+  };
   // B.2 · BIDIRECCIONAL (la mesa habla): Sentrix pre-carga una pregunta en el input de ADI (click en una fila del panel).
   // ChatADI registra su handler acá; el panel lo invoca. Prefill + focus — el usuario confirma con Enter (sin gasto por misclick).
   const askRef = useRef(null);
@@ -224,6 +239,7 @@ export default function App({ animate = true }) {
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate}
               onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
+              onSentrixAction={openFromAddress}
               openEvidenceId={openId}
               registerAsk={(fn) => { askRef.current = fn; }}
               registerReset={(fn) => { resetRef.current = fn; }}
@@ -233,7 +249,9 @@ export default function App({ animate = true }) {
             /* MOBILE: overlay a pantalla completa — el ✕ del panel vuelve al chat (sin divisor ni resize) */
             <div style={{ position:"fixed", inset:0, zIndex:60, background:C.bg, display:"flex", flexDirection:"column" }}>
               <Suspense fallback={<PanelSkeleton/>}>
-                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={null} maximized={true} onAsk={(q) => { closePanel(); if (askRef.current) askRef.current(q); }}/>
+                {/* el `vc` es el contexto de pantalla que emitió la pieza tocada (Contrato de Concordancia): viaja
+                    junto a la pregunta, sin cifras y sin tablas — solo dice QUÉ estaba mirando el usuario. */}
+                <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={null} maximized={true} onAsk={(q, vc) => { closePanel(); if (askRef.current) askRef.current(q, vc); }}/>
               </Suspense>
             </div>
           ) : (
@@ -245,7 +263,7 @@ export default function App({ animate = true }) {
                 onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
               <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0 }}>
                 <Suspense fallback={<PanelSkeleton/>}>
-                  <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q) => { if (askRef.current) askRef.current(q); }}/>
+                  <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q, vc) => { if (askRef.current) askRef.current(q, vc); }}/>
                 </Suspense>
               </div>
             </>
