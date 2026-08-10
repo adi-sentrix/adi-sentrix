@@ -1222,6 +1222,56 @@ function _transferenciaNoEvaluable(narration, results) {
   return null;
 }
 
+// ── 19 · TRANSFERENCIA PREGUNTADA Y NO CONTESTADA (owner 2026-08-10, certificación live · defecto C1) ──────────
+// EL CHEQUEO 18 ES DE UNA SOLA CARA: impide PROPONER el traslado, pero no exige que la pregunta se CONTESTE. En la
+// certificación, «¿puedo mover el stock lento de Valparaíso a Santiago?» se respondió con el diagnóstico del
+// capital y la decisión quedó colgando. Este es el requisito simétrico —misma familia que `tabla-faltante`, que ya
+// bloquea la AUSENCIA de algo pedido—: si el usuario preguntó por el traslado y la tool declaró su límite, la
+// respuesta tiene que DECLARARLO.
+//
+// Y TIENE QUE DECLARARLO EN TÉRMINOS DE EVALUACIÓN. «No es posible mover el stock» afirma algo distinto —y más—
+// de lo que el dato sostiene: mover stock puede ser perfectamente posible en la bodega real; lo que este dato no
+// permite es COMPROBAR que convenga. Confundir "no evaluable" con "imposible" es la regla 2 de CLAUDE.md (no hay
+// causalidad sin respaldo) del lado de la conclusión, así que la sola negación no alcanza para dar por contestada
+// la pregunta. `ensureTransferenciaDeclarada` (narratePromptC.js) compone la declaración correcta ANTES de que
+// esto corra — igual que `ensurePeriodoDeclared` con el chequeo de período: la doctrina la garantiza, el guard la
+// vuelve contrato. DISPARA SOLO SI LA TOOL LO DECLARÓ: el día que un SKU esté en dos bodegas, se apaga solo.
+const _TRASLADO_EVALUACION = /\b(evalu\w+|comprob\w+|verific\w+|compar\w+|contrast\w+|sostiene|respald\w+|no\s+alcanza|misma?\s+bodega|una\s+sola\s+bodega|dos\s+colocaciones)\b/i;
+/** ¿El TURNO DEL USUARIO pregunta por mover stock entre ubicaciones? Mismo criterio nítido que el chequeo 18. */
+export function preguntaPorTraslado(question, results) {
+  const t = String(question || "");
+  if (!_TRASLADO_VERBO.test(t) || !_TRASLADO_OBJETO.test(t)) return false;
+  if (_TRASLADO_ENTRE.test(t)) return true;
+  const bodegas = _bodegasDeclaradas(results);
+  if (bodegas.filter((b) => new RegExp(`\\b${_esc(b)}\\b`, "i").test(t)).length >= 2) return true;
+  return bodegas.some((b) => new RegExp(`\\b(?:a|hacia|hasta)\\s+(?:la\\s+(?:bodega|sucursal)\\s+(?:de\\s+)?)?${_esc(b)}\\b`, "i").test(t));
+}
+/** ¿La NARRACIÓN declara el límite, y lo declara como límite de evaluación (no como imposibilidad)? */
+export function declaraLimiteTransferencia(narration) {
+  const text = String(narration || "");
+  for (const [lo, hi] of _oraciones(text)) {
+    const o = text.slice(lo, hi);
+    if (!_TRASLADO_VERBO.test(o) && !/\btransferencias?\b|\bredistribuci[oó]n\b/i.test(o)) continue;
+    if (!_TRASLADO_NEGADO.test(o)) continue;
+    if (_TRASLADO_EVALUACION.test(o)) return true;
+  }
+  return false;
+}
+/** El límite declarado por alguna tool de este turno (o null) — la ÚNICA fuente del texto que se compone. */
+export function limiteTransferenciaDeclarado(results) {
+  for (const r of results || []) {
+    const lim = r && r.facts && r.facts.limite_transferencia;
+    if (lim && lim.evaluable === false) return lim;
+  }
+  return null;
+}
+function _transferenciaSinDeclarar(narration, results, question) {
+  if (!limiteTransferenciaDeclarado(results)) return null;
+  if (!preguntaPorTraslado(question, results)) return null;
+  if (declaraLimiteTransferencia(narration)) return null;
+  return "el usuario preguntó por mover stock entre bodegas y la tool declaró que ese movimiento no es evaluable sobre este dato — la respuesta no lo declara, o lo declara como imposibilidad en vez de como límite de evaluación";
+}
+
 // _placeholderSinRellenar(narration) → texto del placeholder | null (owner 2026-07-31, hallazgo en vivo, auditoría
 // integral) — cuando PLAN deja `calls` vacío pese a que la doctrina lo prohíbe (ver
 // answerViaOracle.js/_hasEmptyRedirectCalls), NARRATE a veces redacta la respuesta con placeholders LITERALES sin
@@ -1342,6 +1392,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // chequeo 7: es una conclusión que el dato no respalda, dicha con cifras reales. Ver _transferenciaNoEvaluable.
   const transf = _transferenciaNoEvaluable(narration, results);
   if (transf) violations.push({ kind: "transferencia-no-evaluable", detail: transf });
+  // 19 · la otra cara del 18: preguntada y NO contestada (ver el bloque grande de _transferenciaSinDeclarar).
+  const transfSin = _transferenciaSinDeclarar(narration, results, question);
+  if (transfSin) violations.push({ kind: "transferencia-sin-declarar", detail: transfSin });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución

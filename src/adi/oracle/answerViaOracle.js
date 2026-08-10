@@ -10,7 +10,7 @@ import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
-import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
 import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, composeProsaEjecutiva, resolveTablePolicy, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
@@ -1304,7 +1304,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // la oración que ya dice "a la fecha de hoy" — derivamos la familia esperada del MISMO periodo ya resuelto
     // para esta cita puntual, no del genérico de toda la tool-call.
     const periodosSimple = /a[nñ]o cerrado/i.test(simple.periodo || "") ? ["anual"] : /foto.*hoy/i.test(simple.periodo || "") ? ["hoy"] : periodos;
-    const det = ensurePeriodoDeclared(detRaw, periodosSimple);
+    const det = ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = det; deterministic = true; }
   }
 
@@ -1338,7 +1338,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const base = desdeLedger || composeNoDataMessage(results);
     const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
     for (const candidato of (alcanceLinea ? [`${base}\n\n${alcanceLinea}`, base] : [base])) {
-      const c = ensurePeriodoDeclared(candidato, periodos);
+      const c = ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
       if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
@@ -1450,6 +1450,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // nunca inventa un conteo nuevo, solo reconcilia contra lo YA autorizado. El bloqueo real sigue intacto para
     // cualquier caso que esto no pueda corregir con certeza.
     n = ensureCountAuthorized(n, ledger, results);
+    n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
     const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy });
     narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, usage: null });
@@ -1466,6 +1467,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (alt) {
         let c = ensurePeriodoDeclared(alt, periodos);
         c = ensureClarifyClosingQuestion(c, plan.mode);
+        c = ensureTransferenciaDeclarada(c, results, q);
         if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy }).ok) {
           narration = c; narrationRepaired = true;
           narrateAttemptTrace.push({ attempt, guardOk: false, reason: `${gVerdict.verdict} → salida determinística desde lo autorizado (sin otra llamada)`, usage: null });
@@ -1503,6 +1505,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // Solo en full: action_only tiene su PROPIO contrato estricto (nunca prosa fuera del bloque [[ACCION]]) y estas
     // oraciones de resguardo violarían eso — no se aplican ahí.
     if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
+    c = ensureTransferenciaDeclarada(c, results, q);
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders }).ok) { narration = c; narrationRepaired = true; }
   }
   if (!narration) return null;   // ni narrar ni reparar desde la boleta autorizada funcionó → C se abstiene (fallback a la ruta vieja)

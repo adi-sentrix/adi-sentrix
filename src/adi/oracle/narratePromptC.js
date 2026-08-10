@@ -8,6 +8,11 @@ import { isDefaultPref, buildPrefDispatch, blockInstructionFor, BRIEF_INSTRUCTIO
 import { buildNarrationContract } from "./narrationContract.js";   // CONTRATO v2 · Fase 1: el payload se proyecta del contrato sellado, nunca de plan/results crudos
 import { ADI_EPISTEMIC_NOTE_ENABLED } from "../../config/voiceFlags.js";   // CONTRATO v2 · la PRESENTACIÓN del estatus epistémico va detrás de flag (el SELLO no)
 import { projectViewContextForPlan } from "./viewContext.js";   // Concordancia ADI↔Sentrix: el contexto de pantalla viaja como UNA LÍNEA sin cifras, nunca como objeto ni como tabla
+// UNA SOLA DEFINICIÓN DEL VOCABULARIO DE TRASLADO (owner 2026-08-10, defecto C1): la garantía de más abajo
+// (ensureTransferenciaDeclarada) y el chequeo 19 del guard tienen que coincidir EXACTAMENTE en qué cuenta como
+// pregunta de traslado y qué cuenta como declaración — dos regex paralelas serían justo cómo se llega a que la
+// garantía crea haber cumplido y el guard rechace igual. guardC.js es el dueño del vocabulario; acá se consume.
+import { preguntaPorTraslado, declaraLimiteTransferencia, limiteTransferenciaDeclarado } from "./guardC.js";
 
 // buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
 // narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
@@ -375,6 +380,34 @@ export function ensureClarifyClosingQuestion(text, mode) {
   const s = String(text || "");
   if (mode !== "clarify" || !s.trim() || /\?\s*$/.test(s.trim())) return s;
   return `${s.trim()}\n\n¿Querés que lo repase de otra forma, o seguimos con el siguiente paso?`;
+}
+
+// ensureTransferenciaDeclarada(text, results, question) → GARANTÍA determinística del defecto C1 de la
+// certificación live (owner 2026-08-10). A «¿puedo mover el stock lento de Valparaíso a Santiago?» la respuesta
+// abrió con el diagnóstico del capital y nunca contestó la decisión. El owner: "debe evaluar o declinar
+// explícitamente: si no hay inventario del mismo SKU en origen y destino, decirlo y explicar qué información
+// falta". Mismo patrón que TODA esta familia de garantías (período, hipótesis, clarify): doctrina en el prompt
+// —la `nota` que declara `inventoryStatus`— MÁS backstop de código, nunca doctrina sola.
+//
+// DOS ARREGLOS EN UNO, porque son dos mitades del mismo requisito:
+//   (a) si no hay declaración, se ANTEPONE — la decisión va primero, que es la promesa del producto (01 QUÉ ESTÁ
+//       PASANDO va después de contestar lo que se preguntó, no antes).
+//   (b) si hay declaración pero no dice QUÉ FALTA, se agrega esa mitad. Declinar sin nombrar el faltante deja al
+//       que decide sin saber si el límite es del dato o del producto.
+// CERO TEXTO INVENTADO: el "qué falta" sale de `limite_transferencia.faltante`, que lo cuenta
+// `transferenciaCapability` sobre las filas del escenario activo. Sin cifras, así que no agrega nada que el guard
+// deba autorizar. Y no cuesta ni una llamada: por eso el chequeo 19 de guardC nunca tiene que rechazar un turno.
+export function ensureTransferenciaDeclarada(text, results, question) {
+  const s = String(text || "");
+  const lim = limiteTransferenciaDeclarado(results);
+  if (!lim || !preguntaPorTraslado(question, results)) return s;
+  const falta = lim.faltante ? ` Para poder evaluarla haría falta ${lim.faltante}.` : "";
+  if (!declaraLimiteTransferencia(s)) {
+    const decl = `No puedo evaluar mover ese stock entre bodegas: con este dato no hay dos colocaciones del mismo producto que comparar, así que no tengo con qué comprobar que el movimiento convenga.${falta}`;
+    return s.trim() ? `${decl}\n\n${s.trim()}` : decl;
+  }
+  if (lim.faltante && !/haría falta|hace falta|falta(?:ría)? (?:el|la|saber|tener)/i.test(s)) return `${s.trim()}${falta}`;
+  return s;
 }
 
 // ── ESTATUS EPISTÉMICO · PRESENTACIÓN detrás de flag, SELLO siempre (owner 2026-08-07) ─────────────────────────

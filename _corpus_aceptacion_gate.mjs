@@ -31,6 +31,7 @@ import { guardC } from "./src/adi/oracle/guardC.js";
 import { resolveGlossary } from "./src/adi/sentrix/glossary.js";
 import { headlineTotal } from "./src/adi/sentrix/headline.js";
 import { transferenciaCapability } from "./src/adi/sentrix/capability.js";
+import { ensureTransferenciaDeclarada } from "./src/adi/oracle/narratePromptC.js";   // la garantía C1: se prueba tal como corre en producción
 import { applyScenarioToSkuInventario } from "./src/engine/scenarios.js";
 import { SELLOS, PERIODOS } from "./src/config/contract/figureType.js";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -253,7 +254,7 @@ pregunta(8, "La rotación media es 6.0x, ¿de dónde sale?", "responde",
  * puede ejecutarlo ni nosotros comprobarlo. Sentrix ya lo retiró; ADI tiene que declararlo con la MISMA cuenta. */
 pregunta(9, "¿Puedo mover el stock lento de Valparaíso a Santiago?", "declina la acción",
   [{ tool: "inventoryStatus", args: { focus: "frenado" } }],
-  ({ figs, results, guard }) => {
+  ({ figs, results, guard, q }) => {
     const cap = transferenciaCapability(applyScenarioToSkuInventario(SCN));
     ok(cap.evaluable === false && cap.skusMultiBodega === 0,
       `el dato NO permite evaluar la transferencia — ${cap.skus} SKU en ${cap.bodegas} bodegas, ${cap.skusMultiBodega} en más de una`);
@@ -270,18 +271,38 @@ pregunta(9, "¿Puedo mover el stock lento de Valparaíso a Santiago?", "declina 
     const inm = figDe(figs, /^Capital inmovilizado · total$/);
     const gBien = guard(`No puedo evaluar mover stock entre bodegas: cada SKU aparece en una sola, así que no hay dos colocaciones que comparar. Lo que sí está medido es el capital detenido, ${inm && inm.value}.`);
     ok(gBien.ok, "la declinación honesta —con el capital detenido como salida— pasa el muro", JSON.stringify(gBien.violations));
+    // PREGUNTADA Y NO CONTESTADA (owner 2026-08-10, certificación live · defecto C1) — el chequeo 19 es la otra
+    // cara del 18: en este turno el usuario PREGUNTÓ por el traslado, así que una respuesta que solo entrega el
+    // diagnóstico deja la decisión sin contestar. Eso es exactamente lo que pasó en vivo.
+    const gSinContestar = guard(`El capital detenido se concentra en Valparaíso: ${inm && inm.value}.`);
+    ok(gSinContestar.violations.some((v) => v.kind === "transferencia-sin-declarar"),
+      "responder solo el diagnóstico, sin contestar la decisión, se BLOQUEA",
+      `verdict=${gSinContestar.verdict} · ${JSON.stringify(gSinContestar.violations.map((v) => v.kind))}`);
+    // «no es posible mover» afirma MÁS de lo que el dato sostiene: el límite es de EVALUACIÓN, no de posibilidad.
+    ok(guard(`No es posible mover el stock a Santiago. Conviene liquidar donde está: ${inm && inm.value}.`)
+      .violations.some((v) => v.kind === "transferencia-sin-declarar"),
+      "declararlo como IMPOSIBILIDAD (en vez de como límite de evaluación) también se BLOQUEA");
+    // LA GARANTÍA LO CIERRA SIN PAGAR UNA LLAMADA: `ensureTransferenciaDeclarada` corre en las 5 rutas que producen
+    // texto (answerViaOracle.js) ANTES de que el guard mire. Se prueba acá tal como corre en producción.
+    const gGarantia = guard(ensureTransferenciaDeclarada(
+      `El capital detenido se concentra en Valparaíso: ${inm && inm.value}.`, results, q));
+    ok(gGarantia.ok, "la garantía determinística compone la declinación y pasa el muro, sin otra llamada",
+      JSON.stringify(gGarantia.violations));
+    ok(/haría falta/.test(ensureTransferenciaDeclarada("Lo medido es el capital.", results, q)),
+      "la declinación dice QUÉ INFORMACIÓN FALTA, no solo que no se puede");
     // EL MURO NO PUEDE SER UN VETO A LA PALABRA "MOVER": la medida que SÍ está sostenida (liquidar/rotar donde ya
     // está) y el uso figurado del verbo tienen que pasar. Un bloqueo de más degrada respuestas correctas, que es
-    // justo lo que este chequeo existe para evitar.
+    // justo lo que este chequeo existe para evitar. Se prueban CON la garantía aplicada —como en producción—: lo
+    // que se verifica es que ninguna de las tres dispare por la palabra, no que se puedan omitir la decisión.
     for (const legítima of [
       `Conviene liquidar o rotar el stock detenido donde ya está: son ${inm && inm.value}.`,
       `Para mover la aguja del margen, la palanca está en el capital detenido (${inm && inm.value}).`,
       `El capital detenido se concentra en Valparaíso; el resto está en Antofagasta.`,
     ]) {
-      const g = guard(legítima);
+      const g = guard(ensureTransferenciaDeclarada(legítima, results, q));
       ok(g.ok, `no es un veto a la palabra: «${legítima.slice(0, 52)}…» pasa`, JSON.stringify(g.violations));
     }
-    return `no evaluable: ${cap.skusMultiBodega}/${cap.skus} SKU en 2+ bodegas · límite declarado en facts · recomendar bloquea`;
+    return `no evaluable: ${cap.skusMultiBodega}/${cap.skus} SKU en 2+ bodegas · límite declarado en facts · recomendar bloquea · preguntada-sin-contestar bloquea`;
   });
 
 /* ══ 10 · «¿Cuánto capital tengo ligado en Falabella? ¿Y en Lider?» ══════════════════════════════════════════
@@ -500,7 +521,7 @@ for (const c of CORPUS) {
     results.map((r) => `${r.tool}=${r.coverage && r.coverage.supported}`).join(" · "));
   let evidencia = "";
   try {
-    evidencia = c.prueba({ ledger, results, figs, guard, guardCon }) || "";
+    evidencia = c.prueba({ ledger, results, figs, guard, guardCon, q: c.q }) || "";
   } catch (e) {
     FAIL++; console.log("    ✗ la prueba explotó: " + String((e && e.message) || e));
     evidencia = `EXCEPCIÓN: ${String((e && e.message) || e)}`;

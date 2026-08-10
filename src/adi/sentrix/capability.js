@@ -113,6 +113,14 @@ export function transferenciaCapability(rows = null) {
     motivo: multi > 0
       ? `${multi} SKU están en más de una bodega: ahí sí se puede comparar su colocación.`
       : "Transferir entre bodegas no se puede evaluar: cada SKU aparece en una sola.",
+    // QUÉ INFORMACIÓN FALTA (owner 2026-08-10, certificación live · defecto C1) — `motivo` dice que no se puede
+    // evaluar; no decía QUÉ haría falta para poder. Declinar sin nombrar el faltante deja al que decide sin saber
+    // si el límite es del dato o del producto, y es la mitad que el owner reclamó ("decirlo y explicar qué
+    // información falta"). Sale de la MISMA cuenta, así que no puede desincronizarse: si mañana un SKU aparece en
+    // dos bodegas, `evaluable` se enciende y este campo desaparece con él.
+    faltante: multi > 0
+      ? null
+      : "el mismo SKU con existencias en la bodega de origen Y en la de destino: sin dos colocaciones del mismo producto no hay nada que comparar",
   };
 }
 

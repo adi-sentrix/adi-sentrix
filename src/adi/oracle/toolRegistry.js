@@ -483,7 +483,12 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
   // desaparezca solo y la recomendación vuelva sin tocar código.
   if (r.coverage && r.coverage.supported) {
     const cap = transferenciaCapability(applyScenarioToSkuInventario(scenario));
-    if (!cap.evaluable) r.facts = { ...r.facts, limite_transferencia: { ...cap, nota: "no propongas transferir, mover ni redistribuir stock entre bodegas: el dato no permite comprobar que ese movimiento sea posible. La medida que SÍ está sostenida sobre el capital detenido es liquidar o rotar donde ya está" } };
+    // LA NOTA DICE LAS TRES COSAS (owner 2026-08-10, certificación live · defecto C1). Antes decía una sola —"no
+    // propongas transferir"— y por eso la respuesta podía quedarse en el diagnóstico sin contestar la decisión, o
+    // contestarla de más ("no es posible mover el stock"). El límite es de EVALUACIÓN, no de posibilidad: mover
+    // stock puede ser perfectamente posible en la bodega real; lo que este dato no permite es comprobar que
+    // convenga. Y el registro vigente es "capital inmovilizado" (nunca "detenido", ver CLAUDE.md §4).
+    if (!cap.evaluable) r.facts = { ...r.facts, limite_transferencia: { ...cap, nota: "si el usuario pregunta por mover, transferir o redistribuir stock entre bodegas, CONTESTÁ la decisión declinándola de forma explícita, y en la PRIMERA frase: no se puede EVALUAR esa transferencia con este dato (no es que sea imposible moverlo — es que no hay con qué comprobar que convenga). Decí qué información falta, que es " + cap.faltante + ". Nunca atribuyas el límite a «la herramienta» ni a «el sistema»: es el dato el que no alcanza. La medida que SÍ está sostenida sobre el capital inmovilizado es liquidar o rotar donde ya está" } };
   }
   return r;
 }
