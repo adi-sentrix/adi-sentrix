@@ -24,3 +24,6 @@ dev.log
 
 # Build de Vite (lo genera el host · Vercel corre `vite build`) — nunca commitear
 dist/
+
+# Telemetria del gateway · NUNCA se commitea (puede crecer, y es evidencia de una corrida, no codigo)
+_telemetria/
