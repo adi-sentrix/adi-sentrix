@@ -166,7 +166,19 @@ function _ejeNoAbierto(pedido, res, alternativas = []) {
 // queryMetric · ranking/lista de una métrica × un eje (ventas por cliente, margen por marca…). entityScope (Etapa 2,
 // owner 2026-08-03, continuidad conversacional universal): forwarding mecánico a composeSpecRetrieval — "de esos
 // SKU, ¿cuál vendió más?" acota el ranking al subconjunto en vez de traer el eje entero.
-function queryMetric({ metric, dimension, filters = {}, scenario, limit = null, sort = null, entityScope = null } = {}) {
+// ALIAS DE ENTRADA · «cobertura» → `doh` (owner 2026-08-10). La métrica interna duplicada `cobertura` se eliminó
+// (era un redondeo de `doh` que difería hasta 28 días en un mismo SKU), pero eliminarla dejó DECLINANDO una palabra
+// que el usuario usa todos los días. La regla del owner es explícita: se puede borrar la métrica, no la comprensión.
+// Esto NO reintroduce el campo: normaliza la palabra de entrada a la única verdad canónica, que en pantalla se
+// llama «Días de inventario». Es el mismo criterio que el vocabulario de qiRetrieval (`cobertura: [cobertura, doh]`).
+const _METRIC_ALIAS = { cobertura: "doh", "dias de inventario": "doh", "días de inventario": "doh", "dias inv": "doh", "días inv": "doh" };
+const _canonMetric = (m) => {
+  const k = String(m == null ? "" : m).trim().toLowerCase();
+  return _METRIC_ALIAS[k] || m;
+};
+
+function queryMetric({ metric: _metric, dimension, filters = {}, scenario, limit = null, sort = null, entityScope = null } = {}) {
+  const metric = _canonMetric(_metric);
   // REDIRECT A ENTIDAD PUNTUAL (owner "unidades vendidas por Falabella" 2026-07-29, hallazgo en vivo): si el plan
   // filtra el EJE por SÍ MISMO (dimension:"cliente", filters:{cliente:"Falabella"}) en realidad pidió LA FILA de
   // una entidad concreta, no un ranking — es el mismo error de tool que "el costo medio de Sodimac" con
