@@ -1,0 +1,103 @@
+/* === _reparacion_cableado_gate.mjs · CONTRATO v1.2 · EL CABLEADO, CERTIFICADO POR LECTURA ======================
+ * @inspeccion-estatica — este gate LEE código fuente como TEXTO. No importa el gateway ni ningún adapter, no
+ * invoca a handlePlan/handleNarrateC/callPlan/callNarrate y no abre un socket: menciona esos símbolos porque son
+ * justamente lo que tiene que certificar que existe (o que NO existe) en el archivo del motor. Cumple las tres
+ * condiciones del escape declarado en scripts/gates-offline.mjs, y el candado de runtime se le aplica igual.
+ *
+ * QUÉ CERTIFICA, y por qué no alcanza con probar las funciones sueltas:
+ *   §8.13 · que NO hay una tercera llamada al LLM — es una afirmación sobre los SITIOS DE LLAMADA del motor, no
+ *           sobre una función; solo se puede probar contando los sitios.
+ *   §8.3  · que el backstop de "redirect sin calls" trae la excepción de la corrección ambigua (el que cobraba
+ *           tres llamadas de PLAN por una respuesta correcta).
+ *   §1    · que la reparación se aplica ANTES de todo lo que consume el contexto anterior. Un orden invertido
+ *           dejaría el código presente y la garantía rota, que es exactamente el defecto más caro de detectar.
+ *   §4.1  · que el guard recibe la reparación en TODOS los puntos donde valida una narración.
+ *   §8.12 · que los adapters siguen sin importar una sola línea del contrato de ADI.
+ */
+import { readFileSync } from "node:fs";
+
+let pass = 0, fail = 0;
+function ok(name, cond, detail) {
+  if (cond) { pass++; console.log(`  OK  ${name}`); }
+  else { fail++; console.log(`FAIL  ${name}${detail ? " — " + detail : ""}`); }
+}
+function section(t) { console.log(`\n== ${t} ==`); }
+const leer = (p) => readFileSync(p, "utf8");
+const cuenta = (s, re) => (s.match(re) || []).length;
+
+const MOTOR = leer("./src/adi/oracle/answerViaOracle.js");
+const GATEWAY = leer("./src/adi/llm/gatewayCore.js");
+const NARRAR = leer("./src/adi/oracle/narratePromptC.js");
+const PLANP = leer("./src/adi/oracle/planPrompt.js");
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+section("1 · SON DOS LLAMADAS, NO TRES (§8.13)");
+// Los dos únicos sitios donde el motor invoca al proveedor. Se cuentan los SITIOS de invocación, no las
+// menciones: un tercero aparecería acá aunque estuviera escondido detrás de otro nombre de variable.
+const sitiosPlan = cuenta(MOTOR, /await\s+callPlan\s*\(/g);
+const sitiosNarrate = cuenta(MOTOR, /await\s+callNarrate\s*\(/g);
+ok("PLAN se invoca desde UN solo sitio", sitiosPlan === 1, `${sitiosPlan}`);
+ok("NARRAR se invoca desde UN solo sitio", sitiosNarrate === 1, `${sitiosNarrate}`);
+ok("no hay ninguna tercera puerta al proveedor en el motor",
+  sitiosPlan + sitiosNarrate === 2 && !/await\s+call(?!Plan|Narrate)[A-Z]/.test(MOTOR));
+ok("el gateway sigue exponiendo DOS handlers para el oráculo (plan · narrate-c)",
+  /"\/api\/adi-plan":\s*handlePlan/.test(GATEWAY) && /"\/api\/adi-narrate-c":\s*handleNarrateC/.test(GATEWAY));
+// el presupuesto de reintentos tampoco cambió: 3 intentos por pasada, como antes de este contrato.
+ok("el presupuesto de reintentos sigue siendo 3 por pasada (la reparación no compró llamadas)",
+  cuenta(MOTOR, /attempt\s*<\s*3/g) === 2, `${cuenta(MOTOR, /attempt\s*<\s*3/g)}`);
+
+section("2 · EL BACKSTOP QUE COBRABA UNA RESPUESTA CORRECTA (§8.3)");
+const lineaBackstop = MOTOR.split("\n").find((l) => /intent === "redirect"/.test(l) && /redirect sin calls/.test(l)) || "";
+ok("el backstop de «redirect sin calls» sigue existiendo", !!lineaBackstop);
+ok("§4.1 · pero ya NO dispara sobre una corrección ambigua", /_esReparacionAmbigua\(p\)/.test(lineaBackstop), lineaBackstop.trim().slice(0, 120));
+ok("la excepción exige `corrige` vacío además del flag (una corrección resuelta nunca se cuela como pregunta)",
+  /function _esReparacionAmbigua[\s\S]{0,400}?r\.ambigua === true[\s\S]{0,120}?!\(Array\.isArray\(r\.corrige\) && r\.corrige\.length\)/.test(MOTOR));
+
+section("3 · EL ORDEN IMPORTA: la reparación corre antes que todo lo que lee el contexto (§1)");
+const iRep = MOTOR.indexOf("applyRepairToScope(conversationScopePrev");
+const iRef = MOTOR.indexOf("resolveConversationReference(q, plan, conversationScopePrev");
+const iBatch = MOTOR.indexOf("runPlan({ intent: plan.intent, calls }");
+const iMem2 = MOTOR.indexOf("if (conversationScopePrev.current || conversationScopePrev.history.length)");
+const iAmbigua = MOTOR.indexOf("composePrecisionQuestion(conversationScopePrev");
+ok("la reparación se aplica ANTES de resolver referencias deícticas", iRep > 0 && iRef > 0 && iRep < iRef, `${iRep} < ${iRef}`);
+ok("…ANTES del batch de tools", iRep < iBatch, `${iRep} < ${iBatch}`);
+ok("…y ANTES de armar la memoria que ve el narrador", iRep < iMem2, `${iRep} < ${iMem2}`);
+ok("§4 · la pregunta de precisión corta ANTES del batch (no se calcula nada sin saber qué corregir)",
+  iAmbigua > 0 && iAmbigua < iBatch, `${iAmbigua} < ${iBatch}`);
+ok("§3.6 · la oferta invalidada se apaga también en el shim `mem.lastOffer`",
+  /mem2 = \{ \.\.\.mem2, lastOffer: priorOffer \|\| null \}/.test(MOTOR));
+ok("§5.1 · el supuesto del usuario solo se guarda si él lo autorizó en ESTE turno",
+  /_reparacion\.tipo === "dato_usuario" && _reparacion\.aceptado === true/.test(MOTOR));
+
+section("4 · EL GUARD JUZGA EL MISMO OBJETO QUE VE EL PROMPT (§4.1)");
+const guardsNarracion = cuenta(MOTOR, /guardC\((?:det|c|n),/g);
+const guardsConReparacion = cuenta(MOTOR, /guardC\((?:det|c|n),[^\n]*reparacion: reparacionSellada/g);
+ok("todos los guardC que validan una narración reciben la reparación",
+  guardsNarracion > 0 && guardsNarracion === guardsConReparacion, `${guardsConReparacion}/${guardsNarracion}`);
+ok("la reparación sellada se compone UNA vez, con el mismo builder del contrato de narración",
+  cuenta(MOTOR, /const reparacionSellada = buildReparacion\(/g) === 1);
+ok("el system de NARRAR la recibe desde el PAYLOAD, no del plan crudo",
+  /buildNarrateSystemC\([\s\S]{0,240}?payload\.reparacion \|\| null\)/.test(GATEWAY));
+ok("la doctrina de NARRAR es condicional (un turno normal no paga tokens)",
+  /doctrinaReparacion \? `\\n\$\{doctrinaReparacion\}\\n` : ""/.test(NARRAR));
+
+section("5 · NO SE CREÓ NINGUNA CAPA PARALELA (§7)");
+ok("la reparación viaja dentro del intent=redirect que ya existía",
+  /enum: \["answer", "define", "redirect", "ack"\]/.test(PLANP));
+ok("no hay un módulo nuevo de reparación: el estado vive en conversationScope",
+  /from "\.\/conversationScope\.js"/.test(MOTOR) && /applyRepairToScope/.test(MOTOR));
+ok("no se agregó una memoria: los supuestos usan el campo que el shape ya reservaba",
+  /supuestos: \[\]/.test(leer("./src/adi/oracle/conversationScope.js")));
+ok("el criterio de compatibilidad vive en el contrato versionado, no en el motor",
+  /camposQueSeInvalidan/.test(leer("./src/adi/oracle/conversationScope.js")) && !/camposQueSeInvalidan/.test(MOTOR));
+
+section("6 · LOS ADAPTERS SIGUEN SIN SABER NADA DE ADI (§8.12)");
+for (const a of ["openai", "anthropic"]) {
+  const src = leer(`./src/adi/llm/adapters/${a}.js`);
+  const importaContrato = /^\s*import[^\n]*from\s+["'][^"']*(oracle\/|conversationalContract|narrationContract|planPrompt|narratePromptC)/m.test(src);
+  ok(`adapter ${a}: no importa una sola línea del contrato de ADI`, !importaContrato);
+  ok(`adapter ${a}: recibe el schema NEUTRAL verbatim, sin traducirlo`, /tool\.schema/.test(src));
+}
+
+console.log(`\n${pass} OK · ${fail} FAIL`);
+process.exit(fail ? 1 : 0);
