@@ -1296,13 +1296,130 @@ function _simulateGeneralConclusionViolation(narration, results) {
   return m ? m[0] : null;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto" } = {}) {
+/* ══ REPARACIÓN CONTEXTUAL · Contrato Conversacional v1.2 (owner 2026-08-10) ═══════════════════════════════════
+ * DOS candados nuevos, los dos deterministas y los dos del mismo tipo que el resto de este archivo: el prompt es
+ * el mecanismo principal, esto es lo que hace que "no puede pasar" sea literalmente cierto.
+ */
+
+// §4.1 · LAS DOS CORRECCIONES SON DISTINTAS Y EL GUARD DEBE DISTINGUIRLAS.
+// Una corrección RESUELTA (se sabe qué corregir) tiene que TRAER EL DATO CORREGIDO: contestar "entendido, era
+// Lider" sin una sola cifra es un defecto, no una respuesta — el usuario corrigió justamente para ver el número
+// bueno. Una corrección AMBIGUA es lo contrario: su respuesta válida es una pregunta SIN datos, y ni siquiera
+// llega hasta acá (el motor corta antes del batch), así que este chequeo no puede confundirlas ni por accidente.
+// Solo aplica cuando el turno TIENE cifras autorizadas: si las tools declinaron, exigir evidencia sería exigir
+// lo que el dato no dio — ahí la respuesta honesta es declarar el límite, y eso ya lo gobierna HONESTIDAD.
+function _correccionSinEvidencia(narration, reparacion, figs) {
+  const r = reparacion && typeof reparacion === "object" ? reparacion : null;
+  if (!r || r.tipo !== "correccion" || r.ambigua) return null;
+  if (!Array.isArray(figs) || !figs.length) return null;
+  const citadas = parseFigures(narration);
+  if (citadas.length) return null;
+  return `corrección resuelta (${(Array.isArray(r.corrige) && r.corrige.length ? r.corrige.join("+") : "foco")}) narrada sin una sola cifra, con ${figs.length} autorizadas en la boleta`;
+}
+
+// §5.1 · EL TERCER UNIVERSO. Una cifra que aportó el usuario NO es un dato del motor y NO es un invento: es una
+// tercera clase, y la que más fácil se confunde porque "suena igual que las otras dos y no salió de ningún dato".
+// El vocabulario de PROCEDENCIA es cerrado y angosto a propósito (mismo criterio que el resto de regexes
+// deterministas de este archivo): no pretende cubrir toda forma de decirlo — la doctrina de NARRAR es el
+// mecanismo principal —, sino reconocer sin ambigüedad que la marca está.
+const _PROCEDENCIA_USUARIO_RE = /\b(?:seg[uú]n\s+(?:tu|vos|usted|lo\s+que\s+(?:me\s+)?(?:dijiste|pasaste|indicaste))|tu\s+(?:cifra|dato|n[uú]mero|estimaci[oó]n|supuesto)|el\s+(?:dato|n[uú]mero|valor)\s+que\s+(?:me\s+)?(?:aportaste|pasaste|diste|indicaste|mencionaste)|la\s+cifra\s+que\s+(?:me\s+)?(?:aportaste|pasaste|diste|indicaste|mencionaste)|cifra\s+aportada|dato\s+aportado|supuesto\s+(?:tuyo|aportado|del\s+usuario)|sobre\s+tu\s+supuesto|con\s+tu\s+n[uú]mero)\b/i;
+// "nunca se suma a un total sellado por el motor ni se mezcla en una cifra que el producto presente como propia"
+const _CONSOLIDA_RE = /\b(?:suma|suman|sumando|sumad[oa]s?|en\s+total|totaliza|totalizan|junt[oa]s|combinad[oa]s?|consolidad[oa]s?|en\s+conjunto|entre\s+(?:ambos|los\s+dos|las\s+dos))\b/i;
+// marco de ESCENARIO/ESTIMACIÓN — lo que un cálculo derivado de un supuesto del usuario tiene que declarar.
+const _ESTIMACION_RE = /\b(?:estimad[oa]s?|estimaci[oó]n|escenario|hip[oó]tesis|hipot[eé]tic[oa]|supuesto|proyecci[oó]n|si\s+(?:se\s+)?confirma|asumiendo)\b/i;
+
+// _figsDelUsuario(reparacion) → las cifras APORTADAS POR EL USUARIO que están vivas en este turno: el supuesto ya
+// aceptado (vive en el estado canónico) y el dato que acaba de afirmar (vive solo en este turno).
+function _figsDelUsuario(reparacion) {
+  const r = reparacion && typeof reparacion === "object" ? reparacion : null;
+  if (!r) return [];
+  const crudos = [];
+  if (Array.isArray(r.supuestos)) for (const s of r.supuestos) if (s && s.valor) crudos.push(String(s.valor));
+  if (r.dato && r.dato.valor) crudos.push(String(r.dato.valor));
+  const out = [];
+  for (const v of crudos) for (const f of parseFigures(v)) out.push(f);
+  return out;
+}
+
+// _violacionesTercerUniverso(narration, reparacion, figsMotor) → las tres formas de romper §5.1, por oración:
+//   (a) la cifra del usuario escrita SIN su marca de procedencia (no alcanza con marcarla una vez al principio:
+//       "queda marcada como suya en CADA lugar donde aparezca");
+//   (b) esa cifra consolidada con una cifra sellada por el motor (sumada, totalizada, "en conjunto");
+//   (c) un derivado de esa cifra presentado como dato probado, sin marco de escenario/estimación.
+function _violacionesTercerUniverso(narration, reparacion, figsMotor) {
+  const supFigs = _figsDelUsuario(reparacion);
+  if (!supFigs.length) return [];
+  const canonMotor = new Set((figsMotor || []).map((f) => f.canon));
+  // SI LA CIFRA COINCIDE CON UNA DEL MOTOR, NO ES DEL USUARIO. Cuando los dos números son el mismo no hay
+  // discrepancia que proteger, y exigir la marca de procedencia castigaría una oración legítima sobre el dato
+  // propio del producto. Mismo criterio que el resto de este archivo: antes un falso negativo que un falso
+  // positivo — un guard que bloquea prosa correcta se termina desactivando.
+  const canonUsuario = new Set(supFigs.map((f) => f.canon).filter((c) => !canonMotor.has(c)));
+  if (!canonUsuario.size) return [];
+  const out = [];
+  const texto = String(narration || "");
+  // _oraciones devuelve LÍMITES [lo,hi] sobre el texto con las cifras enmascaradas (para que el punto decimal de
+  // "$13.3M" no parta una oración) — se corta el texto ORIGINAL con esos mismos índices, igual que el chequeo 9.
+  for (const [lo, hi] of _oraciones(texto)) {
+    const oracion = texto.slice(lo, hi);
+    const enOracion = parseFigures(oracion);
+    if (!enOracion.length) continue;
+    const delUsuario = enOracion.filter((f) => canonUsuario.has(f.canon));
+    const marcada = _PROCEDENCIA_USUARIO_RE.test(oracion);
+    if (delUsuario.length && !marcada) {
+      out.push(`«${delUsuario[0].text}» es una cifra que aportó el usuario y se narra sin declarar de quién es`);
+      continue;   // una oración, una violación: la de procedencia ya explica el problema entero
+    }
+    if (delUsuario.length) {
+      // (b) — el motor tiene su propia cifra en la MISMA oración y una construcción que las consolida.
+      const delMotor = enOracion.filter((f) => canonMotor.has(f.canon) && !canonUsuario.has(f.canon));
+      if (delMotor.length && _CONSOLIDA_RE.test(oracion)) {
+        out.push(`«${delUsuario[0].text}» (del usuario) se consolida con «${delMotor[0].text}» (del motor) en la misma cuenta`);
+      }
+      continue;
+    }
+    // (c) — ninguna cifra del usuario textual, pero SÍ una cifra que solo se explica combinando su supuesto.
+    const derivadas = enOracion.filter((f) => !canonMotor.has(f.canon) && _derivadaDeSupuesto(f, supFigs, figsMotor));
+    if (derivadas.length && !_ESTIMACION_RE.test(oracion)) {
+      out.push(`«${derivadas[0].text}» se deriva de un supuesto aportado por el usuario y se presenta como dato probado, sin marco de estimación`);
+    }
+  }
+  return out;
+}
+
+// _derivadaDeSupuesto(fig, supFigs, figsMotor) → true si la cifra narrada solo se explica combinando (suma o
+// resta) un supuesto DEL USUARIO con otra cifra. Misma aritmética y misma tolerancia que _isCalc —no se inventa
+// una segunda—, pero con un requisito extra: al menos uno de los dos operandos tiene que ser del usuario. Sin esa
+// restricción esto marcaría cualquier cálculo legítimo entre dos cifras del motor.
+function _derivadaDeSupuesto(fig, supFigs, figsMotor) {
+  const raw = fig && fig.raw, unit = fig && fig.unit;
+  if (!Number.isFinite(raw)) return false;
+  const srcUnit = unit === "pp" ? "pct" : unit;
+  const tol = unit === "money" ? Math.max(1000, Math.abs(raw) * 0.02) : (unit === "pct" || unit === "pp") ? 0.2 : unit === "ratio" ? 0.15 : unit === "days" ? 0.6 : 0.05;
+  const sup = supFigs.filter((f) => f.unit === srcUnit && Number.isFinite(f.raw)).map((f) => f.raw);
+  if (!sup.length) return false;
+  const otros = [...sup, ...(figsMotor || []).filter((f) => f.unit === srcUnit && Number.isFinite(f.raw)).map((f) => f.raw)];
+  for (const a of sup) for (const b of otros) {
+    if (Math.abs((a + b) - raw) <= tol) return true;
+    if (Math.abs((a - b) - raw) <= tol) return true;
+    if (Math.abs((b - a) - raw) <= tol) return true;
+  }
+  return false;
+}
+
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
   const qFigs = parseFigures(question || "");
-  const authCanon = new Set([...figs.map((f) => f.canon), ...qFigs.map((f) => f.canon)]);
-  const authVerbatim = new Set([...figs.map((f) => _stripSpace(f.value)), ...qFigs.map((f) => _stripSpace(f.text))]);
+  // EL TERCER UNIVERSO (Contrato v1.2 §5.1, owner 2026-08-10): la cifra que aportó el usuario y sigue viva en la
+  // conversación. Se AUTORIZA a escribirla —de otro modo el narrador no podría siquiera mostrar la discrepancia—
+  // pero no queda libre: los chequeos 20 y 21 exigen que lleve su procedencia en cada lugar donde aparezca, que
+  // no se consolide con una cifra del motor, y que lo derivado de ella salga como escenario. Sin `reparacion`
+  // (el 99% de los turnos) esto es un Set vacío y no cambia absolutamente nada.
+  const supFigs = _figsDelUsuario(reparacion);
+  const authCanon = new Set([...figs.map((f) => f.canon), ...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon)]);
+  const authVerbatim = new Set([...figs.map((f) => _stripSpace(f.value)), ...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text))]);
   const violations = [];
   const entityNames = _entityNames(results);   // adelantado (antes vivía en el paso 3) — _isCalc2 lo necesita en el paso 1
   // entidades NOMBRADAS en ESTE texto (subconjunto de entityNames) — _isCalc2 se acota a estas, NUNCA a todo
@@ -1314,7 +1431,11 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // 1 · cifras CON unidad no autorizadas (mandatory-LITE) — se acepta la CITA directa (canon/verbatim), el ECO de la
   //     pregunta, un CÁLCULO nivel-1 (suma/resta de DOS figs autorizadas), o nivel-2 SCOPEADO a las entidades nombradas.
   for (const f of parseFigures(narration)) {
-    if (!authCanon.has(f.canon) && !authVerbatim.has(_stripSpace(f.text)) && !_isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities) && !_isCalc2(f.raw, f.unit, figs, mentionedEntities)) violations.push({ kind: "cifra-no-autorizada", detail: f.text });
+    // `_derivadaDeSupuesto` cierra el caso del tercer universo: una cifra que sale de combinar el supuesto del
+    // usuario con el dato del motor NO es inventada — es legítima y su problema es OTRO (cómo se presenta), que
+    // juzga el chequeo 21. Rechazarla acá la bloquearía con el veredicto equivocado y el reintento buscaría
+    // corregir algo que no estaba mal.
+    if (!authCanon.has(f.canon) && !authVerbatim.has(_stripSpace(f.text)) && !_isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities) && !_isCalc2(f.raw, f.unit, figs, mentionedEntities) && !_derivadaDeSupuesto(f, supFigs, figs)) violations.push({ kind: "cifra-no-autorizada", detail: f.text });
   }
   // 2 · conteos sin signo no autorizados (+ los que el usuario nombró en la pregunta)
   const authCounts = _authorizedCounts(ledger, results);
@@ -1395,6 +1516,15 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // 19 · la otra cara del 18: preguntada y NO contestada (ver el bloque grande de _transferenciaSinDeclarar).
   const transfSin = _transferenciaSinDeclarar(narration, results, question);
   if (transfSin) violations.push({ kind: "transferencia-sin-declarar", detail: transfSin });
+  // 20 · CORRECCIÓN RESUELTA SIN EVIDENCIA (Contrato v1.2 §4.1) — el usuario dijo qué corregir, el motor trajo el
+  // dato bueno y la respuesta no lo cita. BLOQUEA: reconocer la corrección sin entregarla es exactamente la mitad
+  // de lo que se pidió, y el reintento (o la reparación desde la boleta) sí puede resolverlo.
+  const corrSinEvid = _correccionSinEvidencia(narration, reparacion, figs);
+  if (corrSinEvid) violations.push({ kind: "correccion-sin-evidencia", detail: corrSinEvid });
+  // 21 · EL TERCER UNIVERSO (Contrato v1.2 §5.1) — la cifra del usuario sin su procedencia, consolidada con una
+  // del motor, o derivada y presentada como probada. BLOQUEA por la misma razón que el chequeo 17 (cruce de
+  // universos): los números son verdad y la relación es falsa, que para quien decide es peor que un invento.
+  for (const v of _violacionesTercerUniverso(narration, reparacion, figs)) violations.push({ kind: "procedencia-usuario", detail: v });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
