@@ -189,17 +189,48 @@ function _attributionViolations(narration, ledger, entityNames) {
 // etiqueta no cae en ninguna, la cifra simplemente no se juzga por métrica (nunca se inventa un conflicto).
 // Las formas verbales importan: "vende $19.4M" es la MISMA métrica que "Ventas" — sin eso, la lectura más común
 // del producto ("X vende $N, con margen M%") se marcaría sola.
+//
+// ESTA TABLA ES DE RECONOCIMIENTO, NO DE EMISIÓN (certificación 2026-08-09, preguntas 1 y 4). No decide cómo se
+// LLAMA una métrica en pantalla —eso lo fijan el glosario y el registro de métricas—, decide qué PALABRAS, dichas
+// por el producto o por el usuario, nombran cuál. Una palabra que falta acá no calla el chequeo: lo INVIERTE,
+// porque la ventana queda con UNA sola métrica reconocida y la cifra correcta se marca como mal atribuida. Los
+// dos huecos de abajo se midieron sobre el ledger real de `entityRecord{sku:"SAM-TV55"}`, y los dos bloqueaban
+// la respuesta HONESTA mientras dejaban pasar la desactualizada:
+//
+//   · «stock» · el producto etiqueta con esa palabra ("Unidades en stock", "Stock valorizado") y el usuario
+//     pregunta con ella ("¿cuánto stock tiene?"). Sin declararla, «Su stock a hoy es de $13K, 18 unidades»
+//     rebotaba —la única métrica de la ventana era `unidades`, y $13K es capital— mientras la MISMA frase con
+//     «inventario» pasaba. La respuesta correcta a la pregunta del owner era inalcanzable por una palabra.
+//   · «días de inventario» · es el nombre CANÓNICO de la métrica en pantalla (glossary.doh: «En pantalla se llama
+//     "Días de inventario"»), y acá sólo estaba el retirado. Peor que un hueco: la palabra «inventario» lo hacía
+//     caer en `capital`, así que «SAM-TV55 tiene 58d de días de inventario» rebotaba ("narrado como capital, pero
+//     pertenece a cobertura") y «58d de cobertura» —el sinónimo que el owner retiró justo por ambiguo— pasaba. El
+//     muro premiaba la palabra vieja y castigaba la vigente.
+// Declarar las dos NO endurece el chequeo: las dos ventanas pasan de 1 métrica a 2 y caen en la rama "ambiguo →
+// no se juzga" que este mismo bloque fija como criterio (falso negativo antes que falso positivo).
 const _METRIC_VOCAB = [
   { clave: "ventas",       re: /\bventas?\b|\bvend[eióa]\w*\b|\bfactur\w+\b/i },
   { clave: "margen",       re: /\bm[aá]rgen(?:es)?\b/i },
   { clave: "contribucion", re: /\bcontribuci[oó]n\b|\bcontribuy\w+\b/i },
   { clave: "costo",        re: /\bcostos?\b/i },
   { clave: "carga",        re: /\bcarga comercial\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i },
-  { clave: "capital",      re: /\bcapital\b|\binventario\b/i },
+  { clave: "capital",      re: /\bcapital\b|(?<!d[ií]as\s{1,3}(?:de\s{1,3})?)\binventario\b|\bstocks?\b/i },
   { clave: "rotacion",     re: /\brotaci[oó]n\b/i },
-  { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b/i },
+  { clave: "cobertura",    re: /\bcobertura\b|\bDOH\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+inv\b/i },
   { clave: "unidades",     re: /\bunidades\b/i },
   { clave: "ticket",       re: /\bticket\b/i },
+  // «resultado» · EL PELDAÑO DEL P&L, no la palabra suelta (certificación 2026-08-09, pregunta 14). Medido sobre el
+  // ledger real de `pnlRead` —que autoriza «Resultado comercial $18.5M» Y «Contribución $25.0M» en la MISMA
+  // boleta—: la frase «El resultado del negocio después de gastos es $25.0M» pasaba el muro con ok=true. La cifra
+  // es REAL y la afirmación es FALSA: contesta con la contribución la pregunta por el resultado, que es
+  // exactamente la confusión que la tool `pnlRead` existe para cerrar (decisión 3). El muro no la veía porque
+  // «resultado» no era vocabulario de ninguna métrica: la ventana quedaba con CERO métricas reconocidas y caía en
+  // la rama "sin señal → no se juzga".
+  // POR QUÉ CALIFICADO Y NO `\bresultado\b` A SECAS: en español «el resultado de bajar Logística a 2%» o «como
+  // resultado» son la palabra en su sentido genérico, y reconocerlas marcaría prosa legítima cuya cifra pertenece
+  // a otra métrica. Sólo se reconoce el nivel financiero nombrado como tal — que es como lo nombran la pregunta
+  // del usuario, el catálogo de `pnlRead` y la etiqueta de la boleta («Resultado comercial»).
+  { clave: "resultado",    re: /\bresultado\s+(?:del negocio|comercial|final|neto|operacional|del ejercicio)\b|\bestado de resultados\b|\bganancia neta\b|\butilidad(?:es)?\s+(?:neta|del negocio|del ejercicio|operacional)\b|\bdespu[eé]s de (?:los )?gastos\b/i },
 ];
 function _metricasEn(texto) {
   const s = String(texto || "");
@@ -301,12 +332,24 @@ function _periodoContradictorio(narration, periodos) {
 // lista de verbos AMPLIADA tras el barrido adversarial (owner-audit 2026-07-28): las formas con "n"? opcional no
 // matcheaban el GERUNDIO ("representando" — el \b final nunca calzaba porque "ndo" sigue siendo alfanumérico), y
 // faltaban verbos de equivalencia reales que el narrador ya usa ("concentrada en", "responsables de", "se debe a").
-const _CLAIM_VERB = /\b(representa(?:n|ndo)?|explica(?:n|ndo)?|genera(?:n|ndo)?|recuperar(?:\s+con)?|recuperando(?:\s+con)?|recuperaci[oó]n|resulta(?:n)?\s+en|suman|totalizan|concentrad[ao]s?\s+en|atribuibles?\s+a|(?:principal(?:es)?\s+)?responsables?\s+de|proviene[n]?\s+de|se\s+debe[n]?\s+a)\b/i;
+// «aporta» y «contribuye» son verbos de equivalencia igual que «representa» o «genera», y faltaban (certificación
+// 2026-08-09, pregunta 15). El hueco no era teórico: son LOS dos verbos con que se contesta «¿cuánto contribuye
+// Falabella?», así que el muro estaba ciego exactamente en la frase que esa pregunta invita. Medido sobre el ledger
+// real de la contribución por cliente —13 cuentas más «Contribución total $25.0M»—: «Falabella contribuye $25.0M»
+// pasaba con ok=true, el total del negocio colgado de una sola cuenta con una cifra verdadera. Mismo defecto que
+// este chequeo cierra desde 2026-07-28, en otro verbo.
+const _CLAIM_VERB = /\b(representa(?:n|ndo)?|explica(?:n|ndo)?|genera(?:n|ndo)?|aport(?:a|an|ando)|contribuy(?:e|en|endo)|recuperar(?:\s+con)?|recuperando(?:\s+con)?|recuperaci[oó]n|resulta(?:n)?\s+en|suman|totalizan|concentrad[ao]s?\s+en|atribuibles?\s+a|(?:principal(?:es)?\s+)?responsables?\s+de|proviene[n]?\s+de|se\s+debe[n]?\s+a)\b/i;
 // excepción EXPLÍCITA del spec (b): si el propio texto ya escala la cifra al grupo/total ("parte de", "porción de",
 // "del total de"), no es una mala atribución aunque un verbo de la lista esté cerca — es EXACTAMENTE el framing correcto
 // que le pedimos al narrador (narratePromptC.js: "TOTAL DEL NEGOCIO ≠ SUMA DE LOS QUE NOMBRÁS"). Antes esto "pasaba"
 // solo por casualidad de vocabulario/distancia — ahora se reconoce por diseño, no por accidente.
-const _PART_OF_EXCEPTION = /\b(parte|porci[oó]n|fracci[oó]n)\s+(?:de|del)\b/i;
+// La excepción cubre además el total usado como DENOMINADOR: «$4.3M sobre un total de $25.0M», «contra el total
+// de la cartera». Es la forma prepositiva, y sólo esa — NO basta con que la palabra "total" esté cerca. La
+// diferencia importa y se midió: «Lider y Falabella representan una brecha TOTAL DE $4.9M» también dice "total
+// de", y es justamente el defecto que este chequeo existe para bloquear (el total ES la cifra atribuida, no la
+// referencia contra la que se la mide). Una excepción por la sola palabra "total" desarmaba dos casos MALOS del
+// gate de totales; la prepositiva no toca ninguno.
+const _PART_OF_EXCEPTION = /\b(parte|porci[oó]n|fracci[oó]n)\s+(?:de|del)\b|\b(?:sobre|de|contra|frente\s+a)\s+(?:un|el|los)\s+total(?:es)?\s+(?:de|del)\b/i;
 function _totalMisattribution(narration, ledger, entityNames) {
   if (entityNames.length <= 2) return [];   // solo hay 1-2 entidades en juego → el total ES de ellas, correcto
   const owners = _valueOwners(ledger, entityNames);
@@ -462,7 +505,18 @@ function _causaSobredimensionada(narration, claims) {
 // inventario"). Esa enumeración es texto SELLADO del composer; bloquearla dejaría inservible toda narración de
 // `inventoryStatus{top_sellers}` sin corregir ninguna afirmación falsa. Mismo criterio nítido que el resto de la
 // Fase 2: falso negativo antes que falso positivo.
-const _CRUCE_RELACIONAL = /\b(sostiene\w*|sosteniendo|soporta\w*|soportando|cubre\w*|cubriendo|alcanza para|apenas alcanza|por cada|equivale\w*|equivalente a|frente a|versus|vs\.?|comparad[oa]s? con|en relaci[oó]n (?:a|con)|respecto (?:a|de)|proporci[oó]n|ratio|con (?:apenas|solo|s[oó]lo|tan solo)|menos de (?:un|una|\w+) d[ií]as? de (?:cobertura|inventario))\b/i;
+//
+// LA PARTE-DE-UN-TODO ES LA MISMA DIVISIÓN (certificación 2026-08-09, pregunta 1). La lista ya traía «proporción»
+// y «ratio», pero no las formas con que esa misma cuenta se dice en prosa —«es una FRACCIÓN de su venta», «el
+// stock DIVIDIDO por la venta», «es un MÚLTIPLO de»—, y son el cociente exacto que el contrato declara imposible
+// entre estos dos universos. Se midió que faltaban: «SAM-TV55 vende $13.3M y tiene $13K inmovilizados, o sea que
+// el stock es una fracción de su venta» no la marcaba ESTE chequeo sino el 9 (binding de métrica), y sólo por un
+// accidente de vocabulario —la ventana de «$13K» tenía «venta» como única métrica reconocida porque «stock» no
+// estaba declarada—. Un bloqueo que depende de que otra tabla esté incompleta no es una garantía: al completar esa
+// tabla (ver el chequeo 9) la oración pasaba entera. Ahora la caza el chequeo que le corresponde, y con el
+// veredicto correcto: `cruce-de-universos` explica QUÉ está mal (miles contra dólares crudos), mientras que
+// `metrica-mal-atribuida` decía que $13K "es capital y no ventas" — cierto, pero no es el error de la oración.
+const _CRUCE_RELACIONAL = /\b(sostiene\w*|sosteniendo|soporta\w*|soportando|cubre\w*|cubriendo|alcanza para|apenas alcanza|por cada|equivale\w*|equivalente a|frente a|versus|vs\.?|comparad[oa]s? con|en relaci[oó]n (?:a|con)|respecto (?:a|de)|proporci[oó]n|ratio|fracci[oó]n|m[uú]ltiplo|dividid[oa]s?|dividi\w+|con (?:apenas|solo|s[oó]lo|tan solo)|menos de (?:un|una|\w+) d[ií]as? de (?:cobertura|inventario))\b/i;
 // _oraciones(text) → [[lo,hi]] · límites calculados sobre el texto con las cifras ENMASCARADAS, para que el punto
 // decimal de "$13.3M" no corte una oración en falso (mismo motivo y misma técnica que el chequeo 9).
 function _oraciones(text) {

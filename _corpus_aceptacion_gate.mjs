@@ -36,6 +36,9 @@ import { SELLOS, PERIODOS } from "./src/config/contract/figureType.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { setPnlLines, clearPnl, resetPnlDraft } from "./src/adi/pnl.js";
+// LA FORMA DEL TURNO Y EL CATÁLOGO QUE VE EL PLANIFICADOR — los dos se DERIVAN, no se asumen (ver preguntas 11 y 13).
+import { resolveTablePolicy, podarPlanProgresivo } from "./src/adi/oracle/progressiveDisclosure.js";
+import { TOOL_CATALOG } from "./src/adi/oracle/planPrompt.js";
 
 let PASS = 0, FAIL = 0;
 const filaPorPregunta = [];
@@ -312,6 +315,26 @@ pregunta(11, "Dame la tabla completa de Falabella", "responde",
     ok(propias.every((f) => f.tipo && f.tipo.entidad === "Falabella"),
       "cada cifra conserva su DUEÑO en el tipo (decisión 7)",
       propias.filter((f) => !f.tipo || f.tipo.entidad !== "Falabella").slice(0, 3).map((f) => f.label).join(" · "));
+    // LA POLÍTICA SE DERIVA, NO SE ASUME (certificación 2026-08-09). Abajo la tabla se prueba con
+    // tablePolicy:"required" — y eso sólo prueba algo si el producto DE VERDAD resuelve `required` para esta
+    // pregunta. Medido antes del arreglo: NO lo hacía. `pideTablaExplicita` sólo reconocía la forma como
+    // complemento ("en una tabla", "tabulá", "en columnas") y no el pedido de la tabla como objeto ("dame la
+    // tabla"); el plan de una consulta de entidad resuelve `entityProfile`, la poda progresiva llenaba `podado`,
+    // y `resolveTablePolicy` devolvía **forbidden** — guardC bloqueaba con `tabla-no-autorizada` exactamente la
+    // tabla que se había pedido con todas las letras. Peor: «dame el DETALLE completo de Falabella», más vago,
+    // sí daba `required`. El gate estaba verde con el producto rojo porque la política llegaba escrita a mano.
+    const planPerfil = { intent: "answer", calls: [
+      { tool: "entityProfile", args: { dimension: "cliente", entity: "Falabella" } },
+      { tool: "trend", args: { metric: "ventas", entity: "Falabella" } },
+      { tool: "entityComposicion", args: { dimension: "cliente", entity: "Falabella" } }] };
+    const poda = podarPlanProgresivo(planPerfil, "Dame la tabla completa de Falabella");
+    ok(poda.podado.length > 0,
+      `el turno de perfil general SÍ poda detalle (${poda.podado.join(" · ")}): es el caso donde la poda empuja a forbidden`);
+    ok(resolveTablePolicy({ text: "Dame la tabla completa de Falabella", podado: poda.podado }) === "required",
+      "la política se DERIVA del texto: el pedido explícito de tabla gana sobre la poda",
+      `resolvió ${resolveTablePolicy({ text: "Dame la tabla completa de Falabella", podado: poda.podado })}`);
+    ok(resolveTablePolicy({ text: "contame de Falabella", podado: poda.podado }) === "forbidden",
+      "y sin pedido explícito la misma poda sigue dando forbidden — se amplió el reconocimiento, no se apagó la regla");
     const tabla = ["| Concepto | Valor |", "| --- | --- |", ...propias.slice(0, 8).map((f) => `| ${f.label.replace("Falabella · ", "")} | ${f.value} |`)].join("\n");
     const g = guardCon(tabla, { tablePolicy: "required" });
     ok(g.ok, "la tabla pedida pasa el muro con la política `required`", JSON.stringify(g.violations));
@@ -366,6 +389,18 @@ pregunta(13, "El KPI dice $4.1M de acciones comerciales, ¿de dónde sale?", "re
       `el total declara de dónde sale — «${oficial.formula}»`);
     const porCuenta = figsDe(figs, /· Acciones comerciales$/);
     ok(porCuenta.length > 1, `el desglose por cuenta que lo sostiene entra autorizado — ${porCuenta.length} cuentas`);
+    // EL PLAN DE ESTE CORPUS ESTÁ ESCRITO A MANO — así que hay que probar que el PLANIFICADOR REAL puede emitirlo
+    // (certificación 2026-08-09). Medido antes del arreglo: `TOOL_CATALOG` declaraba para queryMetric «métricas:
+    // ventas, margen, contribucion, costo, capital, rotacion, doh» — sin `acciones` ni `carga`, que el contrato
+    // (metricRegistry.METRICS) sí declara. Y `queryMetric{metric:"acciones",dimension:"cliente"}` es LA ÚNICA tool
+    // del catálogo que autoriza el total de $4.1M de la card. Es decir: la respuesta existía en el motor y era
+    // inalcanzable desde el prompt, y el muro no puede avisarlo (la pregunta ECA la cifra, así que una procedencia
+    // inventada pasa guardC como eco del usuario). Un plan a mano que usa una métrica no declarada mide el motor,
+    // no el producto.
+    for (const m of ["acciones", "carga"]) {
+      ok(new RegExp(`\\b${m}\\b`).test(TOOL_CATALOG),
+        `el catálogo que ve el planificador declara la métrica «${m}» — sin eso, este plan no es emitible`);
+    }
     ok(!!total && SELLOS.includes(total.tipo.sello) && total.tipo.periodo === "anual" && total.tipo.escenario === SCN,
       `el total declara su tipo completo — sello=${total && total.tipo.sello} período=${total && total.tipo.periodo} escenario=${total && total.tipo.escenario}`);
     const g = guard(`Las acciones comerciales del período suman ${total.value}, repartidas entre ${porCuenta.length} cuentas.`);
@@ -392,6 +427,19 @@ pregunta(14, "¿Cuál es el resultado del negocio después de gastos?", "respond
       "gradúa el sello: hasta la contribución probado, el resultado INDICADO por los gastos declarados");
     const g = guard(`Después de gastos el negocio deja ${res.value}, ${pct.value} sobre la venta. La contribución —antes de esos gastos— es ${contrib.value}.`);
     ok(g.ok, "la respuesta que distingue los dos peldaños pasa el muro", JSON.stringify(g.violations));
+    // Y LA VERSIÓN DEFECTUOSA TIENE QUE REBOTAR (certificación 2026-08-09). Un muro que sólo dice que sí no prueba
+    // nada — el propio encabezado de este archivo lo declara como criterio, y para esta pregunta faltaba la mitad.
+    // Medido antes del arreglo: «El resultado del negocio después de gastos es $25.0M» pasaba con ok=true. La
+    // cifra es REAL (la contribución está en la MISMA boleta) y la afirmación es falsa: contesta el peldaño
+    // equivocado, que es exactamente el defecto que la decisión 3 cierra. `resultado` no era vocabulario de
+    // ninguna métrica en guardC, así que la ventana quedaba sin señal y no se juzgaba.
+    const gMal = guard(`El resultado del negocio después de gastos es ${contrib.value}.`);
+    ok(!gMal.ok && gMal.violations.some((v) => v.kind === "metrica-mal-atribuida"),
+      "contestar el resultado CON la contribución se BLOQUEA, aunque la cifra sea real",
+      `verdict=${gMal.verdict} · ${JSON.stringify(gMal.violations.map((v) => v.kind))}`);
+    const gUtil = guard(`La utilidad neta del negocio es ${contrib.value}.`);
+    ok(!gUtil.ok, "y también en las otras palabras con que se pide el mismo peldaño («utilidad neta»)",
+      JSON.stringify(gUtil.violations.map((v) => v.kind)));
     return `resultado ${res && res.value} (${pct && pct.value}) ≠ contribución ${contrib && contrib.value}`;
   });
 
@@ -412,8 +460,20 @@ pregunta(15, "¿Cuánto contribuye Falabella?", "responde",
     const gMal = guard(`Tu negocio deja ${f.value} de contribución en el año.`);
     ok(!gMal.ok, "presentar la cifra de la cuenta como «el negocio» se BLOQUEA",
       `verdict=${gMal.verdict} · ${JSON.stringify(gMal.violations.map((v) => v.kind))}`);
+    // LA OTRA MITAD DEL MISMO DEFECTO, en el sentido inverso (certificación 2026-08-09): no la cifra de la cuenta
+    // narrada como el negocio —eso lo cubre gMal— sino el TOTAL DEL NEGOCIO colgado de la cuenta. Medido antes del
+    // arreglo: «Falabella contribuye $25.0M» pasaba con ok=true. El chequeo que existe para eso desde 2026-07-28
+    // exige un VERBO de equivalencia cerca, y su lista no tenía «contribuye» ni «aporta» — o sea que el muro
+    // estaba ciego justo en los dos verbos con que se contesta esta pregunta.
+    const gTotal = guard(`Falabella contribuye ${total.value}.`);
+    ok(!gTotal.ok && gTotal.violations.some((v) => v.kind === "total-mal-atribuido"),
+      "colgar el TOTAL del negocio de la cuenta se BLOQUEA, con el verbo que esta pregunta invita",
+      `verdict=${gTotal.verdict} · ${JSON.stringify(gTotal.violations.map((v) => v.kind))}`);
     const gBien = guard(`Falabella aporta ${f.value} de contribución en el año cerrado, sobre un total de ${total.value}.`);
     ok(gBien.ok, "la lectura con dueño explícito pasa el muro", JSON.stringify(gBien.violations));
+    const gBien2 = guard(`Falabella aporta ${f.value} de contribución, sobre un total de ${total.value} del negocio.`);
+    ok(gBien2.ok, "y la que usa el total como DENOMINADOR («sobre un total de») también — se amplió el verbo, no se rompió la prosa correcta",
+      JSON.stringify(gBien2.violations));
     return `${f && f.value} · dueño=${f && f.tipo.entidad} · sello=${f && f.tipo.sello} · total ${total && total.value}`;
   });
 

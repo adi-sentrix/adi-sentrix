@@ -127,9 +127,36 @@ export function podarLedgerProgresivo(figs, { quiereDesglose = false } = {}) {
 //                tabla es OBLIGATORIA: responder en prosa una pregunta que pidió tabla también es incumplir.
 //   · auto       el resto — comparaciones y listados donde la tabla mejora la lectura. Decide el narrador con
 //                los detectores de forma que ya existían (_needsTableFormat); el guard no juzga.
-// Pedido EXPLÍCITO de tabla: la forma se nombra ("en una tabla", "tabulá", "en formato tabla", "en columnas").
-const _PIDE_TABLA = /\b(en (?:una )?tabla|en formato tabla|tabulad[oa]|tabul[aá]\w*|en columnas|como tabla|arm[aá]\w* una tabla|una tabla con)\b/i;
-export function pideTablaExplicita(text) { return _PIDE_TABLA.test(String(text || "")); }
+// Pedido EXPLÍCITO de tabla. Se escribe de DOS maneras, y hasta acá sólo se reconocía una:
+//   (a) LA FORMA COMO COMPLEMENTO · el usuario nombra el formato de salida ("en una tabla", "tabulá", "en formato
+//       tabla", "en columnas"). Es lo que este detector cubría desde el principio.
+//   (b) LA TABLA COMO OBJETO PEDIDO · el usuario pide la tabla misma ("dame la tabla completa de Falabella",
+//       "mostrame la tabla", "quiero ver la tabla"). Medido sobre el caso del owner: «Dame la tabla completa de
+//       Falabella» caía en (a)=false, el plan resolvía `entityProfile` (consulta general de entidad), la poda
+//       progresiva llenaba `podado` y `resolveTablePolicy` devolvía **forbidden** — así que guardC BLOQUEABA con
+//       `tabla-no-autorizada` exactamente la tabla que se había pedido con todas las letras. Peor: la forma más
+//       vaga del mismo pedido, «dame el DETALLE completo de Falabella», sí daba `required` por `pideDetalle-
+//       Composicion` — el producto premiaba la palabra imprecisa y castigaba la precisa.
+//
+// POR QUÉ (b) EXIGE VERBO DE ENTREGA + ARTÍCULO, y no alcanza con nombrar "tabla": «explicame esta tabla» /
+// «qué mide esa tabla» son DEIXIS —el usuario habla DE la tabla que ya tiene en pantalla, no pide una— y forzarles
+// `required` obligaría a tabular una respuesta que pidió explicación. El demostrativo las separa del pedido: con
+// artículo ("la/una/toda la") es un pedido, con demostrativo ("esta/esa") es una referencia. La segunda forma
+// admitida es la frase NOMINAL sola al inicio del mensaje ("la tabla completa de Falabella"), que es un pedido
+// escrito sin verbo y no puede ser deixis por la misma razón.
+// OJO CON EL `\b` DE CIERRE — es ASCII y NO cierra después de una vocal acentuada, la misma trampa que este archivo
+// ya documenta en `_TEMPORAL` y en `_DESGLOSE`. Con el `\b` global al final del grupo, «tabulá el margen por
+// cliente» NO matcheaba (sí «tabula», sin tilde): la forma imperativa que un usuario escribe de verdad era la única
+// que se escapaba. Cada alternativa cierra ahora por su cuenta, y la que puede terminar en tilde no cierra.
+const _PIDE_TABLA = /\b(?:en (?:una )?tabla\b|en formato tabla\b|tabulad[oa]\b|tabul[aá]\w*|en columnas\b|como tabla\b|arm[aá]\w* una tabla\b|una tabla con\b)/i;
+const _PIDE_TABLA_OBJETO = /\b(?:d[aá]me|entr[eé]g[aá]me|mostr[aá]me|mu[eé]strame|ens[eé][nñ][aá]me|p[aá]s[aá]me|tr[aá][eé]me|m[aá]nd[aá]me|quiero|querr[íi]a|necesito|me gustar[íi]a)(?:\s+(?:ver|tener|obtener|revisar))?\s+(?:toda\s+la|todas?\s+las|la|una|las|el)\s+tablas?\b/i;
+// La forma nominal se acota con el relativo: «la tabla QUE estoy viendo, qué dice» abre una subordinada y es
+// deixis, no pedido. Sin ese corte, empezar la frase por "la tabla" bastaba para forzar `required`.
+const _PIDE_TABLA_NOMINAL = /^\s*(?:la|una|las)\s+tablas?\b(?!\s+que\b)/i;
+export function pideTablaExplicita(text) {
+  const t = String(text || "");
+  return _PIDE_TABLA.test(t) || _PIDE_TABLA_OBJETO.test(t) || _PIDE_TABLA_NOMINAL.test(t);
+}
 
 // resolveTablePolicy({text, podado}) → "forbidden" | "required" | "auto"
 // PRECEDENCIA: `required` gana sobre `forbidden`. Si el usuario pidió la tabla, la pidió — aunque el turno sea un
