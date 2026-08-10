@@ -12,7 +12,11 @@ import { projectViewContextForPlan } from "./viewContext.js";   // Concordancia 
 // (ensureTransferenciaDeclarada) y el chequeo 19 del guard tienen que coincidir EXACTAMENTE en qué cuenta como
 // pregunta de traslado y qué cuenta como declaración — dos regex paralelas serían justo cómo se llega a que la
 // garantía crea haber cumplido y el guard rechace igual. guardC.js es el dueño del vocabulario; acá se consume.
-import { preguntaPorTraslado, declaraLimiteTransferencia, limiteTransferenciaDeclarado } from "./guardC.js";
+import { preguntaPorTraslado, declaraLimiteTransferencia, limiteTransferenciaDeclarado, _derivadaDeSupuesto } from "./guardC.js";
+// EL TERCER UNIVERSO (Contrato v1.2 §5.1): la definición de "cifra del usuario" es UNA, y vive en el contrato de
+// narración — el guard la lee para juzgar y el renderer de más abajo para estampar. Dos definiciones paralelas
+// serían justo cómo se llega a que el candado mire una cosa y el producto muestre otra.
+import { cifrasDelUsuario } from "./narrationContract.js";
 
 // buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
 // narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
@@ -512,6 +516,95 @@ export function gradeIndicatedClaims(text, claims, contentScope = "full", enable
 // dispara esto — esa es la ficha de UNA entidad, sigue siendo prosa legítima (ver PROSA: "para 1-2 entidades").
 // _groupByEntity(figs) → Map(entidad → Set(conceptos)) — UNA sola fuente para los 3 detectores de abajo (tabla/
 // lista/brecha), todos parten de la MISMA convención de label "Entidad · Concepto" (boleta.js fig()).
+/* ══ EL TERCER UNIVERSO · LA MARCA ES DEL PRODUCTO, NO DEL NARRADOR (Contrato v1.2 §5.1, owner 2026-08-10) ══════
+ * "Queda marcada como suya en CADA lugar donde aparezca · todo cálculo derivado hereda su procedencia y se
+ * presenta como escenario o estimación."
+ *
+ * Esas dos son obligaciones de PRESENTACIÓN, y por eso las cumple el renderer y no el guard. La primera versión
+ * se las exigía al narrador con tres listas cerradas de frases: rechazaba «la cifra que me pasaste» por no decir
+ * «tu dato» —una respuesta correcta, un reintento pagado— y dejaba pasar «el total queda en $37.8M» por no usar
+ * el verbo "sumar". Mirar las palabras era el problema, no las palabras elegidas.
+ *
+ * Acá no se juzga nada: se ESTAMPA. Toda aparición de una cifra del usuario recibe su marca, y toda cifra que la
+ * ARITMÉTICA muestra derivada de ella recibe la de estimación. Es el mismo mecanismo y el mismo lugar del pipeline
+ * que `gradeIndicatedClaims` (el sello epistémico): corre sobre el texto FINAL, después del guard, y no depende de
+ * que el LLM se haya acordado. Con eso, "el producto nunca presenta como propia una cifra que salió del usuario"
+ * deja de ser una regla que se verifica y pasa a ser una propiedad que se construye.
+ *
+ * IDEMPOTENTE: si el narrador YA declaró la procedencia en esa oración —cosa que la doctrina le pide igual, para
+ * que la respuesta se lea natural y no como un formulario— no se agrega nada. La marca es la red, no el mecanismo.
+ */
+const MARCA_USUARIO = "tu dato";
+const MARCA_DERIVADA = "estimado sobre tu supuesto";
+// reconocimiento MÍNIMO de "ya está declarado", y su alcance es deliberadamente chico: no pretende cubrir toda
+// forma de decirlo (esa era la trampa anterior), solo evitar la redundancia obvia cuando el narrador usó la misma
+// palabra que usaríamos nosotros. Si no la reconoce, el resultado es una marca de más — nunca un rechazo.
+const _YA_DECLARADO_RE = /\btu\s+(?:dato|cifra|n[uú]mero|supuesto|estimaci[oó]n)\b|\baportaste\b|\bque\s+me\s+pasaste\b/i;
+const _YA_ESTIMADO_RE = /\bestimad|\bescenario\b|\bhip[oó]tesis\b/i;
+
+export function markUserProvenance(text, reparacion, figsMotor) {
+  const supFigs = cifrasDelUsuario(reparacion);
+  if (!supFigs.length) return text;
+  const original = String(text || "");
+  if (!original.trim()) return text;
+  const canonMotor = new Set((figsMotor || []).map((f) => f.canon));
+  // una cifra del usuario que COINCIDE con la del motor no es del usuario: no hay procedencia que separar, y
+  // marcarla ensuciaría una oración legítima sobre el dato propio del producto.
+  const canonUsuario = new Set(supFigs.map((f) => f.canon).filter((c) => !canonMotor.has(c)));
+  if (!canonUsuario.size) return text;
+
+  // se recorre oración por oración y se reescribe SOLO la que necesita marca (el resto queda byte-idéntico).
+  const partes = [];
+  let cursor = 0;
+  for (const [lo, hi] of _oracionesDe(original)) {
+    if (lo > cursor) partes.push(original.slice(cursor, lo));
+    const oracion = original.slice(lo, hi);
+    cursor = hi;
+    const figs = parseFigures(oracion);
+    if (!figs.length) { partes.push(oracion); continue; }
+    const propias = figs.filter((f) => canonUsuario.has(f.canon));
+    const derivadas = figs.filter((f) => !canonUsuario.has(f.canon) && !canonMotor.has(f.canon) && _derivadaDeSupuesto(f, supFigs, figsMotor || []));
+    let marca = null;
+    if (propias.length && !_YA_DECLARADO_RE.test(oracion)) marca = MARCA_USUARIO;
+    else if (!propias.length && derivadas.length && !_YA_ESTIMADO_RE.test(oracion)) marca = MARCA_DERIVADA;
+    else if (propias.length && derivadas.length && !_YA_ESTIMADO_RE.test(oracion)) marca = MARCA_DERIVADA;
+    partes.push(marca ? _conMarca(oracion, marca) : oracion);
+  }
+  if (cursor < original.length) partes.push(original.slice(cursor));
+  return partes.join("");
+}
+// _conMarca(oracion, marca) → la marca entra ANTES del cierre de la oración, entre paréntesis, para que se lea
+// como una nota del producto y no como parte de la afirmación. Una fila de tabla markdown no tiene cierre: ahí la
+// marca va al final de la celda, que sigue siendo el lugar donde el lector la ve pegada a la cifra.
+function _conMarca(oracion, marca) {
+  const m = /([.!?])(\s*)$/.exec(oracion);
+  if (m) return `${oracion.slice(0, m.index)} (${marca})${m[1]}${m[2]}`;
+  const trailing = /(\s*)$/.exec(oracion)[1] || "";
+  return `${oracion.slice(0, oracion.length - trailing.length)} (${marca})${trailing}`;
+}
+// _oracionesDe(text) → los MISMOS límites que usa guardC (calculados sobre el texto con las cifras enmascaradas,
+// para que el punto decimal de "$13.3M" no parta una oración). Se replica el criterio, no se importa, porque el
+// del guard es privado; el gate verifica que los dos coincidan sobre los mismos casos.
+const _SENT_END_R = /[.!?\n]/;
+function _oracionesDe(text) {
+  const s = String(text || "");
+  let masked = s;
+  for (const f of parseFigures(s)) {
+    let from = 0, i;
+    while ((i = masked.indexOf(f.text, from)) >= 0) {
+      masked = masked.slice(0, i) + "#".repeat(f.text.length) + masked.slice(i + f.text.length);
+      from = i + f.text.length;
+    }
+  }
+  const out = [];
+  let start = 0;
+  for (let i = 0; i < masked.length; i++) {
+    if (_SENT_END_R.test(masked[i])) { if (i + 1 > start) out.push([start, i + 1]); start = i + 1; }
+  }
+  if (start < masked.length) out.push([start, masked.length]);
+  return out;
+}
+
 function _groupByEntity(figs) {
   const byEntity = new Map();
   if (!Array.isArray(figs)) return byEntity;

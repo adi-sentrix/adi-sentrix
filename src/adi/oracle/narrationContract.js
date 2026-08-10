@@ -67,8 +67,9 @@ import { REFERENCIA_PROCEDENCIA, METRICAS_DE_REFERENCIA } from "../../config/bus
 import { ANSWER_SHAPES, buildAnswerShapeInstruction } from "./progressiveDisclosure.js";
 // REPARACIÓN CONTEXTUAL (Contrato v1.2, owner 2026-08-10): el vocabulario cerrado sale del contrato versionado y
 // los supuestos vivos del estado canónico — el contrato de narración no inventa ninguno de los dos.
-import { REPAIR_KINDS, REPAIR_FIELD_KEYS } from "./conversationalContract.js";
+import { normalizeReparacion } from "./conversationalContract.js";
 import { supuestosUsuarioVivos } from "./conversationScope.js";
+import { parseFigures } from "../boleta.js";   // el MISMO parser que produce el canon de la boleta — nunca un segundo
 // EL TIPO DE LA CIFRA (owner 2026-08-09, decisiones 1 y 2): el sello y las reglas de verificabilidad son las MISMAS
 // que aplica `fig()`. Acá sólo se refina con el eje, que este módulo sí sabe resolver — nunca se redefine.
 import { SELLOS, refinarPorEje, PERIODO_MIXTO_ETIQUETA } from "../../config/contract/figureType.js";
@@ -383,19 +384,76 @@ export function buildAllowedActions(claims) {
 // argumento más en ninguna firma: `plan` y `mem` ya viajaban enteros hasta acá.
 // Un supuesto del usuario VIVO viaja aunque este turno no sea una reparación — es justamente el caso que §5.1
 // cubre: la cifra sigue siendo suya "mientras siga viva en la conversación", no solo en el turno que la aportó.
+// ── EL TERCER UNIVERSO, TIPADO · una sola verdad para el guard y para el renderer ──────────────────────────────
+// cifrasDelUsuario(reparacion) → las cifras APORTADAS POR EL USUARIO que están vivas en el turno, YA PARSEADAS con
+// el mismo parser que produce el canon de la boleta (parseFigures). Es la ÚNICA definición: guardC.js la lee para
+// juzgar y narratePromptC.js para estampar la procedencia. Dos implementaciones paralelas de "qué cifra es del
+// usuario" serían exactamente cómo se llega a que el candado juzgue una cosa y el producto muestre otra.
+// Devuelve [] en el 99% de los turnos, sin recorrer nada.
+// _parseCifraUsuario(texto) → las cifras del string TAL COMO lo escribió el usuario, canonizadas.
+// LA CIFRA DEL USUARIO NO VIENE FORMATEADA POR EL MOTOR, y eso importa más de lo que parece: el canon es lo que
+// ata el candado al texto narrado, así que un formato que el parser no reconoce apaga §5.1 entero **y además**
+// deja la respuesta en un callejón — el contrato OBLIGA a mostrar la discrepancia, pero esa cifra sin canon se
+// rechaza como inventada, así que no hay redacción posible y el turno se pierde reintentando.
+// Tres normalizaciones, todas acotadas a ESTE string (nunca al parser general, que sella la boleta del motor):
+//   · «20 millones» / «20M» sin signo → se les antepone el símbolo, porque el usuario habla de plata sin escribirlo;
+//   · «millones»/«mil» escritos con palabras → su sufijo;
+//   · «$20.000.000» (miles con punto, como se escribe en Chile) → sin los puntos. Sin esto parseFloat lee 20.
+function _parseCifraUsuario(texto) {
+  const crudo = String(texto || "").trim();
+  const directo = parseFigures(crudo);
+  if (directo.length) {
+    // el separador de miles con punto SÍ parsea, pero con la escala equivocada (veinte, no veinte millones) — se
+    // detecta por la forma del string, no por el valor, y se reintenta normalizado.
+    if (!/^\$?\s?\d{1,3}(\.\d{3})+$/.test(crudo)) return directo;
+  }
+  const variantes = [
+    crudo.replace(/\./g, ""),
+    crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K"),
+    "$" + crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, ""),
+    "$" + crudo.replace(/\./g, "").replace(/^\$\s?/, ""),
+  ];
+  for (const v of variantes) {
+    const p = parseFigures(v);
+    if (p.length) return p;
+  }
+  return directo;
+}
+
+export function cifrasDelUsuario(reparacion) {
+  const r = (reparacion && typeof reparacion === "object") ? reparacion : null;
+  if (!r) return [];
+  const crudos = [];
+  if (Array.isArray(r.supuestos)) for (const s of r.supuestos) if (s && s.valor) crudos.push({ texto: String(s.valor), metrica: s.metrica || null });
+  if (r.dato && r.dato.valor) crudos.push({ texto: String(r.dato.valor), metrica: r.dato.metrica || null });
+  const out = [];
+  const vistos = new Set();
+  for (const c of crudos) {
+    for (const f of _parseCifraUsuario(c.texto)) {
+      if (vistos.has(f.canon)) continue;
+      vistos.add(f.canon);
+      // ETIQUETA CON DUEÑO, igual que cualquier fig de la boleta ("Entidad · Concepto"): el dueño de esta cifra es
+      // el usuario, y decirlo en la etiqueta es lo que la hace un claim de primera clase en vez de un caso especial.
+      out.push({ ...f, label: `Tu dato · ${c.metrica || "cifra aportada"}`, metrica: c.metrica || null, origen: "usuario" });
+    }
+  }
+  return out;
+}
+
 export function buildReparacion({ plan, mem } = {}) {
-  const r = plan && plan.reparacion && typeof plan.reparacion === "object" && !Array.isArray(plan.reparacion) ? plan.reparacion : null;
-  const tipo = r && REPAIR_KINDS.includes(r.tipo) ? r.tipo : null;
+  // UNA SOLA LECTURA del objeto crudo (ver normalizeReparacion): el intent y la contradicción `ambigua`+`corrige`
+  // se resuelven ahí, una vez, para que el guard, el estado y el prompt no puedan juzgar tres cosas distintas.
+  const r = normalizeReparacion(plan);
   const supuestos = supuestosUsuarioVivos(mem && mem.conversationScope)
     .map((s) => ({ origen: "usuario", valor: String(s.valor), metrica: s.metrica || null, periodo: s.periodo || null }));
-  if (!tipo && !supuestos.length) return null;
+  if (!r && !supuestos.length) return null;
   return {
-    tipo,
-    corrige: r && Array.isArray(r.corrige) ? r.corrige.filter((k) => REPAIR_FIELD_KEYS.includes(k)) : [],
+    tipo: r ? r.tipo : null,
+    corrige: r ? r.corrige : [],
     ambigua: !!(r && r.ambigua),
     // la cifra que el usuario afirma EN ESTE TURNO — viaja para que la narración pueda contrastarla contra la
     // oficial. Es texto suyo, no una cifra autorizada: nunca entra al ledger ni a `cifras_autorizadas`.
-    dato: r && r.dato && typeof r.dato === "object" ? { metrica: r.dato.metrica || null, valor: r.dato.valor == null ? null : String(r.dato.valor), periodo: r.dato.periodo || null } : null,
+    dato: r ? r.dato : null,
     aceptado: !!(r && r.aceptado),
     supuestos,
   };
