@@ -50,8 +50,22 @@ section("2 · EL BACKSTOP QUE COBRABA UNA RESPUESTA CORRECTA (§8.3)");
 const lineaBackstop = MOTOR.split("\n").find((l) => /intent === "redirect"/.test(l) && /redirect sin calls/.test(l)) || "";
 ok("el backstop de «redirect sin calls» sigue existiendo", !!lineaBackstop);
 ok("§4.1 · pero ya NO dispara sobre una corrección ambigua", /_esReparacionAmbigua\(p\)/.test(lineaBackstop), lineaBackstop.trim().slice(0, 120));
-ok("la excepción exige `corrige` vacío además del flag (una corrección resuelta nunca se cuela como pregunta)",
-  /function _esReparacionAmbigua[\s\S]{0,400}?r\.ambigua === true[\s\S]{0,120}?!\(Array\.isArray\(r\.corrige\) && r\.corrige\.length\)/.test(MOTOR));
+// LA RECONCILIACIÓN VIVE EN UN SOLO LUGAR (owner 2026-08-10). Antes cada consumidor resolvía por su cuenta la
+// contradicción `ambigua:true` + `corrige:["entidad"]`, y resolvían distinto: el motor recalculaba, el estado no
+// invalidaba nada y el guard no exigía evidencia — ADI contestaba sobre la entidad nueva con la memoria de la
+// vieja. Ahora se resuelve en `normalizeReparacion` y los cuatro leen de ahí.
+const CONTRATO = leer("./src/adi/oracle/conversationalContract.js");
+ok("la contradicción `ambigua` + `corrige` se reconcilia en el normalizador, una sola vez",
+  /export function normalizeReparacion[\s\S]{0,900}?ambigua: r\.tipo === "correccion" && r\.ambigua === true && corrige\.length === 0/.test(CONTRATO));
+ok("§2 · el normalizador exige intent='redirect' (una reparación colgada de un turno normal no lo secuestra)",
+  /export function normalizeReparacion[\s\S]{0,300}?p\.intent !== "redirect"\) return null/.test(CONTRATO));
+ok("el motor NO re-decide la ambigüedad: delega en el normalizador",
+  /const _reparacionDe = \(plan\) => normalizeReparacion\(plan\)/.test(MOTOR)
+  && /function _esReparacionAmbigua[\s\S]{0,200}?return !!\(r && r\.ambigua\)/.test(MOTOR));
+ok("…y el corte por ambigüedad exige además que NO haya calls (nunca se descarta un batch respondible)",
+  /_esReparacionAmbigua\(plan\) && !\(Array\.isArray\(plan\.calls\) && plan\.calls\.length\)/.test(MOTOR));
+ok("la pregunta de precisión tiene una segunda candidata: nunca cae en silencio si el guard rechaza la primera",
+  /for \(const candidata of \[pregunta, stripLanguageLeaks\(_propia\)\]\)/.test(MOTOR));
 
 section("3 · EL ORDEN IMPORTA: la reparación corre antes que todo lo que lee el contexto (§1)");
 const iRep = MOTOR.indexOf("applyRepairToScope(conversationScopePrev");
@@ -80,6 +94,26 @@ ok("el system de NARRAR la recibe desde el PAYLOAD, no del plan crudo",
   /buildNarrateSystemC\([\s\S]{0,240}?payload\.reparacion \|\| null\)/.test(GATEWAY));
 ok("la doctrina de NARRAR es condicional (un turno normal no paga tokens)",
   /doctrinaReparacion \? `\\n\$\{doctrinaReparacion\}\\n` : ""/.test(NARRAR));
+
+section("4b · EL CANDADO YA NO MIRA CÓMO ESTÁ REDACTADO (§5.1)");
+const GUARD = leer("./src/adi/oracle/guardC.js");
+const NARRAR_SRC = NARRAR;
+// El encargo del owner fue explícito: "el guard no debe depender de una lista cerrada de formas de redactarlo".
+// Las tres listas que había —procedencia, consolidación, estimación— ya no existen; se verifica su AUSENCIA, que
+// es lo único que impide que vuelvan de a poco.
+for (const [re, nombre] of [[/_PROCEDENCIA_USUARIO_RE/, "lista de frases de procedencia"], [/_CONSOLIDA_RE/, "lista de verbos de consolidación"], [/_ESTIMACION_RE/, "lista de palabras de estimación"]]) {
+  ok(`el guard ya NO tiene ${nombre}`, !re.test(GUARD));
+}
+ok("la marca de procedencia la ESTAMPA el renderer, y corre sobre el texto final",
+  /export function markUserProvenance/.test(NARRAR_SRC) && /textoFinal = markUserProvenance\(textoFinal, reparacionSellada, figs\)/.test(MOTOR));
+ok("§5.1 viñeta 2 · la consolidación SÍ bloquea, y se detecta por aritmética (es lo único que el renderer no puede reparar)",
+  /function _consolidaConElMotor/.test(GUARD) && /Math\.abs\(\(s\.raw \+ x\.raw\) - f\.raw\)/.test(GUARD));
+ok("la definición de «cifra del usuario» es UNA sola, compartida por el guard y el renderer",
+  /import \{ buildClaims, cifrasDelUsuario \}/.test(GUARD) && /import \{ cifrasDelUsuario \}/.test(NARRAR_SRC));
+ok("§4.1 · la evidencia se mide contra la boleta DE ESTE TURNO, no contra «hay un número»",
+  /const canonBoleta = new Set\(figs\.map\(\(f\) => f\.canon\)\)/.test(GUARD));
+ok("…y los contratos que prohíben citar cifras (action_only · clarify) ganan sobre esa exigencia",
+  /contentScope === "action_only" \|\| mode === "clarify"\) return null/.test(GUARD));
 
 section("5 · NO SE CREÓ NINGUNA CAPA PARALELA (§7)");
 ok("la reparación viaja dentro del intent=redirect que ya existía",

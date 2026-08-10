@@ -21,15 +21,17 @@
  */
 import {
   CONTRACT_VERSION, REPAIR_KINDS, REPAIR_FIELDS, REPAIR_FIELD_KEYS, SCOPE_FIELDS, REPAIR_INVARIANTS,
+  REPAIR_SIEMPRE_INCOMPATIBLE, normalizeReparacion,
   camposQueSobreviven, camposQueSeInvalidan, buildRepairPlanDoctrine, buildRepairNarrateDoctrine, MODE_KEYS,
 } from "./src/adi/oracle/conversationalContract.js";
+import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
 import {
   applyRepairToScope, composePrecisionQuestion, withSupuestoUsuario, supuestosUsuarioVivos,
   emptyConversationScope, SUPUESTOS_USUARIO_MAX,
 } from "./src/adi/oracle/conversationScope.js";
 import { guardC } from "./src/adi/oracle/guardC.js";
-import { buildReparacion, buildNarrationContract, isSealed } from "./src/adi/oracle/narrationContract.js";
-import { buildNarrateSystemC, buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
+import { buildReparacion, buildNarrationContract, isSealed, cifrasDelUsuario } from "./src/adi/oracle/narrationContract.js";
+import { buildNarrateSystemC, buildNarrateUserMessageC, markUserProvenance } from "./src/adi/oracle/narratePromptC.js";
 import { buildPlanSystem, buildPlanSystemSegments, PLAN_TOOL } from "./src/adi/oracle/planPrompt.js";
 import { ADI_PERSONA, ADI_PERSONA_PLAN } from "./src/adi/oracle/persona.js";
 import { buildOracleEvidence } from "./src/adi/oracle/sentrixEvidence.js";
@@ -105,8 +107,25 @@ ok("corrección de FORMATO no toca el alcance (no invalida nada)", camposQueSeIn
 // INTERSECCIÓN, no unión — la trampa que dejaría el período de la entidad vieja pegado a la entidad nueva.
 ok("§1 · dos correcciones a la vez cruzan por INTERSECCIÓN (entidad+período no conserva el período)",
   !camposQueSobreviven(["entidad", "periodo"]).has("periodo"), [...camposQueSobreviven(["entidad", "periodo"])].join(","));
-ok("una corrección sin campos legibles se trata como la MÁS amplia (no como inofensiva)",
-  camposQueSeInvalidan([]).length === SCOPE_FIELDS.length && camposQueSeInvalidan(["inventado"]).length === SCOPE_FIELDS.length);
+// una corrección que no sabemos leer apaga el PISO (oferta, evidencia, orden sellado) y conserva el resto. Antes
+// borraba el scope entero: el usuario tenía que redeclarar entidad, métrica y período por haber contestado la
+// pregunta de precisión que ADI le hizo — eso rompe la otra mitad de §1 ("se modifica ÚNICAMENTE lo corregido").
+for (const corrige of [[], ["inventado"]]) {
+  const inval = camposQueSeInvalidan(corrige);
+  ok(`corrección ilegible (${JSON.stringify(corrige)}) · apaga el piso: oferta, evidencia y orden sellado`,
+    REPAIR_SIEMPRE_INCOMPATIBLE.every((f) => inval.includes(f)), inval.join(","));
+  ok(`corrección ilegible (${JSON.stringify(corrige)}) · NO borra el alcance entero`,
+    !inval.includes("entities") && !inval.includes("periodo") && !inval.includes("metrica"), inval.join(","));
+}
+// SCOPE_FIELDS tiene que cubrir el shape REAL, o los campos que falten son inmortales: no hay corrección que
+// pueda apagarlos. `tool` era el caso vivo — tras "te pedí ventas, no margen" el prompt del turno siguiente
+// seguía declarando "(tool=marginRead)" como alcance activo.
+{
+  const shape = Object.keys(scopeFalabella().current).filter((k) => !["turno", "tenant"].includes(k));
+  const faltan = shape.filter((k) => !SCOPE_FIELDS.includes(k));
+  ok("SCOPE_FIELDS cubre TODOS los campos del ConversationScopeEntry real", faltan.length === 0, `faltan: ${faltan.join(",")}`);
+  ok("…y `tool` puede invalidarse de verdad", camposQueSeInvalidan(["metrica"]).includes("tool"));
+}
 
 section("3 · la invalidación aplicada sobre el estado canónico");
 const repEntidad = applyRepairToScope(scopeFalabella(), { tipo: "correccion", corrige: ["entidad"] });
@@ -197,36 +216,91 @@ ok("§8.5 · se pueden narrar LAS DOS cifras para mostrar la discrepancia",
   JSON.stringify(guardC(discrepancia, { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repDato }).violations));
 
 const repSup = { tipo: null, corrige: [], ambigua: false, dato: null, supuestos: [{ origen: "usuario", valor: "$20M", metrica: "ventas", periodo: null }] };
-const sinMarca = "La venta de Lider es $20M y el margen queda en 21.5%.";
-const gMarca = guardC(sinMarca, { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup });
-ok("§8.6 · la cifra del usuario escrita SIN decir de quién es se bloquea",
-  !gMarca.ok && gMarca.violations.some((v) => v.kind === "procedencia-usuario"), gMarca.verdict);
-ok("§8.6 · con su marca de procedencia, pasa",
-  guardC("Según tu dato, la venta de Lider sería $20M.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup }).ok);
-ok("§5.1 · marcarla UNA vez no habilita el resto (cada lugar donde aparece lleva su marca)",
-  !guardC("Según tu dato la venta sería $20M. Con eso, la venta de Lider es $20M y cierra el año.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup }).ok);
 
-const suma = "Según tu dato de $20M, junto con los $17.8M del sistema, suman la venta del período.";
-const gSuma = guardC(suma, { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup });
-ok("§8.6 · la cifra del usuario NO puede consolidarse con una cifra del motor",
-  !gSuma.ok && gSuma.violations.some((v) => v.kind === "procedencia-usuario" && /consolida/.test(v.detail)), JSON.stringify(gSuma.violations));
+// ── §8.6 primera mitad · LA MARCA LA PONE EL PRODUCTO, NO EL NARRADOR ─────────────────────────────────────────
+// El candado ya NO reconoce frases. Se probó contra 16 formas reales de declarar la procedencia que un regex
+// cerrado rechazaba —cada una era una respuesta correcta bloqueada y un reintento pagado— y contra el caso
+// inverso: ninguna forma de decirlo es necesaria, porque el renderer estampa la marca él mismo.
+const FORMAS_REALES = [
+  "Según tus números, la venta de Lider sería $20M.",
+  "El monto que me pasaste es $20M.",
+  "Por lo que me contaste, la venta sería $20M.",
+  "El dato tuyo es $20M.",
+  "Con el número que aportás, $20M, el cuadro cambia.",
+  "La venta de Lider es $20M.",
+];
+for (const frase of FORMAS_REALES) {
+  const g = guardC(frase, { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: { ...repSup, supuestos: repSup.supuestos } });
+  const marcada = markUserProvenance(frase, repSup, FIGS_MOTOR);
+  ok(`«${frase.slice(0, 34)}…» · el guard no la juzga por cómo esté redactada`,
+    !g.violations.some((v) => v.kind === "procedencia-usuario"), JSON.stringify(g.violations));
+  ok(`«${frase.slice(0, 34)}…» · y sale marcada como del usuario`, /tu dato|aportás|tuyo|tus números|me pasaste|me contaste/i.test(marcada), marcada);
+}
+{
+  // marcarla una vez al principio no cubre el resto del texto: la segunda oración, que no la declara, recibe la
+  // marca; la primera, que sí la declara, no la duplica.
+  const dosVeces = markUserProvenance("Según tu dato la venta sería $20M. Con eso, la venta de Lider es $20M y cierra el año.", repSup, FIGS_MOTOR);
+  const [ora1, ora2] = dosVeces.split(/(?<=\.)\s+/);
+  ok("§5.1 · CADA aparición lleva su marca, no solo la primera",
+    !/\(tu dato\)/.test(ora1) && /\(tu dato\)/.test(ora2 || ""), dosVeces);
+}
+ok("la marca no se duplica cuando el narrador ya la declaró (idempotente)",
+  !/\(tu dato\)/.test(markUserProvenance("Según tu dato, la venta sería $20M.", repSup, FIGS_MOTOR)));
+ok("una tabla markdown también queda marcada fila por fila",
+  /\| Venta \| \$20M \| \(tu dato\)/.test(markUserProvenance("| Métrica | Valor |\n|---|---|\n| Venta | $20M |", repSup, FIGS_MOTOR)),
+  markUserProvenance("| Métrica | Valor |\n|---|---|\n| Venta | $20M |", repSup, FIGS_MOTOR));
+ok("un turno sin cifras del usuario sale byte-idéntico del renderer",
+  markUserProvenance("La venta de Lider es $17.8M.", null, FIGS_MOTOR) === "La venta de Lider es $17.8M.");
 
-// derivada: 20M − 17.8M = 2.2M. No está en la boleta ni sale de dos cifras del motor.
+// ── §8.6 segunda mitad · LO QUE EL RENDERER NO PUEDE REPARAR, SÍ BLOQUEA ──────────────────────────────────────
+// (a) reemplazar el dato oficial · (b) consolidar los dos universos en un total. Las dos, sin vocabulario.
+const gReemplazo = guardC("La venta de Lider es $20M y el margen queda en 21.5%.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup });
+ok("§5 · la cifra del usuario NO puede reemplazar al dato oficial en silencio",
+  !gReemplazo.ok && gReemplazo.violations.some((v) => v.kind === "dato-oficial-reemplazado"), gReemplazo.verdict);
+ok("§5 · mostrando la discrepancia, pasa",
+  guardC("Mi dato de venta de Lider es $17.8M; el tuyo, $20M.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup }).ok,
+  JSON.stringify(guardC("Mi dato de venta de Lider es $17.8M; el tuyo, $20M.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup }).violations));
+// el candado NO se apaga porque el LLM haya omitido la métrica (defecto real: era un `continue` silencioso).
+const repSinMetrica = { ...repSup, supuestos: [{ origen: "usuario", valor: "$20M", metrica: null, periodo: null }] };
+ok("§5 · sin métrica declarada el candado sigue armado (se compara por unidad)",
+  !guardC("La venta de Lider es $20M y cierra el año.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSinMetrica }).ok);
+// CONSOLIDACIÓN: aritmética pura. 20 + 17.8 = 37.8. Ninguna de estas usa la palabra "sumar".
+for (const frase of [
+  "Según tu dato son $20M y el sistema registra $17.8M; el total queda en $37.8M.",
+  "Tu dato aporta $20M. El sistema registra $17.8M. El año cierra en $37.8M.",
+  "En este escenario, con $20M tuyos y $17.8M del sistema, el acumulado llega a $37.8M.",
+]) {
+  const g = guardC(frase, { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup });
+  ok(`§5.1 · consolidar los dos universos bloquea, se llame como se llame («${frase.slice(0, 30)}…»)`,
+    !g.ok && g.violations.some((v) => v.kind === "consolida-universo-usuario"), JSON.stringify(g.violations));
+}
+ok("§5.1 · la RESTA no es consolidación: la discrepancia es justo lo que hay que mostrar",
+  !guardC("Tu dato de $20M contra los $17.8M del sistema deja una diferencia de $2.2M.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup })
+    .violations.some((v) => v.kind === "consolida-universo-usuario"));
+
+// ── §8.7 · lo derivado sale como estimación, y lo pone el renderer ────────────────────────────────────────────
 const derivadaCruda = "La diferencia asciende a $2.2M sobre lo registrado.";
-const gDer = guardC(derivadaCruda, { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup });
-ok("§8.7 · lo derivado del supuesto NO puede salir como dato probado",
-  !gDer.ok && gDer.violations.some((v) => v.kind === "procedencia-usuario" && /estimaci/i.test(v.detail)), JSON.stringify(gDer.violations));
-ok("§8.7 · enmarcado como escenario/estimación, sí",
-  guardC("En ese escenario la diferencia sería de $2.2M — estimado sobre tu supuesto.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup }).ok,
-  JSON.stringify(guardC("En ese escenario la diferencia sería de $2.2M — estimado sobre tu supuesto.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repSup }).violations));
+ok("§8.7 · una cifra derivada del supuesto sale marcada como estimación, sin pedírselo al narrador",
+  /\(estimado sobre tu supuesto\)/.test(markUserProvenance(derivadaCruda, repSup, FIGS_MOTOR)),
+  markUserProvenance(derivadaCruda, repSup, FIGS_MOTOR));
+ok("§8.7 · si el narrador ya la enmarcó, no se le agrega nada",
+  !/\(estimado sobre tu supuesto\)/.test(markUserProvenance("En ese escenario la diferencia sería de $2.2M.", repSup, FIGS_MOTOR)));
 ok("sin supuesto vivo, esa misma cifra vuelve a ser una cifra inventada (el candado no se aflojó)",
   !guardC(derivadaCruda, { ledger: ledgerDe(FIGS_MOTOR), results: [] }).ok);
 // falso positivo que hay que evitar: si el usuario afirma EXACTAMENTE la cifra del motor no hay discrepancia que
-// proteger, y exigir la marca castigaría una oración legítima sobre el dato propio del producto.
+// proteger, y marcarla ensuciaría una oración legítima sobre el dato propio del producto.
 const repCoincide = { tipo: null, corrige: [], ambigua: false, dato: null, supuestos: [{ origen: "usuario", valor: "$17.8M", metrica: "ventas", periodo: null }] };
-ok("si la cifra del usuario COINCIDE con la del motor, no se exige marca de procedencia",
-  guardC("La venta de Lider es $17.8M en el año cerrado.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repCoincide }).ok,
-  JSON.stringify(guardC("La venta de Lider es $17.8M en el año cerrado.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repCoincide }).violations));
+ok("si la cifra del usuario COINCIDE con la del motor, no se juzga ni se marca",
+  guardC("La venta de Lider es $17.8M en el año cerrado.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: repCoincide }).ok
+  && markUserProvenance("La venta de Lider es $17.8M en el año cerrado.", repCoincide, FIGS_MOTOR) === "La venta de Lider es $17.8M en el año cerrado.");
+
+// ── el formato con que el usuario escribe su cifra no puede decidir si hay candado ────────────────────────────
+// Sin esto, «20 millones» o «$20.000.000» dejaban §5.1 apagado Y bloqueaban como inventada la discrepancia que el
+// contrato OBLIGA a mostrar: un turno sin salida posible.
+for (const crudo of ["$20M", "20 millones", "$20 millones", "20M", "$20.000.000", "$20,000,000"]) {
+  const figs = cifrasDelUsuario({ supuestos: [{ origen: "usuario", valor: crudo, metrica: "ventas" }] });
+  ok(`«${crudo}» se canoniza a la misma cifra del usuario`, figs.length === 1 && figs[0].canon === "money:$20.0M", JSON.stringify(figs.map((f) => f.canon)));
+}
 
 section("8 · el supuesto vive en el estado canónico, no en una memoria nueva");
 const conSupuesto = withSupuestoUsuario(scopeFalabella(), { metrica: "ventas", valor: "$20M" }, 5);
@@ -251,8 +325,31 @@ const memConSupuesto = { conversationScope: conSupuesto };
 ok("un turno NORMAL no produce objeto de reparación", buildReparacion({ plan: { intent: "answer" }, mem: {} }) === null);
 const repSellada = buildReparacion({ plan: planCorreccion, mem: {} });
 ok("una corrección sí, con su tipo y sus campos", repSellada && repSellada.tipo === "correccion" && repSellada.corrige[0] === "entidad");
-ok("un campo corregido inventado por el LLM se descarta", buildReparacion({ plan: { reparacion: { tipo: "correccion", corrige: ["entidad", "loQueSea"] } }, mem: {} }).corrige.join(",") === "entidad");
-ok("un tipo inventado por el LLM no crea una reparación", buildReparacion({ plan: { reparacion: { tipo: "loQueSea" } }, mem: {} }) === null);
+ok("un campo corregido inventado por el LLM se descarta", buildReparacion({ plan: { intent: "redirect", reparacion: { tipo: "correccion", corrige: ["entidad", "loQueSea"] } }, mem: {} }).corrige.join(",") === "entidad");
+ok("un tipo inventado por el LLM no crea una reparación", buildReparacion({ plan: { intent: "redirect", reparacion: { tipo: "loQueSea" } }, mem: {} }) === null);
+
+// ── UNA SOLA LECTURA DEL OBJETO · el normalizador ─────────────────────────────────────────────────────────────
+// Los cuatro consumidores (motor, estado, contrato de narración y guard) leían el objeto crudo y resolvían por su
+// cuenta dos cosas — el intent y la contradicción `ambigua`+`corrige` — y resolvían distinto. Con eso, ADI podía
+// recalcular sobre la entidad nueva mientras su estado conservaba la oferta y el período de la vieja.
+section("9b · el normalizador: una sola lectura para los cuatro consumidores");
+ok("§2 · la reparación SOLO vive dentro de intent='redirect'",
+  normalizeReparacion({ intent: "answer", reparacion: { tipo: "correccion", corrige: ["entidad"] } }) === null);
+ok("…y un `reparacion` colgado de un turno normal no secuestra el turno",
+  buildReparacion({ plan: { intent: "answer", reparacion: { tipo: "correccion", ambigua: true } }, mem: {} }) === null);
+{
+  // la contradicción: se declara ambigua PERO dice qué corrigió. Vale lo RESUELTO — preguntar lo que el usuario
+  // ya contestó es peor que recalcular de más. Y las tres lecturas tienen que coincidir.
+  const contradictoria = { intent: "redirect", reparacion: { tipo: "correccion", ambigua: true, corrige: ["entidad"] } };
+  const norm = normalizeReparacion(contradictoria);
+  ok("la contradicción `ambigua` + `corrige` se resuelve como RESUELTA, una sola vez", norm && norm.ambigua === false && norm.corrige.join(",") === "entidad");
+  ok("…y el estado la trata igual: invalida de verdad",
+    applyRepairToScope(scopeFalabella(), norm).current.entities.length === 0);
+  ok("…y el guard también: le exige evidencia",
+    !guardC("Entendido, era Lider.", { ledger: ledgerDe(FIGS_MOTOR), results: [], reparacion: { ...norm, supuestos: [] } }).ok);
+}
+ok("`ambigua` con un valor no booleano no cuela como ambigua",
+  normalizeReparacion({ intent: "redirect", reparacion: { tipo: "correccion", ambigua: "true" } }).ambigua === false);
 ok("§5.1 · un supuesto vivo viaja AUNQUE este turno no sea una reparación",
   (buildReparacion({ plan: { intent: "answer" }, mem: memConSupuesto }) || {}).supuestos.length === 1);
 const contrato = buildNarrationContract({ text: "no, era Lider", plan: planCorreccion, results: [], ledgerFigs: FIGS_MOTOR, mem: {}, history: [] });
@@ -313,9 +410,42 @@ console.log(`  medición · PLAN_TOOL   ${BASE.planTool} → ${planTool} car (+$
 console.log(`  medición · NARRAR normal ${BASE.narrarDefault} → ${narrarBase} car · corrección ${narrarCorr} (+${narrarCorr - narrarBase}) · con supuesto ${narrarSup} (+${narrarSup - narrarBase})`);
 ok("NARRAR NO crece en un turno normal (la doctrina es condicional)", narrarBase === BASE.narrarDefault, `${narrarBase} vs ${BASE.narrarDefault}`);
 ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && narrarSup > narrarBase);
-ok("PLAN crece menos de 2.500 caracteres (la doctrina + el schema, sin recortar ninguna regla existente)",
-  planSystem - BASE.planSystem < 2500, `+${planSystem - BASE.planSystem}`);
-ok("PLAN_TOOL crece menos de 2.000 caracteres", planTool - BASE.planTool < 2000, `+${planTool - BASE.planTool}`);
+// TOPES APRETADOS TRAS LA PASADA DE ECONOMÍA (owner 2026-08-10): las reglas vivían dos veces —una en la doctrina
+// del system y otra en las descripciones del schema— y eso costaba ~700 caracteres en TODOS los turnos para decir
+// lo mismo dos veces. Ahora las reglas viven una sola vez, en la doctrina; el schema solo declara QUÉ va en cada
+// campo. Ni una regla de negocio se recortó, y la lista de abajo lo verifica una por una.
+ok("PLAN system crece menos de 1.400 caracteres", planSystem - BASE.planSystem < 1400, `+${planSystem - BASE.planSystem}`);
+ok("PLAN_TOOL crece menos de 1.000 caracteres", planTool - BASE.planTool < 1000, `+${planTool - BASE.planTool}`);
+ok("el crecimiento TOTAL de PLAN queda bajo 600 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 600, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
+// puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
+{
+  const d = buildRepairPlanDoctrine();
+  const REGLAS = [
+    [/intent="redirect"/, "la reparación viaja dentro de redirect"],
+    [/tipo="correccion"[\s\S]*corrige=/, "la corrección declara QUÉ cambió"],
+    [/level="global"/, "una corrección de alcance normalmente es global y sin filtro"],
+    [/nunca calls vac[ií]o/i, "una corrección resuelta trae las calls"],
+    [/Reconoc[eé] breve y entreg/i, "reconocer y entregar (§3.7/§3.8)"],
+    [/NO arrastres per[ií]odo, filtro, criterio ni entidad/i, "no arrastrar lo incompatible"],
+    [/ambigua=true/, "la corrección ambigua se declara"],
+    [/UNA de precisi[oó]n/i, "una sola pregunta"],
+    [/nombrando SOLO lo que ah[ií] pudo fallar/i, "no enumerar lo que no corresponde"],
+    [/calls VAC[IÍ]O/i, "la ambigua no recalcula"],
+    [/No es un plan roto/i, "la ambigua no es un error de plan"],
+    [/tipo="desacuerdo"/, "el desacuerdo se distingue"],
+    [/el alcance NO cambia/i, "el desacuerdo no cambia el alcance"],
+    [/probado de lo indicado y lo abierto/i, "el desacuerdo gradúa la evidencia"],
+    [/tipo="dato_usuario"/, "el dato aportado se distingue"],
+    [/CIFRA OFICIAL/, "se pide la cifra oficial para contrastar"],
+    [/NUNCA reemplaza al dato del motor/i, "la cifra del usuario no reemplaza"],
+    [/se muestra la discrepancia/i, "se muestra la discrepancia"],
+    [/aceptado=true/, "la autorización a tratarla como supuesto"],
+  ];
+  const faltan = REGLAS.filter(([re]) => !re.test(d)).map(([, n]) => n);
+  ok(`las ${REGLAS.length} reglas de la doctrina de PLAN sobreviven a la compresión`, faltan.length === 0, `faltan: ${faltan.join(" · ")}`);
+}
 // el corte fijo/variable del caché tiene que seguir siendo byte-exacto: todo lo nuevo cae del lado FIJO (cacheable)
 const seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, "", "actual", false);
 ok("`fijo + variable` sigue siendo byte por byte el system completo", seg.fijo + seg.variable === buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false));

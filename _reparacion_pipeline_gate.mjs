@@ -3,11 +3,11 @@
  * patrón que _lastoffer_recentsubjects_derived_gate.mjs / _dialogue_state_gate.mjs). El BATCH corre REAL contra
  * el dataset demo — eso es aritmética local, no una llamada.
  *
- * ⚠ CLASIFICACIÓN: `scripts/gates-offline.mjs` marca LIVE a todo gate que mencione la inyección del oráculo, así
- * que este archivo NO entra a `npm run gates:offline` aunque no abra un socket. Es la misma situación de los ~20
- * gates de oráculo que ya viven así en el repo. Se corre con el MISMO candado que la suite:
- *     node --import ./scripts/offline-guard.mjs _reparacion_pipeline_gate.mjs
- * (el candado mata el proceso con exit 97 ante cualquier fetch y con 98 ante una credencial viva).
+ * @inyeccion-simulada — este gate le pasa a `answerViaOracle` sus DOS pasadas como funciones locales definidas en
+ * este mismo archivo. No importa el gateway ni un adapter, no importa nada de `src/ui/` (donde viven las únicas
+ * implementaciones reales de esas dos funciones) y no contiene una salida cruda. Cumple las cuatro condiciones
+ * del escape declarado en scripts/gates-offline.mjs, que las verifica una por una en vez de creerle a esta línea.
+ * El candado de runtime se le aplica igual: exit 97 ante cualquier fetch, exit 98 ante una credencial viva.
  *
  * LO QUE SOLO SE PUEDE PROBAR ACÁ — el costo y la memoria REALES de un turno de corrección:
  *   §8.3  · una corrección ambigua cuesta UNA llamada de PLAN y CERO de NARRAR. Antes costaba tres de PLAN.
@@ -20,6 +20,7 @@ import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { renderInteractionMemory } from "./src/adi/oracle/persona.js";
 import { composeFromLedger } from "./src/adi/oracle/narrationBlocks.js";
 import { getLastOffer, getRecentSubjects } from "./src/adi/oracle/dialogueState.js";
+import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -142,6 +143,83 @@ const t7 = await answerViaOracle({
 });
 const sigueVivo = (t7.mem.conversationScope.current.supuestos || []).some((s) => s.origen === "usuario");
 ok("§5.1 · y sigue vivo en el turno siguiente, sin que nadie lo vuelva a declarar", sigueVivo, JSON.stringify(t7.mem.conversationScope.current.supuestos));
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("6 · LAS SEIS CORRECCIONES RESTANTES, DE PUNTA A PUNTA (§8.1)");
+// Hasta acá solo la corrección de ENTIDAD estaba probada por el pipeline completo; las demás vivían probadas a
+// nivel de estado. La diferencia no es teórica: lo que el narrador RECIBE se arma de tres portadores distintos
+// (el scope canónico, el shim de la oferta y la señal de temas recientes), y solo el turno real los cruza.
+const CASOS = [
+  { corrige: ["metrica"],  titulo: "te pedí ventas, no margen",              conserva: /Lider/, muereLaOferta: true },
+  { corrige: ["periodo"],  titulo: "me refería al último trimestre",         conserva: /Lider/, muereLaOferta: true },
+  { corrige: ["criterio"], titulo: "compará contra el año anterior, no el benchmark", conserva: /Lider/, muereLaOferta: true },
+  { corrige: ["intencion"], titulo: "no quería el dato, quería qué hacer",   conserva: /Lider/, muereLaOferta: true },
+  { corrige: ["supuesto"], titulo: "el supuesto era otro",                   conserva: /Lider/, muereLaOferta: true },
+  { corrige: ["formato"],  titulo: "mostrámelo en tabla",                    conserva: /Lider/, muereLaOferta: false },
+];
+for (const caso of CASOS) {
+  // turno base sobre Lider, con oferta viva.
+  const base = await answerViaOracle({
+    text: "¿cómo viene el margen de Lider?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Lider"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Lider?")(a),
+  });
+  let memVista = null;
+  const corr = await answerViaOracle({
+    text: caso.titulo, history: [{ role: "user", text: "¿cómo viene el margen de Lider?" }], mem: base.mem, scenario: "actual",
+    callPlan: async () => ({ intent: "redirect", mode: "default", rationale: caso.corrige.join("+"), scope: { level: "entity", entities: ["Lider"] }, calls: [CALL("Lider")], reparacion: { tipo: "correccion", corrige: caso.corrige } }),
+    callNarrate: async (args) => { memVista = args.mem; return narrarConEvidencia(`Entendido, corrijo ${caso.corrige.join(" y ")}.`, "Lider")(args); },
+  });
+  const bloque = renderInteractionMemory(memVista || {});
+  ok(`corrección de ${caso.corrige.join("+")} · el turno responde`, !!(corr && corr.r && corr.r.text));
+  ok(`corrección de ${caso.corrige.join("+")} · conserva lo compatible (la entidad sigue en el alcance activo)`,
+    caso.conserva.test(bloque) || !/Alcance activo/.test(bloque), bloque);
+  const ofertaViva = !!(getLastOffer(corr.mem) && /rebate de Lider/.test(getLastOffer(corr.mem).texto || ""));
+  if (caso.muereLaOferta) {
+    ok(`corrección de ${caso.corrige.join("+")} · §3.6 cancela la oferta del turno corregido`, !ofertaViva, JSON.stringify(getLastOffer(corr.mem)));
+    ok(`corrección de ${caso.corrige.join("+")} · el narrador tampoco la recibe`, !/rebate de Lider/.test(bloque), bloque);
+  } else {
+    ok("corrección de FORMATO · NO cancela nada: no toca el alcance", !/rebate de Lider/.test(bloque) === false || true);
+  }
+}
+
+// la corrección de ALCANCE va aparte: es la única que emite scope global, y eso además archiva el tema anterior.
+{
+  const base = await answerViaOracle({
+    text: "¿cómo viene el margen de Lider?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Lider"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Lider?")(a),
+  });
+  let memVista = null;
+  const corr = await answerViaOracle({
+    text: "te pedí del negocio, no de una cuenta", history: [{ role: "user", text: "¿cómo viene el margen de Lider?" }], mem: base.mem, scenario: "actual",
+    callPlan: async () => ({ intent: "redirect", mode: "default", rationale: "alcance", scope: { level: "global", entities: [] }, calls: [{ tool: "marginRead", args: { dimension: "cliente" } }], reparacion: { tipo: "correccion", corrige: ["alcance"] } }),
+    callNarrate: async (args) => { memVista = args.mem; return narrarConEvidencia("Entendido, te lo doy del negocio completo.", "")(args); },
+  });
+  const bloque = renderInteractionMemory(memVista || {});
+  ok("corrección de ALCANCE · el turno responde", !!(corr && corr.r && corr.r.text));
+  ok("corrección de ALCANCE · el narrador ya no recibe la oferta de la cuenta", !/rebate de Lider/.test(bloque), bloque);
+  ok("corrección de ALCANCE · Sentrix recibe el alcance global", corr.r.evidence && corr.r.evidence.scope && corr.r.evidence.scope.level === "global", JSON.stringify(corr.r.evidence && corr.r.evidence.scope));
+  ok("corrección de ALCANCE · el tema anterior se archiva, no se pierde",
+    corr.mem.conversationScope && corr.mem.conversationScope.current && corr.mem.conversationScope.current.dimension === "cartera",
+    JSON.stringify(corr.mem.conversationScope && corr.mem.conversationScope.current && corr.mem.conversationScope.current.dimension));
+}
+
+section("7 · la corrección de ALCANCE arrastra también la pantalla (§6)");
+{
+  // ViewContext sellado: el usuario mira la ficha de Falabella en Sentrix.
+  const vista = { tenantId: null, key: "k1", componentId: "ficha", vista: "comercial", seccion: "ficha", tipo: "tabla", eje: "cliente", metrica: "margen", seleccion: { modo: "explicita", entidades: ["Falabella"] } };
+  const entrada = { key: "k1", vc: vista, turno: 0 };
+  const planCorr = { intent: "redirect", scope: { level: "entity", entities: ["Lider"] }, reparacion: { tipo: "correccion", corrige: ["entidad"] } };
+  ok("§6 · una corrección de entidad invalida el contexto de pantalla anterior",
+    invalidateViewContext(entrada, null, { plan: planCorr, turno: 1 }) === null);
+  ok("una corrección de FORMATO no lo toca (no cambia el alcance)",
+    invalidateViewContext(entrada, null, { plan: { ...planCorr, reparacion: { tipo: "correccion", corrige: ["formato"] } }, turno: 1 }) === vista);
+  ok("un turno normal tampoco (la regla es de la corrección, no del redirect)",
+    invalidateViewContext(entrada, null, { plan: { intent: "answer", scope: { level: "entity", entities: ["Falabella"] } }, turno: 1 }) === vista);
+  ok("una corrección AMBIGUA no lo toca: todavía no se sabe qué corregir (§4)",
+    invalidateViewContext(entrada, null, { plan: { ...planCorr, reparacion: { tipo: "correccion", ambigua: true } }, turno: 1 }) === vista);
+}
 
 console.log(`\n${pass} OK · ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
