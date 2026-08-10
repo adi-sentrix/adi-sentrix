@@ -25,6 +25,9 @@
  * PURO · SIN ESTADO · SIN DOM · SIN LLM · gate-testable.
  */
 import { deepFreeze } from "./narrationContract.js";
+// REPARACIÓN CONTEXTUAL (Contrato v1.2): la pantalla se invalida con la MISMA matriz de compatibilidad que el
+// resto del contexto — nunca con un criterio propio. Ver la regla 2b de invalidateViewContext.
+import { normalizeReparacion, camposQueSeInvalidan } from "./conversationalContract.js";
 import { fnv1a } from "./sentrixEvidence.js";
 import { ENTITIES } from "../../config/contract/entityRegistry.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
@@ -353,17 +356,34 @@ export function projectViewContextForCoercion(vc) {
 //      validateScopeTenant/assertTenantContext: ante la duda, se descarta ENTERO).
 //   2. plan.scope.level === "global" → null. Es el MISMO y único disparador de "cambió el tema" que ya usa
 //      updateConversationScope — no se inventa un segundo clasificador difuso.
+//   2b. UNA CORRECCIÓN QUE INVALIDA LA ENTIDAD → null (Contrato v1.2 §1/§6, owner 2026-08-10). Tampoco es un
+//      clasificador nuevo: es la MISMA matriz de compatibilidad del contrato conversacional, leída desde acá. El
+//      hueco era real y silencioso — con la Ficha de Falabella abierta y un "no, era Lider", el alcance se
+//      corregía en todos lados menos en la pantalla: la línea de contexto seguía diciendo «entidad Falabella» en
+//      los DOS prompts, `resolveAnswerShape` podía seguir explicando el componente viejo, y `viewContextEntry` le
+//      re-estampaba un turno fresco, así que el contexto invalidado se renovaba solo y podía no morir nunca.
+//      §6 pide que "Sentrix reciba el mismo alcance corregido"; sin esto recibía el anterior.
 //   3. hay contexto fresco → manda el fresco. Si su key difiere del anterior, el anterior se DESCARTA ENTERO
 //      (jamás un merge: un merge de dos pantallas produce una tercera que nadie miró).
 //   4. no hay contexto fresco (el usuario tipeó con el panel cerrado) → el anterior sobrevive como máximo
 //      VIEW_CONTEXT_TTL_TURNOS turnos (= VIEW_CONTEXT_TTL_ENTRADAS entradas de history, que es la unidad en que
 //      llega `turno`), y sólo para referencias de COMPONENTE; para referencias de ENTIDAD manda
 //      conversationScope, que ya tiene su propia política.
+// _correccionInvalidaEntidad(plan) → ¿esta corrección dejó sin efecto la entidad del turno anterior? Se resuelve
+// con la MISMA matriz del contrato conversacional (normalizeReparacion + camposQueSeInvalidan), no con un
+// criterio propio: la pantalla no puede tener su propia idea de qué sobrevive a una corrección.
+function _correccionInvalidaEntidad(plan) {
+  const r = normalizeReparacion(plan);
+  if (!r || r.tipo !== "correccion" || r.ambigua) return false;
+  return camposQueSeInvalidan(r.corrige).includes("entities");
+}
+
 export function invalidateViewContext(prevEntry, freshVc, { plan = null, requestContext = null, turno = null } = {}) {
   const tenantActivo = requestContext && requestContext.tenantId ? requestContext.tenantId : null;
   const fresh = _isPlain(freshVc) ? freshVc : null;
   if (fresh && tenantActivo && fresh.tenantId !== tenantActivo) return null;
   if (plan && plan.scope && plan.scope.level === "global") return null;
+  if (_correccionInvalidaEntidad(plan)) return null;
   if (fresh) return fresh;
   if (!_isPlain(prevEntry) || !_isPlain(prevEntry.vc)) return null;
   const prev = prevEntry.vc;
