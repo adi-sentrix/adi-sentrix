@@ -1493,9 +1493,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = stripLanguageLeaks(n);       // registro ejecutivo neutro (palanca→acción, plata→caja…) · GARANTÍA sobre lo que el prompt ya pide
     n = stripOutOfDataOffers(n);     // nunca ofrecer/mencionar data que no existe (campañas/marketing/…) — mismo patrón que la ruta legacy, ver voiceGuard.js
     n = stripFiller(n);              // banda prohibida de cierres-relleno (backstop del prompt)
-    n = stripSingleRowTables(n, q);  // "1 entidad → prosa, nunca tabla" — SALVO que el usuario haya pedido tabla explícitamente (ver narratePromptC.js)
-    n = stripRedundantTemporalTable(n, results);   // trend YA renderiza su propia tarjeta con la matriz — nunca dos tablas mes a mes (owner 2026-08-05, ver narratePromptC.js)
-    n = stripPerfilCompletoTable(n, plan);   // perfil de cliente (composición/capital ligado) — Sentrix YA muestra esto, el chat sintetiza en prosa (owner 2026-08-07, ver narratePromptC.js)
+    // LOS TRES RECIBEN LA POLÍTICA DEL TURNO (owner 2026-08-10, defecto A4): con `required` ninguno borra la tabla
+    // que guardC va a exigir tres líneas más abajo. Sin esto, el motor borraba el cumplimiento y después cobraba
+    // el incumplimiento — un rechazo que el narrador no podía evitar por más que hiciera todo bien.
+    n = stripSingleRowTables(n, q, tablePolicy);  // "1 entidad → prosa, nunca tabla" — SALVO que el usuario haya pedido tabla explícitamente (ver narratePromptC.js)
+    n = stripRedundantTemporalTable(n, results, tablePolicy);   // trend YA renderiza su propia tarjeta con la matriz — nunca dos tablas mes a mes (owner 2026-08-05, ver narratePromptC.js)
+    n = stripPerfilCompletoTable(n, plan, tablePolicy);   // perfil de cliente (composición/capital ligado) — Sentrix YA muestra esto, el chat sintetiza en prosa (owner 2026-08-07, ver narratePromptC.js)
     // action_only: DOBLE candado (data_only/results_only ya no llegan acá, ver arriba). (1) el renderer descarta
     // cualquier bloque que no sea [[ACCION]] — sigue valiendo, cierra la fuga original. (2) hasForbiddenContent
     // valida el CONTENIDO del bloque permitido — si coló lenguaje de causa/interpretación o de siguiente-paso
@@ -1543,7 +1546,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         c = ensureTransferenciaDeclarada(c, results, q);
         if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy }).ok) {
           narration = c; narrationRepaired = true;
-          narrateAttemptTrace.push({ attempt, guardOk: false, reason: `${gVerdict.verdict} → salida determinística desde lo autorizado (sin otra llamada)`, usage: null });
+          // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
+          // SEGUNDA entrada con el MISMO `attempt` y `guardOk:false`, así que el trace de un turno reparado al
+          // primer intento se leía como "el narrador falló dos veces seguidas" — que es exactamente cómo se leyó
+          // la corrida de certificación. No hubo dos fallas ni dos llamadas: hubo UNA, y se reparó sin pagar otra.
+          // La reparación se anota SOBRE el intento que la motivó, que es donde de verdad ocurrió.
+          narrateAttemptTrace[narrateAttemptTrace.length - 1].reparado = `${gVerdict.verdict} → salida determinística desde lo autorizado (sin otra llamada)`;
           break;
         }
       }

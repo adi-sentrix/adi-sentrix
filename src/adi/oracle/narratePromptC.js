@@ -240,7 +240,24 @@ export function isExplicitTableRequest(userText) {
 // dato queda intacta, así que no se pierde información. EXCEPCIÓN (owner 2026-08-02, segunda vuelta): si
 // isExplicitTableRequest(userText) es true, este backstop NO debe tocar nada — es un candado contra tablas que
 // nadie pidió, no contra tablas que el usuario pidió a propósito.
-export function stripSingleRowTables(text, userText) {
+// ── LOS BACKSTOPS CEDEN ANTE LA POLÍTICA DECIDIDA (owner 2026-08-10, certificación live · defecto A4) ─────────
+// EL DEFECTO, y es del motor, no del narrador: con `tablePolicy:"required"` el turno BORRABA la tabla que el
+// narrador había armado —cualquiera de los tres backstops de abajo— y tres líneas después guardC rechazaba la
+// misma narración por `tabla-faltante`. El narrador no podía ganar: cumplía, se le borraba el cumplimiento, y se
+// le cobraba el incumplimiento. Por eso "el narrador incumple" era una lectura equivocada del síntoma.
+//
+// LA DIVERGENCIA CONCRETA que lo hacía posible: `resolveTablePolicy` devuelve `required` por TRES caminos
+// (pidió tabla · pidió la serie mes a mes · pidió el desglose), pero `stripSingleRowTables` solo se eximía por el
+// PRIMERO —`isExplicitTableRequest`, que busca la palabra "tabla" literal—, `stripRedundantTemporalTable` no se
+// eximía nunca (y "mes a mes" es justamente uno de los caminos a `required`), y `stripPerfilCompletoTable`
+// tampoco. Tres criterios distintos sobre la misma decisión.
+//
+// LA REGLA, una sola y en los tres: si la política del turno EXIGE la tabla, ningún backstop la borra. `required`
+// no es una preferencia del narrador — es la decisión sellada del turno (politicaExtension.tablePolicy) y la
+// misma que guardC valida. Default "auto" a propósito: los callers y gates que no pasan el argumento producen el
+// MISMO resultado byte a byte que antes.
+export function stripSingleRowTables(text, userText, tablePolicy = "auto") {
+  if (tablePolicy === "required") return String(text || "");
   if (isExplicitTableRequest(userText)) return String(text || "");
   const lines = String(text || "").split("\n");
   const out = [];
@@ -272,7 +289,12 @@ export function stripSingleRowTables(text, userText) {
 // interpretación real. NUNCA toca una tabla que no sea de meses (ej. una tabla de clientes/SKU real que el
 // usuario sí pidió) — el candado es la coincidencia de meses, no "cualquier tabla tras un trend".
 const _MES_ABBR_RE = /^(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\b/i;
-export function stripRedundantTemporalTable(text, results) {
+// `tablePolicy` (owner 2026-08-10, defecto A4 — ver el bloque de stripSingleRowTables): "pedí el mes a mes" es
+// uno de los tres caminos a `required`, así que este backstop y la política chocaban de frente justo en el turno
+// que más los enfrenta. Con la tabla EXIGIDA, se conserva; el duplicado con la tarjeta de `trend` es un costo
+// menor que responder en prosa lo que se pidió tabulado, y es lo que el guard exige.
+export function stripRedundantTemporalTable(text, results, tablePolicy = "auto") {
+  if (tablePolicy === "required") return String(text || "");
   const hasTablaM = Array.isArray(results) && results.some((r) => r && r.facts && r.facts.tablaM && Array.isArray(r.facts.tablaM.rows) && r.facts.tablaM.rows.length);
   if (!hasTablaM) return String(text || "");
   const lines = String(text || "").split("\n");
@@ -325,7 +347,13 @@ function _isPerfilCompletoPlan(plan) {
 // "en una consulta amplia por cliente, ADI no debe reproducir tablas que ya mostrará Sentrix — debe sintetizar
 // en prosa". Borra CUALQUIER tabla markdown del texto (no selecciona por contenido — hasta el resumen de KPIs
 // es redundante con las cards de Sentrix, no solo la tabla de familias/SKU) — la prosa alrededor queda intacta.
-export function stripPerfilCompletoTable(text, plan) {
+// `tablePolicy` (owner 2026-08-10, defecto A4 — ver el bloque de stripSingleRowTables): éste era el más duro de
+// los tres, porque borra CUALQUIER tabla sin mirar su contenido. «Dame la tabla completa de Falabella» es a la vez
+// un perfil completo (el plan trae composición/capital ligado) y un pedido explícito de tabla: la respuesta se
+// borraba entera y el turno terminaba rechazado por no traerla. `required` gana — la Ficha sigue siendo el lugar
+// del detalle, pero cuando el usuario pide la tabla con todas las letras, se le da.
+export function stripPerfilCompletoTable(text, plan, tablePolicy = "auto") {
+  if (tablePolicy === "required") return String(text || "");
   if (!_isPerfilCompletoPlan(plan)) return String(text || "");
   const lines = String(text || "").split("\n");
   const out = [];

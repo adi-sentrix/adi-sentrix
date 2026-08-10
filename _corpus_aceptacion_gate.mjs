@@ -31,7 +31,7 @@ import { guardC } from "./src/adi/oracle/guardC.js";
 import { resolveGlossary } from "./src/adi/sentrix/glossary.js";
 import { headlineTotal } from "./src/adi/sentrix/headline.js";
 import { transferenciaCapability } from "./src/adi/sentrix/capability.js";
-import { ensureTransferenciaDeclarada } from "./src/adi/oracle/narratePromptC.js";   // la garantía C1: se prueba tal como corre en producción
+import { ensureTransferenciaDeclarada, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable } from "./src/adi/oracle/narratePromptC.js";   // la garantía C1 + los 3 backstops de forma (defecto A4): se prueban tal como corren en producción
 // LA RUTA PUNTUAL DEL MOTOR (defecto C2) — las dos funciones PURAS que componen la respuesta determinística, sin
 // proveedor de por medio: acá se mide la salida REAL del motor, no una narración hipotética escrita en el gate.
 import { simpleEntityMetric, rutaDeterministica } from "./src/adi/oracle/answerViaOracle.js";
@@ -381,7 +381,30 @@ pregunta(11, "Dame la tabla completa de Falabella", "responde",
     const gSinTabla = guardCon(`Falabella vendió ${propias[0].value}.`, { tablePolicy: "required" });
     ok(gSinTabla.violations.some((v) => v.kind === "tabla-faltante"),
       "responder en prosa lo que se pidió tabulado se marca como incumplimiento");
-    return `${propias.length} columnas autorizadas, todas con dueño · la tabla pasa con tablePolicy=required`;
+    // EL MOTOR NO PUEDE BORRAR LO QUE DESPUÉS EXIGE (owner 2026-08-10, certificación live · defecto A4). Los tres
+    // backstops de forma corren ANTES de guardC. Medido antes del arreglo: con `required`, cualquiera de los tres
+    // borraba la tabla y guardC rechazaba la MISMA narración por `tabla-faltante` — el narrador cumplía, se le
+    // borraba el cumplimiento y se le cobraba el incumplimiento. Se prueban los tres en el turno que los enfrenta.
+    const unaFila = ["| Concepto | Valor |", "| --- | --- |", `| Ventas | ${propias[0].value} |`].join("\n");
+    const planPerfilConComposicion = { intent: "answer", calls: [
+      { tool: "entityProfile", args: { dimension: "cliente", entity: "Falabella" } },
+      { tool: "entityComposicion", args: { dimension: "cliente", entity: "Falabella" } }] };
+    const conTrend = [{ tool: "trend", facts: { tablaM: { rows: [{ mes: "Ene" }, { mes: "Feb" }] } } }];
+    const tablaMeses = ["| Mes | Venta |", "| --- | --- |", "| Ene | $1.0M |", "| Feb | $1.1M |"].join("\n");
+    for (const [nombre, antes, despues] of [
+      ["stripSingleRowTables", unaFila, stripSingleRowTables(unaFila, "Dame la tabla completa de Falabella", "required")],
+      ["stripRedundantTemporalTable", tablaMeses, stripRedundantTemporalTable(tablaMeses, conTrend, "required")],
+      ["stripPerfilCompletoTable", tabla, stripPerfilCompletoTable(tabla, planPerfilConComposicion, "required")],
+    ]) {
+      ok(despues.includes("|"), `con tablePolicy="required", ${nombre} NO borra la tabla que el guard va a exigir`,
+        `antes=${antes.split("\n").length} líneas · después=${despues.split("\n").length}`);
+    }
+    // Y la regla original sigue viva donde corresponde: sin `required`, los tres siguen podando como siempre.
+    ok(!stripSingleRowTables(unaFila, "contame de Falabella", "auto").includes("|"),
+      "sin `required`, stripSingleRowTables sigue colapsando la tabla de una fila (no se apagó la regla)");
+    ok(!stripPerfilCompletoTable(tabla, planPerfilConComposicion, "auto").includes("|"),
+      "sin `required`, stripPerfilCompletoTable sigue borrando la tabla del perfil completo");
+    return `${propias.length} columnas autorizadas, todas con dueño · la tabla pasa con tablePolicy=required · los 3 backstops ceden ante required`;
   });
 
 /* ══ 12 · «¿Los que más venden son los que tienen capital detenido?» ═════════════════════════════════════════
