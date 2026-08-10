@@ -79,7 +79,7 @@ function _closeDiagnose(resp) {
 
   // PRIORIDAD: el foco que más pesa ($, ya viene ordenado desc) · nombre = titulo (texto, sin cifra nueva)
   const biggest = (F[0] && F[0].titulo) ? F[0].titulo.toLowerCase() : "el foco de mayor impacto";
-  const prioridad = `**Prioridad:** lo que más pesa es ${biggest} — arrancá por ahí.`;
+  const prioridad = `**Prioridad:** lo que más pesa es ${biggest} — arranca por ahí.`;
 
   // PALANCA: adaptada a los focos presentes (accionable · sin cifras)
   const dets = new Set(F.map((f) => f.detector));
@@ -210,7 +210,7 @@ function _closeCompare(resp) {
   const dif = `**Diferencia principal:** en ${crit}, ${a} ${top.aFmt} vs ${b} ${top.bFmt} — es lo que más los separa.`;
   const ganador = `**Ganador (por ${crit}):** ${winner} rinde mejor en ese criterio.`;
   const riesgo = `**Riesgo / trade-off:** ${loser} no queda descartado — puede ganar en otra métrica de la lista; no cierres por un solo número.`;
-  const decision = `**Decisión:** si lo que más te importa es ${crit}, ${winner}; si pesa otra métrica, mirá su fila antes de elegir.`;
+  const decision = `**Decisión:** si lo que más te importa es ${crit}, ${winner}; si pesa otra métrica, mira su fila antes de elegir.`;
   return _guardWrap(resp, [header, listLine, dif, ganador, riesgo, decision].join("\n\n"), "compare_entities");
 }
 
@@ -374,7 +374,7 @@ function _closeRecommend(resp) {
   const topEntity = actionable.items && actionable.items[0] ? actionable.items[0].entidad : null;
   const recomendacion = isCarga
     ? `**Recomendación:** llevá la carga comercial hacia el target interno${topEntity ? `, empezando por ${topEntity}` : ""}.`
-    : `**Recomendación:** liberá el capital detenido de los SKU que no rotan${topEntity ? ` (arrancá por ${topEntity})` : ""}.`;
+    : `**Recomendación:** liberá el capital detenido de los SKU que no rotan${topEntity ? ` (arranca por ${topEntity})` : ""}.`;
   const fundamento = isCarga
     ? "**Fundamento:** la carga está sobre el target interno — es valor que hoy no llega al margen (probado por el dato)."
     : "**Fundamento:** son SKU que dejaron de rotar; su capital queda inmovilizado (probado por el dato).";

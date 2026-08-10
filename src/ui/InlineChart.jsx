@@ -311,8 +311,8 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
         ))}
       </div>
       <div style={{ fontFamily: SANS, fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: "right" }}>{showCum
-        ? <>el punto ámbar marca el corte real · la curva <span style={{ color: C.lav }}>lavanda</span> es el acumulado (la punteada, el umbral del 80%) · pasá el cursor para ver cada dato</>
-        : <>el punto ámbar marca dónde se llega al 80% (la punteada, el umbral) · pasá el cursor para ver cada dato</>}</div>
+        ? <>el punto ámbar marca el corte real · la curva <span style={{ color: C.lav }}>lavanda</span> es el acumulado (la punteada, el umbral del 80%) · pasa el cursor para ver cada dato</>
+        : <>el punto ámbar marca dónde se llega al 80% (la punteada, el umbral) · pasa el cursor para ver cada dato</>}</div>
     </>
   );
 }

@@ -88,10 +88,10 @@ console.log("[5] CARD CAPITAL == COMPOSER (frenado) · la medida cuantifica EXAC
 const cap = diag.evidence.findings.find((f) => f.detector === "capital");
 const iComp = composeSpecInventory({ scenario: S, focus: "frenado" });
 ok(mesa.estados.capital.linea.includes(_money(cap.subtotal_usd)), `el sub de la card cita ${_money(cap.subtotal_usd)}`, mesa.estados.capital.linea);
-ok((iComp.opener || "").includes(`Tenés ${_money(cap.subtotal_usd)} de capital inmovilizado`), "la respuesta abre con el mismo total");
-const mHacer = (iComp.opener || "").match(/arrancá por ([A-Z0-9-]+(?: y [A-Z0-9-]+)?)/);
+ok((iComp.opener || "").includes(`Tienes ${_money(cap.subtotal_usd)} de capital inmovilizado`), "la respuesta abre con el mismo total");
+const mHacer = (iComp.opener || "").match(/arranca por ([A-Z0-9-]+(?: y [A-Z0-9-]+)?)/);
 const mVale = (iComp.opener || "").match(/liberar ([A-Z0-9-]+(?: y [A-Z0-9-]+)?) devuelve (\$\d+(?:\.\d+)?[KM]?)/);
-ok(!!mHacer && !!mVale, "existen el «arrancá por» y el «cuánto vale»");
+ok(!!mHacer && !!mVale, "existen el «arranca por» y el «cuánto vale»");
 if (mHacer && mVale) {
   ok(mHacer[1] === mVale[1], `el par recomendado (${mHacer[1]}) == el par cuantificado (${mVale[1]})`);
   const bySku = Object.fromEntries(iComp.evidence.inventory.bySku.map((s) => [s.sku, s.usd]));

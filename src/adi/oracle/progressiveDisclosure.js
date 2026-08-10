@@ -209,7 +209,7 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
     const art = /^(brecha|carga|meta|contribuci)/.test(m) ? "la" : "el";
     p.push(`Una causa comprobada es ${art} ${m}: ${palanca.valor}.${resto}`);
   }
-  if (capital) p.push(`Además tenés ${capital.valor} de capital detenido en el inventario del mix que le vendés — es capital de tu negocio, no de ${dueño}.`);
+  if (capital) p.push(`Además tienes ${capital.valor} de capital detenido en el inventario del mix que le vendes — es capital de tu negocio, no de ${dueño}.`);
   if (!p.length) return null;
   if (hayDetalleEnFicha) p.push(`El detalle está en la ficha de ${dueño} en Sentrix.`);
   return p.join(" ");

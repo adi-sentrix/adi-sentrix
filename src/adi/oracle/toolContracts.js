@@ -272,14 +272,14 @@ export function getToolContract(toolName) {
 export function composeMultiEntityUnsupported(toolName, dimension, entities) {
   const dim = dimension || "esas entidades";
   const list = entities.join(", ");
-  return `Esa operación la corro de a una — no la tengo generalizada para varias ${dim} a la vez. ¿La corro por separado para cada una (${list}), o preferís que me quede con una sola?`;
+  return `Esa operación la corro de a una — no la tengo generalizada para varias ${dim} a la vez. ¿La corro por separado para cada una (${list}), o prefieres que me quede con una sola?`;
 }
 
 export function composeCardinalityExceeded(toolName, card, entities, dimension) {
   const dim = dimension || "entidades";
   const list = entities.join(", ");
   if (toolName === "compareEntities") {
-    return `Comparo de a pares — tengo ${entities.length} ${dim} (${list}). ¿Cuáles dos comparo, o preferís que arme el ranking completo de las ${entities.length}?`;
+    return `Comparo de a pares — tengo ${entities.length} ${dim} (${list}). ¿Cuáles dos comparo, o prefieres que arme el ranking completo de las ${entities.length}?`;
   }
   const max = (card && card.max) || 2;
   return `Esa operación admite hasta ${max} a la vez y tengo ${entities.length} (${list}). ¿Con cuáles seguimos?`;
@@ -287,7 +287,7 @@ export function composeCardinalityExceeded(toolName, card, entities, dimension) 
 
 export function composeFanOutCapped(toolName, entities, cap) {
   const primeras = entities.slice(0, cap).join(", ");
-  return `Son ${entities.length} — puedo correrlo hasta para ${cap} a la vez. ¿Sigo con las primeras ${cap} (${primeras}), o preferís elegir cuáles?`;
+  return `Son ${entities.length} — puedo correrlo hasta para ${cap} a la vez. ¿Sigo con las primeras ${cap} (${primeras}), o prefieres elegir cuáles?`;
 }
 
 export function composeDimensionUnsupported(toolName, contract, dimension) {

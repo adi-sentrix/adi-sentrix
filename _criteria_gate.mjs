@@ -56,7 +56,7 @@ ok("y el diagnose vuelve exacto", diagTotal() === diagBefore);
 const badR = run("recordá que mi margen mínimo es 90%");
 ok("fuera de rango (90%) → honesto, no guarda", /entre 5% y 60%/.test(badR.text) && ACT().length === 0);
 const propR = run("para mí el margen mínimo es 28");
-ok("propose pregunta y NO guarda (chip con la frase exacta)", /No lo guardo sin tu OK/i.test(propR.text) && ACT().length === 0 && Array.isArray(propR.suggestions) && /record[aá]/i.test(propR.suggestions[0]));
+ok("propose pregunta y NO guarda (chip con la frase exacta)", /No lo guardo sin tu OK/i.test(propR.text) && ACT().length === 0 && Array.isArray(propR.suggestions) && /record[aá]|recuerd/i.test(propR.suggestions[0]));
 ok("headless sin localStorage: todo lo anterior corrió sin crashear", true);
 
 console.log(`\n── _criteria_gate: PASS ${pass} · FAIL ${fail} (de ${pass + fail}) ──`);

@@ -217,9 +217,9 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
   // simulate sin métrica reconocible → repregunta EDUCATIVA (enseña las dos formas del supuesto), no el menú de métricas.
   if (spec.operation === "simulate" && (!spec.metric || !METRICS[spec.metric]))
-    return _degrade("simulate-shape", `Decime el supuesto que querés probar: un porcentaje sobre una métrica («¿qué pasa si las ventas suben 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
+    return _degrade("simulate-shape", `Dime el supuesto que quieres probar: un porcentaje sobre una métrica («¿qué pasa si las ventas suben 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
   if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "temporal" && (!spec.metric || !METRICS[spec.metric]))
-    return _degrade("unknown-metric", `¿Qué métrica querés ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);   // temporal exento: "resultado/inventario mes a mes" DECLARAN su límite en su rama
+    return _degrade("unknown-metric", `¿Qué métrica quieres ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);   // temporal exento: "resultado/inventario mes a mes" DECLARAN su límite en su rama
 
   // ── #3 · dimensión existe (margin/ventas holísticos se saltan: manejan su propio eje, incl. "canal" que no es una ENTITY del contrato) ──
   if (spec.operation !== "margin" && spec.operation !== "ventas" && spec.operation !== "temporal" && (!spec.dimension || !ENTITIES[spec.dimension]))
@@ -348,7 +348,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
           return _degrade("simulate-empty", "No veo capital detenido material según tu vara — el inventario está rotando dentro de rango, así que ese supuesto no libera caja adicional. ¿Te muestro el estado del inventario completo?", [], ctx);
         return _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
-      return _degrade("simulate-shape", `Decime el supuesto que querés probar sobre ${_m(spec.metric)}: un porcentaje («¿qué pasa si ${_m(spec.metric)} sube 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
+      return _degrade("simulate-shape", `Dime el supuesto que quieres probar sobre ${_m(spec.metric)}: un porcentaje («¿qué pasa si ${_m(spec.metric)} sube 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
     }
     // TIEMPO/TRAYECTORIA (mejora 7 · owner 2026-07-26): mes a mes · Q1-Q4 · semestres · rangos — LA HISTORIA
     // primero + la tabla estructurada (tabla_matriz), misma serie del evolutivo de Sentrix (una verdad). Los

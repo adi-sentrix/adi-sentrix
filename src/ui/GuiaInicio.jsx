@@ -93,7 +93,7 @@ function PasoQuienHaceQue() {
       <div style={_bajada}>Sentrix demuestra de dónde sale cada cifra. ADI te dice qué hacer con ella.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {fila("ADI", "SENTRIX", "Cuando ADI nombra una cuenta, Sentrix la pinta en el cuadro.")}
-        {fila("SENTRIX", "ADI", "Cuando tocás una fila del cuadro, se la podés preguntar a ADI.")}
+        {fila("SENTRIX", "ADI", "Cuando tocas una fila del cuadro, se la puedes preguntar a ADI.")}
       </div>
     </div>
   );
@@ -104,9 +104,9 @@ function PasoQuienHaceQue() {
 function PasoQuePreguntar({ onEjecutar }) {
   return (
     <div data-testid="guia-paso" data-paso="2">
-      <div style={_eyebrow}>Qué podés preguntar</div>
+      <div style={_eyebrow}>Qué puedes preguntar</div>
       <div style={_titulo}>Preguntale algo de tu negocio.</div>
-      <div style={_bajada}>Estas tres las responde con los datos actuales. Tocá una y arrancamos.</div>
+      <div style={_bajada}>Estas tres las responde con los datos actuales. Toca una y arrancamos.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {GUIA_EJEMPLOS.map((ej, i) => (
           <button key={ej.q} data-testid={`guia-ejemplo-${i}`} onClick={() => onEjecutar(ej.spec, ej.q)}
@@ -140,7 +140,7 @@ function PasoDondeEstaLaEvidencia() {
       <div style={_bajada}>ADI no te pide que le creas. Todo lo que afirma se puede abrir y revisar.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 11, marginTop: 14 }}>
         {item("1", <>Debajo de cada respuesta aparece un botón que abre <b style={{ color: C.text, fontWeight: 600 }}>Sentrix</b> con la evidencia de esa respuesta.</>)}
-        {item("2", <>En el cuadro, tocá una fila y se abre su <b style={{ color: C.text, fontWeight: 600 }}>Ficha</b>: ahí vive el detalle de esa entidad.</>)}
+        {item("2", <>En el cuadro, toca una fila y se abre su <b style={{ color: C.text, fontWeight: 600 }}>Ficha</b>: ahí vive el detalle de esa entidad.</>)}
         {item("3", <>El botón <b style={{ color: C.text, fontWeight: 600 }}>Mesa de control</b>, arriba, abre todas tus cifras a la vez.</>)}
       </div>
     </div>

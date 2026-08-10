@@ -32,7 +32,7 @@ export const METRIC_DEFS = {
   "vs benchmark": "Distancia del margen contra TU benchmark: la referencia que define tu negocio, no una del sector.",
   "vs promedio": _DEF_VS_PROMEDIO, "vs prom": _DEF_VS_PROMEDIO,   // la cabecera abreviada y el defKey largo, LA MISMA definición (una sola constante · no dos strings que puedan divergir)
   // — inventario / bodega —
-  "Capital": "El valor del inventario: lo que tenés invertido en stock.",
+  "Capital": "El valor del inventario: lo que tienes invertido en stock.",
   // «INMOVILIZADO» ES DEL DETECTOR (owner 2026-08-10). Esta entrada declaraba la regla de STOCK EN ALERTA (alerta
   // operativa o rotación < 2) mientras CONCEPT_DEFS.capital_inmovilizado —en este mismo archivo— declara la del
   // detector, y `resolveGlossary("Inmovilizado")` sirve el CONCEPTO: la explicación describía $33.200 sobre una
@@ -60,7 +60,7 @@ export const METRIC_DEFS = {
   // reconciliación posible): por eso la columna lleva el calificador en el nombre y no sólo en la nota de cabecera
   "Margen inv.": _DEF_MARGEN_INVENTARIO, "Margen de inventario": _DEF_MARGEN_INVENTARIO,
   // — gráficos (el "i" de cada gráfico) —
-  "Evolución del negocio": "La película de las ventas mes a mes: este año, año anterior y presupuesto. Dato REAL. Pasá el cursor por la curva para ver cada mes.",
+  "Evolución del negocio": "La película de las ventas mes a mes: este año, año anterior y presupuesto. Dato REAL. Pasa el cursor por la curva para ver cada mes.",
   "Concentración": "El principio 80/20: pocos elementos explican la mayor parte del total. El bloque azul es el que cruza el 80.0% · el % es el REAL del dato, no forzado.",
   "La brecha en el tiempo": "Cómo se movió el margen y sus componentes (costo/carga) en el año. VISTA DE EJEMPLO: el hoy es real, la trayectoria es ilustrativa hasta que el ERP traiga el histórico.",
   "La brecha descompuesta": "El gap de margen partido en sus dos componentes — estructura de costo vs carga comercial — para ver cuál pesa más. La cuenta cierra.",
@@ -89,13 +89,13 @@ export const CONCEPT_DEFS = {
   no_capturada: {
     aka: "contribución no capturada",
     def: "Es la brecha entre lo que un cliente aporta hoy y lo que aportaría si alcanzara el benchmark de margen. No es una pérdida contable —ese dinero no salió de la caja—: es contribución que quedás sin capturar por operar bajo el benchmark. Es recuperable subiendo el margen de esas cuentas.",
-    distingue: "No es un rebate ni un costo: es la contribución que dejás de ganar por el margen bajo. El rebate, en cambio, es parte de la **carga comercial** que ayuda a generar esa brecha.",
+    distingue: "No es un rebate ni un costo: es la contribución que dejas de ganar por el margen bajo. El rebate, en cambio, es parte de la **carga comercial** que ayuda a generar esa brecha.",
   },
   carga: {
     aka: "carga comercial",
     etiquetas: ["carga", "carga comercial", "carga comercial %"],
     def: "Es la parte de la venta que se va en acciones comerciales —rebates, descuentos, condiciones— antes de llegar a la contribución. Se expresa como % de la venta. Cuanta más carga, menos margen retenés. Es una de las causas de que un cliente rinda por debajo de su potencial.",
-    distingue: "La carga comercial es la TASA (%); las **acciones comerciales** son el mismo hecho medido en dinero. Y ninguna de las dos es la **contribución no capturada**, que es el resultado —lo que dejás de ganar—, no la causa.",
+    distingue: "La carga comercial es la TASA (%); las **acciones comerciales** son el mismo hecho medido en dinero. Y ninguna de las dos es la **contribución no capturada**, que es el resultado —lo que dejas de ganar—, no la causa.",
   },
   acciones: {
     aka: "acciones comerciales",
@@ -258,7 +258,7 @@ export const CONCEPT_DEFS = {
     aka: "la vara",
     etiquetas: ["vara", "vara_usuario", "tu vara", "vara declarada"],
     def: "Es la referencia que el usuario fija para juzgar una métrica: el margen mínimo aceptable, la meta de carga comercial, el umbral de días de inventario. Cuando está declarada, reemplaza a la referencia por defecto y ADI mide contra ella.",
-    distingue: "No es el **benchmark** por defecto del negocio: la vara es la referencia que vos declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
+    distingue: "No es el **benchmark** por defecto del negocio: la vara es la referencia que tú declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
   },
   meta: {
     aka: "meta",
@@ -280,7 +280,7 @@ export const CONCEPT_DEFS = {
     aka: "el año anterior",
     etiquetas: ["anterior", "año anterior", "ano anterior", "vs año anterior", "vs ano anterior"],
     def: "Es la misma métrica del período equivalente del año previo. Es la comparación que dice si la cuenta mejoró o se deterioró, con independencia de si cumplió su presupuesto.",
-    distingue: "Compara contra vos mismo un año atrás; el **presupuesto** compara contra lo comprometido y el **benchmark**, contra la referencia de rendimiento.",
+    distingue: "Compara contra tú mismo un año atrás; el **presupuesto** compara contra lo comprometido y el **benchmark**, contra la referencia de rendimiento.",
   },
   promedio_cartera: {
     aka: "el promedio de la cartera",

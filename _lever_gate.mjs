@@ -81,7 +81,7 @@ console.log("\n── capa CAUSAL del compare · el motor lee, la capa explica (
 const cmp = A({ schemaVersion: 1, operation: "compare", metric: "margen", dimension: "cliente", comparison: { dimension: "cliente", entities: ["Falabella", "Lider"] } }, {}, {});
 ok("el compare trae POR QUÉ ocurre (causa de la brecha: costo vs carga)", /\*\*Por qué ocurre:\*\*/.test(cmp.text));
 ok("el compare trae DÓNDE ESTÁ EL VALOR (la no-capturada de cada uno)", /\*\*Dónde está el valor:\*\*/.test(cmp.text) && /sobre la mesa/.test(cmp.text));
-ok("el compare trae LA DECISIÓN (palanca + por cuál empezar)", /\*\*La decisión:\*\*/.test(cmp.text) && /Empezá por/.test(cmp.text));
+ok("el compare trae LA DECISIÓN (palanca + por cuál empezar)", /\*\*La decisión:\*\*/.test(cmp.text) && /Empieza por/.test(cmp.text));
 const cmpFal = figOf(cmp, /Falabella · Valor en juego/);
 const diagFal = bol(diag).find((f) => /Falabella · Contribución no capturada/.test(f.label));
 ok("una verdad: la plata en juego de Falabella == el ítem del diagnose (mismo raw)", cmpFal && diagFal && cmpFal.raw === diagFal.raw);

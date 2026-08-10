@@ -953,7 +953,7 @@ function _prioridades(rows, deterioro, insights) {
     // lector a traducirla. Se dice lo que le pasa a la cuenta y qué puede hacer, en ese orden.
     { key: "recuperarVenta", label: "Recuperar venta", tono: "neutro",
       criterio: "Venden menos de lo que planeaste, pero su margen está sano.",
-      porQue: "Podés empujarles volumen sin resignar margen." },
+      porQue: "Puedes empujarles volumen sin resignar margen." },
   ];
   const ambos = rows.filter((r) => bajoVenta.has(r.name) && bajoMargen.has(r.name)).map((r) => r.name);
   const clasificar = (name) => {

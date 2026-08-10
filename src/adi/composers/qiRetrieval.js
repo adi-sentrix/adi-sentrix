@@ -778,7 +778,7 @@ export function composeRetrieval(qi, scenario, opts) {
     }
     // G5 · "stock" ambiguo → ACLARAR (decisión: nunca remapear en silencio a unidades)
     if (qi.ambiguousStock) {
-      return _qiVerdict("aclarar", "stock", `¿Te referís a unidades vendidas o a capital en inventario? "Stock" puede ser las dos cosas — decime cuál y te lo armo.`);
+      return _qiVerdict("aclarar", "stock", `¿Te referís a unidades vendidas o a capital en inventario? "Stock" puede ser las dos cosas — dime cuál y te lo armo.`);
     }
   }
 
@@ -1036,7 +1036,7 @@ export function composeRetrieval(qi, scenario, opts) {
     suggestions.push(`Ventas y margen por ${dimLabel.toLowerCase()}`);
   }
   if (suggestions.length < 3) suggestions.push(`¿Cómo está el ${dimLabel === "Cliente" ? "negocio por cliente" : dimLabel === "SKU" ? "portafolio de productos" : "mix por familia"}?`);
-  while (suggestions.length < 3) suggestions.push("¿Qué más querés explorar?");
+  while (suggestions.length < 3) suggestions.push("¿Qué más quieres explorar?");
 
   // ADI Core · 2.2c · ranking ordenado {entity, value} (DESC) · single source para materialMetrics y el
   // _qiContext.ranking que usa el corte (2.2c-3 · slice top/bottom N · cero recálculo). Cero formato nuevo.

@@ -262,7 +262,7 @@ function composeRankingGroupNarrative(items, posture, ctx) {
       const subsetCarga = withDriver.filter(it => it.why.driver?.factor === "carga_comercial");
       if (subsetCarga.length > 0) {
         const subsetRec = subsetCarga.reduce((s, it) => s + (it.implication?.recoverable_value || 0), 0);
-        patternMovement += ` Sobre ${withNames} · si llevás la carga al promedio interno · son ${_fmtMoneyK(subsetRec)} anuales recuperables.`;
+        patternMovement += ` Sobre ${withNames} · si llevas la carga al promedio interno · son ${_fmtMoneyK(subsetRec)} anuales recuperables.`;
       }
     }
   } else if (pattern === "mixed_drivers") {

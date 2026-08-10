@@ -83,7 +83,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
   // ── Rama MARGEN ─────────────────────────────────────────────────────────
   else if (metricKey === "margen") {
     if (c.margen === null || c.margen === undefined) {
-      opener = `No tengo margen consolidado de ${c.nombre} en el módulo actual · si querés revisarlo, cambiá a Márgenes.`;
+      opener = `No tengo margen consolidado de ${c.nombre} en el módulo actual · si quieres revisarlo, cambia a Márgenes.`;
       suggestions = filterTextualSuggestions([
         `Cuéntame de ${c.nombre} en márgenes`,
         "Top clientes por margen",
@@ -129,7 +129,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     // (módulo ventas trae clientesVentas que NO expone contribucion · solo
     // clientesMargen sí). Evita reportar "$0.00M" engañoso.
     if (!c.contribucion || c.contribucion === 0) {
-      opener = `No tengo contribución consolidada de ${c.nombre} en el módulo actual · ese dato vive en Márgenes. Si querés revisarlo, cambiá a Márgenes y vuelvo a calcular.`;
+      opener = `No tengo contribución consolidada de ${c.nombre} en el módulo actual · ese dato vive en Márgenes. Si quieres revisarlo, cambia a Márgenes y vuelvo a calcular.`;
       suggestions = filterTextualSuggestions([
         `Cuéntame de ${c.nombre} en márgenes`,
         "Top contribuciones",
@@ -187,7 +187,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
 
   // ── Fallback métrica no cubierta (rotacion, cobertura, etc) ─────────────
   else {
-    opener = `No tengo cobertura determinística para la métrica "${metricKey}" sobre ${c.nombre} en este escenario. Puedo revisar carga, margen, contribución o ventas · decime cuál te interesa.`;
+    opener = `No tengo cobertura determinística para la métrica "${metricKey}" sobre ${c.nombre} en este escenario. Puedo revisar carga, margen, contribución o ventas · dime cuál te interesa.`;
     suggestions = filterTextualSuggestions([
       `Cuéntame de ${c.nombre}`,
       `Y la carga de ${c.nombre}`,

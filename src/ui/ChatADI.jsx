@@ -665,7 +665,7 @@ function HeroInicio({ onChip }) {
           dinero — en ADI tú te asesoras; debemos tener un título así"). La Lectura y los focos con $ también
           murieron del inicio ("eso también se va"): las cifras viven en la Mesa, acá arranca el diálogo. */}
       <div>
-        <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em", lineHeight:1.3 }}>Dónde, cómo y por qué ganás y perdés dinero</div>
+        <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em", lineHeight:1.3 }}>Dónde, cómo y por qué ganas y pierdes dinero</div>
         <div style={{ fontSize:12.5, color:C.textMuted, marginTop:4 }}>Asesorate con ADI · datos actuales</div>
       </div>
       {/* RESUMEN EJECUTIVO como BOTÓN (owner 2026-07-14: "agregaría el botón de resumen ejecutivo, eso irá
@@ -960,7 +960,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
                   <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginLeft:44, marginTop:2, padding:"9px 12px", borderRadius:10, borderTop:`1px solid ${C.cardBorder}`, borderBottom:`1px solid ${C.cardBorder}`, borderRight:`1px solid ${C.cardBorder}`, borderLeft:"2px solid rgba(47,184,218,0.5)", background:C.card, maxWidth:560 }}>
                     <span style={{ fontSize:11.5, color:C.textSub, lineHeight:1.55, flex:1 }}>
                       <span style={{ color:C.celeste, fontWeight:600 }}>Tip · </span>
-                      abrí la <b>Mesa de control</b> (arriba) para ver todas tus cifras · tocá cualquier <b>fila de Sentrix</b> y ADI la desglosa · seguí el hilo con <b>"y de esos…"</b> · fijá tu vara: <b>"recordá que mi margen mínimo es 28%"</b>.
+                      abrí la <b>Mesa de control</b> (arriba) para ver todas tus cifras · toca cualquier <b>fila de Sentrix</b> y ADI la desglosa · seguí el hilo con <b>"y de esos…"</b> · fija tu vara: <b>"recuerda que mi margen mínimo es 28%"</b>.
                     </span>
                     <button onClick={() => { setShowHint(false); try { localStorage.setItem("adi_hint_v1", "1"); } catch {} }}
                       style={{ background:"transparent", border:"none", color:C.textMuted, cursor:"pointer", fontSize:12, padding:0, flexShrink:0 }}>✕</button>

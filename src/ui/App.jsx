@@ -161,7 +161,7 @@ export default function App({ animate = true }) {
               una ayuda que se pide, no una acción del negocio — por eso ghost neutro y no el celeste sólido del CTA
               de la Mesa. En pantallas angostas queda solo el "?" (la etiqueta se oculta como el resto del header). */}
           <button data-testid="guia-abrir" onClick={() => setGuiaAbierta((v) => !v)}
-            title="Cómo se reparten el trabajo ADI y Sentrix, y qué le podés preguntar"
+            title="Cómo se reparten el trabajo ADI y Sentrix, y qué le puedes preguntar"
             style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:9, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
               border:`1px solid ${guiaAbierta ? "rgba(47,184,218,0.55)" : "rgba(17,17,17,0.12)"}`,
               background: guiaAbierta ? "rgba(47,184,218,0.10)" : "#ffffff",

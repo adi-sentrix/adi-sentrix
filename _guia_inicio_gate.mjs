@@ -121,7 +121,7 @@ console.log("═".repeat(100));
   ok(container.textContent.includes("Sentrix muestra el dato. ADI lo interpreta."),
     "la frase madre está a la vista — el vacío se llena con la división del trabajo, no con un tour de features");
   ok(container.textContent.includes("Cuando ADI nombra una cuenta, Sentrix la pinta") &&
-     container.textContent.includes("Cuando tocás una fila del cuadro, se la podés preguntar a ADI"),
+     container.textContent.includes("Cuando tocas una fila del cuadro, se la puedes preguntar a ADI"),
     "el ida y vuelta está contado en las DOS direcciones (ADI→Sentrix y Sentrix→ADI)");
   ok(!!$(container, "guia-abrir"), "el botón permanente \"¿Cómo funciona?\" está en el header");
   cleanup();

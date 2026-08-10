@@ -507,7 +507,7 @@ function _rutaDeterministica(pref, simple) {
   const lecturas = campos.map((c) => (typeof c.rawValue === "number" ? _lecturaMinima(c.token, rec, c.rawValue) : null)).filter(Boolean);
   if (lecturas.length) return `${base} ${lecturas.join(" ")}`;
   // brief: la oferta de análisis es contexto NO indispensable — se recorta. standard: se ofrece, como siempre.
-  return pref.detailLevel === "brief" ? base : `${base} Si querés, puedo analizarlo con más detalle.`;
+  return pref.detailLevel === "brief" ? base : `${base} Si quieres, puedo analizarlo con más detalle.`;
 }
 
 // ── MODO CONVERSACIONAL · capa de rol operativa (Fase 1: default|clarify · Fase 2: + diagnostico/decision/

@@ -346,13 +346,13 @@ export function clientCapitalRelacion({ entity, scenario = "actual" } = {}) {
   if (dentro.length >= universo.size) {
     return {
       ...medido, estado: "unsupported", relacion: "sin_relacion",
-      razon: `el dato no registra qué SKU le vendés a cada cliente: la relación cliente×SKU es una estimación de afinidad, y para ${entity} abarca los ${universo.size} SKU con inventario — los mismos que para cualquier otra cuenta. Cruzar el inventario contra ese surtido devolvería el inventario completo del negocio con el nombre de un cliente encima, no capital atribuible a ${entity}`,
+      razon: `el dato no registra qué SKU le vendes a cada cliente: la relación cliente×SKU es una estimación de afinidad, y para ${entity} abarca los ${universo.size} SKU con inventario — los mismos que para cualquier otra cuenta. Cruzar el inventario contra ese surtido devolvería el inventario completo del negocio con el nombre de un cliente encima, no capital atribuible a ${entity}`,
       alternativas: ["el capital inmovilizado del negocio, por bodega y por antigüedad"],
     };
   }
   return {
     ...medido, estado: "afinidad_modelada", relacion: "afinidad_modelada",
-    razon: `el dato no registra qué SKU le vendés a cada cliente: la relación es una estimación de afinidad que asocia ${dentro.length} de los ${universo.size} SKU con inventario al surtido de ${entity}`,
+    razon: `el dato no registra qué SKU le vendes a cada cliente: la relación es una estimación de afinidad que asocia ${dentro.length} de los ${universo.size} SKU con inventario al surtido de ${entity}`,
   };
 }
 
@@ -396,7 +396,7 @@ export function composeSpecClientCapital({ dimension, entity, scenario }) {
   // EL SUJETO DE LA CIFRA (decisión 7): con relación OBSERVADA el cliente califica el surtido ("productos que le
   // vendés a X"); con afinidad MODELADA ni siquiera eso — el sujeto es TU inventario y el cliente es una
   // asociación estimada. En los dos casos el capital es del negocio, nunca del cliente.
-  const sujeto = observada ? `productos que le vendés a ${entity}` : `SKU asociados al surtido de ${entity} por afinidad estimada`;
+  const sujeto = observada ? `productos que le vendes a ${entity}` : `SKU asociados al surtido de ${entity} por afinidad estimada`;
   const sello = observada ? undefined : "indicado";
   const lines = items.map((it) => `${it.sku} (${it.bodega}): ${_money(it.usd)}${typeof it.unidades === "number" ? `, ${it.unidades} unidades` : ""}${typeof it.diasSinVenta === "number" ? `, ${it.diasSinVenta}d sin venta` : ""}${it.critico ? " · crítico" : ""}`);
   const opener = `De los ${sujeto}, ${items.length} ${items.length === 1 ? "está" : "están"} con capital inmovilizado en tu inventario (${_money(subtotal)} entre ${items.length === 1 ? "ese" : "todos"}):\n\n${lines.join("\n")}`;
@@ -729,7 +729,7 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
         ? `revisar precio y mix de ${f1.items[0] ? f1.items[0].entidad : "los grandes"}${f1.items[0] ? ` (${_money(f1.items[0].usd)} en juego de los ${_money(f1.subtotal_usd)})` : ""}`
         : "liberar los SKU sin rotar (liquidación puntual)";
     const despues = f2
-      ? (f2.detector === "carga" && cargaDetalle ? `; después la carga: ${cargaDetalle} (${_money(f2.subtotal_usd)} el total)` : `; después revisá ${f2.titulo.toLowerCase()} (${_money(f2.subtotal_usd)})`)
+      ? (f2.detector === "carga" && cargaDetalle ? `; después la carga: ${cargaDetalle} (${_money(f2.subtotal_usd)} el total)` : `; después revisa ${f2.titulo.toLowerCase()} (${_money(f2.subtotal_usd)})`)
       : "";
     b7 = `**Cómo recuperamos:** primero ${acc}${despues}.`;
   }
@@ -882,7 +882,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     const sano = dd("capital_sano"), fren = dd("capital_frenado"), quie = dd("riesgo_quiebre"), sobre = dd("sobrestock");
     const scName = filters.bodega || filters.familia || filters.marca || null;
     const lines = [
-      `${scName ? `En ${scName} tenés` : "Tenés"} ${_money(D.total)} de capital en inventario (${rows.length} SKU): ${partes.join(" · ")}.`,
+      `${scName ? `En ${scName} tienes` : "Tienes"} ${_money(D.total)} de capital en inventario (${rows.length} SKU): ${partes.join(" · ")}.`,
       sano.usd ? `**Lo que trabaja:** ${_money(sano.usd)} (${sano.pct}%) rota dentro de tu benchmark (rotación sobre ${P.rotacionMin}x y cobertura bajo ${P.dohMax} días).` : "",
       fren.usd ? `**Lo primero:** ${_money(fren.usd)} detenidos en ${fren.count} SKU sin rotación — liberarlos devuelve ese capital a caja.` : "",
       quie.usd ? `**Lo urgente:** ${_money(quie.usd)} en ${quie.count} SKU con riesgo de quiebre — rotan rápido y la cobertura no alcanza hasta la próxima compra; reponer antes del corte.` : "",
@@ -913,7 +913,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
         `Hay ${skus.length} SKU sin una sola venta en más de ${th} días — ${_money(total)} de capital parado: ${skus.slice(0, 4).map((s) => `${s.sku} (${s.diasSinVenta}d)`).join(" · ")}.`,
         byBod.length > 1 ? `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.` : "",
         `**Por qué:** ${th}+ días sin salida — cambió el precio, la ubicación o la demanda. Es el capital más frío del inventario: no rota y no da señales de que vaya a rotar.`,
-        `**Qué hacer:** revisá precio o reasignación de ${skus.slice(0, 2).map((s) => s.sku).join(" y ")}; si no se mueven, liquidá para recuperar ese capital antes de que envejezca más.`,
+        `**Qué hacer:** revisa precio o reasignación de ${skus.slice(0, 2).map((s) => s.sku).join(" y ")}; si no se mueven, liquidá para recuperar ese capital antes de que envejezca más.`,
       ],
       suggestions: ["Qué SKU libero primero", "Ver todo el inventario"],
     };
@@ -938,7 +938,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
         return {
           // redacción sin ambigüedad (auditoría de asks 2026-07-15: "nada detenido según tu vara (rotación bajo 2x…)"
           // se leía como si ESA fuera la razón — el narrador llegó a invertir el criterio) + benchmark, no vara.
-          opener: `En ${_scName} tenés ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada detenido: todo rota dentro de tu benchmark (detenido sería rotación bajo ${P.rotacionMin}x o cobertura sobre ${P.dohMax} días).` +
+          opener: `En ${_scName} tienes ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada detenido: todo rota dentro de tu benchmark (detenido sería rotación bajo ${P.rotacionMin}x o cobertura sobre ${P.dohMax} días).` +
             (puntas.length ? `\n\n**Ojo igual:** ${puntas.join(" · ")} — no es capital detenido, pero conviene mirarlo.` : `\n\nSin señales de quiebre ni sobrestock en ese alcance.`),
           suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Ver todo el inventario"],
           sentrixAction: null,
@@ -967,11 +967,11 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       B = {
         focusEst: est, color: "cyan", title: "Sobrestock · dónde sobra inventario", ctx: "sobrestock", total, skus, byBod, byFam, dim: "bodega",
         lines: [
-          `Tenés ${_money(total)} en ${skus.length} SKU con sobrestock — venden, pero la cobertura es excesiva (DOH entre ${P.sobrestockDohMin} y ${P.dohMax}d)${topB ? `. Se concentra en ${topB.nombre} (${_money(topB.usd)})` : ""}.`,
+          `Tienes ${_money(total)} en ${skus.length} SKU con sobrestock — venden, pero la cobertura es excesiva (DOH entre ${P.sobrestockDohMin} y ${P.dohMax}d)${topB ? `. Se concentra en ${topB.nombre} (${_money(topB.usd)})` : ""}.`,
           byBod.length > 1 ? `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.` : "",
           `Los SKU con más cobertura: ${skuList}.`,
-          `**Por qué:** rotan dentro de rango, pero tenés más meses de stock de los necesarios. Es capital inmovilizado de más — no está detenido como el que no rota, pero podría estar trabajando.`,
-          `**Qué hacer:** frená la próxima compra de ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} y dejá que la venta drene el exceso. No hace falta liquidar; sí ajustar la reposición.`,
+          `**Por qué:** rotan dentro de rango, pero tienes más meses de stock de los necesarios. Es capital inmovilizado de más — no está detenido como el que no rota, pero podría estar trabajando.`,
+          `**Qué hacer:** frená la próxima compra de ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} y deja que la venta drene el exceso. No hace falta liquidar; sí ajustar la reposición.`,
         ],
         suggestions: ["Qué SKU están detenidos", "Qué reponer por quiebre"],
       };
@@ -984,12 +984,12 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       B = {
         focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está detenido tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega", arranque,
         lines: [
-          `Tenés ${_money(total)} de capital inmovilizado en ${skus.length} SKU sin rotar. Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
+          `Tienes ${_money(total)} de capital inmovilizado en ${skus.length} SKU sin rotar. Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
           `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.`,
           byFam.length ? `Por familia lo carga ${byFam[0].nombre} (${_money(byFam[0].usd)})${byFam[1] ? ` y ${byFam[1].nombre} (${_money(byFam[1].usd)})` : ""}.` : "",
           `Los SKU que lo explican: ${skuList}.`,
           `**Por qué:** dejaron de rotar — rotación bajo ${P.rotacionMin}x o DOH sobre ${P.dohMax}d. Es stock que no sale y deja el capital detenido.`,
-          `**Qué hacer:** arrancá por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital detenido"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisá la reposición para no repetirlo.`,
+          `**Qué hacer:** arranca por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital detenido"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisa la reposición para no repetirlo.`,
         ],
         suggestions: ["Por qué el capital está detenido", "Qué SKU libero primero"],
       };
@@ -1146,7 +1146,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
   // `ordenA`/`ordenB` cuando el foco arma DOS rankings independientes, como `palancas`) para que guardC verifique
   // DIRECTO contra la tabla final, sin depender de que el narrador lo repita en prosa. `null` = este foco no arma
   // un ranking clasificable (ej. el pivot de "huecos honestos", 3 candidatos sin promesa de orden).
-  let orden = null, ordenA = null, ordenB = null;
+  let orden = null, ordena = null, ordenB = null;
   // convención de label "Entidad · Concepto" (owner 2026-08-02, hallazgo de auditoría en vivo): antes era
   // "${dimension} · ${entidad} margen" (ej. "cliente · Lider margen") — el prefijo de DIMENSIÓN en vez del nombre
   // de la entidad rompía cualquier detector que agrupe cifras por entidad (_needsTableFormat, narratePromptC.js) y
@@ -1169,7 +1169,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     lines = [
       `No te puedo ${GAP.no}: falta ${GAP.falta}. No lo invento.`,
       `Lo más cercano que SÍ tengo es ${GAP.ofrece}: ${pivotTxt}${below.length ? ` — ${below.length} de ${rows.length} ${L.p} bajo el benchmark ${_p1(bench)}%` : ""}.`,
-      `¿Querés que arranque por ahí?`,
+      `¿Quieres que arranque por ahí?`,
     ];
     pushMarginFigs(pivotList);
     suggestions = [gap === "proveedor" ? "Margen por marca" : gap === "mix_cliente_sku" ? "Peor SKU por margen" : `${L.p} bajo el benchmark`, "Acciones para recuperar margen"];
@@ -1205,7 +1205,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       lines = [
         `El ${_p1(share)}% de la venta (${_mVenta(vBelow)} de ${_mVenta(totVenta)}) está bajo el margen mínimo de ${_p1(bench)}%.`,
         `Lo cargan ${below.slice(0, 3).map((r) => `${_mNombre(r)} (${_p1(r.margen)}%)`).join(" · ")} — ${below.length} de ${rows.length} ${L.p} por debajo.`,
-        `**Qué hacer:** ese tramo es el que más mueve el margen de cartera; arrancá por los de mayor venta bajo el piso.`,
+        `**Qué hacer:** ese tramo es el que más mueve el margen de cartera; arranca por los de mayor venta bajo el piso.`,
       ];
       pushMarginFigs(below);
     } else if (negativo) {
@@ -1316,7 +1316,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     lines = [
       `Productos de alto margen y baja penetración (upside si ganan distribución): ${sub.map((r) => `${_mNombre(r)} (${_p1(r.margen)}% margen, sólo ${_mVenta(r.venta)})`).join(" · ")}.`,
       `${_mNombre(sub[0])} rinde ${_p1(sub[0].margen)}% pero factura poco — cada peso extra de venta acá entra a margen alto.`,
-      `**Qué hacer:** empujar volumen/distribución en estos rinde más que defender los de bajo margen. Es crecer donde ya ganás bien.`,
+      `**Qué hacer:** empujar volumen/distribución en estos rinde más que defender los de bajo margen. Es crecer donde ya ganas bien.`,
     ];
     pushMarginFigs(sub);
     suggestions = ["Candidatos a subir precio", "Los que más venden y peor margen"];
@@ -1344,7 +1344,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     const thinPrice = rows.filter((r) => _markup(r) != null && r.margen < _benchOf(r)).sort((a, b) => _markup(a) - _markup(b)).slice(0, 3);
     // DOS rankings independientes en el mismo foco (carga/rebates + precio de lista) → ordenA/ordenB, mismo patrón
     // dual que buildTension (entityRecord.js) ya usa para sus dos métricas cruzadas.
-    if (cargaHigh.length) ordenA = "descendente por Carga";
+    if (cargaHigh.length) ordena = "descendente por Carga";
     if (thinPrice.length) ordenB = "ascendente por Markup";
     // CUÁNTO VALE (misma cuenta del detector de carga del diagnóstico · una verdad) — y LIDERA la respuesta:
     // "¿cuánto me come la carga?" se contesta con el $ primero, el ranking después (invitado en prod 2026-07-09).
@@ -1356,7 +1356,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
       `Lo que más consume margen, en orden:`,
       `**1 · Carga/rebates** — ${cargaHigh.length ? `${cargaHigh.map((r) => `${_mNombre(r)} (${_p1(r.pctRebate)}%)`).join(" · ")} están sobre el target de ${_p1(target)}%` : `todos dentro del target de ${_p1(target)}%`}. Es margen que se entrega en descuento; recortable donde el poder de negociación lo permite.`,
       thinPrice.length ? `**2 · Precio de lista** — ${thinPrice.map((r) => `${_mNombre(r)} (markup ${_p1(_markup(r))}%)`).join(" · ")}: la lista está pegada al costo, subir precio recupera margen directo.` : "",
-      `**Qué hacer (volumen-safe):** arrancá por la carga de los ${L.p} con más poder de compra tuyo y por la lista donde la demanda aguanta — así recuperás margen sin resignar volumen.`,
+      `**Qué hacer (volumen-safe):** arranca por la carga de los ${L.p} con más poder de compra tuyo y por la lista donde la demanda aguanta — así recuperás margen sin resignar volumen.`,
     ];
     for (const r of cargaHigh) bol.push(fig(`${_mNombre(r)} · Carga`, `${_p1(r.pctRebate)}%`, { unit: "pct", raw: r.pctRebate, mandatory: false, context: "carga comercial" }));
     if (cargaLever && cargaLever.top.length) {
@@ -1385,7 +1385,7 @@ export function composeSpecMargin({ filters = {}, scenario, focus = "bajo_benchm
     suggestions,
     sentrixAction: null,
     evidence: { lens: "margin", metrica: "margen", dimension: dim,
-      ...(orden ? { orden } : {}), ...(ordenA ? { ordenA } : {}), ...(ordenB ? { ordenB } : {}), boleta: bol,
+      ...(orden ? { orden } : {}), ...(ordena ? { ordena } : {}), ...(ordenB ? { ordenB } : {}), boleta: bol,
       margin: { focus, bench, dimension: dim, panel: _marginPanel(rows, bench, focus), below: below.map((r) => ({ nombre: _mNombre(r), margen: r.margen, venta: r.venta, gap: _gap(r) })) } },
   };
 }
@@ -1520,7 +1520,7 @@ function _ventasFocusBlock(focus, dim, filters, entityScope, scenario) {
       `El ${_sgnp(totp)}${_p1(totp)}% de crecimiento se parte en volumen y precio: **más unidades ${_sgnp(volp)}${_p1(volp)}%** y **mejor precio realizado ${_sgnp(prip)}${_p1(prip)}%**.`,
       `Del lado volumen empuja ${volLed.nombre} (${_sgnp(volLed.vol)}${_p1(volLed.vol)}% en unidades); del lado precio, ${priLed.nombre} (${_sgnp(priLed.pri)}${_p1(priLed.pri)}% de precio realizado).`,
       `Nota: "precio realizado" = venta/unidades (no es un ticket ni una lista de precios). El efecto MIX entre familias se ve por familia; la **frecuencia de compra no la tengo** (no hay transacciones).`,
-      `**Qué hacer:** si el crecimiento es más volumen que precio, es sano (ganás mercado); si fuera casi todo precio, habría que revisar si es sostenible.`,
+      `**Qué hacer:** si el crecimiento es más volumen que precio, es sano (ganas mercado); si fuera casi todo precio, habría que revisar si es sostenible.`,
     ];
     bol.push(fig("Crecimiento total YoY", `${_sgnp(totp)}${_p1(totp)}%`, { unit: "pct", raw: +totp.toFixed(1), mandatory: true, context: "descomposición" }));
     bol.push(fig("Efecto volumen", `${_sgnp(volp)}${_p1(volp)}%`, { unit: "pct", raw: +volp.toFixed(1), mandatory: false, context: "descomposición" }));
@@ -1727,7 +1727,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       listedG.length === withGap.length
         ? `Los ${withGap.length}, de mayor a menor: ${listedG.map((r) => `${r.nombre} (${_money(r.gap)}, margen ${_p1(r.margen)}%)`).join(" · ")} — esa lista completa suma el total de arriba.`
         : `Los ${listedG.length} que más dejan: ${listedG.map((r) => `${r.nombre} (${_money(r.gap)}, margen ${_p1(r.margen)}%)`).join(" · ")} — los ${withGap.length} completos están en el cuadro de la Mesa.`,
-      `**Por qué:** es la brecha entre lo que vendés y lo que rinde — no es una pérdida contable, es contribución que el margen delgado te deja capturar.`,
+      `**Por qué:** es la brecha entre lo que vendes y lo que rinde — no es una pérdida contable, es contribución que el margen delgado te deja capturar.`,
       `**Qué hacer:** cada punto de margen recuperado en los de mayor venta es la medida más directa sobre este valor.`,
     ];
     bol.push(fig("Contribución no capturada · total", _money(totalGap), { unit: "money", raw: totalGap, mandatory: true, context: _ctx }));
@@ -1779,7 +1779,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     lines = [
       `Los ${L.p} que más aportan a la contribución${_scLbl}: ${sorted.slice(0, 5).map((r) => `${_mNombre(r)} (${_mVenta(r.contribucion)}, ${_share(r.contribucion)}%)`).join(" · ")}.`,
       `Entre los primeros ${Math.min(3, sorted.length)} juntan ${_mVenta(sorted.slice(0, 3).reduce((a, r) => a + r.contribucion, 0))} de los ${_mVenta(totC)} totales.`,
-      `**Qué mirar:** son las cuentas que hay que blindar; si querés ver qué tan concentrada está, mirá el 80/20.`,
+      `**Qué mirar:** son las cuentas que hay que blindar; si quieres ver qué tan concentrada está, mira el 80/20.`,
     ];
     for (const r of sorted.slice(0, 5)) bol.push(fig(`${_mNombre(r)} · Contribución`, _mVenta(r.contribucion), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: _ctx }));
     panel = { kind: "rank", title: `Contribución por ${L.s}`, rows: sorted.slice(0, 8).map((r) => ({ nombre: _mNombre(r), val: r.contribucion, valFmt: _mVenta(r.contribucion) })) };
@@ -1850,7 +1850,7 @@ export function compareCauses(a, b, scenario, dim = "cliente") {
   }
   // LA DECISIÓN · la palanca y por dónde empezar (más venta = cada punto rinde más)
   const first = (rA.venta || 0) >= (rB.venta || 0) ? a : b;
-  if (hasPlata) lines.push(`**La decisión:** la medida ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empezá por ${first}: mueve más venta, cada punto recuperado rinde más.`);
+  if (hasPlata) lines.push(`**La decisión:** la medida ${dCosto >= dCarga ? "de los dos es la misma — negociar costo/lista" : "es la carga — revisar rebates y condiciones"}. Empieza por ${first}: mueve más venta, cada punto recuperado rinde más.`);
   // EL AÑO, MES A MES (owner 2026-07-08: "al profundizar, que diga el porqué — si fue costos, si fue acciones, cuándo
   // subieron"): la curva del año de cada uno (la MISMA que dibuja la película: tendencia del historial × estacionalidad
   // real) + lo que se movió DEBAJO en el año — acciones de precios, costo medio, ticket — del mismo historial. Solo si
@@ -2294,8 +2294,8 @@ export function composeSpecSimulateCosto({ dimension = "sku", filters = {}, pct,
   // aritmética es internamente consistente, el problema es que el SUPUESTO en sí no es operable). MISMO criterio
   // que el guard de absurdos ya establecido para el `simulate` genérico (answerADIFromSpec.js: 0% no mueve nada,
   // más de ±50% deja de ser un supuesto operable) — UNA sola convención de "rango realista" en todo el producto.
-  if (pct === 0) return { unsupported: "Un 0% deja el costo igual — no hay supuesto que proyectar. Decime un porcentaje con dirección (\"¿y si bajo el costo medio 3%?\") y lo corro sobre el dato real." };
-  if (Math.abs(pct) > 50) return { unsupported: `Un ${pct > 0 ? "+" : ""}${pct}% ya no es un supuesto operable sobre el costo: a esa escala el costo se vuelve negativo o el negocio cambia por completo, y el dato actual deja de ser una base válida para proyectar. Probá un rango realista (entre ±1% y ±50%) y lo corro sobre el dato real.` };
+  if (pct === 0) return { unsupported: "Un 0% deja el costo igual — no hay supuesto que proyectar. Dime un porcentaje con dirección (\"¿y si bajo el costo medio 3%?\") y lo corro sobre el dato real." };
+  if (Math.abs(pct) > 50) return { unsupported: `Un ${pct > 0 ? "+" : ""}${pct}% ya no es un supuesto operable sobre el costo: a esa escala el costo se vuelve negativo o el negocio cambia por completo, y el dato actual deja de ser una base válida para proyectar. Prueba un rango realista (entre ±1% y ±50%) y lo corro sobre el dato real.` };
   const dim = _MLBL[dimension] ? dimension : "sku";
   const L = _MLBL[dim];
   const rows = _scopeRows(_marginRows(dim, scenario), filters, entityScope)
@@ -2504,7 +2504,7 @@ export function buildResumenEjecutivo(scenario) {
   if (F && F.length) {
     const by = (d) => F.find((x) => x.detector === d);
     const mg = by("margen"), cg = by("carga"), cap = by("capital"), parts = [];
-    if (mg && mg.items[0]) { parts.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (arrancá por ${mg.items[0].entidad})`); focos.push({ detector: "margen", usd: mg.subtotal_usd, usdFmt: _money(mg.subtotal_usd), label: "sobre la mesa en margen", entidad: mg.items[0].entidad }); }
+    if (mg && mg.items[0]) { parts.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (arranca por ${mg.items[0].entidad})`); focos.push({ detector: "margen", usd: mg.subtotal_usd, usdFmt: _money(mg.subtotal_usd), label: "sobre la mesa en margen", entidad: mg.items[0].entidad }); }
     if (cg) { parts.push(`${_money(cg.subtotal_usd)} recuperable en carga comercial`); focos.push({ detector: "carga", usd: cg.subtotal_usd, usdFmt: _money(cg.subtotal_usd), label: "recuperable en carga", entidad: cg.items[0] && cg.items[0].entidad }); }
     if (cap) { parts.push(`${_money(cap.subtotal_usd)} de capital detenido en ${cap.items.length} SKU`); focos.push({ detector: "capital", usd: cap.subtotal_usd, usdFmt: _money(cap.subtotal_usd), label: `detenido en ${cap.items.length} SKU`, entidad: null }); }
     lectura = `${F.length} ${F.length === 1 ? "foco" : "focos"} donde se pierde margen o se inmoviliza capital: ${parts.join(" · ")}. ¿Por cuál empezamos?`;

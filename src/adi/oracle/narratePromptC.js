@@ -407,7 +407,7 @@ export function ensureHypothesisFraming(text, mode, results) {
 export function ensureClarifyClosingQuestion(text, mode) {
   const s = String(text || "");
   if (mode !== "clarify" || !s.trim() || /\?\s*$/.test(s.trim())) return s;
-  return `${s.trim()}\n\n¿Querés que lo repase de otra forma, o seguimos con el siguiente paso?`;
+  return `${s.trim()}\n\n¿Quieres que lo repase de otra forma, o seguimos con el siguiente paso?`;
 }
 
 // ensureTransferenciaDeclarada(text, results, question) → GARANTÍA determinística del defecto C1 de la

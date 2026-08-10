@@ -804,7 +804,7 @@ export function answerADI(question, context = {}, state = {}) {
       }
       // needsPrecision · pregunta de precisión (texto = question + options · L35705-35721)
       else if (_simOv.needsPrecision) {
-        const _q = _simOv.question || "¿En qué cuentas querés simular el cambio de margen?";
+        const _q = _simOv.question || "¿En qué cuentas quieres simular el cambio de margen?";
         const _opts = _simOv.options || [];
         const _optTxt = _opts.length ? ` (${_opts.join(" · ")})` : "";
         // sub-fix "todas" · persiste un pendiente de ALCANCE (solo el clarify de cuentas · no el de pp/% ni el de magnitud)

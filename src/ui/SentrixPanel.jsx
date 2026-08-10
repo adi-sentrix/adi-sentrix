@@ -495,7 +495,7 @@ function CuadroOnlyPanel({ evidence, onClose, onToggleMax, maximized }) {
           </div>
         </div>
         <div style={{ fontSize:13, color:C.text, fontWeight:500, lineHeight:1.45 }}>
-          <span style={{ color:C.textMuted }}>Demostrando: </span>el ranking completo — ordená, filtrá y compará en el Cuadro de mando.
+          <span style={{ color:C.textMuted }}>Demostrando: </span>el ranking completo — ordena, filtra y compara en el Cuadro de mando.
         </div>
       </div>
       {ADI_SENTRIX_SHELL_ENABLED && (
@@ -899,7 +899,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
       </div>
       <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18 }}>
         {list.length === 0 && pnl.length === 0 ? (
-          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Podés fijar tu benchmark desde el chat: <span style={{ color:C.celeste }}>"recordá que mi margen mínimo es 28%"</span> — o armar tu P&L comercial: <span style={{ color:C.celeste }}>"armemos mi P&L"</span>.</div>
+          <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.6 }}>Todavía no guardé ningún criterio tuyo — mido con los estándares. Puedes fijar tu benchmark desde el chat: <span style={{ color:C.celeste }}>"recuerda que mi margen mínimo es 28%"</span> — o armar tu P&L comercial: <span style={{ color:C.celeste }}>"armemos mi P&L"</span>.</div>
         ) : list.length === 0 ? null : (
           <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
             <div style={{ ...head, marginBottom:2 }}>Tus benchmarks · reemplazan al estándar en TODAS las lecturas</div>
@@ -924,7 +924,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
             precarga el pedido en el chat (una sola vía de mutación: la conversación · el usuario confirma con Enter). */}
         {pnl.length > 0 && (
           <div style={{ display:"flex", flexDirection:"column", gap:9, marginTop: list.length ? 16 : 0 }}>
-            <div style={{ ...head, marginBottom:2, display:"flex", alignItems:"center", gap:4 }}>Tu P&L comercial · gastos declarados sobre la venta<InfoDot def={"Tus líneas de gasto, con el % que les asignaste sobre la venta. Son supuestos declarados por vos (no dato contable): la cara Resultado de la Mesa las resta después de la contribución para llegar al resultado comercial. Cuando entre la contabilidad real, cada línea se reemplaza por su dato, línea a línea. Editá conversando: \"cambia una línea a otro %\", \"saca una línea\", \"agrega otra con su %\"."} align="left"/></div>
+            <div style={{ ...head, marginBottom:2, display:"flex", alignItems:"center", gap:4 }}>Tu P&L comercial · gastos declarados sobre la venta<InfoDot def={"Tus líneas de gasto, con el % que les asignaste sobre la venta. Son supuestos declarados por ti (no dato contable): la cara Resultado de la Mesa las resta después de la contribución para llegar al resultado comercial. Cuando entre la contabilidad real, cada línea se reemplaza por su dato, línea a línea. Edita conversando: \"cambia una línea a otro %\", \"saca una línea\", \"agrega otra con su %\"."} align="left"/></div>
             {pnl.map((l, i) => (
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 13px", border:`1px dashed rgba(217,154,90,0.45)`, borderRadius:10, background:"rgba(217,154,90,0.04)" }}>
                 <div style={{ flex:1, minWidth:0 }}>
@@ -942,7 +942,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
             ))}
           </div>
         )}
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:14 }}>Tu criterio vive solo en este navegador (no sale de tu máquina). "Olvidar" precarga el pedido en el chat — vos confirmás con Enter. También podés preguntar "¿qué recordás?" cuando quieras.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:14 }}>Tu criterio vive solo en este navegador (no sale de tu máquina). "Olvidar" precarga el pedido en el chat — tú confirmas con Enter. También puedes preguntar "¿qué recuerdas?" cuando quieras.</div>
       </div>
     </div>
   );
@@ -1186,7 +1186,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
             <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:9 }}>Gris = costo sobre el precio de lista · color = markup. Markup fino (bajo {p1(bench)}%) = el precio no cubre el margen objetivo.</div>
           </div>
         )}
-        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark.{lever ? " El monto del encabezado es cuánto vale la medida (lo que ganás si la ejecutás)." : ""} {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real.</div>
+        <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La línea vertical es el benchmark de margen ({p1(bench)}%). Ámbar = bajo la línea (margen delgado); verde = sobre el benchmark.{lever ? " El monto del encabezado es cuánto vale la medida (lo que ganas si la ejecutas)." : ""} {MIRROR_LEGEND}{onAsk ? ` ${ASK_LEGEND}` : ""} Cifras de dato real.</div>
       </div>
     </div>
   );
@@ -1546,7 +1546,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
       {/* ── BOTÓN GLOBAL FIJO · "Preguntar a ADI sobre esta vista" (owner 2026-08-06) — el catch-all cuando lo
-          que querés entender no es un KPI/fila/alerta puntual sino la vista completa. FUERA del scroll (hermano,
+          que quieres entender no es un KPI/fila/alerta puntual sino la vista completa. FUERA del scroll (hermano,
           no descendiente, del contenedor overflow:auto de arriba) — un position:absolute adentro de un
           overflow:auto queda clippeado a su caja de scroll aunque el offset se calcule contra un ancestro más
           arriba; comprobado en vivo: el botón existía en el DOM pero el click nunca llegaba. ── */}
@@ -1666,7 +1666,7 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
     <div>
       <div style={{ ..._RC_HEAD, marginBottom: 9, display: "flex", alignItems: "center", gap: 4 }}>
         Lectura ejecutiva · negocio completo
-        <InfoDot def={"La señal del negocio entero, no de una entidad: se construye sobre todos tus clientes del período y ninguna selección previa la tiñe. El titular LOCALIZA dónde está la tensión y hasta ahí llega: que N cuentas concentren una brecha es una afirmación que el dato sostiene; POR QUÉ la concentran es lo que hay que ir a demostrar, cuenta por cuenta, en su Ficha. La referencia siempre es TU benchmark — el que vos fijaste."} align="left"/>
+        <InfoDot def={"La señal del negocio entero, no de una entidad: se construye sobre todos tus clientes del período y ninguna selección previa la tiñe. El titular LOCALIZA dónde está la tensión y hasta ahí llega: que N cuentas concentren una brecha es una afirmación que el dato sostiene; POR QUÉ la concentran es lo que hay que ir a demostrar, cuenta por cuenta, en su Ficha. La referencia siempre es TU benchmark — el que tú fijaste."} align="left"/>
       </div>
       <div style={{ padding: "13px 16px", borderRadius: 12, borderLeft: `3px solid ${v.tipo === "senal" ? C.celeste : C.borderLight}`,
         border: `1px solid ${C.border}`, borderLeftWidth: 3, borderLeftColor: v.tipo === "senal" ? C.celeste : C.borderLight,
@@ -1765,7 +1765,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             El negocio, cliente por cliente
-            <InfoDot def={`Tu cartera entera de una sola mirada, con la venta OFICIAL por cliente: la misma que suma el KPI de arriba, así que la participación y los dos gaps salen todos de esa cifra y no de otra tabla del dato. Las dos referencias no valen lo mismo y por eso van selladas distinto: el año anterior es dato cerrado y los escenarios nunca lo reescriben; el presupuesto es el plan que vos declaraste — suma exacto el total del período, pero es una intención, no una medición. Esta tabla dice CÓMO VIENE cada cuenta; dónde se diluye el margen se lee más abajo, contra tu benchmark.`} align="left"/>
+            <InfoDot def={`Tu cartera entera de una sola mirada, con la venta OFICIAL por cliente: la misma que suma el KPI de arriba, así que la participación y los dos gaps salen todos de esa cifra y no de otra tabla del dato. Las dos referencias no valen lo mismo y por eso van selladas distinto: el año anterior es dato cerrado y los escenarios nunca lo reescriben; el presupuesto es el plan que tú declaraste — suma exacto el total del período, pero es una intención, no una medición. Esta tabla dice CÓMO VIENE cada cuenta; dónde se diluye el margen se lee más abajo, contra tu benchmark.`} align="left"/>
           </span>
           <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{K.lectura}</span>
         </span>
@@ -1875,12 +1875,12 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Concentración comercial · 80/20
-            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva lavanda el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambiá a Contribución para ver dónde una venta grande deja poco valor. Tocá la barra de un cliente y se abre su Ficha."} align="left"/>
+            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva lavanda el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Ficha."} align="left"/>
           </span>
           {/* el "X clientes explican el Y%" NO se repite acá: ya lo dijo el veredicto (una sola lectura de
               alcance). Este bloque aporta lo que solo él puede aportar — el contraste entre volumen y valor. */}
           <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>
-            Cambiá a Contribución: las barras que se achican son las que dejan poco.
+            Cambia a Contribución: las barras que se achican son las que dejan poco.
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -1981,7 +1981,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             El año, mes a mes
-            <InfoDot def={"Las tres series del período: este año, el año anterior y el presupuesto que declaraste. Las dos reales están ANCLADAS al total oficial de venta por cliente, así que el cierre del gráfico es el mismo número del KPI de arriba — no dos verdades al lado. El presupuesto no se ancla porque no existe presupuesto por cliente contra el cual conciliarlo, y eso se dice. Tocá una serie de la leyenda para apagarla y pasá el cursor para ver mes por mes. Los puntos marcados son el mes más alto y el más bajo del año en foco."} align="left"/>
+            <InfoDot def={"Las tres series del período: este año, el año anterior y el presupuesto que declaraste. Las dos reales están ANCLADAS al total oficial de venta por cliente, así que el cierre del gráfico es el mismo número del KPI de arriba — no dos verdades al lado. El presupuesto no se ancla porque no existe presupuesto por cliente contra el cual conciliarlo, y eso se dice. Toca una serie de la leyenda para apagarla y pasa el cursor para ver mes por mes. Los puntos marcados son el mes más alto y el más bajo del año en foco."} align="left"/>
           </span>
           <span style={{ display: "block", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 5 }}>{ev.lectura}</span>
         </span>
@@ -2084,7 +2084,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Quién sostiene el negocio
-            <InfoDot def={`El sustento económico del negocio desde cuatro perspectivas del mismo dato: qué CLIENTES y qué FAMILIAS mueven la venta, y —cuando aportan— SKU y canales. Cada eje trae su propio grupo 80%, calculado con el mismo motor de concentración que el resto de la vista, no un top-N fijo. Cada eje declara además si cierra con la venta oficial por cliente: los que no cierran lo dicen, con su diferencia, y sus márgenes NO se reescalan para forzar el cuadre — son justo la cifra que venís a mirar. ${S.limitacion}`} align="left"/>
+            <InfoDot def={`El sustento económico del negocio desde cuatro perspectivas del mismo dato: qué CLIENTES y qué FAMILIAS mueven la venta, y —cuando aportan— SKU y canales. Cada eje trae su propio grupo 80%, calculado con el mismo motor de concentración que el resto de la vista, no un top-N fijo. Cada eje declara además si cierra con la venta oficial por cliente: los que no cierran lo dicen, con su diferencia, y sus márgenes NO se reescalan para forzar el cuadre — son justo la cifra que vienes a mirar. ${S.limitacion}`} align="left"/>
           </span>
           {/* LA LECTURA SE FUE ABAJO (owner 2026-08-08: "lo que dice arriba podés decirlo abajo, así no queda
               repetitivo"). Arriba anticipaba en prosa lo que la tabla muestra tres centímetros después; abajo es
@@ -2271,7 +2271,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
                   <span style={{ ..._RC_HEAD, fontSize: 9, color: C.celeste, display: "flex", alignItems: "center", gap: 4 }}>
                     Acciones comerciales{_chip("probado")}
-                    <InfoDot def={`${acc.referencias[0].nota} ${acc.referencias[1].nota} Cambiá la referencia y el monto se recalcula con las cuentas que quedan por encima de ella.`} align="left"/>
+                    <InfoDot def={`${acc.referencias[0].nota} ${acc.referencias[1].nota} Cambia la referencia y el monto se recalcula con las cuentas que quedan por encima de ella.`} align="left"/>
                   </span>
                   <span style={{ display: "flex", gap: 3 }}>
                     {acc.referencias.map((x) => (
@@ -2552,7 +2552,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
   return (<>
     {/* ── 01 · QUÉ ESTÁ PASANDO · LA CASCADA (probado vs supuesto declarado · cierra exacto) ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Tocá una línea y ADI abre esa historia al lado. Con el ⌖ de una fila del cuadro, esta cascada cuenta ESA entidad (mismas anclas, prorrateo sobre su venta). Los supuestos se editan aquí mismo: el chip con el % de una línea punteada abre un campo para cambiarlo, «sacar» quita la línea (pide confirmación) y «+ agregar línea de gasto» suma otra — es el mismo criterio que editar conversando (una sola verdad) y no dispara una respuesta de ADI."}/>
+      <MovHead num="01" title="Qué está pasando" def={"La cascada de tu P&L comercial: ingreso → costo → margen bruto → acciones comerciales (carga) → contribución → tus líneas de gasto → resultado. Hasta la contribución es dato probado (trazo firme — las mismas cifras de las respuestas de ADI); tus gastos son supuestos declarados por ti, % sobre la venta (trazo punteado). La cascada cierra exacto: ingreso − costo − carga − gastos = resultado. Toca una línea y ADI abre esa historia al lado. Con el ⌖ de una fila del cuadro, esta cascada cuenta ESA entidad (mismas anclas, prorrateo sobre su venta). Los supuestos se editan aquí mismo: el chip con el % de una línea punteada abre un campo para cambiarlo, «sacar» quita la línea (pide confirmación) y «+ agregar línea de gasto» suma otra — es el mismo criterio que editar conversando (una sola verdad) y no dispara una respuesta de ADI."}/>
       {/* ── ALCANCE DE LA CASCADA (pase 2): chip del foco + volver al negocio (el click informa, nunca dispara) ── */}
       {mr.alcance && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9 }}>
@@ -2653,7 +2653,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
     </div>
     {/* ── 02 · POR QUÉ · la línea que más pesa en el resultado ── */}
     <div>
-      <MovHead num="02" title="Por qué pasa" def={"La línea de gasto que más resultado consume, con su valor anual — del propio P&L que declaraste (una sola verdad con la respuesta de ADI). Tocá el foco y ADI ordena todas tus líneas por peso."}/>
+      <MovHead num="02" title="Por qué pasa" def={"La línea de gasto que más resultado consume, con su valor anual — del propio P&L que declaraste (una sola verdad con la respuesta de ADI). Toca el foco y ADI ordena todas tus líneas por peso."}/>
       {mr.foco ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:8 }}>
           <button onClick={askPnl ? () => askPnl(mr.foco.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.foco.ask}` : undefined}
@@ -2694,7 +2694,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
     {/* ── ¿Y SI…? · cada línea pregunta su proyección + la meta de venta ── */}
     {(mr.simulaciones || []).length > 0 && (
       <div>
-        <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — el cálculo directo de ese cambio, sin predecir si es viable operarlo así. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Tocá una línea y ADI corre esa cuenta al lado."}/>
+        <MovHead title="¿Y si…?" def={"Supuestos, no datos: cada línea proyecta el ajuste de un gasto declarado sobre tu dato real — el cálculo directo de ese cambio, sin predecir si es viable operarlo así. La última línea invierte la pregunta: cuánta venta necesitas para un resultado objetivo, con tu estructura constante. Toca una línea y ADI corre esa cuenta al lado."}/>
         <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
           {mr.simulaciones.map((s) => (
             <AskRow key={s.key} onAsk={askPnl} q={s.ask} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:12, color:C.textSub, lineHeight:1.5, padding:"7px 10px", border:`1px solid ${C.border}`, borderRadius:9, background:"rgba(255,255,255,0.015)" }}>
@@ -2709,7 +2709,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
     {/* ── CUADRO · RESULTADO POR ENTIDAD + SELECTOR DE EJE (pase 2 · solo ejes con venta desglosada) ── */}
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:9, flexWrap:"wrap" }}>
-        <div style={{ ...head, display:"flex", alignItems:"center", gap:4 }}>Cuadro de resultado · qué deja cada {mr.cuadro.colLabel.toLowerCase()} después de gastos<InfoDot def={"Cada entidad con sus columnas clásicas (Venta · Contribución · Margen — intactas, las mismas del cuadro comercial) más lo nuevo: Gastos (el prorrateo de tus % declarados sobre la venta de esa entidad) y su Resultado en $ y % de su venta. El selector cambia el eje — solo los ejes donde el dato trae la venta desglosada (por bodega/punto de venta no está, por eso no aparece). En todo eje la suma cierra exacto con el Total del negocio. El prorrateo es un supuesto — reparte tus porcentajes por venta, no lee contabilidad por entidad. Tocá una fila y ADI arma su P&L al lado; con el ⌖ la cascada de arriba cuenta esa entidad."} align="left"/></div>
+        <div style={{ ...head, display:"flex", alignItems:"center", gap:4 }}>Cuadro de resultado · qué deja cada {mr.cuadro.colLabel.toLowerCase()} después de gastos<InfoDot def={"Cada entidad con sus columnas clásicas (Venta · Contribución · Margen — intactas, las mismas del cuadro comercial) más lo nuevo: Gastos (el prorrateo de tus % declarados sobre la venta de esa entidad) y su Resultado en $ y % de su venta. El selector cambia el eje — solo los ejes donde el dato trae la venta desglosada (por bodega/punto de venta no está, por eso no aparece). En todo eje la suma cierra exacto con el Total del negocio. El prorrateo es un supuesto — reparte tus porcentajes por venta, no lee contabilidad por entidad. Toca una fila y ADI arma su P&L al lado; con el ⌖ la cascada de arriba cuenta esa entidad."} align="left"/></div>
         <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
           {/* SELECTOR DE EJE (patrón del selector de cara · el click cambia la vista, nunca dispara a ADI) */}
           {mr.cuadro.ejes.length > 1 && (
@@ -2777,7 +2777,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
         </div>
       </div>
     </div>
-    <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La cara Resultado cuenta tu P&L comercial: la cascada del ingreso al resultado (probado hasta la contribución · tus gastos como supuestos declarados, % sobre la venta), qué línea pesa más y qué ajuste probar primero. Todo es pregunta: tocá una línea de la cascada o una fila del cuadro y ADI la abre al lado. Los supuestos se editan conversando («cambia una línea a otro %») o directo en la cascada: el % de cada línea punteada se cambia ahí mismo, con «sacar» y «+ agregar línea de gasto» — una sola verdad, sin disparar respuestas de ADI.</div>
+    <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>La cara Resultado cuenta tu P&L comercial: la cascada del ingreso al resultado (probado hasta la contribución · tus gastos como supuestos declarados, % sobre la venta), qué línea pesa más y qué ajuste probar primero. Todo es pregunta: toca una línea de la cascada o una fila del cuadro y ADI la abre al lado. Los supuestos se editan conversando («cambia una línea a otro %») o directo en la cascada: el % de cada línea punteada se cambia ahí mismo, con «sacar» y «+ agregar línea de gasto» — una sola verdad, sin disparar respuestas de ADI.</div>
   </>);
 }
 
@@ -2933,7 +2933,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   const [familia, setFamilia] = useState("todas");
   const [q, setQ] = useState("");
   const [tope, setTope] = useState(_CAP_PAGINA);
-  const [abierto, setAbierto] = useState(null);   // el SKU cuyo "a quién le vendés esto" está desplegado
+  const [abierto, setAbierto] = useState(null);   // el SKU cuyo "a quién le vendes esto" está desplegado
   if (!tabla) return null;
   const bodegas = [...new Set(tabla.filas.map((f) => f.bodega).filter(Boolean))];
   const familias = [...new Set(tabla.filas.map((f) => f.familia).filter(Boolean))];
@@ -3024,7 +3024,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
                       {/* A QUIÉN LE CALZA ESTE PRODUCTO · solo donde el módulo lo trae (los detenidos) */}
                       {f.compradores ? (
                         <button onClick={() => setAbierto(abierto === f.sku ? null : f.sku)} aria-expanded={abierto === f.sku}
-                          title={`A quién le vendés ${f.sku}`}
+                          title={`A quién le vendes ${f.sku}`}
                           style={{ background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
                           {abierto === f.sku ? "▴" : "▾ a quién"}
                         </button>
@@ -3039,7 +3039,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
                 <td colSpan={tabla.columnas.length} style={{ padding: "2px 6px 10px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                     <span style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(f.compradores.estatus), border: `1px solid ${_rcEstatusCol(f.compradores.estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{f.compradores.estatus}</span>
-                    <span style={{ fontSize: 10.5, color: C.textMuted }}>a quién le vendés esto hoy</span>
+                    <span style={{ fontSize: 10.5, color: C.textMuted }}>a quién le vendes esto hoy</span>
                     {f.compradores.filas.map((c2) => (
                       <span key={c2.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
                         <span style={{ fontSize: 11, color: C.textSub }}>{c2.nombre}</span>
@@ -3141,7 +3141,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
   return (<>
     {/* ── 01 · QUÉ ESTÁ PASANDO · veredicto + KPIs + distribución + el inventario general, cerrado ── */}
     <div>
-      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está inmovilizado — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Tocá un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
+      <MovHead num="01" title="Qué está pasando" def={`El mapa del capital: cuánto trabaja en rango, cuánto está por cortarse (quiebre próximo), cuánto sobra (sobrestock) y cuánto está inmovilizado — los estados del motor contra tu benchmark (rotación ${POLICY.rotacionMin}x · ${POLICY.dohMax} días de inventario). Los tramos suman exacto tu capital total. Toca un tramo, la leyenda o un KPI y ADI abre esa historia al lado.`}/>
       {/* EL VEREDICTO · localiza dónde está el capital y dónde falta. NO afirma la venta perdida por quiebre:
           eso no está medido en este dato. */}
       {cap.veredicto ? (
@@ -3208,7 +3208,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         también suma acá · una lista, dos caras) ── */}
     {wl.items.length > 0 && (
       <div>
-        <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento — la misma de la cara comercial (una sola lista): marcá la estrella en cualquier fila del cuadro y queda acá con su cifra clave y su estado. Tocá un seguido y ADI lo abre al lado; la estrella lo saca de la lista."}/>
+        <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento — la misma de la cara comercial (una sola lista): marcá la estrella en cualquier fila del cuadro y queda acá con su cifra clave y su estado. Toca un seguido y ADI lo abre al lado; la estrella lo saca de la lista."}/>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
           {wl.items.map((it) => { const col = it.vara ? semCol[it.vara] : null; return (
             <button key={it.dim + "·" + it.nombre} onClick={onAsk && it.ask ? () => onAsk(it.ask) : undefined}
@@ -3460,7 +3460,7 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
         </div>
       </div>
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Ordená por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital inmovilizado que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
+        Ordena por cualquier columna · el Estado es el semáforo del motor contra tu benchmark (rotación {POLICY.rotacionMin}x · {POLICY.dohMax}d de inventario) — tocalo y ADI abre esa historia · el "En juego $" es el capital inmovilizado que el detector afirma (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · la ★ la sigue en "Lo que yo sigo" · rotación media {cc.rotacionMedia}x · <span style={{ color:C.textSub }}>{cc.n} {cc.plural}</span> · escenario {scenario} · sin comparado de 12 meses: no existe serie mensual de stock por SKU (se enciende con el ERP).
       </div>
     </div>
   );
@@ -4210,7 +4210,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
         if (resumen && selRows.length === 1) {
           return (
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", fontSize:11.5, color:C.textMuted, lineHeight:1.5, padding:"9px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-              <span><b style={{ color:C.text }}>{aRow.name}</b> seleccionado. Su evolución, composición y brecha viven en la Ficha; seleccioná una segunda fila para compararlas acá.</span>
+              <span><b style={{ color:C.text }}>{aRow.name}</b> seleccionado. Su evolución, composición y brecha viven en la Ficha; selecciona una segunda fila para compararlas acá.</span>
               {onFicha && dim === "cliente" ? (
                 <button onClick={() => onFicha(aRow.name)} title={`Abrir la Ficha de ${aRow.name}`}
                   style={{ marginLeft:"auto", padding:"4px 11px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
@@ -4377,7 +4377,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
       )}
       {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5 }}>
-        Tocá una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Ficha\" abre su Ficha Ejecutiva" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordená por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Toca una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Ficha\" abre su Ficha Ejecutiva" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordena por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:9.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -4763,7 +4763,7 @@ function StationPeriodo({ a, b }) {
         {gDrop.delta < 0 && <> El freno más fuerte, {labels[gDrop.i - 1]}→{labels[gDrop.i]} (−{fmV(Math.abs(gDrop.delta))}).</>}
       </div>
       <div style={{ fontSize:10.5, color:C.textMuted, lineHeight:1.5, marginTop:6 }}>
-        La película GLOBAL de tu venta ({per} meses · dato real mensual) — pasá el cursor por la curva para ver cada mes. El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.
+        La película GLOBAL de tu venta ({per} meses · dato real mensual) — pasa el cursor por la curva para ver cada mes. El corte mensual de {a} y {b} por separado se enciende con el histórico del ERP — no te dibujo una serie que no existe.
       </div>
     </div>
   );
@@ -4882,7 +4882,7 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
               Antes la frase afirmaba «SUMA EXACTO … (una sola verdad)» en todos los ejes, y en dos no suma —marca
               (una marca sin cliente no entra al gráfico y sí al Cuadro) y SKU (dato sin ajuste por escenario)—.
               Una limitación se declara en pantalla; afirmar el cierre donde no cierra es el defecto, no el texto. */}
-          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por sus familias o sus SKU (elegís la vista); un SKU, por los clientes que lo compran — y cada composición suma la cifra del cuadro. El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando." + (con && con.limite ? ` · ${con.limite.texto}` : "")} align="left"/>
+          <InfoDot def={"El Pareto es un reflejo de la tabla: el eje es el del cuadro y el filtro elige la métrica (venta o contribución). Sin selección ves el 80/20 del negocio. Seleccionando: una marca o familia se compone por sus SKU; un cliente, por sus familias o sus SKU (eliges la vista); un SKU, por los clientes que lo compran — y cada composición suma la cifra del cuadro. El punto ámbar marca el corte real. El botón de ADI explica exactamente lo que el gráfico está mostrando." + (con && con.limite ? ` · ${con.limite.texto}` : "")} align="left"/>
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:8 }}>
           {dim === "cliente" && sel && (
@@ -4982,7 +4982,7 @@ function ComparadoCard({ a = null, rowA = null, b = null, rowB = null, negocio =
               )}
             </>
           )}
-          {negocio && <span style={{ fontSize:10, color:C.textMuted }}>· el negocio completo ({dim === "sku" ? "todos tus SKU" : dim === "marca" ? "todas tus marcas" : "todos tus clientes"}) — tocá una fila para ver una entidad, dos para comparar</span>}
+          {negocio && <span style={{ fontSize:10, color:C.textMuted }}>· el negocio completo ({dim === "sku" ? "todos tus SKU" : dim === "marca" ? "todas tus marcas" : "todos tus clientes"}) — toca una fila para ver una entidad, dos para comparar</span>}
         </div>
         <div style={{ position:"relative", touchAction:"pan-y" }}>
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }}>
@@ -5080,7 +5080,7 @@ function ComparadoCard({ a = null, rowA = null, b = null, rowB = null, negocio =
         <span style={{ fontFamily:MONO, fontSize:9.5, letterSpacing:"0.7px", color:C.celeste, textTransform:"uppercase", display:"flex", alignItems:"center", minWidth:0 }}>
           <span style={{ width:5, height:5, borderRadius:3, background:C.celeste, flexShrink:0, marginRight:6, display:"inline-block" }}/>
           <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{dual ? `Comparado · ${a} vs ${b}` : `Comparado · ${aLabel} · 12 meses`}</span>
-          <InfoDot def={"La película mensual comparada, sobre la tabla y conectada a ella: sin selección ves TU NEGOCIO — la suma de todas las entidades del eje, que cierra exacto con la fila Total de la tabla; tocá UNA fila y ves esa entidad contra su año anterior (perlas — se dibujan solo donde el dato declara ese total: ventas de clientes y marcas; ADI no lo inventa); tocá DOS y las ves lado a lado. El filtro del encabezado elige la métrica (Ventas · Contribución · Margen) y sirve igual en clientes, SKU y marcas. El punto verde es el mejor mes y el rojo parpadeante el más bajo; en margen, la línea ámbar es el benchmark (el de la entidad, o el de cartera cuando mirás el negocio). Pasá el cursor y ves el dato del mes en todas las series. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, el año anterior suma exacto el que ya usan los movers, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
+          <InfoDot def={"La película mensual comparada, sobre la tabla y conectada a ella: sin selección ves TU NEGOCIO — la suma de todas las entidades del eje, que cierra exacto con la fila Total de la tabla; toca UNA fila y ves esa entidad contra su año anterior (perlas — se dibujan solo donde el dato declara ese total: ventas de clientes y marcas; ADI no lo inventa); toca DOS y las ves lado a lado. El filtro del encabezado elige la métrica (Ventas · Contribución · Margen) y sirve igual en clientes, SKU y marcas. El punto verde es el mejor mes y el rojo parpadeante el más bajo; en margen, la línea ámbar es el benchmark (el de la entidad, o el de cartera cuando miras el negocio). Pasa el cursor y ves el dato del mes en todas las series. TODO CIERRA: el total del año de cada curva es exactamente el dato del período del cuadro y el perfil, el año anterior suma exacto el que ya usan los movers, y el margen mensual se deriva de contribución ÷ venta de estas mismas curvas — una sola verdad."} align="left"/>
         </span>
         <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
           {/* leyenda honesta: cada serie se nombra · el benchmark ámbar solo cuando se dibuja · cartera para diferenciar */}
@@ -5189,7 +5189,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
   const items = _capSup ? cap.facts.capitalLigado.items : [];
   const _capRelacion = _capSup ? cap.facts.capitalLigado.relacion : ((cap && cap.coverage && cap.coverage.relacion) || null);
   const _capObservada = _capRelacion === "observada";
-  const _capSujeto = _capObservada ? `productos que le vendés a ${name}` : `SKU asociados al surtido de ${name} por afinidad estimada`;
+  const _capSujeto = _capObservada ? `productos que le vendes a ${name}` : `SKU asociados al surtido de ${name} por afinidad estimada`;
   const _capTitulo = !_capSup
     ? `Inventario inmovilizado y ${name}`
     : _capObservada ? `Inventario de baja rotación en productos que compra ${name}`
@@ -5212,7 +5212,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
     : { label: "REVISAR", desc: "Vende poco y deja poco margen", color: C.red };
   const _cierreCartera = !clase ? null
     : clase.label === "CUIDAR" ? `${name} es una cuenta importante y rentable. Protegé estas condiciones y usala de referencia para negociar con el resto.`
-    : clase.label === "RECUPERAR" ? `${name} mueve mucho volumen, pero su margen está bajo tu estándar. Acá está la mayor oportunidad de recuperar rentabilidad — empezá por revisar sus acciones comerciales.`
+    : clase.label === "RECUPERAR" ? `${name} mueve mucho volumen, pero su margen está bajo tu estándar. Acá está la mayor oportunidad de recuperar rentabilidad — empieza por revisar sus acciones comerciales.`
     : clase.label === "CRECER" ? `${name} deja buen margen pero todavía pesa poco. Si sus condiciones se sostienen, es una cuenta sana para hacer crecer en volumen.`
     : `Hoy ${name} no es una cuenta importante por volumen y tampoco compensa con rentabilidad. Antes de buscar más ventas, conviene revisar si sus condiciones permiten mejorar el margen.`;
 
@@ -5332,7 +5332,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
             <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
               Unidades = reparto de las unidades del cliente según su venta (cierran con su total). Rotación = veces al año que rota el producto en tu inventario; <span style={{ color: C.red }}>en rojo</span> la que está bajo tu piso de {POLICY.rotacionMin}x — es la que después aparece detenida abajo.
             </div>
-            {_btn(`Pedile a ADI que profundice en la composición de ${name} →`, `¿Cómo se compone ${name}?`)}
+            {_btn(`Pídele a ADI que profundice en la composición de ${name} →`, `¿Cómo se compone ${name}?`)}
           </>
         )}
       </div>
@@ -5413,10 +5413,10 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
             </div>
             <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, marginTop: 8 }}>
               {_criticos.length > 0 && _lentos.length > 0
-                ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>
+                ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>
                 : _criticos.length > 0
-                  ? <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en {_capSujeto}.</>
-                  : <>Tenés <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>}
+                  ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en {_capSujeto}.</>
+                  : <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>}
               {" "}Es capital de tu negocio, no de {name}.
               {!_capObservada ? <> La asociación con {name} es una estimación de afinidad, no una venta registrada.</> : null}
             </div>
@@ -5427,7 +5427,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
                   : <>Priorizá <b>{_capTopMonto.sku}</b>: es el mayor monto ({_fmUsd(_capTopMonto.usd)}){typeof _capTopMonto.diasSinVenta === "number" ? <> y lleva {_capTopMonto.diasSinVenta} días sin venta</> : null}.</>}
               </div>
             )}
-            {_btn(`Pedile a ADI el detalle de este inventario →`, `¿Qué capital tenés inmovilizado en ${_capSujeto}?`)}
+            {_btn(`Pídele a ADI el detalle de este inventario →`, `¿Qué capital tienes inmovilizado en ${_capSujeto}?`)}
           </>
         ) : (
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
@@ -5500,7 +5500,7 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
         </div>
         {onAsk ? (
           <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:11, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-            Pedile a ADI que profundice en {name} →
+            Pídele a ADI que profundice en {name} →
           </button>
         ) : null}
       </div>
@@ -5545,7 +5545,7 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
         <span style={{ fontFamily: MONOF, fontSize: 9.5, letterSpacing: "0.7px", color: C.celeste, textTransform: "uppercase", display: "flex", alignItems: "center" }}>
           <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
           Perfil vs promedio
-          <InfoDot def={"El perfil de la entidad contra el PROMEDIO de su eje. El eje central es el promedio: barra a la derecha (verde) = mejor que el promedio, a la izquierda (rojo) = peor — vale también para métricas donde menos es mejor (la geometría ya lo considera). Tu benchmark (piso/target) queda declarado abajo. Seleccioná una segunda fila y pasa a la comparación A vs B."} align="left"/>
+          <InfoDot def={"El perfil de la entidad contra el PROMEDIO de su eje. El eje central es el promedio: barra a la derecha (verde) = mejor que el promedio, a la izquierda (rojo) = peor — vale también para métricas donde menos es mejor (la geometría ya lo considera). Tu benchmark (piso/target) queda declarado abajo. Selecciona una segunda fila y pasa a la comparación A vs B."} align="left"/>
         </span>
         <span style={{ fontFamily: MONOF, fontSize: 10, color: C.textMuted }}>
           <span style={{ color: C.elec, fontWeight: 600 }}>{name}</span> sobre el promedio en {score} de {filas.length}
@@ -5597,7 +5597,7 @@ function MesaPerfil({ name, row, columns = null, allRows = [], dim = "cliente", 
         </span>
         {onAsk ? (
           <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background: "transparent", border: "none", color: C.celeste, fontSize: 10.5, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
-            Pedile a ADI que profundice en {name} →
+            Pídele a ADI que profundice en {name} →
           </button>
         ) : null}
       </div>

@@ -99,7 +99,7 @@ export function getClientDeepDive(clientName, scenarioId, context = {}) {
   // Fallback (preserved from previous version)
   if (!v) {
     return {
-      opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario. Las cuentas activas son Falabella, Lider, Jumbo y otras 10. ¿Cuál querés revisar?`,
+      opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario. Las cuentas activas son Falabella, Lider, Jumbo y otras 10. ¿Cuál quieres revisar?`,
       // BRIEF N-bis · Tipo A puro · suggestions filtradas
       suggestions: filterTextualSuggestions([
         "Cuéntame de Falabella",

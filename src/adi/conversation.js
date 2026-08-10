@@ -100,7 +100,7 @@ function _digestLast(ev) {
 }
 
 // ── helpers de respuesta (shape finalizado que consume la UI · `text`, no `opener`) ──────────────────────────────────
-const _clarify = (q) => ({ text: q || "¿Podés precisar? Decime el eje (cliente/marca/familia/bodega) o la entidad.", suggestions: null, sentrixAction: null, evidence: null, route: "clarification_needed" });
+const _clarify = (q) => ({ text: q || "¿Puedes precisar? Dime el eje (cliente/marca/familia/bodega) o la entidad.", suggestions: null, sentrixAction: null, evidence: null, route: "clarification_needed" });
 const _needLast = () => ({ text: "No tengo una lectura reciente sobre la que recomendar. Arranquemos por una consulta: ¿ventas, contribución o capital, y por qué eje?", suggestions: null, sentrixAction: null, evidence: null, route: "followup_no_context" });
 const _specSelfContained = (s) => !!(s && s.operation && s.metric && s.dimension);
 
@@ -182,7 +182,7 @@ function _subjectConcept(last) {
 export function composeDefine(spec, ctx = null) {
   const d = spec && spec._define;
   const last = ctx && ctx.last;
-  if (!d) return _clarify("¿Qué concepto querés que te explique? Ej: contribución no capturada, carga comercial, benchmark.");
+  if (!d) return _clarify("¿Qué concepto quieres que te explique? Ej: contribución no capturada, carga comercial, benchmark.");
   // (2) SÍ/NO de identidad: "¿ese 1.6 es rebate?" → NO + la distinción (verbatim · honesto)
   if (d.yesno) {
     const subjSlug = _subjectConcept(last);
@@ -195,13 +195,13 @@ export function composeDefine(spec, ctx = null) {
     const otraCosa = d.yesno === "carga"
       ? "La **carga comercial** es otra cosa: los descuentos, rebates y condiciones que retienen margen antes de llegar a la contribución"
       : "El **rebate** es otra cosa: parte de la **carga comercial**, los descuentos y condiciones que retienen margen antes de llegar a la contribución";
-    const text = `No. Lo que venís mirando${donde} es ${subjFrase} — contribución que dejás de ganar, no un costo que pagaste. ${otraCosa}, y es justamente una de las causas de esa brecha. Son cosas distintas — una es lo que dejás sobre la mesa, la otra una de sus causas. ¿Querés que veamos cuánta carga comercial retiene ${cuenta} hoy?`;
+    const text = `No. Lo que vienes mirando${donde} es ${subjFrase} — contribución que dejas de ganar, no un costo que pagaste. ${otraCosa}, y es justamente una de las causas de esa brecha. Son cosas distintas — una es lo que dejas sobre la mesa, la otra una de sus causas. ¿Quieres que veamos cuánta carga comercial retiene ${cuenta} hoy?`;
     return { text, suggestions: [`¿Cuánta carga comercial retiene ${cuenta}?`], sentrixAction: null,
       evidence: { followup: true, kind: "meta", boleta: [] }, route: "define" };
   }
   // (1) definición directa del concepto
   const c = CONCEPT_DEFS[d.concept];
-  if (!c) return _clarify("¿Qué concepto querés que te explique? Ej: contribución no capturada, carga comercial, benchmark.");
+  if (!c) return _clarify("¿Qué concepto quieres que te explique? Ej: contribución no capturada, carga comercial, benchmark.");
   const text = `${_capE(c.aka)}: ${c.def}${c.distingue ? ` ${c.distingue}` : ""}`;
   return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "meta", boleta: [] }, route: "define" };
 }
@@ -259,7 +259,7 @@ export function composeExplain(last, ctx = null, state = {}) {
     const plural = st.plural || `${last.dimLabel || "entidades"}`;
     const mLow = String(last.metricLabel || last.metrica || "el dato").toLowerCase();
     const text = con.concentrated
-      ? `Lo digo porque el ${sgn}${pct}% es parejo, así que el impacto cae igual que la estructura que ya tenés: los mismos ${con.blockCount} ${plural} que concentran ${mLow} explican el ${con.blockPct}% del impacto. Por eso el supuesto amplifica lo que ya existe, no cambia la forma del negocio.`
+      ? `Lo digo porque el ${sgn}${pct}% es parejo, así que el impacto cae igual que la estructura que ya tienes: los mismos ${con.blockCount} ${plural} que concentran ${mLow} explican el ${con.blockPct}% del impacto. Por eso el supuesto amplifica lo que ya existe, no cambia la forma del negocio.`
       : `Lo digo porque el ${sgn}${pct}% es parejo y el impacto se reparte: ninguna parte concentra el resultado, así que el efecto acompaña al tamaño de cada ${last.dimLabel || "entidad"} más que a una parte puntual.`;
     const bol = [fig("Supuesto %", `${Math.abs(pct)}%`, { unit: "pct", raw: Math.abs(pct), source: "computed", context: "explicación" })];
     if (con.concentrated) bol.push(fig("Concentración · bloque", `${con.blockPct}%`, { unit: "pct", raw: con.blockPct, mandatory: true, source: "computed", context: "explicación", formula: `${con.blockCount} ${plural} = ${con.blockPct}%` }));
@@ -277,7 +277,7 @@ export function composeMeta(topic, last) {
   // PRIMERA impresión del invitado): bienvenida cálida determinística + orientación concreta. Va VERBATIM (sin narrar).
   if (t === "saludo") {
     return {
-      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganás, dónde cedés margen y qué mover primero.\n\nProbá preguntarme: «¿cómo viene el P&L de mi negocio?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
+      text: "¡Hola! Soy ADI, tu asesor de negocio. Trabajo sobre el dato real de tu cartera y te ordeno la decisión: dónde ganas, dónde cedés margen y qué mover primero.\n\nProbá preguntarme: «¿cómo viene el P&L de mi negocio?» · «margen por cliente» · «¿qué SKU rota peor?» — o abrí la **Mesa de control** (arriba) para ver todas tus cifras conmigo al lado.",
       suggestions: ["¿Cómo viene el P&L de mi negocio?", "Margen por cliente", "¿Qué SKU rota peor?"],
       sentrixAction: null,
       evidence: { followup: true, kind: "saludo", boleta: [] },
@@ -320,7 +320,7 @@ export function composeMeta(topic, last) {
   } else if (/qu[eé] pod[eé]s|capacidad|hacer|sirv/.test(t)) {
     text = "Hoy proyecto ventas, contribución y capital con un +/-X% sobre el dato real («¿qué pasa si las ventas suben 3%?»), y también el supuesto de una acción: llevar la carga comercial al target o liberar el capital detenido. Siempre te ordeno la decisión: lectura, estructura, riesgo y acción.";
   } else {
-    text = "Trabajo sobre el dato real de tu cartera y te ordeno la decisión. Decime qué mirar (ventas, contribución o capital, por cliente/marca/familia/bodega) y arranco.";
+    text = "Trabajo sobre el dato real de tu cartera y te ordeno la decisión. Dime qué mirar (ventas, contribución o capital, por cliente/marca/familia/bodega) y arranco.";
   }
   const bol = (pct != null && /real|supuesto|proyec/.test(t)) ? [fig("Supuesto %", `${Math.abs(pct)}%`, { unit: "pct", raw: Math.abs(pct), source: "computed", context: "meta" })] : [];
   return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "meta", boleta: bol, transform: (last && last.transform) || null }, route: "meta_question" };
@@ -330,8 +330,8 @@ export function composeMeta(topic, last) {
 export function composeCompareNotYet(spec, last) {   // eslint-disable-line no-unused-vars
   const target = spec && ((spec.comparison && spec.comparison.entities && spec.comparison.entities.slice(-1)[0]) || spec.entity);
   const text = target
-    ? `La comparación conversacional llega en el próximo paso. Decime que avance y la preparo contra ${target}; por ahora te dejo la lectura actual.`
-    : "Puedo comparar en el próximo paso, pero necesito contra qué entidad. ¿Contra cuál querés cruzarlo?";
+    ? `La comparación conversacional llega en el próximo paso. Dime que avance y la preparo contra ${target}; por ahora te dejo la lectura actual.`
+    : "Puedo comparar en el próximo paso, pero necesito contra qué entidad. ¿Contra cuál quieres cruzarlo?";
   return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "compare_pending", boleta: [] }, route: "followup_compare" };
 }
 
@@ -366,7 +366,7 @@ export function composeCompare(spec, ctx, state) {
   let dim = (dim0 && ENTITIES[dim0]) ? dim0 : (ENTITIES.cliente ? "cliente" : Object.keys(ENTITIES)[0]);
   let subject, target;
   let subjMem = false;
-  if (cmpEnts.length >= 2) { subject = cmpEnts[0]; target = cmpEnts[1]; }  // dos entidades EXPLÍCITAS ('compará A con B')
+  if (cmpEnts.length >= 2) { subject = cmpEnts[0]; target = cmpEnts[1]; }  // dos entidades EXPLÍCITAS ('compara A con B')
   else {
     subject = _lastEntity(last) || null;                                    // elíptico: primero el contexto…
     if (!subject && _mem && _mem.entidad && _mem.entidad.nombre) { subject = _mem.entidad.nombre; subjMem = true; }   // …después la memoria
@@ -377,16 +377,16 @@ export function composeCompare(spec, ctx, state) {
   if (subjMem && _mem.entidad.eje && ENTITIES[_mem.entidad.eje]) dim = _mem.entidad.eje;
   const dLabel = (ENTITIES[dim] && ENTITIES[dim].label.sing) || "eje";
   // NUNCA el _needLast genérico narrado: un compare-intent SIEMPRE devuelve repregunta CRISP (o compara).
-  if (!dim) return _clarify("¿Sobre qué eje comparo? Decime cliente, marca, familia o bodega.");
+  if (!dim) return _clarify("¿Sobre qué eje comparo? Dime cliente, marca, familia o bodega.");
   const _egs = (excl) => { const xs = sampleEntities(dim, 4).filter((e) => _low(e) !== _low(excl)).slice(0, 3); return xs.length ? xs.join(", ") : null; };
   const _plur = (ENTITIES[dim] && ENTITIES[dim].label.plur) || `${dLabel}s`;
   if (target && /^(el |la |los |las )?(promedio|media|benchmark|mercado|cartera)$/i.test(String(target).trim())) {
     const eg = _egs(subject); const sj = subject ? `${subject}` : `un ${dLabel}`;
-    return _clarify(`El promedio de cartera lo tenés en el panel. Para cruzar puntual, decime contra qué ${dLabel} comparo ${sj}${eg ? ` — ej. ${eg}` : ""}.`);
+    return _clarify(`El promedio de cartera lo tienes en el panel. Para cruzar puntual, dime contra qué ${dLabel} comparo ${sj}${eg ? ` — ej. ${eg}` : ""}.`);
   }
-  if (!target && !subject) { const eg = _egs(); return _clarify(`¿Qué dos ${_plur} querés comparar?${eg ? ` Ej: ${eg}.` : ""}`); }
+  if (!target && !subject) { const eg = _egs(); return _clarify(`¿Qué dos ${_plur} quieres comparar?${eg ? ` Ej: ${eg}.` : ""}`); }
   if (!target) { const eg = _egs(subject); return _clarify(`¿Contra qué ${dLabel} comparo ${subject}?${eg ? ` Puedo cruzarlo contra ${eg} u otro ${dLabel}.` : ""}`); }
-  if (!subject) { const eg = _egs(target); return _clarify(`¿Qué ${dLabel} querés comparar con ${target}?${eg ? ` Puedo cruzar ${target} contra ${eg} u otro ${dLabel}.` : ""}`); }
+  if (!subject) { const eg = _egs(target); return _clarify(`¿Qué ${dLabel} quieres comparar con ${target}?${eg ? ` Puedo cruzar ${target} contra ${eg} u otro ${dLabel}.` : ""}`); }
   const cmpSpec = {
     schemaVersion: 1, operation: "compare",
     metric: (spec && spec.metric) || (last && last.metrica) || "contribucion",
@@ -415,7 +415,7 @@ const _MULTI_LABEL = { margen: "Margen", ventas: "Ventas", contribucion: "Contri
 export function composeMulti(spec, ctx, state) {
   const m = spec && spec.multi;
   if (!m || !Array.isArray(m.metrics) || m.metrics.length < 2)
-    return _clarify("¿Qué dos métricas querés cruzar? Ej: margen y rotación de los SKU.");
+    return _clarify("¿Qué dos métricas quieres cruzar? Ej: margen y rotación de los SKU.");
   const dim = m.dimension || "cliente";
   const filters = { ...(spec.filters || {}), ...(m.entity && dim === "cliente" ? { cliente: m.entity } : {}) };
   const parts = [], evs = [], bol = [];
@@ -435,7 +435,7 @@ export function composeMulti(spec, ctx, state) {
     parts.push(`**${_MULTI_LABEL[met] || met}** — ${r.text}`);
     if (r.evidence) { evs.push(r.evidence); for (const f of (r.evidence.boleta || [])) bol.push(f); }
   }
-  if (!parts.length) return _clarify("No pude armar ese cruce. Decime las métricas (margen, ventas, contribución, rotación) y el eje.");
+  if (!parts.length) return _clarify("No pude armar ese cruce. Dime las métricas (margen, ventas, contribución, rotación) y el eje.");
   const primary = evs[0] ? { ...evs[0], boleta: bol, multi: evs.slice(1) } : { boleta: bol };
   return { text: parts.join("\n\n"), suggestions: null, sentrixAction: null, evidence: primary, route: "multi_analysis" };
 }
@@ -456,7 +456,7 @@ function _criteriaEvidence() {
     ] };
 }
 export function composeCriteria(ci) {
-  if (!ci) return _clarify("¿Qué criterio querés que recuerde? Ej: 'recordá que mi margen mínimo es 28%'.");
+  if (!ci) return _clarify("¿Qué criterio quieres que recuerde? Ej: 'recuerda que mi margen mínimo es 28%'.");
   const c = CRITERIA[ci.key];
   if (ci.action === "recall") {
     const list = activeCriteria();
@@ -469,7 +469,7 @@ export function composeCriteria(ci) {
     // antes iban hardcodeados y en otra empresa el recall citaba una vara ajena.
     const text = (list.length
       ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y medidas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
-      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(tenantPolicyDefault("benchmark"))}, carga ${CRITERIA.target_carga.fmt(tenantPolicyDefault("targetCarga"))}). Podés fijar tu vara: "recordá que mi margen mínimo es 28%".`) + pnlTxt;
+      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(tenantPolicyDefault("benchmark"))}, carga ${CRITERIA.target_carga.fmt(tenantPolicyDefault("targetCarga"))}). Puedes fijar tu vara: "recuerda que mi margen mínimo es 28%".`) + pnlTxt;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   if (ci.action === "forget") {
@@ -484,8 +484,8 @@ export function composeCriteria(ci) {
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   if (ci.action === "propose") {
-    const text = `Eso suena a un criterio tuyo: ${c.label.toLowerCase()} ${c.fmt(ci.value)}. No lo guardo sin tu OK — si querés que lo use como TU vara en todas las lecturas, decime: "recordá que mi ${c.label.toLowerCase()} es ${ci.value}".`;
-    return { text, suggestions: [`Recordá que mi ${c.label.toLowerCase()} es ${ci.value}`], sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
+    const text = `Eso suena a un criterio tuyo: ${c.label.toLowerCase()} ${c.fmt(ci.value)}. No lo guardo sin tu OK — si quieres que lo use como TU vara en todas las lecturas, dime: "recuerda que mi ${c.label.toLowerCase()} es ${ci.value}".`;
+    return { text, suggestions: [`Recuerda que mi ${c.label.toLowerCase()} es ${ci.value}`], sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   // set
   const r = setCriterion(ci.key, ci.value);
@@ -598,7 +598,7 @@ export function composeAccept(spec, ctx, state) {
   // 5 · tras una simulación → la recomendación de seguimiento
   const rec = composeFollowupRecommendation(last);
   if (rec) return rec;
-  return _clarify("Dale — ¿seguimos con lo último o miramos otra cosa? Decime la cuenta o el foco y arranco.");
+  return _clarify("Dale — ¿seguimos con lo último o miramos otra cosa? Dime la cuenta o el foco y arranco.");
 }
 
 // ── REGISTRY · turn_type → resolver. Sumar una fase = sumar una entrada (V2-V6), NO reestructurar. ───────────────────
@@ -630,7 +630,7 @@ export function resolveTurn(turnType, spec, ctx, state) {
   if (h) return h(spec, ctx, state);
   const contextual = /^(followup_|recall_|session_|meta_|apply_)/.test(tt) || !_specSelfContained(spec);
   return contextual
-    ? _clarify("¿Seguimos con lo último o arrancamos algo nuevo? Decime el eje o la entidad.")
+    ? _clarify("¿Seguimos con lo último o arrancamos algo nuevo? Dime el eje o la entidad.")
     : answerADIFromSpec(spec, ctx, state);
 }
 

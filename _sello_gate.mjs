@@ -113,7 +113,7 @@ console.log("\n── D · MESA: UMBRAL = MATERIALIDAD (una verdad) + MONTO POR 
   }
   ok("cada ask de la watchlist responde por su camino real (why scopeado incluido) · 0 rotas", rotas === 0);
   const rC = A(S({ operation: "inventory", metric: "capital", dimension: "bodega", entity: null, filters: { bodega: "Concepción" } }), {}, {});
-  ok("«capital en Concepción» sin detenido → el MONTO total + estado (no solo el vacío)", /En Concepción tenés \$19K de capital/.test(txt(rC)) && !/^spec_blocked_/.test(rC.route || ""));
+  ok("«capital en Concepción» sin detenido → el MONTO total + estado (no solo el vacío)", /En Concepción tienes \$19K de capital/.test(txt(rC)) && !/^spec_blocked_/.test(rC.route || ""));
   ok("…declara la vara y la otra punta si existe", /rotaci[oó]n bajo 2x/.test(txt(rC)));
   const rV = A(S({ operation: "inventory", metric: "capital", dimension: "bodega", entity: null, filters: { bodega: "Valparaíso" } }), {}, {});
   ok("bodega CON detenido conserva su lectura scopeada de capital inmovilizado", /capital inmovilizado/i.test(txt(rV)) && /Valpara/.test(txt(rV)));

@@ -29,11 +29,40 @@ try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch 
 const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
+
+// ── VOSEO · LA MITAD QUE ESTE GATE NO MIRABA (owner 2026-08-10, certificación live · defecto 4) ────────────────
+// EL HUECO, textual del owner: "el _registro_gate no lo cazó porque busca VOCABULARIO PROHIBIDO, no FORMAS
+// VERBALES". `BANNED` es una lista de sustantivos y de un verbo puntual; «querés», «podés», «decime» y «mirá» no
+// están en ninguna lista, así que pasaban los 86 gates con todo en verde mientras el producto hablaba en un
+// dialecto que no es el suyo. El registro es "formal LatAm, sin chilenismos" (CLAUDE.md): eso es tuteo neutro.
+//
+// EL CIERRE ES UN LOOKAHEAD UNICODE, NO `\b`: `\b` es ASCII y no cierra después de vocal acentuada, así que
+// «comenzá»/«mirá»/«considerá» se escapaban del propio detector. Es la misma trampa que progressiveDisclosure.js
+// ya documenta dos veces; acá se evita de entrada.
+//
+// LAS FORMAS AMBIGUAS QUEDAN FUERA, a propósito y con el mismo criterio que el resto de la suite (falso negativo
+// antes que falso positivo): los imperativos en -í («pedí», «elegí», «seguí») coinciden con el pretérito de
+// primera persona, y las formas en -ás sin tilde son tuteo correcto. Se listan las inequívocas.
+// LA TILDE ES OBLIGATORIA donde la forma SIN tilde es tuteo correcto («necesitas», «sabes», «haces», «vendes»,
+// «debes») o tercera persona («hace», «pone», «entrega»). Sin ese cuidado el gate marca prosa correcta, que es
+// peor que no marcar nada: un gate que da falsos positivos se termina desactivando.
+const VOSEO = new RegExp(
+  "\\b(?:quer[eé]s|pod[eé]s|ten[eé]s|dec[ií]s|ven[ií]s|prefer[ií]s|eleg[ií]s|segu[ií]s|perd[eé]s" +
+  "|sabés|hacés|vendés|debés|necesitás|buscás|usás|dejás|encontrás|mostrás|pensás|llevás|ganás|esperás" +
+  "|sos|vos" +
+  "|hacé|tené|poné|andá|entregá|mirá|dejá|revisá|considerá|comenzá|probá|pensá|mandá|empezá|armá|tomá|cerrá" +
+  "|tocá|pasá|editá|recordá|agregá|sacá|cambiá|fijá|ordená|filtrá|seleccioná|compará|calculá|guardá|arrancá" +
+  "|declarás|marcás|ejecutás|confirmás|recordás" +
+  "|dec[ií]me|cont[aá]me|mostr[aá]me|dec[ií]le|ped[ií]le|fij[aá]te|acord[aá]te" +
+  ")(?![\\p{L}])", "iu");
+
 let pass = 0, fail = 0; const rotos = [];
 const check = (origen, texto) => {
   if (typeof texto !== "string" || !texto.trim()) return;
   const m = texto.match(BANNED);
+  const v = texto.match(VOSEO);
   if (m) { fail++; rotos.push({ origen, palabra: m[0], gist: texto.replace(/\s+/g, " ").slice(Math.max(0, m.index - 40), m.index + 40) }); }
+  else if (v) { fail++; rotos.push({ origen: `${origen} · voseo`, palabra: v[0], gist: texto.replace(/\s+/g, " ").slice(Math.max(0, v.index - 40), v.index + 40) }); }
   else pass++;
 };
 // PISO SELLADO (paridad byte-exact del oráculo · triage [39]): las rutas RICAS del motor todavía dicen "palanca";
@@ -212,10 +241,13 @@ for (const [tipo, foco] of [["client", "Falabella"], ["sku", "SAM-TV55"], ["marc
 const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/[^\n]*/g, "$1");
 // GuiaInicio.jsx entra al barrido (owner 2026-08-07): la guía de inicio es de las PRIMERAS palabras que lee un
 // usuario nuevo — si el registro se rompe, se rompe en la peor pantalla posible.
-for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/InlineChart.jsx", "src/ui/GuiaInicio.jsx"]) {
+for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/InlineChart.jsx", "src/ui/GuiaInicio.jsx", "src/ui/App.jsx"]) {
   const src = stripComments(fs.readFileSync(path.join(root, f), "utf8"));
   let m, re = new RegExp(BANNED.source, "gi"), n = 0;
   while ((m = re.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") }); }
+  // el MISMO barrido para las formas verbales (owner 2026-08-10): la UI es donde el registro se lee primero.
+  let mv, rev = new RegExp(VOSEO.source, "giu");
+  while ((mv = rev.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f} · voseo`, palabra: mv[0], gist: src.slice(Math.max(0, mv.index - 50), mv.index + 40).replace(/\s+/g, " ") }); }
   if (!n) pass++;
 }
 
@@ -239,10 +271,19 @@ const NARRADAS = [
   "Quedan referencias dormidas sin salida.",
   "La plata inmovilizada en inventario es alta.",
   "Esa plata se libera rebajando el stock crítico.",
+  // VOSEO NARRADO (owner 2026-08-10): el narrador redacta libre y los prompts que lo guían están en voseo, así que
+  // lo imita — «Comenzá revisando…» salió en vivo, en la corrida de certificación. Mismo trato que el registro:
+  // el prompt pide, `stripLanguageLeaks` garantiza. Se prueba contra el MISMO VOSEO de este gate (una fuente).
+  "Si querés, decime qué necesitás y contame lo que buscás.",
+  "Comenzá revisando el margen y considerá bajar la carga.",
+  "Podés fijar tu benchmark cuando quieras; sos vos quien decide.",
+  "Hacé la tabla, poné el filtro y andá al detalle por bodega.",
+  "Tenés capital inmovilizado en Valparaíso; mirá el 80/20.",
+  "¿Preferís que arme el ranking completo, o seguís con estas dos cuentas?",
 ];
 for (const t of NARRADAS) {
   const out1 = stripLanguageLeaks(t);
-  const m = out1.match(BANNED);
+  const m = out1.match(BANNED) || out1.match(VOSEO);
   if (m) { fail++; rotos.push({ origen: "voiceGuard · narración viva", palabra: m[0], gist: `«${t}» → «${out1}»` }); }
   else pass++;
   const out2 = stripLanguageLeaks(out1);   // idempotencia: segunda pasada = igual
@@ -255,6 +296,13 @@ const LIMPIAS = [
   "El capital detenido en Valparaíso se libera con una rebaja puntual.",
   "La caja inmovilizada suma un monto relevante en inventario.",
   "Falabella cede margen por carga comercial alta; conviene revisar cuenta por cuenta.",
+  // TUTEO YA CORRECTO → el barrido de voseo no lo toca. Incluye las trampas reales: el futuro de tuteo termina
+  // en -ás igual que el presente voseante («verás», «podrás»), y hay terceras personas que son homógrafas de un
+  // imperativo voseante sin tilde («el motor hace», «pone», «la entrega»). Ninguna puede reescribirse.
+  "Verás que podrás recuperar el margen; además jamás estuvo tan atrás del benchmark.",
+  "El motor hace la tabla y pone el filtro; la entrega del informe llega hoy.",
+  "Considera el margen: la suma baja y el arma comercial es el precio. Estás bajo tu benchmark.",
+  "Si quieres, dime qué necesitas y cuéntame lo que buscas.",
 ];
 for (const t of LIMPIAS) {
   const out1 = stripLanguageLeaks(t);

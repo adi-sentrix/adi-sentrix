@@ -194,6 +194,6 @@ export function composeFromLedger(figs, contentScope) {
 export function composeNoDataMessage(results) {
   const list = Array.isArray(results) ? results : [];
   const declined = list.find((r) => r && r.coverage && r.coverage.supported === false && typeof r.coverage.reason === "string" && r.coverage.reason.trim());
-  if (declined) return `No tengo información autorizada suficiente: ${declined.coverage.reason}. Decime el nombre exacto o el dato que buscás y lo reviso.`;
-  return "No tengo información autorizada suficiente para responder eso con el alcance pedido. Contame qué dato específico necesitás y lo busco.";
+  if (declined) return `No tengo información autorizada suficiente: ${declined.coverage.reason}. Dime el nombre exacto o el dato que buscas y lo reviso.`;
+  return "No tengo información autorizada suficiente para responder eso con el alcance pedido. Cuéntame qué dato específico necesitas y lo busco.";
 }

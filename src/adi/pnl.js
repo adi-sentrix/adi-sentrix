@@ -658,7 +658,7 @@ export function detectPnlIntent(q) {
     return { action: "rearmar" };
   // recall («¿qué gastos tengo configurados?» · «muéstrame mi p&l») · ANTES del start ("configurados" contiene "configura")
   if ((/\bqu[eé]\s+gastos\b/i.test(t) && /(tengo|ten[eé]s|configurad|definid|guardad)/i.test(t))
-    || (/(mu[eé]strame|mostrame|ver|c[oó]mo\s+(est[aá]|qued[oó])|cu[aá]l\s+es)\b/i.test(t) && _PNL_WORD.test(t) && !/resultado\s+comercial/i.test(t)))
+    || (/(mu[eé]strame|muéstrame|ver|c[oó]mo\s+(est[aá]|qued[oó])|cu[aá]l\s+es)\b/i.test(t) && _PNL_WORD.test(t) && !/resultado\s+comercial/i.test(t)))
     return { action: "recall" };
   // start («armemos mi p&l» · «definamos los gastos» · el prefill de la cara vacía)
   if ((_ARMAR_RE.test(t) && (_PNL_WORD.test(t) || _GASTOS_WORD.test(t))) || (/\bmi\s+p\s*&\s*l\b/i.test(t) && /\b(armar|empezar|partir)\b/i.test(t)))

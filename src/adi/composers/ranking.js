@@ -28,7 +28,7 @@ export function composeHonestUnavailable(reason, moduleContext) {
   };
   const suggestions = moduleSuggestions[moduleContext] || moduleSuggestions.inventario;
   return {
-    opener: `Para esa pregunta específica no puedo darte un cálculo directo · ${reason}\n\n¿Querés que profundice en alguno en particular?`,
+    opener: `Para esa pregunta específica no puedo darte un cálculo directo · ${reason}\n\n¿Quieres que profundice en alguno en particular?`,
     // BRIEF N-bis · Tipo A puro · suggestions filtradas
     suggestions: filterTextualSuggestions(suggestions),
     sentrixAction: null,
