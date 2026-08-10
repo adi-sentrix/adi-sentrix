@@ -98,9 +98,13 @@ export const PLAN_TOOL = {
       // LAS DESCRIPCIONES SON MÍNIMAS A PROPÓSITO (owner 2026-08-10): las REGLAS viven una sola vez, en la
       // doctrina del system (buildRepairPlanDoctrine). Repetirlas acá costaba ~700 caracteres de prompt en TODOS
       // los turnos para decir dos veces lo mismo — el schema solo tiene que dejar claro QUÉ va en cada campo.
+      // REQUERIDO Y NULLABLE (owner 2026-08-10, tras la primera corrida pagada). Era opcional, y la certificación
+      // lo cazó en la primera sonda: el modelo base simplemente lo OMITIÓ. Toda la conducta del contrato colgaba
+      // de que se acordara de llenar un campo que el esquema no le pedía. Ahora tiene que decidir explícitamente
+      // —el objeto o `null`— y "null" es una declaración, no un olvido: el motor la distingue del silencio.
       reparacion: {
-        type: "object", additionalProperties: false,
-        description: "Solo en un turno de corrección/desacuerdo/dato aportado — ver la doctrina CORRECCIÓN.",
+        type: ["object", "null"], additionalProperties: false,
+        description: "El objeto en corrección/desacuerdo/dato aportado (ver la doctrina); `null` en el resto. Nunca omitir.",
         properties: {
           tipo: { type: "string", enum: REPAIR_KINDS },
           corrige: { type: "array", items: { type: "string", enum: REPAIR_FIELD_KEYS }, description: "Los campos que el usuario cambió; ninguno más." },
@@ -127,7 +131,7 @@ export const PLAN_TOOL = {
         },
       },
     },
-    required: ["intent", "mode", "rationale", "calls"],
+    required: ["intent", "mode", "rationale", "calls", "reparacion"],
   },
 };
 
