@@ -11,7 +11,11 @@
  * Cero red, cero LLM. `npm run gates:offline`
  */
 import fs from "fs";
-import { emit, setSink, getSink, _limpio, desdeRespuesta, nuevoTraceId, ETAPAS, RESULTADOS } from "./src/adi/llm/telemetry.js";
+import { emit, setSink, getSink, _limpio, desdeRespuesta, nuevoTraceId, ETAPAS, RESULTADOS, getToolsDeclaradas } from "./src/adi/llm/telemetry.js";
+// El registro de tools se declara como EFECTO DE IMPORTAR el ejecutor real (toolRunner.js): así el gate prueba el
+// cableado que corre en producción, no una lista escrita a mano acá. Es puro — no toca red ni proveedor.
+import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
+import "./src/adi/oracle/toolRunner.js";
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -80,7 +84,43 @@ H("[5] PROVIDER-NEUTRAL · los mismos nueve campos con cualquier proveedor");
   ok(nuevoTraceId("x") === nuevoTraceId("x") && nuevoTraceId("x") !== nuevoTraceId("y"), "el traceId es estable por semilla y no colisiona trivialmente");
 }
 
-/* [6] OBSERVACIÓN PURA · el cableado en el gateway NO se verifica acá a propósito: leer ese archivo
+H("[6] LO QUE FALTABA · modelo EFECTIVO · tools ejecutadas · caché de entrada (owner 2026-08-10, cierre de la certificación)");
+{
+  // MODELO EFECTIVO. Las 11 llamadas de la corrida quedaron con el modelo en "?": el adapter descartaba el que
+  // devuelve el proveedor y el gateway sólo exponía el PEDIDO. No son la misma cadena — el alias se resuelve a una
+  // versión fechada, y para medir costo importa la que respondió.
+  const efectivo = desdeRespuesta({ traceId: "m1", proveedor: "openai", modelo: "gpt-4o-mini", etapa: "plan", intento: 0,
+    respuesta: { ok: true, modelo: "gpt-4o-mini-2024-07-18", modelUsed: "gpt-4o-mini", usage: { prompt_tokens: 10, completion_tokens: 2 } } });
+  ok(efectivo.modelo === "gpt-4o-mini-2024-07-18", `gana el modelo que RESPONDIÓ, no el que se pidió — ${efectivo.modelo}`);
+  const sinEfectivo = desdeRespuesta({ traceId: "m2", proveedor: "openai", modelo: "gpt-4o-mini", etapa: "plan", intento: 0,
+    respuesta: { ok: true, usage: {} } });
+  ok(sinEfectivo.modelo === "gpt-4o-mini", "si el proveedor no lo informa, cae al pedido — nunca a null (era el «?»)");
+
+  // CACHÉ DE ENTRADA. Los dos adapters ya normalizaban `cachedTokens` desde 2026-08-03 y acá se descartaba.
+  const cacheado = desdeRespuesta({ traceId: "c1", proveedor: "anthropic", modelo: "haiku", etapa: "plan", intento: 0,
+    respuesta: { ok: true, usage: { input_tokens: 8891, output_tokens: 62, cachedTokens: 7600 } } });
+  ok(cacheado.tokens_in_cache === 7600, `separa los tokens de entrada servidos por el caché — ${cacheado.tokens_in_cache}`);
+  ok(cacheado.tokens_in_fresh === 1291, `y los que se pagaron completos, por resta — ${cacheado.tokens_in_fresh}`);
+  const sinCache = desdeRespuesta({ traceId: "c2", proveedor: "openai", modelo: "mini", etapa: "plan", intento: 0,
+    respuesta: { ok: true, usage: { prompt_tokens: 800, completion_tokens: 20 } } });
+  ok(sinCache.tokens_in_cache === null && sinCache.tokens_in_fresh === null,
+    "sin dato del proveedor queda en null, NUNCA en 0: no se finge «cero cacheado»");
+  ok(_limpio({ tokens_in: 100, tokens_in_cache: 40, tokens_in_fresh: 999 }).tokens_in_fresh === 60,
+    "el `fresh` se DERIVA: un valor que no cierra con los otros dos no se acepta");
+
+  // TOOLS EJECUTADAS, con el MISMO candado de lista cerrada que la causa.
+  ok(getToolsDeclaradas().length === Object.keys(TOOLS).length && getToolsDeclaradas().length > 0,
+    `el registro de tools se declara desde el ejecutor real, no desde una copia — ${getToolsDeclaradas().length} tools`,
+    `telemetría=${getToolsDeclaradas().length} vs toolRegistry=${Object.keys(TOOLS).length}`);
+  const a = cap();
+  emit({ traceId: "tl", etapa: "deterministica", tools: ["queryMetric", "entityRecord", "Falabella", "$4.1M", "tool_inventada"] });
+  ok(JSON.stringify(a[0].tools) === JSON.stringify(["queryMetric", "entityRecord"]),
+    `sólo sobreviven las tools del registro real — ${JSON.stringify(a[0].tools)}`);
+  ok(!/Falabella|4\.1M/.test(JSON.stringify(a[0])), "una entidad disfrazada de tool NO sobrevive al candado");
+  setSink(null);
+}
+
+/* [7] OBSERVACIÓN PURA · el cableado en el gateway NO se verifica acá a propósito: leer ese archivo
  * —aunque sea como texto— hace que el clasificador estático marque este gate como LIVE y lo saque de la suite
  * offline. Un gate que no corre no certifica nada. La decisión es del owner (ver el informe): o el clasificador
  * distingue "lee el archivo" de "llama al gateway", o esta verificación vive en otro lado. */

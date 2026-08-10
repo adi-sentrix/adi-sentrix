@@ -186,8 +186,11 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
   // TELEMETRÍA (owner 2026-08-10) · observación pura: mide, no decide. Con el sink apagado —el default— no
   // hace nada. Nunca lanza, así que no puede tumbar un turno. Ver telemetry.js para los 9 campos y el candado.
   const _t0 = Date.now();
-  const { spec: plan, usage } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
-  const r = { ok: true, plan, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
+  const { spec: plan, usage, model: modeloEfectivo } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
+  // `modelo` = el que RESPONDIÓ (owner 2026-08-10) · `modelUsed` = el que se PIDIÓ, intacto para los consumidores
+  // que ya lo leen. Los dos viajan: no son lo mismo y confundirlos es lo que dejó el modelo en "?" en la corrida
+  // de certificación —el arnés buscaba `model`/`modelo` y acá sólo existía `modelUsed`—.
+  const r = { ok: true, plan, usage, modelUsed: model, modelo: modeloEfectivo || model, modelReason: routed ? routed.reason : "static:sin router" };
   emitTelemetria(desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "plan",
     intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta: r, ruta_deterministica: false }));
   return r;
@@ -217,8 +220,8 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt }
   // no paga ni un token por una regla que no van a usar.
   const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista);
   const _tNarr = Date.now();   // telemetría: latencia de NARRAR (observación pura, owner 2026-08-10)
-  const { text: narration, usage } = await getAdapter(provider).narrate(payload, { model, system });
-  const _t0n = _tNarr; const _rn = { ok: true, narration, usage, modelUsed: model, modelReason: routed ? routed.reason : "static:sin router" };
+  const { text: narration, usage, model: modeloEfectivo } = await getAdapter(provider).narrate(payload, { model, system });
+  const _t0n = _tNarr; const _rn = { ok: true, narration, usage, modelUsed: model, modelo: modeloEfectivo || model, modelReason: routed ? routed.reason : "static:sin router" };
   emitTelemetria(desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "narrar",
     intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0n, respuesta: _rn, ruta_deterministica: false }));
   return _rn;

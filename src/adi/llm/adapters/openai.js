@@ -97,7 +97,10 @@ export const openaiAdapter = {
     let spec;
     try { spec = JSON.parse(call.function.arguments); }
     catch (e) { throw new Error("JSON inválido del tool_call: " + e.message); }
-    return { spec, usage: _usage(data.usage) };
+    // MODELO EFECTIVO (owner 2026-08-10, cierre de la certificación live · MISMO tratamiento que anthropic.js): el
+    // que se PIDE y el que RESPONDE no son la misma cadena — OpenAI resuelve "gpt-4o-mini" a una versión fechada,
+    // y para medir costo importa el que respondió. Campo aditivo, provider-neutral.
+    return { spec, usage: _usage(data.usage), model: data.model || null };
   },
 
   // output validado → narración · el system (el CONTRATO) lo elige y arma gatewayCore/el módulo de prompt · el
@@ -115,6 +118,6 @@ export const openaiAdapter = {
     body[reasoning ? "max_completion_tokens" : "max_tokens"] = reasoning ? 2048 : 1024;
     const data = await _call(body);
     const txt = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
-    return { text: txt, usage: _usage(data.usage) };
+    return { text: txt, usage: _usage(data.usage), model: data.model || null };   // modelo EFECTIVO · ver parse()
   },
 };

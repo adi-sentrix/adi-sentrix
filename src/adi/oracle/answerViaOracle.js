@@ -8,6 +8,7 @@
  */
 import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
+import { emit as emitTelemetria, nuevoTraceId } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada } from "./narratePromptC.js";
@@ -1313,6 +1314,18 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // podía saber qué faltó. Se hila hasta el evidence del turno como `evidenceSpec.missing` — CERO cambio de
   // comportamiento del turno (el LLM/guard no lo consumen), solo deja de tirarse un dato que el motor ya calculó.
   const { ledger, results, trace, unsupported } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
+  // ── TELEMETRÍA · LAS TOOLS REALMENTE EJECUTADAS (owner 2026-08-10, cierre de la certificación live) ───────────
+  // El gateway sólo ve las DOS llamadas al proveedor; el batch corre acá, del lado del cliente, así que este es el
+  // único punto que sabe qué tools se ejecutaron de verdad — y no es lo mismo que lo que pidió el plan: los
+  // backstops de este archivo corrigen args, deduplican y hasta reemplazan calls antes de ejecutar. La corrida de
+  // certificación no pudo decir qué tools corrieron porque nadie lo emitía. Etapa "deterministica" (ya declarada
+  // en telemetry.js) porque no hay proveedor de por medio: el batch es puro y gratis.
+  // OBSERVACIÓN PURA: con el sink apagado —el default— no hace absolutamente nada, y `emit` nunca lanza.
+  emitTelemetria({
+    traceId: nuevoTraceId(), etapa: "deterministica", intento: 0, ruta_deterministica: true,
+    resultado: results.some((r) => r && r.coverage && r.coverage.supported === true) ? "ok" : "rechazado",
+    tools: results.map((r) => r && r.tool).filter(Boolean),
+  });
   // DIVULGACIÓN PROGRESIVA · segunda poda, sobre el LEDGER: del capital ligado se conserva el subtotal y el monto
   // de cada SKU (con eso se nombra la prioridad concreta), y se van las columnas que solo se leen en tabla
   // (unidades detenidas · días sin venta). Podadas del ledger = NO autorizadas: guardC las rechaza si el narrador

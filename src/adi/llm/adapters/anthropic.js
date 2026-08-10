@@ -84,7 +84,11 @@ export const anthropicAdapter = {
     });
     const tu = (data.content || []).find((b) => b.type === "tool_use");
     if (!tu) throw new Error("sin tool_use en la respuesta");
-    return { spec: tu.input, usage: _usage(data.usage) };
+    // MODELO EFECTIVO (owner 2026-08-10, cierre de la certificación live): el que se PIDE y el que RESPONDE no son
+    // la misma cadena — el proveedor resuelve el alias a una versión concreta, y para medir costo importa el que
+    // respondió. Se devolvía solo el pedido, así que las 11 llamadas de la corrida quedaron con el modelo en "?".
+    // Campo aditivo: quien no lo lea recibe exactamente lo mismo que antes.
+    return { spec: tu.input, usage: _usage(data.usage), model: data.model || null };
   },
 
   // output validado → narración (reformula sin cambiar cifras · el number-guard lo verifica aparte, en ADI)
@@ -97,6 +101,6 @@ export const anthropicAdapter = {
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-    return { text: txt, usage: _usage(data.usage) };
+    return { text: txt, usage: _usage(data.usage), model: data.model || null };   // modelo EFECTIVO · ver parse()
   },
 };

@@ -11,6 +11,14 @@
 import { createLedger, recordCall, tiparBoleta } from "./ledger.js";
 import { TOOLS } from "./toolRegistry.js";
 import { periodoDeFiguras, PERIODO_TXT } from "../../config/contract/figureType.js";
+import { setToolsDeclaradas } from "../llm/telemetry.js";
+
+// EL REGISTRO DE TOOLS SE DECLARA UNA VEZ, ACÁ (owner 2026-08-10, cierre de la certificación live). La telemetría
+// necesita saber qué nombres de tool son legítimos para poder emitirlos SIN riesgo de que se le cuele un dato del
+// cliente — y ese registro es `TOOLS`, que vive en toolRegistry.js. Copiarlo dentro de telemetry.js sería una
+// segunda fuente que se desincroniza con la primera tool nueva; se registra desde donde está el ejecutor real.
+// Efecto cero si el sink de telemetría está apagado, que es el default.
+setToolsDeclaradas(Object.keys(TOOLS));
 
 // PERÍODO/FECHA DE CORTE (owner "pase quirúrgico de confiabilidad" 2026-07-29, requisito 3: "toda respuesta
 // numérica debe declarar período o fecha de corte"): UN solo punto de inyección para TODAS las tools — evita tocar
