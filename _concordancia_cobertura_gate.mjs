@@ -31,6 +31,13 @@
  * El gate FALLA con un solo DESCUBIERTO, y también si la biyección con la UI se rompe en cualquiera de los dos
  * sentidos. "Límite declarado" nunca es un permiso genérico: cada uno exige el texto que dice cuál es el límite.
  *
+ * Y UNA SECCIÓN PROPIA PARA EL NIVEL 2 (owner 2026-08-09, decisión 12 · sección [7]). Las superficies que ADI ABRE
+ * cuando responde —el Cuadro de mando, la tabla-ring, el recibo, la decisión priorizada y la proyección— entran a
+ * la matriz como cualquier pieza, pero además tienen que probar lo que faltaba: que devuelven contexto. Se afirma
+ * que cada una corre SU builder (no el de la cara), que la ida reabre su propio componente, que la vuelta aterriza
+ * en la cara que la demuestra, que su key nunca choca con la del contexto ambiente de esa cara y que publica como
+ * AMBIENTE — que es lo que hace que el contexto se LIMPIE al cambiar de pestaña, de foco o al cerrar el panel.
+ *
  * Cero red, cero LLM, cero créditos.   `node _concordancia_cobertura_gate.mjs`
  */
 import fs from "node:fs";
@@ -41,7 +48,9 @@ import {
   VIEW_MANIFEST, VISTAS, SECCIONES, TIPOS, COMPARACIONES, UNIVERSO_KINDS, UNIDADES,
   CONCORDANCIA_ESTADOS, concordanciaDe, divergenciaDe,
   componentIdForTool, vistaComponentId, toolsConComponente,
+  SUPERFICIE_BUILDERS, VIEW_BUILDERS, builderKeyOf, componentIdsNivel2,
 } from "./src/adi/sentrix/viewManifest.js";
+import { builderOutsPorComponente, clavesCorribles } from "./src/adi/sentrix/viewBuilderRun.js";
 import { deriveViewContextOrErrors } from "./src/adi/sentrix/viewContextFrom.js";
 import { ESTATUS } from "./src/adi/oracle/viewContext.js";
 import { isSealed } from "./src/adi/oracle/narrationContract.js";
@@ -53,11 +62,7 @@ import { normalizeSentrixAction } from "./src/adi/responseContract.js";
 import { METRICS } from "./src/config/contract/metricRegistry.js";
 import { ENTITIES } from "./src/config/contract/entityRegistry.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
-import { buildResumenComercial } from "./src/adi/sentrix/resumenComercial.js";
-import { buildMesaCapital } from "./src/adi/sentrix/mesaCapital.js";
-import { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";
-import { buildReadingFromSignals, buildClientContribSignals } from "./src/adi/sentrix/reading.js";
-import { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";
+import { primeraEntidadDe } from "./src/adi/sentrix/viewBuilderRun.js";
 import { getTenantId } from "./src/data/tenantStore.js";
 
 const RAIZ = path.dirname(fileURLToPath(import.meta.url));
@@ -72,20 +77,11 @@ const SCN = "bonanza";
 const RC = { tenantId: getTenantId() };
 const EJES_NO_ENTIDAD = ["cartera", "tiempo"];
 
-const BUILDERS = {
-  comercial: buildResumenComercial(SCN),
-  capital: buildMesaCapital(SCN),
-  resultado: buildMesaResultado(SCN),
-  ficha: (() => {
-    const first = buildCuadroMando("cliente", SCN).rows.filter((r) => r && !r._total && !r._ref)[0];
-    const s = first && buildClientContribSignals(first.name, SCN);
-    return s ? buildReadingFromSignals(s) : null;
-  })(),
-};
-const UNA_ENTIDAD = (() => {
-  const f = buildCuadroMando("cliente", SCN).rows.filter((r) => r && !r._total && !r._ref)[0];
-  return (f && f.name) || null;
-})();
+// La salida VIVA contra la que se deriva CADA componente. Sale de `viewBuilderRun.js` —el único lugar que ejecuta
+// lo que el manifiesto declara—, no de un mapa vista→builder escrito acá: con las superficies de nivel 2 (decisión
+// 12) el builder ya no es el de la cara, y cuatro gates con su propia copia de esa lista es como se desincronizan.
+const SALIDAS = builderOutsPorComponente(SCN);
+const UNA_ENTIDAD = primeraEntidadDe("cliente", SCN);
 
 /* ══ 1 · LO QUE LA UI MONTA DE VERDAD ═══════════════════════════════════════════════════════════════════════════
  * Se lee el panel como TEXTO, sin ejecutarlo (es JSX con React). Dos formas de montaje y ninguna más:
@@ -221,8 +217,8 @@ for (const [id, m] of Object.entries(VIEW_MANIFEST)) {
   f.cID = marca("ID", montado ? "✓" : "◐");
 
   // ── [VC] emite ViewContext ────────────────────────────────────────────────────────────────────────────────
-  const out = BUILDERS[m.vista];
-  const r = out == null ? { ok: false, errors: [`sin builder para la vista ${m.vista}`] } : deriveViewContextOrErrors(id, out, { scenario: SCN, requestContext: RC });
+  const out = SALIDAS[id];
+  const r = out == null ? { ok: false, errors: [`el builder declarado (${builderKeyOf(id)}) no produjo salida`] } : deriveViewContextOrErrors(id, out, { scenario: SCN, requestContext: RC });
   f.vc = r.ok ? r.vc : null;
   if (r.ok) {
     if (!isSealed(r.vc)) cae("VC", "el ViewContext derivado no está sellado en profundidad");
@@ -465,6 +461,74 @@ H("[6] VEREDICTO DE COBERTURA");
   const vistasCubiertas = new Set(FILAS.map((f) => f.vista));
   ok(vistasCubiertas.size === VISTAS.length, `la matriz cubre las ${VISTAS.length} caras`, [...vistasCubiertas].join(", "));
   ok(FILAS.length === Object.keys(VIEW_MANIFEST).length, "la matriz tiene una fila por componente declarado, sin omitir ninguno");
+}
+
+H("[7] NIVEL 2 · las superficies que ADI ABRE devuelven contexto (decisión 12)");
+{
+  const N2 = componentIdsNivel2();
+  ok(N2.length > 0, `${N2.length} superficies de nivel 2 declaradas (las que el chat abre cuando responde)`);
+
+  // 7a · cada una declara un builder PROPIO y ese builder existe y produce salida. Un componente de nivel 2 que
+  // heredara el builder de su cara estaría describiendo otra cosa que la que el usuario tiene delante.
+  const sinSpec = N2.filter((id) => !SUPERFICIE_BUILDERS[VIEW_MANIFEST[id].builder]);
+  ok(!sinSpec.length, "cada superficie declara un builder propio, presente en SUPERFICIE_BUILDERS", sinSpec.join(", "));
+  const sinSalida = N2.filter((id) => SALIDAS[id] == null);
+  ok(!sinSalida.length, `las ${N2.length} superficies producen salida viva con el builder que declaran`, sinSalida.join(", "));
+
+  // 7b · el runner y el manifiesto declaran EXACTAMENTE las mismas claves. Una superficie sin corredor quedaría
+  // muda; un corredor sin superficie es una salida que nadie declara. Las dos son rojo, no una nota al pie.
+  const declaradas = [...new Set([...Object.keys(VIEW_BUILDERS), ...Object.keys(SUPERFICIE_BUILDERS)])].sort();
+  const corribles = clavesCorribles();
+  const huerfanas = declaradas.filter((k) => !corribles.includes(k));
+  const sobrantes = corribles.filter((k) => !declaradas.includes(k));
+  ok(!huerfanas.length && !sobrantes.length,
+    `las ${declaradas.length} claves de builder declaradas son exactamente las que el runner sabe correr`,
+    [huerfanas.length ? `declaradas sin corredor: ${huerfanas.join(", ")}` : "", sobrantes.length ? `corredores sin declarar: ${sobrantes.join(", ")}` : ""].filter(Boolean).join(" · "));
+
+  // 7c · LA VUELTA. Es lo que faltaba: el panel que ADI abre tiene que producir dirección hacia SU cara. Una
+  // superficie que se abstiene deja al usuario sin camino de regreso, y eso acá no puede pasar en silencio.
+  const mudas = N2.filter((id) => FILAS.find((f) => f.id === id).apertura === "ninguna");
+  ok(!mudas.length, "ninguna superficie de nivel 2 se abstiene: todas resuelven la vuelta ADI→Sentrix", mudas.join(", "));
+  const caraMal = N2.map((id) => FILAS.find((f) => f.id === id)).filter((f) => f.aterriza && VIEW_MANIFEST[f.aterriza].vista !== f.vista);
+  ok(!caraMal.length, "la vuelta de cada superficie aterriza en la cara que la demuestra", caraMal.map((f) => `${f.id} → ${f.aterriza}`).join(", "));
+
+  // 7d · LA IDA. El contexto que emite tiene que reabrir la MISMA superficie, no la cara genérica: es lo que
+  // convierte «y de esos, ¿cuál…?» en una pregunta resoluble sobre lo que el usuario está mirando.
+  const idaMal = [];
+  for (const id of N2) {
+    const f = FILAS.find((x) => x.id === id);
+    if (!f.vc) { idaMal.push(`${id} (sin contexto derivado)`); continue; }
+    const back = parseAddress(formatAddress(addressFromViewContext(f.vc)));
+    const res = back && resolveAddress(back);
+    if (!res || res.componentId !== id) idaMal.push(`${id} → ${res ? res.componentId : "sin dirección"}`);
+  }
+  ok(!idaMal.length, `las ${N2.length} superficies reabren su propio componente desde el contexto que emiten`, idaMal.join(", "));
+
+  // 7e · el contexto de una superficie NUNCA puede confundirse con el de su cara: si compartieran key, el chat
+  // resolvería «esto» contra la pantalla de atrás. La key es el candado de invalidación, así que es la prueba.
+  const choques = N2.filter((id) => {
+    const f = FILAS.find((x) => x.id === id);
+    const amb = FILAS.find((x) => x.id === `${VIEW_MANIFEST[id].vista}/otro/vista`);
+    return f.vc && amb && amb.vc && f.vc.key === amb.vc.key;
+  });
+  ok(!choques.length, "ninguna superficie comparte key de invalidación con el contexto ambiente de su cara", choques.join(", "));
+
+  // 7f · EL EMISOR ESTÁ CABLEADO EN LA UI, y con `ambient`: publicar mientras está montada y LIMPIAR al
+  // desmontarla es lo que hace que cambiar de vista o de pestaña no deje el contexto anterior contaminando el
+  // turno siguiente. Sin `ambient` la superficie sólo hablaría si el usuario pulsa un botón.
+  const sinAmbiente = N2.filter((id) => {
+    const re = new RegExp(`useViewContext\\(\\s*["'\`]${id.replace(/[/-]/g, "\\$&")}["'\`][\\s\\S]{0,300}?\\n`, "m");
+    const bloque = re.exec(PANEL);
+    return !bloque || !/ambient\s*:/.test(bloque[0]);
+  });
+  ok(!sinAmbiente.length,
+    `las ${N2.length} superficies publican su contexto como AMBIENTE (se limpia solo al desmontarse: cambiar de pestaña, de foco o cerrar el panel lo borra)`,
+    sinAmbiente.join(", "));
+
+  // 7g · la LIMPIEZA es del hook, no de cada call site: un solo lugar publica y un solo lugar borra.
+  const HOOK = fs.readFileSync(path.join(RAIZ, "src", "ui", "useViewContext.js"), "utf8");
+  ok(/return\s*\(\)\s*=>\s*\{[^}]*setUISignal\(\{\s*viewContext:\s*null/.test(HOOK),
+    "el hook borra el contexto ambiente al desmontar (la limpieza es estructural, no una convención de cada vista)");
 }
 
 if (FILAS.some((f) => f.limites.length)) {

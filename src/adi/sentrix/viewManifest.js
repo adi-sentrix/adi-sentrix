@@ -78,6 +78,11 @@ export const SECCION_LABEL = {
   "capital/01": "El capital, de una mirada",
   "resultado/01": "El resultado del negocio",
   "ficha/otro": "Ficha ejecutiva",
+  // NIVEL 2 · lo que ADI abre cuando responde. Comparten sección "otro" con el contexto ambiente de su cara porque
+  // no pertenecen a ningún movimiento numerado: no son un paso del razonamiento de la cara, son la superficie que
+  // demuestra una respuesta.
+  "comercial/otro": "Lo que ADI abre sobre la cara Comercial",
+  "capital/otro": "Lo que ADI abre sobre la cara Capital",
 };
 
 // ── LOS BUILDERS · una entrada por cara. `fn` se importa PEREZOSAMENTE (el gate y quien derive ya tienen el
@@ -87,6 +92,38 @@ export const VIEW_BUILDERS = {
   capital:   { modulo: "src/adi/sentrix/mesaCapital.js",      fn: "buildMesaCapital",      scenarioAware: true, args: "(scenario)" },
   resultado: { modulo: "src/adi/sentrix/mesaResultado.js",    fn: "buildMesaResultado",    scenarioAware: true, args: "(scenario, cuadroEje, cascadaFoco)" },
   ficha:     { modulo: "src/adi/sentrix/reading.js",          fn: "buildReadingFromSignals", scenarioAware: true, args: "(signals)" },
+};
+
+/* ── LOS BUILDERS DE NIVEL 2 (owner 2026-08-09, decisión 12) ───────────────────────────────────────────────────
+ * Las cinco superficies que ADI ABRE cuando responde no salen del builder de una cara: cada una tiene el suyo, y
+ * dos de ellas ni siquiera son de Sentrix — son la evidencia del propio turno de ADI. Por eso `VIEW_BUILDERS` (una
+ * entrada por cara) no alcanzaba y esta tabla existe: un componente de nivel 2 declara `builder: "<clave>"` y esa
+ * clave dice EXACTAMENTE qué correr para obtener la salida contra la cual se deriva su contexto. Sigue siendo dato
+ * puro: quien lo ejecuta es `viewBuilderRun.js` (un solo lugar), y los gates lo consumen de ahí — nunca cada uno
+ * con su propia lista, que es como se desincronizan las dos puntas.
+ *
+ * `entidadArg` marca los builders que necesitan UNA entidad (el ring y el recibo son de un foco puntual): el
+ * runner la resuelve del propio dato (la primera fila del eje), jamás de un nombre escrito a mano — el manifiesto
+ * no puede nombrar una entidad del tenant.
+ * `scenarioAware:false` NO es una omisión: es el LÍMITE MEDIDO de esa superficie, y su componente lo declara en
+ * `concordancia` con la diferencia contra la pantalla en los tres escenarios. */
+export const SUPERFICIE_BUILDERS = {
+  "cuadro:cliente": { modulo: "src/adi/sentrix/cuadro.js",  fn: "buildCuadroMando", scenarioAware: true,  args: '("cliente", scenario)' },
+  "cuadro:sku":     { modulo: "src/adi/sentrix/cuadro.js",  fn: "buildCuadroMando", scenarioAware: true,  args: '("sku", scenario)' },
+  "cuadro:marca":   { modulo: "src/adi/sentrix/cuadro.js",  fn: "buildCuadroMando", scenarioAware: true,  args: '("marca", scenario)' },
+  "cuadro:bodega":  { modulo: "src/adi/sentrix/cuadro.js",  fn: "buildCuadroMando", scenarioAware: true,  args: '("bodega", scenario)' },
+  "ring:cliente":   { modulo: "src/adi/sentrix/control.js", fn: "buildControlRing", scenarioAware: true,  args: '("client", entidad, scenario)', entidadArg: "cliente" },
+  "ring:sku":       { modulo: "src/adi/sentrix/control.js", fn: "buildControlRing", scenarioAware: false, args: '("sku", entidad)',   entidadArg: "sku" },
+  "ring:marca":     { modulo: "src/adi/sentrix/control.js", fn: "buildControlRing", scenarioAware: false, args: '("marca", entidad)', entidadArg: "marca" },
+  "ring:bodega":    { modulo: "src/adi/sentrix/control.js", fn: "buildControlRing", scenarioAware: true,  args: '("bodega", entidad, scenario)', entidadArg: "bodega" },
+  "recibo:cliente": { modulo: "src/adi/sentrix/kpis.js",    fn: "buildMarginReceipt",  scenarioAware: true, args: "(entidad, scenario)", entidadArg: "cliente" },
+  "recibo:bodega":  { modulo: "src/adi/sentrix/kpis.js",    fn: "buildCapitalReceipt", scenarioAware: true, args: "(entidad, scenario)", entidadArg: "bodega" },
+  // LOS DOS QUE NO SON DE SENTRIX: su salida es la evidencia que ADI acaba de producir. Declararlos con el builder
+  // de una cara sería describir OTRA cosa que la que el usuario tiene delante (es el defecto de integridad #1-bis
+  // que ya se cazó en `_actionFrom`: la acción del portafolio bajo el turno de una entidad puntual).
+  "decision":       { modulo: "src/adi/oracle/sentrixEvidence.js", fn: "buildOracleEvidence().evidenceSpec", scenarioAware: true, args: "({plan, results, figs, scenario})" },
+  "simulacion:comercial": { modulo: "src/adi/specRetrieval.js", fn: "composeSpecSimulate().evidence", scenarioAware: false, args: '({metric:"ventas", dimension:"cliente", transform})' },
+  "simulacion:capital":   { modulo: "src/adi/specRetrieval.js", fn: "composeSpecSimulate().evidence", scenarioAware: false, args: '({metric:"capital", dimension:"sku", transform})' },
 };
 
 // atajos de universo, para no repetir la misma declaración 15 veces (siguen siendo dato, no lógica)
@@ -719,6 +756,210 @@ export const VIEW_MANIFEST = {
       razon: "igual que su vista: el `campo` es el sujeto, no la medida, y el cruce no produce ningún par comparable. Y hay un límite que la Ficha tiene que arrastrar: el capital que se le asocia a un cliente NO es capital del cliente — la matriz cliente×SKU se construye por AFINIDAD de marca y familia, no por transacciones observadas, así que esa asociación sale sellada `indicado` y el sujeto de la cifra sigue siendo el negocio" },
     _provisional: true,
   },
+
+  /* ══ NIVEL 2 · LAS SUPERFICIES QUE ADI ABRE (owner 2026-08-09, decisión 12) ═══════════════════════════════════
+   * EL BUCLE SE CERRABA EN UN SOLO SENTIDO. Las cuatro caras le pasan contexto al chat en 36 puntos, y el panel que
+   * el chat ABRE cuando responde no devolvía ninguno: el usuario miraba el Cuadro de mando, la tabla-ring, el
+   * recibo, la decisión priorizada o la proyección, escribía «y de esos, ¿cuál…?», y ADI resolvía ese «esos» contra
+   * la última cara de la Mesa —o contra nada—. Estas trece entradas son la vuelta del bucle.
+   *
+   * POR QUÉ NO SON UNA QUINTA CARA. Una dirección `sentrix://` abre una CARA, y estas superficies no son una: son
+   * lo que se abre SOBRE una cara. Cada una vive en la cara que la demuestra, y ahí es donde la vuelta aterriza.
+   *
+   * POR QUÉ HAY TRECE ENTRADAS PARA CINCO SUPERFICIES. Porque el UNIVERSO cambia dentro de la misma superficie, y
+   * ése es exactamente el hallazgo que esta decisión viene a declarar: la columna «En juego $» del Cuadro es
+   * margen no capturado en la pestaña de clientes y capital inmovilizado en las otras tres — dos magnitudes bajo
+   * una sola etiqueta, medidas más abajo. Una entrada por pestaña es lo que hace que el contexto emitido diga cuál
+   * de las dos está mirando el usuario. Donde el universo NO cambia (la métrica dentro de una misma cara) alcanza
+   * un CONTROL, y por eso la proyección tiene dos entradas y no tres.
+   *
+   * `builder` dice qué correr para obtener la salida contra la cual se deriva el contexto (ver SUPERFICIE_BUILDERS).
+   * ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+  // ── EL CUADRO DE MANDO · la grilla operable, una entrada por pestaña ────────────────────────────────────────
+  "comercial/otro/cuadro-mando": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · clientes",
+    builder: "cuadro:cliente", campo: "rows", universoCampo: "rows",
+    metrica: "ventas", eje: "cliente", periodo: "año cerrado",
+    universo: { kind: "eje", label: "todas las cuentas del eje, con su acción derivada y su $ en juego", cierraCon: "la fila Total suma las filas del escenario" },
+    comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: null,
+    controles: ["dim", "orden", "modo", "busca", "solosel"],
+    evidencia: [{ tool: "gridTable", args: { dimension: "cliente" } }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion"],
+      razon: "las columnas del DATO (venta, unidades, acciones comerciales, contribución y margen por cuenta) salen de la misma fuente del mismo escenario que `gridTable{cliente}`. Lo que ninguna tool emite es la CAPA DEL ASESOR que esta grilla suma: «En juego $», la microlectura y la Acción son la salida de los detectores del diagnose sobre esa fila —no columnas de la entidad—, y el chip de Acción es una regla de decisión del módulo. En esta pestaña ese «En juego $» es margen no capturado y carga sobre el target: $5.0M en bonanza, $7.3M en tensión, $9.5M en crisis" },
+  },
+  "comercial/otro/cuadro-mando-sku": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · SKU",
+    builder: "cuadro:sku", campo: "rows", universoCampo: "rows",
+    metrica: "margen", eje: "sku", periodo: "año cerrado · dato base, sin escenario",
+    universo: { kind: "eje", label: "todos los SKU del catálogo: el margen del año y el capital de la foto de inventario, en la misma fila", cierraCon: null },
+    comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: null,
+    controles: ["dim", "orden", "modo", "busca", "solosel"],
+    evidencia: [{ tool: "gridTable", args: { dimension: "sku" } }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion", "capital", "rotacion"],
+      razon: "el margen por SKU concuerda con `gridTable{sku}`. Lo que la evidencia declarada NO entrega es el resto de la fila: «En juego $», la microlectura y la Acción son la capa del asesor (detectores del diagnose), y las columnas Capital y Rotación vienen del INVENTARIO, un universo que no reconcilia con la venta del mismo SKU (`inventario` ↔ `venta_comercial` en config/contract/figureType.js: miles vs dólares crudos y unidades que difieren entre 4x y 35x). En esta pestaña «En juego $» es capital inmovilizado: $33.2K en bonanza y tensión, $43.0K en crisis — no margen" },
+  },
+  "comercial/otro/cuadro-mando-marca": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · marcas",
+    builder: "cuadro:marca", campo: "rows", universoCampo: "rows",
+    metrica: "ventas", eje: "marca", periodo: "año cerrado",
+    universo: { kind: "eje", label: "todas las marcas del catálogo con su venta y su margen; el «En juego $» de esta pestaña es de otro universo", cierraCon: null },
+    comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: null,
+    controles: ["dim", "orden", "modo", "busca", "solosel"],
+    evidencia: [{ tool: "gridTable", args: { dimension: "marca" } }],
+    sinTool: null,
+    // ÉSTE ES EL CASO QUE EL OWNER NOMBRÓ. La misma columna, la misma etiqueta, el mismo formato, dos universos.
+    concordancia: { estado: "unsupported", campos: ["enJuego", "lectura", "accion"],
+      razon: "la venta, las acciones comerciales, la contribución y el margen por marca concuerdan con `gridTable{marca}`. La columna «En juego $» NO: en esta pestaña no es margen no capturado sino CAPITAL INMOVILIZADO agregado por marca desde el inventario —$33.2K en bonanza, contra $5.0M de la pestaña de clientes en el mismo escenario, 151 veces menos bajo la misma etiqueta—, y es capital que ninguna tool agrega por marca (el detector lo emite por SKU). Los dos universos están declarados divergentes en config/contract/figureType.js: la venta comercial se almacena en miles y el inventario en dólares crudos, así que la columna no se puede leer como parte de la misma fila" },
+  },
+  "capital/otro/cuadro-mando-bodega": {
+    vista: "capital", seccion: "otro", tipo: "tabla", label: "El Cuadro de mando · bodegas",
+    builder: "cuadro:bodega", campo: "rows", universoCampo: "rows",
+    metrica: "capital", eje: "bodega", periodo: "foto de inventario a hoy",
+    universo: { kind: "eje", label: "el capital repartido por bodega, con su parte inmovilizada y su rotación", cierraCon: "la fila Total suma el capital de las bodegas" },
+    comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null,
+    controles: ["dim", "orden", "modo", "busca", "solosel"],
+    // DOS tools y no una: el capital es la columna que abre la grilla, pero la rotación es la única cifra de esta
+    // pestaña que el cruce builder↔ledger puede comparar hoy —las columnas de dinero salen del builder como número
+    // pelado, sin su gemelo formateado, así que el gate no puede establecerles la escala y las excluye—. Declarar
+    // sólo el capital dejaba a la pestaña sin un solo par contrastable: cobertura declarada, prueba ninguna.
+    evidencia: [
+      { tool: "queryMetric", args: { metric: "capital", dimension: "bodega" } },
+      { tool: "queryMetric", args: { metric: "rotacion", dimension: "bodega" } },
+    ],
+    sinTool: null,
+    // MEDIDO, no supuesto: el cruce builder↔ledger encuentra 6 de 12 rotaciones que no cierran, y son de redondeo.
+    concordancia: { estado: "divergent", campos: ["rotacion"], toolsQueNoReconcilian: ["queryMetric"],
+      razon: "el capital por bodega concuerda exacto con `queryMetric{capital, bodega}`. La ROTACIÓN no: esta grilla redondea el promedio de la bodega a un decimal ANTES de guardarlo y `queryMetric{rotacion, bodega}` conserva la precisión completa — 5,0x contra 5,025x y 5,3x contra 5,25x, en 6 de las 12 celdas de los tres escenarios (entre 0,5% y 0,9%). En pantalla las dos se ven iguales porque las dos se pintan con un decimal, y por eso el desacuerdo nunca iba a aparecer solo: ordenar por esa columna sí puede diferir. Lo que además la evidencia no entrega es la PARTICIÓN sano/inmovilizado ni su porcentaje —la definición de inmovilizado (en alerta o rotación < 2) vive en Sentrix—, ni «En juego $», la microlectura y la Acción, que son la capa del asesor. Esta pestaña es la única del Cuadro donde el «En juego $» y el resto de la fila comparten universo, porque las dos cifras son inventario" },
+  },
+
+  // ── LA TABLA-RING · el foco contra su promedio, su par instructivo y el mejor en clase ──────────────────────
+  "comercial/otro/control-ring": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Control · el ring de una cuenta",
+    builder: "ring:cliente", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
+    metrica: "contribucion", eje: "cliente", periodo: "año cerrado",
+    universo: { kind: "seleccion", label: "cuatro filas: el foco, el par que aísla la palanca, el promedio interno y el mejor en clase", cierraCon: null },
+    comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "marginRead", args: { dimension: "cliente" } }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["rows[role='peer']", "rows[role='avg']", "costoTechoK"],
+      razon: "el margen, la carga y la contribución de las filas reales concuerdan con `marginRead{cliente}` del mismo escenario. Lo que ninguna tool produce es el RING: la ELECCIÓN del par instructivo (la cuenta de carga más parecida entre las que superan al foco) es una regla de decisión del módulo, la fila «Promedio interno» es un promedio simple de la cartera que el ledger no emite como cifra propia, y el techo de recuperación por costo es una cuenta de esta pieza. El ring es la lectura, no el dato" },
+  },
+  "comercial/otro/control-ring-sku": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Control · el ring de un SKU",
+    builder: "ring:sku", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
+    metrica: "contribucion", eje: "sku", periodo: "año cerrado · dato base, sin escenario",
+    universo: { kind: "seleccion", label: "el foco contra su familia (o el catálogo entero si la familia es chica), su promedio y el mejor en clase", cierraCon: null },
+    comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "marginRead", args: { dimension: "sku" } }],
+    sinTool: null,
+    // LÍMITE DE PRESENTACIÓN MEDIDO, no una sospecha: es el mismo desalineamiento K-vs-raw que ya se corrigió una
+    // vez en `metricRegistry` (ver el comentario de `ventas.scale.sku`) y que sobrevive en el formateador del ring.
+    concordancia: { estado: "unsupported", campos: ["rows[role='peer']", "rows[role='avg']", "costoTechoK", "contribucion"],
+      razon: "el margen y el costo del foco concuerdan con `marginRead{sku}`. Dos cosas no las entrega la evidencia declarada: el RING (el par instructivo y la fila de promedio son reglas de decisión del módulo, no cifras del ledger) y la ESCALA de la contribución en pantalla — el contrato declara `skusMargen` en miles (`metricRegistry`: contribucion.scale.sku = K) y esta pieza la formatea como dólares crudos, así que muestra $2.4K donde el contrato afirma $2.4M. La cifra del dato es correcta; lo que no cierra es cómo se pinta" },
+  },
+  "comercial/otro/control-ring-marca": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "El Control · el ring de una marca",
+    builder: "ring:marca", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
+    metrica: "contribucion", eje: "marca", periodo: "año cerrado · dato base, sin escenario",
+    universo: { kind: "seleccion", label: "la marca contra las demás marcas, agregadas desde sus SKU", cierraCon: null },
+    comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "marginRead", args: { dimension: "marca" } }],
+    sinTool: null,
+    concordancia: { estado: "divergent", campos: ["contribucion", "margen", "rows[role='avg']"], toolsQueNoReconcilian: ["marginRead"],
+      razon: "esta pieza NO lee la marca: la RECONSTRUYE sumando los SKU de `skusMargen` y ponderando su carga por venta, mientras `marginRead{marca}` (y el Cuadro de mando de la misma pantalla) leen la fila declarada de `marcasMargen`. Son dos agregaciones distintas del mismo concepto y no coinciden: en la marca líder el ring afirma 22,1% de margen y $6.99M de contribución donde la fila declarada dice 24,2% y $7.64M. Encima arrastra el mismo desalineamiento de escala que el ring de SKU: el contrato declara esa contribución en miles y la pieza la pinta como dólares crudos" },
+  },
+  "capital/otro/control-ring-bodega": {
+    vista: "capital", seccion: "otro", tipo: "tabla", label: "El Control · el ring de una bodega",
+    builder: "ring:bodega", campo: "rows", universoCampo: "rows", entidadCampo: "focus",
+    metrica: "capital", eje: "bodega", periodo: "foto de inventario a hoy",
+    universo: { kind: "seleccion", label: "la bodega contra el promedio de bodegas y la más sana, con su capital y su parte inmovilizada", cierraCon: null },
+    comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [
+      { tool: "queryMetric", args: { metric: "capital", dimension: "bodega" } },
+      { tool: "queryMetric", args: { metric: "rotacion", dimension: "bodega" } },
+    ],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["inmovilizado", "rows[role='peer']", "rows[role='avg']", "quickWinK", "estructuralK"],
+      razon: "el capital y la rotación del foco concuerdan con `queryMetric{capital|rotacion, bodega}` del mismo escenario. Lo que la evidencia declarada no entrega es la partición inmovilizado/sano, la elección del par, la fila de promedio ni los dos caminos que la pieza cuantifica. Y arrastra el límite ya declarado de la cara: TRANSFERIR entre bodegas no es evaluable mientras ningún SKU aparezca en más de una — por eso el título de la tarjeta estructural lo emite el motor (`caminoEstructural`) y no la vista" },
+  },
+
+  // ── EL RECIBO FRÍO · «no me creas, acá está la cuenta» ──────────────────────────────────────────────────────
+  "comercial/otro/evidencia-recibo": {
+    vista: "comercial", seccion: "otro", tipo: "lista", label: "El recibo de la cuenta · margen de un cliente",
+    builder: "recibo:cliente", campo: "lines", universoCampo: "lines", entidadCampo: "focus",
+    metrica: "margen", eje: "cliente", periodo: "año cerrado",
+    universo: { kind: "seleccion", label: "las cuatro líneas de la cuenta de una entidad, cada una con su fuente", cierraCon: "venta − costo − carga = margen, cierra exacto por identidad" },
+    comparacion: "benchmark", estatusDefault: "probado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "entityRecord", args: { dimension: "cliente" } }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["limites"],
+      razon: "las cuatro líneas y sus dos bases de comparación salen del mismo registro de la entidad que devuelve `entityRecord{cliente}`, y la cuenta cierra por identidad (los $ se derivan de venta × %, no de una segunda fuente). Lo que ninguna tool declara de sí misma es el bloque «Lo que esta cuenta NO afirma»: esos límites los deriva `capability` de lo que el dato permite —y hoy son dos: no hay serie mensual real por cliente, y no existe granularidad cliente×SKU—, no son una cifra que el ledger pueda contrastar" },
+  },
+  "capital/otro/evidencia-recibo-bodega": {
+    vista: "capital", seccion: "otro", tipo: "lista", label: "El recibo de la cuenta · capital de una bodega",
+    builder: "recibo:bodega", campo: "lines", universoCampo: "lines", entidadCampo: "focus",
+    metrica: "capital", eje: "bodega", periodo: "foto de inventario a hoy",
+    universo: { kind: "seleccion", label: "las tres líneas del capital de una bodega, cada una con su fuente", cierraCon: "sano + inmovilizado = capital, cierra exacto por construcción" },
+    comparacion: "promedio_cartera", estatusDefault: "probado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["lines[label='Capital que rota (sano)']", "comparison", "limites"],
+      razon: "el capital inmovilizado de la bodega es el mismo subconjunto que autoriza `inventoryStatus{focus:'frenado'}` y usa la misma definición canónica (en alerta o rotación < 2). Lo que la tool no emite es el COMPLEMENTO —el capital que sí rota, que esta pieza obtiene por resta—, ni la comparación contra el promedio de bodegas, ni los límites: no hay serie mensual de stock, así que la evolución del capital de una bodega no existe en el dato y la fecha de venta de cada SKU tampoco" },
+  },
+
+  // ── LA DECISIÓN PRIORIZADA · el foco de mayor $ en juego del turno ──────────────────────────────────────────
+  "comercial/03/decision-accion": {
+    vista: "comercial", seccion: "03", tipo: "veredicto", label: "La acción priorizada",
+    builder: "decision", campo: "action", universoCampo: "factors", entidadCampo: "scope.entityLabel",
+    metrica: null, eje: "cliente", periodo: "año cerrado",
+    // el $ de la acción es el subtotal del detector top del turno, en dólares crudos: puede venir del margen no
+    // capturado, de la carga sobre el target o del capital detenido. Ninguna métrica del registro lo cubre sola.
+    unidad: "money", escala: "raw",
+    unidadMotivo: "el monto de la acción es el subtotal del detector que quedó primero en el turno (margen, carga o capital) y esos tres viven en métricas distintas: el registro no tiene una sola fila que lo declare, y la escala es dólares crudos porque así los emite el detector",
+    universo: { kind: "seleccion", label: "los focos del diagnose de este turno, ordenados por $; la acción es el primero", cierraCon: "el $ de la acción es el subtotal del foco top, verbatim del detector" },
+    comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: null, controles: [],
+    evidencia: [{ tool: "diagnose", args: {}, focus: "margen" }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["action.text", "action.askLabel"],
+      razon: "el IMPACTO cierra por construcción: es el `subtotal_usd` del foco top, tomado verbatim del mismo `composeSpecDiagnose` que envuelve la tool `diagnose` — las dos puntas no pueden emitir cifras distintas sin dejar de compilar. Lo que ninguna tool produce es la PRESCRIPCIÓN: «recuperar el margen que cede tal cuenta» es una plantilla de decisión del módulo (mesa.js), no una cifra del ledger. Y arrastra un límite de alcance declarado: cuando el turno nombra UNA entidad la acción sale de los focos de ESA entidad, y sólo con alcance global cae al foco top del portafolio" },
+  },
+
+  // ── LA PROYECCIÓN · el supuesto sobre el dato real. Dos entradas: un universo cada una ──────────────────────
+  "comercial/otro/simulacion-supuesto": {
+    vista: "comercial", seccion: "otro", tipo: "tabla", label: "La proyección · el supuesto sobre la venta",
+    builder: "simulacion:comercial", campo: "projection", universoCampo: "projection",
+    metrica: "ventas", eje: "cliente", periodo: "año cerrado · dato base, sin escenario",
+    universo: { kind: "eje", label: "todas las filas del eje con su valor actual, su valor bajo el supuesto y su impacto", cierraCon: "impacto = supuesto − actual, fila por fila" },
+    comparacion: null, estatusDefault: "indicado", estatusCampo: null,
+    controles: ["metrica", "eje", "pct"],
+    // LA EVIDENCIA NO ES `simulate`, Y ESO ES EL HALLAZGO. `simulate` exige el SUPUESTO (`transform`) y sin él
+    // declina: el supuesto lo trae la pregunta del usuario, no la pantalla, así que sembrarlo acá con un valor fijo
+    // le estaría dictando al motor una proyección que nadie pidió. Lo que SÍ se puede contrastar es la columna
+    // «Actual», que debería ser la venta del escenario — y ahí es donde no cierra.
+    evidencia: [{ tool: "queryMetric", args: { metric: "ventas", dimension: "cliente" } }],
+    sinTool: null,
+    // EL LÍMITE MÁS CARO DE ESTA SUPERFICIE, y no se ve en el cruce builder↔ledger porque el gate no consigue
+    // establecer la escala de estas columnas (el builder emite el número sin su gemelo formateado): está medido
+    // aparte, contra la venta oficial del escenario. `composeSpecSimulate` no declara `scenario`, así que el que
+    // `runPlan` inyecta en toda call se descarta en silencio — el mismo defecto que la decisión 4 cerró en `gridTable`.
+    concordancia: { estado: "divergent", campos: ["projection[].actual", "total.actual"], toolsQueNoReconcilian: ["queryMetric"],
+      razon: "la columna «Actual» no es la venta que muestra la pantalla: `composeSpecSimulate` no declara el parámetro `scenario`, así que carga la fuente base y descarta el escenario del turno. Afirma $100.0M en los tres escenarios contra los $99.9M que devuelve `queryMetric{ventas, cliente}` en bonanza (0,1%), $92.8M en tensión (7,7%) y $81.1M en crisis (23,3%). El supuesto y el impacto se calculan sobre esa base, así que el desvío viaja a todas las columnas. La tool `simulate` no se declara como evidencia a propósito: exige el supuesto, que sólo trae la pregunta del usuario" },
+  },
+  "capital/otro/simulacion-capital": {
+    vista: "capital", seccion: "otro", tipo: "tabla", label: "La proyección · el supuesto sobre el capital",
+    builder: "simulacion:capital", campo: "projection", universoCampo: "projection",
+    metrica: "capital", eje: "sku", periodo: "foto de inventario a hoy",
+    universo: { kind: "eje", label: "todos los SKU con su capital actual, el capital bajo el supuesto y su impacto", cierraCon: "impacto = supuesto − actual, fila por fila" },
+    comparacion: null, estatusDefault: "indicado", estatusCampo: null,
+    controles: ["metrica", "eje", "pct"],
+    evidencia: [{ tool: "queryMetric", args: { metric: "capital", dimension: "sku" } }],
+    sinTool: null,
+    concordancia: { estado: "unsupported", campos: ["projection[].supuesto", "total.supuesto"],
+      razon: "el capital actual por SKU coincide hoy con el que devuelve `queryMetric{capital, sku}` ($135.0K de total en los tres escenarios), pero por una coincidencia del dato y no por contrato: esta proyección corre sobre la fuente base porque `composeSpecSimulate` no declara `scenario`, y el inventario de este tenant no se mueve entre escenarios. El día que se mueva, la columna «Actual» dejará de ser la de la pantalla sin que nada avise — es el mismo defecto que en la proyección de venta ya se mide en 23,3%. Lo que además ninguna tool afirma es el SUPUESTO: es una proyección declarada, no un dato observado, y nace en esta pieza" },
+  },
 };
 
 // ── ÍNDICE INVERSO tool(+focus) → componentId ──────────────────────────────────────────────────────────────────
@@ -807,6 +1048,21 @@ export function limiteDeclarado(componentId) {
 }
 
 // ── HELPERS de lectura del manifiesto (puros, sin estado) ──────────────────────────────────────────────────────
+// `builderKeyOf` es la ÚNICA respuesta a «¿qué salida hay que construir para derivar el contexto de esta pieza?».
+// Un componente de una cara la hereda de su vista; uno de nivel 2 la declara. Sin este helper cada gate volvía a
+// escribir su propio mapa vista→builder, que es como las dos puntas se desincronizan.
+export function builderKeyOf(componentId) {
+  const m = typeof componentId === "string" ? VIEW_MANIFEST[componentId] : componentId;
+  if (!m) return null;
+  return m.builder || m.vista;
+}
+export function builderSpecOf(componentId) {
+  const k = builderKeyOf(componentId);
+  return k ? (SUPERFICIE_BUILDERS[k] || VIEW_BUILDERS[k] || null) : null;
+}
+// Los componentes de NIVEL 2: los que ADI abre. Se derivan de que declaren `builder` propio — no hay una segunda
+// lista que mantener al día, y una superficie nueva entra sola en cuanto declara el suyo.
+export function componentIdsNivel2() { return Object.keys(VIEW_MANIFEST).filter((id) => !!VIEW_MANIFEST[id].builder); }
 export function manifestFor(componentId) { return VIEW_MANIFEST[componentId] || null; }
 export function componentIds() { return Object.keys(VIEW_MANIFEST); }
 export function componentIdsForVista(vista) { return Object.keys(VIEW_MANIFEST).filter((id) => VIEW_MANIFEST[id].vista === vista); }

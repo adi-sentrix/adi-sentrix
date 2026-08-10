@@ -18,7 +18,8 @@
  *
  * Cero red, cero LLM, cero créditos. `node _view_context_gate.mjs`
  */
-import { VIEW_MANIFEST, VISTAS, SECCIONES, TIPOS, COMPARACIONES, UNIVERSO_KINDS, CONCORDANCIA_ESTADOS, componentIdForTool, toolIndexConflicts, vistaComponentId } from "./src/adi/sentrix/viewManifest.js";
+import { VIEW_MANIFEST, VISTAS, SECCIONES, TIPOS, COMPARACIONES, UNIVERSO_KINDS, CONCORDANCIA_ESTADOS, componentIdForTool, toolIndexConflicts, vistaComponentId, builderKeyOf } from "./src/adi/sentrix/viewManifest.js";
+import { builderOutsPorComponente } from "./src/adi/sentrix/viewBuilderRun.js";
 import { deriveViewContextOrErrors, resolvePath } from "./src/adi/sentrix/viewContextFrom.js";
 import {
   validateViewContext, viewContextKey, invalidateViewContext, projectViewContextForPlan,
@@ -41,16 +42,10 @@ const H = (t) => console.log("\n" + t);
 
 const SCN = "bonanza";
 const RC = { tenantId: getTenantId() };
-const BUILDERS = {
-  comercial: buildResumenComercial(SCN),
-  capital: buildMesaCapital(SCN),
-  resultado: buildMesaResultado(SCN),
-  ficha: (() => {
-    const first = buildCuadroMando("cliente", SCN).rows.filter((r) => r && !r._total && !r._ref)[0];
-    const s = first && buildClientContribSignals(first.name, SCN);
-    return s ? buildReadingFromSignals(s) : null;
-  })(),
-};
+// una salida por COMPONENTE, no por vista: desde la decisión 12 las superficies de nivel 2 que ADI abre declaran
+// su propio builder (ver SUPERFICIE_BUILDERS). Quien lo ejecuta es `viewBuilderRun.js`, una sola vez para todos.
+const SALIDAS = builderOutsPorComponente(SCN);
+const BUILDERS = { comercial: SALIDAS["comercial/otro/vista"], capital: SALIDAS["capital/otro/vista"], resultado: SALIDAS["resultado/otro/vista"], ficha: SALIDAS["ficha/otro/vista"] };
 
 H("[1] MANIFIESTO · íntegro y sin silencios");
 {
@@ -86,8 +81,8 @@ const OPCIONALES = [];
 {
   const rotos = [];
   for (const [id, m] of Object.entries(VIEW_MANIFEST)) {
-    const out = BUILDERS[m.vista];
-    if (out == null) { rotos.push(`${id} (sin builder para la vista ${m.vista})`); continue; }
+    const out = SALIDAS[id];
+    if (out == null) { rotos.push(`${id} (el builder declarado, ${builderKeyOf(id)}, no produjo salida)`); continue; }
     const r = deriveViewContextOrErrors(id, out, { scenario: SCN, requestContext: RC });
     if (r.ok) { DERIVADOS[id] = r.vc; continue; }
     if (r.opcional) { OPCIONALES.push(id); continue; }

@@ -517,6 +517,23 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
   const proj = (evidence && evidence.projection) || [];
   const tot = evidence && evidence.total;
   const pct = (evidence.transform && evidence.transform.value) || 0;
+  /* ── EMISIÓN DEL CONTEXTO · la proyección de vuelta (decisión 12) ──────────────────────────────────────────
+   * DOS entradas y no tres, porque lo que se parte es el UNIVERSO, no la métrica: ventas y contribución son la
+   * misma venta comercial (misma unidad, misma escala, mismo período) y viajan como un CONTROL dentro de una sola
+   * entrada; el capital es inventario, un universo que no reconcilia con el otro, y por eso tiene la suya. La
+   * métrica y el eje realmente proyectados viajan siempre en los controles, así que el contexto nunca afirma un
+   * alcance que la pantalla no tenga. */
+  const _esCapital = String(evidence.metrica || "").toLowerCase() === "capital";
+  const _oSim = {
+    scenario: evidence.periodo,
+    controles: {
+      metrica: evidence.metrica || null,
+      eje: evidence.dimension || evidence.entityType || null,
+      pct: evidence.transform && evidence.transform.value != null ? String(evidence.transform.value) : null,
+    },
+  };
+  useViewContext("comercial/otro/simulacion-supuesto", _esCapital ? null : evidence, { ..._oSim, ambient: !_esCapital });
+  useViewContext("capital/otro/simulacion-capital", _esCapital ? evidence : null, { ..._oSim, ambient: _esCapital });
   const factor = evidence.factor || (1 + pct / 100);
   const mLabel = String(evidence.metricLabel || evidence.metrica || "");
   const dLabel = evidence.dimLabel || "entidad";
@@ -3729,7 +3746,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
             cliente·margen · el pack bespoke (SKU ranking / comparación) para el resto · separada de la historia */}
         {ADI_SENTRIX_SHELL_ENABLED && effTab === "evidencia" && (
           receipt
-            ? <EvidenciaRecibo receipt={receipt}/>
+            ? <EvidenciaReciboConContexto receipt={receipt} scenario={evidence.periodo} onAsk={onAsk}/>
             : <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 <div>
                   <Eyebrow>La cuenta de {rd.focus}</Eyebrow>
@@ -3747,7 +3764,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
         )}
 
         {ADI_SENTRIX_SHELL_ENABLED && effTab === "control" && (
-          ring ? <ControlRing ring={ring} rd={rd}/> : <LensPlaceholder tab="control" focus={rd.focus}/>
+          ring ? <ControlRingConContexto ring={ring} rd={rd} scenario={evidence.periodo} onAsk={onAsk}/> : <LensPlaceholder tab="control" focus={rd.focus}/>
         )}
 
         {ADI_SENTRIX_SHELL_ENABLED && ADI_SENTRIX_CUADRO_ENABLED && effTab === "cuadro" && (
@@ -3769,6 +3786,12 @@ function DecisionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
   const espec = evidence.evidenceSpec;
   const action = espec.action || {};
   const factors = espec.factors || [];
+  /* ── EMISIÓN DEL CONTEXTO · la decisión de vuelta (decisión 12) ────────────────────────────────────────────
+   * Esta superficie NO se deriva de un builder de Sentrix: se deriva del `evidenceSpec` DE ESTE TURNO, que es lo
+   * que la pantalla está pintando. Reconstruirla desde `buildMesaEstado` sería el mismo defecto de integridad que
+   * ya se cazó en `_actionFrom`: describir la acción del PORTAFOLIO bajo el turno de una entidad puntual. El
+   * sujeto sale del propio spec (`scope.entityLabel`), no de la UI. */
+  useViewContext("comercial/03/decision-accion", espec, { scenario: evidence.periodo, onAsk, ambient: true });
   // $ crudo (subtotal_usd de un finding de diagnose, cuando `factors` trae ESE shape en vez del mesa.accion-shape
   // ya formateado) · mismo patrón que ControlRing/EvidenciaRecibo para bodega (raw USD, no $K).
   const moneyUSD = (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e3 ? "$" + (v / 1e3).toFixed(1) + "K" : "$" + Math.round(v));
@@ -3909,6 +3932,38 @@ function EvidenciaRecibo({ receipt: r }) {
       )}
     </div>
   );
+}
+
+/* ── NIVEL 2 · EL CONTEXTO DE VUELTA (owner 2026-08-09, decisión 12) ───────────────────────────────────────────
+ * Hasta acá el bucle se cerraba en un solo sentido: la Mesa le pasa contexto al chat en decenas de puntos, y el
+ * panel que el chat ABRE cuando responde no devolvía ninguno. El usuario miraba el recibo o la tabla-ring, escribía
+ * «y de esos, ¿cuál…?», y ADI resolvía ese «esos» contra la última cara de la Mesa — o contra nada.
+ *
+ * POR QUÉ UN ENVOLTORIO Y NO UN HOOK EN EL PANEL. `SentrixPanel` decide qué lente pintar DESPUÉS de varios returns
+ * tempranos, así que un hook puesto ahí sería condicional (y el orden de hooks dejaría de ser estable al cambiar de
+ * respuesta). Montado en un envoltorio, el ciclo de vida hace el trabajo solo: se monta con la lente → publica;
+ * se cambia de pestaña, de foco o se cierra el panel → se DESMONTA y el hook borra el contexto. La limpieza al
+ * cambiar de vista no es una convención que haya que recordar: es el desmontaje.
+ *
+ * LAS VISUALES NO CAMBIAN. El envoltorio renderiza exactamente el mismo componente con las mismas props. */
+function ControlRingConContexto({ ring, rd, scenario, onAsk = null }) {
+  const et = (ring && ring.entityType) || null;
+  // el foco del ring ES la selección: una entidad, que es justo lo que la dirección canónica sabe transportar.
+  const _o = { scenario, onAsk, seleccion: ring && ring.focus ? { modo: "explicita", n: 1, entidades: [ring.focus] } : null };
+  // cuatro llamadas SIN condición (regla de hooks): la que corresponde al eje del ring recibe el dato, las otras
+  // reciben null y no emiten nada. El eje decide cuál habla, no un if alrededor del hook.
+  useViewContext("comercial/otro/control-ring", et === "client" ? ring : null, { ..._o, ambient: et === "client" });
+  useViewContext("comercial/otro/control-ring-sku", et === "sku" ? ring : null, { ..._o, ambient: et === "sku" });
+  useViewContext("comercial/otro/control-ring-marca", et === "marca" ? ring : null, { ..._o, ambient: et === "marca" });
+  useViewContext("capital/otro/control-ring-bodega", et === "bodega" ? ring : null, { ..._o, ambient: et === "bodega" });
+  return <ControlRing ring={ring} rd={rd}/>;
+}
+function EvidenciaReciboConContexto({ receipt, scenario, onAsk = null }) {
+  const et = (receipt && receipt.entityType) || null;
+  const _o = { scenario, onAsk, seleccion: receipt && receipt.focus ? { modo: "explicita", n: 1, entidades: [receipt.focus] } : null };
+  useViewContext("comercial/otro/evidencia-recibo", et === "client" ? receipt : null, { ..._o, ambient: et === "client" });
+  useViewContext("capital/otro/evidencia-recibo-bodega", et === "bodega" ? receipt : null, { ..._o, ambient: et === "bodega" });
+  return <EvidenciaRecibo receipt={receipt}/>;
 }
 
 // "i" de ayuda inline (determinístico · lee el catálogo) · para headers de columna del ring · align encuadra el
@@ -4095,6 +4150,22 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
   // BÚSQUEDA (owner 2026-07-10 · "datas con muchos más SKU/familias — todo debe sentirse ordenado"): filtra por
   // nombre, insensible a mayúsculas y tildes. Aparece cuando el eje tiene más filas de las que se leen de un golpe.
   const [busca, setBusca] = useState("");
+  /* ── EMISIÓN DEL CONTEXTO · el Cuadro de vuelta (owner 2026-08-09, decisión 12) ────────────────────────────
+   * UNA ENTRADA POR PESTAÑA, y no es burocracia: la columna «En juego $» cambia de UNIVERSO con la dimensión —en
+   * clientes es margen no capturado y en SKU/marcas/bodegas es capital inmovilizado, dos magnitudes bajo la misma
+   * etiqueta—, así que un solo componentId para las cuatro le diría a ADI que está mirando algo que no está
+   * mirando. Con una entrada por pestaña el contexto emitido declara el universo real, y su `concordancia` dice
+   * en qué no cierra. Las cuatro llamadas van SIN condición (regla de hooks): la de la pestaña activa recibe la
+   * grilla, las otras reciben null y no emiten. Al cambiar de pestaña, la anterior se limpia sola. */
+  const _oCM = {
+    scenario, onAsk,
+    controles: { dim, orden: sortKey, modo: mode, busca: busca.trim() || null, solosel: onlySel ? "1" : null },
+    seleccion: sel.length ? { modo: "explicita", entidades: sel } : null,
+  };
+  useViewContext("comercial/otro/cuadro-mando", dim === "cliente" ? cm : null, { ..._oCM, ambient: dim === "cliente" });
+  useViewContext("comercial/otro/cuadro-mando-sku", dim === "sku" ? cm : null, { ..._oCM, ambient: dim === "sku" });
+  useViewContext("comercial/otro/cuadro-mando-marca", dim === "marca" ? cm : null, { ..._oCM, ambient: dim === "marca" });
+  useViewContext("capital/otro/cuadro-mando-bodega", dim === "bodega" ? cm : null, { ..._oCM, ambient: dim === "bodega" });
   const _normB = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const sortCol = cols.find((c) => c.key === sortKey) || primary;
   let rows = cm.rows.slice().sort((a, b) => (sortCol.sort === "asc" ? -1 : 1) * ((b[sortKey] || 0) - (a[sortKey] || 0)));

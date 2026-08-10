@@ -39,15 +39,11 @@
  * CERO RED · CERO LLM · CERO CRÉDITOS. Todo es builder puro + `runPlan` (determinístico, client-side).
  *   node _concordancia_numerica_gate.mjs
  */
-import { VIEW_MANIFEST, CONCORDANCIA_ESTADOS, concordanciaDe, divergenciaDe } from "./src/adi/sentrix/viewManifest.js";
+import { VIEW_MANIFEST, CONCORDANCIA_ESTADOS, concordanciaDe, divergenciaDe, builderKeyOf } from "./src/adi/sentrix/viewManifest.js";
 import { deriveViewContextOrErrors, resolvePath } from "./src/adi/sentrix/viewContextFrom.js";
+import { builderOutsPorComponente } from "./src/adi/sentrix/viewBuilderRun.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { ledgerBoleta } from "./src/adi/oracle/ledger.js";
-import { buildResumenComercial } from "./src/adi/sentrix/resumenComercial.js";
-import { buildMesaCapital } from "./src/adi/sentrix/mesaCapital.js";
-import { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";
-import { buildReadingFromSignals, buildClientContribSignals } from "./src/adi/sentrix/reading.js";
-import { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";
 import { SCENARIOS } from "./src/config/scenarios.js";
 import { getTenantId } from "./src/data/tenantStore.js";
 
@@ -408,18 +404,18 @@ function claimsADI(figs) {
  * 5 · LOS BUILDERS y EL CRUCE
  * ══════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 
-function buildersDe(scenario) {
-  const ficha = (() => {
-    const first = buildCuadroMando("cliente", scenario).rows.filter((r) => r && !r._total && !r._ref)[0];
-    const s = first && buildClientContribSignals(first.name, scenario);
-    return s ? buildReadingFromSignals(s) : null;
-  })();
-  return {
-    comercial: buildResumenComercial(scenario),
-    capital: buildMesaCapital(scenario),
-    resultado: buildMesaResultado(scenario),
-    ficha,
-  };
+// La salida viva de CADA componente, y las escalas de cada BUILDER (ya no de cada vista: desde la decisión 12 una
+// cara tiene más de un builder — las superficies de nivel 2 que ADI abre traen el suyo). Quien ejecuta lo que el
+// manifiesto declara es `viewBuilderRun.js`, en un solo lugar; acá sólo se agrupa por clave de builder para poder
+// preguntarle a CADA salida por su propia escala.
+function salidasDe(scenario) {
+  const porComponente = builderOutsPorComponente(scenario);
+  const porClave = {};
+  for (const id of Object.keys(porComponente)) {
+    const k = builderKeyOf(id);
+    if (!(k in porClave)) porClave[k] = porComponente[id];
+  }
+  return { porComponente, porClave };
 }
 
 // Las tool-calls que el componente DECLARA, con el alcance que el ViewContext ya resolvió (la entidad de la Ficha
@@ -481,8 +477,8 @@ const COMPARABLES = Object.entries(VIEW_MANIFEST).filter(([, m]) => (m.evidencia
 const SIN_TOOL = Object.entries(VIEW_MANIFEST).filter(([, m]) => !(m.evidencia || []).length);
 
 /* ── el cruce de un componente en un escenario ────────────────────────────────────────────────────────────── */
-function cruzar(componentId, m, builders, scenario, escalasPorVista) {
-  const out = builders[m.vista];
+function cruzar(componentId, m, salidas, scenario, escalasPorBuilder) {
+  const out = salidas.porComponente[componentId];
   if (out == null) return { estado: "sin_builder" };
   const d = deriveViewContextOrErrors(componentId, out, { scenario, requestContext: RC });
   if (!d.ok) return { estado: d.opcional ? "sin_dato" : "no_deriva", detalle: d.errors.join(" | ") };
@@ -490,7 +486,7 @@ function cruzar(componentId, m, builders, scenario, escalasPorVista) {
   const node = resolvePath(out, m.campo);
 
   const focus = (m.evidencia.find((e) => e.focus) || {}).focus || null;
-  const { claims: cS, sinEscala } = claimsSentrix(node, { escalas: escalasPorVista[m.vista].escalas, metrica: m.metrica, focus, tipo: m.tipo });
+  const { claims: cS, sinEscala } = claimsSentrix(node, { escalas: (escalasPorBuilder[builderKeyOf(componentId)] || { escalas: {} }).escalas, metrica: m.metrica, focus, tipo: m.tipo });
 
   const { ledger, results, unsupported } = runPlan({ calls: callsDe(m, vc) }, { scenario, maxCalls: 8 });
   const cA = claimsADI(ledgerBoleta(ledger));
@@ -548,21 +544,21 @@ console.log("   cero red · cero LLM · builder real contra ledger real\n");
 const RES = {};   // componentId → { escenario → resultado }
 const ESCALAS = {};
 for (const scn of ESCENARIOS) {
-  const builders = buildersDe(scn);
+  const salidas = salidasDe(scn);
   const esc = {};
-  for (const vista of Object.keys(builders)) esc[vista] = builders[vista] ? escalasDelBuilder(builders[vista]) : { escalas: {}, conflictos: [] };
+  for (const clave of Object.keys(salidas.porClave)) esc[clave] = salidas.porClave[clave] ? escalasDelBuilder(salidas.porClave[clave]) : { escalas: {}, conflictos: [] };
   ESCALAS[scn] = esc;
   for (const [id, m] of COMPARABLES) {
     if (!RES[id]) RES[id] = {};
-    RES[id][scn] = cruzar(id, m, builders, scn, esc);
+    RES[id][scn] = cruzar(id, m, salidas, scn, esc);
   }
 }
 
 H("[1] ESCALA · un concepto, una sola escala dentro del mismo builder");
 {
   const conflictos = [];
-  for (const scn of ESCENARIOS) for (const [vista, e] of Object.entries(ESCALAS[scn]))
-    for (const c of e.conflictos) conflictos.push(`${scn}/${vista}: "${c.concepto}" aparece en escalas ${c.escalas.join(" y ")}`);
+  for (const scn of ESCENARIOS) for (const [clave, e] of Object.entries(ESCALAS[scn]))
+    for (const c of e.conflictos) conflictos.push(`${scn}/${clave}: "${c.concepto}" aparece en escalas ${c.escalas.join(" y ")}`);
   ok(!conflictos.length, "ningún concepto de dinero convive con dos escalas en un mismo builder", conflictos.join("\n      "));
   const detectadas = Object.entries(ESCALAS[ESCENARIOS[0]]).map(([v, e]) => `${v}: ${Object.entries(e.escalas).map(([c, s]) => `${c}×${s}`).join(", ") || "—"}`);
   console.log("      escalas deducidas del dato: " + detectadas.join(" · "));
