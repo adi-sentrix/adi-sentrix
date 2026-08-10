@@ -108,7 +108,11 @@ H("[2] FORMA DEL PAYLOAD · snapshot congelado (antes esto era una tautología, 
   const CLAVES_MINIMAS = ["pregunta", "intencion", "modo", "alcance", "datos", "cifras_autorizadas"];
   // los campos de CADA cifra: `etiqueta`+`valor` son el contrato con guardC (canon unit:value) y NO se tocan; el
   // resto son los campos SEMÁNTICOS opcionales de la Regla de Proporcionalidad (esparcidos, ver _semanticaDe).
-  const CAMPOS_CIFRA = new Set(["etiqueta", "valor", "sujeto", "estatus", "referencia", "nivel", "cobertura"]);
+  // `calculo` (owner 2026-08-09, certificación de «la rotación media es 6.0x, ¿de dónde sale?»): la fórmula
+  // declarada de un AGREGADO DEL NEGOCIO. Se declara acá a propósito — el snapshot es deliberado, no silencioso —
+  // y sigue siendo esparcido: 6 de 434 cifras medidas sobre 14 familias de tools lo llevan (los totales de
+  // cabecera y las dos varas de POLICY), ninguna cifra por entidad lo paga.
+  const CAMPOS_CIFRA = new Set(["etiqueta", "valor", "sujeto", "estatus", "referencia", "nivel", "cobertura", "calculo"]);
   for (const caso of CASOS) {
     const { results, ledger } = runPlan(caso.plan, { scenario: "actual" });
     const args = { text: caso.text, plan: caso.plan, results, ledgerFigs: ledger.figs, mem: MEM, history: HIST, pref: null, scenario: "actual" };

@@ -500,14 +500,24 @@ const TABLE_INSTRUCTION_DECISION = "Tus cifras_autorizadas traen 2+ entidades co
 // igual 2+ SKU de esa bodega en el mismo ledger — _needsTableFormat dispara por el grupo SKU (correcto), pero el
 // LLM a veces tabuló el grupo BODEGA (1 sola fila) en vez del grupo SKU (el que de verdad tiene 2+) — ver el
 // candado explícito contra "tabla de una sola fila" en TABLE_INSTRUCTION y en CAPITAL_COLUMNS_INSTRUCTION abajo.
-function _needsCapitalColumnNames(figs) {
-  if (!_needsTableFormat(figs)) return false;
-  if (!Array.isArray(figs)) return false;
-  const hasCapitalDetenido = figs.some((f) => f && / · Capital detenido$/.test(f.label || ""));
+// EL CONCEPTO ES EL DEL FOCO (owner 2026-08-09, certificación de las preguntas de inventario): `composeSpecInventory`
+// emitía `· Capital detenido` para los CUATRO focos, así que este detector —y el encabezado literal que impone—
+// nombraban "Capital detenido" también sobre las cifras de riesgo de quiebre y de sobrestock. Corregida la etiqueta
+// en el origen, acá se reconoce la FAMILIA de conceptos del detector de inventario y se devuelve el que el ledger
+// realmente trae, para que el encabezado impuesto sea el del dato. `Capital detenido` (foco frenado/stale, el único
+// caso medido en los gates) produce una instrucción BYTE-IDÉNTICA a la anterior.
+const _CONCEPTOS_INVENTARIO = ["Capital detenido", "Riesgo de quiebre", "Sobrestock", "Capital sano"];
+function _conceptoCapitalDeFigs(figs) {
+  if (!_needsTableFormat(figs)) return null;
+  if (!Array.isArray(figs)) return null;
+  const concepto = _CONCEPTOS_INVENTARIO.find((c) => figs.some((f) => f && new RegExp(` · ${c}$`).test(f.label || "")));
+  if (!concepto) return null;
   const hasPctDelTotal = figs.some((f) => f && / · % del total$/.test(f.label || ""));
-  return hasCapitalDetenido && hasPctDelTotal;
+  return hasPctDelTotal ? concepto : null;
 }
-const CAPITAL_COLUMNS_INSTRUCTION = "Tus cifras_autorizadas traen \"Capital detenido\" y \"% del total\" por entidad (bodega o SKU) — armá la tabla con ESTOS 3 encabezados LITERALES, en este orden: \"Bodega\" o \"SKU\" (el que corresponda) | \"Capital detenido\" | \"% del total\". No los reformules ni los traduzcas (nunca \"Capital Inmovilizado (USD)\", nunca \"Porcentaje del total (%)\"). El % NUNCA lo calculás vos NI lo completás de otra cifra suelta: si una entidad NO tiene su propia cifra \"Entidad · % del total\" autorizada, esa entidad NO va en la tabla de porcentajes — nunca uses una cifra sin ese formato exacto (ej. una cifra llamada solo \"pct\", sin nombre de entidad) para rellenar el % de una fila, aunque el número parezca coincidir. Si tenés cifras de bodegas Y de SKU a la vez, armá DOS TABLAS separadas (una con encabezado de fila \"Bodega\", otra con \"SKU\") — nunca las mezcles bajo un solo encabezado, cada una suma 100% por sí sola. ESTA REGLA DE LAS DOS TABLAS NO CAMBIA por lo que sigue abajo sobre causa y acción: si tenés 2+ SKU con \"Capital detenido\"+\"% del total\" propios, la tabla de SKU es SIEMPRE obligatoria — nombrar la causa en prosa es ADEMÁS de esa tabla, nunca en vez de ella. Si el alcance ya viene acotado a UNA sola bodega (ej. \"cuánto capital tengo en Valparaíso\"), esa bodega NO tiene cifra de \"% del total\" autorizada a propósito (es obvio que es el 100%, no hace falta cifra) — esa bodega es una fila única, no le armes tabla ni le inventes un %: decilo en una frase (\"tenés $X en Valparaíso\"); si esos mismos datos SÍ traen 2+ SKU dentro de esa bodega, esa es la tabla que corresponde armar (encabezado \"SKU\"), no la de bodega.\n  NINGUNA TABLA ES EL CIERRE: arma TODAS las tablas que correspondan (bodega y/o SKU, según la regla de arriba) y DESPUÉS, en prosa corrida (sin encabezados tipo \"Por qué:\"), agregá lo que las tablas no dicen — tenés \"Rotación\", \"Días de cobertura\" y \"Días sin venta\" por SKU ya autorizados: usalos para explicar la causa (ej. \"rotación de 1.0x y 165 días de cobertura — prácticamente no se mueve\") y para nombrar el SKU puntual con más $ o más días sin venta como la acción a priorizar, con su monto. Un cierre que solo repite el total y pregunta \"¿querés que profundicemos en los SKU?\" está incompleto — YA tenés esos SKU en tus cifras_autorizadas, nómbralos ahora, no los guardes para un turno futuro.";
+function _needsCapitalColumnNames(figs) { return !!_conceptoCapitalDeFigs(figs); }
+const _capitalColumnsInstruction = (concepto) => CAPITAL_COLUMNS_INSTRUCTION_TPL.split("{CONCEPTO}").join(concepto || "Capital detenido");
+const CAPITAL_COLUMNS_INSTRUCTION_TPL = "Tus cifras_autorizadas traen \"{CONCEPTO}\" y \"% del total\" por entidad (bodega o SKU) — armá la tabla con ESTOS 3 encabezados LITERALES, en este orden: \"Bodega\" o \"SKU\" (el que corresponda) | \"{CONCEPTO}\" | \"% del total\". No los reformules ni los traduzcas (nunca \"Capital Inmovilizado (USD)\", nunca \"Porcentaje del total (%)\"). El % NUNCA lo calculás vos NI lo completás de otra cifra suelta: si una entidad NO tiene su propia cifra \"Entidad · % del total\" autorizada, esa entidad NO va en la tabla de porcentajes — nunca uses una cifra sin ese formato exacto (ej. una cifra llamada solo \"pct\", sin nombre de entidad) para rellenar el % de una fila, aunque el número parezca coincidir. Si tenés cifras de bodegas Y de SKU a la vez, armá DOS TABLAS separadas (una con encabezado de fila \"Bodega\", otra con \"SKU\") — nunca las mezcles bajo un solo encabezado, cada una suma 100% por sí sola. ESTA REGLA DE LAS DOS TABLAS NO CAMBIA por lo que sigue abajo sobre causa y acción: si tenés 2+ SKU con \"{CONCEPTO}\"+\"% del total\" propios, la tabla de SKU es SIEMPRE obligatoria — nombrar la causa en prosa es ADEMÁS de esa tabla, nunca en vez de ella. Si el alcance ya viene acotado a UNA sola bodega (ej. \"cuánto capital tengo en Valparaíso\"), esa bodega NO tiene cifra de \"% del total\" autorizada a propósito (es obvio que es el 100%, no hace falta cifra) — esa bodega es una fila única, no le armes tabla ni le inventes un %: decilo en una frase (\"tenés $X en Valparaíso\"); si esos mismos datos SÍ traen 2+ SKU dentro de esa bodega, esa es la tabla que corresponde armar (encabezado \"SKU\"), no la de bodega.\n  NINGUNA TABLA ES EL CIERRE: arma TODAS las tablas que correspondan (bodega y/o SKU, según la regla de arriba) y DESPUÉS, en prosa corrida (sin encabezados tipo \"Por qué:\"), agregá lo que las tablas no dicen — tenés \"Rotación\", \"Días de cobertura\" y \"Días sin venta\" por SKU ya autorizados: usalos para explicar la causa (ej. \"rotación de 1.0x y 165 días de cobertura — prácticamente no se mueve\") y para nombrar el SKU puntual con más $ o más días sin venta como la acción a priorizar, con su monto. Un cierre que solo repite el total y pregunta \"¿querés que profundicemos en los SKU?\" está incompleto — YA tenés esos SKU en tus cifras_autorizadas, nómbralos ahora, no los guardes para un turno futuro.";
 
 // _needsListFormat(figs) → true si hay 3+ entidades con UNA sola cifra cada una (ranking de una métrica) — el
 // complemento exacto de _needsTableFormat (2+ cifras/entidad). Hallazgo de auditoría en vivo (owner 2026-08-02,
@@ -631,6 +641,20 @@ function _semanticaDe(cl, ctx = { mixto: true, multiEje: true }) {
   else if (cl.sujetoTipo === "negocio") { if (ctx.mixto) s.sujeto = "el negocio (no una entidad)"; }
   else if (cl.eje && (ctx.mixto || ctx.multiEje)) s.sujeto = `${cl.entidad} (${cl.eje})`;
   if (cl.estatus === "indicado") s.estatus = "indicado (es una cuenta del motor, no una lectura directa)";
+  // CÓMO SE CALCULA · solo para los AGREGADOS DEL NEGOCIO (owner 2026-08-09, certificación de «la rotación media es
+  // 6.0x, ¿de dónde sale?»). El fig de cabecera YA declaraba su `formula` desde la decisión 6 —`_figHeadline` la
+  // sella— y el claim ya la transportaba, pero la proyección la dejaba afuera: el narrador recibía «Rotación media:
+  // 6.0x» junto a las trece rotaciones por SKU y NADA que dijera que es un ponderado por capital. Preguntado de
+  // dónde sale, la única salida disponible era adivinar, y la adivinanza natural —el promedio simple de las trece
+  // filas, 5,8x— es exactamente la segunda verdad que `sentrix/headline.js` eliminó del producto. Es el mismo hueco
+  // que abrió la Proporcionalidad Semántica ("sellar campos nuevos en el claim no servía de nada — el narrador de
+  // producción nunca los veía"), con la misma respuesta: viaja, pero ESPARCIDO.
+  // POR QUÉ SOLO EL NEGOCIO: medido sobre 434 cifras de 14 familias de tools, 24 declaran fórmula y solo 6 son
+  // agregados del negocio (venta total, contribución total, margen promedio, rotación media, las dos varas de
+  // POLICY). Un "% del total" de una bodega o un "Valor en juego" de un cliente no necesitan explicar su cuenta —
+  // su etiqueta ya la dice— y pagarían tokens sin decir nada. El 1% que sí lo necesita es justo el que la pantalla
+  // muestra como cabecera y el usuario interpela por su número.
+  if (cl.formula && cl.sujetoTipo === "negocio") s.calculo = cl.formula;
   if (cl.procedencia === "interna_empresa") s.referencia = "la define tu negocio — nunca la llames sectorial, de industria ni de mercado";
   if (cl.nivelFinanciero) s.nivel = cl.nivelFinanciero;
   if (cl.coberturaCausal === "parcial") {
@@ -691,7 +715,7 @@ export function projectClaimsOnlyPayload(contract) {
     ...(_politicaTabla(c) === "forbidden" ? {} : (modo === "clarify" ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {}))),
     ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
-    ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
+    ...(_conceptoCapitalDeFigs(figLabels) ? { instruccion_columnas_capital: _capitalColumnsInstruction(_conceptoCapitalDeFigs(figLabels)) } : {}),
     ...(forma.instruccionOrientacion ? { instruccion_orientacion: forma.instruccionOrientacion } : {}),
     ...(forma.instruccionDisclosure ? { instruccion_divulgacion: forma.instruccionDisclosure } : {}),
     // CONTRATO DE RESPUESTA PROPORCIONAL (owner 2026-08-09) — ver projectNarratePayload para la nota completa.
@@ -798,7 +822,7 @@ export function projectNarratePayload(contract) {
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
     // COLUMNAS DE CAPITAL REFORZADAS (owner 2026-08-02): ver _needsCapitalColumnNames/CAPITAL_COLUMNS_INSTRUCTION.
-    ...(_needsCapitalColumnNames(figLabels) ? { instruccion_columnas_capital: CAPITAL_COLUMNS_INSTRUCTION } : {}),
+    ...(_conceptoCapitalDeFigs(figLabels) ? { instruccion_columnas_capital: _capitalColumnsInstruction(_conceptoCapitalDeFigs(figLabels)) } : {}),
     // ORDEN POR MONTO REFORZADO (owner 2026-08-02, hallazgo de auditoría): ver _needsOrdenMontoReinforcement.
     // `datos` conserva `tool` por entrada — el detector solo mira qué tools corrieron, no los facts.
     ...(_needsOrdenMontoReinforcement(text, datos) ? { instruccion_orden: ORDEN_MONTO_INSTRUCTION } : {}),

@@ -1016,9 +1016,22 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   // a armar una "tabla" de una sola fila pese a instruccion_tabla/instruccion_columnas_capital pidiendo lo contrario
   // ("si solo existe una entidad... no fuerces una tabla"). Solución estructural, no de prompt: si hay 1 sola
   // bodega, esa entidad NO tiene 2do concepto (solo Capital, sin %) → _needsTableFormat ya no puede confundirse.
+  // EL CONCEPTO DE LA ETIQUETA ES EL DEL FOCO, NO SIEMPRE "Capital detenido" (owner 2026-08-09, certificación de
+  // la pregunta «los quiebres próximos son $36K, ¿en qué SKU?»). Acá vivía el literal `· Capital detenido` para
+  // TODOS los focos, así que con focus:"quiebre" el ledger emitía «Santiago · Capital detenido $30K» — y en el
+  // MISMO ledger convivía «Estado del inventario: capital detenido $33K». Dos dueños distintos bajo las mismas
+  // palabras: medido sobre el dato, Santiago tiene $0 de capital detenido (los tres SKU frenados están en
+  // Valparaíso y Antofagasta) y $30K en riesgo de quiebre. La frase «Santiago tiene $30K de capital detenido»
+  // es FALSA y pasaba guardC entera — el canon `money:$30K` está autorizado y el binding semántico lee la
+  // ETIQUETA, así que la etiqueta equivocada autorizaba la afirmación equivocada. El concepto sale ahora del
+  // estado que el foco realmente está mirando (`_ESTADO_LABEL`, la MISMA fuente que ya nombra las 4 puntas —
+  // no un segundo diccionario). Para `frenado`/`stale` (focusEst "capital_frenado") el resultado es
+  // BYTE-IDÉNTICO al anterior: "Capital detenido".
+  const _CONCEPTO = _ESTADO_LABEL[B.focusEst] || "capital detenido";
+  const _CONCEPTO_LBL = _CONCEPTO.charAt(0).toUpperCase() + _CONCEPTO.slice(1);
   const _bodMultiple = (B.byBod || []).length >= 2;
   for (const b of (B.byBod || [])) {
-    bol.push(fig(`${b.nombre} · Capital detenido`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
+    bol.push(fig(`${b.nombre} · ${_CONCEPTO_LBL}`, _money(b.usd), { unit: "money", raw: b.usd, mandatory: false, context: B.ctx }));
     if (_bodMultiple) bol.push(fig(`${b.nombre} · % del total`, `${b.pct}%`, { unit: "pct", raw: b.pct, mandatory: false, source: "computed", formula: "capital de la bodega / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
   }
   for (const f of (B.byFam || []).slice(0, 3)) bol.push(fig(`${f.nombre} · Familia`, _money(f.usd), { unit: "money", raw: f.usd, mandatory: false, context: B.ctx }));
@@ -1031,7 +1044,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   if (_skuRestoCount > 0) _skuRows.push({ nombre: `Resto (${_skuRestoCount} de ${B.skus.length})`, usd: B.skus.slice(4).reduce((a, s) => a + s.usd, 0) });
   const _skuMultiple = _skuRows.length >= 2;   // mismo candado estructural que _bodMultiple arriba
   for (const s of _reconcilePercents(_skuRows, B.total)) {
-    bol.push(fig(`${s.nombre} · Capital detenido`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
+    bol.push(fig(`${s.nombre} · ${_CONCEPTO_LBL}`, _money(s.usd), { unit: "money", raw: s.usd, mandatory: false, context: B.ctx }));
     if (_skuMultiple) bol.push(fig(`${s.nombre} · % del total`, `${s.pct}%`, { unit: "pct", raw: s.pct, mandatory: false, source: "computed", formula: "capital del SKU (o del resto agrupado) / total del foco × 100 (reconciliado a 100%)", context: B.ctx }));
   }
   for (const e of estados) bol.push(fig(`Estado del inventario: ${e.label}`, _money(e.usd), { unit: "money", raw: e.usd, mandatory: false, context: "distribución de inventario" }));
