@@ -21,6 +21,13 @@
  *      contenido) y que el shim de compatibilidad (mem sin conversationScope) sigue funcionando end-a-end.
  *   5. persona.js:renderInteractionMemory produce el MISMO string ya sea que la memoria venga por el camino
  *      canónico o por el shim legacy — la migración es invisible para el prompt.
+ *
+ * @inyeccion-simulada — este gate le pasa a `answerViaOracle` sus DOS pasadas (PLAN y NARRAR) como funciones
+ * locales definidas en este mismo archivo. No importa el gateway ni un adapter, no importa nada de `src/ui/`
+ * (donde viven las únicas implementaciones reales de esas dos funciones) y no contiene una salida cruda. Cumple
+ * las cuatro condiciones del escape declarado en scripts/gates-offline.mjs, que las verifica una por una en vez
+ * de creerle a esta línea. Sin esto el gate quedaba clasificado LIVE y NUNCA corría: una garantía que hay que
+ * acordarse de invocar a mano no es una garantía.
  */
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { getLastOffer, getRecentSubjects } from "./src/adi/oracle/dialogueState.js";
@@ -74,12 +81,17 @@ section("1 · getLastOffer/getRecentSubjects — funciones puras (precedencia + 
 }
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// HIGIENE DE FIXTURE (owner 2026-08-11): la pregunta de arranque decía "¿cómo viene el margen…?" — frase que
+// `pideDetalleTemporal` (progressiveDisclosure.js) lee como pedido de EVOLUCIÓN desde que existe la política de
+// presentación del turno. Con tablePolicy=`required`, guardC rechazaba la narración mockeada por `tabla-faltante`,
+// el motor la reemplazaba por la tabla de la boleta y el turno se quedaba sin la pregunta de cierre: los 4
+// chequeos rojos medían un turno distinto del que este gate certifica. Se cambia la redacción, no la aserción.
 section("2 · dual-write end-a-end vía answerViaOracle — lastOffer y conversationScope.current.ofertaPendiente SIEMPRE de acuerdo");
 // ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const callPlan1 = async () => mkPlan("ClienteDual1");
   const callNarrate1 = async () => "Este cliente está por debajo del objetivo de margen.\n\n[[SIGUIENTE_PASO]]\n¿Querés que profundice en el porqué?";
-  const r1 = await answerViaOracle({ text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlan1, callNarrate: callNarrate1 });
+  const r1 = await answerViaOracle({ text: "¿qué margen tienen los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlan1, callNarrate: callNarrate1 });
   ok("turno 1 deja mem.lastOffer poblado", !!(r1 && r1.mem.lastOffer && r1.mem.lastOffer.texto));
   const scopeOferta1 = r1 && r1.mem.conversationScope && r1.mem.conversationScope.current && r1.mem.conversationScope.current.ofertaPendiente;
   ok("turno 1: conversationScope.current.ofertaPendiente === mem.lastOffer (MISMO objeto, dual-write real)",
@@ -118,7 +130,7 @@ section("3 · EL RIESGO REAL — un bypass que limpia lastOffer=null DEBE limpia
 {
   // turno 1: deja una oferta activa con tool+args (mismo patrón de la sección 2).
   const r1 = await answerViaOracle({
-    text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual",
+    text: "¿qué margen tienen los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual",
     callPlan: async () => mkPlan("ClienteRiesgo1"),
     callNarrate: async () => "Este cliente está por debajo del objetivo de margen.\n\n[[SIGUIENTE_PASO]]\n¿Querés que profundice en el porqué?",
   });

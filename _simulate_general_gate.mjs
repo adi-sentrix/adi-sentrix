@@ -15,6 +15,13 @@
  * 2) DETERMINÍSTICO — guardC._simulateGeneralConclusionViolation vía fixtures fijos.
  * 3) end-to-end MOCKEADO (mismo patrón que _dialogue_state_gate.mjs: runPlan/BATCH reales contra el dataset real,
  *    callPlan/callNarrate mockeados) — las 3 variantes.
+ *
+ * @inyeccion-simulada — este gate le pasa a `answerViaOracle` sus DOS pasadas (PLAN y NARRAR) como funciones
+ * locales definidas en este mismo archivo. No importa el gateway ni un adapter, no importa nada de `src/ui/`
+ * (donde viven las únicas implementaciones reales de esas dos funciones) y no contiene una salida cruda. Cumple
+ * las cuatro condiciones del escape declarado en scripts/gates-offline.mjs, que las verifica una por una en vez
+ * de creerle a esta línea. Sin esto el gate quedaba clasificado LIVE y NUNCA corría: una garantía que hay que
+ * acordarse de invocar a mano no es una garantía.
  */
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
@@ -247,18 +254,36 @@ console.log("\n── 4 · mem.pendingSimulation — riesgo residual #2 de la ce
   });
   ok(narrateArgsC && narrateArgsC.plan.calls[0].args.variableB.delta_pct === 0, "4c: '0% explícito' resuelve a delta_pct=0 LEGÍTIMO — distinto de 'no contestó', nunca se confunden");
 
-  // D) el turno siguiente NO contesta la pregunta pendiente (cambia de tema por completo) → ABANDONA limpio,
+  // D) el turno siguiente NO contesta la pregunta pendiente (cambia de tema por completo) → NO se resuelve nada,
   // PLAN corre normal (fresh), nunca fuerza una interpretación sobre texto que no es una respuesta.
+  //
+  // ── RE-CERTIFICACIÓN DEL CHEQUEO 4d (owner 2026-08-11) ───────────────────────────────────────────────────────
+  // Este chequeo afirmaba: "pendingSimulation abandonado limpiamente (no sobrevive al turno que cambió de tema)".
+  // Esa afirmación era LA CONDUCTA EQUIVOCADA, y la certificación en vivo la cobró: el usuario decía "sube 8% el
+  // precio de Sodimac", ADI le preguntaba por el volumen, el usuario preguntaba otra cosa en el medio y, al volver
+  // con el volumen, ADI le pedía DE NUEVO el precio que él ya había dado. Un cambio de tema no es un abandono: es
+  // un paréntesis. El pendiente muere cuando se RESUELVE, cuando se REEMPLAZA, cuando una CORRECCIÓN lo invalida
+  // o cuando se le acaba el PLAZO — nunca por el mero paso de un turno (ver el ciclo de vida en
+  // conversationScope.js). El chequeo se re-expresa en esos términos: acá se certifica que SOBREVIVE con un turno
+  // menos de plazo, y la sección 5 certifica cada una de las cuatro formas de morir.
+  // (La segunda mitad de la higiene: el turno intercalado preguntaba "¿y cómo viene Sodimac?" y reusaba SAFE. Las
+  // dos cosas envenenaban el arnés — "cómo viene" pasó a leerse como pedido de EVOLUCIÓN cuando llegó la política
+  // de presentación del turno, así que guardC lo rechazaba por `tabla-faltante`; y SAFE ya estaba narrado por
+  // 4b/4c, así que el guard marcaba repetición. Entre las dos, el turno se abstenía y el assert fallaba por un
+  // motivo que no tenía nada que ver con la simulación pendiente. Se cambia la redacción y el texto narrado.)
+  const SAFE_D = "El perfil de esa cuenta no muestra desvíos relevantes frente al período anterior.";
   const PLAN_D1 = { intent: "answer", mode: "simulacion", scope: { level: "entity", entities: ["Jumbo"] }, calls: [], supuestos_faltantes: ["¿cuánto esperás que cambie el volumen o las unidades vendidas?"] };
   const rD1 = await answerViaOracle({ text: "si le subo el precio a Jumbo 4%, ¿conviene?", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_D1, callNarrate: async () => "nunca debería aparecer" });
   let planCalledD = false;
   const rD2 = await answerViaOracle({
-    text: "¿y cómo viene Sodimac?", history: [], mem: rD1.mem, scenario: "actual",
-    callPlan: async () => { planCalledD = true; return { intent: "answer", mode: "default", calls: [{ tool: "entityProfile", args: { dimension: "cliente", entity: "Sodimac" } }] }; },
-    callNarrate: async () => SAFE,
+    text: "¿qué margen tiene Sodimac?", history: [], mem: rD1.mem, scenario: "actual",
+    callPlan: async () => { planCalledD = true; return { intent: "answer", mode: "default", scope: { level: "entity", entities: ["Sodimac"] }, calls: [{ tool: "entityProfile", args: { dimension: "cliente", entity: "Sodimac" } }] }; },
+    callNarrate: async () => SAFE_D,
   });
   ok(planCalledD, "4d: cambio de tema → no resuelve el pendiente → PLAN corre normal (fresh), no se fuerza nada");
-  ok(rD2 && rD2.mem && rD2.mem.pendingSimulation == null, "4d: pendingSimulation abandonado limpiamente (no sobrevive al turno que cambió de tema)");
+  const psD2 = rD2 && rD2.mem && rD2.mem.pendingSimulation;
+  ok(!!psD2 && psD2.entity === "Jumbo" && psD2.known.delta_pct === 4 && psD2.missingCampo === "unidades" && psD2.restan === rD1.mem.pendingSimulation.restan - 1,
+    `4d [RE-CERTIFICADO]: el pendiente SOBREVIVE al cambio de tema con un turno menos de plazo — un paréntesis no es un abandono — obtuvo ${JSON.stringify(psD2)}`);
 
   // E) número AMBIGUO sin signo ni verbo direccional ("2%" a secas) → NO se adivina la dirección, no resuelve.
   const PLAN_E1 = { intent: "answer", mode: "simulacion", scope: { level: "entity", entities: ["Tottus"] }, calls: [], supuestos_faltantes: ["¿cuánto esperás que cambie el volumen o las unidades vendidas?"] };

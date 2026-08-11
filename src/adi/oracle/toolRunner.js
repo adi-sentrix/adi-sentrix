@@ -10,6 +10,7 @@
  */
 import { createLedger, recordCall, tiparBoleta } from "./ledger.js";
 import { TOOLS } from "./toolRegistry.js";
+import { diagnosticarVacio } from "./toolContracts.js";   // VERACIDAD DEL VACÍO (D7) · ver el bloque de _veraz abajo
 import { periodoDeFiguras, PERIODO_TXT } from "../../config/contract/figureType.js";
 import { setToolsDeclaradas } from "../llm/telemetry.js";
 
@@ -45,6 +46,30 @@ function _stampPeriodo(res, figsTipadas) {
   // eso su universo no declara período) → queda el marco del negocio, que es el que este punto ya estampaba.
   res.facts.periodo = texto || PERIODO_TXT.anual;
   res.facts.periodos = familias.length ? familias : ["anual"];
+}
+
+// LA RAZÓN DEL VACÍO SE VERIFICA ACÁ, CONTRA LOS ARGS REALES (owner 2026-08-11, defecto D7 "ADI declina datos que
+// acaba de mostrar"). Medido: el turno anterior imprime la tabla de cuatro cuentas con margen y venta, y el
+// siguiente contesta que FALTAN SUS REGISTROS EN EL EJE CLIENTE. No faltaban: `compareEntities` compara de a pares
+// y el plan le pasó cuatro entidades en `args`; el composer devolvió null por cardinalidad y ese null se tradujo a
+// un texto que afirma ausencia de dato. El narrador solo recibe ese texto — es fiel, no tiene con qué saber otra
+// cosa.
+//
+// POR QUÉ EL PUNTO ES ÉSTE Y NO OTRO. La capa de contrato (applyMultiEntityScope, toolContracts.js) se aplica
+// contra `plan.scope`, un campo OPCIONAL del schema del planificador que el camino normal del plan no llena — y
+// answerViaOracle ni siquiera se lo pasa al ejecutor. `runPlan` es el ÚNICO estrangulamiento por el que pasan las
+// veinte tools con los args DEFINITIVOS (después de todos los coerce/backstop), así que es el único lugar donde la
+// verificación no depende de que el LLM se haya acordado de algo.
+//
+// QUÉ HACE Y QUÉ NO. No cambia el veredicto: si la tool declinó, sigue declinando, `supported:false` sigue igual y
+// la forma del turno no se mueve (nada acá deriva a un bypass determinístico). Solo corrige QUÉ RAZÓN se declara,
+// y estampa `motivoTipo` para que la distinción viaje estructurada en vez de tener que leerse de la prosa. Toda la
+// regla vive en `diagnosticarVacio`; acá se aplica sin lógica propia, para que haya UNA sola verdad.
+// PURO: nunca muta la cobertura que devolvió la tool — compone una nueva.
+function _veraz(name, args, res) {
+  if (!res || !res.coverage || res.coverage.supported !== false) return res;
+  const parche = diagnosticarVacio(name, args, res.coverage);
+  return parche ? { ...res, coverage: { ...res.coverage, ...parche } } : res;
 }
 
 // runPlan(plan, opts) → { ledger, results, trace, unsupported }
@@ -86,13 +111,20 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
       res = { facts: null, boleta: [], coverage: { supported: false, reason: `error en tool '${name}': ${String((e && e.message) || e)}` } };
     }
     if (!res || typeof res !== "object") res = { facts: null, boleta: [], coverage: { supported: false, reason: "tool sin resultado" } };
+    // ANTES del ledger y de los results: la razón que se GRABA tiene que ser la misma que se narra (si el parche
+    // corriera después, la boleta y la evidencia quedarían citando una causa que el turno ya no afirma).
+    res = _veraz(name, args, res);
     // el tipado corre UNA vez: lo necesita el período (la naturaleza de cada cifra) y es lo mismo que el ledger graba.
     const meta = { tool: name, callId, scope, args };
     const figsTipadas = tiparBoleta(meta, res);
     _stampPeriodo(res, figsTipadas);
     recordCall(ledger, meta, res, figsTipadas);
     results.push({ callId, tool: name, ...res });
-    if (!res.coverage || res.coverage.supported === false) unsupported.push({ callId, tool: name, reason: res.coverage && res.coverage.reason });
+    // `motivoTipo` viaja en el unsupported (y de ahí a evidenceSpec.missing → los "límites" del panel): quien lea
+    // esta lista tiene que poder distinguir "no cabía así" de "no está" sin parsear la frase.
+    if (!res.coverage || res.coverage.supported === false) {
+      unsupported.push({ callId, tool: name, reason: res.coverage && res.coverage.reason, ...(res.coverage && res.coverage.motivoTipo ? { motivoTipo: res.coverage.motivoTipo } : {}) });
+    }
   });
 
   return {

@@ -8,20 +8,20 @@
  */
 import { applyMemoryUpdate } from "./persona.js";
 import { runPlan } from "./toolRunner.js";
-import { emit as emitTelemetria, nuevoTraceId } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
+import { emit as emitTelemetria, nuevoTraceId, getToolsDeclaradas } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, markUserProvenance } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract, buildReparacion } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta · v1.2: la reparación sellada, la MISMA que ve el narrador
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
-import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, composeProsaEjecutiva, resolveTablePolicy, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
+import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, pidePresentacionTabular, composeProsaEjecutiva, resolveTablePolicy, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
 import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
-import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
+import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
+import { parseBlocks, renderFromBlocks, composeFromLedger, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
@@ -31,7 +31,12 @@ import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, bui
 // fixtures viejos. withOfertaPendiente (abajo) es el ÚNICO punto que escribe el lado canónico — ver el comentario
 // "CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4" al final de conversationScope.js para el detalle completo.
 import { emptyConversationScope, updateConversationScope, resolveConversationReference, composeReferenceAmbiguity, composeReferenceDecline, withOfertaPendiente, resolveComponentReference, DEICTIC_PLURAL_RE,
-  applyRepairToScope, composePrecisionQuestion, withSupuestoUsuario, inferirCorrige } from "./conversationScope.js";
+  applyRepairToScope, composePrecisionQuestion, withSupuestoUsuario, inferirCorrige,
+  // LA SIMULACIÓN PENDIENTE · CICLO DE VIDA POR ESTADO (owner 2026-08-11) — el pendiente muere cuando se resuelve,
+  // se reemplaza, una corrección lo invalida o se le acaba el plazo; NUNCA porque pasó un turno. Las reglas viven
+  // en conversationScope.js (el hogar del resto del ciclo de vida del contexto); acá solo se decide CUÁNDO
+  // aplicarlas — ver el comentario de cabecera de ese bloque para el defecto medido y el porqué del TTL.
+  nacePendingSimulation, pendingSimulationVigente, envejecerPendingSimulation, repararPendingSimulation, fusionarPendientes, pendienteDesdeEscenario } from "./conversationScope.js";
 // CONTRATO DE CONCORDANCIA ADI ↔ SENTRIX (owner 2026-08-09) — el CONTEXTO DE PANTALLA. Este archivo es el único
 // punto del oráculo que lo orquesta: lo SELLA al entrar (nunca confía en lo que llegó de la UI), lo INVALIDA cuando
 // cambia la pantalla o el tema, lo proyecta como UNA LÍNEA para PLAN, lo usa como backstop determinístico del
@@ -617,6 +622,27 @@ const _PREF_STANDARD_RE = /\bexpl[ií]came?(?:lo)?\s+con\s+m[aá]s\s+detalle\b|\
 // persistente de la sesión. No debe volver a breve en el turno siguiente.") — fija los valores (full/standard) Y
 // persist=true en el mismo paso; ver más abajo. Un "solo esta vez" EXPLÍCITO en la misma frase sigue ganando (regla
 // general: ese marcador siempre acota a un turno, incluso sobre un reset) vía _PREF_ONE_TURN_RE, que se evalúa último.
+// AMPLIACIÓN RETIRADA · REVERTIDA A LA BASE 2b062cc (owner 2026-08-11, segunda revisión adversarial) ─────────────
+// El 2026-08-11 esta regex se había ampliado a `(?:volv[eé]|vuelv[ae]|volver|volvamos)\s+al?\s+…normal` para
+// enganchar "Ahora vuelve al nivel normal" como salida de emergencia. ERA UN FALSO POSITIVO, y de la peor clase.
+// MEDIDO (3 turnos, árbol con la ampliación vs base): t1 "Desde ahora dame solo los datos." → contentScope
+// data_only. t2 "¿La demanda vuelve al nivel normal este trimestre?" → la ampliación lo leía como una instrucción
+// de formato, reseteaba a {full, standard} CON persist=true y soltaba al narrador libre 3 veces en un turno que
+// estaba bajo garantía por construcción; t3 "¿Cómo viene Samsung?" seguía en full — EL RESETEO ERA PERMANENTE y
+// nadie se lo dijo al usuario. 4/4 redacciones corrientes de retail lo disparaban ("¿El stock de Samsung vuelve al
+// nivel normal después de la promo?", "¿Cuándo vuelve al nivel normal la rotación de Línea Blanca?", "¿La venta
+// vuelve al nivel normal en marzo?"). En la base 2b062cc las cuatro son inocuas.
+//
+// POR QUÉ SE REVIERTE EN VEZ DE AFINARSE: "vuelve al nivel normal" es LITERALMENTE la misma cadena en la
+// instrucción ("Ahora vuelve al nivel normal") y en la pregunta de negocio ("¿La demanda vuelve al nivel normal?").
+// Separarlas exige decidir el MODO del verbo — imperativo vs indicativo — a partir de si hay o no un sujeto de
+// negocio delante, y eso es inferencia sintáctica, no una regla que falle cerrada. La doctrina del archivo es
+// ANTE AMBIGÜEDAD, ABSTENERSE: dejar pasar un pedido de reset que el usuario tendrá que repetir con otras palabras
+// es barato; borrarle en silencio y para siempre una preferencia que pidió explícitamente, no. Lo que se pierde
+// está declarado como límite: "Ahora vuelve al nivel normal." y "Volvamos al modo normal." NO resetean (el usuario
+// sigue teniendo "Volvé a lo normal.", "análisis completo" y "como antes"), y la cara opuesta —las preguntas de
+// negocio que NO deben resetear— queda gateada en _definicion_alcance_restringido_gate.mjs para que ninguna
+// reapertura futura de esta regex vuelva a romperlas sin que un gate lo grite.
 const _PREF_RESET_RE = /\b(?:an[aá]lisis|respuesta)\s+completo?a?\b|\bvolv[eé]\s+a\s+lo\s+normal\b|\bya\s+no\s+(?:necesito|hace\s+falta|quiero)\s+que\s+sea\s+breve\b|\bcomo\s+antes\b/i;
 const _PREF_PERSIST_RE = /\bdesde\s+ahora\b|\bde\s+ahora\s+en\s+adelante\b|\ba\s+partir\s+de\s+ahora\b|\bsiempre\s+respond[eé]me?\b|\ben\s+adelante\b/i;
 const _PREF_ONE_TURN_RE = /\bs[oó]lo\s+esta\s+vez\b|\bpor\s+esta\s+vez\b|\bs[oó]lo\s+por\s+ahora\b|\bahora\s+s[oó]lo\b/i;
@@ -630,30 +656,88 @@ const _WANTS_PERFIL_RE = /\b(perfil|avance|resumen)\b|\bestado\b/i;
 // LLM ni de la red — el llamador cae a la preferencia de SESIÓN si había una, o al default). `plan.pref` (si el LLM
 // lo llenó) se respeta tal cual salvo que una frase de la red la contradiga de forma inequívoca — la red SIEMPRE
 // puede forzar (igual que _coerceMode fuerza "clarify"), nunca al revés.
+// LA PERSISTENCIA ES POR EJE (owner 2026-08-11, causa secundaria de D4) ────────────────────────────────────────
+// `persist` era UNO SOLO para los dos ejes, y eso convertía una corrección de REGISTRO en una restricción de
+// CONTENIDO permanente. Medido: "Hablame directo y sin rodeos" — que por doctrina fija detailLevel y nada más —
+// encendía `persist`, y el 1504 congelaba en la sesión TAMBIÉN el `contentScope` que el LLM había inferido para
+// ESE turno. Resultado: una frase sobre CÓMO hablar dejaba al usuario atrapado en "solo el dato" para el resto de
+// la conversación, sin haberlo pedido nunca. La regla correcta: una frase de registro autoriza persistir el
+// registro; el alcance del contenido sólo persiste cuando algo habla del alcance ("desde ahora dame solo los
+// datos") o cuando el propio planificador lo declara. `persist` se conserva como salida derivada (persistScope ||
+// persistDetail) para que ningún lector externo cambie de significado.
+// _cifrasEnLinea(figs) → las MISMAS cifras autorizadas que compone la tabla de composeFromLedger, sin la tabla.
+// NO es un segundo compositor de la respuesta: no elige, no ordena, no resume y no agrega ni una palabra propia —
+// recorre la MISMA lista de figs, con el MISMO tope de 12, y escribe label y value VERBATIM. Por eso pasa guardC
+// por la misma razón que la tabla: cada cifra ya estaba autorizada por el ledger. Existe sólo para el turno de
+// alcance restringido cuyo usuario prohibió la forma tabular; devuelve null si no hay ninguna fig, para que el
+// caller siga con la cadena de siempre.
+function _cifrasEnLinea(figs) {
+  const list = Array.isArray(figs) ? figs.filter((f) => f && typeof f.label === "string" && f.value != null) : [];
+  if (!list.length) return null;
+  return `${list.slice(0, 12).map((f) => `${f.label}: ${f.value}`).join(" · ")}.`;
+}
+
+/* ── UNA REDUCCIÓN DE FORMA NO FIJA EL ALCANCE (owner 2026-08-11) ────────────────────────────────────────────────
+ * MEDIDO: «Ahora solo la conclusión, nada más» y «Resumilo en una frase, sin explicación» devolvían una TABLA de
+ * doce filas. La cadena era: `_PREF_DATA_ONLY_RE` matchea por «nada más» / «sin explicación» → contentScope
+ * data_only → la rama de garantía por construcción resuelve el turno ENTERO desde composeFromLedger, que es una
+ * tabla. El usuario pidió MENOS respuesta y recibió la forma más larga que el motor sabe emitir.
+ *
+ * LA FRONTERA, y es la misma que la doctrina de PLAN ya declara en responsePreference.js: el ALCANCE lo fija sólo
+ * lo que el turno nombra EN POSITIVO como la cosa pedida («solo el dato», «solo las cifras», «solo la tabla»). Una
+ * restricción puramente NEGATIVA («nada más», «sin explicación») no nombra ningún dato: es reducción, y la
+ * reducción vive en el otro eje. Hasta hoy la mitad determinística de esa regla no existía — estaba sólo en el
+ * texto del prompt, así que valía cuando el LLM la obedecía y no valía cuando la red regex forzaba el valor.
+ *
+ * POR QUÉ ES TAN ANGOSTO (y por qué no se toca `_PREF_DATA_ONLY_RE`): sólo se DENIEGA data_only cuando se dan las
+ * DOS condiciones a la vez — el turno pide una forma incompatible con una tabla Y no nombra ningún dato en
+ * positivo. «dame un resumen ejecutivo, nada más» no pide ninguna reducción de forma y sigue siendo data_only,
+ * igual que las 13 frases del owner; «dame solo las cifras en una tabla» nombra el dato Y la tabla, y sigue siendo
+ * data_only. La regex se deja intacta a propósito: es el vocabulario de «solo el dato», y sigue siendo correcta —
+ * lo que faltaba era la precedencia entre los dos ejes, no otra lista de frases.
+ *
+ * LA SEÑAL DE FORMA SE PIDE PRESTADA, NO SE COPIA: `resolveTablePolicy` con la poda VACÍA es la decisión del
+ * usuario aislada de la inferencia del motor, y vive en progressiveDisclosure.js junto al resto del vocabulario de
+ * forma. Reescribir acá una lista de frases de reducción sería la segunda fuente de verdad que este mismo fix
+ * existe para no tener. */
+function _laFormaPedidaExcluyeLaTabla(t) {
+  try { return resolveTablePolicy({ text: t, podado: [] }) === "forbidden"; }
+  catch { return false; }   // lectura defensiva: un detector de forma jamás puede tumbar el turno
+}
+function _reduccionDeFormaSinDatoNombrado(t) {
+  return _laFormaPedidaExcluyeLaTabla(t) && !pideDatoPelado(t);
+}
+
 function _coercePref(text, plan) {
   const t = String(text || "");
   const llmPref = (plan && plan.pref && typeof plan.pref === "object") ? plan.pref : {};
   let contentScope = CONTENT_SCOPES.includes(llmPref.contentScope) ? llmPref.contentScope : null;
   let detailLevel = DETAIL_LEVELS.includes(llmPref.detailLevel) ? llmPref.detailLevel : null;
-  let persist = llmPref.persist === true;
+  // el planificador habla de la preferencia ENTERA: si él declara persistencia, abarca los dos ejes.
+  let persistScope = llmPref.persist === true;
+  let persistDetail = llmPref.persist === true;
   const isSim = plan && plan.mode === "simulacion";
 
-  // "volver a lo normal" SIEMPRE cancela la sesión (owner 2026-07-29) — fija los valores Y persist=true juntos.
+  // "volver a lo normal" SIEMPRE cancela la sesión (owner 2026-07-29) — fija los DOS ejes y los persiste juntos:
+  // un reset que dejara vivo cualquiera de los dos no sería un reset.
   if (_PREF_RESET_RE.test(t)) {
-    contentScope = "full"; detailLevel = "standard"; persist = true;
+    contentScope = "full"; detailLevel = "standard"; persistScope = true; persistDetail = true;
   } else {
     if (_PREF_ACTION_ONLY_RE.test(t)) contentScope = "action_only";
     else if (isSim && _PREF_RESULTS_ONLY_SIM_RE.test(t)) contentScope = "results_only";
-    else if (_PREF_DATA_ONLY_RE.test(t)) contentScope = "data_only";
+    else if (_PREF_DATA_ONLY_RE.test(t) && !_reduccionDeFormaSinDatoNombrado(t)) contentScope = "data_only";
     if (_PREF_BRIEF_RE.test(t)) detailLevel = "brief";
-    if (_PREF_DIRECTO_RE.test(t)) { detailLevel = "brief"; persist = true; }
-    if (_PREF_STANDARD_RE.test(t)) { detailLevel = "standard"; persist = true; }
+    // REGISTRO, NO ALCANCE: estas dos frases dicen cómo hablarle a la persona de ahora en más. Persisten el eje
+    // que corrigen y NINGÚN otro — ver el bloque de arriba para lo que costaba no distinguirlos.
+    if (_PREF_DIRECTO_RE.test(t)) { detailLevel = "brief"; persistDetail = true; }
+    if (_PREF_STANDARD_RE.test(t)) { detailLevel = "standard"; persistDetail = true; }
   }
-  if (_PREF_PERSIST_RE.test(t)) persist = true;
-  if (_PREF_ONE_TURN_RE.test(t)) persist = false;   // marcador explícito de "esta vez" siempre gana sobre persist
+  // "desde ahora"/"en adelante" SÍ es una instrucción sobre la sesión entera: abarca los dos ejes, como antes.
+  if (_PREF_PERSIST_RE.test(t)) { persistScope = true; persistDetail = true; }
+  if (_PREF_ONE_TURN_RE.test(t)) { persistScope = false; persistDetail = false; }   // "esta vez" siempre gana
 
   if (contentScope == null && detailLevel == null) return null;   // sin señal este turno → el llamador usa sesión/default
-  return { contentScope, detailLevel, persist };
+  return { contentScope, detailLevel, persistScope, persistDetail, persist: persistScope || persistDetail };
 }
 
 // _silentZeroSupuestoFaltante (owner 2026-07-31, hallazgo EN VIVO, #56 "simulate v2") — el doctrine de planPrompt.js
@@ -744,6 +828,132 @@ function _buildPendingSimulation(text, plan) {
   return { dimension: dimension || "cliente", entity: entities[0], entities, known: { campo: known.campo, delta_pct: known.delta_pct }, missingCampo };
 }
 
+/* ══ EL GUARD DE PERTINENCIA · LA SEGUNDA MITAD DE LA REGLA DEL PENDIENTE (owner 2026-08-11) ═══════════════════
+ * EL DEFECTO QUE CIERRA (medido, con atribución contra el árbol base): el ciclo de vida por estado le dio al
+ * pendiente 3 turnos de vida en vez de 1, pero el criterio que decide si un turno lo está CONTESTANDO se quedó
+ * como estaba — "trae un % con dirección y no nombra otra entidad conocida". Con 1 turno de vida eso era casi
+ * inalcanzable; con 3, es un camino normal de conversación. Repro exacto: t1 «Sube 7% el precio de Samsung» ·
+ * t2 «¿Qué margen tiene Sodimac?» · t3 «y si el costo de flete sube 4%, ¿cambia algo?» → el motor ejecutaba
+ * simulateGeneral(Samsung · precio +7% · unidades +4%) e imprimía una tabla sellada de cifras que el usuario no
+ * pidió. Preguntó por el flete y le contestaron una simulación de Samsung. Eso es FABRICAR un supuesto ajeno y
+ * atribuirlo a una entidad vieja — la misma clase de daño que el guard de entidad de más abajo existe para cerrar,
+ * reabierta por otro lado. El TTL acota CUÁNTO dura el pendiente; no impide que dispare mientras dura.
+ *
+ * LA REGLA: no alcanza con que el turno NO contradiga al pendiente. Hace falta evidencia POSITIVA de que lo está
+ * contestando, y sólo hay dos formas de tenerla:
+ *   (a) el turno NOMBRA la variable que falta — «el volumen baja 2%», «las unidades caen 6%», «el precio sube 5%»;
+ *   (b) el turno es una RESPUESTA PELADA — «baja 3%», «que suba un 5%», «no cambia»: el porcentaje y su dirección
+ *       y nada más. Una respuesta pelada sólo puede referirse a la pregunta abierta, porque no nombra ningún otro
+ *       sujeto del que pudiera estar hablando.
+ * Cualquier otra cosa —un % que viaja pegado a OTRO sustantivo (costo, flete, margen, competencia…)— es un turno
+ * nuevo, no una respuesta, y el pendiente sigue esperando (no se abandona: sigue vivo con un turno menos, ver el
+ * ciclo de vida en conversationScope.js). Falso negativo antes que falso positivo: si acá no resolvemos, PLAN
+ * corre normal y el usuario recibe la respuesta a lo que preguntó; si resolvemos de más, recibe una tabla de
+ * cifras sobre un supuesto que nunca dio.
+ *
+ * (b) SE DECIDE POR LISTA BLANCA, NO POR LISTA NEGRA. Una lista de "otras métricas" es imposible de completar
+ * (hoy flete, mañana bonificación, pasado tipo de cambio) y falla ABIERTA — justo del lado caro. La lista blanca
+ * es el vocabulario CERRADO con el que se contesta un porcentaje: conectores, determinantes, verbos de variación
+ * y el número. Si sobra una sola palabra de contenido, el turno no es una respuesta pelada. Falla CERRADA.
+ *
+ * ══ LA RAMA (a) TAMBIÉN FALLA CERRADA (owner 2026-08-11, segunda revisión adversarial) ═══════════════════════
+ * LA GRIETA MEDIDA: la rama (a) era `_VOCAB_FALTANTE[missing].test(t)` — CONTIENE la palabra, sin importar de
+ * QUIÉN sea el precio o la cantidad. Eso protegía la frase certificada («el COSTO de flete sube 4%») y no la
+ * clase: la MISMA conversación con «el PRECIO del flete» volvía a imprimir la tabla sellada de once filas de
+ * Samsung con un supuesto que el usuario nunca dio. 9/9 secuestros medidos con un solo sustantivo de distancia:
+ * precio del flete (también a t+2, con un paréntesis en el medio), tarifa de flete, precio del combustible,
+ * precio del dólar, precios de la competencia, cantidad de clientes activos, cantidad de días de stock, volumen
+ * de importaciones del país. La rama (b) fallaba cerrada; la rama (a), abierta — y era la mitad que el repro
+ * certificado ejercita.
+ *
+ * EL CIERRE, Y ES LA MISMA REGLA DE (b), NO UNA SEGUNDA: nombrar la variable que falta no alcanza; el turno tiene
+ * que ser una respuesta pelada UNA VEZ QUE SE LE SACA ESE NOMBRE. Se borran del texto (1) el vocabulario de la
+ * variable faltante y (2) los nombres de las entidades DEL PROPIO pendiente — hablar de la entidad que ya está
+ * en la mesa no introduce ningún sujeto nuevo—, y lo que queda tiene que pasar por la MISMA lista blanca cerrada
+ * de (b). «el volumen baja 2%» → «el baja 2%» → pelada, resuelve. «el precio del FLETE sube 4%» → «el del flete
+ * sube 4%» → sobra "flete", NO resuelve. No hay lista negra de métricas ajenas en ninguna parte: cualquier
+ * sustantivo que no sea la variable faltante ni la entidad del pendiente frena el turno, se llame flete,
+ * combustible, dólar, competencia, clientes activos, días de stock o importaciones. Falla CERRADA por
+ * construcción, igual que (b).
+ *
+ * SINÓNIMOS DE VOLUMEN (misma pasada): el residual medido mostró SIETE respuestas legítimas que se perdían por
+ * contestar con un sinónimo fuera de la lista — «las ventas caen 3%», «la demanda baja 4%», «se vende 5% menos»,
+ * «vendemos 3% menos», «salida 4% menor», «la rotación baja 3%», «que las ventas suban 2%». Todas contestan
+ * literalmente la pregunta que ADI hizo («¿cuánto esperás que cambie el volumen o las unidades vendidas?»). Se
+ * agregan al vocabulario de `unidades`. Ampliar el vocabulario YA NO ensancha la superficie de secuestro, porque
+ * la rama (a) dejó de ser "contiene la palabra": «las ventas de la competencia caen 3%» sigue frenado por
+ * "competencia" exactamente igual que antes. Ése es el punto del rediseño — el vocabulario puede crecer con los
+ * sinónimos reales del usuario sin que crezca el riesgo. */
+const _VOCAB_FALTANTE = {
+  precioLista: /\bprecios?\b|\blista\s+de\s+precios\b|\btarifas?\b|\bpvp\b|\bprecio\s+de\s+lista\b/i,
+  unidades: /\bunidad(?:es)?\b|\bvol[uú]men(?:es)?\b|\bcantidad(?:es)?\b|\bpiezas?\b|\bventas?\b|\bdemanda\b|\brotaci[oó]n\b|\bsalida\b|\bvend[eo]\b|\bvenden\b|\bvendemos\b|\bvendidas?\b|\bvendidos?\b/i,
+};
+// LA MISMA alternancia, global y con las frases largas primero, para PODAR el nombre de la variable del texto
+// antes de exigirle la lista blanca. El motor de regex recorre posiciones de izquierda a derecha, así que
+// "lista de precios" se consume entero al llegar a "lista" y nunca se parte en "precios" suelto.
+const _VOCAB_FALTANTE_PODA = {
+  precioLista: /\blista\s+de\s+precios\b|\bprecio\s+de\s+lista\b|\bprecios?\b|\btarifas?\b|\bpvp\b/gi,
+  unidades: /\bunidad(?:es)?\b|\bvol[uú]men(?:es)?\b|\bcantidad(?:es)?\b|\bpiezas?\b|\bventas?\b|\bdemanda\b|\brotaci[oó]n\b|\bsalida\b|\bvend[eo]\b|\bvenden\b|\bvendemos\b|\bvendidas?\b|\bvendidos?\b/gi,
+};
+// el vocabulario con el que se contesta "¿cuánto esperás que cambie X?" y NADA más. Sin acentos: el tokenizador
+// los quita antes de comparar, así una sola entrada cubre "más"/"mas" y "mantén"/"manten".
+const _PELADA_OK = new Set([
+  // conectores, determinantes, muletillas
+  "y", "o", "u", "si", "que", "un", "una", "unos", "unas", "el", "la", "los", "las", "de", "del", "al", "a", "en",
+  "con", "por", "para", "mas", "menos", "como", "sobre", "cerca", "casi", "aprox", "aproximadamente", "solo", "solo",
+  "apenas", "tal", "vez", "quiza", "quizas", "digamos", "pongamos", "supongamos", "asumi", "asumamos", "ok", "dale",
+  "bueno", "creo", "diria", "pone", "poneme", "ponele", "ahi", "eso", "esa", "ese", "algo", "nada", "no", "ni",
+  "sin", "se", "le", "les", "lo", "me", "mi", "es", "sea", "ser", "esta", "va", "van", "ira", "iran",
+  // pronombres y modales SIN contenido (medidos: «yo diría 3% menos» se perdía por el "yo"). Cada uno de éstos es
+  // vocabulario vacío — no nombra ningún sujeto ni ninguna métrica —, así que no ensancha la superficie de riesgo.
+  "yo", "te", "nos", "ya", "capaz", "seria", "serian", "podria", "podrian", "andaria", "calculo",
+  // verbos de ESTIMACIÓN y comparativos puros (medidos en el residual: «estimo 3% menos de volumen» y
+  // «salida 4% menor» se perdían por "estimo" y por "menor"). Ninguno nombra un sujeto ni una métrica.
+  "estimo", "estimamos", "estimaria", "estimariamos", "menor", "menores", "mayor", "mayores",
+  // verbos y sustantivos de VARIACIÓN (la respuesta misma)
+  "sube", "suba", "suban", "suben", "subir", "subo", "subiendo", "subiria", "subirian",
+  "baja", "baje", "bajen", "bajan", "bajar", "bajo", "bajando", "bajaria", "bajarian",
+  "cae", "caen", "caiga", "caigan", "caer", "cayendo", "caeria", "caerian",
+  "crece", "crecen", "crezca", "crezcan", "crecer", "creceria",
+  "aumenta", "aumenten", "aumente", "aumentan", "aumentar", "aumento",
+  "disminuye", "disminuya", "disminuyan", "disminuir", "reduce", "reduzca", "reducir", "recorta", "recorte",
+  "cambia", "cambie", "cambien", "cambian", "cambiar", "cambio", "cambios",
+  "mantiene", "mantienen", "mantenga", "mantengan", "mantener", "manten", "mantene", "queda", "quedan", "quede",
+  "igual", "iguales", "mismo", "misma", "estable", "plano", "planas",
+  "punto", "puntos", "ciento", "porciento", "pp", "porcentual", "porcentuales",
+]);
+const _SOLO_NUM_RE = /^[+\-−–]?\d+(?:[.,]\d+)?%?$/;
+function _esRespuestaPelada(t) {
+  const tokens = String(t || "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")   // sin diacríticos: "más"→"mas", "mantén"→"manten"
+    .toLowerCase()
+    .replace(/[¿?¡!.,;:()"'`]/g, " ")
+    .split(/\s+/).filter(Boolean);
+  if (!tokens.length) return false;
+  return tokens.every((w) => _SOLO_NUM_RE.test(w) || _PELADA_OK.has(w));
+}
+// _contestaElSupuestoFaltante(text, missingCampo, propias) → ¿hay evidencia POSITIVA de que este turno contesta la
+// pregunta que quedó abierta? Es lo único que autoriza a resolver el pendiente sin pasar por PLAN.
+// `propias` = nombres (en minúscula) de las entidades DEL PENDIENTE. Se podan junto con el nombre de la variable
+// porque no introducen ningún sujeto nuevo: la entidad ya está en la mesa desde el turno que abrió el pendiente
+// («el volumen de Samsung baja 2%» contesta tan derecho como «el volumen baja 2%»). Cualquier OTRA entidad ya
+// fue rechazada antes de llegar acá, por el chequeo de índice del llamador.
+function _contestaElSupuestoFaltante(t, missingCampo, propias) {
+  const s = String(t || "");
+  const propio = _VOCAB_FALTANTE[missingCampo];
+  if (propio && propio.test(s)) {
+    // (a) nombra la variable que falta — y NADA MÁS que ella: se la poda y lo que queda tiene que ser pelado.
+    const poda = _VOCAB_FALTANTE_PODA[missingCampo];
+    let resto = poda ? s.replace(poda, " ") : s;
+    for (const nombre of (propias instanceof Set ? propias : [])) {
+      if (!nombre) continue;
+      resto = resto.replace(new RegExp(`\\b${String(nombre).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi"), " ");
+    }
+    if (_esRespuestaPelada(resto)) return true;
+  }
+  return _esRespuestaPelada(s);                // (b) el porcentaje y su dirección, nada más
+}
+
 // _resolvePendingSimulation(text, pending) → {variableA,variableB} | null — intenta resolver la respuesta del
 // usuario contra la simulación pendiente. DISTINCIÓN explícita (owner, punto 2 del pedido de certificación):
 // "0%"/"sin cambio"/"no cambia"/"queda igual"/"se mantiene"/"mantén" → delta_pct=0 LEGÍTIMO (el usuario respondió,
@@ -772,6 +982,9 @@ function _resolvePendingSimulation(text, pending) {
       }
     }
   } catch { /* sin índice disponible: no se juzga */ }
+  // …Y SI NO HAY EVIDENCIA POSITIVA DE QUE ESTÁ CONTESTANDO, TAMPOCO ESTÁ CONTESTANDO (ver el bloque de arriba).
+  // Esta línea es la que impide el pendiente ZOMBI mientras el pendiente VIVE — el TTL sólo acota cuánto vive.
+  if (!_contestaElSupuestoFaltante(t, pending.missingCampo, propias)) return null;
   let missingDelta;
   if (ZERO_EXPLICIT_RE.test(t)) missingDelta = 0;
   else {
@@ -782,6 +995,69 @@ function _resolvePendingSimulation(text, pending) {
   const missingVar = { campo: pending.missingCampo, delta_pct: missingDelta };
   const knownVar = pending.known;
   return knownVar.campo === "precioLista" ? { variableA: knownVar, variableB: missingVar } : { variableA: missingVar, variableB: knownVar };
+}
+
+/* ══ LA CAUSA DEL RECHAZO DETERMINÍSTICO · UN CÓDIGO, JAMÁS UN TEXTO (owner 2026-08-11) ════════════════════════
+ * El emisor de telemetría del batch decía "rechazado" y dejaba `reasonCode` en null: la corrida medida tiene 10
+ * eventos así, y un rechazo sin causa no se puede contar ni corregir. La causa YA existía en el turno —
+ * `unsupported`, que runPlan devuelve junto al ledger— pero nadie la hilaba hasta el evento.
+ *
+ * POR QUÉ NO SE PASA `unsupported[].reason` TAL CUAL, que sería lo cómodo: esas razones son PROSA del motor y
+ * nombran entidades del cliente («margen y rotación no se miden juntas por cliente…», «"Falabella" no existe en
+ * ese eje»). El candado de telemetry.js es explícito — la causa viaja como código de LISTA CERRADA, nunca texto
+ * libre — y mandar la frase para que `aReasonCode` la clasifique allá sería confiar en que un regex de siete
+ * entradas no se equivoque con nuestra propia prosa (una razón que diga "entidad" saldría clasificada como
+ * `guard_rejected`, que es falso). Se clasifica ACÁ, contra el REGISTRO REAL de tools (`getToolsDeclaradas`, la
+ * misma lista cerrada que telemetry.js ya usa para validar el campo `tools`, poblada por toolRunner.js al cargar),
+ * y sale un literal del enum. El texto de `reason` nunca se lee ni cruza el límite del módulo. Registrar en vez de
+ * copiar: una lista de tools escrita acá se desincronizaría con toolRegistry.js a la primera tool nueva.
+ *
+ * EL LÍMITE, declarado y no disimulado: REASON_CODES no tiene ningún código para "las tools corrieron y el dato
+ * no cubre lo que se preguntó", que es la causa MÁS FRECUENTE acá. Inventar un código exige editar telemetry.js
+ * (otro dueño), así que ese caso sale como `unknown` — que es exactamente lo que el contrato de ese módulo manda
+ * hacer con lo que no está en la lista. Es una mejora honesta sobre `null` (el evento ya no miente diciendo que no
+ * hubo causa), no la clasificación completa. */
+function _causaDeterministica(calls, unsupported) {
+  const u = Array.isArray(unsupported) ? unsupported : [];
+  // el plan no dejó NINGUNA call ejecutable: no hay evidencia porque no se pidió ninguna.
+  if (!Array.isArray(calls) || !calls.length) return "invalid_plan";
+  // el plan nombró una tool que el motor no tiene. FALLA ABIERTA a propósito: sin registro disponible no se
+  // afirma que la tool sea inválida — se cae a `unknown`, nunca a una acusación que no se puede sostener.
+  const declaradas = getToolsDeclaradas();
+  if (declaradas.length) {
+    const conocidas = new Set(declaradas);
+    if (u.some((x) => x && !conocidas.has(String(x.tool)))) return "invalid_plan";
+  }
+  return "unknown";
+}
+
+// ── EL ABANDONO EXPLÍCITO (owner 2026-08-11, cierre de D3) ──────────────────────────────────────────────────────
+// Con el pendiente muriendo por ESTADO y no por calendario, hace falta la puerta de salida que antes daba el
+// calendario: si el usuario dice que lo deje, se deja. Red DETERMINÍSTICA angosta, con la misma disciplina que el
+// resto de las regex de este archivo (_CLARIFY_RE/_PREF_*): sólo frases inequívocas de descarte, nunca una
+// negación cualquiera ("no" a secas es una respuesta, no un abandono) ni un cambio de tema (ese NO abandona nada:
+// es exactamente el caso que este fix existe para preservar).
+// AMPLIACIÓN (owner 2026-08-11, hallazgo de la revisión adversarial): la puerta de salida no enganchaba con dos
+// redacciones evidentes — «Descartá esa simulación.» y «Ya no me interesa ese escenario.» dejaban el pendiente
+// VIVO. Se agregan con la MISMA disciplina angosta: el verbo exige su objeto (un pronombre o el sustantivo del
+// escenario), nunca suelto — «descartá los SKU sin venta» es una instrucción sobre el DATO y no puede leerse como
+// un abandono; el objeto obligatorio es lo único que separa las dos cosas.
+const _ABANDONA_PENDIENTE_RE = /\bolvid[aá](?:lo|te\s+de\s+eso|emos)?\b|\bolvida\s+eso\b|\bd[eé]jalo\b|\bdej[aá]\s+(?:eso|el\s+escenario)\b|\bno\s+importa\b|\bcancel[aá](?:lo|\s+eso)?\b|\bmej[oó]r\s+no\b|\bdescart[aá](?:lo|\s+(?:eso|es[ae]\s+(?:escenario|simulaci[oó]n|supuesto)))\b|\bya\s+no\s+me\s+interesa\b/i;
+
+// _preguntaPorFaltante(missingCampo) → la pregunta EXACTA por el supuesto que falta. UNA sola redacción para los
+// tres puntos que la emiten (el arm "future", el arm "future_multi" y la red de 0% silencioso): tres copias del
+// mismo string son tres oportunidades de que diverjan, y el texto de esta pregunta es parte del contrato con el
+// usuario — es lo que el turno siguiente tiene que poder contestar.
+function _preguntaPorFaltante(missingCampo) {
+  return missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
+}
+// _recordatorioPendiente(pending) — la respuesta a una aceptación ("dale") cuando NO hay oferta que ejecutar pero
+// SÍ hay una simulación esperando un supuesto. Cierra el turno AUTOCONTRADICTORIO que la certificación cazó: ADI
+// destruía el pendiente y en el mismo acto contestaba "no tengo un contexto previo para saber a qué te referís",
+// un turno después de haber hecho ella misma la pregunta abierta. Sin cifras y sin nombrar entidades (mismo
+// criterio que el resto de los textos de bypass): lo único que aporta es volver a pedir lo que falta.
+function _recordatorioPendiente(pending) {
+  return `Sigo esperando un supuesto para cerrar la simulación que empezamos: ${_preguntaPorFaltante(pending.missingCampo)}`;
 }
 
 // _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
@@ -823,10 +1099,14 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario, conser
       mem: { ...mem, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) },
     };
   }
-  // pendingSimulation SIEMPRE se limpia acá por defecto (owner 2026-07-31): ninguno de estos bypasses (aceptación
-  // huérfana, retorno ambiguo) continúa una simulación pendiente — el caller de supuestos_faltantes (el ÚNICO que
-  // SÍ arma una nueva) la restaura explícito después de llamar a esta función.
-  let mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
+  // pendingSimulation SOBREVIVE estos bypasses, un turno más viejo (owner 2026-08-11, corrigiendo la regla de
+  // 2026-07-31 que la limpiaba acá SIEMPRE). Ninguno de estos bypasses CONTESTA la simulación pendiente — pero
+  // ninguno la abandona tampoco: pedir una precisión, guardar un criterio o aceptar algo huérfano son paréntesis,
+  // no renuncias. Borrarla acá era destruir el contexto EN EL MISMO ACTO en que se pide precisión sobre él, y el
+  // usuario no tenía forma de volver. Lo que sí gasta es plazo: el TTL corre igual, así que un pendiente olvidado
+  // muere solo. El caller de supuestos_faltantes/escenario (los ÚNICOS que arman uno nuevo) lo sobreescribe
+  // explícito después de llamar a esta función, igual que antes.
+  let mem2 = { ...mem, lastOffer: null, pendingSimulation: envejecerPendingSimulation(mem && mem.pendingSimulation), recentNarrations: [text, ...recentNarrationsPrev].slice(0, 2) };
   // Etapa 4 (owner 2026-08-04) — SYNC del lado canónico: lastOffer=null tiene que reflejarse TAMBIÉN en
   // conversationScope.current.ofertaPendiente, o el turno SIGUIENTE (getLastOffer) leería el valor STALE de un
   // turno anterior (fromScope gana por precedencia sobre el shim mem.lastOffer — ver dialogueState.js) y un "sí"
@@ -917,10 +1197,31 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   let conversationScopePrev = (mem && mem.conversationScope && typeof mem.conversationScope === "object") ? mem.conversationScope : emptyConversationScope();
   // pendingSimulation (ver el bloque grande junto a _hasCompleteSimulateVars): intenta resolver la respuesta de
   // ESTE turno contra la simulación de 2 variables que quedó pendiente. resolvedPendingSim==null → o no había
-  // pendiente, o el texto no la contesta (cambio de tema, "no sé") — el llamador ABANDONA el pendiente (nunca lo
-  // fuerza) y PLAN corre normal más abajo, como si nunca hubiera existido.
-  const pendingSimulationPrev = (mem && mem.pendingSimulation && typeof mem.pendingSimulation === "object") ? mem.pendingSimulation : null;
-  const resolvedPendingSim = pendingSimulationPrev ? _resolvePendingSimulation(q, pendingSimulationPrev) : null;
+  // pendiente, o el texto no la contesta (cambio de tema, "no sé") — el turno NO la resuelve y PLAN corre normal
+  // más abajo. OJO (owner 2026-08-11): "no la resuelve" YA NO significa "la borra" — ver el ciclo de vida por
+  // estado en conversationScope.js. Acá se juzga el pendiente UNA sola vez, y el resultado se escribe de vuelta en
+  // `mem` para que TODO lo que sigue (los bypasses, el payload de PLAN/NARRAR, la memoria del turno) vea el MISMO
+  // pendiente ya juzgado — un pendiente vencido o abandonado no puede seguir vivo en un rincón del turno.
+  const pendingSimulationPrev = _ABANDONA_PENDIENTE_RE.test(q)
+    ? null   // el usuario lo descartó con todas las letras: se abandona acá, antes de que nadie más lo mire
+    : pendingSimulationVigente(mem && mem.pendingSimulation);
+  if (pendingSimulationPrev !== ((mem && mem.pendingSimulation) || null)) mem = { ...(mem || {}), pendingSimulation: pendingSimulationPrev };
+  // EL TURNO QUE DECLARA SU PROPIO ESCENARIO NO ESTÁ CONTESTANDO EL PENDIENTE (owner 2026-08-11). "Sube 8% el
+  // precio de Sodimac" trae campo+% Y entidad: es un escenario nuevo (o una corrección del mismo), no la respuesta
+  // a "¿cuánto cambia el volumen?". Sin esta distinción, con el pendiente vivo, _resolvePendingSimulation le
+  // asignaría ese 8% a la variable FALTANTE (el volumen) — el usuario diría "precio" y el motor entendería
+  // "volumen". Se resuelve con el MISMO detector determinístico que ya gobierna la entrada a simulate v2, nunca
+  // con una segunda lectura del texto: si el turno declara escenario, va por la vía de fusión de más abajo.
+  const scenarioIntent = detectScenarioIntent(q, conversationScopePrev.current);
+  const declaraEscenarioPropio = scenarioIntent.kind === "future" || scenarioIntent.kind === "future_multi";
+  // fusión con el pendiente vivo — la REGLA DE PRECEDENCIA (misma entidad → completar/actualizar · otra entidad →
+  // reemplazar), que es lo que impide que el pendiente se re-arme DEGRADADO perdiendo el supuesto ya aportado.
+  const fusionEscenario = (pendingSimulationPrev && declaraEscenarioPropio)
+    ? fusionarPendientes(pendingSimulationPrev, pendienteDesdeEscenario(scenarioIntent))
+    : null;
+  const resolvedPendingSim = (fusionEscenario && fusionEscenario.accion === "completa")
+    ? fusionEscenario.vars   // el turno aportó justo la variable que faltaba: la simulación ya está completa
+    : (pendingSimulationPrev && !declaraEscenarioPropio) ? _resolvePendingSimulation(q, pendingSimulationPrev) : null;
 
   // ── MEMORIA DE CRITERIO (owner 2026-07-07 C.2 · fix 2026-07-31 [[adi-oraculo-criterio-no-invocado]]) — "recordá
   // que mi margen mínimo es 25%" nunca invocaba setCriterion/setBenchmarkOverride por esta ruta: PLAN corría normal,
@@ -937,7 +1238,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const criteriaIntent = detectCriteriaIntent(q);
   if (criteriaIntent) {
     const cr = composeCriteria(criteriaIntent);
-    let mem2 = { ...mem, lastOffer: null, pendingSimulation: null, recentNarrations: [cr.text, ...recentNarrationsPrev].slice(0, 2) };
+    // pendingSimulation SOBREVIVE (owner 2026-08-11, mismo cambio que en _composedBypassResult): fijar un criterio
+    // ("recordá que mi margen mínimo es 25%") ni siquiera es un cambio de tema — es una preferencia, y no tiene
+    // nada que decir sobre la simulación que quedó a medio armar. Borrarla acá era el caso más absurdo de los
+    // tres: cero llamadas al proveedor, cero relación con el escenario, y el pendiente igual moría.
+    let mem2 = { ...mem, lastOffer: null, pendingSimulation: envejecerPendingSimulation(pendingSimulationPrev), recentNarrations: [cr.text, ...recentNarrationsPrev].slice(0, 2) };
     // Etapa 4 (owner 2026-08-04) — mismo SYNC que _composedBypassResult: lastOffer=null también limpia el lado
     // canónico, para que getLastOffer no resucite una oferta ya invalidada por este bypass.
     if (mem2.conversationScope) mem2 = { ...mem2, conversationScope: withOfertaPendiente(mem2.conversationScope, null) };
@@ -961,8 +1266,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // anterior — exactamente lo que esto cierra. Bypasea PLAN/BATCH/NARRAR ENTERO, nunca narra libre (mismo principio
   // de garantía-por-construcción que data_only/results_only): si guardC rechazara el mensaje fijo (no debería, es
   // prosa sin cifras ni entidades), cae de largo a PLAN normal en vez de abstenerse en silencio.
+  // NO ES HUÉRFANA SI ADI DEJÓ UNA PREGUNTA ABIERTA (owner 2026-08-11, turno autocontradictorio de la
+  // certificación): con una simulación esperando un supuesto, "dale" no cae en el vacío — el contexto previo
+  // EXISTE y es de ADI misma. Contestar "no tengo un contexto previo para saber a qué te referís" mientras se
+  // borra ese mismo contexto es la única respuesta que no puede ser cierta. Se le recuerda qué falta, que es lo
+  // que "dale" no alcanza a contestar (no es una respuesta al supuesto: es un sí a nada concreto).
   if (isAcceptance(q) && !priorOffer) {
-    const composed = composeOrphanAcceptance(recentSubjectsPrev);
+    const composed = pendingSimulationPrev ? _recordatorioPendiente(pendingSimulationPrev) : composeOrphanAcceptance(recentSubjectsPrev);
     const out = _composedBypassResult(composed, mem, recentNarrationsPrev, scenario);
     if (out) return out;
   }
@@ -1007,10 +1317,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // no acaba de resolver una simulación YA pendiente (resolvedPendingSim): si el turno actual SÍ la resolvió, esa
   // toma precedencia entera, sin tocar nada de esto.
   if (!resolvedPendingSim) {
-    // scopeCurrent (Etapa 3, ver scenarioIntent.js): el MISMO conversationScope.current que Etapa 1 ya resuelve
-    // para deícticos de lectura — acá se lo pasamos al detector para que "estos SKU"/"esos clientes" también
-    // resuelva ANTES de simular, no solo para leer. detectScenarioIntent es puro (nunca muta esto).
-    const scenarioIntent = detectScenarioIntent(q, conversationScopePrev.current);
+    // scenarioIntent (Etapa 3, ver scenarioIntent.js) YA está resuelto arriba, con el MISMO conversationScope.
+    // current que Etapa 1 usa para deícticos de lectura — se calcula una sola vez por turno porque ahora también
+    // gobierna la fusión con el pendiente vivo (ver `fusionEscenario`), y dos llamadas al mismo detector puro
+    // serían dos lugares donde el turno podría leerse distinto a sí mismo.
     // "no_entity": campo+% inequívoco, pero NINGUNA entidad conocida nombrada EN ESTE TEXTO ni resoluble vía
     // conversationScope (scenarioIntent.js ya lo intentó — ver "future_multi" abajo) — nunca se asume cartera
     // completa en silencio (la falla #2, invertida: sin entidad tampoco se adivina, se pregunta). PERO (owner
@@ -1034,13 +1344,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // "future": campo+% inequívoco Y una entidad conocida — la falla #1 (nunca entraba a simulateGeneral) y la
     // falla #2 (alcance perdido) son estructuralmente imposibles acá: la entidad la puso este detector determinístico,
     // nunca el LLM. Arma pendingSimulation directo (mismo shape que el camino existente) y pregunta SOLO lo que falta.
+    // EL PENDIENTE VIVO NO SE PISA, SE FUSIONA (owner 2026-08-11): si ya había una simulación esperando un
+    // supuesto sobre la MISMA entidad, este turno la ACTUALIZA (re-declaró el mismo supuesto con otro número) en
+    // vez de re-armarla desde cero — que era la degradación medida: el pendiente de Sodimac con precio +8% quedaba
+    // reemplazado por uno con volumen 0%, y el +8% que el usuario había dado desaparecía sin que nadie lo dijera.
+    // El caso "completa" (aportó justo la variable que faltaba) ni llega acá: `resolvedPendingSim` ya lo reclamó
+    // arriba y este bloque entero está gateado por él.
     if (scenarioIntent.kind === "future") {
       const { entity, dimension, variable } = scenarioIntent;
-      const missingCampo = variable.campo === "precioLista" ? "unidades" : "precioLista";
-      const pregunta = missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
-      const out = _composedBypassResult(`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+      const nuevo = { dimension: dimension || "cliente", entity, entities: [entity], known: variable, missingCampo: variable.campo === "precioLista" ? "unidades" : "precioLista" };
+      const fusionado = (fusionEscenario && fusionEscenario.pending) || nacePendingSimulation(nuevo);
+      const out = _composedBypassResult(`${_preguntaPorFaltante(fusionado.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
       if (out) {
-        out.mem = { ...out.mem, pendingSimulation: { dimension: dimension || "cliente", entity, entities: [entity], known: variable, missingCampo } };
+        out.mem = { ...out.mem, pendingSimulation: fusionado };
         return out;
       }
     }
@@ -1052,11 +1368,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // entidad: "preguntar SOLO por el supuesto realmente faltante", pedido explícito del owner).
     if (scenarioIntent.kind === "future_multi") {
       const { entities, dimension, variable } = scenarioIntent;
-      const missingCampo = variable.campo === "precioLista" ? "unidades" : "precioLista";
-      const pregunta = missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
-      const out = _composedBypassResult(`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+      const nuevo = { dimension: dimension || "cliente", entity: entities[0], entities, known: variable, missingCampo: variable.campo === "precioLista" ? "unidades" : "precioLista" };
+      const fusionado = (fusionEscenario && fusionEscenario.pending) || nacePendingSimulation(nuevo);
+      const out = _composedBypassResult(`${_preguntaPorFaltante(fusionado.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
       if (out) {
-        out.mem = { ...out.mem, pendingSimulation: { dimension: dimension || "cliente", entity: entities[0], entities, known: variable, missingCampo } };
+        out.mem = { ...out.mem, pendingSimulation: fusionado };
         return out;
       }
     }
@@ -1430,7 +1746,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // existen y nunca llegan al narrador. Esconder la tabla en la UI no ahorraría un solo token.
   const _disclosure = podarPlanProgresivo(plan, q);
   plan = _disclosure.plan;
-  const calls = plan.calls;
+  // `let` (owner 2026-08-11): la fusión con la simulación pendiente puede completar el plan de este turno —
+  // ver el bloque de supuestos_faltantes justo abajo. Nadie más lo reasigna.
+  let calls = plan.calls;
 
   // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido
   // de simulación de 2 variables con UNA sola nombrada (ver planPrompt.js) — esto corta ANTES del batch, sin tocar
@@ -1444,7 +1762,27 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     : (Array.isArray(plan.supuestos_faltantes) && plan.supuestos_faltantes.length)
     ? plan.supuestos_faltantes
     : _silentZeroSupuestoFaltante(q, calls);
-  if (supuestosFaltantes && supuestosFaltantes.length) {
+  // ── NO SE PREGUNTA DOS VECES LO MISMO (owner 2026-08-11, la otra mitad de D3) ─────────────────────────────────
+  // El arm "future" de arriba cubre el turno cuyo texto declara escenario de forma INEQUÍVOCA (el detector
+  // determinístico). Este es su gemelo del lado del planificador: cuando PLAN pide el supuesto que falta teniendo
+  // una simulación pendiente VIVA de la MISMA entidad que ya aportaba la OTRA variable, entre los dos turnos están
+  // los dos supuestos — preguntar de nuevo sería pedirle al usuario un dato que ya dio. Se completa el plan acá,
+  // ANTES del batch, con el MISMO shape sintético que usa la resolución del pendiente (una sola forma de armar una
+  // simulación de dos variables en todo el archivo), y el turno sigue de largo: batch, narrador y guard normales.
+  // Es angosto por construcción: exige pendiente vivo + entidades idénticas + campos complementarios.
+  let pendienteCompletado = false;
+  if (supuestosFaltantes && supuestosFaltantes.length && pendingSimulationPrev && !resolvedPendingSim) {
+    const fus = fusionarPendientes(pendingSimulationPrev, _buildPendingSimulation(q, plan));
+    if (fus.accion === "completa") {
+      const ents = (Array.isArray(fus.pending.entities) && fus.pending.entities.length) ? fus.pending.entities : [fus.pending.entity];
+      plan = { ...plan, mode: "simulacion",
+        scope: { level: ents.length > 1 ? "list" : "entity", entities: ents, ...(fus.pending.dimension ? { dimension: fus.pending.dimension } : {}) },
+        calls: [{ tool: "simulateGeneral", args: { dimension: fus.pending.dimension, ...(ents.length > 1 ? {} : { entity: ents[0] }), ...fus.vars } }] };
+      calls = plan.calls;
+      pendienteCompletado = true;
+    }
+  }
+  if (supuestosFaltantes && supuestosFaltantes.length && !pendienteCompletado) {
     // el texto lo redacta el LLM del PLAN (o la red, si el LLM asumió 0% en silencio) — no una prosa fija
     // nuestra, así que pasa por el MISMO lavado de registro que la Pasada 2 (nunca "plata"/"dormido"/relleno),
     // aunque nunca llegue a invocar al narrador libre.
@@ -1453,9 +1791,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (out) {
       // mem.pendingSimulation: guarda la variable YA conocida + cuál falta, para que el turno SIGUIENTE la
       // resuelva determinísticamente (ver el bloque grande más arriba) en vez de depender de que PLAN reconstruya
-      // entidad+variables del texto crudo de la ventana de historia. _composedBypassResult ya la limpia por
-      // defecto — acá la restauramos SOLO si se pudo armar (si no, queda null, comportamiento sin cambios).
-      out.mem = { ...out.mem, pendingSimulation: _buildPendingSimulation(q, plan) };
+      // entidad+variables del texto crudo de la ventana de historia. LA PRECEDENCIA la decide fusionarPendientes
+      // (conversationScope.js), nunca este punto: misma entidad → se actualiza el supuesto sin perder el viejo;
+      // otra entidad → se reemplaza; sin nada nuevo que armar → sobrevive el que había, un turno más viejo.
+      const fus = fusionarPendientes(pendingSimulationPrev, _buildPendingSimulation(q, plan));
+      out.mem = { ...out.mem, pendingSimulation: fus.accion === "conserva" ? envejecerPendingSimulation(fus.pending) : fus.pending };
       return out;
     }
   }
@@ -1495,13 +1835,36 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // qué mecanismo/nivel de aclaración ya estaba establecido, aunque guardC sí lo chequeara bien por separado.
   if (Object.keys(mechanismMemory).length) mem2 = { ...mem2, mechanismByEntity: mechanismMemory };
   mem2 = { ...mem2, clarifyStreak: clarifyStreakNow };
-  // pendingSimulation SIEMPRE se limpia acá, por defecto (mismo motivo que mechanismByEntity/clarifyStreak arriba:
-  // applyMemoryUpdate no preserva claves ajenas cuando el LLM además emite un memoryUpdate) — este turno YA la
-  // consumió (resolvedPendingSim la resolvió, ver el plan sintético de arriba) o la abandonó (el texto no la
-  // contestaba) — en NINGÚN caso de los que llegan hasta acá corresponde que sobreviva al turno siguiente.
-  mem2 = { ...mem2, pendingSimulation: null };
+  // ── LA SIMULACIÓN PENDIENTE MUERE POR ESTADO, NO POR CALENDARIO (owner 2026-08-11) ────────────────────────────
+  // Acá vivía la regla que causaba el defecto: `pendingSimulation: null`, incondicional, con el argumento de que
+  // "este turno ya la consumió o la abandonó". La segunda mitad era falsa — un turno que no contesta la pregunta
+  // tampoco la abandona: cambiar de tema, pedir una aclaración o guardar un criterio son paréntesis. Medido: el
+  // usuario volvía con el supuesto que faltaba y ADI le preguntaba de nuevo el precio que él ya había dado.
+  // Las cuatro razones por las que ahora muere, en orden de precedencia:
+  //   1. SE RESOLVIÓ — este turno contestó el supuesto (o lo completó fusionando) y la simulación ya corrió.
+  //   2. UNA CORRECCIÓN LO INVALIDÓ — §1 del Contrato v1.2: "no, era Jumbo" lo reescribe hacia la entidad
+  //      corregida (el supuesto que el usuario ya dio sigue siendo suyo) o lo mata si el alcance dejó de ser
+  //      puntual. Se lee del MISMO objeto `_reparacion` que ya invalidó oferta y temas recientes, nunca de una
+  //      segunda lectura del texto.
+  //   3. SE LE ACABÓ EL PLAZO — el TTL corre en cada turno que no lo resuelve; ver conversationScope.js.
+  //   4. (fuera de acá) SE REEMPLAZÓ o el usuario lo descartó explícito — ver fusionarPendientes y
+  //      _ABANDONA_PENDIENTE_RE, ambos resueltos antes de llegar a este punto.
+  // Sigue reinyectándose en `mem2` por el mismo motivo que mechanismByEntity/clarifyStreak: applyMemoryUpdate no
+  // puede ser la que decida el ciclo de vida de una clave que no administra.
+  mem2 = { ...mem2, pendingSimulation: (resolvedPendingSim || pendienteCompletado)
+    ? null
+    : envejecerPendingSimulation(repararPendingSimulation(pendingSimulationPrev, _reparacion, plan)) };
   if (sessionPrefPrev) mem2 = { ...mem2, responsePref: sessionPrefPrev };   // sobrevive applyMemoryUpdate, igual que mechanismByEntity
-  if (turnPref && turnPref.persist) mem2 = { ...mem2, responsePref: { contentScope: pref.contentScope, detailLevel: pref.detailLevel } };
+  // SE PERSISTE SÓLO EL EJE QUE EL TURNO AUTORIZÓ (owner 2026-08-11, ver _coercePref): el eje no autorizado
+  // conserva lo que la sesión ya tenía — nunca se arrastra a la sesión un valor que este turno resolvió para sí
+  // mismo. Sin esto, "hablame directo" (registro) congelaba el alcance del contenido de todos los turnos que
+  // siguieran, y el usuario quedaba encerrado en "solo el dato" sin haberlo pedido.
+  if (turnPref && (turnPref.persistScope || turnPref.persistDetail)) {
+    mem2 = { ...mem2, responsePref: {
+      contentScope: turnPref.persistScope ? pref.contentScope : ((sessionPrefPrev && sessionPrefPrev.contentScope) || "full"),
+      detailLevel: turnPref.persistDetail ? pref.detailLevel : ((sessionPrefPrev && sessionPrefPrev.detailLevel) || "standard"),
+    } };
+  }
   // Fase 3 (owner 2026-07-30): lastOffer/recentSubjects sobreviven applyMemoryUpdate por la MISMA razón de arriba —
   // si no, el narrador (mem: mem2 en el loop de abajo) perdería de vista la oferta/temas recientes en CUALQUIER
   // turno donde el LLM además emita un memoryUpdate, una inconsistencia dependiente de un codepath ajeno. Ambos se
@@ -1537,9 +1900,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // certificación no pudo decir qué tools corrieron porque nadie lo emitía. Etapa "deterministica" (ya declarada
   // en telemetry.js) porque no hay proveedor de por medio: el batch es puro y gratis.
   // OBSERVACIÓN PURA: con el sink apagado —el default— no hace absolutamente nada, y `emit` nunca lanza.
+  // LA CAUSA VIAJA CON EL RECHAZO (owner 2026-08-11, residual del frente de instrumentación). Este emisor armaba
+  // `resultado: "rechazado"` y NO pasaba motivo — son los 10 eventos «rechazado con la causa en NULL» de la corrida
+  // medida, y el dato que faltaba estaba a ocho líneas de acá: `unsupported`, que runPlan ya calcula. Un rechazo sin
+  // causa no se puede contar ni corregir; con causa, sí. Ver `_causaDeterministica` para por qué es un CÓDIGO.
+  const _rechazado = !results.some((r) => r && r.coverage && r.coverage.supported === true);
   emitTelemetria({
     traceId: nuevoTraceId(), etapa: "deterministica", intento: 0, ruta_deterministica: true,
-    resultado: results.some((r) => r && r.coverage && r.coverage.supported === true) ? "ok" : "rechazado",
+    resultado: _rechazado ? "rechazado" : "ok",
+    ...(_rechazado ? { reasonCode: _causaDeterministica(calls, unsupported) } : {}),
     tools: results.map((r) => r && r.tool).filter(Boolean),
   });
   // DIVULGACIÓN PROGRESIVA · segunda poda, sobre el LEDGER: del capital ligado se conserva el subtotal y el monto
@@ -1624,6 +1993,29 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = det; deterministic = true; }
   }
 
+  // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
+  //   forbidden · perfil general — el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha
+  //   required  · pidió tabla / mes a mes / desglose — responder eso en prosa también es incumplir
+  //   auto      · el resto — deciden los detectores de forma del prompt; el guard no juzga
+  // No es una sugerencia: viaja sellada en el contrato (politicaExtension.tablePolicy) y guardC valida LA
+  // DECIDIDA. `required` gana sobre `forbidden`: si el usuario pidió la tabla, se le tabula lo que haya.
+  // SE RESUELVE ACÁ, ANTES DE LA RAMA data_only/results_only (owner 2026-08-11, corrigiendo el ORDEN). Vivía 30
+  // líneas más abajo, junto a su único consumidor (el payload de NARRAR) — y ese orden hacía la política INERTE
+  // para toda la familia de turnos de alcance restringido: la rama de abajo resuelve la narración ENTERA desde
+  // composeFromLedger (una tabla) y ya no se vuelve a mirar quién decidió la forma. La política de forma no puede
+  // computarse DESPUÉS de que la forma ya se emitió. No depende de nada que se derive más abajo: sólo del texto
+  // del turno y de la poda, los dos resueltos antes del batch.
+  const tablePolicy = resolveTablePolicy({ text: q, podado: _disclosure.podado });
+  // LA ORDEN DEL USUARIO, AISLADA DE LA INFERENCIA DEL MOTOR: la misma función con la poda VACÍA. Una `forbidden`
+  // que viene de la PODA es una inferencia nuestra (el detalle no viajó) y no autoriza a cambiarle la forma a un
+  // turno de dato; una que viene del TEXTO es una orden, y las órdenes se cumplen.
+  // CINTURÓN CONTRA EL FALSO POSITIVO AJENO: además se exige que el turno no haya pedido la tabla con todas las
+  // letras. Los detectores de prohibición son de otro dueño y pueden sobre-disparar (una negación sobre una
+  // COLUMNA no es una negación de la TABLA); si el turno dice «dame la tabla», acá no se le quita, pase lo que
+  // pase río arriba. Antes falso negativo que falso positivo.
+  const _formaProhibidaPorElUsuario = resolveTablePolicy({ text: q, podado: [] }) === "forbidden"
+    && !pidePresentacionTabular(q);
+
   // ── data_only / results_only: GARANTÍA POR CONSTRUCCIÓN, SIN EXCEPCIÓN (owner 2026-07-29, residuales 2 y 3) ──
   // "[[DATOS]] Ventas: $100M. Te recomiendo renegociar con Falabella." — una etiqueta correcta no garantiza que el
   // CONTENIDO adentro sea del tipo correcto; el renderer de bloques por sí solo NO cierra ese hueco. La única forma
@@ -1649,12 +2041,32 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // nombre apenas corrido de su forma canónica para que el guard lo lea como entidad corrupta. Por eso se prueba
   // PRIMERO con alcance y, si el guard lo rechaza, se reintenta SIN él — ese segundo texto es byte-idéntico al que
   // esta rama componía antes de que el alcance existiera, así que la mejora no puede empeorar ningún turno.
+  // EL ALCANCE ACOTA LOS TURNOS DE DATO, NO LOS DE DEFINICIÓN (owner 2026-08-11, cierre de D4). Esta rama tenía un
+  // solo compositor y sabía componer CIFRAS: cuando la evidencia autorizada del turno era TEXTO (una definición del
+  // glosario, `boleta: []` con `supported: true`), la boleta venía vacía, composeFromLedger devolvía null y el
+  // motor declaraba "no tengo información autorizada" teniendo el dato sellado en la mano. Se agrega el compositor
+  // que faltaba, ANTES del mensaje de ausencia y DESPUÉS de la boleta (una cifra autorizada siempre manda sobre
+  // una definición: si el turno trajo dato, el turno es de dato). La garantía por construcción queda intacta —
+  // sigue sin invocarse el narrador libre, y el texto sale VERBATIM del glosario, no de un LLM.
+  // Y LA FORMA QUE EL USUARIO PROHIBIÓ TAMPOCO SE EMITE ACÁ (owner 2026-08-11, la otra mitad del ORDEN). Este es
+  // el único punto del motor donde un turno de alcance restringido decide su forma, así que es el único punto
+  // donde `tablePolicy` puede llegar a tiempo. Se agrega un candidato NO TABULAR — las MISMAS figs autorizadas,
+  // los mismos label/value verbatim, en una línea en vez de en doce filas — y se prueba PRIMERO. Es aditivo por
+  // construcción: si el guard lo rechaza, la lista de candidatos sigue con exactamente los mismos textos que esta
+  // rama componía antes, así que ningún turno que hoy funciona puede empezar a fallar por esto.
   if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
     const desdeLedger = composeFromLedger(figs, pref.contentScope);
-    const base = desdeLedger || composeNoDataMessage(results);
+    const desdeTexto = desdeLedger ? null : composeFromTextualEvidence(results);
+    const base = desdeLedger || desdeTexto || composeNoDataMessage(results);
     const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
-    for (const candidato of (alcanceLinea ? [`${base}\n\n${alcanceLinea}`, base] : [base])) {
-      const c = ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
+    const enLinea = (_formaProhibidaPorElUsuario && desdeLedger) ? _cifrasEnLinea(figs) : null;
+    const _conAlcance = (b) => (alcanceLinea ? [`${b}\n\n${alcanceLinea}`, b] : [b]);
+    for (const candidato of [...(enLinea ? _conAlcance(enLinea) : []), ..._conAlcance(base)]) {
+      // A UNA DEFINICIÓN NO LE CORRESPONDE DECLARAR UNIVERSO NI PERÍODO: no mide nada, así que ni el período ni la
+      // transferencia de decisión tienen sujeto. Estamparlos sería agregarle a la respuesta un marco que su propia
+      // evidencia no tiene — y en esta rama, que no tiene reparación río abajo, un envoltorio que el guard rechace
+      // no degrada: abstiene el turno entero.
+      const c = desdeTexto ? candidato : ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
       if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
@@ -1668,13 +2080,6 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const instruccionOrientacion = buildOrientacionInstruction(orientacionReason, recentSubjectsNow);
   // qué decir EN VEZ de la tabla: la Ficha como destino del detalle, no una promesa vaga de profundizar.
   const instruccionDisclosure = buildDisclosureInstruction({ podado: _disclosure.podado, entidad: _disclosure.entidad });
-  // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
-  //   forbidden · perfil general — el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha
-  //   required  · pidió tabla / mes a mes / desglose — responder eso en prosa también es incumplir
-  //   auto      · el resto — deciden los detectores de forma del prompt; el guard no juzga
-  // No es una sugerencia: viaja sellada en el contrato (politicaExtension.tablePolicy) y guardC valida LA
-  // DECIDIDA. `required` gana sobre `forbidden`: si el usuario pidió la tabla, se le tabula lo que haya.
-  const tablePolicy = resolveTablePolicy({ text: q, podado: _disclosure.podado });
   // CONTRATO DE RESPUESTA PROPORCIONAL (owner 2026-08-09) — la MISMA clase de decisión que tablePolicy, un eje más:
   // cuánta respuesta le corresponde a este turno. Se computa acá, junto a ella, porque necesita exactamente lo mismo
   // (el texto, el plan ya resuelto y la preferencia efectiva) y su único consumidor es el payload de NARRAR.

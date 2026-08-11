@@ -25,6 +25,16 @@
 // ciclo (ver la nota de DEICTIC_COMPONENT_RE, más abajo). Se importa el NOMBRE de la cara —no se copia— para que
 // ADI nunca la llame distinto de como la llama la pantalla.
 import { VISTA_LABEL } from "../sentrix/viewManifest.js";
+// SEGUNDA dependencia, y también una HOJA (responsePreference.js no importa nada): el vocabulario de la REDUCCIÓN
+// de forma —"solo la conclusión", "en una línea"— pertenece al módulo de la PREFERENCIA, que es el dueño del eje
+// `detailLevel`. Acá se lo CONSULTA para decidir la forma del turno, nunca se lo reimplementa: es la misma
+// frontera que este archivo ya declara para `pref` más abajo ("acá se la CONSULTA, nunca se la reimplementa").
+// SE CONSULTA `pideReduccionDeLargo`, NO `pideReduccionDeForma` — y la diferencia es el defecto que se corrige acá
+// (revisión adversarial 2026-08-11): la familia de REGISTRO ("al grano", "sin rodeos", "hablame directo") corrige
+// el TONO, no la forma de presentación. Un PRESUPUESTO de largo ("en una línea") o un RECORTE a la conclusión sí
+// son incompatibles con doce filas; "andá al grano: dame el top 10 de clientes" NO lo es —era `auto` y prohibirle
+// la tabla al narrador es negarle al usuario una forma que nadie prohibió—. Ver responsePreference.js.
+import { pideReduccionDeLargo } from "./responsePreference.js";
 
 // ── ¿PIDIÓ LA SERIE TEMPORAL? ──────────────────────────────────────────────────────────────────────────────────
 // No es una lista cerrada de frases: son las FAMILIAS de pedido temporal que el producto reconoce. Cubre la forma
@@ -158,11 +168,235 @@ export function pideTablaExplicita(text) {
   return _PIDE_TABLA.test(t) || _PIDE_TABLA_OBJETO.test(t) || _PIDE_TABLA_NOMINAL.test(t);
 }
 
-// resolveTablePolicy({text, podado}) → "forbidden" | "required" | "auto"
-// PRECEDENCIA: `required` gana sobre `forbidden`. Si el usuario pidió la tabla, la pidió — aunque el turno sea un
-// perfil general y solo queden las cifras de cabecera: se le tabula lo que hay, no se le niega lo que pidió.
-export function resolveTablePolicy({ text = "", podado = [] } = {}) {
-  if (pideTablaExplicita(text) || pideDetalleTemporal(text) || pideDetalleComposicion(text)) return "required";
+/* ══ PROHIBICIÓN DE FORMA · el eje dejó de ser monótono-positivo (defecto D8, 2026-08-11) ═══════════════════════
+ * HASTA ACÁ TODA SEÑAL PODÍA AGREGAR UNA OBLIGACIÓN DE FORMA Y NINGUNA PODÍA QUITARLA: los tres disparadores de
+ * `required` son positivos y `forbidden` sólo podía nacer de `podado` (la poda de divulgación progresiva). Es decir:
+ * el usuario NO TENÍA NINGUNA FORMA DE PROHIBIR UNA TABLA. Y el daño venía en DOS GRADOS, los dos medidos en vivo:
+ *   (a) cuando la negación arrastra un disparador positivo pegado —«explicalo sin repetir la tabla del peor mes»
+ *       lleva "peor mes", que es _TEMPORAL— la política salía `required`, guardC bloqueaba con `tabla-faltante`
+ *       la prosa OBEDIENTE y la reparación determinística INYECTABA la tabla prohibida. Cuanto más claro el
+ *       usuario, más seguro el incumplimiento.
+ *   (b) cuando la negación viene sola —«nada de tablas, contame qué está pasando»— salía `auto`: la prohibición
+ *       simplemente se evaporaba y ni siquiera viajaba `instruccion_sin_tabla` al narrador.
+ * Los dos grados salen del MISMO agujero, así que se cierran con la misma regla: un pedido de forma del usuario
+ * puede decir que NO, y cuando lo dice, gana.
+ *
+ * LA NEGACIÓN SE RESUELVE CONTRA EL SUSTANTIVO DE FORMA, NUNCA CONTRA LA ORACIÓN. Es lo único que impide caer al
+ * lado opuesto del mismo defecto: «dame la tabla mes a mes, sin el diagnóstico», «la tabla completa, sin
+ * recomendación» y «no te pedí ventas, te pedí contribución» niegan el CONTENIDO —no la forma— y tienen que seguir
+ * resolviendo `required`/lo que corresponda. Por eso cada alternativa de acá abajo exige que el objeto negado sea
+ * la tabla / el cuadro / las columnas: no alcanza con que la frase tenga un "sin" o un "no".
+ *
+ * ══ Y EL SUSTANTIVO SOLO NO ALCANZA: NEGAR UNA PARTE NO ES NEGAR LA FORMA (revisión adversarial 2026-08-11) ══════
+ * La primera versión de este bloque metía `columnas`, `cuadros` y `matriz` en la MISMA lista que `tabla`, y con la
+ * precedencia absoluta de `resolveTablePolicy` eso hacía que NEGAR UNA COLUMNA MATARA LA TABLA ENTERA. Medido
+ * end-to-end: «Dame la tabla mes a mes, sin la columna de unidades» resolvía `forbidden`, al narrador le llegaba
+ * `instruccion_sin_tabla=true` y guardC rechazaba con `tabla-no-autorizada` la tabla que el turno pedía con todas
+ * las letras. Es el defecto del owner 2026-08-07 —«si el usuario pidió la tabla, la pidió»— reintroducido por el
+ * lado opuesto, y un falso positivo así hace más daño que el agujero que vinimos a tapar.
+ *
+ * LA CAUSA es que esos tres sustantivos son POLISÉMICOS: nombran la FORMA («evitá las columnas, quiero leerlo de
+ * corrido») y también UNA PARTE DEL CONTENIDO de una tabla («sin la columna de unidades», «sin el cuadro de resumen
+ * final», «sin la matriz de correlación»). Lo mismo pasa con la rama de PROSA: «explicámelo en palabras simples» no
+ * prohíbe nada, y un turno que pide LAS DOS FORMAS no puede perder la que pidió explícitamente.
+ *
+ * LA REGLA, y es UNA sola para los dos casos:
+ *   · NEGACIÓN DEL VERBO `tabular` EN MODO DE ORDEN (imperativo/subjuntivo/infinitivo: «no me tabules nada»,
+ *     «sin tabular») → es una ORDEN sobre la forma y GANA SIEMPRE, incluso con un disparador positivo pegado.
+ *
+ *     ⚠️ EL SUSTANTIVO INEQUÍVOCO NEGADO YA NO ESTÁ ACÁ (owner 2026-08-11, tercera pasada). «sin la tabla»,
+ *     «nada de tablas», «sin planillas», «nada de cuadritos» NO prohíben: resuelven `required` si el turno trae
+ *     un disparador positivo y `auto` si no. «Explicalo sin repetir la tabla: cuál fue el peor mes» RECIBE UNA
+ *     TABLA — es un defecto conocido y ABIERTO (E3.t3 de la certificación), no un descuido. La razón completa
+ *     está donde se retiró, en `_PROHIBE_FORMA`: la lista producía 14 falsos positivos medidos contra tablas
+ *     que el usuario RECLAMABA porque faltaron. Este párrafo decía lo contrario hasta hoy, y esa mentira es
+ *     justo la que dejó envejecer en silencio a dos gates que seguían certificando la conducta vieja.
+ *   · NEGACIÓN DE UN SUSTANTIVO POLISÉMICO, o MENCIÓN POSITIVA DE LA FORMA OPUESTA (la prosa) → sólo prohíbe si el
+ *     MISMO turno no pidió la tabla/el detalle en positivo. Si lo pidió, lo negado es una PARTE (o lo pedido son
+ *     LAS DOS formas) y la tabla se entrega igual.
+ * La asimetría es deliberada y es la doctrina de la casa: ante duda, FALSO NEGATIVO antes que falso positivo. Que
+ * se escape una prohibición ambigua cuesta un turno de más; bloquear una tabla pedida rompe un turno que funciona.
+ */
+// INEQUÍVOCOS · sólo pueden nombrar la forma de presentación. Un "cuadrito" es siempre una tabla chica, nunca una
+// parte del contenido; por eso el diminutivo va acá y `cuadro` a secas no.
+const _TABLA_N_FORMA = "(?:tablas?|tablitas?|planillas?|grillas?|cuadrit[oa]s?|formato\\s+(?:de\\s+)?tabla\\w*|formato\\s+tabular)";
+// POLISÉMICOS · nombran la forma Y una parte del contenido de una tabla. Ver el bloque de arriba.
+// `matriz|matrices` ESTUVO ACÁ Y SE SACÓ (revisión adversarial 2026-08-11) · el guard de polisemia del paso 2 sólo
+// salva el turno si hay un disparador POSITIVO de tabla en el mismo mensaje; sin él, «matriz» negada prohibía. Pero
+// la polisemia de esta palabra no es la que se había previsto: además de nombrar la forma HACIA ADENTRO (una parte
+// de una tabla) nombra HACIA AFUERA objetos del negocio que no tienen NADA que ver con la presentación — «la
+// matriz» es la CASA MATRIZ frente a las filiales, y «matriz de riesgo / FODA / BCG» es un documento. MEDIDO:
+// «Dame las ventas de las filiales, sin la matriz.» → forbidden (base 2b062cc: `auto`) y guardC devolvía
+// `tabla-no-autorizada` sobre una lista de filiales que el narrador tabularía; idem «Dame el consolidado sin la
+// matriz de riesgo del área legal.». Cerrarlo con un contexto de forma exigiría decidir cuál de los dos sentidos
+// quiso el usuario, y ANTE AMBIGÜEDAD ESTE EJE SE ABSTIENE: se pierde la prohibición «sin matrices, contámelo» —un
+// turno de más— y se recupera todo turno del negocio que nombra la matriz. La doctrina de la casa manda: que se
+// escape una prohibición borrosa cuesta un turno; bloquear una respuesta correcta rompe uno que funciona.
+const _TABLA_N_PARTE = "(?:cuadros?|columnas?)";
+// determinantes admitidos ENTRE el operador de negación y el sustantivo de forma. Es una lista cerrada a propósito:
+// con un `\w+` genérico, «sin el diagnóstico de la tabla» pasaría a leerse como prohibición de la tabla.
+const _DET = "(?:(?:otra|otras|una|un|la|las|el|los|esa|esas|ese|esos|esta|estas|ninguna|ning[uú]n|toda\\s+la|todas\\s+las|m[aá]s|tu|esa\\s+misma|la\\s+misma)\\s+)*";
+// LOS VERBOS DE ENTREGA, EN ENUMERACIÓN CERRADA Y SEPARADOS POR MODO (revisión adversarial 2026-08-11).
+// ANTES ERA `\w+` ABIERTO —`arm\w+`, `us\w+`, `inclu\w+`, `copi\w+`, `repit\w+`, `muestr\w+`— y eso matchea el
+// INDICATIVO, presente y pasado, que NO es una orden: es un RECLAMO de que la tabla FALTÓ («No me armaste la tabla
+// mes a mes, ¿la podés hacer?», «No usaste la tabla que te pasé») o un PEDIDO CORTÉS en negativo («¿No me armas la
+// tabla mes a mes?»). Y como estas familias se aplican sobre `_TABLA_N_FORMA` —la clase INEQUÍVOCA—, caían en el
+// paso 1 de `prohibeFormaTabular`, que gana SIEMPRE: el guard de polisemia del paso 2 ni las veía. MEDIDO
+// end-to-end: `tablePolicy=forbidden`, contrato sellado forbidden, `instruccion_sin_tabla=true` al narrador y
+// guardC devolviendo `tabla-no-autorizada` CONTRA LA TABLA QUE EL USUARIO ESTABA RECLAMANDO PORQUE FALTÓ. En la
+// base 2b062cc esos mismos turnos daban `required`. Es exactamente la regla que ya estaba escrita treinta líneas
+// más abajo para el verbo `tabular` —«el indicativo pasado habla de lo que ADI hizo; sólo el imperativo/subjuntivo/
+// infinitivo es una orden»— aplicada al otro lugar donde valía, que era donde faltaba.
+// EL CORTE ES GRAMATICAL, NO UNA LISTA DE FRASES, y por eso cierra la clase entera y no los turnos medidos:
+//   · en español el imperativo NEGADO se conjuga en SUBJUNTIVO («no me armes», nunca «no me armá»), así que detrás
+//     de un «no …» sólo el subjuntivo puede ser una orden;
+//   · detrás de «sin», «olvidate de», «dejá de», «ni se te ocurra» y «no vuelvas a» va el INFINITIVO.
+// Ningún otro modo puede ser una orden, así que ningún otro modo entra. Dos grupos, y cada familia usa el que su
+// propia sintaxis admite. NO USAR `\b` DE CIERRE: es ASCII y no cierra tras vocal acentuada (la trampa que este
+// archivo ya documenta en `_TEMPORAL` y `_DESGLOSE`); acá cierra el `\s+`/`(?:me|nos)` que viene después.
+const _VE_INF = "(?:armar|poner|mostrar|repetir|usar|hacer|incluir|copiar|pegar|desplegar|dar)";
+const _VE_SUBJ = "(?:arm(?:es|és|emos|en|e)|pong(?:as|ás|amos|an|a)|muestr(?:es|en|e)|mostr(?:és|emos)|repit(?:as|ás|amos|an|a)|us(?:es|és|emos|en|e)|hag(?:as|ás|amos|an|a)|incluy(?:as|ás|amos|an|a)|copi(?:es|és|emos|en|e)|pegu(?:es|és|emos|en|e)|despliegu(?:es|en|e)|desplegu(?:és|emos)|d(?:és|es|emos|eis|en|é))";
+// LAS FAMILIAS DE NEGACIÓN, parametrizadas por la clase de sustantivo: son las MISMAS construcciones sintácticas
+// para las dos clases — lo único que cambia es cuánto pesa el resultado. Una sola definición, dos aplicaciones.
+const _negaciones = (N) => [
+  // «sin tabla», «sin la tabla», «sin tablas», «sin repetir la tabla», «sin volver a armar el cuadro», «sin columnas»
+  new RegExp(`\\bsin\\s+(?:(?:volver\\s+a\\s+)?${_VE_INF}\\s+)?${_DET}${N}`, "i"),
+  // «nada de tablas», «basta de tablas», «olvidate de armar una tabla», «dejá de armarme cuadros»
+  new RegExp(`\\b(?:nada|basta)\\s+de\\s+${_DET}${N}`, "i"),
+  new RegExp(`\\b(?:olv[ií]date|olvidate|olvidese|dej[aá]|deja|dejemos|dejate)\\s+de\\s+(?:${_VE_INF}(?:me|nos)?\\s+)?${_DET}${N}`, "i"),
+  // «dejá la tabla de lado», «dejemos el cuadro afuera» — el complemento va DESPUÉS del sustantivo, así que la
+  // familia de arriba (que espera «dejá DE …») no la ve.
+  new RegExp(`\\b(?:dej[aá]|deja|dejemos|dejen)\\s+${_DET}${N}\\s+(?:de\\s+lado|a\\s+un\\s+lado|afuera|fuera)\\b`, "i"),
+  // «no me armes ninguna tabla», «no repitas la tabla», «no vuelvas a mostrar el cuadro». SUBJUNTIVO detrás del
+  // «no» (el imperativo negado del español) e INFINITIVO detrás de «no vuelvas A». El indicativo NO entra: «no me
+  // armaste la tabla» / «¿no me armas la tabla?» es el usuario RECLAMÁNDOLA, no prohibiéndola.
+  new RegExp(`\\bno\\s+(?:me\\s+|nos\\s+|se\\s+)?(?:la\\s+|las\\s+|lo\\s+)?(?:(?:vuelvas?|volv[aá]s)\\s+a\\s+${_VE_INF}|${_VE_SUBJ})(?:me|nos)?\\s+${_DET}${N}`, "i"),
+  // «no quiero la tabla», «no necesito ninguna tabla»
+  new RegExp(`\\bno\\s+(?:me\\s+)?(?:quiero|quiere|queremos|querr[ií]a|necesito|necesitamos|pidas)\\s+${_DET}${N}`, "i"),
+  // «no hace falta la tabla», «no hacen falta cuadros»
+  new RegExp(`\\bno\\s+(?:me\\s+|nos\\s+)?(?:hace|hacen)\\s+falta\\s+${_DET}${N}`, "i"),
+  // «ni se te ocurra darme una tabla», «ni una tabla»
+  new RegExp(`\\bni\\s+(?:se\\s+te\\s+ocurra\\s+${_VE_INF}(?:me|nos)?\\s+)?${_DET}${N}`, "i"),
+  // «evitá la tabla», «evita las columnas»
+  new RegExp(`\\bevit[aáe]\\w*\\s+${_DET}${N}`, "i"),
+];
+const _PROHIBE_FORMA = [
+  // ── RETIRADO (owner 2026-08-11, tercera pasada de la certificación) ────────────────────────────────────────
+  // Acá vivía `..._negaciones(_TABLA_N_FORMA)`: las nueve familias de negación aplicadas al sustantivo INEQUÍVOCO.
+  // Se retiró porque producía 14 falsos positivos MEDIDOS de la peor clase posible: `tabla-no-autorizada` contra
+  // una tabla que el usuario estaba RECLAMANDO porque faltó. «Me quedé sin la tabla mes a mes, ¿la rehacés?»,
+  // «No llegó ni la tabla, ¿me la mandás?», «No quiero la tabla resumida, quiero la completa» — las tres pedían
+  // la tabla y se quedaban sin ninguna. En 2b062cc las cuatro primeras resolvían `required`.
+  //
+  // POR QUÉ NO ALCANZA CON MOVERLO AL PASO 3 (probado, no supuesto): el paso 2 sólo exonera al turno que ADEMÁS
+  // pide la tabla en positivo, y `pidePresentacionTabular` reconoce el pedido en 6 de esos 14 — «Nos quedamos sin
+  // la tabla del trimestre, ¿la podés mandar?» no lo trae. Los otros 8 seguirían prohibidos sin haberlo pedido.
+  // El detector positivo tendría que reconocer el reclamo (interrogativo negativo, enclítico «dámela», «la
+  // necesito») ANTES de que esta lista pueda volver; hasta entonces, la forma segura de esta regla no existe.
+  //
+  // LO QUE SE PIERDE, dicho sin adornos: «Explicalo sin repetir la tabla» y «Nada de tablas, contame qué pasa»
+  // vuelven a resolver como en la base, o sea sin prohibir. Es un defecto REAL de la certificación (E3.t3) que
+  // queda ABIERTO. Se prefiere así: que ADI muestre una tabla de más es un defecto de forma; que se niegue a
+  // mostrar la que le piden es un turno que el usuario no puede completar. Falso negativo antes que falso
+  // positivo — la doctrina de este repo, aplicada contra el propio fix.
+  //
+  // EL VERBO NEGADO · «no me tabules nada», «respondeme en formato narrativo, no tabular». Es la misma orden sin
+  // sustantivo, y era el peor sub-disparo medido: `_PIDE_TABLA` matcheaba `tabul[aá]\w*` DENTRO de «no tabular», así
+  // que el turno que decía "no tabular" terminaba resolviendo `required` — obligado a tabular.
+  // SÓLO formas IMPERATIVAS / SUBJUNTIVAS / INFINITIVAS. Con `tabul\w*` genérico, «¿por qué no tabulaste el mes a
+  // mes?» —un RECLAMO de que faltó la tabla— se leía como prohibición y le negaba al usuario justo lo que pedía.
+  // El indicativo pasado habla de lo que ADI hizo; sólo el imperativo/subjuntivo/infinitivo es una orden.
+  /\bno\s+(?:me\s+|nos\s+|se\s+|lo\s+|la\s+|los\s+|las\s+)*tabul(?:es|[eé]s|e|en|emos|ar)\b/i,
+  /\b(?:sin|nada\s+de|evit[aáe]\w*)\s+tabular\b/i,
+];
+const _PROHIBE_PARTE = _negaciones(_TABLA_N_PARTE);
+// LA FORMA OPUESTA NOMBRADA EN POSITIVO: pedir prosa es, por sí solo, pedir que no haya tabla. Pero SÓLO por sí
+// solo — si el turno además pide la tabla, pidió las dos cosas y no prohibió ninguna (ver la regla de arriba).
+// «EN PALABRAS» ES REGISTRO, NO FORMA (owner 2026-08-11, hallazgo del verificador final). Las alternativas
+// `\ben\s+palabras\b` y `\bcon\s+palabras\b` sueltas convertían en `forbidden` un pedido de SIMPLIFICAR, no de
+// dejar de tabular. Medido end-to-end: «Dame el top 10 de clientes, explicado en palabras simples» destruía la
+// tabla del ranking y la reemplazaba por una línea de prosa de UNA entidad; 10 redacciones de la misma familia
+// («decímelo en palabras sencillas», «traducilo en palabras simples para el directorio») daban las 10 forbidden.
+// En 2b062cc las tres eran `auto` y la tabla sobrevivía — o sea que esto era capacidad NUEVA que rompía turnos.
+// El guard de polisemia del paso 2 no las salva porque `pidePresentacionTabular` no reconoce «top 10» como
+// pedido tabular. Ahora «palabras» sólo prohíbe con marca de EXCLUSIVIDAD explícita («sólo en palabras»,
+// «únicamente con palabras»), que es cuando el usuario sí está eligiendo una forma sobre la otra.
+const _PIDE_PROSA = /\ben\s+prosa\b|\btexto\s+corrido\b|\bs[oó]lo\s+texto\b|(?<![a-záéíóúñ])(?:s[oó]lo|solamente|[uú]nicamente|nada\s+m[aá]s\s+que)\s+(?:en\s+|con\s+)?palabras\b|\bhabl[aá]ndolo\b|\b(?:prefiero|preferir[ií]a|prefiera)\s+(?:la\s+)?prosa\b|\b(?:en\s+)?formato\s+narrativ\w+|\ben\s+forma\s+narrativa\b/i;
+
+// pidePresentacionTabular(text) → true si el turno pide EN POSITIVO la tabla o el detalle que se entrega tabulado.
+// Es el mismo trío que produce `required` en `resolveTablePolicy`; se nombra una vez para que la regla de polisemia
+// y la precedencia no puedan divergir.
+export function pidePresentacionTabular(text) {
+  const t = String(text || "");
+  return pideTablaExplicita(t) || pideDetalleTemporal(t) || pideDetalleComposicion(t);
+}
+
+// prohibeFormaTabular(text) → true si el turno PROHÍBE la forma tabular (o pide su opuesto, la prosa).
+export function prohibeFormaTabular(text) {
+  const t = String(text || "");
+  // 1 · negación de un sustantivo INEQUÍVOCO de forma: es una orden y gana siempre.
+  if (_PROHIBE_FORMA.some((re) => re.test(t))) return true;
+  // 2 · si el turno pidió la tabla en positivo, lo que quede negado abajo es una PARTE del contenido —o el turno
+  //     pidió las DOS formas—. En los dos casos la tabla se entrega: negar una columna no mata la tabla.
+  if (pidePresentacionTabular(t)) return false;
+  // 3 · sin pedido positivo que la contradiga, la negación de un polisémico y el pedido de prosa sí prohíben.
+  return _PROHIBE_PARTE.some((re) => re.test(t)) || _PIDE_PROSA.test(t);
+}
+
+// ── CONTINUIDAD DE FORMA · "mantené el formato" es una anáfora, no una frase ────────────────────────────────────
+// La política se recalculaba de cero en cada turno, así que "mantené el formato" / "igual que antes" / "en el mismo
+// cuadro" eran LITERALMENTE inexpresables: no había ningún parámetro por el que la decisión del turno anterior
+// pudiera entrar. Medido: pedirle a ADI que mantuviera la tabla del turno previo devolvió prosa.
+// SE DETECTA EN DOS PIEZAS SEPARADAS —un verbo de continuidad EN CUALQUIER PARTE del mensaje y un sustantivo de
+// forma EN CUALQUIER PARTE— y no como una frase pegada, porque el pedido real casi nunca viene pegado: «mantené el
+// período y EL FORMATO» tiene otro complemento en el medio, y un detector de frase contigua no lo ve.
+// LOS DOS CAMINOS NO SON EL MISMO, y confundirlos era el defecto (revisión adversarial 2026-08-11):
+//   · VERBO DE CONTINUIDAD ("mantené", "conservá", "seguí con", "igual que antes") + sustantivo de forma en
+//     cualquier parte. El verbo YA es inequívoco, así que la distancia no importa.
+//   · "MISMO/MISMA" es otra cosa: solo, es un adjetivo cualquiera del español y aparece en preguntas que no piden
+//     ninguna continuidad. La primera versión lo aceptaba SUELTO y en cualquier parte, así que «¿Por qué el mismo
+//     MES muestra otra cifra en la TABLA?» daba true — dos palabras sin ninguna relación sintáctica entre sí. Acá
+//     se exige ADYACENCIA: "mismo" tiene que estar pegado al sustantivo de forma ("el mismo cuadro", "la misma
+//     vista"). Hoy esto no hace daño porque nadie cablea `politicaPrevia`; el día que se cablee, heredar la forma
+//     de un turno anterior sin que el usuario la pidiera es exactamente el falso positivo que no queremos.
+// Y DOS CORTES DE DEIXIS, los mismos que ya usa `_PIDE_TABLA_NOMINAL` unas líneas más arriba:
+//   · relativo pegado → «es la misma tabla QUE vimos ayer» habla DE la tabla, no pide conservarla.
+//   · cópula delante → «¿es la misma vista?» es una pregunta sobre lo que ya está en pantalla.
+// (`\bconserv` sin cierre: con `\bconserv\w+`, la forma imperativa REAL —«conservá»— no matcheaba, porque `\w`
+//  es ASCII y no cubre la "á". Misma trampa que este archivo documenta en `_TEMPORAL` y `_DESGLOSE`.)
+const _CONTINUIDAD_V = /\bmant[eé]n\w*|\bmanten[eé]\w*|\bconserv|\bsegu[ií]\w*\s+(?:con|igual)|\bdej[aá]\w*\s+igual|\bigual\s+(?:que|a)\s+(?:antes|el\s+anterior|la\s+anterior|reci[eé]n)/i;
+const _CONTINUIDAD_N = /\bformato\b|\bpresentaci[oó]n\b|\bestructura\b|\bforma\s+de\s+(?:la\s+)?respuesta\b|\bvista\b|\bcuadro\b|\btabla\b/i;
+const _CONTINUIDAD_MISMO = /\bmism[oa]\s+(?:formato|presentaci[oó]n|estructura|vista|cuadro|tabla|planilla|grilla|forma)\b(?!\s+que\b)/i;
+const _DEIXIS_COPULA = /\b(?:es|son|era|eran|ser[áa]|fue|fueron)\s+(?:la|el|las|los)?\s*mism[oa]s?\b/i;
+export function pideMantenerLaForma(text) {
+  const t = String(text || "");
+  if (_CONTINUIDAD_V.test(t) && _CONTINUIDAD_N.test(t)) return true;
+  if (_DEIXIS_COPULA.test(t)) return false;
+  return _CONTINUIDAD_MISMO.test(t);
+}
+
+// resolveTablePolicy({text, podado, politicaPrevia}) → "forbidden" | "required" | "auto"
+// PRECEDENCIA, de arriba hacia abajo. Lo que cambió y lo que NO:
+//   1. PROHIBICIÓN DEL USUARIO · gana sobre todo, incluso sobre un disparador positivo co-ocurrente. Es la mitad
+//      que faltaba del eje (ver el bloque de arriba).
+//   2. PEDIDO EXPLÍCITO DEL USUARIO · `required`. INTACTO respecto del fix del owner 2026-08-07: sigue ganando
+//      sobre el `forbidden` de la PODA — "si el usuario pidió la tabla, la pidió", y se le tabula lo que hay. Lo
+//      que se invirtió NO es esa precedencia: es que ahora existe un `forbidden` que NO viene de la poda sino de
+//      una orden del usuario, y una orden del usuario no puede perder contra la inferencia del motor.
+//   3. CONTINUIDAD · "mantené el formato" hereda la decisión REAL del turno anterior (required/forbidden). Un
+//      `auto` previo no se hereda: `auto` significa que nadie decidió nada, no hay forma que conservar.
+//   4. REDUCCIÓN DE LARGO · "solo la conclusión", "en una línea" (vocabulario de responsePreference.js). Una
+//      respuesta de una línea no se entrega en doce filas: pedir menos y recibir una tabla es el mismo
+//      incumplimiento de forma que los de arriba, visto desde el largo. OJO: es `pideReduccionDeLargo`, NO
+//      `pideReduccionDeForma` — la familia de REGISTRO ("al grano", "sin rodeos") corrige el TONO y no dice nada
+//      sobre tabular; prohibirle la tabla a «andá al grano: dame el top 10 de clientes» era negarle al usuario una
+//      forma que nadie prohibió. El registro sigue bajando `detailLevel` por su propio eje (responsePreference.js).
+//   5. PODA · el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha.
+export function resolveTablePolicy({ text = "", podado = [], politicaPrevia = null } = {}) {
+  if (prohibeFormaTabular(text)) return "forbidden";
+  if (pidePresentacionTabular(text)) return "required";
+  if ((politicaPrevia === "required" || politicaPrevia === "forbidden") && pideMantenerLaForma(text)) return politicaPrevia;
+  if (pideReduccionDeLargo(text)) return "forbidden";
   if (podado.length) return "forbidden";
   return "auto";
 }

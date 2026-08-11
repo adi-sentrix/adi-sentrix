@@ -13,7 +13,8 @@ import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
 import { chooseModel } from "./modelRouter.js";
-import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId } from "./telemetry.js";   // observación pura (owner 2026-08-10)
+import { estimateCostUSD, resolvePricingKey } from "./modelPricing.js";   // el precio se resuelve por FAMILIA (owner 2026-08-11)
+import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId, aReasonCode } from "./telemetry.js";   // observación pura (owner 2026-08-10)
 import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, constantTimeEqual as verifyEq } from "./accessToken.js";
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
@@ -136,25 +137,107 @@ export async function handleAccess(body = {}, env) {
 // LLM #1 · texto (+ contexto de conversación) → spec · devuelve {ok, spec, usage} | {ok:false, error}
 // El `context` (conversationContext · turnos + última evidencia) viaja al LLM #1 vía buildParseUserMessage → clasifica
 // turn_type y resuelve referencias. El motor/seam sigue validando; el contexto NO habilita saltar guards.
+// TELEMETRÍA TAMBIÉN ACÁ (owner 2026-08-11, segunda pasada): estos DOS handlers están montados en endpoints
+// DESPLEGADOS (/api/adi-spec y /api/adi-narrate, ver GATEWAY_ROUTES abajo) y llaman al proveedor PAGO igual que
+// la pareja del oráculo — y hasta hoy no emitían UN solo evento. La regla del gateway no admite excepciones por
+// antigüedad: si una ruta puede gastar, tiene que poder contarse. El contrato de retorno de los dos queda BYTE
+// IDÉNTICO ({ok, spec, usage} / {ok, narration, usage}): la telemetría observa, no cambia lo que devuelven ni
+// lo que lanzan. Sin `attempt` ni `motivoReintento` porque su body no los tiene: intento 0, sin causa heredada.
 export async function handleSpec({ text, context, access } = {}, env) {
-  const acc = await _access(access, env);
-  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
-  if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
   const { provider, model } = _config(env);
-  const userMessage = buildParseUserMessage(context, text);
-  const { spec, usage } = await getAdapter(provider).parse(userMessage, { system: buildContractMenu(), tool: buildSpecTool(), model });
-  return { ok: true, spec, usage };
+  const _t0 = Date.now();
+  let _emitidos = 0;
+  const _emitir = (respuesta, causa) => {
+    _emitidos++;
+    const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "plan",
+      intento: 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false });
+    ev.reasonCode = causa || ev.reasonCode || null;
+    emitTelemetria(ev);
+  };
+  const _frenado = (r, causa) => { _emitir(r, causa); return r; };
+  try {
+    const acc = await _access(access, env);
+    if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
+    if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
+    const userMessage = buildParseUserMessage(context, text);
+    let spec, usage;
+    try {
+      const salida = await getAdapter(provider).parse(userMessage, { system: buildContractMenu(), tool: buildSpecTool(), model });
+      if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
+      ({ spec, usage } = salida);
+    } catch (e) {
+      _emitir({ ok: false, error: "el proveedor no respondió" }, aReasonCode((e && e.message) || "provider"));
+      throw e;
+    }
+    const r = { ok: true, spec, usage };
+    _emitir(r);
+    return r;
+  } catch (e) {
+    // LA RED DE SEGURIDAD, NO UN ATAJO: si el handler se va por una excepción que ninguna de las ramas de arriba
+    // ya contó, deja su evento y RELANZA intacta. Nunca emite dos veces la misma llamada (_emitidos lo impide).
+    if (!_emitidos) _emitir({ ok: false, error: "el turno no llegó al proveedor" }, aReasonCode((e && e.message) || "unknown"));
+    throw e;
+  }
 }
 
 // LLM #2 · output validado → narración · el number-guard corre en el CLIENTE (si falla → texto determinístico)
 export async function handleNarrate({ text, evidence, access } = {}, env) {
-  const acc = await _access(access, env);
-  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
-  if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
   const { provider, narrateModel } = _config(env);
-  const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
-  const { text: narration, usage } = await getAdapter(provider).narrate({ text, evidence }, { model: narrateModel, system });
-  return { ok: true, narration, usage };
+  const _t0 = Date.now();
+  let _emitidos = 0;
+  const _emitir = (respuesta, causa) => {
+    _emitidos++;
+    const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: narrateModel, etapa: "narrar",
+      intento: 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false });
+    ev.reasonCode = causa || ev.reasonCode || null;
+    emitTelemetria(ev);
+  };
+  const _frenado = (r, causa) => { _emitir(r, causa); return r; };
+  try {
+    const acc = await _access(access, env);
+    if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
+    if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
+    const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
+    let narration, usage;
+    try {
+      const salida = await getAdapter(provider).narrate({ text, evidence }, { model: narrateModel, system });
+      if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
+      ({ text: narration, usage } = salida);
+    } catch (e) {
+      _emitir({ ok: false, error: "el proveedor no respondió" }, aReasonCode((e && e.message) || "provider"));
+      throw e;
+    }
+    const r = { ok: true, narration, usage };
+    _emitir(r);
+    return r;
+  } catch (e) {
+    if (!_emitidos) _emitir({ ok: false, error: "el turno no llegó al proveedor" }, aReasonCode((e && e.message) || "unknown"));
+    throw e;
+  }
+}
+
+// ── LA CAUSA VIAJA COMO CÓDIGO DE LISTA CERRADA (owner 2026-08-11, hallazgo de la corrida pagada) ───────────────
+// EL AGUJERO QUE CIERRA: la telemetría de la corrida registró 10 eventos "rechazado" con la causa en null, y 27
+// reintentos contados como llamadas felices. La causa EXISTE en el turno —el veredicto con que guardC rechazó el
+// intento anterior— pero NO existe en este proceso: guardC corre en el CLIENTE, después de que el gateway ya
+// respondió. La única forma de que llegue al sitio de emisión es que el cliente la declare en el body, igual que ya
+// declara `attempt`. Si no la declara, el gateway igual sabe que hubo una: un intento ≥1 sólo existe porque el
+// anterior no sirvió.
+// EL BORDE ES ACÁ, NO EN LA TELEMETRÍA: sólo se mira un token corto de vocabulario cerrado (minúsculas, guiones y
+// guiones bajos —la forma que tienen tanto los veredictos del guard como los propios REASON_CODES—, sin espacios,
+// sin dígitos, sin mayúsculas) y lo que sale es SIEMPRE uno de los siete códigos. Una frase, un nombre de entidad o
+// una cifra («$13,9M») no atraviesan esta función: se descartan enteras, no se guardan y no se loguean. Así este
+// campo no puede volverse la fuga de datos del cliente que telemetry.js cerró a propósito.
+function _causaDeclarada(motivo) {
+  if (typeof motivo !== "string" || !/^[a-z][a-z_-]{2,39}$/.test(motivo)) return null;
+  return aReasonCode(motivo);   // el valor que sobrevive es un CÓDIGO, jamás el texto que entró
+}
+// Un intento ≥1 nunca puede salir sin causa: sin ella, un reintento es indistinguible de un turno nuevo, que es
+// exactamente lo que hizo ilegible la corrida. Lo no declarado queda en "unknown" ("hubo una causa y no se
+// informó"), nunca en null (el silencio que no se puede contar).
+function _causaDelIntento(motivo, attempt) {
+  if ((Number(attempt) || 0) <= 0) return null;
+  return _causaDeclarada(motivo) || "unknown";
 }
 
 // ── ARQUITECTURA C · Fase 3 · las dos pasadas del oráculo (detrás del flag · fallback intacto) ──────────────────
@@ -164,78 +247,168 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
 // cifras, que declara qué está mirando el usuario en Sentrix (ver viewContext.js:projectViewContextForPlan). El
 // gateway no la interpreta ni la construye — la pasa tal cual a buildPlanUserMessage, que decide dónde va. Opcional:
 // un turno sin panel abierto manda undefined y el mensaje de PLAN queda byte-idéntico al de siempre.
-export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt, vistaLinea } = {}, env) {
-  const acc = await _access(access, env);
-  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
-  if (!text || typeof text !== "string") return { ok: false, error: "sin texto" };
-  if (!_checkRateLimit(tenantId, env)) return { ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" };
+export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt, vistaLinea, motivoReintento } = {}, env) {
   const { provider, model: tier1 } = _config(env);
-  // ROUTER (owner 2026-08-02, ver modelRouter.js): intento 0 = tier1 (idéntico a la config estática de siempre);
-  // reintentos posteriores (el turno cayó acá de nuevo porque el intento anterior no dio JSON válido) escalan de
-  // modelo. `routed` es null si el router no aplica (proveedor≠openai o apagado) → se usa tier1 tal cual, sin cambios.
-  const routed = _resolveModel({ provider, tier1, attempt, step: "plan", env, tenantId });
-  const model = routed ? routed.model : tier1;
-  // ADI_PERSONA_PLAN (owner 2026-08-03, Fase 1 eficiencia de Mini — ver persona.js): SOLO acá, PLAN tiene tool_choice
-  // forzado a JSON (nunca redacta prosa) — la doctrina de narración de ADI_PERSONA completa es costo sin efecto.
-  // NARRAR (handleNarrateC más abajo) sigue recibiendo ADI_PERSONA completa, sin cambios.
-  // el 4º argumento decide si la doctrina de CONTEXTO DE PANTALLA entra al system: SOLO cuando este turno trae de
-  // verdad la línea (mismo criterio que handleNarrateC con `payload.contexto_vista`). Lo lee del body, no lo adivina.
-  // SEGMENTADO PARA QUE EL CACHÉ PEGUE (owner 2026-08-10, cierre de la certificación live — ver el bloque grande
-  // en planPrompt.js). El contenido NO cambia: `fijo + variable` es byte por byte el mismo string que devolvía
-  // `buildPlanSystem`, y un gate lo verifica. Lo que cambia es DÓNDE queda el corte del caché: antes iba después
-  // de la memoria de sesión y del escenario, así que cualquier sesión con un nombre guardado —o cualquier turno
-  // que llegara desde Sentrix— perdía los 7.617 tokens fijos enteros, el 96% de la llamada. Ni una regla de
-  // negocio se recorta: sólo viajan declarados por separado el 99,8% estable y el resto.
-  const _seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
-    !!(typeof vistaLinea === "string" && vistaLinea.trim()));
-  const system = [{ text: _seg.fijo, cache: true }, { text: _seg.variable, cache: false }];
-  const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
   // TELEMETRÍA (owner 2026-08-10) · observación pura: mide, no decide. Con el sink apagado —el default— no
   // hace nada. Nunca lanza, así que no puede tumbar un turno. Ver telemetry.js para los 9 campos y el candado.
+  // UNA SOLA SALIDA PARA TODAS LAS RUTAS DEL HANDLER (owner 2026-08-11): antes el único emit vivía DEBAJO del
+  // `await` al proveedor, así que sólo el camino feliz dejaba rastro — los frenos propios del gateway (`return`
+  // temprano) y las llamadas que reventaban no emitían NADA. En la corrida eso fue: 6 llamadas pagadas que
+  // fallaron sin dejar un solo evento. Ahora emite el handler entero, no su final feliz.
   const _t0 = Date.now();
-  const { spec: plan, usage, model: modeloEfectivo } = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
-  // `modelo` = el que RESPONDIÓ (owner 2026-08-10) · `modelUsed` = el que se PIDIÓ, intacto para los consumidores
-  // que ya lo leen. Los dos viajan: no son lo mismo y confundirlos es lo que dejó el modelo en "?" en la corrida
-  // de certificación —el arnés buscaba `model`/`modelo` y acá sólo existía `modelUsed`—.
-  const r = { ok: true, plan, usage, modelUsed: model, modelo: modeloEfectivo || model, modelReason: routed ? routed.reason : "static:sin router" };
-  emitTelemetria(desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "plan",
-    intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta: r, ruta_deterministica: false }));
-  return r;
+  const _causa = _causaDelIntento(motivoReintento, attempt);
+  let _modelo = tier1;   // el que se reportaría si el turno se frena antes de rutear; se fija al rutear
+  let _emitidos = 0;     // ver la red de seguridad al pie: NINGUNA excepción se va sin evento, y NUNCA dos por llamada
+  const _emitir = (respuesta, causa) => {
+    _emitidos++;
+    const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: _modelo, etapa: "plan",
+      intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false });
+    // LA CAUSA SE LLENA ACÁ Y NO VÍA `motivo`: `desdeRespuesta` tipa como "rechazado" TODO evento que traiga
+    // motivo, y una llamada que salió bien no se puede contar como rechazo sólo porque existe por un rechazo
+    // anterior — invertiría la métrica (27 llamadas buenas pasarían a rechazos). El `resultado` lo decide la
+    // respuesta; la causa sólo llena el campo que hoy sale nulo. Prioridad: la de ESTE evento antes que la heredada.
+    ev.reasonCode = causa || ev.reasonCode || _causa;
+    emitTelemetria(ev);
+  };
+  const _frenado = (r, causa) => { _emitir(r, causa); return r; };
+
+  // EL HANDLER ENTERO, NO SUS RAMAS CONOCIDAS (owner 2026-08-11, segunda pasada). Enumerar salidas es una lista
+  // que se desactualiza: bastaba que el cliente mandara `history: [null]` para que buildPlanUserMessage lanzara
+  // ENTRE los frenos y el try del proveedor, y el handler se iba sin dejar un solo evento. Acá se invierte la
+  // carga: cualquier excepción que no haya sido contada por una rama de adentro deja su evento en el `catch` del
+  // pie y se RELANZA intacta. No se traga nada, no decide nada, y `_emitidos` garantiza un evento por llamada.
+  try {
+    const acc = await _access(access, env);
+    if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
+    if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
+    if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
+    // ROUTER (owner 2026-08-02, ver modelRouter.js): intento 0 = tier1 (idéntico a la config estática de siempre);
+    // reintentos posteriores (el turno cayó acá de nuevo porque el intento anterior no dio JSON válido) escalan de
+    // modelo. `routed` es null si el router no aplica (proveedor≠openai o apagado) → se usa tier1 tal cual, sin cambios.
+    const routed = _resolveModel({ provider, tier1, attempt, step: "plan", env, tenantId });
+    const model = routed ? routed.model : tier1;
+    _modelo = model;
+    // ADI_PERSONA_PLAN (owner 2026-08-03, Fase 1 eficiencia de Mini — ver persona.js): SOLO acá, PLAN tiene tool_choice
+    // forzado a JSON (nunca redacta prosa) — la doctrina de narración de ADI_PERSONA completa es costo sin efecto.
+    // NARRAR (más abajo) sigue recibiendo ADI_PERSONA completa, sin cambios.
+    // el 4º argumento decide si la doctrina de CONTEXTO DE PANTALLA entra al system: SOLO cuando este turno trae de
+    // verdad la línea (mismo criterio que la pasada de narración con `payload.contexto_vista`). Lo lee del body.
+    // SEGMENTADO PARA QUE EL CACHÉ PEGUE (owner 2026-08-10, cierre de la certificación live — ver el bloque grande
+    // en planPrompt.js). El contenido NO cambia: `fijo + variable` es byte por byte el mismo string que devolvía
+    // `buildPlanSystem`, y un gate lo verifica. Lo que cambia es DÓNDE queda el corte del caché: antes iba después
+    // de la memoria de sesión y del escenario, así que cualquier sesión con un nombre guardado —o cualquier turno
+    // que llegara desde Sentrix— perdía los 7.617 tokens fijos enteros, el 96% de la llamada. Ni una regla de
+    // negocio se recorta: sólo viajan declarados por separado el 99,8% estable y el resto.
+    const _seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
+      !!(typeof vistaLinea === "string" && vistaLinea.trim()));
+    const system = [{ text: _seg.fijo, cache: true }, { text: _seg.variable, cache: false }];
+    const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
+    let plan, usage, modeloEfectivo;
+    try {
+      const salida = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
+      // EL DESARMADO VIVE DENTRO DEL TRY (owner 2026-08-11, segunda pasada): afuera, un adapter que resolvía a
+      // undefined/null lanzaba un TypeError DESPUÉS de que la llamada ya se había pagado, y no dejaba ni un evento
+      // — la misma clase que este bloque existe para cerrar. Una respuesta que no se puede usar es un fallo DEL
+      // PROVEEDOR y se cuenta como tal; el error se relanza igual, así el loop de reintentos no cambia.
+      if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
+      ({ spec: plan, usage, model: modeloEfectivo } = salida);
+    } catch (e) {
+      // LA LLAMADA QUE REVIENTA TAMBIÉN SE PAGÓ: el proveedor la generó y el cliente nunca recibió el conteo. Antes
+      // moría acá sin dejar rastro. Se emite y se RELANZA sin tocar: answerViaOracle.js necesita la excepción para
+      // reintentar y para el backoff de 429 — la telemetría observa, jamás decide ni se traga un error.
+      _emitir({ ok: false, error: "el proveedor no respondió" }, aReasonCode((e && e.message) || "provider"));
+      throw e;
+    }
+    // `modelo` = el que RESPONDIÓ (owner 2026-08-10) · `modelUsed` = el que se PIDIÓ, intacto para los consumidores
+    // que ya lo leen. Los dos viajan: no son lo mismo y confundirlos es lo que dejó el modelo en "?" en la corrida
+    // de certificación —el arnés buscaba `model`/`modelo` y acá sólo existía `modelUsed`—.
+    // `modelFamilia`/`costUSD` (owner 2026-08-11): el costo se calcula UNA vez, acá, sobre el modelo EFECTIVO. Los
+    // llamadores tarifaban por su cuenta y con campos distintos (la UI el pedido, el arnés el que respondió) — con
+    // el precio resuelto por familia los dos dan el MISMO número, y el que quiera el costo ya no tiene que deducirlo.
+    const modeloReal = modeloEfectivo || model;
+    const r = { ok: true, plan, usage, modelUsed: model, modelo: modeloReal, modelFamilia: resolvePricingKey(modeloReal),
+      costUSD: estimateCostUSD(modeloReal, usage), modelReason: routed ? routed.reason : "static:sin router" };
+    _emitir(r);
+    return r;
+  } catch (e) {
+    // LA RED DE SEGURIDAD (ver el comentario del `try`): sólo emite si NINGUNA rama de adentro contó ya esta
+    // llamada, y relanza intacta. Un `history` con nulos, un `mem` hostil o cualquier throw futuro entre los
+    // frenos y el proveedor dejan de ser rutas ciegas sin tener que acordarse de enumerarlas.
+    if (!_emitidos) _emitir({ ok: false, error: "el turno no llegó al proveedor" }, aReasonCode((e && e.message) || "unknown"));
+    throw e;
+  }
 }
 
 // NARRAR-C (Pasada 2): el CLIENTE ya corrió el batch y arma el payload (pregunta + datos + cifras_autorizadas +
 // memoria); acá solo inyectamos la persona + memoria como system y narramos. El guard endurecido corre en el cliente.
-export async function handleNarrateC({ payload, mem, access, tenantId, attempt } = {}, env) {
-  const acc = await _access(access, env);
-  if (!acc.ok) return { ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" };
-  if (!payload || typeof payload !== "object") return { ok: false, error: "sin payload" };
-  if (!_checkRateLimit(tenantId, env)) return { ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" };
+export async function handleNarrateC({ payload, mem, access, tenantId, attempt, motivoReintento } = {}, env) {
   const { provider, narrateModel: tier1 } = _config(env);
-  // ROUTER: intento 0 = tier1 (idéntico a hoy). El turno vuelve a pasar por acá SOLO cuando answerViaOracle.js
-  // reintentó tras un rechazo de guardC (ver el loop de 3 intentos ahí) — cada reintento escala de modelo antes de
-  // repetir con el mismo que ya falló. `payload.modo` viaja solo para el texto de razón/telemetría, nunca decide.
-  const routed = _resolveModel({ provider, tier1, attempt, step: "narrate", mode: payload.modo, env, tenantId });
-  const model = routed ? routed.model : tier1;
-  // mode (owner 2026-08-03, Fase 2 eficiencia de Mini — ver conversationalContract.js/buildModeDispatch): payload.modo
-  // YA viaja acá (buildNarrateUserMessageC lo pone en el payload, ver narratePromptC.js) — se lo pasamos al system
-  // para que la doctrina de "MODO DE CONVERSACIÓN" mande SOLO el modo de ESTE turno, no los 7 completos.
-  // mem.responsePref (owner 2026-08-03, Fase 2 eficiencia de Mini — ver responsePreference.js): el bloque de
-  // doctrina de preferencia de FORMATO ahora solo se manda si la SESIÓN tiene una preferencia persistida no-default.
-  // contexto_vista (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): si el payload trae la línea de pantalla,
-  // el system suma el bloque que explica QUÉ es y —sobre todo— qué NO es (no trae cifras, y nada se deriva de ahí).
-  // Condicional por la MISMA razón que las dos doctrinas de arriba: el 100% de los turnos que no vienen de Sentrix
-  // no paga ni un token por una regla que no van a usar.
-  // reparacion (owner 2026-08-10, Contrato Conversacional v1.2): si el payload declara que este turno es una
-  // corrección, un desacuerdo o trae una cifra del usuario viva, el system suma la doctrina de reparación. Misma
-  // condicionalidad —y la misma razón— que las tres de arriba: se lee del payload, no se adivina, y un turno que
-  // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
-  const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
+  // MISMO TRATO QUE PLAN, o la mitad del gasto queda ciega: el emisor cubre las tres rutas (freno propio,
+  // excepción del proveedor y éxito) y la causa del intento anterior viaja como código de lista cerrada.
+  // Acá muerde más fuerte que en PLAN: los 27 reintentos de NARRAR de la corrida existían SÓLO porque guardC
+  // había rechazado el intento previo, y los 27 quedaron registrados como llamadas felices sin causa.
   const _tNarr = Date.now();   // telemetría: latencia de NARRAR (observación pura, owner 2026-08-10)
-  const { text: narration, usage, model: modeloEfectivo } = await getAdapter(provider).narrate(payload, { model, system });
-  const _t0n = _tNarr; const _rn = { ok: true, narration, usage, modelUsed: model, modelo: modeloEfectivo || model, modelReason: routed ? routed.reason : "static:sin router" };
-  emitTelemetria(desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "narrar",
-    intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0n, respuesta: _rn, ruta_deterministica: false }));
-  return _rn;
+  const _causa = _causaDelIntento(motivoReintento, attempt);
+  let _modelo = tier1;
+  let _emitidos = 0;     // ver la red de seguridad al pie: NINGUNA excepción se va sin evento, y NUNCA dos por llamada
+  const _emitir = (respuesta, causa) => {
+    _emitidos++;
+    const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: _modelo, etapa: "narrar",
+      intento: Number(attempt) || 0, latencia_ms: Date.now() - _tNarr, respuesta, ruta_deterministica: false });
+    ev.reasonCode = causa || ev.reasonCode || _causa;   // ver el porqué en la pasada de PLAN: el resultado lo decide la respuesta
+    emitTelemetria(ev);
+  };
+  const _frenado = (r, causa) => { _emitir(r, causa); return r; };
+
+  // EL HANDLER ENTERO, NO SUS RAMAS CONOCIDAS (ver el mismo bloque en la pasada de PLAN). Acá el agujero medido
+  // era un `payload` cuyo getter de `modo` lanzaba: el handler moría entre los frenos y el try, sin dejar evento.
+  try {
+    const acc = await _access(access, env);
+    if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
+    if (!payload || typeof payload !== "object") return _frenado({ ok: false, error: "sin payload" });
+    if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
+    // ROUTER: intento 0 = tier1 (idéntico a hoy). El turno vuelve a pasar por acá SOLO cuando answerViaOracle.js
+    // reintentó tras un rechazo de guardC (ver el loop de 3 intentos ahí) — cada reintento escala de modelo antes de
+    // repetir con el mismo que ya falló. `payload.modo` viaja solo para el texto de razón/telemetría, nunca decide.
+    const routed = _resolveModel({ provider, tier1, attempt, step: "narrate", mode: payload.modo, env, tenantId });
+    const model = routed ? routed.model : tier1;
+    _modelo = model;
+    // mode (owner 2026-08-03, Fase 2 eficiencia de Mini — ver conversationalContract.js/buildModeDispatch): payload.modo
+    // YA viaja acá (buildNarrateUserMessageC lo pone en el payload, ver narratePromptC.js) — se lo pasamos al system
+    // para que la doctrina de "MODO DE CONVERSACIÓN" mande SOLO el modo de ESTE turno, no los 7 completos.
+    // mem.responsePref (owner 2026-08-03, Fase 2 eficiencia de Mini — ver responsePreference.js): el bloque de
+    // doctrina de preferencia de FORMATO ahora solo se manda si la SESIÓN tiene una preferencia persistida no-default.
+    // contexto_vista (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): si el payload trae la línea de pantalla,
+    // el system suma el bloque que explica QUÉ es y —sobre todo— qué NO es (no trae cifras, y nada se deriva de ahí).
+    // Condicional por la MISMA razón que las dos doctrinas de arriba: el 100% de los turnos que no vienen de Sentrix
+    // no paga ni un token por una regla que no van a usar.
+    // reparacion (owner 2026-08-10, Contrato Conversacional v1.2): si el payload declara que este turno es una
+    // corrección, un desacuerdo o trae una cifra del usuario viva, el system suma la doctrina de reparación. Misma
+    // condicionalidad —y la misma razón— que las tres de arriba: se lee del payload, no se adivina, y un turno que
+    // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
+    const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
+    let narration, usage, modeloEfectivo;
+    try {
+      const salida = await getAdapter(provider).narrate(payload, { model, system });
+      // el desarmado DENTRO del try, por la misma razón que en la pasada de PLAN: una respuesta inutilizable llega
+      // después de que la llamada ya se pagó, y tiene que contarse como fallo del proveedor, no evaporarse.
+      if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
+      ({ text: narration, usage, model: modeloEfectivo } = salida);
+    } catch (e) {
+      // se emite y se RELANZA intacta — el loop de reintentos del oráculo vive de esta excepción.
+      _emitir({ ok: false, error: "el proveedor no respondió" }, aReasonCode((e && e.message) || "provider"));
+      throw e;
+    }
+    const modeloReal = modeloEfectivo || model;
+    const _rn = { ok: true, narration, usage, modelUsed: model, modelo: modeloReal, modelFamilia: resolvePricingKey(modeloReal),
+      costUSD: estimateCostUSD(modeloReal, usage), modelReason: routed ? routed.reason : "static:sin router" };
+    _emitir(_rn);
+    return _rn;
+  } catch (e) {
+    // LA RED DE SEGURIDAD (ver el `try`): sólo emite si ninguna rama de adentro contó ya esta llamada, y relanza.
+    if (!_emitidos) _emitir({ ok: false, error: "el turno no llegó al proveedor" }, aReasonCode((e && e.message) || "unknown"));
+    throw e;
+  }
 }
 
 // path → handler (para los wrappers que enrutan por URL)

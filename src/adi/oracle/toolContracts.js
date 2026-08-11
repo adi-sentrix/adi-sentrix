@@ -40,6 +40,10 @@
  * (defineConcept: boleta siempre vacía).
  */
 import { guessDimension } from "./entityRecord.js";
+// EL ÍNDICE DEL EJE es la ÚNICA autoridad sobre "¿esta entidad está en el dato?" (entityIndex.js, contrato v2:
+// `resolveCanonical` devuelve null SOLO cuando el nombre no está en el catálogo de ese eje). Se usa abajo, en la
+// sección VERACIDAD DEL VACÍO, para no dejar que un resultado vacío afirme una ausencia que el índice desmiente.
+import { resolveCanonical, axisCollisions, AXES } from "./entityIndex.js";
 
 // ── LA TABLA ─────────────────────────────────────────────────────────────────────────────────────────────────────
 export const TOOL_CONTRACTS = {
@@ -428,4 +432,337 @@ export function applySingleEntityScope(plan, calls) {
     }
     return c;   // "multi" (compareEntities): 1 sola entidad no le alcanza — no se fuerza, la tool declina honesto
   });
+}
+
+/* ── VERACIDAD DEL VACÍO · "la tool volvió vacía" ≠ "el dato no existe" ═════════════════════════════════════════
+ * (owner 2026-08-11, defecto D7 "ADI declina datos que acaba de mostrar")
+ *
+ * EL DEFECTO, medido: el turno anterior imprime la tabla de Falabella/Lider/Jumbo/Sodimac con margen y venta, y el
+ * siguiente contesta «no puedo comparar estas cuatro cuentas: FALTAN SUS REGISTROS EN EL EJE CLIENTE». Los cuatro
+ * registros están —el índice del eje los resuelve en el mismo proceso, con veintiún campos y catorce cifras
+ * autorizadas cada uno—. Lo que pasó es otra cosa: `compareEntities` compara DE A PARES (multiCardinality {2,2}) y
+ * el plan le mandó cuatro entidades en `args`; el composer devolvió `null` por cardinalidad y `_pack`
+ * (toolRegistry.js) tradujo ese `null` al único texto que tiene a mano — uno que AFIRMA AUSENCIA DE DATO. Aguas
+ * abajo nadie puede distinguirlo: el narrador recibe `{disponible:false, motivo:<ese texto>}` y escribe fielmente
+ * lo que le dieron. El narrador está exonerado; el defecto es que las dos afirmaciones se colapsaron en una.
+ *
+ * LA REGLA QUE FALTABA, y que rige acá: «la tool volvió vacía» y «el dato no existe» son afirmaciones DISTINTAS.
+ * Declinar es legítimo; MENTIR sobre la razón no. Un resultado vacío cuya causa REAL es la FORMA del pedido no
+ * puede salir diciendo que faltan los registros: tiene que decir la verdad —«no pude traerlo así»— y nombrar lo
+ * que sí está.
+ *
+ * ═══ EL RECORTE DE ALCANCE (auditoría adversarial 2026-08-11, sobre la PRIMERA versión de este mismo bloque) ═══
+ * La primera versión decía «CUALQUIER tool que devuelve vacío por CÓMO se pidió» y lo implementaba como: si el
+ * pedido nombra AL MENOS UNA entidad que el índice reconoce, la razón se reescribe a «el vacío es de cómo se
+ * pidió, no del dato». Eso NO era la regla: era un BLANQUEO de declinaciones, y produjo mentiras nuevas. Tres
+ * medidas, todas reproducibles en `_veracidad_vacio_gate.mjs` (sección 6):
+ *
+ *   (FP-1) EL EJE ERA FALSO. El eje del mensaje se tomaba de `args.dimension` —el eje por el que se RANKEA— y se
+ *          le aplicaba a entidades que habían entrado por una KEY DE FILTRO, que es otro eje. Medido:
+ *          `queryMetric{metric:"rotacion", dimension:"cliente", filters:{marca:"Samsung"}}` salía diciendo
+ *          «SAMSUNG ESTÁ EN EL EJE 'CLIENTE' y lo tengo». Samsung es una marca. Un bloque escrito para impedir que
+ *          el motor mienta sobre el dato estaba inventando una atribución de eje — el error de atribución exacto
+ *          que entityIndex.js existe para matar.
+ *   (FP-2) LOS LÍMITES DECLARADOS QUEDABAN BLANQUEADOS. `la métrica 'rotacion' no está declarada para el eje
+ *          'cliente'` es VERDAD y es un límite del contrato (rotación y DOH son declaradas por SKU/bodega, no
+ *          derivables por cliente; el propio TOOL_CATALOG le dice al plan «si pedís uno que no está declarado la
+ *          tool DECLINA honesto y eso es lo correcto, NO REINTENTES con otro eje»). La reescritura la convertía en
+ *          «el vacío es de cómo se pidió, no del dato. Decime por dónde lo busco y lo traigo» — una negación de un
+ *          límite real MÁS una invitación explícita a reintentar contra la instrucción que dice no reintentar.
+ *          Idéntico en `inventoryStatus{filters:{cliente:…}}` (no hay puente cliente↔SKU) y en
+ *          `marginRead{filters:{bodega:…}}` (las bodegas no tienen venta ni presupuesto propios).
+ *   (FP-3) SE ATRIBUÍA CAUSA SIN MEDIRLA. Ninguna de esas reescrituras tenía evidencia de que la causa fuera el
+ *          pedido: la única evidencia era «hay una entidad real nombrada en los args», que es compatible con
+ *          cualquier causa, incluida la ausencia genuina.
+ *   (FP-4) LA MISMA ENFERMEDAD EN LA CURA, hallada auditando la corrección de FP-1/2/3. La rama del EJE se
+ *          disparaba en CUALQUIER tool con sólo ver una entidad de otro eje en los args — incluidas las que por
+ *          contrato declaran `entidad:"none"` y ni miran `entity`. Medido con `{dimension:"cliente",
+ *          entity:"SAM-TV55"}`: `pnlRead` (declina porque EL P&L NO ESTÁ DECLARADO para el negocio),
+ *          `tensionRead` (no hay puente cliente↔SKU), `simulateGeneral` (le faltaban las dos variables del
+ *          supuesto) y `simulateCosto` (no había SKU bajo benchmark) salían las cuatro diciendo que su vacío era
+ *          del eje del pedido. Cuatro límites verdaderos tapados por una causa inventada. De ahí las tres
+ *          condiciones de la rama (B) abajo.
+ *
+ * De la doctrina de la casa —«falso negativo antes que falso positivo»— se sigue que un motivo declarado de menos
+ * es preferible a un motivo declarado de más. Así que esta versión sólo reescribe cuando la causa está MEDIDA, y
+ * la medición no es «hay una entidad real» sino una CONTRADICCIÓN entre dos hechos que el motor ya tiene:
+ *
+ *   (A) CARDINALIDAD FUERA DE CONTRATO · el contrato declara `multiCardinality` para una tool `entidad:"multi"`
+ *       —hoy sólo `compareEntities` {min:2,max:2}— y la lista que llegó en los args no cabe. Eso NO es opinión:
+ *       `composeSpecCompare` (specRetrieval.js) rechaza estructuralmente cualquier largo != 2, así que el vacío
+ *       está explicado ENTERO por la forma del pedido. Es exactamente el defecto medido.
+ *   (B) EJE DEL PEDIDO EQUIVOCADO · TODAS las entidades nombradas fallan `resolveCanonical` en el eje sobre el que
+ *       se las pidió y TODAS resuelven en otro eje. El índice desmiente el eje, no el dato.
+ *
+ * TODO LO DEMÁS SE DEJA INTACTO, a propósito y con nombre: un límite declarado (métrica no disponible en ese eje,
+ * falta de tabla puente, granularidad ausente) sale con SU razón, sin `motivoTipo` y sin reescritura. Este bloque
+ * prefiere no decir nada antes que decir algo que no midió.
+ *
+ * POR QUÉ SÓLO `entidad:"multi"` Y NO `"multi-vía-fanout"`: en `compareEntities` la cardinalidad la hace cumplir el
+ * COMPOSER (es la causa del vacío). En `simulateGeneral` {min:1,max:6} la cardinalidad es un PRESUPUESTO DE PLAN
+ * que expande `applyMultiEntityScope` antes de correr — el composer no la conoce, así que un vacío de esa tool no
+ * está explicado por ella. Declarar esa causa sería adivinar.
+ *
+ * POR QUÉ NO SE VALIDA `dimensionesSoportadas` CONTRA LOS ARGS (y el diagnóstico original proponía hacerlo): esa
+ * tabla NO es autoridad de runtime. Medido: `compareEntities` declara ["cliente","sku","marca","familia"] y corre
+ * PERFECTO por `bodega` y por `canal` (dos ejes que la tabla no lista). La tabla está más conservadora que los
+ * composers; enforzarla en la ejecución convertiría en decline un camino que hoy funciona — cambiar un defecto por
+ * una regresión. Acá la tabla se usa sólo para lo que sí está sincronizado con el composer (`multiCardinality`), y
+ * para todo lo demás manda el ÍNDICE, que es medición y no declaración.
+ *
+ * POR QUÉ NO REESCRIBE EL VEREDICTO NI FUERZA UN REINTENTO: la decisión de declinar no se toca —sigue declinando,
+ * `supported:false` sigue siendo `supported:false`, la forma de la respuesta no cambia y el turno sigue narrando
+ * igual que hoy—. Lo único que cambia es QUÉ RAZÓN se declara. Reintentar recortando la lista a las dos primeras
+ * sería contestar otra pregunta en silencio, que es justo lo que el resto de este módulo existe para impedir.
+ *
+ * QUÉ SE PUEDE PROMETER EN EL TEXTO. La salida que ofrece (A) —«decime con cuáles dos seguimos»— está MEDIDA:
+ * `compareEntities` con exactamente dos entidades reales devuelve `supported:true` en los SEIS ejes del índice
+ * (sku, cliente, marca, familia, bodega, canal · gate sección 3). La de (B) es deliberadamente más floja («puedo
+ * intentarlo por ese eje»): ahí no hay medición de que el reintento funcione, y prometer un resultado que no se
+ * midió es la misma clase de mentira, sólo que en futuro.
+ *
+ * SIN DÍGITOS EN LA RAZÓN, a propósito: este texto viaja al narrador como `motivo` y el narrador lo parafrasea. Un
+ * conteo desnudo ("tengo 4 clientes") lo empuja a escribir una cifra que la boleta de este turno no autoriza y
+ * guardC la rechaza con razón — el turno se degrada por una cifra que ni siquiera era del negocio. Se dice en
+ * palabras. Los nombres de entidad sí viajan: son los que el usuario acaba de nombrar y el índice acaba de
+ * confirmar (un código de SKU trae dígitos propios, y eso no es una cifra del negocio).
+ */
+
+// Los veredictos que este bloque sabe SOSTENER sobre un resultado vacío. Viajan en `coverage.motivoTipo` para que
+// cualquier consumidor aguas abajo (narrador, evidencia, panel) pueda discriminar SIN leer la prosa con un regex.
+// NO HAY un valor "por defecto": una declinación sin `motivoTipo` es una declinación cuya causa este bloque NO
+// midió, y ésa es la mayoría — se la deja pasar tal como la tool la declaró.
+export const MOTIVO_TIPO = {
+  CONTRATO: "contrato",         // la lista no cabe en la cardinalidad que el composer hace cumplir — el dato está
+  EJE: "eje_del_pedido",        // ninguna entidad está en el eje sobre el que se la pidió; todas están en otro
+  SIN_DATO: "sin_dato",         // ninguna de las entidades nombradas existe en el dato — la ausencia es real
+};
+
+const _normTxt = (x) => String(x == null ? "" : x).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+// ejeCanonico(x) → el eje del índice que ese texto nombra, o null. El plan escribe el eje en lenguaje natural
+// ("clientes", "SKU", "Familias") y el índice lo tiene en minúscula singular. Se canoniza contra `AXES` —el
+// vocabulario del PROPIO índice contra el que vamos a preguntar— y no contra una segunda lista escrita acá.
+export function ejeCanonico(x) {
+  const n = _normTxt(x);
+  if (!n) return null;
+  for (const e of AXES) { const c = _normTxt(e); if (n === c || n === `${c}s` || n === `${c}es`) return c; }
+  return null;
+}
+
+// entidadesNombradas(args) → las entidades que ESTA call nombró en sus propios args, cada una con el eje en que la
+// pidió. Las cuatro formas en que una entidad entra a una tool de este catálogo (ver applySingleEntityScope arriba,
+// que puebla exactamente las mismas): `entity` · `entities[]` · `entityScope.entities[]` · un valor de `filters`
+// (ahí la KEY es el eje). Se leen los args REALES de la ejecución, nunca `plan.scope` — que es opcional en el
+// schema del planificador y por eso el camino normal del plan dejaba toda la capa de contrato inerte.
+// `origen` NO es decorado: dice POR DÓNDE entró la entidad, y eso decide qué se puede afirmar sobre ella. Una
+// entidad que llegó por `entity`/`entities` es el SUJETO declarado de la lectura (la tool la consume y su eje
+// determina la búsqueda). Una que llegó por `filters` o `entityScope` es un ACOTAMIENTO que muchas tools ni
+// miran — `pnlRead` no toma entidad, y sin embargo un `entity` suelto en los args la haría parecer el motivo del
+// vacío. Ver la nota de FP-4 en `diagnosticarVacio`.
+export function entidadesNombradas(args) {
+  const out = [];
+  if (!args || typeof args !== "object") return out;
+  const ejeDeclarado = ejeCanonico(args.dimension);
+  const add = (nombre, eje, origen) => { if (typeof nombre === "string" && nombre.trim()) out.push({ nombre: nombre.trim(), eje: eje || null, origen }); };
+  add(args.entity, ejeDeclarado, "entity");
+  if (Array.isArray(args.entities)) for (const e of args.entities) add(e, ejeDeclarado, "entities");
+  if (args.entityScope && Array.isArray(args.entityScope.entities)) for (const e of args.entityScope.entities) add(e, ejeDeclarado, "entityScope");
+  if (args.filters && typeof args.filters === "object" && !Array.isArray(args.filters)) {
+    for (const [k, v] of Object.entries(args.filters)) add(v, ejeCanonico(k), "filters");
+  }
+  const vistos = new Set();
+  return out.filter((e) => { const k = `${e.eje || ""}|${_normTxt(e.nombre)}`; if (vistos.has(k)) return false; vistos.add(k); return true; });
+}
+
+// SUJETO OBLIGATORIO · la entidad explica el vacío de una lectura sólo si esa lectura NO EXISTE sin ella. El
+// discriminador no es `entidad:"single"` —eso dice cuántas entidades acepta, no que las necesite— sino
+// `inputsObligatorios`: la lista de lo que el contrato declara IMPRESCINDIBLE para que la tool signifique algo.
+//
+// POR QUÉ NO ALCANZABA `entidad`, medido: `pnlRead` declara `entidad:"single"` y su PRIMER control es
+// `pnlDefined()` — si el negocio no declaró sus líneas de gasto, declina ANTES de mirar la entidad. Su
+// `inputsObligatorios` es `[]`, y eso lo dice bien: el P&L del negocio entero es una llamada válida, así que una
+// entidad en los args es un alcance opcional y no la causa del vacío. Idem `trend`. En cambio
+// entityRecord/entityProfile/entityComposicion/entityCapitalLigado declaran `["dimension","entity"]` y
+// `compareEntities` declara `["dimension","entities"]`: sin eso no hay lectura que pedir.
+//
+// `entityScope` NUNCA califica, aunque un contrato lo listara: es un forwarding mecánico que la mitad de los
+// composers ignora, así que su presencia no explica nada.
+const _ES_SUJETO = new Set(["entity", "entities"]);
+
+// _falta(args, k) → ¿el pedido dejó vacío un input que el contrato declara imprescindible?
+const _falta = (args, k) => {
+  const v = args ? args[k] : undefined;
+  if (v == null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === "string") return v.trim() === "";
+  return false;
+};
+
+// _entidadExplicaElVacio(contract, args, origen) → ¿puede la entidad ser la causa del vacío de ESTA llamada?
+// DOS exigencias, las dos leídas del contrato y contrastadas contra los args REALES:
+//   (1) la entidad entró por un input que el contrato declara OBLIGATORIO — no basta con que la tool la acepte.
+//   (2) TODO EL RESTO de lo obligatorio también vino. Si al pedido le faltaba otra cosa imprescindible, el vacío
+//       ya está explicado por eso y la entidad no tiene nada que ver. Medido: `simulateGeneral` declara
+//       `["entity","variableA","variableB"]`; llamada con la entidad sola declina por LAS VARIABLES —«necesito
+//       exactamente 2 variables distintas»— y culpar al eje de la entidad tapaba ese motivo verdadero.
+const _entidadExplicaElVacio = (contract, args, origen) => {
+  if (!contract || !_ES_SUJETO.has(origen)) return false;
+  const obligatorios = Array.isArray(contract.inputsObligatorios) ? contract.inputsObligatorios : [];
+  if (!obligatorios.includes(origen)) return false;
+  return obligatorios.every((k) => !_falta(args, k));
+};
+
+// _ubicar({nombre,eje}) → dónde está esa entidad SEGÚN EL DATO: en el eje que se pidió, en otro eje, o en ninguno.
+// "en otro eje" NO es ausencia: pedir un SKU sobre el eje cliente es un pedido mal armado, no un registro que falta.
+// `origen` viaja intacto: la decisión de (B) depende de POR DÓNDE entró la entidad, no sólo de dónde vive.
+function _ubicar({ nombre, eje, origen }) {
+  if (eje && resolveCanonical(eje, nombre)) return { nombre, eje, origen, estado: "presente", ejes: [eje] };
+  const hits = axisCollisions(nombre).map((h) => h.dimension);
+  if (!hits.length) return { nombre, eje, origen, estado: "ausente", ejes: [] };
+  return { nombre, eje, origen, estado: eje ? "otro_eje" : "presente", ejes: hits };
+}
+
+// _listaCardinalidad(contract, args) → la lista de entidades que la tool va a tener que honrar como LISTA, o null
+// si esta tool no tiene una cardinalidad que el COMPOSER haga cumplir. Sólo `entidad:"multi"` califica —hoy
+// `compareEntities`, cuyo composer rechaza estructuralmente un largo != 2—. `multi-vía-fanout` queda EXCLUIDA a
+// propósito: su cupo es un presupuesto que el plan expande antes de correr, no la causa de que la tool vuelva
+// vacía (ver el bloque de arriba). Atribuirle esa causa sería adivinar.
+function _listaCardinalidad(contract, args) {
+  if (!contract || !contract.multiCardinality) return null;
+  if (contract.entidad !== "multi") return null;
+  const pick = (xs) => (Array.isArray(xs) ? xs.filter((x) => typeof x === "string" && x.trim()) : null);
+  const desdeEntities = pick(args && args.entities);
+  if (desdeEntities && desdeEntities.length) return desdeEntities;
+  // `entityScope` NO cuenta acá: `compareEntities` declara `entityScopeNativo:false`, así que un scope suelto en
+  // los args no es la lista que el composer va a contar — juzgar la cardinalidad con él sería juzgar otra cosa.
+  if (args && typeof args.entity === "string" && args.entity.trim()) return [args.entity.trim()];
+  return null;   // sin lista nombrada no se puede juzgar la cardinalidad — no se inventa un veredicto
+}
+
+const _PALABRA = { 1: "una", 2: "dos", 3: "tres", 4: "cuatro", 5: "cinco", 6: "seis", 7: "siete", 8: "ocho" };
+const _cupoEnPalabras = (card) => {
+  const max = (card && card.max) || 2;
+  const min = (card && card.min) || 1;
+  if (min === max) return max === 2 ? "de a pares" : `de a ${_PALABRA[max] || "varias"} a la vez`;
+  return `hasta ${_PALABRA[max] || "varias"} a la vez`;
+};
+const _nombres = (us) => us.map((u) => u.nombre).join(", ");
+const _estanEn = (us) => (us.length === 1 ? "está" : "están");
+
+// EL EJE DE CADA ENTIDAD ES EL SUYO, NUNCA `args.dimension` (FP-1 de la auditoría: `dimension` es el eje por el
+// que se RANKEA y una entidad que entró por `filters.marca` no vive ahí). `_ubicar` ya devolvió, POR ENTIDAD, los
+// ejes en que el índice la encuentra; acá sólo se agrupa para que la frase salga en castellano. Si un nombre está
+// en dos ejes a la vez (homónimo real) se nombran los dos: desambiguar es del usuario, no nuestro.
+function _agruparPorEje(us) {
+  const m = new Map();
+  for (const u of us) {
+    const k = (Array.isArray(u.ejes) && u.ejes.length) ? u.ejes.join("/") : "";
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(u.nombre);
+  }
+  return [...m.entries()].map(([eje, nombres]) => ({ eje: eje || null, nombres }));
+}
+const _dondeEstan = (us) => _agruparPorEje(us)
+  .map(({ eje, nombres }) => `${nombres.join(", ")} ${nombres.length === 1 ? "está" : "están"} ${eje ? `en el eje '${eje}'` : "en el dato"}`)
+  .join("; ");
+
+// LA AFIRMACIÓN VA PRIMERO Y EN POSITIVO. Estos textos empiezan por lo que SÍ hay ("Falabella, Lider… están en el
+// eje 'cliente' y los tengo") y recién después explican por qué la lectura volvió vacía. No es cosmética: el
+// narrador parafrasea el motivo y una frase que ABRE con una negación se le sintetiza como "no tengo el dato" —
+// exactamente la mentira que este bloque viene a impedir. Por el mismo motivo no se usa la palabra "falta" para
+// hablar de lo que está.
+const _yLosTengo = (us) => (us.length === 1 ? "y lo tengo" : "y los tengo");
+const _sinRegistro = (ausentes) => (ausentes.length ? ` De ${_nombres(ausentes)} no tengo registro.` : "");
+
+// composeVacioPorCardinalidad · la lista no cabe en la tool, pero el dato está. Dice las DOS cosas y ofrece la
+// salida MEDIDA (dos entidades reales funcionan en los seis ejes del índice — gate sección 3).
+export function composeVacioPorCardinalidad(toolName, card, presentes, ausentes) {
+  const cupo = _cupoEnPalabras(card);
+  return `${_dondeEstan(presentes)} ${_yLosTengo(presentes)}. Esta lectura corre ${cupo} y el pedido vino con otra cantidad: por eso volvió vacía — no porque el dato no esté.${_sinRegistro(ausentes)} Decime con cuáles seguimos y las comparo.`;
+}
+
+// composeVacioPorEje · el índice desmiente el EJE del pedido, no el dato. NO promete que el reintento funcione:
+// que la entidad viva en otro eje no implica que esta tool sirva ese eje, y eso acá no se midió.
+export function composeVacioPorEje(toolName, otroEje, ausentes, ejePedido) {
+  return `${_dondeEstan(otroEje)}${ejePedido ? `, no en '${ejePedido}'` : ""}: esta lectura volvió vacía por el eje del pedido, no porque el dato no esté.${_sinRegistro(ausentes)} Si es por ahí que lo querés, decímelo y lo intento.`;
+}
+
+// ── diagnosticarVacio(toolName, args, coverage) → parche de `coverage`, o null si no hay nada que corregir ───────
+// EL ÚNICO PUNTO donde se decide si un vacío puede afirmar ausencia. Devuelve un objeto para MEZCLAR sobre la
+// cobertura (nunca muta la que recibe): `reason` reescrita SÓLO en las dos situaciones medidas, `reasonTool` con el
+// texto original para no perder la señal técnica, y `motivoTipo` únicamente cuando hay algo que sostener.
+//
+// LA REGLA DE ORO DE ESTA FUNCIÓN: el default es NO TOCAR NADA. Devolver `null` deja la declinación exactamente
+// como la tool la emitió, que es el comportamiento anterior al fix — el peor caso de un `null` de más es el
+// defecto original en un turno; el peor caso de una reescritura de más es negar un límite REAL del dato e invitar
+// a reintentar contra él (medido, ver el bloque de arriba). Por eso cada `return` con `reason` exige una
+// contradicción MEDIDA, no un indicio.
+//
+// PRECEDENCIA, y por qué en ese orden:
+//   0. Si la cobertura YA trae un discriminador MEDIDO (`cross` del guard de cruce imposible · `eje` de la
+//      decisión 8 · `relacion` de la decisión 9 · un `motivoTipo` puesto antes), no se toca: esas rutas ya dicen la
+//      verdad sobre su causa y pisarlas sería perder precisión. Es un chequeo por CAMPO ESTRUCTURAL, no por texto.
+//   1. Sin entidades nombradas en los args no hay nada que reconciliar contra el índice → intacta. Un resumen
+//      ejecutivo que no pudo armarse no está mintiendo sobre ninguna entidad.
+//   2. Si NINGUNA de las nombradas existe en el dato, la ausencia de ESAS entidades es real: la razón se deja como
+//      está —no se reescribe nada— y sólo se estampa `sin_dato` con los nombres. Es una afirmación sobre las
+//      entidades, no sobre la causa única del vacío, y su dirección es la segura (ADI sigue declinando).
+//   3. EJE EQUIVOCADO antes que cardinalidad: si el índice desmiente el eje de TODAS las nombradas, ése es el
+//      diagnóstico más de fondo (con el eje corregido, la cardinalidad puede ni siquiera importar).
+//   4. Cardinalidad fuera del cupo que el composer hace cumplir → `contrato`. Es el defecto medido D7.
+//   5. Cualquier otra cosa → `null`. Acá viven los límites declarados del dato (métrica no disponible en ese eje,
+//      falta de tabla puente, granularidad ausente) y salen con SU razón, sin que este bloque opine.
+export function diagnosticarVacio(toolName, args, coverage) {
+  if (!coverage || coverage.supported !== false) return null;
+  if (coverage.motivoTipo || coverage.cross === true || coverage.eje || coverage.relacion) return null;   // ya discriminada
+
+  const nombradas = entidadesNombradas(args);
+  if (!nombradas.length) return null;
+
+  const ubicadas = nombradas.map(_ubicar);
+  const presentes = ubicadas.filter((u) => u.estado !== "ausente");
+  const ausentes = ubicadas.filter((u) => u.estado === "ausente");
+  const enElDato = presentes.map((u) => u.nombre);
+  const sinRegistro = ausentes.map((u) => u.nombre);
+
+  if (!presentes.length) return { motivoTipo: MOTIVO_TIPO.SIN_DATO, entidadesSinRegistro: sinRegistro };
+
+  const contract = TOOL_CONTRACTS[toolName] || null;
+
+  // (B) EJE DEL PEDIDO EQUIVOCADO. DOS condiciones, y las dos salieron de medir un falso positivo:
+  //   · LA ENTIDAD PUEDE EXPLICAR EL VACÍO (ver `_entidadExplicaElVacio`): entró por un input que el contrato
+  //     declara obligatorio Y el pedido trajo todo lo demás que también lo es. Sin esto, `pnlRead` con un `entity`
+  //     suelto salía diciendo que su vacío era del eje, cuando declina antes de mirarla porque EL P&L NO ESTÁ
+  //     DECLARADO PARA EL NEGOCIO — un límite real, negado (FP-4). Igual `tensionRead` (no hay puente
+  //     cliente↔SKU), `simulateCosto` (no había SKU bajo benchmark) y `simulateGeneral` (le faltaban las
+  //     variables del supuesto).
+  //   · TODAS las presentes están fuera del eje en que se las pidió. Con una sola bien ubicada el eje del pedido
+  //     no está desmentido y el vacío puede venir de cualquier otra parte.
+  const otroEje = presentes.filter((u) => u.estado === "otro_eje");
+  const sujetos = otroEje.filter((u) => _entidadExplicaElVacio(contract, args, u.origen));
+  if (otroEje.length === presentes.length && sujetos.length === presentes.length && presentes.length > 0) {
+    const ejePedido = [...new Set(otroEje.map((u) => u.eje).filter(Boolean))];
+    return {
+      motivoTipo: MOTIVO_TIPO.EJE,
+      reason: composeVacioPorEje(toolName, otroEje, ausentes, ejePedido.length === 1 ? ejePedido[0] : null),
+      reasonTool: coverage.reason || null,
+      entidadesEnElDato: enElDato, entidadesSinRegistro: sinRegistro,
+    };
+  }
+
+  // (A) CARDINALIDAD FUERA DEL CUPO QUE EL COMPOSER HACE CUMPLIR — el defecto medido.
+  const lista = _listaCardinalidad(contract, args || {});
+  const card = contract && contract.multiCardinality;
+  if (lista && card && (lista.length < card.min || lista.length > card.max)) {
+    return {
+      motivoTipo: MOTIVO_TIPO.CONTRATO,
+      reason: composeVacioPorCardinalidad(toolName, card, presentes, ausentes),
+      reasonTool: coverage.reason || null,
+      entidadesEnElDato: enElDato, entidadesSinRegistro: sinRegistro,
+    };
+  }
+
+  // (5) NO MEDIDO → no se opina. Un límite declarado del dato sale con su propia razón, intacta.
+  return null;
 }

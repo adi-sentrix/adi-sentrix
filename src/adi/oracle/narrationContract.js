@@ -544,7 +544,12 @@ export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "a
     accionesPermitidas: (acciones || []).map((a) => a.accion),
     // cuánto puede extenderse: el contrato de forma ya resuelto (modo + densidad) — la "proporcionalidad".
     // TABLA: la FORMA es una decisión de PRESENTACIÓN del turno, con TRES estados (ver progressiveDisclosure.js):
-    //   forbidden · perfil general — el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha
+    //   forbidden · por DOS orígenes distintos, y el contrato tiene que declarar los dos (corrección 2026-08-11):
+    //               (1) EL USUARIO LO PIDIÓ — "sin tabla", "nada de tablas", "explicámelo en prosa", "solo la
+    //                   conclusión". Mientras este origen no existió, la doctrina de este mismo bloque decía que
+    //                   `forbidden` era siempre cosa del motor, y así certificaba como contrato el defecto: un
+    //                   pedido de forma del usuario no podía prohibir nada, sólo agregar obligaciones.
+    //               (2) PERFIL GENERAL — el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha.
     //   required  · el usuario pidió tabla / mes a mes / desglose — responder en prosa también sería incumplir
     //   auto      · el resto — decide el narrador con los detectores de forma; el guard no juzga
     // El guard valida LA POLÍTICA DECIDIDA para este turno, nunca una prohibición general de tablas.
@@ -558,7 +563,12 @@ export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "a
     //                          qué sabemos de la causa / qué revisar primero
     //   puntual              · una pregunta concreta: se responde DIRECTO y después solo lo necesario (nunca informe)
     //   tres_reglas          · el default del owner: qué pasa · por qué (probado/indicado/abierto) · qué hacer primero
-    formaRespuesta: ["solo_dato", "explicar_componente", "puntual", "tres_reglas"].includes(formaRespuesta) ? formaRespuesta : null,
+    // UNA SOLA LISTA, la importada. Acá había una COPIA literal del enum que este mismo archivo ya importa 34 líneas
+    // más arriba (ANSWER_SHAPES, progressiveDisclosure.js): hoy coinciden, pero la copia significaba que agregar una
+    // forma la validaba en `forma.formaRespuesta` (línea de buildNarrationContract) y la anulaba en
+    // `politicaExtension.formaRespuesta` — el contrato sellado se contradiría a sí mismo, en silencio, dentro del
+    // mismo objeto congelado. Es exactamente la "segunda verdad" que el contrato prohíbe.
+    formaRespuesta: ANSWER_SHAPES.includes(formaRespuesta) ? formaRespuesta : null,
     densidad: scope ? scope.contentScope : "full",
     detalle: scope ? scope.detalle : "standard",
   };

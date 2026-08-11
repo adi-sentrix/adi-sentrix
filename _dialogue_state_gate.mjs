@@ -32,6 +32,13 @@
  * que el LLM real, sin mockear, efectivamente resuelva "volvamos a lo de X" (con NOMBRE, no posición) usando
  * recentSubjects, o que sus ofertas de seguimiento real lleguen redactadas de forma natural — eso es litigio de
  * calidad de prompt, no de cableado, y se verifica en vivo (ver paso de verificación posterior a este gate).
+ *
+ * @inyeccion-simulada — este gate le pasa a `answerViaOracle` sus DOS pasadas (PLAN y NARRAR) como funciones
+ * locales definidas en este mismo archivo. No importa el gateway ni un adapter, no importa nada de `src/ui/`
+ * (donde viven las únicas implementaciones reales de esas dos funciones) y no contiene una salida cruda. Cumple
+ * las cuatro condiciones del escape declarado en scripts/gates-offline.mjs, que las verifica una por una en vez
+ * de creerle a esta línea. Sin esto el gate quedaba clasificado LIVE y NUNCA corría: una garantía que hay que
+ * acordarse de invocar a mano no es una garantía.
  */
 import { guardC } from "./src/adi/oracle/guardC.js";
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
@@ -152,6 +159,14 @@ console.log("\n── 1 · DETERMINÍSTICO — guardC + _repetitionAdvisory (avi
   ok(g4.ok && !g4.advisories.some((a) => a.kind === "repeticion"), "recentNarrations vacío → no dispara, no crashea");
 }
 
+// ── HIGIENE DE FIXTURE (owner 2026-08-11) ─────────────────────────────────────────────────────────────────────
+// Las preguntas de arranque de 2a/2b/2c/2g decían "¿cómo viene el margen…?" y "¿cómo viene todo?". Esas frases
+// dejaron de ser neutras cuando llegó la política de presentación del turno: `pideDetalleTemporal` (progressive-
+// Disclosure.js) lee "cómo viene" como un pedido de EVOLUCIÓN, así que tablePolicy quedaba en `required`, guardC
+// rechazaba la narración mockeada por `tabla-faltante` y el motor la reemplazaba por la tabla de la boleta — sin
+// la pregunta de cierre, o sea sin oferta que extraer. Los 6 chequeos rojos NO eran del mecanismo que este gate
+// certifica (oferta estructurada / repetición): eran el arnés midiendo otro turno del que creía medir. Se cambia
+// SÓLO la redacción de la pregunta por una que no pide serie ni tabla; ninguna aserción se relaja.
 console.log("\n── 2 · DETERMINÍSTICO end-to-end — answerViaOracle con callPlan/callNarrate MOCKEADOS (7 escenarios) ──");
 
 console.log("\n  ▸ 2a · 'sí' ejecuta EXACTAMENTE la oferta estructurada (PLAN bypaseado)");
@@ -160,7 +175,7 @@ console.log("\n  ▸ 2a · 'sí' ejecuta EXACTAMENTE la oferta estructurada (PLA
   let planCallCount1 = 0;
   const callPlanA1 = async () => { planCallCount1++; return PLAN_A1; };
   const callNarrateA1 = async () => "Este es un comentario general sobre el margen del segmento consultado.\n\n[[SIGUIENTE_PASO]]\n¿Querés que profundice en el desglose por cliente?";
-  const rA1 = await answerViaOracle({ text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlanA1, callNarrate: callNarrateA1 });
+  const rA1 = await answerViaOracle({ text: "¿qué margen tienen los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlanA1, callNarrate: callNarrateA1 });
   ok(rA1 && rA1.r && rA1.r.route === "oracle", "turno 1 responde por C");
   ok(planCallCount1 === 1, "turno 1 SÍ llama a PLAN (sin oferta previa que bypasear)");
   ok(rA1 && rA1.mem.lastOffer && rA1.mem.lastOffer.tool === "marginRead" && JSON.stringify(rA1.mem.lastOffer.args) === JSON.stringify(SAFE_CALL.args), `turno 1 extrae oferta estructurada con tool+args replicables — obtuvo ${JSON.stringify(rA1 && rA1.mem.lastOffer)}`);
@@ -181,7 +196,7 @@ console.log("\n  ▸ 2b · oferta invalidada tras cambio de tema (SIEMPRE recalc
 {
   const callPlanB1 = async () => mkPlan("ClienteB1");
   const callNarrateB1 = async () => "Este cliente está por debajo del objetivo de margen.\n\n[[SIGUIENTE_PASO]]\n¿Querés que profundice en el porqué?";
-  const rB1 = await answerViaOracle({ text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlanB1, callNarrate: callNarrateB1 });
+  const rB1 = await answerViaOracle({ text: "¿qué margen tienen los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlanB1, callNarrate: callNarrateB1 });
   ok(rB1 && rB1.mem.lastOffer && rB1.mem.lastOffer.texto, "turno 1 (B) deja una oferta activa");
 
   let planCalledB2 = false;
@@ -196,7 +211,7 @@ console.log("\n  ▸ 2c · rechazo y reemplazo de oferta");
 {
   const callPlanC1 = async () => mkPlan("ClienteC1");
   const callNarrateC1 = async () => "Este cliente está por debajo del objetivo de margen.\n\n[[SIGUIENTE_PASO]]\n¿Querés que profundice en el porqué?";
-  const rC1 = await answerViaOracle({ text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlanC1, callNarrate: callNarrateC1 });
+  const rC1 = await answerViaOracle({ text: "¿qué margen tienen los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual", callPlan: callPlanC1, callNarrate: callNarrateC1 });
   const ofertaC1 = rC1 && rC1.mem.lastOffer && rC1.mem.lastOffer.texto;
   ok(!!ofertaC1, "turno 1 (C) deja una oferta activa");
 
@@ -278,17 +293,47 @@ console.log("\n  ▸ 2g · repetición detectada end-to-end SIN bloquear (comple
 {
   const callPlanG = async () => ({ intent: "ack", calls: [] });
   const textoG1 = "El desempeño general del negocio se mantiene estable este período, sin cambios relevantes que reportar en el panorama actual.";
-  const rG1 = await answerViaOracle({ text: "¿cómo viene todo?", history: [], mem: {}, scenario: "actual", callPlan: callPlanG, callNarrate: async () => textoG1 });
+  const rG1 = await answerViaOracle({ text: "dame la lectura del negocio", history: [], mem: {}, scenario: "actual", callPlan: callPlanG, callNarrate: async () => textoG1 });
   ok(rG1 && rG1.r && rG1.r.route === "oracle", "turno 1 (G) responde por C");
   ok(Array.isArray(rG1.mem.recentNarrations) && rG1.mem.recentNarrations[0] === textoG1, "turno 1 (G) registra su propia narración en recentNarrations");
 
-  const rG2 = await answerViaOracle({ text: "¿cómo viene todo?", history: [], mem: rG1.mem, scenario: "actual", callPlan: callPlanG, callNarrate: async () => textoG1 });
+  const rG2 = await answerViaOracle({ text: "dame la lectura del negocio", history: [], mem: rG1.mem, scenario: "actual", callPlan: callPlanG, callNarrate: async () => textoG1 });
   ok(rG2 && rG2.r && rG2.r.route === "oracle", "turno 2 (G, repetición 100% de la propia narración anterior) IGUAL responde por C — el aviso nunca bloquea");
   ok(rG2.mem.recentNarrations.length === 2, `recentNarrations acumula (tope 2) — obtuvo ${rG2.mem.recentNarrations.length}`);
 
   const textoG3 = "Ahora te comento un tema completamente distinto, sin relación textual con lo anterior en absoluto.";
   const rG3 = await answerViaOracle({ text: "otra cosa", history: [], mem: rG2.mem, scenario: "actual", callPlan: callPlanG, callNarrate: async () => textoG3 });
   ok(rG3.mem.recentNarrations.length === 2 && rG3.mem.recentNarrations[0] === textoG3, `recentNarrations tope 2, más reciente primero (desplaza al más viejo) — obtuvo ${JSON.stringify(rG3.mem.recentNarrations)}`);
+}
+
+// ── 2h · LA COBERTURA QUE LA HIGIENE DE FIXTURE SE LLEVÓ, DEVUELTA (owner 2026-08-11) ─────────────────────────
+// Al cambiar «¿cómo viene el margen…?» por «¿qué margen tienen…?» en 2a/2b/2c, estos escenarios dejaron de
+// ejercitar la redacción que dispara `pideDetalleTemporal` — o sea, nadie certificaba ya que un turno de
+// EVOLUCIÓN conserve su oferta de cierre. Eso es una PÉRDIDA DE COBERTURA, no una relajación de aserciones, y se
+// paga acá en vez de dejarse escrita en un residual: el turno vuelve con su redacción original y el arnés cumple
+// la política que ese turno impone (tablePolicy="required" ⇒ el narrador tabula, como haría el LLM real leyendo
+// su contrato). Lo que se certifica es que tabular NO se lleva puesta la oferta estructurada.
+console.log("\n  ▸ 2h · turno de EVOLUCIÓN (tablePolicy=required) — la oferta de cierre sobrevive a la tabla");
+{
+  const PLAN_H = { intent: "answer", mode: "default", scope: { level: "list", entities: [] }, calls: [{ tool: "marginRead", args: { scope: "bajo_benchmark" } }] };
+  let policyVista = null;
+  const rH = await answerViaOracle({
+    text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => PLAN_H,
+    callNarrate: async (a) => {
+      policyVista = a.tablePolicy;
+      // la tabla se arma con las cifras YA autorizadas del turno (a.ledgerFigs) — nunca inventadas, igual que
+      // tendría que hacer el narrador real.
+      const filas = (a.ledgerFigs || []).slice(0, 5).map((f) => `| ${f.label} | ${f.value} |`).join("\n");
+      return `| Concepto | Valor |\n|---|---|\n${filas}\n\n[[SIGUIENTE_PASO]]\n¿Querés que profundice en el desglose por cliente?`;
+    },
+  });
+  ok(policyVista === "required", `2h: la redacción de EVOLUCIÓN llega al narrador como tablePolicy="required" — obtuvo ${JSON.stringify(policyVista)}`);
+  ok(rH && rH.r && rH.r.route === "oracle", "2h: el turno responde por C");
+  ok(rH && /\|\s*Concepto\s*\|/.test(rH.r.text), "2h: la respuesta trae la tabla que el turno pidió");
+  ok(rH && rH.mem.lastOffer && rH.mem.lastOffer.tool === "marginRead",
+    `2h: y la oferta estructurada de cierre SOBREVIVE a la tabla — obtuvo ${JSON.stringify(rH && rH.mem.lastOffer)}`);
+  ok(rH && /desglose por cliente/i.test(rH.r.text), "2h: el texto de la oferta sigue llegando al usuario (no se la come el renderer de la tabla)");
 }
 
 console.log("\n── 3 · ACEPTACIÓN HUÉRFANA — 'sí'/'dale' SIN lastOffer activa (owner 2026-07-31, cierre de #48) ──");

@@ -182,6 +182,135 @@ export function inferirCorrige(scopePrev, plan) {
   return out;
 }
 
+/* ══ LA SIMULACIÓN PENDIENTE · CICLO DE VIDA POR ESTADO, NO POR CALENDARIO (owner 2026-08-11) ═══════════════════
+ * EL DEFECTO QUE CIERRA (medido, E7): ADI preguntaba el supuesto que faltaba ("¿cuánto cambia el volumen?"), el
+ * usuario hacía CUALQUIER OTRA COSA en el medio, y al volver con la respuesta la simulación ya no existía — ADI
+ * volvía a pedir el precio que el usuario ya había dado tres turnos antes. La causa no era el texto de ningún
+ * turno: `mem.pendingSimulation` se borraba INCONDICIONALMENTE en los tres puntos de salida de answerViaOracle.js,
+ * o sea moría por CALENDARIO (sobrevivía exactamente un turno) sin mirar nunca si el turno intercalado tenía algo
+ * que ver con la simulación.
+ *
+ * LA REGLA CORRECTA, y es la misma que ya gobierna al resto del estado conversacional: un pendiente muere cuando
+ *   · se RESUELVE (el usuario contestó el supuesto y la simulación corrió),
+ *   · se REEMPLAZA (el usuario plantea otro escenario, sobre otra entidad),
+ *   · una CORRECCIÓN lo invalida (§1 del Contrato v1.2: "no, era Jumbo" no puede seguir simulando Sodimac),
+ *   · o se le acaba el plazo (TTL).
+ * Un cambio de tema NO es ninguna de esas cuatro cosas.
+ *
+ * POR QUÉ EL TTL EXISTE Y POR QUÉ ES CORTO: sin plazo, un pendiente vivo convierte cualquier porcentaje suelto de
+ * cualquier turno futuro ("baja 3%", hablando de otra cosa) en un candidato a resolverlo — el pendiente ZOMBI. El
+ * plazo es la mitad que hace segura a la otra: el contexto dura lo que dura una conversación sobre el mismo tema,
+ * no toda la sesión. 3 turnos cubre con holgura el paréntesis realista (una pregunta al medio, una aclaración) y
+ * deja el pendiente muerto mucho antes de que el usuario pueda haberlo olvidado.
+ *
+ * POR QUÉ ACÁ Y NO EN answerViaOracle.js: este archivo ya es el hogar canónico del ciclo de vida del contexto
+ * (ofertaPendiente, recentSubjects, supuestos del usuario, invalidación por reparación). Un quinto ciclo de vida
+ * escrito a mano en el orquestador sería la cuarta fuente de verdad sobre "qué sobrevive a qué". El orquestador
+ * decide CUÁNDO llamar a estas funciones; ellas deciden QUÉ queda vivo. */
+export const PENDING_SIM_TTL_TURNOS = 3;
+
+// _mismasEntidades(pending, otras) — comparación por nombre canónico, case-insensitive, EXACTA en ambos sentidos:
+// simular "Sodimac" y simular "Sodimac + Jumbo" no son la misma simulación (la segunda REEMPLAZA a la primera).
+function _mismasEntidades(pending, otras) {
+  const propias = new Set([pending && pending.entity, ...((pending && Array.isArray(pending.entities)) ? pending.entities : [])].filter(Boolean).map((e) => String(e).toLowerCase()));
+  const nuevas = new Set((Array.isArray(otras) ? otras : []).filter(Boolean).map((e) => String(e).toLowerCase()));
+  if (!propias.size || propias.size !== nuevas.size) return false;
+  for (const e of nuevas) if (!propias.has(e)) return false;
+  return true;
+}
+
+// _pendienteBienFormado(p) → un pendiente sin entidad, sin variable conocida o sin campo faltante no es un
+// pendiente: es basura persistida. Mismo criterio que _buildPendingSimulation ("mejor nada que un pendiente roto").
+function _pendienteBienFormado(p) {
+  if (!p || typeof p !== "object" || !p.missingCampo || !p.known || typeof p.known.delta_pct !== "number") return false;
+  return !!(p.entity || (Array.isArray(p.entities) && p.entities.length));
+}
+
+// nacePendingSimulation(pending) → el pendiente RECIÉN armado, con su plazo estampado. Es el único punto que fija
+// `restan`: quien arma un pendiente no tiene que acordarse del TTL, solo de pasar por acá.
+export function nacePendingSimulation(pending) {
+  if (!_pendienteBienFormado(pending)) return null;
+  return { ...pending, restan: PENDING_SIM_TTL_TURNOS };
+}
+
+// pendingSimulationVigente(pending) → el pendiente si TODAVÍA está en plazo, null si se le acabó o está roto.
+// `restan` ausente (pendientes persistidos antes de este mecanismo) = plazo completo: una memoria vieja no se
+// descarta por no traer un campo que no existía cuando se escribió.
+export function pendingSimulationVigente(pending) {
+  if (!_pendienteBienFormado(pending)) return null;
+  const restan = typeof pending.restan === "number" ? pending.restan : PENDING_SIM_TTL_TURNOS;
+  return restan > 0 ? pending : null;
+}
+
+// envejecerPendingSimulation(pending) → el pendiente con un turno menos de plazo, o null si se le acabó. Se llama
+// UNA vez por turno, en el punto de salida que ese turno haya tomado (ruta PLAN o cualquiera de los bypasses) —
+// nunca dos veces, o el plazo se consumiría al doble de velocidad que los turnos que lo gastan.
+export function envejecerPendingSimulation(pending) {
+  const p = pendingSimulationVigente(pending);
+  if (!p) return null;
+  const restan = (typeof p.restan === "number" ? p.restan : PENDING_SIM_TTL_TURNOS) - 1;
+  return restan > 0 ? { ...p, restan } : null;
+}
+
+// repararPendingSimulation(pending, reparacion, plan) → qué queda del pendiente después de una corrección.
+// LA MITAD QUE FALTABA DE §1: con el pendiente vivo, "No, era Jumbo" tiene que REESCRIBIRLO o MATARLO — si no, la
+// próxima respuesta del usuario ("el volumen no cambia") ejecutaría la simulación sobre la entidad que él acaba de
+// decir que estaba mal. Se reescribe cuando la corrección deja una entidad concreta en su lugar (el supuesto que
+// el usuario YA aportó sigue siendo suyo: corrigió el sujeto, no el escenario) y se mata cuando la corrección se
+// lleva el eje entero (pasó al negocio completo: ya no hay nada puntual que simular).
+// Desacuerdo y dato aportado NO son correcciones de alcance (mismo criterio que applyRepairToScope): no tocan nada.
+export function repararPendingSimulation(pending, reparacion, plan) {
+  const p = pendingSimulationVigente(pending);
+  if (!p) return null;
+  const r = (reparacion && typeof reparacion === "object") ? reparacion : null;
+  if (!r || r.tipo !== "correccion" || r.ambigua) return p;
+  if (!camposQueSeInvalidan(r.corrige).includes("entities")) return p;   // corrigió otra cosa (período/métrica): el sujeto sigue siendo el mismo
+  const scope = (plan && plan.scope) || null;
+  const nuevas = (scope && Array.isArray(scope.entities)) ? scope.entities.filter(Boolean) : [];
+  if (!nuevas.length || (scope && scope.level === "global")) return null;   // sin sujeto puntual que simular → el pendiente muere
+  if (_mismasEntidades(p, nuevas)) return p;
+  return { ...p, entity: nuevas[0], entities: nuevas.slice(), dimension: guessDimension(nuevas[0]) || p.dimension || null };
+}
+
+// fusionarPendientes(previo, nuevo) → LA REGLA DE PRECEDENCIA cuando este turno arma su propia simulación teniendo
+// una pendiente viva. Es la que impide la degradación medida (el pendiente de Sodimac con precio +8% pisado por uno
+// nuevo de Sodimac con volumen 0%, perdiendo el +8% que el usuario ya había dado):
+//   · MISMA entidad + la variable que faltaba  → COMPLETAR: la simulación ya tiene sus dos supuestos, se ejecuta.
+//   · MISMA entidad + la MISMA variable        → ACTUALIZAR: el usuario cambió de idea sobre el mismo supuesto.
+//   · OTRA entidad                             → REEMPLAZAR: es otro escenario, el anterior se abandona.
+// `nuevo` puede venir sin `restan` (recién armado por quien sea): todo lo que sale de acá pasa por nacePendingSimulation.
+export function fusionarPendientes(previo, nuevo) {
+  const p = pendingSimulationVigente(previo);
+  if (!_pendienteBienFormado(nuevo)) return p ? { accion: "conserva", pending: p } : { accion: "ninguno", pending: null };
+  if (!p) return { accion: "reemplaza", pending: nacePendingSimulation(nuevo) };
+  const nuevasEnt = [nuevo.entity, ...(Array.isArray(nuevo.entities) ? nuevo.entities : [])].filter(Boolean);
+  if (!_mismasEntidades(p, [...new Set(nuevasEnt)])) return { accion: "reemplaza", pending: nacePendingSimulation(nuevo) };
+  if (nuevo.known.campo === p.missingCampo) {
+    const conocida = p.known, aportada = { campo: nuevo.known.campo, delta_pct: nuevo.known.delta_pct };
+    // el orden variableA/variableB lo fija el CAMPO (precio primero), igual que en la resolución del pendiente —
+    // nunca el orden en que el usuario los fue nombrando.
+    return { accion: "completa", pending: p, vars: conocida.campo === "precioLista" ? { variableA: conocida, variableB: aportada } : { variableA: aportada, variableB: conocida } };
+  }
+  return { accion: "actualiza", pending: nacePendingSimulation({ ...p, known: { campo: nuevo.known.campo, delta_pct: nuevo.known.delta_pct }, missingCampo: p.missingCampo }) };
+}
+
+// pendienteDesdeEscenario(intent) → el pendiente que DECLARA un turno cuyo texto trae campo+% y entidad (la salida
+// de detectScenarioIntent, arms "future"/"future_multi"). Vive acá para que el orquestador pueda pasárselo a
+// fusionarPendientes sin duplicar la traducción de un shape al otro en cada arm.
+export function pendienteDesdeEscenario(intent) {
+  if (!intent || !intent.variable || !intent.variable.campo) return null;
+  const entities = intent.kind === "future_multi"
+    ? ((Array.isArray(intent.entities) ? intent.entities : []).filter(Boolean))
+    : (intent.entity ? [intent.entity] : []);
+  if (!entities.length) return null;
+  return {
+    dimension: intent.dimension || guessDimension(entities[0]) || "cliente",
+    entity: entities[0], entities,
+    known: { campo: intent.variable.campo, delta_pct: intent.variable.delta_pct },
+    missingCampo: intent.variable.campo === "precioLista" ? "unidades" : "precioLista",
+  };
+}
+
 // ── EL TERCER UNIVERSO · la cifra que aporta el usuario (§5.1) ─────────────────────────────────────────────────
 // "Queda marcada como suya en cada lugar donde aparezca · nunca se suma a un total sellado por el motor · todo
 // cálculo derivado hereda su procedencia · se invalida junto con el resto del contexto incompatible."
@@ -752,5 +881,9 @@ export function composeReferenceDecline(reason) {
  *
  * mem.pendingSimulation NO se retiró en favor de conversationScope.current.{supuestos,faltantes} — fuera de
  * alcance de Etapa 4 (el owner pidió específicamente lastOffer/recentSubjects, no pendingSimulation) y del pedido
- * original de cierre de límites; sigue viviendo como su propio campo de `mem`, sin cambios de esta etapa.
+ * original de cierre de límites; sigue viviendo como su propio campo de `mem`, sin cambios de esa etapa.
+ * ACTUALIZACIÓN (owner 2026-08-11): el CAMPO sigue viviendo en `mem`, pero su CICLO DE VIDA ya no está escrito a
+ * mano en el orquestador — vive acá, con el resto del contexto conversacional (ver "LA SIMULACIÓN PENDIENTE ·
+ * CICLO DE VIDA POR ESTADO" arriba). Mover el campo entero a `current.{supuestos,faltantes}` sigue pendiente y
+ * sigue siendo otra tarea: lo que se cerró es que el pendiente muera por las mismas razones que todo lo demás.
  */

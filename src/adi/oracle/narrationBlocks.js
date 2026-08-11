@@ -178,6 +178,54 @@ export function composeFromLedger(figs, contentScope) {
   return table;
 }
 
+// ── composeFromTextualEvidence(results) ── LA EVIDENCIA AUTORIZADA QUE NO ES UNA CIFRA (owner 2026-08-11) ───────
+// EL DEFECTO QUE CIERRA (medido): tras usar "contribución no capturada" cuatro veces, ante "No entendí lo de
+// contribución no capturada" ADI contestó "No tengo información autorizada suficiente para responder eso con el
+// alcance pedido" — MIENTRAS tenía la definición en la mano, resuelta y sellada. El plan era correcto
+// (intent="define", defineConcept), la tool respondió con coverage.supported=true… y su evidencia es TEXTO, no
+// cifras. Bajo data_only/results_only el único compositor que existía sabía imprimir BOLETA (composeFromLedger);
+// con la boleta vacía caía a composeNoDataMessage y el motor declaraba una ausencia que no era cierta.
+//
+// LA REGLA GENERAL, y por qué no es un parche a ese término: el alcance restringido acota los turnos que responden
+// un DATO — le dice al motor cuánta interpretación puede acompañar a una cifra. Una DEFINICIÓN no es un turno de
+// dato: no tiene universo, no tiene período y no hay nada que interpretar de más. Cuando la evidencia autorizada
+// del turno es textual, se dice tal cual viene del glosario, y el alcance se cumple igual —de hecho mejor: cero
+// prosa libre, cero superficie lingüística, exactamente la garantía por construcción que esta rama existe para
+// sostener. Vale para los 35+ conceptos del glosario, para cualquier redacción ("qué es X", "no entiendo X",
+// "explicame X en simple") y para los DOS alcances restringidos.
+//
+// EL LÍMITE, angosto a propósito: exige (a) que la tool haya declarado `supported: true` —evidencia AUTORIZADA, no
+// una tool que declinó—, (b) que NO haya aportado ninguna cifra a la boleta del turno, y (c) que sus `facts`
+// declaren ser una definición (`es_definicion`) o traigan el campo `definicion`. Sin (c), cualquier turno de datos
+// con boleta vacía dejaría de dar el mensaje honesto y empezaría a narrar algo — que es justo lo que el 3er
+// residual cerró. VERBATIM: se imprime lo que la tool selló, sin reescribir ni resumir (una definición curada es
+// el antídoto al "inventa algo": cero deriva). Devuelve null cuando no hay evidencia textual — el caller sigue con
+// composeNoDataMessage, que sigue siendo la última red honesta del motor.
+const _MAX_DEFINICIONES = 2;   // un turno pregunta por un concepto, a veces por dos; más que eso es un volcado
+export function composeFromTextualEvidence(results) {
+  const list = Array.isArray(results) ? results : [];
+  const textuales = list.filter((r) => {
+    if (!r || !r.coverage || r.coverage.supported !== true) return false;
+    if (Array.isArray(r.boleta) && r.boleta.length) return false;
+    const f = r.facts;
+    if (!f || typeof f !== "object") return false;
+    return f.es_definicion === true || typeof f.definicion === "string";
+  });
+  if (!textuales.length) return null;
+  const bloques = [];
+  for (const r of textuales.slice(0, _MAX_DEFINICIONES)) {
+    const f = r.facts;
+    const def = typeof f.definicion === "string" ? f.definicion.trim() : "";
+    if (!def) continue;
+    const concepto = typeof f.concepto === "string" ? f.concepto.trim() : "";
+    // el concepto encabeza (el usuario preguntó por un nombre: la respuesta empieza nombrándolo) y la distinción,
+    // cuando la hay, va aparte — es parte de la definición curada, no una interpretación agregada acá.
+    bloques.push(concepto ? `${concepto.charAt(0).toUpperCase()}${concepto.slice(1)}: ${def}` : def);
+    if (typeof f.distingue === "string" && f.distingue.trim()) bloques.push(f.distingue.trim());
+  }
+  return bloques.length ? bloques.join("\n\n") : null;
+}
+
 // ── composeNoDataMessage(results) ── owner 2026-07-29, 3er residual: "bajo data_only o results_only, NUNCA debe
 // volver al narrador libre — si falta evidencia, responde determinísticamente." Cierra el ÚLTIMO escape: hasta acá,
 // una boleta vacía (composeFromLedger devuelve null) todavía cedía al narrador como red — el único hueco que

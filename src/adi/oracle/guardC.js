@@ -1438,6 +1438,659 @@ export function _derivadaDeSupuesto(fig, supFigs, figsMotor) {
   return false;
 }
 
+/* ══ 23-25 · LA RESPUESTA SE JUZGA COMO SISTEMA (owner 2026-08-11 · defectos D5 y D6) ═══════════════════════════
+ * EL HUECO, EN UNA FRASE: hasta acá el muro validaba cada cifra AISLADA —contra la boleta (chequeo 1), contra su
+ * métrica (9), contra su entidad (10), contra su universo (17)— y la TABLA sólo por EXISTENCIA (16: `_tieneTabla`
+ * devuelve un booleano y jamás lee una celda). Ninguno de los ~31 kinds relacionaba DOS cifras de la MISMA
+ * respuesta. Por eso estas tres afirmaciones salían con `ok:true`, `verdict:"fiel"`, `violations:[]`:
+ *   · «| Feb **← más bajo** | — | $6.0M | — |» — marca el extremo sobre una celda VACÍA de la serie principal.
+ *   · «| **Total** | **$100.0M** |» sobre filas que suman $93.5M, sin declarar que el total cubre más de lo visible.
+ *   · «la contribución no capturada TOTAL asciende a $4.9M» citando la fig «Contribución no capturada · subtotal».
+ * Las tres tienen la misma forma: cada número es VERDAD y la afirmación que los relaciona es FALSA. Es la clase
+ * que los chequeos 17 y 21 ya bloquean por otra vía ("el número es verdad y la oración miente"), así que estos
+ * BLOQUEAN por la misma razón y no degradan: una marca de extremo o un total mal puesto cambian la decisión de
+ * quien lee, y el reintento (o la reparación desde la boleta) sí puede resolverlos.
+ *
+ * NO ES UN CHEQUEO DE TABLA. El árbitro del diagnóstico midió el mismo defecto en PROSA PURA («el mejor margen lo
+ * tiene Falabella con 22%, por delante de Lider 21.5% y de Jumbo 24%» → ok:true) y con `tablePolicy:"auto"`. Por eso
+ * el chequeo 23 corre en las DOS estructuras —filas de tabla y oración— igual que `_orderViolation` ya cae de la
+ * tabla a la lista numerada, y ninguno de los tres mira `tablePolicy`: la política decide la FORMA, esto juzga la
+ * AFIRMACIÓN.
+ *
+ * CRITERIO NÍTIDO, el mismo de toda la Fase 2 (falso negativo antes que falso positivo): si la afirmación tiene
+ * UNA lectura honesta sobre lo que la respuesta muestra, no se juzga. Un extremo cuya marca nombra una magnitud
+ * que la tabla no trae («← mayor caída mensual», que es un delta entre filas) se saltea entero; un total sobre una
+ * columna NO aditiva (%, días, rotación) no se suma nunca —sumarlos es el error opuesto—; un subtotal cuyo canon
+ * también pertenece a un total declarado en la misma boleta queda ambiguo y pasa.
+ *
+ * ── SEGUNDA PASADA (2026-08-11, mismo día) · POR QUÉ ESTE BLOQUE SE REESCRIBIÓ ─────────────────────────────────
+ * La primera versión BLOQUEABA RESPUESTAS CORRECTAS. Un revisor adversarial midió cuatro falsos positivos y un
+ * interruptor global, y en este repo un `ok:false` quema los 3 intentos del narrador y cae a `composeFromLedger`
+ * (la tabla pelada): romper un turno que funcionaba es peor que no atrapar el que falla. Los cinco están cerrados
+ * y cada corrección lleva su comentario donde vive. `_extremo_y_total_sin_falsos_positivos_gate.mjs` los fija, con
+ * una batería de 20 respuestas CORRECTAS —seis métricas de la familia menos-es-mejor, cuatro de más-es-mejor,
+ * listas, conteos y prosa— que no se pueden bloquear.
+ *
+ * LÍMITES DECLARADOS, que se dejan ABIERTOS a propósito (un límite declarado vale más que un verde apretado):
+ *   a) TABLA DE MENOS DE 3 FILAS · `t.rows.length < 3` sigue matando los dos chequeos. Bajarlo a 2 abre justo la
+ *      forma del P&L —«| Venta | $10.0M | / | Costo | $6.0M | / | Total | $4.0M |»— donde la fila final es una
+ *      RESTA y no una suma, y marcarla sería inventar una violación sobre una tabla correcta.
+ *   b) LA CONTRADICCIÓN DE A DOS EN PROSA · el chequeo exige 3+ entidades del turno nombradas en el párrafo. Con
+ *      dos («el mejor margen lo tiene Falabella con 22%, por delante de Jumbo con 24%») no se marca: bajar el
+ *      umbral a 2 hace competir una cifra de la misma métrica en OTRO período («el año pasado llegó a 28%») con la
+ *      del turno, que es un falso positivo peor que el hueco.
+ *   c) SIN `results` NO HAY PROSA · `entityNames` sale de las tools; un turno que llega con `results:[]` no puede
+ *      juzgar un superlativo en prosa. Es la misma dependencia que ya tienen los chequeos 3 y 10.
+ *   d) EL ALCANCE POR SUFIJO (chequeo 25) sólo reconoce «· subtotal», «· parcial» y «· top N». Una etiqueta que
+ *      nombra el recorte con otras palabras («· 5 cuentas materiales») no se lee como subtotal. Ampliar ese
+ *      vocabulario es del emisor (specRetrieval/boleta), no del muro.
+ *   e) UN TOTAL DE CONTEO MENOR que la suma de las partes NUNCA se marca: contar entidades distintas a lo largo de
+ *      una dimensión de-duplica y ese total menor es correcto.
+ */
+
+// ── PARSER DE TABLA(S) CON FILA TOTAL · DELIBERADAMENTE APARTE DE `_tableRowsOrder` ────────────────────────────
+// `_tableRowsOrder` (arriba) DESCARTA la fila Total por construcción, y sus dos consumidores (`_orderViolation`,
+// `_sealedOrderBroken`) dependen de eso: si el Total entrara a `rows`, TODA tabla que cierre con total rompería la
+// monotonía y se marcaría «orden roto». Por eso acá hay un segundo parser que devuelve el Total en un campo
+// SEPARADO en vez de tocar el primero — cero superficie de regresión sobre los chequeos 4 y 6.
+//
+// DEVUELVE UNA LISTA, NO UNA TABLA (corrección 2026-08-11, falso positivo medido): la versión anterior tomaba el
+// PRIMER separador del texto entero y metía en `cuerpo` todo lo que venía después — header, separador y filas de la
+// SEGUNDA tabla incluidos. Con dos tablas CORRECTAS en una misma respuesta (venta por canal sin total + capital por
+// bodega con un Total que SÍ cierra) eso fabricaba una violación inexistente Y le ponía el nombre de la columna
+// equivocada. Ahora se agrupan las líneas contiguas que contienen "|", y dentro de cada grupo cada separador abre
+// una tabla nueva que termina donde empieza el header de la siguiente. Cada tabla se juzga contra SUS filas.
+//
+// LA FILA TOTAL ES LA ÚLTIMA, O NO ES UNA FILA TOTAL (corrección 2026-08-11, falso positivo medido). `_ES_FILA_TOTAL`
+// es un test de VOCABULARIO sobre la celda 0, y un KPI cuyo primer renglón EMPIEZA con «Total» no es una
+// reconciliación: «| Total de clientes | 500 | / | Activos | 320 | / | Nuevos | 45 | / | En riesgo | 60 |» es un
+// indicador con su desglose de subconjuntos SOLAPADOS debajo — 320+45+60 no tiene por qué dar 500, y exigirlo
+// bloqueaba una tabla CORRECTA (PRE ok=true → POST ok=false). Una fila que de verdad reconcilia CIERRA la tabla:
+// viene después de las partes que suma. Por eso `total` sólo se llena cuando la fila del vocabulario es la ÚLTIMA
+// del cuerpo. `rows` sigue excluyendo TODA fila que empiece con «total» —ahí la exclusión es conservadora: nunca
+// conviene que un total compita como parte en el chequeo 23.
+const _SEP_FILA = /^\|?[\s:|-]*-[\s:|-]*\|?$/;
+const _ES_FILA_TOTAL = (celda) => /^total\b/i.test(String(celda || "").replace(/\*/g, "").trim());
+const _celdasDe = (l) => { let s = l; if (s.startsWith("|")) s = s.slice(1); if (s.endsWith("|")) s = s.slice(0, -1); return s.split("|").map((c) => c.trim()); };
+function _tablasConTotal(text) {
+  const rawLines = String(text || "").split("\n");
+  const bloques = [];
+  let cur = null;
+  for (let i = 0; i < rawLines.length; i++) {
+    const l = rawLines[i].trim();
+    if (l.includes("|")) { if (!cur) { cur = { lines: [], idx: [] }; bloques.push(cur); } cur.lines.push(l); cur.idx.push(i); }
+    else cur = null;
+  }
+  const out = [];
+  for (const b of bloques) {
+    const seps = [];
+    for (let k = 0; k < b.lines.length; k++) if (_SEP_FILA.test(b.lines[k])) seps.push(k);
+    for (let k = 0; k < seps.length; k++) {
+      const s = seps[k];
+      if (s < 1) continue;
+      const fin = k + 1 < seps.length ? Math.max(s + 1, seps[k + 1] - 1) : b.lines.length;
+      const cuerpo = b.lines.slice(s + 1, fin).filter((l) => !_SEP_FILA.test(l)).map(_celdasDe);
+      if (!cuerpo.length) continue;
+      out.push({
+        header: _celdasDe(b.lines[s - 1]),
+        rows: cuerpo.filter((r) => !_ES_FILA_TOTAL(r[0])),
+        total: _ES_FILA_TOTAL(cuerpo[cuerpo.length - 1][0]) ? cuerpo[cuerpo.length - 1] : null,
+        lineaIni: b.idx[s - 1],
+        lineaFin: b.idx[Math.min(fin, b.idx.length) - 1],
+        texto: b.lines.slice(s - 1, fin).join("\n"),
+      });
+    }
+  }
+  return out;
+}
+// la primera cifra de una celda · «—», «n/d» y la celda vacía devuelven null (que es justamente el agujero que el
+// chequeo 23 tiene que VER: hoy `_seqFromTableOrder` lo saltea en silencio y cuenta como "sin evidencia").
+function _figDeCelda(celda) {
+  const fs = parseFigures(String(celda || ""));
+  return fs.length ? fs[0] : null;
+}
+// SEMI-ULP · la mitad del último dígito que la cifra MUESTRA, en unidades crudas. Es la tolerancia honesta de una
+// reconciliación: «$6.0M» puede ser cualquier cosa entre $5.95M y $6.05M, así que 12 filas redondeadas contra un
+// total redondeado NO cierran exacto y exigirlo bloquearía tablas correctas. Lee las dos convenciones decimales
+// (el punto y la coma), igual que `parseNumeroLocalizado` en boleta.js.
+function _semiUlp(texto) {
+  const m = String(texto || "").match(/(\d[\d.,]*\d|\d)\s?([KMB])?/i);
+  if (!m) return 0;
+  const suf = (m[2] || "").toUpperCase();
+  const mult = suf === "K" ? 1e3 : suf === "M" ? 1e6 : suf === "B" ? 1e9 : 1;
+  const dec = (m[1].match(/[.,](\d{1,2})$/) || [, ""])[1].length;
+  return mult / Math.pow(10, dec) / 2;
+}
+const _fmtDiag = (raw) => { const a = Math.abs(raw), s = raw < 0 ? "-" : ""; return a >= 1e6 ? `${s}$${(a / 1e6).toFixed(1)}M` : a >= 1e3 ? `${s}$${Math.round(a / 1e3)}K` : `${s}$${Math.round(a)}`; };
+
+// EL RECORTE DECLARADO ES SALIDA VÁLIDA, en los tres chequeos. narratePromptC.js:64 (TOP-N Y EL RESTO) ya le pide
+// al narrador que declare el corte cuando el total cubre más filas que las mostradas; acá se lo reconoce como
+// cumplimiento, nunca se lo exige por vocabulario. Un total legítimamente parcial que DICE que es parcial pasa.
+const _DECLARA_PARCIAL = /\btop\s*\d+\b|\bl[oa]s\s+\d+\s+(?:principales|mayores|primer[oa]s|m[aá]s\s+\w+)\b|\bel\s+resto\b|\bl[oa]s\s+dem[aá]s\b|\brestantes?\b|\b\d+\s+de\s+\d+\b|\bsub\s?total(?:es)?\b|\bparcial(?:es|mente)?\b|\bno\s+(?:incluye|suma|est[aá]n\s+tod[oa]s)\b|\bs[oó]lo\s+(?:se\s+)?(?:muestr\w+|list\w+|aparec\w+)\b|\bsolo\s+(?:se\s+)?(?:muestr\w+|list\w+|aparec\w+)\b|\bsin\s+dato\b/i;
+// LA MISMA IDEA, PERO SIN EL INTERRUPTOR GLOBAL (corrección 2026-08-11, tres apagones medidos). `_DECLARA_PARCIAL`
+// se evaluaba sobre la NARRACIÓN ENTERA para decidir si el chequeo 24 corría, así que TRES frases inocentes lo
+// apagaban por completo y el Total falso volvía a salir «fiel»:
+//   · «Cierre al 1 de 2026.» — la fecha calzaba `\d+\s+de\s+\d+`;
+//   · «Un canal quedó sin dato este mes.» — calzaba `sin dato`;
+//   · «Los subtotales por familia se ven abajo.» — calzaba `sub total`.
+// Dos cambios, los dos acotados: (a) el vocabulario se recorta a las formas que hablan del RECORTE DE FILAS de una
+// tabla —el conteo pasa a `\d{1,3} de \d{1,3}`, que ya no puede capturar un año, y salen `sin dato` y `subtotal`,
+// que no dicen nada del alcance del total—, y (b) se evalúa sobre la REGIÓN de ESA tabla (su propio texto más la
+// prosa que la rodea hasta la tabla vecina), nunca sobre la respuesta entera. `sub total`/`parcial` en la fila
+// Total o en el header siguen valiendo, porque las líneas de la tabla son parte de su región.
+const _DECLARA_TOTAL_PARCIAL = /\btop\s*\d+\b|\bl[oa]s\s+\d+\s+(?:principales|mayores|primer[oa]s|m[aá]s\s+\w+)\b|\bel\s+resto\b|\bl[oa]s\s+dem[aá]s\b|\brestantes?\b|\b\d{1,3}\s+de\s+\d{1,3}\b|\bparcial(?:es|mente)?\b|\bno\s+(?:incluye|suma|est[aá]n\s+tod[oa]s)\b|\b(?:s[oó]lo|solo)\s+(?:se\s+)?(?:muestr\w+|list\w+|aparec\w+)\b/i;
+const _SUBTOTAL_EN_TABLA = /\bsub\s?total(?:es)?\b/i;
+// región de la tabla k: desde donde terminó la tabla anterior hasta donde empieza la siguiente. Con UNA sola tabla
+// es la respuesta entera (idéntico a lo de antes); con dos, la declaración de recorte de la primera ya no absuelve
+// a la segunda.
+function _regionDeTabla(narration, tablas, k) {
+  const rawLines = String(narration || "").split("\n");
+  const ini = k > 0 ? tablas[k - 1].lineaFin + 1 : 0;
+  const fin = k + 1 < tablas.length ? tablas[k + 1].lineaIni : rawLines.length;
+  return rawLines.slice(ini, Math.max(ini, fin)).join("\n");
+}
+
+// ── DIRECCIONALIDAD DE LA MÉTRICA · «mejor» NO ES «más alto» ───────────────────────────────────────────────────
+// EL FALSO POSITIVO QUE ESTO CIERRA (medido): `_EXTREMO_MAX` traía `mejor` y `_EXTREMO_MIN` traía `peor`, mapeados
+// a máximo/mínimo SIN mirar la métrica. «Valparaíso ← la mejor» sobre una columna de DÍAS DE INVENTARIO —donde la
+// mejor ES la más baja— se bloqueaba, y con ella TODA la familia menos-es-mejor de este producto (DOH, capital
+// inmovilizado, % en alerta, brecha, costo, quiebre). Un guard que bloquea la respuesta CORRECTA hace más daño que
+// el defecto que vino a arreglar.
+// «más alto»/«mayor»/«más bajo»/«menor» son palabras de MAGNITUD: se leen solas, no necesitan saber la métrica.
+// «mejor»/«peor» son palabras de JUICIO: no significan nada sin la dirección de la métrica. Por eso viven en
+// regexes separadas y sólo se juzgan cuando la dirección se resuelve CON CERTEZA.
+// DE DÓNDE SALE LA DIRECCIÓN, y por qué no se inventa acá: el repo ya la declara en dos lugares y esto los respeta.
+//   · reading.js:238/284 · `betterIsHigher` (margen: más=mejor · capital inmovilizado: menos=mejor).
+//   · criteria.js:25-31 · las varas del owner nombran el lado: «margen MÍNIMO»/«piso del margen» y «rotación
+//     mínima» son PISOS (más es mejor); «tope/techo de la carga» y «cobertura MÁXIMA (DOH)» son TECHOS (menos es
+//     mejor). Esa es exactamente la partición de abajo.
+// LA REGLA QUE MANDA: si la dirección NO se resuelve —métrica desconocida, o dos métricas de signo opuesto en el
+// mismo texto— NO SE JUZGA. Falso negativo antes que falso positivo.
+const _DIR_POR_METRICA = { ventas: 1, margen: 1, contribucion: 1, resultado: 1, rotacion: 1, costo: -1, carga: -1, cobertura: -1 };
+// vocabulario EXTRA de dirección, aparte de `_METRIC_VOCAB` a propósito: son magnitudes que el muro no necesita
+// atar a una métrica del catálogo (no participan del chequeo 9) pero cuyo lado bueno es inequívoco en el producto.
+const _DIR_EXTRA_MENOS = /\bbrechas?\b|\bquiebres?\b|\ben\s+alerta\b|\balertas?\b|\binmovilizad[oa]s?\b|\bdetenid[oa]s?\b|\bocios[oa]s?\b|\bmermas?\b|\bdevoluciones?\b|\bobsolet\w+\b|\bfaltantes?\b|\bmoras?\b|\batrasos?\b|\bdemoras?\b|\bsobrestock\b/i;
+const _DIR_EXTRA_MAS = /\bcrecimientos?\b|\bparticipaci[oó]n\b|\bcumplimientos?\b|\brentabilidad\b|\butilidad(?:es)?\b|\bganancias?\b/i;
+// ── LA MÉTRICA DE PÉRDIDA · EL AGUJERO QUE NO ERA UN HUECO SINO UNA INVERSIÓN ───────────────────────────────────
+// FALSO POSITIVO MEDIDO (2026-08-11, PRE ok=true → POST ok=false en OCHO formulaciones que este repo ya nombra):
+// una métrica de PÉRDIDA lleva ADENTRO el nombre de una métrica positiva, así que `_DIR_POR_METRICA` la resolvía —
+// y la resolvía AL REVÉS. No caía en la rama segura «no se resuelve → no se juzga»: caía en la rama que condena.
+//   · «Contribución no capturada» → `contribucion` → +1   (ontology.js:75 · toolRegistry.js:442)
+//   · «Gap de contribución» · «Contribución dejada»       (ontology.js:76)
+//   · «Días sin venta»            → `ventas`       → +1   (routerData.js:279, sinónimo declarado de DOH)
+//   · «Venta perdida» · «Venta en riesgo»                 (mesaCapital.js:10)
+//   · «Margen perdido» · «Margen sin capturar»            (ontology.js:77 «sin captura de margen»)
+// Es el vocabulario CENTRAL del producto: «contribución no capturada» fue la cifra principal de la certificación.
+// Bloquear una respuesta correcta sobre ella es inaceptable.
+//
+// POR QUÉ ABSTENERSE Y NO INVERTIR EL SIGNO. La tentación es «la negación invierte la métrica base» (perdido → -1).
+// Pero un regex NO PUEDE DECIDIR CON CERTEZA si una etiqueta es la métrica o su pérdida: «recuperación de venta
+// perdida», «reducción de la contribución no capturada» y «margen recuperado sin captura previa» llevan el mismo
+// modificador y su lado bueno es el CONTRARIO del que la inversión les daría. Invertir cambiaría un falso positivo
+// por otro más difícil de ver. La regla de la casa manda: ANTE AMBIGÜEDAD, ABSTENERSE. Con dirección 0 la marca de
+// JUICIO («mejor»/«peor») sobre una métrica de pérdida simplemente NO SE JUZGA — la respuesta correcta pasa, y la
+// afirmación dudosa también. Ése es el costo aceptado y queda declarado en el límite (f) de este bloque.
+// LO QUE NO ENTRA ACÁ, a propósito: «brecha», «quiebre», «merma», «devoluciones», «sobrestock», «en alerta»,
+// «inmovilizado» — ésas ya resuelven -1 por `_DIR_EXTRA_MENOS` y resuelven BIEN. Sacarlas sería perder cobertura
+// que hoy es correcta. Acá sólo viven los modificadores que se APOYAN sobre una métrica positiva para negarla.
+const _MOD_PERDIDA = new RegExp([
+  "\\bp[eé]rdidas?\\b", "\\bperdid[oa]s?\\b", "\\bgaps?\\b",
+  "\\bdejad[oa]s?\\b", "\\bresignad[oa]s?\\b", "\\bsacrificad[oa]s?\\b", "\\bdesaprovechad[oa]s?\\b",
+  "\\ben\\s+riesgo\\b", "\\ben\\s+peligro\\b", "\\bd[eé]ficits?\\b", "\\bincobrables?\\b",
+  "\\bno\\s+(?:captur|realizad|concretad|ejecutad|facturad|cobrad|vendid|lograd|alcanzad|aprovechad|generad)\\w*",
+  "\\bsin\\s+(?:captur|realizar|concretar|facturar|cobrar|vender|venta|ventas|movimiento|rotaci|uso|ejecutar|aprovechar)\\w*",
+  "\\bfalta\\s+de\\b", "\\bausencia\\s+de\\b",
+].join("|"), "i");
+function _direccionDeMetricas(set) {
+  let dir = 0;
+  for (const m of set) { const d = _DIR_POR_METRICA[m] || 0; if (!d) continue; if (dir && dir !== d) return 0; dir = d; }
+  return dir;
+}
+// +1 = más es mejor · -1 = menos es mejor · 0 = NO SE RESUELVE (y entonces no se juzga)
+function _direccionDe(texto) {
+  const s = String(texto || "");
+  if (_MOD_PERDIDA.test(s)) return 0;                    // pérdida/negación sobre una métrica: la dirección NO es la de la métrica base
+  const dirMet = _direccionDeMetricas(_metricasEn(s));
+  const menos = _DIR_EXTRA_MENOS.test(s), mas = _DIR_EXTRA_MAS.test(s);
+  if (menos && mas) return 0;
+  if (menos) return dirMet === 1 ? 0 : -1;
+  if (mas) return dirMet === -1 ? 0 : 1;
+  return dirMet;
+}
+// LA ABSTENCIÓN TIENE QUE SOBREVIVIR AL FALLBACK. `_direccionDe(...) || _direccionDeMetricas(metClaim)` es el patrón
+// de prosa y de lista: si el primero devuelve 0 el segundo vuelve a firmar con la métrica base, y la inversión
+// reaparece. Por eso los dos call sites preguntan ANTES por el modificador, y sobre TODO el contexto donde puede
+// estar escrito (el sustantivo, la intro/oración, el ítem y las ETIQUETAS DEL LEDGER de la cifra reclamada) —
+// «contribución no capturada» llega a `_direccionDe` recortada a «contribución no» por `_sustantivoDelExtremo`.
+const _hayPerdida = (...textos) => _MOD_PERDIDA.test(textos.filter(Boolean).join(" "));
+const _labelsDeFigNarrada = (nf, figsL) => figsL.filter((f) => f.canon === nf.canon).map((f) => f.label).join(" · ");
+
+// ── 23 · EXTREMO SIN SUSTENTO / CONTRADICHO ────────────────────────────────────────────────────────────────────
+// La doctrina existía y no tenía backstop: narratePromptC.js:98 «un superlativo tiene que ser el extremo ENTRE LAS
+// QUE ESTÁS MOSTRANDO». Acá se vuelve determinístico. El patrón declarado del repo: doctrina sola no alcanza.
+const _EXTREMO_MAX = /\bm[aá]s\s+(?:alt[oa]s?|grandes?|elevad[oa]s?|fuertes?)\b|\bmayor(?:es)?\b|\bm[aá]xim[oa]s?\b|\bpico\b|\bencabeza\b|\blidera\b/i;
+const _EXTREMO_MIN = /\bm[aá]s\s+(?:baj[oa]s?|chic[oa]s?|peque[nñ][oa]s?|d[eé]biles?)\b|\bmenor(?:es)?\b|\bm[ií]nim[oa]s?\b/i;
+const _EXTREMO_MEJOR = /\bmejor(?:es)?\b/i;
+const _EXTREMO_PEOR = /\bpeor(?:es)?\b/i;
+const _TIENE_MARCA_EXTREMO = (s) => _EXTREMO_MAX.test(s) || _EXTREMO_MIN.test(s) || _EXTREMO_MEJOR.test(s) || _EXTREMO_PEOR.test(s);
+// clasifica la marca en {magnitud: 'max'|'min'} o {juicio: 'mejor'|'peor'} · null si no hay marca o si trae las dos
+// («el mayor y el peor» no es nada nítido → no se juzga).
+function _claseDeMarca(frag) {
+  const s = String(frag || "");
+  const max = _EXTREMO_MAX.test(s), min = _EXTREMO_MIN.test(s);
+  if (max && min) return null;
+  if (max) return { re: _EXTREMO_MAX, esMax: true, juicio: false };
+  if (min) return { re: _EXTREMO_MIN, esMax: false, juicio: false };
+  const mej = _EXTREMO_MEJOR.test(s), peo = _EXTREMO_PEOR.test(s);
+  if (mej === peo) return null;
+  return { re: mej ? _EXTREMO_MEJOR : _EXTREMO_PEOR, mejor: mej, juicio: true };
+}
+// «de mayor a menor» / «de menor a mayor» es una PROMESA DE ORDEN (chequeo 4), no una marca de extremo: sin esta
+// exclusión toda tabla que declare su orden quedaría marcada además como superlativo.
+const _IDIOMA_ORDEN = /\bde\s+m(?:a|e)yor\s+a\s+m(?:e|a)nor\b/i;
+const _STOP_SUSTANTIVO = new Set(["de", "del", "la", "el", "los", "las", "lo", "en", "es", "fue", "son", "era", "que", "con", "un", "una", "su", "sus", "tu", "tus", "y", "al"]);
+// el sustantivo de la marca son las palabras que SIGUEN al superlativo («← mayor brecha» → «brecha»); vacío es
+// legítimo («← más bajo») y significa "la serie principal", que es como se lee una tabla.
+function _sustantivoDelExtremo(frag, re) {
+  const m = re.exec(frag);
+  if (!m) return null;
+  const after = frag.slice(m.index + m[0].length).replace(/[*←→|<>\-–—]/g, " ");
+  const pal = after.split(/\s+/).map((w) => w.replace(/[^0-9A-Za-zÀ-ſ%]/g, "")).filter(Boolean);
+  const utiles = [];
+  for (const w of pal.slice(0, 3)) { if (_STOP_SUSTANTIVO.has(_norm(w))) continue; utiles.push(w); if (utiles.length === 2) break; }
+  return utiles.join(" ");
+}
+// columna a la que apunta el sustantivo · EXIGE ≥4 letras de solape para no confundir «mensual» con la columna
+// «Mes» (falso match real de `_colForKeyword`, que acepta substring corto). Devuelve -1 si no hay columna.
+function _colDelSustantivo(header, sust) {
+  const s = _norm(sust);
+  if (!s) return -1;
+  for (let i = 1; i < header.length; i++) {
+    const h = _norm(header[i]);
+    if (h.length >= 4 && (s.includes(h) || h.includes(s))) return i;
+    if (h.split(/\s+/).some((w) => w.length >= 4 && s.includes(w))) return i;
+  }
+  return -1;
+}
+// A QUÉ COLUMNA APUNTA LA MARCA · las tres correcciones del chequeo 23 viven acá.
+//  (a) LA MARCA PUEDE VIVIR EN LA CELDA DE LA CIFRA. La versión anterior exigía `!_figDeCelda(cel)`, o sea que la
+//      marca estuviera en la columna de la ETIQUETA: `| Falabella | 22% **← el mejor** |` —markdown absolutamente
+//      corriente, misma entidad, misma métrica, misma mentira— salía «fiel». La regla juzgaba en qué columna se
+//      escribió, no la afirmación. Ahora la marca se busca en TODA la fila y, si vive en una celda con cifra, esa
+//      es justamente la columna que la marca reclama.
+//  (b) SIN COLUMNA RESUELTA, LA CONTRADICCIÓN TIENE QUE SER UNÁNIME. La versión anterior elegía como «principal» la
+//      PRIMERA columna con ≥3 cifras: con `| Mes | Año anterior | Este año |`, «Mar ← más alto» —CIERTO sobre «Este
+//      año»— se bloqueaba contra «Año anterior». La corrección dependía del ORDEN DE COLUMNAS. Ahora, cuando la
+//      marca no nombra columna ni vive en una, sólo se marca si TODAS las columnas numéricas donde la fila tiene
+//      cifra la contradicen: si hay UNA lectura honesta, no se juzga.
+//  (c) LA CELDA VACÍA SÍ SE LEE CONTRA LA SERIE PRINCIPAL, y es lo correcto: marcar un extremo en una fila cuya
+//      celda de la serie está en blanco afirma sobre un valor que la respuesta NO muestra (el caso medido).
+function _extremoEnTabla(narration) {
+  const out = [];
+  for (const t of _tablasConTotal(narration)) {
+    if (t.rows.length < 3) continue;
+    const numericas = [];
+    for (let c = 1; c < t.header.length; c++) if (t.rows.filter((r) => _figDeCelda(r[c])).length >= 3) numericas.push(c);
+    if (!numericas.length) continue;
+    const principal = numericas[0];
+    const valsDe = (c) => t.rows.map((r) => _figDeCelda(r[c])).map((f, j) => (f ? { ...f, j } : null)).filter(Boolean);
+    for (let i = 0; i < t.rows.length; i++) {
+      const fila = t.rows[i];
+      let ci = -1;
+      for (let c = 0; c < fila.length; c++) { const cel = fila[c]; if (!_IDIOMA_ORDEN.test(cel) && _TIENE_MARCA_EXTREMO(cel)) { ci = c; break; } }
+      if (ci < 0) continue;
+      const marca = _claseDeMarca(fila[ci]);
+      if (!marca) continue;
+      const sust = _sustantivoDelExtremo(fila[ci], marca.re) || "";
+      // sentido de la marca EN ESA COLUMNA · null = no se resuelve → esa columna no puede condenar
+      const sentido = (c) => {
+        if (!marca.juicio) return marca.esMax;
+        const dir = _direccionDe(`${t.header[c] || ""} ${sust}`);
+        if (!dir) return null;
+        return marca.mejor ? dir > 0 : dir < 0;
+      };
+      const etiqueta = String(fila[0] || `fila ${i + 1}`).replace(/\*/g, "").trim();
+      const nombre = (j) => String(t.rows[j][0] || "").replace(/\*/g, "").trim();
+      let col = -1;
+      if (sust) { col = _colDelSustantivo(t.header, sust); if (col < 0) continue; }   // nombra una magnitud que la tabla no muestra → no se juzga
+      else if (ci >= 1 && numericas.includes(ci)) col = ci;                            // (a) la marca vive en la celda de su propia cifra
+      if (col >= 0) {
+        const esMax = sentido(col);
+        if (esMax === null) continue;
+        const vals = valsDe(col);
+        if (vals.length < 3) continue;                     // sin evidencia estructural suficiente
+        const mia = vals.find((v) => v.j === i);
+        if (!mia) { out.push(`«${etiqueta}» está marcada como el extremo (${esMax ? "más alto" : "más bajo"}) y su celda de «${t.header[col] || col}» no trae ninguna cifra — el extremo se afirma sobre un valor que la respuesta no muestra`); continue; }
+        const tol = _semiUlp(mia.text);
+        const gana = vals.find((v) => v.j !== i && (esMax ? v.raw > mia.raw + tol : v.raw < mia.raw - tol));
+        if (gana) out.push(`«${etiqueta}» está marcada como el extremo (${esMax ? "más alto" : "más bajo"}) con ${mia.text}, pero la misma tabla muestra «${nombre(gana.j)}» con ${gana.text} en «${t.header[col] || col}»`);
+        continue;
+      }
+      // (c) sin columna resuelta: la celda vacía se lee contra la SERIE PRINCIPAL
+      const esMaxP = sentido(principal);
+      if (esMaxP === null) continue;
+      const valsP = valsDe(principal);
+      if (valsP.length < 3) continue;
+      if (!valsP.find((v) => v.j === i)) { out.push(`«${etiqueta}» está marcada como el extremo (${esMaxP ? "más alto" : "más bajo"}) y su celda de «${t.header[principal] || principal}» no trae ninguna cifra — el extremo se afirma sobre un valor que la respuesta no muestra`); continue; }
+      // (b) contradicción UNÁNIME o no hay violación
+      let unanime = true, ejemplo = null, colEj = principal, miaEj = null;
+      for (const c of numericas) {
+        const esMax = sentido(c);
+        if (esMax === null) { unanime = false; break; }
+        const vals = valsDe(c);
+        const mia = vals.find((v) => v.j === i);
+        if (!mia) continue;                                 // esa columna no exonera ni condena
+        if (vals.length < 3) { unanime = false; break; }
+        const tol = _semiUlp(mia.text);
+        const gana = vals.find((v) => v.j !== i && (esMax ? v.raw > mia.raw + tol : v.raw < mia.raw - tol));
+        if (!gana) { unanime = false; break; }              // UNA lectura honesta alcanza para no juzgar
+        if (!ejemplo) { ejemplo = gana; colEj = c; miaEj = mia; }
+      }
+      if (unanime && ejemplo) out.push(`«${etiqueta}» está marcada como el extremo (${sentido(colEj) ? "más alto" : "más bajo"}) con ${miaEj.text}, pero la misma tabla muestra «${nombre(ejemplo.j)}» con ${ejemplo.text} en «${t.header[colEj] || colEj}»`);
+    }
+  }
+  return out;
+}
+// métricas que el LEDGER le reconoce a una cifra narrada (por canon) · Set vacío = no se puede atar a ninguna
+function _metricasDeFigNarrada(nf, figsL) {
+  const out = new Set();
+  for (const f of figsL) if (f.canon === nf.canon) for (const m of _metricasEn(f.label)) out.add(m);
+  return out;
+}
+// párrafos de PROSA · las líneas de tabla quedan fuera (las juzga el chequeo de tabla) y la línea en blanco corta.
+function _parrafos(text) {
+  const out = [];
+  let cur = [];
+  for (const l of String(text || "").split("\n")) {
+    if (l.trim() === "" || l.includes("|")) { if (cur.length) { out.push(cur.join("\n")); cur = []; } continue; }
+    cur.push(l);
+  }
+  if (cur.length) out.push(cur.join("\n"));
+  return out;
+}
+// cifras del párrafo CON su posición (parseFigures no la devuelve y el orden que trae es por tipo de unidad, no
+// por aparición) · cada ocurrencia se consume una sola vez.
+function _figsConPosicion(parr) {
+  const out = [], usados = new Map();
+  for (const f of parseFigures(parr)) {
+    const from = usados.get(f.text) || 0;
+    const i = parr.indexOf(f.text, from);
+    if (i < 0) continue;
+    usados.set(f.text, i + f.text.length);
+    out.push({ ...f, i });
+  }
+  return out;
+}
+// LA MITAD EN PROSA · el árbitro la midió sin ninguna tabla. Condiciones acumulativas para no castigar prosa
+// legítima: (a) superlativo CON determinante (nunca el comparativo «más bajo QUE el benchmark»), (b) su sustantivo
+// vacío o una métrica DECLARADA (`_METRIC_VOCAB` — «el mayor problema» no se juzga), (c) 3+ entidades del turno
+// nombradas en el párrafo y (d) 3+ cifras COMPARABLES. (c) es lo que separa una comparación entre PARES de una
+// lectura contra una vara: «el mejor margen es 30%, contra tu benchmark de 35%» no tiene 3 entidades y por eso
+// nunca se marca, aunque el benchmark sea mayor.
+//
+// QUÉ CAMBIÓ, y por qué el resultado es MÁS ESTRECHO aunque el alcance sea mayor (corrección 2026-08-11):
+//   · FALSO POSITIVO CERRADO · antes agrupaba por `unit`, no por MÉTRICA: «El mejor margen lo tiene Jumbo con 24%,
+//     por delante de Falabella con 22% —que igual concentra el 41% de la venta— y de Lider con 21.5%» se bloqueaba
+//     porque una PARTICIPACIÓN de 41% (otra métrica, misma `unit:pct`) caía en la oración. Ahora cada cifra se ata
+//     a su métrica por el LEDGER (canon → label) y sólo compiten las de la MISMA métrica; una cifra que el ledger
+//     no sabe atar queda AFUERA de la comparación, nunca adentro.
+//   · Y ADEMÁS cada rival tiene que estar PEGADO a una entidad nombrada del turno (≤45 caracteres). Una vara
+//     («tu benchmark de 30%») no le pertenece a ninguna entidad y por eso no puede ganarle a nadie. Ese candado es
+//     el que permite ampliar la ventana de la ORACIÓN al PÁRRAFO sin abrir la puerta: la misma mentira partida en
+//     dos oraciones («El mejor margen lo tiene Falabella con 22%. Detrás vienen Lider con 21.5% y Jumbo con 24%»)
+//     evadía el chequeo entero con sólo poner un punto en el medio.
+const _SUPERLATIVO_PROSA = /\b(?:el|la|los|las)\s+(?:m[aá]s\s+\w+|mayor(?:es)?|menor(?:es)?|mejor(?:es)?|peor(?:es)?)\b|\bel\s+que\s+m[aá]s\b|\bel\s+que\s+menos\b|\bm[aá]xim[oa]\b|\bm[ií]nim[oa]\b/i;
+function _extremoEnProsa(narration, entityNames, ledger) {
+  if (!Array.isArray(entityNames) || entityNames.length < 3) return [];
+  const figsL = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
+  const out = [];
+  for (const parr of _parrafos(narration)) {
+    const nombradas = entityNames.filter((n) => new RegExp(`\\b${_esc(n)}\\b`, "i").test(parr));
+    if (nombradas.length < 3) continue;                   // sin 3 pares comparados no es una comparación entre pares
+    const figs = _figsConPosicion(parr);
+    if (figs.length < 3) continue;
+    const atada = (f) => nombradas.some((n) => {
+      const re = new RegExp(`\\b${_esc(n)}\\b`, "gi");
+      let m;
+      while ((m = re.exec(parr))) if (Math.abs(m.index - f.i) <= 45) return true;
+      return false;
+    });
+    for (const [lo, hi] of _oraciones(parr)) {
+      const o = parr.slice(lo, hi);
+      if (_IDIOMA_ORDEN.test(o)) continue;
+      const sm = _SUPERLATIVO_PROSA.exec(o);
+      if (!sm) continue;
+      const esMaxMag = _EXTREMO_MAX.test(sm[0]) || /\bm[aá]xim/i.test(sm[0]) || /\bque\s+m[aá]s\b/i.test(sm[0]);
+      const esMinMag = _EXTREMO_MIN.test(sm[0]) || /\bm[ií]nim/i.test(sm[0]) || /\bque\s+menos\b/i.test(sm[0]);
+      const mejor = !esMaxMag && !esMinMag && _EXTREMO_MEJOR.test(sm[0]);
+      const peor = !esMaxMag && !esMinMag && _EXTREMO_PEOR.test(sm[0]);
+      if (esMaxMag === esMinMag && !mejor && !peor) continue;   // ni una ni otra, o las dos → no se juzga
+      const reMarca = esMaxMag ? _EXTREMO_MAX : esMinMag ? _EXTREMO_MIN : mejor ? _EXTREMO_MEJOR : _EXTREMO_PEOR;
+      const sust = _sustantivoDelExtremo(o.slice(sm.index), reMarca) || "";
+      if (sust && !_metricasEn(sust).size) continue;       // nombra otra magnitud (un problema, una cuenta) → no se juzga
+      const reclamada = figs.filter((f) => f.i >= lo + sm.index + sm[0].length && f.i < hi).sort((a, b) => a.i - b.i)[0];
+      if (!reclamada) continue;                            // el superlativo no lleva cifra pegada → nada que contrastar
+      if (!atada(reclamada)) continue;                     // la cifra reclamada no le pertenece a ninguna entidad del turno
+      const metClaim = new Set([..._metricasEn(sust), ..._metricasDeFigNarrada(reclamada, figsL)]);
+      if (!metClaim.size) continue;                        // sin métrica reconocible no hay con qué acotar la comparación
+      let esMax;
+      if (esMaxMag || esMinMag) esMax = esMaxMag;
+      else {
+        if (_hayPerdida(sust, o, _labelsDeFigNarrada(reclamada, figsL))) continue;   // métrica de PÉRDIDA → no se juzga
+        const dir = _direccionDe(`${sust} ${[...metClaim].join(" ")}`) || _direccionDeMetricas(metClaim);
+        if (!dir) continue;                                // «mejor»/«peor» sin dirección cierta → NO se juzga
+        esMax = mejor ? dir > 0 : dir < 0;
+      }
+      const rivales = figs.filter((f) => f !== reclamada && f.unit === reclamada.unit && atada(f)
+        && [..._metricasDeFigNarrada(f, figsL)].some((m) => metClaim.has(m)));
+      if (rivales.length + 1 < 3) continue;                // sin 3 cifras comparables no hay evidencia estructural
+      const tol = _semiUlp(reclamada.text);
+      const gana = rivales.find((f) => (esMax ? f.raw > reclamada.raw + tol : f.raw < reclamada.raw - tol));
+      if (gana) out.push(`«${sm[0].trim()}» se afirma sobre ${reclamada.text}, pero el MISMO párrafo muestra ${gana.text} (${gana.unit}) en la misma métrica — el superlativo no es el extremo entre las cifras que la respuesta enseña`);
+    }
+  }
+  return out;
+}
+// ── 23b · EL EXTREMO EN UNA LISTA CON VIÑETAS ──────────────────────────────────────────────────────────────────
+// El árbitro del diagnóstico lo pidió por escrito («el chequeo tiene que poder correr también sobre la lista/prosa,
+// como ya hace `_orderViolation` con `_listItemsOrder`») y quedó sin cubrir: «- Falabella 22% ← el mejor / - Lider
+// 21.5% / - Jumbo 24%» no es tabla ni es una oración con tres entidades, así que ninguna de las dos mitades lo veía.
+// Una lista de viñetas ES una estructura comparable: cada ítem trae UNA cifra de la MISMA serie. Los candados son
+// los mismos que arriba —3+ ítems con cifra, todos de la misma unidad, métricas compatibles según el ledger, y la
+// dirección resuelta con certeza para «mejor»/«peor»— así que un ítem cuya cifra el ledger no sabe atar no compite.
+const _VINETA = /^\s*(?:[-*•·]|\d+[.)])\s+(.+)$/;
+// EN UNA LISTA LA MARCA TIENE QUE SER UNA MARCA · o lleva flecha («← el mejor»), o es un superlativo con
+// determinante («el menor de los tres»). Sin este candado un COMPARATIVO suelto —«21.5%, menor que el benchmark»—
+// se leería como si el ítem se declarara el mínimo de la lista y bloquearía una viñeta correcta.
+const _MARCA_DE_LISTA = (it) => (/[←→]/.test(it) ? _TIENE_MARCA_EXTREMO(it) : _SUPERLATIVO_PROSA.test(it));
+function _extremoEnLista(narration, ledger) {
+  const figsL = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
+  const grupos = [];
+  let cur = null, ultima = "";
+  for (const l of String(narration || "").split("\n")) {
+    if (l.includes("|")) { cur = null; ultima = ""; continue; }
+    const m = _VINETA.exec(l);
+    if (m) { if (!cur) { cur = { items: [], intro: ultima }; grupos.push(cur); } cur.items.push(m[1].trim()); continue; }
+    cur = null;
+    if (l.trim()) ultima = l.trim();
+  }
+  const out = [];
+  for (const g of grupos) {
+    if (g.items.length < 3) continue;
+    const conFig = g.items.map((it, j) => { const f = parseFigures(it)[0]; return f ? { ...f, j, it } : null; }).filter(Boolean);
+    if (conFig.length < 3) continue;
+    const unidad = conFig[0].unit;
+    if (conFig.some((f) => f.unit !== unidad)) continue;   // lista heterogénea → no es una serie comparable
+    for (const mia of conFig) {
+      if (_IDIOMA_ORDEN.test(mia.it)) continue;
+      if (!_MARCA_DE_LISTA(mia.it)) continue;
+      const marca = _claseDeMarca(mia.it);
+      if (!marca) continue;
+      const sust = _sustantivoDelExtremo(mia.it, marca.re) || "";
+      if (sust && !_metricasEn(sust).size) continue;      // nombra otra magnitud → no se juzga
+      const metClaim = new Set([..._metricasEn(sust), ..._metricasEn(g.intro), ..._metricasDeFigNarrada(mia, figsL)]);
+      let esMax;
+      if (!marca.juicio) esMax = marca.esMax;
+      else {
+        if (_hayPerdida(sust, g.intro, mia.it, _labelsDeFigNarrada(mia, figsL))) continue;   // métrica de PÉRDIDA → no se juzga
+        const dir = _direccionDe(`${sust} ${g.intro}`) || _direccionDeMetricas(metClaim);
+        if (!dir) continue;                                // sin dirección cierta → NO se juzga
+        esMax = marca.mejor ? dir > 0 : dir < 0;
+      }
+      // EL CANDADO DE RIVALES, EN LA MISMA DIRECCIÓN QUE `_extremoEnProsa` (corrección 2026-08-11, falso positivo
+      // medido). Estaba INVERTIDO: `!metClaim.size || !_metricasDeFigNarrada(f).size || ...` metía ADENTRO de la
+      // comparación justo las cifras que el ledger NO sabe atar a ninguna métrica, que es lo contrario de lo que
+      // hace la prosa —donde una cifra sin métrica reconocible queda AFUERA—. Resultado: «- Margen de Jumbo: 24%
+      // ← el mejor / - Falabella concentra el 41% / - Lider aporta el 30%», con la boleta rotulando 41% y 30% como
+      // PARTICIPACIÓN, se bloqueaba (PRE ok=true → POST ok=false) mientras la MISMA afirmación en prosa pasaba: era
+      // el falso positivo FP-4 —declarado cerrado— mudado a la superficie que este chequeo abrió. Ahora rige la
+      // regla única: sin métrica reconocible no hay comparación, y sólo compite la cifra de la MISMA métrica.
+      if (!metClaim.size) continue;
+      const rivales = conFig.filter((f) => f.j !== mia.j && [..._metricasDeFigNarrada(f, figsL)].some((m) => metClaim.has(m)));
+      if (rivales.length + 1 < 3) continue;
+      const tol = _semiUlp(mia.text);
+      const gana = rivales.find((f) => (esMax ? f.raw > mia.raw + tol : f.raw < mia.raw - tol));
+      if (gana) out.push(`el ítem «${mia.it.slice(0, 60)}» está marcado como el extremo (${esMax ? "más alto" : "más bajo"}) con ${mia.text}, pero la misma lista muestra ${gana.text} en «${gana.it.slice(0, 60)}»`);
+    }
+  }
+  return out;
+}
+
+// ── 24 · TOTAL QUE NO RECONCILIA CON LAS PARTES VISIBLES ───────────────────────────────────────────────────────
+// Sólo columnas ADITIVAS: money. Sumar una columna de % / rotación / días es el error OPUESTO (el «Total» de una
+// columna porcentual es el ponderado, no la suma), así que nunca se tocan. Y el total tiene que compartir unidad
+// con sus partes. Tolerancia = suma de los semi-ULP de cada celda + el del total: proporcional a la cantidad de
+// filas, que es exactamente donde el redondeo se acumula.
+const _UNIDAD_ADITIVA = new Set(["money"]);
+// CONTEOS · `parseFigures` sólo reconoce cifras CON unidad ($ % x d), así que una columna de «Unidades» o de «SKU
+// en alerta» era invisible: «Total 9000 unidades» contra 2500 visibles y «Total 90 SKU» contra 25 salían «fiel».
+// Un conteo SÍ es aditivo, pero con una asimetría que hay que respetar para no bloquear una respuesta correcta:
+// contar entidades DISTINTAS a lo largo de una dimensión puede dar MENOS que la suma de las partes (el mismo SKU
+// vive en dos bodegas y se cuenta una sola vez), y ese total menor es CORRECTO. Por eso el conteo sólo se marca en
+// el sentido «el total cubre MÁS que lo mostrado», nunca en el otro. Y sólo cuando el header nombra qué se cuenta
+// —si no, una columna de años o de números de orden entraría al chequeo sin ser una cantidad.
+const _HEADER_CONTABLE = /\bunidades?\b|\bsku[s]?\b|\bcuentas\b|\bclientes\b|\bproductos\b|\b[ií]tems?\b|\breferencias\b|\bquiebres?\b|\balertas?\b|\bcasos\b|\bpedidos\b|\b[oó]rdenes\b|\btransacciones\b|\bl[ií]neas\b|\bcantidad(?:es)?\b|\bconteos?\b/i;
+// ── UNA CASCADA NO ES UNA SUMA · el límite (a) estaba mal calibrado ────────────────────────────────────────────
+// FALSO POSITIVO MEDIDO (2026-08-11, PRE ok=true → POST ok=false): el piso `t.rows.length < 3` se dejó sin bajar
+// argumentando que protegía «la forma del P&L, donde la fila final es una RESTA». No la protege: el P&L de ESTE
+// repo tiene CUATRO líneas (pnl.js:894 · Ingreso · Costo · Carga comercial · Gastos declarados → Resultado
+// comercial), o sea ya está POR ENCIMA del piso. El piso protegía un P&L de 2 filas que no existe y dejaba sin
+// protección el de 3+ que sí. Se bloqueaban tres formas CORRECTAS y corrientes:
+//   · «| Venta $50.0M | Costo $30.0M | Carga comercial $8.0M | **Total $12.0M** |»
+//   · la misma con la etiqueta real del producto, «Total resultado comercial»
+//   · «| Venta bruta $50.0M | Devoluciones $2.0M | Descuentos $6.0M | **Total venta neta $42.0M** |»
+// LA REGLA QUE FALTABA, y va donde corresponde —en el chequeo, no en el piso de filas—: una fila final que es una
+// RESTA/NETEO no es una suma y no se reconcilia como tal. Se reconoce por las dos caras, y cualquiera alcanza para
+// ABSTENERSE (nunca para condenar):
+//   (1) ARITMÉTICA, que es certeza y no vocabulario: la primera fila MENOS todas las demás da el total dentro de la
+//       misma tolerancia de redondeo. Ésa es exactamente la forma de la cascada y no se puede escribir de otra
+//       manera por accidente.
+//   (2) LA FILA TOTAL SE DECLARA NETEO en su propia etiqueta («resultado», «neto/neta», «utilidad», «EBITDA»).
+// Deliberadamente NO se toca `t.rows.length < 3`: bajarlo sería AGREGAR cobertura, y no es lo que este defecto pide.
+const _TOTAL_ES_NETEO = /\bnet[oa]s?\b|\bresultados?\b|\butilidad(?:es)?\b|\bebitda\b/i;
+function _conteoDeCelda(celda) {
+  const s = String(celda || "").replace(/\*/g, "").trim();
+  if (!s || /[$%]/.test(s)) return null;
+  const m = s.match(/^(\d[\d.,]*)\s*([A-Za-zÀ-ÿ]{2,16})?\.?$/);
+  if (!m) return null;
+  const raw = Number(String(m[1]).replace(/[.,](?=\d{3}(?:\D|$))/g, "").replace(/,/g, "."));
+  return Number.isFinite(raw) ? { raw, text: s } : null;
+}
+function _totalNoReconcilia(narration) {
+  const tablas = _tablasConTotal(narration);
+  const out = [];
+  for (let k = 0; k < tablas.length; k++) {
+    const t = tablas[k];
+    if (!t.total || t.rows.length < 3) continue;
+    const region = _regionDeTabla(narration, tablas, k);
+    if (_DECLARA_TOTAL_PARCIAL.test(region)) continue;              // el recorte está declarado → el total puede cubrir más
+    if (_SUBTOTAL_EN_TABLA.test(t.texto)) continue;                 // la tabla misma dice que su total es un subtotal
+    if (_TOTAL_ES_NETEO.test(String(t.total[0] || ""))) continue;   // (2) la fila final se declara NETEO: no es una suma
+    for (let c = 1; c < Math.max(t.header.length, t.total.length); c++) {
+      const tot = _figDeCelda(t.total[c]);
+      if (tot && _UNIDAD_ADITIVA.has(tot.unit)) {
+        const partes = t.rows.map((r) => _figDeCelda(r[c])).filter((f) => f && f.unit === tot.unit);
+        if (partes.length < 3) continue;                            // sin evidencia estructural suficiente
+        const suma = partes.reduce((s, f) => s + f.raw, 0);
+        const tol = partes.reduce((s, f) => s + _semiUlp(f.text), 0) + _semiUlp(tot.text);
+        if (Math.abs(suma - tot.raw) <= tol) continue;
+        // (1) CASCADA DE RESTA · la primera línea menos todas las demás DA el total → la fila final es un neteo
+        if (partes.length === t.rows.length && Math.abs(2 * partes[0].raw - suma - tot.raw) <= tol) continue;
+        const huecos = t.rows.length - partes.length;
+        out.push(`la fila Total de «${t.header[c] || c}» dice ${tot.text} y las ${partes.length} filas visibles suman ${_fmtDiag(suma)}${huecos ? ` (${huecos} fila(s) sin cifra en esa columna)` : ""} — un total que cubre más que lo mostrado tiene que declararse parcial`);
+        continue;
+      }
+      if (tot) continue;                                            // cifra con unidad NO aditiva (%, días, rotación) → nunca se suma
+      if (!_HEADER_CONTABLE.test(`${t.header[c] || ""} ${t.total[c] || ""}`)) continue;
+      const totC = _conteoDeCelda(t.total[c]);
+      if (!totC) continue;
+      const partesC = t.rows.map((r) => _conteoDeCelda(r[c])).filter(Boolean);
+      if (partesC.length < 3 || partesC.length !== t.rows.length) continue;   // con una fila sin conteo no hay nada que reconciliar
+      const sumaC = partesC.reduce((s, f) => s + f.raw, 0);
+      if (totC.raw <= sumaC + 0.5) continue;                        // el total menor es la de-duplicación legítima: NO se marca
+      out.push(`la fila Total de «${t.header[c] || c}» dice ${totC.text} y las ${partesC.length} filas visibles suman ${Math.round(sumaC)} — un total que cubre más que lo mostrado tiene que declararse parcial`);
+    }
+  }
+  return out;
+}
+
+// ── 25 · ALCANCE DE AGREGACIÓN PROMOVIDO (subtotal narrado como total) ─────────────────────────────────────────
+// La boleta SÍ trae la etiqueta honesta en el turno medido («Contribución no capturada · subtotal = $4.9M», el
+// subtotal de 5 cuentas materiales cuando las 8 bajo benchmark suman $5.4M): la degrada el narrador y nada la
+// repone. El alcance vive hoy como SUFIJO DE TEXTO del label —no es un campo—, así que se lee de ahí; el día que
+// `boleta.js` lo declare como campo, esta lectura se reemplaza por el campo y el resto del chequeo no cambia.
+// LO QUE ESTE CHEQUEO **NO** PUEDE VER, y hay que decirlo: cuando el EMISOR rotula «· total» una suma filtrada
+// (specRetrieval.js:1011/1733/2231/2260 lo hacen sobre `subtotal_usd`), no hay nada que comparar — la etiqueta
+// miente antes de llegar acá. Esa mitad se cierra en el emisor, no en el muro.
+function _alcanceDelLabel(label) {
+  const segs = String(label || "").split("·").map((s) => _norm(s.trim())).filter(Boolean);
+  const last = segs[segs.length - 1] || "";
+  if (/^sub\s?total(?:es)?$/.test(last) || /^parcial(?:es)?$/.test(last) || /^top\s*\d+$/.test(last)) return "subtotal";
+  if (/^total(?:es)?$/.test(last) || /^global(?:es)?$/.test(last)) return "total";
+  return null;
+}
+const _ALCANCE_TOTALIZADOR = /\btotal(?:es)?\b|\btotalidad\b|\bglobal(?:es)?\b|\btod[oa]s?\s+(?:el|la|los|las|tu|tus|su|sus)\b|\bcomplet[oa]s?\b|\benter[oa]s?\b|\ba nivel (?:global|general|de negocio)\b/i;
+// TOTAL DEL GRUPO DECLARADO · el propio motor escribe «esa lista completa suma el total de arriba» refiriéndose al
+// grupo que acaba de listar. Eso NO es promover el alcance: es nombrar el total DEL RECORTE, que es la conducta
+// correcta. Misma familia que `_PART_OF_EXCEPTION` (chequeo 5), que también se reusa acá para el total-denominador.
+const _TOTAL_DEL_GRUPO = /\b(?:de|del|en)\s+(?:arriba|abajo|es[ae]\s+(?:lista|grupo|recorte|bloque|conjunto)|est[ae]\s+(?:lista|grupo|recorte|bloque|conjunto)|l[oa]s\s+\d+\b|es[oa]s\s+\d+\b)/i;
+function _alcancePromovido(narration, ledger) {
+  const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []);
+  if (!figs.length) return [];
+  const porCanon = new Map();
+  for (const f of figs) { if (!porCanon.has(f.canon)) porCanon.set(f.canon, []); porCanon.get(f.canon).push({ f, alcance: _alcanceDelLabel(f.label) }); }
+  const text = String(narration || "");
+  const masked = _maskFigures(text);
+  const out = [];
+  const vistos = new Set();
+  for (const nf of parseFigures(text)) {
+    const grupo = porCanon.get(nf.canon);
+    if (!grupo) continue;
+    const subs = grupo.filter((g) => g.alcance === "subtotal");
+    if (!subs.length) continue;
+    const metricas = new Set();
+    for (const s of subs) for (const m of _metricasEn(s.f.label)) metricas.add(m);
+    if (!metricas.size) continue;                          // sin métrica reconocible no hay nada que atar
+    // COLISIÓN DE CANON (el canon es `unit:value`, no incluye la etiqueta): si OTRA fig con el mismo valor declara
+    // alcance total, o no declara ninguno pero habla de la misma métrica, la cita tiene una lectura honesta.
+    const ambiguo = grupo.some((g) => g.alcance === "total" || (g.alcance === null && [..._metricasEn(g.f.label)].some((m) => metricas.has(m))));
+    if (ambiguo) continue;
+    const idx = text.indexOf(nf.text);
+    if (idx < 0 || vistos.has(idx)) continue;
+    vistos.add(idx);
+    const [lo] = _localWindow(masked, idx, 90);
+    const end = idx + nf.text.length;
+    const hi0 = Math.min(masked.length, end + 90);
+    const cut = masked.slice(end, hi0).search(_SENT_END);
+    const ventana = text.slice(lo, cut >= 0 ? end + cut : hi0);
+    if (!_ALCANCE_TOTALIZADOR.test(ventana)) continue;
+    if (_PART_OF_EXCEPTION.test(ventana) || _TOTAL_DEL_GRUPO.test(ventana) || _DECLARA_PARCIAL.test(ventana)) continue;
+    if (![..._metricasEn(ventana)].some((m) => metricas.has(m))) continue;   // la frase habla de otra métrica
+    out.push(`«${nf.text}» está autorizada como SUBTOTAL («${subs[0].f.label}») y se narra como el total del universo: "${ventana.trim().slice(0, 110)}"`);
+  }
+  return out;
+}
+
 export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full" } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
@@ -1561,6 +2214,16 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // depender de cómo lo haya redactado. BLOQUEA por la misma razón que el chequeo 17: el número es verdad y la
   // afirmación es falsa. Cero vocabulario: compara métrica contra métrica y canon contra canon.
   for (const v of _datoOficialReemplazado(narration, reparacion, figs)) violations.push({ kind: "dato-oficial-reemplazado", detail: v });
+  // 23-25 · LA RESPUESTA COMO SISTEMA (owner 2026-08-11, defectos D5/D6) — ver el bloque grande arriba. Van AL
+  // FINAL a propósito: `verdict` es `violations[0].kind`, así que cuando una fila dispara además un chequeo de
+  // fidelidad de cifra ya existente (típicamente 9 `metrica-mal-atribuida`, que puede leer el sustantivo de la
+  // misma marca), el veredicto que viaja al reintento sigue siendo el de la cifra — el más específico y el que ya
+  // sabe repararse. Estos tres se suman a `violations` para que el detalle no se pierda, nunca lo pisan.
+  for (const v of _extremoEnTabla(narration)) violations.push({ kind: "extremo-sin-sustento", detail: v });
+  for (const v of _extremoEnProsa(narration, entityNames, ledger)) violations.push({ kind: "extremo-sin-sustento", detail: v });
+  for (const v of _extremoEnLista(narration, ledger)) violations.push({ kind: "extremo-sin-sustento", detail: v });
+  for (const v of _totalNoReconcilia(narration)) violations.push({ kind: "total-no-reconcilia", detail: v });
+  for (const v of _alcancePromovido(narration, ledger)) violations.push({ kind: "alcance-promovido", detail: v });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución

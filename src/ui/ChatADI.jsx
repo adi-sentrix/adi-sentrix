@@ -217,16 +217,27 @@ function _claimsOnlyOn() {
 // pantalla llega al LLM — una oración de ≤240 caracteres, sin cifras, que answerViaOracle.js proyecta del
 // ViewContext sellado (nunca el objeto, nunca filas, nunca la salida del builder). Se reenvía tal cual al gateway,
 // que la pasa a buildPlanUserMessage. Si el turno no vino de Sentrix es undefined y el body queda igual que hoy.
-async function _fetchPlan({ text, history, mem, scenario, requestContext, attempt, vistaLinea, _onRouted }) {
+// `motivoReintento` (owner 2026-08-11, segunda pasada): la CAUSA del intento anterior. El gateway ya la aceptaba y
+// nadie se la mandaba, así que TODO reintento de producción se registraba con la causa en "unknown" — el veredicto
+// con que guardC rechazó el intento previo existe en el turno y no llegaba nunca a la telemetría. Viaja igual que
+// `attempt`: un campo más del body, sin tocar la firma ni el valor de retorno de nadie. Si el llamador no lo
+// declara queda `undefined` y JSON.stringify lo OMITE — el body de un turno que no reintenta sale byte-idéntico al
+// de siempre. El borde vive en el gateway (_causaDeclarada): sólo sobrevive un código de lista cerrada, jamás texto.
+async function _fetchPlan({ text, history, mem, scenario, requestContext, attempt, vistaLinea, motivoReintento, _onRouted }) {
   const t0 = Date.now();
   const res = await fetch("/api/adi-plan", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, vistaLinea }),
+    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, vistaLinea, motivoReintento }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok || !data.plan) throw new Error((data && data.error) || "gateway sin plan");
-  if (typeof _onRouted === "function") _onRouted({ step: "plan", attempt: attempt || 0, model: data.modelUsed, reason: data.modelReason, ms: Date.now() - t0, usage: data.usage, costUSD: estimateCostUSD(data.modelUsed, data.usage) });
+  // UNA SOLA VERDAD PARA EL COSTO (owner 2026-08-11, segunda pasada): el gateway ya lo calcula sobre el modelo que
+  // RESPONDIÓ (`data.costUSD`), que es el que se factura; acá se tarifaba de nuevo sobre el que se PIDIÓ. Hoy dan el
+  // mismo número —la tarifa por familia lo garantiza— pero eran dos cálculos, y dos cálculos se desincronizan. Se
+  // usa el del gateway cuando viene; el cálculo local queda de RESPALDO para cualquier respuesta que no lo traiga
+  // (mocks de gates viejos, un despliegue anterior al campo), así que nada de lo que hoy funciona deja de funcionar.
+  if (typeof _onRouted === "function") _onRouted({ step: "plan", attempt: attempt || 0, model: data.modelUsed, reason: data.modelReason, ms: Date.now() - t0, usage: data.usage, costUSD: data.costUSD !== undefined ? data.costUSD : estimateCostUSD(data.modelUsed, data.usage) });
   return data.plan;
 }
 // Pasada 2 · NARRAR con persona (el batch ya corrió en el cliente · viaja el payload de cifras autorizadas)
@@ -236,19 +247,22 @@ async function _fetchPlan({ text, history, mem, scenario, requestContext, attemp
 // tablePolicy, pero esta función los descartaba al desestructurar — o sea que en la ruta REAL de producción el guard
 // bloqueaba una tabla que el prompt nunca había prohibido, y exigía una que nunca había pedido. El propio contrato de
 // presentación lo declara como invariante: "el prompt y el candado tienen que decir lo MISMO". Se reenvían los dos.
-async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, attempt, _onRouted }) {
+// `motivoReintento`: ver el bloque de _fetchPlan. Acá muerde más fuerte — los reintentos de NARRAR existen SÓLO
+// porque guardC rechazó el intento previo, y sin este campo los 27 de la corrida quedaron sin explicar por qué.
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, attempt, motivoReintento, _onRouted }) {
   // claimsOnly: modo del Contrato v2 detrás de flag (owner 2026-08-07) — cambia lo que el narrador LEE, no lo que
   // el guard exige. Apagado por defecto: el payload que sale de acá es el mismo verificado en vivo.
   const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, requestContext, claimsOnly: _claimsOnlyOn() });
   const t0 = Date.now();
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt }),
+    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok || !data.narration) throw new Error((data && data.error) || "gateway sin narración");
-  if (typeof _onRouted === "function") _onRouted({ step: "narrate", attempt: attempt || 0, model: data.modelUsed, reason: data.modelReason, ms: Date.now() - t0, usage: data.usage, costUSD: estimateCostUSD(data.modelUsed, data.usage) });
+  // misma regla que en PLAN: manda el costo del gateway, el cálculo local queda de respaldo (ver el bloque de arriba)
+  if (typeof _onRouted === "function") _onRouted({ step: "narrate", attempt: attempt || 0, model: data.modelUsed, reason: data.modelReason, ms: Date.now() - t0, usage: data.usage, costUSD: data.costUSD !== undefined ? data.costUSD : estimateCostUSD(data.modelUsed, data.usage) });
   return data.narration;
 }
 
