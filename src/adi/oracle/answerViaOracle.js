@@ -1262,9 +1262,17 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   //   · INFERIDA por el motor (redirect sin reparación y sin ningún cambio estructural) → se corta AUNQUE haya
   //     calls, y no es la misma decisión: acá el motor SABE que el alcance no cambió, así que esas calls
   //     reproducirían el turno que el usuario acaba de decir que está mal. Ejecutarlas es pagar por repetirse.
+  //   · DECLARADA CON SU PREGUNTA ESCRITA → manda la ambigüedad y las calls se descartan (owner 2026-08-10, tras
+  //     la 4ª corrida). La regla anterior decía "ante la contradicción vale lo respondible", y se midió lo que
+  //     costaba: el planificador declaró `ambigua`, escribió la pregunta Y trajo calls, el motor prefirió las
+  //     calls, y el turno gastó CUATRO llamadas —con dos rechazos del guard y una escalada al modelo más caro—
+  //     para responder donde §4 manda preguntar ("mientras no tenga esa respuesta, no vuelve a calcular").
+  //     Una declaración de ambigüedad CON la pregunta ya redactada es una señal mucho más fuerte que unas calls
+  //     sueltas: son dos campos coherentes entre sí contra uno que las contradice.
   const _repAmbigua = !!(_reparacion && _reparacion.ambigua);
+  const _preguntaValida = !!(_reparacion && typeof _reparacion.pregunta === "string" && _reparacion.pregunta.includes("?"));
   const _sinCalls = !(Array.isArray(plan.calls) && plan.calls.length);
-  const _cortaPorAmbigua = _repAmbigua && (_sinCalls || _reparacion.inferida === true);
+  const _cortaPorAmbigua = _repAmbigua && (_sinCalls || _preguntaValida || _reparacion.inferida === true);
   if (!planWasSynthetic && _cortaPorAmbigua) {
     // stripLanguageLeaks (owner 2026-08-10, defecto 4 de la certificación live): la pregunta la REDACTA el LLM y
     // los prompts que lo guían están escritos en voseo — sin esto sale «decime cuál» en un producto cuyo registro
