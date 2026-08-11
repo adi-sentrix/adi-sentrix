@@ -205,6 +205,8 @@ if (_corre) {
   }
   console.log(`── CERTIFICACIÓN v1.2 · telemetría → ${RUTA_TELEMETRIA}`);
 
+  const CONTINUAR = process.env.ADI_CERT_CONTINUAR === "si";
+  if (CONTINUAR) console.log("── MODO MATRIZ: una sonda que no cumple se registra y la corrida sigue (los topes cortan igual)");
   const cerrojo = crearCerrojo({});
   const { handlePlan, handleNarrateC } = await import("./src/adi/llm/gatewayCore.js");
   const resultados = [];
@@ -283,7 +285,12 @@ if (_corre) {
       // UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA (owner, autorización 2026-08-10). No es lo mismo que un tope:
       // acá el producto respondió y respondió mal, así que seguir gastando en las sondas siguientes es pagar por
       // confirmar un defecto que ya está confirmado. Se conserva lo corrido y se declara lo que quedó sin cubrir.
-      if (!cumple) cortada = `la sonda ${sonda.id} no cumplió — la corrida se detiene sin reintentar`;
+      // POR DEFECTO, UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA: el producto respondió y respondió mal, así que
+      // seguir gastando es pagar por confirmar un defecto ya confirmado. `ADI_CERT_CONTINUAR=si` invierte eso para
+      // una corrida de MATRIZ COMPLETA —cuando lo que se busca es el mapa entero de qué falla y qué no, no la
+      // primera falla—. Es una decisión por corrida y explícita: el default sigue siendo detenerse, para que
+      // nadie queme el presupuesto por omisión. Los topes de llamadas y dinero cortan igual en los dos modos.
+      if (!cumple && !CONTINUAR) cortada = `la sonda ${sonda.id} no cumplió — la corrida se detiene sin reintentar`;
     } catch (e) {
       const esCerrojo = /^CERROJO/.test(String(e && e.message));
       if (esCerrojo) cortada = String(e.message);
