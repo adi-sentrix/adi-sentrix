@@ -86,21 +86,48 @@ const _filtrar = (contenido) =>
     ? Buffer.from(filtrarTextoDotenv(contenido.toString("utf8")), "utf8")
     : filtrarTextoDotenv(contenido));
 
+// UN `.env` AUSENTE ES UN `.env` VACÍO, NO UN CRASH (owner 2026-08-11). 41 gates hacen
+// `readFileSync(".env")` sin comprobar que exista, así que en un clon nuevo, en CI, o en un worktree —donde el
+// archivo está gitignoreado y por lo tanto NO está— los 41 morían con ENOENT antes de correr una sola aserción.
+// Medido en este mismo worktree: la suite reportaba «88 PASS · 6 FAIL» y los 6 no eran defectos del producto,
+// eran seis gates que no habían llegado a arrancar. Un rojo que no distingue «el producto falla» de «falta un
+// archivo de configuración» hace perder el tiempo en el mejor caso y esconde un defecto real en el peor.
+// SE RESUELVE ACÁ Y NO EN LOS 41 porque acá ya vive la política de `.env` (servirlo sin credenciales): que su
+// ausencia se sirva como vacío es la MISMA política, no una segunda. Y sólo aplica a `.env`: cualquier otro
+// archivo que falte sigue lanzando ENOENT como siempre — no se tapa un error de verdad.
+const _ENV_VACIO = "# (.env ausente · servido vacío por el candado offline)\n";
+const _sinDotenv = (e) => e && e.code === "ENOENT";
 const _readFileSync = fs.readFileSync;
 fs.readFileSync = function (ruta, ...resto) {
-  const out = _readFileSync.call(this, ruta, ...resto);
+  let out;
+  try { out = _readFileSync.call(this, ruta, ...resto); }
+  catch (e) {
+    if (!_esDotenv(ruta) || !_sinDotenv(e)) throw e;
+    const pideBuffer = !resto.length || (resto[0] && typeof resto[0] === "object" && !resto[0].encoding);
+    return pideBuffer ? Buffer.from(_ENV_VACIO, "utf8") : _ENV_VACIO;
+  }
   return _esDotenv(ruta) ? _filtrar(out) : out;
+};
+// LOS TRES CAMINOS, LA MISMA REGLA. El `.env` ausente se sirve vacío por `readFileSync`, por `readFile` y por
+// `fs.promises.readFile` — si sólo se cubriera uno, un consumidor que lee por otro camino seguiría muriendo con
+// ENOENT y la garantía sería parcial sin decirlo. (La sonda del cerrojo usa los tres a propósito.)
+const _vacioComo = (resto) => {
+  const pideBuffer = !resto.length || (resto[0] && typeof resto[0] === "object" && !resto[0].encoding);
+  return pideBuffer ? Buffer.from(_ENV_VACIO, "utf8") : _ENV_VACIO;
 };
 const _readFile = fs.readFile;
 fs.readFile = function (ruta, ...resto) {
   if (!_esDotenv(ruta)) return _readFile.call(this, ruta, ...resto);
   const cb = resto.pop();
-  return _readFile.call(this, ruta, ...resto, (e, d) => cb(e, e ? d : _filtrar(d)));
+  return _readFile.call(this, ruta, ...resto, (e, d) =>
+    (e ? (_sinDotenv(e) ? cb(null, _vacioComo(resto)) : cb(e, d)) : cb(null, _filtrar(d))));
 };
 if (fs.promises && fs.promises.readFile) {
   const _readFileP = fs.promises.readFile;
   fs.promises.readFile = async function (ruta, ...resto) {
-    const out = await _readFileP.call(this, ruta, ...resto);
+    let out;
+    try { out = await _readFileP.call(this, ruta, ...resto); }
+    catch (e) { if (!_esDotenv(ruta) || !_sinDotenv(e)) throw e; return _vacioComo(resto); }
     return _esDotenv(ruta) ? _filtrar(out) : out;
   };
 }

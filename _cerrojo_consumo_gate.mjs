@@ -28,7 +28,7 @@
  * `scripts/provider-keys.mjs` y los marcadores se arman por concatenación con `lit(...)`.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -123,9 +123,18 @@ console.log("\n── 3 · LA RE-HIDRATACIÓN DESDE .env (lo que hacen 41 gates 
   const filtrado = filtrarTextoDotenv("# una nota\n\nLLM_PROVIDER=openai");
   ok(filtrado.includes("# una nota") && filtrado.includes("") && filtrado.includes("LLM_PROVIDER=openai"), "el filtro preserva comentarios, líneas en blanco y lo que no es credencial", JSON.stringify(filtrado));
 
-  // el `.env` REAL del repo, servido bajo el candado: se comprueba por NOMBRE, nunca se imprime un valor
+  // el `.env` REAL del repo, servido bajo el candado: se comprueba por NOMBRE, nunca se imprime un valor.
+  // EL ARCHIVO PUEDE NO EXISTIR, y eso NO es una falla: está gitignoreado, así que en un clon nuevo, en CI o en
+  // un worktree no está. Desde 2026-08-11 el candado sirve un `.env` ausente como VACÍO (ver offline-guard.mjs),
+  // y eso es exactamente lo que hay que certificar en ese caso: cero credenciales por ausencia, no por filtrado.
+  // Afirmar «se sirve sin credenciales» contra un archivo que no existe medía el entorno, no el candado.
+  const _hayEnv = existsSync(join(ROOT, ".env"));
   const real = json(correr([PROBE("dotenv-lectura"), join(ROOT, ".env")]));
-  ok(!!real && !real.sync.some((n) => esNombreDeCredencial(n)), "el .env REAL del repo se sirve sin una sola credencial", JSON.stringify(real && real.sync));
+  ok(!!real && !real.sync.some((n) => esNombreDeCredencial(n)),
+    _hayEnv
+      ? "el .env REAL del repo se sirve sin una sola credencial"
+      : "sin .env en el disco, el candado lo sirve VACÍO y la lectura no trae ninguna credencial (clon nuevo / CI / worktree)",
+    JSON.stringify(real && real.sync));
   info(`.env real bajo el candado entrega: ${real ? real.sync.join(", ") : "—"}`);
 }
 

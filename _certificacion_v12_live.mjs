@@ -59,8 +59,22 @@ export function crearCerrojo({ topeLlamadas = TOPE_LLAMADAS, topeUSD = TOPE_USD,
     enviadas++;
     return enviadas;
   };
-  const registrar = (usd) => { if (Number.isFinite(usd)) gastoUSD += usd; };
-  const estado = () => ({ enviadas, gastoUSD, detenido, topeLlamadas, topeUSD });
+  // UN COSTO DESCONOCIDO NO ES UN COSTO CERO (owner 2026-08-11). La versión anterior era
+  // `if (Number.isFinite(usd)) gastoUSD += usd;` — o sea que un `null` (modelo sin precio en la tabla, o respuesta
+  // sin `usage`) se sumaba como 0 EN SILENCIO. Medido en la certificación de 44 turnos: el cerrojo declaró
+  // US$1,2908 sobre un gasto real de US$1,4223, y la diferencia era exactamente las 72 llamadas del modelo base.
+  // El caso grave no es ese: con el proveedor DEFAULT del gateway (`anthropic`) NINGÚN modelo está en la tabla de
+  // precios, así que TODA la corrida se contabilizaría en US$0,00 y el tope en dólares no frenaría jamás. Un tope
+  // que no puede dispararse no es un tope: es una decoración que da confianza falsa.
+  // AHORA: lo que no se puede tarifar se cobra al PEOR CASO y se cuenta aparte. El tope sigue mordiendo aunque el
+  // proveedor sea desconocido, y `estado()` dice cuántas llamadas se estimaron así para que el informe no invente
+  // una precisión que no tiene.
+  let noTarifadas = 0, estimadoUSD = 0;
+  const registrar = (usd) => {
+    if (Number.isFinite(usd)) { gastoUSD += usd; return; }
+    noTarifadas++; estimadoUSD += costoEstimadoPorLlamada; gastoUSD += costoEstimadoPorLlamada;
+  };
+  const estado = () => ({ enviadas, gastoUSD, detenido, topeLlamadas, topeUSD, noTarifadas, estimadoUSD });
   return { guardar, registrar, estado };
 }
 
