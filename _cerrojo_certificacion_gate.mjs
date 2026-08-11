@@ -93,7 +93,14 @@ section("4 · EL ARNÉS NO PUEDE GASTAR POR ACCIDENTE");
   ok("registra la FORMA del plan (intención, presencia de reparación, dimensiones, tools)",
     /intent: planReal\.intent/.test(SRC) && /reparacion: planReal\.reparacion === undefined \? "OMITIDA"/.test(SRC)
     && /declaradas:/.test(SRC) && /inferidas: inferirCorrige/.test(SRC) && /tools: \(planReal\.calls \|\| \[\]\)\.map/.test(SRC));
-  ok("registra la condición EXACTA que falló", /condiciones que fallaron/.test(SRC) && /const fallas = planReal/.test(SRC));
+  ok("registra la condición EXACTA que falló", /condiciones que fallaron/.test(SRC) && /const fallas = planUsado/.test(SRC));
+  // se certifica la CONDUCTA del producto (el plan que el motor usó), pero se reporta lo que el MODELO emitió:
+  // las dos cosas visibles, nunca una tapando a la otra.
+  ok("evalúa sobre el plan que el motor USÓ, y reporta lo que el modelo EMITIÓ",
+    /const planUsado = planReal \? coerceVocabularioPlan\(planReal\)\.plan : null/.test(SRC)
+    && /const forma = planReal \?/.test(SRC));
+  ok("imprime el retryTrace completo, intento por intento, con su motivo",
+    /trace PLAN intento/.test(SRC) && /trace NARRAR intento/.test(SRC) && /_rt\.plan \|\| \[\]/.test(SRC));
   ok("la pregunta de precisión se CUENTA, no se transcribe (nada del cliente al log)",
     /preguntas: planReal\.reparacion && typeof planReal\.reparacion\.pregunta === "string"/.test(SRC)
     && !/pregunta: planReal\.reparacion\.pregunta[^.]/.test(SRC));

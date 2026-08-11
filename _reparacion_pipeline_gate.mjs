@@ -495,6 +495,63 @@ section("8c · EL ENUM NO SE CUMPLE SOLO · coerción de `intent` (lo que cazó 
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("8d · LA CLASE EN EL CAMPO EQUIVOCADO · reproducción EXACTA de S3 (3ª corrida pagada)");
+// El planificador emitió `intent:"desacuerdo"` —la CLASE metida en el campo de la INTENCIÓN— y `reparacion:null`.
+// Los dos campos son vecinos y describen ejes distintos, así que la confusión es esperable; lo que no puede pasar
+// es que cueste una certificación descubrirla. Estos dos casos son el plan REAL que se pagó, byte por byte, y su
+// equivalente para el dato aportado — que es el que todavía no se llegó a probar en vivo.
+{
+  const baseM = async () => (await answerViaOracle({
+    text: "¿cómo viene el margen de Falabella?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  })).mem;
+
+  // (S3 EXACTA) el plan tal como llegó del proveedor: intent con la clase adentro, reparacion en null.
+  {
+    let memX = null;
+    const r = await answerViaOracle({
+      text: "no creo que sea por los rebates", history: [], mem: await baseM(), scenario: "actual",
+      callPlan: async () => ({ intent: "desacuerdo", mode: "evidencia", rationale: "el plan real de S3", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: null }),
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia("Lo tomo, y separo lo probado de lo indicado.", "Falabella")(args); },
+    });
+    const co = ((r.r.retryTrace || {}).coerciones || []).join("|");
+    ok("S3 exacta · la clase se muda de `intent` a `reparacion.tipo`", /clase-en-intent→reparacion\.tipo\(desacuerdo\)/.test(co), co);
+    ok("S3 exacta · …y el intent queda en `answer`, no en redirect", /intent-invalido→answer\(por tipo=desacuerdo\)/.test(co), co);
+    ok("S3 exacta · el desacuerdo conserva el alcance", r.mem.conversationScope.current.entities.join(",") === "Falabella");
+    ok("S3 exacta · y conserva la oferta (no reencauza nada)", /rebate de Falabella/.test(renderInteractionMemory(memX || {})));
+  }
+
+  // (S4 EQUIVALENTE) el mismo error, con la clase del dato aportado — y con el alias `dato_aportado`, que es el
+  // nombre con que un modelo la escribe cuando no usa el token del enum.
+  for (const clase of ["dato_usuario", "dato_aportado"]) {
+    const r = await answerViaOracle({
+      text: "las ventas de Falabella fueron $20M, tomalo como supuesto", history: [], mem: await baseM(), scenario: "actual",
+      callPlan: async () => ({ intent: clase, mode: "default", rationale: "clase en intent", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { dato: { metrica: "ventas", valor: "$20M" }, aceptado: true } }),
+      callNarrate: async (args) => narrarConEvidencia("Mi dato difiere del tuyo.", "Falabella")(args),
+    });
+    const co = ((r.r.retryTrace || {}).coerciones || []).join("|");
+    const sup = (r.mem.conversationScope.current.supuestos || []).filter((s) => s.origen === "usuario");
+    ok(`S4 equivalente («${clase}») · la clase se muda y se canoniza a dato_usuario`,
+      /clase-en-intent→reparacion\.tipo\(dato_usuario\)/.test(co), co);
+    ok(`S4 equivalente («${clase}») · la procedencia se conserva`, sup.length === 1 && sup[0].valor === "$20M", JSON.stringify(sup));
+    ok(`S4 equivalente («${clase}») · el alcance NO se invalida`, r.mem.conversationScope.current.entities.join(",") === "Falabella");
+  }
+
+  // LO DECLARADO MANDA SOBRE LO DEDUCIDO: si la reparación YA trae un tipo válido, la migración no lo pisa.
+  {
+    let memX = null;
+    await answerViaOracle({
+      text: "no, era Lider", history: [], mem: await baseM(), scenario: "actual",
+      callPlan: async () => ({ intent: "desacuerdo", mode: "default", rationale: "intent dice una clase, la reparación otra", scope: { level: "entity", entities: ["Lider"] }, calls: [CALL("Lider")], reparacion: { tipo: "correccion", corrige: ["entidad"] } }),
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia("Entendido, era Lider.", "Lider")(args); },
+    });
+    ok("lo DECLARADO manda sobre lo deducido: la corrección se aplica igual",
+      !/rebate de Falabella/.test(renderInteractionMemory(memX || {})), renderInteractionMemory(memX || {}));
+  }
+}
+
 section("9 · LAS OCHO DIMENSIONES, DECLARADAS Y CONTADAS");
 // Confirmación explícita pedida por el owner: entidad más las siete restantes, todas con prueba de punta a punta
 // en ESTE archivo. La lista se compara contra el contrato, así que si mañana se agrega un campo corregible y

@@ -28,6 +28,7 @@ import { toolNames } from "./src/adi/oracle/toolRegistry.js";
 import { estimateCostUSD } from "./src/adi/llm/modelPricing.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { inferirCorrige } from "./src/adi/oracle/conversationScope.js";
+import { coerceVocabularioPlan } from "./src/adi/oracle/conversationalContract.js";
 
 export const TOPE_LLAMADAS = 15;
 export const TOPE_USD = 0.40;
@@ -258,7 +259,12 @@ if (_corre) {
         // "el motor tampoco podía verlo" — la distinción que decide qué se arregla después.
         inferidas: inferirCorrige(sonda.mem().conversationScope, planReal),
       } : null;
-      const fallas = planReal ? sonda.condiciones.filter(([, f]) => { try { return !f(planReal); } catch { return true; } }).map(([n]) => n) : ["no llegó ningún plan"];
+      // LAS CONDICIONES SE EVALÚAN SOBRE EL PLAN QUE EL MOTOR USÓ, no sobre el crudo. Lo que se certifica es la
+      // CONDUCTA del producto, y desde la migración estructural una clase escrita en `intent` ya no es un fallo:
+      // es un caso que el motor resuelve. `forma` sigue reportando lo que el MODELO emitió, así que las dos cosas
+      // quedan visibles — nunca se tapa lo que hizo el modelo, se separa de lo que hizo el producto.
+      const planUsado = planReal ? coerceVocabularioPlan(planReal).plan : null;
+      const fallas = planUsado ? sonda.condiciones.filter(([, f]) => { try { return !f(planUsado); } catch { return true; } }).map(([n]) => n) : ["no llegó ningún plan"];
       const cumple = fallas.length === 0;
       // COERCIONES APLICADAS · vocabulario cerrado nuestro (nombres de campo y de enum), nunca texto del usuario.
       // Sin esto no se puede saber si el turno salió bien PORQUE el modelo acertó o porque el motor lo reparó —
@@ -267,6 +273,12 @@ if (_corre) {
       resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", fallas, forma, coerciones, retryTrace: r && r.r && r.r.retryTrace });
       console.log(`  ${sonda.id} · ${cumple ? "CUMPLE" : "NO CUMPLE"} · forma=${JSON.stringify(forma)}`);
       console.log(`  ${sonda.id} · coerciones=${coerciones.length ? coerciones.join(" · ") : "ninguna"}`);
+      // RETRY TRACE COMPLETO (owner 2026-08-10): la corrida anterior tuvo un reintento y su causa quedo por
+      // inferencia — dos llamadas de PLAN y el patron. El motor YA lo mide (planAttemptTrace/narrateAttemptTrace):
+      // habia que leerlo, no instrumentarlo. Se imprime intento por intento, con el motivo tal como lo registro.
+      const _rt = (r && r.r && r.r.retryTrace) || {};
+      for (const e of (_rt.plan || [])) console.log(`  ${sonda.id} · trace PLAN intento ${e.attempt}: ${e.ok ? "ok" : "RECHAZADO"}${e.reason ? " · " + e.reason : ""}`);
+      for (const e of (_rt.narrate || [])) console.log(`  ${sonda.id} · trace NARRAR intento ${e.attempt}: guard=${e.guardOk}${e.reason ? " · " + e.reason : ""}${e.reparado ? " · reparado: " + e.reparado : ""}`);
       if (!cumple) console.log(`  ${sonda.id} · condiciones que fallaron: ${fallas.join(" · ")}`);
       // UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA (owner, autorización 2026-08-10). No es lo mismo que un tope:
       // acá el producto respondió y respondió mal, así que seguir gastando en las sondas siguientes es pagar por

@@ -60,11 +60,18 @@ ok("la contradicción `ambigua` + `corrige` se reconcilia en el normalizador, un
 // §2 · la protección contra el secuestro ya no es una intención FIJA sino una CONSISTENCIA: la reparación vale
 // cuando su clase y la intención del turno se corresponden. Exigir `redirect` a todas se volvió contradictorio
 // con la coerción por tipo — el motor normalizaba un desacuerdo a `answer` y después descartaba su reparación.
-ok("§2 · la reparación se valida por CONSISTENCIA contra la misma tabla que usa la coerción",
-  /p\.intent !== INTENT_POR_TIPO\[r\.tipo\]\) return null/.test(CONTRATO)
+// LA TABLA CANÓNICA, UNA SOLA, con TRES consumidores: la validación de consistencia, la coerción del intent y el
+// prompt (que la IMPRIME en vez de reescribirla). La 3ª corrida pagada mostró por qué importa: el encabezado de la
+// doctrina decía a mano `intent="redirect"` para las tres clases — literalmente lo contrario de lo que el motor
+// acepta desde la validación por consistencia. Si el modelo obedecía el prompt, su reparación se descartaba.
+ok("§2 · la reparación se valida por CONSISTENCIA contra la tabla canónica",
+  /p\.intent !== INTENT_POR_TIPO\[tipo\]\) return null/.test(CONTRATO)
   && /export const INTENT_POR_TIPO = Object\.freeze\(\{ correccion: "redirect", desacuerdo: "answer", dato_usuario: "answer" \}\)/.test(CONTRATO));
-ok("…y esa tabla es UNA sola: la coerción de intent la usa también",
-  /const destino = INTENT_POR_TIPO\[tipo\] \|\| null/.test(CONTRATO));
+ok("…y esa tabla es UNA sola: la usan la validación, la coerción Y el prompt",
+  /const destino = INTENT_POR_TIPO\[tipoCanonico\(r && r\.tipo\)\] \|\| null/.test(CONTRATO)
+  && /const mapa = Object\.entries\(INTENT_POR_TIPO\)\.map/.test(CONTRATO));
+ok("…y el prompt la IMPRIME, no la reescribe (no puede volver a contradecir al motor)",
+  /\$\{mapa\}/.test(CONTRATO) && !/CORRECCIÓN \/ DESACUERDO \/ DATO APORTADO → intent="redirect"/.test(CONTRATO));
 ok("el motor NO re-decide la ambigüedad: delega en el normalizador",
   /const _reparacionDe = \(plan\) => normalizeReparacion\(plan\)/.test(MOTOR)
   && /function _esReparacionAmbigua[\s\S]{0,200}?return !!\(r && r\.ambigua\)/.test(MOTOR));
@@ -152,13 +159,21 @@ section("5b · LA RUTA QUE NO CONSULTA A PLAN · integración general, sin detec
     /if \(_reparacion\) \{[\s\S]{0,400}?const scopeReparado = applyRepairToScope/.test(MOTOR));
   // LA COERCIÓN DEL VOCABULARIO corre ANTES que todo lo que lo lee: el backstop de redirect-sin-calls, el
   // normalizador y las coerciones de este archivo. Si corriera después, repararía un valor que ya se descartó.
-  ok("la coerción de `intent` corre ANTES del backstop y del normalizador",
-    MOTOR.indexOf("const _ni = normalizeIntent(p)") > 0
-    && MOTOR.indexOf("const _ni = normalizeIntent(p)") < MOTOR.indexOf('p.intent === "redirect" && !(Array.isArray(p.calls)'));
-  ok("…y conserva el resto del plan intacto (solo reemplaza `intent`)",
-    /if \(_ni\.intent !== p\.intent\) p = \{ \.\.\.p, intent: _ni\.intent \}/.test(MOTOR));
+  ok("la coerción del vocabulario corre ANTES del backstop y del normalizador",
+    MOTOR.indexOf("const _cv = coerceVocabularioPlan(p)") > 0
+    && MOTOR.indexOf("const _cv = coerceVocabularioPlan(p)") < MOTOR.indexOf('p.intent === "redirect" && !(Array.isArray(p.calls)'));
+  ok("…y es UN SOLO punto (migración + coerción), no dos pasos sueltos",
+    cuenta(MOTOR, /coerceVocabularioPlan\(/g) === 1 && !/normalizeIntent\(/.test(MOTOR));
+  // MIGRACIÓN ESTRUCTURAL: la clase escrita en `intent` se muda a `reparacion.tipo`, que es su casa. No se
+  // adivina nada — se mueve un valor de nuestro propio vocabulario del campo equivocado al correcto.
+  ok("la clase escrita en `intent` se migra a `reparacion.tipo`",
+    /clase-en-intent→reparacion\.tipo/.test(CONTRATO) && /if \(claseEnIntent && !tipoDeclarado\)/.test(CONTRATO));
+  ok("…y lo DECLARADO manda sobre lo deducido (no pisa un tipo válido)",
+    /const tipoDeclarado = tipoCanonico\(rep && rep\.tipo\)/.test(CONTRATO));
+  ok("…conservando el contenido íntegro (solo se agrega el tipo)",
+    /reparacion: \{ \.\.\.\(rep \|\| \{\}\), tipo: claseEnIntent \}/.test(CONTRATO));
   ok("los valores fuera de enum dejan causa visible en el trace, nunca se descartan en silencio",
-    /planCoerciones\.push\(_ni\.coercion\)/.test(MOTOR) && /mode-invalido/.test(MOTOR) && /corrige-descartado/.test(MOTOR)
+    /planCoerciones\.push\(\.\.\._cv\.coerciones\)/.test(MOTOR) && /mode-invalido/.test(MOTOR) && /corrige-descartado/.test(MOTOR)
     && /coerciones: planCoerciones/.test(MOTOR));
   ok("el narrador y el guard juzgan la MISMA reparación que el estado ya invalidó",
     /buildReparacion\(\{ plan, mem: mem2, reparacion: _reparacion \}\)/.test(MOTOR));
