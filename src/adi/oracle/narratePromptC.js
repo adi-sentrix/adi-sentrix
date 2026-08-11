@@ -718,6 +718,21 @@ const BRECHA_INSTRUCTION = "Tenés el margen de cada entidad Y el \"Benchmark de
 // entidad) SIN que gridTable/tensionRead (que sí sellan el orden real) también haya corrido. Hallazgo de auditoría
 // en vivo: 1/3 corridas reales prometió "ordenado por dinero" y en realidad ordenó por brecha en % — sin bloqueo
 // del guard, porque marginRead no sella facts.orden (eso es harina de un fix estructural aparte, ver memoria).
+// ── LA CIFRA EN DINERO DE LA BRECHA YA ESTÁ EN LA BOLETA (owner 2026-08-10, auditoría de la 4ª corrida pagada) ──
+// LO MEDIDO: de los cinco rechazos del guard de esa corrida, cuatro fueron el narrador calculando un monto por
+// MULTIPLICACIÓN —el costo por la venta, el margen por la venta— que el prompt ya prohíbe. Al levantar el ledger
+// real de esos turnos apareció la razón: la cifra que estaba tratando de calcular YA ESTABA AHÍ. `marginRead`
+// autoriza "Valor en juego" y "Medida · cerrar brecha al piso" —el mismo monto, dos etiquetas— y las dos pasan el
+// guard sin problema. El modelo multiplica porque no se da cuenta de que la tiene.
+// Por eso esto NO es una regla nueva ni una prohibición más: es señalarle la cifra que ya está autorizada. Viaja
+// SOLO cuando la boleta de verdad la trae, como el resto de los refuerzos de forma — un turno sin ella no paga
+// un token. Y no toca el guard: si el modelo igual multiplica, el muro lo bloquea igual que hoy.
+const _VALOR_EN_JUEGO_RE = /valor en juego|cerrar brecha al piso/i;
+function _needsValorEnJuego(figs) {
+  return (figs || []).some((f) => f && f.unit === "money" && _VALOR_EN_JUEGO_RE.test(String(f.label || "")));
+}
+const VALOR_EN_JUEGO_INSTRUCTION = "EL MONTO DE LA BRECHA YA LO TENÉS: tus cifras_autorizadas traen \"Valor en juego\" y/o \"Medida · cerrar brecha al piso\" — ESA es la cifra EN DINERO de lo que se recupera cerrando la brecha de margen, ya calculada y autorizada. Citala tal cual cuando necesites dimensionar la oportunidad en pesos. NO la vuelvas a calcular por tu cuenta: multiplicar el margen, la brecha o el peso del costo por la venta da un número que NO está autorizado, se bloquea, y además ya tenés el bueno al lado. Lo mismo si querés hablar del costo en pesos: si no viene su propia cifra, no lo derives de un porcentaje — nombrá el porcentaje que sí tenés.";
+
 const _ORDEN_MONTO_RE = /\bordena?(?:me|r|los|las)?\b[^.?!]{0,50}\b(dinero|monto|importe|recuperable)\b/i;
 function _needsOrdenMontoReinforcement(text, results) {
   if (!_ORDEN_MONTO_RE.test(String(text || ""))) return false;
@@ -874,6 +889,8 @@ export function projectClaimsOnlyPayload(contract) {
     ...(_politicaTabla(c) === "forbidden" ? {} : (modo === "clarify" ? {} : (_needsTableFormat(figLabels) ? { instruccion_tabla: modo === "decision" ? TABLE_INSTRUCTION_DECISION : TABLE_INSTRUCTION } : {}))),
     ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
+    // LA CIFRA EN DINERO DE LA BRECHA, señalada en vez de recalculada (ver _needsValorEnJuego arriba).
+    ...(_needsValorEnJuego(figLabels) ? { instruccion_valor_en_juego: VALOR_EN_JUEGO_INSTRUCTION } : {}),
     ...(_conceptoCapitalDeFigs(figLabels) ? { instruccion_columnas_capital: _capitalColumnsInstruction(_conceptoCapitalDeFigs(figLabels)) } : {}),
     ...(forma.instruccionOrientacion ? { instruccion_orientacion: forma.instruccionOrientacion } : {}),
     ...(forma.instruccionDisclosure ? { instruccion_divulgacion: forma.instruccionDisclosure } : {}),
@@ -984,6 +1001,8 @@ export function projectNarratePayload(contract) {
     ...(_needsListFormat(figLabels) ? { instruccion_lista: LIST_INSTRUCTION } : {}),
     // BRECHA REFORZADA (owner 2026-08-02, hallazgo de auditoría): ver _needsBrechaReinforcement/BRECHA_INSTRUCTION.
     ...(_needsBrechaReinforcement(figLabels) ? { instruccion_brecha: BRECHA_INSTRUCTION } : {}),
+    // LA CIFRA EN DINERO DE LA BRECHA, señalada en vez de recalculada (ver _needsValorEnJuego arriba).
+    ...(_needsValorEnJuego(figLabels) ? { instruccion_valor_en_juego: VALOR_EN_JUEGO_INSTRUCTION } : {}),
     // COLUMNAS DE CAPITAL REFORZADAS (owner 2026-08-02): ver _needsCapitalColumnNames/CAPITAL_COLUMNS_INSTRUCTION.
     ...(_conceptoCapitalDeFigs(figLabels) ? { instruccion_columnas_capital: _capitalColumnsInstruction(_conceptoCapitalDeFigs(figLabels)) } : {}),
     // ORDEN POR MONTO REFORZADO (owner 2026-08-02, hallazgo de auditoría): ver _needsOrdenMontoReinforcement.
