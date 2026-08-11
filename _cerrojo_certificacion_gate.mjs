@@ -96,8 +96,10 @@ section("4 · EL ARNÉS NO PUEDE GASTAR POR ACCIDENTE");
   ok("registra la condición EXACTA que falló", /condiciones que fallaron/.test(SRC) && /const fallas = planUsado/.test(SRC));
   // se certifica la CONDUCTA del producto (el plan que el motor usó), pero se reporta lo que el MODELO emitió:
   // las dos cosas visibles, nunca una tapando a la otra.
-  ok("evalúa sobre el plan que el motor USÓ, y reporta lo que el modelo EMITIÓ",
-    /const planUsado = planReal \? coerceVocabularioPlan\(planReal\)\.plan : null/.test(SRC)
+  // …Y CON LA REPARACIÓN NORMALIZADA: la 4ª corrida marcó fallida una sonda que el producto había resuelto bien,
+  // porque leía el flag crudo del proveedor en vez de la capa que decide.
+  ok("evalúa sobre el plan que el motor USÓ, con la reparación ya normalizada",
+    /const planUsado = _coerc \? \{ \.\.\._coerc, reparacion: normalizeReparacion\(_coerc\) \} : null/.test(SRC)
     && /const forma = planReal \?/.test(SRC));
   ok("imprime el retryTrace completo, intento por intento, con su motivo",
     /trace PLAN intento/.test(SRC) && /trace NARRAR intento/.test(SRC) && /_rt\.plan \|\| \[\]/.test(SRC));

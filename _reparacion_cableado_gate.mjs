@@ -75,11 +75,14 @@ ok("…y el prompt la IMPRIME, no la reescribe (no puede volver a contradecir al
 ok("el motor NO re-decide la ambigüedad: delega en el normalizador",
   /const _reparacionDe = \(plan\) => normalizeReparacion\(plan\)/.test(MOTOR)
   && /function _esReparacionAmbigua[\s\S]{0,200}?return !!\(r && r\.ambigua\)/.test(MOTOR));
-// DOS CAMINOS A LA PREGUNTA, con reglas distintas y a propósito: una ambigüedad DECLARADA por el planificador
-// exige `calls` vacío (si trajo calls se contradice, y vale lo respondible); una INFERIDA por el motor corta
-// aunque haya calls, porque ahí el motor SABE que el alcance no cambió y esas calls repetirían el turno malo.
-ok("…y el corte por ambigüedad distingue la declarada de la inferida",
-  /const _cortaPorAmbigua = _repAmbigua && \(_sinCalls \|\| _reparacion\.inferida === true\)/.test(MOTOR));
+// TRES CAMINOS A LA PREGUNTA. La 4ª corrida pagada agregó el tercero, y es el que más costaba: una ambigüedad
+// DECLARADA CON su pregunta ya redactada manda sobre unas calls sueltas — son dos campos coherentes entre sí
+// contra uno que los contradice. Antes el motor prefería lo respondible, y ese turno gastó CUATRO llamadas, con
+// dos rechazos del guard y una escalada al modelo más caro, para responder donde §4 manda preguntar.
+ok("…y el corte por ambigüedad cubre los tres casos (sin calls · con pregunta · inferida)",
+  /const _cortaPorAmbigua = _repAmbigua && \(_sinCalls \|\| _preguntaValida \|\| _reparacion\.inferida === true\)/.test(MOTOR));
+ok("§4 · con la pregunta redactada, la ambigüedad MANDA y las calls se descartan",
+  MOTOR.includes("const _preguntaValida = !!(_reparacion && typeof _reparacion.pregunta === \"string\" && _reparacion.pregunta.includes(\"?\"))"));
 ok("la pregunta de precisión tiene una segunda candidata: nunca cae en silencio si el guard rechaza la primera",
   /for \(const candidata of \[pregunta, stripLanguageLeaks\(_propia\)\]\)/.test(MOTOR));
 

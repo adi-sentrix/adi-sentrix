@@ -23,6 +23,8 @@ import { getLastOffer, getRecentSubjects } from "./src/adi/oracle/dialogueState.
 import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
 import { REPAIR_FIELD_KEYS, buildRepairNarrateDoctrine } from "./src/adi/oracle/conversationalContract.js";
 import { buildReparacion } from "./src/adi/oracle/narrationContract.js";
+import { setSink, setToolsDeclaradas } from "./src/adi/llm/telemetry.js";
+import { toolNames } from "./src/adi/oracle/toolRegistry.js";
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -550,6 +552,52 @@ section("8d · LA CLASE EN EL CAMPO EQUIVOCADO · reproducción EXACTA de S3 (3�
     ok("lo DECLARADO manda sobre lo deducido: la corrección se aplica igual",
       !/rebate de Falabella/.test(renderInteractionMemory(memX || {})), renderInteractionMemory(memX || {}));
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("8e · AMBIGUA + PREGUNTA + CALLS · la ambigüedad manda (4ª corrida pagada)");
+// EL CASO MEDIDO: el planificador declaró `ambigua:true`, escribió la pregunta Y trajo calls. La regla anterior
+// prefería lo respondible, así que el motor ejecutaba y narraba: CUATRO llamadas, dos rechazos del guard y una
+// escalada al modelo más caro, para responder donde §4 manda preguntar. Ahora manda la ambigüedad.
+// El BATCH se cuenta con la PROPIA telemetría del producto —la etapa `deterministica` se emite si y solo si el
+// batch corrió— en vez de inferirlo de la respuesta. Es la medición directa, no un proxy.
+{
+  const eventos = [];
+  setSink((ev) => eventos.push(ev));
+  setToolsDeclaradas(toolNames());
+  let planN = 0, narrarN = 0;
+  const base = await answerViaOracle({
+    text: "¿cómo viene el margen de Falabella?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  });
+  eventos.length = 0;   // se cuenta SOLO el turno de la corrección
+  const PREG = "¿Te referías a otra cuenta, o a otro período?";
+  const r = await answerViaOracle({
+    text: "ese número no me cuadra", history: [], mem: base.mem, scenario: "actual",
+    callPlan: async () => { planN++; return { intent: "redirect", mode: "default", rationale: "el caso de la 4ª corrida", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "correccion", ambigua: true, pregunta: PREG } }; },
+    callNarrate: async () => { narrarN++; return "no debería llamarse"; },
+  });
+  ok("UNA llamada de PLAN", planN === 1, `plan=${planN}`);
+  ok("CERO llamadas de NARRAR", narrarN === 0, `narrar=${narrarN}`);
+  ok("CERO BATCH · ninguna tool se ejecutó (medido por la telemetría del producto)",
+    !eventos.some((e) => e.etapa === "deterministica"), JSON.stringify(eventos.map((e) => e.etapa)));
+  ok("…y la evidencia que viaja no trae ninguna call", (((r.r.evidence || {}).plan || {}).calls || []).length === 0,
+    JSON.stringify((r.r.evidence || {}).plan));
+  ok("UNA sola pregunta, la que redactó el planificador", r.r.text.includes(PREG) && (r.r.text.match(/\?/g) || []).length === 1, r.r.text);
+  ok("§4 · el contexto queda INTACTO: la oferta sigue viva",
+    !!(getLastOffer(r.mem) && /rebate de Falabella/.test(getLastOffer(r.mem).texto || "")), JSON.stringify(getLastOffer(r.mem)));
+  ok("§4 · …y el alcance también", r.mem.conversationScope.current.entities.join(",") === "Falabella");
+  ok("no se recalculó nada: sin afirmaciones", !r.r.claims || r.r.claims.length === 0);
+  // CONTRASTE: sin pregunta redactada, unas calls sueltas NO alcanzan para cortar — ahí sí vale lo respondible.
+  let narrarN2 = 0;
+  await answerViaOracle({
+    text: "eso no es así", history: [], mem: base.mem, scenario: "actual",
+    callPlan: async () => ({ intent: "redirect", mode: "default", rationale: "ambigua sin pregunta, con calls", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "correccion", ambigua: true } }),
+    callNarrate: async (args) => { narrarN2++; return narrarConEvidencia("Falabella:", "Falabella")(args); },
+  });
+  ok("contraste · ambigua SIN pregunta y CON calls: sigue valiendo lo respondible", narrarN2 === 1, `narrar=${narrarN2}`);
+  setSink(null);
 }
 
 section("9 · LAS OCHO DIMENSIONES, DECLARADAS Y CONTADAS");

@@ -28,7 +28,7 @@ import { toolNames } from "./src/adi/oracle/toolRegistry.js";
 import { estimateCostUSD } from "./src/adi/llm/modelPricing.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { inferirCorrige } from "./src/adi/oracle/conversationScope.js";
-import { coerceVocabularioPlan } from "./src/adi/oracle/conversationalContract.js";
+import { coerceVocabularioPlan, normalizeReparacion } from "./src/adi/oracle/conversationalContract.js";
 
 export const TOPE_LLAMADAS = 15;
 export const TOPE_USD = 0.40;
@@ -110,11 +110,14 @@ export const SONDAS = [
       ["intent=redirect", (p) => p.intent === "redirect"],
       ["reparacion presente (no omitida ni null)", (p) => !!p.reparacion],
       ["ambigua=true", (p) => p.reparacion && p.reparacion.ambigua === true],
-      ["calls vacio", (p) => !(p.calls || []).length],
       ["trae pregunta", (p) => p.reparacion && typeof p.reparacion.pregunta === "string"],
       ["UNA sola pregunta", (p) => p.reparacion && ((p.reparacion.pregunta || "").match(/\?/g) || []).length === 1],
     ],
-    porQue: "§4 · UNA sola pregunta, sin calls, sin recalcular",
+    //  DEJÓ DE SER CONDICIÓN DE LA SONDA (owner 2026-08-10, tras la 4ª corrida): desde que la
+    // ambigüedad declarada CON su pregunta manda, el motor descarta las calls él mismo. Lo que esta sonda mide es
+    // lo que el planificador tiene que DECLARAR; que el turno no ejecute nada lo certifica el gate offline
+    // _reparacion_pipeline_gate (1 PLAN · 0 BATCH · 0 NARRAR · 1 pregunta), sin gastar.
+    porQue: "§4 · declara la ambigüedad y UNA sola pregunta; el motor se encarga de no recalcular",
     sinNarrar: true,   // esta sonda corta antes de NARRAR por diseño del contrato: cuesta 1 llamada, no 2
   },
   {
@@ -265,7 +268,12 @@ if (_corre) {
       // CONDUCTA del producto, y desde la migración estructural una clase escrita en `intent` ya no es un fallo:
       // es un caso que el motor resuelve. `forma` sigue reportando lo que el MODELO emitió, así que las dos cosas
       // quedan visibles — nunca se tapa lo que hizo el modelo, se separa de lo que hizo el producto.
-      const planUsado = planReal ? coerceVocabularioPlan(planReal).plan : null;
+      // …Y CON LA REPARACIÓN NORMALIZADA, que es la capa que decide. La 4ª corrida lo mostró: el planificador
+      // declaró `ambigua:true` sobre una corrección clarísima y ADEMÁS `corrige:["entidad"]`; el motor reconcilia
+      // esa contradicción por diseño y resolvió bien —corrigió, ejecutó la tool, narró— pero la sonda leía el flag
+      // CRUDO y la marcó fallida. Estaba midiendo una capa antes de la que decide.
+      const _coerc = planReal ? coerceVocabularioPlan(planReal).plan : null;
+      const planUsado = _coerc ? { ..._coerc, reparacion: normalizeReparacion(_coerc) } : null;
       const fallas = planUsado ? sonda.condiciones.filter(([, f]) => { try { return !f(planUsado); } catch { return true; } }).map(([n]) => n) : ["no llegó ningún plan"];
       const cumple = fallas.length === 0;
       // COERCIONES APLICADAS · vocabulario cerrado nuestro (nombres de campo y de enum), nunca texto del usuario.
