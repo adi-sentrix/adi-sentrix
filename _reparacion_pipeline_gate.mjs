@@ -21,7 +21,8 @@ import { renderInteractionMemory } from "./src/adi/oracle/persona.js";
 import { composeFromLedger } from "./src/adi/oracle/narrationBlocks.js";
 import { getLastOffer, getRecentSubjects } from "./src/adi/oracle/dialogueState.js";
 import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
-import { REPAIR_FIELD_KEYS } from "./src/adi/oracle/conversationalContract.js";
+import { REPAIR_FIELD_KEYS, buildRepairNarrateDoctrine } from "./src/adi/oracle/conversationalContract.js";
+import { buildReparacion } from "./src/adi/oracle/narrationContract.js";
 
 let pass = 0, fail = 0;
 function ok(name, cond, detail) {
@@ -121,7 +122,7 @@ section("5 · desacuerdo y dato aportado (§8.4 · §8.5 · §5.1)");
 let memDesacuerdo = null;
 const t5 = await answerViaOracle({
   text: "no creo que sea por los rebates", history: [], mem: t1.mem, scenario: "actual",
-  callPlan: async () => ({ intent: "redirect", mode: "evidencia", rationale: "desacuerdo", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "desacuerdo" } }),
+  callPlan: async () => ({ intent: "answer", mode: "evidencia", rationale: "desacuerdo", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "desacuerdo" } }),
   callNarrate: async (args) => { memDesacuerdo = args.mem; return narrarConEvidencia("Lo tomo, y separo lo que el dato prueba de lo que solo indica.", "Falabella")(args); },
 });
 ok("§8.4 · un DESACUERDO conserva el alcance",
@@ -131,7 +132,7 @@ ok("§8.4 · y conserva la evidencia del turno (no la invalida como haría una c
 
 const t6 = await answerViaOracle({
   text: "las ventas de Falabella fueron $20M, tomalo como supuesto", history: [], mem: t1.mem, scenario: "actual",
-  callPlan: async () => ({ intent: "redirect", mode: "default", rationale: "dato aportado y aceptado", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "dato_usuario", dato: { metrica: "ventas", valor: "$20M" }, aceptado: true } }),
+  callPlan: async () => ({ intent: "answer", mode: "default", rationale: "dato aportado y aceptado", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "dato_usuario", dato: { metrica: "ventas", valor: "$20M" }, aceptado: true } }),
   callNarrate: async (args) => narrarConEvidencia("Mi dato difiere del tuyo; según tu dato serían $20M.", "Falabella")(args),
 });
 const supuestos = (t6.mem.conversationScope && t6.mem.conversationScope.current && t6.mem.conversationScope.current.supuestos) || [];
@@ -348,7 +349,7 @@ section("8b · EL RESPALDO ESTRUCTURAL · adversarial (lo que cazó la certifica
     const mem0 = await baseR();
     const r = await answerViaOracle({
       text: tipo === "desacuerdo" ? "no creo que sea por los rebates" : "las ventas fueron $20M", history: [], mem: mem0, scenario: "actual",
-      callPlan: async () => ({ intent: "redirect", mode: "default", rationale: tipo, scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: tipo === "desacuerdo" ? { tipo } : { tipo, dato: { metrica: "ventas", valor: "$20M" } } }),
+      callPlan: async () => ({ intent: "answer", mode: "default", rationale: tipo, scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: tipo === "desacuerdo" ? { tipo } : { tipo, dato: { metrica: "ventas", valor: "$20M" } } }),
       callNarrate: async (args) => narrarConEvidencia("Lo tomo.", "Falabella")(args),
     });
     ok(`respaldo · un ${tipo.toUpperCase()} declarado NO se convierte en corrección: el alcance se conserva`,
@@ -384,6 +385,113 @@ section("8b · EL RESPALDO ESTRUCTURAL · adversarial (lo que cazó la certifica
     const b = renderInteractionMemory(memX || {});
     ok("respaldo · con DOS dimensiones cambiadas, invalida por las dos (nada de Falabella sobrevive)",
       !/Falabella/.test(b), b);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("8c · EL ENUM NO SE CUMPLE SOLO · coerción de `intent` (lo que cazó la 2ª corrida pagada)");
+// El planificador emitió `intent:"correccion"` —fuera del enum— con la reparación perfectamente armada al lado:
+// ambigua, con su única pregunta y sin calls. El motor exigía `intent==="redirect"` para leerla, así que tiró un
+// objeto correcto por el valor de OTRO campo y el turno terminó narrando sobre una boleta vacía.
+// La coerción es POR TIPO, nunca indiscriminada: convertir cualquier reparación en redirect metería al desacuerdo
+// y al dato aportado en el camino de invalidación que el contrato les prohíbe.
+{
+  const baseC = async () => (await answerViaOracle({
+    text: "¿cómo viene el margen de Falabella?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async (a) => narrarTablaConOferta("¿Querés que profundice en el rebate de Falabella?")(a),
+  })).mem;
+
+  // (1) CORRECCIÓN AMBIGUA con intent inválido → una pregunta, cero calls, cero narrador. Es el caso EXACTO que
+  //     se pagó: el modelo hizo todo bien menos el valor del enum.
+  {
+    let narrado = 0;
+    const r = await answerViaOracle({
+      text: "ese número no me cuadra", history: [], mem: await baseC(), scenario: "actual",
+      callPlan: async () => ({ intent: "correccion", mode: "default", rationale: "el caso real", scope: { level: "entity", entities: ["Falabella"] }, calls: [], reparacion: { tipo: "correccion", ambigua: true, pregunta: "¿Te referías a otra cuenta, o a otro período?" } }),
+      callNarrate: async () => { narrado++; return "no debería llamarse"; },
+    });
+    ok("(1) ambigua con intent='correccion' · UNA pregunta y cero narrador",
+      narrado === 0 && /¿Te referías a otra cuenta, o a otro período\?/.test(r.r.text), r.r.text);
+    ok("(1) …cero calls: no se recalculó nada", !r.r.claims || r.r.claims.length === 0);
+    ok("(1) …y la coerción queda VISIBLE en el trace, no en silencio",
+      !!(r.r.retryTrace && r.r.retryTrace.coerciones || []).length && /intent-invalido→redirect\(por tipo=correccion\)/.test(((r.r.retryTrace || {}).coerciones || []).join("|")),
+      JSON.stringify(r.r.retryTrace && r.r.retryTrace.coerciones));
+  }
+
+  // (2) CORRECCIÓN RESUELTA con intent inválido → ejecuta sus calls (no se convierte en una pregunta).
+  {
+    let memX = null, narrado = 0;
+    const r = await answerViaOracle({
+      text: "no, era Lider", history: [], mem: await baseC(), scenario: "actual",
+      callPlan: async () => ({ intent: "reparacion", mode: "default", rationale: "resuelta con intent inválido", scope: { level: "entity", entities: ["Lider"] }, calls: [CALL("Lider")], reparacion: { tipo: "correccion", corrige: ["entidad"] } }),
+      callNarrate: async (args) => { narrado++; memX = args.mem; return narrarConEvidencia("Entendido, era Lider.", "Lider")(args); },
+    });
+    ok("(2) resuelta con intent inválido · EJECUTA sus calls y narra", narrado === 1 && !!(r.r && r.r.text), `narrar=${narrado}`);
+    ok("(2) …y la corrección se aplicó: la oferta anterior no viaja", !/rebate de Falabella/.test(renderInteractionMemory(memX || {})));
+    ok("(2) …con el alcance corregido para Sentrix", r.r.evidence.scope.entities.join(",") === "Lider");
+  }
+
+  // (3) DESACUERDO con intent inválido → `answer`, NO redirect: conserva evidencia y contexto.
+  {
+    let memX = null;
+    const r = await answerViaOracle({
+      text: "no creo que sea por los rebates", history: [], mem: await baseC(), scenario: "actual",
+      callPlan: async () => ({ intent: "desacuerdo", mode: "evidencia", rationale: "d", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "desacuerdo" } }),
+      callNarrate: async (args) => { memX = args.mem; return narrarConEvidencia("Lo tomo, y separo lo probado de lo indicado.", "Falabella")(args); },
+    });
+    ok("(3) desacuerdo con intent inválido · conserva el alcance", r.mem.conversationScope.current.entities.join(",") === "Falabella");
+    ok("(3) …y conserva la oferta y el contexto (no es un reencauce)",
+      /rebate de Falabella/.test(renderInteractionMemory(memX || {})), renderInteractionMemory(memX || {}));
+    // esta pasaba antes por el motivo EQUIVOCADO: la reparación se descartaba entera por el intent, así que el
+    // alcance se conservaba… y el narrador tampoco recibía la doctrina de desacuerdo. Se verifica que SÍ la reciba.
+    ok("(3) …y el narrador SÍ recibe la doctrina de desacuerdo (la reparación no se descartó)",
+      /DESACUERDO/.test(buildRepairNarrateDoctrine(buildReparacion({ plan: { intent: "answer", reparacion: { tipo: "desacuerdo" } }, mem: {} }))));
+    ok("(3) …y la coerción fue a `answer`, no a redirect",
+      /intent-invalido→answer\(por tipo=desacuerdo\)/.test(((r.r.retryTrace || {}).coerciones || []).join("|")),
+      JSON.stringify(r.r.retryTrace && r.r.retryTrace.coerciones));
+  }
+
+  // (4) DATO APORTADO con intent inválido → `answer`, y la procedencia se conserva.
+  {
+    const r = await answerViaOracle({
+      text: "las ventas de Falabella fueron $20M, tomalo como supuesto", history: [], mem: await baseC(), scenario: "actual",
+      callPlan: async () => ({ intent: "dato", mode: "default", rationale: "d", scope: { level: "entity", entities: ["Falabella"] }, calls: [CALL("Falabella")], reparacion: { tipo: "dato_usuario", dato: { metrica: "ventas", valor: "$20M" }, aceptado: true } }),
+      callNarrate: async (args) => narrarConEvidencia("Mi dato difiere del tuyo.", "Falabella")(args),
+    });
+    const sup = (r.mem.conversationScope.current.supuestos || []).filter((s) => s.origen === "usuario");
+    ok("(4) dato aportado con intent inválido · la procedencia se conserva",
+      sup.length === 1 && sup[0].valor === "$20M", JSON.stringify(sup));
+    ok("(4) …y el alcance NO se invalidó (no es un reencauce)", r.mem.conversationScope.current.entities.join(",") === "Falabella");
+    ok("(4) …coerción a `answer`", /intent-invalido→answer\(por tipo=dato_usuario\)/.test(((r.r.retryTrace || {}).coerciones || []).join("|")));
+  }
+
+  // (5) PLAN NORMAL con intent inválido y SIN reparación → no se coerciona en silencio. Sin una clase de mensaje
+  //     declarada no hay forma estructural de saber qué quiso el turno, y adivinarla es lo que §1 prohíbe.
+  {
+    const r = await answerViaOracle({
+      text: "¿cómo viene Lider?", history: [], mem: await baseC(), scenario: "actual",
+      callPlan: async () => ({ intent: "loQueSea", mode: "default", rationale: "sin reparación", scope: { level: "entity", entities: ["Lider"] }, calls: [CALL("Lider")] }),
+      callNarrate: async (args) => narrarConEvidencia("Lider:", "Lider")(args),
+    });
+    const co = ((r.r.retryTrace || {}).coerciones || []).join("|");
+    ok("(5) sin reparación, NO se infiere una intención", !/intent-invalido→/.test(co), co);
+    ok("(5) …pero queda declarado que el valor era inválido (no se descarta en silencio)", /intent-invalido-sin-tipo/.test(co), co);
+    ok("(5) …y el turno igual responde: la coerción nunca tumba un turno", !!(r.r && r.r.text));
+  }
+
+  // (6) `mode` y `corrige` con valores inventados → dejan causa visible.
+  {
+    const r = await answerViaOracle({
+      text: "no, era Lider", history: [], mem: await baseC(), scenario: "actual",
+      callPlan: async () => ({ intent: "redirect", mode: "modoInventado", rationale: "vocabulario inventado", scope: { level: "entity", entities: ["Lider"] }, calls: [CALL("Lider")], reparacion: { tipo: "correccion", corrige: ["entidad", "campoInventado"] } }),
+      callNarrate: async (args) => narrarConEvidencia("Entendido.", "Lider")(args),
+    });
+    const co = ((r.r.retryTrace || {}).coerciones || []).join("|");
+    ok("(6) un `mode` fuera del enum deja causa visible", /mode-invalido\(modoInventado\)/.test(co), co);
+    ok("(6) un campo de `corrige` inventado deja causa visible", /corrige-descartado\(campoInventado\)/.test(co), co);
+    ok("(6) …y lo válido sigue aplicándose (se descarta el campo, no la corrección)",
+      r.mem.conversationScope.current.entities.join(",") === "Lider", JSON.stringify(r.mem.conversationScope.current.entities));
   }
 }
 

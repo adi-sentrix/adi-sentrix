@@ -56,9 +56,15 @@ ok("§4.1 · pero ya NO dispara sobre una corrección ambigua", /_esReparacionAm
 // vieja. Ahora se resuelve en `normalizeReparacion` y los cuatro leen de ahí.
 const CONTRATO = leer("./src/adi/oracle/conversationalContract.js");
 ok("la contradicción `ambigua` + `corrige` se reconcilia en el normalizador, una sola vez",
-  /export function normalizeReparacion[\s\S]{0,900}?ambigua: r\.tipo === "correccion" && r\.ambigua === true && corrige\.length === 0/.test(CONTRATO));
-ok("§2 · el normalizador exige intent='redirect' (una reparación colgada de un turno normal no lo secuestra)",
-  /export function normalizeReparacion[\s\S]{0,300}?p\.intent !== "redirect"\) return null/.test(CONTRATO));
+  /export function normalizeReparacion[\s\S]{0,2400}?ambigua: r\.tipo === "correccion" && r\.ambigua === true && corrige\.length === 0/.test(CONTRATO));
+// §2 · la protección contra el secuestro ya no es una intención FIJA sino una CONSISTENCIA: la reparación vale
+// cuando su clase y la intención del turno se corresponden. Exigir `redirect` a todas se volvió contradictorio
+// con la coerción por tipo — el motor normalizaba un desacuerdo a `answer` y después descartaba su reparación.
+ok("§2 · la reparación se valida por CONSISTENCIA contra la misma tabla que usa la coerción",
+  /p\.intent !== INTENT_POR_TIPO\[r\.tipo\]\) return null/.test(CONTRATO)
+  && /export const INTENT_POR_TIPO = Object\.freeze\(\{ correccion: "redirect", desacuerdo: "answer", dato_usuario: "answer" \}\)/.test(CONTRATO));
+ok("…y esa tabla es UNA sola: la coerción de intent la usa también",
+  /const destino = INTENT_POR_TIPO\[tipo\] \|\| null/.test(CONTRATO));
 ok("el motor NO re-decide la ambigüedad: delega en el normalizador",
   /const _reparacionDe = \(plan\) => normalizeReparacion\(plan\)/.test(MOTOR)
   && /function _esReparacionAmbigua[\s\S]{0,200}?return !!\(r && r\.ambigua\)/.test(MOTOR));
@@ -143,7 +149,17 @@ section("5b · LA RUTA QUE NO CONSULTA A PLAN · integración general, sin detec
   ok("el esquema exige `reparacion` en todos los turnos, y admite null",
     /required: \["intent", "mode", "rationale", "calls", "reparacion"\]/.test(PLANP) && /type: \["object", "null"\]/.test(PLANP));
   ok("la invalidación corre igual venga declarada o inferida (sin la guarda de plan sintético)",
-    /if \(_reparacion\) \{[\r\n]+\s*const scopeReparado = applyRepairToScope/.test(MOTOR));
+    /if \(_reparacion\) \{[\s\S]{0,400}?const scopeReparado = applyRepairToScope/.test(MOTOR));
+  // LA COERCIÓN DEL VOCABULARIO corre ANTES que todo lo que lo lee: el backstop de redirect-sin-calls, el
+  // normalizador y las coerciones de este archivo. Si corriera después, repararía un valor que ya se descartó.
+  ok("la coerción de `intent` corre ANTES del backstop y del normalizador",
+    MOTOR.indexOf("const _ni = normalizeIntent(p)") > 0
+    && MOTOR.indexOf("const _ni = normalizeIntent(p)") < MOTOR.indexOf('p.intent === "redirect" && !(Array.isArray(p.calls)'));
+  ok("…y conserva el resto del plan intacto (solo reemplaza `intent`)",
+    /if \(_ni\.intent !== p\.intent\) p = \{ \.\.\.p, intent: _ni\.intent \}/.test(MOTOR));
+  ok("los valores fuera de enum dejan causa visible en el trace, nunca se descartan en silencio",
+    /planCoerciones\.push\(_ni\.coercion\)/.test(MOTOR) && /mode-invalido/.test(MOTOR) && /corrige-descartado/.test(MOTOR)
+    && /coerciones: planCoerciones/.test(MOTOR));
   ok("el narrador y el guard juzgan la MISMA reparación que el estado ya invalidó",
     /buildReparacion\(\{ plan, mem: mem2, reparacion: _reparacion \}\)/.test(MOTOR));
   ok("§7 · no se agregó una llamada: la ruta sintética sigue sin invocar a PLAN",
