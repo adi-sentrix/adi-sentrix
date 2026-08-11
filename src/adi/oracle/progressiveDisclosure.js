@@ -49,7 +49,17 @@ const _TEMPORAL = [
   /\bcomparaci[oó]n\s+(por|entre)\s+(per[ií]odo|mes|trimestre|a[ñn]o)/i,
   /\b(mensual(?:es|mente)?|trimestral(?:es)?|interanual(?:es)?|estacional(?:idad)?)\b/i,
   /\b(a lo largo del|durante el|en el transcurso del)\s+(a[ñn]o|per[ií]odo|trimestre)\b/i,
-  /\bc[oó]mo (?:viene|ven[ií]a|vino|evolucion[oó]|se movi[oó])\b/i,
+  // «CÓMO VIENE» NO ES UNA PETICIÓN DE SERIE POR SÍ SOLA (owner 2026-08-11, residual del defecto 8).
+  // «¿Cómo viene Falabella?» es una consulta GENERAL sobre la entidad —qué pasa, por qué, qué hacer primero— y
+  // esta línea la convertía en un pedido de detalle temporal, que aguas arriba fuerza `tabla`. Medido: el turno
+  // resolvía `outputForm=tabla` y `tablePolicy=required`, así que una pregunta ejecutiva recibía una tabla y una
+  // respuesta en prosa se rechazaba con `tabla-faltante`.
+  // LA DISTINCIÓN ES EL COMPLEMENTO, no el verbo: «cómo viene EL AÑO» sí pide una serie; «cómo viene FALABELLA»
+  // no. Por eso `viene/venía/vino` ahora exige una unidad de tiempo cerca.
+  // `evolucionó` y `se movió` se quedan SIN condición: son verbos de trayectoria: preguntan por el movimiento en
+  // el tiempo aunque el complemento sea una entidad («¿cómo evolucionó Falabella?» sí es la serie).
+  /\bc[oó]mo (?:evolucion[oó]|se movi[oó])\b/i,
+  /\bc[oó]mo (?:viene|ven[ií]a|vino)\b[^.?!¿]{0,40}?\b(?:mes(?:es)?|trimestres?|semestres?|a[ñn]os?|per[ií]odos?|semanas?|d[ií]as?)\b/i,
   /\b(qu[eé]|cu[aá]l(?:es)?)\s+mes(?:es)?\b|\bmejor mes\b|\bpeor mes\b/i,
   // OJO sin `\b` inicial: en JavaScript `\b` es ASCII, así que NO reconoce la "ú" — con `\b[uú]ltimos` la frase
   // "últimos 6 meses" NO matcheaba (cazado en la prueba del detector). Mismo cuidado en el bloque de desglose.
@@ -163,9 +173,22 @@ const _PIDE_TABLA_OBJETO = /\b(?:d[aá]me|entr[eé]g[aá]me|mostr[aá]me|mu[eé]
 // La forma nominal se acota con el relativo: «la tabla QUE estoy viendo, qué dice» abre una subordinada y es
 // deixis, no pedido. Sin ese corte, empezar la frase por "la tabla" bastaba para forzar `required`.
 const _PIDE_TABLA_NOMINAL = /^\s*(?:la|una|las)\s+tablas?\b(?!\s+que\b)/i;
+// «HACEME UN CUADRO», «ARMÁ UNA PLANILLA» · el verbo de CONSTRUCCIÓN desambigua el sustantivo polisémico
+// (owner 2026-08-11). `cuadro` a secas vive en `_TABLA_N_PARTE` porque puede nombrar una PARTE del contenido
+// («sin el cuadro de resumen») o un objeto del negocio; pero pedido con un verbo de construir/entregar es
+// inequívocamente una petición de presentación tabular, y era la única de las formas que el owner enumeró que
+// no se reconocía. Se exige el verbo PEGADO al sustantivo: sin él, `cuadro` sigue siendo ambiguo.
+// SÓLO MODO DE ORDEN, con enumeración CERRADA. La primera versión usaba `arm[aá]\w*` abierto y matcheaba
+// «no me ARMASTE el cuadro que te pedí» —un RECLAMO en indicativo pasado— convirtiéndolo en un pedido de tabla:
+// exactamente la trampa de modo que este archivo ya documenta para el verbo `tabular`, reintroducida por mí al
+// cerrar el residual. El indicativo habla de lo que ADI hizo; sólo el imperativo/subjuntivo/infinitivo es orden.
+// …Y NO PUEDE ESTAR NEGADO. «No me armes la tabla» es una PROHIBICIÓN, y si este patrón la lee como pedido
+// positivo, el paso 2 de `prohibeFormaTabular` la exonera y la orden del usuario se pierde. La negación puede
+// traer clítico en el medio («no me armes», «no nos hagas»), así que el corte cubre las dos formas.
+const _PIDE_TABLA_CONSTRUIR = /(?<!\bno\s)(?<!\bno\s(?:me|nos)\s)\b(?:haz|hac[eé]|hag[aá]s?|hagan|arm[aá]|arme|armes|armen|armar|constru[íi]|construye|construir|prepar[aá]|prepare|prepares|preparar|gener[aá]|genere|generes|generar|dib[uú]ja|dibuje|dibujar)(?:me|nos)?\s+(?:un|una|el|la)\s+(?:cuadro|planilla|grilla|matriz|tabla)\b/i;
 export function pideTablaExplicita(text) {
   const t = String(text || "");
-  return _PIDE_TABLA.test(t) || _PIDE_TABLA_OBJETO.test(t) || _PIDE_TABLA_NOMINAL.test(t);
+  return _PIDE_TABLA.test(t) || _PIDE_TABLA_OBJETO.test(t) || _PIDE_TABLA_NOMINAL.test(t) || _PIDE_TABLA_CONSTRUIR.test(t);
 }
 
 /* ══ PROHIBICIÓN DE FORMA · el eje dejó de ser monótono-positivo (defecto D8, 2026-08-11) ═══════════════════════

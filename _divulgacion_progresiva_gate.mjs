@@ -36,7 +36,7 @@ const tools = (p) => p.calls.map((c) => c.tool);
 H("[1] DETECTOR TEMPORAL · las formas reales de pedir tiempo");
 {
   const SI = ["Falabella mes a mes", "mostrame la evolución de Falabella", "¿cuál es la tendencia?", "comparación por período",
-    "cómo viene Falabella", "Falabella últimos 6 meses", "ventas mensuales de Falabella", "Falabella año contra año",
+    "cómo viene Falabella mes a mes", "Falabella últimos 6 meses", "ventas mensuales de Falabella", "Falabella año contra año",
     "Falabella vs el año pasado", "¿en qué meses cayó?", "la trayectoria de Falabella", "el histórico de Falabella",
     "Falabella por trimestre", "cuál fue el mejor mes"];
   for (const q of SI) ok(pideDetalleTemporal(q), `pide tiempo: "${q}"`);

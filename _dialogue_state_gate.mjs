@@ -159,6 +159,8 @@ console.log("\n── 1 · DETERMINÍSTICO — guardC + _repetitionAdvisory (avi
   ok(g4.ok && !g4.advisories.some((a) => a.kind === "repeticion"), "recentNarrations vacío → no dispara, no crashea");
 }
 
+// AJUSTE 2026-08-11: «cómo viene» dejó de ser un pedido de serie por sí solo (residual del defecto 8), así que
+// el fixture de 2h —que SÍ certifica un turno de EVOLUCIÓN— nombra ahora la serie explícitamente.
 // ── HIGIENE DE FIXTURE (owner 2026-08-11) ─────────────────────────────────────────────────────────────────────
 // Las preguntas de arranque de 2a/2b/2c/2g decían "¿cómo viene el margen…?" y "¿cómo viene todo?". Esas frases
 // dejaron de ser neutras cuando llegó la política de presentación del turno: `pideDetalleTemporal` (progressive-
@@ -318,7 +320,7 @@ console.log("\n  ▸ 2h · turno de EVOLUCIÓN (tablePolicy=required) — la ofe
   const PLAN_H = { intent: "answer", mode: "default", scope: { level: "list", entities: [] }, calls: [{ tool: "marginRead", args: { scope: "bajo_benchmark" } }] };
   let policyVista = null;
   const rH = await answerViaOracle({
-    text: "¿cómo viene el margen de los clientes bajo benchmark?", history: [], mem: {}, scenario: "actual",
+    text: "¿cómo viene el margen de los clientes bajo benchmark, mes a mes?", history: [], mem: {}, scenario: "actual",
     callPlan: async () => PLAN_H,
     callNarrate: async (a) => {
       policyVista = a.tablePolicy;

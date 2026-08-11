@@ -182,9 +182,12 @@ console.log("\n══ 3 · LA OTRA CARA · las prohibiciones REALES se siguen bl
   // que es _TEMPORAL. Se deja abierto A PROPÓSITO: cerrarlo exige decidir a favor de la prohibición en un turno
   // ambiguo, y ahí vuelve el falso positivo que este archivo existe para impedir. Un límite declarado vale más
   // que un verde apretado. Si algún día cambia, que cambie con este chequeo en rojo y no en silencio.
+  // RESIDUAL CERRADO (owner 2026-08-11): «cómo viene» dejó de ser un disparador temporal por sí solo, así que ya
+  // no exonera al polisémico negado que viene pegado. La frase que quedaba como falso negativo declarado ahora
+  // prohíbe, que es lo que el usuario pidió. Se afirma el hecho NUEVO y su razón, no se borra el caso.
   const RESIDUAL = "No me armes ningún cuadro, decime nomás cómo viene el negocio.";
-  ok(pidePresentacionTabular(RESIDUAL) && resolveTablePolicy({ text: RESIDUAL, podado: [] }) === "required",
-    "RESIDUAL CONOCIDO: polisémico negado + disparador positivo pegado → la prohibición se escapa (falso negativo elegido)");
+  ok(!pidePresentacionTabular(RESIDUAL) && resolveTablePolicy({ text: RESIDUAL, podado: [] }) !== "required",
+    "RESIDUAL CERRADO: sin disparador positivo pegado, la prohibición del polisémico ya no se escapa");
   // (c) la prosa pedida SOLA: sigue prohibiendo, como antes — cuando lo nombrado es la FORMA.
   for (const q of ["Contámelo en prosa.", "Prefiero prosa, gracias.", "Dame sólo texto, sin nada raro."]) {
     ok(resolveTablePolicy({ text: q, podado: [] }) === "forbidden", `pedir prosa SOLA sigue prohibiendo la tabla → forbidden: «${corto(q)}»`);
@@ -311,7 +314,7 @@ console.log("\n══ 6 · END-TO-END · el daño se medía en guardC, así que 
    * del defecto abierto y está afirmado como tal, no escondido en un comentario. */
   const abiertos = [
     ["Explicalo sin repetir la tabla: cuál fue el peor mes.", "_TEMPORAL pegado (peor mes)"],
-    ["Nada de tablas, contame cómo viene el negocio.", "_TEMPORAL pegado (cómo viene)"],
+    ["Nada de tablas, contame cómo viene el negocio mes a mes.", "_TEMPORAL pegado (mes a mes)"],
   ];
   for (const [q, nota] of abiertos) {
     const r = recorrido(q);

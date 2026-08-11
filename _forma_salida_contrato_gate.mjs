@@ -54,6 +54,34 @@ H("[1] EL RESOLUTOR · el PLAN manda, el detector es respaldo");
     "un turno sin pedido de forma queda en `auto` (no se inventa una forma)");
 }
 
+H("[1b] UNA CONSULTA GENERAL NO ES UNA PETICIÓN DE TABLA (residual del defecto 8, owner 2026-08-11)");
+{
+  // «¿Cómo viene Falabella?» resolvía `tabla` porque `_TEMPORAL` aceptaba «cómo viene» SIN complemento temporal.
+  // Es una consulta ejecutiva sobre la entidad —qué pasa, por qué, qué hacer primero—, no un pedido de serie.
+  for (const t of ["¿Cómo viene Falabella?", "¿Cómo va Falabella?", "Resumen de Falabella", "Perfil de Falabella",
+    "Diagnóstico de Falabella", "Muéstrame Falabella", "Falabella"]) {
+    ok(resolveOutputForm({ plan: PLAN({}), text: t }) === "auto", `«${t}» → auto (no fuerza tabla)`);
+  }
+  // …Y LA CARA OPUESTA: lo que SÍ es una petición explícita de presentación tabular sigue resolviendo `tabla`.
+  for (const t of ["Muéstrame las ventas de Falabella en una tabla", "Ventas mes a mes en tabla",
+    "Hazme un cuadro con los clientes", "Armá una planilla con el mix", "Dame la evolución mes a mes"]) {
+    ok(resolveOutputForm({ plan: PLAN({}), text: t }) === "tabla", `«${t}» → tabla`);
+  }
+  // el complemento es lo que distingue, no el verbo: con unidad de tiempo, «cómo viene» SÍ pide la serie.
+  ok(resolveOutputForm({ plan: PLAN({}), text: "¿Cómo viene el año?" }) === "tabla", "«¿Cómo viene el año?» → tabla (trae unidad de tiempo)");
+  ok(resolveOutputForm({ plan: PLAN({}), text: "¿Cómo evolucionó Falabella?" }) === "tabla", "«¿cómo evolucionó X?» → tabla (verbo de trayectoria)");
+  // PLAN manda, y un valor inválido cae al respaldo CONSERVADOR (auto), nunca a tabla.
+  ok(resolveOutputForm({ plan: PLAN({ outputForm: "tabla" }), text: "¿Cómo viene Falabella?" }) === "tabla",
+    "un `outputForm` válido del PLAN prevalece sobre la consulta general");
+  ok(resolveOutputForm({ plan: PLAN({ outputForm: "zzz-invalido" }), text: "¿Cómo viene Falabella?" }) === "auto",
+    "un `outputForm` INVÁLIDO cae a `auto`, nunca a `tabla`");
+  ok(resolveOutputForm({ plan: PLAN({}), text: "¿Cómo viene Falabella?" }) === "auto",
+    "un `outputForm` ausente cae a `auto`");
+  // NO SE ROMPE LA POLISEMIA: negar una PARTE de una tabla pedida sigue entregando la tabla.
+  ok(resolveOutputForm({ plan: PLAN({}), text: "Dame la tabla mes a mes, sin la columna de unidades" }) === "tabla",
+    "negar una columna no degrada una tabla pedida (la protección de polisemia sigue viva)");
+}
+
 H("[2] TABLA EXPLÍCITA · el renderer la construye aunque el narrador no la traiga");
 {
   const r = await turno("Dame la evolución mes a mes en una tabla.", PLAN({ outputForm: "tabla" }), NARRA_PROSA);
