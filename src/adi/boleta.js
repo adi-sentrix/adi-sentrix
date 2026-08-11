@@ -70,13 +70,49 @@ export function isNamedInBoleta(boleta, nombre) {
   return boleta.some((f) => f && typeof f.label === "string" && f.label.includes(n));
 }
 
+/* ── parseNumeroLocalizado(t) → number · EL SEPARADOR DECIMAL, EN LAS DOS CONVENCIONES ────────────────────────
+ * EL DEFECTO QUE CIERRA (hallado 2026-08-10, auditando un rechazo de la certificación): la versión anterior era
+ * `parseFloat(t.replace(/,/g, ""))` — borraba TODA coma por considerarla separador de miles. Con eso, el castellano
+ * quedaba mal leído por diez o por mil: «8,3%» valía 83% y «$1,6M» valía $16M. Y el reemplazo global tampoco
+ * arreglaba el otro lado: «$20.000.000» lo leía `parseFloat` como 20 — veinte dólares.
+ * Las dos direcciones son peligrosas y de distinta forma: una RECHAZA una cifra correcta (falso positivo del
+ * guard, reintento pagado), y la otra puede DEJAR PASAR una equivocada si su lectura errónea coincide con alguna
+ * cifra autorizada. La segunda es peor: es un número mal leído que se presenta como verdad.
+ *
+ * LA REGLA, sin reemplazos globales y sin adivinar:
+ *   1. HAY LOS DOS separadores → el ÚLTIMO es el decimal, el otro es de miles. Cubre `1.234,56` y `1,234.56`.
+ *   2. EL MISMO separador REPETIDO → es de miles. Un decimal no aparece dos veces: `1.234.567`, `20.000.000`.
+ *   3. UNA sola coma → decimal SALVO que la sigan exactamente 3 dígitos. «8,3»→8.3 · «1,6»→1.6 · «1,600»→1600.
+ *   4. UN solo punto → decimal SIEMPRE. Es la convención con que ADI formatea sus propias cifras (ver _moneyC), y
+ *      cambiarla reinterpretaría toda boleta ya emitida.
+ *
+ * EL CASO 3 ES EL ÚNICO GENUINAMENTE AMBIGUO —`$1,600` es 1.600 en inglés y 1,6 en castellano— y se resuelve a
+ * favor de la convención que el producto YA usa para escribir. No se adivina por contexto: se declara.
+ * NaN para lo que no sea un número, igual que antes: el llamador ya descarta con Number.isFinite.
+ */
+export function parseNumeroLocalizado(t) {
+  const s = String(t == null ? "" : t).trim();
+  if (!s) return NaN;
+  const puntos = (s.match(/\./g) || []).length;
+  const comas = (s.match(/,/g) || []).length;
+  if (!puntos && !comas) return parseFloat(s);
+  let decimal = null;   // el carácter que actúa de separador decimal en ESTE token, o null si no hay
+  if (puntos && comas) decimal = s.lastIndexOf(".") > s.lastIndexOf(",") ? "." : ",";
+  else if (comas > 1 || puntos > 1) decimal = null;                       // repetido ⇒ miles
+  else if (comas === 1) decimal = /,\d{3}$/.test(s) ? null : ",";         // 3 dígitos exactos ⇒ miles
+  else decimal = ".";                                                     // un punto ⇒ decimal (convención de ADI)
+  const miles = decimal === "." ? "," : decimal === "," ? "." : /[.,]/g;
+  const sinMiles = decimal ? s.split(miles).join("") : s.replace(/[.,]/g, "");
+  return parseFloat(decimal === "," ? sinMiles.replace(",", ".") : sinMiles);
+}
+
 // parseFigures(text) → [{ unit, raw, text, canon }] · extrae las figuras de la narración CON su unidad (unit-aware).
 // Cada figura se re-formatea a su forma canónica (mismo formateador) → "money:$31.6M" ≠ "money:$31.6K" (atrapa drift de escala).
 export function parseFigures(text) {
   const s = String(text == null ? "" : text);
   const out = [];
   const push = (unit, raw, txt) => { if (Number.isFinite(raw)) out.push({ unit, raw, text: txt, canon: `${unit}:${_fmtC(raw, unit).replace(/\s/g, "")}` }); };
-  const num = (t) => parseFloat(String(t).replace(/,/g, "")); // ADI formatea US-style: '.' = decimal, ',' = miles (se quita)
+  const num = parseNumeroLocalizado;
   let m;
   const reMoney = /(-?)\$\s?(\d[\d.,]*\d|\d)\s?([KMB])?/gi;   // -?$X · captura el signo → "-$6K" da raw negativo (canon consistente)
   while ((m = reMoney.exec(s))) { let v = num(m[2]); const u = (m[3] || "").toUpperCase(); if (u === "K") v *= 1e3; else if (u === "M") v *= 1e6; else if (u === "B") v *= 1e9; if (m[1] === "-") v = -v; push("money", v, m[0]); }

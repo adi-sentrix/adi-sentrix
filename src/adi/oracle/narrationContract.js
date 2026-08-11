@@ -397,21 +397,17 @@ export function buildAllowedActions(claims) {
 // rechaza como inventada, así que no hay redacción posible y el turno se pierde reintentando.
 // Tres normalizaciones, todas acotadas a ESTE string (nunca al parser general, que sella la boleta del motor):
 //   · «20 millones» / «20M» sin signo → se les antepone el símbolo, porque el usuario habla de plata sin escribirlo;
-//   · «millones»/«mil» escritos con palabras → su sufijo;
-//   · «$20.000.000» (miles con punto, como se escribe en Chile) → sin los puntos. Sin esto parseFloat lee 20.
+//   · «millones»/«mil» escritos con palabras → su sufijo.
+// LOS SEPARADORES YA NO SE NORMALIZAN ACÁ (owner 2026-08-10): «$20.000.000» y «8,3%» los resuelve el parser
+// general (parseNumeroLocalizado, boleta.js), que es donde corresponde — una cifra del usuario y una del motor se
+// leen con la MISMA regla o el canon deja de significar lo mismo en los dos lados.
 function _parseCifraUsuario(texto) {
   const crudo = String(texto || "").trim();
   const directo = parseFigures(crudo);
-  if (directo.length) {
-    // el separador de miles con punto SÍ parsea, pero con la escala equivocada (veinte, no veinte millones) — se
-    // detecta por la forma del string, no por el valor, y se reintenta normalizado.
-    if (!/^\$?\s?\d{1,3}(\.\d{3})+$/.test(crudo)) return directo;
-  }
+  if (directo.length) return directo;
   const variantes = [
-    crudo.replace(/\./g, ""),
     crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K"),
     "$" + crudo.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, ""),
-    "$" + crudo.replace(/\./g, "").replace(/^\$\s?/, ""),
   ];
   for (const v of variantes) {
     const p = parseFigures(v);
