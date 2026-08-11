@@ -260,8 +260,13 @@ if (_corre) {
       } : null;
       const fallas = planReal ? sonda.condiciones.filter(([, f]) => { try { return !f(planReal); } catch { return true; } }).map(([n]) => n) : ["no llegó ningún plan"];
       const cumple = fallas.length === 0;
-      resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", fallas, forma, retryTrace: r && r.r && r.r.retryTrace });
+      // COERCIONES APLICADAS · vocabulario cerrado nuestro (nombres de campo y de enum), nunca texto del usuario.
+      // Sin esto no se puede saber si el turno salió bien PORQUE el modelo acertó o porque el motor lo reparó —
+      // que es justo la distinción que decide si queda algo por arreglar.
+      const coerciones = (r && r.r && r.r.retryTrace && r.r.retryTrace.coerciones) || [];
+      resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", fallas, forma, coerciones, retryTrace: r && r.r && r.r.retryTrace });
       console.log(`  ${sonda.id} · ${cumple ? "CUMPLE" : "NO CUMPLE"} · forma=${JSON.stringify(forma)}`);
+      console.log(`  ${sonda.id} · coerciones=${coerciones.length ? coerciones.join(" · ") : "ninguna"}`);
       if (!cumple) console.log(`  ${sonda.id} · condiciones que fallaron: ${fallas.join(" · ")}`);
       // UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA (owner, autorización 2026-08-10). No es lo mismo que un tope:
       // acá el producto respondió y respondió mal, así que seguir gastando en las sondas siguientes es pagar por
