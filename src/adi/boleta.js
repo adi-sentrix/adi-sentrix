@@ -53,12 +53,17 @@ export function fig(label, value, opts = {}) {
     unit = "money", raw = null, mandatory = false, source = "actual", formula = null, context = null, gancho = false,
     moneda, escala, periodo, escenario = null, universo, entidad, dimension = null, fuente = null,
     sello = null, reconcilia = null, declarada = false,
+    // COBERTURA ESTRUCTURAL (owner 2026-08-11, defecto 2 de la certificación). El alcance de una cifra agregada
+    // —total del universo o subtotal de un recorte— lo declara el EMISOR, que es el único que sabe si filtró.
+    // Antes viajaba sólo como sufijo del label y el muro lo leía como texto: una etiqueta nueva lo dejaba ciego
+    // sin que nadie se enterara. `{ alcance, n, m, universo }` es el campo que no depende de la redacción.
+    cobertura = null,
   } = opts;
   const tipo = deriveFigureType({
     label, unit, source, formula,
     moneda, escala, periodo, escenario, universo, entidad, dimension, fuente, sello, reconcilia, declarada,
   });
-  return { label, value: String(value), unit, raw, mandatory, source, formula, context, ...(gancho ? { gancho: true } : {}), tipo, canon: `${unit}:${String(value).replace(/\s/g, "")}` };
+  return { label, value: String(value), unit, raw, mandatory, source, formula, context, ...(gancho ? { gancho: true } : {}), ...(cobertura ? { cobertura } : {}), tipo, canon: `${unit}:${String(value).replace(/\s/g, "")}` };
 }
 
 // isNamedInBoleta(boleta, nombre) → true si ADI NOMBRÓ esa entidad (una cifra de la boleta lleva su nombre en el label).

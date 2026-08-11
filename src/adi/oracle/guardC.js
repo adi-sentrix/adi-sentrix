@@ -503,6 +503,54 @@ function _brechaMalAdjudicada(narration, claims) {
   return out;
 }
 
+// UNA ESTIMACIÓN NO SE NARRA COMO HECHO (owner 2026-08-11, defecto 4 de la certificación).
+// Medido: la boleta trae «Contribución del período $23.9M» con `source:"computed"`, sello `indicado` y
+// `verificabilidad:"derivada_no_reconciliada"` — el propio dato lleva escrita su razón: «no es una lectura del
+// dato, es un supuesto del motor». ADI la narró así: «La contribución del negocio alcanza $23.9M durante el año
+// cerrado». El sello existía y viajaba; lo que faltaba era que ALGUIEN lo hiciera cumplir en la respuesta.
+// LA REGLA: una cifra cuya verificabilidad es `derivada_no_reconciliada` sólo puede salir acompañada de su
+// condición. No se exige una redacción concreta —eso sería vocabulario—: alcanza con que la ventana declare que
+// es estimada, indicada, derivada, aproximada, un supuesto o del período completo. Si no la declara, no sale.
+// El atenuante es amplio a propósito: preferimos que se cuele una redacción rara antes que bloquear una honesta.
+// La lista es DELIBERADAMENTE ancha, y las raíces son verbales además de adjetivas: la primera versión aceptaba
+// «derivada» y rechazaba «deriva», y exigía «del período completo» cuando lo natural es «para el período
+// completo» — bloqueaba una frase que declaraba la condición mejor que las que sí pasaban. Ante la duda sobre si
+// una redacción declara la estimación, se deja pasar: el costo de un falso negativo acá es una frase floja; el de
+// un falso positivo es negarle al usuario una respuesta correcta.
+const _DECLARA_ESTIMACION = /\bestimad\w+\b|\bestima\b|\bindicad\w+\b|\bderiv\w+\b|\baproximad\w+\b|\bsupuest\w+\b|\bno reconcilia\w*\b|\bdel motor\b|\bper[ií]odo completo\b|\bno es (?:una )?lectura\b|\bproyect\w+\b|\bagregado independiente\b|\bno es la suma\b|\bcalculad\w+\b/i;
+// «N cuentas», «N de M», «de los N clientes», «las materiales»: el texto está acotando de qué universo habla.
+const _DECLARA_ALCANCE = /\b\d+\s+de\s+\d+\b|\b\d+\s+(?:cuentas?|clientes?|sku|bodegas?|marcas?|familias?|meses)\b|\bmateriales?\b|\bde los\s+\d+\b|\bsubtotal\b|\btop\s*\d+\b/i;
+function _estimacionComoHecho(narration, figs) {
+  const out = [];
+  const text = String(narration || "");
+  const masked = _maskFigures(text);
+  for (const f of (Array.isArray(figs) ? figs : [])) {
+    const t = f && f.tipo;
+    if (!t || t.verificabilidad !== "derivada_no_reconciliada" || !f.value) continue;
+    // SÓLO LOS AGREGADOS. El defecto medido es un TOTAL derivado presentado como hecho del período
+    // («la contribución del negocio alcanza $23.9M»). Una cifra por entidad marcada derivada —«Falabella deja
+    // $1.6M sin capturar»— es una lectura normal y exigirle una muletilla de procedencia en cada mención
+    // bloquearía media respuesta correcta. El agregado se reconoce por lo que ya declara: es obligatorio en la
+    // boleta y no cuelga de una entidad puntual.
+    if (!f.mandatory || (t.entidad && !f.cobertura)) continue;
+    let idx = -1;
+    while ((idx = text.indexOf(f.value, idx + 1)) >= 0) {
+      const [lo, hi] = _localWindow(masked, idx, 160);
+      const v = text.slice(lo, hi);
+      if (_DECLARA_ESTIMACION.test(v)) continue;
+      // DECLARAR EL ALCANCE TAMBIÉN ES DECLARAR LA CONDICIÓN. «Las 5 cuentas materiales bajo el benchmark suman
+      // $4.9M, de 8 cuentas» dice exactamente de qué universo habla y por lo tanto NO presenta la cifra como el
+      // hecho del universo entero — que es lo único que este chequeo existe para impedir. Sin esta salida, la
+      // lectura CORRECTA del subtotal quedaba bloqueada, que es peor que el defecto: el usuario se queda sin
+      // respuesta en vez de con una respuesta imprecisa. (Medido al cerrar el defecto 2.)
+      if (_DECLARA_ALCANCE.test(v)) continue;
+      out.push(`"${f.value}" (${f.label}) es una cifra derivada que el dato declara no reconciliada${t.verificabilidadRazon ? ` — ${t.verificabilidadRazon}` : ""}, y se narra como hecho: "${v.trim().slice(0, 120)}"`);
+      break;
+    }
+  }
+  return out;
+}
+
 function _causaSobredimensionada(narration, claims) {
   const out = [];
   const text = String(narration || "");
@@ -2079,10 +2127,23 @@ function _totalNoReconcilia(narration) {
 // miente antes de llegar acá. Esa mitad se cierra en el emisor, no en el muro.
 function _alcanceDelLabel(label) {
   const segs = String(label || "").split("·").map((s) => _norm(s.trim())).filter(Boolean);
-  const last = segs[segs.length - 1] || "";
-  if (/^sub\s?total(?:es)?$/.test(last) || /^parcial(?:es)?$/.test(last) || /^top\s*\d+$/.test(last)) return "subtotal";
-  if (/^total(?:es)?$/.test(last) || /^global(?:es)?$/.test(last)) return "total";
+  // EL SUFIJO PUEDE NO SER EL ÚLTIMO SEGMENTO. Desde que el emisor declara el universo pegado
+  // («… · subtotal · 5 de 8 cuentas bajo el benchmark»), el último segmento es la glosa y el alcance quedó en el
+  // anteúltimo: leer sólo el final dejaba el chequeo ciego justo en la etiqueta que se agregó para no mentir.
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const s = segs[i];
+    if (/^sub\s?total(?:es)?$/.test(s) || /^parcial(?:es)?$/.test(s) || /^top\s*\d+$/.test(s)) return "subtotal";
+    if (/^total(?:es)?$/.test(s) || /^global(?:es)?$/.test(s)) return "total";
+  }
   return null;
+}
+// EL ALCANCE ES UN CAMPO, NO UNA REDACCIÓN (owner 2026-08-11). `cobertura.alcance` lo declara el emisor y GANA
+// sobre cualquier lectura de la etiqueta: una etiqueta nueva no puede volver a dejar el muro sin saber qué mira.
+// Se cae al label sólo para las figs que todavía no declaran cobertura — el camino se cierra emisor por emisor.
+function _alcanceDeFig(f) {
+  const c = f && f.cobertura;
+  if (c && (c.alcance === "subtotal" || c.alcance === "total")) return c.alcance;
+  return _alcanceDelLabel(f && f.label);
 }
 const _ALCANCE_TOTALIZADOR = /\btotal(?:es)?\b|\btotalidad\b|\bglobal(?:es)?\b|\btod[oa]s?\s+(?:el|la|los|las|tu|tus|su|sus)\b|\bcomplet[oa]s?\b|\benter[oa]s?\b|\ba nivel (?:global|general|de negocio)\b/i;
 // TOTAL DEL GRUPO DECLARADO · el propio motor escribe «esa lista completa suma el total de arriba» refiriéndose al
@@ -2093,7 +2154,7 @@ function _alcancePromovido(narration, ledger) {
   const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []);
   if (!figs.length) return [];
   const porCanon = new Map();
-  for (const f of figs) { if (!porCanon.has(f.canon)) porCanon.set(f.canon, []); porCanon.get(f.canon).push({ f, alcance: _alcanceDelLabel(f.label) }); }
+  for (const f of figs) { if (!porCanon.has(f.canon)) porCanon.set(f.canon, []); porCanon.get(f.canon).push({ f, alcance: _alcanceDeFig(f) }); }
   const text = String(narration || "");
   const masked = _maskFigures(text);
   const out = [];
@@ -2216,6 +2277,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   if (nivelViol) violations.push({ kind: "nivel-financiero-no-autorizado", detail: nivelViol });
   for (const v of _causaSobredimensionada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
   for (const v of _brechaMalAdjudicada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
+  for (const v of _estimacionComoHecho(narration, figs)) violations.push({ kind: "procedencia-no-autorizada", detail: v });
   // 16 · POLÍTICA DE PRESENTACIÓN (owner 2026-08-07) — se valida LA POLÍTICA DECIDIDA para este turno, en los DOS
   // sentidos: `forbidden` bloquea la tabla, `required` bloquea su AUSENCIA (responder en prosa algo que se pidió
   // tabulado también es incumplir), `auto` no juzga y deja decidir a los detectores de forma del prompt.

@@ -98,6 +98,49 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
   const bol = [];
   const F = (label, v, extra = {}) => { bol.push(fig(label, fmt(v), { unit, raw: unit === "money" ? v * 1000 : v, source: "computed", context: `${metLbl} ${_plabel(p)}`, ...extra })); return fmt(v); };
 
+  /* ── COBERTURA DE LA SERIE · SE DECLARA, NO SE SUPONE (owner 2026-08-11, defecto 4 de la certificación) ────────
+   * EL CASO MEDIDO: la boleta de E3.t2 llegó con SIETE meses (Ene, Mar, Abr, May, Jun, Ago, Nov) y un total de
+   * "$23.9M · Contribución del período" sellado `computed` / `derivada_no_reconciliada`, con su propia razón
+   * escrita en el dato: «no es una lectura del dato, es un supuesto del motor». ADI lo narró como hecho pelado:
+   * «La contribución del negocio alcanza $23.9M». Los siete meses visibles suman $13.9M.
+   * La causa NO es que el total esté mal —la serie interna sí tiene los 12 meses—: es que a la boleta sólo entran
+   * los meses que el texto cita (F() se invoca para el máximo y el mínimo), así que aguas abajo el narrador y el
+   * muro ven un subconjunto y un total que no cierra con él, sin nada que diga que es un subconjunto.
+   * ESTO LO DICE. Cinco campos, todos verificables, ninguno opinable:
+   *   mesesDisponibles / mesesFaltantes · cobertura observada vs esperada · procedencia del total ·
+   *   si las filas reconcilian con él · y qué CLASE de total es.
+   * Un total `estimado` conserva su sello hasta la respuesta: es la diferencia entre «el negocio contribuyó $23.9M»
+   * y «la serie disponible suma $13.9M sobre 7 de 12 meses». */
+  const _declararCobertura = (mesesTodos, serieTodos, total, mesesEnBoleta) => {
+    const todos = Array.isArray(mesesTodos) ? mesesTodos : [];
+    const enBoleta = new Set(mesesEnBoleta || []);
+    const faltantes = todos.filter((m) => !enBoleta.has(m));
+    const sumaVisible = (serieTodos || []).reduce((s, v, i) => (enBoleta.has(todos[i]) && typeof v === "number" ? s + v : s), 0);
+    const reconcilia = total != null && Math.abs(sumaVisible - total) <= Math.max(1, Math.abs(total) * 0.005);
+    // TRES CLASES, y la del medio es la que evita la falsa alarma: un total ANUAL legítimo puede convivir con una
+    // serie parcial sin que ninguno de los dos esté mal — lo prohibido es fingir que las filas lo suman.
+    const clase = total == null ? null
+      : (!faltantes.length ? "observado" : (reconcilia ? "observado" : "agregado_independiente"));
+    return {
+      mesesDisponibles: todos.filter((m) => enBoleta.has(m)),
+      mesesFaltantes: faltantes,
+      coberturaObservada: enBoleta.size, coberturaEsperada: todos.length,
+      sumaFilasVisibles: sumaVisible, total, reconcilia,
+      procedenciaTotal: clase,
+      // la frase que el narrador puede citar y el muro puede exigir: una sola redacción, nunca improvisada.
+      leyenda: total == null ? null
+        : (!faltantes.length
+          ? `la serie cubre los ${todos.length} meses y sus filas suman el total`
+          : `la serie disponible cubre ${enBoleta.size} de ${todos.length} meses (faltan ${faltantes.join(", ")}); el total es del período completo y NO es la suma de las filas visibles`),
+    };
+  };
+  const _figCobertura = (cob) => {
+    if (!cob || cob.total == null || !cob.mesesFaltantes.length) return;
+    bol.push(fig("Cobertura de la serie", `${cob.coberturaObservada} de ${cob.coberturaEsperada} meses`,
+      { unit: "count", raw: cob.coberturaObservada, mandatory: true, source: "actual",
+        context: `${metLbl} ${_plabel(p)} · ${cob.leyenda}` }));
+  };
+
   // ── POR EJE (matriz meses × entidades · top 4 + Resto + Total exactos) ──
   if (dimension && _EJE_NAMES[dimension] && !entity) {
     if (met === "margen") return { reason: "declarada", texto: `El margen mes a mes te lo doy por entidad («margen de Falabella mes a mes») o del negocio — la matriz completa por ${_EJE_LBL[dimension]} mezclaría porcentajes que no se suman. ¿Te muestro la venta mes a mes por ${_EJE_LBL[dimension]}?`, sugerencias: [`Venta mes a mes por ${_EJE_LBL[dimension]}`] };
@@ -264,11 +307,19 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
     `· Mes más bajo: ${meses[iMin]} (${fmt(serie[iMin])})`,
     `Tabla abajo — misma verdad que el evolutivo de Sentrix.`,
   ].join("\n");
+  // la cobertura se calcula sobre los meses que EFECTIVAMENTE quedaron como fig en la boleta, no sobre los que la
+  // serie interna conoce: lo que el narrador y el muro pueden ver aguas abajo es la boleta, no la serie.
+  // LA COBERTURA SE MIDE SOBRE LAS FILAS QUE EL COMPOSER PRODUJO, no sobre `bol`: los meses entran a la boleta
+  // AGUAS ABAJO (el toolRunner los deriva de `tablaM.rows`), así que consultarla acá daba 0 de 12 y declaraba una
+  // laguna que no existe. Medirse contra `rows` es medirse contra lo que este composer realmente afirma.
+  const _cobG = _declararCobertura(meses, serie, tot, rows.filter((r) => r.label !== "Total").map((r) => r.label));
+  _figCobertura(_cobG);
   return {
     opener, suggestions: ["Venta mes a mes por cliente"], sentrixAction: null,
     evidence: {
       lens: "temporal", followup: false, dimension: null,
       tablaM: { titulo: `${met === "margen" ? "Margen" : "Contribución"} del negocio — ${_plabel(p)}`, cols: [met === "margen" ? "Margen" : "Contribución"], rows, nota: "derivado de las mismas series por cliente del evolutivo (cierra con el dato del período)" },
+      cobertura: _cobG,
       boleta: bol,
     },
   };

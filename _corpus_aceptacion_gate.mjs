@@ -488,8 +488,22 @@ pregunta(14, "¿Cuál es el resultado del negocio después de gastos?", "respond
       "la cascada de los facts y la boleta dicen lo mismo (una sola cuenta, la de composePnl)");
     ok(/gastos son supuestos|indicados/i.test(String(r.facts.graduacion || "")),
       "gradúa el sello: hasta la contribución probado, el resultado INDICADO por los gastos declarados");
-    const g = guard(`Después de gastos el negocio deja ${res.value}, ${pct.value} sobre la venta. La contribución —antes de esos gastos— es ${contrib.value}.`);
-    ok(g.ok, "la respuesta que distingue los dos peldaños pasa el muro", JSON.stringify(g.violations));
+    // RE-CERTIFICADO (owner 2026-08-11, defecto 4 de la certificación). Este bloque afirmaba que la respuesta
+    // pasaba el muro narrando el resultado PELADO: «Después de gastos el negocio deja $18.5M». Pero esa cifra es
+    // `computed` / `derivada_no_reconciliada` —descansa sobre gastos DECLARADOS, no observados, y el propio dato
+    // lo dice: «no es una lectura del dato, es un supuesto del motor»—. La regla nueva es que una cifra así
+    // conserva su estatus HASTA LA RESPUESTA, así que la versión pelada ya no puede pasar: distinguir los dos
+    // peldaños exige decir también sobre qué se apoya el de arriba. No se afloja la aserción, se corrige la
+    // frase que se certifica y se agrega su cara opuesta.
+    // la frase evita pegar «$18.5M» a la palabra «venta»: el chequeo 9 (métrica mal atribuida, preexistente) lee
+    // esa vecindad como que el resultado se narra como ventas. Es una restricción del muro que ya existía y que
+    // este bloque no viene a discutir — el porcentaje se afirma aparte, en su propia oración.
+    const gDeclara = guard(`Después de gastos —declarados, no observados— el resultado estimado del negocio es ${res.value}. La contribución, antes de esos gastos, es ${contrib.value}.`);
+    ok(gDeclara.ok, "la respuesta que distingue los dos peldaños Y declara el supuesto pasa el muro", JSON.stringify(gDeclara.violations));
+    const gPelado = guard(`Después de gastos el negocio deja ${res.value}, ${pct.value} sobre la venta. La contribución —antes de esos gastos— es ${contrib.value}.`);
+    ok(!gPelado.ok && gPelado.violations.some((v) => v.kind === "procedencia-no-autorizada"),
+      "…y narrarlo como hecho, sin decir que descansa en gastos declarados, se BLOQUEA",
+      JSON.stringify(gPelado.violations.map((v) => v.kind)));
     // Y LA VERSIÓN DEFECTUOSA TIENE QUE REBOTAR (certificación 2026-08-09). Un muro que sólo dice que sí no prueba
     // nada — el propio encabezado de este archivo lo declara como criterio, y para esta pregunta faltaba la mitad.
     // Medido antes del arreglo: «El resultado del negocio después de gastos es $25.0M» pasaba con ok=true. La

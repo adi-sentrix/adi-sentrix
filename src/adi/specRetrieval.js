@@ -1743,7 +1743,18 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `**Por qué:** es la brecha entre lo que vendes y lo que rinde — no es una pérdida contable, es contribución que el margen delgado te deja capturar.`,
       `**Qué hacer:** cada punto de margen recuperado en los de mayor venta es la medida más directa sobre este valor.`,
     ];
-    bol.push(fig(`Contribución no capturada ${_sufijoGap}`, _money(totalGap), { unit: "money", raw: totalGap, mandatory: true, context: _ctx }));
+    // LA COBERTURA VIAJA COMO ESTRUCTURA, NO COMO SUFIJO (owner 2026-08-11). El sufijo de la etiqueta es para el
+    // humano; el muro necesita un campo que no dependa de cómo se redactó el label — una etiqueta nueva («· 5
+    // cuentas materiales») dejaría al chequeo ciego sin que nadie se entere. `cobertura` es esa verdad.
+    bol.push(fig(`Contribución no capturada ${_sufijoGap}`, _money(totalGap), {
+      unit: "money", raw: totalGap, mandatory: true, context: _ctx,
+      cobertura: { alcance: _filtrado ? "subtotal" : "total", n: withGap.length, m: bajoBench.length, universo: "cuentas bajo el benchmark" },
+    }));
+    // LOS CONTEOS QUE EL EMISOR DECLARA SON CIFRAS AUTORIZADAS. Sin esto, «las 5 cuentas materiales» —la lectura
+    // CORRECTA del subtotal— se rechazaba con `conteo-no-autorizado`: el muro exige que todo número esté en la
+    // boleta y el emisor nombraba el recorte sin autorizarlo. No se relaja el chequeo; se autoriza el dato.
+    bol.push(fig("Cuentas bajo el benchmark", String(bajoBench.length), { unit: "count", raw: bajoBench.length, context: _ctx }));
+    if (_filtrado) bol.push(fig("Cuentas materiales bajo el benchmark", String(withGap.length), { unit: "count", raw: withGap.length, context: _ctx }));
     for (const r of listedG) bol.push(fig(`${r.nombre} · no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
     panel = { kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => ({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) })) };
     suggestions = ["Quién sostiene la contribución", "Es por precio o por costo"];
