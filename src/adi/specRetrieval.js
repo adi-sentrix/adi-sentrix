@@ -1709,16 +1709,29 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
     const vRows = vSF2 ? _load(vSF2.source, scenario) : [];
     const vBy = {}; for (const v of vRows) vBy[v.nombre] = v;
     const mRows = _scopeRows(_marginRows("cliente", scenario), {}, entityScope);
-    const withGap = [];
+    const withGap = [], bajoBench = [];
     for (const r of mRows) {
       const v = vBy[r.nombre]; if (!v || typeof v[vSF2.field] !== "number") continue;
       const bmk = _benchOf(r), mg = r.margen, cb = r.contribucion;
-      if (typeof mg !== "number" || typeof cb !== "number" || (bmk - mg) < _DIAG_MARGIN_GAP()) continue;
-      const usd = Math.round(((v[vSF2.field] * bmk / 100) - cb) * 1000);
+      if (typeof mg !== "number" || typeof cb !== "number") continue;
+      const usdTodos = Math.round(((v[vSF2.field] * bmk / 100) - cb) * 1000);
+      // EL UNIVERSO SE CUENTA ANTES DE LOS DOS FILTROS. `withGap` descarta por brecha mínima (_DIAG_MARGIN_GAP)
+      // Y por piso de materialidad (_DIAG_FLOOR_USD); cualquiera de los dos deja cuentas afuera, así que contar
+      // después de uno solo vuelve a mentir sobre la cobertura — que es el defecto que esto viene a cerrar.
+      if (bmk - mg > 0 && usdTodos > 0) bajoBench.push({ nombre: r.nombre, gap: usdTodos });
+      if ((bmk - mg) < _DIAG_MARGIN_GAP()) continue;
+      const usd = usdTodos;
       if (usd >= _DIAG_FLOOR_USD) withGap.push({ nombre: r.nombre, gap: usd, margen: mg });
     }
     withGap.sort((a, b) => b.gap - a.gap);
     const totalGap = withGap.reduce((a, r) => a + r.gap, 0);
+    // LA COBERTURA SE DECLARA, NO SE SUPONE. Si el piso no dejó a nadie afuera, la cifra ES el total y se rotula
+    // así; si dejó a alguien, es un SUBTOTAL y la etiqueta lleva su universo pegado, para que el muro (guardC,
+    // chequeo de alcance) pueda impedir que el narrador la promueva a total del eje.
+    const _filtrado = bajoBench.length > withGap.length;
+    const _sufijoGap = _filtrado
+      ? `· subtotal · ${withGap.length} de ${bajoBench.length} cuentas bajo el benchmark (las materiales)`
+      : "· total";
     // GRUPOS QUE CIERRAN: si se nombran N, son N y su suma ES la cifra del grupo — con más de _DIAG_TOPN, el corte
     // se declara y el camino al resto queda dicho (el cuadro de la Mesa), nunca una lista que no suma lo anunciado.
     const listedG = withGap.slice(0, _DIAG_TOPN);
@@ -1730,7 +1743,7 @@ export function composeSpecContribucion({ filters = {}, scenario, focus = "rank"
       `**Por qué:** es la brecha entre lo que vendes y lo que rinde — no es una pérdida contable, es contribución que el margen delgado te deja capturar.`,
       `**Qué hacer:** cada punto de margen recuperado en los de mayor venta es la medida más directa sobre este valor.`,
     ];
-    bol.push(fig("Contribución no capturada · total", _money(totalGap), { unit: "money", raw: totalGap, mandatory: true, context: _ctx }));
+    bol.push(fig(`Contribución no capturada ${_sufijoGap}`, _money(totalGap), { unit: "money", raw: totalGap, mandatory: true, context: _ctx }));
     for (const r of listedG) bol.push(fig(`${r.nombre} · no capturada`, _money(r.gap), { unit: "money", raw: r.gap, mandatory: false, context: _ctx }));
     panel = { kind: "gap", title: "Contribución no capturada", headline: _money(totalGap), rows: withGap.map((r) => ({ nombre: r.nombre, val: r.gap, valFmt: _money(r.gap) })) };
     suggestions = ["Quién sostiene la contribución", "Es por precio o por costo"];

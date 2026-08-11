@@ -468,6 +468,41 @@ function _nivelNoAutorizado(narration, claims) {
 }
 
 // 15 · ALCANCE CAUSAL — una causa marcada `parcial` presentada como la explicación total.
+// LA BRECHA ADJUDICADA A UNA PALANCA QUE NO LA CUBRE (owner 2026-08-11, defecto 3 de la certificación).
+// Medido, textual: «Lider presenta una brecha de margen de $1.5M, que representa el valor en juego al llevar sus
+// acciones comerciales a la meta». La boleta de ese turno no traía NI UNA cifra de palanca, y las acciones
+// comerciales de Lider son $125K contra $1.5M: el 8%. El usuario había pedido explícitamente lo contrario («no
+// digas que eso cierra toda la brecha si el dato no lo prueba») y ADI lo dijo igual.
+// NO SE JUZGA POR VOCABULARIO: la cobertura la sella `buildClaims` comparando montos (ver narrationContract.js,
+// campo `atribucion`), y acá sólo se hace cumplir. Si la boleta autoriza la atribución (cobertura "total"), no
+// pasa nada. Si no la autoriza, la afirmación de cierre no puede salir.
+// TRES CONDICIONES ACUMULATIVAS, para no bloquear una lectura honesta:
+//   (1) la cifra de la BRECHA aparece en el texto,
+//   (2) su ventana nombra una PALANCA y un verbo de CIERRE (no alcanza con mencionar la palanca al pasar),
+//   (3) la ventana NO se cubre con un atenuante («parte», «parcial», «una porción»): decir «cierra parte de la
+//       brecha» es exactamente la lectura correcta y tiene que seguir pasando.
+const _PALANCA_N = /acciones comerciales|rebates?|descuentos?|carga comercial|capital detenido|capital inmovilizado/i;
+const _VERBO_CIERRE = /\bcerrar\w*\b|\bcierra\w*\b|\brecuperar\w*\b|\brecupera\w*\b|\bliberar\w*\b|\bcapturar\w*\b|\bal\s+(?:llevar|ajustar|corregir|revisar|reducir)\b|\bllevando\b|\bajustando\b/i;
+const _ATENUANTE = /\bparte\b|\bparcial\w*\b|\bporci[oó]n\b|\bparcialmente\b|\bno\s+toda\b|\bno\s+todo\b/i;
+function _brechaMalAdjudicada(narration, claims) {
+  const out = [];
+  const text = String(narration || "");
+  const masked = _maskFigures(text);
+  for (const c of claims) {
+    const at = c && c.atribucion;
+    if (!at || at.cobertura === "total" || !c.valor) continue;
+    let idx = -1;
+    while ((idx = text.indexOf(c.valor, idx + 1)) >= 0) {
+      const [lo, hi] = _localWindow(masked, idx, 140);
+      const v = text.slice(lo, hi);
+      if (!_PALANCA_N.test(v) || !_VERBO_CIERRE.test(v) || _ATENUANTE.test(v)) continue;
+      out.push(`"${c.valor}" (${c.etiqueta}) se narra como cerrable con una palanca, pero ${at.leyenda}: "${v.trim().slice(0, 120)}"`);
+      break;
+    }
+  }
+  return out;
+}
+
 function _causaSobredimensionada(narration, claims) {
   const out = [];
   const text = String(narration || "");
@@ -2180,6 +2215,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   const nivelViol = _nivelNoAutorizado(narration, claimsPS);
   if (nivelViol) violations.push({ kind: "nivel-financiero-no-autorizado", detail: nivelViol });
   for (const v of _causaSobredimensionada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
+  for (const v of _brechaMalAdjudicada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
   // 16 · POLÍTICA DE PRESENTACIÓN (owner 2026-08-07) — se valida LA POLÍTICA DECIDIDA para este turno, en los DOS
   // sentidos: `forbidden` bloquea la tabla, `required` bloquea su AUSENCIA (responder en prosa algo que se pidió
   // tabulado también es incumplir), `auto` no juzga y deja decidir a los detectores de forma del prompt.

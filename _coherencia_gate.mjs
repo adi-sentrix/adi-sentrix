@@ -65,9 +65,27 @@ if (mesa.accion && /no capturada/.test(mesa.accion.detalle)) ok(mesa.accion.deta
 
 console.log("[4] CARD CONTRIBUCIÓN == COMPOSER (no_capturada) · grupo que CIERRA");
 const cComp = composeSpecContribucion({ scenario: S, focus: "no_capturada", dimension: "cliente" });
-const cTotFig = cComp.evidence.boleta.find((f) => f.label === "Contribución no capturada · total");
+// LA ETIQUETA DEJÓ DE DECIR «· total» A PROPÓSITO (owner 2026-08-11, defecto 2 de la certificación). La cifra del
+// grupo se calcula sobre las cuentas MATERIALES bajo el benchmark, no sobre todas: medido, $4.9M sobre 5 cuentas
+// contra $5.4M sobre las 8 que están bajo el benchmark. Rotularla «· total» era semánticamente falso y el
+// narrador lo repetía —«la contribución no capturada total asciende a $4.9M»— subdeclarando $430K.
+// ESTE GATE CERTIFICABA ESA ETIQUETA FALSA. No se conserva el defecto para que siga verde: se re-certifica contra
+// el hecho nuevo, y se AGREGA la condición que faltaba — que cuando la cobertura es filtrada, la etiqueta lo diga
+// y traiga su universo, para que el muro pueda impedir la promoción a total.
+const cTotFig = cComp.evidence.boleta.find((f) => /^Contribución no capturada · (?:sub)?total\b/.test(f.label));
 ok(!!cTotFig && cTotFig.mandatory === true, "la cifra del grupo viaja mandatoria en la boleta");
 ok(cTotFig && cTotFig.raw === mg.subtotal_usd, `total del composer (${cTotFig && cTotFig.raw}) == detector del diagnose (${mg.subtotal_usd})`);
+{
+  const filtrado = /· subtotal\b/.test(cTotFig ? cTotFig.label : "");
+  const declaraUniverso = /\b\d+\s+de\s+\d+\b/.test(cTotFig ? cTotFig.label : "");
+  ok(!filtrado || declaraUniverso,
+    "si la cobertura es filtrada, la etiqueta lo declara y trae su universo (N de M), nunca «· total» a secas",
+    cTotFig && cTotFig.label);
+  // y la cara opuesta: si NO se filtró a nadie, la cifra SÍ es el total y no puede degradarse a subtotal.
+  ok(filtrado || /· total$/.test(cTotFig ? cTotFig.label : ""),
+    "si no se filtró ninguna cuenta, la etiqueta dice «· total» (no se subdeclara una cobertura completa)",
+    cTotFig && cTotFig.label);
+}
 ok(mesa.estados.contribucion.linea.startsWith(`${_money(mg.subtotal_usd)} sin capturar`), `el sub de la card ABRE con la misma cifra (${_money(mg.subtotal_usd)})`, mesa.estados.contribucion.linea);
 ok((cComp.opener || "").startsWith(`Estás dejando ${_money(mg.subtotal_usd)} de contribución`), "la respuesta ABRE con la misma cifra");
 const cHead = (cComp.opener || "").match(/si los (\d+) clientes materiales/);

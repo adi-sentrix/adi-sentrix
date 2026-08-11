@@ -183,6 +183,14 @@ function _nivelFinancieroDe(metrica) {
 const _UNIVERSO_DE_PALANCA = [/valor en juego/i, /contribuci[oó]n no capturada/i, /brecha.*contribuci/i];
 function _esUniverso(metrica) { return _UNIVERSO_DE_PALANCA.some((re) => re.test(String(metrica || ""))); }
 
+// LA BRECHA ES EL FENÓMENO A EXPLICAR, y el producto la nombra de cuatro formas distintas en la misma boleta
+// («Medida · cerrar brecha al piso», «Lider · Valor en juego», «Falabella · no capturada», «brecha de margen»).
+// Se reconoce por MÉTRICA o por ETIQUETA porque el composer no siempre deja la clase en `metrica`, y una brecha
+// que no se reconoce es una brecha que nadie audita. Se excluye la carga/exceso: eso es la PALANCA, no el fenómeno.
+const _BRECHA_RE = /\bbrecha\b|valor en juego|no capturad|sin capturar|cerrar brecha|margen perdido|contribuci[oó]n dejada/i;
+const _ES_BRECHA = (c) => !!c && _BRECHA_RE.test(`${c.metrica || ""} ${c.etiqueta || ""}`)
+  && !/exceso|carga comercial/i.test(`${c.metrica || ""} ${c.etiqueta || ""}`);
+
 // ── CLAIMS ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // buildClaims(ledgerFigs, {eje, periodo}) → la boleta convertida en AFIRMACIONES tipadas. Cada claim conserva el
 // `canon` original de la fig (unit:value) para que el guard de Fase 2 pueda atar el binding sin recalcular nada.
@@ -236,11 +244,46 @@ export function buildClaims(ledgerFigs, { eje = null, periodo = null } = {}) {
   // Necesita el conjunto completo: una palanca es PARCIAL siempre, pero solo se puede declarar la FRACCIÓN si su
   // universo está en la MISMA boleta y para la MISMA entidad. Sin universo, la cobertura sigue siendo parcial y
   // la fracción queda explícitamente innarrable — que es distinto de no saber nada.
+  // ── ATRIBUCIÓN DE LA BRECHA · SE SELLA ACÁ, COMPARANDO MONTOS (owner 2026-08-11, defecto 3 de la certificación)
+  // EL CASO MEDIDO, textual: «Lider presenta una brecha de margen de $1.5M, que representa el valor en juego al
+  // llevar sus acciones comerciales a la meta». La boleta de ese turno NO TRAÍA NINGUNA cifra de palanca — ni un
+  // exceso de acciones comerciales, ni nada— así que la brecha entera quedó adjudicada a una palanca que el dato
+  // no cuantifica. Sus acciones comerciales son $125K contra $1.5M de brecha: el 8%.
+  // LA REGLA ES ARITMÉTICA, no de vocabulario: se suman las palancas de LA MISMA entidad presentes en ESTA boleta
+  // y se comparan con la brecha. Tres desenlaces, y el tercero es el que faltaba:
+  //   · total        — las palancas cubren la brecha (dentro de la tolerancia de redondeo)
+  //   · parcial      — la explican en parte, y la fracción es verificable
+  //   · no_atribuida — NO HAY palanca en la boleta: nada autoriza a decir qué la cierra
+  // El narrador lee esto (narratePromptC) y el muro lo hace cumplir (guardC, chequeo de causa sobredimensionada).
+  for (const c of base) {
+    if (!_ES_BRECHA(c) || typeof c.valorRaw !== "number" || c.valorRaw <= 0) continue;
+    const palancas = base.filter((p) => p !== c && p.entidad === c.entidad
+      && _PALANCAS.some((x) => x.esParte && x.re.test(p.metrica || "")) && typeof p.valorRaw === "number" && p.valorRaw > 0);
+    const suma = palancas.reduce((s, p) => s + p.valorRaw, 0);
+    const frac = suma / c.valorRaw;
+    c.atribucion = {
+      cobertura: !palancas.length ? "no_atribuida" : (frac >= 0.95 ? "total" : "parcial"),
+      montoPalancas: palancas.length ? suma : null,
+      fraccion: palancas.length ? `${Math.round(frac * 1000) / 10}%` : null,
+      palancas: palancas.map((p) => ({ etiqueta: p.etiqueta, valor: p.valor })),
+      // el texto que el prompt y el guard citan: una sola redacción para las tres clases, nunca improvisada.
+      leyenda: !palancas.length
+        ? "esta boleta no trae ninguna palanca cuantificada para esta brecha: no se puede afirmar qué la cierra"
+        : (frac >= 0.95
+          ? "las palancas de esta boleta cubren la brecha"
+          : `las palancas de esta boleta explican ${Math.round(frac * 1000) / 10}% de la brecha, no toda`),
+    };
+  }
+
   for (const c of base) {
     const pal = _PALANCAS.find((p) => p.re.test(c.metrica));
     if (!pal || !pal.esParte) continue;   // la brecha es el FENÓMENO, no una parte de sí misma (ver _PALANCAS)
     c.coberturaCausal = "parcial";
-    const universo = base.find((u) => u !== c && u.entidad === c.entidad && _esUniverso(u.metrica) && typeof u.valorRaw === "number" && u.valorRaw > 0);
+    // EL UNIVERSO DE UNA PALANCA ES LA BRECHA QUE PRETENDE CERRAR, no la venta (owner 2026-08-11). Con la venta,
+    // la fracción de «$194K de exceso» daba 1% —cierto y ajeno a la pregunta—; contra la brecha de $1.6M da 12%,
+    // que es la cifra que decide si esa palanca alcanza. Se cae a la venta sólo si no hay brecha en la boleta.
+    const universo = base.find((u) => u !== c && u.entidad === c.entidad && _ES_BRECHA(u) && typeof u.valorRaw === "number" && u.valorRaw > 0)
+      || base.find((u) => u !== c && u.entidad === c.entidad && _esUniverso(u.metrica) && typeof u.valorRaw === "number" && u.valorRaw > 0);
     const monto = typeof c.valorRaw === "number" ? c.valorRaw : null;
     c.explica = {
       clase: pal.clase,
