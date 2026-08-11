@@ -1563,7 +1563,26 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const _puedeInferir = !_reparacion && (planWasSynthetic || plan.intent === "redirect");
   if (_puedeInferir) {
     const _inferido = inferirCorrige(conversationScopePrev, plan);
-    if (_inferido.length) {
+    // ¿LAS CALLS REPETIRÍAN EL ALCANCE VIGENTE? (owner 2026-08-11, defecto 9 de la certificación).
+    // El caso medido: turno 2 «no, quiero verlo para Falabella», turno 3 «eso está mal» → el planificador emitió
+    // `{intent:"redirect", calls:["pnlRead"]}` SIN `reparacion`. `inferirCorrige` leyó la AUSENCIA de entidad como
+    // un cambio estructural —de Falabella a nadie— y el motor la trató como corrección resuelta: ejecutó pnlRead y
+    // adivinó qué estaba mal en vez de preguntar. Pero un plan que vuelve a la MISMA tool con el MISMO alcance no
+    // corrigió nada: repetiría el turno que el usuario acaba de decir que está mal, y pagarlo es pagar por
+    // repetirse. La condición se evalúa sobre la ESTRUCTURA del plan, nunca sobre el texto del usuario: acá no se
+    // detecta ninguna frase, se compara alcance contra alcance.
+    const _prevTool = (conversationScopePrev && conversationScopePrev.current && conversationScopePrev.current.tool) || null;
+    const _callsRepiten = Array.isArray(plan.calls) && plan.calls.length > 0 && _prevTool
+      && plan.calls.every((c) => c && c.tool === _prevTool)
+      // y no introducen sujeto nuevo: si el plan nombra una entidad o dimensión que el alcance vigente no tenía,
+      // ES un cambio de tema legítimo y tiene que seguir de largo como hasta hoy.
+      && !plan.calls.some((c) => {
+        const a = (c && c.args) || {};
+        const ent = a.entity || a.entidad || null;
+        const prevEnt = (conversationScopePrev.current.entities || [])[0] || null;
+        return (ent && ent !== prevEnt) || (a.dimension && a.dimension !== conversationScopePrev.current.dimension);
+      });
+    if (_inferido.length && !_callsRepiten) {
       _reparacion = { tipo: "correccion", corrige: _inferido, ambigua: false, pregunta: null, dato: null, aceptado: false, inferida: true };
     } else if (plan.intent === "redirect" && !planWasSynthetic) {
       _reparacion = { tipo: "correccion", corrige: [], ambigua: true, pregunta: null, dato: null, aceptado: false, inferida: true };
