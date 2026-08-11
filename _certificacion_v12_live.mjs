@@ -210,7 +210,13 @@ if (_corre) {
 
   const CONTINUAR = process.env.ADI_CERT_CONTINUAR === "si";
   if (CONTINUAR) console.log("── MODO MATRIZ: una sonda que no cumple se registra y la corrida sigue (los topes cortan igual)");
-  const cerrojo = crearCerrojo({});
+  // LOS TOPES DE ESTA CORRIDA, declarados al invocar. Los defaults siguen siendo los del §9 (15 llamadas) y los
+  // del owner (US$0,40): una autorización que amplía el tope lo dice explícito en el comando, no editando una
+  // constante del archivo — así el tope autorizado queda en el registro de la corrida y no escondido en un diff.
+  const _topeLl = Number(process.env.ADI_CERT_TOPE_LLAMADAS) || TOPE_LLAMADAS;
+  const _topeUsd = Number(process.env.ADI_CERT_TOPE_USD) || TOPE_USD;
+  console.log(`── TOPES DE ESTA CORRIDA: ${_topeLl} llamadas · US$${_topeUsd}`);
+  const cerrojo = crearCerrojo({ topeLlamadas: _topeLl, topeUSD: _topeUsd });
   const { handlePlan, handleNarrateC } = await import("./src/adi/llm/gatewayCore.js");
   const resultados = [];
   let cortada = null;
