@@ -392,6 +392,36 @@ export function pideMantenerLaForma(text) {
 //      sobre tabular; prohibirle la tabla a «andá al grano: dame el top 10 de clientes» era negarle al usuario una
 //      forma que nadie prohibió. El registro sigue bajando `detailLevel` por su propio eje (responsePreference.js).
 //   5. PODA · el detalle no viajó; tabular lo que queda sería reconstruirlo peor que la Ficha.
+/* ══ FORMA DE SALIDA · EL CONTRATO, NO LAS FRASES (owner 2026-08-11, defecto 8 de la certificación) ═══════════
+ * LAS CUATRO DIRECCIONES MEDIDAS, y las cuatro fallaron por el mismo motivo: la forma se adivinaba leyendo el
+ * texto con detectores, y un detector es una lista de frases que siempre se queda corta.
+ *   · «mantené el formato» (venía una tabla)   → prosa
+ *   · «explicalo sin repetir la tabla»          → una tabla, y ni una línea de explicación
+ *   · «ahora solo la conclusión, nada más»      → una tabla de clientes, y encima de otro tema
+ *   · «hablame directo y sin rodeos»            → doce filas sin una sola frase
+ * AHORA LA DECLARA EL PLAN (`pref.outputForm`, turn-local) y los detectores quedan de RESPALDO: si el plan no
+ * dice nada, se sigue infiriendo como hasta hoy, pero cuando dice, MANDA. Un contrato que el modelo llena es
+ * auditable; una regex es una apuesta.
+ * `detailLevel` y `outputForm` son EJES DISTINTOS: «directo» reduce el detalle y NO puede borrar una tabla que el
+ * usuario pidió expresamente — ese era el caso «directo + tabla» que rompía las dos reglas a la vez. */
+export const OUTPUT_FORMS = ["auto", "tabla", "prosa", "solo_conclusion"];
+export function resolveOutputForm({ plan = null, text = "", politicaPrevia = null } = {}) {
+  const declarada = plan && plan.pref && plan.pref.outputForm;
+  if (OUTPUT_FORMS.includes(declarada) && declarada !== "auto") return declarada;
+  // RESPALDO DETERMINÍSTICO · sólo cuando el plan no declaró nada. Reusa los detectores que ya existen; no se
+  // inventa un segundo criterio ni una segunda lista de frases.
+  const t = String(text || "");
+  // ORDEN DELIBERADO. Un pedido POSITIVO de tabla gana sobre la reducción de largo: «dame la tabla mes a mes, corta»
+  // pide una tabla breve, no prosa — es exactamente el caso «directo + tabla» que rompía las dos reglas a la vez.
+  if (pidePresentacionTabular(t)) return "tabla";
+  if (pideReduccionDeLargo(t)) return "solo_conclusion";
+  if (prohibeFormaTabular(t)) return "prosa";
+  // CONTINUIDAD EXPLÍCITA, nunca arrastre: sólo si el turno PIDE mantener la forma. Una forma no se hereda sola —
+  // ese era el otro medio defecto: la corrección de formato de un turno contaminaba el siguiente.
+  if (politicaPrevia && pideMantenerLaForma(t)) return politicaPrevia;
+  return "auto";
+}
+
 export function resolveTablePolicy({ text = "", podado = [], politicaPrevia = null } = {}) {
   if (prohibeFormaTabular(text)) return "forbidden";
   if (pidePresentacionTabular(text)) return "required";

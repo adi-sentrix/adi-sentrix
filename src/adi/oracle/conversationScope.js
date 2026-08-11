@@ -160,14 +160,43 @@ export function applyRepairToScope(scopeRoot, reparacion) {
 //
 // SOLO PARA PLANES SINTÉTICOS. Cuando PLAN sí corre, él declara la reparación por comprensión, que es el
 // mecanismo principal del contrato; superponerle esta inferencia sería un segundo criterio sobre lo mismo.
+/* EL ALCANCE REALMENTE RESUELTO POR LAS CALLS (owner 2026-08-11, defecto 9 de la certificación).
+ * `plan.scope` lo DECLARA el planificador y es opcional: el plan medido en E8.t3 llegó como
+ * `{intent:"redirect", calls:["pnlRead"]}`, sin `scope`. Con la guarda vieja —`if (!plan.scope) return []`— toda
+ * corrección cuyo plan omitiera ese campo se volvía AMBIGUA por defecto, y ahí se mezclaban dos conductas que no
+ * son la misma: «eso está mal» (no hay información suficiente: preguntar) y «no, era Lider» (la corrección está
+ * resuelta, el sujeto nuevo viene EN LAS CALLS: ejecutar). Una omisión del modelo no puede decidir eso.
+ * Las calls son la verdad de lo que el turno va a pedir de verdad, así que se leen como segunda fuente: nunca
+ * pisan al `scope` declarado, sólo lo completan cuando falta. Si no hay ni uno ni otro, se sigue devolviendo []
+ * y el motor trata el turno como ambiguo, que es el comportamiento correcto para «eso está mal». */
+function _scopeDeCalls(plan) {
+  const calls = Array.isArray(plan && plan.calls) ? plan.calls.filter(Boolean) : [];
+  if (!calls.length) return null;
+  const ents = [], dims = [];
+  for (const c of calls) {
+    const a = (c && c.args) || {};
+    for (const k of ["entity", "entidad", "entityA", "entityB"]) if (a[k]) ents.push(String(a[k]));
+    if (Array.isArray(a.entities)) for (const e of a.entities) if (e) ents.push(String(e));
+    if (a.dimension) dims.push(String(a.dimension));
+  }
+  // `level` se deriva del mismo criterio que usa el scope canónico: hay entidad nombrada → entity; si no, y el
+  // pedido es de eje/cartera → global. Sin ninguna de las dos señales no se inventa un nivel.
+  const level = ents.length ? "entity" : (dims.length ? "global" : null);
+  return { level, entities: [...new Set(ents)] };
+}
+
 export function inferirCorrige(scopePrev, plan) {
   const cur = (scopePrev && scopePrev.current) || null;
-  if (!cur || !plan || !plan.scope) return [];
+  if (!cur || !plan) return [];
+  const scopeEfectivo = (plan.scope && (plan.scope.level || (Array.isArray(plan.scope.entities) && plan.scope.entities.length)))
+    ? plan.scope
+    : _scopeDeCalls(plan);
+  if (!scopeEfectivo) return [];
   const out = [];
   const nivelPrev = cur.dimension === "cartera" ? "global" : (Array.isArray(cur.entities) && cur.entities.length ? "entity" : null);
-  const nivelAhora = plan.scope.level || null;
+  const nivelAhora = scopeEfectivo.level || null;
   const entsPrev = Array.isArray(cur.entities) ? cur.entities : [];
-  const entsAhora = Array.isArray(plan.scope.entities) ? plan.scope.entities.filter(Boolean) : [];
+  const entsAhora = Array.isArray(scopeEfectivo.entities) ? scopeEfectivo.entities.filter(Boolean) : [];
   // ALCANCE: se pasó de una entidad al negocio entero (o al revés). Es el cambio más grande y el que más contexto
   // deja incompatible, así que se nombra como tal y no como una corrección de entidad.
   if (nivelPrev && nivelAhora && nivelPrev !== nivelAhora) out.push("alcance");

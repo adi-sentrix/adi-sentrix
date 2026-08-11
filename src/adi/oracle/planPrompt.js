@@ -55,6 +55,10 @@ export const PLAN_TOOL = {
         properties: {
           detailLevel: { type: "string", enum: DETAIL_LEVELS },
           contentScope: { type: "string", enum: CONTENT_SCOPES },
+          // FORMA DE SALIDA · turn-local. Doctrina y garantía: progressiveDisclosure.js (resolveOutputForm) y el
+          // renderer de answerViaOracle.js. Acá va CORTO: el system de PLAN tiene presupuesto de tokens y
+          // `_reparacion_contextual_gate` lo verifica — repetir la doctrina encarecería cada turno.
+          outputForm: { type: "string", enum: ["auto", "tabla", "prosa", "solo_conclusion"], description: "Forma pedida en ESTE turno. 'directo' es detailLevel, no quita tabla pedida." },
           persist: { type: "boolean", description: "true SOLO si el usuario dijo algo como 'desde ahora'/'de ahora en adelante'/'siempre respondeme así' (la preferencia debe durar más de este turno). Default false: un pedido puntual de brevedad/alcance sin ese marcador aplica SOLO a este turno." },
         },
       },

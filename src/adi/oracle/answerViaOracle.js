@@ -14,7 +14,7 @@ import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared,
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, markUserProvenance } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract, buildReparacion } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta · v1.2: la reparación sellada, la MISMA que ve el narrador
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
-import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, pidePresentacionTabular, composeProsaEjecutiva, resolveTablePolicy, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
+import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, pidePresentacionTabular, composeProsaEjecutiva, resolveTablePolicy, resolveOutputForm, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
@@ -2105,6 +2105,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   //   solo_dato · explicar_componente · puntual · tres_reglas · null (otro contrato ya gobierna la forma)
   // La precedencia vive ENTERA en resolveAnswerShape (progressiveDisclosure.js): `pref` gana siempre, clarify
   // reemplaza el arco, y recién después opinan el contexto de pantalla y la forma de la pregunta.
+  // FORMA DE SALIDA · turn-local, declarada por el PLAN (pref.outputForm) con respaldo determinístico.
+  const formaSalida = resolveOutputForm({ plan, text: q });
   const formaRespuesta = resolveAnswerShape({ text: q, plan, viewContext: vistaCtx, pref });
 
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/
@@ -2273,6 +2275,42 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // ya filtra por contentScope="full" internamente (data_only/action_only/results_only nunca ofrecen seguimiento).
   const lastOfferNow = extractOffer(narration, { plan, calls, pref, turno: history.length });
   narration = stripAllMarks(narration);   // ninguna marca [[...]] llega al usuario bajo full (no-op si no hay ninguna)
+
+  /* ── LA FORMA LA GARANTIZA EL RENDERER, NO LA OBEDIENCIA DEL NARRADOR (owner 2026-08-11, defecto 8) ──────────
+   * Las cuatro direcciones medidas fallaron con el guard funcionando: `tabla-faltante` y `tabla-no-autorizada`
+   * RECHAZABAN la narración y el turno igual salía mal, porque rechazar no es construir. Pedirle a un modelo que
+   * respete la forma y castigarlo cuando no lo hace cuesta reintentos y no cierra nada: acá la forma se IMPONE
+   * sobre el texto ya autorizado, con las cifras que la boleta ya validó.
+   *   tabla           → si no vino tabla, se compone desde el ledger AUTORIZADO (mismas cifras, cero dato nuevo)
+   *   prosa           → si vino tabla, se reemplaza por la línea de cifras equivalente (sin perder ninguna)
+   *   solo_conclusion → se entrega el cierre y nada más: ni tabla ni el detalle que ya se dio antes
+   * Es turn-local por construcción: `formaSalida` sale de `plan.pref` (que el contrato declara no heredable) y no
+   * se guarda en `mem2` — un pedido de formato no puede contaminar el turno siguiente. */
+  if (narration && formaSalida !== "auto") {
+    const _tieneTabla = /^\s*\|.*\|\s*$/m.test(narration);
+    if (formaSalida === "tabla" && !_tieneTabla) {
+      const tabla = composeFromLedger(figs, "data_only");
+      if (tabla) { narration = `${narration.trim()}\n\n${tabla.trim()}`; narrationRepaired = true; }
+    } else if ((formaSalida === "prosa" || formaSalida === "solo_conclusion") && _tieneTabla) {
+      // NO se borra la tabla y se deja el hueco: sus cifras se reinyectan en línea, así que la respuesta pierde la
+      // FORMA que el usuario rechazó y conserva el DATO que sí pidió. `_cifrasEnLinea` compone de la misma boleta.
+      const enLinea = _cifrasEnLinea(figs);
+      const sinTabla = narration.split(/\r?\n/).filter((l) => !/^\s*\|.*\|\s*$/.test(l)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      narration = [sinTabla, enLinea && formaSalida === "prosa" ? enLinea : ""].filter(Boolean).join("\n\n").trim();
+      narrationRepaired = true;
+    }
+    if (formaSalida === "solo_conclusion") {
+      // EL CIERRE NO ES "EL ÚLTIMO PÁRRAFO" A SECAS. La respuesta termina con un PIE declarativo —«Alcance: todo
+      // el eje cliente. (Datos del año cerrado.)»— que es metadato obligatorio, no la conclusión: quedarse con él
+      // devuelve un turno sin una sola cifra, que es peor que no recortar. Se toma el último párrafo con
+      // CONTENIDO y el pie se conserva aparte, porque declarar período y alcance no es opcional.
+      const _ES_PIE = /^\(?\s*(?:alcance|datos del|foto de inventario|supuesto)\b/i;
+      const parrafos = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+      const cuerpo = parrafos.filter((s) => !_ES_PIE.test(s));
+      const pie = parrafos.filter((s) => _ES_PIE.test(s));
+      if (cuerpo.length > 1) { narration = [cuerpo[cuerpo.length - 1], ...pie].join("\n\n"); narrationRepaired = true; }
+    }
+  }
   mem2 = { ...mem2, lastOffer: lastOfferNow || null, recentNarrations: [narration, ...recentNarrationsPrev].slice(0, 2) };   // shim de compatibilidad (Etapa 4) — ver dialogueState.js:getLastOffer
   // Etapa 4 (owner 2026-08-04) — dual-write del lado canónico: recién ACÁ existe `narration` (extractOffer solo
   // puede correr después de que el texto final existe — a diferencia de recentSubjects, que se deriva ANTES de

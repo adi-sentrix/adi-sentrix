@@ -419,11 +419,17 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
 // lo mismo dos veces. Ahora las reglas viven una sola vez, en la doctrina; el schema solo declara QUÉ va en cada
 // campo. Ni una regla de negocio se recortó, y la lista de abajo lo verifica una por una.
 ok("PLAN system crece menos de 1.700 caracteres", planSystem - BASE.planSystem < 1700, `+${planSystem - BASE.planSystem}`);
-ok("PLAN_TOOL crece menos de 1.000 caracteres", planTool - BASE.planTool < 1000, `+${planTool - BASE.planTool}`);
+// TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
+// pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
+// -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma
+// se adivinaba con detectores de frases y las CUATRO direcciones medidas fallaban. El costo es ~144 caracteres
+// por turno y se declara exacto, no se deja el tope holgado. El campo NO se recortó para entrar en el tope
+// viejo: mutilar un contrato para que un presupuesto siga verde es exactamente lo que este repo no hace.
+ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200, `+${planTool - BASE.planTool}`);
 // el tope subió de 600 a 620 al volver `reparacion` requerida y nullable: el campo pasó a `required` y el tipo a
 // unión, y eso se paga en el esquema. Se declara el número exacto en vez de dejar el tope holgado.
-ok("el crecimiento TOTAL de PLAN queda bajo 660 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 660, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+ok("el crecimiento TOTAL de PLAN queda bajo 720 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 720, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {
