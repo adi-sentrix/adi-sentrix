@@ -124,6 +124,20 @@ export const INTENT_KEYS = ["answer", "define", "redirect", "ack"];
 // sobre un `answer` legítimo, la inconsistencia se ignora en vez de invalidar contexto que nadie corrigió.
 export const INTENT_POR_TIPO = Object.freeze({ correccion: "redirect", desacuerdo: "answer", dato_usuario: "answer" });
 
+// ALIAS DE CLASE · los nombres con que el modelo nombra la MISMA clase cuando no usa el token del enum. No es una
+// lista de frases del usuario: son valores de NUESTRO vocabulario escritos de otra forma, y cada uno se mapea a su
+// token canónico. Existe porque se midió: el planificador puso la clase en `intent` tres veces seguidas, y el
+// nombre que eligió no siempre fue el del enum.
+export const ALIAS_TIPO = Object.freeze({
+  correccion: "correccion", correction: "correccion", corregir: "correccion",
+  desacuerdo: "desacuerdo", desacuerdos: "desacuerdo", disagreement: "desacuerdo",
+  dato_usuario: "dato_usuario", dato_aportado: "dato_usuario", dato: "dato_usuario", cifra_usuario: "dato_usuario",
+});
+export function tipoCanonico(v) {
+  const k = typeof v === "string" ? v.trim().toLowerCase() : null;
+  return (k && ALIAS_TIPO[k]) || null;
+}
+
 // Los campos REALES de ConversationScopeEntry (conversationScope.js) que una corrección puede tocar. Es esta lista
 // —no una copia— la que hace que "invalidar lo incompatible" sea estructura y no una intención del prompt.
 // COMPLETA, y el gate lo verifica contra el shape real (owner 2026-08-10, revisión de la sección 8): la primera
@@ -220,10 +234,44 @@ export function normalizeIntent(plan) {
   const p = (plan && typeof plan === "object") ? plan : null;
   const actual = p && typeof p.intent === "string" ? p.intent : null;
   if (!p || INTENT_KEYS.includes(actual)) return { intent: actual, coercion: null };
-  const tipo = p.reparacion && typeof p.reparacion === "object" && !Array.isArray(p.reparacion) ? p.reparacion.tipo : null;
-  const destino = INTENT_POR_TIPO[tipo] || null;
+  const r = p.reparacion && typeof p.reparacion === "object" && !Array.isArray(p.reparacion) ? p.reparacion : null;
+  const destino = INTENT_POR_TIPO[tipoCanonico(r && r.tipo)] || null;
   if (!destino) return { intent: actual, coercion: actual ? `intent-invalido-sin-tipo` : null };
-  return { intent: destino, coercion: `intent-invalido→${destino}(por tipo=${tipo})` };
+  return { intent: destino, coercion: `intent-invalido→${destino}(por tipo=${tipoCanonico(r.tipo)})` };
+}
+
+/* ── coerceVocabularioPlan(plan) → { plan, coerciones } · EL PUNTO ÚNICO DEL VOCABULARIO ───────────────────────
+ * Repara los valores fuera de enum ANTES de que nadie los lea, y devuelve el rastro de lo que reparó. Nunca toca
+ * el contenido: `ambigua`, `pregunta`, `corrige`, `dato` y `calls` salen íntegros.
+ *
+ * DOS PASOS, en este orden y por esta razón:
+ *  1. MIGRACIÓN ESTRUCTURAL · la clase escrita en el campo equivocado. Se midió pagando: el planificador puso
+ *     "correccion" y después "desacuerdo" DENTRO de `intent` —que es otro eje— y en el segundo caso dejó
+ *     `reparacion` en null. Los dos campos son vecinos y describen cosas distintas, así que la confusión es
+ *     esperable y barata de reparar: si `intent` trae una CLASE reconocible y la reparación no declaró la suya,
+ *     la clase se muda a `reparacion.tipo`, que es su casa. No se adivina nada — se mueve un valor de nuestro
+ *     propio vocabulario del campo equivocado al correcto.
+ *  2. COERCIÓN DE `intent` por la tabla canónica (ver normalizeIntent).
+ * Si la reparación YA declaró un tipo válido, la migración no toca nada: lo declarado manda sobre lo deducido.
+ */
+export function coerceVocabularioPlan(plan) {
+  const p = (plan && typeof plan === "object") ? plan : null;
+  if (!p) return { plan, coerciones: [] };
+  const coerciones = [];
+  let out = p;
+
+  const rep = p.reparacion && typeof p.reparacion === "object" && !Array.isArray(p.reparacion) ? p.reparacion : null;
+  const tipoDeclarado = tipoCanonico(rep && rep.tipo);
+  const claseEnIntent = INTENT_KEYS.includes(p.intent) ? null : tipoCanonico(p.intent);
+  if (claseEnIntent && !tipoDeclarado) {
+    out = { ...out, reparacion: { ...(rep || {}), tipo: claseEnIntent } };
+    coerciones.push(`clase-en-intent→reparacion.tipo(${claseEnIntent})`);
+  }
+
+  const ni = normalizeIntent(out);
+  if (ni.coercion) coerciones.push(ni.coercion);
+  if (ni.intent !== out.intent) out = { ...out, intent: ni.intent };
+  return { plan: out, coerciones };
 }
 
 export function normalizeReparacion(plan) {
@@ -231,7 +279,8 @@ export function normalizeReparacion(plan) {
   if (!p) return null;
   const r = p.reparacion;
   if (!r || typeof r !== "object" || Array.isArray(r)) return null;
-  if (!REPAIR_KINDS.includes(r.tipo)) return null;
+  const tipo = tipoCanonico(r.tipo);
+  if (!tipo) return null;
   // CONSISTENCIA, no una intención fija (owner 2026-08-10). La primera versión exigía `intent==="redirect"` para
   // TODA reparación — y con la coerción por tipo eso se volvió contradictorio: un desacuerdo y un dato aportado
   // corresponden a `answer`, así que el propio motor los normalizaba a una intención que después descartaba la
@@ -239,7 +288,7 @@ export function normalizeReparacion(plan) {
   // Se valida contra la MISMA tabla que usa la coerción: la reparación vale cuando su clase y la intención del
   // turno se corresponden. Un tipo="correccion" colgado de un `answer` legítimo sigue ignorándose, que es la
   // protección original — solo que ahora expresada por consistencia y no por una constante.
-  if (p.intent !== INTENT_POR_TIPO[r.tipo]) return null;
+  if (p.intent !== INTENT_POR_TIPO[tipo]) return null;
   const corrigeCrudo = Array.isArray(r.corrige) ? r.corrige : [];
   const corrige = corrigeCrudo.filter((k) => _repairByKey.has(k));
   // LO DESCARTADO SE DECLARA, no se pierde en silencio (owner 2026-08-10). Filtrar un campo inventado está bien;
@@ -247,7 +296,7 @@ export function normalizeReparacion(plan) {
   // visible en el trace del turno antes de que alguien lo descubra pagando una certificación.
   const corrigeDescartado = corrigeCrudo.filter((k) => !_repairByKey.has(k)).map(String);
   return {
-    tipo: r.tipo,
+    tipo,
     corrige,
     ...(corrigeDescartado.length ? { corrigeDescartado } : {}),
     ambigua: r.tipo === "correccion" && r.ambigua === true && corrige.length === 0,
@@ -271,7 +320,15 @@ export const REPAIR_INVARIANTS = Object.freeze({
 // ── DOCTRINA PARA LA PASADA 1 (PLAN) ──────────────────────────────────────────────────────────────────────────
 // Reemplaza al bullet "· CORRECCIÓN:" que planPrompt.js traía suelto desde v1.1 — no se suma al lado de él.
 export function buildRepairPlanDoctrine() {
-  return `· CORRECCIÓN / DESACUERDO / DATO APORTADO → intent="redirect" + "reparacion". Son TRES cosas distintas:
+  // LA TABLA SE IMPRIME, NO SE REESCRIBE (owner 2026-08-10, hallazgo de la 3ª corrida pagada). El encabezado decía
+  // a mano `intent="redirect"` para las TRES clases, y desde que el motor valida por consistencia eso era
+  // literalmente lo contrario de lo que el motor acepta: si el modelo obedecía la doctrina al pie de la letra, su
+  // reparación se descartaba por inconsistente. Ahora el prompt, el esquema y el motor leen la MISMA tabla, así
+  // que no pueden volver a decir cosas distintas.
+  const mapa = Object.entries(INTENT_POR_TIPO).map(([t, i]) => `    tipo="${t}" → intent="${i}"`).join("\n");
+  return `· CORRECCIÓN / DESACUERDO / DATO APORTADO → el objeto "reparacion". LA CLASE VA EN reparacion.tipo, NUNCA en "intent" (son dos ejes: la clase fija el intent) —
+${mapa}
+  Son TRES cosas distintas:
   (a) CORRECCIÓN ("no, era Lider", "te pedí ventas, no margen", "me refería al último trimestre", "te pedí del negocio y me hablás de X") → tipo="correccion" + corrige=[${REPAIR_FIELD_KEYS.join("|")}] con lo que cambió. Poné el scope corregido —si corrige el ALCANCE, normalmente level="global" y SIN filtro— y ESTA VEZ SÍ las calls que traen la respuesta corregida: nunca calls vacío. Reconocé breve y entregá. NO arrastres período, filtro, criterio ni entidad del turno anterior si dejaron de ser compatibles.
   (b) AMBIGUA — dice que algo está mal SIN decir qué ("eso no es así", "ese número no me cuadra") → tipo="correccion", ambigua=true, pregunta=UNA de precisión, con el contexto del turno anterior y nombrando SOLO lo que ahí pudo fallar (sin comparación no preguntes por el criterio; con una sola entidad no preguntes cuál). calls VACÍO: no se recalcula nada hasta saberlo. No es un plan roto, es la respuesta correcta.
   (c) DESACUERDO — discute la INTERPRETACIÓN, no el alcance ("no creo que sea por los rebates") → tipo="desacuerdo", sin corrige: el alcance NO cambia. Volvé a pedir la MISMA evidencia, para separar lo probado de lo indicado y lo abierto.

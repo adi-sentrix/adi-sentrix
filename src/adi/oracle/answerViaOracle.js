@@ -18,7 +18,7 @@ import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction,
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
-import { MODE_KEYS, normalizeReparacion, normalizeIntent } from "./conversationalContract.js";
+import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
@@ -1150,9 +1150,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // emitió `intent:"correccion"` con la reparación perfectamente armada al lado, y el motor la tiró entera.
       // La coerción es POR TIPO (ver normalizeIntent) y conserva íntegros `ambigua`, `pregunta`, `corrige` y
       // `calls`: repara el vocabulario, nunca el contenido.
-      const _ni = normalizeIntent(p);
-      if (_ni.coercion) planCoerciones.push(_ni.coercion);
-      if (_ni.intent !== p.intent) p = { ...p, intent: _ni.intent };
+      // UN SOLO PUNTO: migra la clase que el modelo escribió en `intent` a `reparacion.tipo` (medido tres veces
+      // en vivo: los dos campos son vecinos y describen cosas distintas) y después coerciona `intent` por la tabla
+      // canónica. Lo declarado manda sobre lo deducido, y el contenido sale íntegro.
+      const _cv = coerceVocabularioPlan(p);
+      if (_cv.coerciones.length) planCoerciones.push(..._cv.coerciones);
+      p = _cv.plan;
       // MODO fuera del enum: no se coerciona acá (eso lo hace _coerceMode más abajo, con el contexto del turno),
       // pero se DECLARA — un vocabulario inventado que se descarta en silencio es cómo se llega a pagar una
       // certificación para descubrirlo.
