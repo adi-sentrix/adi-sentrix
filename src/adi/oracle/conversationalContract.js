@@ -110,6 +110,20 @@ export function buildModeDispatch(mode) {
 //   dato_usuario — el usuario aporta una cifra propia. No reemplaza al motor: es un TERCER UNIVERSO (§5.1).
 export const REPAIR_KINDS = ["correccion", "desacuerdo", "dato_usuario"];
 
+// EL VOCABULARIO DE `intent`, declarado ACÁ y consumido por planPrompt.js — una sola verdad. Estaba escrito a
+// mano dentro del schema, así que nadie más podía validarlo contra nada (ver normalizeIntent, más abajo).
+export const INTENT_KEYS = ["answer", "define", "redirect", "ack"];
+
+// QUÉ INTENCIÓN LE CORRESPONDE A CADA CLASE DE REPARACIÓN. Una sola tabla para dos usos opuestos, y por eso no
+// pueden divergir: `normalizeIntent` la usa para REPARAR un intent fuera del enum, y `normalizeReparacion` para
+// VALIDAR que la reparación declarada sea consistente con la intención del turno.
+//   · corrección → redirect · es la única clase que reencauza el alcance.
+//   · desacuerdo → answer   · discute la interpretación; el alcance no cambia (§5).
+//   · dato aportado → answer· agrega una cifra; tampoco cambia el foco (§5).
+// La validación es lo que impide que un `reparacion` colgado de un turno normal lo secuestre: con tipo="correccion"
+// sobre un `answer` legítimo, la inconsistencia se ignora en vez de invalidar contexto que nadie corrigió.
+export const INTENT_POR_TIPO = Object.freeze({ correccion: "redirect", desacuerdo: "answer", dato_usuario: "answer" });
+
 // Los campos REALES de ConversationScopeEntry (conversationScope.js) que una corrección puede tocar. Es esta lista
 // —no una copia— la que hace que "invalidar lo incompatible" sea estructura y no una intención del prompt.
 // COMPLETA, y el gate lo verifica contra el shape real (owner 2026-08-10, revisión de la sección 8): la primera
@@ -186,16 +200,56 @@ export function camposQueSeInvalidan(corrige) {
 //     buenas) o el chequeo de evidencia del guard. §2 es explícito: la reparación vive DENTRO de intent="redirect".
 // Acá se resuelven las dos, una vez, y todos leen lo mismo. `ambigua` sale ya reconciliada: ante la contradicción
 // vale lo RESUELTO, nunca la pregunta — preguntar lo que el usuario ya contestó es peor que recalcular de más.
+// ── normalizeIntent(plan) → { intent, coercion } · EL ENUM NO SE CUMPLE SOLO ──────────────────────────────────
+// LA SEGUNDA CORRIDA PAGADA LO CAZÓ: el planificador emitió `intent: "correccion"` —un valor que NO está en el
+// enum— con la reparación perfectamente armada al lado (ambigua, con su única pregunta y sin calls). El motor
+// exige `intent === "redirect"` para leer la reparación, así que tiró un objeto correcto por el valor de OTRO
+// campo, y el turno terminó narrando sobre una boleta vacía en vez de preguntar. `tool_choice` forzado garantiza
+// JSON válido contra el schema, no que el modelo respete un enum.
+//
+// LA COERCIÓN ES POR TIPO, NO INDISCRIMINADA (owner 2026-08-10). Convertir cualquier `reparacion` en `redirect`
+// sería peor que el defecto: un desacuerdo y un dato aportado NO reencauzan nada —el alcance no cambia— y
+// marcarlos como redirect los metería en el camino de invalidación que el contrato les prohíbe.
+//   · corrección (resuelta o ambigua) → redirect · es el único caso que reencauza.
+//   · desacuerdo                      → answer   · discute la interpretación, no el alcance (§5).
+//   · dato aportado                   → answer   · agrega una cifra, no cambia el foco (§5).
+//   · tipo ausente o inválido         → NO se infiere nada. Sin una clase de mensaje declarada no hay forma
+//     estructural de saber qué quiso el turno, y adivinar la intención es exactamente lo que §1 prohíbe.
+// Un intent que YA es válido nunca se toca: esto solo repara lo que está fuera del vocabulario.
+export function normalizeIntent(plan) {
+  const p = (plan && typeof plan === "object") ? plan : null;
+  const actual = p && typeof p.intent === "string" ? p.intent : null;
+  if (!p || INTENT_KEYS.includes(actual)) return { intent: actual, coercion: null };
+  const tipo = p.reparacion && typeof p.reparacion === "object" && !Array.isArray(p.reparacion) ? p.reparacion.tipo : null;
+  const destino = INTENT_POR_TIPO[tipo] || null;
+  if (!destino) return { intent: actual, coercion: actual ? `intent-invalido-sin-tipo` : null };
+  return { intent: destino, coercion: `intent-invalido→${destino}(por tipo=${tipo})` };
+}
+
 export function normalizeReparacion(plan) {
   const p = (plan && typeof plan === "object") ? plan : null;
-  if (!p || p.intent !== "redirect") return null;
+  if (!p) return null;
   const r = p.reparacion;
   if (!r || typeof r !== "object" || Array.isArray(r)) return null;
   if (!REPAIR_KINDS.includes(r.tipo)) return null;
-  const corrige = Array.isArray(r.corrige) ? r.corrige.filter((k) => _repairByKey.has(k)) : [];
+  // CONSISTENCIA, no una intención fija (owner 2026-08-10). La primera versión exigía `intent==="redirect"` para
+  // TODA reparación — y con la coerción por tipo eso se volvió contradictorio: un desacuerdo y un dato aportado
+  // corresponden a `answer`, así que el propio motor los normalizaba a una intención que después descartaba la
+  // reparación entera. El desacuerdo perdía su doctrina de narración y el dato aportado perdía la procedencia.
+  // Se valida contra la MISMA tabla que usa la coerción: la reparación vale cuando su clase y la intención del
+  // turno se corresponden. Un tipo="correccion" colgado de un `answer` legítimo sigue ignorándose, que es la
+  // protección original — solo que ahora expresada por consistencia y no por una constante.
+  if (p.intent !== INTENT_POR_TIPO[r.tipo]) return null;
+  const corrigeCrudo = Array.isArray(r.corrige) ? r.corrige : [];
+  const corrige = corrigeCrudo.filter((k) => _repairByKey.has(k));
+  // LO DESCARTADO SE DECLARA, no se pierde en silencio (owner 2026-08-10). Filtrar un campo inventado está bien;
+  // que nadie se entere, no: si el modelo empieza a emitir un vocabulario que no existe, eso tiene que ser
+  // visible en el trace del turno antes de que alguien lo descubra pagando una certificación.
+  const corrigeDescartado = corrigeCrudo.filter((k) => !_repairByKey.has(k)).map(String);
   return {
     tipo: r.tipo,
     corrige,
+    ...(corrigeDescartado.length ? { corrigeDescartado } : {}),
     ambigua: r.tipo === "correccion" && r.ambigua === true && corrige.length === 0,
     pregunta: typeof r.pregunta === "string" ? r.pregunta : null,
     dato: (r.dato && typeof r.dato === "object" && !Array.isArray(r.dato))

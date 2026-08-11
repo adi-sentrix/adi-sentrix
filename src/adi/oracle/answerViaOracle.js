@@ -18,7 +18,7 @@ import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction,
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
-import { MODE_KEYS, normalizeReparacion } from "./conversationalContract.js";
+import { MODE_KEYS, normalizeReparacion, normalizeIntent } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, composeFromLedger, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
@@ -1118,6 +1118,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // payload de NARRAR), esta lectura ya lo capturaría sin más cambios acá. Sin ese cableado, queda `null` — honesto,
   // nunca un cero fingido — no es una promesa de que HOY viaje, es la plomería lista para cuando viaje.
   const planAttemptTrace = [];
+  // COERCIONES DEL VOCABULARIO DEL PLAN (owner 2026-08-10): valores fuera de enum que el motor reparó o descartó.
+  // Vocabulario CERRADO nuestro (nombres de campo y de enum), nunca texto del usuario — viaja en retryTrace, que
+  // es el canal de observación que ya existe. Sin esto, el modelo puede inventar un valor y nadie se entera hasta
+  // que alguien paga una certificación para descubrirlo.
+  const planCoerciones = [];
   // CONTEXTO DE PANTALLA → PLAN (owner 2026-08-09): UNA LÍNEA de ≤240 caracteres, sin una sola cifra de negocio.
   // Es TODO lo que el LLM ve de Sentrix — nunca la salida del builder, nunca filas, nunca series, nunca el objeto.
   // Con eso alcanza para que "explicame este gráfico" tenga referente y para que PLAN pida a las tools la evidencia
@@ -1127,7 +1132,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (!plan) {
     let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" arriba — NUNCA avanza ante un 429/error de infra
     for (let attempt = 0; attempt < 3; attempt++) {
-      let p;
+      let p;   // , no const: la coerción de vocabulario lo reemplaza por una copia corregida
       try { p = await callPlan({ text: q, history, mem, scenario, requestContext, vistaLinea, attempt: modelAttempt }); }
       catch (e) {
         const rateLimited = e && e.code === "rate_limited";
@@ -1138,6 +1143,20 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         continue;
       }
       if (!p || !p.intent) { planAttemptTrace.push({ attempt, ok: false, reason: "plan inválido/sin intent", usage: (p && p.usage) || null }); modelAttempt++; continue; }
+      // ── COERCIÓN DEL VOCABULARIO (owner 2026-08-10, hallazgo de la 2ª corrida pagada) ─────────────────────────
+      // Corre ACÁ, antes que nada: antes del backstop de redirect-sin-calls (que juzga el intent), antes de
+      // normalizeReparacion (que lo exige) y antes de cualquier coerción de este archivo. `tool_choice` forzado
+      // garantiza JSON válido contra el schema; NO garantiza que el modelo respete un enum. Se comprobó pagando:
+      // emitió `intent:"correccion"` con la reparación perfectamente armada al lado, y el motor la tiró entera.
+      // La coerción es POR TIPO (ver normalizeIntent) y conserva íntegros `ambigua`, `pregunta`, `corrige` y
+      // `calls`: repara el vocabulario, nunca el contenido.
+      const _ni = normalizeIntent(p);
+      if (_ni.coercion) planCoerciones.push(_ni.coercion);
+      if (_ni.intent !== p.intent) p = { ...p, intent: _ni.intent };
+      // MODO fuera del enum: no se coerciona acá (eso lo hace _coerceMode más abajo, con el contexto del turno),
+      // pero se DECLARA — un vocabulario inventado que se descarta en silencio es cómo se llega a pagar una
+      // certificación para descubrirlo.
+      if (p.mode != null && !MODE_KEYS.includes(p.mode)) planCoerciones.push(`mode-invalido(${String(p.mode).slice(0, 24)})`);
       // BACKSTOP · calls vacío en un redirect (owner 2026-07-31, hallazgo en vivo, auditoría integral) —
       // planPrompt.js ya prohíbe esto EXPLÍCITAMENTE ("no dejes calls vacío: replanteá y traé el dato bueno"), pero
       // medido en ~1/3 de las corridas el LLM lo deja vacío igual. Sin ninguna cifra autorizada, NARRATE a veces
@@ -1256,13 +1275,25 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _propia = composePrecisionQuestion(conversationScopePrev, null);
     for (const candidata of [pregunta, stripLanguageLeaks(_propia)]) {
       const out = _composedBypassResult(candidata, mem, recentNarrationsPrev, scenario, true);
-      if (out) return out;
+      // LA TRAZA VIAJA TAMBIÉN POR ACÁ (owner 2026-08-10): este corte devuelve su propia respuesta, así que sin
+      // esto una corrección ambigua perdía el registro de lo que pasó — incluidas las coerciones de vocabulario,
+      // que son justo lo que hay que poder ver cuando el modelo emite algo fuera de enum. Un turno que se corta
+      // es el que más necesita dejar rastro, no el que menos.
+      if (out) {
+        if (planAttemptTrace.length || planCoerciones.length) {
+          out.r = { ...out.r, retryTrace: { plan: planAttemptTrace, narrate: [], ...(planCoerciones.length ? { coerciones: planCoerciones } : {}) } };
+        }
+        return out;
+      }
     }
   }
   // sin `!planWasSynthetic`: la INVALIDACIÓN vale igual venga la reparación declarada por PLAN o inferida de la
   // estructura. Lo que sigue reservado al plan real es el corte por ambigüedad de arriba — un plan sintético no
   // puede ser ambiguo, porque nadie interpretó nada.
   if (_reparacion) {
+    if (Array.isArray(_reparacion.corrigeDescartado) && _reparacion.corrigeDescartado.length) {
+      planCoerciones.push(`corrige-descartado(${_reparacion.corrigeDescartado.join("+")})`);
+    }
     const scopeReparado = applyRepairToScope(conversationScopePrev, _reparacion);
     if (scopeReparado !== conversationScopePrev) {
       // las entidades que la reparación dejó sin efecto, leídas del ANTES vs. el DESPUÉS del propio estado.
@@ -1861,7 +1892,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // retryTrace (owner 2026-08-02, router de modelo — ver modelRouter.js): reintentos + veredicto de guardC por
       // intento, SOLO debug/telemetría (nunca condiciona el motor). Se cruza en ChatADI.jsx con el modelo/latencia/
       // costo real de cada intento (capturado en el fetch) para dejar el ruteo observable por turno completo.
-      ...((planAttemptTrace.length || narrateAttemptTrace.length) ? { retryTrace: { plan: planAttemptTrace, narrate: narrateAttemptTrace } } : {}),
+      ...((planAttemptTrace.length || narrateAttemptTrace.length) ? { retryTrace: { plan: planAttemptTrace, narrate: narrateAttemptTrace, ...(planCoerciones.length ? { coerciones: planCoerciones } : {}) } } : {}),
       // `suggestions` sigue en null A PROPÓSITO (Fase 4): el motor tiene con qué llenarlo (mem2.lastOffer es
       // literalmente la próxima acción ofrecida) pero encenderlo hace aparecer chips donde hoy no hay ninguno.
       suggestions: null,
