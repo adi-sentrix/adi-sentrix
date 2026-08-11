@@ -24,6 +24,8 @@ import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
 import { REPAIR_FIELD_KEYS, buildRepairNarrateDoctrine } from "./src/adi/oracle/conversationalContract.js";
 import { buildReparacion } from "./src/adi/oracle/narrationContract.js";
 import { setSink, setToolsDeclaradas } from "./src/adi/llm/telemetry.js";
+import { buildNarrateUserMessageC, buildNarrateSystemC } from "./src/adi/oracle/narratePromptC.js";
+import { ADI_PERSONA } from "./src/adi/oracle/persona.js";
 import { toolNames } from "./src/adi/oracle/toolRegistry.js";
 
 let pass = 0, fail = 0;
@@ -598,6 +600,49 @@ section("8e · AMBIGUA + PREGUNTA + CALLS · la ambigüedad manda (4ª corrida p
   });
   ok("contraste · ambigua SIN pregunta y CON calls: sigue valiendo lo respondible", narrarN2 === 1, `narrar=${narrarN2}`);
   setSink(null);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("8f · LA CIFRA DE LA BRECHA YA ESTÁ, Y EL RECHAZO SE PUEDE DIAGNOSTICAR");
+// Los dos arreglos que salieron de auditar la 4ª corrida: cuatro de sus cinco rechazos fueron el narrador
+// multiplicando para obtener un monto que la boleta YA traía, y el quinto no se pudo clasificar porque el trace
+// decía qué chequeo saltó pero no sobre qué cifra.
+{
+  // (1) LA INSTRUCCIÓN VIAJA SOLO CUANDO LA CIFRA ESTÁ.
+  const conValor = buildNarrateUserMessageC({
+    text: "¿por qué Falabella cede margen?",
+    plan: { intent: "answer", mode: "default", calls: [CALL("Falabella")], scope: { level: "entity", entities: ["Falabella"] } },
+    results: [], ledgerFigs: [
+      { label: "Falabella · Margen", value: "22.0%", canon: "pct:22.0%", raw: 22, unit: "pct" },
+      { label: "Falabella · Valor en juego", value: "$1.6M", canon: "money:$1.6M", raw: 1600000, unit: "money" },
+    ], mem: {}, history: [],
+  });
+  ok("con «Valor en juego» en la boleta, el payload señala la cifra ya autorizada",
+    typeof conValor.instruccion_valor_en_juego === "string" && /NO la vuelvas a calcular/.test(conValor.instruccion_valor_en_juego));
+  ok("…y le dice al narrador que multiplicar da una cifra que se bloquea",
+    /multiplicar el margen, la brecha o el peso del costo por la venta/.test(conValor.instruccion_valor_en_juego));
+  const sinValor = buildNarrateUserMessageC({
+    text: "¿cuánto vende Falabella?",
+    plan: { intent: "answer", mode: "default", calls: [CALL("Falabella")], scope: { level: "entity", entities: ["Falabella"] } },
+    results: [], ledgerFigs: [{ label: "Falabella · Venta", value: "$19.4M", canon: "money:$19.4M", raw: 19400000, unit: "money" }], mem: {}, history: [],
+  });
+  ok("sin esa cifra, la instrucción NO viaja (un turno normal no paga un token)", !("instruccion_valor_en_juego" in sinValor));
+  ok("y el system de NARRAR no cambió: la instrucción es de payload, no de doctrina permanente",
+    !/Valor en juego/.test(buildNarrateSystemC(ADI_PERSONA, "", "default", null, false)));
+
+  // (2) EL DETALLE DEL RECHAZO, EN MEMORIA. Se fuerza un rechazo real: el narrador inventa una cifra.
+  let intentos = 0;
+  const r = await answerViaOracle({
+    text: "¿por qué Falabella cede margen?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => planNormal("Falabella"),
+    callNarrate: async () => { intentos++; return "Falabella cede margen: el costo se lleva $99.9M de su venta."; },
+  });
+  const nt = ((r && r.r && r.r.retryTrace) || {}).narrate || [];
+  ok("un rechazo del guard queda con su DETALLE en el trace, no solo con el veredicto",
+    nt.some((e) => e.guardOk === false && Array.isArray(e.detalle) && /cifra-no-autorizada:\$99\.9M/.test(e.detalle.join("|"))),
+    JSON.stringify(nt.map((e) => ({ r: e.reason, d: e.detalle }))));
+  ok("…y el intento que PASA no arrastra ningún detalle", nt.every((e) => e.guardOk !== true || !e.detalle));
+  ok("el turno igual responde (el detalle es observación, no cambia la conducta)", !!(r && r.r && r.r.text) && intentos === 3);
 }
 
 section("9 · LAS OCHO DIMENSIONES, DECLARADAS Y CONTADAS");

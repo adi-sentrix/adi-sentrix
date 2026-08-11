@@ -1772,7 +1772,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
     const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope });
-    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, usage: null });
+    // EL DETALLE DEL RECHAZO, EN MEMORIA (owner 2026-08-10, tras la auditoría de la 4ª corrida). El trace decía
+    // QUÉ chequeo saltó pero no SOBRE QUÉ, así que de los cinco rechazos de esa corrida hubo uno que no se pudo
+    // adjudicar: no se sabía si era un error real del modelo o un falso positivo del guard. Un rechazo que no se
+    // puede clasificar obliga a pagar otra corrida para averiguarlo.
+    // VIVE SOLO ACÁ. `retryTrace` es memoria del turno —debug y arnés—: NUNCA se emite a la telemetría, que es la
+    // que escribe a disco y tiene prohibido cualquier dato del cliente. El detalle SÍ nombra cifras del negocio
+    // («$13.9M»), y por eso este es el único lugar donde puede estar. Se acota a los 3 primeros: alcanza para
+    // diagnosticar y no convierte el trace en un volcado.
+    const _detalle = gVerdict.ok ? null : gVerdict.violations.slice(0, 3).map((v) => `${v.kind}:${v.detail}`);
+    narrateAttemptTrace.push({ attempt, guardOk: gVerdict.ok, reason: gVerdict.ok ? (gVerdict.degraded ? `degradado:${gVerdict.advisories.some((a) => a.kind === "orden-decision-tabla-primero") ? "tabla-antes-de-accion" : "repeticion-verbatim"} (reintenta con escalada, no bloquea)` : null) : gVerdict.verdict, ...(_detalle ? { detalle: _detalle } : {}), usage: null });
     if (gVerdict.ok && !gVerdict.degraded) { narration = n; break; }
     // FORMA INCUMPLIDA → SALIDA DETERMINÍSTICA, SIN OTRA LLAMADA (owner 2026-08-07). Reintentar sería gastar una
     // llamada por algo que NO es de suerte: el narrador eligió una presentación que la política del turno no

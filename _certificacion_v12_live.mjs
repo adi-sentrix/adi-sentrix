@@ -288,7 +288,7 @@ if (_corre) {
       // habia que leerlo, no instrumentarlo. Se imprime intento por intento, con el motivo tal como lo registro.
       const _rt = (r && r.r && r.r.retryTrace) || {};
       for (const e of (_rt.plan || [])) console.log(`  ${sonda.id} · trace PLAN intento ${e.attempt}: ${e.ok ? "ok" : "RECHAZADO"}${e.reason ? " · " + e.reason : ""}`);
-      for (const e of (_rt.narrate || [])) console.log(`  ${sonda.id} · trace NARRAR intento ${e.attempt}: guard=${e.guardOk}${e.reason ? " · " + e.reason : ""}${e.reparado ? " · reparado: " + e.reparado : ""}`);
+      for (const e of (_rt.narrate || [])) console.log(`  ${sonda.id} · trace NARRAR intento ${e.attempt}: guard=${e.guardOk}${e.reason ? " · " + e.reason : ""}${e.detalle ? " · " + e.detalle.join(" | ") : ""}${e.reparado ? " · reparado: " + e.reparado : ""}`);
       if (!cumple) console.log(`  ${sonda.id} · condiciones que fallaron: ${fallas.join(" · ")}`);
       // UNA SONDA QUE NO CUMPLE DETIENE LA CORRIDA (owner, autorización 2026-08-10). No es lo mismo que un tope:
       // acá el producto respondió y respondió mal, así que seguir gastando en las sondas siguientes es pagar por
