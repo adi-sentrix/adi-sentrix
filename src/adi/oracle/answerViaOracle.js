@@ -2066,7 +2066,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // letras. Los detectores de prohibición son de otro dueño y pueden sobre-disparar (una negación sobre una
   // COLUMNA no es una negación de la TABLA); si el turno dice «dame la tabla», acá no se le quita, pase lo que
   // pase río arriba. Antes falso negativo que falso positivo.
-  const _formaProhibidaPorElUsuario = resolveTablePolicy({ text: q, podado: [] }) === "forbidden"
+  // LA FORMA DEL TURNO MANDA TAMBIÉN ACÁ (owner 2026-08-11, regla 3 de la precedencia aprobada). «Solo la cifra,
+  // nada de tablas» tiene que salir como UNA ORACIÓN BREVE: `data_only` decide el ALCANCE (sólo el dato, sin
+  // análisis) y `outputForm` decide la FORMA (sin tabla). Son ejes distintos y los dos se respetan a la vez —
+  // antes esta rama componía siempre la tabla del ledger y la orden del usuario se perdía en el camino.
+  // FORMA DE SALIDA · turn-local, declarada por el PLAN (pref.outputForm) con respaldo determinístico.
+  const formaSalida = resolveOutputForm({ plan, text: q });
+  const _formaProhibidaPorElUsuario = formaSalida === "prosa" || formaSalida === "solo_conclusion"
+    || resolveTablePolicy({ text: q, podado: [] }) === "forbidden"
     && !pidePresentacionTabular(q);
 
   // ── data_only / results_only: GARANTÍA POR CONSTRUCCIÓN, SIN EXCEPCIÓN (owner 2026-07-29, residuales 2 y 3) ──
@@ -2140,7 +2147,6 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // La precedencia vive ENTERA en resolveAnswerShape (progressiveDisclosure.js): `pref` gana siempre, clarify
   // reemplaza el arco, y recién después opinan el contexto de pantalla y la forma de la pregunta.
   // FORMA DE SALIDA · turn-local, declarada por el PLAN (pref.outputForm) con respaldo determinístico.
-  const formaSalida = resolveOutputForm({ plan, text: q });
   const formaRespuesta = resolveAnswerShape({ text: q, plan, viewContext: vistaCtx, pref });
 
   // ── PASADA 2 · NARRAR (con DOS reintentos · 3 intentos máx) ── alcanza SOLO full y action_only: data_only/

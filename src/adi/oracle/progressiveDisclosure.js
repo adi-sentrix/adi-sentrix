@@ -354,6 +354,39 @@ export function pidePresentacionTabular(text) {
   return pideTablaExplicita(t) || pideDetalleTemporal(t) || pideDetalleComposicion(t);
 }
 
+/* ── LA PROHIBICIÓN INEQUÍVOCA · el escalón 1 de la precedencia (owner 2026-08-11) ─────────────────────────────
+ * Distingue una ORDEN sobre la respuesta de ahora («explicalo sin repetir la tabla») de un RECLAMO sobre la
+ * respuesta de antes («me dejaste sin la tabla que te pedí»). Las dos niegan el sustantivo; sólo una prohíbe.
+ * LA MARCA ES EL TIEMPO Y EL MODO, no la frase: un reclamo habla en indicativo pasado de lo que ADI hizo
+ * («dejaste», «diste», «llegó», «aparecieron», «mandaste», «pediste»); una orden viene en imperativo, o como
+ * «nada de X», o acompañada de un pedido POSITIVO de la otra forma («contame», «explicame», «decime»).
+ * ANTE LA DUDA NO PROHÍBE: devuelve false y el turno cae a `auto`, donde el PLAN —que sí entiende que hay una
+ * solicitud vigente— declara la forma. Un respaldo determinístico que adivina de más le niega al usuario lo que
+ * pidió; uno que adivina de menos sólo delega. */
+const _RECLAMO_PASADO = /\b(?:dejaste|diste|dieron|lleg[oó]|lleg[aá]ron|vino|vinieron|aparecier?on?|mandaste|pasaste|mostraste|armaste|inclu[ií]ste|copiaste|repetiste|ped[ií]|qued[eé]|quedamos|qued[oó])\b/i;
+const _PIDE_LA_OTRA_FORMA = /\b(?:cont[aá]me|cu[eé]ntame|explic[aá]\w*|expl[ií]came|dec[ií]me|dime|resum[ií]\w*|narr[aá]\w*|describ[ií]\w*|hablame|h[aá]blame)\b/i;
+const _NADA_DE_TABLA = new RegExp(`\\bnada\\s+de\\s+${_TABLA_N_FORMA}`, "i");
+// «sin tabla» / «sin tablas» / «sin planillas» como DIRECTIVA. El determinante lo excluye a propósito: «sin LA
+// tabla» describe una ausencia («me quedé sin la tabla»), mientras que «sin tabla» pelado es una instrucción
+// sobre la forma. Es la misma distinción que hace el español, no una convención de este archivo.
+const _SIN_TABLA_DIRECTIVO = new RegExp(`\\bsin\\s+${_TABLA_N_FORMA}`, "i");
+export function prohibeFormaTabularInequivoco(text) {
+  const t = String(text || "");
+  // (a) órdenes que no admiten otra lectura: «nada de tablas», el verbo negado en modo de orden, pedir prosa.
+  if (_NADA_DE_TABLA.test(t)) return true;
+  if (_PROHIBE_FORMA.some((re) => re.test(t))) return true;
+  if (_PIDE_PROSA.test(t) && !pideTablaExplicita(t)) return true;
+  // (b) negación del sustantivo inequívoco ACOMPAÑADA de un pedido de la otra forma, y sin marca de reclamo.
+  //     «Explicalo sin repetir la tabla» entra; «me dejaste sin la tabla que te pedí» no.
+  if (_negaciones(_TABLA_N_FORMA).some((re) => re.test(t)) && _PIDE_LA_OTRA_FORMA.test(t) && !_RECLAMO_PASADO.test(t)) return true;
+  // (c) «SIN TABLA» A SECAS ES UNA ORDEN (regla 2 del owner: «sin tabla, nada de tablas o equivalente → prosa,
+  //     nunca tabla»). No necesita que el turno pida además la otra forma: «dame solo las cifras, sin tabla» ya
+  //     dijo todo lo que hay que saber. Lo único que la desactiva es la marca de RECLAMO —«me quedé sin la
+  //     tabla», «me dejaste sin la tabla que te pedí»—, donde «sin» describe lo que faltó, no lo que se prohíbe.
+  if (_SIN_TABLA_DIRECTIVO.test(t) && !_RECLAMO_PASADO.test(t)) return true;
+  return false;
+}
+
 // prohibeFormaTabular(text) → true si el turno PROHÍBE la forma tabular (o pide su opuesto, la prosa).
 export function prohibeFormaTabular(text) {
   const t = String(text || "");
@@ -434,11 +467,25 @@ export function resolveOutputForm({ plan = null, text = "", politicaPrevia = nul
   // RESPALDO DETERMINÍSTICO · sólo cuando el plan no declaró nada. Reusa los detectores que ya existen; no se
   // inventa un segundo criterio ni una segunda lista de frases.
   const t = String(text || "");
-  // ORDEN DELIBERADO. Un pedido POSITIVO de tabla gana sobre la reducción de largo: «dame la tabla mes a mes, corta»
-  // pide una tabla breve, no prosa — es exactamente el caso «directo + tabla» que rompía las dos reglas a la vez.
-  if (pidePresentacionTabular(t)) return "tabla";
+  /* LA PRECEDENCIA APROBADA (owner 2026-08-11, decisión de producto del defecto 3). En este orden:
+   *  1. PROHIBICIÓN INEQUÍVOCA de tabla → prosa. Es la instrucción explícita del turno y le gana a todo: a la
+   *     herramienta, al formato anterior y a cualquier disparador implícito de contenido.
+   *  2. PEDIDO EXPLÍCITO de tabla → tabla («en una tabla», «hazme un cuadro»). Pedir tabla Y explicación cae acá:
+   *     es tabla CON interpretación, que la garantiza el renderer.
+   *  3. REDUCCIÓN DE LARGO → sólo la conclusión.
+   *  4. PEDIDO IMPLÍCITO (una serie mes a mes, un desglose) → tabla. Es una SUGERENCIA de presentación, no una
+   *     instrucción: por eso va después de la prohibición y nunca la vence. «cuál fue el peor mes» no obliga.
+   * EL RESPALDO ES CONSERVADOR, y ésa es la diferencia con la versión anterior: ante una negación AMBIGUA —un
+   * reclamo como «me dejaste sin la tabla que te pedí», que niega el sustantivo sin prohibir nada— NO resuelve
+   * prosa: cae a `auto` y deja decidir al PLAN, que es quien entiende que hay una solicitud vigente. Detectar
+   * reclamos con patrones era el camino equivocado: cada frase nueva pedía otro patrón. */
+  if (prohibeFormaTabularInequivoco(t)) return "prosa";
+  if (pideTablaExplicita(t)) return "tabla";
   if (pideReduccionDeLargo(t)) return "solo_conclusion";
-  if (prohibeFormaTabular(t)) return "prosa";
+  // 4. EL PEDIDO IMPLÍCITO NO OBLIGA (regla 6 del owner). Una serie mes a mes o un desglose SUGIEREN tabla, y esa
+  //    sugerencia sigue viva donde corresponde —`resolveTablePolicy`, que es la política de presentación—, pero no
+  //    fija la FORMA del turno: «¿cuál fue el peor mes?» es una pregunta puntual que se contesta en una línea.
+  //    Acá se devuelve `auto` y decide el motor con todo el contexto, que es más de lo que ve un detector.
   // CONTINUIDAD EXPLÍCITA, nunca arrastre: sólo si el turno PIDE mantener la forma. Una forma no se hereda sola —
   // ese era el otro medio defecto: la corrección de formato de un turno contaminaba el siguiente.
   if (politicaPrevia && pideMantenerLaForma(t)) return politicaPrevia;

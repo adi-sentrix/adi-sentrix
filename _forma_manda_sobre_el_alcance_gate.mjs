@@ -2,17 +2,19 @@
  * LOCAL, NO commiteado (convención del repo: _*_gate.mjs es local). CERO red, CERO LLM: callPlan/callNarrate van
  * MOCKEADOS a mano y el BATCH corre REAL contra el dataset demo.
  *
- * ══ LÍMITE DECLARADO ANTES QUE NADA: LA MITAD DE LA SECCIÓN 4 YA NO ES UNA CAPACIDAD ═══════════════════════════
- * Este gate YA NO certifica que la negación de un sustantivo INEQUÍVOCO de forma («sin tabla», «nada de tablas»)
- * le saque la tabla a un turno de alcance restringido. NO LO HACE. El owner retiró `..._negaciones(_TABLA_N_FORMA)`
- * de `_PROHIBE_FORMA` (progressiveDisclosure.js, 2026-08-11) porque producía 14 FALSOS POSITIVOS MEDIDOS de la peor
- * clase: `tabla-no-autorizada` contra una tabla que el usuario RECLAMABA porque faltó («Me quedé sin la tabla mes a
- * mes, ¿la rehacés?»). Moverla al paso 3 salva 6 de 14 — probado, no supuesto. Falso negativo antes que falso
- * positivo: es la doctrina de la casa aplicada contra el propio fix, y el comentario entero está en el src.
- * CONSECUENCIA MEDIDA ACÁ, sin taparla: «dame solo las cifras, sin tabla» y «solo la cifra, nada de tablas» hoy
- * resuelven `auto`, y con el alcance restringido ya fijado por el PLAN SALEN CON TABLA. Es el defecto E3.t3 de la
- * certificación y queda ABIERTO. Abajo (sección 4-b) está afirmado en su VALOR EXACTO de hoy, no aflojado a un
- * «!== forbidden» que dejaría pasar cualquier cosa: el día que el eje se mueva —en cualquier dirección— se ve.
+ * ══ EL LÍMITE QUE ESTE GATE DECLARABA ABIERTO QUEDÓ CERRADO (owner 2026-08-11) ════════════════════════════════
+ * HISTORIA, porque explica por qué la sección 4-b cambió dos veces: primero se retiró
+ * `..._negaciones(_TABLA_N_FORMA)` de `_PROHIBE_FORMA` por 14 falsos positivos medidos —`tabla-no-autorizada`
+ * contra una tabla que el usuario RECLAMABA porque faltó—, y este gate pasó a afirmar la consecuencia:
+ * «solo la cifra, nada de tablas» SALÍA CON TABLA, declarado como E3.t3 abierto.
+ * AHORA HAY UNA DECISIÓN DE PRODUCTO que resuelve la tensión sin volver al falso positivo: «solo la cifra, nada
+ * de tablas» debe responder con la cifra en una ORACIÓN NATURAL BREVE, sin tabla y sin análisis. Y la precedencia
+ * quedó fijada: la instrucción explícita del turno manda sobre la herramienta, el formato anterior y los
+ * disparadores implícitos; el respaldo determinístico sólo prohíbe ante una orden INEQUÍVOCA y, ante un reclamo,
+ * cae a `auto` y deja decidir al PLAN. Por eso los 14 reclamos siguen recibiendo su tabla Y el turno que prohíbe
+ * recibe su prosa: no son la misma clase de frase, y ahora el motor las distingue por tiempo y modo verbal.
+ * QUÉ EXPECTATIVA CAMBIÓ EN LA SECCIÓN 4-B: afirmaba «sale con tabla» y ahora afirma «sale sin tabla, con la
+ * cifra en línea». Cambió porque contradecía la precedencia aprobada, no porque el gate estorbara.
  *
  * LO QUE ESTE GATE SIGUE CUSTODIANDO ENTERO (y es lo que vino a custodiar): la sección 4 nunca fue sobre la lista
  * retirada, fue sobre el ORDEN — que `tablePolicy` se resuelva ANTES de la rama data_only y que la rama tenga un
@@ -51,7 +53,7 @@
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 // Detector puro, importado para que la sección 4-b afirme la CAUSA (`auto`) y no sólo el síntoma (sale tabla). Sin
 // esto, un cambio río arriba podría devolver la tabla por otro motivo y el chequeo seguiría verde sin darse cuenta.
-import { resolveTablePolicy } from "./src/adi/oracle/progressiveDisclosure.js";
+import { resolveTablePolicy, resolveOutputForm } from "./src/adi/oracle/progressiveDisclosure.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detail) => {
@@ -166,12 +168,22 @@ seccion("4-b · RE-CERTIFICADO · EL LÍMITE ABIERTO (E3.t3) · el sustantivo IN
 // tablas» no matchean ninguna familia viva (el verbo `tabular` no está, y `tabla` no es polisémico), el turno
 // tampoco trae disparador positivo → `auto`. Con `auto` la rama data_only tabula, que es lo que siempre hizo.
 // LA CIFRA NO SE PIERDE, sólo cambia de forma: sale tabulada en vez de en línea. Se afirma en su forma real.
-const CIFRA_TABULADA = /\|\s*Ventas del período\s*\|\s*\$/;
+// ── RE-CERTIFICADO POR DECISIÓN DE PRODUCTO (owner 2026-08-11) ───────────────────────────────────────────────
+// QUÉ EXPECTATIVA CAMBIÓ, y por qué: este bloque afirmaba que «solo la cifra, nada de tablas» SALÍA CON TABLA, y
+// lo declaraba como límite abierto (E3.t3). El owner definió la conducta: «debe responder con la cifra en una
+// oración natural breve, sin tabla y sin análisis adicional». O sea que la expectativa vieja contradice la
+// precedencia aprobada —la instrucción explícita del turno manda sobre la presentación que sugiere la
+// herramienta— y por eso se cambia, no porque el gate estorbara.
+// LOS DOS EJES SE RESPETAN A LA VEZ, que es lo que hace correcta la conducta nueva: `data_only` decide el ALCANCE
+// (sólo el dato, sin análisis) y `outputForm` decide la FORMA (sin tabla). La cifra NO se pierde: sale en línea.
+// LO QUE NO CAMBIA: la garantía por construcción del alcance restringido —el narrador libre no se invoca— sigue
+// afirmada abajo sin tocar, y el control de que `data_only` SIN orden de forma sigue tabulando también.
+const CIFRA_EN_LINEA = /Ventas del período:\s*\$/;
 for (const q of ["dame solo las cifras, sin tabla", "solo la cifra, nada de tablas"]) {
-  ok(resolveTablePolicy({ text: q, podado: [] }) === "auto", `LA CAUSA: «${q}» resuelve auto — la negación del inequívoco ya no la ve nadie (valor real: auto, no forbidden)`, resolveTablePolicy({ text: q, podado: [] }));
+  ok(resolveOutputForm({ plan: { pref: {} }, text: q }) === "prosa", `LA CAUSA: «${q}» resuelve outputForm=prosa — la prohibición inequívoca es el primer escalón de la precedencia`, resolveOutputForm({ plan: { pref: {} }, text: q }));
   const { texto, narrado } = await turno(q, PLAN_DATA);
-  ok(HAY_TABLA.test(texto), `E3.t3 ABIERTO: «${q}» SALE CON TABLA — la forma que el turno negó se entrega igual`, JSON.stringify(texto.slice(0, 70)));
-  ok(CIFRA_TABULADA.test(texto), `…y la cifra autorizada sigue estando, tabulada: «${q}»`, JSON.stringify(texto.slice(0, 70)));
+  ok(!HAY_TABLA.test(texto), `E3.t3 CERRADO: «${q}» ya NO sale con tabla — se respeta la forma que el turno negó`, JSON.stringify(texto.slice(0, 70)));
+  ok(CIFRA_EN_LINEA.test(texto), `…y la cifra autorizada sigue estando, ahora en una oración breve: «${q}»`, JSON.stringify(texto.slice(0, 70)));
   ok(narrado === 0, `…y la garantía POR CONSTRUCCIÓN del alcance restringido queda entera igual: el narrador libre nunca se invoca en «${q}»`, narrado);
 }
 // control: el mismo alcance restringido SIN orden de forma sigue tabulando exactamente como siempre.
