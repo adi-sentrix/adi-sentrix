@@ -331,6 +331,37 @@ export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
   }
 }
 
+/* ── ensureCoberturaDeclarada · LO QUE FALTÓ SE DICE, NO SE CONFÍA (owner 2026-08-12, defecto B2) ═══════════════
+ * MEDIDO EN LA CORRIDA DEL 12/08: «Agregá NoExisteSA a esa comparación.» El motor hizo TODO bien —descompuso a
+ * `gridTable`, resolvió las cuatro cuentas reales y dejó `NoExisteSA` en `cobertura.faltantes`—, y la respuesta no
+ * la mencionó. El dato estaba completo y correcto; el texto se olvidó de la mitad honesta.
+ * LA CAUSA NO ES EL NARRADOR: nada en el motor le OBLIGABA a decirlo. Una entidad que el usuario nombró y que el
+ * dato no tiene es exactamente lo que no puede quedar a criterio de redacción — el usuario que no lee «NoExisteSA
+ * no está» asume que sí está y que su cifra se contó.
+ * POR ESO ES DETERMINÍSTICO: si alguna call declaró faltantes y el texto no las nombra, se agrega la línea. No
+ * reescribe nada de lo que el narrador dijo y no toca ninguna cifra: sólo añade el dato que faltaba.
+ * NO EMITE NINGÚN NÚMERO, a propósito: una línea de cobertura con cifras sería una cifra sin autorizar en la boleta,
+ * y el muro la bloquearía con razón. Nombra entidades, que son texto del pedido del propio usuario. */
+export function ensureCoberturaDeclarada(text, results) {
+  const t = String(text || "");
+  const faltantes = [];
+  for (const r of (Array.isArray(results) ? results : [])) {
+    const cb = r && r.coverage && r.coverage.cobertura;
+    for (const f of (cb && Array.isArray(cb.faltantes) ? cb.faltantes : [])) {
+      if (f && !faltantes.includes(f)) faltantes.push(f);
+    }
+  }
+  if (!faltantes.length) return t;
+  // las que el texto YA nombra no se repiten: si el narrador lo dijo bien, esto no tiene nada que agregar.
+  const sinMencionar = faltantes.filter((f) => !new RegExp(`\\b${String(f).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(t));
+  if (!sinMencionar.length) return t;
+  const lista = sinMencionar.join(", ");
+  const linea = sinMencionar.length === 1
+    ? `No incluí ${lista}: no aparece en el dato de este eje, así que no hay cifra suya que sumar.`
+    : `No incluí ${lista}: no aparecen en el dato de este eje, así que no hay cifras suyas que sumar.`;
+  return t ? `${t.trim()}\n\n${linea}` : linea;
+}
+
 const _MAX_DEFINICIONES = 2;   // un turno pregunta por un concepto, a veces por dos; más que eso es un volcado
 export function composeFromTextualEvidence(results) {
   const list = Array.isArray(results) ? results : [];

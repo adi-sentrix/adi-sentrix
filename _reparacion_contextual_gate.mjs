@@ -418,7 +418,17 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
 // del system y otra en las descripciones del schema— y eso costaba ~700 caracteres en TODOS los turnos para decir
 // lo mismo dos veces. Ahora las reglas viven una sola vez, en la doctrina; el schema solo declara QUÉ va en cada
 // campo. Ni una regla de negocio se recortó, y la lista de abajo lo verifica una por una.
-ok("PLAN system crece menos de 1.700 caracteres", planSystem - BASE.planSystem < 1700, `+${planSystem - BASE.planSystem}`);
+/* EL TOPE SUBE A 2.050, Y SE DECLARA EL NÚMERO EXACTO (owner 2026-08-12, defecto C1 de la corrida corta).
+ * LO QUE LO PAGA: `clientesPorSku` existía, pasaba sus gates y era INALCANZABLE desde una conversación real — el
+ * planificador eligió `tensionRead` porque la tool no estaba ni en el enum ni en el catálogo. Una capacidad que
+ * el modelo no puede nombrar no existe para el usuario, y describirla cuesta caracteres en TODOS los turnos.
+ * EL COSTO ES EXACTO, no holgado: 375 caracteres (~94 tokens por llamada de PLAN). La primera redacción ocupaba
+ * 1.041 y se recortó a lo indispensable —qué hace, que en `entities` van SKU, que no es `tensionRead`, y que sale
+ * sellada `indicado`—; lo que se sacó fueron ejemplos y repeticiones, no una sola regla.
+ * NO SE MUTILA EL CONTRATO PARA QUE EL PRESUPUESTO SIGA VERDE: es el mismo criterio con el que este gate ya subió
+ * el tope de PLAN_TOOL cuando `reparacion` pasó a requerida. El presupuesto existe para que el costo se DECIDA,
+ * no para que una capacidad quede muda. */
+ok("PLAN system crece menos de 2.050 caracteres", planSystem - BASE.planSystem < 2050, `+${planSystem - BASE.planSystem}`);
 // TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
 // pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
 // -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma
@@ -428,8 +438,11 @@ ok("PLAN system crece menos de 1.700 caracteres", planSystem - BASE.planSystem <
 ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200, `+${planTool - BASE.planTool}`);
 // el tope subió de 600 a 620 al volver `reparacion` requerida y nullable: el campo pasó a `required` y el tipo a
 // unión, y eso se paga en el esquema. Se declara el número exacto en vez de dejar el tope holgado.
-ok("el crecimiento TOTAL de PLAN queda bajo 720 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 720, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// el total sube de 720 a 810 por lo MISMO y por la misma cantidad: los ~94 tokens de `clientesPorSku`. Se declara
+// exacto para que la próxima capacidad que pida espacio tenga que justificarla igual, en vez de encontrar el
+// presupuesto ya aflojado.
+ok("el crecimiento TOTAL de PLAN queda bajo 810 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 810, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {

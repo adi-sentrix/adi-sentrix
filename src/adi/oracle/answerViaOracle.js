@@ -22,7 +22,7 @@ import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.
 import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, componerPorForma, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
@@ -2346,6 +2346,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     c = ensureTransferenciaDeclarada(c, results, q);
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = c; narrationRepaired = true; }
   }
+  /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la
+   * garantía de forma a propósito: si fuera antes, el recorte de `solo_conclusion` podría llevarse justamente la
+   * línea que declara la entidad faltante. Y se verifica contra el muro: la línea no emite ninguna cifra, así que
+   * debería pasar siempre, pero «debería» no es una garantía — si el guard la rechaza se deja el texto como estaba.
+   * LA CONSECUENCIA DE NO TENERLO, medida: el usuario nombró cinco cuentas, el motor resolvió cuatro y declaró la
+   * quinta faltante en la boleta, y la respuesta habló de cuatro sin decir que faltaba una. */
+  if (narration) {
+    const conCobertura = ensureCoberturaDeclarada(narration, results);
+    if (conCobertura !== narration
+      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+      narration = conCobertura; narrationRepaired = true;
+    }
+  }
   if (!narration) return null;   // ni narrar ni reparar desde la boleta autorizada funcionó → C se abstiene (fallback a la ruta vieja)
 
   // ── OFERTA DE SEGUIMIENTO + REPETICIÓN (Fase 3) — lastOffer SIEMPRE recalculada desde CERO (nunca heredada, ver
@@ -2388,7 +2401,27 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       const parrafos = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
       const cuerpo = parrafos.filter((s) => !_ES_PIE.test(s));
       const pie = parrafos.filter((s) => _ES_PIE.test(s));
-      if (cuerpo.length > 1) { narration = [cuerpo[cuerpo.length - 1], ...pie].join("\n\n"); narrationRepaired = true; }
+      /* LA GARANTÍA NO PUEDE DEPENDER DE QUE EL NARRADOR HAYA SEPARADO PÁRRAFOS (owner 2026-08-12, defecto D4).
+       * Acá vivía sólo `if (cuerpo.length > 1)`, o sea que un narrador que contesta en UN párrafo largo dejaba el
+       * recorte sin efecto y «Ahora solo la conclusión, nada más» devolvía la respuesta entera. Medido en la
+       * corrida del 12/08: era el único de los cuatro modos de forma que falló.
+       * AHORA SON DOS PASOS, y el segundo es el que faltaba: primero se elige el párrafo de cierre (si hay más de
+       * uno), y después se lo acota a un presupuesto de conclusión SIEMPRE, venga en uno o en cinco párrafos.
+       * EL CORTE ES POR ORACIÓN, nunca a mitad de frase: `truncateToBriefBudget` ya garantiza eso, y por eso se
+       * reusa en vez de escribir un segundo recortador que se desincronice con el primero. Se queda con las
+       * PRIMERAS oraciones del cierre porque el arco de ADI abre con el hallazgo —el movimiento (01) ES la
+       * conclusión—, así que recortar por el final dejaría el respaldo y tiraría la respuesta.
+       * SE VERIFICA CONTRA EL MURO antes de adoptarse: un recorte que se lleve el contexto de una cifra tiene que
+       * ser rechazado, no impuesto. */
+      const _CONCLUSION_WORD_CAP = 45;   // una conclusión es una idea; 45 palabras es holgado para una, corto para dos
+      if (cuerpo.length) {
+        const cierre = truncateToBriefBudget(cuerpo[cuerpo.length - 1], _CONCLUSION_WORD_CAP);
+        const candidato = [cierre, ...pie].join("\n\n");
+        if (candidato !== narration
+          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+          narration = candidato; narrationRepaired = true;
+        }
+      }
     }
     /* GARANTIZAR LA FORMA PODANDO PUEDE VACIAR LA RESPUESTA (owner 2026-08-12, punto 3 · el caso de E3.t3).
      * MEDIDO acá mismo, con un narrador que devuelve una tabla donde se pidió prosa: el muro la aprueba —sus cifras
@@ -2469,6 +2502,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // diferencia de `deterministic`) pero ninguno de los 3 intentos cumplió el formato de bloques o el guard —
       // el texto final salió de composeFromLedger, no del narrador libre. Solo debug/telemetría.
       ...(narrationRepaired ? { narrationRepaired: true } : {}),
+      // `results` del ejecutor · SOLO debug/telemetría, nunca condiciona el motor (owner 2026-08-12). El replay
+      // de la corrida corta llegó con los 13 turnos VACÍOS de resultados porque este objeto no los exponía, y dos
+      // de los cuatro rojos hubo que reproducirlos offline en vez de leerlos. Sin esto el arnés no puede diagnosticar.
+      ...(Array.isArray(results) && results.length ? { results } : {}),
       // marca de degradación por repetición (owner 2026-08-03): los 3 intentos de NARRAR quedaron marcados
       // `degraded` (tramo verbatim de 8+ palabras contra una narración propia reciente) — se usó el último de
       // todos modos (ver `bestDegraded` arriba) en vez de reparar desde la boleta. Solo debug/telemetría.

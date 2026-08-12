@@ -231,7 +231,7 @@ if (process.env.ADI_CERT_CORTA !== "1") {
       // `results` llegó VACÍO en los 13 turnos, y el TEXTO no se guarda. Sin ellos, dos de los cuatro rojos no se
       // pudieron diagnosticar desde el replay y hubo que reproducirlos offline. Antes de la próxima corrida hay
       // que averiguar bajo qué nombre expone `answerViaOracle` los resultados del ejecutor y sumar la narración.
-      paraReplay.push(armarRegistroDeTurno({ id: s.id, plan: planReal, results: r && r.results, scenario: "actual" }));
+      paraReplay.push(armarRegistroDeTurno({ id: s.id, plan: planReal, results: r && r.results, texto, scenario: "actual" }));
       resultados.push({ id: s.id, frente: s.frente, estado: fallas.length ? "NO CUMPLE" : "CUMPLE", fallas,
         tools: (planReal && (planReal.calls || []).map((c) => c && c.tool).filter(Boolean)) || [], largo: texto.length });
     } catch (e) {

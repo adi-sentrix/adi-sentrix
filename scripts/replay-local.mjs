@@ -31,7 +31,7 @@ export const REGLA_GITIGNORE = "/fixtures/replay-local/";
 
 // los campos del turno que SÍ hacen falta para reproducirlo. Todo lo demás (texto del usuario, narración) ya vive
 // en el fixture de la certificación; acá va sólo lo que faltaba.
-export function armarRegistroDeTurno({ id, plan, results, scenario = null } = {}) {
+export function armarRegistroDeTurno({ id, plan, results, texto = null, scenario = null } = {}) {
   const calls = (plan && Array.isArray(plan.calls) ? plan.calls : []).map((c) => ({
     tool: (c && c.tool) || null,
     // LOS ARGS COMPLETOS, sin recortar: recortarlos reintroduce el problema que este archivo existe para cerrar.
@@ -40,6 +40,12 @@ export function armarRegistroDeTurno({ id, plan, results, scenario = null } = {}
   return {
     id: id || null,
     scenario,
+    /* EL TEXTO DE LA RESPUESTA (owner 2026-08-12). En la corrida del 12/08 la sonda A3 quedó SIN CERTIFICAR: el
+     * chequeo de «explica por qué no se suman» salió rojo y, sin el texto guardado, no había forma de saber si
+     * falló ADI o si mi condición era angosta. Un rojo que no se puede diagnosticar no rinde lo que costó.
+     * VA ACÁ Y NO EN LA TELEMETRÍA justamente porque es texto de negocio: este archivo está fuera de Git; la
+     * telemetría segura emite vocabularios cerrados y tiene que seguir sin una sola frase del cliente. */
+    texto: typeof texto === "string" ? texto : null,
     calls,
     // `results` tal cual lo devolvió el ejecutor: facts, boleta y coverage por call.
     results: (Array.isArray(results) ? results : []).map((r) => ({
