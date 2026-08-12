@@ -294,6 +294,19 @@ export const ADI_ORACLE_ENABLED = P("ADI_ORACLE_ENABLED");
 // que ADI_ORACLE_ENABLED — nunca se enciende solo en un dominio real de producción.
 export const ADI_CLAIMS_ONLY_ENABLED = P("ADI_CLAIMS_ONLY_ENABLED");
 
+// ── CUÁNDO NO HACE FALTA PAGAR · bypass pre-PLAN detrás de flag · default FALSE (owner 2026-08-12) ──
+// EL HALLAZGO, medido: siete de siete preguntas típicas ya tienen respuesta COMPLETA sin llamar al modelo —el
+// coercer del piso entiende la pregunta y el motor produce entre 500 y 1.800 caracteres de lectura real—, pero
+// el turno llama al planificador ANTES de descubrirlo. Se paga por preguntas que el motor ya sabía contestar.
+// FALSE (default, y lo que corre HOY en todos los perfiles) = el turno va al oráculo como siempre, byte-exacto.
+// TRUE = si `puedeResponderSinPagar` (bypassConfianza.js) dice que sí, el turno se resuelve por el piso con CERO
+// llamadas; ante cualquier duda dice que no y el turno sigue por el camino de siempre.
+// NO ESTÁ EN NINGÚN PERFIL A PROPÓSITO: encenderlo es una clasificación del owner (una línea en flagProfile.js),
+// no un efecto de este commit. Y la pregunta que decide —¿la respuesta del piso es tan buena como la pagada?—
+// sólo se contesta comparando las dos rutas en vivo, o sea con corridas pagadas que el owner autoriza. Mismo
+// criterio que ADI_CLAIMS_ONLY_ENABLED: cambiar de dónde sale la respuesta no se declara cerrado sin esa medición.
+export const ADI_BYPASS_SIN_PAGO = P("ADI_BYPASS_SIN_PAGO");
+
 // ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
 // SEPARA DOS COSAS QUE NO SON LO MISMO:
 //   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`

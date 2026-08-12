@@ -18,7 +18,9 @@ import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el 
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado)
+import { puedeResponderSinPagar } from "../adi/bypassConfianza.js";   // ¿el piso entiende esta pregunta lo bastante bien como para NO pagar? (owner 2026-08-12)
+import { getLastOffer } from "../adi/oracle/dialogueState.js";   // la oferta viva del turno anterior — cambia el sentido de "sí" o "el segundo"
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
 import { buildRequestContext } from "../adi/oracle/requestContext.js";   // multiempresa (owner 2026-07-29): tenant/conversación/snapshot explícitos, nunca implícitos
 import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
@@ -311,6 +313,40 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
   const _ph = typeof onPhase === "function" ? onPhase : () => {};
   const q = (question || "").trim();
   let r, narrated = false;
+  /* ── CUÁNDO NO HACE FALTA PAGAR · bypass pre-PLAN (owner 2026-08-12 · detrás de flag, HOY APAGADO) ═══════════
+   * MEDIDO: siete de siete preguntas típicas ya tienen respuesta COMPLETA sin el modelo —el coercer del piso
+   * entiende la pregunta y el motor produce entre 500 y 1.800 caracteres de lectura real—, pero el turno llama al
+   * planificador ANTES de descubrirlo. Se paga por preguntas que el motor ya sabía contestar.
+   * POR QUÉ ACÁ Y NO ADENTRO DEL ORÁCULO: adentro ya es tarde. El pago del PLAN es lo primero que hace el oráculo;
+   * cualquier atajo río abajo ahorra trabajo pero no ahorra la llamada, que es exactamente el problema.
+   * QUIÉN DECIDE: `puedeResponderSinPagar` (bypassConfianza.js), y decide que NO ante cualquier duda. La asimetría
+   * manda — pagar de más cuesta centavos; contestar con aplomo la pregunta equivocada rompe la confianza.
+   * CEDE ANTE EL P&L por el mismo motivo que el oráculo (ver abajo): es un contrato multi-turno y un atajo one-shot
+   * le rompería el flujo guiado. Y ante cualquier excepción no pasa nada: el turno sigue por el camino de siempre.
+   * FLAG APAGADO EN TODOS LOS PERFILES: esto queda cableado y probado, sin cambiar una sola respuesta todavía.
+   * Encenderlo exige antes comparar las dos rutas en vivo —¿la del piso responde tan bien como la pagada?—, y esa
+   * comparación se hace con llamadas pagadas que autoriza el owner. */
+  if (ADI_BYPASS_SIN_PAGO && !detectPnlIntent(q)) {
+    try {
+      const _mem = (context && context.memoriaInteraccion) || {};
+      const _spec = coerceFloor(q, _hasThread(context), getUISignals());
+      const _v = puedeResponderSinPagar(q, _spec, {
+        clarifyStreak: _mem.clarifyStreak,
+        hayOfertaPendiente: !!getLastOffer(_mem),
+      });
+      if (_v.ok) {
+        _ph(1);
+        const _r = answerConversational(_spec, context || {}, { scenario });
+        // SÓLO SI HAY RESPUESTA DE VERDAD. Que el spec sea confiable no garantiza que el motor tenga el dato: si
+        // el piso declina o devuelve un texto vacío, el turno NO se queda sin respuesta — sigue al oráculo, que
+        // para eso está. Un bypass que entrega un vacío es peor que no haber entrado.
+        if (_r && typeof _r.text === "string" && _r.text.trim().length > 0) {
+          return _turnFromResult(q, { ..._r, text: stripProactiveSuffix(_r.text) }, context, "sin_pago");
+        }
+      }
+    } catch { /* cualquier fallo del atajo → camino normal, sin perder el turno */ }
+  }
+
   // ── ARQUITECTURA C · Fase 3 · ORÁCULO (detrás del flag · fallback intacto) ──
   // El LLM PLANEA qué datos pedir → el motor los trae (batch puro client-side) → ADI NARRA con persona bajo guardC.
   // Si C se abstiene (plan falla / guard rechaza) → o === null → CAE a la ruta vieja de abajo (byte-exacta). Flag OFF = nunca entra.

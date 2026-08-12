@@ -1,4 +1,6 @@
 /* === _bypass_confianza_gate.mjs · CUÁNDO NO HACE FALTA PAGAR (owner 2026-08-12) =======================
+ * @inspeccion-estatica — lee `ChatADI.jsx`, `voiceFlags.js` y `flagProfile.js` como texto para probar el CABLEADO
+ * y el estado del flag además de la función. No importa el gateway, no invoca a nadie, no sale a la red.
  * Mide la frontera del bypass: qué turnos se responden con CERO llamadas y cuáles siguen pagando.
  *
  * EL HALLAZGO: siete de siete preguntas típicas ya tienen respuesta completa sin el modelo —el coercer entiende
@@ -15,8 +17,10 @@
  *   [3] LA TRAMPA DE LA ENTIDAD · «el margen de Falabella» NO puede contestarse con el ranking de la cartera.
  *   [4] EL CONTEXTO MANDA · aclaración en curso u oferta viva bloquean aunque el spec parezca completo.
  *   [5] FALLA CERRADA · ante entrada rara, `false`. Nunca revienta, nunca deja pasar por accidente.
+ *   [6] EL CABLEADO · enchufado ANTES del pago, detrás de un flag que hoy está APAGADO en todos los perfiles.
  * Cero red, cero LLM. `npm run gates:offline`
  */
+import { readFileSync } from "fs";
 import { coerceFloor } from "./src/adi/coerceChain.js";
 import { puedeResponderSinPagar } from "./src/adi/bypassConfianza.js";
 
@@ -83,6 +87,38 @@ H("[5] FALLA CERRADA · ante lo raro, no entra");
     let r; try { r = puedeResponderSinPagar(txt, spec); } catch { r = { ok: "EXPLOTÓ" }; }
     ok(r.ok === false, `entrada rara → false, sin explotar — ${JSON.stringify(spec)}`);
   }
+}
+
+H("[6] EL CABLEADO · antes del pago, y con el flag apagado");
+{
+  /* ES LA SEXTA VEZ del mismo patrón en el proyecto —capacidad construida, camino ausente— después de
+   * `clientesPorSku`, las dos tools de composición/capital, los focos de `marginRead`, `porQueEstaCifra` y la
+   * telemetría de producción. Por eso esta sección prueba que ALGUIEN LO LLAMA, y que lo llama donde sirve. */
+  const sinComentarios = (p) => readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const CHAT = sinComentarios("./src/ui/ChatADI.jsx");
+  ok(/puedeResponderSinPagar/.test(CHAT), "ChatADI.jsx llama al detector");
+
+  const iBypass = CHAT.indexOf("puedeResponderSinPagar(q");
+  const iPago = CHAT.indexOf("answerViaOracle({");
+  ok(iBypass > 0 && iPago > 0 && iBypass < iPago,
+    "corre ANTES del oráculo — río abajo ahorraría trabajo, no la llamada, que ES el problema",
+    `bypass@${iBypass} · oráculo@${iPago}`);
+
+  const bloque = iBypass > 0 ? CHAT.slice(Math.max(0, iBypass - 700), iBypass + 900) : "";
+  ok(/ADI_BYPASS_SIN_PAGO/.test(bloque), "está detrás del flag, no suelto");
+  ok(/detectPnlIntent\(q\)/.test(bloque), "cede el paso al P&L, igual que el oráculo (contrato multi-turno)");
+  ok(!/_fetchPlan|_fetchNarrateC|callPlan|callNarrate/.test(bloque), "y NO invoca al gateway: el ahorro es real, no contable");
+  ok(/catch/.test(bloque), "cualquier fallo del atajo cae al camino de siempre: no puede perder un turno");
+  ok(/text\.trim\(\)\.length\s*>\s*0|trim\(\)\.length/.test(bloque),
+    "sólo devuelve si hay texto de verdad — un bypass que entrega vacío es peor que no haber entrado");
+
+  /* EL FLAG APAGADO ES PARTE DEL CONTRATO, no un olvido: lo que decide encenderlo es comparar las dos rutas en
+   * vivo, y eso son llamadas pagadas que autoriza el owner. Si algún día aparece en un perfil sin esa medición,
+   * este gate se pone rojo y obliga a decirlo en voz alta. */
+  ok(/export const ADI_BYPASS_SIN_PAGO/.test(readFileSync("./src/config/voiceFlags.js", "utf8")), "el flag está declarado");
+  const PERFILES = sinComentarios("./src/config/flagProfile.js");
+  ok(!/ADI_BYPASS_SIN_PAGO/.test(PERFILES),
+    "y NO está en ningún perfil: hoy apagado en floor, demo, prod y dev — encenderlo es decisión del owner");
 }
 
 console.log(`\n── BYPASS · CUÁNDO NO PAGAR · ${PASS} PASS · ${FAIL} FAIL ──`);
