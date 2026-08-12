@@ -125,9 +125,18 @@ const SIGUEN_SIENDO_DATO = [
   "muestrame la lista y nada mas",
   "dame el margen y punto.",
 ];
+/* RE-CERTIFICADO (owner 2026-08-12, punto 3). Estas seis afirmaban «data_only ⇒ TABLA». Lo que el gate defiende es
+ * que una restricción puramente NEGATIVA no cambia el ALCANCE —sigue siendo data_only y el narrador libre nunca se
+ * invoca—, y eso no se movió ni un milímetro. Lo que cambió es la FORMA con la que ese alcance se sirve: el owner
+ * la fijó explícita —«data_only: cifra, entidad y período en una oración breve»— porque doce filas eran la respuesta
+ * más larga que el motor sabe emitir para alguien que acababa de pedir MENOS.
+ * Las dos condiciones que importan se conservan y se aprietan: el narrador sigue sin invocarse (garantía por
+ * construcción) y la cifra autorizada sigue estando. Sólo se cambia la que medía la forma vieja. */
 for (const q of SIGUEN_SIENDO_DATO) {
   const { texto, narrado } = await turno(q);
-  ok(HAY_TABLA.test(texto) && narrado === 0, `«${q}» SIGUE siendo data_only (tabla, narrador nunca invocado)`, `tabla=${HAY_TABLA.test(texto)} narrado=${narrado}`);
+  ok(narrado === 0, `«${q}» SIGUE siendo data_only — el narrador libre nunca se invoca`, `narrado=${narrado}`);
+  ok(!HAY_TABLA.test(texto), `…y ya no responde con doce filas a quien pidió menos`, JSON.stringify(texto.slice(0, 80)));
+  ok(/\$[\d.,]+|\d+[.,]\d+\s*(?:%|pts)|\d+%/.test(texto), `…pero la cifra autorizada sigue estando en «${q}»`, JSON.stringify(texto.slice(0, 80)));
 }
 // (b) el pedido POSITIVO gana sobre la reducción co-ocurrente: el que nombra la cosa pedida fija el alcance.
 for (const q of ["dame solo las cifras en una tabla", "solo el dato, en la tabla de siempre", "dame únicamente los kpis en una tabla"]) {
@@ -189,7 +198,11 @@ for (const q of ["dame solo las cifras, sin tabla", "solo la cifra, nada de tabl
 // control: el mismo alcance restringido SIN orden de forma sigue tabulando exactamente como siempre.
 {
   const { texto, narrado } = await turno("dame solo los datos del período", PLAN_DATA);
-  ok(HAY_TABLA.test(texto) && narrado === 0, "control: data_only sin ninguna orden de forma sigue devolviendo la tabla de siempre", `tabla=${HAY_TABLA.test(texto)}`);
+  // MISMO RE-CERTIFICADO que el bloque (a): el control ya no puede exigir la tabla, porque la forma de `data_only`
+  // dejó de ser tabular por decisión. Lo que el control existe para proteger —que sin orden de forma el alcance NO
+  // invoque al narrador y la cifra llegue igual— se conserva entero.
+  ok(narrado === 0, "control: data_only sin ninguna orden de forma sigue sin invocar al narrador", `narrado=${narrado}`);
+  ok(/\$[\d.,]+|\d+[.,]\d+\s*(?:%|pts)|\d+%/.test(texto), "…y sigue devolviendo la cifra autorizada", JSON.stringify(texto.slice(0, 80)));
 }
 
 console.log(`\n── _forma_manda_sobre_el_alcance_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

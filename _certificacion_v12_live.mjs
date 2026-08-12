@@ -29,6 +29,7 @@ import { estimateCostUSD } from "./src/adi/llm/modelPricing.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { inferirCorrige } from "./src/adi/oracle/conversationScope.js";
 import { coerceVocabularioPlan, normalizeReparacion } from "./src/adi/oracle/conversationalContract.js";
+import { armarRegistroDeTurno, persistirCorrida } from "./scripts/replay-local.mjs";   // replay local · va FUERA de Git y fuera de la telemetría segura
 
 export const TOPE_LLAMADAS = 15;
 export const TOPE_USD = 0.40;
@@ -300,6 +301,7 @@ if (_corre) {
       // Sin esto no se puede saber si el turno salió bien PORQUE el modelo acertó o porque el motor lo reparó —
       // que es justo la distinción que decide si queda algo por arreglar.
       const coerciones = (r && r.r && r.r.retryTrace && r.r.retryTrace.coerciones) || [];
+      paraReplay.push(armarRegistroDeTurno({ id: sonda.id, plan: planReal, results: r && r.r && r.r.results, scenario: "actual" }));
       resultados.push({ id: sonda.id, titulo: sonda.titulo, estado: cumple ? "CUMPLE" : "NO CUMPLE", fallas, forma, coerciones, retryTrace: r && r.r && r.r.retryTrace });
       console.log(`  ${sonda.id} · ${cumple ? "CUMPLE" : "NO CUMPLE"} · forma=${JSON.stringify(forma)}`);
       console.log(`  ${sonda.id} · coerciones=${coerciones.length ? coerciones.join(" · ") : "ninguna"}`);
@@ -333,6 +335,15 @@ if (_corre) {
   if (existsSync(RUTA_TELEMETRIA)) {
     const lineas = readFileSync(RUTA_TELEMETRIA, "utf8").trim().split("\n").filter(Boolean);
     console.log(`── TELEMETRÍA ── ${lineas.length} eventos en ${RUTA_TELEMETRIA}`);
+  }
+  // EL REPLAY LOCAL SE ESCRIBE AUNQUE LA CORRIDA SE HAYA CORTADO: los turnos que alcanzaron a correr antes del tope
+  // son los que después hay que poder reproducir sin volver a pagar, y son justamente los que se perderían si esto
+  // colgara del final feliz. Va después de la telemetría y por otro camino — nunca dentro de ella.
+  if (paraReplay.length) {
+    const ruta = persistirCorrida(process.env.ADI_COMMIT || "corrida", paraReplay);
+    const conArgs = paraReplay.flatMap((t) => t.calls).filter((c) => c && c.args).length;
+    const calls = paraReplay.flatMap((t) => t.calls).length;
+    console.log(`── REPLAY LOCAL ── ${paraReplay.length} turnos · ${conArgs}/${calls} calls CON args · ${ruta} (fuera de Git)`);
   }
   const noCumplen = resultados.filter((r) => r.estado !== "CUMPLE");
   console.log(`\n${resultados.length - noCumplen.length}/${SONDAS.length} sondas CUMPLEN`);

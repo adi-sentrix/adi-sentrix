@@ -114,7 +114,12 @@ seccion("4 · CONTROLES — la apertura no se come ni el turno de dato ni el 'no
   // trae la tool de dato Y defineConcept a la vez — si la apertura estuviera mal ordenada, la definición (texto)
   // le ganaría al dato (cifras) y el usuario recibiría una explicación donde pidió un número.
   const dato = await turno({ text: "Dame el margen de los clientes bajo benchmark. Solo el dato.", plan: { intent: "answer", mode: "default", scope: { level: "global" }, calls: [{ tool: "marginRead", args: { dimension: "cliente", focus: "bajo_benchmark" } }, { tool: "defineConcept", args: { concept: "margen" } }], pref: { contentScope: "data_only" } } });
-  ok(/\| Concepto \| Valor \|/.test(dato.texto), "(a) con cifras Y definición en el mismo turno, manda la BOLETA — la definición nunca le roba el turno al dato", JSON.stringify(dato.texto.slice(0, 60)));
+  // LA PRUEBA DE QUE MANDA LA BOLETA ES QUE SALE UNA CIFRA, no que salga una tabla (revisión 2026-08-12). El proxy
+  // era el encabezado `| Concepto | Valor |`, y servía mientras `data_only` tabulaba siempre; desde que su forma es
+  // una oración breve por decisión del owner, ese encabezado mide la FORMA y ya no el orden de apertura. Lo que el
+  // caso mixto defiende —que el dato le gane a la definición— se afirma directo: hay cifra, y (la línea siguiente)
+  // no hay texto de definición.
+  ok(/\$[\d.,]+|\d+[.,]\d+\s*(?:%|pts)|\d+%/.test(dato.texto), "(a) con cifras Y definición en el mismo turno, manda la BOLETA — la definición nunca le roba el turno al dato", JSON.stringify(dato.texto.slice(0, 60)));
   ok(!/Es lo que queda de la venta después/.test(dato.texto), "(a) y el texto de la definición no se cuela junto a la tabla");
   ok(dato.narrado === 0, "(a) y tampoco ahí se invoca al narrador libre");
 

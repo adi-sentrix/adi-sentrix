@@ -106,8 +106,21 @@ section("4 · EL ARNÉS NO PUEDE GASTAR POR ACCIDENTE");
   ok("la pregunta de precisión se CUENTA, no se transcribe (nada del cliente al log)",
     /preguntas: planReal\.reparacion && typeof planReal\.reparacion\.pregunta === "string"/.test(SRC)
     && !/pregunta: planReal\.reparacion\.pregunta[^.]/.test(SRC));
-  ok("no se vuelca el texto de la respuesta ni el plan crudo al reporte",
-    !/texto: r && r\.r && r\.r\.text/.test(SRC) && !/plan: planReal/.test(SRC));
+  /* EL CHEQUEO ES SOBRE EL REPORTE, NO SOBRE EL ARCHIVO ENTERO (revisión 2026-08-12).
+   * Antes buscaba `plan: planReal` en TODO el fuente. Servía mientras el corredor tenía un solo canal de salida;
+   * desde que existe el replay local —`fixtures/replay-local/`, ignorado por Git, que SÍ tiene que llevarse el plan
+   * crudo con sus `args`— ese regex marcaba en rojo justamente el canal que se creó para separar las dos cosas.
+   * Confundir «el reporte no lleva datos de negocio» con «el fuente no menciona el plan» habría dejado dos salidas:
+   * o el replay sin argumentos (el defecto de f4f2949, 0 de 57 calls) o el reporte filtrando. Ahora se mide lo que
+   * la regla siempre quiso decir: lo que entra en `resultados` —lo que se imprime y se comparte— no lleva ni el
+   * texto de la respuesta ni el plan crudo. */
+  const enElReporte = (SRC.match(/resultados\.push\(\{[\s\S]*?\}\);/g) || []).join("\n");
+  ok("no se vuelca el texto de la respuesta ni el plan crudo al REPORTE",
+    !!enElReporte && !/\btexto:/.test(enElReporte) && !/\bplan:/.test(enElReporte) && !/r\.r\.text/.test(enElReporte));
+  // …y la contracara: el plan crudo SÍ tiene que llegar al replay local, o la próxima corrida vuelve a ser
+  // irreproducible. Que ese destino esté fuera de Git lo certifica `_replay_local_gate`.
+  ok("el plan crudo va al replay local, que es el canal separado y ya fuera de Git",
+    /armarRegistroDeTurno\(\{[^}]*plan: planReal/.test(SRC) && /persistirCorrida\(/.test(SRC));
 }
 
 console.log(`\n${pass} OK · ${fail} FAIL`);

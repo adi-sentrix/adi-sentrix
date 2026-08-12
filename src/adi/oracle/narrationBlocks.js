@@ -201,6 +201,136 @@ export function composeFromLedger(figs, contentScope) {
 // residual cerró. VERBATIM: se imprime lo que la tool selló, sin reescribir ni resumir (una definición curada es
 // el antídoto al "inventa algo": cero deriva). Devuelve null cuando no hay evidencia textual — el caller sigue con
 // composeNoDataMessage, que sigue siendo la última red honesta del motor.
+/* ── componerPorForma · EL FALLBACK TAMBIÉN TIENE FORMA (owner 2026-08-12, punto 3) ═══════════════════════════════
+ * EL DEFECTO MEDIDO, en cinco turnos de la certificación de f4f2949: cuando el narrador libre agota sus intentos
+ * —o desobedece— el motor repara desde la boleta, y hasta hoy esa reparación tenía UNA sola forma: `composeFromLedger`,
+ * que imprime una tabla de doce filas para todo lo que no sea `action_only`. El usuario que pidió prosa recibía una
+ * tabla; el que pidió sólo la conclusión recibía doce filas; el que pidió una tabla recibía una tabla sin una línea
+ * que la leyera. La forma pedida se resolvía en `resolveOutputForm` y se garantizaba en el renderer… pero el
+ * compositor de emergencia no la miraba, así que el renderer terminaba PODANDO la tabla que este compositor acababa
+ * de armar y dejaba la respuesta en nada.
+ *
+ * LA REGLA: la reparación usa el `outputForm` y el `contentScope` YA RESUELTOS del turno. No los vuelve a deducir
+ * —sería un segundo criterio que se desincroniza con el primero—, los recibe.
+ *
+ * LO QUE NUNCA HACE, y es lo que lo mantiene seguro: NO RECALCULA NI UNA CIFRA. Cada número que emite sale de
+ * `fig.value` VERBATIM, con su `fig.label` verbatim. No suma, no promedia, no convierte escalas, no rankea por otro
+ * criterio que la magnitud que el propio ledger ya selló en `raw`. Por eso pasa guardC por la misma razón que la
+ * tabla siempre pasó: no hay ninguna cifra nueva que autorizar.
+ * Y CONSERVA EL MARCO: entidad, métrica, período, universo, supuesto y estatus epistemológico viajan con la cifra
+ * (`fig.tipo`), así que se leen de ahí en vez de re-derivarse. Un fallback que pierde el período o el sello
+ * convierte una estimación en un hecho — exactamente el defecto que el muro existe para bloquear. */
+
+const _SELLO_ORDEN = ["probado", "indicado", "abierto"];
+const _SELLO_FRASE = {
+  probado: "El dato lo demuestra",
+  indicado: "La señal apunta ahí, sin cerrarla",
+  abierto: "Con este dato no se puede cerrar",
+};
+const _figsValidas = (figs) => (Array.isArray(figs) ? figs.filter((f) => f && typeof f.label === "string" && f.value != null) : []);
+const _sello = (f) => (f && f.tipo && _SELLO_ORDEN.includes(f.tipo.sello) ? f.tipo.sello : "probado");
+// el sujeto del turno: la entidad que más cifras aporta. Es lo que impide que la prosa de reparación CAMBIE DE
+// SUJETO (E3.t3: se preguntaba por una cuenta y el fallback narraba el negocio entero).
+function _sujeto(list) {
+  const cuenta = new Map();
+  for (const f of list) {
+    const e = f.tipo && f.tipo.entidad;
+    if (e) cuenta.set(e, (cuenta.get(e) || 0) + 1);
+  }
+  let mejor = null, max = 0;
+  for (const [e, n] of cuenta) if (n > max) { mejor = e; max = n; }
+  return mejor;
+}
+const _periodo = (list) => { for (const f of list) { const p = f.tipo && f.tipo.periodo; if (p) return p; } return null; };
+const _universo = (list) => { for (const f of list) { const u = f.tipo && (f.tipo.universoEtiqueta || f.tipo.universo); if (u) return u; } return null; };
+// UNA oración con la cifra, su entidad y su período — el contrato de `data_only` según el owner.
+function _oracionDeCifra(list) {
+  const f = _bestByMagnitude(_figsValidas(list).filter(_isEntityAttributed).length ? list.filter(_isEntityAttributed) : list);
+  const per = f.tipo && f.tipo.periodo;
+  const uni = f.tipo && f.tipo.universoEtiqueta;
+  const marco = [uni, per].filter(Boolean).join(", ");
+  return `${f.label}: ${f.value}${marco ? ` (${marco})` : ""}.`;
+}
+// las MISMAS figs, sin tabla y sin una palabra propia — la base de toda forma no tabular.
+const _enLinea = (list, tope = 12) => list.slice(0, tope).map((f) => `${f.label}: ${f.value}`).join(" · ");
+function _tabla(list) {
+  const rows = list.slice(0, 12).map((f) => `| ${f.label} | ${f.value} |`);
+  return `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
+}
+
+export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
+  const list = _figsValidas(figs);
+  if (!list.length) return null;
+  // la fila que manda: entidad atribuida si la hay, y entre ésas la de mayor magnitud SELLADA en `raw` — nunca un
+  // orden calculado acá.
+  const conEntidad = list.filter(_isEntityAttributed);
+  const top = _bestByMagnitude(conEntidad.length ? conEntidad : list);
+
+  // el alcance manda sobre la forma: `action_only` tiene su propio contrato estricto y no admite prosa suelta.
+  if (contentScope === "action_only") return `La prioridad: ${top.label} (${top.value}).`;
+
+  const supuesto = _findSupuestoContext(list);
+  const conSupuesto = (t) => (supuesto ? `${t}\n\n${_formatSupuestoLine(supuesto)}` : t);
+
+  /* LA FORMA TABULAR SE DECIDE ANTES QUE EL ALCANCE, y sólo ella. «Solo la tabla» nombra la tabla EN POSITIVO, así
+   * que fija las dos cosas a la vez: la forma es `tabla` y el alcance queda restringido. Si acá mandara el alcance,
+   * ese turno caería en la oración breve de `data_only` y el usuario que pidió una tabla no recibiría ninguna.
+   * LA LECTURA MÍNIMA ES LO QUE SE RECORTA, no la tabla: con alcance `full` la tabla va acompañada de una línea que
+   * la lee (E2.t1 y E2.t4, donde la tabla salía sola y sin nada que la interpretara); con el alcance restringido de
+   * «solo la tabla», va sola — que es exactamente lo pedido. */
+  if (forma === "tabla") {
+    const t = _tabla(list);
+    if (contentScope !== "full") return conSupuesto(t);
+    // LECTURA MÍNIMA, no interpretación: nombra la fila de mayor magnitud —un hecho de orden que el propio ledger
+    // ya selló en `raw`— y nada más. No dice por qué, porque el ledger no trae la causa.
+    return conSupuesto(`${t}\n\nLa fila de mayor magnitud es ${top.label}, con ${top.value}.`);
+  }
+
+  // `data_only` — el owner lo fijó explícito: cifra, entidad y período en UNA oración breve. Ni tabla ni análisis.
+  if (contentScope === "data_only") return conSupuesto(_oracionDeCifra(list));
+  // `results_only` es «sólo los resultados» de una SIMULACIÓN: el efecto del supuesto, sin el consejo. La tabla es
+  // la forma correcta ahí —son varias filas de resultado— y el supuesto viaja pegado, nunca oculto.
+  if (contentScope === "results_only") return conSupuesto(_tabla(list));
+
+  if (forma === "solo_conclusion") return `${top.label}: ${top.value}.`;
+
+  // ── PROSA · el estatus epistemológico se SEPARA, no se aplana (E1.t3) ──────────────────────────────────────────
+  // Los tres grupos salen del sello que cada fig ya trae. Aplanarlos sería presentar una estimación con el mismo
+  // peso que una lectura directa, que es la mentira que el sello existe para impedir.
+  if (forma === "prosa") {
+    const suj = _sujeto(list), per = _periodo(list), uni = _universo(list);
+    const partes = [];
+    const encabezado = [suj ? `Sobre ${suj}` : null, uni, per].filter(Boolean).join(" · ");
+    if (encabezado) partes.push(`${encabezado}:`);
+    for (const s of _SELLO_ORDEN) {
+      const delGrupo = list.filter((f) => _sello(f) === s);
+      if (!delGrupo.length) continue;
+      partes.push(`${_SELLO_FRASE[s]} — ${_enLinea(delGrupo, 8)}.`);
+    }
+    // si el turno no trajo nada ABIERTO, se dice igual: el silencio sobre el límite se lee como que no hay límite.
+    if (!list.some((f) => _sello(f) === "abierto")) partes.push("Con el dato autorizado de este turno no hay nada más que cerrar.");
+    return conSupuesto(partes.join("\n\n"));
+  }
+
+  // ── AUTO · qué pasa, por qué y qué hacer primero — SÓLO desde el ledger ────────────────────────────────────────
+  // El movimiento (02) es el delicado: el ledger trae cifras, no causas. Inventar una acá sería exactamente
+  // `causa-sobredimensionada`. Así que se declara ABIERTO cuando no hay evidencia causal sellada, que es la
+  // respuesta honesta y además la que el muro deja pasar.
+  {
+    const suj = _sujeto(list), per = _periodo(list), uni = _universo(list);
+    const entityFigs = list.filter(_isEntityAttributed);
+    const top = _bestByMagnitude(entityFigs.length ? entityFigs : list);
+    const marco = [uni, per].filter(Boolean).join(", ");
+    const qp = `${suj ? `Sobre ${suj}: ` : ""}${top.label} marca ${top.value}${marco ? ` (${marco})` : ""}.`;
+    const resto = list.filter((f) => f !== top);
+    const pq = resto.length
+      ? `El resto de lo autorizado en este turno: ${_enLinea(resto, 6)}. El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.`
+      : "El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.";
+    const qh = `Por dónde partir: ${top.label}, que es la magnitud mayor de las autorizadas.`;
+    return conSupuesto([qp, pq, qh].join("\n\n"));
+  }
+}
+
 const _MAX_DEFINICIONES = 2;   // un turno pregunta por un concepto, a veces por dos; más que eso es un volcado
 export function composeFromTextualEvidence(results) {
   const list = Array.isArray(results) ? results : [];

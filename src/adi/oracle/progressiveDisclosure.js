@@ -168,7 +168,16 @@ export function podarLedgerProgresivo(figs, { quiereDesglose = false } = {}) {
 // ya documenta en `_TEMPORAL` y en `_DESGLOSE`. Con el `\b` global al final del grupo, «tabulá el margen por
 // cliente» NO matcheaba (sí «tabula», sin tilde): la forma imperativa que un usuario escribe de verdad era la única
 // que se escapaba. Cada alternativa cierra ahora por su cuenta, y la que puede terminar en tilde no cierra.
-const _PIDE_TABLA = /\b(?:en (?:una )?tabla\b|en formato tabla\b|tabulad[oa]\b|tabul[aá]\w*|en columnas\b|como tabla\b|arm[aá]\w* una tabla\b|una tabla con\b)/i;
+/* «EN LA TABLA DE SIEMPRE» TAMBIÉN PIDE UNA TABLA (owner 2026-08-12, cazado por `_forma_manda_sobre_el_alcance`).
+ * Acá decía `en (?:una )?tabla`: reconocía el artículo INDETERMINADO y no el determinado. Mientras el alcance
+ * restringido tabulaba siempre el hueco no se notaba —el turno salía en tabla por el camino del alcance, no por
+ * haberla pedido—, pero desde que la forma del fallback se respeta, quien la nombra con «la» recibía una oración.
+ * EL ARTÍCULO DETERMINADO NO ALCANZA, Y ABRIRLO A SECAS ROMPE LA OTRA MITAD. Medido: con `en la tabla` suelto,
+ * «¿Por qué el mismo mes muestra otra cifra en la tabla?» pasaba a pedir tabla — y no pide ninguna: habla de una
+ * que ya está en pantalla. La diferencia no es el artículo, es si hay MARCA DE CONTINUIDAD («de siempre», «la
+ * misma», «de arriba»): eso convierte la mención en una orden de entrega. Sin esa marca, «en la tabla» es un
+ * complemento locativo de un verbo descriptivo, y ahí no hay pedido que atender. */
+const _PIDE_TABLA = /\b(?:en (?:una )?tabla\b|en (?:la|esa) misma tabla\b|en la tabla de (?:siempre|arriba|antes)\b|en formato tabla\b|tabulad[oa]\b|tabul[aá]\w*|en columnas\b|como tabla\b|arm[aá]\w* una tabla\b|una tabla con\b)/i;
 const _PIDE_TABLA_OBJETO = /\b(?:d[aá]me|entr[eé]g[aá]me|mostr[aá]me|mu[eé]strame|ens[eé][nñ][aá]me|p[aá]s[aá]me|tr[aá][eé]me|m[aá]nd[aá]me|quiero|querr[íi]a|necesito|me gustar[íi]a)(?:\s+(?:ver|tener|obtener|revisar))?\s+(?:toda\s+la|todas?\s+las|la|una|las|el)\s+tablas?\b/i;
 // La forma nominal se acota con el relativo: «la tabla QUE estoy viendo, qué dice» abre una subordinada y es
 // deixis, no pedido. Sin ese corte, empezar la frase por "la tabla" bastaba para forzar `required`.

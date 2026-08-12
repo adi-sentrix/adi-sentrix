@@ -22,7 +22,7 @@ import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.
 import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, componerPorForma, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
@@ -2115,7 +2115,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // construcción: si el guard lo rechaza, la lista de candidatos sigue con exactamente los mismos textos que esta
   // rama componía antes, así que ningún turno que hoy funciona puede empezar a fallar por esto.
   if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
-    const desdeLedger = composeFromLedger(figs, pref.contentScope);
+    // MISMA FORMA, MISMO COMPOSITOR (owner 2026-08-12, punto 3): esta rama también componía SIEMPRE una tabla, así
+    // que «solo el dato» devolvía doce filas donde el contrato pide una oración con cifra, entidad y período.
+    const desdeLedger = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida });
     const desdeTexto = desdeLedger ? null : composeFromTextualEvidence(results);
     const base = desdeLedger || desdeTexto || composeNoDataMessage(results);
     const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
@@ -2263,10 +2265,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // admite, y con las mismas cifras puede volver a elegirla. Las dos salidas se componen desde lo YA autorizado,
     // así que pasan guardC por construcción — igual se verifica, nunca se asume:
     //   tabla-no-autorizada → prosa desde los claims (composeProsaEjecutiva)
-    //   tabla-faltante      → la tabla desde la boleta (composeFromLedger, el compositor que ya existía)
+    //   tabla-faltante      → la tabla desde la boleta, con su lectura mínima (componerPorForma, forma `tabla`)
     if (!gVerdict.ok && /tabla-no-autorizada|tabla-faltante/.test(String(gVerdict.verdict || ""))) {
       const esFaltante = /tabla-faltante/.test(String(gVerdict.verdict));
-      const alt = esFaltante ? composeFromLedger(figs, "full") : composeProsaEjecutiva(buildClaims(figs), { entidad: _disclosure.entidad });
+      const alt = esFaltante
+        ? componerPorForma({ figs, contentScope: pref.contentScope, forma: "tabla" })
+        : composeProsaEjecutiva(buildClaims(figs), { entidad: _disclosure.entidad });
       if (alt) {
         let c = ensurePeriodoDeclared(alt, periodos);
         c = ensureClarifyClosingQuestion(c, plan.mode);
@@ -2327,7 +2331,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // mismo argumento de seguridad que ya vale para simDegradado (componer desde figs YA autorizadas nunca puede
   // inventar ni prometer de más) vale IGUAL para cualquier otro rechazo de full scope — se generaliza la condición.
   if (!narration && (pref.contentScope === "action_only" || pref.contentScope === "full")) {
-    const composed = composeFromLedger(figs, pref.contentScope === "action_only" ? "action_only" : "full") || composeNoDataMessage(results);
+    /* LA REPARACIÓN RESPETA LA FORMA PEDIDA (owner 2026-08-12, punto 3). Acá se llamaba `composeFromLedger`, que
+     * imprime una tabla para todo lo que no sea `action_only` — sin mirar el `outputForm` que este mismo turno ya
+     * resolvió veinte líneas más arriba. El resultado medido: el usuario que pidió prosa recibía tabla, y el
+     * renderer de más abajo se la PODABA después, dejando la respuesta en nada. `formaSalida` y `pref.contentScope`
+     * ya están resueltos; se pasan, no se vuelven a deducir. */
+    const composed = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida }) || composeNoDataMessage(results);
     let c = ensurePeriodoDeclared(composed, periodos);
     // requisitos SIMULACIÓN/CLARIFY (ver narratePromptC.js): la reparación cae acá cuando el narrador libre agotó
     // los 3 intentos — el turno sigue siendo mode=simulacion/clarify, así que la garantía tiene que valer IGUAL.
@@ -2359,7 +2368,8 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (narration && formaSalida !== "auto") {
     const _tieneTabla = /^\s*\|.*\|\s*$/m.test(narration);
     if (formaSalida === "tabla" && !_tieneTabla) {
-      const tabla = composeFromLedger(figs, "data_only");
+      // la tabla PELADA: acá la narración ya trae su prosa, así que agregarle la lectura mínima sería repetirla.
+      const tabla = componerPorForma({ figs, contentScope: "results_only", forma: "tabla" });
       if (tabla) { narration = `${narration.trim()}\n\n${tabla.trim()}`; narrationRepaired = true; }
     } else if ((formaSalida === "prosa" || formaSalida === "solo_conclusion") && _tieneTabla) {
       // NO se borra la tabla y se deja el hueco: sus cifras se reinyectan en línea, así que la respuesta pierde la
@@ -2379,6 +2389,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       const cuerpo = parrafos.filter((s) => !_ES_PIE.test(s));
       const pie = parrafos.filter((s) => _ES_PIE.test(s));
       if (cuerpo.length > 1) { narration = [cuerpo[cuerpo.length - 1], ...pie].join("\n\n"); narrationRepaired = true; }
+    }
+    /* GARANTIZAR LA FORMA PODANDO PUEDE VACIAR LA RESPUESTA (owner 2026-08-12, punto 3 · el caso de E3.t3).
+     * MEDIDO acá mismo, con un narrador que devuelve una tabla donde se pidió prosa: el muro la aprueba —sus cifras
+     * están autorizadas—, este bloque le quita las filas por no ser la forma pedida… y lo que queda es
+     * «(Datos del año cerrado.)». Veinticuatro caracteres de puro marco: ni una cifra, ni un sujeto, ni una lectura.
+     * Formalmente cumple («no hay tabla»), y es peor que la tabla que se acaba de borrar.
+     * LA RED: si tras la poda no sobrevive ningún párrafo con CONTENIDO —todo lo que queda es pie declarativo— se
+     * recompone desde el ledger EN LA FORMA PEDIDA, con las mismas figs autorizadas y sin recalcular nada. El pie
+     * se conserva, porque declarar período y alcance nunca es opcional.
+     * Se prueba contra el muro antes de adoptarlo: si el guard lo rechazara, se deja lo que había — esta red puede
+     * mejorar un turno, nunca empeorarlo. */
+    const _ES_PIE_DECL = /^\(?\s*(?:alcance|datos del|foto de inventario|supuesto)\b/i;
+    const _sinCuerpo = (t) => !String(t || "").split(/\n{2,}/).map((s) => s.trim()).filter(Boolean).some((s) => !_ES_PIE_DECL.test(s));
+    if (narration && _sinCuerpo(narration)) {
+      const cuerpoNuevo = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida });
+      if (cuerpoNuevo) {
+        const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+        const candidato = [cuerpoNuevo, ...pie].join("\n\n");
+        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+          narration = candidato; narrationRepaired = true;
+        }
+      }
     }
   }
   mem2 = { ...mem2, lastOffer: lastOfferNow || null, recentNarrations: [narration, ...recentNarrationsPrev].slice(0, 2) };   // shim de compatibilidad (Etapa 4) — ver dialogueState.js:getLastOffer
