@@ -441,7 +441,23 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
  * LO QUE NO SE HIZO: bajar la descripción hasta que entrara en el tope viejo. No hay redacción útil que quepa en
  * los 24 caracteres que quedaban libres, y dejar la capacidad muda para no mover un número es exactamente lo que
  * este gate dice arriba que no se hace. */
-ok("PLAN system crece menos de 2.650 caracteres", planSystem - BASE.planSystem < 2650, `+${planSystem - BASE.planSystem}`);
+/* EL TOPE SUBE A 3.000 (owner 2026-08-12, tercera vez que la misma clase de defecto llega a producción).
+ * EL MOTIVO ES LA MEDICIÓN, no la comodidad: el techo de 2.650 había quedado ARTIFICIALMENTE AGOTADO. La
+ * reparación contextual consumió 2.630 de los 2.650, así que quedaban VEINTE caracteres libres — el catálogo
+ * del PLAN estaba congelado de hecho. Ninguna capacidad podía volverse alcanzable, por mínima que fuera la
+ * línea. Un presupuesto que no deja declarar lo que ya existe no controla el costo: garantiza que el producto
+ * conteste mal y barato.
+ * EL DISPARADOR, medido: el owner hizo clic en «¿Qué clientes venden mucho pero dejan poco margen?» y ADI le
+ * volcó la boleta cruda eligiendo por magnitud máxima. La lectura correcta EXISTÍA —`marginRead` con
+ * `focus:"alto_volumen_bajo_margen"` devuelve 43 cifras con venta, margen, benchmark y el valor de 1pp— y el
+ * planificador no podía pedirla porque el catálogo declaraba 2 de los 7 focos.
+ * QUÉ AUTORIZA Y QUÉ NO: los 350 caracteres nuevos son para ENLACES DE CATÁLOGO MEDIDOS —declarar capacidades
+ * que ya funcionan—, NUNCA para doctrina, tono ni reglas nuevas. Primer uso: 157 caracteres para
+ * `alto_volumen_bajo_margen`. `causa_precio` y `causa_costo` NO se declararon a propósito: devuelven lecturas
+ * idénticas, y hasta saber si son alias o falta implementación, declararlos sería prometer dos cosas que son una.
+ * SI ESTE TOPE VUELVE A QUEDAR SIN MARGEN, el problema no es el número: es que el catálogo creció sin que nadie
+ * mida qué parte ya no se usa. Subirlo otra vez sin ese barrido sería empezar a aflojar de verdad. */
+ok("PLAN system crece menos de 3.000 caracteres", planSystem - BASE.planSystem < 3000, `+${planSystem - BASE.planSystem}`);
 // TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
 // pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
 // -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma
@@ -463,8 +479,9 @@ ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200,
 // devolvió sacar `simulate` del enum. Medido, no estimado: 955. La regla que sostiene los tres números sigue
 // siendo la misma — el presupuesto existe para que el costo se DECIDA, y cada vez que sube queda escrito qué
 // capacidad lo paga. Y cuando algo lo devuelve, el tope baja: no se acumula holgura.
-ok("el crecimiento TOTAL de PLAN queda bajo 960 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 960, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// y de 960 a 1.010 (owner 2026-08-12): los mismos 157 caracteres del enlace, en tokens. Mismo criterio.
+ok("el crecimiento TOTAL de PLAN queda bajo 1.010 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 1010, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {
