@@ -6,6 +6,29 @@
  */
 import { GATEWAY_ROUTES } from "./gatewayCore.js";
 import { ipAddress } from "@vercel/functions";
+import { instalarTelemetria } from "./telemetrySink.js";
+import { toolNames } from "../oracle/toolRegistry.js";
+
+/* ── TELEMETRÍA EN PRODUCCIÓN (owner 2026-08-12) ──────────────────────────────────────────────────────────────
+ * `server.js` la instala para desarrollo con destino ARCHIVO. Producción NO tenía ninguno: los cinco endpoints
+ * de `api/` no instalaban nada, así que se podía medir el desarrollo y no lo que gastan los usuarios reales.
+ * Éste es el punto ÚNICO por el que pasan los cinco (adi-plan, adi-narrate, adi-narrate-c, adi-spec, adi-access),
+ * así que instalar acá los cubre a todos sin tocar ninguno.
+ * DESTINO CONSOLA: en Vercel el disco es efímero y stdout ya queda capturado en los logs de la plataforma.
+ * A NIVEL DE MÓDULO y una sola vez: en serverless el isolate se reusa entre invocaciones, y `setSink` es
+ * idempotente — reinstalar en cada request sería trabajo repetido sin efecto.
+ * APAGADA POR DEFECTO, igual que en desarrollo: sin `ADI_TELEMETRY_CONSOLE=true` no se instala nada y el
+ * gateway se comporta exactamente como antes. Una telemetría que uno CREE encendida es peor que una apagada,
+ * y ese error ya se pagó una vez en este proyecto. */
+let _telemetriaProd = { instalado: false, motivo: "no evaluada" };
+try {
+  const _env = (typeof process !== "undefined" && process.env) || {};
+  _telemetriaProd = String(_env.ADI_TELEMETRY_CONSOLE) === "true"
+    ? instalarTelemetria({ consola: true, tools: toolNames() })
+    : { instalado: false, motivo: "sin destino declarado (ADI_TELEMETRY_CONSOLE≠true)" };
+} catch (e) { _telemetriaProd = { instalado: false, motivo: `error al instalar: ${(e && e.message) || "desconocido"}` }; }
+/** Estado de la telemetría de producción — lo lee su gate; nunca condiciona una respuesta. */
+export function telemetriaProdEstado() { return { ..._telemetriaProd }; }
 
 const _json = (obj, status = 200, extraHeaders = null) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...(extraHeaders || {}) } });

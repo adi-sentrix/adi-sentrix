@@ -65,7 +65,34 @@ export function crearSinkArchivo(ruta, { fs = null, maxBytes = TELEMETRIA_MAX_BY
 
 /* instalarTelemetria({ ruta, tools, fs }) → { instalado, motivo, estadisticas } · idempotente y explícito.
  * El host decide DÓNDE; este módulo no adivina un destino ni lo crea en un directorio que no le pidieron. */
-export function instalarTelemetria({ ruta = null, tools = null, fs = null } = {}) {
+/* ── DESTINO CONSOLA · el único que sirve en producción (owner 2026-08-12) ────────────────────────────────────
+ * El destino ARCHIVO (arriba) no existe en Vercel: cada llamada corre en una función que muere al terminar, y
+ * el disco es efímero. Por eso la telemetría estaba encendida en `server.js` y APAGADA en producción —los cinco
+ * endpoints de `api/` no instalaban nada—, o sea que se podía medir el desarrollo y no lo que gastan los
+ * usuarios. Es el mismo patrón que ya mordió cinco veces: construido, probado, sin camino donde importa.
+ * CONSOLA porque Vercel ya captura stdout en sus logs: sin dependencias, sin servicio externo, sin costo. Y sin
+ * riesgo: lo que sale son los nueve campos declarados —códigos y números—, jamás un dato del cliente (el candado
+ * de `telemetry.js` descarta todo lo demás, y ese candado no se toca acá).
+ * PREFIJO fijo para poder filtrarlo en los logs sin leer todo. */
+export function crearSinkConsola({ log = null } = {}) {
+  let escritos = 0, descartados = 0;
+  const _log = typeof log === "function" ? log : (typeof console !== "undefined" ? console.log.bind(console) : null);
+  const sink = (ev) => {
+    if (!_log) { descartados++; return; }
+    try { _log("[adi-telemetria] " + JSON.stringify(_soloDeclarado(ev))); escritos++; }
+    catch { descartados++; }   // un fallo del destino JAMÁS puede tumbar un turno
+  };
+  return { sink, estadisticas: () => ({ destino: "consola", escritos, descartados }) };
+}
+
+export function instalarTelemetria({ ruta = null, tools = null, fs = null, consola = false, log = null } = {}) {
+  // consola PRIMERO: es el destino de producción y no depende del sistema de archivos.
+  if (consola) {
+    const { sink, estadisticas } = crearSinkConsola({ log });
+    setSink(sink);
+    if (Array.isArray(tools) && tools.length) setToolsDeclaradas(tools);
+    return { instalado: true, motivo: null, destino: "consola", estadisticas };
+  }
   if (!ruta) return { instalado: false, motivo: "sin destino declarado (ADI_TELEMETRY_FILE vacío)" };
   if (!fs) return { instalado: false, motivo: "sin acceso a archivos en este entorno" };
   // ESCRITURA COMPROBADA, NO SUPUESTA: si el destino no admite un append, no se instala. Falla cerrada.
