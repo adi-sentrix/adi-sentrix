@@ -17,7 +17,9 @@
  * TOPES: los declara `TOPE_LLAMADAS` / `TOPE_USD` abajo, y el cerrojo corta ANTES de la llamada que los rompería.
  */
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
+import * as fsReal from "node:fs";
 import { instalarTelemetria, telemetriaInstalada } from "./src/adi/llm/telemetrySink.js";
+import { toolNames } from "./src/adi/oracle/toolRegistry.js";
 import { estimateCostUSD } from "./src/adi/llm/modelPricing.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { crearCerrojo } from "./_certificacion_v12_live.mjs";
@@ -183,7 +185,10 @@ if (process.env.ADI_CERT_CORTA !== "1") {
 {
   imprimirMatriz();
   const RUTA_TELEMETRIA = process.env.ADI_TELEMETRY_FILE || null;
-  if (RUTA_TELEMETRIA) instalarTelemetria({ archivo: RUTA_TELEMETRIA });
+  // LA FIRMA ES { ruta, tools, fs } — el sink falla CERRADO a propósito: sin destino escribible no se instala, y
+  // sin telemetría instalada esta corrida se aborta antes de gastar un centavo. Es lo que hizo en el primer
+  // disparo (0 llamadas, US$0,00) cuando el nombre del parámetro estaba mal.
+  if (RUTA_TELEMETRIA) instalarTelemetria({ ruta: RUTA_TELEMETRIA, tools: toolNames(), fs: fsReal });
   if (RUTA_TELEMETRIA && !telemetriaInstalada()) { console.error("telemetría pedida y no instalada — se aborta antes de gastar"); process.exit(1); }
 
   const { handlePlan, handleNarrateC } = await import("./src/adi/llm/gatewayCore.js");
@@ -222,6 +227,10 @@ if (process.env.ADI_CERT_CORTA !== "1") {
       const texto = r ? String(r.text || "") : "";
       memoria.set(s.conv, { mem: (out && out.mem) || {}, history: [...(previo.history || []), { role: "user", text: s.texto }, { role: "assistant", text: texto }] });
       const fallas = s.condiciones.filter(([, f]) => { try { return !f({ plan: planReal, texto, r }); } catch { return true; } }).map(([n]) => n);
+      // PENDIENTE MEDIDO EN LA CORRIDA DEL 12/08: `call.args` se persistió bien -era el hueco de f4f2949- pero
+      // `results` llegó VACÍO en los 13 turnos, y el TEXTO no se guarda. Sin ellos, dos de los cuatro rojos no se
+      // pudieron diagnosticar desde el replay y hubo que reproducirlos offline. Antes de la próxima corrida hay
+      // que averiguar bajo qué nombre expone `answerViaOracle` los resultados del ejecutor y sumar la narración.
       paraReplay.push(armarRegistroDeTurno({ id: s.id, plan: planReal, results: r && r.results, scenario: "actual" }));
       resultados.push({ id: s.id, frente: s.frente, estado: fallas.length ? "NO CUMPLE" : "CUMPLE", fallas,
         tools: (planReal && (planReal.calls || []).map((c) => c && c.tool).filter(Boolean)) || [], largo: texto.length });

@@ -34,3 +34,6 @@ _matrix_gate.*.json
 
 # replay local de corridas pagadas: `call.args` y `results` pueden traer datos de negocio
 /fixtures/replay-local/
+
+# telemetria de corridas locales (no es fuente)
+telemetria-*.jsonl
