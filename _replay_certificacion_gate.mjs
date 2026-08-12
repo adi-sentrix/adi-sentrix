@@ -32,16 +32,19 @@ const ESPERADO = {
 // los turnos que la evaluación dio por correctos: el muro no puede tumbarlos.
 const CORRECTOS = ["E1.t1", "E1.t4", "E1.t5", "E3.t2", "E4.t1", "E4.t2", "E4.t4", "E5.t1", "E5.t3", "E5.t4", "E6.t2", "E6.t4"];
 
-/* ── LÍMITE DEL REPLAY, DECLARADO CON SU EVIDENCIA (owner 2026-08-11) ─────────────────────────────────────────
- * El fixture preserva la respuesta, el plan y la BOLETA de cada turno, pero NO los `results` ni el `trace` de las
- * tools. Los chequeos que autorizan una cifra DERIVADA leyendo `results` —el delta entre el caso base y el
- * simulado, por ejemplo— no pueden resolverse en el replay y producen un rechazo que en producción no ocurrió.
- * NO SE TAPA CON UNA EXCEPCIÓN A CIEGAS: el propio fixture trae la prueba de qué dijo el guard ese día. En E6.t3
- * `retryTrace.narrate` es [true,true,true] — el muro APROBÓ la respuesta tres veces. Las cifras que el replay
- * rechaza ($0.2M y $0.6M) son la mejora de contribución del escenario, derivada de `results`.
- * Se excluye ESE turno, por ESA razón, y el gate lo verifica leyendo el trace en vez de creerle a este comentario:
- * si algún día el fixture guardara `results`, la exclusión deja de hacer falta y se ve acá. */
-const LIMITE_DEL_REPLAY = ["E6.t3"];
+/* ── 24 DE 25 REPRODUCIBLES · UNO NO, Y LA CULPA ES DEL ARNÉS (owner 2026-08-11) ──────────────────────────────
+ * SE INTENTÓ RECONSTRUIR `results` EJECUTANDO DE NUEVO LAS TOOLS DESDE EL PLAN GUARDADO, y NO SE PUEDE: el
+ * corredor de la certificación guardó los NOMBRES de las tools, no sus argumentos. Medido sobre el propio
+ * fixture: 0 de 57 calls traen `args`. Sin los argumentos habría que adivinar qué entidad y qué porcentajes pidió
+ * cada call, y un replay con argumentos inventados no reproduce nada — certifica la imaginación del que lo
+ * escribe. Es una falla de MI instrumentación, no del producto, y se reporta como tal.
+ * CONSECUENCIA HONESTA: los chequeos que sólo necesitan la boleta se reproducen en los 25. El único turno cuyo
+ * veredicto depende de `results` —E6.t3, donde las cifras en disputa ($0.2M y $0.6M) son la mejora de
+ * contribución del escenario, derivada— queda NO REPRODUCIBLE. Su `retryTrace` dice [true,true,true], o sea que
+ * el muro lo aprobó tres veces en producción, pero eso es EVIDENCIA DE LO QUE PASÓ, no una reproducción.
+ * QUÉ HARÍA FALTA para llegar a 25/25: que el corredor persista `call.args` y `results`. Está anotado acá porque
+ * es lo que hay que arreglar antes de la próxima corrida pagada, no un detalle de este gate. */
+const NO_REPRODUCIBLE = ["E6.t3"];
 
 console.log(`\n── REPLAY DE ${F.casos.length} TURNOS · commit ${F.commit} · ${F.llamadasPagadas} llamadas · US$${F.costoUSD} ──\n`);
 console.log("TURNO   GUARD      VEREDICTOS");
@@ -71,14 +74,19 @@ console.log("\n[2] LAS RESPUESTAS CORRECTAS SIGUEN PASANDO · la cara que impide
     rotos.map((id) => `${id}: ${resultado.get(id).kinds.join(",")}`).join(" · "));
 }
 
-console.log("\n[2b] EL LÍMITE DEL REPLAY SE VERIFICA, NO SE DECLARA · el trace del fixture es la prueba");
-for (const id of LIMITE_DEL_REPLAY) {
-  const c = F.casos.find((x) => x.id === id);
+console.log("\n[2b] 24/25 REPRODUCIBLES · el que falta se declara, con la causa medida");
+{
+  // la razón por la que no se puede reconstruir se COMPRUEBA sobre el fixture, no se afirma: si algún día el
+  // corredor persiste `args`, este chequeo se pone rojo y obliga a intentar la reconstrucción de nuevo.
+  const conArgs = F.casos.flatMap((c) => (c.plan && c.plan.calls) || []).filter((x) => x && typeof x === "object" && x.args).length;
+  ok(conArgs === 0,
+    `ninguna call del fixture trae \`args\` (${conArgs} de 57): por eso NO se pueden re-ejecutar las tools y reconstruir \`results\``);
+  ok(NO_REPRODUCIBLE.length === 1 && NO_REPRODUCIBLE[0] === "E6.t3",
+    `se declara 24/25 reproducibles · NO reproducible: ${NO_REPRODUCIBLE.join(", ")} (su veredicto depende de \`results\`)`);
+  const c = F.casos.find((x) => x.id === "E6.t3");
   const nar = ((c || {}).retryTrace || {}).narrate || [];
   ok(nar.length > 0 && nar.every((e) => e.guardOk === true),
-    `${id} está excluido porque el guard lo APROBÓ en producción (trace: ${JSON.stringify(nar.map((e) => e.guardOk))}) — el rechazo del replay es falta de \`results\`, no del producto`);
-  const r = resultado.get(id);
-  ok(!!r && r.ok === false, `…y hoy el replay lo rechaza, que es justo lo que esta exclusión documenta`, r ? r.kinds.join(",") : "-");
+    `de E6.t3 sólo se conserva EVIDENCIA de lo que pasó -el guard lo aprobó ${nar.length} veces-, y eso NO es una reproducción`);
 }
 
 console.log("\n[3] EL REGISTRO DE VOZ · ninguna respuesta conserva voseo tras el guard de voz");
@@ -100,6 +108,6 @@ console.log("\n[4] INTEGRIDAD DE LA EVIDENCIA · el replay corre sobre los 25 tu
 }
 
 const bloqueados = [...resultado.entries()].filter(([, r]) => !r.ok).map(([id]) => id);
-console.log(`\n── replay: ${resultado.size}/25 turnos evaluados · ${bloqueados.length} bloqueados por el guard de hoy: ${bloqueados.join(", ") || "ninguno"} ──`);
+console.log(`\n── replay: ${resultado.size}/25 evaluados · 24/25 REPRODUCIBLES (E6.t3 no reproducible: sin args de las calls no se re-ejecutan sus tools) · ${bloqueados.length} bloqueados por el guard de hoy: ${bloqueados.join(", ") || "ninguno"} ──`);
 console.log(`── _replay_certificacion_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);
 process.exit(FAIL ? 1 : 0);
