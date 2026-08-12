@@ -807,6 +807,32 @@ export function buildAfinidadDoctrina(claims) {
   return "AFINIDAD ESTIMADA, NO VENTA OBSERVADA. Las cifras cliente×SKU de este turno salen de una afinidad de surtido MODELADA: el dato NO registra qué SKU se le vendió a cada cuenta. Entonces: (a) nombralas como CUENTAS CANDIDATAS o SALIDA COMERCIAL POSIBLE — nunca como compras ya ocurridas, ni con «volumen de compra», «cuenta predominante» o «historial»; (b) decí explícitamente que es una estimación de afinidad, aunque el usuario no lo pregunte; (c) si proponés una acción, enmarcala EN LA MISMA ORACIÓN como hipótesis —«una posible salida es…», «habría que validar…», «candidata a…»—: una recomendación pelada sobre una estimación se lee como si el dato la respaldara, y no la respalda. Podés recomendar; lo que no podés es esconder sobre qué te apoyás.";
 }
 
+/* ── EL NARRADOR NUNCA VEÍA LO QUE YA HABÍA DICHO (owner 2026-08-12, tercer defecto de la conversación real) ────
+ * EL CASO: el owner recibió el análisis de gastos y dos turnos después escribió «el analisis que me diste de
+ * gastos, el resultado del negocio». ADI volvió a narrar la lectura entera en vez de ir al nivel que le pidieron.
+ * LA CAUSA, medida en las tres capas: `mem.recentNarrations` existe y se mantiene · `guardC` la recibe y detecta
+ * la repetición · pero el NARRADOR —el único que podría evitarla— no tenía ni una palabra sobre ella. El array
+ * viajaba dentro de `memoria_interaccion` como ruido sin etiqueta, y `renderInteractionMemory` no lo rinde. O sea
+ * que el guard avisaba DESPUÉS de escribir, y quien escribía no se enteraba nunca. Es el mismo patrón que este
+ * proyecto ya encontró seis veces: la información existe, el consumidor que la necesita no la recibe.
+ * POR QUÉ AVISAR Y NO BLOQUEAR: bloquear la repetición está descartado con evidencia (ver `_repetitionVerbatim` en
+ * guardC.js) — agotaría los intentos de narrar y caería a una reparación PEOR que la respuesta repetida. La única
+ * capa donde esto se arregla de verdad es antes de escribir, no después.
+ * SÓLO LAS APERTURAS, nunca el texto completo: alcanzan para que el narrador RECONOZCA lo que ya dijo, no cuestan
+ * casi nada, y no le ponen delante un párrafo listo para copiar — que sería empujarlo al defecto que corrige.
+ * REPETIR UNA CIFRA O UN NOMBRE SIGUE SIENDO CORRECTO, y la instrucción lo dice: lo que no se repite es LA LECTURA
+ * ENTERA. Es la misma distinción que el owner ya fijó en 2026-07-30 y que `_repetitionAdvisory` respeta. */
+const _APERTURA_MAX = 120;
+export function buildNoRepetirDoctrina(mem) {
+  const prev = (mem && Array.isArray(mem.recentNarrations)) ? mem.recentNarrations : [];
+  const aperturas = prev
+    .map((t) => String(t || "").replace(/\s+/g, " ").trim())
+    .filter((t) => t.length > 20)
+    .map((t) => (t.length <= _APERTURA_MAX ? t : t.slice(0, t.lastIndexOf(" ", _APERTURA_MAX) + 1 || _APERTURA_MAX).trim() + "…"));
+  if (!aperturas.length) return "";
+  return `YA LE DIJISTE ESTO, NO SE LO REPITAS. Tus respuestas recientes empezaron así: ${aperturas.map((a) => `«${a}»`).join(" · ")}. El usuario YA TIENE esa lectura delante. Si esta pregunta apunta a lo mismo, NO la vuelvas a narrar entera: reconocé en una frase que ya se la diste y andá DIRECTO al nivel o al detalle que te está pidiendo ahora. Repetir una cifra o el nombre de un cliente es correcto y necesario; lo que no se repite es la lectura completa con otra redacción.`;
+}
+
 export function buildProporcionalidadDoctrina(claims) {
   const cs = Array.isArray(claims) ? claims : [];
   if (!cs.length) return "";
@@ -929,6 +955,10 @@ export function projectClaimsOnlyPayload(contract) {
     ...(c.reparacion ? { reparacion: c.reparacion } : {}),
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     cifras_autorizadas: claims.map((cl) => ({ etiqueta: cl.etiqueta, valor: cl.valor, ..._semanticaDe(cl, _ctxSujeto(claims)) })),
+    // NO REPETIR LO YA NARRADO — viaja en los DOS modos a propósito. Si sólo se cableara el payload de abajo,
+    // encender ADI_CLAIMS_ONLY_ENABLED apagaría este arreglo en silencio, que es exactamente la clase de defecto
+    // que este proyecto ya encontró seis veces. Ver buildNoRepetirDoctrina.
+    ...(buildNoRepetirDoctrina(c.memoria) ? { instruccion_no_repetir: buildNoRepetirDoctrina(c.memoria) } : {}),
     ...(c.memoria ? { memoria_interaccion: c.memoria } : {}),
   };
 }
@@ -1060,6 +1090,9 @@ export function projectNarratePayload(contract) {
     ...(hilo_reciente.length ? { hilo_reciente } : {}),
     datos,
     cifras_autorizadas,
+    // NO REPETIR LO YA NARRADO (ver buildNoRepetirDoctrina): la clave ni aparece en el primer turno de un hilo,
+    // así que un turno sin historia queda byte-idéntico al de siempre.
+    ...(buildNoRepetirDoctrina(mem) ? { instruccion_no_repetir: buildNoRepetirDoctrina(mem) } : {}),
     ...(mem ? { memoria_interaccion: mem } : {}),
   };
 }
