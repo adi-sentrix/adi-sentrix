@@ -7,6 +7,7 @@
  * gateway (la key vive server-side). El motor, la boleta y guardC son los mismos; esto solo los orquesta.
  */
 import { applyMemoryUpdate } from "./persona.js";
+import { resolverReferencia, REFERENCIA_ANAFORA_RE } from "../../config/businessPolicy.js";
 import { runPlan } from "./toolRunner.js";
 import { emit as emitTelemetria, nuevoTraceId, getToolsDeclaradas } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
 import { ledgerBoleta } from "./ledger.js";
@@ -1792,11 +1793,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // ver _silentZeroSupuestoFaltante arriba: red determinística para cuando el LLM, en vez de usar
   // supuestos_faltantes, asume 0% en silencio en la variable que el usuario no nombró — hallazgo EN VIVO, no
   // hipotético. El LLM manda (mecanismo principal); esto es SOLO la red, igual que el resto de _coerce* del archivo.
-  const supuestosFaltantes = _hasCompleteSimulateVars(calls)
+  let referenciaResuelta = null;
+  let supuestosFaltantes = _hasCompleteSimulateVars(calls)
     ? null
     : (Array.isArray(plan.supuestos_faltantes) && plan.supuestos_faltantes.length)
     ? plan.supuestos_faltantes
     : _silentZeroSupuestoFaltante(q, calls);
+  /* ── «A LA META» NO SE PREGUNTA: SE RESUELVE (owner 2026-08-11, defecto 6 de la certificación final) ──────────
+   * MEDIDO (E1.t4): «Si llevo sus acciones comerciales a la meta, ¿cuánto recupero?» → ADI preguntó «¿cuánto
+   * esperas que disminuyan las acciones comerciales (en $)?». La meta está declarada en la política de la empresa
+   * (`targetCarga`, 3,5%): preguntarla es hacerle repetir al usuario algo que su propia empresa ya definió, y en
+   * un turno donde además había dicho explícitamente «a la meta».
+   * EL VALOR SALE DE `POLICY`, NUNCA DEL TEXTO. `resolverReferencia` mapea métrica→referencia con un vocabulario
+   * cerrado y devuelve null si hay varias o ninguna — ahí sí se pregunta, que es la conducta correcta.
+   * NO PISA AL USUARIO: si el turno trae un supuesto explícito, `_hasCompleteSimulateVars` ya dio null arriba y
+   * este bloque no corre. El supuesto del usuario siempre gana; esto sólo cubre el hueco que dejaba la anáfora. */
+  if (supuestosFaltantes && supuestosFaltantes.length && REFERENCIA_ANAFORA_RE.test(q)) {
+    const ref = resolverReferencia({ texto: q });
+    if (ref) {
+      referenciaResuelta = ref;   // viaja al narrador y a la boleta: la cifra es de la política, no del narrador
+      supuestosFaltantes = null;  // hay valor autorizado → no se pregunta
+    }
+  }
   // ── NO SE PREGUNTA DOS VECES LO MISMO (owner 2026-08-11, la otra mitad de D3) ─────────────────────────────────
   // El arm "future" de arriba cubre el turno cuyo texto declara escenario de forma INEQUÍVOCA (el detector
   // determinístico). Este es su gemelo del lado del planificador: cuando PLAN pide el supuesto que falta teniendo

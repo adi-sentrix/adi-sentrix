@@ -37,6 +37,55 @@ export const POLICY_CONFIG = Object.freeze({
 // ── EL OBJETO VIVO · lo que todo ADI lee (composers/detectores/semáforos) · re-resuelto en initTenant ───────────────
 export const POLICY = { ...POLICY_CONFIG };
 
+/* ══ «LLEVALO A LA META» ES UN VALOR, NO UNA PREGUNTA (owner 2026-08-11, defecto 6) ════════════════════════════
+ * MEDIDO en la certificación final (E1.t4): «Si llevo sus acciones comerciales a la meta, ¿cuánto recupero?» y
+ * ADI respondió «¿cuánto esperas que disminuyan las acciones comerciales (en $)?». La meta EXISTE y está acá
+ * (`targetCarga`, 3,5%): preguntar por un valor que la política ya declara es hacerle repetir al usuario algo que
+ * la empresa ya definió.
+ * LA REFERENCIA SE RESUELVE POR MÉTRICA, y ese mapeo es el corazón del asunto: cada métrica tiene UNA referencia
+ * autorizada y NO son intercambiables. Confundir el benchmark de margen (30,1%) con la meta de carga comercial
+ * (3,5%) sería peor que preguntar — daría un número correcto de la política aplicado a la métrica equivocada.
+ * SE DEVUELVE null CUANDO NO HAY UNA SOLA: sin métrica reconocible, o con la referencia ausente, el motor
+ * pregunta. Una pregunta es barata; una referencia adivinada contamina toda la simulación. */
+export const REFERENCIA_POR_METRICA = Object.freeze({
+  margen:     { clave: "benchmark",    unidad: "pct",   label: "benchmark de margen" },
+  carga:      { clave: "targetCarga",  unidad: "pct",   label: "meta de carga comercial" },
+  rotacion:   { clave: "rotacionMin",  unidad: "ratio", label: "piso de rotación" },
+  cobertura:  { clave: "dohMax",       unidad: "days",  label: "techo de cobertura" },
+});
+
+// las familias de palabras con que el usuario nombra cada métrica. Vocabulario NUESTRO y cerrado: no se infiere
+// del texto libre, se reconoce. Lo que no está acá no resuelve, y por lo tanto pregunta.
+const _METRICA_RE = [
+  [/\bcarga comercial\b|\bacciones comerciales\b|\brebates?\b|\bdescuentos?\b/i, "carga"],
+  [/\bmargen\b|\bcontribuci[oó]n\b/i, "margen"],
+  [/\brotaci[oó]n\b|\bgir[oa]\b/i, "rotacion"],
+  [/\bcobertura\b|\bdoh\b|\bd[ií]as de inventario\b/i, "cobertura"],
+];
+// «a la meta», «al objetivo», «al benchmark», «a nuestra referencia», «al nivel definido». Es una ANÁFORA a la
+// política, no un número: por eso se reconoce la forma, y el VALOR sale siempre de POLICY.
+// `al` es la contracción de «a el» y es la forma MÁS común de escribirlo («al benchmark», «al objetivo»): sin
+// ella la anáfora no se reconocía en la mitad de los casos reales. Medido al cerrar el frente.
+export const REFERENCIA_ANAFORA_RE = /\b(?:al|a|hasta(?:\s+el|\s+la)?)\s+(?:la|el|los|las|nuestr[oa]s?|su|tu)?\s*(?:meta|objetivo|benchmark|referencia|est[aá]ndar|piso|techo|target|vara|nivel\s+(?:definido|objetivo|de\s+referencia))\b/i;
+
+/* resolverReferencia({ texto, metrica }) → { valor, unidad, label, clave } | null
+ * `metrica` explícita gana sobre lo que se infiera del texto: el llamador suele saber de qué se está hablando
+ * (la simulación pendiente, por ejemplo, sabe qué campo le falta) y esa certeza vale más que un reconocimiento. */
+export function resolverReferencia({ texto = "", metrica = null } = {}) {
+  const t = String(texto || "");
+  let clave = metrica && REFERENCIA_POR_METRICA[metrica] ? metrica : null;
+  if (!clave) {
+    const hits = _METRICA_RE.filter(([re]) => re.test(t)).map(([, k]) => k);
+    const unicas = [...new Set(hits)];
+    if (unicas.length !== 1) return null;   // ninguna o varias → el motor pregunta, no adivina
+    clave = unicas[0];
+  }
+  const ref = REFERENCIA_POR_METRICA[clave];
+  const valor = ref ? POLICY[ref.clave] : null;
+  if (valor == null || !Number.isFinite(Number(valor))) return null;
+  return { valor: Number(valor), unidad: ref.unidad, label: ref.label, clave: ref.clave, metrica: clave };
+}
+
 // ── CRITERIO DEL OWNER (C.2 · 2026-07-07) · "mi piso de margen es 28%, no el estándar" ──────────────────────────────
 // El usuario puede fijar SU vara ("recordá que mi margen mínimo es 28%") → override del benchmark en el PUNTO ÚNICO:
 // pisa tanto el default resuelto (perfil/config) como el benchmark embebido por-fila. null = sin criterio →
