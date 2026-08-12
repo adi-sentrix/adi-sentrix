@@ -41,18 +41,25 @@ h("1 · C1 · el planificador PUEDE emitir `clientesPorSku` — antes le estaba 
   ok(/clientesPorSku\{/.test(SRC), "…y está descrita en el catálogo que el planificador lee");
   const desc = (SRC.match(/clientesPorSku\{[^\n]*/) || [""])[0];
   ok(/tensionRead/.test(desc), "la descripción la desambigua de `tensionRead`, que fue lo que el modelo eligió en vivo");
-  /* LA DESAMBIGUACIÓN CONTRA `entityComposicion` SE SACÓ, y no por presupuesto sino por no ganársela: esa tool
-   * está en la deuda de inalcanzables de más abajo, así que el planificador no puede emitirla y no hay confusión
-   * posible con algo que no existe para él. La que sí se conserva es `tensionRead`, porque no es una hipótesis:
-   * es lo que el modelo eligió de verdad en la corrida del 12/08 cuando le faltaba esta entrada.
-   * Si algún día `entityComposicion` entra al enum, la deuda de abajo se pone roja y ahí habrá que volver a
-   * distinguirlas — el gate obliga a esa revisión en vez de dejarla al olvido. */
+  /* LA DESAMBIGUACIÓN CONTRA `entityComposicion` VOLVIÓ (owner 2026-08-12), y volvió porque pasó exactamente lo
+   * que este comentario anticipaba: esa tool entró al enum, así que la confusión ya es posible y dejarla sin
+   * distinguir sería apostar a que el modelo adivine. Son transpuestas —de unos SKU a las cuentas, contra de UN
+   * cliente a sus familias—, que es el par más fácil de cruzar. Vive del lado de `entityComposicion` y no acá:
+   * una sola frase, en un solo lugar, en vez de pagarla dos veces.
+   * `tensionRead` se conserva por el motivo de siempre: no es una hipótesis, es lo que el modelo eligió de verdad
+   * en la corrida del 12/08 cuando le faltaba esta entrada. */
+  ok(/clientesPorSku/.test((SRC.match(/entityComposicion\{[^\n]*/) || [""])[0]),
+    "…y `entityComposicion`, ahora alcanzable, se desambigua de `clientesPorSku` (son transpuestas)");
   ok(/multi-entidad|lista entera|UNA call/i.test(desc), "…y le dice que mande la lista de SKU en UNA sola call", desc.slice(0, 80));
   ok(/indicad/i.test(desc), "…y le dice al narrador que la relación sale sellada `indicado`", desc.slice(0, 80));
 
   // LA CARA GENERAL: este defecto es de CLASE, no de esta tool. Se fija el conjunto de inalcanzables conocidas
   // para que una tool nueva que nazca inalcanzable ponga el gate en rojo en vez de descubrirse en una corrida paga.
-  const DEUDA_CONOCIDA = ["entityComposicion", "entityCapitalLigado"];
+  // DEUDA CERRADA (owner 2026-08-12): `entityComposicion` y `entityCapitalLigado` ya están en el enum y en el
+  // catálogo. La lista queda VACÍA a propósito — el estado sano es que ninguna capacidad registrada sea muda, y
+  // así cualquier tool nueva que nazca inalcanzable pone esto en rojo el mismo día. La vigilancia completa de la
+  // clase (registrada · nombrable · descrita, y la simétrica) vive ahora en `_tools_alcanzables_gate.mjs`.
+  const DEUDA_CONOCIDA = [];
   const inalcanzables = Object.keys(TOOLS).filter((t) => !enEnum.has(t));
   ok(inalcanzables.length === DEUDA_CONOCIDA.length && DEUDA_CONOCIDA.every((t) => inalcanzables.includes(t)),
     `las tools inalcanzables son EXACTAMENTE la deuda ya conocida (${DEUDA_CONOCIDA.join(", ")}) — ninguna nueva se cuela`,

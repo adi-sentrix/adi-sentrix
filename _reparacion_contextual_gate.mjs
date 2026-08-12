@@ -428,21 +428,41 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
  * NO SE MUTILA EL CONTRATO PARA QUE EL PRESUPUESTO SIGA VERDE: es el mismo criterio con el que este gate ya subió
  * el tope de PLAN_TOOL cuando `reparacion` pasó a requerida. El presupuesto existe para que el costo se DECIDA,
  * no para que una capacidad quede muda. */
-ok("PLAN system crece menos de 2.050 caracteres", planSystem - BASE.planSystem < 2050, `+${planSystem - BASE.planSystem}`);
+/* EL TOPE SUBE A 2.650 (owner 2026-08-12, cierre de la deuda de tools inalcanzables). MISMO CRITERIO que el
+ * párrafo de arriba, aplicado a las DOS que quedaban: `entityComposicion` y `entityCapitalLigado` estaban
+ * registradas, andaban, y NO estaban en el enum ni en el catálogo — el planificador no podía nombrarlas, así que
+ * para el usuario no existían. Es el defecto de `clientesPorSku` otra vez, ya identificado y con causa conocida.
+ * EL COSTO ES EXACTO: 603 caracteres (~151 tokens por llamada de PLAN), 298 la primera y 303 la segunda — menos
+ * por tool que los 375 que costó `clientesPorSku`. Se recortó a lo indispensable: qué hace cada una, que SOLO
+ * sirven el eje cliente, que `entityComposicion` no es `entityRecord` ni la transpuesta `clientesPorSku`, y que
+ * `entityCapitalLigado` DECLINA cuando el dato no sostiene la relación cliente×SKU y eso NO se reintenta (esa
+ * última frase se paga sola: un reintento cuesta una llamada). Se sacaron ejemplos de pregunta y adjetivos, no
+ * una regla. Todo cae del lado FIJO del caché de PLAN.
+ * LO QUE NO SE HIZO: bajar la descripción hasta que entrara en el tope viejo. No hay redacción útil que quepa en
+ * los 24 caracteres que quedaban libres, y dejar la capacidad muda para no mover un número es exactamente lo que
+ * este gate dice arriba que no se hace. */
+ok("PLAN system crece menos de 2.650 caracteres", planSystem - BASE.planSystem < 2650, `+${planSystem - BASE.planSystem}`);
 // TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
 // pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
 // -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma
 // se adivinaba con detectores de frases y las CUATRO direcciones medidas fallaban. El costo es ~144 caracteres
 // por turno y se declara exacto, no se deja el tope holgado. El campo NO se recortó para entrar en el tope
 // viejo: mutilar un contrato para que un presupuesto siga verde es exactamente lo que este repo no hace.
-ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200, `+${planTool - BASE.planTool}`);
+// TECHO A 1.210 (owner 2026-08-12): los DOS nombres nuevos del enum de `calls[].tool` ocupan 42 caracteres —
+// `entityComposicion` y `entityCapitalLigado`—, y con eso el crecimiento pasa de 1.161 a 1.203. Son tres
+// caracteres por encima del tope viejo: el enum es la única forma de que el modelo pueda emitirlas, y no hay
+// versión más corta de un nombre que ya existe en el registro. Se declara exacto, no holgado.
+ok("PLAN_TOOL crece menos de 1.210 caracteres", planTool - BASE.planTool < 1210, `+${planTool - BASE.planTool}`);
 // el tope subió de 600 a 620 al volver `reparacion` requerida y nullable: el campo pasó a `required` y el tipo a
 // unión, y eso se paga en el esquema. Se declara el número exacto en vez de dejar el tope holgado.
 // el total sube de 720 a 810 por lo MISMO y por la misma cantidad: los ~94 tokens de `clientesPorSku`. Se declara
 // exacto para que la próxima capacidad que pida espacio tenga que justificarla igual, en vez de encontrar el
 // presupuesto ya aflojado.
-ok("el crecimiento TOTAL de PLAN queda bajo 810 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 810, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// y de 810 a 965 (owner 2026-08-12) por las dos últimas inalcanzables: ~151 tokens del catálogo + ~11 del enum.
+// Medido, no estimado: 958. La regla que sostiene los tres números sigue siendo la misma — el presupuesto existe
+// para que el costo se DECIDA, y cada vez que sube queda escrito qué capacidad lo paga.
+ok("el crecimiento TOTAL de PLAN queda bajo 965 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 965, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {
