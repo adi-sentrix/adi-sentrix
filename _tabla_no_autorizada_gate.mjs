@@ -153,7 +153,12 @@ H("[9] CASO DE ACEPTACIÓN · 'Muéstrame en una tabla las ventas mes a mes del 
   const pod = podarPlanProgresivo(plan, Q);
   ok(pod.podado.length === 0 && pod.plan.calls.length === 1, "la serie mensual NO se poda: se ejecuta completa");
   const r = runPlan({ intent: "answer", calls: pod.plan.calls }, { scenario: "actual" });
-  const meses = r.ledger.figs.filter((f) => /^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/i.test(String(f.label || "")));
+  // RE-CERTIFICADO (owner 2026-08-11, punto 4): una fig «Ene» PELADA era ambigua entre las tres series de
+  // la tabla (este año / año anterior / presupuesto). Desde que la matriz se cruza con su columna, cada celda se
+  // identifica «<serie> · <mes>». La expectativa vieja contaba justo la forma que producia el defecto de E3.t3
+  // -cinco filas «Ene» indistinguibles-, asi que se cuenta la etiqueta identificada.
+
+  const meses = r.ledger.figs.filter((f) => /(^|·\s*)(?:Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/i.test(String(f.label || "")));
   ok(meses.length >= 10, `la serie mensual completa viaja al narrador — ${meses.length} cifras de mes`);
   const t = { ledger: r.ledger, results: r.results, trace: null, question: Q, tablePolicy: "required" };
   ok(kinds(guardC("Las ventas del negocio fueron $100.0M, con su mejor tramo a mitad de año.", t)).includes("tabla-faltante"),

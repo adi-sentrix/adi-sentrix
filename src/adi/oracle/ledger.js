@@ -92,7 +92,33 @@ export function enrichFromFacts(boleta, facts) {
     const f = fig(String(label || v), v, { unit: _unitOf(v) });
     if (seen.has(f.canon)) return; seen.add(f.canon); boleta.push(f);
   };
+  /* ── UNA MATRIZ NO SE APLANA A FILAS INDISTINGUIBLES (owner 2026-08-11, punto 4) ─────────────────────────────
+   * MEDIDO en E3.t3: la respuesta mostró CINCO filas «Ene» con valores distintos ($277K, $269K, $249K, $125K,
+   * $705K) y la boleta traía seis figs con esa misma etiqueta. El composer NO estaba mal: emite una matriz
+   * correcta —`rows[] = {label:"Ene", values:["$277K","$269K",…]}` con `cols = ["Falabella","Jumbo",…]`—. Lo que
+   * fallaba era el aplanado: `walk` tomaba `label` como sujeto y le colgaba las N celdas de la fila, así que la
+   * identidad de la COLUMNA (qué serie es cada valor) se perdía y quedaban cinco cifras distintas con un nombre.
+   * ACÁ SE CRUZA LA MATRIZ ANTES DE APLANAR: cada celda se etiqueta «<columna> · <fila>», que es lo que la celda
+   * significa de verdad. Con UNA sola columna no hay ambigüedad y se deja el comportamiento de siempre. */
+  const _matriz = (t) => {
+    if (!t || !Array.isArray(t.rows) || !Array.isArray(t.cols) || t.cols.length < 2) return false;
+    for (const r of t.rows) {
+      if (!r || !Array.isArray(r.values) || r.values.length < 2) continue;
+      r.values.forEach((celda, i) => {
+        const col = t.cols[i];
+        if (!col || typeof celda !== "string") return;
+        const mm = celda.match(_FIGRE);
+        if (mm) mm.forEach((g) => add(`${col} · ${r.label}`, g));
+      });
+    }
+    return true;
+  };
+  const _tablaM = facts && facts.tablaM;
+  const _yaCruzada = _matriz(_tablaM);
+
   const walk = (node, entity, key = null) => {
+    // la matriz ya se emitió con su columna: volver a caminarla la aplanaría de nuevo y reintroduciría el defecto.
+    if (_yaCruzada && node === _tablaM) return;
     if (node == null) return;
     // STRING SUELTO (dentro de un array): las celdas ya formateadas de una MATRIZ viven así — tablaM.rows[].values =
     // ["$6.8M","$6.3M",…] (la serie mes a mes de `trend`). Sin esta rama se descartaban y el guard bloqueaba TODA la

@@ -112,7 +112,7 @@ H("[6] NO SE PIERDE LA LECTURA · qué pasa, por qué y la prioridad siguen auto
   // esta sección tiene que garantizar es lo contrario de lo que pedía: que NO reaparezca por otra vía.
   // Ver `_capital_ligado_cliente_gate.mjs` para la prueba completa de la decisión 9.
   ok(!tiene(/capital (detenido|inmovilizado)/i), "y NINGUNA cifra de capital se le atribuye al cliente (decisión 9)");
-  ok(!figs.some((f) => /^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/i.test(String(f.label || ""))), "y NO queda ninguna cifra de mes suelto");
+  ok(!figs.some((f) => /(^|·\s*)(?:Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/i.test(String(f.label || ""))), "y NO queda ninguna cifra de mes suelto");
   ok(!figs.some((f) => /· participación$/i.test(String(f.label || ""))), "ni ninguna fila de composición por familia");
   ok(!figs.some((f) => /(unidades detenidas|d[ií]as sin venta)/i.test(String(f.label || ""))), "ni las columnas del capital que solo se leen en tabla");
 }
@@ -150,7 +150,7 @@ H("[9] NO REGRESIÓN · el pedido explícito trae TODO lo que traía antes");
   ok(conTodo === completo, `pidiendo las dos cosas se autorizan las MISMAS ${completo} cifras que antes — sin pérdida`);
   const soloTemporal = podarPlanProgresivo(p, "Falabella mes a mes");
   const lt = runPlan({ intent: "answer", calls: soloTemporal.plan.calls }, { scenario: "actual" }).ledger;
-  ok(lt.figs.some((f) => /^(Ene|Feb|Mar)$/i.test(String(f.label || ""))), "el pedido temporal SÍ recupera las cifras mes a mes");
+  ok(lt.figs.some((f) => /(^|· *)(Ene|Feb|Mar)$/i.test(String(f.label || ""))), "el pedido temporal SÍ recupera las cifras mes a mes");
 }
 
 console.log(`\n── _divulgacion_progresiva_gate: ${PASS} PASS · ${FAIL} FAIL (de ${PASS + FAIL}) ──`);

@@ -128,6 +128,20 @@ const _LEAKS = [
 // tilde es obligatoria. Donde la forma sin tilde no existe («comenza», «pensa») o donde la sustitución es un
 // no-op («mira»→«mira», «arma»→«arma»), se aceptan las dos y no hay riesgo.
 const _FIN = "(?![\\p{L}])";
+
+/* _voseoConContexto(pares) → reglas que SÓLO convierten en posición de orden (owner 2026-08-11, punto 7).
+ * `-é` y `-í` son ambiguos de una forma que `-á` no lo es: «reponé» es imperativo voseante, pero «compré» es el
+ * pretérito de primera persona de un verbo en -ar; y «corregí» es LAS DOS COSAS a la vez — «corregí las
+ * condiciones» (orden) y «corregí el dato ayer» (lo que hice). La terminación sola no alcanza, así que se pide
+ * contexto: el imperativo ABRE la oración o va tras un conector de orden, y la oración no puede traer marca de
+ * pasado ni sujeto de primera persona. Ante la duda no se toca: dejar pasar un voseo cuesta una palabra;
+ * reescribir «corregí el dato ayer» cambia lo que la frase dice. */
+const _APERTURA = "((?:^|[.!?;:]\\s+|\\n\\s*|\\b(?:primero|despu[eé]s|luego|entonces|adem[aá]s)[,:]?\\s+))";
+const _NO_ES_PASADO = "(?![^.!?\\n]*\\b(?:ayer|anoche|anteayer|pasad[oa]|hace\\s+\\w+|ya\\s+lo|yo)\\b)";
+const _voseoConContexto = (pares) => pares.map(([vos, tu]) => [
+  new RegExp(`(?<![\\p{L}])${_APERTURA}${vos}${_FIN}${_NO_ES_PASADO}`, "gimu"),
+  (m, pre) => `${pre}${/^[A-ZÁÉÍÓÚ]/.test(m.trim()) && m.trim().startsWith(vos.charAt(0).toUpperCase()) ? tu.charAt(0).toUpperCase() + tu.slice(1) : tu}`,
+]);
 const _v = (patron, rep) => [new RegExp("\\b" + patron + _FIN, "giu"), rep];
 const _VOSEO = [
   // presente de indicativo, 2ª persona voseante — ninguna de estas formas es ambigua
@@ -195,6 +209,30 @@ const _VOSEO = [
    *    y se acepta: falso negativo antes que falso positivo, la doctrina de esta casa. */
   [/(?<![\p{L}])(?!(?:est|ac|all|quiz|ojal|sof|mam|pap|caf|dem|ah|panam|bogot|canad|paran)á(?![\p{L}]))([a-zñáéíóúA-ZÑÁÉÍÓÚ]{3,})á(?![\p{L}])/giu,
     (m, raiz) => (/r$/i.test(raiz) ? m : `${raiz}a`)],
+
+  /* ── LOS OTROS DOS IMPERATIVOS VOSEANTES · -é y -í (owner 2026-08-11, punto 7) ────────────────────────────────
+   * «Reponé primero Electrodomésticos» y «Primero corregí las condiciones» salieron al usuario en la
+   * certificación. La red de -á no los cubría, y ACÁ NO SE PUEDE GENERALIZAR como se generalizó allá:
+   *   · -é es el imperativo voseante de los verbos en -er (reponer→reponé) Y el pretérito de primera persona de
+   *     los verbos en -ar («compré el dato», «hablé con el cliente»). La terminación sola no distingue.
+   *   · -í es el imperativo voseante de los -ir (subí, escribí) Y el pretérito de primera de -er/-ir. «corregí»
+   *     es LAS DOS COSAS: «corregí las condiciones» (orden) y «corregí el dato ayer» (lo que hice).
+   * POR ESO ACÁ SE ENUMERA Y SE PIDE CONTEXTO, en vez de una regla morfológica:
+   *   (a) lista cerrada de los verbos del dominio, no `\w+` abierto;
+   *   (b) el imperativo ABRE la oración (o va tras un conector de orden: «primero», «después», «luego»);
+   *   (c) la oración no puede traer marca de pasado ni sujeto de primera persona.
+   * Ante la duda NO se toca: dejar pasar un voseo cuesta una palabra; reescribir «corregí el dato ayer» cambia
+   * lo que la frase dice. */
+  // LOS PARES SE ESCRIBEN ENTEROS, no se derivan quitando la tilde: «corregí» viene de correg-ir y su tuteo es
+  // «corrige» (la raíz cambia e→i), así que `correg`+`e` daría «correge», que no existe. La primera versión de
+  // esta red derivaba la forma y por eso no enganchaba ninguno de los verbos que venía a cubrir.
+  ..._voseoConContexto([
+    ["reponé", "repón"], ["vendé", "vende"], ["resolvé", "resuelve"], ["movés", "mueves"], ["atendé", "atiende"],
+    ["corré", "corre"], ["aprendé", "aprende"], ["entendé", "entiende"], ["escogé", "escoge"], ["recorré", "recorre"],
+    ["corregí", "corrige"], ["subí", "sube"], ["escribí", "escribe"], ["decidí", "decide"], ["abrí", "abre"],
+    ["medí", "mide"], ["repartí", "reparte"], ["incluí", "incluye"], ["definí", "define"], ["permití", "permite"],
+    ["revertí", "revierte"], ["convertí", "convierte"], ["dividí", "divide"], ["seguí", "sigue"], ["pedí", "pide"],
+  ]),
 ];
 // + NOTAS INTERNAS DEL ANALISTA (auditoría de asks 2026-07-15: cuando el number-guard bloquea la narración, el
 // texto determinístico de una ruta rica del motor puede traer su cola de notas — "Sin driver interno obvio en
