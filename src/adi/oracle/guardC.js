@@ -645,6 +645,14 @@ function _consolidacionDeUniversos(narration, ledger) {
   if (owners.size < 2) return [];
   const t = String(narration || "");
   if (!_CONSOLIDA_ANAFORICO.test(t)) return [];
+  // DECLARAR QUE NO SE CONSOLIDA ES LO CORRECTO, NO LA INFRACCIÓN (owner 2026-08-11, cazado por el replay de los
+  // 25 turnos). E5.t1 —una de las mejores respuestas de la corrida— dice «No consolido ambos cuadros: ventas,
+  // contribución y margen corresponden al año cerrado; capital, rotación y cobertura son una foto a hoy», y la
+  // primera versión de este chequeo la bloqueaba: veía «consolid…» junto a «ambos» y no miraba la negación.
+  // Bloquear la frase que explica por qué no se suma es peor que el defecto: deja al producto sin forma de decir
+  // la verdad. Si el texto NIEGA la consolidación en la misma ventana, no hay nada que juzgar.
+  const _NIEGA = /\b(?:no|nunca|jam[aá]s|sin)\s+(?:los\s+|las\s+|se\s+)?(?:consolid\w+|sum\w+|junt\w+|combin\w+|mezcl\w+)|no\s+(?:corresponde|se\s+puede|se\s+deben?|cierra|reconcilian?)\b|\bno\s+son\s+comparables\b|\bnunca\s+se\s+suman\b/i;
+  if (_NIEGA.test(t)) return [];
   // ¿los universos presentes en la boleta REALMENTE no reconcilian? Se pregunta al contrato, no se supone.
   const universos = [...new Set([...owners.values()].flatMap((s) => [...s]))];
   for (let i = 0; i < universos.length; i++) for (let j = i + 1; j < universos.length; j++) {
