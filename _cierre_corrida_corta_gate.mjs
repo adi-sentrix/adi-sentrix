@@ -53,17 +53,16 @@ h("1 · C1 · el planificador PUEDE emitir `clientesPorSku` — antes le estaba 
   ok(/multi-entidad|lista entera|UNA call/i.test(desc), "…y le dice que mande la lista de SKU en UNA sola call", desc.slice(0, 80));
   ok(/indicad/i.test(desc), "…y le dice al narrador que la relación sale sellada `indicado`", desc.slice(0, 80));
 
-  // LA CARA GENERAL: este defecto es de CLASE, no de esta tool. Se fija el conjunto de inalcanzables conocidas
-  // para que una tool nueva que nazca inalcanzable ponga el gate en rojo en vez de descubrirse en una corrida paga.
-  // DEUDA CERRADA (owner 2026-08-12): `entityComposicion` y `entityCapitalLigado` ya están en el enum y en el
-  // catálogo. La lista queda VACÍA a propósito — el estado sano es que ninguna capacidad registrada sea muda, y
-  // así cualquier tool nueva que nazca inalcanzable pone esto en rojo el mismo día. La vigilancia completa de la
-  // clase (registrada · nombrable · descrita, y la simétrica) vive ahora en `_tools_alcanzables_gate.mjs`.
-  const DEUDA_CONOCIDA = [];
-  const inalcanzables = Object.keys(TOOLS).filter((t) => !enEnum.has(t));
-  ok(inalcanzables.length === DEUDA_CONOCIDA.length && DEUDA_CONOCIDA.every((t) => inalcanzables.includes(t)),
-    `las tools inalcanzables son EXACTAMENTE la deuda ya conocida (${DEUDA_CONOCIDA.join(", ")}) — ninguna nueva se cuela`,
-    `inalcanzables: ${inalcanzables.join(", ") || "(ninguna)"}`);
+  /* LA CARA GENERAL SE MUDÓ (owner 2026-08-12), y se mudó porque acá se estaba volviendo el defecto que este repo
+   * ya pagó tres veces: DOS gates vigilando la misma clase con DOS listas propias, que se contradicen el día que
+   * una se actualiza y la otra no. La vigilancia entera vive ahora en `_tools_alcanzables_gate.mjs`, con UNA lista
+   * y con las tres condiciones completas —registrada · nombrable · descrita— más la simétrica (nombrable sin
+   * registrar) y la exigencia de motivo escrito para cada excepción. Es más estricta que la que estaba acá, que
+   * solo miraba el enum: `simulate` pasó ese chequeo durante meses estando en el enum SIN descripción.
+   * Acá queda lo que este gate sí es dueño de afirmar: que `clientesPorSku`, el defecto que originó la corrida
+   * corta, sigue alcanzable y descrito. */
+  ok(enEnum.has("clientesPorSku") && /clientesPorSku\{/.test(SRC),
+    "la tool de esta corrida sigue alcanzable Y descrita (la clase completa la vigila _tools_alcanzables_gate)");
 
   // y la conducta, no sólo el cableado: un plan que la nombra resuelve y sella `indicado`.
   const r = runPlan({ intent: "answer", calls: [{ tool: "clientesPorSku", args: { entities: ["SAM-TV55", "LG-WASH11KG"], topN: 3 } }] }, { scenario: "actual", maxCalls: 4 });

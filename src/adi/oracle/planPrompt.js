@@ -79,7 +79,7 @@ export const PLAN_TOOL = {
         items: {
           type: "object", additionalProperties: false,
           properties: {
-            tool: { type: "string", enum: ["queryMetric", "entityProfile", "entityRecord", "gridTable", "tensionRead", "compareEntities", "diagnose", "executiveSummary", "inventoryStatus", "marginRead", "salesRead", "contributionRead", "trend", "simulate", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral", "defineConcept", "pnlRead", "clientesPorSku", "entityComposicion", "entityCapitalLigado"] },
+            tool: { type: "string", enum: ["queryMetric", "entityProfile", "entityRecord", "gridTable", "tensionRead", "compareEntities", "diagnose", "executiveSummary", "inventoryStatus", "marginRead", "salesRead", "contributionRead", "trend", "simulateCarga", "simulateCapital", "simulateCosto", "simulateGeneral", "defineConcept", "pnlRead", "clientesPorSku", "entityComposicion", "entityCapitalLigado"] },
             args: { type: "object", additionalProperties: true, description: "Args de la tool según el catálogo (metric, dimension, entity, entities, filters, focus, limit)." },
           },
           required: ["tool", "args"],

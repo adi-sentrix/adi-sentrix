@@ -448,21 +448,23 @@ ok("PLAN system crece menos de 2.650 caracteres", planSystem - BASE.planSystem <
 // se adivinaba con detectores de frases y las CUATRO direcciones medidas fallaban. El costo es ~144 caracteres
 // por turno y se declara exacto, no se deja el tope holgado. El campo NO se recortó para entrar en el tope
 // viejo: mutilar un contrato para que un presupuesto siga verde es exactamente lo que este repo no hace.
-// TECHO A 1.210 (owner 2026-08-12): los DOS nombres nuevos del enum de `calls[].tool` ocupan 42 caracteres —
-// `entityComposicion` y `entityCapitalLigado`—, y con eso el crecimiento pasa de 1.161 a 1.203. Son tres
-// caracteres por encima del tope viejo: el enum es la única forma de que el modelo pueda emitirlas, y no hay
-// versión más corta de un nombre que ya existe en el registro. Se declara exacto, no holgado.
-ok("PLAN_TOOL crece menos de 1.210 caracteres", planTool - BASE.planTool < 1210, `+${planTool - BASE.planTool}`);
+// EL TECHO SE QUEDA EN 1.200 (owner 2026-08-12) y conviene dejar escrito por qué NO subió: el enum de
+// `calls[].tool` ganó `entityComposicion` y `entityCapitalLigado` (+42 car) y perdió `simulate` (-11), así que el
+// neto es +31 y el crecimiento queda en 1.192 — por debajo del tope de siempre. Hubo un momento en que este
+// número estuvo en 1.210 por los tres caracteres que sobraban antes de sacar `simulate`; se devolvió a 1.200 en
+// cuanto dejó de hacer falta. Un tope que quedó alto porque alguna vez se necesitó es un presupuesto aflojado.
+ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200, `+${planTool - BASE.planTool}`);
 // el tope subió de 600 a 620 al volver `reparacion` requerida y nullable: el campo pasó a `required` y el tipo a
 // unión, y eso se paga en el esquema. Se declara el número exacto en vez de dejar el tope holgado.
 // el total sube de 720 a 810 por lo MISMO y por la misma cantidad: los ~94 tokens de `clientesPorSku`. Se declara
 // exacto para que la próxima capacidad que pida espacio tenga que justificarla igual, en vez de encontrar el
 // presupuesto ya aflojado.
-// y de 810 a 965 (owner 2026-08-12) por las dos últimas inalcanzables: ~151 tokens del catálogo + ~11 del enum.
-// Medido, no estimado: 958. La regla que sostiene los tres números sigue siendo la misma — el presupuesto existe
-// para que el costo se DECIDA, y cada vez que sube queda escrito qué capacidad lo paga.
-ok("el crecimiento TOTAL de PLAN queda bajo 965 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 965, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// y de 810 a 960 (owner 2026-08-12) por las dos últimas inalcanzables: ~151 tokens del catálogo, menos lo que
+// devolvió sacar `simulate` del enum. Medido, no estimado: 955. La regla que sostiene los tres números sigue
+// siendo la misma — el presupuesto existe para que el costo se DECIDA, y cada vez que sube queda escrito qué
+// capacidad lo paga. Y cuando algo lo devuelve, el tope baja: no se acumula holgura.
+ok("el crecimiento TOTAL de PLAN queda bajo 960 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 960, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {

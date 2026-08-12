@@ -33,16 +33,19 @@ function section(t) { console.log(`\n== ${t} ==`); }
  * no se expone, no que "todavía no se hizo" (eso es un pendiente, y un pendiente va cerrado, no listado acá).
  * ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 const DEUDA_ACEPTADA = {
-  // ej: nombreDeTool: "motivo medido por el que NO debe ser alcanzable desde PLAN",
+  simulate: "SACADA DEL ENUM a propósito (owner 2026-08-12). Es el simulador GENÉRICO legacy — su propio contrato " +
+    "lo declara: «quedó de una etapa previa», superado por simulateGeneral. Se verificó que NINGUNA ruta viva la " +
+    "emite: los únicos emisores son dos gates que arman el plan a mano, y el motor despacha por el REGISTRO, no " +
+    "por el enum, así que siguen verdes. `guardC._SIM_TOOLS` la nombra para graduar supuestos y lee el nombre de " +
+    "la call ejecutada, no del enum. Se queda REGISTRADA (ejecutable) y deja de ser NOMBRABLE: estaba en el enum " +
+    "SIN entrada en el catálogo, que es la peor combinación — el modelo podía emitirla sin saber cuándo, y una " +
+    "call que nadie sabe cuándo elegir es una ruleta, no una capacidad. Sacarla no le quita nada al usuario: sin " +
+    "descripción ya era inelegible en la práctica.",
 };
 
 // La segunda forma de deuda: NOMBRABLE pero sin entrada propia en el catálogo. Misma exigencia — motivo escrito.
-const SIN_DESCRIPCION_ACEPTADA = {
-  simulate: "legacy declarado en su propio contrato (toolContracts.js: «el simulador GENÉRICO legacy … quedó de " +
-    "una etapa previa»), superado por simulateGeneral —que sí está descrita—. Sigue en el enum por compatibilidad " +
-    "y a propósito SIN entrada propia: describirla empujaría al modelo a elegir la vieja sobre la nueva. " +
-    "PENDIENTE DE DECISIÓN DEL OWNER: describirla, o sacarla del enum.",
-};
+// Vacía: una tool que el modelo puede emitir y no sabe cuándo usar no se acepta, se describe o se saca del enum.
+const SIN_DESCRIPCION_ACEPTADA = {};
 
 /* ── Lectura de las tres fuentes ─────────────────────────────────────────────────────────────────────────────── */
 const REGISTRADAS = toolNames();
