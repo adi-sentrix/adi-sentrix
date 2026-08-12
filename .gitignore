@@ -27,3 +27,10 @@ dist/
 
 # Telemetria del gateway · NUNCA se commitea (puede crecer, y es evidencia de una corrida, no codigo)
 _telemetria/
+
+# artefactos que los gates escriben al correr (salida, no fuente)
+_*_gate.json
+_matrix_gate.*.json
+
+# replay local de corridas pagadas: `call.args` y `results` pueden traer datos de negocio
+/fixtures/replay-local/
