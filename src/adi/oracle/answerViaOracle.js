@@ -23,7 +23,7 @@ import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./convers
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
 import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
-import { isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
+import { debeResponderSinRepreguntar, isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
 // dejó pendiente por bajo riesgo: mem.lastOffer/mem.recentSubjects (dialogueState.js) ya NO son una segunda fuente
@@ -1944,6 +1944,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // mechanismMemory (applyMemoryUpdate no preserva claves ajenas). Se resetea a 0 en cualquier turno que NO sea
   // clarify — la próxima vez que el usuario pida aclaración, empieza de nuevo en nivel 1, no sigue escalando.
   const clarifyStreakPrev = (mem && typeof mem.clarifyStreak === "number") ? mem.clarifyStreak : 0;
+  /* LA SEGUNDA ACLARACIÓN NO EXISTE (owner 2026-08-12) · ver `debeResponderSinRepreguntar` en dialogueState.js.
+   * Si ya se pidió una aclaración y el usuario respondió NOMBRANDO algo concreto —una línea, una métrica, una
+   * cifra—, el turno DEBE responder. Volver a preguntar no es prudencia: es no haber procesado la respuesta.
+   * Medido en vivo: «¿qué parte no entendés?» → «logística por qué tiene un 3.5%» → «¿a qué parte de la
+   * logística te referís?». El usuario había sido específico y ADI repreguntó igual.
+   * Es una COERCIÓN, no una sugerencia al narrador: la doctrina sola ya falló en formato de bloques y en la tabla
+   * obligatoria. Una regla de PROCESO se hace cumplir. Cae a "default", el modo que responde con la lectura. */
+  if (plan.mode === "clarify" && debeResponderSinRepreguntar(q, clarifyStreakPrev)) {
+    plan = { ...plan, mode: "default", _clarifyCortado: true };
+  }
   const clarifyStreakNow = plan.mode === "clarify" ? clarifyStreakPrev + 1 : 0;
   plan = { ...plan, clarifyStreak: clarifyStreakNow };
 

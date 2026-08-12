@@ -242,6 +242,35 @@ export function needsOrientacion(text, clarifyStreakNow) {
   return null;
 }
 
+/* ── LA SEGUNDA ACLARACIÓN NO EXISTE (owner 2026-08-12, medido en vivo) ─────────────────────────────────────────
+ * CASO REAL, cuatro turnos: el owner pide el resultado después de gastos y ADI responde bien, con la cascada.
+ *   — «no entiendo»                        → ADI: «¿qué parte no entendés?»          ← CORRECTO
+ *   — «logística por qué tiene un 3.5%»    → ADI: «¿a qué parte de la logística…?»   ← EL DEFECTO
+ *   — el owner explica                     → ADI REPITE la lectura entera
+ * La segunda pregunta es la falla: el usuario YA respondió, y respondió NOMBRANDO una línea y su cifra. Volver a
+ * preguntar no es prudencia, es no haber procesado la respuesta — y deja al usuario hablándole a una pared.
+ *
+ * `needsOrientacion` (arriba) NO cubre esto: dispara en clarifyStreak>=3 y es para «sigue perdido, cambiemos de
+ * enfoque». Acá el usuario NO está perdido: fue específico. Son dos problemas distintos y este no tenía regla.
+ *
+ * POR QUÉ DETERMINÍSTICO Y NO DOCTRINA: es una conducta de PROCESO («no repreguntes lo ya respondido»), no de
+ * criterio. La doctrina sola ya falló en formato de bloques y en la tabla obligatoria; una regla de proceso se
+ * hace cumplir, no se pide. Red ANGOSTA a propósito (mismo patrón que _ORIENTACION_RE): dispara con señales
+ * inequívocas de especificidad —una cifra, un %, o el nombre de una línea/métrica— y ante la duda NO bloquea,
+ * porque una aclaración de más molesta pero una respuesta a la pregunta equivocada miente. */
+const _ESPECIFICO_RE = /\d/;                                    // cualquier cifra: «3.5%», «los 4», «el 22»
+const _NOMBRA_LINEA_RE = /\b(log[ií]stica|gastos?|costo|margen|contribuci[oó]n|venta|carga|rebate|inventario|capital|rotaci[oó]n|benchmark|resultado|precio|unidades|bodega|cliente|marca|familia|sku)\b/i;
+/** ¿La respuesta del usuario a una aclaración YA es específica? Entonces la próxima NO puede ser otra aclaración. */
+export function respuestaYaEsEspecifica(text) {
+  const t = String(text || "").trim();
+  if (!t || t.length < 3) return false;                          // «?», «ah» → sigue sin ser específico
+  return _ESPECIFICO_RE.test(t) || _NOMBRA_LINEA_RE.test(t);
+}
+/** Regla de proceso: con una aclaración ya pedida y una respuesta específica, el turno DEBE responder. */
+export function debeResponderSinRepreguntar(text, clarifyStreakPrev) {
+  return (Number(clarifyStreakPrev) || 0) >= 1 && respuestaYaEsEspecifica(text);
+}
+
 // buildOrientacionInstruction(reason, recentSubjects) → instrucción REFORZADA a nivel de turno (mismo hallazgo de
 // calibración que "instruccion_formato" en responsePreference.js: el system prompt solo no bastó para el formato de
 // bloques, así que esto va DIRECTO en el payload de NARRATE, no solo como una regla de fondo).
