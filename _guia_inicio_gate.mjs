@@ -27,6 +27,7 @@ import { JSDOM } from "jsdom";
 import esbuild from "esbuild";
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
+import fs from "fs";   // el bloque 9 comprueba contra el CÓDIGO que los cruces que la guía promete existen de verdad
 
 let pass = 0, fail = 0;
 const ok = (cond, label) => { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ FALLO: ${label}`); } };
@@ -68,7 +69,7 @@ const ui = await import(pathToFileURL(bundlePath).href);
 const React = (await import("react")).default;
 const { render, fireEvent, cleanup, act } = await import("@testing-library/react");
 
-const { GUIA_EJEMPLOS, GUIA_KEY, GUIA_VISTA, GUIA_NUNCA, HERO_CHIPS, buildAdiTurn, NOT_YET_TEXT, answerConversational, resetPnlDraft } = ui;
+const { GUIA_EJEMPLOS, GUIA_KEY, GUIA_VISTA, GUIA_NUNCA, GUIA_CAPITULOS, GUIA_PASOS, HERO_CHIPS, buildAdiTurn, NOT_YET_TEXT, answerConversational, resetPnlDraft, coerceSpec, coerceFloor } = ui;
 
 // ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // LIMPIAR ES VOLVER A SER UN USUARIO NUEVO, no solo vaciar localStorage. El flujo del P&L guarda un borrador en
@@ -80,6 +81,7 @@ const limpiar = () => {
   try { dom.window.localStorage.clear(); } catch { /* */ }
   try { resetPnlDraft(); } catch { /* */ }
 };
+const _vacioSpec = (o) => !o || typeof o !== "object" || Object.keys(o).length === 0;
 const $ = (c, id) => c.querySelector(`[data-testid="${id}"]`);
 const hayGuia = (c) => !!$(c, "guia-inicio");
 const pasoActual = (c) => { const p = $(c, "guia-paso"); return p ? Number(p.getAttribute("data-paso")) : null; };
@@ -93,6 +95,9 @@ async function montarApp() {
 const clic = async (el) => { await act(async () => { fireEvent.click(el); }); };
 // avanza N pasos con "Siguiente"
 const avanzar = async (c, n) => { for (let i = 0; i < n; i++) await clic($(c, "guia-siguiente")); };
+// salta directo por el ÍNDICE · con seis capítulos, llegar al último a fuerza de "Siguiente" no prueba nada que el
+// recorrido lineal no pruebe ya, y hace que cada aserción dependa de las cinco anteriores.
+const irA = async (c, i) => { await clic($(c, `guia-indice-${i}`)); };
 
 // QUÉ ES UN DECLINE. `text == null` es el deferido explícito del motor (la UI pinta NOT_YET_TEXT en su lugar);
 // las rutas honestas de no-cobertura y el `_degrade` son las otras formas de "no te lo puedo contestar". Se exige
@@ -128,36 +133,77 @@ console.log("═".repeat(100));
 }
 
 console.log("\n" + "═".repeat(100));
-console.log("2 · LOS EJEMPLOS NO SON INVENTADOS · cada uno es un chip verificado de HERO_CHIPS");
+console.log("2 · LOS EJEMPLOS NO SON INVENTADOS · un tema por ejemplo, y el spec DERIVADO, nunca escrito a mano");
 console.log("═".repeat(100));
 {
-  ok(GUIA_EJEMPLOS.length === 3, `la guía ofrece 3 ejemplos (obtuvo: ${GUIA_EJEMPLOS.length}) — si un chip se renombró, acá se pierde`);
+  // El owner pidió un ejemplo por tema (2026-08-10). La invariante no cambió, el mecanismo se amplió: el spec sale
+  // de HERO_CHIPS si hay chip, y si no, del MISMO coercer determinístico del texto libre. Ninguno se escribe a mano.
+  ok(GUIA_EJEMPLOS.length === 4, `la guía ofrece 4 ejemplos por tema (obtuvo: ${GUIA_EJEMPLOS.length}) — si uno deja de producir spec, acá se pierde`);
+  const temas = GUIA_EJEMPLOS.map((e) => e.tema);
+  ok(new Set(temas).size === temas.length, `un ejemplo por tema, sin repetir (${temas.join(" · ")})`);
   for (const ej of GUIA_EJEMPLOS) {
-    const chip = HERO_CHIPS.find((c) => c.q === ej.q);
-    ok(!!chip, `«${ej.q}» sigue existiendo en HERO_CHIPS`);
-    ok(!!chip && JSON.stringify(chip.spec) === JSON.stringify(ej.spec),
-      `«${ej.q}» usa el spec de HERO_CHIPS SIN modificar (una sola fuente de preguntas de entrada)`);
+    ok(typeof ej.tema === "string" && ej.tema.length > 2, `«${ej.q}» declara su tema`);
+    ok(!_vacioSpec(ej.spec), `«${ej.q}» trae spec (fuente: ${ej.fuente})`);
+    if (ej.fuente === "hero") {
+      const chip = HERO_CHIPS.find((c) => c.q === ej.q);
+      ok(!!chip && JSON.stringify(chip.spec) === JSON.stringify(ej.spec),
+        `«${ej.q}» usa el spec de HERO_CHIPS SIN modificar (una sola fuente de preguntas de entrada)`);
+    } else {
+      // el spec derivado tiene que seguir siendo EXACTAMENTE lo que el coercer devuelve para ESE texto: si alguien
+      // lo edita a mano, la guía deja de prometer lo que la app hace y este candado lo caza.
+      const derivado = coerceFloor(ej.q, {}, {});
+      ok(JSON.stringify(derivado) === JSON.stringify(ej.spec),
+        `«${ej.q}» usa el spec que el coercer deriva de su propio texto, sin retoques`);
+    }
     ok(typeof ej.glosa === "string" && ej.glosa.length > 10, `«${ej.q}» trae su bajada de qué devuelve`);
   }
+  /* LAS DOS AUSENCIAS, MEDIDAS · el owner pidió seis temas y hay cuatro. Que falten no es un olvido: las dos que
+   * no están fueron probadas y no se pueden ofrecer hoy. El gate deja constancia para que, cuando el motor cambie,
+   * alguien las vuelva a probar en vez de asumir que siguen rotas. */
+  const ficha = "Explicame Falabella y qué debería revisar primero.";
+  ok(_vacioSpec(coerceFloor(ficha, {}, {})) && _vacioSpec(coerceSpec(ficha, {}, {})),
+    "FICHA sigue sin spec en los dos coercers · con el oráculo apagado el click daría «No recibí un pedido» — por eso no se ofrece");
+  const cruce = "¿Puedo sumar venta anual con capital inmovilizado?";
+  const rCruce = buildAdiTurn(cruce, {}, "actual").adiMsg;
+  const rCapital = buildAdiTurn("¿Dónde tengo capital inmovilizado?", {}, "actual").adiMsg;
+  ok(String(rCruce.text || "") === String(rCapital.text || ""),
+    "CRUCES sigue devolviendo la MISMA respuesta que «¿Dónde tengo capital inmovilizado?» · no contesta lo que se le pregunta, por eso no se ofrece");
+  ok(!GUIA_EJEMPLOS.some((e) => e.q === ficha || e.q === cruce), "…y ninguna de las dos está ofrecida en la guía");
 }
 
 console.log("\n" + "═".repeat(100));
 console.log("3 · EL MOTOR RESPONDE CADA EJEMPLO · las DOS puertas que el click puede tomar · NUNCA un decline");
 console.log("═".repeat(100));
 {
+  /* LA EXCEPCIÓN DEL FLUJO GUIADO (owner 2026-08-10, al pedir un ejemplo por tema).
+   * "¿Cuánto me queda después de gastos?" NO devuelve cifras, y es correcto que no las devuelva: sin líneas de
+   * gasto declaradas no hay resultado que afirmar, así que el motor las PIDE en vez de inventarlas. Eso es la
+   * regla 3 ocurriendo en el primer turno, no un decline. Antes esta pregunta quedaba fuera de la guía por este
+   * mismo motivo; ahora entra porque es LA pregunta del tema Resultado, y su glosa avisa exactamente qué pasa.
+   * Lo que NO se relaja: la ruta tiene que ser una ruta de respuesta (no de no-cobertura) y el texto, sustancial. */
+  const FLUJO_GUIADO = new Set(["¿Cuánto me queda después de gastos?"]);
   for (const ej of GUIA_EJEMPLOS) {
+    const guiado = FLUJO_GUIADO.has(ej.q);
+    const juzgar = (r) => {
+      const razon = porQueEsDecline(r);
+      // al ejemplo del flujo guiado se le perdona SOLO la falta de cifras, nada más
+      if (guiado && razon && /sin una sola cifra/.test(razon)) return null;
+      return razon;
+    };
     // cada ejemplo se mide COMO PRIMER TURNO de alguien que recién llega, no arrastrando el estado del anterior
     limpiar();
     // puerta A · oráculo ON: submitSpec delega en submit(texto) → piso determinístico
     const turnoA = buildAdiTurn(ej.q, {}, "bonanza");
     const rA = { text: turnoA.adiMsg.text, route: turnoA.adiMsg.route, _degrade: turnoA.adiMsg._degrade };
-    const malA = porQueEsDecline(rA);
-    ok(!malA, `[A · texto libre] «${ej.q}» → responde (ruta ${rA.route}, ${rA.text ? rA.text.length : 0} car.)${malA ? " · " + malA : ""}`);
+    const malA = juzgar(rA);
+    ok(!malA, `[A · texto libre] «${ej.q}» → responde (ruta ${rA.route}, ${rA.text ? rA.text.length : 0} car.${guiado ? " · flujo guiado" : ""})${malA ? " · " + malA : ""}`);
     // puerta B · oráculo OFF (producción hoy): el spec enlatado por el seam conversacional
     limpiar();
     const rB = answerConversational(ej.spec, {}, { scenario: "bonanza" });
-    const malB = porQueEsDecline(rB);
-    ok(!malB, `[B · spec enlatado] «${ej.q}» → responde (ruta ${rB && rB.route}, ${rB && rB.text ? rB.text.length : 0} car.)${malB ? " · " + malB : ""}`);
+    const malB = juzgar(rB);
+    ok(!malB, `[B · spec enlatado] «${ej.q}» → responde (ruta ${rB && rB.route}, ${rB && rB.text ? rB.text.length : 0} car.${guiado ? " · flujo guiado" : ""})${malB ? " · " + malB : ""}`);
+    // …y el que abre el flujo guiado tiene que DECIRLO en su glosa: el usuario no puede descubrirlo al hacer click
+    if (guiado) ok(/te pide|arma tu P&L/i.test(ej.glosa), `«${ej.q}» avisa en su bajada que abre el flujo guiado`);
   }
 }
 
@@ -168,8 +214,8 @@ for (const modo of [{ nombre: "oráculo ON (dev)", oracle: null }, { nombre: "or
   limpiar();
   if (modo.oracle !== null) dom.window.localStorage.setItem("adi_oracle", modo.oracle);
   const { container } = await montarApp();
-  await avanzar(container, 1);
-  ok(pasoActual(container) === 2, `[${modo.nombre}] "Siguiente" lleva al paso 2 (los ejemplos)`);
+  await avanzar(container, 2);
+  ok(pasoActual(container) === 3, `[${modo.nombre}] "Siguiente" lleva al capítulo 3 (los ejemplos)`);
   const btn = $(container, "guia-ejemplo-0");
   ok(!!btn && btn.textContent.includes(GUIA_EJEMPLOS[0].q), `[${modo.nombre}] el ejemplo 0 se renderiza con su pregunta`);
   await clic(btn);
@@ -191,15 +237,15 @@ limpiar();
 console.log("\n" + "═".repeat(100));
 console.log("5 · SE PUEDE SALTAR EN CUALQUIER PASO · y no bloquea (la app sigue viva detrás)");
 console.log("═".repeat(100));
-for (const p of [0, 1, 2]) {
+for (const p of [...Array(GUIA_PASOS).keys()]) {
   limpiar();
   const { container } = await montarApp();
-  await avanzar(container, p);
-  ok(pasoActual(container) === p + 1, `paso ${p + 1} en pantalla`);
-  ok(!!$(container, "guia-saltar") && !!$(container, "guia-cerrar"), `paso ${p + 1}: "Saltar" y ✕ disponibles`);
-  ok(!!$(container, "guia-abrir"), `paso ${p + 1}: el header sigue vivo detrás (no es un modal que bloquea)`);
+  await irA(container, p);
+  ok(pasoActual(container) === p + 1, `capítulo ${p + 1} («${GUIA_CAPITULOS[p]}») en pantalla`);
+  ok(!!$(container, "guia-saltar") && !!$(container, "guia-cerrar"), `capítulo ${p + 1}: "Saltar" y ✕ disponibles`);
+  ok(!!$(container, "guia-abrir"), `capítulo ${p + 1}: el header sigue vivo detrás (no es un modal que bloquea)`);
   await clic($(container, "guia-saltar"));
-  ok(!hayGuia(container), `paso ${p + 1}: "Saltar" la cierra`);
+  ok(!hayGuia(container), `capítulo ${p + 1}: "Saltar" la cierra`);
   cleanup();
 }
 {
@@ -265,20 +311,108 @@ for (const marca of [GUIA_VISTA, GUIA_NUNCA]) {
 limpiar();
 
 console.log("\n" + "═".repeat(100));
-console.log("8 · EL PASO 3 nombra dónde vive la evidencia (la Mesa bajo cada respuesta · la Ficha con el detalle)");
+console.log("8 · EL CAPÍTULO 5 nombra dónde vive la evidencia (la Mesa bajo cada respuesta · la Ficha con el detalle)");
 console.log("═".repeat(100));
 {
   limpiar();
   const { container } = await montarApp();
-  await avanzar(container, 2);
-  ok(pasoActual(container) === 3, "paso 3 en pantalla");
+  await irA(container, 4);
+  ok(pasoActual(container) === 5, "capítulo 5 en pantalla");
   const t = container.textContent;
   ok(/Debajo de cada respuesta aparece un botón que abre/.test(t) && t.includes("Sentrix"), "nombra el botón de evidencia bajo cada respuesta");
   ok(t.includes("Ficha") && /ahí vive el detalle/.test(t), "nombra la Ficha como el lugar del detalle de una entidad");
   ok(t.includes("Mesa de control"), "nombra la Mesa de control del header");
-  await clic($(container, "guia-siguiente"));
-  ok(!hayGuia(container), "\"Empezar\" cierra la guía en el último paso");
+  // CÓMO SE ABRE SENTRIX · el owner pidió que se dijera, y son las cuatro caras que tiene de verdad
+  ok(/Comercial/.test(t) && /Capital/.test(t) && /Resultado/.test(t), "nombra las caras de la Mesa (adónde llega el usuario cuando la abre)");
   cleanup();
+}
+
+/* ── 9 · EL ÍNDICE Y LOS CAPÍTULOS NUEVOS (owner 2026-08-10: "está muy básica") ────────────────────────────────
+ * La guía pasó de 3 pasos a 6 capítulos. Lo que este bloque cuida es lo que la ampliación puede romper:
+ *   · que los SEIS se puedan abrir directo — con seis pasos, un asistente de solo "Siguiente" no se lee;
+ *   · que el capítulo de LA HISTORIA nombre los tres movimientos EN ORDEN: es el modelo mental del producto
+ *     entero (toda respuesta de ADI y toda cara de la Mesa están armadas así), y en desorden no enseña nada;
+ *   · que el capítulo de LOS CRUCES no prometa un cruce que no existe (invariante 3 del archivo). Se verifica
+ *     contra el producto: el capital ligado vive en la Ficha y los compradores de un SKU inmovilizado en Capital;
+ *   · que las TRES REGLAS estén las tres, en la redacción que el owner selló (lengua del usuario, no la interna);
+ *   · que la guía NO se contradiga con la palabra que se unificó en el resto del producto ("inmovilizado"). */
+console.log("\n" + "═".repeat(100));
+console.log("9 · SEIS CAPÍTULOS · el índice, la historia, los cruces y las tres reglas");
+console.log("═".repeat(100));
+{
+  limpiar();
+  const { container } = await montarApp();
+  ok(GUIA_PASOS === 6 && GUIA_CAPITULOS.length === 6, `la guía tiene 6 capítulos (obtuvo: ${GUIA_PASOS})`);
+  // el índice completo, y cada botón lleva a SU capítulo
+  for (const i of [...Array(GUIA_PASOS).keys()]) {
+    ok(!!$(container, `guia-indice-${i}`), `el índice ofrece el capítulo ${i + 1} («${GUIA_CAPITULOS[i]}»)`);
+  }
+  for (const i of [5, 3, 1, 0]) {   // en desorden a propósito: saltar no puede depender de haber pasado por el anterior
+    await irA(container, i);
+    ok(pasoActual(container) === i + 1, `el índice abre el capítulo ${i + 1} directo (sin pasar por los anteriores)`);
+  }
+  /* EL BLANCO DE CLIC NO SE MUEVE. La primera versión metía el NOMBRE del capítulo dentro de la pastilla activa:
+   * al cambiar de capítulo la pastilla se ensanchaba, corría a las vecinas, y quien apuntaba al 4 caía en el 5.
+   * Se verificó a mano y pasaba de verdad. Ahora el nombre vive en el encabezado y las pastillas son todas del
+   * mismo ancho — un índice cuyos destinos se mueven bajo el cursor es peor que no tener índice. */
+  {
+    const anchos = [...Array(GUIA_PASOS).keys()].map((i) => $(container, `guia-indice-${i}`).style.width);
+    ok(anchos.every((w) => w && w === anchos[0]), `las pastillas del índice miden todas lo mismo (${[...new Set(anchos)].join(" / ")}) — así el destino no se corre al cambiar de capítulo`);
+    const conNombre = [...Array(GUIA_PASOS).keys()].filter((i) => GUIA_CAPITULOS.some((t) => $(container, `guia-indice-${i}`).textContent.includes(t)));
+    ok(conNombre.length === 0, "…y ninguna lleva el título adentro, que es lo que las hacía crecer");
+  }
+
+  // CAPÍTULO 2 · LA HISTORIA · los tres movimientos, en orden
+  await irA(container, 1);
+  const t2 = container.textContent;
+  const iQue = t2.indexOf("Qué está pasando"), iPor = t2.indexOf("Por qué y dónde"), iHacer = t2.indexOf("Qué hacer primero");
+  ok(iQue >= 0 && iPor >= 0 && iHacer >= 0, "los tres movimientos están nombrados");
+  ok(iQue < iPor && iPor < iHacer, `y EN ORDEN (qué ${iQue} · por qué ${iPor} · qué hacer ${iHacer}) — al revés no enseña el modelo`);
+  ok(/no alcanza para explicarlo/.test(t2), "…y dice qué pasa cuando el dato no explica: lo declara en vez de inventar la causa");
+  ok(/la enmarca, no la toma|decisión sigue siendo tuya/i.test(t2), "…sin sobreafirmar: ADI enmarca la decisión, no decide");
+
+  /* CAPÍTULO 4 · LOS CRUCES · lo que se promete tiene que EXISTIR, comprobado contra el código.
+   * 🔴 Este bloque nació de un error real: la guía prometió el capital ligado a un cliente el mismo día que el
+   * owner lo retiró (decisión 9, `203bc89` — el mix salía de una matriz de afinidad con todos los pesos > 0, así
+   * que la cifra era el inventario global repetido trece veces con nombre de cuenta encima). Por eso acá hay dos
+   * candados y no uno: que exista lo que se promete, Y que NO vuelva lo que se retiró. */
+  await irA(container, 3);
+  const t4 = container.textContent;
+  ok(/qué clientes lo compran/i.test(t4), "el cruce producto parado↔comprador nombra a los clientes que lo compran");
+  const cap = fs.readFileSync(path.join(root, "src/adi/sentrix/mesaCapital.js"), "utf8");
+  ok(/_compradoresDe/.test(cap), "…y ese cruce EXISTE en la cara Capital (no es una promesa vacía)");
+  ok(/estimaci[óo]n|indicado/i.test(t4), "…y se declara como estimación, que es como el módulo lo sella");
+  // EL CANDADO DEL CRUCE RETIRADO · si el capital ligado no está en la Ficha, la guía no puede prometerlo
+  const ficha = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8");
+  const hayCapitalLigado = /en productos que le vend[ée]s a/.test(ficha);
+  ok(!hayCapitalLigado, "el capital ligado a un cliente sigue retirado del producto (decisión 9 del owner)");
+  // NOMBRAR el cruce retirado es correcto —es la regla 3 en pantalla—; PROMETERLO no. La diferencia está en el
+  // modo: prometerlo es mandar al usuario a buscarlo ("abre la Ficha y vas a ver…"). Eso es lo que se prohíbe.
+  ok(!/Ficha[^.]{0,80}(capital (inmovilizado|parado|ligado)|cu[áa]nto capital)/i.test(t4),
+    "…y la guía NO manda a buscarlo en la Ficha: lo nombra como límite, no como destino");
+  ok(/no sostiene|se retir/i.test(t4), "…dicho en pantalla, que es la regla 3 funcionando");
+
+  // CAPÍTULO 6 · LAS TRES REGLAS · en la redacción sellada por el owner (2026-08-10)
+  await irA(container, 5);
+  const t6 = container.textContent;
+  for (const regla of ["Cada cifra cierra con su cuenta", "No te decimos por qué si no lo podemos probar", "Lo que falta, aparece en pantalla"]) {
+    ok(t6.includes(regla), `regla presente: «${regla}»`);
+  }
+  ok(/Preferimos un «no lo sé» a un número que no se sostiene/.test(t6), "y el cierre que las resume");
+  // la versión INTERNA no se filtra a la pantalla: "hardcodear" no le dice nada a un cliente
+  ok(!/hardcode/i.test(t6) && !/proporcionalidad sem[áa]ntica/i.test(t6), "…sin la jerga interna de las reglas");
+  await clic($(container, "guia-siguiente"));
+  ok(!hayGuia(container), "\"Empezar\" cierra la guía en el último capítulo");
+  cleanup();
+}
+
+// UNA SOLA PALABRA EN TODO EL PRODUCTO · la cara Capital dejó de decir "detenido" (be4f523); si la guía lo dijera,
+// el usuario leería dos nombres para el mismo dinero en su primera pantalla.
+{
+  const guia = fs.readFileSync(path.join(root, "src/ui/GuiaInicio.jsx"), "utf8")
+    .replace(/\/\*[^]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n");
+  ok(!/detenid/i.test(guia), "la guía dice «inmovilizado», igual que el resto del producto",
+    (guia.match(/[^.]*detenid[^.]*/i) || [""])[0].slice(0, 100));
 }
 limpiar();
 
