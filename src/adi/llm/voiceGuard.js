@@ -173,6 +173,28 @@ const _VOSEO = [
   _v("dec[ií]me", "dime"), _v("cont[aá]me", "cuéntame"), _v("mostr[aá]me", "muéstrame"),
   _v("dec[ií]le", "dile"), _v("fij[aá]te", "fíjate"), _v("acord[aá]te", "acuérdate"),
   _v("ped[ií]le", "pídele"),
+  /* ── LA RED MORFOLÓGICA · ÚLTIMA, y por eso segura (owner 2026-08-11, defecto 4 de la certificación final) ───
+   * MEDIDO: «Primero liquidá o rotá LG-DRYER8KG en Valparaíso» salió tal cual al usuario. Las formas estaban
+   * enumeradas para el PRESENTE («liquidás», «rotás») pero no para el IMPERATIVO («liquidá», «rotá»), y una lista
+   * cerrada siempre se queda corta: el narrador redacta libre y puede conjugar cualquier verbo del español.
+   * EL IMPERATIVO VOSEANTE ES SISTEMÁTICO: es el infinitivo sin la -r final, con tilde en la última sílaba. Así
+   * que la regla general es quitarle la tilde — «liquidá»→«liquida», «rotá»→«rota», «priorizá»→«prioriza».
+   * VA AL FINAL A PROPÓSITO: las formas de raíz cambiante («pensá»→«piensa», «cerrá»→«cierra») ya se
+   * sustituyeron arriba, así que acá sólo llegan las regulares, donde sacar la tilde ES la forma correcta.
+   * LAS EXCLUSIONES NO SON OPCIONALES: en español hay palabras terminadas en «á» que no son verbos («está»,
+   * «acá», «allá», «quizá», «ojalá», «sofá») y topónimos («Panamá», «Bogotá»). Sin esta lista, la red rompería
+   * prosa correcta — que es peor que el voseo que viene a corregir.
+   * SÓLO -á: el imperativo en -é («reponé») cambia de raíz en tuteo («repón») y quitarle la tilde da una forma
+   * que no es la correcta; se deja a la enumeración, donde cada caso se decide leyéndolo. */
+  /* TRES CORTES, y los tres se pagaron midiendo:
+   *  · 3+ letras de raíz, no 4: «rotá» tiene tres («rot») y se escapaba entera.
+   *  · SE ACEPTAN LAS CAPITALIZADAS: un imperativo al inicio de oración lo está («Validá el escenario»), y
+   *    excluirlas dejaba pasar justo las que abren una recomendación. Los topónimos se cubren por lista.
+   *  · SE EXCLUYE TODO LO TERMINADO EN «rá»: el FUTURO de tercera persona termina igual («podrá», «mejorará»,
+   *    «tendrá») y quitarle la tilde rompe prosa correcta. Cuesta los imperativos de verbos en -rar («mejorá»),
+   *    y se acepta: falso negativo antes que falso positivo, la doctrina de esta casa. */
+  [/(?<![\p{L}])(?!(?:est|ac|all|quiz|ojal|sof|mam|pap|caf|dem|ah|panam|bogot|canad|paran)á(?![\p{L}]))([a-zñáéíóúA-ZÑÁÉÍÓÚ]{3,})á(?![\p{L}])/giu,
+    (m, raiz) => (/r$/i.test(raiz) ? m : `${raiz}a`)],
 ];
 // + NOTAS INTERNAS DEL ANALISTA (auditoría de asks 2026-07-15: cuando el number-guard bloquea la narración, el
 // texto determinístico de una ruta rica del motor puede traer su cola de notas — "Sin driver interno obvio en
@@ -184,7 +206,16 @@ export function stripLanguageLeaks(text) {
   if (typeof text !== "string" || !text.trim()) return text;
   let s = text;
   for (const [re, rep] of [..._LEAKS, ..._VOSEO]) {
-    s = s.replace(re, (m) => (m[0] === m[0].toUpperCase() && /[a-záéíóú]/i.test(m[0]) ? rep.charAt(0).toUpperCase() + rep.slice(1) : rep));
+    // EL REEMPLAZO PUEDE SER UNA FUNCIÓN, y hasta hoy no podía (owner 2026-08-11). Esta línea llamaba
+    // `rep.charAt(0)` sin mirar el tipo, así que CUALQUIER regla con reemplazo dinámico reventaba con TypeError
+    // en cuanto matcheaba — incluida la de «por vos → por ti», que está escrita como función desde que se agregó.
+    // No se había notado porque el único texto que la ejercitaba no llegaba a este pase. Ahora las dos formas
+    // conviven: string (con su mayúscula preservada, como siempre) o función (que decide ella).
+    s = s.replace(re, (...args) => {
+      const m = args[0];
+      if (typeof rep === "function") return rep(...args);
+      return (m[0] === m[0].toUpperCase() && /[a-záéíóú]/i.test(m[0]) ? rep.charAt(0).toUpperCase() + rep.slice(1) : rep);
+    });
   }
   if (_NOTAS_INTERNAS_RE.test(s)) {
     const parts = s.split(/([.!?]+["»)]*\s+|\n+)/);

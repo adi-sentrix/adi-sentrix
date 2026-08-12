@@ -75,6 +75,16 @@ import { clientCapitalRelacion } from "../specRetrieval.js";   // decisión 9 ·
 // mismo rechazo. Tope duro (2s) para no exceder presupuestos de función serverless por acumular esperas.
 function _sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 const _RATE_LIMIT_BACKOFF_MS = 1500;
+/* _esSinCredito(err) → ¿el proveedor rechazó por FALTA DE CRÉDITO, no por rate limit? (owner 2026-08-11, defecto 1)
+ * Se lee del código que ya etiqueta el adapter (`billing_exhausted` / `fatal`), no del texto del mensaje: el
+ * mensaje lo escribe el proveedor y cambia sin avisar. El respaldo por texto existe sólo para un adapter que
+ * todavía no etiquete —falla ABIERTA hacia el comportamiento viejo, nunca al revés—. */
+export function _esSinCredito(err) {
+  if (!err) return false;
+  if (err.code === "billing_exhausted" || err.fatal === true) return true;
+  return /insufficient_quota|no credits remaining|exceeded your current quota|billing_not_active/i.test(String(err.message || ""));
+}
+
 function _rateLimitBackoffMs(err) {
   if (!err || err.code !== "rate_limited") return 0;
   const ra = Number(err.retryAfterMs);
@@ -1451,6 +1461,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       let p;   // , no const: la coerción de vocabulario lo reemplaza por una copia corregida
       try { p = await callPlan({ text: q, history, mem, scenario, requestContext, vistaLinea, attempt: modelAttempt }); }
       catch (e) {
+        // FALTA DE CRÉDITO: NI SE REINTENTA NI SE ESCALA (owner 2026-08-11, defecto 1). Esperar no lo arregla y
+        // subir de modelo lo encarece: la única conducta correcta es cortar el turno y dejar que el caller detenga
+        // la corrida. Se propaga con su código para que el arnés lo registre como `billing_exhausted` y no lo
+        // confunda con el ruido de red — 26 turnos de la certificación final quedaron marcados como fallidos
+        // cuando en realidad nunca llegaron a ejecutarse.
+        if (_esSinCredito(e)) { planAttemptTrace.push({ attempt, ok: false, reason: "billing_exhausted (sin crédito)", usage: null }); throw e; }
         const rateLimited = e && e.code === "rate_limited";
         planAttemptTrace.push({ attempt, ok: false, reason: rateLimited ? "rate_limited (429)" : "error de red/gateway", usage: null });
         const wait = _rateLimitBackoffMs(e);
@@ -2150,6 +2166,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
     try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext: vistaCtx, formaRespuesta, attempt: modelAttempt }); }
     catch (e) {
+      // MISMA REGLA QUE EN PLAN: sin crédito no se reintenta ni se escala (owner 2026-08-11, defecto 1). En la
+      // certificación final este loop gastó TRES llamadas por turno contra una API sin saldo, en cinco turnos.
+      if (_esSinCredito(e)) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "billing_exhausted (sin crédito)", usage: null }); throw e; }
       narrateAttemptTrace.push({ attempt, guardOk: null, reason: "error de red/gateway: " + (e && e.message), usage: null });
       const wait = _rateLimitBackoffMs(e);
       if (wait) await _sleep(wait);

@@ -22,12 +22,28 @@ const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 // antes un 429 era un Error genérico INDISTINGUIBLE de un timeout o un 500, así que el caller (answerViaOracle.js)
 // no podía backoffear específicamente ante rate-limit real. NO decide reintentos ni modelo acá (el adapter solo
 // habla con el proveedor) — solo etiqueta la señal para que el loop de reintento la consuma.
+// UN 429 POR FALTA DE CRÉDITO NO ES UN RATE LIMIT (owner 2026-08-11, defecto 1 de la certificación final).
+// MEDIDO: la cuenta se quedó sin saldo a mitad de la corrida y el proveedor devolvió 429 con
+// `type:"insufficient_quota"`. El motor lo trató como rate-limit transitorio: reintentó tres veces por turno,
+// escaló de modelo, y siguió con los 26 turnos siguientes. Resultado: 65 de las 120 llamadas pagadas se quemaron
+// contra una API que no iba a responder NUNCA, la corrida tocó el tope por consumo inútil y 26 turnos quedaron
+// registrados como fallidos cuando en realidad no se ejecutaron.
+// LA DIFERENCIA ES CATEGÓRICA, no de grado: un rate-limit se resuelve esperando; la falta de crédito NO se
+// resuelve sola, así que reintentar es tirar dinero y esperar es tirar tiempo. Se etiqueta distinto para que el
+// caller pueda hacer lo único correcto: detenerse.
+const _SIN_CREDITO = /insufficient_quota|no credits remaining|exceeded your current quota|billing_not_active|account_deactivated/i;
 function _rateLimitError(status, bodyText, headers) {
   const err = new Error(`HTTP ${status}: ${bodyText.slice(0, 240)}`);
-  if (status === 429) {
-    err.code = "rate_limited";
-    const ra = headers && typeof headers.get === "function" ? headers.get("retry-after") : null;
-    if (ra != null) { const ms = Number(ra) * 1000; if (Number.isFinite(ms) && ms > 0) err.retryAfterMs = ms; }
+  if (status === 429 || status === 402) {
+    const sinCredito = _SIN_CREDITO.test(String(bodyText || ""));
+    err.code = sinCredito ? "billing_exhausted" : "rate_limited";
+    // `fatal` es la señal que el loop de reintento consume: no reintentar, no escalar de modelo, cortar. Viaja
+    // como campo propio para que un caller que no conozca el código nuevo igual pueda leerla.
+    if (sinCredito) err.fatal = true;
+    else {
+      const ra = headers && typeof headers.get === "function" ? headers.get("retry-after") : null;
+      if (ra != null) { const ms = Number(ra) * 1000; if (Number.isFinite(ms) && ms > 0) err.retryAfterMs = ms; }
+    }
   }
   return err;
 }

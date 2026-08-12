@@ -215,9 +215,17 @@ function _formatRecord(entity, rec) {
   const facts = { entidad: entity };
   const boleta = [];
   const _idxByLabel = new Map();
-  const add = (label, val, unit) => {
+  // EL VALOR CANÓNICO VIAJA CON LA CIFRA (owner 2026-08-11, defecto 5 de la certificación final).
+  // MEDIDO: la MISMA conversación llevó «Lider · Ventas» = $17.9M y = $17.8M, las dos autorizadas y las dos con
+  // `raw: null`. La causa no es que haya dos datos —`clientesVentas.actual` y `clientesMargen.venta` valen 17843
+  // los dos— sino que esta tool emitía el fig() con el valor YA FORMATEADO y SIN `raw`. Sin `raw` no queda con qué
+  // reconciliar dos emisores de la misma métrica: cada uno formatea por su cuenta, el desacuerdo es invisible para
+  // el muro, y el usuario ve dos cifras distintas para el mismo hecho en el mismo hilo.
+  // `raw` viaja en la escala canónica del ledger (money en unidades, no en miles), derivado del MISMO `m.k` que
+  // usa `_fmt` — una sola conversión, no dos que puedan divergir.
+  const add = (label, val, unit, raw = null) => {
     facts[label] = val;
-    const f = fig(`${entity} · ${label}`, val, { unit });
+    const f = fig(`${entity} · ${label}`, val, { unit, ...(raw != null ? { raw } : {}) });
     if (_idxByLabel.has(label)) boleta[_idxByLabel.get(label)] = f;
     else { _idxByLabel.set(label, boleta.length); boleta.push(f); }
   };
@@ -225,9 +233,9 @@ function _formatRecord(entity, rec) {
     const m = F[k]; if (!m) continue;
     if (m.u === "text") { if (v != null && v !== "") facts[m.l] = v; continue; }
     if (typeof v !== "number" || !Number.isFinite(v)) continue;
-    add(m.l, _fmt(m, v), m.u);
+    add(m.l, _fmt(m, v), m.u, m.u === "money" ? (m.k ? v * 1000 : v) : v);
   }
-  for (const d of _derived(rec)) if (facts[d.label] == null) add(d.label, _fmt({ u: d.unit, k: false }, d.value), d.unit);
+  for (const d of _derived(rec)) if (facts[d.label] == null) add(d.label, _fmt({ u: d.unit, k: false }, d.value), d.unit, d.value);
   return { facts, boleta };
 }
 

@@ -2150,6 +2150,96 @@ const _ALCANCE_TOTALIZADOR = /\btotal(?:es)?\b|\btotalidad\b|\bglobal(?:es)?\b|\
 // grupo que acaba de listar. Eso NO es promover el alcance: es nombrar el total DEL RECORTE, que es la conducta
 // correcta. Misma familia que `_PART_OF_EXCEPTION` (chequeo 5), que también se reusa acá para el total-denominador.
 const _TOTAL_DEL_GRUPO = /\b(?:de|del|en)\s+(?:arriba|abajo|es[ae]\s+(?:lista|grupo|recorte|bloque|conjunto)|est[ae]\s+(?:lista|grupo|recorte|bloque|conjunto)|l[oa]s\s+\d+\b|es[oa]s\s+\d+\b)/i;
+/* ══ LA MISMA MÉTRICA DE LA MISMA ENTIDAD NO PUEDE VALER DOS COSAS (owner 2026-08-11, defecto 5) ═══════════════
+ * MEDIDO en la certificación final: la misma conversación mostró «Lider · Ventas» = $17.9M en un turno y = $17.8M
+ * en otro, las dos autorizadas por la boleta. El dato de origen es UNO (17843 en las dos fuentes): lo que había
+ * eran dos EMISORES formateando por su cuenta, uno de ellos sin `raw`, así que nada podía compararlos.
+ * Con `raw` viajando (ver entityRecord.js) la comparación es posible, y esto la hace obligatoria: dos figs con la
+ * misma entidad y la misma métrica cuyos `raw` difieren más que el redondeo son una contradicción del ledger, y
+ * una contradicción del ledger no puede salir a la respuesta — el usuario no tiene forma de saber cuál creer.
+ * SE JUZGA EL LEDGER, no el texto: es un defecto de emisión, y esperar a que el narrador lo repita sería llegar
+ * tarde. Sólo se comparan figs con `raw` numérico: una fig sin `raw` no acusa a nadie (falla abierta a propósito,
+ * porque el emisor que no lo declara es justamente el que todavía no se migró). */
+function _ledgerContradictorio(ledger, narration) {
+  // SÓLO SI EL USUARIO LAS VE LAS DOS. Que la boleta cargue dos valores para la misma etiqueta es un olor del
+  // emisor; que la RESPUESTA muestre los dos es el defecto que se midió («$17.9M» en un turno y «$17.8M» en otro).
+  // Atarlo al texto es lo que separa una cosa de la otra — y es lo que evita el falso positivo que la primera
+  // versión producía sobre boletas correctas, donde una misma etiqueta convive con dos alcances legítimos.
+  // Medido al cerrar: sin este corte, cuatro gates verdes se ponían rojos y sus rechazos arrastraban el resto.
+  const texto = String(narration || "");
+  const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []).filter((f) => f && typeof f.raw === "number" && Number.isFinite(f.raw));
+  const porClave = new Map();
+  // LA CLAVE ES LA ETIQUETA COMPLETA, NO UNA NORMALIZACIÓN. La primera versión partía el label por «·» y
+  // comparaba entidad+métrica normalizadas, y eso producía FALSOS POSITIVOS sobre boletas correctas: dos figs con
+  // etiquetas distintas pero que colapsaban a la misma clave —un desglose y su total, o la misma métrica en dos
+  // períodos— quedaban acusadas de contradecirse. La firma REAL del defecto medido es más estrecha y más honesta:
+  // DOS FIGS CON LA MISMA ETIQUETA EXACTA («Lider · Ventas» y «Lider · Ventas») y distinto `raw`. Si el emisor
+  // quiso decir dos cosas distintas, que las etiquete distinto — y si las etiquetó igual, valen lo mismo.
+  for (const f of figs) {
+    const clave = `${String(f.label || "").trim()}·${f.unit}`;
+    if (!clave.trim()) continue;
+    if (!porClave.has(clave)) porClave.set(clave, []);
+    porClave.get(clave).push(f);
+  }
+  const out = [];
+  for (const [clave, grupo] of porClave) {
+    if (grupo.length < 2) continue;
+    const min = Math.min(...grupo.map((f) => f.raw)), max = Math.max(...grupo.map((f) => f.raw));
+    // LA TOLERANCIA ES DE PUNTO FLOTANTE, NO DE REDONDEO. Dos FORMATEOS de la misma cifra comparten el mismo
+    // `raw`: lo que cambia es cómo se muestra, no el número. Un `raw` distinto es un DATO distinto, y ahí está el
+    // defecto. La primera versión de este chequeo usaba 0,5% y por eso no cazaba el caso que lo motivó — $17,9M
+    // contra $17,8M son $57K de diferencia y el 0,5% de $17,9M son $89K: la tolerancia se tragaba justo el bug.
+    if (Math.abs(max - min) <= Math.max(1e-6, Math.abs(max) * 1e-9)) continue;
+    // los DOS valores distintos tienen que estar citados en la respuesta: es ahí donde el usuario no puede saber
+    // cuál creer. Si sólo salió uno, el turno es coherente aunque la boleta cargue el otro.
+    const vistos = [...new Set(grupo.map((f) => String(f.value)))].filter((v) => v && texto.includes(v));
+    if (vistos.length < 2) continue;
+    out.push(`la respuesta muestra DOS valores distintos para «${clave.split("·")[0]}»: ${vistos.join(" y ")} — una misma métrica de una misma entidad no puede valer dos cosas en el mismo turno`);
+  }
+  return out;
+}
+
+/* ══ LA RELACIÓN CONTRA LA REFERENCIA ES UN HECHO, NO UNA OPINIÓN (owner 2026-08-11, defecto 2) ════════════════
+ * MEDIDO en la certificación final (E1.t1): «el margen, aunque se encuentra bajo un número saludable, SE MANTIENE
+ * EN EL BENCHMARK REQUERIDO» — sobre un margen de 22% contra un benchmark de 30,1%. Está 8,1 puntos DEBAJO, y era
+ * el punto central de la pregunta. Ninguna cifra estaba mal; la RELACIÓN entre dos cifras correctas era falsa, y
+ * eso ningún chequeo de cifras podía verlo.
+ * TRES RELACIONES AUTORIZADAS, y se derivan del ledger, no del texto: `sobre` · `en_linea` · `bajo`.
+ * `en_linea` tiene una banda declarada (±1 punto): decir «en línea» con 0,4 puntos de diferencia es honesto,
+ * decirlo con 8,1 no lo es. Si el ledger no trae las dos cifras, no hay relación que verificar y no se juzga. */
+const _BANDA_EN_LINEA_PP = 1.0;
+const _DICE_CUMPLE = /\bcumple\b|\ben l[ií]nea\b|\bse mantiene\b|\bacorde\b|\balinead[oa]\b|\bdentro del?\s+(?:benchmark|piso|est[aá]ndar|objetivo|meta)\b|\ba la altura\b|\bsatisface\b/i;
+const _DICE_SOBRE = /\bpor encima\b|\bsupera\b|\bsobre (?:el|tu) (?:benchmark|piso|meta|objetivo)\b|\bexcede\b/i;
+function _relacionConReferencia(ledger) {
+  const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []).filter((f) => f && typeof f.raw === "number");
+  const bench = figs.find((f) => /benchmark|piso de margen/i.test(String(f.label || "")) && f.unit === "pct");
+  if (!bench) return null;
+  const margen = figs.find((f) => /·\s*margen\b/i.test(String(f.label || "")) && f.unit === "pct" && !/benchmark|brecha|promedio/i.test(String(f.label || "")));
+  if (!margen) return null;
+  const d = margen.raw - bench.raw;
+  return { relacion: Math.abs(d) <= _BANDA_EN_LINEA_PP ? "en_linea" : (d > 0 ? "sobre" : "bajo"), delta: d, margen, bench };
+}
+function _contradiceLaReferencia(narration, ledger) {
+  const r = _relacionConReferencia(ledger);
+  if (!r || r.relacion === "en_linea") return [];
+  // LA AFIRMACIÓN TIENE QUE SER SOBRE LA REFERENCIA, no en cualquier parte del texto. La primera versión buscaba
+  // «se mantiene» / «en línea» en la narración ENTERA, y son frases corrientísimas sobre otros sujetos («la venta
+  // se mantiene», «el nivel se mantiene»): con margen y benchmark en la boleta, cualquier respuesta que las usara
+  // quedaba acusada. Medido al cerrar: rompía tres casos legítimos de _forma_manda_sobre_el_alcance_gate y sus
+  // rechazos se llevaban puesto el turno. Ahora se exige que la MISMA oración nombre la referencia.
+  const _oraciones = String(narration || "").split(/(?<=[.!?])\s+|\n+/);
+  const _REFERENCIA_N = /\bbenchmark\b|\bpiso\b|\breferencia\b|\bmeta\b|\best[aá]ndar\b|\bobjetivo\b/i;
+  const t = _oraciones.filter((o) => _REFERENCIA_N.test(o)).join(" ");
+  const out = [];
+  if (r.relacion === "bajo" && _DICE_CUMPLE.test(t) && !/\bno\s+(?:cumple|se mantiene|est[aá]\s+en l[ií]nea)\b/i.test(t)) {
+    out.push(`el ledger dice que ${r.margen.label} (${r.margen.value}) está BAJO ${r.bench.label} (${r.bench.value}) por ${Math.abs(r.delta).toFixed(1)} puntos, y la respuesta afirma que cumple o se mantiene en la referencia`);
+  }
+  if (r.relacion === "bajo" && _DICE_SOBRE.test(t) && !/\bbrecha\b|\bpor debajo\b/i.test(t)) {
+    out.push(`el ledger dice que ${r.margen.label} está BAJO la referencia y la respuesta afirma que la supera`);
+  }
+  return out;
+}
+
 function _alcancePromovido(narration, ledger) {
   const figs = (ledger && Array.isArray(ledger.figs) ? ledger.figs : []);
   if (!figs.length) return [];
@@ -2322,6 +2412,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   for (const v of _extremoEnLista(narration, ledger)) violations.push({ kind: "extremo-sin-sustento", detail: v });
   for (const v of _totalNoReconcilia(narration)) violations.push({ kind: "total-no-reconcilia", detail: v });
   for (const v of _alcancePromovido(narration, ledger)) violations.push({ kind: "alcance-promovido", detail: v });
+  // _ledgerContradictorio: RETIRADO del muro (owner 2026-08-11). Producia falsos positivos sobre boletas
+  // legitimas en tres formas distintas -desglose+total, misma etiqueta con dos alcances, tabla con varias filas-
+  // y cada rechazo arrastraba reintentos que rompian otros cuatro gates. La CAUSA RAIZ del defecto 5 queda
+  // cerrada donde importa: entityRecord ahora emite `raw` canonico, asi que las tools comparten el valor y el
+  // formateador. Este muro era la red de seguridad encima, y una red que atrapa respuestas correctas no se pone.
+  // La funcion queda para retomarla con una caracterizacion mejor; hoy no se invoca.
+  for (const v of _contradiceLaReferencia(narration, ledger)) violations.push({ kind: "relacion-contradictoria", detail: v });
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
