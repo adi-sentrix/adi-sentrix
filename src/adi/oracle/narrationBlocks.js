@@ -270,7 +270,16 @@ export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
   if (contentScope === "action_only") return `La prioridad: ${top.label} (${top.value}).`;
 
   const supuesto = _findSupuestoContext(list);
-  const conSupuesto = (t) => (supuesto ? `${t}\n\n${_formatSupuestoLine(supuesto)}` : t);
+  /* LA AFINIDAD SE DECLARA EN CUALQUIER FORMA (owner 2026-08-12, hallazgo M1). Si el turno sirve una relación
+   * sellada `indicado`, el texto tiene que decir que es estimada — y esta reparación es texto como cualquier otro.
+   * Sin esto el propio muro bloquearía el fallback por la regla nueva, y tendría razón: la regla no distingue quién
+   * redactó, y no debería. Un compositor exento sería una puerta trasera para el mismo defecto. */
+  const _afinidad = list.some((f) => f && f.tipo && f.tipo.sello === "indicado" && /afinidad/i.test(String(f.context || "")));
+  const _NOTA_AFINIDAD = "La relación cliente×SKU no está registrada en el dato: es una afinidad estimada por surtido, así que son cuentas candidatas, no compras ya ocurridas.";
+  const conSupuesto = (t) => {
+    const conNota = _afinidad ? `${t}\n\n${_NOTA_AFINIDAD}` : t;
+    return supuesto ? `${conNota}\n\n${_formatSupuestoLine(supuesto)}` : conNota;
+  };
 
   /* LA FORMA TABULAR SE DECIDE ANTES QUE EL ALCANCE, y sólo ella. «Solo la tabla» nombra la tabla EN POSITIVO, así
    * que fija las dos cosas a la vez: la forma es `tabla` y el alcance queda restringido. Si acá mandara el alcance,
@@ -292,7 +301,9 @@ export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
   // la forma correcta ahí —son varias filas de resultado— y el supuesto viaja pegado, nunca oculto.
   if (contentScope === "results_only") return conSupuesto(_tabla(list));
 
-  if (forma === "solo_conclusion") return `${top.label}: ${top.value}.`;
+  // una conclusión de afinidad cabe en una línea Y declara que es estimada: agregarle el párrafo entero rompería
+  // la brevedad pedida, pero omitir el estatus la volvería una afirmación de compra en tres palabras.
+  if (forma === "solo_conclusion") return `${top.label}: ${top.value}${_afinidad ? " (afinidad estimada, no compra registrada)" : ""}.`;
 
   // ── PROSA · el estatus epistemológico se SEPARA, no se aplana (E1.t3) ──────────────────────────────────────────
   // Los tres grupos salen del sello que cada fig ya trae. Aplanarlos sería presentar una estimación con el mismo

@@ -520,6 +520,45 @@ function _brechaMalAdjudicada(narration, claims) {
 const _DECLARA_ESTIMACION = /\bestimad\w+\b|\bestima\b|\bindicad\w+\b|\bderiv\w+\b|\baproximad\w+\b|\bsupuest\w+\b|\bno reconcilia\w*\b|\bdel motor\b|\bper[ií]odo completo\b|\bno es (?:una )?lectura\b|\bproyect\w+\b|\bagregado independiente\b|\bno es la suma\b|\bcalculad\w+\b/i;
 // «N cuentas», «N de M», «de los N clientes», «las materiales»: el texto está acotando de qué universo habla.
 const _DECLARA_ALCANCE = /\b\d+\s+de\s+\d+\b|\b\d+\s+(?:cuentas?|clientes?|sku|bodegas?|marcas?|familias?|meses)\b|\bmateriales?\b|\bde los\s+\d+\b|\bsubtotal\b|\btop\s*\d+\b/i;
+/* ── _afinidadComoCompra · UNA ESTIMACIÓN NO SE NARRA COMO HISTORIAL (owner 2026-08-12, hallazgo M1) ════════════
+ * MEDIDO EN VIVO: `clientesPorSku` devolvió 20 figs, TODAS selladas `indicado`, y la respuesta las narró como
+ * compra observada — «dado su gran volumen de compra», «Lider es la cuenta predominante», «reforzar la relación
+ * comercial». La pregunta decía literalmente «separá lo probado de la afinidad indicada» y la respuesta no separó
+ * nada. El sello viajaba en la boleta y se perdía en el camino al texto.
+ * POR QUÉ NO ALCANZABA `_estimacionComoHecho`: esa regla mira sólo AGREGADOS (`f.mandatory`) y saltea a propósito
+ * las cifras por entidad, porque exigirle una muletilla de procedencia a cada mención bloquearía media respuesta
+ * correcta. Las figs de afinidad son todas por entidad, así que caían justo en el hueco que aquella dejó abierto.
+ * LA DIFERENCIA QUE LO HACE SEGURO: acá el disparador no es «cifra derivada» —que es común y a menudo inocente—
+ * sino una cifra cuyo PROPIO CONTEXTO declara que la relación es de afinidad. Eso es angosto y sale del dato, no
+ * del nombre de la tool: si mañana otra tool sirve la misma matriz, la regla la cubre sola.
+ * DOS VIOLACIONES DISTINTAS, y la segunda es la que el owner nombró:
+ *   (a) el texto no declara EN NINGÚN LADO que la relación es estimada → una inferencia pasa por lectura;
+ *   (b) el texto afirma historial de compra → no es ambigüedad, es un hecho que el dato no tiene. Se bloquea
+ *       aunque el texto esté hedgeado en otra parte: «gran volumen de compra» afirma una compra que nadie observó,
+ *       y tener un descargo tres párrafos más abajo no lo deshace. */
+const _AFINIDAD_CTX_RE = /afinidad/i;
+const _COMPRA_OBSERVADA_RE = /\b(?:(?:gran |alto |mayor )?volumen de compras?|cuenta predominante|cliente predominante|historial de compras?|(?:le|les) vendimos|vien[ee]n? comprando|compras? habituales?|sus compras|su compra|reforzar (?:la )?relaci[oó]n comercial)\b/i;
+const _DECLARA_ESTIMACION_RE = /\b(?:afinidad|estimad[oa]s?|estimaci[oó]n|indicad[oa]s?|candidat[oa]s?|potencial(?:es)?|posible salida|podr[íi]an? comprar|surtido|se[nñ]al|no registra)\b/i;
+function _afinidadComoCompra(narration, figs) {
+  const text = String(narration || "");
+  const hayAfinidad = (Array.isArray(figs) ? figs : []).some((f) =>
+    f && f.tipo && f.tipo.sello === "indicado" && _AFINIDAD_CTX_RE.test(String(f.context || "")));
+  if (!hayAfinidad || !text) return [];
+  const out = [];
+  if (!_DECLARA_ESTIMACION_RE.test(text)) {
+    out.push("el turno sirve una relación cliente×SKU SELLADA `indicado` (una afinidad estimada, no una venta registrada) y el texto no lo declara en ningún lado: se lee como si el dato registrara quién le compró qué");
+  }
+  // SE REPORTAN TODAS, no la primera. El veredicto se convierte en la instrucción del reintento: nombrar una sola
+  // frase hace que el narrador corrija ésa y deje las otras, y se gasta un intento por frase. El texto real de M1
+  // traía TRES —«reforzar la relación comercial», «gran volumen de compra», «cuenta predominante»— y la primera que
+  // encontraba el regex ni siquiera era la más grave.
+  const frases = [...new Set((text.match(new RegExp(_COMPRA_OBSERVADA_RE.source, "gi")) || []).map((x) => x.toLowerCase()))];
+  if (frases.length) {
+    out.push(`${frases.map((f) => `«${f}»`).join(", ")} afirma${frases.length > 1 ? "n" : ""} un historial de compra que el dato NO tiene: la relación cliente×SKU de este turno es una afinidad estimada. Decilo como candidatura o salida comercial posible, nunca como compra ya ocurrida`);
+  }
+  return out;
+}
+
 function _estimacionComoHecho(narration, figs) {
   const out = [];
   const text = String(narration || "");
@@ -1150,9 +1189,22 @@ export function periodoDeclarado(narration, familias) {
 // período (por palabra clave, sea la frase del narrador o la nuestra) la deja intacta; si no, le agrega una
 // cláusula corta y canónica. "anual"+"hoy" juntos (un turno con inventario + otra tool) agrega ambas cláusulas.
 const _PERIODO_CLAUSULA = { anual: "Datos del año cerrado.", hoy: "Foto de inventario a hoy." };
+/* DOS MARCOS SE DECLARAN COMO DOS, NO COMO EL QUE FALTABA (owner 2026-08-12, hallazgo de la micro-certificación).
+ * MEDIDO: un turno que usó venta anual E inventario a hoy narró sólo el inventario —«en la foto de inventario a
+ * hoy»— y este pie le agregó «(Datos del año cerrado.)», porque la familia `anual` era la única sin declarar. Cada
+ * pieza era correcta y el resultado se contradecía: el cuerpo decía «a hoy» y el pie decía «año cerrado», sin nada
+ * que dijera que son DOS cifras con DOS marcos.
+ * LA REGLA: con más de una familia en juego, el pie nombra la mezcla completa —siempre, aunque el cuerpo ya haya
+ * mencionado una—, porque lo que hay que declarar no es la familia que falta sino que HAY MÁS DE UNA. Con una sola
+ * familia, el comportamiento no cambia en un solo carácter. */
+const _CLAUSULA_MIXTA = "Dos marcos distintos: la venta es del año cerrado y el inventario es la foto a hoy.";
 export function ensurePeriodoDeclared(narration, periodos) {
   const text = String(narration || "").trim();
   if (!Array.isArray(periodos) || !periodos.length || !text) return text;
+  if (periodos.length > 1) {
+    if (/dos marcos distintos/i.test(text)) return text;
+    return /\?\s*$/.test(text) ? `(${_CLAUSULA_MIXTA}) ${text}` : `${text} (${_CLAUSULA_MIXTA})`;
+  }
   const faltan = periodos.filter((fam) => !_periodoDeclarado(text, [fam]));
   if (!faltan.length) return text;
   const clausulas = faltan.map((fam) => _PERIODO_CLAUSULA[fam]).filter(Boolean).join(" ");
@@ -2408,6 +2460,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   for (const v of _causaSobredimensionada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
   for (const v of _brechaMalAdjudicada(narration, claimsPS)) violations.push({ kind: "causa-sobredimensionada", detail: v });
   for (const v of _estimacionComoHecho(narration, figs)) violations.push({ kind: "procedencia-no-autorizada", detail: v });
+  // MISMO VEREDICTO, OTRA PUERTA: `_estimacionComoHecho` cubre el agregado derivado; ésta, la relación estimada
+  // narrada como historial. Comparten `kind` porque el daño es el mismo —una procedencia que el dato no autoriza—
+  // y así el reintento recibe una instrucción del mismo tipo, sin inventar un veredicto nuevo para el narrador.
+  for (const v of _afinidadComoCompra(narration, figs)) violations.push({ kind: "procedencia-no-autorizada", detail: v });
   // 16 · POLÍTICA DE PRESENTACIÓN (owner 2026-08-07) — se valida LA POLÍTICA DECIDIDA para este turno, en los DOS
   // sentidos: `forbidden` bloquea la tabla, `required` bloquea su AUSENCIA (responder en prosa algo que se pidió
   // tabulado también es incumplir), `auto` no juzga y deja decidir a los detectores de forma del prompt.

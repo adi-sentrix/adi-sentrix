@@ -512,6 +512,40 @@ function _lineaUniversos(campos) {
   }
   return null;
 }
+/* ── ensureDeclinacionDeSuma · NO CRUZAR UNIVERSOS ES RESPONDER QUE NO, NO CAMBIAR DE TEMA ═════════════════════
+ * MEDIDO EN LA MICRO-CERTIFICACIÓN (owner 2026-08-12, sonda M4c). Pregunta: «Sumá las dos y decime el total del
+ * negocio», después de una venta anual y un capital de inventario. Respuesta: «Valparaíso y Antofagasta suman $33K
+ * de capital detenido…» y tres párrafos sobre bodegas. ADI NO cruzó los universos —eso estuvo bien— pero tampoco
+ * dijo que no iba a sumar: se fue a otra pregunta. El chequeo «no emite un total consolidado» pasó EN VACÍO, porque
+ * no hay total consolidado cuando nunca se intentó la suma.
+ * PARA EL USUARIO ES PEOR QUE UN ERROR VISIBLE: pidió una operación, recibió otra cosa, y nada le dice que su
+ * pedido no se podía atender. Se queda sin la respuesta y sin la razón.
+ * POR ESO ES DETERMINÍSTICO: si el turno pide sumar/consolidar y las cifras del turno están en universos que
+ * `reconcilian` declara divergentes, la declinación explícita se antepone SIEMPRE. La frase sale de la MISMA
+ * declaración de contrato que usa el resto del motor —unidad, escala y marco temporal de cada universo—, no de una
+ * lista de excusas escrita acá. Después el narrador puede mostrar ambas por separado: esto no le quita nada, le
+ * agrega lo que faltaba.
+ * NO EMITE NINGUNA CIFRA, igual que la línea de cobertura: nombra universos, que son vocabulario del contrato. */
+const _PIDE_SUMAR_RE = /\b(?:sum[aá](?:r|le|me|las|los)?|sumando|consolid[aá]\w*|junt[aá]\w*|agreg[aá]\w*\s+(?:las|los)\s+dos|total (?:del|de la)\s+negocio|(?:las|los)\s+dos\s+juntos?|en conjunto|cu[aá]nto (?:da|es) (?:el |la )?total)\b/i;
+const _YA_DECLINA_RE = /\bno (?:se |las |los )?(?:sum|consolid|compar)\w*|no son (?:comparables|sumables)|universos distintos|marcos distintos|dos marcos/i;
+export function ensureDeclinacionDeSuma(text, figs, question) {
+  const t = String(text || "");
+  if (!_PIDE_SUMAR_RE.test(String(question || ""))) return t;
+  if (_YA_DECLINA_RE.test(t)) return t;   // el narrador ya lo dijo: no se le pisa la redacción
+  const universos = [...new Set((Array.isArray(figs) ? figs : []).map((f) => f && f.tipo && f.tipo.universo).filter(Boolean))];
+  if (universos.length < 2) return t;
+  for (let i = 0; i < universos.length; i++) for (let j = i + 1; j < universos.length; j++) {
+    if (reconcilian(universos[i], universos[j]).estado !== "divergent") continue;
+    const A = UNIVERSOS[universos[i]], B = UNIVERSOS[universos[j]];
+    const motivos = [];
+    if (A.unidad !== B.unidad) motivos.push("miden unidades distintas");
+    if (A.periodo !== B.periodo) motivos.push(`una es ${A.periodo === "hoy" ? "un stock a hoy" : "un flujo del período"} y la otra ${B.periodo === "hoy" ? "un stock a hoy" : "un flujo del período"}`);
+    const linea = `No las sumo: «${A.etiqueta}» y «${B.etiqueta}» son universos distintos${motivos.length ? ` —${motivos.join(" y ")}—` : ""}, así que un total entre las dos no significaría nada. Te las dejo por separado.`;
+    return t ? `${linea}\n\n${t}` : linea;
+  }
+  return t;
+}
+
 function _rutaDeterministica(pref, simple) {
   const { entity, rec } = simple;
   const campos = Array.isArray(simple.campos) && simple.campos.length ? simple.campos : [simple];
@@ -2352,6 +2386,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
    * debería pasar siempre, pero «debería» no es una garantía — si el guard la rechaza se deja el texto como estaba.
    * LA CONSECUENCIA DE NO TENERLO, medida: el usuario nombró cinco cuentas, el motor resolvió cuatro y declaró la
    * quinta faltante en la boleta, y la respuesta habló de cuatro sin decir que faltaba una. */
+  /* LA DECLINACIÓN VA ANTES QUE LA COBERTURA, y las dos antes del pie temporal: primero por qué no se hace lo que
+   * se pidió, después qué faltó, al final el marco. Es el orden en que lo diría un colega. */
+  if (narration) {
+    const conDeclinacion = ensureDeclinacionDeSuma(narration, figs, q);
+    if (conDeclinacion !== narration
+      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+      narration = conDeclinacion; narrationRepaired = true;
+    }
+  }
   if (narration) {
     const conCobertura = ensureCoberturaDeclarada(narration, results);
     if (conCobertura !== narration

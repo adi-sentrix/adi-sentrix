@@ -120,9 +120,25 @@ const NARRAR_SRC = NARRAR;
 // El encargo del owner fue explícito: "el guard no debe depender de una lista cerrada de formas de redactarlo".
 // Las tres listas que había —procedencia, consolidación, estimación— ya no existen; se verifica su AUSENCIA, que
 // es lo único que impide que vuelvan de a poco.
-for (const [re, nombre] of [[/_PROCEDENCIA_USUARIO_RE/, "lista de frases de procedencia"], [/_CONSOLIDA_RE/, "lista de verbos de consolidación"], [/_ESTIMACION_RE/, "lista de palabras de estimación"]]) {
+for (const [re, nombre] of [[/_PROCEDENCIA_USUARIO_RE/, "lista de frases de procedencia"], [/_CONSOLIDA_RE/, "lista de verbos de consolidación"], [/\b_ESTIMACION_RE/, "lista de palabras de estimación"]]) {
   ok(`el guard ya NO tiene ${nombre}`, !re.test(GUARD));
 }
+/* LA DOCTRINA SE PRECISA, NO SE AFLOJA (owner 2026-08-12, hallazgo M1). El encargo original —«el guard no debe
+ * depender de una lista cerrada de formas de redactarlo»— apuntaba a un modo de falla concreto: un candado cuyo
+ * ÚNICO disparador es cómo está escrita una frase falla en las dos direcciones (cualquier paráfrasis lo esquiva, y
+ * una redacción inocente lo dispara). Las tres listas de arriba eran así, y siguen retiradas.
+ * `_afinidadComoCompra` NO es de esa familia, y la diferencia es verificable acá: su disparador es EL DATO —figs
+ * selladas `indicado` cuyo propio `context` declara que la relación es de afinidad—, y sólo DESPUÉS de eso mira la
+ * redacción. Sin esa condición del dato no juzga una sola palabra: sobre un turno normal, ninguna de esas frases
+ * significa nada y la regla ni se ejecuta.
+ * POR QUÉ HACE FALTA MIRAR LA REDACCIÓN ACÁ: lo que hay que detectar es si el texto AFIRMA una compra que no
+ * ocurrió. Eso no tiene señal del lado del dato —el dato ya dijo lo suyo, y lo dijo bien: `indicado`—; lo que falla
+ * es el paso del sello a la prosa. Medido en vivo en M1: 20 figs `indicado` y tres frases de historial de compra.
+ * SE VERIFICA EL ORDEN, que es lo que impide que esto se convierta en la cuarta lista suelta. */
+ok("la regla de afinidad se dispara por el DATO (fig sellada `indicado` con contexto de afinidad), no por la redacción",
+  /function _afinidadComoCompra/.test(GUARD)
+  && /const hayAfinidad = [\s\S]{0,220}?sello === "indicado"[\s\S]{0,80}?_AFINIDAD_CTX_RE/.test(GUARD)
+  && /if \(!hayAfinidad \|\| !text\) return \[\];/.test(GUARD));
 ok("la marca de procedencia la ESTAMPA el renderer, y corre sobre el texto final",
   /export function markUserProvenance/.test(NARRAR_SRC) && /textoFinal = markUserProvenance\(textoFinal, reparacionSellada, figs\)/.test(MOTOR));
 ok("§5.1 viñeta 2 · la consolidación SÍ bloquea, y se detecta por aritmética (es lo único que el renderer no puede reparar)",
