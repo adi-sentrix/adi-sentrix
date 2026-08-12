@@ -787,6 +787,26 @@ const _PS = {
   nivel: "NIVEL FINANCIERO. Cada métrica afirma lo suyo y nada más: venta positiva significa que VENDE; margen positivo, que DEJA MARGEN; contribución positiva, que APORTA CONTRIBUCIÓN. Ninguna de las tres autoriza a decir que una cuenta o el negocio \"es rentable\" o \"es rentable/sana en rentabilidad\" — eso exige un RESULTADO que ya descontó costos Y gastos, y solo podés afirmarlo si tenés una cifra autorizada con `nivel: resultado`. Si no la tenés y el usuario pregunta si conviene la cuenta, respondé con lo que SÍ sabés y nombrá el límite: \"la cuenta deja contribución positiva, pero su margen está bajo tu referencia\" — y decí que para hablar de rentabilidad hace falta el resultado con gastos.",
   cierre: "TRANSVERSAL: no afirmes más de lo que la cifra demuestra. Para lo PROBADO: \"el dato muestra que…\", \"la parte comprobada es…\", \"hoy esta cuenta aporta…\". Para lo INDICADO: \"el patrón sugiere…\", \"hay una señal de presión en…\", \"los datos apuntan a…\", \"conviene profundizar en…\". Para lo ABIERTO: \"el dato disponible no permite aislar todavía…\", \"no hay evidencia suficiente para atribuirlo a…\", \"para confirmarlo falta…\". Y una contribución no capturada NUNCA es una \"pérdida\": es una oportunidad, una brecha o un valor no capturado — no salió de la caja.",
 };
+/* ══ AFINIDAD ESTIMADA · DOCTRINA CONDICIONAL DE TURNO (owner 2026-08-12) ══════════════════════════════════════
+ * MEDIDO: con la boleta llena de figs `indicado` de afinidad cliente×SKU, el narrador escribió dos veces seguidas
+ * un texto que el muro rechazó —«reforzar la relación con Lider», «Lider es la cuenta predominante»— y el turno
+ * terminó resuelto por el compositor determinístico. El muro y la reparación funcionaron; el modelo no sabía la
+ * regla ANTES de escribir, así que la aprendía a golpes, a un reintento por turno.
+ * ES CONDICIONAL, Y ESO NO ES UN DETALLE DE COSTO: esta doctrina sólo tiene sentido cuando el turno sirve una
+ * relación estimada. Meterla en el system permanente la haría viajar en los miles de turnos que no la necesitan
+ * —el mismo error que este archivo ya evitó con la doctrina de reparación y con la de proporcionalidad—, y además
+ * le hablaría al narrador de una afinidad que no tiene delante.
+ * EL DISPARADOR SALE DEL DATO, no de la pregunta: un claim sellado `indicado` cuya razón declara que el reparto es
+ * de afinidad. Es la MISMA condición que usa el muro (`_afinidadComoCompra` en guardC), así que prompt y candado
+ * no pueden desincronizarse: lo que se le pide al narrador es exactamente lo que después se le exige. */
+const _AFINIDAD_RAZON_RE = /afinidad/i;
+export function buildAfinidadDoctrina(claims) {
+  const cs = Array.isArray(claims) ? claims : [];
+  const hay = cs.some((c) => c && c.estatus === "indicado" && _AFINIDAD_RAZON_RE.test(String(c.estatusRazon || "")));
+  if (!hay) return "";
+  return "AFINIDAD ESTIMADA, NO VENTA OBSERVADA. Las cifras cliente×SKU de este turno salen de una afinidad de surtido MODELADA: el dato NO registra qué SKU se le vendió a cada cuenta. Entonces: (a) nombralas como CUENTAS CANDIDATAS o SALIDA COMERCIAL POSIBLE — nunca como compras ya ocurridas, ni con «volumen de compra», «cuenta predominante» o «historial»; (b) decí explícitamente que es una estimación de afinidad, aunque el usuario no lo pregunte; (c) si proponés una acción, enmarcala EN LA MISMA ORACIÓN como hipótesis —«una posible salida es…», «habría que validar…», «candidata a…»—: una recomendación pelada sobre una estimación se lee como si el dato la respaldara, y no la respalda. Podés recomendar; lo que no podés es esconder sobre qué te apoyás.";
+}
+
 export function buildProporcionalidadDoctrina(claims) {
   const cs = Array.isArray(claims) ? claims : [];
   if (!cs.length) return "";
@@ -900,6 +920,9 @@ export function projectClaimsOnlyPayload(contract) {
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Turno sin causas parciales, sin
     // referencia y sin niveles de cascada → cadena vacía → la clave ni aparece.
     ...(buildProporcionalidadDoctrina(claims) ? { instruccion_proporcionalidad: buildProporcionalidadDoctrina(claims) } : {}),
+    // AFINIDAD ESTIMADA · misma mecánica que la línea de arriba: doctrina de TURNO, la clave ni aparece si el
+    // turno no sirve una relación modelada. Ver buildAfinidadDoctrina.
+    ...(buildAfinidadDoctrina(claims) ? { instruccion_afinidad: buildAfinidadDoctrina(claims) } : {}),
     // REPARACIÓN CONTEXTUAL (Contrato v1.2) — viaja igual en este modo: es una DECLARACIÓN sellada del contrato
     // (qué clase de turno es, y de quién es cada cifra), no una fuente cruda. Sin ella, claims-only no podría
     // distinguir una corrección de un desacuerdo ni marcar el tercer universo, que es justo lo que §5.1 exige.
@@ -1025,6 +1048,9 @@ export function projectNarratePayload(contract) {
     // ESTE turno tiene algo que limitar (ver buildProporcionalidadDoctrina). Un turno sin causas parciales, sin
     // referencia y sin niveles de cascada devuelve cadena vacía y la clave ni siquiera aparece en el payload.
     ...(buildProporcionalidadDoctrina(claims) ? { instruccion_proporcionalidad: buildProporcionalidadDoctrina(claims) } : {}),
+    // AFINIDAD ESTIMADA · misma mecánica que la línea de arriba: doctrina de TURNO, la clave ni aparece si el
+    // turno no sirve una relación modelada. Ver buildAfinidadDoctrina.
+    ...(buildAfinidadDoctrina(claims) ? { instruccion_afinidad: buildAfinidadDoctrina(claims) } : {}),
     // REPARACIÓN CONTEXTUAL (Contrato v1.2, owner 2026-08-10) — SOLO en un turno que corrige, discrepa o trae una
     // cifra del usuario viva. Mismo principio de payload mínimo que todas las de arriba: un turno normal no agrega
     // ni una llave, y el system tampoco suma un párrafo (buildRepairNarrateDoctrine devuelve "" sin esto).

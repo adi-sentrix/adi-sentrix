@@ -400,11 +400,27 @@ function clientesPorSku({ entities, entity, entityScope, metric = "ventas", topN
         unit: "money", raw: r.value * 1000, source: "computed",
         context: `${metLbl} asociada por afinidad de surtido`,
         verificabilidad,
+
+        // LA RAZÓN DEL SELLO, ESPECÍFICA. Sin esto `fig()` la deriva genérica ("es un supuesto del motor") y el
+
+        // narrador recibe un estatus sin saber DE QUÉ es estimación. Es el campo que el contrato ya transporta al
+
+        // claim (`estatusRazon`), así que decirlo bien acá lo pone en el prompt sin plomería nueva.
+
+        verificabilidadRazon: "el dato no registra qué SKU se le vendió a cada cuenta: el reparto cliente×SKU es una afinidad de surtido estimada, no una venta observada",
       }));
       boleta.push(fig(`${r.name} · ${canon} · participación`, `${pct.toFixed(1)}%`, {
         unit: "pct", raw: pct, source: "computed",
         context: `participación estimada en la ${metLbl} del SKU, por afinidad de surtido`,
         verificabilidad,
+
+        // LA RAZÓN DEL SELLO, ESPECÍFICA. Sin esto `fig()` la deriva genérica ("es un supuesto del motor") y el
+
+        // narrador recibe un estatus sin saber DE QUÉ es estimación. Es el campo que el contrato ya transporta al
+
+        // claim (`estatusRazon`), así que decirlo bien acá lo pone en el prompt sin plomería nueva.
+
+        verificabilidadRazon: "el dato no registra qué SKU se le vendió a cada cuenta: el reparto cliente×SKU es una afinidad de surtido estimada, no una venta observada",
       }));
     }
   }

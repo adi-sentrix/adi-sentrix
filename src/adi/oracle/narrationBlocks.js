@@ -231,15 +231,28 @@ const _figsValidas = (figs) => (Array.isArray(figs) ? figs.filter((f) => f && ty
 const _sello = (f) => (f && f.tipo && _SELLO_ORDEN.includes(f.tipo.sello) ? f.tipo.sello : "probado");
 // el sujeto del turno: la entidad que más cifras aporta. Es lo que impide que la prosa de reparación CAMBIE DE
 // SUJETO (E3.t3: se preguntaba por una cuenta y el fallback narraba el negocio entero).
+/* UN SUJETO SE AFIRMA CUANDO UNA ENTIDAD DOMINA DE VERDAD (owner 2026-08-12, defecto visto en N1).
+ * ANTES devolvía el primer máximo, y con seis cuentas empatadas a dos figs cada una eso es un empate resuelto por
+ * orden de iteración: el fallback escribió «Sobre Falabella: Lider · LG-WASH11KG marca 6.4M» — sujeto de una
+ * cuenta, cifra de otra, en la misma oración. No es un detalle de estilo: le atribuye a Falabella una cifra que
+ * es de Lider, que es exactamente lo que todo este motor existe para no hacer.
+ * AHORA se exige MAYORÍA REAL —más de la mitad de las figs con entidad— y sin empate. Un turno sobre una cuenta la
+ * sigue nombrando; un turno multi-entidad devuelve null, y el caller pone un encabezado neutral. Preferir no tener
+ * sujeto antes que tener el equivocado es la misma doctrina que el resto del archivo. */
 function _sujeto(list) {
   const cuenta = new Map();
+  let conEntidad = 0;
   for (const f of list) {
     const e = f.tipo && f.tipo.entidad;
-    if (e) cuenta.set(e, (cuenta.get(e) || 0) + 1);
+    if (e) { cuenta.set(e, (cuenta.get(e) || 0) + 1); conEntidad++; }
   }
-  let mejor = null, max = 0;
-  for (const [e, n] of cuenta) if (n > max) { mejor = e; max = n; }
-  return mejor;
+  if (!conEntidad) return null;
+  let mejor = null, max = 0, empatado = false;
+  for (const [e, n] of cuenta) {
+    if (n > max) { mejor = e; max = n; empatado = false; }
+    else if (n === max) empatado = true;
+  }
+  return (!empatado && max * 2 > conEntidad) ? mejor : null;
 }
 const _periodo = (list) => { for (const f of list) { const p = f.tipo && f.tipo.periodo; if (p) return p; } return null; };
 const _universo = (list) => { for (const f of list) { const u = f.tipo && (f.tipo.universoEtiqueta || f.tipo.universo); if (u) return u; } return null; };
@@ -329,10 +342,17 @@ export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
   // respuesta honesta y además la que el muro deja pasar.
   {
     const suj = _sujeto(list), per = _periodo(list), uni = _universo(list);
-    const entityFigs = list.filter(_isEntityAttributed);
-    const top = _bestByMagnitude(entityFigs.length ? entityFigs : list);
     const marco = [uni, per].filter(Boolean).join(", ");
-    const qp = `${suj ? `Sobre ${suj}: ` : ""}${top.label} marca ${top.value}${marco ? ` (${marco})` : ""}.`;
+    /* EL SUJETO Y LA CIFRA SALEN DE LA MISMA FIG, O NO HAY SUJETO (owner 2026-08-12).
+     * Acá se recalculaba `top` en local —idéntico al de arriba, pero recalculado— y el sujeto salía por separado
+     * de `_sujeto`. Dos caminos para la misma oración es dos oportunidades de que no coincidan, y no coincidieron:
+     * «Sobre Falabella: Lider · LG-WASH11KG marca 6.4M». Ahora se usa EL MISMO `top` de la cabecera y el prefijo
+     * sólo se escribe si la entidad del sujeto es la de esa fig. Cuando no lo es —o cuando ninguna cuenta domina—
+     * va un encabezado NEUTRAL, que dice de qué trata el turno sin atribuírselo a nadie.
+     * Un turno de una sola cuenta no cambia: ahí sujeto y fig principal son la misma, y el prefijo sale igual. */
+    const _mismaEntidad = suj && top.tipo && top.tipo.entidad === suj;
+    const _neutral = _afinidad ? "Afinidad estimada por SKU: " : "";
+    const qp = `${_mismaEntidad ? `Sobre ${suj}: ` : _neutral}${top.label} marca ${top.value}${marco ? ` (${marco})` : ""}.`;
     const resto = list.filter((f) => f !== top);
     const pq = resto.length
       ? `El resto de lo autorizado en este turno: ${_enLinea(resto, 6)}. El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.`

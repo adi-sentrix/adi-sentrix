@@ -53,6 +53,11 @@ export function fig(label, value, opts = {}) {
     unit = "money", raw = null, mandatory = false, source = "actual", formula = null, context = null, gancho = false,
     moneda, escala, periodo, escenario = null, universo, entidad, dimension = null, fuente = null,
     sello = null, reconcilia = null, declarada = false,
+    // LA RAZÓN DEL SELLO, cuando el composer sabe algo más específico que la clase (owner 2026-08-12). Sin esto,
+    // toda cifra `derivada_no_reconciliada` explicaba lo mismo —«es un supuesto del motor»— y una afinidad de
+    // surtido quedaba indistinguible de un promedio ponderado en el prompt del narrador. Opcional como el resto:
+    // el que no la declara sigue recibiendo la razón derivada del contrato.
+    verificabilidadRazon = null,
     // COBERTURA ESTRUCTURAL (owner 2026-08-11, defecto 2 de la certificación). El alcance de una cifra agregada
     // —total del universo o subtotal de un recorte— lo declara el EMISOR, que es el único que sabe si filtró.
     // Antes viajaba sólo como sufijo del label y el muro lo leía como texto: una etiqueta nueva lo dejaba ciego
@@ -62,6 +67,7 @@ export function fig(label, value, opts = {}) {
   const tipo = deriveFigureType({
     label, unit, source, formula,
     moneda, escala, periodo, escenario, universo, entidad, dimension, fuente, sello, reconcilia, declarada,
+    verificabilidadRazon,
   });
   return { label, value: String(value), unit, raw, mandatory, source, formula, context, ...(gancho ? { gancho: true } : {}), ...(cobertura ? { cobertura } : {}), tipo, canon: `${unit}:${String(value).replace(/\s/g, "")}` };
 }

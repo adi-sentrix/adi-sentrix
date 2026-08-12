@@ -431,7 +431,7 @@ function _entidadDeLabel(label) {
 export function deriveFigureType({
   label, unit = "money", source = "actual", formula = null,
   moneda, escala, periodo, escenario = null, universo, entidad, dimension = null, fuente = null,
-  sello = null, reconcilia = null, declarada = false,
+  sello = null, reconcilia = null, declarada = false, verificabilidadRazon = null,
 } = {}) {
   const declarado = universo && UNIVERSOS[universo];
   const resuelto = declarado ? { universo, origen: "declarado" } : universoConOrigen(label, unit);
@@ -455,6 +455,11 @@ export function deriveFigureType({
     fuente: fuente || null,
     sello: selloFinal,
     verificabilidad: v.clase,
-    verificabilidadRazon: v.razon,
+    // LA RAZÓN TAMBIÉN SE RESPETA SI EL COMPOSER LA DECLARA (owner 2026-08-12). Era la única excepción a la regla
+    // que este archivo declara en su propia cabecera —«todo campo que el composer declara se respeta»—: la clase se
+    // derivaba bien pero la razón salía siempre genérica («es un supuesto del motor»), y el narrador recibía un
+    // estatus sin saber DE QUÉ es la estimación. Una afinidad de surtido y un promedio ponderado son las dos
+    // `derivada_no_reconciliada` y no se narran igual.
+    verificabilidadRazon: verificabilidadRazon || v.razon,
   };
 }
