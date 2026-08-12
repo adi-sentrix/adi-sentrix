@@ -556,6 +556,27 @@ function _afinidadComoCompra(narration, figs) {
   if (frases.length) {
     out.push(`${frases.map((f) => `«${f}»`).join(", ")} afirma${frases.length > 1 ? "n" : ""} un historial de compra que el dato NO tiene: la relación cliente×SKU de este turno es una afinidad estimada. Decilo como candidatura o salida comercial posible, nunca como compra ya ocurrida`);
   }
+  /* (c) EL ACTO DE HABLA, NO LA FRASE DE NEGOCIO (owner 2026-08-12, tras la micro-certificación N).
+   * LA LISTA DE (b) ES ESQUIVABLE Y SE COMPROBÓ: el patrón cubría «reforzar la relación comercial» y el narrador
+   * escribió «reforzar la relación con Lider» — el mismo acto, una palabra menos, y pasó. Agrandar la lista sólo
+   * corre el borde: siempre queda un sinónimo afuera.
+   * LA REGLA DE PRODUCTO ES OTRA, y es la que el owner fijó: sobre un dato de afinidad, ADI puede nombrar cuentas
+   * candidatas y salidas posibles, pero no puede EMITIR UNA DECISIÓN COMERCIAL como si estuviera respaldada. Lo que
+   * se detecta entonces no es qué palabra usó sino QUÉ ESTÁ HACIENDO la oración: recomendar. Los marcadores de
+   * recomendación son un puñado y son estables (el vocabulario de aconsejar cambia mucho menos que el de negocio).
+   * ES POR ORACIÓN, y eso es deliberado: una declaración de estatus en el párrafo dos no autoriza una orden en el
+   * párrafo cuatro. El owner lo dijo así — «salvo que lo enmarque explícitamente como hipótesis/posible acción»—,
+   * y «explícitamente» sólo tiene sentido si el marco viaja PEGADO a la acción que enmarca.
+   * SE EXIGE POCO: basta un «posible», un «podría», un «a validar» o un «candidata» en la misma oración. No se
+   * prohíbe recomendar sobre una estimación: se prohíbe hacerlo sin decir que se está apoyando en una. */
+  const _RECOMIENDA_RE = /\b(?:sugiero|sugerimos|recomiendo|recomendamos|conviene|deber[íi]as?|habr[íi]a que|hay que|te propongo|prioriz[aá]|prioriza|reforz[aá]|refuerza|activ[aá]|activa|empez[aá] por|arranc[aá] por|enfoc[aá]|enfoca|apunt[aá] a|considera|consider[aá])\b/i;
+  const _ENMARCA_HIPOTESIS_RE = /\b(?:posible|posibles|podr[íi]as?|podr[íi]an?|hip[oó]tesis|a validar|por validar|habr[íi]a que confirmar|si se confirma|candidat[oa]s?|tentativ[oa]s?|explorar|evaluar|probar si|estimad[oa]s?|afinidad)\b/i;
+  const sinMarco = text.split(/(?<=[.!?])\s+/)
+    .filter((o) => _RECOMIENDA_RE.test(o) && !_ENMARCA_HIPOTESIS_RE.test(o))
+    .map((o) => o.trim());
+  if (sinMarco.length) {
+    out.push(`«${sinMarco[0].slice(0, 120)}» recomienda una acción comercial como si el dato la respaldara, y lo que la respalda es una AFINIDAD ESTIMADA. Enmarcá la acción en la MISMA oración —«posible salida», «cuenta candidata», «habría que validar»— o no la propongas`);
+  }
   return out;
 }
 

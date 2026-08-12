@@ -526,7 +526,15 @@ function _lineaUniversos(campos) {
  * lista de excusas escrita acá. Después el narrador puede mostrar ambas por separado: esto no le quita nada, le
  * agrega lo que faltaba.
  * NO EMITE NINGUNA CIFRA, igual que la línea de cobertura: nombra universos, que son vocabulario del contrato. */
-const _PIDE_SUMAR_RE = /\b(?:sum[aá](?:r|le|me|las|los)?|sumando|consolid[aá]\w*|junt[aá]\w*|agreg[aá]\w*\s+(?:las|los)\s+dos|total (?:del|de la)\s+negocio|(?:las|los)\s+dos\s+juntos?|en conjunto|cu[aá]nto (?:da|es) (?:el |la )?total)\b/i;
+/* EL `\b` DE JAVASCRIPT ES ASCII, Y ACÁ CASI CUESTA EL ARREGLO ENTERO. Este patrón cerraba con `\b`, y «Sumá»
+ * —con tilde, que es como se escribe el imperativo— NO matcheaba: la tilde no es carácter de palabra para `\b`, así
+ * que no hay borde después de la «á». «Suma» sin tilde sí matcheaba, y «Sumá las dos y decime el total del negocio»
+ * también… pero por la alternativa «total del negocio», no por el verbo. Es decir: la sonda de la certificación
+ * pasaba por casualidad, y la frase más natural del usuario no se detectaba.
+ * SE CIERRA CON UN BORDE EXPLÍCITO —fin de cadena o algo que no sea letra— en vez de `\b`, que es la única forma
+ * de que el español acentuado se comporte igual que el sin acentuar. */
+const _FIN = "(?![a-zA-ZáéíóúñüÁÉÍÓÚÑÜ])";
+const _PIDE_SUMAR_RE = new RegExp(`(?:sum[aá](?:r|le|me|las|los)?|sumando|consolid[aá]\\w*|junt[aá]\\w*|agreg[aá]\\w*\\s+(?:las|los)\\s+dos|total (?:del|de la)\\s+negocio|(?:las|los)\\s+dos\\s+juntos?|en conjunto|cu[aá]nto (?:da|es) (?:el |la )?total)${_FIN}`, "i");
 const _YA_DECLINA_RE = /\bno (?:se |las |los )?(?:sum|consolid|compar)\w*|no son (?:comparables|sumables)|universos distintos|marcos distintos|dos marcos/i;
 export function ensureDeclinacionDeSuma(text, figs, question) {
   const t = String(text || "");
@@ -1490,6 +1498,43 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // de ESA métrica, ESE eje y ESE período. `null` cuando no hay panel abierto → el mensaje de PLAN queda
   // byte-idéntico al de siempre (ver planPrompt.js:buildPlanUserMessage, tercer argumento opcional).
   const vistaLinea = projectViewContextForPlan(vistaCtx);
+  /* ── «SUMÁ LAS DOS» SE RESUELVE CONTRA LOS DOS TURNOS PREVIOS, NO ABRIENDO OTRA CONSULTA ═════════════════════
+   * MEDIDO (owner 2026-08-12, sonda N2c). Después de «¿cuánto vendimos este año?» y «¿y cuánto capital tenemos
+   * inmovilizado?», el turno «Sumá las dos y decime el total del negocio» produjo un plan con
+   * `queryMetric{costo,sku}` y `queryMetric{ventas,sku}`: el planificador no resolvió «las dos» contra nada y se
+   * fue a otro eje. La boleta quedó con UN solo universo, así que ni la declinación de suma ni el pie mixto —las
+   * dos garantías que existen para este caso— llegaron a activarse. No fallaron: nunca se alcanzaron.
+   * POR QUÉ VA ANTES DE PLAN Y NO DESPUÉS: si esto corriera río abajo, la consulta nueva ya se habría pedido y
+   * pagado, y la respuesta seguiría hablando del eje equivocado. La referencia es del DIÁLOGO, no del dato: se
+   * resuelve con lo que el turno anterior dejó en memoria, sin gastar una llamada.
+   * LA RESPUESTA CORRECTA A ESTE PEDIDO ES DECLINAR, siempre: dos universos que `reconcilian` declara divergentes
+   * no tienen suma que signifique nada. Por eso el bypass puede resolver el turno entero — no está adivinando una
+   * cifra, está diciendo que la operación pedida no existe, que es exactamente lo que el motor sabe con certeza.
+   * SI NO HAY DOS UNIVERSOS QUE RECORDAR, no se inventa a qué se refería: se pregunta. */
+  const _ANAFORA_DOS_RE = /\b(?:l[ao]s dos|ambas|ambos|las? dos cifras|los dos n[uú]meros|esas dos)\b/i;
+  if (!plan && _PIDE_SUMAR_RE.test(q) && _ANAFORA_DOS_RE.test(q)) {
+    const previos = (mem && Array.isArray(mem.universosRecientes)) ? mem.universosRecientes.filter(Boolean) : [];
+    let divergentes = null;
+    for (let i = 0; i < previos.length && !divergentes; i++) {
+      for (let j = i + 1; j < previos.length && !divergentes; j++) {
+        if (reconcilian(previos[i], previos[j]).estado === "divergent") divergentes = [previos[i], previos[j]];
+      }
+    }
+    let textoBypass = null;
+    if (divergentes) {
+      const A = UNIVERSOS[divergentes[0]], B = UNIVERSOS[divergentes[1]];
+      const marco = (u) => (u.periodo === "hoy" ? "un stock a una fecha" : "un flujo del período");
+      textoBypass = `No las sumo: «${A.etiqueta}» es ${marco(A)} y «${B.etiqueta}» es ${marco(B)}, así que un total entre las dos no significaría nada. Te las dejo por separado, que es como sí se leen. Si querés, te muestro cada una con su detalle.`;
+    } else if (previos.length) {
+      // CIERRA CON PREGUNTA DE VERDAD, no con un imperativo: es el mismo contrato que el repo ya le exige a
+      // `mode=clarify` —una aclaración termina en «?»— y acá vale igual, porque lo que el turno hace ES preguntar.
+      textoBypass = "No tengo claro a cuáles dos cifras te referís. ¿Cuáles querés que compare, y te digo si se pueden sumar o por qué no?";
+    }
+    if (textoBypass) {
+      const bypass = _composedBypassResult(textoBypass, mem, recentNarrationsPrev, scenario, true);
+      if (bypass) return bypass;   // null sólo si guardC lo rechazara — ahí sigue el camino normal, sin perder el turno
+    }
+  }
   if (!plan) {
     let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" arriba — NUNCA avanza ante un 429/error de infra
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -2004,6 +2049,25 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // las intentara igual. El detalle completo sigue en la Ficha.
   const _podaLedger = podarLedgerProgresivo(ledgerBoleta(ledger), { quiereDesglose: !_disclosure.podado.length || pideDetalleComposicion(q) });
   const figs = _podaLedger.figs;
+  /* LOS UNIVERSOS DE ESTE TURNO, PARA QUE «LAS DOS» TENGA A QUÉ APUNTAR (owner 2026-08-12, sonda N2c).
+   * La memoria guardaba alcance, oferta y narraciones recientes, pero nada sobre QUÉ CLASE de cifra se acababa de
+   * dar. Sin eso «sumá las dos» no tiene referente, y el planificador se inventa uno — medido: se fue a costo y
+   * ventas por SKU después de dos turnos sobre venta anual y capital inmovilizado.
+   * SE GUARDAN LAS CLAVES DE UNIVERSO, NO LAS CIFRAS: alcanza para saber si dos salidas son sumables, que es la
+   * única pregunta que este recuerdo tiene que contestar, y evita arrastrar dato de negocio en la memoria
+   * conversacional. Se acumulan con los del turno anterior y se recortan a cuatro: «las dos» mira hacia atrás un
+   * par de turnos, no la conversación entera. */
+  // UNO POR TURNO, EL DOMINANTE. Guardar TODOS los universos que un turno toca desaloja a los anteriores: medido,
+  // `inventoryStatus` sólo aporta cuatro (inventario, tasa, días, rotación) y borró el `venta_comercial` del turno
+  // previo, que era justo la mitad de «las dos». La referencia apunta a las RESPUESTAS anteriores, no a cada
+  // universo que cada una rozó, así que se guarda el universo con más cifras de cada turno y se recuerdan tres.
+  const universoDominante = (() => {
+    const cuenta = new Map();
+    for (const f of figs) { const u = f && f.tipo && f.tipo.universo; if (u) cuenta.set(u, (cuenta.get(u) || 0) + 1); }
+    let mejor = null, max = 0;
+    for (const [u, n] of cuenta) if (n > max) { mejor = u; max = n; }
+    return mejor;
+  })();
 
   // temas recientes (Fase 3) — se deriva DESPUÉS de que plan.scope ya está resuelto (por comprensión, como
   // siempre); señal para el LLM, nunca autoridad (ver dialogueState.js). No depende de `results`, pero vive acá,
@@ -2569,6 +2633,6 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // (responseContract.js) valida la forma río abajo, así que un CTA mal formado se descarta, no viaja roto.
       sentrixAction: _sentrixActionDe(evidence),
     }),
-    mem: mem2,
+    mem: { ...mem2, universosRecientes: [...new Set([universoDominante, ...(Array.isArray(mem2.universosRecientes) ? mem2.universosRecientes : [])].filter(Boolean))].slice(0, 3) },
   };
 }
