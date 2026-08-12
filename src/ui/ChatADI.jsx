@@ -672,12 +672,64 @@ export const HERO_CHIPS = [
 ];
 
 // ── INICIO · el asesor abre la conversación: título-promesa + resumen ejecutivo + las preguntas de plata ──
-function HeroInicio({ onChip }) {
+/* HERO DE INICIO · una pregunta y nada más (owner 2026-08-12).
+ *
+ * Antes tenía título-promesa + botón de Resumen ejecutivo + seis chips de preguntas. El owner lo cortó a
+ * la raíz: **los ejemplos de qué preguntar viven en la Guía de inicio, no acá.** Un inicio con vitrina de
+ * preguntas se lee como una página web que vende el producto; lo que corresponde es una sola invitación a
+ * hablar, como cualquier asistente serio. Todo lo que se sacó sigue existiendo — en la guía, que es su lugar.
+ *
+ * ⚠️ `HERO_CHIPS` NO SE BORRA aunque acá ya no se pinte: `GuiaInicio.jsx` deriva sus ejemplos de esa constante
+ * por TEXTO EXACTO (ver el comentario de su declaración). Borrarla dejaría la guía sin ejemplos, y la guía
+ * acaba de salir a producción. Se quitó el render, no la fuente.
+ *
+ * El logo es el mismo `AdiAvatar` de las burbujas, en grande: la marca del producto, no un ícono genérico.
+ * Todo el bloque desaparece solo al primer mensaje — lo monta `messages.length === 0`, no un flag aparte.
+ */
+function HeroInicio() {
+  return (
+    <div style={{
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      gap:22, padding:"14vh 24px 24px 24px", fontFamily:"'DM Sans', system-ui, sans-serif",
+    }}>
+      {/* EL CUBO VIVO · el hexágono es la marca; lo que gira es el ANILLO interior, no la silueta. Rotar el
+          logo entero lo convertiría en un spinner —"esperá, estoy cargando"— y acá no se está esperando nada:
+          se está invitando a hablar. El anillo girando lento dice "atento", que es lo que ADI hace.
+          `prefers-reduced-motion` lo detiene: la animación es un gesto, nunca un requisito para entender. */}
+      <svg width="52" height="52" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3"
+        strokeLinecap="round" strokeLinejoin="round" style={{ opacity:0.92 }} aria-hidden="true">
+        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
+        <g style={{ transformOrigin:"100px 100px", animation:"adiHeroGiro 9s linear infinite" }}>
+          <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
+          <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
+        </g>
+        <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none">
+          <animate attributeName="opacity" values="1;0.45;1" dur="3.4s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      <style>{`
+        @keyframes adiHeroGiro { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="adiHeroGiro"] { animation: none !important; }
+        }
+      `}</style>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+        <h1 style={{
+          margin:0, fontSize:27, fontWeight:500, color:C.text, letterSpacing:"-0.02em",
+          lineHeight:1.25, textAlign:"center", textWrap:"balance",
+        }}>
+          ¿Qué quieres entender de tu negocio?
+        </h1>
+        <div style={{ fontSize:13.5, color:C.textMuted, letterSpacing:"-0.01em" }}>Pregúntale a ADI</div>
+      </div>
+    </div>
+  );
+}
+
+// El hero VIEJO queda acá abajo, sin montarse, hasta que el owner confirme la versión nueva en pantalla.
+function _HeroInicioLegacy({ onChip }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20, padding:"8px 0", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-      {/* título-PROMESA (owner 2026-07-14: "contamos la historia de dónde, cómo y por qué ganamos y perdemos
-          dinero — en ADI tú te asesoras; debemos tener un título así"). La Lectura y los focos con $ también
-          murieron del inicio ("eso también se va"): las cifras viven en la Mesa, acá arranca el diálogo. */}
       <div>
         <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em", lineHeight:1.3 }}>Dónde, cómo y por qué ganas y pierdes dinero</div>
         <div style={{ fontSize:12.5, color:C.textMuted, marginTop:4 }}>Asesorate con ADI · datos actuales</div>
@@ -888,7 +940,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       <div ref={scrollRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
         <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 24px 24px 24px", display:"flex", flexDirection:"column", gap:24 }}>
           {messages.length === 0 && (
-            <HeroInicio onChip={submitSpec} />
+            <HeroInicio />
           )}
 
           {messages.map((msg) => {
@@ -996,7 +1048,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
               rows={1}
               value={input} onChange={e=>setInput(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
-              placeholder="Preguntá a ADI…"
+              placeholder="Pregunta a ADI…"
               style={{ flex:1, resize:"none", overflowY:"auto", maxHeight:160, minHeight:26, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:14, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:15, lineHeight:1.5, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
               onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
               onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
