@@ -98,6 +98,20 @@ export const TOOL_CONTRACTS = {
     inputsObligatorios: ["dimension", "entity"], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: false, escribeEntityList: true,
   },
+  // clientesPorSku · LA TRANSPUESTA de la anterior: dados unos SKU, QUÉ CUENTAS los tienen en su surtido
+  // (owner 2026-08-12, E4.t3). El eje del PEDIDO es `sku` —son SKU lo que se pasa en `entities`— y lo que
+  // devuelve son cuentas; por eso `dimensionesSoportadas` dice `sku` y no `cliente`.
+  // ES MULTI-ENTIDAD NATIVA: la pregunta medida decía «para ESOS SKU» (plural), así que acepta la lista entera y
+  // no hay nada que descomponer — a diferencia de `compareEntities`, que corre de a pares.
+  // SELLO: lo decide `clientCapitalRelacion`, no esta tabla. Con el cruce atómico ausente (el caso de hoy) las
+  // cifras salen `indicado`; si el dataset registrara la venta cliente×SKU pasarían a `probado` solas.
+  clientesPorSku: {
+    dimensionesSoportadas: ["sku"],
+    entidad: "multi", aceptaEntidadPuntual: true, multiCardinality: null,
+    inputsObligatorios: ["entities"], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: true, escribeEntityList: true,
+    notas: "Afinidad de surtido: la relación cliente×SKU es estimada (IPF sobre marca dominante > familia), cierra exacta por cuenta y proporcional por SKU. NUNCA atribuye inventario a una cuenta: las celdas son venta/contribución.",
+  },
   // gridTable · LA GRILLA: top-N de un eje × todas sus columnas. Etapa 2: entityScope generalizado (buildGrid,
   // entityRecord.js) — "de esos clientes, armame la tabla" ahora filtra las filas al subconjunto ANTES de rankear/
   // recortar a `limit`, en vez de traer el top-N del eje entero.

@@ -78,14 +78,38 @@ ok(!resolveCanonical("cliente", "NoExisteSA") && !axisCollisions("NoExisteSA").l
 /* ═══ 1 · EL CASO MEDIDO (E2.t2) · cardinalidad POR ENCIMA, entidades en args, sin plan.scope ═════════════════ */
 h("1 · MEDIDO · compareEntities con cuatro cuentas que el turno anterior imprimió");
 {
-  const c = cov("compareEntities", { dimension: "cliente", entities: CUATRO });
-  ok(c.supported === false, "sigue declinando — el veredicto no se toca, solo la razón");
-  ok(c.motivoTipo === MOTIVO_TIPO.CONTRATO, `motivoTipo === 'contrato' (el pedido no cabe en la tool)`, c.motivoTipo);
-  ok(!AFIRMA_AUSENCIA.test(c.reason), "la razón NO afirma que falten los registros", c.reason);
-  ok(CUATRO.every((e) => c.reason.includes(e)), "la razón NOMBRA las cuatro cuentas que sí están", c.reason);
-  ok(Array.isArray(c.entidadesEnElDato) && c.entidadesEnElDato.length === 4, "coverage.entidadesEnElDato declara las cuatro", c.entidadesEnElDato);
-  ok(typeof c.reasonTool === "string" && c.reasonTool.length > 0, "la razón técnica original se conserva en reasonTool (no se pierde señal)", c.reasonTool);
-  ok(!/\d/.test(c.reason), "la razón no emite ningún dígito (una cifra no autorizada degradaría el turno en guardC)", c.reason);
+  /* ── RE-CERTIFICADO (owner 2026-08-12, punto 6) ─────────────────────────────────────────────────────────────
+   * ESTA SECCIÓN AFIRMABA QUE EL TURNO SEGUÍA DECLINANDO, y que lo único corregido era la RAZÓN. Era la conducta
+   * correcta bajo el encargo anterior —dejar de MENTIR sobre la causa del vacío— y el owner la superseded:
+   * «no puede convertir una limitación interna de la tool en "faltan datos"; el motor debe descomponer
+   * estructuralmente la comparación o usar la herramienta multi-entidad correspondiente».
+   * EL MOTIVO ES MEDIBLE, no doctrinal: la boleta de E2.t2 llegó con CERO figs. Una razón honesta sin datos deja
+   * al usuario igual de sin respuesta.
+   * LAS SIETE ASERCIONES VIEJAS QUEDARON OBSOLETAS POR ESA DECISIÓN, no por estorbar: las siete leían
+   * `coverage.reason`, y en el camino resuelto ya no hay vacío que explicar. Su intención —que nadie afirme
+   * ausencia sobre entidades que están— se conserva y se afirma MEJOR: ahora se exige que las cuatro tengan
+   * cifras, que es la prueba fuerte de que estaban.
+   * LO QUE NO SE TOCA: las secciones 2 en adelante siguen certificando el diagnóstico honesto donde SÍ aplica
+   * —cardinalidad por debajo, entidad inexistente, eje incompatible, vacío real—, y esas no cambian. */
+  const r1 = correr("compareEntities", { dimension: "cliente", entities: CUATRO });
+  const figs1 = (r1.ledger && r1.ledger.figs) || [];
+  const cub1 = CUATRO.filter((e) => figs1.some((f) => String(f.label || "").startsWith(e)));
+  ok(figs1.length > 0, `el turno YA NO llega con la boleta vacía (${figs1.length} figs) — era el defecto de fondo de E2.t2`);
+  ok(cub1.length === 4, `las CUATRO cuentas quedan resueltas con cifras propias (${cub1.join(", ")})`);
+  ok(r1.results[0].tool === "gridTable", "se descompuso a la lectura multi-entidad del MISMO eje", r1.results[0].tool);
+  const cb1 = (r1.results[0].coverage || {}).cobertura;
+  ok(!!cb1 && cb1.pedidas === 4, `la cobertura declara cuántas se PIDIERON (${cb1 && cb1.pedidas})`);
+  ok(!!cb1 && Array.isArray(cb1.resueltas) && cb1.resueltas.length === 4, `…cuántas se RESOLVIERON (${cb1 && cb1.resueltas.length})`);
+  ok(!!cb1 && Array.isArray(cb1.faltantes) && cb1.faltantes.length === 0, "…y cuáles FALTARON: ninguna, porque las cuatro están", JSON.stringify(cb1 && cb1.faltantes));
+  // LA CARA QUE IMPIDE CAMBIAR UN DEFECTO POR OTRO: una entidad que de verdad no existe sigue declarada faltante.
+  // La descomposición sirve a las que están; no inventa las que no.
+  const r1b = correr("compareEntities", { dimension: "cliente", entities: [...CUATRO.slice(0, 3), "NoExisteSA"] });
+  const cb1b = (r1b.results[0].coverage || {}).cobertura;
+  ok(!!cb1b && cb1b.faltantes.includes("NoExisteSA") && cb1b.resueltas.length === 3,
+    "con una entidad inexistente: 3 resueltas y «NoExisteSA» declarada FALTANTE", JSON.stringify(cb1b && { r: cb1b.resueltas, f: cb1b.faltantes }));
+  // y con DOS entidades no se descompone nada: `compareEntities` es la lectura correcta y sigue corriendo ella.
+  const r1c = correr("compareEntities", { dimension: "cliente", entities: CUATRO.slice(0, 2) });
+  ok(r1c.results[0].tool === "compareEntities", "con DOS entidades no hay descomposición: la tool de pares es la correcta", r1c.results[0].tool);
 }
 
 /* ═══ 2 · GENERALIDAD · MISMA TOOL, CARDINALIDAD POR DEBAJO (E1.t1 — caso distinto del medido) ════════════════ */

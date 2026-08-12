@@ -1,0 +1,187 @@
+{
+  "total": 18,
+  "pass": 18,
+  "fails": [],
+  "detalle": [
+    {
+      "marca": "Samsung",
+      "scenario": "actual",
+      "camino1": {
+        "venta_usd": 31600000,
+        "contribucion_usd": 7643000,
+        "margen_pct": 24.2
+      },
+      "camino1b": {
+        "contribucion_usd": 7643000
+      },
+      "camino2": {
+        "venta_usd": 31600000,
+        "contribucion_usd": 7643000,
+        "margen_pct": 24.2
+      },
+      "camino3": {
+        "venta_usd": 31600000
+      }
+    },
+    {
+      "marca": "Samsung",
+      "scenario": "bonanza",
+      "camino1": {
+        "venta_usd": 31600000,
+        "contribucion_usd": 7643000,
+        "margen_pct": 24.2
+      },
+      "camino1b": {
+        "contribucion_usd": 8024000
+      },
+      "camino2": {
+        "venta_usd": 33158000,
+        "contribucion_usd": 8023999.999999999,
+        "margen_pct": 24.2
+      },
+      "camino3": {
+        "venta_usd": 33158000
+      }
+    },
+    {
+      "marca": "Samsung",
+      "scenario": "crisis",
+      "camino1": {
+        "venta_usd": 31600000,
+        "contribucion_usd": 7643000,
+        "margen_pct": 24.2
+      },
+      "camino1b": {
+        "contribucion_usd": 6521000
+      },
+      "camino2": {
+        "venta_usd": 26947000,
+        "contribucion_usd": 6521000,
+        "margen_pct": 24.2
+      },
+      "camino3": {
+        "venta_usd": 26947000
+      }
+    },
+    {
+      "marca": "LG",
+      "scenario": "actual",
+      "camino1": {
+        "venta_usd": 24600000,
+        "contribucion_usd": 5907000,
+        "margen_pct": 24
+      },
+      "camino1b": {
+        "contribucion_usd": 5907000
+      },
+      "camino2": {
+        "venta_usd": 24600000,
+        "contribucion_usd": 5907000,
+        "margen_pct": 24
+      },
+      "camino3": {
+        "venta_usd": 24600000
+      }
+    },
+    {
+      "marca": "LG",
+      "scenario": "bonanza",
+      "camino1": {
+        "venta_usd": 24600000,
+        "contribucion_usd": 5907000,
+        "margen_pct": 24
+      },
+      "camino1b": {
+        "contribucion_usd": 6196000
+      },
+      "camino2": {
+        "venta_usd": 25817000,
+        "contribucion_usd": 6196000,
+        "margen_pct": 24
+      },
+      "camino3": {
+        "venta_usd": 25817000
+      }
+    },
+    {
+      "marca": "LG",
+      "scenario": "crisis",
+      "camino1": {
+        "venta_usd": 24600000,
+        "contribucion_usd": 5907000,
+        "margen_pct": 24
+      },
+      "camino1b": {
+        "contribucion_usd": 4952000
+      },
+      "camino2": {
+        "venta_usd": 20633000,
+        "contribucion_usd": 4952000,
+        "margen_pct": 24
+      },
+      "camino3": {
+        "venta_usd": 20633000
+      }
+    },
+    {
+      "marca": "Philips",
+      "scenario": "actual",
+      "camino1": {
+        "venta_usd": 28000000,
+        "contribucion_usd": 7447000,
+        "margen_pct": 26.6
+      },
+      "camino1b": {
+        "contribucion_usd": 7447000
+      },
+      "camino2": {
+        "venta_usd": 28000000,
+        "contribucion_usd": 7447000,
+        "margen_pct": 26.6
+      },
+      "camino3": {
+        "venta_usd": 28000000
+      }
+    },
+    {
+      "marca": "Philips",
+      "scenario": "bonanza",
+      "camino1": {
+        "venta_usd": 28000000,
+        "contribucion_usd": 7447000,
+        "margen_pct": 26.6
+      },
+      "camino1b": {
+        "contribucion_usd": 7812000
+      },
+      "camino2": {
+        "venta_usd": 29370000,
+        "contribucion_usd": 7812000,
+        "margen_pct": 26.6
+      },
+      "camino3": {
+        "venta_usd": 29370000
+      }
+    },
+    {
+      "marca": "Philips",
+      "scenario": "crisis",
+      "camino1": {
+        "venta_usd": 28000000,
+        "contribucion_usd": 7447000,
+        "margen_pct": 26.6
+      },
+      "camino1b": {
+        "contribucion_usd": 6425000
+      },
+      "camino2": {
+        "venta_usd": 24154000,
+        "contribucion_usd": 6425000,
+        "margen_pct": 26.6
+      },
+      "camino3": {
+        "venta_usd": 24154000
+      }
+    }
+  ]
+}

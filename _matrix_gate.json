@@ -1,0 +1,2432 @@
+[
+ {
+  "metric": "ventas",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores clientes por ventas son Falabella ($19.41M) · Lider ($17.84M) · Jumbo ($17.31M). Sin d"
+ },
+ {
+  "metric": "ventas",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "ventas",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_comparison",
+  "gist": "**Falabella vs Lider** · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el m"
+ },
+ {
+  "metric": "ventas",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Una salvedad primero: te lo doy por marca DOMINANTE de cada cliente — el mix atómico no está en los "
+ },
+ {
+  "metric": "ventas",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Ventas por SKU · base real. SAM-TV55: $13.3M · LG-WASH11KG: $12.4M · PHI-SHAVER9: $12.3M **Patrón:**"
+ },
+ {
+  "metric": "ventas",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "ventas",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "ventas",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Ventas por marca · base real. Samsung: $31.6M · Philips: $28.0M · LG: $24.6M **Patrón:** Samsung ($3"
+ },
+ {
+  "metric": "ventas",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "ventas",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_comparison",
+  "gist": "**Samsung vs LG** (vista de marca) · Samsung gana escala, margen parejo. Venta: $31.6M vs $24.6M (Sa"
+ },
+ {
+  "metric": "ventas",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Ventas por familia · base real. Electrodomésticos: $33.2M · Cuidado Personal: $29.4M · Línea Blanca:"
+ },
+ {
+  "metric": "ventas",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "ventas",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal vs Línea Blanca (familia) · base real. Ventas: Cuidado Personal $29.4M vs Línea Bla"
+ },
+ {
+  "metric": "ventas",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** esto es **volumen** —cuánto entra por cliente—, todavía no si la venta es sana."
+ },
+ {
+  "metric": "ventas",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El ventas no lo tengo por bodega. Sí lo tengo por cliente, marca, familia, SKU, canal."
+ },
+ {
+  "metric": "ventas",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El ventas no lo tengo por bodega. Sí lo tengo por cliente, marca, familia, SKU, canal."
+ },
+ {
+  "metric": "ventas",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "ventas",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El ventas no lo tengo por bodega. Sí lo tengo por cliente, marca, familia, SKU, canal."
+ },
+ {
+  "metric": "ventas",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El ventas no lo tengo por bodega. Sí lo tengo por cliente, marca, familia, SKU, canal."
+ },
+ {
+  "metric": "ventas",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Ventas por canal · base real. Retail: $94.4M · E-commerce: $5.5M **Concentración:** el grueso del ve"
+ },
+ {
+  "metric": "ventas",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Ventas por canal · base real. Retail: $94.4M · E-commerce: $5.5M **Patrón:** Retail ($94.4M) está en"
+ },
+ {
+  "metric": "ventas",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "ventas",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail vs E-commerce (canal) · base real. Ventas: Retail $94.4M vs E-commerce $5.5M Contribución: Re"
+ },
+ {
+  "metric": "ventas",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Ventas por canal (Samsung) · base real. Retail: $33.2M Un punto que no saliste a buscar: Mercado Lib"
+ },
+ {
+  "metric": "margen",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores clientes por margen son La Polar (34.0%) · Hites (33.0%) · Unimarc (32.5%). Sin driver"
+ },
+ {
+  "metric": "margen",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "margen",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_comparison",
+  "gist": "**Falabella vs Lider** · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el m"
+ },
+ {
+  "metric": "margen",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Una salvedad primero: te lo doy por marca DOMINANTE de cada cliente — el mix atómico no está en los "
+ },
+ {
+  "metric": "margen",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores SKUs por margen son MAK-SAW18V (34.0%) · PHI-HAIR-PRO (30.0%) · LG-AIR9000 (28.0%). Si"
+ },
+ {
+  "metric": "margen",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "margen",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "margen",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Margen por marca · base real. Makita: 35.5% · Philips: 26.6% · Bosch: 26% **Patrón:** Makita (35.5%)"
+ },
+ {
+  "metric": "margen",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "margen",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_comparison",
+  "gist": "**Samsung vs LG** (vista de marca) · Samsung gana escala, margen parejo. Venta: $31.6M vs $24.6M (Sa"
+ },
+ {
+  "metric": "margen",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Margen por familia · base real. Cuidado Personal: 26.6% · Materiales de Construcción: 26% · Electrod"
+ },
+ {
+  "metric": "margen",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "margen",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal vs Línea Blanca (familia) · base real. Ventas: Cuidado Personal $29.4M vs Línea Bla"
+ },
+ {
+  "metric": "margen",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "margen",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "margen",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "margen",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "margen",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El margen no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "contribucion",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores clientes por contribución son Falabella ($4.27M) · Jumbo ($4.15M) · Lider ($3.84M). Lo"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "contribucion",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_comparison",
+  "gist": "**Falabella vs Lider** · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el m"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Una salvedad primero: te lo doy por marca DOMINANTE de cada cliente — el mix atómico no está en los "
+ },
+ {
+  "metric": "contribucion",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores SKUs por contribución son PHI-SHAVER9 ($3.44M) · LG-WASH11KG ($2.85M) · PHI-HAIR-PRO ("
+ },
+ {
+  "metric": "contribucion",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Contribución por marca · base real. Samsung: $7.6M · Philips: $7.4M · LG: $5.9M **Patrón:** Samsung "
+ },
+ {
+  "metric": "contribucion",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_comparison",
+  "gist": "**Samsung vs LG** (vista de marca) · Samsung gana escala, margen parejo. Venta: $31.6M vs $24.6M (Sa"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Contribución por familia · base real. Electrodomésticos: $8.0M · Cuidado Personal: $7.8M · Línea Bla"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal vs Línea Blanca (familia) · base real. Ventas: Cuidado Personal $29.4M vs Línea Bla"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El contribución no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia, canal."
+ },
+ {
+  "metric": "contribucion",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El contribución no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia, canal."
+ },
+ {
+  "metric": "contribucion",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El contribución no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia, canal."
+ },
+ {
+  "metric": "contribucion",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El contribución no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia, canal."
+ },
+ {
+  "metric": "contribucion",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Contribución por canal · base real. Retail: $23.4M · E-commerce: $1.6M **Concentración:** el grueso "
+ },
+ {
+  "metric": "contribucion",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Contribución por canal · base real. Retail: $23.4M · E-commerce: $1.6M **Patrón:** Retail ($23.4M) e"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail vs E-commerce (canal) · base real. Ventas: Retail $94.4M vs E-commerce $5.5M Contribución: Re"
+ },
+ {
+  "metric": "contribucion",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Contribución por canal (Samsung) · base real. Retail: $8.0M Un punto que no saliste a buscar: Mercad"
+ },
+ {
+  "metric": "costo",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por cliente · base real. Falabella: $15.1M · Lider: $14.0M · Jumbo: $13.2M · Sodimac: $6.3M · "
+ },
+ {
+  "metric": "costo",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por cliente · base real. Falabella: $15.1M · Lider: $14.0M · Jumbo: $13.2M **Patrón:** Falabel"
+ },
+ {
+  "metric": "costo",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "costo",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_comparison",
+  "gist": "**Falabella vs Lider** · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el m"
+ },
+ {
+  "metric": "costo",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Una salvedad primero: te lo doy por marca DOMINANTE de cada cliente — el mix atómico no está en los "
+ },
+ {
+  "metric": "costo",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por SKU · base real. SAM-TV55: $10.2M · LG-WASH11KG: $9.2M · PHI-SHAVER9: $8.4M · SAM-REF500L:"
+ },
+ {
+  "metric": "costo",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por SKU · base real. SAM-TV55: $10.2M · LG-WASH11KG: $9.2M · PHI-SHAVER9: $8.4M **Patrón:** SA"
+ },
+ {
+  "metric": "costo",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "costo",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "costo",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por SKU (Samsung) · base real. SAM-TV55: $10.2M · SAM-REF500L: $7.9M · SAM-MICRO32L: $5.1M **C"
+ },
+ {
+  "metric": "costo",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por marca · base real. Samsung: $22.6M · Philips: $19.5M · LG: $17.8M · Bosch: $7.5M · Makita:"
+ },
+ {
+  "metric": "costo",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por marca · base real. Samsung: $22.6M · Philips: $19.5M · LG: $17.8M **Patrón:** Samsung ($22"
+ },
+ {
+  "metric": "costo",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "costo",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_comparison",
+  "gist": "**Samsung vs LG** (vista de marca) · Samsung gana escala, margen parejo. Venta: $31.6M vs $24.6M (Sa"
+ },
+ {
+  "metric": "costo",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por marca (Cuidado Personal) · base real. Philips: $19.5M Un punto que no saliste a buscar: Me"
+ },
+ {
+  "metric": "costo",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por familia · base real. Electrodomésticos: $25.1M · Cuidado Personal: $21.6M · Línea Blanca: "
+ },
+ {
+  "metric": "costo",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por familia · base real. Electrodomésticos: $25.1M · Cuidado Personal: $21.6M · Línea Blanca: "
+ },
+ {
+  "metric": "costo",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "costo",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal vs Línea Blanca (familia) · base real. Ventas: Cuidado Personal $29.4M vs Línea Bla"
+ },
+ {
+  "metric": "costo",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Costo por familia (Philips) · base real. Cuidado Personal: $21.6M Un punto que no saliste a buscar: "
+ },
+ {
+  "metric": "costo",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "costo",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "costo",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "costo",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El costo no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "acciones",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Acciones comerciales por cliente · base real. Falabella: $874K · Lider: $749K · Jumbo: $658K · Sodim"
+ },
+ {
+  "metric": "acciones",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Acciones comerciales por cliente · base real. Falabella: $874K · Lider: $749K · Jumbo: $658K **Patró"
+ },
+ {
+  "metric": "acciones",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "acciones",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_comparison",
+  "gist": "**Falabella vs Lider** · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el m"
+ },
+ {
+  "metric": "acciones",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Una salvedad primero: te lo doy por marca DOMINANTE de cada cliente — el mix atómico no está en los "
+ },
+ {
+  "metric": "acciones",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Acciones comerciales por SKU · base real. SAM-TV55: $599K · SAM-REF500L: $486K · PHI-SHAVER9: $443K "
+ },
+ {
+  "metric": "acciones",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Acciones comerciales por SKU · base real. SAM-TV55: $599K · SAM-REF500L: $486K · PHI-SHAVER9: $443K "
+ },
+ {
+  "metric": "acciones",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "acciones",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "acciones",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Acciones comerciales por SKU (Samsung) · base real. SAM-TV55: $599K · SAM-REF500L: $486K · SAM-MICRO"
+ },
+ {
+  "metric": "acciones",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por marca. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por marca. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "acciones",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por marca. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por marca. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por familia. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por familia. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "acciones",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por familia. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por familia. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por bodega. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por bodega. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "acciones",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por bodega. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por bodega. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por canal. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por canal. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "acciones",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por canal. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "acciones",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El acciones comerciales no lo tengo por canal. Sí lo tengo por cliente, SKU."
+ },
+ {
+  "metric": "carga",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores clientes por carga comercial son Easy (5.5%) · Sodimac (5.4%) · Ripley (4.8%). Sin dri"
+ },
+ {
+  "metric": "carga",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "carga",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "client_comparison",
+  "gist": "**Falabella vs Lider** · Dos cuentas estructuralmente parecidas · escala y eficiencia operan en el m"
+ },
+ {
+  "metric": "carga",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Una salvedad primero: te lo doy por marca DOMINANTE de cada cliente — el mix atómico no está en los "
+ },
+ {
+  "metric": "carga",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Carga comercial por SKU · base real. MAK-COMP-AIR: 6% · LG-DRYER8KG: 5.5% · BOS-SANDER: 5.2% **Patró"
+ },
+ {
+  "metric": "carga",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "carga",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "carga",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Carga comercial por marca · base real. Bosch: 5.4% · Samsung: 4.4% · Makita: 4.2% **Patrón:** Bosch "
+ },
+ {
+  "metric": "carga",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "carga",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "brand_comparison",
+  "gist": "**Samsung vs LG** (vista de marca) · Samsung gana escala, margen parejo. Venta: $31.6M vs $24.6M (Sa"
+ },
+ {
+  "metric": "carga",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Carga comercial por familia · base real. Materiales de Construcción: 5.5% · Electrodomésticos: 4.2% "
+ },
+ {
+  "metric": "carga",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "carga",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal vs Línea Blanca (familia) · base real. Ventas: Cuidado Personal $29.4M vs Línea Bla"
+ },
+ {
+  "metric": "carga",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "**Lectura general:** acá estás mirando el **valor** de la venta (su calidad), no el tamaño. Con el s"
+ },
+ {
+  "metric": "carga",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "carga",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por bodega. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "carga",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "carga",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El carga comercial no lo tengo por canal. Sí lo tengo por cliente, SKU, marca, familia."
+ },
+ {
+  "metric": "capital",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "capital",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Capital por SKU · base real. SAM-REF500L: $19K · LG-WASH11KG: $15K · LG-DRYER8KG: $14K · SAM-TV55: $"
+ },
+ {
+  "metric": "capital",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores SKUs por stock son SAM-REF500L ($19K) · LG-WASH11KG ($15K) · LG-DRYER8KG ($14K). LG-DR"
+ },
+ {
+  "metric": "capital",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "capital",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "capital",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Capital por SKU (Samsung) · base real. SAM-REF500L: $19K · SAM-TV55: $13K · SAM-MICRO32L: $8K **Conc"
+ },
+ {
+  "metric": "capital",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "capital",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "capital",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Capital por bodega · base real. Santiago: $64K · Valparaíso: $39K · Concepción: $19K · Antofagasta: "
+ },
+ {
+  "metric": "capital",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Capital por bodega · base real. Santiago: $64K · Valparaíso: $39K · Concepción: $19K **Patrón:** San"
+ },
+ {
+  "metric": "capital",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "capital",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "warehouse_comparison",
+  "gist": "**Santiago vs Valparaíso** (inventario) · Santiago más grande y más sano; Valparaíso con más capital"
+ },
+ {
+  "metric": "capital",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Capital por bodega (Línea Blanca) · base real. Santiago: $21K · Valparaíso: $14K **Concentración:** "
+ },
+ {
+  "metric": "capital",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "capital",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "capital",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El capital no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Rotación por SKU · base real. PHI-SHAVER9: 11.2x · PHI-HAIR-PRO: 10.1x · SAM-REF500L: 9.8x · LG-WASH"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores SKUs por rotación son PHI-SHAVER9 (11.2x) · PHI-HAIR-PRO (10.1x) · SAM-REF500L (9.8x)."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Rotación por SKU (Samsung) · base real. SAM-REF500L: 9.8x · SAM-MICRO32L: 7.4x · SAM-TV55: 3.6x **Co"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Rotación por bodega · base real. Santiago: 7.8x · Concepción: 5.3x · Valparaíso: 5.0x · Antofagasta:"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Rotación por bodega · base real. Santiago: 7.8x · Concepción: 5.3x · Valparaíso: 5.0x **Patrón:** Sa"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "warehouse_comparison",
+  "gist": "**Santiago vs Valparaíso** (inventario) · Santiago más grande y más sano; Valparaíso con más capital"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Rotación por bodega (Línea Blanca) · base real. Santiago: 7.2x · Valparaíso: 1.0x **Concentración:**"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "rotacion",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "rotacion",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El rotación no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "cliente",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "cliente",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "cliente",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "client_dive",
+  "gist": "Falabella es la cuenta más grande pero también la más cara · el margen no compensa la concentración."
+ },
+ {
+  "metric": "doh",
+  "dim": "cliente",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "cliente",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por cliente. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "sku",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cobertura (DOH) por SKU · base real. MAK-COMP-AIR: 190d · LG-DRYER8KG: 165d · BOS-SANDER: 115d · PHI"
+ },
+ {
+  "metric": "doh",
+  "dim": "sku",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "ranking_extremes",
+  "gist": "Los 3 mejores SKUs por DOH son MAK-COMP-AIR (190d) · LG-DRYER8KG (165d) · BOS-SANDER (115d). Sin dri"
+ },
+ {
+  "metric": "doh",
+  "dim": "sku",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 (SKU) · base real. Ventas: $13.3M · Margen: 18.5% · Contribución: $2.5M · Costo: $10.2M · A"
+ },
+ {
+  "metric": "doh",
+  "dim": "sku",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "SAM-TV55 vs LG-WASH11KG (SKU) · base real. Ventas: SAM-TV55 $13.3M vs LG-WASH11KG $12.4M Margen: SAM"
+ },
+ {
+  "metric": "doh",
+  "dim": "sku",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cobertura (DOH) por SKU (Samsung) · base real. SAM-TV55: 58d · SAM-MICRO32L: 24d · SAM-REF500L: 17d "
+ },
+ {
+  "metric": "doh",
+  "dim": "marca",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "marca",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "marca",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "brand_dive",
+  "gist": "Samsung (marca): vende $31.6M con $7.64M de contribución (margen 24.2%). 3 SKUs: SAM-REF500L, SAM-TV"
+ },
+ {
+  "metric": "doh",
+  "dim": "marca",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "marca",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por marca. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "familia",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "familia",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "familia",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cuidado Personal (familia) · base real. Ventas: $29.4M · Margen: 26.6% · Contribución: $7.8M · Costo"
+ },
+ {
+  "metric": "doh",
+  "dim": "familia",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "familia",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por familia. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "bodega",
+  "forma": "overview",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cobertura (DOH) por bodega · base real. Antofagasta: 112d · Valparaíso: 81d · Concepción: 59d · Sant"
+ },
+ {
+  "metric": "doh",
+  "dim": "bodega",
+  "forma": "rank",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cobertura (DOH) por bodega · base real. Antofagasta: 112d · Valparaíso: 81d · Concepción: 59d **Patr"
+ },
+ {
+  "metric": "doh",
+  "dim": "bodega",
+  "forma": "dive",
+  "declarada": true,
+  "cls": "OK",
+  "route": "warehouse_dive",
+  "gist": "Santiago concentra 47.3% del inventario total · 5 SKUs activos · inventario $63.8K · de eso, capital"
+ },
+ {
+  "metric": "doh",
+  "dim": "bodega",
+  "forma": "compare",
+  "declarada": true,
+  "cls": "OK",
+  "route": "warehouse_comparison",
+  "gist": "**Santiago vs Valparaíso** (inventario) · Santiago más grande y más sano; Valparaíso con más capital"
+ },
+ {
+  "metric": "doh",
+  "dim": "bodega",
+  "forma": "filtro",
+  "declarada": true,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Cobertura (DOH) por bodega (Línea Blanca) · base real. Valparaíso: 165d · Santiago: 27d **Concentrac"
+ },
+ {
+  "metric": "doh",
+  "dim": "canal",
+  "forma": "overview",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "canal",
+  "forma": "rank",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "canal",
+  "forma": "dive",
+  "declarada": false,
+  "cls": "OK",
+  "route": "qi_retrieval",
+  "gist": "Retail (canal) · base real. Ventas: $94.4M · Contribución: $23.4M **Tensión:** no veo una tensión ma"
+ },
+ {
+  "metric": "doh",
+  "dim": "canal",
+  "forma": "compare",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ },
+ {
+  "metric": "doh",
+  "dim": "canal",
+  "forma": "filtro",
+  "declarada": false,
+  "cls": "DECLARADO",
+  "route": "spec_blocked_metric-not-in-dim",
+  "gist": "El cobertura (doh) no lo tengo por canal. Sí lo tengo por SKU, bodega."
+ }
+]

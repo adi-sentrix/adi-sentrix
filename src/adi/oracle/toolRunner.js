@@ -11,6 +11,7 @@
 import { createLedger, recordCall, tiparBoleta } from "./ledger.js";
 import { TOOLS } from "./toolRegistry.js";
 import { diagnosticarVacio } from "./toolContracts.js";   // VERACIDAD DEL VACÍO (D7) · ver el bloque de _veraz abajo
+import { resolveCanonical } from "./entityIndex.js";   // para distinguir «no cabe en la tool» de «no existe en el eje»
 import { periodoDeFiguras, PERIODO_TXT } from "../../config/contract/figureType.js";
 import { setToolsDeclaradas } from "../llm/telemetry.js";
 
@@ -94,7 +95,7 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
     const _flat = call && typeof call === "object"
       ? Object.fromEntries(Object.entries(call).filter(([k]) => k !== "tool" && k !== "args"))
       : {};
-    const callArgs = { ..._flat, ...((call && call.args) || {}) };
+    let callArgs = { ..._flat, ...((call && call.args) || {}) };
     const scope = callArgs.scope || callArgs.dimension || callArgs.entity || null;
     if (typeof tool !== "function") {
       const res = { facts: null, boleta: [], coverage: { supported: false, reason: `tool desconocida: '${name}'` } };
@@ -113,23 +114,84 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
      * cómputo se contradicen, y el usuario ve dos cifras para el mismo hecho en la misma tabla.
      * No es una cuestión de precedencia estética: el escenario es el marco del turno entero. Que una call lo
      * cambie por su cuenta rompe la comparabilidad de todo lo demás en esa misma boleta. */
+    /* ── UNA LIMITACIÓN DE LA TOOL NO ES «FALTAN DATOS» (owner 2026-08-12, punto 6) ───────────────────────────
+     * MEDIDO en E2.t2: el usuario pidió comparar Falabella, Lider, Jumbo y Sodimac —las cuatro impresas en el
+     * turno anterior— y la respuesta salió con «no tengo los datos necesarios». `compareEntities` corre DE A
+     * PARES, devolvió vacío, y la boleta del turno llegó con CERO figs: el narrador no tenía nada que decir
+     * aunque el dato estuviera ahí.
+     * `diagnosticarVacio` ya había corregido la RAZÓN («están en el eje y los tengo»), y eso sigue valiendo; pero
+     * una razón honesta SIN DATOS deja al usuario igual de sin respuesta. La regla que faltaba: si el eje puede
+     * servir esas entidades, el motor DESCOMPONE el pedido en la lectura multi-entidad que sí las cubre, en vez
+     * de convertir su propio límite en una ausencia de dato.
+     * LO QUE NO CAMBIA, y por eso se resuelve el eje antes de decidir: una entidad que de verdad NO existe sigue
+     * declarada como faltante. La descomposición sirve a las que están; no inventa las que no.
+     * LA COBERTURA VIAJA ESTRUCTURADA —`pedidas`, `resueltas`, `faltantes`— para que la respuesta pueda decir
+     * cuántas se pidieron y cuántas se sirvieron, en vez de callarlo. */
+    let _tool = tool, _nombre = name, _cobertura = null;
+    const _argsOriginales = { ...callArgs };   // para que `_veraz` diagnostique el PEDIDO, no la descomposición
+    {
+      // LA CARDINALIDAD ES DE NOMBRES DISTINTOS, NO DE CASILLEROS. Un plan que repite una entidad —«compará
+      // Falabella con Falabella y con Lider»— pide DOS, no tres: declinarlo por cupo, o descomponerlo, serían dos
+      // formas del mismo error de contar mal. Se deduplica preservando el ORDEN en que el usuario las nombró.
+      const pedidas = Array.isArray(callArgs && callArgs.entities) ? [...new Set(callArgs.entities.filter(Boolean))] : [];
+      const dim = callArgs && callArgs.dimension;
+      if (name === "compareEntities" && pedidas.length > 2 && dim && TOOLS.gridTable) {
+        const enElEje = pedidas.filter((e) => resolveCanonical(dim, e));
+        const inexistentes = pedidas.filter((e) => !resolveCanonical(dim, e));
+        // se descompone SÓLO si el eje puede servir más de dos: con dos o menos, `compareEntities` es la lectura
+        // correcta y no hay nada que reemplazar.
+        if (enElEje.length > 2) {
+          /* EL REEMPLAZO ES `gridTable`, Y LA RAZÓN ES MEDIBLE. Acá estuvo `marginRead`, y servía 3 de las 4
+           * cuentas de E2.t2: su `focus` por defecto es `bajo_benchmark`, o sea que devuelve las cuentas que
+           * están BAJO la vara — Paris, que la supera, quedaba afuera. Una comparación de cuatro cuentas
+           * NOMBRADAS no puede filtrarse por un criterio que el usuario no pidió: contestar por tres y declarar
+           * la cuarta faltante es honesto, pero sigue siendo media respuesta a una pregunta que el dato responde
+           * entera. `gridTable` es la lectura que corresponde —esas filas × sus columnas— y trae las cuatro.
+           * SE LE PASA `enElEje`, NUNCA `pedidas`: medido, `gridTable` con un nombre que no reconoce IGNORA el
+           * scope y devuelve el top-N del eje entero (aparecían Jumbo, Sodimac y Tottus, que nadie pidió). Filtrar
+           * antes es lo que impide que una entidad inexistente promueva el alcance a todo el eje. */
+          _tool = TOOLS.gridTable; _nombre = "gridTable";
+          callArgs = { dimension: dim, entityScope: enElEje, ...(callArgs.metric ? { metric: callArgs.metric } : {}) };
+          _cobertura = { pedidas: pedidas.length, entidades: pedidas, inexistentes, via: "gridTable",
+            motivo: "compareEntities corre de a pares; el eje sirve las N por lectura multi-entidad" };
+        }
+      }
+    }
     const args = { ...callArgs, scenario };
     let res;
     try {
-      res = tool(args);
+      res = _tool(args);
+      /* LA DESCOMPOSICIÓN SE VERIFICA, NO SE SUPONE (owner 2026-08-12). `marginRead` sirve unos ejes y no otros:
+       * aplicarla a ciegas a `familia`, `bodega` o `canal` cambiaba un diagnóstico honesto —«el pedido no cabe en
+       * la tool»— por un vacío peor, sin diagnóstico. Si la lectura multi-entidad NO trajo cifras, se descarta y
+       * se ejecuta la tool original: su declinación con `motivoTipo:"contrato"` es la respuesta correcta ahí.
+       * Cuesta una ejecución extra de una función PURA y determinística; no cuesta una llamada al proveedor. */
+      if (_cobertura && !(res && Array.isArray(res.boleta) && res.boleta.length)) {
+        _tool = tool; _nombre = name; _cobertura = null;
+        res = tool({ ..._argsOriginales, scenario });
+      }
     } catch (e) {
-      res = { facts: null, boleta: [], coverage: { supported: false, reason: `error en tool '${name}': ${String((e && e.message) || e)}` } };
+      res = { facts: null, boleta: [], coverage: { supported: false, reason: `error en tool '${_nombre}': ${String((e && e.message) || e)}` } };
     }
     if (!res || typeof res !== "object") res = { facts: null, boleta: [], coverage: { supported: false, reason: "tool sin resultado" } };
     // ANTES del ledger y de los results: la razón que se GRABA tiene que ser la misma que se narra (si el parche
     // corriera después, la boleta y la evidencia quedarían citando una causa que el turno ya no afirma).
-    res = _veraz(name, args, res);
+    // el diagnóstico se hace contra los args ORIGINALES: si la descomposición se descartó, lo que hay que explicar
+    // es por qué el PEDIDO del usuario no cupo en la tool, no por qué falló un reemplazo que ya no está.
+    res = _veraz(_nombre, _cobertura ? args : _argsOriginales, res);
+    // LA COBERTURA DECLARADA · `resueltas` se mide sobre la boleta REAL (quién quedó con cifras), no sobre lo que
+    // se pidió; `faltantes` es la resta, e incluye siempre a las que no existen en el eje.
+    if (_cobertura) {
+      const resueltas = _cobertura.entidades.filter((e) => (res.boleta || []).some((f) => String(f.label || "").startsWith(e)));
+      const faltantes = _cobertura.entidades.filter((e) => !resueltas.includes(e));
+      res = { ...res, coverage: { ...(res.coverage || {}), cobertura: { ..._cobertura, resueltas, faltantes } } };
+    }
     // el tipado corre UNA vez: lo necesita el período (la naturaleza de cada cifra) y es lo mismo que el ledger graba.
-    const meta = { tool: name, callId, scope, args };
+    const meta = { tool: _nombre, callId, scope, args };
     const figsTipadas = tiparBoleta(meta, res);
     _stampPeriodo(res, figsTipadas);
     recordCall(ledger, meta, res, figsTipadas);
-    results.push({ callId, tool: name, ...res });
+    results.push({ callId, tool: _nombre, ...res });
     // `motivoTipo` viaja en el unsupported (y de ahí a evidenceSpec.missing → los "límites" del panel): quien lea
     // esta lista tiene que poder distinguir "no cabía así" de "no está" sin parsear la frase.
     if (!res.coverage || res.coverage.supported === false) {

@@ -19,7 +19,10 @@ import {
   composeSpecComposicion, composeSpecClientCapital,
 } from "../specRetrieval.js";
 import { resolveGlossary } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo") · resuelve slug, etiqueta de pantalla y frase libre
-import { fig } from "../boleta.js";                                    // cifra autorizada (para inyectar el benchmark en el perfil)
+import { fig } from "../boleta.js";
+import { compradoresSku } from "../../data/clienteSkuMatrix.js";
+import { resolveCanonical } from "./entityIndex.js";               // el nombre que el usuario escribió → el del dato   // la transpuesta de la matriz cliente×SKU (E4.t3)
+import { clientCapitalRelacion } from "../specRetrieval.js";      // ¿el cruce está OBSERVADO o es afinidad modelada? · una sola verdad                                    // cifra autorizada (para inyectar el benchmark en el perfil)
 import { POLICY, costModelOf, benchmarkOf } from "../../config/businessPolicy.js";  // la VARA (benchmark de margen) para anclar el juicio + el modelo de costo declarado (#56)
 import { buildEntityRecord, buildGrid, buildTension, guessDimension, guessDimensionDetallado, rawRecordFor, REFERENCIA_CAMPO, fieldLabel } from "./entityRecord.js";  // la FILA COMPLETA de una entidad + LA GRILLA (top-N × columnas) + LA TENSIÓN (cruce de 2 métricas del mismo eje) + a qué eje pertenece un nombre (con sus colisiones · decisión 8) + la vara autorizada por campo
 import { composeSpecTemporal, detectPeriodo } from "../composers/temporalTable.js";  // LA SERIE MENSUAL (evolutivo · misma verdad que Sentrix · honestidad declarada)
@@ -335,6 +338,98 @@ function entityCapitalLigado({ dimension, entity, scenario } = {}) {
     };
   }
   return _pack(r, `no hay capital inmovilizado en el surtido de ${entity}`);
+}
+
+/* clientesPorSku · LA TRANSPUESTA DE LA MATRIZ CLIENTE×SKU (owner 2026-08-12, E4.t3) ═════════════════════════════
+ * EL CASO MEDIDO: «Para esos SKU, ¿qué clientes podrían comprarlos? Separa lo probado de la afinidad indicada.»
+ * ADI contestó «No tengo el detalle cruzado por SKU» — con la boleta VACÍA, cero figs. Y el detalle SÍ existe:
+ * `compradoresSku()` vive en data/clienteSkuMatrix.js desde el 2026-07-10 y devuelve exactamente eso. No era una
+ * limitación del dato: la capacidad no estaba expuesta como tool, así que el planificador no tenía cómo pedirla y
+ * el narrador, sin nada en la boleta, hizo lo único honesto que podía hacer — declinar. El defecto está aguas
+ * arriba del texto, y por eso se corrige acá y no en el prompt.
+ *
+ * EL SELLO NO ES OPINABLE, Y NO SE ELIGE ACÁ. La matriz cierra EXACTO por cliente y PROPORCIONAL por SKU (IPF
+ * determinístico sobre una afinidad modelada: marca dominante > familia > cola). Leerla por SKU es entonces
+ * `derivada_no_reconciliada`, que el contrato de tipos ya mapea a `indicado`. Es la decisión que el owner aprobó
+ * —«la matriz cliente×SKU es una inferencia autorizada, con estatus INDICADO»— y sale del MISMO lugar que
+ * gradúa cualquier otra cifra, no de una excepción para esta tool.
+ * SI EL DATASET REGISTRARA LA VENTA ATÓMICA cliente×SKU, la misma relación pasaría a `observada` y el sello a
+ * `probado`. Eso lo mide `clientCapitalRelacion`, la misma función que usa el composer de capital ligado: una
+ * sola verdad sobre si el cruce está observado o estimado, nunca un criterio paralelo.
+ *
+ * LO QUE ESTA TOOL NO HACE, y es la mitad del encargo: no atribuye a ninguna cuenta ni un peso de INVENTARIO. Las
+ * celdas que devuelve son de VENTA o CONTRIBUCIÓN —el flujo que la matriz reparte—, nunca stock valorizado. Colgar
+ * capital inmovilizado del nombre de un cliente es justo el error que la decisión 9 bloqueó en `entityCapitalLigado`
+ * (devolvía el inventario del negocio con el nombre de una cuenta encima), y exponer la transpuesta no puede
+ * reabrirlo por la puerta de atrás. */
+const _mKsku = (v) => `${(Math.round(v / 100) / 10).toFixed(1)}M`;
+function clientesPorSku({ entities, entity, entityScope, metric = "ventas", topN = 5, scenario } = {}) {
+  const pedidos = [...new Set([
+    ...(Array.isArray(entities) ? entities : []),
+    ...(Array.isArray(entityScope) ? entityScope : []),
+    entity,
+  ].filter(Boolean))];
+  if (!pedidos.length) return { facts: null, boleta: [], coverage: { supported: false, reason: "no se indicó de qué SKU" } };
+
+  const met = metric === "contribucion" || metric === "contribución" ? "contribucion" : "ventas";
+  const metLbl = met === "contribucion" ? "contribución" : "venta";
+  // la relación se MIDE una vez, con la función del composer de capital: decide sello, no lo decide esta tool.
+  const rel = clientCapitalRelacion({ entity: pedidos[0], scenario });
+  const observada = rel && rel.atomico === true;
+  const verificabilidad = observada ? "lectura_directa" : "derivada_no_reconciliada";
+
+  const boleta = [];
+  const resueltos = [], faltantes = [];
+  const detalle = {};
+  for (const sku of pedidos) {
+    const canon = resolveCanonical("sku", sku) || sku;
+    const filas = compradoresSku(canon, met);
+    if (!filas || !filas.length) { faltantes.push(sku); continue; }
+    resueltos.push(canon);
+    const top = filas.slice(0, Math.max(1, topN));
+    const totalSku = filas.reduce((a, r) => a + r.value, 0) || 1;
+    /* LA PARTICIPACIÓN SE EMITE SELLADA, NO SE DEJA COSECHAR (medido en el gate de este cruce). Puesta como número
+     * suelto dentro de `facts`, el ledger la levantaba sola y la sellaba `probado`: un porcentaje que sale de la
+     * MISMA estimación de afinidad quedaba presentado como hecho, justo al lado de la cifra de la que deriva —que
+     * sí iba `indicado`—. Ahora se emite explícita con la misma verificabilidad, y en `facts` viaja YA FORMATEADA,
+     * para que no quede ningún número desnudo que el sello no acompañe. */
+    detalle[canon] = top.map((r) => ({ cliente: r.name, participacion: `${(Math.round((r.value / totalSku) * 1000) / 10).toFixed(1)}%` }));
+    for (const r of top) {
+      const pct = Math.round((r.value / totalSku) * 1000) / 10;
+      boleta.push(fig(`${r.name} · ${canon}`, _mKsku(r.value), {
+        unit: "money", raw: r.value * 1000, source: "computed",
+        context: `${metLbl} asociada por afinidad de surtido`,
+        verificabilidad,
+      }));
+      boleta.push(fig(`${r.name} · ${canon} · participación`, `${pct.toFixed(1)}%`, {
+        unit: "pct", raw: pct, source: "computed",
+        context: `participación estimada en la ${metLbl} del SKU, por afinidad de surtido`,
+        verificabilidad,
+      }));
+    }
+  }
+  if (!boleta.length) {
+    return {
+      facts: null, boleta: [],
+      coverage: { supported: false, reason: `no encuentro esos SKU en la matriz de surtido: ${faltantes.join(", ")}`, cobertura: { pedidos: pedidos.length, resueltos, faltantes } },
+    };
+  }
+  return {
+    facts: {
+      lens: "clientes_por_sku", metrica: metLbl, detalle,
+      // LA GRADACIÓN VIAJA ESTRUCTURADA, no como una advertencia que el narrador puede omitir al redactar.
+      estatus: observada ? "probado" : "indicado",
+      relacion: observada ? "observada" : "afinidad_modelada",
+      lo_probado: observada
+        ? "el dato registra qué SKU se le vendió a cada cuenta"
+        : `el dato NO registra qué SKU se le vende a cada cuenta: lo probado es la ${metLbl} total de cada cuenta y la de cada SKU por separado`,
+      lo_indicado: observada ? null
+        : "el reparto cliente×SKU es una estimación de afinidad de surtido (marca dominante, luego familia); cierra exacto por cuenta y proporcional por SKU",
+      advertencia_de_sujeto: "estas cifras son de venta/contribución asociada, NUNCA inventario atribuido a una cuenta",
+    },
+    boleta,
+    coverage: { supported: true, figCount: boleta.length, cobertura: { pedidos: pedidos.length, resueltos, faltantes } },
+  };
 }
 
 // entityRecord · LA FILA COMPLETA de una entidad: TODAS sus columnas reales del dato (unidades, valor de inventario,
@@ -911,7 +1006,7 @@ export const TOOLS = {
   queryMetric, entityProfile, entityRecord, gridTable, tensionRead, compareEntities, diagnose, executiveSummary,
   inventoryStatus, marginRead, salesRead, contributionRead, trend,
   simulate, simulateCarga, simulateCapital, simulateCosto, simulateGeneral, defineConcept,
-  entityComposicion, entityCapitalLigado, pnlRead,
+  entityComposicion, entityCapitalLigado, clientesPorSku, pnlRead,
 };
 
 // toolNames() → los nombres registrados (base del catálogo que verá el LLM en la Pasada 1 · Fase 3).

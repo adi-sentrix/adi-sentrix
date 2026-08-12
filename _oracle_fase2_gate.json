@@ -1,0 +1,13 @@
+{
+  "total": 8,
+  "pass": 8,
+  "fails": [],
+  "meta": {
+    "attackVal": "$1.6M",
+    "attackTrueOwner": "Falabella",
+    "attackWrongEnt": "Lider",
+    "authCount": 3,
+    "badCount": 9,
+    "faithfulEnt": "Falabella"
+  }
+}
