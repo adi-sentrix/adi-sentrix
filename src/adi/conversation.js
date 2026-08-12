@@ -21,6 +21,7 @@ import { ENTITIES } from "../config/contract/entityRegistry.js";   // V2 · labe
 import { CRITERIA, setCriterion, forgetCriterion, activeCriteria } from "./criteria.js";   // V5 · memoria de criterio (Frente C.2)
 import { tenantPolicyDefault } from "../config/businessPolicy.js";   // F2 multiempresa · el "estándar" citado es el del TENANT (perfil ?? config)
 import { composePnl, activePnl, clearPnl, pnlExplain, pnlRecommend } from "./pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · flujo guiado + cascada + persistencia C.2 · seguidores P&L-aware (pase 2)
+import { detectaPorQueCifra, componePorQueCifra } from "./porQueEstaCifra.js";   // «¿por qué esa cifra?» sobre una línea del P&L (owner 2026-08-12) · determinístico, no gasta llamada
 import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-15): el "sí" ejecuta LA OFERTA con que ADI cerró — por la misma red del piso
 import { CONCEPT_DEFS } from "./sentrix/glossary.js";   // NATURALIDAD (owner 2026-07-27): definiciones de conceptos del negocio (composeDefine)
 import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: la capa conversacional sale con la MISMA forma que el resto
@@ -211,7 +212,26 @@ export function composeDefine(spec, ctx = null) {
 export function composeExplain(last, ctx = null, state = {}) {
   // P&L (pase 2 · owner 2026-07-25): "explícame esto más sencillo" sobre una lectura P&L cuenta LA MISMA cascada
   // en llano (alcance de la evidencia) — jamás el porqué de margen ni el relleno genérico.
+  /* «¿POR QUÉ ESA CIFRA?» SE RESPONDE ANTES DE EXPLICAR LA CASCADA (owner 2026-08-12) ─────────────────────────
+   * Medido en vivo: el owner miró la cascada y preguntó «logística por qué tiene un 3.5%». ADI repreguntó y
+   * después repitió la lectura ENTERA — nunca contestó. La respuesta estaba en su propia tabla: la línea viene
+   * sellada «supuesto declarado». Preguntar por el ORIGEN de una línea NO es pedir la cascada otra vez.
+   * VA PRIMERO que `pnlExplain` a propósito: ese cuenta la misma cascada en llano, que es lo correcto para
+   * «explicame esto más sencillo» y es exactamente lo que sobra cuando la pregunta es puntual. Red angosta
+   * (ver porQueEstaCifra.js): si no nombra una línea real del P&L, no dispara y sigue el camino de siempre.
+   * NO gasta una llamada: la respuesta sale del dato sellado, no del narrador. */
   if (last && last.pnl) {
+    const pq = detectaPorQueCifra(state && state.text, activePnl());
+    if (pq) {
+      return {
+        text: componePorQueCifra(pq), suggestions: null, sentrixAction: null,
+        evidence: { followup: true, kind: "pnl_supuesto", boleta: [
+          fig(`P&L · ${pq.linea.nombre}`, `${pq.linea.pct}%`, { unit: "pct", raw: pq.linea.pct, mandatory: true,
+            source: "computed", context: pq.linea.origen === "perfil_empresa" ? "supuesto del perfil de la empresa" : "supuesto declarado" }),
+        ] },
+        route: "pnl_por_que_cifra",
+      };
+    }
     const rP = pnlExplain(last, ctx, state);
     if (rP) return rP;
   }
