@@ -2178,6 +2178,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // peor, solo porque no logró variar la redacción en las 3 ventanas de reintento disponibles).
   let bestDegraded = null;
   let narrationDegraded = false;
+  // LOS CUATRO VEREDICTOS DE REDACCIÓN (owner 2026-08-11, defecto 2). Son los que el propio contrato ya declara en
+  // el prompt: no hablan de capacidad del modelo sino de obediencia, así que se reintentan con el MISMO tier y una
+  // instrucción concreta. Los demás (tabla, orden sellado, transferencia) conservan la escalada de siempre.
+  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada/;
+  let _rechazosDeRedaccion = 0;
+  let repairSpec = null;   // el veredicto anterior, estructurado, para que el reintento sepa QUÉ corregir
   let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" (arriba, junto a _rateLimitBackoffMs) — NUNCA avanza ante un 429/error de infra
   if (!narration && pref.contentScope !== "data_only" && pref.contentScope !== "results_only") for (let attempt = 0; attempt < 3; attempt++) {
     let n;
@@ -2188,7 +2194,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // hiccup transitorio en ESE intento específico no debe tirar el turno completo: reintenta (mismo presupuesto de
     // 3, mismo patrón que el loop de PLAN arriba) y, si los 3 fallan, cae a la reparación controlada de más abajo
     // (nunca abstención silenciosa) en vez de perder el turno entero por un solo intento fallido.
-    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext: vistaCtx, formaRespuesta, attempt: modelAttempt }); }
+    try { n = await callNarrate({ text: q, plan, results, ledgerFigs: figs, mem: mem2, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext: vistaCtx, formaRespuesta, attempt: modelAttempt, repairSpec }); }
     catch (e) {
       // MISMA REGLA QUE EN PLAN: sin crédito no se reintenta ni se escala (owner 2026-08-11, defecto 1). En la
       // certificación final este loop gastó TRES llamadas por turno contra una API sin saldo, en cinco turnos.
@@ -2277,7 +2283,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         }
       }
     }
-    // TIER: acá SÍ corresponde escalar — guardC rechazó el contenido (rechazo real) o lo marcó `degraded`
+    /* ── UN RECHAZO DE REDACCIÓN NO SE ARREGLA CON UN MODELO MÁS CARO (owner 2026-08-11, defecto 2) ────────────
+     * MEDIDO sobre la certificación de f4f2949: 21 rechazos del guard, 17 de ellos de la clase REDACCIÓN
+     * (`cifra-no-autorizada` 6, `metrica-mal-atribuida` 6, `causa-sobredimensionada` 3, `procedencia-no-autorizada`
+     * 2). Cada uno empujaba el intento siguiente a un tier superior, y las 33 llamadas escaladas de NARRAR se
+     * llevaron US$1,85 de un gasto total de US$1,95. La corrida se detuvo en el tope monetario con 25 de 44 turnos.
+     * LA CLASE IMPORTA: citar una cifra que la boleta no autoriza, colgar una métrica de la entidad equivocada o
+     * narrar una estimación como hecho NO son fallas de capacidad — son fallas de OBEDIENCIA a un contrato que el
+     * prompt ya declara. Un modelo más caro no obedece más: obedece igual y cuesta 14× o 39× más.
+     * LA POLÍTICA: primer rechazo de redacción → se reintenta con EL MISMO modelo y el veredicto viaja como
+     * `repairSpec` estructurado (ver abajo). Segundo → se deja de gastar y resuelve el compositor determinístico.
+     * Proyección sobre esta misma corrida: US$1,95 → US$0,14 (93% menos). La escalada de PLAN no se toca. */
+    const _esRedaccion = !gVerdict.ok && _VERDICTOS_DE_REDACCION.test(String(gVerdict.verdict || ""));
+    if (_esRedaccion) {
+      _rechazosDeRedaccion++;
+      // el veredicto se convierte en una instrucción concreta para el intento siguiente: qué violó y sobre qué
+      // cifra. Es lo que hace que reintentar con el mismo modelo tenga sentido — no se le pide "mejor", se le
+      // dice exactamente qué corregir.
+      repairSpec = { verdict: gVerdict.verdict, violations: (gVerdict.violations || []).slice(0, 3).map((v) => ({ kind: v.kind, detail: String(v.detail || "").slice(0, 220) })) };
+      if (_rechazosDeRedaccion >= 2) break;   // dos strikes de redacción → compositor determinístico, sin gastar más
+      continue;                               // sin `modelAttempt++`: mismo modelo, otra pasada con el repairSpec
+    }
+    // TIER: acá SÍ corresponde escalar — guardC rechazó por algo que NO es redacción, o lo marcó `degraded`
     // (repetición) — las DOS señales que el owner nombró explícitamente como indicio real de que el modelo actual
     // no está rindiendo (a diferencia de un 429/timeout, que es infraestructura y nunca escala, ver arriba).
     modelAttempt++;

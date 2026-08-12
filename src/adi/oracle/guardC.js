@@ -624,6 +624,38 @@ function _universeOwners(ledger) {
   }
   return owners;
 }
+/* ══ CONSOLIDAR DOS UNIVERSOS ES UNA AFIRMACIÓN, AUNQUE LAS CIFRAS ESTÉN EN OTRA ORACIÓN ══════════════════════
+ * MEDIDO en la certificación de f4f2949 (E5.t2). El usuario pidió: «Suma sus ventas y el inventario valorizado y
+ * dame un total». ADI respondió:
+ *     «las ventas de SAM-TV55 son $13.3M y el capital valorizado en inventario es $13K.
+ *      Sumando ambos, el total es $13.3M.»
+ * `_cruceDeUniversos` no lo vio porque exige que las DOS cifras aparezcan en la MISMA oración con una construcción
+ * relacional — y acá la suma vive en una oración que no repite ninguna de las dos: las nombra con «ambos».
+ * En la línea base este turno era el mejor momento de la certificación: ADI se negaba explicando que venta es un
+ * FLUJO de un período y el inventario un STOCK a una fecha. La garantía se perdió sin que ningún gate lo notara.
+ * LA REGLA: una VENTA es un flujo acumulado sobre un período; un INVENTARIO VALORIZADO es un stock a una fecha.
+ * No se suman aunque los dos estén en dinero — el resultado no significa nada. Por eso acá no se juzga la cercanía
+ * de dos cifras sino EL ACTO DE CONSOLIDAR: si la respuesta declara un total/suma con un anafórico («ambos», «los
+ * dos», «en conjunto») y la boleta abarca universos que NO reconcilian, la afirmación no sale.
+ * ES ESTRECHO A PROPÓSITO: exige el anafórico o el verbo de suma explícito. Totalizar DENTRO de un universo —lo
+ * normal— no lo toca, porque para eso no hace falta decir «ambos». */
+const _CONSOLIDA_ANAFORICO = /\b(?:sum\w+|consolid\w+|junt\w+|combin\w+|consider\w+\s+jun\w+|consider\w+\s+en\s+conjunto|el\s+total\s+(?:de\s+)?(?:ambos|los\s+dos|las\s+dos))\b[\s\S]{0,60}?\b(?:ambos|ambas|los\s+dos|las\s+dos|en\s+conjunto|entre\s+los\s+dos|entre\s+ambos)\b|\b(?:ambos|ambas|los\s+dos|las\s+dos|en\s+conjunto)\b[\s\S]{0,60}?\b(?:sum\w+|el\s+total\s+es|da\s+un\s+total|totalizan?)\b/i;
+function _consolidacionDeUniversos(narration, ledger) {
+  const owners = _universeOwners(ledger);
+  if (owners.size < 2) return [];
+  const t = String(narration || "");
+  if (!_CONSOLIDA_ANAFORICO.test(t)) return [];
+  // ¿los universos presentes en la boleta REALMENTE no reconcilian? Se pregunta al contrato, no se supone.
+  const universos = [...new Set([...owners.values()].flatMap((s) => [...s]))];
+  for (let i = 0; i < universos.length; i++) for (let j = i + 1; j < universos.length; j++) {
+    const v = reconcilian(universos[i], universos[j]);
+    if (v.estado !== "divergent") continue;
+    const A = UNIVERSOS[universos[i]], B = UNIVERSOS[universos[j]];
+    return [`la respuesta consolida cifras de «${A.etiqueta}» y «${B.etiqueta}», que NO reconcilian: ${v.razon}. Una venta es un flujo de un período y un inventario valorizado es un stock a una fecha: su suma no significa nada aunque las dos estén en dinero`];
+  }
+  return [];
+}
+
 function _cruceDeUniversos(narration, ledger) {
   const owners = _universeOwners(ledger);
   if (owners.size < 2) return [];
@@ -2380,6 +2412,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // relacional en la misma oración. BLOQUEA: los números son verdad y la relación es falsa, que para quien decide
   // es peor que un número inventado — suena a insight y no lo es. Ver _cruceDeUniversos arriba.
   for (const v of _cruceDeUniversos(narration, ledger)) violations.push({ kind: "cruce-de-universos", detail: v });
+  for (const v of _consolidacionDeUniversos(narration, ledger)) violations.push({ kind: "cruce-de-universos", detail: v });
   // 18 · TRANSFERENCIA NO EVALUABLE (owner 2026-08-09, decisión 13) — la tool declaró que mover stock entre bodegas
   // no se puede evaluar sobre este dato y la narración lo recomienda igual. BLOQUEA por la misma razón que el
   // chequeo 7: es una conclusión que el dato no respalda, dicha con cifras reales. Ver _transferenciaNoEvaluable.

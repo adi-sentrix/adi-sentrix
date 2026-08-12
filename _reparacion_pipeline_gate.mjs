@@ -642,7 +642,16 @@ section("8f · LA CIFRA DE LA BRECHA YA ESTÁ, Y EL RECHAZO SE PUEDE DIAGNOSTICA
     nt.some((e) => e.guardOk === false && Array.isArray(e.detalle) && /cifra-no-autorizada:\$99\.9M/.test(e.detalle.join("|"))),
     JSON.stringify(nt.map((e) => ({ r: e.reason, d: e.detalle }))));
   ok("…y el intento que PASA no arrastra ningún detalle", nt.every((e) => e.guardOk !== true || !e.detalle));
-  ok("el turno igual responde (el detalle es observación, no cambia la conducta)", !!(r && r.r && r.r.text) && intentos === 3);
+  // RE-CERTIFICADO (owner 2026-08-11, política de reintento económico). Esta línea exigía `intentos === 3`: los
+  // tres intentos del presupuesto, cada uno escalando de modelo. La política aprobada cambia esa conducta para la
+  // clase REDACCIÓN —y `cifra-no-autorizada` es justo esa clase—: primer rechazo se reintenta con EL MISMO tier y
+  // un `repairSpec`; el segundo deja de gastar y resuelve el compositor determinístico. Por eso ahora son DOS.
+  // QUÉ SE SIGUE AFIRMANDO, que es lo que este bloque vino a custodiar: que el detalle del rechazo viaja en el
+  // trace y que el turno RESPONDE igual. Lo que cambió es cuánto cuesta llegar a esa respuesta.
+  // MEDIDO sobre la certificación real (fixtures/certificacion-f4f2949.json): 17 de 21 rechazos eran de esta
+  // clase y las escaladas de NARRAR consumieron US$1,85 de US$1,95.
+  ok("el turno igual responde, y ahora con DOS intentos en vez de tres (política de reintento económico)",
+    !!(r && r.r && r.r.text) && intentos === 2, `intentos=${intentos}`);
 }
 
 section("9 · LAS OCHO DIMENSIONES, DECLARADAS Y CONTADAS");
