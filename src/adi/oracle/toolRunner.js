@@ -103,7 +103,17 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
       unsupported.push({ callId, tool: name || null, reason: res.coverage.reason });
       return;
     }
-    const args = { scenario, ...callArgs };
+    /* EL ESCENARIO DEL TURNO LO DECIDE EL RUN, NUNCA EL PLAN (owner 2026-08-11, defecto 5 de la certificación).
+     * Estaba escrito `{ scenario, ...callArgs }`, así que un `scenario` presente en los args del plan —incluso
+     * `undefined`, que es lo que emite un modelo cuando "declara" el campo sin llenarlo— PISABA el del turno. Y
+     * aguas abajo `composeSpecRetrieval` con `scenario: undefined` no falla: cae en `actual` en silencio.
+     * MEDIDO en E1.t3 (fixtures/certificacion-f4f2949.json): la MISMA boleta llevó «Lider · Venta» = $17.8M
+     * (marginRead, bonanza) y «Lider · Ventas» = $17.9M (queryMetric, con el escenario perdido → actual). Los dos
+     * figs DECLARAN `tipo.escenario: "bonanza"` y uno trae el número de otro escenario: la declaración y el
+     * cómputo se contradicen, y el usuario ve dos cifras para el mismo hecho en la misma tabla.
+     * No es una cuestión de precedencia estética: el escenario es el marco del turno entero. Que una call lo
+     * cambie por su cuenta rompe la comparabilidad de todo lo demás en esa misma boleta. */
+    const args = { ...callArgs, scenario };
     let res;
     try {
       res = tool(args);
