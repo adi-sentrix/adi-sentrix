@@ -19,8 +19,8 @@ import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { crearCerrojo } from "./_certificacion_v12_live.mjs";
 import { armarRegistroDeTurno, persistirCorrida } from "./scripts/replay-local.mjs";
 
-export const TOPE_LLAMADAS = 16;
-export const TOPE_USD = 0.40;
+export const TOPE_LLAMADAS = 12;
+export const TOPE_USD = 0.30;
 
 const CIFRA = /\$[\d.,]+\s*[MK]?/;
 
@@ -30,8 +30,13 @@ export const SONDAS = [
     condiciones: [
       ["el PLAN elige clientesPorSku", ({ plan }) => !!(plan && (plan.calls || []).some((c) => c && c.tool === "clientesPorSku"))],
       ["DECLARA que la relación es estimada", ({ texto }) => /afinidad|estimad|candidat|no registra|podr[íi]an? comprar/i.test(texto)],
-      ["NO afirma historial de compra", ({ texto }) => !/volumen de compras?|cuenta predominante|cliente predominante|historial de compras?|(?:le|les) vendimos|reforzar (?:la )?relaci[oó]n comercial/i.test(texto)],
-      ["el pie no cuelga «año cerrado» de una afinidad sin declararla", ({ texto }) => !/\(Datos del año cerrado\.\)\s*$/.test(texto) || /afinidad|estimad|candidat/i.test(texto.slice(-260))],
+      ["NO afirma historial de compra", ({ texto }) => !/volumen de compras?|cuenta predominante|cliente predominante|historial de compras?|(?:le|les) vendimos/i.test(texto)],
+      /* LA CONDICIÓN NUEVA, y la que la corrida anterior no tenía: ninguna oración RECOMIENDA sin enmarcar. Se
+       * evalúa igual que la regla del producto —por oración, por acto de habla— para que la sonda mida lo mismo
+       * que el muro y no una aproximación suya. */
+      ["ninguna recomendación sin marco de hipótesis", ({ texto }) => !texto.split(/(?<=[.!?])\s+/).some((o) =>
+        /\b(?:sugiero|recomiendo|conviene|deber[íi]as?|hay que|habr[íi]a que|prioriz[aá]|reforz[aá]|activ[aá]|empez[aá] por|enfoc[aá]|considera|consider[aá])\b/i.test(o)
+        && !/\b(?:posible|posibles|podr[íi]as?|podr[íi]an?|hip[oó]tesis|a validar|por validar|si se confirma|candidat[oa]s?|tentativ[oa]s?|explorar|evaluar|probar si|estimad[oa]s?|afinidad)\b/i.test(o))],
     ] },
   { id: "N2a", conv: "N2", cierra: "contexto (venta anual)",
     texto: "¿Cuánto vendimos este año?",
@@ -42,11 +47,15 @@ export const SONDAS = [
   { id: "N2c", conv: "N2", cierra: "declinar la suma, explícito",
     texto: "Sumá las dos y decime el total del negocio.",
     condiciones: [
+      /* CERO LLAMADAS ES LA CONDICIÓN, no una expectativa: la referencia se resuelve con la memoria del diálogo y
+       * no hay nada que preguntarle al proveedor. Si pide PLAN, el bypass no se activó y eso ES el hallazgo —
+       * se reporta como falla, no se disculpa como variación del modelo. */
+      ["cuesta CERO llamadas", ({ llamadas }) => llamadas === 0],
       ["NO emite un total consolidado", ({ texto }) => !/(?:el )?total (?:es|ser[ií]a|asciende|da)\s*\$/i.test(texto)],
       ["DECLINA explícitamente la suma", ({ texto }) => /no las sumo|no se suman|no son sumables|no las consolido|no se consolidan/i.test(texto)],
-      ["EXPLICA por qué", ({ texto }) => /universos distintos|flujo|stock|marcos distintos|unidades distintas/i.test(texto)],
-      ["muestra AMBAS, no sólo capital", ({ texto }) => /vent[ao]/i.test(texto) && /capital|inventario/i.test(texto)],
-      ["el pie declara los DOS marcos", ({ texto }) => /dos marcos distintos/i.test(texto)],
+      ["EXPLICA por qué", ({ texto }) => /universos distintos|flujo del per[ií]odo|stock a una fecha|marcos distintos|unidades distintas/i.test(texto)],
+      ["nombra los DOS universos de los turnos previos", ({ texto }) => /venta comercial/i.test(texto) && /inventario/i.test(texto)],
+      ["no se va a otro eje", ({ texto }) => !/\bSKU\b/i.test(texto)],
     ] },
 ];
 
@@ -76,12 +85,13 @@ if (process.env.ADI_MICROCERT_N !== "1") {
   for (const s of SONDAS) {
     if (cortada) { resultados.push({ id: s.id, cierra: s.cierra, estado: "NO CORRIDA", motivo: cortada }); continue; }
     let planReal = null;
+      let llamadasDeLaSonda = 0;   // N2c tiene que costar CERO: se cuenta por sonda, no sólo el total
     try {
       const previo = memoria.get(s.conv) || {};
       const out = await answerViaOracle({
         text: s.texto, history: previo.history || [], mem: previo.mem || {}, scenario: "actual",
         callPlan: async (args) => {
-          cerrojo.guardar(`${s.id}/plan`);
+          cerrojo.guardar(`${s.id}/plan`); llamadasDeLaSonda++;
           const res = await handlePlan({ ...args, access: process.env.ADI_ACCESS_CODE }, process.env);
           cerrojo.registrar(estimateCostUSD(res && res.modelUsed, res && res.usage) || 0);
           if (!res || !res.ok) throw new Error((res && res.error) || "gateway sin plan");
@@ -89,7 +99,7 @@ if (process.env.ADI_MICROCERT_N !== "1") {
           return res.plan;
         },
         callNarrate: async (args) => {
-          cerrojo.guardar(`${s.id}/narrar`);
+          cerrojo.guardar(`${s.id}/narrar`); llamadasDeLaSonda++;
           const res = await handleNarrateC({ payload: buildNarrateUserMessageC(args), mem: args.mem, access: process.env.ADI_ACCESS_CODE, attempt: args.attempt }, process.env);
           cerrojo.registrar(estimateCostUSD(res && res.modelUsed, res && res.usage) || 0);
           if (!res || !res.ok) throw new Error((res && res.error) || "gateway sin narración");
@@ -99,10 +109,10 @@ if (process.env.ADI_MICROCERT_N !== "1") {
       const r = out && out.r;
       const texto = r ? String(r.text || "") : "";
       memoria.set(s.conv, { mem: (out && out.mem) || {}, history: [...(previo.history || []), { role: "user", text: s.texto }, { role: "assistant", text: texto }] });
-      const fallas = s.condiciones.filter(([, f]) => { try { return !f({ plan: planReal, texto, r }); } catch { return true; } }).map(([n]) => n);
+      const fallas = s.condiciones.filter(([, f]) => { try { return !f({ plan: planReal, texto, r, llamadas: llamadasDeLaSonda }); } catch { return true; } }).map(([n]) => n);
       paraReplay.push(armarRegistroDeTurno({ id: s.id, plan: planReal, results: r && r.results, texto, scenario: "actual" }));
       resultados.push({ id: s.id, cierra: s.cierra, estado: fallas.length ? "NO CUMPLE" : "CUMPLE", fallas,
-        tools: (planReal && (planReal.calls || []).map((c) => c && c.tool).filter(Boolean)) || [], texto });
+        tools: (planReal && (planReal.calls || []).map((c) => c && c.tool).filter(Boolean)) || [], llamadas: llamadasDeLaSonda, texto });
     } catch (e) {
       const esCerrojo = /cerrojo|tope/i.test(String(e && e.message));
       if (esCerrojo) cortada = String(e.message);
@@ -112,7 +122,7 @@ if (process.env.ADI_MICROCERT_N !== "1") {
 
   console.log("\n── RESULTADO ──");
   for (const r of resultados) {
-    console.log(`  ${r.id} · ${r.estado} · ${r.cierra}${r.tools ? ` · tools: ${r.tools.join(",") || "—"}` : ""}`);
+    console.log(`  ${r.id} · ${r.estado} · ${r.cierra} · llamadas: ${r.llamadas == null ? "?" : r.llamadas}${r.tools ? ` · tools: ${r.tools.join(",") || "—"}` : ""}`);
     if (r.fallas && r.fallas.length) console.log(`      falló: ${r.fallas.join(" · ")}`);
     if (r.motivo) console.log(`      ${r.motivo}`);
   }
