@@ -633,6 +633,68 @@ function _coerceMode(text, plan, hasThread, recentSubjectsPrev) {
   return mode;
 }
 
+/* ── «EL NUESTRO» ES EL NEGOCIO, NO LA ENTIDAD DEL HILO (cierre de la cert amplia 2026-08-13, hallazgo 2) ────────
+ * MEDIDO EN VIVO (hilo E turno 3, el caso canónico del owner): tras dos turnos sobre Falabella, «una noticia dice
+ * que el margen de la industria debería estar en 25%, ¿cuál es el nuestro?» ancló a FALABELLA — el PLAN heredó la
+ * entidad activa del hilo y respondió el margen de la cuenta donde correspondía el margen GENERAL del negocio.
+ * LA DOCTRINA YA EXISTÍA («del negocio nunca hereda entidad» — planPrompt, REGLA DE ALCANCE; el PLAN emite
+ * scope.level="global") pero es doctrina del MODELO: «el nuestro» sin la palabra «negocio» no la disparó. Este es
+ * el piso DETERMINÍSTICO de esa regla — mismo patrón y precedencia que _coerceMode/_coercePref: red angosta que
+ * solo fuerza ante marcadores inequívocos de POSESIVO DE NEGOCIO. En este producto «nuestro» ES el negocio del
+ * usuario: no existe el caso «¿y el nuestro?» comparando dos clientes del hilo — el usuario es el dueño, sus
+ * contrapartes son clientes; un posesivo de primera persona plural nunca nombra a un cliente.
+ * QUÉ HACE: (a) plan.scope pasa a global (con lo que updateConversationScope retira el tema-entidad a history y
+ * resolveConversationReference no resuelve nada deíctico); (b) se limpian los ANCLAJES OPCIONALES de entidad que
+ * las calls heredaron del hilo (filters de eje, entityScope, entity en tools donde es opcional) — solo los de
+ * entidades que el texto del turno NO nombra.
+ * LA RED ES ANGOSTA POR TRES CANDADOS: (1) marcadores enumerados, no una regla gramatical; (2) si CUALQUIER call
+ * nombra una entidad que el texto del turno también nombra («¿cuánto le vendí a Falabella en total?»), no se toca
+ * nada — el usuario ancló él mismo; (3) si una call exige entidad por contrato (entityProfile/entityRecord/
+ * compareEntities/…) y su entidad no está en el texto, tampoco se fuerza — falso negativo antes que una call
+ * inválida (el caso medido era marginRead, donde el filtro es opcional). «¿y Lider?» no trae ningún marcador y
+ * sigue heredando como siempre. */
+const _ALCANCE_NEGOCIO_RE = /\bel\s+nuestro\b|\bla\s+nuestra\b|\blos\s+nuestros\b|\blas\s+nuestras\b|\bnuestr[oa]s?\s+(?:margen|venta|ventas|contribuci[oó]n|resultado|negocio|rotaci[oó]n|carga|capital|inventario|n[uú]meros?|cifras?|promedio)\b|\bde\s+mi\s+negocio\b|\bdel\s+negocio\b|\ben\s+general\b|\ben\s+total\b/i;
+const _ENTITY_ARG_OPCIONAL = new Set(["marginRead", "salesRead", "contributionRead", "queryMetric", "trend", "pnlRead", "inventoryStatus", "diagnose", "executiveSummary", "gridTable", "tensionRead"]);
+const _AXIS_FILTER_KEYS = ["cliente", "marca", "familia", "sku", "bodega", "canal"];
+function _coerceAlcanceNegocio(q, plan) {
+  const t = String(q || "");
+  if (!plan || !_ALCANCE_NEGOCIO_RE.test(t)) return plan;
+  const tNorm = t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const nombradaEnTexto = (e) => {
+    const n = String(e == null ? "" : e).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+    return n.length >= 3 && tNorm.includes(n);
+  };
+  const calls = Array.isArray(plan.calls) ? plan.calls : [];
+  const entidadesDeCall = (c) => {
+    const args = (c && c.args && typeof c.args === "object" && !Array.isArray(c.args)) ? c.args : {};
+    const out = [];
+    if (args.filters && typeof args.filters === "object") for (const k of _AXIS_FILTER_KEYS) if (typeof args.filters[k] === "string") out.push(args.filters[k]);
+    if (args.entityScope && Array.isArray(args.entityScope.entities)) out.push(...args.entityScope.entities);
+    if (typeof args.entity === "string") out.push(args.entity);
+    if (Array.isArray(args.entities)) out.push(...args.entities.filter((e) => typeof e === "string"));
+    return out;
+  };
+  const todas = calls.flatMap(entidadesDeCall);
+  if (todas.some(nombradaEnTexto)) return plan;   // candado 2: el usuario ancló él mismo — no es elipsis
+  for (const c of calls) {
+    if (entidadesDeCall(c).length && !_ENTITY_ARG_OPCIONAL.has(c && c.tool)) return plan;   // candado 3
+  }
+  const callsLimpias = calls.map((c) => {
+    if (!c || !entidadesDeCall(c).length) return c;
+    const args = { ...(c.args || {}) };
+    if (args.filters && typeof args.filters === "object") {
+      const f = { ...args.filters };
+      for (const k of _AXIS_FILTER_KEYS) if (typeof f[k] === "string") delete f[k];
+      if (Object.keys(f).length) args.filters = f; else delete args.filters;
+    }
+    delete args.entityScope;
+    delete args.entity;
+    if (Array.isArray(args.entities)) delete args.entities;
+    return { ...c, args };
+  });
+  return { ...plan, scope: { level: "global", entities: [] }, calls: callsLimpias };
+}
+
 // ── PREFERENCIA DE RESPUESTA · coerción determinística (owner 2026-07-29: "el PLAN debe detectarla y devolverla
 // estructurada. Usa coerción determinística únicamente como red para instrucciones explícitas, no como mecanismo
 // principal") — MISMO patrón y MISMA precedencia que _coerceMode arriba: el LLM (plan.pref) es el mecanismo
@@ -1810,6 +1872,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   }
 
   if (!planWasSynthetic) {
+    // el piso de «posesivo de negocio» corre ANTES de la resolución deíctica: con el scope ya global, ni la
+    // referencia conversacional ni las etapas de entityScope de más abajo vuelven a inyectar la entidad del hilo.
+    const planAntesNegocio = plan;
+    plan = _coerceAlcanceNegocio(q, plan);
+    if (plan !== planAntesNegocio) planCoerciones.push("alcance-negocio(global)");
     const scopeRef = resolveConversationReference(q, plan, conversationScopePrev, requestContext, uiSignals, vistaCtx);
     if (scopeRef.kind === "ambiguous") {
       const composed = composeReferenceAmbiguity(scopeRef.options);
