@@ -22,6 +22,14 @@ const VERSION = "2023-06-01";
 // proveedor colgado bloqueaba el request indefinidamente, agotando conexiones bajo carga multi-tenant.
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
+// LÍMITE DE SALIDA de narrate() (owner 2026-08-13, preparación Anthropic): una respuesta larga real de ADI mide
+// ~1.200 chars ≈ 300 tokens, pero un turno con tabla comparada queda pegado al techo de 1024 — y un corte del
+// proveedor a mitad de tabla es una respuesta rota que además quema un reintento entero. 2048 da el margen sin
+// regalar presupuesto (max_tokens es un TOPE, no un gasto: solo se paga lo generado). El de parse() NO se toca:
+// un tool_use de PLAN es un JSON acotado y 1024 le sobra. Se lee por llamada (no al importar, como TIMEOUT_MS)
+// para que el override por deploy no dependa del orden de carga del módulo.
+const _narrateMaxTokens = () => Number(process.env.LLM_NARRATE_MAX_TOKENS) || 2048;
+
 // _rateLimitError · MISMA convención que src/adi/llm/adapters/openai.js (owner 2026-08-03, investigación cruzada de
 // los 5 gates de Arquitectura C): `.code="rate_limited"` (+ `.retryAfterMs`) cuando status===429, para que
 // answerViaOracle.js pueda backoffear específicamente ante rate-limit real, sea cual sea el proveedor activo.
@@ -70,6 +78,28 @@ function _systemBlocks(system) {
     : { type: "text", text: s.text }));
 }
 
+// ── CUERPOS PUROS, EXPORTADOS (owner 2026-08-13, preparación Anthropic) ─────────────────────────────────────────
+// Construir el request y enviarlo son dos responsabilidades: la construcción es verificable OFFLINE (un probe la
+// ejercita sin credencial y sin red, y compara el objeto byte a byte), el envío no. Mismo criterio que sacar la
+// decisión de proveedor a providerConfig.js: lo que no se puede ejercer sin gastar, se aísla de lo que sí.
+// parse()/narrate() llaman a estas mismas funciones — no hay un segundo cuerpo que se desincronice.
+export function buildParseBody(text, { system, tool, model }) {
+  return {
+    model, max_tokens: 1024,
+    system: _systemBlocks(system),
+    tools: [{ name: tool.name, description: tool.description, input_schema: tool.schema }],
+    tool_choice: { type: "tool", name: tool.name },
+    messages: [{ role: "user", content: text }],
+  };
+}
+export function buildNarrateBody(validatedOutput, { model, system }) {
+  return {
+    model, max_tokens: _narrateMaxTokens(),
+    system: _systemBlocks(system),
+    messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
+  };
+}
+
 async function _call(body) {
   // Usa la conexión DEL ENTORNO si existe (ANTHROPIC_BASE_URL = proxy que inyecta auth · Claude Code/SDK).
   // Si hay key/token explícitos en env, se agregan. La key NUNCA se imprime en logs.
@@ -102,13 +132,7 @@ export const anthropicAdapter = {
   // llamadas — cache_control lo marca reutilizable (TTL ~5 min) → menor latencia por turno en conversación. Lo variable
   // (pregunta + contexto) viaja en el mensaje de usuario, FUERA del caché. OpenAI cachea prefijos >1k tokens solo.
   async parse(text, { system, tool, model }) {
-    const data = await _call({
-      model, max_tokens: 1024,
-      system: _systemBlocks(system),
-      tools: [{ name: tool.name, description: tool.description, input_schema: tool.schema }],
-      tool_choice: { type: "tool", name: tool.name },
-      messages: [{ role: "user", content: text }],
-    });
+    const data = await _call(buildParseBody(text, { system, tool, model }));
     const tu = (data.content || []).find((b) => b.type === "tool_use");
     // MISMO TRATO QUE openai.js (owner 2026-08-13): el agujero era idéntico acá — un objeto que no viene del
     // proveedor se reportaba como "sin tool_use", o sea señalando al adaptador. Ver respuestaProveedor.js.
@@ -124,11 +148,7 @@ export const anthropicAdapter = {
   // mismo caching que parse: el system del narrador (~2k tokens) es prefijo fijo · el output validado va fuera del caché
   async narrate(validatedOutput, { model, system }) {
     if (!system) throw new Error("narrate() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
-    const data = await _call({
-      model, max_tokens: 1024,
-      system: _systemBlocks(system),
-      messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
-    });
+    const data = await _call(buildNarrateBody(validatedOutput, { model, system }));
     // narrar tampoco puede fingir éxito con un objeto ajeno · ver el bloque equivalente en openai.js: un
     // contenido vacío de una respuesta REAL sigue devolviendo "" igual que siempre.
     const ajeno = sobreAjeno(data, "anthropic");

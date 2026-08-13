@@ -1,0 +1,84 @@
+/* === _probe_anthropic_adapter.mjs · preparación Anthropic · A2 (2026-08-13) ==============================
+ * PROBE 100% OFFLINE: importa el adapter SOLO para ejercer sus CUERPOS PUROS (buildParseBody/buildNarrateBody)
+ * — nunca invoca parse()/narrate(), así que ninguna ruta de este archivo puede producir una llamada pagada.
+ * El candado de runtime lo garantiza además por diseño (la red muere con exit 97 antes de abrir un socket).
+ * Correr con el candado:  node --import ./scripts/offline-guard.mjs _probe_anthropic_adapter.mjs
+ *
+ * Qué demuestra (A2), construyendo y comparando los BODIES, sin llamar a nadie:
+ *   · el body de narrate() SIN la env → max_tokens 2048 (el techo de 1024 cortaba tablas reales a la mitad);
+ *   · CON LLM_NARRATE_MAX_TOKENS → el valor de la env; con basura o "0" → cae al default, nunca a NaN;
+ *   · el body de parse() sigue byte-igual al de siempre, max_tokens 1024 incluido;
+ *   · parse()/narrate() usan ESTOS builders (no hay un segundo cuerpo inline que se desincronice).
+ */
+import { readFileSync } from "node:fs";
+
+const A = await import(new URL("./src/adi/llm/adapters/anthropic.js", import.meta.url).href);
+const { buildParseBody, buildNarrateBody } = A;
+
+let PASS = 0, FAIL = 0;
+const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? " — " + extra : "")); } };
+const J = JSON.stringify;
+
+const TOOL = { name: "emitPlan", description: "una tool neutral de prueba", schema: { type: "object", properties: { x: { type: "string" } } } };
+const SYSTEM = "SYSTEM DE PRUEBA · contrato";
+const PAYLOAD = { pregunta: "¿margen de Falabella?", datos: [{ entidad: "Falabella", margen_pct: 22.1 }], cifras_autorizadas: ["22.1"] };
+
+console.log("── A2.a · el body de parse() sigue BYTE-IGUAL al de siempre (max_tokens 1024 incluido) ──");
+{
+  // La réplica LITERAL de cómo parse() armaba su body antes de la extracción (anthropic.js pre-cambio).
+  const viejo = {
+    model: "claude-haiku-4-5", max_tokens: 1024,
+    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    tools: [{ name: TOOL.name, description: TOOL.description, input_schema: TOOL.schema }],
+    tool_choice: { type: "tool", name: TOOL.name },
+    messages: [{ role: "user", content: "hola" }],
+  };
+  const nuevo = buildParseBody("hola", { system: SYSTEM, tool: TOOL, model: "claude-haiku-4-5" });
+  ok(J(nuevo) === J(viejo), "buildParseBody === construcción vieja, byte por byte (JSON idéntico)");
+  ok(nuevo.max_tokens === 1024, "parse() queda en 1024 — NO se configura ni se movió");
+  process.env.LLM_NARRATE_MAX_TOKENS = "4096";
+  const conEnv = buildParseBody("hola", { system: SYSTEM, tool: TOOL, model: "m" });
+  ok(conEnv.max_tokens === 1024, "…y la env de narrar NO lo alcanza (con LLM_NARRATE_MAX_TOKENS=4096 sigue en 1024)");
+  delete process.env.LLM_NARRATE_MAX_TOKENS;
+}
+
+console.log("\n── A2.b · el body de narrate() SIN la env → max_tokens 2048, resto byte-igual ──");
+{
+  delete process.env.LLM_NARRATE_MAX_TOKENS;
+  const body = buildNarrateBody(PAYLOAD, { model: "claude-sonnet-5", system: SYSTEM });
+  ok(body.max_tokens === 2048, `sin LLM_NARRATE_MAX_TOKENS → 2048 (antes: 1024, corto para una tabla real)`);
+  const viejoSinTope = {
+    model: "claude-sonnet-5",
+    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: JSON.stringify(PAYLOAD) }],
+  };
+  const { max_tokens: _mt, ...resto } = body;
+  ok(J(resto) === J(viejoSinTope), "todo lo demás del body es byte-igual al de siempre (solo cambió el tope)");
+  ok(body.messages[0].content === JSON.stringify(PAYLOAD), "el payload validado viaja serializado igual que siempre");
+}
+
+console.log("\n── A2.c · CON la env → el valor de la env; basura o cero → default, nunca NaN ──");
+{
+  process.env.LLM_NARRATE_MAX_TOKENS = "3000";
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 3000, `LLM_NARRATE_MAX_TOKENS=3000 → 3000`);
+  process.env.LLM_NARRATE_MAX_TOKENS = "no-es-un-numero";
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 2048, `un valor basura no produce NaN: cae al default 2048`);
+  process.env.LLM_NARRATE_MAX_TOKENS = "0";
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 2048, `"0" (tope imposible) también cae al default`);
+  delete process.env.LLM_NARRATE_MAX_TOKENS;
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 2048, `al borrar la env vuelve el default (se lee POR LLAMADA, no al importar)`);
+}
+
+console.log("\n── A2.d · parse()/narrate() usan ESTOS builders (fuente leída como texto, nunca ejecutada) ──");
+{
+  const SRC = readFileSync(new URL("./src/adi/llm/adapters/anthropic.js", import.meta.url), "utf8");
+  ok(/await _call\(buildParseBody\(text, \{ system, tool, model \}\)\)/.test(SRC),
+    "parse() arma su request con buildParseBody — no hay un segundo cuerpo inline");
+  ok(/await _call\(buildNarrateBody\(validatedOutput, \{ model, system \}\)\)/.test(SRC),
+    "narrate() arma su request con buildNarrateBody");
+  ok(!/max_tokens:\s*1024[\s\S]*max_tokens:\s*1024/.test(SRC),
+    "max_tokens: 1024 aparece UNA sola vez en el archivo (el de parse) — el de narrar ya no está fijo");
+}
+
+console.log(`\n── _probe_anthropic_adapter: ${PASS} PASS · ${FAIL} FAIL ──`);
+process.exit(FAIL ? 1 : 0);
