@@ -1,0 +1,220 @@
+/* === src/adi/oracle/datoProyectado.js · AMPLITUD F1 · LA PROYECCIÓN CURADA DEL DATO (owner 2026-08-13) ========
+ * EL PROBLEMA QUE RESUELVE: el narrador solo veía la boleta del turno — respondía bien lo que las 22 tools
+ * anticiparon y nada más. Este módulo proyecta EL DATO COMPLETO del tenant activo a un TEXTO compacto y legible
+ * que viaja en el SEGMENTO FIJO del system de NARRAR (cacheable por tenant+escenario), para que el modelo
+ * ENTIENDA el negocio — qué existe, qué se relaciona, qué tiene sentido. NUNCA para aritmética: la regla madre
+ * es «el LLM propone, el motor calcula, el muro sella» (la calculadora es la fase 2, acá no existe).
+ *
+ * UNA SOLA VERDAD, en las tres dimensiones donde este proyecto ya pagó por duplicarla:
+ *   · ETIQUETAS — las declaradas del contrato (metricRegistry.METRICS[].label) y las convenciones ya selladas
+ *     («Días de inventario», nunca «cobertura» — CLAUDE.md §4: cobertura se resolvió POR ELIMINACIÓN y acá
+ *     tampoco entra). Ningún rótulo nuevo.
+ *   · CIFRAS — cada monto se formatea con el formateador CANÓNICO de la boleta, sin escribir un segundo:
+ *     parseFigures (boleta.js, exportado) canoniza con el MISMO _fmtC privado que canoniza la narración, así
+ *     que se le da el crudo y se lee la forma canónica del canon. Una cifra de esta proyección citada por el
+ *     narrador matchea por canon contra guardC por construcción.
+ *   · ESCENARIO — las filas salen de sourceManifest.SOURCES[].scenarioLoad (el contrato de cómo el escenario
+ *     ajusta cada fuente) y los KPIs de deriveKpis (el MISMO motor que alimenta la Mesa). Cero recálculo propio.
+ *
+ * DETERMINÍSTICA: mismo tenant+escenario → mismo texto byte a byte (la condición del caché de prefijo del
+ *   proveedor). Sin Date.now(), sin Math.random() (applyScenarioToSkuInventario usa _seededRand — determinístico).
+ *   Memo por tenant+escenario, invalidado en initTenant (onTenantChange).
+ *
+ * LO QUE DELIBERADAMENTE NO PROYECTA (decisiones anotadas para el informe):
+ *   · la serie mensual (ventasMensuales): la tool `trend` la sirve ANCLADA al escenario y reconciliada
+ *     (temporalTable.js / buildGlobalEvolutionAnclada) — proyectar acá la serie cruda sería una segunda verdad
+ *     que puede divergir mes a mes de lo que la tool autoriza. El mes a mes sigue llegando por su tool.
+ *   · agregados por canal: el contrato los declara vía agg:"sum" y los computa el motor en sus tools — este
+ *     módulo no suma nada por su cuenta.
+ *   · clientesMargen.venta cruda: la venta oficial por cliente es clientesVentas.actual (D8, owner 2026-07-29)
+ *     y scenarioLoad YA la reconcilia — acá viaja UNA venta por cliente, la oficial.
+ *
+ * PURO · sin I/O · no importa el gateway ni ningún adapter. */
+import { SOURCES } from "../../config/contract/sourceManifest.js";
+import { UNIVERSOS, DIVERGENCIAS } from "../../config/contract/figureType.js";
+import { METRICS } from "../../config/contract/metricRegistry.js";
+import { deriveKpis } from "../../engine/scenarios.js";
+import { tenantPolicyDefault } from "../../config/businessPolicy.js";
+import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
+import { parseFigures } from "../boleta.js";
+
+// ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
+// parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
+// crudo en una forma mínima y leer el canon ES usar ese formateador — la única alternativa sería exportar _fmtC
+// (tocar boleta.js, intocable) o copiarlo (el segundo formateador que esta regla prohíbe).
+function _fmtBoleta(raw, unit) {
+  const semilla = unit === "money" ? `$${raw}` : unit === "pct" ? `${raw}%` : unit === "days" ? `${raw}d` : unit === "ratio" ? `${raw}x` : String(raw);
+  const p = parseFigures(semilla);
+  return p.length ? p[0].canon.slice(p[0].canon.indexOf(":") + 1) : semilla;
+}
+// % con LA convención del producto (`.toFixed(1)` — ledger.js:150: «SIEMPRE .toFixed(1) para %», la misma de
+// composers/executiveReport/comparisons). El canon no distingue "22%" de "22.0%" (mismo raw), así que esto es
+// presentación consistente con pantalla, no un formateador paralelo.
+const _pct1 = (v) => `${(+v).toFixed(1)}%`;
+const _money = (rawUSD) => _fmtBoleta(Math.round(rawUSD), "money");
+const _moneyK = (milesUSD) => _money(milesUSD * 1000);   // venta comercial: almacenada en MILES (contrato: escala K)
+const _dias = (v) => _fmtBoleta(Math.round(v), "days");
+const _ratio = (v) => _fmtBoleta((+v).toFixed(1), "ratio");
+
+// etiquetas DECLARADAS (metricRegistry) — jamás un rótulo inventado acá.
+const _L = {
+  ventas: METRICS.ventas.label,               // "Ventas"
+  margen: METRICS.margen.label,               // "Margen"
+  contribucion: METRICS.contribucion.label,   // "Contribución"
+  costo: METRICS.costo.label,                 // "Costo"
+  acciones: METRICS.acciones.label,           // "Acciones comerciales"
+  carga: METRICS.carga.label,                 // "Carga comercial"
+  capital: METRICS.capital.label,             // "Capital"
+  rotacion: METRICS.rotacion.label,           // "Rotación"
+};
+
+// ── LOS HUECOS VERIFICADOS · «LO QUE ESTE DATO NO TIENE» ──────────────────────────────────────────────────────
+// La lista verificada de CLAUDE.md §4 («quien prometa responder esto, inventa») + los límites que los propios
+// composers ya declaran en pantalla (mesaCapital.js: lead time / orden de compra / causa; temporalTable.js:
+// resultado por mes; figureType: la meta no existe). Es la sección que le permite al narrador DECLINAR BIEN
+// en vez de estirar.
+const _HUECOS = [
+  "historial de compra cliente×SKU: NO existe. La relación cliente×SKU disponible es una AFINIDAD ESTIMADA (sellada `indicado`), nunca una venta registrada — «quiénes dejaron de comprar» no es respondible.",
+  "entradas y recepciones de inventario: NO existen — «entradas y salidas» no es dibujable ni narrable.",
+  "lead time de proveedor: NO existe — no se puede decir qué se quiebra antes de que llegue reposición.",
+  "estado de órdenes de compra: NO existe.",
+  "causa de la detención de un SKU: NO está en el dato — se localiza dónde, no por qué.",
+  "meta de rotación por familia: NO existe.",
+  "ningún SKU está en más de una bodega — transferir stock entre bodegas NO es evaluable con este dato.",
+  "serie a futuro / pronóstico: NO existe — solo la evolución hasta hoy.",
+  "resultado (después de gastos) POR MES: NO existe — los gastos son % sobre la venta anual.",
+  "la META no existe en este dato: el benchmark lo declara el cliente y benchmark ≠ promedio ≠ meta.",
+  "fuente sectorial autorizada: NO hay — la única referencia es la del propio negocio (su benchmark declarado).",
+];
+
+// ── memo por tenant+escenario (initTenant invalida) ───────────────────────────────────────────────────────────
+const _memo = new Map();
+onTenantChange(() => _memo.clear());
+
+// _filas(scenario) → las filas de cada fuente, TAL COMO el contrato dicta que el escenario las ajusta.
+function _filas(scenario) {
+  const de = (src) => (SOURCES[src].scenarioLoad ? SOURCES[src].scenarioLoad(scenario) : SOURCES[src].load());
+  return {
+    clientesVentas: de("clientesVentas"),
+    clientesMargen: de("clientesMargen"),
+    skusMargen: de("skusMargen"),
+    marcasMargen: de("marcasMargen"),
+    sfamiliasMargen: de("sfamiliasMargen"),
+    skuInventario: de("skuInventario"),
+  };
+}
+
+/* _construir(scenario) → { texto, figs, counts } — texto y autorizaciones salen del MISMO recorrido: lo que el
+ * narrador lee es exactamente lo que el muro autoriza (con su dueño), nunca dos listas que puedan divergir.
+ * figs: [{ canon, value, duenos: [tokens] }] — `duenos` son los tokens cuya presencia en la MISMA oración de la
+ * cita la valida (guardC, quinta fuente). counts: conteos declarados (filas por universo). */
+function _construir(scenario) {
+  const t = getTenantData();
+  const f = _filas(scenario);
+  const kpis = deriveKpis(scenario);
+  const figs = [];
+  const counts = new Set();
+  // F(valor, duenos) → registra la autorización y devuelve el valor para interpolarlo en el texto.
+  const F = (value, duenos) => {
+    for (const pf of parseFigures(String(value))) figs.push({ canon: pf.canon, value: String(value), duenos });
+    return value;
+  };
+  const NEG = ["negocio", "total", "cartera", "global"];            // dueños de un agregado del negocio
+  const REF = ["benchmark", "referencia", "piso"];                  // dueños de la vara declarada
+  const META_CARGA = ["meta", "target", "objetivo"];                // dueños del target de carga (NUNCA «carga» sola:
+  // «la carga de Falabella es 3.5%» sería falso y pasaría — el dueño del target es la palabra meta/target)
+
+  const L = [];
+  L.push(`EL DATO DEL NEGOCIO — ${t.nombre || t.id} · escenario: ${scenario} · moneda USD.`);
+  L.push(`Esto es tu conocimiento del negocio completo, para ENTENDER y contextualizar. Dos universos con período distinto: la venta comercial es del AÑO CERRADO; el inventario es la FOTO DE HOY.`);
+  L.push("");
+
+  // ── KPIs del negocio (deriveKpis — el mismo motor de la Mesa) ──
+  const kv = kpis.ventas, km = kpis.margen, ki = kpis.inventario || {};
+  L.push("KPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):");
+  L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (año anterior ${F(_moneyK(kv.totalAnterior), NEG)} · presupuesto ${F(_moneyK(kv.totalPresupuesto), NEG)} · ${F(_pct1(kv.vsAnterior), NEG)} vs año anterior · ${F(_pct1(kv.vsPresupuesto), NEG)} vs presupuesto).`);
+  L.push(`- ${_L.margen} de la cartera: ${F(_pct1(km.pct), NEG)} · ${_L.contribucion} total ${F(_moneyK(km.totalUSD), NEG)}.`);
+  if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), NEG)} · ${F(_dias(ki.doh), NEG)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), NEG)} (${F(_money(ki.inmovilizadoUSD), NEG)}).`);
+  const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
+  const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
+  L.push(`- La vara la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), REF)}.`);
+  L.push("");
+
+  // ── UNIVERSO VENTA COMERCIAL (año cerrado · almacenado en miles · Σ cierra contra el total del negocio) ──
+  L.push(`UNIVERSO «${UNIVERSOS.venta_comercial.etiqueta.toUpperCase()}» (año cerrado):`);
+  counts.add(f.clientesVentas.length);
+  L.push(`CLIENTES (${f.clientesVentas.length}):`);
+  const margenPorCliente = new Map(f.clientesMargen.map((c) => [c.nombre, c]));
+  for (const c of f.clientesVentas) {
+    const m = margenPorCliente.get(c.nombre);
+    const D = [c.nombre];
+    let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (año anterior ${F(_moneyK(c.anterior), D)} · presupuesto ${F(_moneyK(c.presupuesto), D)}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
+    if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D)})`;
+    L.push(linea + ".");
+  }
+  counts.add(f.marcasMargen.length);
+  L.push(`MARCAS (${f.marcasMargen.length}):`);
+  for (const m of f.marcasMargen) {
+    const D = [m.nombre];
+    L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D)} · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
+  }
+  counts.add(f.sfamiliasMargen.length);
+  L.push(`FAMILIAS (${f.sfamiliasMargen.length}):`);
+  for (const s of f.sfamiliasMargen) {
+    const D = [s.nombre];
+    L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D)} · ${_L.margen} ${F(_pct1(s.margen), D)} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D)} · ${_L.carga} ${F(_pct1(s.pctRebate), D)} · ${s.unidades} unidades.`);
+  }
+  counts.add(f.skusMargen.length);
+  L.push(`SKU COMERCIALES (${f.skusMargen.length} · venta del año cerrado — NO confundir con la foto de inventario de abajo):`);
+  for (const s of f.skusMargen) {
+    const D = [s.nombre];
+    L.push(`- ${s.nombre} — ${_L.ventas} ${F(_moneyK(s.venta), D)} · ${_L.margen} ${F(_pct1(s.margen), D)} · ${_L.contribucion} ${F(_moneyK(s.contribucion), D)} · ${_L.costo} ${F(_moneyK(s.costo), D)} · ${_L.carga} ${F(_pct1(s.pctRebate), D)} · ${s.unidades} unidades · costo medio ${F(_money(s.costoMedio), D)} por unidad · precio de lista ${F(_money(s.precioLista), D)} por unidad · marca ${s.marca} · familia ${s.sfamilia}.`);
+  }
+  L.push("");
+
+  // ── UNIVERSO INVENTARIO (foto de hoy · dólares crudos) ──
+  counts.add(f.skuInventario.length);
+  const bodegas = [...new Set(f.skuInventario.map((s) => s.bodega))];
+  counts.add(bodegas.length);
+  L.push(`UNIVERSO «${UNIVERSOS.inventario.etiqueta.toUpperCase()}» (foto de hoy · ${f.skuInventario.length} SKU en ${bodegas.length} bodegas: ${bodegas.join(", ")}):`);
+  for (const s of f.skuInventario) {
+    const D = [s.sku, s.bodega];
+    L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D)} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D)} · Días de inventario ${F(_dias(s.doh), D)} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D)} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D)} · estado ${s.estado} · marca ${s.marca} · familia ${s.sfamilia}.`);
+  }
+  L.push("");
+
+  // ── LOS DOS UNIVERSOS QUE NO RECONCILIAN (obligatoria · sale del contrato figureType.DIVERGENCIAS) ──
+  const divVI = DIVERGENCIAS.find((d) => d.entre.includes("venta_comercial") && d.entre.includes("inventario"));
+  L.push("LOS DOS UNIVERSOS QUE NO RECONCILIAN:");
+  L.push(`La venta comercial y el inventario NO son el mismo negocio medido dos veces. ${divVI ? divVI.razon : ""}`);
+  L.push("PROHIBIDO cruzarlos: nunca dividas, sumes ni relaciones una cifra de venta con una de inventario (cobertura, días, ratio o participación cruzada). Una cifra que haga «cerrar» esos dos universos es una alarma, no un hallazgo. Si el usuario pide ese cruce, decliná y explicá esta divergencia.");
+  for (const d of DIVERGENCIAS) {
+    if (d === divVI) continue;
+    L.push(`- Tampoco reconcilian ${UNIVERSOS[d.entre[0]].etiqueta} ↔ ${UNIVERSOS[d.entre[1]].etiqueta}: ${d.razon}`);
+  }
+  L.push("");
+
+  // ── LO QUE ESTE DATO NO TIENE (obligatoria · los huecos verificados — para declinar bien, no estirar) ──
+  L.push("LO QUE ESTE DATO NO TIENE (verificado — quien prometa responder esto, inventa):");
+  for (const h of _HUECOS) L.push(`- ${h}`);
+
+  return { texto: L.join("\n"), figs, counts: [...counts] };
+}
+
+function _cacheado(scenario) {
+  const key = `${getTenantId()}::${scenario}`;
+  if (!_memo.has(key)) _memo.set(key, _construir(scenario));
+  return _memo.get(key);
+}
+
+/** proyectarDatoNegocio(scenario) → el TEXTO de la proyección (determinístico por tenant+escenario). */
+export function proyectarDatoNegocio(scenario = "actual") {
+  return _cacheado(String(scenario || "actual")).texto;
+}
+
+/** cifrasDelDato(scenario) → { figs: [{canon, value, duenos}], counts: [n...] } — la QUINTA fuente de guardC:
+ * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
+export function cifrasDelDato(scenario = "actual") {
+  const c = _cacheado(String(scenario || "actual"));
+  return { figs: c.figs, counts: c.counts };
+}
