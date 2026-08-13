@@ -418,7 +418,23 @@ section("12 · crecimiento del prompt, medido");
  * lado FIJO del corte (el chequeo de abajo lo verifica), así que el caché del proveedor la descuenta en cada
  * llamada — mismo criterio que la suba del Paso 0 documentada arriba: el costo se DECIDE, no se impide. La
  * garantía de este bloque no cambia: NARRAR sigue sin crecer POR TURNO (la reparación sigue condicional). */
-const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 40152 };
+/* 40152 → 42357 (AMPLITUD F3, owner 2026-08-13, decisión D2: el contrato de contexto general). +2.205 car
+ * (~551 tokens), UNA vez, medido y no estimado.
+ * ANÁLISIS GARANTÍA-VS-FORMATO — lo que este bloque garantiza NO se movió, y se puede leer en las dos líneas de
+ * abajo: (1) «NARRAR crece SOLO cuando el turno repara algo» sigue verde, o sea que la doctrina de reparación
+ * sigue siendo CONDICIONAL y el turno normal no la paga; (2) el chequeo de más arriba de este mismo gate, que la
+ * doctrina cae del lado FIJO del corte de caché, sigue verde. Lo que cambia es el PRESUPUESTO declarado.
+ * QUÉ LO PAGA: `DOCTRINA_CONTEXTO_GENERAL` (narratePromptC.js) — cuándo se puede aportar conocimiento general,
+ * en qué forma (rangos, época declarada), las dos prohibiciones duras del bloque y la regla de que la
+ * recomendación se funda solo en el dato sellado. Va SIN condición, a diferencia del dato del negocio de F1: el
+ * conocimiento del modelo está siempre disponible, y una capacidad que aparece y desaparece del system es una
+ * capacidad que el narrador usa de forma inconsistente.
+ * POR QUÉ EL COSTO ES RUIDO Y AUN ASÍ SE DECLARA EXACTO: cae ENTERO del lado cacheable (el fijo sigue siendo
+ * byte-idéntico entre los 7 modos — el gate del Paso 0 lo verifica), así que sobre Sonnet son ~US$0,00017 por
+ * llamada sin caché y ~US$0,00002 con caché al 90%. El número se escribe igual, medido, para que la próxima
+ * doctrina que pida espacio tenga que justificarlo con la misma vara — el presupuesto existe para que el costo
+ * se DECIDA, no para impedir la capacidad. */
+const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42357 };
 const tok = (n) => Math.round(n / 4);
 const planSystem = buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false).length;
 const planTool = JSON.stringify(PLAN_TOOL).length;
