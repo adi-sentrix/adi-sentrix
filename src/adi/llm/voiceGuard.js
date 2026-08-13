@@ -101,6 +101,31 @@ const _LEAKS = [
   [/\bdormidos\b/gi, "detenidos"], [/\bdormidas\b/gi, "detenidas"],
   [/\bdormido\b/gi, "detenido"], [/\bdormida\b/gi, "detenida"],
   [/\bplata\b/gi, "caja"],
+  // + ANGLICISMOS DE NEGOCIO (owner 2026-08-13, certificación viva #2 · hilo B turno 2) · MEDIDO EN VIVO: «la
+  // distancia entre tu margen actual y ese reference point» — inglés de consultora en un producto cuyo registro es
+  // español formal LatAm. El prompt ya pide español; esta tabla es la GARANTÍA, igual que if/insight/deep-dive
+  // arriba. Lista CURADA Y ANGOSTA — el vocabulario ADOPTADO del producto NO se barre:
+  //   · «benchmark» y «rebate» tienen entrada propia en el glosario (CONCEPT_DEFS.benchmark/.rebate) y SON la
+  //     palabra oficial del producto;
+  //   · «target» es label vivo del dato («Target de carga comercial», entityRecord.js:82 / criteria.js:26) —
+  //     barrerlo reescribiría una etiqueta autorizada de la boleta y guardC la leería como cifra ajena;
+  //   · «gap» es etiqueta declarada del concepto brecha (glossary.js, entrada `brecha`) y aparece en texto CURADO
+  //     del propio glosario («El gap de margen partido…»); además cambia de género (el gap → la brecha) y la
+  //     sustitución de palabra sola rompería concordancia. Falso negativo antes que falso positivo.
+  [/\breference points\b/gi, "puntos de referencia"],   // la fuga medida; el glosario ya define benchmark como «punto de referencia»
+  [/\breference point\b/gi, "punto de referencia"],
+  // driver→factor: ambos masculinos, concordancia intacta. «driver interno» SE EXCLUYE con el lookahead: es el
+  // marcador de _NOTAS_INTERNAS_RE (abajo), que elimina la oración ENTERA de notas de analista — traducirlo acá le
+  // sacaría el marcador a esa red y la nota saldría a pantalla en español en vez de eliminada.
+  [/\bdrivers\b/gi, "factores"],
+  [/\bdriver\b(?!\s+intern)/gi, "factor"],
+  // performance→desempeño: el caso dominante del dominio es invariante («performance comercial», «performance de
+  // X», «del período»). El artículo se enumera porque cambia de género (la performance → el desempeño), el mismo
+  // cuidado que «la pasta → el capital». Límite conocido y aceptado: un adjetivo femenino pospuesto poco frecuente
+  // («performance financiera») quedaría discorde — se prefiere eso al inglés en registro de directorio.
+  [/\bla performance\b/gi, "el desempeño"],
+  [/\buna performance\b/gi, "un desempeño"],
+  [/\bperformance\b/gi, "desempeño"],
 ];
 // ── VOSEO → TUTEO NEUTRO (owner 2026-08-10, certificación live · defecto 4) ────────────────────────────────────
 // EL HALLAZGO: el registro es "formal LatAm, sin chilenismos", y el `_registro_gate` lo verificaba desde 2026-07-14
