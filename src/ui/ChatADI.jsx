@@ -24,6 +24,7 @@ import { getLastOffer } from "../adi/oracle/dialogueState.js";   // la oferta vi
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
 import { buildRequestContext } from "../adi/oracle/requestContext.js";   // multiempresa (owner 2026-07-29): tenant/conversación/snapshot explícitos, nunca implícitos
 import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
+import { proyectarDatoNegocio } from "../adi/oracle/datoProyectado.js";   // AMPLITUD F1: el dato completo del negocio al segmento fijo de NARRAR
 import { deriveMemoriaLegacy } from "../adi/responseContract.js";   // Contrato v2 · Fase 4: la memoria legacy pasa a ser una VISTA del canónico (conversationScope), no una segunda verdad
 import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de modelo (owner 2026-08-02) · costo real por intento, observable por turno
 import { C } from "./theme.js";
@@ -251,14 +252,19 @@ async function _fetchPlan({ text, history, mem, scenario, requestContext, attemp
 // presentación lo declara como invariante: "el prompt y el candado tienen que decir lo MISMO". Se reenvían los dos.
 // `motivoReintento`: ver el bloque de _fetchPlan. Acá muerde más fuerte — los reintentos de NARRAR existen SÓLO
 // porque guardC rechazó el intento previo, y sin este campo los 27 de la corrida quedaron sin explicar por qué.
-async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, attempt, motivoReintento, _onRouted }) {
+// `scenario`/`datoNegocio` (AMPLITUD F1, owner 2026-08-13): la proyección curada del dato del tenant activo
+// (datoProyectado.js — determinística por tenant+escenario, memoizada) viaja como CAMPO PROPIO del body, nunca
+// dentro de `payload`: el payload por turno no crece un byte. El gateway la coloca al FINAL del segmento FIJO
+// del system (cache:true), así el caché de prefijo del proveedor la descuenta en cada llamada — la razón
+// económica de que el narrador pueda ver el dato completo del negocio en todos los turnos.
+async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, requestContext, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, scenario, attempt, motivoReintento, _onRouted }) {
   // claimsOnly: modo del Contrato v2 detrás de flag (owner 2026-08-07) — cambia lo que el narrador LEE, no lo que
   // el guard exige. Apagado por defecto: el payload que sale de acá es el mismo verificado en vivo.
   const payload = buildNarrateUserMessageC({ text, plan, results, ledgerFigs, mem, history, pref, instruccionOrientacion, instruccionDisclosure, tablePolicy, viewContext, formaRespuesta, requestContext, claimsOnly: _claimsOnlyOn() });
   const t0 = Date.now();
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento }),
+    body: JSON.stringify({ payload, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento, datoNegocio: proyectarDatoNegocio(scenario) }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
