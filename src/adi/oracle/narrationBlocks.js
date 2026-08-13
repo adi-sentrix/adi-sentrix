@@ -437,3 +437,23 @@ export function composeNoDataMessage(results) {
   if (declined) return `No tengo información autorizada suficiente: ${declined.coverage.reason}. Dime el nombre exacto o el dato que buscas y lo reviso.`;
   return "No tengo información autorizada suficiente para responder eso con el alcance pedido. Cuéntame qué dato específico necesitas y lo busco.";
 }
+
+// ── composeSoloDatosConfusionMessage(results) ── D2 (owner 2026-08-13, Paso 3 de "ADI pierde el hilo") ─────────
+// EL CASO: bajo la preferencia de solo-datos, un «no entiendo» SIN concepto identificable no tiene ni cifra que
+// componer ni definición curada que citar — hasta hoy caía al genérico de composeNoDataMessage, que es honesto
+// pero no dice la verdad ÚTIL: la explicación existe, lo que la bloquea es la preferencia que el propio usuario
+// activó. Este mensaje lo dice, e invita a las dos salidas reales: desactivar la preferencia (la frase «análisis
+// completo» es EXACTAMENTE la que el motor ya reconoce como reset — ver _PREF_RESET_RE en answerViaOracle.js) o
+// nombrar el dato puntual. MISMA FAMILIA que composeNoDataMessage: determinístico, sin narrador, sin cifras.
+// EL CANDADO NO SE TOCA: esto no abre ninguna superficie lingüística nueva — es un texto fijo más en la rama que
+// ya era determinística por construcción (memoria adi-preferencia-respuesta).
+// DEVUELVE NULL cuando alguna tool YA declinó con una razón real: esa razón (p.ej. «no tengo una definición
+// curada para esas palabras») es más específica que este mensaje, y composeNoDataMessage la cita — un concepto
+// identificado-pero-desconocido NO es «sin concepto identificable», y prometerle que desactivar la preferencia
+// traería la explicación sería falso. El caller cae a composeNoDataMessage, como siempre.
+export function composeSoloDatosConfusionMessage(results) {
+  const list = Array.isArray(results) ? results : [];
+  const declined = list.some((r) => r && r.coverage && r.coverage.supported === false && typeof r.coverage.reason === "string" && r.coverage.reason.trim());
+  if (declined) return null;
+  return "Tienes activa la preferencia de recibir solo los datos, y una explicación queda fuera de ese formato. Si quieres que te lo explique, pídeme el análisis completo; si prefieres mantener la preferencia, dime qué dato o concepto puntual necesitas y lo busco.";
+}
