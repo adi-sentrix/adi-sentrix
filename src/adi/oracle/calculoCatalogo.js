@@ -126,6 +126,24 @@ export const OPERACIONES_CALCULO = {
       ];
     },
   },
+  /* «¿CUÁNTO CAPITAL TENGO PARADO HACE MÁS DE 90 DÍAS?» (encargo «umbral del usuario», 2026-08-13 — hallazgo VIVO
+   * del owner): la pregunta trae un UMBRAL del usuario sobre un campo por fila, y el motor no tenía ninguna
+   * operación que filtre-y-sume — el turno cayó a inventoryStatus, cuyo total es el del criterio INTERNO del motor
+   * (estados por rotación/DOH), y ese total salió presentado como si fuera el umbral pedido ($33K como «>90 días»,
+   * cuando con diasSinVenta>90 son 2 SKU ≈ $22K). Entra por la puerta que D1 dejó abierta (catálogo cerrado
+   * AMPLIABLE con gate): suma un campo MONETARIO de las filas de UN universo cuyo OTRO campo cumple el umbral
+   * (>, >=, <, <=) que trae el usuario. Los insumos llegan YA FILTRADOS por la tool (una fila = un insumo, cada
+   * una con su entidad en el label — la resolución por referencia y el filtro son de la tool, regla 1); acá solo
+   * vive la suma con aridad variable. La REGLA DE LA FASE (verificada por gate): el resultado declara SIEMPRE el
+   * criterio COMPLETO en la fórmula y en facts, con las filas que lo componen — un total filtrado sin sus filas
+   * es un top-N sin cola. */
+  suma_filtrada: {
+    aridad: "1+", produce: "money",
+    unidades: "las filas ya filtradas de UN universo, todas con su monto en $ — el campo a sumar es monetario y el umbral va declarado en el criterio",
+    unidadesOk: (ins) => (ins.every((i) => i.unit === "money") ? null
+      : `suma_filtrada solo suma montos $ (llegaron ${[...new Set(ins.map((i) => i.unit))].join(" y ")})`),
+    ejecutar: (ins) => [{ clave: "suma_filtrada", raw: ins.reduce((a, i) => a + i.raw, 0), unit: "money", operandos: ins, simbolo: "Σ" }],
+  },
   // EL CASO CANÓNICO del gerente (owner 2026-08-13): «la industria debería estar en 25% — ¿qué nos falta?».
   // Insumos: venta ($) · contribución ($) · tasa objetivo (%). Cuatro resultados, cada uno con su fórmula. La
   // cuenta madre es la MISMA que marginRead sella («venta × benchmark − contribución») con la vara parametrizada.
@@ -152,6 +170,11 @@ export const OPERACIONES_CALCULO = {
 // _formula(res) → la fórmula DECLARADA, legible, con los valores canónicos («$776K = $194K × 4pp»).
 function _formula(res) {
   const f = (x) => formatearCanon(x.raw, x.unit);
+  // Σ (suma_filtrada): N operandos, cada uno con su entidad si el label la trae — la tool completa el criterio.
+  if (res.simbolo === "Σ") {
+    const partes = res.operandos.map((o) => (o.label ? `${f(o)} (${String(o.label).split("·")[0].trim()})` : f(o)));
+    return `${formatearCanon(res.raw, res.unit)} = ${partes.join(" + ")}`;
+  }
   const cuerpo = res.simbolo === "→"
     ? `(${f(res.operandos[0])} − ${f(res.operandos[1])}) ÷ ${f(res.operandos[1])}`
     : res.simbolo === "÷"
@@ -170,8 +193,11 @@ export function ejecutarCalculo(operacion, insumos) {
     return { ok: false, regla: "catalogo-cerrado", razon: `'${operacion}' no está en el catálogo de cálculo — las operaciones disponibles son: ${Object.keys(OPERACIONES_CALCULO).join(", ")}. No ejecuto fórmulas libres.` };
   }
   const ins = Array.isArray(insumos) ? insumos : [];
-  if (ins.length !== op.aridad) {
-    return { ok: false, regla: "aridad", razon: `'${operacion}' necesita exactamente ${op.aridad} insumos (llegaron ${ins.length}) — ${op.unidades}` };
+  // aridad "1+" = variable (suma_filtrada: una fila filtrada = un insumo); el resto sigue siendo exacta.
+  if (op.aridad === "1+" ? ins.length < 1 : ins.length !== op.aridad) {
+    return { ok: false, regla: "aridad", razon: op.aridad === "1+"
+      ? `'${operacion}' necesita al menos 1 insumo (llegaron ${ins.length}) — ${op.unidades}`
+      : `'${operacion}' necesita exactamente ${op.aridad} insumos (llegaron ${ins.length}) — ${op.unidades}` };
   }
   for (const i of ins) if (!i || !Number.isFinite(i.raw) || !i.unit) {
     return { ok: false, regla: "insumo-invalido", razon: "cada insumo tiene que llegar resuelto, con su valor numérico y su unidad — un número sin origen no entra al cálculo" };
@@ -210,7 +236,11 @@ export function ejecutarCalculo(operacion, insumos) {
  *   money→ escalar ($ × pp/unidades) · margen_objetivo (venta×obj% y venta×obj%−contribución, el trío del caso
  *          canónico) · [suma/resta de montos: _isCalc nivel 1]
  * NADA MÁS: una cifra que no sale de una operación del catálogo sigue vetada. El catálogo crece acá y en la
- * tool JUNTOS, con su gate — nunca uno sin el otro.
+ * tool JUNTOS, con su gate — nunca uno sin el otro. `suma_filtrada` DELIBERADAMENTE NO SE ESPEJA (encargo
+ * «umbral del usuario» 2026-08-13, misma razón medida que el `proyectado` de variacion_aplicada): una suma
+ * N-aria sobre el pool es combinatoria pura — con 134 montos en el dato, casi cualquier cifra se volvería
+ * «una suma posible» y el muro autorizaría cifras ajenas. Sus resultados SIEMPRE llegan sellados en la boleta
+ * de la tool (filas + total); un narrador que sume por su cuenta se veta y repara — conservador a propósito.
  *
  * COTA DURA anti-combinatoria (falso negativo antes que costo): los pools por unidad se recortan a _CAP valores
  * (el pool scopeado real trae ~10-30). El trío de margen_objetivo es el único nivel-3 y queda acotado por la
