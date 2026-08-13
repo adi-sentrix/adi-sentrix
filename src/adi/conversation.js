@@ -26,6 +26,31 @@ import { coerceFloor } from "./coerceChain.js";   // CONTINUIDAD (owner 2026-07-
 import { CONCEPT_DEFS } from "./sentrix/glossary.js";   // NATURALIDAD (owner 2026-07-27): definiciones de conceptos del negocio (composeDefine)
 import { normalizeResponse } from "./responseContract.js";   // Contrato v2 · Fase 4: la capa conversacional sale con la MISMA forma que el resto
 
+/* ── «¿POR QUÉ ESA CIFRA?» · UNA SOLA VERDAD, ALCANZABLE DESDE LOS DOS CAMINOS (owner 2026-08-12) ══════════════
+ * ESTA FUNCIÓN NACIÓ DE UN ERROR MÍO, y conviene que quede escrito. La respuesta a «logística por qué tiene un
+ * 3.5%» se construyó y se probó ADENTRO de `answerConversational`… que corre DESPUÉS del oráculo en ChatADI.
+ * Y el oráculo se queda ese turno (`detectPnlIntent` devuelve null para esa frase), así que el arreglo sólo
+ * habría funcionado si el oráculo se abstenía. O sea: construido, con gate verde, y sin camino — la OCTAVA vez
+ * del mismo patrón en este proyecto, y la primera que la causé yo. El gate que escribí certificaba el cableado
+ * DENTRO de conversation.js y nunca que el turno llegara hasta acá.
+ * POR ESO SE EXTRAE: un solo compositor, invocable desde el camino de siempre Y desde antes del oráculo. No se
+ * duplica la lógica en ChatADI —eso sería dos verdades para la misma pregunta, exactamente lo que el proyecto
+ * prohíbe—, se expone la que ya existe.
+ * SIGUE SIN GASTAR UNA LLAMADA: la respuesta sale del dato sellado, no del narrador. */
+export function responderPorQueCifra(text, lastEvidence) {
+  if (!lastEvidence || !lastEvidence.pnl) return null;   // sin un P&L delante, no hay línea de la que preguntar
+  const pq = detectaPorQueCifra(text, activePnl());
+  if (!pq) return null;                                  // red angosta (ver porQueEstaCifra.js): ante la duda, no dispara
+  return {
+    text: componePorQueCifra(pq), suggestions: null, sentrixAction: null,
+    evidence: { followup: true, kind: "pnl_supuesto", boleta: [
+      fig(`P&L · ${pq.linea.nombre}`, `${pq.linea.pct}%`, { unit: "pct", raw: pq.linea.pct, mandatory: true,
+        source: "computed", context: pq.linea.origen === "perfil_empresa" ? "supuesto del perfil de la empresa" : "supuesto declarado" }),
+    ] },
+    route: "pnl_por_que_cifra",
+  };
+}
+
 // ── LA OFERTA DE CIERRE (owner 2026-07-15 · "respondo SI y luego se pierde"): toda respuesta de ADI suele cerrar
 // con una pregunta-oferta ("¿empezamos con el análisis de costos?"). Esa pregunta es una PROMESA: se captura acá
 // (la ÚLTIMA interrogación del texto que el usuario VIO — narrado o determinístico) y viaja en la memoria, para
@@ -221,17 +246,8 @@ export function composeExplain(last, ctx = null, state = {}) {
    * (ver porQueEstaCifra.js): si no nombra una línea real del P&L, no dispara y sigue el camino de siempre.
    * NO gasta una llamada: la respuesta sale del dato sellado, no del narrador. */
   if (last && last.pnl) {
-    const pq = detectaPorQueCifra(state && state.text, activePnl());
-    if (pq) {
-      return {
-        text: componePorQueCifra(pq), suggestions: null, sentrixAction: null,
-        evidence: { followup: true, kind: "pnl_supuesto", boleta: [
-          fig(`P&L · ${pq.linea.nombre}`, `${pq.linea.pct}%`, { unit: "pct", raw: pq.linea.pct, mandatory: true,
-            source: "computed", context: pq.linea.origen === "perfil_empresa" ? "supuesto del perfil de la empresa" : "supuesto declarado" }),
-        ] },
-        route: "pnl_por_que_cifra",
-      };
-    }
+    const pq = responderPorQueCifra(state && state.text, last);
+    if (pq) return pq;
     const rP = pnlExplain(last, ctx, state);
     if (rP) return rP;
   }

@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
-import { answerConversational, buildConversationContext, updateMemoria } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto + LA BOLETA DE MEMORIA (el "sí"/"compáralo"/"muéstrame más" la consumen)
+import { answerConversational, buildConversationContext, updateMemoria, responderPorQueCifra } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto + LA BOLETA DE MEMORIA (el "sí"/"compáralo"/"muéstrame más" la consumen)
 import { pickNarratedText, shouldNarrate } from "../adi/llm/numberGuard.js";   // Paso 5 · number-guard + política de narración (degrades honestos van crudos)
 import { stripRoboticVoice, stripProactiveSuffix, stripOutOfDataOffers, stripLanguageLeaks } from "../adi/llm/voiceGuard.js";   // guard de voz determinístico + muletilla proactiva + oferta fuera-de-dato + leaks de idioma/slang (owner 2026-07-09/10)
 import { coerceSpec, coerceFloor } from "../adi/coerceChain.js";   // cadena de coerce "la pregunta manda el foco" + la RED del piso sin LLM (las promesas de la UI responden en todos los modos)
@@ -313,6 +313,22 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
   const _ph = typeof onPhase === "function" ? onPhase : () => {};
   const q = (question || "").trim();
   let r, narrated = false;
+  /* ── «¿POR QUÉ ESA CIFRA?» ANTES DEL ORÁCULO (owner 2026-08-12 · corrección de un error mío) ══════════════════
+   * El owner miró la cascada del P&L y preguntó «logística por qué tiene un 3.5%». La respuesta estaba en su
+   * propia tabla: la línea viene sellada «supuesto declarado». Se construyó el compositor… dentro de
+   * `answerConversational`, que corre MÁS ABAJO que el oráculo. Y el oráculo se queda ese turno —para esa frase
+   * `detectPnlIntent` devuelve null—, así que el arreglo sólo habría entrado si el oráculo se abstenía: nunca,
+   * en la práctica. Construido, con gate verde, y sin camino.
+   * ACÁ ARRIBA SÍ LO ALCANZA, y es la posición correcta por lo que la pregunta ES: un pedido de PROCEDENCIA sobre
+   * una cifra que el usuario YA tiene delante. No hay nada que planificar ni que pedirle a ninguna tool — el dato
+   * ya está sellado, con su origen. Mandarla al oráculo es pagar para que un modelo redescubra lo que la boleta
+   * del turno anterior ya declara.
+   * RED ANGOSTA: sin un P&L delante o sin nombrar una línea real, devuelve null y el turno sigue de largo. */
+  {
+    const _pq = responderPorQueCifra(q, context && context.lastEvidence);
+    if (_pq) { _ph(1); return _turnFromResult(q, _pq, context, "deterministico"); }
+  }
+
   /* ── CUÁNDO NO HACE FALTA PAGAR · bypass pre-PLAN (owner 2026-08-12 · detrás de flag, HOY APAGADO) ═══════════
    * MEDIDO: siete de siete preguntas típicas ya tienen respuesta COMPLETA sin el modelo —el coercer del piso
    * entiende la pregunta y el motor produce entre 500 y 1.800 caracteres de lectura real—, pero el turno llama al

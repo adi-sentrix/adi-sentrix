@@ -85,5 +85,31 @@ H("[5] PROPORCIONALIDAD · un supuesto nunca se presenta como medición");
   ok(componePorQueCifra({}) === null && componePorQueCifra({ linea: null }) === null, "sin línea no inventa nada: devuelve null");
 }
 
+H("[6] EL TURNO LLEGA HASTA ACÁ · lo que la sección [4] NO probaba");
+{
+  /* LA LECCIÓN, y la pagué yo. La sección [4] certifica que `conversation.js` está bien cableado por dentro, y
+   * es verdad — pero `answerConversational` corre DESPUÉS del oráculo en ChatADI, y el oráculo se queda este
+   * turno (`detectPnlIntent` devuelve null para «logística por qué tiene un 3.5%»). O sea que el arreglo estaba
+   * construido, probado, verde… y sólo habría entrado si el oráculo se abstenía. Nunca, en la práctica.
+   * «Cableado» y «alcanzable» no son lo mismo, y un gate que sólo mira lo primero da una falsa tranquilidad. */
+  const CHAT = readFileSync("./src/ui/ChatADI.jsx", "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  ok(/responderPorQueCifra\(q,/.test(CHAT), "ChatADI llama al compositor con la pregunta del turno");
+  const iPq = CHAT.indexOf("responderPorQueCifra(q,");
+  const iOraculo = CHAT.indexOf("answerViaOracle({");
+  ok(iPq > 0 && iOraculo > 0 && iPq < iOraculo,
+    "y lo llama ANTES del oráculo — si fuera después, el oráculo ya se habría quedado el turno",
+    `porQueCifra@${iPq} · oráculo@${iOraculo}`);
+  const bloque = iPq > 0 ? CHAT.slice(Math.max(0, iPq - 400), iPq + 400) : "";
+  ok(!/_fetchPlan|_fetchNarrateC/.test(bloque), "sin invocar al gateway: la respuesta sale del dato ya sellado");
+
+  /* UNA SOLA VERDAD: los dos caminos tienen que usar el MISMO compositor. Si ChatADI se armara su propia versión,
+   * la misma pregunta tendría dos respuestas posibles según por dónde entre — justo lo que el repo prohíbe. */
+  const CONV = readFileSync("./src/adi/conversation.js", "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  ok(/export function responderPorQueCifra/.test(CONV), "el compositor está exportado una sola vez");
+  ok(/responderPorQueCifra\(state && state\.text, last\)/.test(CONV),
+    "y el camino de siempre usa ESE mismo, no una copia: una pregunta, una respuesta");
+  ok(!/componePorQueCifra/.test(CHAT), "ChatADI no recompone nada por su cuenta");
+}
+
 console.log(`\n── ¿POR QUÉ ESA CIFRA? · ${PASS} PASS · ${FAIL} FAIL ──`);
 process.exitCode = FAIL ? 1 : 0;
