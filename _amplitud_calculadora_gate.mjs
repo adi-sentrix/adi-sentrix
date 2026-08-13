@@ -34,8 +34,32 @@ let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + String(extra).slice(0, 220) : "")); } };
 
 console.log("── 1 · CATÁLOGO CERRADO ──");
-ok(Object.keys(OPERACIONES_CALCULO).join(",") === "suma,resta,variacion_pct,participacion,brecha_pp,escalar,margen_objetivo",
-  "las operaciones son EXACTAMENTE las declaradas (D1)", Object.keys(OPERACIONES_CALCULO).join(","));
+// GATE MOVIDO 2026-08-13 (cierre de la certificación amplia, hallazgo 3 · E5) — ANÁLISIS GARANTÍA-VS-FORMATO:
+// la lista exacta es el punto de AMPLIACIÓN que este mismo gate declara en su cabecera («una operación futura del
+// catálogo = una entrada en OPERACIONES_CALCULO + sus casos bidireccionales ACÁ»). Entra `variacion_aplicada`
+// (aplicar un % del usuario a un monto — «¿y si mi venta subiera 10%?», el caso medido en vivo) CON sus casos
+// bidireccionales abajo. La garantía (catálogo cerrado, sin eval, tolerancia única) queda intacta.
+ok(Object.keys(OPERACIONES_CALCULO).join(",") === "suma,resta,variacion_pct,participacion,brecha_pp,escalar,variacion_aplicada,margen_objetivo",
+  "las operaciones son EXACTAMENTE las declaradas (D1 + ampliación E5 del cierre)", Object.keys(OPERACIONES_CALCULO).join(","));
+{
+  // los casos bidireccionales de la operación nueva: la cuenta exacta ejecuta con su fórmula; el muro la verifica
+  // en ambos sentidos (la exacta pasa, la torcida se veta) — mismo patrón que la regla de tres y la participación.
+  const va = ejecutarCalculo("variacion_aplicada", [{ raw: 100000000, unit: "money" }, { raw: 10, unit: "pct" }]);
+  ok(va.ok && va.resultados.length === 2 && va.resultados[1].clave === "proyectado"
+    && Math.abs(va.resultados[1].raw - 110000000) < 1 && /=/.test(va.resultados[1].formula),
+    "variacion_aplicada: $100.0M + 10% → proyectado $110.0M con su fórmula declarada", JSON.stringify(va.resultados));
+  ok(Math.abs(va.resultados[0].raw - 10000000) < 1, "…y el delta ($10.0M) también declarado");
+  const vaMal = ejecutarCalculo("variacion_aplicada", [{ raw: 100000000, unit: "money" }, { raw: 194000, unit: "money" }]);
+  ok(!vaMal.ok && vaMal.regla === "unidades-incompatibles", "monto con monto NO es una variación %: declina por unidades");
+  // EL MURO NO ESPEJA EL PROYECTADO, deliberadamente (medido en este mismo pase): monto×(1+%) sobre el pool real
+  // (134 montos del dato) colisionaba y autorizó una cifra con dueño equivocado — el gate del dato-narrador se
+  // puso rojo. Los resultados de variacion_aplicada SIEMPRE llegan sellados en la boleta de la tool; el narrador
+  // que haga esa cuenta por su cuenta se veta y repara. El delta (monto×%) sí queda cubierto por la expresión que
+  // margen_objetivo ya espeja.
+  const pool = [{ raw: 100000000, unit: "money" }, { raw: 10, unit: "pct" }];
+  ok(esCalculoDelCatalogo(110000000, "money", pool) === false, "el muro NO recomputa el proyectado (viene sellado en boleta — conservador)");
+  ok(esCalculoDelCatalogo(10000000, "money", pool) === true, "…el delta (monto × %) sí sigue cubierto (expresión ya espejada)");
+}
 const SRC = readFileSync(new URL("./src/adi/oracle/calculoCatalogo.js", import.meta.url), "utf8");
 ok(!/\beval\s*\(|new\s+Function\b/.test(SRC), "sin eval/Function — no hay evaluador de expresiones escondido");
 ok(!/from\s+["'][^"']*(data\/|engine\/|specRetrieval)/.test(SRC), "el módulo es puro: no importa dato ni motor");

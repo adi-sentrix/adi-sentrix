@@ -106,6 +106,26 @@ export const OPERACIONES_CALCULO = {
       : `escalar opera un monto $ por un factor en pp/unidades (llegaron ${ins.map((i) => i.unit).join(" y ")})`),
     ejecutar: (ins) => [{ clave: "escalado", raw: ins[0].raw * ins[1].raw, unit: "money", operandos: [ins[0], ins[1]], simbolo: "×" }],
   },
+  /* «¿Y SI MI VENTA SUBIERA 10%?» (cierre de la certificación amplia 2026-08-13, hallazgo 3 · hilo E turno 5,
+   * medido en vivo): la proyección de negocio más común de todas — aplicar una variación % a un monto — no tenía
+   * operación en el catálogo: `escalar` la rechaza a propósito (no acepta % como factor) y el turno murió con la
+   * razón técnica a pantalla. Entra por la puerta que D1 dejó abierta («catálogo cerrado AMPLIABLE — cada
+   * operación nueva entra con su gate»): monto × tasa, con el delta y el proyectado declarados cada uno con su
+   * fórmula. NO reemplaza a `escalar` (regla de tres $-por-punto) ni abre «venta × margen»: la tool solo la
+   * resuelve por rescate cuando la tasa es DEL USUARIO (una hipótesis con procedencia), jamás una tasa del dato. */
+  variacion_aplicada: {
+    aridad: 2, produce: "money",
+    unidades: "un monto $ y la variación en % a aplicarle — devuelve el cambio en $ y el monto proyectado",
+    unidadesOk: (ins) => (ins[0].unit === "money" && ins[1].unit === "pct" ? null
+      : `variacion_aplicada opera un monto $ con una tasa % (llegaron ${ins.map((i) => i.unit).join(" y ")})`),
+    ejecutar: (ins) => {
+      const delta = ins[0].raw * (ins[1].raw / 100);
+      return [
+        { clave: "delta", raw: delta, unit: "money", operandos: [ins[0], ins[1]], simbolo: "×" },
+        { clave: "proyectado", raw: ins[0].raw + delta, unit: "money", operandos: [ins[0], { raw: delta, unit: "money" }], simbolo: "+" },
+      ];
+    },
+  },
   // EL CASO CANÓNICO del gerente (owner 2026-08-13): «la industria debería estar en 25% — ¿qué nos falta?».
   // Insumos: venta ($) · contribución ($) · tasa objetivo (%). Cuatro resultados, cada uno con su fórmula. La
   // cuenta madre es la MISMA que marginRead sella («venta × benchmark − contribución») con la vara parametrizada.
@@ -235,7 +255,14 @@ export function esCalculoDelCatalogo(raw, unit, pool) {
     const tasas = _vals(pool, "pct");
     for (const venta of montos) for (const p of tasas) {
       const objetivo = venta * (p / 100);
-      if (Math.abs(objetivo - raw) <= tol) return true;                                                                    // margen_objetivo · contribución objetivo
+      if (Math.abs(objetivo - raw) <= tol) return true;                                                                    // margen_objetivo · contribución objetivo (≡ variacion_aplicada · delta)
+      // variacion_aplicada · proyectado (monto × (1 + %)) DELIBERADAMENTE NO SE ESPEJA ACÁ (cierre cert amplia
+      // 2026-08-13, medido en este mismo pase): con la densidad real del dato (F1 §7.1: 134 montos, 17/26 enteros
+      // de tasa ocupados), monto×(1+%) sobre el pool colisionaba con cifras ajenas y AUTORIZÓ una cifra con dueño
+      // equivocado que la quinta fuente vetaba (el gate del dato-narrador se puso rojo — garantía, no formato).
+      // No hace falta: los resultados de variacion_aplicada SIEMPRE llegan sellados en la boleta de la tool (el
+      // rescate ejecuta ANTES de narrar), así que el muro los autoriza por la vía de siempre; un narrador que
+      // hiciera esa cuenta por su cuenta se veta y repara — conservador a propósito.
       for (const contrib of montos) {
         if (contrib !== venta && Math.abs((objetivo - contrib) - raw) <= tol) return true;                                 // margen_objetivo · contribución faltante
       }

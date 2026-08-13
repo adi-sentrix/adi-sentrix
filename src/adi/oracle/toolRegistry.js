@@ -987,12 +987,14 @@ function _cifraLibre(texto) {
 }
 // _resolverInsumoCalc(spec, scenario) → { ok, insumo:{raw,unit,universo,label,value,origen,procedencia?} } | { ok:false, razon }
 function _resolverInsumoCalc(spec, scenario) {
-  if (!spec || typeof spec !== "object") return { ok: false, razon: "cada insumo es una referencia: {entidad, metrica} del dato, o {usuario: \"la cifra con su origen\"}" };
+  // los reasons de esta función también son texto de pantalla (composeNoDataMessage los cita verbatim): palabras
+  // de usuario, sin JSON, sin tokens de código, sin voseo — misma regla que _razonCalcEnPalabras (abajo).
+  if (!spec || typeof spec !== "object") return { ok: false, razon: "cada cifra del cálculo es una referencia: una entidad con su métrica del dato, o tu propia cifra con su origen declarado" };
   // ── cifra del usuario, SIEMPRE con su procedencia (regla 1 del catálogo) ──
   if (spec.usuario != null) {
     const texto = String(spec.usuario).trim();
     const f = _cifraLibre(texto);
-    if (!f) return { ok: false, razon: `no encuentro una cifra en «${texto}» — pasame el número con su unidad (%, $, pp)` };
+    if (!f) return { ok: false, razon: `no encuentro una cifra en «${texto}» — pásame el número con su unidad (%, $, puntos)` };
     const procedencia = texto.replace(f.text, " ").replace(/\s+/g, " ").trim();
     if (procedencia.replace(/[^\p{L}\p{N}]/gu, "").length < 3) {
       return { ok: false, razon: "una cifra tuya entra al cálculo solo con su procedencia — decime de dónde sale (una noticia, tu meta, un supuesto) y la uso como escenario" };
@@ -1001,7 +1003,7 @@ function _resolverInsumoCalc(spec, scenario) {
   }
   // ── referencia al dato: entidad·métrica (o la métrica del negocio entero) ──
   const campo = _CALC_CAMPO[_CALC_NORM(spec.metrica)];
-  if (!campo) return { ok: false, razon: `la métrica '${spec.metrica}' no está en el catálogo de referencias (${[...new Set(Object.values(_CALC_CAMPO))].slice(0, 8).join(", ")}…)` };
+  if (!campo) return { ok: false, razon: `no reconozco «${spec.metrica}» como una métrica del dato — puedo operar ventas, margen, contribución, costo, acciones comerciales, carga, capital en inventario, rotación, días de inventario, precio de lista, costo medio, unidades y benchmark` };
   const meta = _CALC_UNIT[campo];
   const entidad = spec.entidad != null ? String(spec.entidad).trim() : "";
   if (!entidad || _CALC_NEGOCIO.has(_CALC_NORM(entidad))) {
@@ -1009,7 +1011,7 @@ function _resolverInsumoCalc(spec, scenario) {
     const k = deriveKpis(scenario);
     const disp = { venta: { raw: k.ventas.totalActual * 1000, unit: "money" }, anterior: { raw: k.ventas.totalAnterior * 1000, unit: "money" }, presupuesto: { raw: k.ventas.totalPresupuesto * 1000, unit: "money" }, contribucion: { raw: k.margen.totalUSD * 1000, unit: "money" }, margen: { raw: k.margen.pct, unit: "pct" }, benchmark: { raw: k.margen.benchmark, unit: "pct" } };
     const v = disp[campo];
-    if (!v || !Number.isFinite(v.raw)) return { ok: false, razon: `'${spec.metrica}' no está como agregado del negocio — nombrá la entidad, o pedila por su tool de lectura` };
+    if (!v || !Number.isFinite(v.raw)) return { ok: false, razon: `«${spec.metrica}» no está como agregado del negocio entero — nombra la entidad puntual y lo busco en su registro` };
     const label = `Negocio · ${fieldLabel(campo) || campo}`;
     return { ok: true, insumo: { raw: v.raw, unit: v.unit, universo: universoDe(label, v.unit), label, value: formatearCanon(v.raw, v.unit), origen: "motor" } };
   }
@@ -1018,16 +1020,59 @@ function _resolverInsumoCalc(spec, scenario) {
   if (!rec) { const g = guessDimension(entidad); if (g && g !== dim) { dim = g; rec = rawRecordFor(dim, entidad, scenario); } }
   if (!rec) return { ok: false, razon: `no encuentro '${entidad}' en el dato` };
   const crudo = campo === "benchmark" ? benchmarkOf(rec) : rec[campo];
-  if (typeof crudo !== "number" || !Number.isFinite(crudo)) return { ok: false, razon: `'${entidad}' no tiene '${spec.metrica}' en su registro — ese campo no existe en su eje` };
+  if (typeof crudo !== "number" || !Number.isFinite(crudo)) return { ok: false, razon: `«${entidad}» no tiene «${spec.metrica}» en su registro — esa medida no existe en su eje del dato` };
   const raw = meta.k ? crudo * 1000 : crudo;
   const label = `${rec.nombre || entidad} · ${fieldLabel(campo) || campo}`;
   return { ok: true, insumo: { raw, unit: meta.u, universo: universoDe(label, meta.u), label, value: formatearCanon(raw, meta.u), origen: "motor" } };
 }
-const _CALC_ETIQ = { suma: "Suma", resta: "Diferencia", variacion: "Variación", participacion: "Participación", brecha: "Brecha", escalado: "Proyección", margen_actual: "Margen actual", contribucion_objetivo: "Contribución objetivo", contribucion_faltante: "Contribución faltante" };
+const _CALC_ETIQ = { suma: "Suma", resta: "Diferencia", variacion: "Variación", participacion: "Participación", brecha: "Brecha", escalado: "Proyección", delta: "Variación en $", proyectado: "Proyección", margen_actual: "Margen actual", contribucion_objetivo: "Contribución objetivo", contribucion_faltante: "Contribución faltante" };
+/* ── LAS RAZONES DE LA CALCULADORA HABLAN EN PALABRAS DE USUARIO (cierre de la cert amplia 2026-08-13, hallazgo 3) ─
+ * MEDIDO EN VIVO (hilo E turno 5): «'escalar' necesita exactamente 2 insumos (llegaron 1) — un monto $ …» salió
+ * VERBATIM a pantalla — nombre de operación entre comillas, conteo de aridad, vocabulario de contrato. La MISMA
+ * familia del Paso 2 (la excusa interna del glosario): coverage.reason ES texto de pantalla (composeNoDataMessage
+ * lo cita literal), así que se escribe para el usuario. REGLA VERIFICABLE (probe + gate): sin identificadores con
+ * guion bajo (/\w_\w/), sin nombres de operación del catálogo, sin la palabra «insumos». Las razones internas de
+ * calculoCatalogo.js quedan INTACTAS (precisas, con su `regla`) — la tool las traduce en la frontera, igual que
+ * defineConcept des-tokeniza antes de citar. Las declinaciones legítimas (unidades, universos) conservan su
+ * honestidad: se dice QUÉ no opera y QUÉ hace falta, solo que en palabras. */
+const _CALC_QUE_FALTA = {
+  suma: "para sumar necesito exactamente las dos cifras a operar — dime cuáles dos junto",
+  resta: "para restar necesito exactamente las dos cifras a operar — dime cuál le resto a cuál",
+  variacion_pct: "para medir esa variación necesito el punto de partida y el de llegada — ¿entre qué dos montos la calculo?",
+  participacion: "para calcular esa participación necesito la parte y el total — ¿qué mido sobre qué?",
+  brecha_pp: "para medir esa brecha necesito las dos tasas a comparar — ¿cuál comparo contra cuál?",
+  escalar: "para proyectar ese aumento necesito saber sobre qué monto aplicarlo — ¿la venta total del negocio?",
+  variacion_aplicada: "para proyectar ese cambio necesito el monto base y el porcentaje a aplicar — ¿sobre qué monto lo aplico? ¿la venta total del negocio?",
+  margen_objetivo: "para calcular qué falta hasta esa meta necesito la entidad (su venta y su contribución) y la tasa objetivo con su origen — ¿de qué entidad hablamos?",
+};
+const _CALC_ACEPTA = {
+  suma: "dos cifras de la MISMA unidad — $ con $, puntos con puntos, unidades con unidades; una tasa (%) no se junta con un monto",
+  resta: "dos cifras de la MISMA unidad — $ con $, puntos con puntos; una tasa (%) no se descuenta de un monto",
+  variacion_pct: "dos montos de la MISMA unidad ($ con $, o unidades con unidades)",
+  participacion: "dos montos de la MISMA unidad y del mismo universo",
+  brecha_pp: "dos tasas (%) — la diferencia sale en puntos",
+  escalar: "un monto en $ (lo que vale una unidad o un punto) y un factor en puntos o unidades — no una tasa %",
+  variacion_aplicada: "un monto en $ y la variación en % a aplicarle",
+  margen_objetivo: "la venta ($) y la contribución ($) de la entidad, más la tasa objetivo (%)",
+};
+const _CALC_UNIT_PALABRA = { money: "un monto en $", pct: "una tasa en %", pp: "puntos", count: "unidades", ratio: "veces", days: "días" };
+const _CALC_CATALOGO_EN_PALABRAS = "esa cuenta no está en mi catálogo de cálculo — puedo sumar y restar montos, medir variaciones y participaciones, brechas en puntos, proyectar un cambio porcentual y calcular qué falta para llegar a un margen objetivo. No ejecuto fórmulas libres; dime cuál de esas necesitas y sobre qué cifras.";
+function _razonCalcEnPalabras(res, operacion, resueltos) {
+  if (!res || !res.regla) return _CALC_CATALOGO_EN_PALABRAS;
+  if (res.regla === "catalogo-cerrado") return _CALC_CATALOGO_EN_PALABRAS;
+  if (res.regla === "aridad") return _CALC_QUE_FALTA[operacion] || "me faltan cifras para esa cuenta — dime sobre cuáles la hago";
+  if (res.regla === "unidades-incompatibles") {
+    const llegaron = (resueltos || []).map((i) => _CALC_UNIT_PALABRA[i.unit] || i.unit).join(" y ");
+    const acepta = _CALC_ACEPTA[operacion] || "cifras compatibles entre sí";
+    return `esa cuenta no opera con lo que llegó (${llegaron}): necesita ${acepta} — no convierto unidades en silencio`;
+  }
+  if (res.regla === "insumo-invalido") return "cada cifra entra al cálculo con su valor y su unidad declarados — así como llegó no la puedo usar; dime la cifra con su unidad ($, %, unidades)";
+  return res.razon;   // universos-no-reconcilian: ya nombra la regla y su razón medida en palabras (el gate la fija)
+}
 function calcular({ operacion, insumos, objetivo, scenario } = {}) {
   const _no = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
-  const op = OPERACIONES_CALCULO[String(operacion || "").trim()];
-  if (!op) return _no(`'${operacion}' no está en el catálogo de cálculo — operaciones: ${Object.keys(OPERACIONES_CALCULO).join(", ")}. No ejecuto fórmulas libres.`);
+  const opNombre = String(operacion || "").trim();
+  const op = OPERACIONES_CALCULO[opNombre];
   // margen_objetivo azucarado: UN insumo {entidad} se expande a su venta + contribución (los dos montos que la
   // cuenta necesita), y `objetivo` es el tercer insumo (la tasa — del usuario con procedencia, o el benchmark).
   let specs = Array.isArray(insumos) ? [...insumos] : [];
@@ -1038,35 +1083,60 @@ function calcular({ operacion, insumos, objetivo, scenario } = {}) {
     }
     if (objetivo != null && specs.length < op.aridad) specs.push(objetivo);
   }
-  if (specs.length > 4) return _no("máximo 4 insumos por cálculo — descomponé la cuenta en pasos");
+  if (specs.length > 4) return _no("máximo 4 cifras por cálculo — descompón la cuenta en pasos");
   const resueltos = [];
   for (const s of specs) {
     const r = _resolverInsumoCalc(s, scenario);
     if (!r.ok) return _no(r.razon);
     resueltos.push(r.insumo);
   }
-  const res = ejecutarCalculo(operacion, resueltos);
-  if (!res.ok) return _no(res.razon);
-  const conCifraDeUsuario = resueltos.some((i) => i.origen === "usuario");
+  let res = op ? ejecutarCalculo(operacion, resueltos) : { ok: false, regla: "catalogo-cerrado" };
+  let operacionEjecutada = opNombre;
+  let insumosFinales = resueltos;
+  /* ── RESCATE DETERMINÍSTICO ACOTADO (hallazgo 3 · E5, medido en vivo): la operación pedida no calza, pero los
+   * args nombran UN monto del dato y UNA tasa del usuario (con su procedencia) — la única lectura inequívoca es
+   * «aplicale ese % a ese monto» (variacion_aplicada), sellada como hipótesis igual que siempre (la tasa del
+   * usuario dispara conCifraDeUsuario → ensureHypothesisFraming). El pool del rescate incluye `objetivo` (el
+   * canal donde el plan medido dejó el «10%»), que NUNCA entra a la ejecución principal de otra operación — solo
+   * al rescate: ejecutar una suma con un operando que el plan no articuló sería una cuenta inventada.
+   * RED ANGOSTA: la tasa tiene que ser DEL USUARIO (una tasa del dato — margen, carga — NO se rescata: «venta ×
+   * margen» disfrazado es justo lo que escalar cierra a propósito); un cruce de universos no se rescata
+   * (honestidad dura); con más de un monto posible se declina PREGUNTANDO sobre cuál aplicar (el patrón
+   * supuestos_faltantes: la razón ES la pregunta). Un pedido genuinamente ambiguo sigue declinando. */
+  if (!res.ok && res.regla !== "universos-no-reconcilian" && operacion !== "margen_objetivo") {
+    const pool = [...resueltos];
+    if (objetivo != null) { const r = _resolverInsumoCalc(objetivo, scenario); if (r.ok) pool.push(r.insumo); }
+    const montos = pool.filter((i) => i.unit === "money" && i.origen === "motor");
+    const tasasUsuario = pool.filter((i) => i.unit === "pct" && i.origen === "usuario");
+    if (montos.length === 1 && tasasUsuario.length === 1 && pool.length === 2) {
+      const rescate = ejecutarCalculo("variacion_aplicada", [montos[0], tasasUsuario[0]]);
+      if (rescate.ok) { res = rescate; operacionEjecutada = "variacion_aplicada"; insumosFinales = [montos[0], tasasUsuario[0]]; }
+    } else if (montos.length > 1 && tasasUsuario.length === 1) {
+      return _no("veo más de un monto posible para aplicar ese porcentaje — dime sobre cuál lo aplico");
+    }
+  }
+  if (!res.ok) return _no(_razonCalcEnPalabras(res, opNombre, resueltos));
+  const conCifraDeUsuario = insumosFinales.some((i) => i.origen === "usuario");
   // el SUJETO del cálculo: la entidad que los insumos del motor comparten (o "Cálculo" si no hay una sola).
-  const entes = [...new Set(resueltos.filter((i) => i.origen === "motor").map((i) => String(i.label).split(" · ")[0]))];
+  const entes = [...new Set(insumosFinales.filter((i) => i.origen === "motor").map((i) => String(i.label).split(" · ")[0]))];
   const sujeto = entes.length === 1 ? entes[0] : "Cálculo";
   const principal = res.resultados[res.resultados.length - 1];   // la última es la respuesta (faltante en margen_objetivo)
   const boleta = [];
-  for (const i of resueltos) {
+  for (const i of insumosFinales) {
     boleta.push(i.origen === "usuario"
-      ? fig(i.label, i.value, { unit: i.unit, raw: i.raw, sello: "indicado", verificabilidadRazon: `cifra aportada por el usuario (procedencia: ${i.procedencia}) — no es un dato del motor y no se puede verificar contra el dato`, context: `insumo del usuario para ${operacion}: «${i.procedencia}»` })
-      : fig(i.label, i.value, { unit: i.unit, raw: i.raw, source: "actual", context: `insumo de ${operacion}` }));
+      ? fig(i.label, i.value, { unit: i.unit, raw: i.raw, sello: "indicado", verificabilidadRazon: `cifra aportada por el usuario (procedencia: ${i.procedencia}) — no es un dato del motor y no se puede verificar contra el dato`, context: `insumo del usuario para ${operacionEjecutada}: «${i.procedencia}»` })
+      : fig(i.label, i.value, { unit: i.unit, raw: i.raw, source: "actual", context: `insumo de ${operacionEjecutada}` }));
   }
   for (const r of res.resultados) {
     boleta.push(fig(`${sujeto} · ${_CALC_ETIQ[r.clave] || r.clave}`, r.value, {
       unit: r.unit, raw: r.raw, mandatory: r === principal, source: "computed", formula: r.formula,
-      context: conCifraDeUsuario ? `calculado por el motor sobre un supuesto del usuario (${operacion})` : `calculado por el motor (${operacion})`,
+      context: conCifraDeUsuario ? `calculado por el motor sobre un supuesto del usuario (${operacionEjecutada})` : `calculado por el motor (${operacionEjecutada})`,
     }));
   }
   const facts = {
-    es_calculo: true, operacion,
-    insumos: resueltos.map((i) => ({ label: i.label, value: i.value, origen: i.origen, ...(i.procedencia ? { procedencia: i.procedencia } : {}) })),
+    es_calculo: true, operacion: operacionEjecutada,
+    ...(operacionEjecutada !== opNombre ? { operacionPedida: opNombre, nota_rescate: "la operación pedida por el plan no calzaba con las cifras; el motor resolvió la única lectura inequívoca (aplicar el % del usuario al monto nombrado) — el supuesto sigue siendo del usuario" } : {}),
+    insumos: insumosFinales.map((i) => ({ label: i.label, value: i.value, origen: i.origen, ...(i.procedencia ? { procedencia: i.procedencia } : {}) })),
     resultados: Object.fromEntries(res.resultados.map((r) => [r.clave, { value: r.value, formula: r.formula }])),
     formula: principal.formula,
     conCifraDeUsuario,
