@@ -31,6 +31,14 @@ export const MODEL_PRICING = {
   "gpt-5.6-luna": { in: 0.20, out: 1.20 },
   "gpt-5.6-terra": { in: 2.00, out: 12.00 },
   "gpt-5.6-sol": { in: 5.00, out: 30.00 },
+  // ── Anthropic (decisión del owner 2026-08-13: PLAN=haiku · NARRAR=sonnet · opus SOLO tarifado, sin cablear) ──
+  // Sonnet lleva el precio de LISTA ($3/$15): el intro $2/$10 expira el 2026-08-31 y esta tabla tarifa costos
+  // reales de largo plazo — una tarifa que caduca subcontaría cada llamada posterior al vencimiento. Los snapshots
+  // fechados del proveedor ("claude-haiku-4-5-20251001") resuelven por la MISMA regla de familia de siempre
+  // (_SUFIJO_DE_SNAPSHOT ya acepta la forma \d{8}); no hay regla nueva.
+  "claude-haiku-4-5": { in: 1.00, out: 5.00 },
+  "claude-sonnet-5": { in: 3.00, out: 15.00 },
+  "claude-opus-5": { in: 5.00, out: 25.00 },
 };
 
 // LO ÚNICO QUE SE PUEDE QUITAR de un id para encontrar su familia. Cada forma está acá porque NO cambia el modelo
