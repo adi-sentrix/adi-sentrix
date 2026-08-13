@@ -30,7 +30,11 @@ const P = (raw) => ({ raw, unit: "pct" });
 
 console.log("── 1 · EL CATÁLOGO PURO, OPERACIÓN POR OPERACIÓN ──");
 {
-  ok(Object.keys(OPERACIONES_CALCULO).join(",") === "suma,resta,variacion_pct,participacion,brecha_pp,escalar,margen_objetivo",
+  // LISTA ACTUALIZADA dos veces por el punto de ampliación que D1 declara (cada operación nueva entra con su
+  // gate): `variacion_aplicada` (cierre de la cert amplia 2026-08-13, hallazgo E5 — este probe había quedado
+  // con la lista vieja y fallaba en la base 4b79a54, deuda del cierre) y `suma_filtrada` (encargo «umbral del
+  // usuario» 2026-08-13 — filtrar+sumar con el umbral declarado, casos en _probe_umbral_dueno.mjs).
+  ok(Object.keys(OPERACIONES_CALCULO).join(",") === "suma,resta,variacion_pct,participacion,brecha_pp,escalar,variacion_aplicada,suma_filtrada,margen_objetivo",
     "el catálogo es EXACTAMENTE el declarado (D1: cerrado, ampliable solo con gate)", Object.keys(OPERACIONES_CALCULO).join(","));
   const src = readFileSync(new URL("./src/adi/oracle/calculoCatalogo.js", import.meta.url), "utf8");
   ok(!/\beval\s*\(|new\s+Function\b/.test(src), "sin eval/Function en el módulo — catálogo cerrado no es un dicho");
