@@ -2173,7 +2173,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // conteos autorizados con LA MISMA derivación del chequeo 2 (conteosAutorizadosDelTurno). Solo un turno CON
   // datos escribe — uno sin datos deja la boleta anterior intacta (ver la nota del cap, arriba). NUNCA viaja al
   // narrador: narrationContract la excluye de memoria_interaccion por el mismo filtro que viewContext.
-  if (figs.length) {
+  // Y LA CONFUSIÓN PELADA BAJO SOLO-DATOS TAMPOCO ESCRIBE (cert viva #2, hilo C t3): en ese corner la rama de
+  // solo-datos no compone el ledger (la call fue ruido del planificador; el turno responde el mensaje D2 o una
+  // definición), así que estas figs JAMÁS se muestran — persistirlas daría permiso de re-cita sobre cifras que el
+  // usuario nunca vio y PISARÍA la boleta del último turno con datos realmente mostrados. La boleta es «lo que te
+  // mostré», no «lo que el batch trajo». Bajo alcance full la confusión sigue al narrador (que SÍ puede citar la
+  // boleta del turno), así que ahí se escribe como siempre.
+  const _confusionPeladaBajoCandado = _confusionPelada && (pref.contentScope === "data_only" || pref.contentScope === "results_only");
+  if (figs.length && !_confusionPeladaBajoCandado) {
     mem2 = {
       ...mem2,
       boletaAnterior: {
@@ -2313,7 +2320,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
     // MISMA FORMA, MISMO COMPOSITOR (owner 2026-08-12, punto 3): esta rama también componía SIEMPRE una tabla, así
     // que «solo el dato» devolvía doce filas donde el contrato pide una oración con cifra, entidad y período.
-    const desdeLedger = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas });
+    // LA CONFUSIÓN PELADA LE GANA A LA CALL ALUCINADA (owner 2026-08-13, certificación viva #2 · hilo C turno 3).
+    // MEDIDO: ante «no entiendo» bajo data_only el PLAN alucinó una call (entityProfile) que nadie pidió, la boleta
+    // trajo cifras, y la regla deliberada «turno con dato = turno de dato» (Paso 3 §5.e) hizo salir «Sodimac ·
+    // Ventas: $8.2M» donde correspondía el mensaje D2. Esa regla presume que el dato FUE PEDIDO — y en una
+    // confusión pelada (_confusionPelada: la MISMA vara del 3b, _CLARIFY_RE sin nada concreto nombrado) nadie
+    // pidió ningún dato: la call es ruido del planificador. Bajo esa condición, y SOLO bajo ella, el ledger no
+    // compone — la definición curada (desdeTexto) pasa a ser la mejor respuesta si el turno la trae, y si no,
+    // desdeConfusion. Una pregunta de datos real no matchea la vara y queda byte-idéntica; una confusión que SÍ
+    // nombra algo concreto («no entiendo el margen») tampoco cambia: el dato sigue mandando, como siempre.
+    const desdeLedger = _confusionPelada ? null : componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas });
     const desdeTexto = desdeLedger ? null : composeFromTextualEvidence(results);
     // D2 (owner 2026-08-13, Paso 3): un turno de CONFUSIÓN inequívoca (_CLARIFY_RE — el MISMO piso determinístico
     // que fuerza mode=clarify, nunca un segundo detector) que llegó hasta acá sin cifra NI definición curada
@@ -2341,7 +2357,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // transferencia de decisión tienen sujeto. Estamparlos sería agregarle a la respuesta un marco que su propia
       // evidencia no tiene — y en esta rama, que no tiene reparación río abajo, un envoltorio que el guard rechace
       // no degrada: abstiene el turno entero.
-      const c = desdeTexto ? candidato : ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
+      // AL MENSAJE DE CONFUSIÓN TAMPOCO (cert viva #2, hilo C t3): no presenta ningún dato, y con la call alucinada
+      // `periodos` no viene vacío — estamparle «(Datos del año cerrado.)» le pondría marco de dato a un texto que
+      // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
+      // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
+      const c = (desdeTexto || desdeConfusion) ? candidato : ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
       if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
