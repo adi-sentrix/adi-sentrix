@@ -504,8 +504,8 @@ export function composeCriteria(ci) {
     // F2: el "estándar" que se cita es EL DEL TENANT (perfil ?? config) — con el demo, 30.1/3.5 byte-igual;
     // antes iban hardcodeados y en otra empresa el recall citaba una vara ajena.
     const text = (list.length
-      ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU vara en todas las lecturas y medidas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
-      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(tenantPolicyDefault("benchmark"))}, carga ${CRITERIA.target_carga.fmt(tenantPolicyDefault("targetCarga"))}). Puedes fijar tu vara: "recuerda que mi margen mínimo es 28%".`) + pnlTxt;
+      ? `Esto es lo que sé de tu negocio: ${list.map((x) => `${x.label} ${x.valueFmt} (estándar ${x.standard})`).join(" · ")}. Uso TU referencia en todas las lecturas y medidas. Para borrar uno: "olvidá el ${list[0].label.toLowerCase()}".`
+      : `Todavía no guardé ningún criterio tuyo — uso los estándares (margen mínimo ${CRITERIA.margen_minimo.fmt(tenantPolicyDefault("benchmark"))}, carga ${CRITERIA.target_carga.fmt(tenantPolicyDefault("targetCarga"))}). Puedes fijar tu referencia: "recuerda que mi margen mínimo es 28%".`) + pnlTxt;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   if (ci.action === "forget") {
@@ -520,7 +520,7 @@ export function composeCriteria(ci) {
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   if (ci.action === "propose") {
-    const text = `Eso suena a un criterio tuyo: ${c.label.toLowerCase()} ${c.fmt(ci.value)}. No lo guardo sin tu OK — si quieres que lo use como TU vara en todas las lecturas, dime: "recuerda que mi ${c.label.toLowerCase()} es ${ci.value}".`;
+    const text = `Eso suena a un criterio tuyo: ${c.label.toLowerCase()} ${c.fmt(ci.value)}. No lo guardo sin tu OK — si quieres que lo use como TU referencia en todas las lecturas, dime: "recuerda que mi ${c.label.toLowerCase()} es ${ci.value}".`;
     return { text, suggestions: [`Recuerda que mi ${c.label.toLowerCase()} es ${ci.value}`], sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
   // set
@@ -531,7 +531,7 @@ export function composeCriteria(ci) {
       : `No reconozco ese criterio. Hoy puedo recordar: ${Object.values(CRITERIA).map((x) => x.label.toLowerCase()).join(", ")}.`;
     return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
   }
-  const text = `Listo — desde ahora tu ${c.label.toLowerCase()} es ${c.fmt(r.value)} (antes usaba ${c.fmt(r.prev)}). Todas las lecturas, medidas y paneles miden contra TU vara. Para volver al estándar: "olvidá el ${c.label.toLowerCase()}".`;
+  const text = `Listo — desde ahora tu ${c.label.toLowerCase()} es ${c.fmt(r.value)} (antes usaba ${c.fmt(r.prev)}). Todas las lecturas, medidas y paneles miden contra TU referencia. Para volver al estándar: "olvidá el ${c.label.toLowerCase()}".`;
   return { text, suggestions: null, sentrixAction: null, evidence: _criteriaEvidence(), route: "apply_criteria" };
 }
 
