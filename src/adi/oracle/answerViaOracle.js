@@ -2034,7 +2034,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // se descartaba acá mismo, al desestructurar solo {ledger,results,trace}: buildOracleEvidence (más abajo) nunca
   // podía saber qué faltó. Se hila hasta el evidence del turno como `evidenceSpec.missing` — CERO cambio de
   // comportamiento del turno (el LLM/guard no lo consumen), solo deja de tirarse un dato que el motor ya calculó.
-  const { ledger, results, trace, unsupported } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls });
+  // `preguntaUsuario: q` (owner 2026-08-13, caso «bajo_benchmark»): la frase LITERAL del turno viaja al ejecutor
+  // para que defineConcept pueda resolver por ella cuando el PLAN le mandó un token interno en vez de las palabras
+  // del usuario. Solo la lee defineConcept — ver la inyección de punto único en toolRunner.js.
+  const { ledger, results, trace, unsupported } = runPlan({ intent: plan.intent, calls }, { scenario, maxCalls, preguntaUsuario: q });
   // ── TELEMETRÍA · LAS TOOLS REALMENTE EJECUTADAS (owner 2026-08-10, cierre de la certificación live) ───────────
   // El gateway sólo ve las DOS llamadas al proveedor; el batch corre acá, del lado del cliente, así que este es el
   // único punto que sabe qué tools se ejecutaron de verdad — y no es lo mismo que lo que pidió el plan: los

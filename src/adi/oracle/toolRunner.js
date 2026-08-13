@@ -74,9 +74,10 @@ function _veraz(name, args, res) {
 }
 
 // runPlan(plan, opts) → { ledger, results, trace, unsupported }
-//   opts.scenario   escenario base de las tools (default "actual")
-//   opts.maxCalls   cap DURO de tool-calls por plan (costo/latencia · plan patológico) · default 8
-export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
+//   opts.scenario        escenario base de las tools (default "actual")
+//   opts.maxCalls        cap DURO de tool-calls por plan (costo/latencia · plan patológico) · default 8
+//   opts.preguntaUsuario la frase LITERAL del turno del usuario (solo la lee defineConcept · ver inyección abajo)
+export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuario = null } = {}) {
   const ledger = createLedger();
   const results = [];
   const unsupported = [];
@@ -157,7 +158,13 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8 } = {}) {
         }
       }
     }
-    const args = { ...callArgs, scenario };
+    /* LA PREGUNTA DEL TURNO VIAJA POR UN SOLO PUNTO, IGUAL QUE EL PERÍODO (owner 2026-08-13, caso real
+     * «bajo_benchmark»). El PLAN a veces normaliza el concepto del usuario a un token interno aunque la doctrina
+     * le pida las palabras textuales; defineConcept necesita la frase literal del turno como último peldaño de su
+     * escalera de resolución. Se inyecta acá —el único estrangulamiento con los args definitivos— y SOLO para
+     * defineConcept: ninguna otra tool cambia de firma, el schema del PLAN no se toca, y sin `preguntaUsuario`
+     * (gates/callers viejos) el comportamiento es byte-idéntico al de antes. */
+    const args = { ...callArgs, scenario, ...(name === "defineConcept" && preguntaUsuario ? { _preguntaUsuario: preguntaUsuario } : {}) };
     let res;
     try {
       res = _tool(args);

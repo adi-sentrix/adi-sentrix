@@ -942,10 +942,35 @@ function pnlRead({ focus = "resultado", entity = null, dimension = null, scenari
 // manifiesto de vistas y del registro de métricas) → frase libre → null honesto. Lo que no tiene entrada sigue
 // declinando: el defecto que se cierra acá es el inverso —contestar la definición de OTRO concepto—, y por eso
 // "margen bruto" y "margen de contribución" ahora resuelven a dos entradas distintas.
-function defineConcept({ concept } = {}) {
+// LA ESCALERA DE RESOLUCIÓN (owner 2026-08-13, caso real medido en prod: el PLAN emitió `bajo_benchmark` —un token
+// interno con guion bajo— y resolveGlossary lo declinaba, mientras «bajo benchmark» y la frase textual del usuario
+// SÍ resolvían). La doctrina del PLAN pide "el concepto tal como lo nombra el usuario"; el modelo a veces desobedece
+// y normaliza. El motor tolera esa desobediencia en vez de perder una definición que existe. En orden, parando en el
+// primer hit — y el orden importa:
+//   (a) el concept del plan tal cual (como siempre);
+//   (b) el concept con "_"→" " — el token interno leído como palabras («bajo_benchmark» → «bajo benchmark»);
+//   (c) la frase literal del usuario (`_preguntaUsuario`, la inyecta runPlan SOLO para esta tool). Va ÚLTIMA a
+//       propósito: una frase entera pasa por CONCEPT_MATCHERS (regex por orden), y si nombra DOS conceptos («qué es
+//       la carga y el rebate») resuelve al primero por orden de matcher, no necesariamente al que el usuario quiso —
+//       el concept del plan, aunque venga sucio, es la señal más específica y por eso gana;
+//   (d) null → declina HONESTO, como siempre: un concepto sin entrada curada sigue declinando — inventar es el
+//       defecto que el glosario existe para cerrar, así que acá no hay fuzzy matching ni fallback al LLM.
+function defineConcept({ concept, _preguntaUsuario } = {}) {
   const term = String(concept || "");
-  const d = resolveGlossary(term);
-  if (!d) return { facts: null, boleta: [], coverage: { supported: false, reason: `no tengo una definición curada para '${term}'` } };
+  const enPalabras = term.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const pregunta = String(_preguntaUsuario || "").trim();
+  const d = resolveGlossary(term)
+    || (enPalabras && enPalabras !== term ? resolveGlossary(enPalabras) : null)
+    || (pregunta ? resolveGlossary(pregunta) : null);
+  // LA EXCUSA CITA PALABRAS DEL USUARIO, NUNCA EL TOKEN. Este reason sale a pantalla VERBATIM por
+  // composeNoDataMessage (narrationBlocks.js): con el token crudo, el usuario leyó «'bajo_benchmark'» — código.
+  // Regla dura y verificable por gate: el reason JAMÁS contiene un identificador con guion bajo (/\w_\w/). Se cita
+  // el término ya des-tokenizado; si el plan no trajo concepto, la frase del usuario (también des-tokenizada, por
+  // si el usuario mismo escribió el token); y si no hay ninguna de las dos, un genérico sin identificadores.
+  if (!d) {
+    const citado = enPalabras || pregunta.replace(/_/g, " ").replace(/\s+/g, " ").trim() || "ese concepto";
+    return { facts: null, boleta: [], coverage: { supported: false, reason: `no tengo una definición curada para «${citado}»` } };
+  }
   return {
     facts: { concepto: d.aka, definicion: d.def, ...(d.distingue ? { distingue: d.distingue } : {}), es_definicion: true },
     boleta: [], coverage: { supported: true, fuente: d.fuente },
