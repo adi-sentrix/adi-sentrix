@@ -13,7 +13,7 @@
  * el texto YA ARMADO (system + tool + user) como string/objeto opaco y solo saben hablarle a su proveedor. Cambiar
  * de modelo/proveedor = cambiar el adapter; este contrato no se toca.
  */
-export const CONTRACT_VERSION = "adi-conversational-contract@1.2.0";
+export const CONTRACT_VERSION = "adi-conversational-contract@1.3.0";
 // 1.0.0 (Fase 1, 2026-07-29): mode default|clarify.
 // 1.1.0 (Fase 2, 2026-07-29): + diagnostico|decision|simulacion|seguimiento|evidencia · clarify en 2 niveles
 //   (nivel_aclaracion 1=máximo 1 cifra indispensable · 2+=cero cifras, ejemplo concreto).
@@ -21,6 +21,12 @@ export const CONTRACT_VERSION = "adi-conversational-contract@1.2.0";
 //   contexto SOBREVIVE a cada corrección, corrección ambigua, desacuerdo y dato aportado por el usuario. NO
 //   agrega ni un modo: la reparación viaja DENTRO del intent="redirect" que ya existía (§2 del contrato). Los 7
 //   modos de arriba quedan intactos — un turno de corrección sigue eligiendo su modo como cualquier otro.
+// 1.3.0 (D1 «no entiendo» → re-explicar directo, owner 2026-08-13 · Paso 3 de "ADI pierde el hilo"): la APERTURA
+//   de clarify cambia — un «no entiendo» pelado se responde RE-ENSEÑANDO de inmediato el mensaje central del turno
+//   anterior, NUNCA abriendo con una contrapregunta («¿qué parte no entendiste?»); esa repregunta queda RESERVADA
+//   para el caso multi-tema real (la respuesta anterior cubrió VARIOS temas distintos). Medido en prod: la
+//   contrapregunta costaba un turno entero. La escalera de niveles, el cero-jerga y la pregunta guía de cierre
+//   NO cambian — solo la apertura.
 
 // MODES — cada modo: { key, whenToUse (doctrina de la Pasada 1: cuándo elegirlo), narrate (contrato de la Pasada 2:
 // cómo responder en ese modo) }. `narrate` puede REFERENCIAR secciones compartidas de narratePromptC.js (LA
@@ -62,6 +68,7 @@ export const MODES = [
     key: "clarify",
     whenToUse: "el usuario señala CONFUSIÓN sobre lo que YA le dijiste — \"no entendí\", \"no entiendo\", \"no comprendo\", \"explícame más fácil/simple\", \"qué significa X\", \"a qué te referís con X\", o repite casi la misma pregunta (señal de que no aterrizó, no de que cambió de tema).",
     narrate: `ESTO REEMPLAZA TODO EL ARCO para este turno — no la redactes de nuevo con otras palabras, re-enseñá:
+  · LA APERTURA (owner 2026-08-13): NUNCA abras con una contrapregunta tipo "¿qué parte no entendiste?"/"¿qué te genera confusión?" — un "no entiendo" pelado se responde RE-ENSEÑANDO de inmediato el mensaje central de tu respuesta anterior, en simple; repreguntar le cuesta un turno al usuario, y la pregunta guía del cierre (abajo) ya le ofrece profundizar. ÚNICA EXCEPCIÓN — MULTI-TEMA REAL: si tu respuesta anterior cubrió VARIOS temas distintos (entidades o métricas separadas, cada una con su propia lectura — una respuesta larga de UN solo tema NO cuenta), ahí sí podés preguntar cuál de esos temas retomar, nombrándolos.
   · NO repitas el resumen ni la respuesta anterior reformulada — eso es exactamente lo que no funcionó.
   · Mirá "hilo_reciente": identificá el concepto/término que más probablemente trabó (el que VOS nombraste hace un momento — ej. "contribución no capturada", "carga comercial", "benchmark") y explicalo en términos simples y cotidianos.
   · Si "nivel_aclaracion" es 1 (primer intento de simplificar): usá COMO MUCHO UNA cifra INDISPENSABLE (la headline, si hace falta para anclar el ejemplo) — nada de tablas, nada de listas, ningún párrafo con 3+ cifras encadenadas.
