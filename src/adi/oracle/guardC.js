@@ -11,6 +11,10 @@
 import { parseFigures } from "../boleta.js";
 import { buildClaims, cifrasDelUsuario } from "./narrationContract.js";   // Proporcionalidad Semántica: el guard lee el MISMO sello que el narrador · v1.2: y la MISMA definición de "cifra del usuario" que el renderer
 import { reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";   // decisiones 1 y 11: el TIPO de la cifra y qué reconcilia con qué
+// AMPLITUD F2 (owner 2026-08-13, D1): el muro verifica las cuentas del CATÁLOGO — el verificador es del mismo
+// módulo puro que ejecuta la tool `calcular`, así el muro y la calculadora no pueden tolerar distinto. Solo se
+// consulta cuando _isCalc/_isCalc2/_derivadaDeSupuesto ya fallaron: extensión ADITIVA del chequeo 1.
+import { esCalculoDelCatalogo } from "./calculoCatalogo.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -2479,12 +2483,52 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   //     consulta al final, nunca cambia el veredicto de una cifra que ya pasaba.
   const _dato = _indiceDelDato(datoProyectado);
   const _maskedNarr = _dato ? _maskFigures(narration) : null;
+  /* ── EL POOL DEL CATÁLOGO (AMPLITUD F2) — perezoso: solo se arma si alguna cifra llegó hasta esa vía ──────────
+   * Una cifra narrada que no está en ninguna fuente se acepta SI Y SOLO SI es el resultado EXACTO (recomputado,
+   * con la tolerancia que _isCalc ya usa) de una operación del catálogo sobre cifras AUTORIZADAS del turno. El
+   * pool se ACOTA como _isCalc2 ya acota — jamás combinatoria global:
+   *   · las figs del ledger pasan por el MISMO _scopedCalcPool del nivel 1 (una fig con dueño solo entra si su
+   *     entidad está mencionada en la narración; las sin dueño entran siempre);
+   *   · el eco de la pregunta (qFigs), la boleta anterior (1b, cap 24) y las cifras del usuario (supFigs) entran
+   *     enteras — son pocas por construcción y ya tienen el estatus de fuente del chequeo 1;
+   *   · de la QUINTA fuente (la proyección del dato) entran SOLO las cifras cuyo dueño está nombrado en la
+   *     narración — el mismo principio de cercanía de esa fuente, aplicado como scope del pool.
+   * ADITIVO por construcción: esta vía solo AGREGA `continue` (aceptaciones); jamás produce un veto nuevo — sin
+   * catálogo el muro es byte-idéntico. Nunca recursivo: un resultado del catálogo no opera como operando. */
+  let _poolCatalogoMemo = null;
+  const _poolCatalogo = () => {
+    if (_poolCatalogoMemo) return _poolCatalogoMemo;
+    const pool = [..._scopedCalcPool(figs, entityNames, mentionedEntities), ...qFigs, ...bolFigs, ...supFigs];
+    // el FACTOR de una regla de tres suele venir en la pregunta como conteo pelado («¿cuánto valen 4 puntos?»):
+    // los conteos del eco de la pregunta ya son fuente autorizada del chequeo 2 — acá entran como factor de
+    // `escalar`, con el mismo estatus. SOLO los de la pregunta: los conteos declarados del ledger (largos de
+    // filas, top-N) multiplicando montos serían ruido combinatorio, no una cuenta que alguien pidió.
+    for (const c of parseCounts(question || "")) pool.push({ raw: c.raw, unit: "count" });
+    if (datoProyectado && Array.isArray(datoProyectado.figs)) {
+      const duenoMencionado = new Map();
+      const mencionado = (d) => {
+        if (!duenoMencionado.has(d)) duenoMencionado.set(d, new RegExp(`\\b${String(d).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration));
+        return duenoMencionado.get(d);
+      };
+      for (const df of datoProyectado.figs) {
+        const duenos = (df && Array.isArray(df.duenos)) ? df.duenos : [];
+        if (!duenos.length || !duenos.some(mencionado)) continue;
+        for (const pf of parseFigures(String(df.value == null ? "" : df.value))) pool.push(pf);
+      }
+    }
+    _poolCatalogoMemo = pool;
+    return pool;
+  };
   for (const f of parseFigures(narration)) {
     // `_derivadaDeSupuesto` cierra el caso del tercer universo: una cifra que sale de combinar el supuesto del
     // usuario con el dato del motor NO es inventada — es legítima y su problema es OTRO (cómo se presenta), que
     // juzga el chequeo 21. Rechazarla acá la bloquearía con el veredicto equivocado y el reintento buscaría
     // corregir algo que no estaba mal.
     if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || _isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities) || _isCalc2(f.raw, f.unit, figs, mentionedEntities) || _derivadaDeSupuesto(f, supFigs, figs)) continue;
+    // AMPLITUD F2: ¿es el resultado exacto de una operación del CATÁLOGO sobre el pool acotado del turno?
+    // Corre DESPUÉS de los niveles 1-2 (subset intacto) y ANTES de la quinta fuente: una cuenta legítima del
+    // catálogo que coincida con una cifra del dato no debe caer al veto de dueño.
+    if (esCalculoDelCatalogo(f.raw, f.unit, _poolCatalogo())) continue;
     const _duenos = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
     if (_duenos && _duenos.size) {
       if (_duenoEnVentana(narration, _maskedNarr, f, _duenos)) continue;   // cifra REAL del dato, con su dueño al lado
