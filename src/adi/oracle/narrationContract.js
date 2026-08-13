@@ -623,8 +623,13 @@ export function buildExtensionPolicy({ scope, claims, acciones, tablePolicy = "a
 // contrato —y el payload proyectado— quedan byte-idénticos en el 100% de los turnos que no vienen de Sentrix.
 function _memoriaSinVista(mem) {
   if (!mem || typeof mem !== "object") return mem || null;
-  if (!Object.prototype.hasOwnProperty.call(mem, "viewContext")) return mem;
-  const { viewContext: _descartado, ...resto } = mem;
+  // `boletaAnterior` (Paso 1b, owner 2026-08-13) se excluye por el MISMO filtro y la misma razón que viewContext:
+  // es PERMISO para guardC (la cuarta fuente de autorización), no dato para el narrador — que ya ve esas cifras
+  // EN EL TEXTO de hilo_reciente. Dejarla pasar sería una segunda representación de lo mismo en el mismo prompt.
+  const _tieneVista = Object.prototype.hasOwnProperty.call(mem, "viewContext");
+  const _tieneBoleta = Object.prototype.hasOwnProperty.call(mem, "boletaAnterior");
+  if (!_tieneVista && !_tieneBoleta) return mem;
+  const { viewContext: _descartado, boletaAnterior: _descartada, ...resto } = mem;
   return resto;
 }
 
