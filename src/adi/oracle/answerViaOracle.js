@@ -19,10 +19,10 @@ import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction,
 import { stripLanguageLeaks, stripOutOfDataOffers } from "../llm/voiceGuard.js";   // GARANTÍA runtime de registro (owner 2026-07-14/26: "palanca" y demás slang NO van — hoy solo corría en la ruta vieja, C quedaba sin la red) · stripOutOfDataOffers (owner 2026-08-03, Fase 3 eficiencia de Mini): MISMA garantía de "nunca ofrezcas data que no existe" — antes SOLO corría en la ruta legacy, cero ocurrencias en la ruta oráculo real
 import { buildOracleEvidence } from "./sentrixEvidence.js";  // SENTRIX ES LA EVIDENCIA (owner 2026-07-28): el panel debe reflejar lo que C acaba de narrar
 import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.js";   // CTA de la respuesta → la dirección EXACTA que la respalda (owner 2026-08-09)
-import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
+import { MODE_KEYS, INTENT_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, composeSoloDatosConfusionMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, composeSoloDatosConfusionMessage, composeAckPreferenciaMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
 import { debeResponderSinRepreguntar, respuestaYaEsEspecifica, isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
@@ -1708,11 +1708,33 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
    * juzgaría un turno de corrección que ya no existe (y el candado (b) de boletaAnterior bloquearía la re-cita
    * de la cifra que justamente hay que re-explicar). El intent baja a "answer" por la misma razón (el payload
    * proyecta `intencion` del plan). */
-  if (_reparacion && _reparacion.tipo === "correccion" && _reparacion.ambigua
-      && _CLARIFY_RE.test(q) && !respuestaYaEsEspecifica(q)) {
+  const _confusionPelada = _CLARIFY_RE.test(q) && !respuestaYaEsEspecifica(q);
+  if (_reparacion && _reparacion.tipo === "correccion" && _reparacion.ambigua && _confusionPelada) {
     planCoerciones.push("confusion-pelada→clarify(reparacion-ambigua-descartada)");
     _reparacion = null;
     plan = { ...plan, intent: "answer", reparacion: null };
+  }
+  /* ── D1 · SEGUNDA DESCLASIFICACIÓN CAZADA EN LA CERTIFICACIÓN EN VIVO (owner 2026-08-13, Paso 3b) ─────────────
+   * Medido con dev=07f5a85: ante «no entiendo que me quieres decir» el planificador emitió `intent:"clarify"` —
+   * FUERA del enum, sin reparación normalizable, así que el descarte de arriba no tenía nada que descartar — y la
+   * contrapregunta salió igual, con deterministic=true y sin narrador. Reproducido offline: el canal fue
+   * `supuestos_faltantes` (el request_clarification de simulate v2, más abajo), que emite la pregunta del PLAN
+   * verbatim sin mirar intent ni _CLARIFY_RE — un tercer generador que D1 no inspeccionaba. La regla del owner es
+   * absoluta: una frase inequívoca de confusión que no nombra nada concreto JAMÁS sale con contrapregunta, venga
+   * como venga clasificada. Dos cierres, mismo criterio que el descarte de arriba:
+   *   (a) un intent fuera del enum que sobrevivió a coerceVocabularioPlan (sin reparacion.tipo no hay tabla que
+   *       lo repare) baja a "answer" — el turno sigue al narrador, donde _coerceMode ya fuerza clarify;
+   *   (b) supuestos_faltantes se limpia TAMBIÉN en el plan (no solo en la variable local de abajo):
+   *       narrationContract.js (buildSupuestos) re-lee el objeto crudo, y sin la limpieza la contrapregunta
+   *       descartada viajaría al narrador como "supuesto faltante" listo para ser abierto en eco.
+   * Un «no entiendo» pelado no puede ser una simulación de dos variables a medio declarar: no nombra ninguna. */
+  if (_confusionPelada && !INTENT_KEYS.includes(plan.intent)) {
+    planCoerciones.push(`confusion-pelada→clarify(intent-fuera-de-enum-descartado:${String(plan.intent).slice(0, 24)})`);
+    plan = { ...plan, intent: "answer" };
+  }
+  if (_confusionPelada && Array.isArray(plan.supuestos_faltantes) && plan.supuestos_faltantes.length) {
+    planCoerciones.push("confusion-pelada→clarify(supuestos-faltantes-descartados)");
+    plan = { ...plan, supuestos_faltantes: [] };
   }
   // `calls` VACÍO ADEMÁS DEL FLAG (owner 2026-08-10, revisión de la sección 8): si el plan se declara ambiguo pero
   // trajo calls, se contradice igual que cuando declara `corrige` — y descartar un batch bueno para preguntar algo
@@ -2240,6 +2262,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // antes esta rama componía siempre la tabla del ledger y la orden del usuario se perdía en el camino.
   // FORMA DE SALIDA · turn-local, declarada por el PLAN (pref.outputForm) con respaldo determinístico.
   const formaSalida = resolveOutputForm({ plan, text: q });
+  // LA MÉTRICA PREGUNTADA (Paso 3b, hallazgo 2): las métricas que el TURNO nombra, resueltas con el léxico
+  // determinístico que YA existe — la tabla texto→token de tensión (_extractTensionMetrics, este archivo) y el
+  // diccionario token→etiqueta del registro de columnas (fieldLabel, entityRecord.js). Nunca un matcher nuevo.
+  // Se lo consumen los compositores determinísticos (componerPorForma): si la pregunta nombra una métrica que está
+  // en la boleta, ESA encabeza; sin métrica nombrada, el criterio de magnitud de siempre queda intacto.
+  const metricaLabelsPreguntadas = _extractTensionMetrics(q).map((t) => fieldLabel(t.token)).filter(Boolean);
   const _formaProhibidaPorElUsuario = formaSalida === "prosa" || formaSalida === "solo_conclusion"
     || resolveTablePolicy({ text: q, podado: [] }) === "forbidden"
     && !pidePresentacionTabular(q);
@@ -2285,7 +2313,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (!narration && (pref.contentScope === "data_only" || pref.contentScope === "results_only")) {
     // MISMA FORMA, MISMO COMPOSITOR (owner 2026-08-12, punto 3): esta rama también componía SIEMPRE una tabla, así
     // que «solo el dato» devolvía doce filas donde el contrato pide una oración con cifra, entidad y período.
-    const desdeLedger = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida });
+    const desdeLedger = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas });
     const desdeTexto = desdeLedger ? null : composeFromTextualEvidence(results);
     // D2 (owner 2026-08-13, Paso 3): un turno de CONFUSIÓN inequívoca (_CLARIFY_RE — el MISMO piso determinístico
     // que fuerza mode=clarify, nunca un segundo detector) que llegó hasta acá sin cifra NI definición curada
@@ -2295,7 +2323,16 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // Un turno de datos normal no matchea _CLARIFY_RE y su respuesta queda byte-idéntica. El candado se mantiene:
     // texto fijo, cero narrador.
     const desdeConfusion = (!desdeLedger && !desdeTexto && _CLARIFY_RE.test(q)) ? composeSoloDatosConfusionMessage(results) : null;
-    const base = desdeLedger || desdeTexto || desdeConfusion || composeNoDataMessage(results);
+    // HALLAZGO 3 (owner 2026-08-13, Paso 3b): un turno de PURA CONFIGURACIÓN — el plan lo declara ack, el TURNO
+    // declaró la preferencia de alcance (turnPref.contentScope: la red regex o el propio plan, nunca la sesión
+    // heredada) y no pidió ningún dato (calls vacío, sin cifra ni definición) — CONFIRMA lo configurado en vez de
+    // declarar una ausencia que nadie preguntó. Si además pidió un dato, el dato manda (desdeLedger/desdeTexto
+    // arriba); si una tool corrió y declinó, calls no está vacío y esto no aplica — la razón real sigue mandando.
+    const desdeAckPref = (!desdeLedger && !desdeTexto && !desdeConfusion
+      && plan.intent === "ack" && turnPref && turnPref.contentScope
+      && !(Array.isArray(calls) && calls.length))
+      ? composeAckPreferenciaMessage(pref.contentScope) : null;
+    const base = desdeLedger || desdeTexto || desdeConfusion || desdeAckPref || composeNoDataMessage(results);
     const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
     const enLinea = (_formaProhibidaPorElUsuario && desdeLedger) ? _cifrasEnLinea(figs) : null;
     const _conAlcance = (b) => (alcanceLinea ? [`${b}\n\n${alcanceLinea}`, b] : [b]);
@@ -2512,7 +2549,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
      * resolvió veinte líneas más arriba. El resultado medido: el usuario que pidió prosa recibía tabla, y el
      * renderer de más abajo se la PODABA después, dejando la respuesta en nada. `formaSalida` y `pref.contentScope`
      * ya están resueltos; se pasan, no se vuelven a deducir. */
-    const composed = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida }) || composeNoDataMessage(results);
+    const composed = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas }) || composeNoDataMessage(results);
     let c = ensurePeriodoDeclared(composed, periodos);
     // requisitos SIMULACIÓN/CLARIFY (ver narratePromptC.js): la reparación cae acá cuando el narrador libre agotó
     // los 3 intentos — el turno sigue siendo mode=simulacion/clarify, así que la garantía tiene que valer IGUAL.
@@ -2621,7 +2658,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _ES_PIE_DECL = /^\(?\s*(?:alcance|datos del|foto de inventario|supuesto)\b/i;
     const _sinCuerpo = (t) => !String(t || "").split(/\n{2,}/).map((s) => s.trim()).filter(Boolean).some((s) => !_ES_PIE_DECL.test(s));
     if (narration && _sinCuerpo(narration)) {
-      const cuerpoNuevo = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida });
+      const cuerpoNuevo = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas });
       if (cuerpoNuevo) {
         const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
         const candidato = [cuerpoNuevo, ...pie].join("\n\n");
