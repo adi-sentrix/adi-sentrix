@@ -3,6 +3,9 @@
   "framework": "vite",
   "buildCommand": "VITE_ADI_PROFILE=prod VITE_ADI_LLM_ENABLED=true VITE_ADI_LLM_NARRATE_ENABLED=true vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/adi-narrate-c.js": { "maxDuration": 120 }
+  },
   "headers": [
     {
       "source": "/(.*)",
