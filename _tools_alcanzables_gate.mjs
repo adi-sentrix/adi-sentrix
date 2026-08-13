@@ -115,7 +115,15 @@ section("6 · EL CATÁLOGO NO CRECIÓ MÁS DE LO DECLARADO");
 // Presupuesto de prompt: el catálogo entero es lado FIJO del caché, así que crece para todos los turnos. El tope
 // no es una cifra mágica — es el valor medido tras exponer las dos, con margen para una entrada más. Si alguien
 // suma una descripción larga, este gate lo obliga a decidirlo a propósito y a mover el número acá.
-const TOPE_CAR = 18000;
+/* EL TOPE SUBE A 18.550 (encargo «umbral del usuario», 2026-08-13) — ANÁLISIS GARANTÍA-VS-FORMATO, como el gate
+ * mismo lo pide («subí TOPE_CAR y dejá escrito por qué»): la línea de `calcular` gana `suma_filtrada` — la
+ * capacidad que el hallazgo VIVO del owner mostró ausente («¿capital parado >90 días?» respondió el total del
+ * criterio interno como si fuera el umbral pedido) — y la señal de enrutamiento que evita repetir el defecto
+ * (el corte numérico explícito NO es de inventoryStatus). EL COSTO ES EXACTO: 496 caracteres (~124 tokens por
+ * llamada de PLAN), medido: 18.492. Todo cae del lado FIJO del caché — con caché al 90% son ~12 tokens efectivos.
+ * Mismo criterio de siempre: el presupuesto existe para que el costo se DECIDA, no para que una capacidad quede
+ * muda — y el tope se deja pegado a lo medido (58 car de holgura), no aflojado. */
+const TOPE_CAR = 18550;
 ok(`TOOL_CATALOG dentro del presupuesto (${TOOL_CATALOG.length} ≤ ${TOPE_CAR} car)`, TOOL_CATALOG.length <= TOPE_CAR,
   `${TOOL_CATALOG.length} car — si el crecimiento es deliberado, subí TOPE_CAR y dejá escrito por qué`);
 

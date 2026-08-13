@@ -39,8 +39,27 @@ console.log("── 1 · CATÁLOGO CERRADO ──");
 // catálogo = una entrada en OPERACIONES_CALCULO + sus casos bidireccionales ACÁ»). Entra `variacion_aplicada`
 // (aplicar un % del usuario a un monto — «¿y si mi venta subiera 10%?», el caso medido en vivo) CON sus casos
 // bidireccionales abajo. La garantía (catálogo cerrado, sin eval, tolerancia única) queda intacta.
-ok(Object.keys(OPERACIONES_CALCULO).join(",") === "suma,resta,variacion_pct,participacion,brecha_pp,escalar,variacion_aplicada,margen_objetivo",
-  "las operaciones son EXACTAMENTE las declaradas (D1 + ampliación E5 del cierre)", Object.keys(OPERACIONES_CALCULO).join(","));
+// GATE MOVIDO 2026-08-13 (encargo «umbral del usuario + dueño por fila») — ANÁLISIS GARANTÍA-VS-FORMATO: entra
+// `suma_filtrada` por el MISMO punto de ampliación declarado (hallazgo VIVO del owner: «¿capital parado >90
+// días?» respondió el total del criterio interno del motor como si fuera el umbral pedido — no existía ninguna
+// operación que filtre por el umbral del usuario y sume). Sus casos bidireccionales, abajo y en
+// _probe_umbral_dueno.mjs / _umbral_dueno_gate.mjs. La garantía (cerrado, sin eval, tolerancia única) intacta.
+ok(Object.keys(OPERACIONES_CALCULO).join(",") === "suma,resta,variacion_pct,participacion,brecha_pp,escalar,variacion_aplicada,suma_filtrada,margen_objetivo",
+  "las operaciones son EXACTAMENTE las declaradas (D1 + ampliaciones E5 y umbral-del-usuario)", Object.keys(OPERACIONES_CALCULO).join(","));
+{
+  // los casos bidireccionales de la operación nueva (contrato de ampliación): la suma N-aria exacta ejecuta con
+  // su fórmula; el muro NO la espeja (conservador: una suma N-aria sobre el pool es combinatoria pura — los
+  // resultados llegan sellados en la boleta de la tool, misma decisión medida que el `proyectado`).
+  const sfOk = ejecutarCalculo("suma_filtrada", [{ raw: 13600, unit: "money" }, { raw: 8400, unit: "money" }]);
+  ok(sfOk.ok && sfOk.resultados[0].raw === 22000 && /=/.test(sfOk.resultados[0].formula),
+    "suma_filtrada: $13.6K + $8.4K → $22K con su fórmula declarada", JSON.stringify(sfOk.resultados));
+  const sfMal = ejecutarCalculo("suma_filtrada", [{ raw: 13600, unit: "money" }, { raw: 94, unit: "days" }]);
+  ok(!sfMal.ok && sfMal.regla === "unidades-incompatibles", "montos con días NO se suman: declina por unidades");
+  const sfVacia = ejecutarCalculo("suma_filtrada", []);
+  ok(!sfVacia.ok && sfVacia.regla === "aridad", "cero filas declina por aridad (1+)");
+  ok(esCalculoDelCatalogo(33200, "money", [{ raw: 13600, unit: "money" }, { raw: 11200, unit: "money" }, { raw: 8400, unit: "money" }]) === false,
+    "el muro NO recomputa la suma N-aria (viene sellada en boleta — conservador)");
+}
 {
   // los casos bidireccionales de la operación nueva: la cuenta exacta ejecuta con su fórmula; el muro la verifica
   // en ambos sentidos (la exacta pasa, la torcida se veta) — mismo patrón que la regla de tres y la participación.
