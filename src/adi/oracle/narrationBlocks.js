@@ -297,20 +297,12 @@ function _figsDeMetricaPedida(list, metricaLabels) {
  * línea es la misma información en la peor forma posible.
  * LA DETECCIÓN es estructural, no una lista de frases: la métrica que la pregunta nombra (metricaLabels, el léxico
  * determinístico de siempre) tiene ≥4 figs con entidades DISTINTAS en la boleta. Sin métrica nombrada no hay eje
- * que tabular y el AUTO de siempre queda intacto. */
-function _ejeCompletoDeMetrica(pedidas) {
-  if (!Array.isArray(pedidas) || pedidas.length < 4) return false;
-  const entidades = new Set(pedidas.map((f) => (f.tipo && f.tipo.entidad) || String(f.label || "").split("·")[0].trim()));
-  return entidades.size >= 4;
-}
-// el segmento del label que ES la métrica pedida (para encabezar su columna): «Lider · Margen» + ["Margen"] → «Margen».
-function _segmentoMetrica(fig, metricaLabels) {
-  const canon = (Array.isArray(metricaLabels) ? metricaLabels : []).map((l) => String(l).trim().toLowerCase());
-  for (const seg of String(fig.label || "").split("·").map((s) => s.trim())) {
-    if (canon.includes(seg.toLowerCase())) return seg;
-  }
-  return null;
-}
+ * que tabular y el AUTO de siempre queda intacto.
+ * DÓNDE VIVE HOY (2026-08-14): la vara de las ≥4 entidades distintas sigue siendo la misma y sigue gobernando —
+ * `_MIN_FILAS_EJE` dentro de `_matrizPorEje`, que además de decidir SI se tabula arma la tabla. Las dos funciones
+ * que estaban acá (`_ejeCompletoDeMetrica` y `_segmentoMetrica`, la que sacaba el encabezado de la columna del
+ * segmento del label) quedaron sin un solo llamador cuando la tabla pasó a ser multi-métrica: el criterio no se
+ * relajó, se mudó junto a lo que decide. */
 /* LA PRIMERA FIG DEL RANKING SELLADO, NO LA MAGNITUD MAYOR (hallazgo 1b de la misma certificación). El ancla de la
  * métrica pedida era `_bestByMagnitude(pedidas)` — y para «margen por cliente» la magnitud mayor es EL MARGEN MÁS
  * ALTO (Ripley 25.0%), o sea la entidad MENOS urgente de la lista. El criterio correcto es el de los composers
@@ -327,7 +319,180 @@ function _tabla(list) {
   return `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
 }
 
-export function componerPorForma({ figs, contentScope, forma = "auto", metricaLabels = [] } = {}) {
+/* ── LA MATRIZ DEL EJE · EL RESPALDO RESPONDE LA PREGUNTA, NO VUELCA LA BOLETA (owner 2026-08-14) ═════════════════
+ * EL DEFECTO, reproducido offline con la pregunta textual del owner («¿qué clientes venden mucho pero dejan poco
+ * margen?», el borrador vetado por el muro): el respaldo componía una tabla de UNA columna —Margen— con doce
+ * clientes adentro, INCLUIDOS los que están por encima del benchmark, y sin la venta, que estaba en la boleta del
+ * mismo turno (`Falabella · Venta = $19.4M`, los trece clientes). Debajo, dos líneas de vocabulario de máquina:
+ * «El resto de lo autorizado en este turno» y «la métrica por la que preguntaste». Palabras del owner: «¿qué es
+ * eso de en este turno?» y «antes aparecía la venta, era mucho más completo».
+ *
+ * LA CAUSA MEDIDA, y no era la que se ve: la venta NO faltaba en la boleta ni estaba desautorizada. El léxico
+ * determinístico resuelve el verbo «venden» al token `venta` y `fieldLabel` lo devuelve como «Ventas» (plural,
+ * como se llama la COLUMNA del registro) — mientras la boleta la etiqueta «Falabella · Venta» (singular, como la
+ * nombra el composer). El matcheo exigía igualdad exacta de segmento, así que la métrica más pedida del producto
+ * no matcheaba nunca y la tabla quedaba con la única columna que sí coincidía. Un plural.
+ *
+ * LO QUE COMPONE AHORA, y de dónde sale cada cosa — CERO cifra nueva, CERO cuenta, CERO lista escrita a mano:
+ *   · COLUMNAS = las métricas que la PREGUNTA puso en juego (`metricaLabels`, el mismo léxico de siempre) que la
+ *     boleta trae. El encabezado NO es la etiqueta del léxico: es el segmento textual de la propia fig («Venta»),
+ *     porque el producto tiene una sola verdad por concepto y la boleta es la que manda.
+ *   · FILAS = las entidades que la LECTURA priorizó, en el orden que la tool ya selló. Se distinguen por una
+ *     señal estructural, no por una heurística de texto: las figs que el composer emitió traen `context`; las que
+ *     `enrichFromFacts` (ledger.js) agrega desde los `facts` para dar contexto vienen con `context: null`. Las
+ *     primeras SON la respuesta de la tool; las segundas son el panel completo detrás. Cuando ninguna fig del eje
+ *     trae `context` (una lectura que es toda panel, ej. `gridTable`) todas pesan igual y entran todas.
+ *   · LA COLA SE DECLARA. Las entidades del mismo eje que quedaron fuera se nombran («un top-N que no declara su
+ *     cola miente por omisión», CLAUDE.md §5). Antes se mezclaban en silencio con las que sí venían al caso.
+ *   · EL EJE se lee de `tipo.dimension` de la boleta y se escribe con esa palabra —Cliente, Bodega, SKU—, nunca
+ *     «Entidad», que es como lo llama el motor y no como lo llama el negocio.
+ *   · EL MONTO EN JUEGO va al cierre, que es donde decide un directorio. Un monto colgado de una entidad de la
+ *     tabla es de esa entidad; uno colgado de otra cosa («Medida · cerrar brecha al piso») es del CONJUNTO y se
+ *     enmarca como tal — la regla que narratePromptC.js ya le exige al narrador libre vale igual acá.
+ *   · LO QUE NO VIENE AL CASO NO VA. Una fig por entidad cuya métrica no es ninguna de las preguntadas («Peso del
+ *     costo») no entra a ninguna línea: la boleta la autoriza, pero la pregunta no la pidió.
+ * DEVUELVE NULL sin drama cuando el eje no se puede armar (la pregunta no nombró métrica, la boleta no la trae,
+ * quedan menos de cuatro filas): el caller sigue con la prosa de siempre. Preferir la forma pobre antes que una
+ * tabla que promete un eje que no existe es la misma doctrina que el resto del archivo. */
+const _MAX_FILAS_EJE = 12;
+const _MAX_COLA_NOMBRADA = 8;
+const _MIN_FILAS_EJE = 4;   // la MISMA vara que ya usaba _ejeCompletoDeMetrica: menos que eso no es un eje, es una cita
+const _normTxt = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+// singular y plural son LA MISMA columna: el léxico de la pregunta dice «Ventas» y la boleta dice «Venta». Es la
+// única tolerancia que se concede — no hay diccionario de sinónimos ni matcheo parcial, que abrirían la puerta a
+// cruzar dos métricas distintas bajo un encabezado (el error caro de este proyecto: un rótulo, dos campos).
+const _canonMetrica = (s) => _normTxt(s).replace(/s$/, "");
+const _segmentos = (f) => String((f && f.label) || "").split("·").map((s) => s.trim()).filter(Boolean);
+function _entidadDeFig(f) {
+  const e = f && f.tipo && typeof f.tipo.entidad === "string" ? f.tipo.entidad.trim() : "";
+  if (e) return e;
+  const s = _segmentos(f);
+  return s.length >= 2 ? s[0] : null;
+}
+function _metricaDeFig(f) {
+  const s = _segmentos(f);
+  return s.length >= 2 ? s[s.length - 1] : null;
+}
+// «sku» es el único token de eje cuyo despliegue no es capitalizar: la app lo escribe SKU en toda superficie.
+const _EJE_EN_PANTALLA = { sku: "SKU" };
+function _ejeDeLaBoleta(list) {
+  for (const f of list) {
+    const d = f && f.tipo && typeof f.tipo.dimension === "string" ? f.tipo.dimension.trim() : "";
+    if (d) return _EJE_EN_PANTALLA[_normTxt(d)] || d.charAt(0).toUpperCase() + d.slice(1);
+  }
+  return null;
+}
+const _esMonto = (f) => !!f && (f.unit === "money" || (f.tipo && f.tipo.unidad === "money"));
+
+function _matrizPorEje(list, metricaLabels, entidadesPedidas) {
+  const conEje = list.filter((f) => _entidadDeFig(f) && _metricaDeFig(f));
+  if (!conEje.length) return null;
+  const columnas = [];
+  for (const l of (Array.isArray(metricaLabels) ? metricaLabels : [])) {
+    const canon = _canonMetrica(l);
+    if (!canon || columnas.some((c) => c.canon === canon)) continue;
+    const muestra = conEje.find((f) => _canonMetrica(_metricaDeFig(f)) === canon);
+    if (muestra) columnas.push({ canon, header: _metricaDeFig(muestra) });
+  }
+  if (!columnas.length) return null;
+  // EL EJE lo manda la métrica que la lectura puso PRIMERA en su orden sellado — es la que la tool rankeó. Con
+  // «venden mucho pero dejan poco margen» la pregunta nombra venta antes que margen, pero la que ordena la
+  // lectura es el margen: las filas siguen el ranking de la tool, nunca el orden en que se escribió la pregunta.
+  let ejeCol = null, primera = Infinity;
+  for (const c of columnas) {
+    const i = conEje.findIndex((f) => _canonMetrica(_metricaDeFig(f)) === c.canon);
+    if (i >= 0 && i < primera) { primera = i; ejeCol = c; }
+  }
+  if (!ejeCol) return null;
+  const delEje = conEje.filter((f) => _canonMetrica(_metricaDeFig(f)) === ejeCol.canon);
+  const sellado = delEje.filter((f) => f.context != null && String(f.context).trim());
+  const priorizado = sellado.length ? sellado : delEje;
+  const enFoco = [], vistas = new Set(), cola = [];
+  for (const f of priorizado) { const e = _entidadDeFig(f); if (!vistas.has(e)) { vistas.add(e); enFoco.push(e); } }
+  for (const f of delEje) { const e = _entidadDeFig(f); if (!vistas.has(e) && !cola.includes(e)) cola.push(e); }
+  // FILTRADO A LO PEDIDO: si el turno nombró entidades y alguna está en el eje, la tabla es de ésas y el resto
+  // pasa a la cola DECLARADA. Si ninguna matchea (el nombre del plan puede venir corrido de su forma canónica),
+  // no se filtra nada — falso negativo antes que una tabla vacía.
+  const pedidasEnt = (Array.isArray(entidadesPedidas) ? entidadesPedidas : []).map(_normTxt).filter(Boolean);
+  let filasEnt = enFoco;
+  if (pedidasEnt.length) {
+    const dentro = enFoco.filter((e) => pedidasEnt.includes(_normTxt(e)));
+    if (dentro.length) { for (const e of enFoco) if (!dentro.includes(e)) cola.push(e); filasEnt = dentro; }
+  }
+  for (const e of filasEnt.slice(_MAX_FILAS_EJE)) if (!cola.includes(e)) cola.push(e);
+  filasEnt = filasEnt.slice(0, _MAX_FILAS_EJE);
+  if (filasEnt.length < _MIN_FILAS_EJE) return null;
+  // CELDAS · verbatim de `fig.value`, y la primera fig que la boleta trae para ese par entidad×métrica: la
+  // función no elige entre dos valores ni los concilia, porque conciliar sería calcular.
+  const figDe = (ent, canon) => conEje.find((g) => _entidadDeFig(g) === ent && _canonMetrica(_metricaDeFig(g)) === canon) || null;
+  const vivas = columnas.filter((c) => filasEnt.some((e) => figDe(e, c.canon)));
+  if (!vivas.length) return null;
+  const consumidas = new Set();
+  const filas = filasEnt.map((ent) => ({
+    entidad: ent,
+    celdas: vivas.map((c) => { const g = figDe(ent, c.canon); if (g) consumidas.add(g); return g ? g.value : ""; }),
+  }));
+  const universoEje = new Set(delEje.map(_entidadDeFig));
+  /* EL MONTO DEL CIERRE SALE DE LA LECTURA, NO DEL PANEL (defecto medido en este mismo pase, familia SKU). Sin la
+   * exigencia de `context` esto tomaba CUALQUIER cifra en dinero de una fila, y sobre una tabla de inventario cerró
+   * con «SAM-TV55, con $13.3M de Ventas»: $13K de valor de inventario arriba y $13.3M de venta anual abajo, dos
+   * UNIVERSOS que este dato no reconcilia, en la misma pantalla y sin decir de cuál sale cada uno — la regla que
+   * CLAUDE.md §2 marca como error caro. Con `context` sólo entran los montos que el composer emitió como cifra de
+   * la medida («Valor en juego», «cerrar brecha al piso»); las de `enrichFromFacts` quedan afuera por construcción. */
+  const montoEntidad = [], montoConjunto = [];
+  for (const g of conEje) {
+    if (consumidas.has(g) || !_esMonto(g)) continue;
+    if (!(g.context != null && String(g.context).trim())) continue;
+    if (vivas.some((c) => c.canon === _canonMetrica(_metricaDeFig(g)))) continue;
+    if (filasEnt.includes(_entidadDeFig(g))) montoEntidad.push(g);
+    else if (!universoEje.has(_entidadDeFig(g))) montoConjunto.push(g);
+  }
+  // EL MARCO son las cifras del NEGOCIO: las que no cuelgan de ninguna entidad del eje (el benchmark, el conteo
+  // bajo la vara, la cabecera de cartera). Las figs por entidad que la pregunta no pidió NO entran acá: volcarlas
+  // en una línea es exactamente el defecto que este bloque cierra.
+  const marco = list.filter((g) => {
+    if (consumidas.has(g) || montoEntidad.includes(g) || montoConjunto.includes(g)) return false;
+    const ent = _entidadDeFig(g);
+    return !ent || !universoEje.has(ent);
+  });
+  return { eje: _ejeDeLaBoleta(list) || "Concepto", columnas: vivas, filas, cola, marco, montoEntidad, montoConjunto };
+}
+
+const _listaEnEspanol = (xs) => (xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
+function _tablaDeMatriz(m) {
+  const cab = `| ${m.eje} | ${m.columnas.map((c) => c.header).join(" | ")} |`;
+  const sep = `|---|${m.columnas.map(() => "---:").join("|")}|`;
+  // celda sin autorización = raya, nunca un número rellenado: la ausencia se ve, no se disimula.
+  const filas = m.filas.map((f) => `| ${f.entidad} | ${f.celdas.map((v) => v || "—").join(" | ")} |`);
+  return [cab, sep, ...filas].join("\n");
+}
+function _lineaDeCola(m) {
+  if (!m.cola.length) return null;
+  const nombres = m.cola.slice(0, _MAX_COLA_NOMBRADA);
+  const hay = m.cola.length > nombres.length ? ", entre otros" : "";
+  const una = m.cola.length === 1;
+  return `Fuera de la tabla ${una ? "queda" : "quedan"} ${_listaEnEspanol(nombres)}${hay}: ${una ? "está" : "están"} en el dato de la lectura, pero no es lo que la pregunta señala.`;
+}
+// LA APERTURA ES UNA LECTURA, NO UN RÓTULO: nombra la primera fila con TODAS las métricas que la pregunta puso en
+// juego. No afirma la dirección del orden —«el de peor margen», «el que más vende»— porque el criterio del ranking
+// lo sella cada foco de la tool y no siempre es monótono en una sola columna (medido en `alto_volumen_bajo_margen`,
+// cuyo orden cruza dos métricas). Decir que encabeza es verdad por construcción; decir por qué encabeza no lo es.
+function _aperturaDeMatriz(m) {
+  const cab = m.filas[0];
+  const detalle = m.columnas.map((c, i) => (cab.celdas[i] ? `${c.header} ${cab.celdas[i]}` : null)).filter(Boolean);
+  return detalle.length ? `${cab.entidad} encabeza la lectura, con ${_listaEnEspanol(detalle)}.` : `${cab.entidad} encabeza la lectura.`;
+}
+function _cierreDeMatriz(m) {
+  const conMonto = m.montoEntidad[0];
+  const partes = [conMonto
+    ? `Por dónde partir: ${_entidadDeFig(conMonto)}, con ${conMonto.value} de ${_metricaDeFig(conMonto)}.`
+    : `Por dónde partir: ${m.filas[0].entidad}, que encabeza la lectura.`];
+  for (const g of m.montoConjunto.slice(0, 2)) partes.push(`Sobre el conjunto, ${_metricaDeFig(g)}: ${g.value}.`);
+  return partes.join(" ");
+}
+const _SIN_CAUSA_EN_EL_DATO = "El dato no registra la causa: para explicarla hace falta evidencia que esta lectura no trae.";
+
+export function componerPorForma({ figs, contentScope, forma = "auto", metricaLabels = [], entidadesPedidas = [] } = {}) {
   const list = _figsValidas(figs);
   if (!list.length) return null;
   // la fila que manda: entidad atribuida si la hay, y entre ésas la de mayor magnitud SELLADA en `raw` — nunca un
@@ -350,6 +515,21 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
   const supuestoCtx = _findSupuestoContext(list);
   const topEfecto = (!pedidas.length && supuestoCtx) ? (list.find((f) => f && f.source === "computed") || null) : null;
   const top = pedidas.length ? pedidas[0] : (topEfecto || topMagnitud);
+  /* EL ANCLA DE LA PROSA TAMBIÉN SE FILTRA A LO PEDIDO, y SOLO en las ramas narrativas (owner 2026-08-14). Medido:
+   * «¿cuál es el margen de Sodimac?» con la boleta del eje entero cerraba en «Por dónde partir: La Polar · Margen»
+   * — la primera del ranking sellado, que no es la cuenta por la que se preguntó. `top` NO se toca: lo consumen
+   * `action_only` y `data_only`, cuyos contratos fijó el owner aparte y no son de este encargo. */
+  const _delFoco = (arr) => {
+    const pedidasEnt = (Array.isArray(entidadesPedidas) ? entidadesPedidas : []).map(_normTxt).filter(Boolean);
+    if (!pedidasEnt.length) return arr;
+    const dentro = arr.filter((f) => pedidasEnt.includes(_normTxt(_entidadDeFig(f))));
+    return dentro.length ? dentro : arr;
+  };
+  const pedidasEnFoco = _delFoco(pedidas);
+  const topEnFoco = pedidasEnFoco.length ? pedidasEnFoco[0] : top;
+  // la matriz del eje: se arma UNA vez y la usan las dos formas que pueden tabular (`tabla` y `auto`). Sin métrica
+  // nombrada en la pregunta devuelve null y TODO lo de abajo queda byte-idéntico a como estaba.
+  const matriz = _matrizPorEje(list, metricaLabels, entidadesPedidas);
 
   // el alcance manda sobre la forma: `action_only` tiene su propio contrato estricto y no admite prosa suelta.
   if (contentScope === "action_only") return `La prioridad: ${top.label} (${top.value}).`;
@@ -373,6 +553,11 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
    * la lee (E2.t1 y E2.t4, donde la tabla salía sola y sin nada que la interpretara); con el alcance restringido de
    * «solo la tabla», va sola — que es exactamente lo pedido. */
   if (forma === "tabla") {
+    // con las métricas de la pregunta autorizadas, la tabla pedida es LA MATRIZ del eje —con su apertura y su cola
+    // declarada— en vez de la lista plana «Concepto | Valor», que para una pregunta de eje era la boleta cruda.
+    if (contentScope === "full" && matriz) {
+      return conSupuesto([_aperturaDeMatriz(matriz), _tablaDeMatriz(matriz), _lineaDeCola(matriz)].filter(Boolean).join("\n\n"));
+    }
     const t = _tabla(list);
     if (contentScope !== "full") return conSupuesto(t);
     // LECTURA MÍNIMA, no interpretación: nombra la fila de mayor magnitud —un hecho de orden que el propio ledger
@@ -409,26 +594,22 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
     return conSupuesto(partes.join("\n\n"));
   }
 
-  // ── AUTO · EJE COMPLETO → LA TABLA CON LA MÉTRICA PROTAGONISTA (hallazgo 1 de la cert amplia, ver arriba) ─────
-  // Solo cifras verbatim del ledger, EN SU ORDEN (el ranking sellado por la tool — jamás re-rankeado acá); la
-  // columna protagonista es la métrica que la pregunta nombró. El resto de lo autorizado y la honestidad causal
-  // conservan sus líneas de siempre; el «por dónde partir» conserva la justificación verdadera del 3b.
-  if (_ejeCompletoDeMetrica(pedidas)) {
-    const ejeLbl = (top.tipo && typeof top.tipo.dimension === "string" && top.tipo.dimension.trim())
-      ? top.tipo.dimension.trim().charAt(0).toUpperCase() + top.tipo.dimension.trim().slice(1) : "Entidad";
-    const metLbl = _segmentoMetrica(top, metricaLabels) || "Valor";
-    const filas = pedidas.slice(0, 12).map((f) => {
-      const segs = String(f.label || "").split("·").map((s) => s.trim());
-      const ent = segs.filter((s) => s.toLowerCase() !== metLbl.toLowerCase()).join(" · ") || f.label;
-      return `| ${ent} | ${f.value} |`;
-    });
-    const tabla = `| ${ejeLbl} | ${metLbl} |\n|---|---:|\n${filas.join("\n")}`;
-    const resto = list.filter((f) => !pedidas.includes(f));
-    const pq = resto.length
-      ? `El resto de lo autorizado en este turno: ${_enLinea(resto, 6)}. El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.`
-      : "El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.";
-    const qh = `Por dónde partir: ${top.label}, que es la métrica por la que preguntaste.`;
-    return conSupuesto([tabla, pq, qh].join("\n\n"));
+  /* ── AUTO · EJE COMPLETO → LA MATRIZ, LAS TRES CIFRAS DE LA PROMESA (owner 2026-08-14) ───────────────────────────
+   * Los tres actos de CLAUDE.md §1, cada uno con su fuente: 01 la apertura + la tabla con las métricas que la
+   * pregunta puso en juego + la cola declarada; 02 la honestidad causal, porque el ledger trae cifras y no causas;
+   * 03 el cierre con el monto, que es con lo que decide un directorio. La versión anterior emitía UNA columna, doce
+   * filas sin filtrar y dos líneas de vocabulario de máquina — el defecto que el owner cazó.
+   * Sólo cifras verbatim del ledger, EN SU ORDEN: el ranking sellado por la tool, jamás re-rankeado acá. */
+  if (matriz) {
+    const bloques = [
+      _aperturaDeMatriz(matriz),
+      _tablaDeMatriz(matriz),
+      _lineaDeCola(matriz),
+      matriz.marco.length ? `El marco del negocio: ${_enLinea(matriz.marco, 6)}.` : null,
+      _SIN_CAUSA_EN_EL_DATO,
+      _cierreDeMatriz(matriz),
+    ].filter(Boolean);
+    return conSupuesto(bloques.join("\n\n"));
   }
 
   // ── AUTO · qué pasa, por qué y qué hacer primero — SÓLO desde el ledger ────────────────────────────────────────
@@ -445,21 +626,24 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
      * sólo se escribe si la entidad del sujeto es la de esa fig. Cuando no lo es —o cuando ninguna cuenta domina—
      * va un encabezado NEUTRAL, que dice de qué trata el turno sin atribuírselo a nadie.
      * Un turno de una sola cuenta no cambia: ahí sujeto y fig principal son la misma, y el prefijo sale igual. */
-    const _mismaEntidad = suj && top.tipo && top.tipo.entidad === suj;
+    const _ancla = pedidasEnFoco.length ? topEnFoco : top;
+    const _mismaEntidad = suj && _ancla.tipo && _ancla.tipo.entidad === suj;
     const _neutral = _afinidad ? "Afinidad estimada por SKU: " : "";
-    const qp = `${_mismaEntidad ? `Sobre ${suj}: ` : _neutral}${top.label} marca ${top.value}${marco ? ` (${marco})` : ""}.`;
-    const resto = list.filter((f) => f !== top);
-    const pq = resto.length
-      ? `El resto de lo autorizado en este turno: ${_enLinea(resto, 6)}. El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.`
-      : "El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.";
-    // Paso 3b: la justificación de la prioridad tiene que decir la verdad del criterio usado — si encabezó la
-    // métrica preguntada, «magnitud mayor» sería falso (medido: «explícame ese margen» cerró señalando Ventas).
-    // Y si encabezó el efecto de una simulación (hallazgo 1 · E4), la verdad es que es el efecto del supuesto.
-    const qh = pedidas.length
-      ? `Por dónde partir: ${top.label}, que es la métrica por la que preguntaste.`
-      : (topEfecto && top === topEfecto)
-        ? `Por dónde partir: ${top.label}, que es el efecto del supuesto planteado.`
-        : `Por dónde partir: ${top.label}, que es la magnitud mayor de las autorizadas.`;
+    const qp = `${_mismaEntidad ? `Sobre ${suj}: ` : _neutral}${_ancla.label} marca ${_ancla.value}${marco ? ` (${marco})` : ""}.`;
+    /* EL RESTO ES «EL RESTO DE LA LECTURA», NUNCA «LO AUTORIZADO EN ESTE TURNO» (owner 2026-08-14). Palabras suyas
+     * ante el texto medido: «¿qué es eso de en este turno?». «Autorizado» y «turno» son cómo el motor se habla a sí
+     * mismo —la boleta, el ciclo de una pregunta—; el que lee es un directorio, y para él esto es una lectura. */
+    const resto = list.filter((f) => f !== _ancla);
+    const pq = resto.length ? `El resto de la lectura: ${_enLinea(resto, 6)}. ${_SIN_CAUSA_EN_EL_DATO}` : _SIN_CAUSA_EN_EL_DATO;
+    /* EL CIERRE NOMBRA LA PRIORIDAD Y SE CALLA EL CRITERIO. La justificación anterior explicaba en pantalla POR QUÉ
+     * el motor eligió esa fila («la métrica por la que preguntaste», «la magnitud mayor de las autorizadas») — es
+     * la maquinaria hablando de sí misma, y encima la segunda es de las que el owner marcó como indignas. El
+     * criterio sigue siendo el mismo y sigue documentado acá; lo que cambia es que ya no se imprime. La única
+     * excepción es el efecto de un supuesto: ahí la aclaración no habla del motor, habla de la SIMULACIÓN que el
+     * propio usuario planteó, y sin ella la cifra se leería como un hecho en vez de como el efecto de un supuesto. */
+    const qh = (!pedidasEnFoco.length && topEfecto && _ancla === topEfecto)
+      ? `Por dónde partir: ${_ancla.label}, que es el efecto del supuesto planteado.`
+      : `Por dónde partir: ${_ancla.label}, con ${_ancla.value}.`;
     return conSupuesto([qp, pq, qh].join("\n\n"));
   }
 }

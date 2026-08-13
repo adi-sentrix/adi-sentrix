@@ -107,7 +107,12 @@ h("6 · auto · los tres movimientos, y la causa declarada ABIERTA en vez de inv
 {
   const t = componerPorForma({ figs: FIGS, contentScope: "full", forma: "auto" });
   ok(/Sobre Falabella/.test(t), "(01) qué pasa, con sujeto y cifra", t.split("\n")[0]);
-  ok(/no aísla la causa/i.test(t), "(02) por qué: se DECLARA que el dato no la aísla — no se inventa una", t);
+  /* LA REDACCIÓN DEL 02 SE MOVIÓ, EL COMPORTAMIENTO NO (2026-08-14, respaldo digno). Decía «El dato disponible no
+   * aísla la causa — para cerrarla falta evidencia que este turno no trae», y ese «este turno» es exactamente el
+   * vocabulario de máquina que el owner marcó como indigno en la línea hermana. Lo que este gate protege sigue
+   * intacto: que el acto 02 DECLARE el límite en vez de inventar una causa — lo verifica esta línea junto con la
+   * de abajo, que sigue prohibiendo cualquier fórmula causal. Sólo cambió con qué palabras se declara. */
+  ok(/no registra la causa/i.test(t), "(02) por qué: se DECLARA que el dato no la trae — no se inventa una", t);
   ok(/Por dónde partir/i.test(t), "(03) qué hacer primero", t);
   // la trampa que este movimiento tiene que evitar: narrar una causa que el ledger no trae.
   ok(!/se debe a|la causa es|porque el|explica por qu/i.test(t),
