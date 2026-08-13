@@ -51,8 +51,13 @@ import { cifrasDelUsuario } from "./narrationContract.js";
 // economía que `responsePref`/`hayContextoVista` de arriba — buildRepairNarrateDoctrine devuelve cadena
 // vacía sin él, así que el 99% de los turnos, que no corrigen nada, no pagan un solo token por estas reglas.
 // Sexto argumento OPCIONAL a propósito: los callers que llaman con cinco producen el MISMO system, byte por byte.
-export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null) {
-  const p = _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion);
+// `datoNegocio` (AMPLITUD F1, owner 2026-08-13) — séptimo argumento, OPCIONAL con la misma disciplina: la
+// proyección curada del dato del tenant (datoProyectado.js), que entra AL FINAL del segmento FIJO —
+// [persona+doctrina | EL DATO DEL NEGOCIO | cola variable]. Al final a propósito: el fijo de siempre queda como
+// prefijo byte-idéntico y el dato (estable por tenant+escenario) solo EXTIENDE el prefijo cacheable, nunca lo
+// parte. Sin el argumento (default null, todos los callers/gates existentes) el system es byte-idéntico al de hoy.
+export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null, datoNegocio = null) {
+  const p = _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion, datoNegocio);
   return p.fijo + p.variable;
 }
 
@@ -61,9 +66,19 @@ export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayCo
 // el MISMO mecanismo que PLAN usa desde 2026-08-10, y el adapter ya sabe concatenar segmentos). `fijo + variable`
 // es byte por byte lo que devuelve buildNarrateSystemC: cambia DÓNDE se declara el corte, nunca lo que el
 // proveedor lee.
-export function buildNarrateSystemSegments(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null) {
-  return _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion);
+export function buildNarrateSystemSegments(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null, datoNegocio = null) {
+  return _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion, datoNegocio);
 }
+
+// ── DOCTRINA DEL DATO DEL NEGOCIO (AMPLITUD F1, owner 2026-08-13) — viaja SOLO cuando el turno trae la
+// proyección (`datoNegocio`), pegada a ella en el segmento FIJO. Deliberadamente corta (<25 líneas) y ADITIVA:
+// ninguna sección existente del system se toca — la regla innegociable de cifras de arriba sigue mandando.
+const DOCTRINA_DATO_NEGOCIO = `EL DATO DEL NEGOCIO (el bloque que sigue): es tu conocimiento del negocio COMPLETO — qué existe, qué se relaciona, qué tiene sentido. Usalo para ENTENDER y contextualizar: conectar la pregunta con el mapa real del negocio, saber quién es quién, y reconocer cuándo una premisa del usuario no calza con el dato. Cuatro reglas, además de las de siempre:
+1. NO CALCULES HACIA LA PANTALLA. Este bloque no te da permiso de aritmética nueva: sigue valiendo solo la suma/resta de cifras autorizadas. Si responder exige una cuenta que no tenés hecha (una proyección, un reparto, un ratio), decí QUÉ cuenta falta y respondé con lo que sí está — jamás la hagas vos.
+2. NO CRUCES LOS DOS UNIVERSOS. La sección «LOS DOS UNIVERSOS QUE NO RECONCILIAN» es ley: venta comercial e inventario no se dividen, no se suman y no se relacionan entre sí. Si el usuario pide ese cruce, decliná citando la divergencia.
+3. NO AFIRMES LO AUSENTE. Lo que la sección «LO QUE ESTE DATO NO TIENE» declara ausente NO existe: no lo prometas, no lo estimes, no lo reconstruyas. Decliná honesto y redirigí a lo que sí hay.
+4. CADA CIFRA CON SU DUEÑO, EN LA MISMA ORACIÓN. Si citás una cifra de este bloque, nombrá a su dueño (el cliente, SKU, marca, familia o bodega; «el negocio» si es un total) en la MISMA oración — una cifra del dato sin su dueño al lado se bloquea. Y el dueño tiene que ser el verdadero: colgarle a una entidad la cifra de otra también se bloquea.
+Las cifras del turno («cifras_autorizadas») siguen siendo la fuente primaria de tu respuesta; este bloque es el mapa de fondo.`;
 
 // DOCTRINA DE CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix) — texto INTACTO del
 // bloque que antes se interpolaba en medio del system; ahora vive en una const para poder viajar en el segmento
@@ -71,9 +86,9 @@ export function buildNarrateSystemSegments(persona, memBlock, mode, responsePref
 const DOCTRINA_CONTEXTO_VISTA_NARRAR = `CONTEXTO DE PANTALLA (llega en "contexto_vista"): el usuario te está escribiendo DESDE Sentrix y esa línea dice qué vista, sección, componente, métrica, eje, período, escenario, universo y filtros tiene delante en este momento. Usalo para dos cosas y solo dos: (a) resolver a qué apunta "este gráfico"/"esta tabla"/"ese punto"/"estos clientes"/"esos SKU", y (b) hablar de LO QUE ESTÁ MIRANDO en vez de abrir un tema distinto. NO TRAE NINGUNA CIFRA y jamás derives una de ahí —ni un total, ni un conteo, ni un porcentaje—: todas las cifras siguen saliendo de "cifras_autorizadas", verbatim. Tampoco describas la interfaz ("el gráfico tiene tres series"): explicá el NEGOCIO que ese componente mide. Y si el usuario nombra otra cosa, manda lo que pide AHORA — la pantalla informa, nunca decide por él.`;
 
 // `mode` queda en la firma y NO se lee: ver el bloque PREFIJO ESTABLE arriba — el dispatch viaja completo siempre.
-function _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion) {
+function _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion, datoNegocio = null) {
   const doctrinaReparacion = buildRepairNarrateDoctrine(reparacion);
-  const fijo = `${persona}
+  const fijoBase = `${persona}
 
 TU TAREA (narrar): sos la voz de ADI —un CONTROLLER SENIOR con mirada de CFO— que le habla al dueño del negocio. El motor ya calculó y validó TODO; vos NO muestras datos: armás la DECISIÓN. Interpretás, relacionás, aconsejás. Tu valor es el criterio ejecutivo, no repetir la tabla.
 
@@ -206,6 +221,11 @@ sostienen tu lectura, en prosa, no una fila por familia).
 HONESTIDAD (sos asesor, no buscador): si TODO lo pedido vino "disponible":false, NUNCA cortes con un "no" seco ni jerga ("granularidad atómica"): decí en una frase simple qué no tenés y por qué (si el dato trae "limite_temporal"/"motivo", usá ESA razón — ej. "el resultado mes a mes no lo tengo: los gastos son % sobre la venta anual"), y ofrecé lo que SÍ (coverage.alternativas) o repreguntá corto. EL MES A MES SÍ EXISTE para ventas y contribución (viene por trend) → narralo, no lo niegues. NO PROYECTES A FUTURO (no hay serie a futuro): si piden el pronóstico / "el mes que viene", decilo en una frase y ofrecé la evolución hasta hoy. NUNCA le pongas etiqueta de "mensual" a una foto que NO es mensual, NUNCA fabriques cifras por mes. Registro ejecutivo neutro LatAm, sin slang ni inglés (capital/valor no "plata"; capital detenido no "dormido"; acción/medida no "palanca"; potencial no "upside").
 
 `;
+  // EL DATO DEL NEGOCIO AL FINAL DEL FIJO (AMPLITUD F1): [persona+doctrina | EL DATO | cola variable]. La
+  // proyección es estable por tenant+escenario, así que el fijo entero sigue siendo byte-estable entre turnos y
+  // modos — solo cambia (y rompe el caché una vez) cuando cambia el tenant o el escenario, que es exactamente
+  // cuando el dato ES otro. Sin `datoNegocio` (default de todos los callers viejos): fijo byte-idéntico al de hoy.
+  const fijo = datoNegocio ? `${fijoBase}${DOCTRINA_DATO_NEGOCIO}\n\n${datoNegocio}\n\n` : fijoBase;
   // LA COLA VARIABLE — todo lo que depende del turno o de la sesión, en el MISMO orden de precedencia que tenían
   // sus bloques (reparación → preferencia → pantalla → memoria → instrucción de cierre). Es lo único que el caché
   // no cubre, y por diseño: acá romper el prefijo ya no rompe nada, el segmento fijo quedó entero arriba.
