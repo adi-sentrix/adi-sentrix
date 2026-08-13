@@ -186,6 +186,25 @@ console.log("── 3 · EL MURO VERIFICA CUENTAS DEL CATÁLOGO (bidireccional, 
   }
 }
 
+console.log("── 3b · LAS OTRAS FUENTES DEL POOL: la proyección del dato (F1) y la boleta anterior (1b) ──");
+{
+  const { cifrasDelDato } = await import("./src/adi/oracle/datoProyectado.js");
+  const dcd = cifrasDelDato("actual");
+  // participación armada con DOS cifras de la proyección (Lider · Ventas y el total del negocio) — las dos con
+  // su dueño nombrado en la oración (condición de la quinta fuente Y del pool del catálogo a la vez)
+  const baseDato = () => ({ ledger: { figs: [] }, results: [], trace: null, question: "", datoProyectado: dcd });
+  const rD = guardC("Lider vendió $17.9M — el 17.9% del total del negocio ($100.0M).", baseDato());
+  ok(rD.ok, "una participación entre dos cifras del DATO (dueños nombrados) PASA", JSON.stringify(rD.violations));
+  const rD2 = guardC("Lider vendió $17.9M — el 26.5% del total del negocio ($100.0M).", baseDato());
+  ok(!rD2.ok, "la misma participación torcida (26.5%) se VETA");
+  // brecha en pp re-derivada de dos tasas que ADI ya mostró el turno anterior (1b) — _isCalc no las ve (su pool
+  // es el ledger); el pool del catálogo sí, con el mismo estatus que esa fuente ya tiene en el chequeo 1
+  const rB = guardC("La brecha que te mostré es de 8.1pp.", { ledger: { figs: [] }, results: [], trace: null, question: "", boletaAnterior: { figs: [{ value: "30.1%" }, { value: "22%" }], counts: [] } });
+  ok(rB.ok, "una brecha_pp entre dos tasas de la BOLETA ANTERIOR (1b) PASA", JSON.stringify(rB.violations));
+  const rB2 = guardC("La brecha que te mostré es de 11.4pp.", { ledger: { figs: [] }, results: [], trace: null, question: "", boletaAnterior: { figs: [{ value: "30.1%" }, { value: "22%" }], counts: [] } });
+  ok(!rB2.ok, "la brecha torcida (11.4pp) se VETA");
+}
+
 console.log("── 4 · EL MARCO DE HIPÓTESIS (vara del usuario) ──");
 {
   const conUsuario = [{ tool: "calcular", facts: { conCifraDeUsuario: true }, coverage: { supported: true } }];
