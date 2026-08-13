@@ -24,11 +24,19 @@ const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
 // LÍMITE DE SALIDA de narrate() (owner 2026-08-13, preparación Anthropic): una respuesta larga real de ADI mide
 // ~1.200 chars ≈ 300 tokens, pero un turno con tabla comparada queda pegado al techo de 1024 — y un corte del
-// proveedor a mitad de tabla es una respuesta rota que además quema un reintento entero. 2048 da el margen sin
-// regalar presupuesto (max_tokens es un TOPE, no un gasto: solo se paga lo generado). El de parse() NO se toca:
+// proveedor a mitad de tabla es una respuesta rota que además quema un reintento entero.
+// 2048 → 3072 (cierre del espejo Anthropic 2026-08-13, hallazgo 2 — MEDIDO sobre los transcripts
+// `_cert_espejo_anthropic.*.json`, Sonnet como narrador): la mejor respuesta del espejo (F4, «¿qué opinas de mi
+// negocio?») llegó al usuario CORTADA a mitad de frase — «…contribución no capturada ($1.6M» — con el envoltorio
+// de marcos pegado al muñón. Ningún recorte del MOTOR corta a mitad de oración (truncateToBriefBudget corta por
+// oración; los strips borran oraciones/líneas/bloques enteros): el único corte a mitad de token es el max_tokens
+// del proveedor. Los textos FINALES de Sonnet en el espejo miden hasta 1.633 chars visibles (G4) — y el crudo del
+// narrador es más largo que lo visible (marcos [[...]], bloques descartados, tablas completas que los strips
+// podan), así que un turno rico de Sonnet SÍ alcanza 2048 de salida cruda. 3072 da ~50% de aire sin regalar
+// presupuesto (max_tokens es un TOPE, no un gasto: solo se paga lo generado). El de parse() NO se toca:
 // un tool_use de PLAN es un JSON acotado y 1024 le sobra. Se lee por llamada (no al importar, como TIMEOUT_MS)
 // para que el override por deploy no dependa del orden de carga del módulo.
-const _narrateMaxTokens = () => Number(process.env.LLM_NARRATE_MAX_TOKENS) || 2048;
+const _narrateMaxTokens = () => Number(process.env.LLM_NARRATE_MAX_TOKENS) || 3072;
 
 // _rateLimitError · MISMA convención que src/adi/llm/adapters/openai.js (owner 2026-08-03, investigación cruzada de
 // los 5 gates de Arquitectura C): `.code="rate_limited"` (+ `.retryAfterMs`) cuando status===429, para que
