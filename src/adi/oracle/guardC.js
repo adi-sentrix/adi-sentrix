@@ -2723,10 +2723,35 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         violations.push({ kind: "contexto-general-con-entidad", detail: `el bloque de contexto general nombra «${n}», que es una entidad de la cartera del cliente — el contexto general habla del mundo, jamás de sus entidades; sacá el nombre del bloque o dejá el dato de esa entidad AFUERA, con su cifra autorizada` });
       }
     }
-    const _canonDelDato = _dato ? _dato.porCanon : null;
+    /* QUÉ CUENTA COMO «CIFRA DEL CLIENTE», Y POR QUÉ NO ES «TODO EL DATO» ────────────────────────────────────────
+     * SE COMPARA POR unidad+valor CRUDO, no por el canon string: la boleta sella «21.0%» y el narrador escribe
+     * «21%» — dos canon distintos, el MISMO número. Por canon, el lavado se escapaba escribiéndolo más corto.
+     * LAS FUENTES SON LAS CUATRO DE LA CONVERSACIÓN (boleta del turno · eco de la pregunta · cifra del usuario ·
+     * boleta del turno anterior): son los números que el usuario TIENE DELANTE, y repetir uno adentro del bloque es
+     * exactamente presentarle su propio dato como conocimiento de la industria.
+     * DE LA PROYECCIÓN DEL DATO (F1, 308 cifras) ENTRA TODO MENOS LAS TASAS, y es una MEDICIÓN, no una preferencia:
+     * sus porcentajes ocupan 17 de los 26 enteros entre 15% y 40%, en una corrida sin huecos de 21 a 34 (probe §6).
+     * El rango de tasas de un negocio real cubre casi entera la banda donde vive CUALQUIER frase sobre márgenes,
+     * así que exigir que un rango genérico no toque ninguno haría imposible la regla 2 del propio contrato («en
+     * RANGOS, jamás precisión falsa»): las dos reglas se contradirían y el bloque no podría decir nada. En montos,
+     * días y ratios no pasa eso —134 valores distintos entre $47 y $100M— y ahí una coincidencia exacta no es
+     * casualidad: es la cifra del negocio, y se veta. El refinamiento propuesto (que la vara sean las cifras que el
+     * usuario REALMENTE vio, no el dato entero) queda documentado en el informe §7. */
+    const _delCliente = new Set();
+    for (const f of [...figs, ...qFigs, ...supFigs, ...bolFigs]) {
+      const raw = typeof f.raw === "number" ? f.raw : NaN;
+      if (Number.isFinite(raw) && f.unit) _delCliente.add(`${f.unit}:${raw}`);
+    }
+    if (datoProyectado && Array.isArray(datoProyectado.figs)) {
+      for (const df of datoProyectado.figs) {
+        for (const pf of parseFigures(String(df && df.value != null ? df.value : ""))) {
+          if (pf.unit === "pct" || pf.unit === "pp") continue;   // las tasas, no: ver la medición de arriba
+          if (Number.isFinite(pf.raw)) _delCliente.add(`${pf.unit}:${pf.raw}`);
+        }
+      }
+    }
     for (const f of parseFigures(_textoCG)) {
-      const esDelCliente = authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || (_canonDelDato && _canonDelDato.has(f.canon));
-      if (esDelCliente) {
+      if (_delCliente.has(`${f.unit}:${f.raw}`)) {
         violations.push({ kind: "contexto-general-con-cifra-del-cliente", detail: `el bloque de contexto general escribe «${f.text}», que es una cifra del dato de este cliente (o del turno) — el contexto general no puede presentar una cifra suya como conocimiento de la industria; dejala AFUERA del bloque y dentro poné un rango propio` });
       }
     }
