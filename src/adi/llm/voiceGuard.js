@@ -133,6 +133,21 @@ const _LEAKS = [
   [/\bla performance\b/gi, "el desempeño"],
   [/\buna performance\b/gi, "un desempeño"],
   [/\bperformance\b/gi, "desempeño"],
+  // ── «VARA» JAMÁS EN SUPERFICIE (cierre del espejo Anthropic 2026-08-13, hallazgo 4) ───────────────────────────
+  // CLAUDE.md §4 la prohíbe en superficie desde el sello ejecutivo, y el narrador de Sonnet la dijo en vivo ×4
+  // («tu propia vara es la que manda» — E3/F1/F3 del espejo): el prompt no alcanza, esta tabla es la garantía —
+  // la misma arquitectura que palanca/plata/dormido. TRES FORMAS ENUMERADAS (no \bvara\b suelto): el barrido es
+  // del TEXTO NARRADO, nunca del catálogo — el CONCEPTO `vara` del glosario (slug/aka/etiquetas/definición
+  // curada, glossary.js) queda intacto y defineConcept lo sigue sirviendo verbatim por su propia ruta (que no
+  // pasa por acá). ECO DEL USUARIO: si el usuario escribió «vara», su palabra en la PREGUNTA no es nuestra — pero
+  // este barrido corre sobre la NARRACIÓN, y si la narración la repite como eco se barre igual: el registro manda
+  // sobre el eco (decisión del cierre del espejo, documentada en _INFORME_ESPEJO_CIERRE.md). Ambos géneros
+  // coinciden (vara→referencia, femenino→femenino): concordancia intacta. Number-safe (\b, cero dígitos) e
+  // idempotente («referencia» no contiene «vara»); «varado/varada» (SKU encallado) no matchea por el \b.
+  [/\btu\s+propia\s+vara\b/gi, "tu referencia"],
+  [/\btu\s+vara\b/gi, "tu referencia"],
+  [/\bla\s+vara\b/gi, "la referencia"],
+  [/\bvara\s+declarada\b/gi, "referencia declarada"],
 ];
 // ── VOSEO → TUTEO NEUTRO (owner 2026-08-10, certificación live · defecto 4) ────────────────────────────────────
 // EL HALLAZGO: el registro es "formal LatAm, sin chilenismos", y el `_registro_gate` lo verificaba desde 2026-07-14
