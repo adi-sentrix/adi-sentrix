@@ -11,7 +11,7 @@ import { resolverReferencia, REFERENCIA_ANAFORA_RE } from "../../config/business
 import { runPlan } from "./toolRunner.js";
 import { emit as emitTelemetria, nuevoTraceId, getToolsDeclaradas } from "../llm/telemetry.js";   // observación pura: mide, no decide (owner 2026-08-10)
 import { ledgerBoleta } from "./ledger.js";
-import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized } from "./guardC.js";
+import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized, conteosAutorizadosDelTurno } from "./guardC.js";
 import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, markUserProvenance } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract, buildReparacion } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta · v1.2: la reparación sellada, la MISMA que ve el narrador
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
@@ -1194,6 +1194,12 @@ function _composedBypassResult(text, mem, recentNarrationsPrev, scenario, conser
 // `uiSignals.viewContext`, que es como llega desde la UI — el hook de Sentrix lo publica con setUISignal, así que
 // ADI lo recibe AUNQUE el usuario haya escrito a mano sin pulsar ningún CTA (requisito 2 del owner). No se
 // construye acá ni se adivina: si no viene, el turno se comporta exactamente como hoy.
+// ── LA BOLETA DEL TURNO ANTERIOR (Paso 1b «ADI pierde el hilo», owner 2026-08-13) ────────────────────────────────
+// Cap de figs persistidas en mem.boletaAnterior — mismo criterio y mismo valor que MEMORY_SCOPE_ENTITIES_MAX
+// (persona.js): por encima de 24 la memoria deja de ser una SEÑAL y pasa a ser un volcado de dato. La boleta se
+// REEMPLAZA en cada turno con datos (nunca se acumula) y un turno sin datos no la pisa: un «no entiendo»
+// intermedio no borra la tabla que el próximo turno necesita explicar.
+const BOLETA_ANTERIOR_FIGS_MAX = 24;
 export async function answerViaOracle({ text, history = [], mem = {}, scenario = "actual", callPlan, callNarrate, maxCalls = 6, requestContext = null, uiSignals = null, viewContext = null } = {}) {
   if (typeof callPlan !== "function" || typeof callNarrate !== "function") return null;
   const q = (text || "").trim();
@@ -2113,12 +2119,39 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // exactamente lo que impide la contaminación. Si no cambió, el turno siguiente puede reusarlo por
   // VIEW_CONTEXT_TTL_TURNOS aunque el usuario haya cerrado el panel.
   mem2 = { ...mem2, viewContext: viewContextEntry(vistaCtx, history.length) };
+  // LA BOLETA DEL TURNO, PERSISTIDA COMO PERMISO PARA EL PRÓXIMO (Paso 1b, owner 2026-08-13) — key HERMANA de
+  // conversationScope, MISMO punto de escritura que viewContext (arriba). El Paso 1 le dio al narrador los OJOS
+  // (hilo_reciente trae el texto completo del turno anterior, tabla incluida); esto le da el PERMISO: si re-cita
+  // «los $17.8M de Lider que te mostré», guardC del turno siguiente la encuentra acá (cuarta fuente) en vez de
+  // vetarla como cifra-no-autorizada. Se guardan label+value VERBATIM (cap BOLETA_ANTERIOR_FIGS_MAX) y los
+  // conteos autorizados con LA MISMA derivación del chequeo 2 (conteosAutorizadosDelTurno). Solo un turno CON
+  // datos escribe — uno sin datos deja la boleta anterior intacta (ver la nota del cap, arriba). NUNCA viaja al
+  // narrador: narrationContract la excluye de memoria_interaccion por el mismo filtro que viewContext.
+  if (figs.length) {
+    mem2 = {
+      ...mem2,
+      boletaAnterior: {
+        scenario,
+        figs: figs.slice(0, BOLETA_ANTERIOR_FIGS_MAX).map((f) => ({ label: f && f.label != null ? String(f.label) : null, value: f && f.value != null ? String(f.value) : null })),
+        counts: [...conteosAutorizadosDelTurno(ledger, results)],
+      },
+    };
+  }
   // REPARACIÓN SELLADA (Contrato v1.2, owner 2026-08-10) — se compone UNA vez, acá, con el MISMO builder que usa
   // el contrato de narración: el guard y el prompt tienen que juzgar exactamente el mismo objeto. Dos
   // construcciones paralelas serían la forma más fácil de llegar a que el narrador cumpla una regla y el candado
   // le cobre otra (el mismo defecto que ya se pagó con tablePolicy). Se compone DESPUÉS de escribir el scope
   // fresco en mem2 porque los supuestos vivos del usuario salen de ahí. Null en cualquier turno normal.
   const reparacionSellada = buildReparacion({ plan, mem: mem2, reparacion: _reparacion });
+  // ── LOS TRES CANDADOS DE LA CUARTA FUENTE (Paso 1b, owner 2026-08-13) ── la boleta del turno ANTERIOR (leída de
+  // `mem`, la memoria ENTRANTE — la de este turno recién se escribió arriba, en mem2, y es para el próximo) solo
+  // llega a guardC si: (a) es del MISMO escenario — otro escenario es OTRO universo de datos, la cifra vieja no es
+  // citable; (b) el turno NO es una corrección — si el usuario corrigió el alcance, lo viejo no es citable hasta la
+  // próxima boleta (se juzgan la cruda Y la sellada: basta que cualquiera declare corrección para no inyectar);
+  // (c) existe. Null en cualquier otro caso → guardC byte-idéntico al de siempre.
+  const _esCorreccion = (r) => !!(r && typeof r === "object" && r.tipo === "correccion");
+  const _boletaPrev = (mem && mem.boletaAnterior && typeof mem.boletaAnterior === "object") ? mem.boletaAnterior : null;
+  const boletaAnteriorAutorizada = (_boletaPrev && _boletaPrev.scenario === scenario && !_esCorreccion(_reparacion) && !_esCorreccion(reparacionSellada)) ? _boletaPrev : null;
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
@@ -2154,7 +2187,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
     const det = ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q);
-    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = det; deterministic = true; }
+    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) { narration = det; deterministic = true; }
   }
 
   // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
@@ -2240,7 +2273,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // evidencia no tiene — y en esta rama, que no tiene reparación río abajo, un envoltorio que el guard rechace
       // no degrada: abstiene el turno entero.
       const c = desdeTexto ? candidato : ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -2359,7 +2392,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureCountAuthorized(n, ledger, results);
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada });
     // EL DETALLE DEL RECHAZO, EN MEMORIA (owner 2026-08-10, tras la auditoría de la 4ª corrida). El trace decía
     // QUÉ chequeo saltó pero no SOBRE QUÉ, así que de los cinco rechazos de esa corrida hubo uno que no se pudo
     // adjudicar: no se sabía si era un error real del modelo o un falso positivo del guard. Un rechazo que no se
@@ -2386,7 +2419,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         let c = ensurePeriodoDeclared(alt, periodos);
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
-        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) {
           narration = c; narrationRepaired = true;
           // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
           // SEGUNDA entrada con el MISMO `attempt` y `guardOk:false`, así que el trace de un turno reparado al
@@ -2455,7 +2488,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // oraciones de resguardo violarían eso — no se aplican ahí.
     if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
     c = ensureTransferenciaDeclarada(c, results, q);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) { narration = c; narrationRepaired = true; }
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) { narration = c; narrationRepaired = true; }
   }
   /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la
    * garantía de forma a propósito: si fuera antes, el recorte de `solo_conclusion` podría llevarse justamente la
@@ -2468,14 +2501,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (narration) {
     const conDeclinacion = ensureDeclinacionDeSuma(narration, figs, q);
     if (conDeclinacion !== narration
-      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) {
       narration = conDeclinacion; narrationRepaired = true;
     }
   }
   if (narration) {
     const conCobertura = ensureCoberturaDeclarada(narration, results);
     if (conCobertura !== narration
-      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) {
       narration = conCobertura; narrationRepaired = true;
     }
   }
@@ -2538,7 +2571,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         const cierre = truncateToBriefBudget(cuerpo[cuerpo.length - 1], _CONCLUSION_WORD_CAP);
         const candidato = [cierre, ...pie].join("\n\n");
         if (candidato !== narration
-          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
@@ -2560,7 +2593,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (cuerpoNuevo) {
         const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
         const candidato = [cuerpoNuevo, ...pie].join("\n\n");
-        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope }).ok) {
+        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
