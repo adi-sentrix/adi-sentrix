@@ -23,7 +23,7 @@ import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.
 import { MODE_KEYS, INTENT_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, composeSoloDatosConfusionMessage, composeAckPreferenciaMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
+import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, composeSoloDatosConfusionMessage, composeAckPreferenciaMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget, renderContextoGeneral } from "./narrationBlocks.js";
 import { debeResponderSinRepreguntar, respuestaYaEsEspecifica, isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
@@ -2211,6 +2211,24 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // texto↔autorizaciones). Se computa UNA vez por turno y viaja a los mismos sitios de guardC que la cuarta
   // fuente: la condición de dueño-en-la-misma-oración la aplica el propio guard (nunca dos implementaciones).
   const datoProyectadoDelTurno = cifrasDelDato(scenario);
+  /* ── EL CATÁLOGO DE ENTIDADES DEL TENANT (AMPLITUD F3, owner 2026-08-13, D2) ──────────────────────────────────
+   * El anti-contrabando del bloque de contexto general necesita el catálogo REAL —«¿cuánto vendió Falabella según
+   * la industria?» tiene que morir aunque Falabella no haya entrado a NINGUNA tool de este turno, así que las
+   * entidades del turno (_entityNames en guardC) no alcanzan—. Sale de `axisEntityNames`, el índice del tenant, y
+   * viaja como opción a los mismos sitios de guardC que las fuentes de F1/1b (nunca una lista escrita a mano).
+   * TRES EJES, y la elección es de contenido, no de comodidad: `cliente`/`sku`/`marca` son CONTRAPARTES NOMBRADAS
+   * (a quién le vendés, qué le vendés, de quién es) — nombrarlas en un aporte general es atribuirle a alguien real
+   * una afirmación que ADI no puede verificar, que es exactamente el contrabando. `familia`/`bodega`/`canal` son
+   * CLASIFICADORES, y en este dato sus nombres SON vocabulario corriente de la industria: «Retail», «Línea Blanca»,
+   * «Santiago». Incluirlos vetaría por construcción cualquier frase legítima sobre el rubro (medido en el probe
+   * §6, con el refinamiento propuesto en el informe) — y un contenedor que no deja decir nada no protege nada. */
+  const catalogoEntidadesTenant = (() => {
+    try {
+      const out = [];
+      for (const eje of ["cliente", "sku", "marca"]) for (const n of axisEntityNames(eje)) out.push(n);
+      return out.length ? out : null;
+    } catch { return null; }   // sin índice disponible: el chequeo cae a las entidades del turno, nunca tumba el turno
+  })();
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
@@ -2246,7 +2264,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
     const det = ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q);
-    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) { narration = det; deterministic = true; }
+    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = det; deterministic = true; }
   }
 
   // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
@@ -2368,7 +2386,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
       const c = (desdeTexto || desdeConfusion) ? candidato : ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -2474,6 +2492,19 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (!rendered || hasForbiddenContent(rendered, "action_only")) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "action_only con contenido prohibido", usage: null }); modelAttempt++; continue; }
       n = rendered;
     }
+    /* ── EL BLOQUE DE CONTEXTO GENERAL, RENDEREADO (AMPLITUD F3, owner 2026-08-13, D2) ───────────────────────────
+     * SOLO bajo `full`: es el único alcance que admite un aporte que no sale del dato. Bajo action_only la
+     * respuesta es la acción y nada más (su renderer ya podó todo lo demás dos líneas arriba); bajo data_only/
+     * results_only el narrador ni se invoca.
+     * VA ACÁ, ANTES DEL MURO, y es lo que hace que la garantía sea real: guardC juzga EXACTAMENTE el texto que se
+     * publica —con el marco puesto y el bloque en su lugar definitivo—, no una versión previa que después alguien
+     * reacomoda. Si el render corriera después del guard, mover un párrafo podría cambiar las ventanas de oración
+     * con las que el muro juzgó dueños y atribuciones: habríamos validado un texto y entregado otro.
+     * Y ANTES DE truncateToBriefBudget a propósito: ese tope es estructural («el resultado NO PUEDE exceder el
+     * presupuesto»), así que el bloque compite por el presupuesto como el resto del texto en vez de saltárselo.
+     * El marco no tiene ningún «.!?», de modo que el corte por oración nunca puede partirlo al medio ni dejarlo
+     * encabezando la nada: o entra con contenido, o no entra. */
+    if (pref.contentScope === "full") n = renderContextoGeneral(n);
     // BREVEDAD ESTRUCTURAL (owner 2026-07-31, certificación integral, riesgo residual #1) — a diferencia de
     // contentScope (bloques con enforcement duro), detailLevel="brief" era SOLO doctrina de prosa: medido en vivo,
     // 2 turnos consecutivos con brief+persist activo no mostraron ninguna compresión real. ANTES de declarar el
@@ -2491,7 +2522,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureCountAuthorized(n, ledger, results);
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant });
     // EL DETALLE DEL RECHAZO, EN MEMORIA (owner 2026-08-10, tras la auditoría de la 4ª corrida). El trace decía
     // QUÉ chequeo saltó pero no SOBRE QUÉ, así que de los cinco rechazos de esa corrida hubo uno que no se pudo
     // adjudicar: no se sabía si era un error real del modelo o un falso positivo del guard. Un rechazo que no se
@@ -2518,7 +2549,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         let c = ensurePeriodoDeclared(alt, periodos);
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
-        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) {
+        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
           narration = c; narrationRepaired = true;
           // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
           // SEGUNDA entrada con el MISMO `attempt` y `guardOk:false`, así que el trace de un turno reparado al
@@ -2587,7 +2618,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // oraciones de resguardo violarían eso — no se aplican ahí.
     if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
     c = ensureTransferenciaDeclarada(c, results, q);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) { narration = c; narrationRepaired = true; }
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = c; narrationRepaired = true; }
   }
   /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la
    * garantía de forma a propósito: si fuera antes, el recorte de `solo_conclusion` podría llevarse justamente la
@@ -2600,14 +2631,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (narration) {
     const conDeclinacion = ensureDeclinacionDeSuma(narration, figs, q);
     if (conDeclinacion !== narration
-      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) {
+      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
       narration = conDeclinacion; narrationRepaired = true;
     }
   }
   if (narration) {
     const conCobertura = ensureCoberturaDeclarada(narration, results);
     if (conCobertura !== narration
-      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) {
+      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
       narration = conCobertura; narrationRepaired = true;
     }
   }
@@ -2670,7 +2701,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         const cierre = truncateToBriefBudget(cuerpo[cuerpo.length - 1], _CONCLUSION_WORD_CAP);
         const candidato = [cierre, ...pie].join("\n\n");
         if (candidato !== narration
-          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) {
+          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
@@ -2692,7 +2723,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (cuerpoNuevo) {
         const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
         const candidato = [cuerpoNuevo, ...pie].join("\n\n");
-        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno }).ok) {
+        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
