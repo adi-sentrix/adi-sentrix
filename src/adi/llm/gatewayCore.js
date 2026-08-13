@@ -375,7 +375,13 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
 
 // NARRAR-C (Pasada 2): el CLIENTE ya corrió el batch y arma el payload (pregunta + datos + cifras_autorizadas +
 // memoria); acá solo inyectamos la persona + memoria como system y narramos. El guard endurecido corre en el cliente.
-export async function handleNarrateC({ payload, mem, access, tenantId, attempt, motivoReintento } = {}, env) {
+// `datoNegocio` (AMPLITUD F1, owner 2026-08-13): la proyección curada del dato del tenant (texto, la arma
+// datoProyectado.js en el CLIENTE — donde vive el tenant activo — y viaja en el body como campo propio, NUNCA
+// dentro de `payload`: el payload por turno no crece). El gateway NO la interpreta ni la valida: la coloca al
+// final del segmento FIJO del system (buildNarrateSystemSegments, 7º argumento), que sigue siendo cache:true —
+// es estable por tenant+escenario, así que el caché de prefijo del proveedor la descuenta en cada llamada.
+// Sin el campo (callers viejos, gates): undefined → null → system byte-idéntico al de siempre.
+export async function handleNarrateC({ payload, mem, access, tenantId, attempt, motivoReintento, datoNegocio } = {}, env) {
   const { provider, narrateModel: tier1, falta } = _config(env);
   // MISMO TRATO QUE PLAN, o la mitad del gasto queda ciega: el emisor cubre las tres rutas (freno propio,
   // excepción del proveedor y éxito) y la causa del intento anterior viaja como código de lista cerrada.
@@ -425,7 +431,9 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     // corrección, un desacuerdo o trae una cifra del usuario viva, el system suma la doctrina de reparación. Misma
     // condicionalidad —y la misma razón— que las de arriba: se lee del payload, no se adivina, y un turno que
     // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
-    const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
+    // datoNegocio (AMPLITUD F1) — 7º argumento: entra AL FINAL del fijo, así el prefijo de siempre no se parte
+    // y el bloque (estable por tenant+escenario) queda bajo cache:true. String no vacío o nada.
+    const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null, (typeof datoNegocio === "string" && datoNegocio) || null);
     const system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
     let narration, usage, modeloEfectivo;
     try {
