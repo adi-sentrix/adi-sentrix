@@ -5,10 +5,22 @@
  * Correr con el candado:  node --import ./scripts/offline-guard.mjs _probe_anthropic_adapter.mjs
  *
  * Qué demuestra (A2), construyendo y comparando los BODIES, sin llamar a nadie:
- *   · el body de narrate() SIN la env → max_tokens 2048 (el techo de 1024 cortaba tablas reales a la mitad);
+ *   · el body de narrate() SIN la env → max_tokens 3072 (ver el análisis del default abajo);
  *   · CON LLM_NARRATE_MAX_TOKENS → el valor de la env; con basura o "0" → cae al default, nunca a NaN;
  *   · el body de parse() sigue byte-igual al de siempre, max_tokens 1024 incluido;
  *   · parse()/narrate() usan ESTOS builders (no hay un segundo cuerpo inline que se desincronice).
+ *
+ * EL DEFAULT DE NARRAR ES GARANTÍA, NO FORMATO — y por eso este probe lo fija (2048 → 3072, cierre del espejo
+ * Anthropic 2026-08-13, hallazgo 2). El número no es una preferencia de presentación: es el punto donde el
+ * proveedor CORTA la generación a mitad de token, y un corte ahí rompe la respuesta a mitad de frase — MEDIDO en
+ * el espejo (transcript `_cert_espejo_anthropic.EF.json`, F4): la mejor respuesta de Sonnet llegó cortada en
+ * «…contribución no capturada ($1.6M» con el envoltorio de marcos pegado al muñón. Ningún recorte del MOTOR corta
+ * a mitad de oración (truncateToBriefBudget corta por oración; los strips borran oraciones/líneas/bloques
+ * ENTEROS): el único corte a mitad de token es el max_tokens del proveedor. Los finales visibles de Sonnet miden
+ * hasta 1.633 chars (G4) DESPUÉS de strips — el crudo es mayor (marcos [[...]], bloques descartados, tablas
+ * podadas), así que 2048 de salida cruda se alcanza en un turno rico. 3072 = ~50% de aire; sigue siendo un TOPE
+ * (solo se paga lo generado), así que subirlo no cuesta nada en el caso típico. Si este assert se mueve, que sea
+ * con una medición nueva en la mano — no para «hacer pasar» el probe.
  */
 import { readFileSync } from "node:fs";
 
@@ -42,11 +54,11 @@ console.log("── A2.a · el body de parse() sigue BYTE-IGUAL al de siempre (m
   delete process.env.LLM_NARRATE_MAX_TOKENS;
 }
 
-console.log("\n── A2.b · el body de narrate() SIN la env → max_tokens 2048, resto byte-igual ──");
+console.log("\n── A2.b · el body de narrate() SIN la env → max_tokens 3072, resto byte-igual ──");
 {
   delete process.env.LLM_NARRATE_MAX_TOKENS;
   const body = buildNarrateBody(PAYLOAD, { model: "claude-sonnet-5", system: SYSTEM });
-  ok(body.max_tokens === 2048, `sin LLM_NARRATE_MAX_TOKENS → 2048 (antes: 1024, corto para una tabla real)`);
+  ok(body.max_tokens === 3072, `sin LLM_NARRATE_MAX_TOKENS → 3072 (antes 2048: el espejo demostró que corta — ver cabecera)`);
   const viejoSinTope = {
     model: "claude-sonnet-5",
     system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
@@ -62,11 +74,11 @@ console.log("\n── A2.c · CON la env → el valor de la env; basura o cero �
   process.env.LLM_NARRATE_MAX_TOKENS = "3000";
   ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 3000, `LLM_NARRATE_MAX_TOKENS=3000 → 3000`);
   process.env.LLM_NARRATE_MAX_TOKENS = "no-es-un-numero";
-  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 2048, `un valor basura no produce NaN: cae al default 2048`);
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 3072, `un valor basura no produce NaN: cae al default 3072`);
   process.env.LLM_NARRATE_MAX_TOKENS = "0";
-  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 2048, `"0" (tope imposible) también cae al default`);
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 3072, `"0" (tope imposible) también cae al default`);
   delete process.env.LLM_NARRATE_MAX_TOKENS;
-  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 2048, `al borrar la env vuelve el default (se lee POR LLAMADA, no al importar)`);
+  ok(buildNarrateBody(PAYLOAD, { model: "m", system: SYSTEM }).max_tokens === 3072, `al borrar la env vuelve el default (se lee POR LLAMADA, no al importar)`);
 }
 
 console.log("\n── A2.d · parse()/narrate() usan ESTOS builders (fuente leída como texto, nunca ejecutada) ──");
