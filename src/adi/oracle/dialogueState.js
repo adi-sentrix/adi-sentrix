@@ -244,11 +244,17 @@ export function needsOrientacion(text, clarifyStreakNow) {
 
 /* ── LA SEGUNDA ACLARACIÓN NO EXISTE (owner 2026-08-12, medido en vivo) ─────────────────────────────────────────
  * CASO REAL, cuatro turnos: el owner pide el resultado después de gastos y ADI responde bien, con la cascada.
- *   — «no entiendo»                        → ADI: «¿qué parte no entendés?»          ← CORRECTO
+ *   — «no entiendo»                        → ADI: «¿qué parte no entendés?»          ← ver NOTA D1 abajo
  *   — «logística por qué tiene un 3.5%»    → ADI: «¿a qué parte de la logística…?»   ← EL DEFECTO
  *   — el owner explica                     → ADI REPITE la lectura entera
  * La segunda pregunta es la falla: el usuario YA respondió, y respondió NOMBRANDO una línea y su cifra. Volver a
  * preguntar no es prudencia, es no haber procesado la respuesta — y deja al usuario hablándole a una pared.
+ *
+ * NOTA D1 (owner 2026-08-13, Paso 3 — REVIERTE el juicio de la primera línea): la PRIMERA contrapregunta tampoco
+ * es correcta. Un «no entiendo» pelado se responde RE-ENSEÑANDO de inmediato el mensaje central del turno anterior
+ * (doctrina clarify en conversationalContract.js + descarte de la reparación ambigua desclasificada en
+ * answerViaOracle.js); la repregunta «¿qué parte…?» queda RESERVADA para una respuesta anterior multi-tema real.
+ * La regla de ESTE bloque (la segunda aclaración, respuesta ya específica) sigue vigente sin cambios.
  *
  * `needsOrientacion` (arriba) NO cubre esto: dispara en clarifyStreak>=3 y es para «sigue perdido, cambiemos de
  * enfoque». Acá el usuario NO está perdido: fue específico. Son dos problemas distintos y este no tenía regla.
