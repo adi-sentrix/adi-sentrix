@@ -577,7 +577,17 @@ function executiveSummary({ scenario } = {}) {
 }
 
 // inventoryStatus · estado de inventario (capital detenido / frenado / cobertura). `focus` = el estado que interesa.
-function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null } = {}) {
+// _umbralDiasPedido(texto) → el corte de días que la PREGUNTA pide, si lo pide («más de 90 días», «hace 90 días»,
+// «90 días sin venta») — la mitad honesta del encargo «umbral del usuario» (2026-08-13). Marcadores enumerados,
+// nunca un número suelto: «90 días» pelado sin comparador ni «sin venta/parado» al lado no dispara nada.
+const _UMBRAL_DIAS_CMP = /(?:m[aá]s\s+de|menos\s+de|desde\s+hace|hace\s+ya|hace|\+)\s*(\d{1,4})\s*d[ií]as?/i;
+const _UMBRAL_DIAS_SUFIJO = /(\d{1,4})\s*\+?\s*d[ií]as?\s+(?:sin\b|parad|deten|inmoviliz|frenad|o\s+m[aá]s)/i;
+function _umbralDiasPedido(texto) {
+  const t = String(texto || "");
+  const m = _UMBRAL_DIAS_CMP.exec(t) || _UMBRAL_DIAS_SUFIJO.exec(t);
+  return m ? parseInt(m[1], 10) : null;
+}
+function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays = null, entityScope = null, limit = null, _preguntaUsuario = null } = {}) {
   const x = _crossGuard(filters, _SCOPE_KEYS); if (x) return _crossFail(x);
   const r = _pack(composeSpecInventory({ filters: _isObj(filters) ? filters : {}, scenario, focus, staleDays, entityScope, limit }),
     "no hay señal de inventario para estos filtros");
@@ -606,6 +616,28 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
     // stock puede ser perfectamente posible en la bodega real; lo que este dato no permite es comprobar que
     // convenga. Y el registro vigente es "capital inmovilizado" (nunca "detenido", ver CLAUDE.md §4).
     if (!cap.evaluable) r.facts = { ...r.facts, limite_transferencia: { ...cap, nota: "si el usuario pregunta por mover, transferir o redistribuir stock entre bodegas, CONTESTÁ la decisión declinándola de forma explícita, y en la PRIMERA frase: no se puede EVALUAR esa transferencia con este dato (no es que sea imposible moverlo — es que no hay con qué comprobar que convenga). Decí qué información falta, que es " + cap.faltante + ". Nunca atribuyas el límite a «la herramienta» ni a «el sistema»: es el dato el que no alcanza. La medida que SÍ está sostenida sobre el capital inmovilizado es liquidar o rotar donde ya está" } };
+  }
+  /* ── REGLA DE HONESTIDAD DEL UMBRAL (encargo «umbral del usuario», 2026-08-13 — hallazgo VIVO del owner) ─────
+   * MEDIDO: «¿cuánto capital tengo inmovilizado en inventario parado hace más de 90 días?» cayó a esta tool con
+   * el foco por estados, y el total del criterio INTERNO ($33K: capital_frenado por rotación/DOH — BOS-SANDER
+   * con 68 días adentro) salió presentado como si fuera «>90 días» (real con diasSinVenta>90: 2 SKU ≈ $22K).
+   * La regla: cuando la pregunta (o el arg staleDays) trae un umbral numérico de días que ESTE foco no aplica,
+   * la tool lo DECLARA en facts — y la declaración viaja OBLIGATORIA a la narración por su backstop
+   * (ensureUmbralDeclarado, narratePromptC.js — la misma familia doctrina+garantía que la transferencia C1).
+   * El foco `stale` SÍ aplica el umbral (composeSpecInventory filtra por diasSinVenta) → ahí no hay nada que
+   * declarar. La declaración cita el número SOLO cuando viene de la pregunta (eco autorizado por el muro); un
+   * staleDays de arg sin rastro en la pregunta se declara sin el número — jamás una cifra que el eco no cubre. */
+  if (r.coverage && r.coverage.supported && focus !== "stale") {
+    const diasPregunta = _umbralDiasPedido(_preguntaUsuario);
+    const diasArg = typeof staleDays === "number" && staleDays > 0 ? staleDays : null;
+    if (diasPregunta != null || diasArg != null) {
+      const corte = diasPregunta != null ? `del corte de ${diasPregunta} días que pediste` : "del corte de días que pediste";
+      r.facts = { ...r.facts, umbral_no_aplicado: {
+        ...(diasPregunta != null ? { dias: diasPregunta } : {}), ...(diasArg != null ? { diasArg } : {}),
+        declaracion: `Ojo con el criterio: estas cifras salen del estado del inventario según tu política (lo detenido por rotación y días de inventario), no ${corte} — ese umbral no está aplicado a estos montos.`,
+        nota: `la pregunta pide un corte por días sin venta y ESTA lectura no lo aplica: su criterio son los ESTADOS del motor (rotación/días de inventario contra la política del negocio). DECLARALO en la primera frase y NUNCA presentes estos totales como si fueran el corte por días del usuario.`,
+      } };
+    }
   }
   return r;
 }
@@ -1069,9 +1101,122 @@ function _razonCalcEnPalabras(res, operacion, resueltos) {
   if (res.regla === "insumo-invalido") return "cada cifra entra al cálculo con su valor y su unidad declarados — así como llegó no la puedo usar; dime la cifra con su unidad ($, %, unidades)";
   return res.razon;   // universos-no-reconcilian: ya nombra la regla y su razón medida en palabras (el gate la fija)
 }
-function calcular({ operacion, insumos, objetivo, scenario } = {}) {
+/* ── suma_filtrada · FILTRAR + SUMAR CON EL UMBRAL DEL USUARIO (encargo «umbral del usuario», 2026-08-13) ───────
+ * El hallazgo VIVO del owner: «¿cuánto capital tengo inmovilizado en inventario parado hace más de 90 días?» cayó
+ * a inventoryStatus y el total del criterio INTERNO del motor ($33K, estados por rotación/DOH) salió presentado
+ * como si fuera el umbral pedido — con diasSinVenta>90 el total real son 2 SKU ≈ $22K. Esta rama es la capacidad
+ * que faltaba: sumar un campo MONETARIO de las filas de UN universo cuyo OTRO campo cumple el umbral del usuario.
+ *
+ * LAS REGLAS DE LA RAMA (las del encargo, verificables por gate):
+ *   a · CAMPOS POR REFERENCIA DECLARADA — el registro de abajo es la única puerta: capital en inventario como
+ *       campo a sumar; días sin venta / días de inventario / rotación como campo del umbral. Todos del MISMO
+ *       universo (inventario por SKU) — un campo del universo comercial (venta, margen…) declina NOMBRANDO que
+ *       los dos universos no reconcilian, jamás cruza en silencio (la reconciliación de F2 sigue mandando).
+ *   b · EL CRITERIO COMPLETO ES PARTE DEL RESULTADO — la fórmula del total declara el umbral Y las filas que lo
+ *       componen («$22.0K = capital en inventario de los 2 SKU con más de 90 días sin venta: …»); cada fila entra
+ *       a la boleta con su monto y su valor del campo filtrado. Un total filtrado sin sus filas es un top-N sin
+ *       cola. El umbral mismo entra como cifra sellada (es del usuario: se declara, no se verifica contra el dato).
+ * Las razones de declinación son texto de pantalla: palabras de usuario, sin nombres de operación ni tokens de
+ * código (la misma regla de _razonCalcEnPalabras). */
+const _SF_CAMPO_SUMA = {
+  capital: { campo: "stockUSD", label: "Capital en inventario" },
+  "capital en inventario": { campo: "stockUSD", label: "Capital en inventario" },
+  stock: { campo: "stockUSD", label: "Capital en inventario" }, inventario: { campo: "stockUSD", label: "Capital en inventario" },
+};
+const _SF_CAMPO_UMBRAL = {
+  "dias sin venta": { campo: "diasSinVenta", u: "days", enPalabras: "días sin venta" },
+  diassinventa: { campo: "diasSinVenta", u: "days", enPalabras: "días sin venta" },
+  "sin venta": { campo: "diasSinVenta", u: "days", enPalabras: "días sin venta" },
+  doh: { campo: "doh", u: "days", enPalabras: "días de inventario" },
+  "dias de inventario": { campo: "doh", u: "days", enPalabras: "días de inventario" },
+  cobertura: { campo: "doh", u: "days", enPalabras: "días de inventario" },
+  rotacion: { campo: "rotacion", u: "ratio", enPalabras: "rotación" },
+};
+const _SF_OPS = {
+  ">": { f: (a, b) => a > b, palabra: "más de" }, ">=": { f: (a, b) => a >= b, palabra: "al menos" },
+  "<": { f: (a, b) => a < b, palabra: "menos de" }, "<=": { f: (a, b) => a <= b, palabra: "hasta" },
+};
+const _SF_OP_ALIAS = { "mas de": ">", "mayor a": ">", "mayor que": ">", sobre: ">", "menos de": "<", "menor a": "<", "menor que": "<", bajo: "<", "al menos": ">=", desde: ">=", hasta: "<=", "como mucho": "<=" };
+const _SF_LISTA = "puedo sumar el capital en inventario de los SKU filtrando por días sin venta, días de inventario o rotación, con el corte que me digas (más de 90 días, rotación bajo 1, etc.)";
+function _calcSumaFiltrada({ insumos, umbral, scenario, _no }) {
+  const u = umbral && typeof umbral === "object" ? umbral : {};
+  const campoTxt = _CALC_NORM((Array.isArray(insumos) && insumos[0] && insumos[0].metrica) || u.suma || "");
+  const umbralTxt = _CALC_NORM(u.metrica || u.campo || "");
+  if (!campoTxt || !umbralTxt) return _no(`para esa suma necesito el campo a sumar y el umbral con su corte — ${_SF_LISTA}`);
+  const suma = _SF_CAMPO_SUMA[campoTxt];
+  const filtro = _SF_CAMPO_UMBRAL[umbralTxt];
+  if (!suma || !filtro) {
+    // ¿el campo que no calza es del universo COMERCIAL? entonces la razón es la regla de universos, no un hueco.
+    const comercial = _CALC_CAMPO[!suma ? campoTxt : umbralTxt];
+    if (comercial && ["venta", "margen", "contribucion", "costo", "rebates", "pctRebate", "anterior", "presupuesto", "benchmark", "unidades", "precioLista", "costoMedio"].includes(comercial)) {
+      return _no(`no puedo cruzar la venta comercial con el inventario en una misma suma filtrada: los dos universos no reconcilian (la venta viene en miles de $ y el inventario en dólares crudos, con unidades que difieren por SKU) — ${_SF_LISTA}`);
+    }
+    return _no(`no reconozco ese campo por fila del inventario — ${_SF_LISTA}`);
+  }
+  const opKey = _SF_OPS[String(u.operador || u.op || "").trim()] ? String(u.operador || u.op).trim() : _SF_OP_ALIAS[_CALC_NORM(u.operador || u.op || "")];
+  const cmp = _SF_OPS[opKey];
+  const valor = Number(u.valor);
+  if (!cmp || !Number.isFinite(valor)) return _no("me falta el corte del umbral — dime el número y su dirección (más de / menos de / al menos / hasta)");
+  const vTxt = filtro.u === "ratio" ? `${valor}x` : String(valor);
+  const enPalabras = filtro.campo === "rotacion"
+    ? (opKey === ">" || opKey === ">=" ? `rotación sobre ${vTxt}` : `rotación bajo ${vTxt}`)
+    : `${cmp.palabra} ${vTxt} ${filtro.enPalabras}`;
+  const rows = applyScenarioToSkuInventario(scenario) || [];
+  const filas = rows
+    .filter((r) => typeof r[filtro.campo] === "number" && typeof r[suma.campo] === "number" && cmp.f(r[filtro.campo], valor))
+    .map((r) => ({ entidad: r.sku, monto: r[suma.campo], criterio: r[filtro.campo] }))
+    .sort((a, b) => b.monto - a.monto);
+  const boleta = [fig(`Criterio · ${enPalabras}`, formatearCanon(valor, filtro.u), {
+    unit: filtro.u, raw: valor, sello: "indicado",
+    verificabilidadRazon: "umbral aportado por el usuario — es su criterio de corte, se declara y se aplica, no se verifica contra el dato",
+    context: "el umbral del filtro",
+  })];
+  if (!filas.length) {
+    boleta.push(fig(`SKU con ${enPalabras} · ${suma.label} total`, formatearCanon(0, "money"), {
+      unit: "money", raw: 0, mandatory: true, source: "computed", formula: `$0 = ningún SKU cumple ${enPalabras}`, context: "suma con el umbral del usuario",
+    }));
+    return { facts: { es_calculo: true, operacion: "suma_filtrada", criterio: { campo: filtro.enPalabras, operador: opKey, valor, en_palabras: enPalabras }, campo_sumado: suma.label, filas: [], total: { value: formatearCanon(0, "money"), formula: `$0 = ningún SKU cumple ${enPalabras}` }, nota_criterio: "ningún SKU cumple el criterio pedido — decílo tal cual, con el criterio completo" }, boleta, coverage: { supported: true, figCount: boleta.length } };
+  }
+  // la suma corre por el CATÁLOGO (una fila filtrada = un insumo) — jamás una segunda aritmética acá.
+  const res = ejecutarCalculo("suma_filtrada", filas.map((f) => ({ raw: f.monto, unit: "money", universo: universoDe(`${f.entidad} · ${suma.label}`, "money"), label: `${f.entidad} · ${suma.label}`, origen: "motor" })));
+  if (!res.ok) return _no(_razonCalcEnPalabras(res, "suma_filtrada", []));
+  const total = res.resultados[0];
+  // top-N + Resto (el patrón de todo top-N del producto): el detalle muestra hasta 8 filas, el resto agrupado
+  // reconcilia con el total — jamás filas que suman menos que el total mostrado.
+  const detalle = filas.slice(0, 8);
+  const resto = filas.slice(8);
+  for (const f of detalle) {
+    boleta.push(fig(`${f.entidad} · ${suma.label}`, formatearCanon(f.monto, "money"), { unit: "money", raw: f.monto, context: `cumple ${enPalabras}` }));
+    boleta.push(fig(`${f.entidad} · ${filtro.enPalabras.charAt(0).toUpperCase() + filtro.enPalabras.slice(1)}`, formatearCanon(f.criterio, filtro.u), { unit: filtro.u, raw: f.criterio, context: `criterio del filtro: ${enPalabras}` }));
+  }
+  if (resto.length) {
+    const restoUsd = resto.reduce((a, f) => a + f.monto, 0);
+    boleta.push(fig(`Resto (${resto.length} de ${filas.length}) · ${suma.label}`, formatearCanon(restoUsd, "money"), { unit: "money", raw: restoUsd, context: `cumplen ${enPalabras}` }));
+  }
+  const partesFormula = detalle.slice(0, 4).map((f) => `${f.entidad} (${formatearCanon(f.monto, "money")}, ${filtro.campo === "rotacion" ? `rotación ${formatearCanon(f.criterio, filtro.u)}` : `${f.criterio} ${filtro.enPalabras}`})`);
+  const masAlla = filas.length > 4 ? ` + … y ${filas.length - 4} más (${formatearCanon(filas.slice(4).reduce((a, f) => a + f.monto, 0), "money")})` : "";
+  const formula = `${total.value} = ${suma.label.toLowerCase()} de los ${filas.length} SKU con ${enPalabras}: ${partesFormula.join(" + ")}${masAlla}`;
+  boleta.push(fig(`SKU con ${enPalabras} · ${suma.label} total`, total.value, {
+    unit: "money", raw: total.raw, mandatory: true, source: "computed", formula, context: "suma con el umbral del usuario",
+  }));
+  const facts = {
+    es_calculo: true, operacion: "suma_filtrada",
+    criterio: { campo: filtro.enPalabras, operador: opKey, valor, en_palabras: enPalabras },
+    campo_sumado: suma.label,
+    filas: filas.map((f) => ({ entidad: f.entidad, monto: formatearCanon(f.monto, "money"), [filtro.campo === "rotacion" ? "rotacion" : "dias"]: formatearCanon(f.criterio, filtro.u) })),
+    total: { value: total.value, formula },
+    formula,
+    nota_criterio: "el total vale SOLO bajo ese criterio: al citarlo, decláralo COMPLETO y con sus filas («" + total.value + " en los " + filas.length + " SKU con " + enPalabras + "») — nunca lo presentes como el total de otro criterio ni como el capital detenido del motor",
+    nota_formula: "la fórmula del total está declarada — si preguntan de dónde sale la cifra, citala tal cual",
+  };
+  return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };
+}
+function calcular({ operacion, insumos, objetivo, umbral, scenario } = {}) {
   const _no = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
   const opNombre = String(operacion || "").trim();
+  // suma_filtrada resuelve sus filas contra el dato (filtro + suma) — rama propia, ANTES del flujo de referencias
+  // uno-a-uno: acá un insumo no es una cifra sino el CAMPO a sumar, y el umbral no es un operando sino el filtro.
+  if (opNombre === "suma_filtrada") return _calcSumaFiltrada({ insumos, umbral, scenario, _no });
   const op = OPERACIONES_CALCULO[opNombre];
   // margen_objetivo azucarado: UN insumo {entidad} se expande a su venta + contribución (los dos montos que la
   // cuenta necesita), y `objetivo` es el tercer insumo (la tasa — del usuario con procedencia, o el benchmark).
