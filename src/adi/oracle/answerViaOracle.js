@@ -22,8 +22,8 @@ import { parseAddress, buildSentrixActionFromAddress } from "../sentrix/address.
 import { MODE_KEYS, normalizeReparacion, coerceVocabularioPlan } from "./conversationalContract.js";
 import { axisEntityNames } from "./entityIndex.js";   // el catálogo REAL del tenant — nunca una lista de nombres a mano
 import { CONTENT_SCOPES, DETAIL_LEVELS, pideDatoPelado } from "./responsePreference.js";
-import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
-import { debeResponderSinRepreguntar, isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
+import { parseBlocks, renderFromBlocks, componerPorForma, ensureCoberturaDeclarada, composeFromTextualEvidence, composeNoDataMessage, composeSoloDatosConfusionMessage, hasForbiddenContent, stripAllMarks, truncateToBriefBudget } from "./narrationBlocks.js";
+import { debeResponderSinRepreguntar, respuestaYaEsEspecifica, isAcceptance, extractOffer, updateRecentSubjects, needsOrientacion, buildOrientacionInstruction, composeOrphanAcceptance, resolveSubjectRecall, composeSubjectAmbiguity, isVagueOffer, composeVagueOfferAcceptance, isExhaustedMechanismOffer, composeExhaustedMechanismAcceptance, matchEllipticEntity, getLastOffer, getRecentSubjects } from "./dialogueState.js";
 // CONTINUIDAD CONVERSACIONAL UNIVERSAL (Etapa 1/3, owner 2026-08-03) — conversationScope.js es la capa canónica.
 // Etapa 4 (owner 2026-08-04, "lastOffer/recentSubjects como vistas derivadas") cerró la consolidación que Etapa 1
 // dejó pendiente por bajo riesgo: mem.lastOffer/mem.recentSubjects (dialogueState.js) ya NO son una segunda fuente
@@ -1690,6 +1690,30 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       _reparacion = { tipo: "correccion", corrige: [], ambigua: true, pregunta: null, dato: null, aceptado: false, inferida: true };
     }
   }
+  /* ── D1 · «NO ENTIENDO» PELADO → RE-EXPLICAR, NUNCA REPREGUNTAR (owner 2026-08-13, Paso 3 de "ADI pierde el
+   * hilo"). Medido en prod: ante «no entiendo que me quieres decir» ADI respondió «¿qué parte de la información
+   * te genera confusión?» — la contrapregunta costó un turno entero. Ese texto lo emitía ESTE corte de abajo
+   * (la corrección ambigua §4): cuando el planificador clasifica la confusión como redirect/reparación ambigua
+   * —declarada o inferida—, el turno salía con la pregunta de precisión en vez de re-enseñar.
+   * LA REGLA: una frase INEQUÍVOCA de confusión (_CLARIFY_RE, el MISMO piso determinístico que ya fuerza
+   * mode=clarify) que además no nombra nada concreto (ni cifra ni línea — respuestaYaEsEspecifica, la vara que ya
+   * existe en dialogueState.js) NO es una corrección: es un pedido de re-enseñanza, y el modo clarify (cuya
+   * doctrina desde hoy prohíbe abrir con contrapregunta) es quien lo responde. La reparación ambigua se descarta
+   * como la desclasificación que es — mismo criterio que _coerceMode: el piso determinístico manda sobre la
+   * clasificación del LLM ante la frase inequívoca. Red ANGOSTA: una corrección ambigua real («eso no es así»,
+   * «ese número no me cuadra») no matchea _CLARIFY_RE y sigue cortando con su pregunta de precisión, igual que
+   * siempre; una corrección RESUELTA (corrige no vacío) tampoco se toca, matchee lo que matchee.
+   * plan.reparacion se limpia TAMBIÉN (no solo la local): narrationContract.js:688 re-lee el objeto crudo del
+   * plan vía normalizeReparacion — sin esta limpieza, el narrador recibiría doctrina de corrección y guardC
+   * juzgaría un turno de corrección que ya no existe (y el candado (b) de boletaAnterior bloquearía la re-cita
+   * de la cifra que justamente hay que re-explicar). El intent baja a "answer" por la misma razón (el payload
+   * proyecta `intencion` del plan). */
+  if (_reparacion && _reparacion.tipo === "correccion" && _reparacion.ambigua
+      && _CLARIFY_RE.test(q) && !respuestaYaEsEspecifica(q)) {
+    planCoerciones.push("confusion-pelada→clarify(reparacion-ambigua-descartada)");
+    _reparacion = null;
+    plan = { ...plan, intent: "answer", reparacion: null };
+  }
   // `calls` VACÍO ADEMÁS DEL FLAG (owner 2026-08-10, revisión de la sección 8): si el plan se declara ambiguo pero
   // trajo calls, se contradice igual que cuando declara `corrige` — y descartar un batch bueno para preguntar algo
   // le cuesta al usuario un turno entero. Ante la contradicción vale siempre lo RESPONDIBLE.
@@ -2263,7 +2287,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // que «solo el dato» devolvía doce filas donde el contrato pide una oración con cifra, entidad y período.
     const desdeLedger = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida });
     const desdeTexto = desdeLedger ? null : composeFromTextualEvidence(results);
-    const base = desdeLedger || desdeTexto || composeNoDataMessage(results);
+    // D2 (owner 2026-08-13, Paso 3): un turno de CONFUSIÓN inequívoca (_CLARIFY_RE — el MISMO piso determinístico
+    // que fuerza mode=clarify, nunca un segundo detector) que llegó hasta acá sin cifra NI definición curada
+    // recibe el mensaje honesto sobre la preferencia activa en vez del genérico. PRECEDENCIA INTACTA: una cifra
+    // autorizada manda (desdeLedger), la definición curada después (desdeTexto), y una tool que declinó con razón
+    // real hace que composeSoloDatosConfusionMessage devuelva null y composeNoDataMessage la cite, como siempre.
+    // Un turno de datos normal no matchea _CLARIFY_RE y su respuesta queda byte-idéntica. El candado se mantiene:
+    // texto fijo, cero narrador.
+    const desdeConfusion = (!desdeLedger && !desdeTexto && _CLARIFY_RE.test(q)) ? composeSoloDatosConfusionMessage(results) : null;
+    const base = desdeLedger || desdeTexto || desdeConfusion || composeNoDataMessage(results);
     const alcanceLinea = desdeLedger ? buildAlcanceLine(sealScopeContract({ plan, results, scenario, requestContext, pref })) : "";
     const enLinea = (_formaProhibidaPorElUsuario && desdeLedger) ? _cifrasEnLinea(figs) : null;
     const _conAlcance = (b) => (alcanceLinea ? [`${b}\n\n${alcanceLinea}`, b] : [b]);
