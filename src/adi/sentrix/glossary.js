@@ -38,7 +38,9 @@ export const METRIC_DEFS = {
   // detector, y `resolveGlossary("Inmovilizado")` sirve el CONCEPTO: la explicación describía $33.200 sobre una
   // columna que mostraba $55.800. Las dos reglas siguen existiendo porque miden cosas distintas; lo que se terminó
   // es que compartan la palabra.
-  "Inmovilizado": "La parte del capital que el detector clasifica como detenida: rotación bajo tu piso o días de inventario sobre tu techo. No es el stock en alerta, que es otra regla y otra cifra.",
+  // «clasifica como inmovilizada», no «detenida» (La Poda F2): esta definición se imprime verbatim y era la propia
+  // entrada de «Inmovilizado» la que usaba la palabra que CLAUDE.md §4 reemplaza. La regla descrita no cambia.
+  "Inmovilizado": "La parte del capital que el detector clasifica como inmovilizada: rotación bajo tu piso o días de inventario sobre tu techo. No es el stock en alerta, que es otra regla y otra cifra.",
   "Stock en alerta": "El capital en SKU con alerta operativa (crítico o de cuidado) o con rotación bajo 2. Es una señal de operación, más amplia que el capital inmovilizado del detector: un SKU puede estar en alerta y aun así rotar sobre tu piso y estar bajo tu techo de días.",
   "% en alerta": "Qué parte del capital de esta bodega está en SKU con alerta operativa o rotación bajo 2.",
   "% del stock en alerta": "Qué parte del stock en alerta de todo el negocio concentra esta bodega.",
@@ -179,13 +181,13 @@ export const CONCEPT_DEFS = {
     aka: "capital en inventario",
     etiquetas: ["capital", "capital total", "capital en inventario", "valorizado", "stock valorizado"],
     def: "Es el valor del inventario a hoy: lo que está invertido en stock. Es una foto del momento, no un acumulado del año, y por eso su período se declara «foto de inventario a hoy».",
-    distingue: "No es el **capital inmovilizado**: eso es sólo la parte de este capital que el detector clasifica como detenida.",
+    distingue: "No es el **capital inmovilizado**: eso es sólo la parte de este capital que el detector clasifica como inmovilizada.",
   },
   capital_inmovilizado: {
     aka: "capital inmovilizado",
     etiquetas: ["inmovilizado", "capital inmovilizado", "capital detenido", "capital frenado", "% del inmov. total"],
-    def: "Es la parte del capital en inventario que el detector clasifica como detenida: SKU sin rotación o con días de inventario muy por encima del rango. Es dinero ya invertido que hoy no se está convirtiendo en venta.",
-    distingue: "No es el **capital en inventario** completo: es el subconjunto detenido. Y no es una pérdida contable — el valor sigue en el stock; lo que está detenido es su conversión en caja.",
+    def: "Es la parte del capital en inventario que el detector clasifica como inmovilizada: SKU sin rotación o con días de inventario muy por encima del rango. Es dinero ya invertido que hoy no se está convirtiendo en venta.",
+    distingue: "No es el **capital en inventario** completo: es el subconjunto inmovilizado. Y no es una pérdida contable — el valor sigue en el stock; lo que está frenado es su conversión en caja.",
   },
   riesgo_quiebre: {
     aka: "riesgo de quiebre",
@@ -254,6 +256,15 @@ export const CONCEPT_DEFS = {
     def: "Es la distancia entre una cifra y su referencia declarada — el margen contra el benchmark, la carga contra la meta, la venta contra el presupuesto. Se expresa en puntos porcentuales cuando compara tasas y en $ cuando compara montos.",
     distingue: "La brecha es la distancia; la **contribución no capturada** es esa distancia ya convertida en dinero sobre la venta de la cuenta.",
   },
+  /* ⛔ FRENADO PARA DECISIÓN DEL OWNER (La Poda F2, 2026-08-14) — NO SE TOCÓ A PROPÓSITO.
+   * El problema es real: «vara» está vetada en superficie (CLAUDE.md §4) y esta entrada la usa en el `aka`, en la
+   * `def` y en el `distingue`, texto CURADO que `defineConcept` imprime VERBATIM. Pero acá el registro choca con
+   * otra regla de la casa: el glosario existe para DEFINIR LA PALABRA QUE EL USUARIO USÓ, y el usuario dice
+   * «vara». Borrarla de la definición deja al concepto sin poder nombrarse; renombrarlo cambia un slug que ya
+   * viaja en índices derivados (`_ETIQUETAS`, `conceptForLabel`) y en `criteria.js`, que parsea «vara» del INPUT.
+   * Las dos opciones que se le llevan al owner están en `_INFORME_PODA_2B.md` (§ "Frenado para el owner"); hasta
+   * que decida, `_registro_boleta_gate.mjs` declara esta entrada como EXCEPCIÓN NOMBRADA y verifica que siga
+   * siendo la ÚNICA — así el hueco queda medido y visible en vez de tapado. */
   vara: {
     aka: "la vara",
     etiquetas: ["vara", "vara_usuario", "tu vara", "vara declarada"],
@@ -268,7 +279,10 @@ export const CONCEPT_DEFS = {
     // glosario declaraba «meta» en singular, así que «¿qué cuentas están sobre la meta de carga?» no tenía una sola
     // respuesta y los textos podían atribuir una cifra a la vara que no la produjo.
     def: "Es el valor objetivo declarado para una métrica —típicamente la carga comercial— contra el que se mide cada cuenta. Lo que supera la meta es lo que queda para revisar. En carga comercial conviven DOS umbrales declarados: la META OPERATIVA, que es contra la que se selecciona y se valoriza lo recuperable, y la MEJOR PRÁCTICA INTERNA, más exigente, que marca hasta dónde llegó la mejor cuenta del negocio. No dan la misma lista ni el mismo monto, y por eso cada lectura dice con cuál de las dos se calculó.",
-    distingue: "La meta es un objetivo declarado; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre la meta y aun así bajo el benchmark. Y la mejor práctica interna no es la meta: es más exigente, así que siempre marca más cuentas y más plata.",
+    // «más capital», no «más plata» (La Poda F2): este `distingue` se imprime VERBATIM cuando el usuario pregunta
+    // qué es la meta (tool `defineConcept` → resolveGlossary), así que es superficie, y «plata» está vetada.
+    // Cambio de vocabulario puro: no toca el slug, ni las etiquetas de entrada, ni lo que la frase afirma.
+    distingue: "La meta es un objetivo declarado; el **benchmark** es la referencia de rendimiento del negocio. Una cuenta puede estar sobre la meta y aun así bajo el benchmark. Y la mejor práctica interna no es la meta: es más exigente, así que siempre marca más cuentas y más capital.",
   },
   presupuesto: {
     aka: "presupuesto",
@@ -302,7 +316,10 @@ export const CONCEPT_DEFS = {
   indicado: {
     aka: "indicado",
     etiquetas: ["indicado", "dato indicado", "sello indicado"],
-    def: "Es el sello de una cifra que depende de una estimación, una distribución, una afinidad, un supuesto declarado o una vara del usuario. Es utilizable para decidir, siempre que se lea sabiendo de qué supuesto cuelga.",
+    // «una referencia declarada por el usuario», no «una vara del usuario»: la definición del sello se imprime
+    // verbatim y no necesita la palabra vetada para decir lo mismo (a diferencia del concepto `vara`, cuyo trabajo
+    // ES definir esa palabra — ver el freno declarado en su entrada).
+    def: "Es el sello de una cifra que depende de una estimación, una distribución, una afinidad, un supuesto declarado o una referencia declarada por el usuario. Es utilizable para decidir, siempre que se lea sabiendo de qué supuesto cuelga.",
     distingue: "No es un dato dudoso: es un dato CONDICIONADO. Se distingue de **probado**, que reconcilia sin supuestos, y de **abierto**, que directamente no se puede calcular.",
   },
   abierto: {

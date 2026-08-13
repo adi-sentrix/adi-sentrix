@@ -1203,7 +1203,9 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   const fcolor = cmap[inv.focusColor] || C.amber;   // color del FOCO (la pregunta manda) · barras + header
   const cp = inv.contrapunta || null;               // la otra punta material (callout)
   const cpColor = cmap[cp && cp.color] || C.red;
-  const titleParts = String(inv.title || "Capital inmovilizado · dónde está detenido tu capital").split(" · ");
+  // el fallback replica el `title` de composeSpecInventory (specRetrieval.js) — se corrige en los DOS lados a la
+  // vez o la pantalla dice una cosa distinta según haya evidencia o no. Registro: «inmovilizado», no «detenido».
+  const titleParts = String(inv.title || "Capital inmovilizado · dónde está inmovilizado tu capital").split(" · ");
   const isStale = inv.focus === "stale";
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
@@ -5413,9 +5415,9 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
             </div>
             <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.55, marginTop: 8 }}>
               {_criticos.length > 0 && _lentos.length > 0
-                ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>
+                ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> inmovilizados y otros <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>
                 : _criticos.length > 0
-                  ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> detenidos en {_capSujeto}.</>
+                  ? <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_criticos))}</b> inmovilizados en {_capSujeto}.</>
                   : <>Tienes <b style={{ color: C.text }}>{_fmUsd(_sumUsd(_lentos))}</b> con rotación lenta en {_capSujeto}.</>}
               {" "}Es capital de tu negocio, no de {name}.
               {!_capObservada ? <> La asociación con {name} es una estimación de afinidad, no una venta registrada.</> : null}
@@ -5423,15 +5425,15 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
             {_capTopMonto && (
               <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${C.celeste}` }}>
                 {_capTopDias && _capTopDias.sku !== _capTopMonto.sku
-                  ? <>Priorizá <b>{_capTopMonto.sku}</b> por el monto ({_fmUsd(_capTopMonto.usd)}) y <b>{_capTopDias.sku}</b> por llevar {_capTopDias.diasSinVenta} días sin venta.</>
-                  : <>Priorizá <b>{_capTopMonto.sku}</b>: es el mayor monto ({_fmUsd(_capTopMonto.usd)}){typeof _capTopMonto.diasSinVenta === "number" ? <> y lleva {_capTopMonto.diasSinVenta} días sin venta</> : null}.</>}
+                  ? <>Prioriza <b>{_capTopMonto.sku}</b> por el monto ({_fmUsd(_capTopMonto.usd)}) y <b>{_capTopDias.sku}</b> por llevar {_capTopDias.diasSinVenta} días sin venta.</>
+                  : <>Prioriza <b>{_capTopMonto.sku}</b>: es el mayor monto ({_fmUsd(_capTopMonto.usd)}){typeof _capTopMonto.diasSinVenta === "number" ? <> y lleva {_capTopMonto.diasSinVenta} días sin venta</> : null}.</>}
               </div>
             )}
             {_btn(`Pídele a ADI el detalle de este inventario →`, `¿Qué capital tienes inmovilizado en ${_capSujeto}?`)}
           </>
         ) : (
           <div style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>
-            Ningún SKU de los {_capSujeto} está hoy detenido ni con rotación lenta según tu benchmark de rotación y días de inventario.
+            Ningún SKU de los {_capSujeto} está hoy inmovilizado ni con rotación lenta según tu benchmark de rotación y días de inventario.
           </div>
         )}
       </div>

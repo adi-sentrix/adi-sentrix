@@ -449,7 +449,9 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
   ok(!T.includes(bajo.lectura), "…ni su lectura suelta");
   ok(bajo.n > 0 && !("recuperable" in (bajo.filas[0] || {})),
     `pero el dato sigue en el módulo, sin recuperable inventado — ${bajo.n} cuentas`);
-  ok(/No son plata a capturar/.test(bajo.lectura) && /entregarles más/.test(bajo.lectura),
+  // LITERAL ACTUALIZADO, CANDADO INTACTO (La Poda F2): sigue exigiendo la MISMA advertencia; sólo cambia la
+  // palabra, porque «plata» está vetada en superficie y esta lectura puede volver a la vista.
+  ok(/No son capital a capturar/.test(bajo.lectura) && /entregarles más/.test(bajo.lectura),
     "y conserva su advertencia: si vuelve a la vista, vuelve con la trampa cerrada");
 
   // "VENDEN MUCHO PERO DEJAN POCO" se MUDÓ a "Quién sostiene el negocio" (owner 2026-08-08) · se verifica que

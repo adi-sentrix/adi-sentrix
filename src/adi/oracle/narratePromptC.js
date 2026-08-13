@@ -779,7 +779,11 @@ const TABLE_INSTRUCTION_DECISION = "Tus cifras_autorizadas traen 2+ entidades co
 // en el origen, acá se reconoce la FAMILIA de conceptos del detector de inventario y se devuelve el que el ledger
 // realmente trae, para que el encabezado impuesto sea el del dato. `Capital detenido` (foco frenado/stale, el único
 // caso medido en los gates) produce una instrucción BYTE-IDÉNTICA a la anterior.
-const _CONCEPTOS_INVENTARIO = ["Capital detenido", "Riesgo de quiebre", "Sobrestock", "Capital sano"];
+// «Capital inmovilizado» reemplaza a «Capital detenido» como concepto del foco frenado (La Poda F2, 2026-08-14):
+// el label salía VERBATIM a pantalla por el respaldo determinístico y CLAUDE.md §4 veta «detenido». La forma
+// VIEJA se conserva en la lista para que una boleta del camino legado —que todavía la emite— siga reconociéndose
+// y siga recibiendo su encabezado impuesto; el encabezado que se impone es SIEMPRE el que el ledger trae.
+const _CONCEPTOS_INVENTARIO = ["Capital inmovilizado", "Capital detenido", "Riesgo de quiebre", "Sobrestock", "Capital sano"];
 function _conceptoCapitalDeFigs(figs) {
   if (!_needsTableFormat(figs)) return null;
   if (!Array.isArray(figs)) return null;
@@ -789,7 +793,7 @@ function _conceptoCapitalDeFigs(figs) {
   return hasPctDelTotal ? concepto : null;
 }
 function _needsCapitalColumnNames(figs) { return !!_conceptoCapitalDeFigs(figs); }
-const _capitalColumnsInstruction = (concepto) => CAPITAL_COLUMNS_INSTRUCTION_TPL.split("{CONCEPTO}").join(concepto || "Capital detenido");
+const _capitalColumnsInstruction = (concepto) => CAPITAL_COLUMNS_INSTRUCTION_TPL.split("{CONCEPTO}").join(concepto || "Capital inmovilizado");
 const CAPITAL_COLUMNS_INSTRUCTION_TPL = "Tus cifras_autorizadas traen \"{CONCEPTO}\" y \"% del total\" por entidad (bodega o SKU) — armá la tabla con ESTOS 3 encabezados LITERALES, en este orden: \"Bodega\" o \"SKU\" (el que corresponda) | \"{CONCEPTO}\" | \"% del total\". No los reformules ni los traduzcas (nunca \"Capital Inmovilizado (USD)\", nunca \"Porcentaje del total (%)\"). El % NUNCA lo calculás vos NI lo completás de otra cifra suelta: si una entidad NO tiene su propia cifra \"Entidad · % del total\" autorizada, esa entidad NO va en la tabla de porcentajes — nunca uses una cifra sin ese formato exacto (ej. una cifra llamada solo \"pct\", sin nombre de entidad) para rellenar el % de una fila, aunque el número parezca coincidir. Si tenés cifras de bodegas Y de SKU a la vez, armá DOS TABLAS separadas (una con encabezado de fila \"Bodega\", otra con \"SKU\") — nunca las mezcles bajo un solo encabezado, cada una suma 100% por sí sola. ESTA REGLA DE LAS DOS TABLAS NO CAMBIA por lo que sigue abajo sobre causa y acción: si tenés 2+ SKU con \"{CONCEPTO}\"+\"% del total\" propios, la tabla de SKU es SIEMPRE obligatoria — nombrar la causa en prosa es ADEMÁS de esa tabla, nunca en vez de ella. Si el alcance ya viene acotado a UNA sola bodega (ej. \"cuánto capital tengo en Valparaíso\"), esa bodega NO tiene cifra de \"% del total\" autorizada a propósito (es obvio que es el 100%, no hace falta cifra) — esa bodega es una fila única, no le armes tabla ni le inventes un %: decilo en una frase (\"tenés $X en Valparaíso\"); si esos mismos datos SÍ traen 2+ SKU dentro de esa bodega, esa es la tabla que corresponde armar (encabezado \"SKU\"), no la de bodega.\n  NINGUNA TABLA ES EL CIERRE: arma TODAS las tablas que correspondan (bodega y/o SKU, según la regla de arriba) y DESPUÉS, en prosa corrida (sin encabezados tipo \"Por qué:\"), agregá lo que las tablas no dicen — tenés \"Rotación\", \"Días de inventario\" y \"Días sin venta\" por SKU ya autorizados: usalos para explicar la causa (ej. \"rotación de 1.0x y 165 días de inventario — prácticamente no se mueve\") y para nombrar el SKU puntual con más $ o más días sin venta como la acción a priorizar, con su monto. Un cierre que solo repite el total y pregunta \"¿querés que profundicemos en los SKU?\" está incompleto — YA tenés esos SKU en tus cifras_autorizadas, nómbralos ahora, no los guardes para un turno futuro.";
 
 // _needsListFormat(figs) → true si hay 3+ entidades con UNA sola cifra cada una (ranking de una métrica) — el

@@ -325,7 +325,9 @@ console.log("\n── 23 · AUDITORÍA GENERAL: 2da aceptación sobre costo → 
   });
   ok(offer && offer.tool === null && offer.mechanismExhausted === true && offer.mechanism === "costo", `mechanism="costo", exhausted=true — obtuvo tool="${offer && offer.tool}", mechanism="${offer && offer.mechanism}"`);
   const msg = composeExhaustedMechanismAcceptance(offer);
-  ok(/costo medio/i.test(msg) && !/carga comercial/i.test(msg) && !/capital detenido/i.test(msg), `mensaje habla de COSTO, no reusa carga ni capital — "${msg}"`);
+  // «capital inmovilizado» se suma al chequeo NEGATIVO (La Poda F2): el label del mecanismo de capital pasó a esa
+  // forma, así que sin esta línea el check seguiría verde aunque la rama de costo reusara el texto de capital.
+  ok(/costo medio/i.test(msg) && !/carga comercial/i.test(msg) && !/capital (?:detenido|inmovilizado)/i.test(msg), `mensaje habla de COSTO, no reusa carga ni capital — "${msg}"`);
 }
 
 console.log("\n── 24 · AUDITORÍA GENERAL: simulateGeneral (2 variables) queda FUERA de MECHANISM_TABLE a propósito — ese flujo lo maneja mem.pendingSimulation (#56), no extractOffer ──");

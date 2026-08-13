@@ -394,7 +394,11 @@ export function buildSupuestos({ plan, results }) {
 // marcaba la brecha de 8,1 pp como "causa parcial de sí misma" (cazado corriendo la derivación sobre 4 ejes).
 const _PALANCAS = [
   { re: /exceso de acciones comerciales/i, clase: "acciones_comerciales", accion: "revisar las acciones comerciales (rebates y descuentos)", esParte: true },
-  { re: /capital detenido/i,               clase: "capital_detenido",     accion: "liberar el capital detenido en inventario",               esParte: true },
+  // LAS DOS FORMAS, Y LA ACCIÓN EN REGISTRO (La Poda F2, 2026-08-14): el label canónico del foco pasó a «Capital
+  // inmovilizado» (specRetrieval `_ESTADO_LABEL`) porque el respaldo determinístico lo imprime VERBATIM y §4 veta
+  // «detenido». `re` reconoce ambas para no perder los claims del camino legado, que sigue emitiendo la vieja;
+  // `accion` va en la palabra correcta porque VIAJA AL PROMPT como acción permitida y el narrador la ecoa.
+  { re: /capital (?:detenido|inmovilizado)/i, clase: "capital_detenido",  accion: "liberar el capital inmovilizado en inventario",           esParte: true },
   { re: /\bbrecha\b/i,                     clase: "brecha_margen",        accion: "cerrar la brecha de margen contra el benchmark",          esParte: false },
 ];
 export function buildAllowedActions(claims) {

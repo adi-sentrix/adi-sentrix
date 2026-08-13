@@ -229,8 +229,12 @@ function entityProfile({ dimension, entity, scenario } = {}) {
     const rawRec = rawRecordFor(dim, entity, scenario);
     const bench = benchmarkOf(rawRec);
     if (typeof bench === "number" && isFinite(bench)) {
-      r.facts = { ...r.facts, benchmarkMargen: `${bench}%`, nota: "compará el margen contra el benchmark antes de calificarlo" };
-      r.boleta = [...r.boleta, fig("Benchmark de margen", `${bench}%`, { unit: "pct", context: "la vara" })];
+      // «compara», no «compará» (voseo) · y el `context` de la fig va en registro: «la referencia declarada», no
+      // «la vara» — el context viaja al prompt como texto autorizado y a la evidencia del panel de Sentrix, que
+      // lo pinta. «referencia declarada» es la MISMA clase de concepto (`_vocabulario_vara_gate` la reconoce como
+      // palabra de vara, no de promedio), así que nada cambia de significado: cambia la palabra que se lee.
+      r.facts = { ...r.facts, benchmarkMargen: `${bench}%`, nota: "compara el margen contra el benchmark antes de calificarlo" };
+      r.boleta = [...r.boleta, fig("Benchmark de margen", `${bench}%`, { unit: "pct", context: "la referencia declarada" })];
       // BRECHA de margen (benchmark − margen) autorizada: el "por qué cede margen" la narra naturalmente (evita abstención).
       const mM = Array.isArray(r.facts.metrics) && r.facts.metrics.find((m) => /margen/i.test(m.label || "") && typeof m.value === "number");
       if (mM && mM.value < bench) {
@@ -314,7 +318,7 @@ function entityComposicion({ dimension, entity, scenario } = {}) {
     const bench = benchmarkOf(rawRec);
     if (typeof bench === "number" && isFinite(bench)) {
       r.facts = { ...r.facts, benchmarkMargen: `${bench}%` };
-      r.boleta = [...r.boleta, fig("Benchmark de margen", `${bench}%`, { unit: "pct", context: "la vara" })];
+      r.boleta = [...r.boleta, fig("Benchmark de margen", `${bench}%`, { unit: "pct", context: "la referencia declarada" })];   // registro: ver la nota de entityProfile
       r.facts.composicion.familias.forEach((f, i) => {
         if (typeof f.margen !== "number") return;
         const gap = Math.round((bench - f.margen) * 10) / 10;
@@ -480,7 +484,7 @@ function entityRecord({ dimension, entity, scenario } = {}) {
     const refValue = refDef.getRef(rawRec);
     if (typeof refValue !== "number" || !isFinite(refValue)) continue;
     if (boleta.some((f) => f.label === refDef.label)) continue;
-    boleta = [...boleta, fig(refDef.label, refDef.fmt(refValue), { unit: refDef.unit, context: "vara" })];
+    boleta = [...boleta, fig(refDef.label, refDef.fmt(refValue), { unit: refDef.unit, context: "referencia declarada" })];   // registro: ver la nota de entityProfile
   }
   // lens:"cuadro" · SENTRIX ES LA EVIDENCIA (owner 2026-07-28): sin esto el panel no tenía forma de saber qué mostrar
   // para esta tool propia (las demás heredan `lens` de su composer wrapeado) → el ranking de ${dimension} se abre con
@@ -597,7 +601,9 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
   if (inv && inv.contrapunta) {
     const { contrapunta, ...resto } = inv;
     r.facts = { ...r.facts, inventory: { ...resto, otro_estado_del_inventario: {
-      ...contrapunta, nota: "estado INDEPENDIENTE del capital detenido — no es su causa, y sus familias no son las de los SKU detenidos",
+      // la nota viaja al prompt y el narrador la ecoa con sus palabras: si nombra el concepto con la palabra
+      // vetada, la vetada es la que tiende a salir. Mismo concepto, registro correcto.
+      ...contrapunta, nota: "estado INDEPENDIENTE del capital inmovilizado — no es su causa, y sus familias no son las de los SKU inmovilizados",
     } } };
   }
   // TRANSFERIR ENTRE BODEGAS (owner 2026-08-09, decisión 13): la respuesta natural a "tenés capital detenido en
@@ -634,7 +640,9 @@ function inventoryStatus({ filters = {}, scenario, focus = "frenado", staleDays 
       const corte = diasPregunta != null ? `del corte de ${diasPregunta} días que pediste` : "del corte de días que pediste";
       r.facts = { ...r.facts, umbral_no_aplicado: {
         ...(diasPregunta != null ? { dias: diasPregunta } : {}), ...(diasArg != null ? { diasArg } : {}),
-        declaracion: `Ojo con el criterio: estas cifras salen del estado del inventario según tu política (lo detenido por rotación y días de inventario), no ${corte} — ese umbral no está aplicado a estos montos.`,
+        // `declaracion` está DISEÑADA para citarse textual en la primera frase de la narración: es texto de
+        // pantalla, no una instrucción. Va en registro — «lo inmovilizado», nunca «lo detenido» (CLAUDE.md §4).
+        declaracion: `Ojo con el criterio: estas cifras salen del estado del inventario según tu política (lo inmovilizado por rotación y días de inventario), no ${corte} — ese umbral no está aplicado a estos montos.`,
         nota: `la pregunta pide un corte por días sin venta y ESTA lectura no lo aplica: su criterio son los ESTADOS del motor (rotación/días de inventario contra la política del negocio). DECLARALO en la primera frase y NUNCA presentes estos totales como si fueran el corte por días del usuario.`,
       } };
     }
@@ -720,7 +728,9 @@ function simulateCarga({ filters = {}, scenario, entityScope = null } = {}) {
 // simulateCapital · simulación específica de liberar capital detenido.
 // entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecSimulateCapital — mismo mecanismo.
 function simulateCapital({ filters = {}, scenario, entityScope = null } = {}) {
-  return _pack(composeSpecSimulateCapital({ filters, scenario, entityScope }), "no hay capital detenido para liberar");
+  // `coverage.reason` NO es un log: cuando la tool no trae dato, ESTE string es el que el turno sirve a pantalla
+  // (composeNoData) y el que el prompt le entrega al narrador como la razón a citar. Va en registro: «inmovilizado».
+  return _pack(composeSpecSimulateCapital({ filters, scenario, entityScope }), "no hay capital inmovilizado para liberar");
 }
 
 // simulateCosto · simulación específica de bajar/subir el costo medio (turno 10 del veredicto de 18 turnos):
@@ -1209,7 +1219,7 @@ function _calcSumaFiltrada({ insumos, umbral, scenario, _no }) {
     filas: filas.map((f) => ({ entidad: f.entidad, monto: formatearCanon(f.monto, "money"), [filtro.campo === "rotacion" ? "rotacion" : "dias"]: formatearCanon(f.criterio, filtro.u) })),
     total: { value: total.value, formula },
     formula,
-    nota_criterio: "el total vale SOLO bajo ese criterio: al citarlo, decláralo COMPLETO y con sus filas («" + total.value + " en los " + filas.length + " SKU con " + enPalabras + "») — nunca lo presentes como el total de otro criterio ni como el capital detenido del motor",
+    nota_criterio: "el total vale SOLO bajo ese criterio: al citarlo, decláralo COMPLETO y con sus filas («" + total.value + " en los " + filas.length + " SKU con " + enPalabras + "») — nunca lo presentes como el total de otro criterio ni como el capital inmovilizado del motor",
     nota_formula: "la fórmula del total está declarada — si preguntan de dónde sale la cifra, citala tal cual",
   };
   return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };

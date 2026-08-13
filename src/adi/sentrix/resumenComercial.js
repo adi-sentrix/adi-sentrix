@@ -721,9 +721,10 @@ function _deterioro(scenario, rows, plano, tension, puente) {
     const bajo = {
       filas: bajoFilas, n: bajoFilas.length, ventaFmt: _M(ventaBajo * 1000),
       menorFmt: bajoFilas.length ? bajoFilas[0].cargaFmt : "—", menorNombre: bajoFilas.length ? bajoFilas[0].nombre : null,
-      // NO son plata a capturar y eso no se negocia por brevedad — pero se dice en una línea, no en cuatro.
+      // NO son capital a capturar y eso no se negocia por brevedad — pero se dice en una línea, no en cuatro.
+      // «plata» está vetada en superficie (CLAUDE.md §4) y esta línea se pinta en la pestaña Comercial vigente.
       lectura: bajoFilas.length
-        ? `${bajoFilas.length} ${bajoFilas.length === 1 ? "cuenta entrega" : "cuentas entregan"} menos que el promedio y suman ${_M(ventaBajo * 1000)}. No son plata a capturar —llevarlos al promedio sería entregarles más—: son la prueba de que se puede vender entregando menos.`
+        ? `${bajoFilas.length} ${bajoFilas.length === 1 ? "cuenta entrega" : "cuentas entregan"} menos que el promedio y suman ${_M(ventaBajo * 1000)}. No son capital a capturar —llevarlos al promedio sería entregarles más—: son la prueba de que se puede vender entregando menos.`
         : `No hay clientes por debajo del promedio: todos entregan lo mismo o más.`,
       estatus: "abierto",
     };
@@ -733,9 +734,12 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       totalFmt: _M(tA * 1000), sobreVentaFmt: _pct(promedio),
       referencias: [
         { key: "promedio", label: "al promedio de tu cartera", refFmt: _pct(promedio, 2), ...alPromedio,
-          nota: `El promedio ponderado de tu cartera: ${_K(tA * 1000)} de acciones comerciales sobre ${_M(tV * 1000)} de venta. Es la vara realista — pregunta qué pasa si los que entregan de más se parecen al resto de tu propia cartera, no a un ideal.` },
+          // «la referencia realista», no «la vara»: la palabra está vetada en superficie desde el sello ejecutivo
+          // y esta nota se pinta en la cara Comercial. El concepto no cambia (sigue siendo una referencia, no un
+          // objetivo): cambia la palabra que el usuario lee.
+          nota: `El promedio ponderado de tu cartera: ${_K(tA * 1000)} de acciones comerciales sobre ${_M(tV * 1000)} de venta. Es la referencia realista — pregunta qué pasa si los que entregan de más se parecen al resto de tu propia cartera, no a un ideal.` },
         { key: "meta", label: `a tu meta de ${_pct(meta)}`, refFmt: _pct(meta), ...aLaMeta,
-          nota: `Tu meta declarada. Es más ambiciosa que el promedio, así que el monto es mayor — y por eso las dos se muestran juntas: una dice qué es alcanzable comparándote con vos mismo, la otra qué te propusiste.` },
+          nota: `Tu meta declarada. Es más ambiciosa que el promedio, así que el monto es mayor — y por eso las dos se muestran juntas: una dice qué es alcanzable comparándote contigo mismo, la otra qué te propusiste.` },   // «contigo», no «con vos»: registro formal LatAm sin voseo
       ],
       lectura: alPromedio.n
         ? `${alPromedio.n} de ${rows.length} cuentas entregan más que tu promedio (${_pct(promedio, 2)}). Alinearlas recupera ${_K(alPromedio.total)}; llevarlas a tu meta de ${_pct(meta)}, ${_K(aLaMeta.total)}.`
