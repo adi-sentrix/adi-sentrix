@@ -287,6 +287,39 @@ function _figsDeMetricaPedida(list, metricaLabels) {
   const canon = labels.map((l) => l.trim().toLowerCase());
   return list.filter((f) => String(f.label || "").split("·").map((s) => s.trim().toLowerCase()).some((seg) => canon.includes(seg)));
 }
+/* ── EL EJE COMPLETO SE TABULA, NO SE ENUNCIA (certificación amplia 2026-08-13, hallazgo 1 · B1/G6/E3-E4) ─────────
+ * MEDIDO: «dame el margen por cliente» agotó los 3 intentos del narrador y la reparación compuso UNA oración-líder
+ * («Ripley · Margen marca 25.0%…») más el resto en línea — donde la certificación #2, pre-amplitud, había narrado
+ * una tabla de 8 filas. POR QUÉ DEGRADÓ LA FORMA: cuando la reparación empezó a respetar la forma pedida (owner
+ * 2026-08-12, punto 3), `auto` dejó de significar «la tabla de composeFromLedger» y pasó a ser SIEMPRE la prosa
+ * qué-pasa/por-qué/qué-hacer — sin mirar la FORMA del ledger. Una pregunta de eje («por cliente», «por familia»)
+ * cuya boleta trae N>3 filas de la MISMA métrica en entidades distintas ES una tabla: la oración-líder + choclo en
+ * línea es la misma información en la peor forma posible.
+ * LA DETECCIÓN es estructural, no una lista de frases: la métrica que la pregunta nombra (metricaLabels, el léxico
+ * determinístico de siempre) tiene ≥4 figs con entidades DISTINTAS en la boleta. Sin métrica nombrada no hay eje
+ * que tabular y el AUTO de siempre queda intacto. */
+function _ejeCompletoDeMetrica(pedidas) {
+  if (!Array.isArray(pedidas) || pedidas.length < 4) return false;
+  const entidades = new Set(pedidas.map((f) => (f.tipo && f.tipo.entidad) || String(f.label || "").split("·")[0].trim()));
+  return entidades.size >= 4;
+}
+// el segmento del label que ES la métrica pedida (para encabezar su columna): «Lider · Margen» + ["Margen"] → «Margen».
+function _segmentoMetrica(fig, metricaLabels) {
+  const canon = (Array.isArray(metricaLabels) ? metricaLabels : []).map((l) => String(l).trim().toLowerCase());
+  for (const seg of String(fig.label || "").split("·").map((s) => s.trim())) {
+    if (canon.includes(seg.toLowerCase())) return seg;
+  }
+  return null;
+}
+/* LA PRIMERA FIG DEL RANKING SELLADO, NO LA MAGNITUD MAYOR (hallazgo 1b de la misma certificación). El ancla de la
+ * métrica pedida era `_bestByMagnitude(pedidas)` — y para «margen por cliente» la magnitud mayor es EL MARGEN MÁS
+ * ALTO (Ripley 25.0%), o sea la entidad MENOS urgente de la lista. El criterio correcto es el de los composers
+ * reales: composeSpecMargin (bajo_benchmark) empuja su boleta YA ordenada peor-brecha-primero (`below` ordenado por
+ * `benchmark − margen` desc) y su propio titular es `below[0]` («El más lejos del piso es…»); los rankings de
+ * magnitud (ventas, contribución) también empujan el primero primero. El orden del ledger ES el ranking que la
+ * tool selló — así que el ancla correcta es la PRIMERA fig de la métrica pedida en ese orden: la peor brecha
+ * cuando la métrica se compara contra referencia, la mayor magnitud cuando el ranking es de magnitud. Sin re-rankear
+ * nada acá (la doctrina del archivo): se LEE el orden sellado en vez de calcular uno propio. */
 // las MISMAS figs, sin tabla y sin una palabra propia — la base de toda forma no tabular.
 const _enLinea = (list, tope = 12) => list.slice(0, tope).map((f) => `${f.label}: ${f.value}`).join(" · ");
 function _tabla(list) {
@@ -304,12 +337,24 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
   const conEntidad = list.filter(_isEntityAttributed);
   const topMagnitud = _bestByMagnitude(conEntidad.length ? conEntidad : list);
   const pedidas = _figsDeMetricaPedida(conEntidad.length ? conEntidad : list, metricaLabels);
-  const top = pedidas.length ? _bestByMagnitude(pedidas) : topMagnitud;
+  // pedidas[0], no _bestByMagnitude(pedidas): el orden del ledger es el ranking sellado por la tool (ver el
+  // comentario largo arriba) — la peor brecha en una lectura contra referencia, la mayor magnitud en un ranking
+  // de magnitud. Con una sola fig pedida (el caso 3b medido, «margen de Sodimac») es idéntico al criterio previo.
+  // SIN métrica nombrada y CON supuesto declarado (una reparación de SIMULACIÓN — hallazgo 1 · E4): el ancla es el
+  // EFECTO (la primera fig `source:"computed"` en el orden sellado — «Recuperable · total»), no un insumo como
+  // «Venta actual» que gana por magnitud. Es el criterio de los composers de simulación reales: su titular es el
+  // efecto del supuesto, jamás el punto de partida. La red es angosta a propósito: sin supuesto en el ledger
+  // (perfiles, rankings, diagnósticos) nada cambia — la magnitud de siempre manda. `mandatory` NO sirve de ancla
+  // general: los perfiles enriquecidos traen figs mandatory laterales («exceso de acciones comerciales») y
+  // anclar ahí rompía la garantía 3b de «dame Sodimac» → Ventas (medido en este mismo pase).
+  const supuestoCtx = _findSupuestoContext(list);
+  const topEfecto = (!pedidas.length && supuestoCtx) ? (list.find((f) => f && f.source === "computed") || null) : null;
+  const top = pedidas.length ? pedidas[0] : (topEfecto || topMagnitud);
 
   // el alcance manda sobre la forma: `action_only` tiene su propio contrato estricto y no admite prosa suelta.
   if (contentScope === "action_only") return `La prioridad: ${top.label} (${top.value}).`;
 
-  const supuesto = _findSupuestoContext(list);
+  const supuesto = supuestoCtx;
   /* LA AFINIDAD SE DECLARA EN CUALQUIER FORMA (owner 2026-08-12, hallazgo M1). Si el turno sirve una relación
    * sellada `indicado`, el texto tiene que decir que es estimada — y esta reparación es texto como cualquier otro.
    * Sin esto el propio muro bloquearía el fallback por la regla nueva, y tendría razón: la regla no distingue quién
@@ -364,6 +409,28 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
     return conSupuesto(partes.join("\n\n"));
   }
 
+  // ── AUTO · EJE COMPLETO → LA TABLA CON LA MÉTRICA PROTAGONISTA (hallazgo 1 de la cert amplia, ver arriba) ─────
+  // Solo cifras verbatim del ledger, EN SU ORDEN (el ranking sellado por la tool — jamás re-rankeado acá); la
+  // columna protagonista es la métrica que la pregunta nombró. El resto de lo autorizado y la honestidad causal
+  // conservan sus líneas de siempre; el «por dónde partir» conserva la justificación verdadera del 3b.
+  if (_ejeCompletoDeMetrica(pedidas)) {
+    const ejeLbl = (top.tipo && typeof top.tipo.dimension === "string" && top.tipo.dimension.trim())
+      ? top.tipo.dimension.trim().charAt(0).toUpperCase() + top.tipo.dimension.trim().slice(1) : "Entidad";
+    const metLbl = _segmentoMetrica(top, metricaLabels) || "Valor";
+    const filas = pedidas.slice(0, 12).map((f) => {
+      const segs = String(f.label || "").split("·").map((s) => s.trim());
+      const ent = segs.filter((s) => s.toLowerCase() !== metLbl.toLowerCase()).join(" · ") || f.label;
+      return `| ${ent} | ${f.value} |`;
+    });
+    const tabla = `| ${ejeLbl} | ${metLbl} |\n|---|---:|\n${filas.join("\n")}`;
+    const resto = list.filter((f) => !pedidas.includes(f));
+    const pq = resto.length
+      ? `El resto de lo autorizado en este turno: ${_enLinea(resto, 6)}. El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.`
+      : "El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.";
+    const qh = `Por dónde partir: ${top.label}, que es la métrica por la que preguntaste.`;
+    return conSupuesto([tabla, pq, qh].join("\n\n"));
+  }
+
   // ── AUTO · qué pasa, por qué y qué hacer primero — SÓLO desde el ledger ────────────────────────────────────────
   // El movimiento (02) es el delicado: el ledger trae cifras, no causas. Inventar una acá sería exactamente
   // `causa-sobredimensionada`. Así que se declara ABIERTO cuando no hay evidencia causal sellada, que es la
@@ -387,9 +454,12 @@ export function componerPorForma({ figs, contentScope, forma = "auto", metricaLa
       : "El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.";
     // Paso 3b: la justificación de la prioridad tiene que decir la verdad del criterio usado — si encabezó la
     // métrica preguntada, «magnitud mayor» sería falso (medido: «explícame ese margen» cerró señalando Ventas).
+    // Y si encabezó el efecto de una simulación (hallazgo 1 · E4), la verdad es que es el efecto del supuesto.
     const qh = pedidas.length
       ? `Por dónde partir: ${top.label}, que es la métrica por la que preguntaste.`
-      : `Por dónde partir: ${top.label}, que es la magnitud mayor de las autorizadas.`;
+      : (topEfecto && top === topEfecto)
+        ? `Por dónde partir: ${top.label}, que es el efecto del supuesto planteado.`
+        : `Por dónde partir: ${top.label}, que es la magnitud mayor de las autorizadas.`;
     return conSupuesto([qp, pq, qh].join("\n\n"));
   }
 }

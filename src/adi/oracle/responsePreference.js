@@ -39,7 +39,10 @@ export const DEFAULT_PREF = Object.freeze({ detailLevel: "standard", contentScop
 // nombra un dato: por eso ninguna puede fijar el alcance.
 // OJO con "en una línea": «una línea DE producto/negocio/crédito» no es un presupuesto de largo — la lookahead
 // negativa de "de" es lo único que separa el pedido de forma del sustantivo del negocio.
-const _REDUCCION_LARGO = /\ben\s+(?:una|un|1|dos|2|tres|3)\s+(?:l[ií]neas?|frases?|oraciones?|renglones?|palabras?)\b(?!\s+de\b)/i;
+// «en una SOLA frase» (certificación amplia 2026-08-13, G6, medido): el adjetivo intensificador entre el número y
+// el sustantivo («sola», «única») dejaba escapar el pedido más enfático de todos — «resúmeme TODO en una sola
+// frase» caía a `auto` y la reparación respondía en tres párrafos. Opcional y acotado a esos dos adjetivos.
+const _REDUCCION_LARGO = /\ben\s+(?:una|un|1|dos|2|tres|3)\s+(?:sol[oa]s?\s+|[uú]nic[oa]s?\s+)?(?:l[ií]neas?|frases?|oraciones?|renglones?|palabras?)\b(?!\s+de\b)/i;
 // OJO CON EL `\b` INICIAL ANTE VOCAL ACENTUADA — es la misma trampa ASCII que progressiveDisclosure.js documenta en
 // `_TEMPORAL` y `_DESGLOSE`, y acá estaba viva: `\b[uú]nicamente` NUNCA matcheaba la forma con tilde («únicamente la
 // conclusión»), porque "ú" no es un carácter de palabra para `\b` y no hay frontera que abrir delante. Sin el `\b`
