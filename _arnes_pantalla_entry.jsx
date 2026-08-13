@@ -12,3 +12,6 @@ export { answerConversational } from "./src/adi/conversation.js";
 // estaría midiendo el piso determinístico y creyendo que mide producción.
 export { ADI_ORACLE_ENABLED, ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_BYPASS_SIN_PAGO } from "./src/config/voiceFlags.js";
 export { gatewayFetch } from "./src/adi/llm/gatewayFetch.js";
+// diagnóstico: si el bundle pierde el catálogo de tools, el proveedor no puede devolver un tool_call y TODA
+// ruta falla igual — hay que poder distinguir eso de un defecto del producto.
+export { toolNames, TOOLS } from "./src/adi/oracle/toolRegistry.js";
