@@ -1287,7 +1287,7 @@ function _sealedOrderBroken(narration, sealedOrders) {
 
 // ── EL GUARD ────────────────────────────────────────────────────────────────────────────────────────────────────
 // guardC(narration, { ledger, results, trace }) → { ok, verdict, violations[] }
-// verdict: "fiel" | "cifra-no-autorizada" | "cifra-de-dato-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
+// verdict: "fiel" | "cifra-no-autorizada" | "cifra-de-dato-sin-dueno" | "cifra-de-boleta-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
 // CÁLCULO SOBRE EL DATO (owner 2026-07-28 "que calcule, como Claude con el Excel"): una cifra que es la SUMA o la
 // RESTA de dos cifras AUTORIZADAS (mismos operandos reales del motor) NO es invento — es el LLM calculando sobre el
 // dato (ej. brecha de margen = benchmark − margen, "juntos explican $X+$Y"). Se autoriza. Operandos reales → seguro.
@@ -2447,6 +2447,112 @@ function _duenoEnVentana(text, masked, fig, duenos) {
   return false;
 }
 
+/* ── DUEÑO POR FILA EN LA BOLETA DEL TURNO (encargo «umbral del usuario + dueño por fila», 2026-08-13) ─────────
+ * EL HALLAZGO VIVO que lo motiva: en la respuesta de inventario del owner, las cifras de MAK-COMP-AIR salieron
+ * atribuidas a LG-DRYER8KG — y pasaron el muro entero, porque la PRIMERA fuente (la boleta del turno) autoriza
+ * por canon sin condición de dueño: el chequeo 10 (atribución) solo marca cuando el dueño real no aparece en
+ * NINGUNA parte del texto, y en una respuesta que lista varios SKU el dueño real siempre aparece en alguna parte.
+ * La QUINTA fuente (F1) ya cerró exactamente este hueco para las cifras del dato proyectado: cifra + dueño en la
+ * MISMA oración, o veto con el dueño verdadero en el detalle. Esto GENERALIZA ESE MISMO PRINCIPIO a las figs de
+ * la boleta cuyo label declara dueño («LG-DRYER8KG · Rotación») — con dos candados que protegen la aditividad:
+ *
+ *   1 · SOLO cuando el turno trae 2+ DUEÑOS DISTINTOS en la MISMA métrica (mismo concepto de label): una boleta
+ *       de una sola entidad no cambia NADA — no hay con qué confundirse, y así el 99% de los turnos existentes
+ *       pasa byte-idéntico. El «concepto» es el label sin su segmento de entidad (estructural, jamás un
+ *       vocabulario aparte — no se toca el léxico del chequeo 9).
+ *   2 · CUALQUIER lectura libre de la misma cifra la LIBERA (colisión de canon, F1 §3: falso negativo antes que
+ *       falso positivo): si el mismo canon vive también en una fig sin dueño, o en un grupo de un solo dueño, o
+ *       lo autoriza el eco de la pregunta / la cifra del usuario / la boleta anterior (1b) / un cálculo legítimo
+ *       (_isCalc/_isCalc2/catálogo/derivada), la condición de dueño no aplica.
+ *
+ * Los dueños son los NOMBRES REALES: el catálogo del tenant (los seis ejes vía `duenosDelTenant` — bodegas y
+ * familias TAMBIÉN son dueñas de sus subtotales) unido a las entidades del turno (tenant-safe, del dato
+ * devuelto) — nunca una lista escrita a mano. Un valor con dos dueños legítimos valida con CUALQUIERA (la
+ * tolerancia conocida del ledger). El kind es hermano del de F1 (`cifra-de-boleta-sin-dueno`): la cifra es
+ * REAL — lo que falta es nombrar al dueño, no cambiarla.
+ *
+ * TERCER CANDADO, y es el que la aditividad MEDIDA exigió (la suite completa se corrió ANTES de sellar esto —
+ * `_proporcionalidad_semantica_gate` marcó 2 narraciones legítimas): se veta SOLO la ATRIBUCIÓN ACTIVA — la
+ * oración de la cifra nombra alguna entidad real y NINGUNA es dueña legítima («LG-DRYER8KG retiene $8.4K» con
+ * $8.4K de MAK). Una oración SIN entidad a la vista no se juzga: la anáfora legítima del producto («Su margen
+ * es 22%…», la entidad nombrada en la oración anterior) y la cifra suelta pasan HOY por la primera fuente y
+ * tienen que seguir pasando — mis-atribución REAL o nada. F1 sí veta la cifra suelta, y la diferencia es de
+ * fuente, no un descuido: las cifras del dato proyectado NUNCA estuvieron autorizadas sin condición; las de la
+ * boleta llevan meses pasando sueltas y vetarlas rompería turnos legítimos existentes. */
+function _duenosDeBoleta(figs, entityNames, entidadesDelTenant) {
+  if (!Array.isArray(figs) || !figs.length) return null;
+  const ref = new Map();
+  for (const n of [...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...entityNames]) {
+    const disp = String(n == null ? "" : n).trim();
+    const nn = _norm(disp);
+    if (nn.length >= 3 && !ref.has(nn)) ref.set(nn, disp);
+  }
+  if (!ref.size) return null;
+  const porConcepto = new Map();   // concepto (label sin la entidad) → { duenos:Set, figs:[{canones, verbatim, dueno}] }
+  const libres = new Set(), libresVerbatim = new Set();   // toda lectura SIN dueño libera ese valor (candado 2)
+  for (const f of figs) {
+    const segs = String(f.label || "").split("·").map((s) => s.trim()).filter(Boolean);
+    let dueno = null;
+    const resto = [];
+    for (const seg of segs) {
+      const d = dueno ? null : ref.get(_norm(seg));
+      if (d) dueno = d; else resto.push(seg);
+    }
+    // el canon se RE-DERIVA del value con EL MISMO parser que va a leer la narración (la técnica de la boleta
+    // anterior, 1b — jamás el canon guardado del fig): medido, el ledger guarda «pct:25.0%» donde el parser
+    // canoniza «pct:25%», y con dos espacios de canon el dueño real (Ripley · Margen 25.0%) quedaba invisible
+    // mientras la colisión (% del total = 25%) sí indexaba — el veto caía sobre una narración correcta.
+    const canones = parseFigures(String(f.value == null ? "" : f.value)).map((x) => x.canon);
+    const verbatim = _stripSpace(String(f.value == null ? "" : f.value));
+    const concepto = _norm(resto.join(" "));
+    if (!dueno || !concepto) { for (const c of canones) libres.add(c); if (verbatim) libresVerbatim.add(verbatim); continue; }
+    if (!porConcepto.has(concepto)) porConcepto.set(concepto, { duenos: new Set(), figs: [] });
+    const g = porConcepto.get(concepto);
+    g.duenos.add(dueno);
+    g.figs.push({ canones, verbatim, dueno });
+  }
+  const porCanon = new Map(), porVerbatim = new Map();
+  for (const g of porConcepto.values()) {
+    if (g.duenos.size < 2) {   // candado 1: métrica de un solo dueño en este turno → sin condición, como siempre
+      for (const x of g.figs) { for (const c of x.canones) libres.add(c); if (x.verbatim) libresVerbatim.add(x.verbatim); }
+      continue;
+    }
+    for (const x of g.figs) {
+      for (const c of x.canones) {
+        if (!porCanon.has(c)) porCanon.set(c, new Set());
+        porCanon.get(c).add(x.dueno);
+      }
+      if (x.verbatim) { if (!porVerbatim.has(x.verbatim)) porVerbatim.set(x.verbatim, new Set()); porVerbatim.get(x.verbatim).add(x.dueno); }
+    }
+  }
+  for (const c of libres) porCanon.delete(c);
+  for (const v of libresVerbatim) porVerbatim.delete(v);
+  if (!porCanon.size && !porVerbatim.size) return null;
+  // los nombres de referencia compilados UNA vez: el candado 3 (atribución activa) necesita saber si la oración
+  // nombra ALGUNA entidad real — la misma lista que definió a los dueños, nunca una segunda.
+  const nombresRe = [...ref.keys()].map((nn) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u"));
+  return { porCanon, porVerbatim, nombresRe };
+}
+// _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) → true SOLO en la mis-atribución activa: en
+// TODAS las apariciones de la cifra falta un dueño legítimo en la oración, Y al menos una de esas oraciones
+// nombra una entidad real (la atribución equivocada). Misma ventana de oración que _duenoEnVentana (F1).
+function _atribucionAjenaEnBoleta(text, masked, fig, duenos, nombresRe) {
+  let idx = -1, ajena = false;
+  while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
+    const [lo] = _localWindow(masked, idx, 90);
+    const end = idx + fig.text.length;
+    const hi0 = Math.min(masked.length, end + 90);
+    const cut = masked.slice(end, hi0).search(_SENT_END);
+    const ventana = _norm(text.slice(lo, cut >= 0 ? end + cut : hi0));
+    for (const d of duenos) {
+      const dn = _norm(d);
+      if (dn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) return false;   // dueño legítimo a la vista → libre
+    }
+    if (nombresRe.some((re) => re.test(ventana))) ajena = true;
+  }
+  return ajena;
+}
+
 /* ── EL CONTENEDOR DEL CONTEXTO GENERAL (AMPLITUD F3, owner 2026-08-13, D2) ────────────────────────────────────
  * El conocimiento general del modelo es LO ÚNICO que este muro no puede verificar POR CONTENIDO: no hay boleta
  * contra la cual contrastar «en la industria el margen suele moverse entre 18% y 25%». La salida del contrato es
@@ -2477,7 +2583,7 @@ function _enmascararRango(texto, [ini, fin]) {
   return texto.slice(0, ini) + dentro + texto.slice(fin);
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
   // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
   // el chequeo 26 lo juzgue por sus propias reglas. Sin bloque, `narration` no se toca: byte-idéntico a hoy.
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
@@ -2520,7 +2626,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   //     proyección del dato — SOLO con su dueño en la misma oración (ver _indiceDelDato arriba). Aditiva: se
   //     consulta al final, nunca cambia el veredicto de una cifra que ya pasaba.
   const _dato = _indiceDelDato(datoProyectado);
-  const _maskedNarr = _dato ? _maskFigures(narration) : null;
+  // DUEÑO POR FILA (encargo 2026-08-13): el índice de dueños de la boleta del turno — null en el caso común
+  // (boleta mono-entidad, o sin labels de dueño), y entonces todo es byte-idéntico a hoy. Ver _duenosDeBoleta.
+  // La referencia de dueños son los SEIS ejes (`duenosDelTenant`, del caller) — con fallback al catálogo de 3
+  // ejes del chequeo 26: sin bodegas/familias reconocidas, un subtotal de bodega liberaría por colisión la
+  // cifra del SKU que lo compone (medido con la boleta real de inventoryStatus).
+  const _bolDuenos = _duenosDeBoleta(figs, entityNames, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])]);
+  const _maskedNarr = (_dato || _bolDuenos) ? _maskFigures(narration) : null;
   /* ── EL POOL DEL CATÁLOGO (AMPLITUD F2) — perezoso: solo se arma si alguna cifra llegó hasta esa vía ──────────
    * Una cifra narrada que no está en ninguna fuente se acepta SI Y SOLO SI es el resultado EXACTO (recomputado,
    * con la tolerancia que _isCalc ya usa) de una operación del catálogo sobre cifras AUTORIZADAS del turno. El
@@ -2557,7 +2669,28 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     _poolCatalogoMemo = pool;
     return pool;
   };
+  // las fuentes con estatus de ECO (pregunta · cifra del usuario · boleta anterior 1b) liberan la condición de
+  // dueño por fila: re-citar lo que el usuario nombró o lo que ADI misma ya mostró conserva su estatus de siempre.
+  const _ecoCanon = new Set([...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon), ...bolFigs.map((f) => f.canon)]);
+  const _ecoVerbatim = new Set([...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text)), ...bolFigs.map((f) => _stripSpace(f.text))]);
   for (const f of parseFigures(narration)) {
+    /* DUEÑO POR FILA EN LA BOLETA (encargo 2026-08-13, ver _duenosDeBoleta): una cifra de una fig con dueño, de
+     * una métrica con 2+ dueños este turno, narrada en una oración que nombra OTRA entidad y no a ningún dueño
+     * legítimo → mis-atribución activa, se veta con el dueño real en el detalle. Misma ventana de oración que la
+     * quinta fuente (F1). La liberan el eco de la pregunta, la cifra del usuario y la boleta anterior (arriba),
+     * y una derivada del supuesto del usuario (abajo) — pero NO la coincidencia aritmética
+     * (_isCalc/_isCalc2/catálogo), y la razón está MEDIDA con la boleta real de inventoryStatus: en una boleta
+     * PARTICIONADA toda parte ES «total menos el resto» ($33.2K − $24.8K de Valparaíso = los $8.4K de
+     * MAK-COMP-AIR) y todo % de composición ES una participación recomputable — liberar por cálculo anularía
+     * este chequeo por construcción, exactamente sobre las boletas que más lo necesitan. */
+    if (_bolDuenos && !_ecoCanon.has(f.canon) && !_ecoVerbatim.has(_stripSpace(f.text))) {
+      const _dsetBol = _bolDuenos.porCanon.get(f.canon) || _bolDuenos.porVerbatim.get(_stripSpace(f.text));
+      if (_dsetBol && _dsetBol.size && _atribucionAjenaEnBoleta(narration, _maskedNarr, f, _dsetBol, _bolDuenos.nombresRe)
+        && !_derivadaDeSupuesto(f, supFigs, figs)) {
+        violations.push({ kind: "cifra-de-boleta-sin-dueno", detail: `«${f.text}» pertenece a ${[..._dsetBol].slice(0, 4).join("/")} en la boleta de este turno y está narrada pegada a otra entidad — nombra al dueño real al lado de la cifra, no la cambies` });
+        continue;
+      }
+    }
     // `_derivadaDeSupuesto` cierra el caso del tercer universo: una cifra que sale de combinar el supuesto del
     // usuario con el dato del motor NO es inventada — es legítima y su problema es OTRO (cómo se presenta), que
     // juzga el chequeo 21. Rechazarla acá la bloquearía con el veredicto equivocado y el reintento buscaría

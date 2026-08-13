@@ -2296,6 +2296,20 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       return out.length ? out : null;
     } catch { return null; }   // sin índice disponible: el chequeo cae a las entidades del turno, nunca tumba el turno
   })();
+  /* ── LOS DUEÑOS DE FILA, CON LOS SEIS EJES (encargo «umbral del usuario + dueño por fila», 2026-08-13) ────────
+   * El dueño-por-fila de la boleta (guardC._duenosDeBoleta) necesita reconocer a TODO dueño legítimo de un label,
+   * y eso incluye a los clasificadores: «Valparaíso · Capital detenido» tiene dueño (la bodega), y si no se lo
+   * reconoce, su canon libera por colisión la cifra de un SKU (medido con la boleta real de inventoryStatus: el
+   * subtotal de Antofagasta ES el capital de MAK-COMP-AIR). Es una lista DISTINTA de la de 3 ejes de arriba a
+   * propósito: aquella decide qué nombres el bloque de contexto general no puede tocar (contenido), esta decide
+   * qué segmento de label ES una entidad (estructura) — más ejes acá = MÁS precisión, no más vetos de rubro. */
+  const duenosTenantTodosLosEjes = (() => {
+    try {
+      const out = [];
+      for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) for (const n of axisEntityNames(eje)) out.push(n);
+      return out.length ? out : null;
+    } catch { return null; }
+  })();
 
   // sellos para el guard (requisitos 3 y 4, pase quirúrgico 2026-07-29) — SIEMPRE del resultado real del batch, no
   // dependen de qué tool haya corrido (generaliza a cualquier plan futuro sin tocar este bloque de nuevo).
@@ -2331,7 +2345,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
     const det = ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q), results);
-    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = det; deterministic = true; }
+    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = det; deterministic = true; }
   }
 
   // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
@@ -2453,7 +2467,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
       const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q), results);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -2509,7 +2523,10 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // instrucción concreta. Los demás (tabla, orden sellado, transferencia) conservan la escalada de siempre.
   // `cifra-de-dato-sin-dueno` (AMPLITUD F1) es de esta familia por definición: la cifra es REAL (está en el dato)
   // y lo que falta es REDACCIÓN — nombrar al dueño en la misma oración. Mismo tier + instrucción concreta.
-  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|cifra-de-dato-sin-dueno|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada/;
+  // `cifra-de-boleta-sin-dueno` (encargo «dueño por fila» 2026-08-13) es hermana de la de F1 y de la misma
+  // familia por la misma razón: la cifra es REAL (está en la boleta del turno) — lo que falta es NOMBRAR al
+  // dueño en la misma oración, no cambiar el número. Reintento mismo tier con la instrucción del detalle.
+  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|cifra-de-dato-sin-dueno|cifra-de-boleta-sin-dueno|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada/;
   let _rechazosDeRedaccion = 0;
   let repairSpec = null;   // el veredicto anterior, estructurado, para que el reintento sepa QUÉ corregir
   let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" (arriba, junto a _rateLimitBackoffMs) — NUNCA avanza ante un 429/error de infra
@@ -2590,7 +2607,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     n = ensureUmbralDeclarado(n, results);   // encargo «umbral del usuario»: el criterio no aplicado se declara, pase lo que pase con el narrador
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes });
     // EL DETALLE DEL RECHAZO, EN MEMORIA (owner 2026-08-10, tras la auditoría de la 4ª corrida). El trace decía
     // QUÉ chequeo saltó pero no SOBRE QUÉ, así que de los cinco rechazos de esa corrida hubo uno que no se pudo
     // adjudicar: no se sabía si era un error real del modelo o un falso positivo del guard. Un rechazo que no se
@@ -2618,7 +2635,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
         c = ensureUmbralDeclarado(c, results);
-        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
+        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
           narration = c; narrationRepaired = true;
           // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
           // SEGUNDA entrada con el MISMO `attempt` y `guardOk:false`, así que el trace de un turno reparado al
@@ -2688,7 +2705,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
     c = ensureTransferenciaDeclarada(c, results, q);
     c = ensureUmbralDeclarado(c, results);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = c; narrationRepaired = true; }
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; }
   }
   /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la
    * garantía de forma a propósito: si fuera antes, el recorte de `solo_conclusion` podría llevarse justamente la
@@ -2701,14 +2718,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (narration) {
     const conDeclinacion = ensureDeclinacionDeSuma(narration, figs, q);
     if (conDeclinacion !== narration
-      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
+      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
       narration = conDeclinacion; narrationRepaired = true;
     }
   }
   if (narration) {
     const conCobertura = ensureCoberturaDeclarada(narration, results);
     if (conCobertura !== narration
-      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
+      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
       narration = conCobertura; narrationRepaired = true;
     }
   }
@@ -2771,7 +2788,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         const cierre = truncateToBriefBudget(cuerpo[cuerpo.length - 1], _CONCLUSION_WORD_CAP);
         const candidato = [cierre, ...pie].join("\n\n");
         if (candidato !== narration
-          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
+          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
@@ -2793,7 +2810,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (cuerpoNuevo) {
         const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
         const candidato = [cuerpoNuevo, ...pie].join("\n\n");
-        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
+        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
