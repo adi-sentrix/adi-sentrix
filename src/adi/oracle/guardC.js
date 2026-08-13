@@ -59,6 +59,10 @@ function _authorizedCounts(ledger, results) {
   for (const r of (results || [])) walk(r.facts);
   return set;
 }
+// EXPORTADA para el Paso 1b (owner 2026-08-13, «ADI pierde el hilo»): answerViaOracle persiste los conteos
+// autorizados del turno en mem.boletaAnterior.counts con ESTA MISMA derivación — nunca una segunda paralela que
+// pueda divergir de lo que el chequeo 2 acepta. Es un alias del privado, no una copia.
+export const conteosAutorizadosDelTurno = _authorizedCounts;
 
 // ── ensureCountAuthorized(text, ledger, results) — BACKSTOP DETERMINÍSTICO para 'conteo-no-autorizado' (owner
 // 2026-08-03, auditoría de eficiencia de Mini: causa de rechazo MÁS FRECUENTE medida, ~50% de las violaciones de
@@ -2390,7 +2394,7 @@ function _alcancePromovido(narration, ledger) {
   return out;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full" } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -2401,8 +2405,19 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // no se consolide con una cifra del motor, y que lo derivado de ella salga como escenario. Sin `reparacion`
   // (el 99% de los turnos) esto es un Set vacío y no cambia absolutamente nada.
   const supFigs = cifrasDelUsuario(reparacion);
-  const authCanon = new Set([...figs.map((f) => f.canon), ...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon)]);
-  const authVerbatim = new Set([...figs.map((f) => _stripSpace(f.value)), ...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text))]);
+  // LA CUARTA FUENTE (Paso 1b «ADI pierde el hilo», owner 2026-08-13): la boleta del TURNO ANTERIOR, que el caller
+  // (answerViaOracle) solo inyecta bajo sus tres candados (mismo escenario · sin corrección de alcance · existe).
+  // Re-citar una cifra que ADI misma ya mostró —«los $17.8M de Lider que te mostré»— no es inventar: el narrador
+  // YA ve ese texto en hilo_reciente; esto es el PERMISO que le faltaba. Sus values se parsean con parseFigures
+  // (el MISMO parser, nunca un segundo) y la cifra re-citada entra con el MISMO estatus que el eco de la pregunta:
+  // solo los chequeos 1 y 2 — los chequeos de dueño/subtotal/mecanismo siguen juzgando SOLO las figs del turno.
+  // Sin `boletaAnterior` (el default de todos los callers existentes) esto es vacío y no cambia absolutamente nada.
+  const bolFigs = [];
+  if (boletaAnterior && Array.isArray(boletaAnterior.figs)) {
+    for (const bf of boletaAnterior.figs) for (const pf of parseFigures(String(bf && bf.value != null ? bf.value : ""))) bolFigs.push(pf);
+  }
+  const authCanon = new Set([...figs.map((f) => f.canon), ...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon), ...bolFigs.map((f) => f.canon)]);
+  const authVerbatim = new Set([...figs.map((f) => _stripSpace(f.value)), ...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text)), ...bolFigs.map((f) => _stripSpace(f.text))]);
   const violations = [];
   const entityNames = _entityNames(results);   // adelantado (antes vivía en el paso 3) — _isCalc2 lo necesita en el paso 1
   // entidades NOMBRADAS en ESTE texto (subconjunto de entityNames) — _isCalc2 se acota a estas, NUNCA a todo
@@ -2423,6 +2438,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // 2 · conteos sin signo no autorizados (+ los que el usuario nombró en la pregunta)
   const authCounts = _authorizedCounts(ledger, results);
   for (const c of parseCounts(question || "")) authCounts.add(c.raw);
+  // cuarta fuente, mitad de conteos (Paso 1b): un «8 clientes» que ADI ya mostró el turno anterior se puede
+  // re-citar al explicarlo — mismos candados del caller que las figs, mismo estatus que el eco de la pregunta.
+  if (boletaAnterior && Array.isArray(boletaAnterior.counts)) for (const c of boletaAnterior.counts) if (Number.isFinite(c)) authCounts.add(c);
   for (const c of parseCounts(narration)) {
     if (!authCounts.has(c.raw)) violations.push({ kind: "conteo-no-autorizado", detail: c.text });
   }
