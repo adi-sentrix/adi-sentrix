@@ -157,7 +157,14 @@ H("[6] EL CONTRATO VIEJO, INTACTO · lo que otros gates ya afirmaban sigue siend
   ok(resolvePricingKey(null) === null && resolvePricingKey(undefined) === null && resolvePricingKey(42) === null && resolvePricingKey("") === null,
     "un id que no es un id no revienta ni resuelve a nada");
   ok(Object.keys(MODEL_PRICING).every((k) => resolvePricingKey(k) === k), "toda clave de la tabla se resuelve a sí misma");
-  ok(Object.keys(MODEL_PRICING).length === 4, `la tabla no cambió de contenido: sigue con sus ${Object.keys(MODEL_PRICING).length} familias verificadas`);
+  // FIXTURE DE CONTENIDO, no de garantía: este número existe para que NADIE agregue ni saque una familia de la
+  // tabla sin pasar por acá y declarar qué la paga. Historia de las subas:
+  //   · 4 → 7 (2026-08-13, preparación Anthropic — decisión del owner): entran claude-haiku-4-5 ($1/$5, PLAN),
+  //     claude-sonnet-5 ($3/$15 de LISTA — el intro $2/$10 expira 2026-08-31 y esta tabla tarifa costos reales)
+  //     y claude-opus-5 ($5/$25, escalón futuro de certificación: TARIFADO, no cableado a ningún default/router).
+  //     Las 4 familias de openai quedaron byte-iguales (la sección [1] de este gate lo re-verifica entera) y la
+  //     regla de familia cubrió a las nuevas SOLA, sin regla nueva — exactamente lo que la cabecera prometía.
+  ok(Object.keys(MODEL_PRICING).length === 7, `la tabla no cambió de contenido: sigue con sus ${Object.keys(MODEL_PRICING).length} familias verificadas`);
 }
 
 console.log(`\n── TARIFA POR FAMILIA DE MODELO · ${PASS} PASS · ${FAIL} FAIL ──`);
