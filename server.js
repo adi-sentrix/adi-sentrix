@@ -9,6 +9,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { gatewayFetch } from "./src/adi/llm/gatewayFetch.js";
+import { resolverProveedor } from "./src/adi/llm/providerConfig.js";
 import fsSync from "node:fs";
 import { instalarTelemetria } from "./src/adi/llm/telemetrySink.js";
 import { toolNames } from "./src/adi/oracle/toolRegistry.js";
@@ -78,7 +79,10 @@ const _telemetria = instalarTelemetria({
 });
 
 server.listen(PORT, () => {
-  console.log(`ADI en http://localhost:${PORT} · gateway /api/adi-spec + /api/adi-narrate · key del env (server-side · provider=${process.env.LLM_PROVIDER || "anthropic"})`);
+  // provider: lo que está DECLARADO, no un default (owner 2026-08-13) · un arranque que anuncia un proveedor que
+  // nadie configuró es la primera capa donde la falla se volvía invisible. Ver src/adi/llm/providerConfig.js.
+  const { proveedor: _prov } = resolverProveedor(process.env);
+  console.log(`ADI en http://localhost:${PORT} · gateway /api/adi-spec + /api/adi-narrate · key del env (server-side · provider=${_prov || "SIN DECLARAR · falta LLM_PROVIDER, el gateway no elige por su cuenta"})`);
   console.log(_telemetria.instalado
     ? `[adi-server] telemetría → ${process.env.ADI_TELEMETRY_FILE} (JSONL · sin prompts, entidades ni cifras)`
     : `[adi-server] telemetría APAGADA · ${_telemetria.motivo}`);

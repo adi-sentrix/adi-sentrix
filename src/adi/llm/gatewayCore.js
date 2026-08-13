@@ -12,6 +12,7 @@ import { buildContractMenu, buildParseUserMessage } from "./contractMenu.js";
 import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
+import { resolverProveedor, mensajeFaltaProveedor } from "./providerConfig.js";   // el proveedor se declara, no se adivina (owner 2026-08-13)
 import { chooseModel } from "./modelRouter.js";
 import { estimateCostUSD, resolvePricingKey } from "./modelPricing.js";   // el precio se resuelve por FAMILIA (owner 2026-08-11)
 import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId, aReasonCode } from "./telemetry.js";   // observación pura (owner 2026-08-10)
@@ -26,12 +27,18 @@ import { buildNarrateSystemC } from "../oracle/narratePromptC.js";
 function _env(env) {
   return env || (typeof process !== "undefined" ? process.env : {}) || {};
 }
+// EL PROVEEDOR SE DECLARA, NO SE ADIVINA (owner 2026-08-13). Acá decía `e.LLM_PROVIDER || "anthropic"`: sin la
+// variable, el gateway se iba CALLADO a otro proveedor con la clave equivocada y el usuario leía "gateway no
+// disponible" con la causa real invisible (verificado en vivo: 401 del proveedor equivocado). Ahora la ausencia
+// no elige nada — viaja como `falta` y CADA handler la frena con un error que NOMBRA la variable, antes de tocar
+// a ningún proveedor y dejando su evento de telemetría. Ver providerConfig.js para el porqué del módulo aparte.
+// `model`/`narrateModel` NO cambian: sus defaults son un modelo, no otro proveedor.
 function _config(env) {
   const e = _env(env);
-  const provider = e.LLM_PROVIDER || "anthropic";
+  const { proveedor, falta } = resolverProveedor(e);
   const model = e.LLM_MODEL_PARSE || e.OPENAI_MODEL || e.ANTHROPIC_MODEL || "gpt-4o-mini";
   const narrateModel = e.LLM_MODEL_NARRATE || model;
-  return { provider, model, narrateModel };
+  return { provider: proveedor, model, narrateModel, falta };
 }
 
 // ── RATE LIMIT básico por tenant (owner 2026-07-29, multiempresa/rendimiento) ───────────────────────────────────
@@ -144,7 +151,7 @@ export async function handleAccess(body = {}, env) {
 // IDÉNTICO ({ok, spec, usage} / {ok, narration, usage}): la telemetría observa, no cambia lo que devuelven ni
 // lo que lanzan. Sin `attempt` ni `motivoReintento` porque su body no los tiene: intento 0, sin causa heredada.
 export async function handleSpec({ text, context, access } = {}, env) {
-  const { provider, model } = _config(env);
+  const { provider, model, falta } = _config(env);
   const _t0 = Date.now();
   let _emitidos = 0;
   const _emitir = (respuesta, causa) => {
@@ -159,6 +166,14 @@ export async function handleSpec({ text, context, access } = {}, env) {
     const acc = await _access(access, env);
     if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
     if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
+    // ── SIN PROVEEDOR DECLARADO NO SE LLAMA A NADIE (owner 2026-08-13) · el freno vive en LOS CUATRO handlers ──
+    // Va DENTRO del try y por el freno emisor, como todos: un fallo de configuración que no deja evento es
+    // exactamente el silencio que este gateway dejó de permitir. Va DESPUÉS de la puerta de acceso a propósito —
+    // un caller sin autorización no tiene por qué enterarse de cómo está configurado el servidor— y ANTES de
+    // armar prompts o rutear modelo: no se gasta un milisegundo en un turno que no puede salir.
+    // El error NOMBRA la variable, y la telemetría lo separa de un fallo del proveedor con su propio código:
+    // "nadie configuró el proveedor" y "el proveedor falló" son dos problemas distintos y se arreglan distinto.
+    if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");
     const userMessage = buildParseUserMessage(context, text);
     let spec, usage;
     try {
@@ -182,7 +197,7 @@ export async function handleSpec({ text, context, access } = {}, env) {
 
 // LLM #2 · output validado → narración · el number-guard corre en el CLIENTE (si falla → texto determinístico)
 export async function handleNarrate({ text, evidence, access } = {}, env) {
-  const { provider, narrateModel } = _config(env);
+  const { provider, narrateModel, falta } = _config(env);
   const _t0 = Date.now();
   let _emitidos = 0;
   const _emitir = (respuesta, causa) => {
@@ -197,6 +212,7 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
     const acc = await _access(access, env);
     if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
     if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
+    if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
     const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
     let narration, usage;
     try {
@@ -248,7 +264,7 @@ function _causaDelIntento(motivo, attempt) {
 // gateway no la interpreta ni la construye — la pasa tal cual a buildPlanUserMessage, que decide dónde va. Opcional:
 // un turno sin panel abierto manda undefined y el mensaje de PLAN queda byte-idéntico al de siempre.
 export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt, vistaLinea, motivoReintento } = {}, env) {
-  const { provider, model: tier1 } = _config(env);
+  const { provider, model: tier1, falta } = _config(env);
   // TELEMETRÍA (owner 2026-08-10) · observación pura: mide, no decide. Con el sink apagado —el default— no
   // hace nada. Nunca lanza, así que no puede tumbar un turno. Ver telemetry.js para los 9 campos y el candado.
   // UNA SOLA SALIDA PARA TODAS LAS RUTAS DEL HANDLER (owner 2026-08-11): antes el único emit vivía DEBAJO del
@@ -282,6 +298,7 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
     if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
     if (!text || typeof text !== "string") return _frenado({ ok: false, error: "sin texto" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
+    if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
     // ROUTER (owner 2026-08-02, ver modelRouter.js): intento 0 = tier1 (idéntico a la config estática de siempre);
     // reintentos posteriores (el turno cayó acá de nuevo porque el intento anterior no dio JSON válido) escalan de
     // modelo. `routed` es null si el router no aplica (proveedor≠openai o apagado) → se usa tier1 tal cual, sin cambios.
@@ -342,7 +359,7 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
 // NARRAR-C (Pasada 2): el CLIENTE ya corrió el batch y arma el payload (pregunta + datos + cifras_autorizadas +
 // memoria); acá solo inyectamos la persona + memoria como system y narramos. El guard endurecido corre en el cliente.
 export async function handleNarrateC({ payload, mem, access, tenantId, attempt, motivoReintento } = {}, env) {
-  const { provider, narrateModel: tier1 } = _config(env);
+  const { provider, narrateModel: tier1, falta } = _config(env);
   // MISMO TRATO QUE PLAN, o la mitad del gasto queda ciega: el emisor cubre las tres rutas (freno propio,
   // excepción del proveedor y éxito) y la causa del intento anterior viaja como código de lista cerrada.
   // Acá muerde más fuerte que en PLAN: los 27 reintentos de NARRAR de la corrida existían SÓLO porque guardC
@@ -367,6 +384,7 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     if (!acc.ok) return _frenado({ ok: false, access: "denied", reason: acc.reason, error: "acceso requerido" });
     if (!payload || typeof payload !== "object") return _frenado({ ok: false, error: "sin payload" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
+    if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
     // ROUTER: intento 0 = tier1 (idéntico a hoy). El turno vuelve a pasar por acá SOLO cuando answerViaOracle.js
     // reintentó tras un rechazo de guardC (ver el loop de 3 intentos ahí) — cada reintento escala de modelo antes de
     // repetir con el mismo que ya falló. `payload.modo` viaja solo para el texto de razón/telemetría, nunca decide.

@@ -39,8 +39,12 @@ export const CAMPOS_TELEMETRIA = Object.freeze([...CAMPOS]);
 // hueco: redactar los dígitos no impide que un nombre de entidad viaje dentro del motivo del guard. Ahora el
 // único campo de causa es un CÓDIGO de una lista cerrada. Lo que no está en la lista es `unknown`: nunca el
 // texto original. Un enum no puede filtrar datos del cliente, por definición.
+// `config_missing` (owner 2026-08-13, octavo código): NO es un fallo del proveedor — es que NADIE declaró un
+// proveedor. Se separa porque los dos se arreglan distinto y confundirlos deja invisible la única causa que el
+// operador puede corregir solo: una caída entera por falta de `LLM_PROVIDER` se veía idéntica a un 401 del
+// proveedor. La lista sigue CERRADA: un código nuevo se declara acá y se enumera en su gate, jamás se cuela.
 export const REASON_CODES = ["rate_limited", "network_error", "invalid_plan", "empty_redirect",
-  "guard_rejected", "provider_error", "unknown"];
+  "guard_rejected", "provider_error", "config_missing", "unknown"];
 
 // Traduce el texto que produce el motor a un código. NO persiste nada del texto: solo decide cuál de los siete.
 const _MAPA = [
@@ -49,6 +53,11 @@ const _MAPA = [
   [/plan inválido|sin intent|JSON|malformad/i, "invalid_plan"],
   [/redirect sin calls/i, "empty_redirect"],
   [/guard|cifra-no-autorizada|entidad|sujeto|procedencia|nivel-financiero|causa-sobredimensionada|tabla-/i, "guard_rejected"],
+  // EL ORDEN IMPORTA Y ESTA REGLA VA ANTES QUE LA DEL PROVEEDOR: los dos mensajes de configuración que existen
+  // ("falta LLM_PROVIDER…" del gateway y "LLM_PROVIDER desconocido…" de providerAdapter) contienen la palabra
+  // PROVIDER, así que abajo caerían en `provider_error` — y una variable sin setear pasaría por una caída del
+  // proveedor. Se ancla al nombre de la variable, que es vocabulario NUESTRO: no puede traer un dato del cliente.
+  [/LLM_PROVIDER/, "config_missing"],
   [/provider|adapter|proveedor/i, "provider_error"],
 ];
 export function aReasonCode(x) {

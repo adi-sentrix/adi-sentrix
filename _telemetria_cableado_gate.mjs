@@ -58,8 +58,14 @@ H("[4] ÉXITO Y ERROR QUEDAN TIPADOS · y el motivo es un código cerrado, nunca
   ok(/rate_limited/.test(TEL) && /:\s*"error"/.test(TEL), "un 429 se separa de un error genérico");
   ok(/reasonCode:\s*aReasonCode\(/.test(TEL), "la causa pasa SIEMPRE por el traductor a código cerrado");
   ok(!/o\.motivo\s*=/.test(TEL) && !/"motivo"/.test(TEL), "ya no existe el campo de texto libre `motivo`");
-  ok(REASON_CODES.length === 7 && REASON_CODES.includes("guard_rejected") && REASON_CODES.includes("unknown"),
-    `los siete códigos del owner — ${REASON_CODES.join(" · ")}`);
+  // LA LISTA SE ENUMERA, NO SE CUENTA (owner 2026-08-13). Un `length === 7` deja pasar el cambio de un código por
+  // otro sin ponerse rojo — y lo que hace CERRADA a la lista no es su tamaño, sino que esté escrita. Acá va
+  // entera: sumar, sacar o renombrar un código obliga a tocar esta línea, que es el registro de la decisión.
+  // `config_missing` entró el 2026-08-13: "nadie declaró proveedor" y "el proveedor falló" no son lo mismo.
+  const CODIGOS = ["rate_limited", "network_error", "invalid_plan", "empty_redirect", "guard_rejected",
+    "provider_error", "config_missing", "unknown"];
+  ok(REASON_CODES.length === CODIGOS.length && CODIGOS.every((c) => REASON_CODES.includes(c)),
+    `los ${CODIGOS.length} códigos declarados, ni uno más — ${REASON_CODES.join(" · ")}`);
   ok(aReasonCode("cifra-no-autorizada: 4.3M de Falabella") === "guard_rejected",
     "un rechazo del guard con nombre y cifra adentro sale como CÓDIGO: el texto no sobrevive");
   ok(aReasonCode("algo rarisimo y sin patron conocido") === "unknown",

@@ -6,6 +6,7 @@
  */
 import fs from "fs";
 import { handleSpec, handleNarrate, handleAccess, handlePlan, handleNarrateC } from "./gatewayCore.js";
+import { resolverProveedor } from "./providerConfig.js";
 
 // carga el .env local a process.env (server-side, SOLO dev) · la key vive acá, jamás en el cliente ni en logs.
 // En prod las env vars las setea la plataforma (no hay .env) → el server de prod NO usa esto.
@@ -42,8 +43,10 @@ export function adiGatewayPlugin() {
       mount("/api/adi-plan", handlePlan);       // Arquitectura C · Pasada 1 · PLAN (detrás del flag ADI_ORACLE_ENABLED)
       mount("/api/adi-narrate-c", handleNarrateC); // Arquitectura C · Pasada 2 · NARRAR con persona
 
-      const provider = process.env.LLM_PROVIDER || "anthropic";
-      console.log(`[adi-gateway dev] montado · /api/adi-spec + /api/adi-narrate · provider=${provider} (key del .env · server-side · lógica en gatewayCore)`);
+      // el log declara lo que HAY, no un default inventado (owner 2026-08-13): antes imprimía `provider=anthropic`
+      // cuando la variable faltaba, y ese renglón confirmaba una configuración que no existía.
+      const { proveedor } = resolverProveedor(process.env);
+      console.log(`[adi-gateway dev] montado · /api/adi-spec + /api/adi-narrate · provider=${proveedor || "SIN DECLARAR (falta LLM_PROVIDER · el gateway no elige por su cuenta)"} (key del .env · server-side · lógica en gatewayCore)`);
     },
   };
 }
