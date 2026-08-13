@@ -13,6 +13,7 @@ import { buildSpecTool } from "./specTool.js";
 import { buildNarrateSystem } from "./narratePrompt.js";
 import { getAdapter } from "./providerAdapter.js";
 import { resolverProveedor, mensajeFaltaProveedor } from "./providerConfig.js";   // el proveedor se declara, no se adivina (owner 2026-08-13)
+import { resolverModelos } from "./modelDefaults.js";   // el default de modelo conoce a su proveedor (owner 2026-08-13)
 import { chooseModel } from "./modelRouter.js";
 import { estimateCostUSD, resolvePricingKey } from "./modelPricing.js";   // el precio se resuelve por FAMILIA (owner 2026-08-11)
 import { emit as emitTelemetria, desdeRespuesta, nuevoTraceId, aReasonCode } from "./telemetry.js";   // observación pura (owner 2026-08-10)
@@ -32,12 +33,16 @@ function _env(env) {
 // disponible" con la causa real invisible (verificado en vivo: 401 del proveedor equivocado). Ahora la ausencia
 // no elige nada — viaja como `falta` y CADA handler la frena con un error que NOMBRA la variable, antes de tocar
 // a ningún proveedor y dejando su evento de telemetría. Ver providerConfig.js para el porqué del módulo aparte.
-// `model`/`narrateModel` NO cambian: sus defaults son un modelo, no otro proveedor.
+// `model`/`narrateModel` (owner 2026-08-13, preparación Anthropic): el default también dejó de ignorar al
+// proveedor. Acá decía `LLM_MODEL_PARSE || OPENAI_MODEL || ANTHROPIC_MODEL || "gpt-4o-mini"` — con
+// LLM_PROVIDER=anthropic y las variables de modelo sin setear, "gpt-4o-mini" viajaba a la API de Anthropic y
+// reventaba en runtime, en producción. La decisión vive en modelDefaults.js (módulo puro, la suite offline la
+// ejerce de verdad — ver ahí el porqué de cada rama); esto NO debilita el freno de arriba: el default consciente
+// aplica solo DESPUÉS de que el proveedor está declarado, y sin LLM_PROVIDER se sigue fallando nombrándola.
 function _config(env) {
   const e = _env(env);
   const { proveedor, falta } = resolverProveedor(e);
-  const model = e.LLM_MODEL_PARSE || e.OPENAI_MODEL || e.ANTHROPIC_MODEL || "gpt-4o-mini";
-  const narrateModel = e.LLM_MODEL_NARRATE || model;
+  const { model, narrateModel } = resolverModelos(e, proveedor);
   return { provider: proveedor, model, narrateModel, falta };
 }
 
