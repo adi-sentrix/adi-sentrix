@@ -74,7 +74,10 @@ console.log(`  turno típico (sin nada por-turno): fijo ${variantes[0][1].fijo.l
 
 // cableado del gateway: se lee la FUENTE como texto (nunca se ejecuta) y se exige el corte declarado.
 const GW = readFileSync(new URL("./src/adi/llm/gatewayCore.js", import.meta.url), "utf8");
-ok(/buildNarrateSystemSegments\([\s\S]{0,260}?payload\.reparacion \|\| null\)/.test(GW),
+// [,)] y no ")": AMPLITUD F1 (2026-08-13) agregó el 7º argumento `datoNegocio` DESPUÉS de la reparación — la
+// GARANTÍA de este assert (la reparación del payload viaja al builder segmentado) no cambió; solo el FORMATO de
+// la llamada (la reparación ya no es el último argumento). Análisis garantía-vs-formato: ajuste legítimo.
+ok(/buildNarrateSystemSegments\([\s\S]{0,260}?payload\.reparacion \|\| null[,)]/.test(GW),
   "el gateway arma el system de NARRAR con los segmentos (misma segmentación que PLAN)");
 ok(/\{ text: _segN\.fijo, cache: true \}, \{ text: _segN\.variable, cache: false \}/.test(GW),
   "y declara el corte del caché exactamente al final del segmento fijo");

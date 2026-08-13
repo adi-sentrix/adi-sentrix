@@ -112,8 +112,10 @@ ok("la reparación sellada se compone UNA vez, con el mismo builder del contrato
 // Paso 0 "ADI pierde el hilo" (2026-08-13): el gateway ahora arma el system SEGMENTADO (buildNarrateSystemSegments,
 // mismo mecanismo que PLAN) — la garantía que este chequeo protege NO cambió: la reparación entra al system desde
 // el payload sellado, nunca del plan crudo. Solo cambió el nombre del builder que la recibe.
+// [,)] y no ")" (AMPLITUD F1, 2026-08-13): el builder ganó un 7º argumento (`datoNegocio`) DESPUÉS de la
+// reparación — misma garantía (la reparación entra desde el payload sellado), otro cierre de llamada. Formato.
 ok("el system de NARRAR la recibe desde el PAYLOAD, no del plan crudo",
-  /buildNarrateSystemSegments\([\s\S]{0,240}?payload\.reparacion \|\| null\)/.test(GATEWAY));
+  /buildNarrateSystemSegments\([\s\S]{0,240}?payload\.reparacion \|\| null[,)]/.test(GATEWAY));
 ok("la doctrina de NARRAR es condicional (un turno normal no paga tokens)",
   /doctrinaReparacion \? `\\n\$\{doctrinaReparacion\}\\n` : ""/.test(NARRAR));
 

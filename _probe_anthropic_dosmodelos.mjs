@@ -79,7 +79,8 @@ console.log("\n── A4.c · el system segmentado: cache_control SOLO al final 
 
   // el cableado real: handleNarrateC arma EXACTAMENTE esta forma (fuente leída como texto, nunca ejecutada).
   const GW = readFileSync(new URL("./src/adi/llm/gatewayCore.js", import.meta.url), "utf8");
-  ok(/buildNarrateSystemSegments\([\s\S]{0,260}?payload\.reparacion \|\| null\)/.test(GW),
+  // [,)]: AMPLITUD F1 agregó `datoNegocio` como 7º argumento — misma garantía, otro cierre de llamada.
+ok(/buildNarrateSystemSegments\([\s\S]{0,260}?payload\.reparacion \|\| null[,)]/.test(GW),
     "el gateway construye los segmentos con el builder real de narratePromptC");
   ok(/\{ text: _segN\.fijo, cache: true \}, \{ text: _segN\.variable, cache: false \}/.test(GW),
     "…y declara [{fijo, cache:true}, {variable, cache:false}] — la forma que este probe acaba de ejercer");
