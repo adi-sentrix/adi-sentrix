@@ -13,7 +13,7 @@ import { emit as emitTelemetria, nuevoTraceId, getToolsDeclaradas } from "../llm
 import { ledgerBoleta } from "./ledger.js";
 import { guardC, extractMechanismRows, periodosEsperados, ensurePeriodoDeclared, ensureCountAuthorized, conteosAutorizadosDelTurno } from "./guardC.js";
 import { cifrasDelDato } from "./datoProyectado.js";   // AMPLITUD F1: la quinta fuente del muro — las cifras de la proyección del dato, con dueño
-import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, markUserProvenance } from "./narratePromptC.js";
+import { stripFiller, normalizeFigures, ensureHypothesisFraming, ensureClarifyClosingQuestion, stripSingleRowTables, stripRedundantTemporalTable, stripPerfilCompletoTable, gradeIndicatedClaims, ensureTransferenciaDeclarada, ensureUmbralDeclarado, markUserProvenance } from "./narratePromptC.js";
 import { buildClaims, sealScopeContract, buildReparacion } from "./narrationContract.js";   // CONTRATO v2 · Fase 4: los claims sellados salen en la respuesta · v1.2: la reparación sellada, la MISMA que ve el narrador
 import { normalizeResponse, deriveMemoriaLegacy } from "../responseContract.js";
 import { podarPlanProgresivo, podarLedgerProgresivo, buildDisclosureInstruction, pideDetalleComposicion, pidePresentacionTabular, composeProsaEjecutiva, resolveTablePolicy, resolveOutputForm, resolveAnswerShape, buildAlcanceLine, DEICTIC_COMPONENT_RE } from "./progressiveDisclosure.js";   // divulgación progresiva (el detalle vive en la Ficha, se poda ANTES del batch) + contrato de respuesta proporcional (la FORMA del turno) + la deixis de componente
@@ -2330,7 +2330,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _famDe = (p) => (/a[nñ]o cerrado/i.test(p || "") ? "anual" : /foto.*hoy/i.test(p || "") ? "hoy" : null);
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
-    const det = ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q);
+    const det = ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q), results);
     if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = det; deterministic = true; }
   }
 
@@ -2452,7 +2452,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // `periodos` no viene vacío — estamparle «(Datos del año cerrado.)» le pondría marco de dato a un texto que
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
-      const c = (desdeTexto || desdeConfusion) ? candidato : ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q);
+      const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q), results);
       if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
@@ -2588,6 +2588,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // cualquier caso que esto no pueda corregir con certeza.
     n = ensureCountAuthorized(n, ledger, results);
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
+    n = ensureUmbralDeclarado(n, results);   // encargo «umbral del usuario»: el criterio no aplicado se declara, pase lo que pase con el narrador
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
     const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant });
     // EL DETALLE DEL RECHAZO, EN MEMORIA (owner 2026-08-10, tras la auditoría de la 4ª corrida). El trace decía
@@ -2616,6 +2617,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         let c = ensurePeriodoDeclared(alt, periodos);
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
+        c = ensureUmbralDeclarado(c, results);
         if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) {
           narration = c; narrationRepaired = true;
           // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
@@ -2685,6 +2687,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // oraciones de resguardo violarían eso — no se aplican ahí.
     if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
     c = ensureTransferenciaDeclarada(c, results, q);
+    c = ensureUmbralDeclarado(c, results);
     if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant }).ok) { narration = c; narrationRepaired = true; }
   }
   /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la

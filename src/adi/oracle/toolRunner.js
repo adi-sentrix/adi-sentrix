@@ -163,8 +163,12 @@ export function runPlan(plan, { scenario = "actual", maxCalls = 8, preguntaUsuar
      * le pida las palabras textuales; defineConcept necesita la frase literal del turno como último peldaño de su
      * escalera de resolución. Se inyecta acá —el único estrangulamiento con los args definitivos— y SOLO para
      * defineConcept: ninguna otra tool cambia de firma, el schema del PLAN no se toca, y sin `preguntaUsuario`
-     * (gates/callers viejos) el comportamiento es byte-idéntico al de antes. */
-    const args = { ...callArgs, scenario, ...(name === "defineConcept" && preguntaUsuario ? { _preguntaUsuario: preguntaUsuario } : {}) };
+     * (gates/callers viejos) el comportamiento es byte-idéntico al de antes.
+     * inventoryStatus SE SUMA (encargo «umbral del usuario», 2026-08-13, hallazgo vivo): cuando la pregunta trae
+     * un umbral numérico de días que la tool NO aplica (focus ≠ stale), la tool tiene que poder DECLARARLO en
+     * facts — y el único lugar donde ese umbral existe es la frase literal del turno. Mismo mecanismo, misma
+     * condición: sin `preguntaUsuario` todo es byte-idéntico. */
+    const args = { ...callArgs, scenario, ...((name === "defineConcept" || name === "inventoryStatus") && preguntaUsuario ? { _preguntaUsuario: preguntaUsuario } : {}) };
     let res;
     try {
       res = _tool(args);

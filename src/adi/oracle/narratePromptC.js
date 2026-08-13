@@ -536,6 +536,27 @@ export function ensureTransferenciaDeclarada(text, results, question) {
   return s;
 }
 
+// ensureUmbralDeclarado(text, results) → GARANTÍA determinística del encargo «umbral del usuario» (2026-08-13,
+// hallazgo VIVO del owner): «¿capital parado hace más de 90 días?» respondió el total del criterio INTERNO del
+// motor ($33K por estados de rotación/DOH) presentándolo como «>90 días» — el real con ese umbral era $22K.
+// inventoryStatus ahora DECLARA en facts (`umbral_no_aplicado`) cuando la pregunta trae un umbral de días que su
+// foco no aplica; acá se garantiza que esa declaración llegue a pantalla PASE LO QUE PASE con el narrador — la
+// misma familia doctrina+backstop que la transferencia (C1): la nota en facts instruye, esto asegura.
+// CERO TEXTO INVENTADO: la declaración viene armada desde la tool (`umbral_no_aplicado.declaracion`); si cita un
+// número de días es porque estaba en la PREGUNTA (eco autorizado por el muro — la tool lo garantiza). Se ANTEPONE
+// (el criterio va primero, como la decisión de transferencia): abrir con el total sin su criterio es exactamente
+// el defecto medido.
+export function ensureUmbralDeclarado(text, results) {
+  const s = String(text || "");
+  if (!s.trim()) return s;
+  const u = (results || []).map((r) => r && r.facts && r.facts.umbral_no_aplicado).find(Boolean);
+  if (!u || !u.declaracion) return s;
+  // ¿ya declarado? la señal es la sustancia, no el verbatim: decir que el umbral/corte pedido no está aplicado,
+  // o nombrar el criterio del motor como el de estas cifras.
+  if (/umbral[^.]{0,60}no (?:est[aá]|qued[oó]) aplicad|no aplica (?:el|ese|tu) (?:umbral|corte)|criterio (?:del motor|de estados)/i.test(s)) return s;
+  return `${u.declaracion}\n\n${s.trim()}`;
+}
+
 // ── ESTATUS EPISTÉMICO · PRESENTACIÓN detrás de flag, SELLO siempre (owner 2026-08-07) ─────────────────────────
 // EL SELLO ES ESTRUCTURAL Y NO SE APAGA: cada claim lleva su `estatus` probado|indicado|abierto, derivado del fig
 // (tiene `formula`, o `source !== "actual"`), sellado en el NarrationContract, presente en `r.claims` y en el
