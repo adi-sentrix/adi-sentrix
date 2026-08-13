@@ -12,7 +12,7 @@ import { projectViewContextForPlan } from "./viewContext.js";   // Concordancia 
 // (ensureTransferenciaDeclarada) y el chequeo 19 del guard tienen que coincidir EXACTAMENTE en qué cuenta como
 // pregunta de traslado y qué cuenta como declaración — dos regex paralelas serían justo cómo se llega a que la
 // garantía crea haber cumplido y el guard rechace igual. guardC.js es el dueño del vocabulario; acá se consume.
-import { preguntaPorTraslado, declaraLimiteTransferencia, limiteTransferenciaDeclarado, _derivadaDeSupuesto } from "./guardC.js";
+import { preguntaPorTraslado, declaraLimiteTransferencia, limiteTransferenciaDeclarado, _derivadaDeSupuesto, recortarMunonDeOracion } from "./guardC.js";   // hallazgo 2b del espejo: ningún envoltorio se pega a una oración sin cerrar
 // EL TERCER UNIVERSO (Contrato v1.2 §5.1): la definición de "cifra del usuario" es UNA, y vive en el contrato de
 // narración — el guard la lee para juzgar y el renderer de más abajo para estampar. Dos definiciones paralelas
 // serían justo cómo se llega a que el candado mire una cosa y el producto muestre otra.
@@ -485,7 +485,9 @@ export function ensureHypothesisFraming(text, mode, results) {
   const usedSim = mode === "simulacion"
     || (Array.isArray(results) && results.some((r) => r && (_SIM_TOOL_RE.test(r.tool || "") || (r.tool === "calcular" && r.facts && r.facts.conCifraDeUsuario === true))));
   if (!usedSim || !s.trim() || _isHypothesisFramed(s)) return s;
-  return `${s.trim()}\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.`;
+  // hallazgo 2b del espejo: si el final quedó sin cerrar (corte del proveedor), la oración de resguardo va tras
+  // recortar el muñón — nunca pegada al fragmento (ver recortarMunonDeOracion en guardC.js).
+  return `${recortarMunonDeOracion(s.trim())}\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.`;
 }
 
 // ensureClarifyClosingQuestion(text, mode) → GARANTÍA determinística del contrato CLARIFY ("Cerrá SIEMPRE con una
@@ -505,7 +507,8 @@ export function ensureClarifyClosingQuestion(text, mode) {
    * guía existe y no se duplica. Un texto sin pregunta sigue ganando la suya, como siempre. */
   const nucleo = s.trim().replace(/(\s*\([^()?]*\)\s*)+$/g, "").trim();
   if (/\?\s*$/.test(nucleo)) return s;
-  return `${s.trim()}\n\n¿Quieres que lo repase de otra forma, o seguimos con el siguiente paso?`;
+  // hallazgo 2b del espejo: la pregunta de cierre va tras recortar el muñón, jamás pegada a una oración sin cerrar
+  return `${recortarMunonDeOracion(s.trim())}\n\n¿Quieres que lo repase de otra forma, o seguimos con el siguiente paso?`;
 }
 
 // ensureTransferenciaDeclarada(text, results, question) → GARANTÍA determinística del defecto C1 de la
@@ -532,7 +535,8 @@ export function ensureTransferenciaDeclarada(text, results, question) {
     const decl = `No puedo evaluar mover ese stock entre bodegas: con este dato no hay dos colocaciones del mismo producto que comparar, así que no tengo con qué comprobar que el movimiento convenga.${falta}`;
     return s.trim() ? `${decl}\n\n${s.trim()}` : decl;
   }
-  if (lim.faltante && !/haría falta|hace falta|falta(?:ría)? (?:el|la|saber|tener)/i.test(s)) return `${s.trim()}${falta}`;
+  // hallazgo 2b del espejo: el faltante se agrega tras oración completa — nunca pegado a un final sin cerrar
+  if (lim.faltante && !/haría falta|hace falta|falta(?:ría)? (?:el|la|saber|tener)/i.test(s)) return `${recortarMunonDeOracion(s.trim())}${falta}`;
   return s;
 }
 
