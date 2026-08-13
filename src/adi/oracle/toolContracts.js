@@ -279,6 +279,19 @@ export const TOOL_CONTRACTS = {
     entityScopeNativo: false, escribeEntityList: true,
     notas: "envuelve composePnl (pnl.js) — no recalcula: la cifra es byte-igual a la de la cara Resultado de Sentrix. Sin P&L declarado DECLINA (nunca abre el flujo guiado: eso deja estado conversacional y una tool es pura).",
   },
+  // calcular · LA CALCULADORA DE CATÁLOGO CERRADO (AMPLITUD F2, owner 2026-08-13, decisión D1). Las entidades no
+  // viajan en `entity`/`entities` sino DENTRO de cada insumo ({entidad, metrica} — referencias, nunca números
+  // sueltos), así que para el scope multi-entidad heredado esta tool es opaca: `aceptaEntidadPuntual: false`
+  // (como defineConcept/executiveSummary — applyMultiEntityScope no la toca ni la declina; el PLAN arma los
+  // insumos por comprensión). La aritmética es el catálogo cerrado de calculoCatalogo.js: suma, resta,
+  // variacion_pct, participacion, brecha_pp, escalar, margen_objetivo — jamás fórmula libre.
+  calcular: {
+    dimensionesSoportadas: ["cliente", "sku", "marca", "familia"],
+    entidad: "none", aceptaEntidadPuntual: false, multiCardinality: null,
+    inputsObligatorios: ["operacion", "insumos"], supuestosRequeridos: null, operacionValida: ["answer"],
+    entityScopeNativo: false, escribeEntityList: true,
+    notas: "cada resultado sale con su fórmula declarada y sello indicado (source:'computed'); con una cifra del usuario adentro exige además su procedencia y el marco de hipótesis (facts.conCifraDeUsuario → ensureHypothesisFraming). Declina honesto: operación fuera del catálogo, insumo inexistente, unidades incompatibles, cruce de universos (nombrando la regla).",
+  },
 };
 
 export function getToolContract(toolName) {
