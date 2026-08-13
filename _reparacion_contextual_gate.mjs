@@ -473,7 +473,17 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
  * idénticas, y hasta saber si son alias o falta implementación, declararlos sería prometer dos cosas que son una.
  * SI ESTE TOPE VUELVE A QUEDAR SIN MARGEN, el problema no es el número: es que el catálogo creció sin que nadie
  * mida qué parte ya no se usa. Subirlo otra vez sin ese barrido sería empezar a aflojar de verdad. */
-ok("PLAN system crece menos de 3.000 caracteres", planSystem - BASE.planSystem < 3000, `+${planSystem - BASE.planSystem}`);
+/* EL TOPE SUBE A 3.500 (AMPLITUD F2, owner 2026-08-13, decisión D1: la calculadora de catálogo cerrado).
+ * ANÁLISIS GARANTÍA-VS-FORMATO: la GARANTÍA de este gate (fijo+variable byte-idéntico · la doctrina del lado
+ * FIJO del caché · las 19 reglas sobreviven) NO se movió — lo que crece es el PRESUPUESTO declarado, por la
+ * clase exacta que el tope de 3.000 dejó autorizada arriba: un ENLACE DE CATÁLOGO MEDIDO. La línea de
+ * `calcular{…}` son 675 caracteres que declaran una capacidad que YA ejecuta el motor (calculoCatalogo.js:
+ * suma/resta/variación/participación/brecha/regla de tres/margen_objetivo, cada una con su gate) — sin la
+ * línea, el planificador no puede pedir una cuenta que el motor sabe hacer, que es el defecto exacto que
+ * `_tools_alcanzables_gate` existe para impedir. Medido: +3.461 de los 3.500. Cero doctrina nueva: la línea
+ * describe la tool con el MISMO estilo que sus 22 vecinas, y la única regla que enuncia («NUNCA hagas la
+ * aritmética vos mismo») es la regla madre que narratePromptC ya exige — declarada donde el PLAN elige tools. */
+ok("PLAN system crece menos de 3.500 caracteres", planSystem - BASE.planSystem < 3500, `+${planSystem - BASE.planSystem}`);
 // TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
 // pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
 // -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma
@@ -485,7 +495,9 @@ ok("PLAN system crece menos de 3.000 caracteres", planSystem - BASE.planSystem <
 // neto es +31 y el crecimiento queda en 1.192 — por debajo del tope de siempre. Hubo un momento en que este
 // número estuvo en 1.210 por los tres caracteres que sobraban antes de sacar `simulate`; se devolvió a 1.200 en
 // cuanto dejó de hacer falta. Un tope que quedó alto porque alguna vez se necesitó es un presupuesto aflojado.
-ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200, `+${planTool - BASE.planTool}`);
+// EL TECHO SUBE A 1.210 (AMPLITUD F2, owner 2026-08-13): el enum de `calls[].tool` ganó `calcular` (+11 car,
+// medido: 1.203). Mismo criterio de siempre — el número exacto que la capacidad paga, nunca holgura.
+ok("PLAN_TOOL crece menos de 1.210 caracteres", planTool - BASE.planTool < 1210, `+${planTool - BASE.planTool}`);
 // el tope subió de 600 a 620 al volver `reparacion` requerida y nullable: el campo pasó a `required` y el tipo a
 // unión, y eso se paga en el esquema. Se declara el número exacto en vez de dejar el tope holgado.
 // el total sube de 720 a 810 por lo MISMO y por la misma cantidad: los ~94 tokens de `clientesPorSku`. Se declara
@@ -496,8 +508,11 @@ ok("PLAN_TOOL crece menos de 1.200 caracteres", planTool - BASE.planTool < 1200,
 // siendo la misma — el presupuesto existe para que el costo se DECIDA, y cada vez que sube queda escrito qué
 // capacidad lo paga. Y cuando algo lo devuelve, el tope baja: no se acumula holgura.
 // y de 960 a 1.010 (owner 2026-08-12): los mismos 157 caracteres del enlace, en tokens. Mismo criterio.
-ok("el crecimiento TOTAL de PLAN queda bajo 1.010 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 1010, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// y de 1.010 a 1.180 (AMPLITUD F2, owner 2026-08-13): los mismos ~686 caracteres de la calculadora (línea del
+// catálogo + `calcular` en el enum), en tokens. Medido: 1.166. Todo cae del lado FIJO del caché — el costo
+// incremental por turno con caché es ~0,1× de esos ~172 tokens.
+ok("el crecimiento TOTAL de PLAN queda bajo 1.180 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 1180, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {
