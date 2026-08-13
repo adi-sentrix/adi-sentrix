@@ -1142,14 +1142,14 @@ function _calcSumaFiltrada({ insumos, umbral, scenario, _no }) {
   const u = umbral && typeof umbral === "object" ? umbral : {};
   const campoTxt = _CALC_NORM((Array.isArray(insumos) && insumos[0] && insumos[0].metrica) || u.suma || "");
   const umbralTxt = _CALC_NORM(u.metrica || u.campo || "");
-  if (!campoTxt || !umbralTxt) return _no(`para esa suma necesito el campo a sumar y el umbral con su corte — ${_SF_LISTA}`);
+  if (!campoTxt || !umbralTxt) return _no(`para ese total filtrado necesito el campo a sumar y el umbral con su corte — ${_SF_LISTA}`);
   const suma = _SF_CAMPO_SUMA[campoTxt];
   const filtro = _SF_CAMPO_UMBRAL[umbralTxt];
   if (!suma || !filtro) {
     // ¿el campo que no calza es del universo COMERCIAL? entonces la razón es la regla de universos, no un hueco.
     const comercial = _CALC_CAMPO[!suma ? campoTxt : umbralTxt];
     if (comercial && ["venta", "margen", "contribucion", "costo", "rebates", "pctRebate", "anterior", "presupuesto", "benchmark", "unidades", "precioLista", "costoMedio"].includes(comercial)) {
-      return _no(`no puedo cruzar la venta comercial con el inventario en una misma suma filtrada: los dos universos no reconcilian (la venta viene en miles de $ y el inventario en dólares crudos, con unidades que difieren por SKU) — ${_SF_LISTA}`);
+      return _no(`no puedo cruzar la venta comercial con el inventario en un mismo total filtrado: los dos universos no reconcilian (la venta viene en miles de $ y el inventario en dólares crudos, con unidades que difieren por SKU) — ${_SF_LISTA}`);
     }
     return _no(`no reconozco ese campo por fila del inventario — ${_SF_LISTA}`);
   }
@@ -1166,10 +1166,13 @@ function _calcSumaFiltrada({ insumos, umbral, scenario, _no }) {
     .filter((r) => typeof r[filtro.campo] === "number" && typeof r[suma.campo] === "number" && cmp.f(r[filtro.campo], valor))
     .map((r) => ({ entidad: r.sku, monto: r[suma.campo], criterio: r[filtro.campo] }))
     .sort((a, b) => b.monto - a.monto);
-  const boleta = [fig(`Criterio · ${enPalabras}`, formatearCanon(valor, filtro.u), {
+  // el label del criterio NO nombra la métrica del filtro a propósito: «sin venta» en un label le daría dueño
+  // de MÉTRICA «ventas» al eco del umbral (chequeo 9) y una narración legítima que diga «más de 90 días» al lado
+  // de un monto de capital se marcaría sola. El criterio completo viaja en context, formula y facts.
+  const boleta = [fig(`Criterio del filtro · umbral pedido`, formatearCanon(valor, filtro.u), {
     unit: filtro.u, raw: valor, sello: "indicado",
     verificabilidadRazon: "umbral aportado por el usuario — es su criterio de corte, se declara y se aplica, no se verifica contra el dato",
-    context: "el umbral del filtro",
+    context: `el umbral del filtro: ${enPalabras}`,
   })];
   if (!filas.length) {
     boleta.push(fig(`SKU con ${enPalabras} · ${suma.label} total`, formatearCanon(0, "money"), {
