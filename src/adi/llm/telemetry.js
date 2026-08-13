@@ -28,8 +28,12 @@ export const RESULTADOS = ["ok", "rechazado", "error", "rate_limited", "bloquead
 //   · tokens_in_fresh    — cuántos se pagaron completos. Se deriva, no se pide: tokens_in − tokens_in_cache.
 // Las 11 llamadas de la certificación registraron el modelo como "?" y ningún dato de caché ni de tools. Sin eso,
 // "hubo un reintento" y "el prompt es caro" son afirmaciones que nadie puede verificar (ver CLAUDE.md §3).
+// UN CAMPO MÁS (owner 2026-08-13): `consumo` — ver el bloque grande abajo. Responde la pregunta que la corrida
+// pagada no pudo responder: ¿cuántas llamadas SALIERON al proveedor y volvieron sin conteo de tokens? Ésas
+// pudieron facturarse igual y hoy son invisibles: en el registro se ven idénticas a una llamada normal.
 const CAMPOS = ["traceId", "proveedor", "modelo", "etapa", "intento", "resultado", "reasonCode",
-  "tokens_in", "tokens_in_cache", "tokens_in_fresh", "tokens_out", "latencia_ms", "ruta_deterministica", "tools"];
+  "tokens_in", "tokens_in_cache", "tokens_in_fresh", "tokens_out", "latencia_ms", "ruta_deterministica", "tools",
+  "consumo"];
 // EXPORTADA para que el destino real (telemetrySink.js) vuelva a aplicar el MISMO filtro antes de escribir a
 // disco, en vez de confiar en que `emit` ya lo hizo. Una copia de la lista allá sería una segunda verdad que se
 // desincroniza al primer campo nuevo — y el candado dejaría pasar justo lo que se agregó sin declarar.
@@ -88,6 +92,30 @@ function _tools(v) {
   return out.length ? out : null;
 }
 
+// ── ¿LA LLAMADA PUDO FACTURARSE Y NO HAY CON QUÉ CONTARLA? (owner 2026-08-13) ─────────────────────────────────
+// EL HECHO QUE LO MOTIVA: `modelPricing` ya AVISA por consola —"el proveedor pudo haberla generado y facturado
+// igual"— cuando una llamada vuelve sin `usage`. Ese aviso no queda en ninguna parte: sale una sola vez por
+// familia, muere con el proceso y no se puede contar. En el registro, esa llamada se ve IDÉNTICA a cualquier
+// otra: `resultado:"ok"`, tokens en null. Y el repo no lleva contador de consumo, así que cuando se gasta por
+// accidente nadie sabe cuánto costó (CLAUDE.md §3). Éste es el estado que faltaba para poder preguntarlo.
+//
+// TRES SITUACIONES, y la diferencia entre las tres es lo que importa:
+//   · null         — el turno NO salió de la máquina (freno propio del gateway, o ruta determinística). No hay
+//                    nada que facturar. Es el default: nunca se grita lobo por un turno que no salió.
+//   · "contado"    — salió y volvió con conteo de tokens: se sabe exactamente qué se consumió.
+//   · "sin_conteo" — salió y NO hay conteo. PUDO HABERSE FACTURADO y es invisible. Incluye el caso peor —la
+//                    llamada que reventó por timeout después de salir— que es justo donde el proveedor ya generó.
+//
+// EL CALLER NO PUEDE MENTIR. Lo único que declara desde afuera es que la llamada SALIÓ; cuál de los dos valores
+// corresponde lo decide el CONTEO real del evento, no quien emite (ver `_consumo`). Un "contado" sin tokens es
+// una contradicción, y la que miente es la etiqueta, no los tokens. Mismo criterio que `tokens_in_fresh`: lo que
+// se puede derivar no se acepta de afuera. Y el vocabulario es CERRADO, así que no puede filtrar un dato.
+export const CONSUMO = ["contado", "sin_conteo"];
+function _consumo(v, tokensIn, tokensOut) {
+  if (!CONSUMO.includes(v)) return null;                                  // no declarado = no salió
+  return tokensIn == null && tokensOut == null ? "sin_conteo" : "contado";
+}
+
 // `null` NO ES CERO (defecto previo, cazado al sumar el campo de caché — owner 2026-08-10). `Number(null)` es 0 y
 // `Number.isFinite(0)` es true, así que un campo explícitamente nulo salía a disco como **0 tokens**: exactamente
 // el "cero fingido" que este módulo declara no hacer, y el que haría creer que una llamada sin `usage` no costó
@@ -108,6 +136,9 @@ export function _limpio(ev = {}) {
   // la parte cacheada) y la tercera es una resta. Aceptarla como campo propio permitiría que llegara un valor que
   // no cierra con las otras dos. null (no 0) si falta cualquiera de las dos: no se finge "cero cacheado".
   o.tokens_in_fresh = (o.tokens_in != null && o.tokens_in_cache != null) ? Math.max(0, o.tokens_in - o.tokens_in_cache) : null;
+  // DESPUÉS de resolver los tokens, a propósito: el valor se decide con los conteos ya limpios, no con lo que
+  // haya declarado el caller (ver el bloque de CONSUMO arriba).
+  o.consumo = _consumo(o.consumo, o.tokens_in, o.tokens_out);
   o.ruta_deterministica = o.ruta_deterministica == null ? null : !!o.ruta_deterministica;
   if (o.etapa != null && !ETAPAS.includes(o.etapa)) o.etapa = null;
   if (o.resultado != null && !RESULTADOS.includes(o.resultado)) o.resultado = null;
@@ -136,7 +167,7 @@ export function emit(ev) {
 }
 
 /** Traduce lo que devuelve el gateway a los campos declarados, sin que el gateway tenga que saber de telemetría. */
-export function desdeRespuesta({ traceId, proveedor, modelo, etapa, intento, latencia_ms, respuesta, motivo, ruta_deterministica, tools }) {
+export function desdeRespuesta({ traceId, proveedor, modelo, etapa, intento, latencia_ms, respuesta, motivo, ruta_deterministica, tools, salioAlProveedor }) {
   const r = respuesta || {};
   const u = r.usage || r.tokens || {};
   let resultado = "ok";
@@ -155,5 +186,8 @@ export function desdeRespuesta({ traceId, proveedor, modelo, etapa, intento, lat
     tokens_in_cache: u.cachedTokens ?? null,
     tokens_out: u.completion_tokens ?? u.output_tokens ?? null,
     latencia_ms, ruta_deterministica, tools,
+    // el emisor sólo declara que la llamada SALIÓ; `_limpio` decide con los tokens si quedó contada o no. Un
+    // turno frenado por el gateway —o la ruta determinística, que no manda nada— sale con el campo en null.
+    consumo: salioAlProveedor ? "contado" : null,
   });
 }

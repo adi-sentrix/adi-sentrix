@@ -154,10 +154,15 @@ export async function handleSpec({ text, context, access } = {}, env) {
   const { provider, model, falta } = _config(env);
   const _t0 = Date.now();
   let _emitidos = 0;
+  // ── EL CRUCE (owner 2026-08-13) · a partir de la línea que lo prende, la llamada PUDO FACTURARSE ────────────
+  // Arranca en false y se prende UNA vez, pegado a la llamada al proveedor. No es un argumento por sitio de
+  // emisión —eso se olvida en el sitio nuevo— sino el estado del handler: cualquier evento que salga después del
+  // cruce declara que la llamada salió, incluido el que emite la excepción. Ver el bloque CONSUMO en telemetry.js.
+  let _salioAlProveedor = false;
   const _emitir = (respuesta, causa) => {
     _emitidos++;
     const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: model, etapa: "plan",
-      intento: 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false });
+      intento: 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false, salioAlProveedor: _salioAlProveedor });
     ev.reasonCode = causa || ev.reasonCode || null;
     emitTelemetria(ev);
   };
@@ -177,6 +182,9 @@ export async function handleSpec({ text, context, access } = {}, env) {
     const userMessage = buildParseUserMessage(context, text);
     let spec, usage;
     try {
+      // ANTES del await, no después: si se prendiera después, la llamada que revienta por timeout —justo la que
+      // el proveedor ya generó y facturó— se registraría como un turno que nunca salió. Ese es EL caso.
+      _salioAlProveedor = true;
       const salida = await getAdapter(provider).parse(userMessage, { system: buildContractMenu(), tool: buildSpecTool(), model });
       if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
       ({ spec, usage } = salida);
@@ -200,10 +208,11 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
   const { provider, narrateModel, falta } = _config(env);
   const _t0 = Date.now();
   let _emitidos = 0;
+  let _salioAlProveedor = false;   // el cruce · ver el bloque en handleSpec
   const _emitir = (respuesta, causa) => {
     _emitidos++;
     const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: narrateModel, etapa: "narrar",
-      intento: 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false });
+      intento: 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false, salioAlProveedor: _salioAlProveedor });
     ev.reasonCode = causa || ev.reasonCode || null;
     emitTelemetria(ev);
   };
@@ -216,6 +225,7 @@ export async function handleNarrate({ text, evidence, access } = {}, env) {
     const system = buildNarrateSystem(evidence);   // general vs simulación (evidence.transform) · provider-neutral
     let narration, usage;
     try {
+      _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec
       const salida = await getAdapter(provider).narrate({ text, evidence }, { model: narrateModel, system });
       if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
       ({ text: narration, usage } = salida);
@@ -275,10 +285,11 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
   const _causa = _causaDelIntento(motivoReintento, attempt);
   let _modelo = tier1;   // el que se reportaría si el turno se frena antes de rutear; se fija al rutear
   let _emitidos = 0;     // ver la red de seguridad al pie: NINGUNA excepción se va sin evento, y NUNCA dos por llamada
+  let _salioAlProveedor = false;   // el cruce · ver el bloque en handleSpec
   const _emitir = (respuesta, causa) => {
     _emitidos++;
     const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: _modelo, etapa: "plan",
-      intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false });
+      intento: Number(attempt) || 0, latencia_ms: Date.now() - _t0, respuesta, ruta_deterministica: false, salioAlProveedor: _salioAlProveedor });
     // LA CAUSA SE LLENA ACÁ Y NO VÍA `motivo`: `desdeRespuesta` tipa como "rechazado" TODO evento que traiga
     // motivo, y una llamada que salió bien no se puede contar como rechazo sólo porque existe por un rechazo
     // anterior — invertiría la métrica (27 llamadas buenas pasarían a rechazos). El `resultado` lo decide la
@@ -322,6 +333,7 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
     const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
     let plan, usage, modeloEfectivo;
     try {
+      _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec
       const salida = await getAdapter(provider).parse(user, { system, tool: PLAN_TOOL, model });
       // EL DESARMADO VIVE DENTRO DEL TRY (owner 2026-08-11, segunda pasada): afuera, un adapter que resolvía a
       // undefined/null lanzaba un TypeError DESPUÉS de que la llamada ya se había pagado, y no dejaba ni un evento
@@ -368,10 +380,11 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
   const _causa = _causaDelIntento(motivoReintento, attempt);
   let _modelo = tier1;
   let _emitidos = 0;     // ver la red de seguridad al pie: NINGUNA excepción se va sin evento, y NUNCA dos por llamada
+  let _salioAlProveedor = false;   // el cruce · ver el bloque en handleSpec
   const _emitir = (respuesta, causa) => {
     _emitidos++;
     const ev = desdeRespuesta({ traceId: nuevoTraceId(), proveedor: provider, modelo: _modelo, etapa: "narrar",
-      intento: Number(attempt) || 0, latencia_ms: Date.now() - _tNarr, respuesta, ruta_deterministica: false });
+      intento: Number(attempt) || 0, latencia_ms: Date.now() - _tNarr, respuesta, ruta_deterministica: false, salioAlProveedor: _salioAlProveedor });
     ev.reasonCode = causa || ev.reasonCode || _causa;   // ver el porqué en la pasada de PLAN: el resultado lo decide la respuesta
     emitTelemetria(ev);
   };
@@ -407,6 +420,7 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
     let narration, usage, modeloEfectivo;
     try {
+      _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec
       const salida = await getAdapter(provider).narrate(payload, { model, system });
       // el desarmado DENTRO del try, por la misma razón que en la pasada de PLAN: una respuesta inutilizable llega
       // después de que la llamada ya se pagó, y tiene que contarse como fallo del proveedor, no evaporarse.

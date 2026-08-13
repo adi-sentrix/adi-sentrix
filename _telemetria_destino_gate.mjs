@@ -63,7 +63,8 @@ section("2 · EL SEGUNDO CANDADO · nada fuera de la lista blanca llega al disco
   ok("y sí llega lo declarado", /"traceId":"t9"/.test(linea) && /"etapa":"plan"/.test(linea));
   const claves = Object.keys(JSON.parse(linea.trim()));
   ok("todas las claves escritas están en la lista blanca", claves.every((k) => CAMPOS_TELEMETRIA.includes(k)), claves.join(","));
-  ok("la lista blanca es UNA sola (el sink la importa, no la copia)", CAMPOS_TELEMETRIA.length === 14 && Object.isFrozen(CAMPOS_TELEMETRIA));
+  // 15 desde el 2026-08-13: entró `consumo` (¿la llamada salió al proveedor y volvió sin conteo de tokens?).
+  ok("la lista blanca es UNA sola (el sink la importa, no la copia)", CAMPOS_TELEMETRIA.length === 15 && Object.isFrozen(CAMPOS_TELEMETRIA));
 }
 
 section("3 · NUNCA LANZA · un fallo de disco no puede tumbar un turno");
