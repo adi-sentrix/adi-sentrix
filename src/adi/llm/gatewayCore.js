@@ -20,7 +20,7 @@ import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, const
 // ARQUITECTURA C (Fase 3 · detrás del flag ADI_ORACLE_ENABLED) · las DOS pasadas del oráculo verificado.
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
 import { buildPlanSystem, buildPlanSystemSegments, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
-import { buildNarrateSystemC } from "../oracle/narratePromptC.js";
+import { buildNarrateSystemSegments } from "../oracle/narratePromptC.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
 // `env` inyectable para runtimes que no exponen process.env global (ej. Cloudflare Workers) · default process.env.
@@ -404,20 +404,24 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     const routed = _resolveModel({ provider, tier1, attempt, step: "narrate", mode: payload.modo, env, tenantId });
     const model = routed ? routed.model : tier1;
     _modelo = model;
-    // mode (owner 2026-08-03, Fase 2 eficiencia de Mini — ver conversationalContract.js/buildModeDispatch): payload.modo
-    // YA viaja acá (buildNarrateUserMessageC lo pone en el payload, ver narratePromptC.js) — se lo pasamos al system
-    // para que la doctrina de "MODO DE CONVERSACIÓN" mande SOLO el modo de ESTE turno, no los 7 completos.
+    // SEGMENTADO PARA QUE EL CACHÉ PEGUE (owner 2026-08-13, Paso 0 "ADI pierde el hilo" — ver PREFIJO ESTABLE en
+    // narratePromptC.js): el MISMO mecanismo que PLAN usa más arriba (buildPlanSystemSegments). `fijo + variable`
+    // es byte por byte el string que devolvía buildNarrateSystemC; lo que cambia es DÓNDE queda el corte del caché.
+    // Antes el dispatch de modo iba al FRENTE del system → el prefijo común entre dos modos era el 21,3% y cada
+    // cambio de modo pagaba el 79% del system entero. Ahora el segmento fijo (persona + doctrina + los 7 modos —
+    // el payload trae `modo` y decide) es idéntico entre turnos, y todo lo por-turno viaja en la cola variable.
     // mem.responsePref (owner 2026-08-03, Fase 2 eficiencia de Mini — ver responsePreference.js): el bloque de
-    // doctrina de preferencia de FORMATO ahora solo se manda si la SESIÓN tiene una preferencia persistida no-default.
+    // doctrina de preferencia de FORMATO solo se manda si la SESIÓN tiene una preferencia persistida no-default.
     // contexto_vista (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): si el payload trae la línea de pantalla,
     // el system suma el bloque que explica QUÉ es y —sobre todo— qué NO es (no trae cifras, y nada se deriva de ahí).
-    // Condicional por la MISMA razón que las dos doctrinas de arriba: el 100% de los turnos que no vienen de Sentrix
+    // Condicional por la MISMA razón que la doctrina de arriba: el 100% de los turnos que no vienen de Sentrix
     // no paga ni un token por una regla que no van a usar.
     // reparacion (owner 2026-08-10, Contrato Conversacional v1.2): si el payload declara que este turno es una
     // corrección, un desacuerdo o trae una cifra del usuario viva, el system suma la doctrina de reparación. Misma
-    // condicionalidad —y la misma razón— que las tres de arriba: se lee del payload, no se adivina, y un turno que
+    // condicionalidad —y la misma razón— que las de arriba: se lee del payload, no se adivina, y un turno que
     // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
-    const system = buildNarrateSystemC(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
+    const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null);
+    const system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
     let narration, usage, modeloEfectivo;
     try {
       _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec

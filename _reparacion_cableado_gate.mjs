@@ -109,8 +109,11 @@ ok("todos los guardC que validan una narración reciben la reparación",
   guardsNarracion > 0 && guardsNarracion === guardsConReparacion, `${guardsConReparacion}/${guardsNarracion}`);
 ok("la reparación sellada se compone UNA vez, con el mismo builder del contrato de narración",
   cuenta(MOTOR, /const reparacionSellada = buildReparacion\(/g) === 1);
+// Paso 0 "ADI pierde el hilo" (2026-08-13): el gateway ahora arma el system SEGMENTADO (buildNarrateSystemSegments,
+// mismo mecanismo que PLAN) — la garantía que este chequeo protege NO cambió: la reparación entra al system desde
+// el payload sellado, nunca del plan crudo. Solo cambió el nombre del builder que la recibe.
 ok("el system de NARRAR la recibe desde el PAYLOAD, no del plan crudo",
-  /buildNarrateSystemC\([\s\S]{0,240}?payload\.reparacion \|\| null\)/.test(GATEWAY));
+  /buildNarrateSystemSegments\([\s\S]{0,240}?payload\.reparacion \|\| null\)/.test(GATEWAY));
 ok("la doctrina de NARRAR es condicional (un turno normal no paga tokens)",
   /doctrinaReparacion \? `\\n\$\{doctrinaReparacion\}\\n` : ""/.test(NARRAR));
 

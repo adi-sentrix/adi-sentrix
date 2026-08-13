@@ -21,10 +21,22 @@ import { cifrasDelUsuario } from "./narrationContract.js";
 // buildNarrateSystemC(persona, memBlock, mode?, responsePref?) → system de la Pasada 2. Prompt COMPLETO de
 // narración (owner 2026-07-28: "dale todas las indicaciones, como yo te las doy a ti · controller senior, mirada
 // CFO · contá la historia · más calidad que antes"). Incorpora la estructura/contratos afinados del narrador viejo,
-// adaptados a C (tablas markdown OK). `mode` (owner 2026-08-03, Fase 2 eficiencia de Mini): plan.mode YA está
-// resuelto acá (ver answerViaOracle.js) — se lo pasamos a buildModeDispatch para que mande SOLO la doctrina del
-// modo de ESTE turno, no las de los otros 6. Sin `mode` (caller viejo) buildModeDispatch cae sola al comportamiento
-// anterior completo. `responsePref` (owner 2026-08-03, Fase 2 eficiencia de Mini): el bloque LARGO de doctrina de
+// adaptados a C (tablas markdown OK).
+// ── PREFIJO ESTABLE PARA EL CACHÉ (owner 2026-08-13, Paso 0 del plan "ADI pierde el hilo") ────────────────────
+// EL DEFECTO, medido offline: buildModeDispatch(mode) interpolaba la doctrina de UN solo modo cerca del FRENTE
+// del system — el prefijo común entre dos turnos de modos distintos era 7.679 de ~36.100 chars (21,3%), y el caché
+// de prefijo del proveedor solo reutiliza bytes idénticos desde el carácter 0: el 79% del system se pagaba entero
+// en cada cambio de modo. La economía de "mandar SOLO el modo del turno" (Fase 2 de Mini, 2026-08-03) ahorraba ~5%
+// de tokens nominales y perdía el descuento de caché del 79% restante — el neto era pagar MÁS.
+// LA SALIDA, la misma de PLAN (buildPlanSystemSegments, planPrompt.js): el system se parte en DOS segmentos —
+//   · FIJO: persona + tarea + cifras + LOS 7 MODOS COMPLETOS (buildModeDispatch() sin argumento — el fallback
+//     documentado de siempre: el payload ya trae `modo` y el header del dispatch declara que ESE campo decide)
+//     + toda la doctrina estable hasta HONESTIDAD. Byte-idéntico entre turnos, modos y sesiones → cacheable entero.
+//   · VARIABLE: TODO lo que depende del turno/sesión — reparación, preferencia de respuesta, contexto de pantalla
+//     y memoria de interacción — movido AL FINAL, donde romper el prefijo no cuesta nada.
+// El CONTENIDO de la doctrina no se tocó: mismos textos, otro orden. `mode` se CONSERVA en la firma por los ~30
+// callers/gates que lo pasan, pero ya no cambia el system: los 7 modos viajan siempre (el comportamiento
+// documentado del caller viejo, ahora universal). `responsePref` (owner 2026-08-03, Fase 2 eficiencia de Mini): el bloque LARGO de doctrina de
 // buildPrefDispatch (marcado [[DATOS]]/[[ACCION]]/etc.) antes viajaba SIEMPRE, en TODO turno — pero el propio
 // código de responsePreference.js (ver blockInstructionFor/BRIEF_INSTRUCTION) ya documenta que el refuerzo REAL
 // que logra cumplimiento es el de NIVEL DE TURNO (viaja en el payload de buildNarrateUserMessageC, condicionado por
@@ -33,23 +45,43 @@ import { cifrasDelUsuario } from "./narrationContract.js";
 // solo se manda si la sesión efectivamente tiene una preferencia no-default — un turno normal, sin nada persistido,
 // no paga ese costo de tokens para una doctrina que no va a usar.
 // `hayContextoVista` (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix): mismo criterio de economía que
-// `mode`/`responsePref` de arriba — el bloque CONTEXTO DE PANTALLA solo se manda cuando el payload de ESTE turno
+// `responsePref` de arriba — el bloque CONTEXTO DE PANTALLA solo se manda cuando el payload de ESTE turno
 // trae de verdad la línea `contexto_vista` (lo decide handleNarrateC leyendo el payload, no una adivinanza).
 // `reparacion` (Contrato Conversacional v1.2, owner 2026-08-10): el objeto sellado del turno (o null). MISMA
-// economía que `mode`/`responsePref`/`hayContextoVista` de arriba — buildRepairNarrateDoctrine devuelve cadena
+// economía que `responsePref`/`hayContextoVista` de arriba — buildRepairNarrateDoctrine devuelve cadena
 // vacía sin él, así que el 99% de los turnos, que no corrigen nada, no pagan un solo token por estas reglas.
 // Sexto argumento OPCIONAL a propósito: los callers que llaman con cinco producen el MISMO system, byte por byte.
 export function buildNarrateSystemC(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null) {
+  const p = _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion);
+  return p.fijo + p.variable;
+}
+
+// buildNarrateSystemSegments(...) → { fijo, variable } para que el gateway declare el corte del caché donde el
+// prefijo deja de ser estable (gatewayCore.js/handleNarrateC arma [{fijo,cache:true},{variable,cache:false}] —
+// el MISMO mecanismo que PLAN usa desde 2026-08-10, y el adapter ya sabe concatenar segmentos). `fijo + variable`
+// es byte por byte lo que devuelve buildNarrateSystemC: cambia DÓNDE se declara el corte, nunca lo que el
+// proveedor lee.
+export function buildNarrateSystemSegments(persona, memBlock, mode, responsePref, hayContextoVista = false, reparacion = null) {
+  return _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion);
+}
+
+// DOCTRINA DE CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI↔Sentrix) — texto INTACTO del
+// bloque que antes se interpolaba en medio del system; ahora vive en una const para poder viajar en el segmento
+// VARIABLE (ver PREFIJO ESTABLE arriba) sin partir el prefijo cacheable en dos.
+const DOCTRINA_CONTEXTO_VISTA_NARRAR = `CONTEXTO DE PANTALLA (llega en "contexto_vista"): el usuario te está escribiendo DESDE Sentrix y esa línea dice qué vista, sección, componente, métrica, eje, período, escenario, universo y filtros tiene delante en este momento. Usalo para dos cosas y solo dos: (a) resolver a qué apunta "este gráfico"/"esta tabla"/"ese punto"/"estos clientes"/"esos SKU", y (b) hablar de LO QUE ESTÁ MIRANDO en vez de abrir un tema distinto. NO TRAE NINGUNA CIFRA y jamás derives una de ahí —ni un total, ni un conteo, ni un porcentaje—: todas las cifras siguen saliendo de "cifras_autorizadas", verbatim. Tampoco describas la interfaz ("el gráfico tiene tres series"): explicá el NEGOCIO que ese componente mide. Y si el usuario nombra otra cosa, manda lo que pide AHORA — la pantalla informa, nunca decide por él.`;
+
+// `mode` queda en la firma y NO se lee: ver el bloque PREFIJO ESTABLE arriba — el dispatch viaja completo siempre.
+function _narrateSystemParts(persona, memBlock, mode, responsePref, hayContextoVista, reparacion) {
   const doctrinaReparacion = buildRepairNarrateDoctrine(reparacion);
-  return `${persona}
+  const fijo = `${persona}
 
 TU TAREA (narrar): sos la voz de ADI —un CONTROLLER SENIOR con mirada de CFO— que le habla al dueño del negocio. El motor ya calculó y validó TODO; vos NO muestras datos: armás la DECISIÓN. Interpretás, relacionás, aconsejás. Tu valor es el criterio ejecutivo, no repetir la tabla.
 
 REGLA INNEGOCIABLE DE CIFRAS: escribí SOLO cifras que estén en "cifras_autorizadas", verbatim y con su unidad ($, K, M, %, x, d). PODÉS SUMAR o RESTAR cifras autorizadas para una lectura (una brecha, un total, "juntos $3.5M") — el motor lo valida. Lo que NO podés: inventar una cifra que no salga de ese conjunto, cambiarle la unidad, colgarle a una entidad la cifra de otra, ni MULTIPLICAR/PROYECTAR (una recuperación en pesos tipo "recuperás $1.5M si subís el margen" es brecha% × ventas — NO está autorizada y se bloquea). Para DIMENSIONAR una acción cuando no tenés el peso: usá la BRECHA en puntos/% que SÍ podés restar (ej. "X% vs tu benchmark de Y% — Z puntos de brecha"), no un peso inventado.
   ⚠ EL ERROR MÁS FRECUENTE — LA PROPORCIÓN DE ADORNO. Al recomendar, NO le cuelgues a la acción un porcentaje que no está en el dato: "los cinco SKU que explican el 70% de las ventas", "los clientes que representan el 60% de la brecha", "recuperar al menos un 10% del margen", "apuntá a mejorar un 5%" — NI reformulada en "puntos porcentuales" para esquivar el "%" ("establecé un objetivo de subir 5 puntos porcentuales" es el MISMO invento con otra ropa). Esas cifras suenan bien y son INVENTADAS — te van a rebotar y el turno se pierde. Una participación (share) o una meta de recuperación SOLO se escriben si vienen en cifras_autorizadas. Si no las tenés, nombrá la acción SIN el porcentaje: "empezá por los cinco SKU de mayor contribución" (no "…que explican el 70%"), "cerrá la brecha con el Cliente A y el Cliente B" (no "…que son el 60%"). La acción bien nombrada no necesita una cifra falsa. Los números dentro de "datos.facts" son para que RAZONES el patrón; si vas a escribir uno, tiene que estar (o derivarse por suma/resta) de cifras_autorizadas.
 
-${buildModeDispatch(mode)}
-${doctrinaReparacion ? `\n${doctrinaReparacion}\n` : ""}${isDefaultPref(responsePref) ? "" : `\n${buildPrefDispatch()}\n`}
+${buildModeDispatch()}
+
 LA ESTRUCTURA — CONTÁS LA HISTORIA, SIEMPRE EN ESTE ARCO (proporcional a la pregunta; EXCEPCIÓN: modo=clarify de arriba lo reemplaza entero, modo=decision arranca directo por el punto 3):
 (1) QUÉ ESTÁ PASANDO — abrí con la lectura, el titular con su cifra (el hallazgo, no un inventario de datos).
 (2) POR QUÉ PASA — la causa, graduada con honestidad: si el dato la prueba, afirmala (PROBADO); si es una señal, decila como señal (INDICADO); si la causa raíz no se cierra con este dato, declaralo (ABIERTO) — jamás la inventes. Mismo vocabulario de gradación que usás al abrir el cálculo en modo evidencia (ver el modo EVIDENCIA en conversationalContract.js) — es UN solo criterio de honestidad para toda la narración, no una regla aparte de ese modo. No hace falta etiquetar cada oración con la palabra literal (eso es rigidez de formulario, no el objetivo) — alcanza con que la gradación real (afirmación/señal/límite declarado) sea consistente en cualquier modo que la use, del panorama completo a la decisión directa.
@@ -98,9 +130,7 @@ SAGRADO (invariantes): NOMBRES exactos (nunca confundas el nombre de una entidad
   SUPERLATIVOS CONSISTENTES: si decís "el/la mayor", "la mayor oportunidad", "el más alto/bajo" de una entidad, esa cifra tiene que ser la más grande/chica ENTRE LAS QUE ESTÁS MOSTRANDO — nunca uses un superlativo si hay otro número de la MISMA métrica, en la MISMA respuesta o en cifras_autorizadas, que lo contradice. Si tu elección NO es la de mayor monto pero la elegís igual (por brecha, urgencia, riesgo, facilidad), DECÍ el criterio explícito: "no es el mayor monto, pero sí el margen más deteriorado" (o el que corresponda) — nunca dejes una superioridad implícita que un número visible desmiente.
   TOTAL DEL NEGOCIO ≠ SUMA DE LOS QUE NOMBRÁS: una cifra etiquetada como total/global (ej. "Medida · cerrar brecha al piso", "Contribución no capturada · total", cualquier fig sin nombre de entidad o con "negocio"/"total"/"al piso") es del NEGOCIO COMPLETO, no de las 1-2 entidades que estás recomendando — NUNCA la cuelgues de esas entidades como si ellas solas la explicaran ("el Cliente A y el Cliente B representan una brecha de $X" es FALSO si $X es el total de N clientes, no la suma de esos 2). Si querés dar escala usando el total, ACLARALO como marco, no como suma: "son parte de una brecha total del negocio de $X" — nunca "representan/explican/suman $X" cuando $X es más grande que lo que esas entidades aportan.
 
-${hayContextoVista ? `CONTEXTO DE PANTALLA (llega en "contexto_vista"): el usuario te está escribiendo DESDE Sentrix y esa línea dice qué vista, sección, componente, métrica, eje, período, escenario, universo y filtros tiene delante en este momento. Usalo para dos cosas y solo dos: (a) resolver a qué apunta "este gráfico"/"esta tabla"/"ese punto"/"estos clientes"/"esos SKU", y (b) hablar de LO QUE ESTÁ MIRANDO en vez de abrir un tema distinto. NO TRAE NINGUNA CIFRA y jamás derives una de ahí —ni un total, ni un conteo, ni un porcentaje—: todas las cifras siguen saliendo de "cifras_autorizadas", verbatim. Tampoco describas la interfaz ("el gráfico tiene tres series"): explicá el NEGOCIO que ese componente mide. Y si el usuario nombra otra cosa, manda lo que pide AHORA — la pantalla informa, nunca decide por él.
-
-` : ""}SEGUIMIENTOS (deixis): si viene "hilo_reciente", usalo para resolver a QUÉ refiere un seguimiento — "esto mismo", "y eso", "lo anterior", "de esos", "mes a mes" apuntan a lo que ACABÁS de decir. "dame esto mismo pero mes a mes" = la MISMA lectura del turno anterior, ahora por mes (llega por la tool trend con la serie real). NO arranques un diagnóstico nuevo ni cambies de tema: seguí en el mismo hilo.
+SEGUIMIENTOS (deixis): si viene "hilo_reciente", usalo para resolver a QUÉ refiere un seguimiento — "esto mismo", "y eso", "lo anterior", "de esos", "mes a mes" apuntan a lo que ACABÁS de decir. "dame esto mismo pero mes a mes" = la MISMA lectura del turno anterior, ahora por mes (llega por la tool trend con la serie real). NO arranques un diagnóstico nuevo ni cambies de tema: seguí en el mismo hilo.
   CAMBIO DE CRITERIO ENTRE TURNOS: si en un turno anterior priorizaste una entidad (ej. "comenzá por el Cliente A") y ahora tu respuesta prioriza OTRA sobre el mismo grupo (ej. el Cliente B), NO lo dejes flotando como si no hubiera pasado — nombrá el cambio de criterio en una frase ("antes priorizaba por monto recuperable; acá el corte es la brecha de margen, y ahí el Cliente B pesa más"). Sin esa frase, dos respuestas que priorizan distinto sobre el mismo grupo leen como una contradicción.
 
 SERIE TEMPORAL (llega de la tool trend · facts.tablaM = meses × valores + la boleta trae cada mes/total; facts.variacionMensual/mejorMes/peorMes traen el % de variación YA CALCULADO por mes — ver abajo): esto es un PANORAMA, no una consulta puntual — le corresponde el arco completo (ver LA ESTRUCTURA arriba), aplicado a una serie de tiempo en vez de a una entidad:
@@ -175,7 +205,12 @@ sostienen tu lectura, en prosa, no una fila por familia).
 
 HONESTIDAD (sos asesor, no buscador): si TODO lo pedido vino "disponible":false, NUNCA cortes con un "no" seco ni jerga ("granularidad atómica"): decí en una frase simple qué no tenés y por qué (si el dato trae "limite_temporal"/"motivo", usá ESA razón — ej. "el resultado mes a mes no lo tengo: los gastos son % sobre la venta anual"), y ofrecé lo que SÍ (coverage.alternativas) o repreguntá corto. EL MES A MES SÍ EXISTE para ventas y contribución (viene por trend) → narralo, no lo niegues. NO PROYECTES A FUTURO (no hay serie a futuro): si piden el pronóstico / "el mes que viene", decilo en una frase y ofrecé la evolución hasta hoy. NUNCA le pongas etiqueta de "mensual" a una foto que NO es mensual, NUNCA fabriques cifras por mes. Registro ejecutivo neutro LatAm, sin slang ni inglés (capital/valor no "plata"; capital detenido no "dormido"; acción/medida no "palanca"; potencial no "upside").
 
-${memBlock ? memBlock + "\n\n" : ""}Escribí SOLO la respuesta de ADI, sin preámbulos.`;
+`;
+  // LA COLA VARIABLE — todo lo que depende del turno o de la sesión, en el MISMO orden de precedencia que tenían
+  // sus bloques (reparación → preferencia → pantalla → memoria → instrucción de cierre). Es lo único que el caché
+  // no cubre, y por diseño: acá romper el prefijo ya no rompe nada, el segmento fijo quedó entero arriba.
+  const variable = `${doctrinaReparacion ? `\n${doctrinaReparacion}\n` : ""}${isDefaultPref(responsePref) ? "" : `\n${buildPrefDispatch()}\n`}${hayContextoVista ? `${DOCTRINA_CONTEXTO_VISTA_NARRAR}\n\n` : ""}${memBlock ? memBlock + "\n\n" : ""}Escribí SOLO la respuesta de ADI, sin preámbulos.`;
+  return { fijo, variable };
 }
 
 import { parseFigures } from "../boleta.js";

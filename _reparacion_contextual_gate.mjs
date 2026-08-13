@@ -402,7 +402,15 @@ ok("la doctrina de NARRAR tampoco", sinProveedor(buildRepairNarrateDoctrine({ ti
 section("12 · crecimiento del prompt, medido");
 // LÍNEA BASE MEDIDA en b0ff517 (antes de este contrato), con la MISMA convención de la nota de planPrompt.js
 // (caracteres / 4): PLAN system 30.534 car · PLAN_TOOL 3.699 car · NARRAR system (mode=default) 36.096 car.
-const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 36096 };
+/* NARRAR SUBE A 39.524 (Paso 0 "ADI pierde el hilo", 2026-08-13 — prefijo estable para el caché). LO QUE LO PAGA:
+ * el dispatch de modo iba al FRENTE del system y cambiaba por turno — el prefijo común entre dos modos era el
+ * 21,3%, así que el 79% del system se pagaba SIN caché en cada cambio de modo. Ahora los 7 modos viajan siempre
+ * (buildModeDispatch() sin argumento, el fallback documentado) y todo lo por-turno va al FINAL: +3.428 car
+ * (~857 tokens) nominales una vez, a cambio de un prefijo 100% estable que el caché del proveedor descuenta en
+ * cada llamada. MISMO CRITERIO que las subas de PLAN_TOOL documentadas abajo: el presupuesto existe para que el
+ * costo se DECIDA, no para impedir la mejora — y este costo COMPRA el descuento, no lo pierde. La garantía del
+ * chequeo no cambia: NARRAR sigue sin crecer POR TURNO (la doctrina de reparación sigue condicional, medida abajo). */
+const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 39524 };
 const tok = (n) => Math.round(n / 4);
 const planSystem = buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false).length;
 const planTool = JSON.stringify(PLAN_TOOL).length;
