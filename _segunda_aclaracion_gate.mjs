@@ -1,7 +1,7 @@
 /* === _segunda_aclaracion_gate.mjs · LA SEGUNDA ACLARACIÓN NO EXISTE (owner 2026-08-12) ================
  * NACIÓ DE UNA CONVERSACIÓN REAL, no de un caso de laboratorio. El owner pidió el resultado después de
  * gastos, ADI respondió bien con la cascada, y después:
- *     — «no entiendo»                      → ADI: «¿qué parte no entendés?»              ← correcto
+ *     — «no entiendo»                      → ADI: «¿qué parte no entendés?»              ← ver NOTA D1
  *     — «logística por qué tiene un 3.5%»  → ADI: «¿a qué parte de la logística…?»       ← EL DEFECTO
  *     — el owner explica                   → ADI REPITE la lectura entera, sin responder
  * Nunca contestó por qué logística es 3.5%. Y la respuesta estaba en su propia tabla: la línea viene sellada
@@ -10,6 +10,13 @@
  * QUÉ CUBRE Y QUÉ NO: `needsOrientacion` dispara en clarifyStreak>=3 y es para «sigue perdido, cambiemos de
  * enfoque». Este es otro problema: el usuario NO está perdido, fue concreto. No tenía regla, y por eso llegó
  * a producción con 124 gates en verde — la certificación probaba PREGUNTAS, no CONVERSACIONES.
+ *
+ * NOTA D1 (owner 2026-08-13, Paso 3 «ADI pierde el hilo»): el «← correcto» de la primera línea quedó REVERTIDO
+ * como juicio de producto — un «no entiendo» pelado ya NO se responde con la contrapregunta sino re-enseñando
+ * (doctrina clarify + descarte de la reparación ambigua desclasificada; gate: _clarify_reensena_gate.mjs).
+ * LO QUE ESTE GATE FIJA NO CAMBIA: `debeResponderSinRepreguntar` con streak 0 sigue devolviendo false — esa
+ * función decide si se FUERZA el modo respuesta (la segunda aclaración), no quién redacta la apertura; con D1,
+ * quien responde ese primer «no entiendo» es el modo clarify re-enseñando, no una repregunta.
  *
  *   [1] EL CASO DEL OWNER · la conversación exacta de cuatro turnos.
  *   [2] LA REGLA · sin aclaración previa no se corta nada (una primera aclaración es legítima).
@@ -26,8 +33,9 @@ const H = (t) => console.log("\n" + t);
 
 H("[1] EL CASO DEL OWNER · la conversación de cuatro turnos, textual");
 {
-  // turno 2: «no entiendo» — sin aclaración previa, la primera SÍ corresponde
-  ok(!debeResponderSinRepreguntar("no entiendo", 0), "«no entiendo» sin aclaración previa: ADI PUEDE preguntar qué parte");
+  // turno 2: «no entiendo» — sin aclaración previa, ESTA regla no corta nada (quién redacta la apertura es
+  // asunto de D1/clarify: desde 2026-08-13 se re-enseña, no se repregunta — ver NOTA D1 en la cabecera)
+  ok(!debeResponderSinRepreguntar("no entiendo", 0), "«no entiendo» sin aclaración previa: esta regla no fuerza nada (la apertura la decide clarify/D1)");
   ok(!respuestaYaEsEspecifica("no entiendo"), "…porque «no entiendo» no es específico: no nombra nada");
   // turno 3: la respuesta del owner — ACÁ estaba el defecto
   ok(respuestaYaEsEspecifica("logistica por que tiene un 3.5%"), "«logística por qué tiene un 3.5%» ES específico: nombra la línea Y la cifra");
