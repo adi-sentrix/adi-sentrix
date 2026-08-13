@@ -101,6 +101,13 @@ const _LEAKS = [
   [/\bdormidos\b/gi, "detenidos"], [/\bdormidas\b/gi, "detenidas"],
   [/\bdormido\b/gi, "detenido"], [/\bdormida\b/gi, "detenida"],
   [/\bplata\b/gi, "caja"],
+  // ── «DETENIDO» APLICADO AL CAPITAL/INVENTARIO → «INMOVILIZADO» (cierre cert amplia 2026-08-13, hallazgo 4a) ──
+  // CLAUDE.md §4: se dice «inmovilizado», no «detenido» — salió 4 veces en la certificación (D1 ×2, D4, H4).
+  // SOLO el bigrama completo (con «total» opcional en el medio: «capital total detenido», medido en D1): el VERBO
+  // sobre un SKU/proceso es legítimo y NO se toca — «¿por qué se detuvo el SKU?» / «MAK-COMP-AIR está detenido»
+  // (H3/H4). Van DESPUÉS de dormido→detenido a propósito: «capital dormido» encadena a «capital detenido» y de
+  // ahí acá, en la misma pasada. La función preserva la mayúscula del sustantivo (encabezados de tabla incluidos).
+  [/\b(capital(?:es)?|inventarios?)(\s+total(?:es)?)?\s+detenido(s)?\b/gi, (_m, n, tot, pl) => `${n}${tot || ""} inmovilizado${pl || ""}`],
   // + ANGLICISMOS DE NEGOCIO (owner 2026-08-13, certificación viva #2 · hilo B turno 2) · MEDIDO EN VIVO: «la
   // distancia entre tu margen actual y ese reference point» — inglés de consultora en un producto cuyo registro es
   // español formal LatAm. El prompt ya pide español; esta tabla es la GARANTÍA, igual que if/insight/deep-dive

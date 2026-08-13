@@ -495,7 +495,16 @@ export function ensureHypothesisFraming(text, mode, results) {
 // LLM sigue siendo quien debe cerrar bien; esto es solo la red para cuando no lo hizo.
 export function ensureClarifyClosingQuestion(text, mode) {
   const s = String(text || "");
-  if (mode !== "clarify" || !s.trim() || /\?\s*$/.test(s.trim())) return s;
+  if (mode !== "clarify" || !s.trim()) return s;
+  /* LA PREGUNTA PUEDE ESTAR TAPADA POR LA CLÁUSULA DE PERÍODO (cierre cert amplia 2026-08-13, hallazgo 4b · B2,
+   * medido: el turno terminó con DOS preguntas seguidas). El narrador cerró con su pregunta guía Y escribió él
+   * mismo la cláusula canónica a continuación — «…¿profundizamos…? (Datos del año cerrado.)» — así que
+   * ensurePeriodoDeclared fue no-op (período ya declarado) y este chequeo, que solo miraba el final crudo, agregó
+   * una SEGUNDA pregunta genérica encima de la real. El cierre se evalúa quitando los paréntesis FINALES que no
+   * contienen pregunta (la cláusula de período, la de marco mixto): si el núcleo ya termina en «?», la pregunta
+   * guía existe y no se duplica. Un texto sin pregunta sigue ganando la suya, como siempre. */
+  const nucleo = s.trim().replace(/(\s*\([^()?]*\)\s*)+$/g, "").trim();
+  if (/\?\s*$/.test(nucleo)) return s;
   return `${s.trim()}\n\n¿Quieres que lo repase de otra forma, o seguimos con el siguiente paso?`;
 }
 

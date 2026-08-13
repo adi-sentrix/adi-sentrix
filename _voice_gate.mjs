@@ -109,9 +109,13 @@ const leakCases = [
   { n: "L11 · 'apretando' (gerundio) → 'ajustando'",
     in: "El costo viene apretando el margen en Lider.",
     out: "El costo viene ajustando el margen en Lider." },
-  { n: "L12 · 'dormido' → 'detenido' (number-safe: $33K intacto)",
+  // GATE MOVIDO 2026-08-13 (cierre de la cert amplia, hallazgo 4a) — ANÁLISIS GARANTÍA-VS-FORMATO: el destino del
+  // barrido era FORMATO (la réplica elegida en su momento), y «capital detenido» viola el registro que CLAUDE.md §4
+  // fija («inmovilizado», no «detenido» — salió 4 veces narrado en la certificación). La garantía (dormido jamás
+  // sale, number-safe, idempotente) queda intacta: solo cambia la palabra de llegada, encadenando el bigrama.
+  { n: "L12 · 'capital dormido' → 'capital inmovilizado' (encadena dormido→detenido→bigrama · $33K intacto)",
     in: "Tienes $33K de capital dormido en Valparaíso.",
-    out: "Tienes $33K de capital detenido en Valparaíso." },
+    out: "Tienes $33K de capital inmovilizado en Valparaíso." },
   { n: "L13 · 'dormidos' (plural) → 'detenidos'",
     in: "Varios SKU quedaron dormidos sin rotación.",
     out: "Varios SKU quedaron detenidos sin rotación." },
@@ -121,9 +125,14 @@ const leakCases = [
   { n: "L15 · mayúscula inicial preservada ('Apretado' → 'Ajustado')",
     in: "Apretado el margen, conviene actuar en Falabella.",
     out: "Ajustado el margen, conviene actuar en Falabella." },
-  { n: "L16 · registro correcto (ajustado/detenido/caja) → intacto byte-igual",
-    in: "El capital detenido y el margen ajustado ya están bien; la caja quieta suma $4.9M.",
-    out: "El capital detenido y el margen ajustado ya están bien; la caja quieta suma $4.9M." },
+  // GATE MOVIDO 2026-08-13 (mismo análisis que L12): «capital detenido» dejó de ser registro correcto — el caso de
+  // «intacto byte-igual» se ejercita con el VERBO sobre un SKU (H3/H4 de la certificación: legítimo, no se toca).
+  { n: "L16 · registro correcto (ajustado/detenido-de-SKU/caja) → intacto byte-igual",
+    in: "El SKU detenido y el margen ajustado ya están bien; la caja quieta suma $4.9M.",
+    out: "El SKU detenido y el margen ajustado ya están bien; la caja quieta suma $4.9M." },
+  { n: "L16b · el bigrama del registro viejo → inmovilizado (cierre cert amplia, hallazgo 4a)",
+    in: "El capital detenido concentra $33K y el inventario detenido preocupa.",
+    out: "El capital inmovilizado concentra $33K y el inventario inmovilizado preocupa." },
 ];
 for (const c of leakCases) {
   const got = SLL(c.in);

@@ -290,10 +290,15 @@ for (const t of NARRADAS) {
   if (out2 !== out1) { fail++; rotos.push({ origen: "voiceGuard · idempotencia", palabra: "≠", gist: `«${out1}» → «${out2}»` }); }
   else pass++;
 }
-// registro ejecutivo YA correcto (incluye las réplicas ajustado/detenido/caja) → byte-idéntico (el stripper no lo toca)
+// registro ejecutivo YA correcto (incluye las réplicas ajustado/caja) → byte-idéntico (el stripper no lo toca)
+// GATE MOVIDO 2026-08-13 (cierre de la cert amplia, hallazgo 4a) — ANÁLISIS GARANTÍA-VS-FORMATO: la muestra
+// «capital detenido» era FORMATO con el registro viejo — CLAUDE.md §4 fija «inmovilizado», y el barrido nuevo del
+// bigrama la reescribe (correcto). La muestra limpia pasa a la forma en registro; el verbo sobre un SKU («se
+// detuvo», legítimo por H3 de la certificación) entra como muestra limpia nueva para fijar que NO se toca.
 const LIMPIAS = [
   "El margen ajustado obliga a actuar sobre el precio realizado.",
-  "El capital detenido en Valparaíso se libera con una rebaja puntual.",
+  "El capital inmovilizado en Valparaíso se libera con una rebaja puntual.",
+  "El SKU se detuvo hace 94 días y sigue detenido en góndola.",
   "La caja inmovilizada suma un monto relevante en inventario.",
   "Falabella cede margen por carga comercial alta; conviene revisar cuenta por cuenta.",
   // TUTEO YA CORRECTO → el barrido de voseo no lo toca. Incluye las trampas reales: el futuro de tuteo termina
