@@ -1230,12 +1230,56 @@ const _PERIODO_CLAUSULA = { anual: "Datos del año cerrado.", hoy: "Foto de inve
  * mencionado una—, porque lo que hay que declarar no es la familia que falta sino que HAY MÁS DE UNA. Con una sola
  * familia, el comportamiento no cambia en un solo carácter. */
 const _CLAUSULA_MIXTA = "Dos marcos distintos: la venta es del año cerrado y el inventario es la foto a hoy.";
+/* ── recortarMunonDeOracion(text) · EL ENVOLTORIO NO SE PEGA A UNA ORACIÓN SIN CERRAR ═══════════════════════════
+ * (cierre del espejo Anthropic 2026-08-13, hallazgo 2b). MEDIDO EN VIVO (F4, `_cert_espejo_anthropic.EF.json`):
+ * la narración llegó cortada por el tope del proveedor en «…contribución no capturada ($1.6M» y la cláusula de
+ * marcos se APPENDEÓ al muñón — «($1.6M (Dos marcos distintos: …)» salió a pantalla. Un envoltorio que se suma a
+ * un texto cuya última oración quedó sin cerrar produce exactamente eso.
+ * LA REGLA: antes de APPENDEAR, si el final no está cerrado, el muñón se recorta hasta la última oración COMPLETA
+ * y el envoltorio va después. POR QUÉ ES SEGURO frente al muro: el recorte solo ELIMINA texto — no puede
+ * autorizar ninguna cifra nueva ni cambiar la atribución de una existente — y guardC juzga SIEMPRE el texto final
+ * ya recortado (los ensure* corren antes del veredicto en el loop de narrar, y en las reparaciones el candidato
+ * completo se re-verifica). Frente al tope de brevedad tampoco interactúa: truncateToBriefBudget corre ANTES de
+ * los ensure* y su salida ya termina en oración completa (corta por oración), así que acá es un no-op.
+ * QUÉ CUENTA COMO CERRADO — falso negativo antes que falso positivo, la doctrina de la casa:
+ *   · puntuación de cierre [.!?…] (con comillas/paréntesis de cierre detrás), medida sobre el texto ENMASCARADO
+ *     (_maskFigures) para que el punto decimal de «$4.9M» jamás cuente como fin de oración (number-safe). Los
+ *     dos puntos NO cierran: «Por dónde arrancar: …($1.6M» es un muñón desde el encabezado — recortar hasta el
+ *     «:» dejaría el encabezado colgando de la nada (medido en el probe A2);
+ *   · una fila de tabla completa («| a | b |») — las tablas cierran sin puntuación;
+ *   · un ítem de lista («· x», «- x», «1. x») — ídem.
+ * Sin NINGUNA oración completa detrás (un texto que ES un muñón entero) no se recorta nada: dejarlo como está es
+ * mejor que dejar la respuesta vacía. Idempotente: un texto ya cerrado vuelve intacto byte a byte. */
+const _FIN_CERRADO_RE = /[.!?…]["»”')\]]*$/;
+const _FILA_TABLA_RE = /^\s*\|.*\|[ \t]*$/;
+const _ITEM_LISTA_RE = /^\s*(?:[-·•*]|\d{1,2}[.)])\s+\S/;
+export function recortarMunonDeOracion(text) {
+  const s = String(text || "");
+  if (!s.trim()) return s;
+  const sinCola = s.replace(/\s+$/, "");
+  const masked = _maskFigures(sinCola);
+  const lineas = sinCola.split(/\r?\n/);
+  const ultima = lineas[lineas.length - 1];
+  if (_FIN_CERRADO_RE.test(masked) || _FILA_TABLA_RE.test(ultima) || _ITEM_LISTA_RE.test(ultima)) return s;
+  // el final está abierto → buscar el último cierre real (sobre el enmascarado) o la última fila/ítem completos
+  let corte = -1;
+  const reCierre = /[.!?…]["»”')\]]*/g;
+  let m;
+  while ((m = reCierre.exec(masked)) !== null) corte = Math.max(corte, m.index + m[0].length);
+  const reFila = /^\s*\|.*\|[ \t]*$/gm;
+  while ((m = reFila.exec(sinCola)) !== null) corte = Math.max(corte, m.index + m[0].length);
+  if (corte <= 0) return s;   // un muñón entero: no hay oración completa a la cual recortar — se deja intacto
+  const recortado = sinCola.slice(0, corte).replace(/\s+$/, "");
+  return recortado.trim() ? recortado : s;
+}
 export function ensurePeriodoDeclared(narration, periodos) {
   const text = String(narration || "").trim();
   if (!Array.isArray(periodos) || !periodos.length || !text) return text;
   if (periodos.length > 1) {
     if (/dos marcos distintos/i.test(text)) return text;
-    return /\?\s*$/.test(text) ? `(${_CLAUSULA_MIXTA}) ${text}` : `${text} (${_CLAUSULA_MIXTA})`;
+    // hallazgo 2b del espejo: el envoltorio va tras recortar el muñón, jamás pegado a una oración sin cerrar
+    const base = recortarMunonDeOracion(text);
+    return /\?\s*$/.test(base) ? `(${_CLAUSULA_MIXTA}) ${base}` : `${base} (${_CLAUSULA_MIXTA})`;
   }
   const faltan = periodos.filter((fam) => !_periodoDeclarado(text, [fam]));
   if (!faltan.length) return text;
@@ -1246,7 +1290,10 @@ export function ensurePeriodoDeclared(narration, periodos) {
   // verificado por _oracle_provider_certification_gate) — agregar la cláusula AL FINAL le robaba a la última
   // oración su cierre de pregunta ("¿...ejemplo?" quedaba seguido de "(Datos del año cerrado.)", ya no terminaba
   // en "?"). Si el texto YA cierra con pregunta, la cláusula va AL PRINCIPIO — nunca después del cierre.
-  return /\?\s*$/.test(text) ? `(${clausulas}) ${text}` : `${text} (${clausulas})`;
+  // hallazgo 2b del espejo: y si el final quedó SIN cerrar (corte del proveedor), la cláusula va tras recortar
+  // el muñón hasta la última oración completa — nunca pegada al fragmento.
+  const base = recortarMunonDeOracion(text);
+  return /\?\s*$/.test(base) ? `(${clausulas}) ${base}` : `${base} (${clausulas})`;
 }
 
 // ── ORDEN SELLADO POR LA TOOL (requisito 4: "orden, dirección y ranking deben venir sellados por la tool") — a
