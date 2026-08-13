@@ -19,7 +19,13 @@ import {
   composeSpecComposicion, composeSpecClientCapital,
 } from "../specRetrieval.js";
 import { resolveGlossary } from "../sentrix/glossary.js";   // definiciones AUTORIZADas (antídoto al "inventa algo") · resuelve slug, etiqueta de pantalla y frase libre
-import { fig } from "../boleta.js";
+import { fig, parseFigures, parseNumeroLocalizado } from "../boleta.js";
+// LA CALCULADORA (AMPLITUD F2, owner 2026-08-13 · decisión D1: catálogo CERRADO ampliable, jamás fórmula libre):
+// la aritmética vive en calculoCatalogo.js (puro); acá solo se RESUELVEN los insumos por referencia contra el
+// dato del tenant y se empaqueta la boleta con la fórmula declarada. universoDe le pone a cada insumo su
+// universo (figureType, la única autoridad) para que el catálogo pueda declinar el cruce prohibido.
+import { ejecutarCalculo, OPERACIONES_CALCULO, formatearCanon } from "./calculoCatalogo.js";
+import { universoDe } from "../../config/contract/figureType.js";
 import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 import { resolveCanonical } from "./entityIndex.js";               // el nombre que el usuario escribió → el del dato   // la transpuesta de la matriz cliente×SKU (E4.t3)
 import { clientCapitalRelacion } from "../specRetrieval.js";      // ¿el cruce está OBSERVADO o es afinidad modelada? · una sola verdad                                    // cifra autorizada (para inyectar el benchmark en el perfil)
@@ -31,7 +37,7 @@ import { concentracion } from "../diagnosis/economicDiagnosis.js";              
 // TRANSFERIR ENTRE BODEGAS (decisión 13): la ÚNICA cuenta de "¿se puede evaluar mover stock?" — la misma que
 // consultan la cara Capital, el ring de bodega y la lectura ejecutiva. ADI la lee de acá, nunca la recalcula.
 import { transferenciaCapability } from "../sentrix/capability.js";
-import { applyScenarioToSkuInventario } from "../../engine/scenarios.js";            // las filas de inventario del escenario ACTIVO (las mismas que pinta la cara)
+import { applyScenarioToSkuInventario, deriveKpis } from "../../engine/scenarios.js";   // las filas de inventario del escenario ACTIVO (las mismas que pinta la cara) + los KPIs del negocio (los agregados de la Mesa — la calculadora los referencia, jamás los re-suma)
 import { SOURCES } from "../../config/contract/sourceManifest.js";                   // carga scenario-aware de clientesVentas/clientesMargen (posición en cartera)
 import { METRICS } from "../../config/contract/metricRegistry.js";                   // el vocabulario DECLARADO de ejes (decisión 8): la única lista, no se escribe una segunda
 // EL P&L (decisión 3): `composePnl` es el contrato sellado del resultado y `buildPnlCascade` la cuenta que lo
@@ -933,6 +939,143 @@ function pnlRead({ focus = "resultado", entity = null, dimension = null, scenari
   return { facts, boleta, coverage: { supported: true, figCount: boleta.length, nivel: facts.nivel_respondido } };
 }
 
+/* ── calcular · LA CALCULADORA DE CATÁLOGO CERRADO (AMPLITUD F2, owner 2026-08-13, decisión D1) ─────────────────
+ * «El LLM propone, el motor calcula, el muro sella»: el planificador pide una cuenta EXPLÍCITA por su nombre de
+ * catálogo, con los insumos POR REFERENCIA (entidad·métrica del dato, o cifra del usuario CON su procedencia —
+ * jamás números sueltos sin origen), y el motor la ejecuta con la fórmula declarada. La aritmética y las reglas
+ * duras (unidades verificadas · universos que no reconcilian · catálogo cerrado) viven en calculoCatalogo.js.
+ *
+ * SELLOS (los existentes de figureType, ningún sello nuevo):
+ *   · resultado derivado de datos del motor → source:"computed" → verificabilidad `derivada_no_reconciliada`
+ *     → sello INDICADO (el mismo camino que las figs "computed" de simulateGeneral/simulateCosto);
+ *   · con una cifra del usuario adentro → además `facts.conCifraDeUsuario`, que ensureHypothesisFraming
+ *     (narratePromptC.js) lee para garantizar el marco de escenario/hipótesis — el mismo marco que simulate*.
+ *
+ * DECLINA HONESTO (cada una con su razón): operación fuera del catálogo · insumo inexistente en el dato ·
+ * cifra del usuario sin procedencia · unidades incompatibles · cruce de los dos universos (nombrando la regla). */
+// métrica del PLAN → campo del registro crudo (los MISMOS tokens del catálogo de tools: ventas/margen/…)
+const _CALC_NORM = (x) => String(x == null ? "" : x).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+const _CALC_CAMPO = {
+  ventas: "venta", venta: "venta", margen: "margen", contribucion: "contribucion", costo: "costo",
+  acciones: "rebates", rebates: "rebates", rebate: "rebates", carga: "pctRebate", pctrebate: "pctRebate",
+  capital: "stockUSD", stockusd: "stockUSD", rotacion: "rotacion", doh: "doh", cobertura: "doh",
+  "dias de inventario": "doh", preciolista: "precioLista", "precio de lista": "precioLista",
+  costomedio: "costoMedio", "costo medio": "costoMedio", unidades: "unidades", benchmark: "benchmark",
+  anterior: "anterior", "ano anterior": "anterior", "venta anterior": "anterior", presupuesto: "presupuesto",
+};
+// unidad y escala de cada campo — espeja la F-table de entityRecord.js (k:true = almacenado en MILES de $).
+const _CALC_UNIT = {
+  venta: { u: "money", k: true }, contribucion: { u: "money", k: true }, costo: { u: "money", k: true },
+  rebates: { u: "money", k: true }, anterior: { u: "money", k: true }, presupuesto: { u: "money", k: true },
+  stockUSD: { u: "money" }, precioLista: { u: "money" }, costoMedio: { u: "money" },
+  margen: { u: "pct" }, pctRebate: { u: "pct" }, benchmark: { u: "pct" },
+  rotacion: { u: "ratio" }, doh: { u: "days" }, unidades: { u: "count" },
+};
+const _CALC_NEGOCIO = new Set(["negocio", "el negocio", "cartera", "la cartera", "total", "global"]);
+// la cifra LIBRE del usuario («25%», «$2M», «4 puntos de margen», «8,3%») — mismas normalizaciones acotadas que
+// cifrasDelUsuario (narrationContract): puntos→pp, millones/mil→M/K, $ implícito. Un número pelado queda "count"
+// (un factor de regla de tres). El PARSER es el de la boleta (parseFigures) — jamás un segundo.
+function _cifraLibre(texto) {
+  const t = String(texto || "").trim().replace(/puntos?\s+porcentuales?|puntos?\s+de\s+(?:margen|brecha|carga)|\bpuntos?\b/gi, "pp");
+  for (const v of [t, t.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K"), "$" + t.replace(/\s*millones?\b/i, "M").replace(/\s*mil\b/i, "K").replace(/^\$\s?/, "")]) {
+    const p = parseFigures(v);
+    if (p.length) return p[0];
+  }
+  const m = /-?\d+(?:[.,]\d+)?/.exec(t);
+  if (m) { const n = parseNumeroLocalizado(m[0]); if (Number.isFinite(n)) return { raw: n, unit: "count", text: m[0] }; }
+  return null;
+}
+// _resolverInsumoCalc(spec, scenario) → { ok, insumo:{raw,unit,universo,label,value,origen,procedencia?} } | { ok:false, razon }
+function _resolverInsumoCalc(spec, scenario) {
+  if (!spec || typeof spec !== "object") return { ok: false, razon: "cada insumo es una referencia: {entidad, metrica} del dato, o {usuario: \"la cifra con su origen\"}" };
+  // ── cifra del usuario, SIEMPRE con su procedencia (regla 1 del catálogo) ──
+  if (spec.usuario != null) {
+    const texto = String(spec.usuario).trim();
+    const f = _cifraLibre(texto);
+    if (!f) return { ok: false, razon: `no encuentro una cifra en «${texto}» — pasame el número con su unidad (%, $, pp)` };
+    const procedencia = texto.replace(f.text, " ").replace(/\s+/g, " ").trim();
+    if (procedencia.replace(/[^\p{L}\p{N}]/gu, "").length < 3) {
+      return { ok: false, razon: "una cifra tuya entra al cálculo solo con su procedencia — decime de dónde sale (una noticia, tu meta, un supuesto) y la uso como escenario" };
+    }
+    return { ok: true, insumo: { raw: f.raw, unit: f.unit, universo: null, label: `Cifra del usuario · ${f.text}`, value: formatearCanon(f.raw, f.unit), origen: "usuario", procedencia } };
+  }
+  // ── referencia al dato: entidad·métrica (o la métrica del negocio entero) ──
+  const campo = _CALC_CAMPO[_CALC_NORM(spec.metrica)];
+  if (!campo) return { ok: false, razon: `la métrica '${spec.metrica}' no está en el catálogo de referencias (${[...new Set(Object.values(_CALC_CAMPO))].slice(0, 8).join(", ")}…)` };
+  const meta = _CALC_UNIT[campo];
+  const entidad = spec.entidad != null ? String(spec.entidad).trim() : "";
+  if (!entidad || _CALC_NEGOCIO.has(_CALC_NORM(entidad))) {
+    // el negocio entero: deriveKpis — los MISMOS agregados de la Mesa, nunca una re-suma propia.
+    const k = deriveKpis(scenario);
+    const disp = { venta: { raw: k.ventas.totalActual * 1000, unit: "money" }, anterior: { raw: k.ventas.totalAnterior * 1000, unit: "money" }, presupuesto: { raw: k.ventas.totalPresupuesto * 1000, unit: "money" }, contribucion: { raw: k.margen.totalUSD * 1000, unit: "money" }, margen: { raw: k.margen.pct, unit: "pct" }, benchmark: { raw: k.margen.benchmark, unit: "pct" } };
+    const v = disp[campo];
+    if (!v || !Number.isFinite(v.raw)) return { ok: false, razon: `'${spec.metrica}' no está como agregado del negocio — nombrá la entidad, o pedila por su tool de lectura` };
+    const label = `Negocio · ${fieldLabel(campo) || campo}`;
+    return { ok: true, insumo: { raw: v.raw, unit: v.unit, universo: universoDe(label, v.unit), label, value: formatearCanon(v.raw, v.unit), origen: "motor" } };
+  }
+  let dim = spec.dimension || guessDimension(entidad) || "cliente";
+  let rec = rawRecordFor(dim, entidad, scenario);
+  if (!rec) { const g = guessDimension(entidad); if (g && g !== dim) { dim = g; rec = rawRecordFor(dim, entidad, scenario); } }
+  if (!rec) return { ok: false, razon: `no encuentro '${entidad}' en el dato` };
+  const crudo = campo === "benchmark" ? benchmarkOf(rec) : rec[campo];
+  if (typeof crudo !== "number" || !Number.isFinite(crudo)) return { ok: false, razon: `'${entidad}' no tiene '${spec.metrica}' en su registro — ese campo no existe en su eje` };
+  const raw = meta.k ? crudo * 1000 : crudo;
+  const label = `${rec.nombre || entidad} · ${fieldLabel(campo) || campo}`;
+  return { ok: true, insumo: { raw, unit: meta.u, universo: universoDe(label, meta.u), label, value: formatearCanon(raw, meta.u), origen: "motor" } };
+}
+const _CALC_ETIQ = { suma: "Suma", resta: "Diferencia", variacion: "Variación", participacion: "Participación", brecha: "Brecha", escalado: "Proyección", margen_actual: "Margen actual", contribucion_objetivo: "Contribución objetivo", contribucion_faltante: "Contribución faltante" };
+function calcular({ operacion, insumos, objetivo, scenario } = {}) {
+  const _no = (reason) => ({ facts: null, boleta: [], coverage: { supported: false, reason } });
+  const op = OPERACIONES_CALCULO[String(operacion || "").trim()];
+  if (!op) return _no(`'${operacion}' no está en el catálogo de cálculo — operaciones: ${Object.keys(OPERACIONES_CALCULO).join(", ")}. No ejecuto fórmulas libres.`);
+  // margen_objetivo azucarado: UN insumo {entidad} se expande a su venta + contribución (los dos montos que la
+  // cuenta necesita), y `objetivo` es el tercer insumo (la tasa — del usuario con procedencia, o el benchmark).
+  let specs = Array.isArray(insumos) ? [...insumos] : [];
+  if (operacion === "margen_objetivo") {
+    if (specs.length === 1 && specs[0] && specs[0].entidad != null && specs[0].metrica == null && specs[0].usuario == null) {
+      const e = specs[0].entidad;
+      specs = [{ entidad: e, metrica: "ventas" }, { entidad: e, metrica: "contribucion" }];
+    }
+    if (objetivo != null && specs.length < op.aridad) specs.push(objetivo);
+  }
+  if (specs.length > 4) return _no("máximo 4 insumos por cálculo — descomponé la cuenta en pasos");
+  const resueltos = [];
+  for (const s of specs) {
+    const r = _resolverInsumoCalc(s, scenario);
+    if (!r.ok) return _no(r.razon);
+    resueltos.push(r.insumo);
+  }
+  const res = ejecutarCalculo(operacion, resueltos);
+  if (!res.ok) return _no(res.razon);
+  const conCifraDeUsuario = resueltos.some((i) => i.origen === "usuario");
+  // el SUJETO del cálculo: la entidad que los insumos del motor comparten (o "Cálculo" si no hay una sola).
+  const entes = [...new Set(resueltos.filter((i) => i.origen === "motor").map((i) => String(i.label).split(" · ")[0]))];
+  const sujeto = entes.length === 1 ? entes[0] : "Cálculo";
+  const principal = res.resultados[res.resultados.length - 1];   // la última es la respuesta (faltante en margen_objetivo)
+  const boleta = [];
+  for (const i of resueltos) {
+    boleta.push(i.origen === "usuario"
+      ? fig(i.label, i.value, { unit: i.unit, raw: i.raw, sello: "indicado", verificabilidadRazon: `cifra aportada por el usuario (procedencia: ${i.procedencia}) — no es un dato del motor y no se puede verificar contra el dato`, context: `insumo del usuario para ${operacion}: «${i.procedencia}»` })
+      : fig(i.label, i.value, { unit: i.unit, raw: i.raw, source: "actual", context: `insumo de ${operacion}` }));
+  }
+  for (const r of res.resultados) {
+    boleta.push(fig(`${sujeto} · ${_CALC_ETIQ[r.clave] || r.clave}`, r.value, {
+      unit: r.unit, raw: r.raw, mandatory: r === principal, source: "computed", formula: r.formula,
+      context: conCifraDeUsuario ? `calculado por el motor sobre un supuesto del usuario (${operacion})` : `calculado por el motor (${operacion})`,
+    }));
+  }
+  const facts = {
+    es_calculo: true, operacion,
+    insumos: resueltos.map((i) => ({ label: i.label, value: i.value, origen: i.origen, ...(i.procedencia ? { procedencia: i.procedencia } : {}) })),
+    resultados: Object.fromEntries(res.resultados.map((r) => [r.clave, { value: r.value, formula: r.formula }])),
+    formula: principal.formula,
+    conCifraDeUsuario,
+    nota_formula: "la fórmula de cada resultado está declarada — si preguntan de dónde sale la cifra, citala tal cual",
+    ...(conCifraDeUsuario ? { marco_hipotesis: "una de las cifras la aportó el usuario: el resultado es un ESCENARIO sobre ese supuesto, no un dato medido — narralo como hipótesis, con la procedencia declarada" } : {}),
+  };
+  return { facts, boleta, coverage: { supported: true, figCount: boleta.length } };
+}
+
 // defineConcept · definición AUTORIZADA de un concepto del negocio (del glosario curado). Antídoto al "inventa algo":
 // la definición NO la improvisa el LLM, viene del dato. Devuelve texto (sin cifras). El narrador la dice en su voz
 // SIN cambiar el significado (ver narratePromptC). `concept` = el término o la frase del usuario.
@@ -1047,7 +1190,7 @@ export const TOOLS = {
   queryMetric, entityProfile, entityRecord, gridTable, tensionRead, compareEntities, diagnose, executiveSummary,
   inventoryStatus, marginRead, salesRead, contributionRead, trend,
   simulate, simulateCarga, simulateCapital, simulateCosto, simulateGeneral, defineConcept,
-  entityComposicion, entityCapitalLigado, clientesPorSku, pnlRead,
+  entityComposicion, entityCapitalLigado, clientesPorSku, pnlRead, calcular,
 };
 
 // toolNames() → los nombres registrados (base del catálogo que verá el LLM en la Pasada 1 · Fase 3).
