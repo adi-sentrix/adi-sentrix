@@ -161,18 +161,22 @@ export const SCOPE_FIELDS = ["dimension", "entities", "selection", "periodo", "f
 // compatible", NO "se conserva el resto". Con una lista de lo que muere, un campo nuevo del scope nacería
 // sobreviviendo a toda corrección sin que nadie lo decidiera; con una lista de lo que vive, nace invalidándose —
 // que es el default seguro. `camposQueSeInvalidan` deriva el complemento, nunca al revés.
-// `pregunta` es el texto de PRECISIÓN de último recurso para la corrección ambigua (§4): el mecanismo principal es
-// que el LLM redacte la suya con el contexto del turno (ver `pregunta` en el schema de PLAN) — esto es la red
-// determinística para cuando no la trae, y por eso nombra SOLO lo que de verdad pudo haber fallado.
+/* LA `pregunta` POR CAMPO SE FUE (La Poda Fase 2A, 2026-08-14). Cada fila traía además un texto de precisión de
+ * último recurso («¿de qué entidad estabas hablando?»…) para la corrección ambigua (§4). Nunca se leyó: la red
+ * determinística real de esa pregunta es `composePrecisionQuestion` (conversationScope.js:401), que redacta la
+ * suya con el contexto del turno y NO mira esta tabla. Verificado antes de borrar: cero lectores de
+ * `REPAIR_FIELDS[].pregunta` en todo el repo. Lo que sí vive de esta tabla es `conserva`, vía
+ * `camposQueSobreviven`. Ocho textos que nadie imprimía se leían como una segunda fuente de la misma pregunta —
+ * exactamente la «segunda verdad» que el resto del archivo evita. */
 export const REPAIR_FIELDS = [
-  { key: "entidad",   conserva: ["periodo", "metrica"],                                            pregunta: "¿de qué entidad estabas hablando?" },
-  { key: "metrica",   conserva: ["dimension", "entities", "periodo", "filtros", "supuestos"],      pregunta: "¿qué métrica querías?" },
-  { key: "periodo",   conserva: ["dimension", "entities", "metrica", "filtros", "tool"],           pregunta: "¿a qué período te referías?" },
-  { key: "alcance",   conserva: ["periodo", "metrica"],                                            pregunta: "¿lo querías del negocio completo o de una entidad puntual?" },
-  { key: "criterio",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "supuestos"], pregunta: "¿contra qué criterio querías compararlo?" },
-  { key: "intencion", conserva: ["dimension", "entities", "periodo", "filtros"],                   pregunta: "¿qué querías que resolviera con eso?" },
-  { key: "formato",   conserva: SCOPE_FIELDS,                                                      pregunta: "¿cómo preferís verlo?" },
-  { key: "supuesto",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "tool"], pregunta: "¿qué supuesto habría que cambiar?" },
+  { key: "entidad",   conserva: ["periodo", "metrica"] },
+  { key: "metrica",   conserva: ["dimension", "entities", "periodo", "filtros", "supuestos"] },
+  { key: "periodo",   conserva: ["dimension", "entities", "metrica", "filtros", "tool"] },
+  { key: "alcance",   conserva: ["periodo", "metrica"] },
+  { key: "criterio",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "supuestos"] },
+  { key: "intencion", conserva: ["dimension", "entities", "periodo", "filtros"] },
+  { key: "formato",   conserva: SCOPE_FIELDS },
+  { key: "supuesto",  conserva: ["dimension", "entities", "periodo", "filtros", "metrica", "tool"] },
 ];
 // LO SIEMPRE INCOMPATIBLE. Ninguna corrección real —ni una que no sepamos leer— deja en pie la oferta que colgaba
 // de la respuesta equivocada, la evidencia que la sostenía, ni el orden sellado con el criterio anterior. Es el
@@ -183,7 +187,8 @@ export const REPAIR_FIELDS = [
 export const REPAIR_SIEMPRE_INCOMPATIBLE = ["ofertaPendiente", "origen", "selection"];
 export const REPAIR_FIELD_KEYS = REPAIR_FIELDS.map((f) => f.key);
 const _repairByKey = new Map(REPAIR_FIELDS.map((f) => [f.key, f]));
-export function repairField(key) { return _repairByKey.get(key) || null; }
+// (La Poda Fase 2A: acá vivía `repairField(key)`, el accessor de una fila. Cero callers en todo el repo — el único
+// consumidor real de la tabla es `camposQueSobreviven`, que lee `_repairByKey` directo.)
 
 // camposQueSobreviven(corrige[]) → Set de campos del scope que siguen siendo compatibles.
 // INTERSECCIÓN, no unión: si el usuario corrigió la entidad Y el período, solo sobrevive lo que sobrevive a las

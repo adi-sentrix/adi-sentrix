@@ -7,7 +7,9 @@ import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path 
 // nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
 const root = process.cwd(); const entry = path.join(root, `_conversation_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_conversation_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
-  'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, composeCompareNotYet, updateMemoria, extractOffer } from "./src/adi/conversation.js";',
+  // (La Poda Fase 2A: `composeCompareNotYet` salía en esta lista y se destructuraba abajo, pero ninguna aserción
+  //  lo llamaba nunca — era un re-export huérfano del placeholder V1, ya borrado de conversation.js.)
+  'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, updateMemoria, extractOffer } from "./src/adi/conversation.js";',
   'export { coerceSpec } from "./src/adi/coerceChain.js";',
   'export { composeSpecSimulate } from "./src/adi/specRetrieval.js";',
   'export { guardAgainstBoleta } from "./src/adi/boleta.js";',
@@ -18,7 +20,7 @@ fs.writeFileSync(entry, [
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
-const { answerConversational: AC, resolveTurn, buildConversationContext: BCC, composeExplain, composeMeta, composeCompareNotYet, composeSpecSimulate, guardAgainstBoleta, updateMemoria: UM, coerceSpec: CS } = M;
+const { answerConversational: AC, resolveTurn, buildConversationContext: BCC, composeExplain, composeMeta, composeSpecSimulate, guardAgainstBoleta, updateMemoria: UM, coerceSpec: CS } = M;
 const { buildParseUserMessage: BPUM, buildNarrateSystem: BNS, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } = M;
 
 let pass = 0, fail = 0; const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };

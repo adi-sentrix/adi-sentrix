@@ -304,7 +304,7 @@ function entityProfile({ dimension, entity, scenario } = {}) {
 // "TABLA DE MARGEN: sumá SIEMPRE una columna Brecha" de narratePromptC.js dispara sobre esta tabla también) —
 // una resta de 2 cifras autorizadas que en teoría el guard permite, pero en la práctica guardC la rechazó
 // (cifra-no-autorizada) porque el benchmark autorizado no está atado a NINGUNA familia — el turno completo
-// degradaba a la tabla cruda de composeFromLedger. Autorizar solo la de la familia top no alcanzó: el narrador
+// degradaba a la tabla cruda de la reparación determinística. Autorizar solo la de la familia top no alcanzó: el narrador
 // arma la tabla de las 4 familias igual (la instrucción FORMATO es "siempre", no "si podés") — así que se
 // autorizan las 4, mismo patrón que entityProfile (arriba): el motor calcula la brecha, no el LLM.
 function entityComposicion({ dimension, entity, scenario } = {}) {

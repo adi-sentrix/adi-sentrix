@@ -781,7 +781,7 @@ const _WANTS_PERFIL_RE = /\b(perfil|avance|resumen)\b|\bestado\b/i;
 // registro; el alcance del contenido sólo persiste cuando algo habla del alcance ("desde ahora dame solo los
 // datos") o cuando el propio planificador lo declara. `persist` se conserva como salida derivada (persistScope ||
 // persistDetail) para que ningún lector externo cambie de significado.
-// _cifrasEnLinea(figs) → las MISMAS cifras autorizadas que compone la tabla de composeFromLedger, sin la tabla.
+// _cifrasEnLinea(figs) → las MISMAS cifras autorizadas que compone la tabla de componerPorForma, sin la tabla.
 // NO es un segundo compositor de la respuesta: no elige, no ordena, no resume y no agrega ni una palabra propia —
 // recorre la MISMA lista de figs, con el MISMO tope de 12, y escribe label y value VERBATIM. Por eso pasa guardC
 // por la misma razón que la tabla: cada cifra ya estaba autorizada por el ledger. Existe sólo para el turno de
@@ -796,8 +796,9 @@ function _cifrasEnLinea(figs) {
 /* ── UNA REDUCCIÓN DE FORMA NO FIJA EL ALCANCE (owner 2026-08-11) ────────────────────────────────────────────────
  * MEDIDO: «Ahora solo la conclusión, nada más» y «Resumilo en una frase, sin explicación» devolvían una TABLA de
  * doce filas. La cadena era: `_PREF_DATA_ONLY_RE` matchea por «nada más» / «sin explicación» → contentScope
- * data_only → la rama de garantía por construcción resuelve el turno ENTERO desde composeFromLedger, que es una
- * tabla. El usuario pidió MENOS respuesta y recibió la forma más larga que el motor sabe emitir.
+ * data_only → la rama de garantía por construcción resolvía el turno ENTERO desde el compositor de la boleta de
+ * entonces (composeFromLedger, ya podado), que era una tabla. El usuario pidió MENOS respuesta y recibió la forma
+ * más larga que el motor sabe emitir.
  *
  * LA FRONTERA, y es la misma que la doctrina de PLAN ya declara en responsePreference.js: el ALCANCE lo fija sólo
  * lo que el turno nombra EN POSITIVO como la cosa pedida («solo el dato», «solo las cifras», «solo la tabla»). Una
@@ -2390,14 +2391,15 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // de que "no puede pasar" sea LITERALMENTE cierta para estos dos alcances es no darle al narrador NINGUNA
   // oportunidad de escribir prosa libre, en NINGÚN caso: Pasada 2 NUNCA se invoca acá — cero superficie lingüística.
   // Se resuelve ACÁ, siempre, sin caer más abajo al loop de narrar (esa condición lo excluye explícitamente):
-  //   1. composeFromLedger — hay figs autorizadas → las compone en tabla.
+  //   1. componerPorForma — hay figs autorizadas → las compone en la forma pedida (una oración bajo data_only, la
+  //      tabla bajo results_only).
   //   2. composeNoDataMessage — la boleta vino vacía (tool declinó, o el turno no trajo datos) → antes esto cedía
   //      al narrador libre como última red (el residual 3: "bajo data_only o results_only, nunca debe volver al
   //      narrador libre"); ahora responde determinísticamente que no hay información autorizada suficiente,
   //      citando la razón REAL si algún tool ya la declaró, y cierra pidiendo la precisión que falta — nunca
   //      inventa, nunca se abstiene en silencio.
   // CONTRATO DE RESPUESTA · "SOLO EL DATO" = DATO + PERÍODO + ALCANCE, NADA MÁS (owner 2026-08-09). Los dos
-  // primeros ya estaban (composeFromLedger da el dato, ensurePeriodoDeclared el período); el ALCANCE faltaba, y sin
+  // primeros ya estaban (el compositor de la boleta da el dato, ensurePeriodoDeclared el período); el ALCANCE faltaba, y sin
   // él una tabla de cifras no dice sobre QUÉ universo está medida — que es justamente lo que hace que una cifra
   // pelada se pueda leer mal. Se compone del alcance YA sellado (sealScopeContract, la misma función que usa el
   // contrato de narración) y sin ningún número, así que no introduce ninguna cifra que el guard deba autorizar.
@@ -2411,7 +2413,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // esta rama componía antes de que el alcance existiera, así que la mejora no puede empeorar ningún turno.
   // EL ALCANCE ACOTA LOS TURNOS DE DATO, NO LOS DE DEFINICIÓN (owner 2026-08-11, cierre de D4). Esta rama tenía un
   // solo compositor y sabía componer CIFRAS: cuando la evidencia autorizada del turno era TEXTO (una definición del
-  // glosario, `boleta: []` con `supported: true`), la boleta venía vacía, composeFromLedger devolvía null y el
+  // glosario, `boleta: []` con `supported: true`), la boleta venía vacía, el compositor devolvía null y el
   // motor declaraba "no tengo información autorizada" teniendo el dato sellado en la mano. Se agrega el compositor
   // que faltaba, ANTES del mensaje de ausencia y DESPUÉS de la boleta (una cifra autorizada siempre manda sobre
   // una definición: si el turno trajo dato, el turno es de dato). La garantía por construcción queda intacta —
@@ -2910,7 +2912,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       ...(deterministic ? { deterministic: true } : {}),
       // marca de la reparación controlada (owner 2026-07-29, residual de contentScope): la Pasada 2 SÍ corrió (a
       // diferencia de `deterministic`) pero ninguno de los 3 intentos cumplió el formato de bloques o el guard —
-      // el texto final salió de composeFromLedger, no del narrador libre. Solo debug/telemetría.
+      // el texto final salió de componerPorForma, no del narrador libre. Solo debug/telemetría.
       ...(narrationRepaired ? { narrationRepaired: true } : {}),
       // `results` del ejecutor · SOLO debug/telemetría, nunca condiciona el motor (owner 2026-08-12). El replay
       // de la corrida corta llegó con los 13 turnos VACÍOS de resultados porque este objeto no los exponía, y dos

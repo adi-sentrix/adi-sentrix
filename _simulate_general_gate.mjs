@@ -197,13 +197,13 @@ console.log("\n  ▸ 3c · input completo + modelo de costo NO autorizado → de
   const PLAN_C = { intent: "answer", mode: "simulacion", calls: [{ tool: "simulateGeneral", args: { dimension: "cliente", entity: "Supermercados del Valle", variableA: { campo: "precioLista", delta_pct: 5 }, variableB: { campo: "unidades", delta_pct: -10 } } }] };
 
   // sub-caso: el narrador (mockeado) IGUAL escribe "conviene" — guardC debe bloquearlo los 3 intentos, reparar
-  // desde la boleta (composeFromLedger), y el texto FINAL nunca puede tener "conviene".
+  // desde la boleta (componerPorForma), y el texto FINAL nunca puede tener "conviene".
   let attemptsC1 = 0;
   const rC1 = await answerViaOracle({ text: "si subo el precio 5% a este cliente pero pierdo 10% de volumen, ¿me conviene?", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_C, callNarrate: async () => { attemptsC1++; return "Con ese supuesto de precio y volumen, esto no te conviene."; } });
   ok(attemptsC1 === 3, `3c: los 3 intentos del narrador se agotan (mockeado para violar SIEMPRE) — obtuvo ${attemptsC1}`);
   ok(rC1 && rC1.r, "3c: NUNCA se abstiene — repara componiendo desde la boleta (mismo patrón que el resto de C)");
   ok(rC1 && !/convien/i.test(rC1.r.text), `3c: el texto FINAL (reparado) NUNCA tiene 'conviene' — "${rC1 && rC1.r.text}"`);
-  ok(rC1 && rC1.r.narrationRepaired === true, "3c: telemetría honesta — la respuesta es composeFromLedger, no narración libre");
+  ok(rC1 && rC1.r.narrationRepaired === true, "3c: telemetría honesta — la respuesta se compuso desde la boleta, no es narración libre");
 
   // sub-caso: el narrador (mockeado) NO usa "conviene" — pasa limpio en el primer intento, sin reparar.
   let attemptsC2 = 0;

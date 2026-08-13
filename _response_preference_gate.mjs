@@ -36,7 +36,12 @@
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
-import { parseBlocks, renderFromBlocks, composeFromLedger, hasForbiddenContent, truncateToBriefBudget, BRIEF_WORD_CAP } from "./src/adi/oracle/narrationBlocks.js";
+// La Poda Fase 2A: `composeFromLedger` (borrado) → `componerPorForma`. Bajo `action_only` los dos emiten la MISMA
+// línea «La prioridad: label (value).» con el MISMO criterio de elección —entidad atribuida antes que subtotal, y
+// entre ésas la de mayor magnitud sellada en `raw`—, porque comparten las dos funciones que lo deciden
+// (`_isEntityAttributed` y `_bestByMagnitude`). Lo que cambia es que ahora se prueba el compositor que el motor
+// realmente ejecuta.
+import { parseBlocks, renderFromBlocks, componerPorForma, hasForbiddenContent, truncateToBriefBudget, BRIEF_WORD_CAP } from "./src/adi/oracle/narrationBlocks.js";
 import { applyMemoryUpdate } from "./src/adi/oracle/persona.js";
 import { handlePlan, handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
@@ -70,13 +75,13 @@ console.log("── 1 · DETERMINÍSTICO — _coercePref: el LLM manda, la red S
   let calledC = false;
   const rC = await answerViaOracle({ text: "¿y si bajo la carga al target? dame solo los resultados, sin recomendación", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_C, callNarrate: async () => { calledC = true; return SAFE_NARRATION; } });
   ok(!calledC, "1c: en simulación, 'sin recomendación' → results_only resuelve SIN invocar al narrador");
-  ok(rC && rC.r && rC.r.narrationRepaired === true, `1c: la respuesta salió de composeFromLedger — "${rC && rC.r && rC.r.text.slice(0, 80)}..."`);
+  ok(rC && rC.r && rC.r.narrationRepaired === true, `1c: la respuesta salió de la reparación determinística del motor — "${rC && rC.r && rC.r.text.slice(0, 80)}..."`);
 
   const PLAN_D = { intent: "answer", mode: "diagnostico", calls: [{ tool: "executiveSummary", args: {} }] };
   let calledD = false;
   const rD = await answerViaOracle({ text: "dame un resumen ejecutivo, sin análisis", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN_D, callNarrate: async () => { calledD = true; return SAFE_NARRATION; } });
   ok(!calledD, "1d: fuera de una simulación, 'sin análisis' → data_only resuelve SIN invocar al narrador");
-  ok(rD && rD.r && rD.r.narrationRepaired === true, `1d: la respuesta salió de composeFromLedger — "${rD && rD.r && rD.r.text.slice(0, 80)}..."`);
+  ok(rD && rD.r && rD.r.narrationRepaired === true, `1d: la respuesta salió de la reparación determinística del motor — "${rD && rD.r && rD.r.text.slice(0, 80)}..."`);
 }
 
 console.log("\n── 2 · DETERMINÍSTICO — preferencia de UN TURNO vs PERSISTENTE (requisito 5) ──");
@@ -150,7 +155,7 @@ console.log("\n── 5 · GARANTÍA POR CONSTRUCCIÓN — data_only/results_onl
   ok(rData && rData.r, "responde por C igual (compuesto desde la boleta)");
   if (rData) {
     ok(!/te recomiendo|renegoci/i.test(rData.r.text), `el texto final NO contiene la recomendación — estructuralmente IMPOSIBLE, no solo improbable — "${rData.r.text.slice(0, 100)}..."`);
-    ok(rData.r.narrationRepaired === true, "telemetría honesta: la respuesta es 100% composeFromLedger");
+    ok(rData.r.narrationRepaired === true, "telemetría honesta: la respuesta es 100% compuesta desde la boleta, sin narrador");
   }
 
   const PLAN_RES = { intent: "answer", mode: "simulacion", calls: [{ tool: "simulateCarga", args: {} }], pref: { contentScope: "results_only" } };
@@ -165,7 +170,7 @@ console.log("\n── 6 · GARANTÍA POR CONSTRUCCIÓN (3er residual) — boleta
   // owner: "bajo data_only o results_only, nunca debe volver al narrador libre. Si falta evidencia, responde
   // determinísticamente que no existe información autorizada suficiente o solicita el dato faltante." Antes de
   // este fix, ESTA era la única vía por la que data_only/results_only podían llegar a invocar al narrador
-  // (composeFromLedger sin figs → cedía como red). Ahora composeNoDataMessage cierra el hueco: nunca null.
+  // (el compositor de la boleta sin figs devolvía null → cedía como red). Ahora composeNoDataMessage cierra el hueco: nunca null.
 
   // caso A: turno degenerado (intent=ack, calls vacío — no se pidió ningún dato) → mensaje genérico honesto.
   const PLAN_EMPTY = { intent: "ack", mode: "diagnostico", calls: [], pref: { contentScope: "data_only" } };
@@ -232,7 +237,7 @@ console.log("\n── 8 · action_only — contenido LIMPIO pasa en el primer in
   if (r) ok(/renegoci[aá]/i.test(r.r.text), `"${r.r.text}"`);
 }
 
-console.log("\n── 9 · DETERMINÍSTICO (unit) — hasForbiddenContent + composeFromLedger(action_only) nunca elige un subtotal ──");
+console.log("\n── 9 · DETERMINÍSTICO (unit) — hasForbiddenContent + componerPorForma(action_only) nunca elige un subtotal ──");
 {
   ok(hasForbiddenContent("Renegociá con Falabella. Esto se debe a que tiene mucho poder de negociación.", "action_only"), "detecta causa colada ('esto se debe a')");
   ok(hasForbiddenContent("Renegociá con Falabella. ¿Querés que profundice?", "action_only"), "detecta pregunta de siguiente-paso colada");
@@ -244,7 +249,7 @@ console.log("\n── 9 · DETERMINÍSTICO (unit) — hasForbiddenContent + comp
     { label: "Contribución no capturada · Falabella", value: "$1.6M", raw: 1600000 },
     { label: "Ventas del período", value: "$100.0M", raw: 100000000 },
   ];
-  const composed = composeFromLedger(figs, "action_only");
+  const composed = componerPorForma({ figs, contentScope: "action_only" });
   ok(/Falabella/.test(composed) && !/subtotal/i.test(composed), `elige la entidad real de mayor magnitud, NUNCA el subtotal ni un KPI sin entidad — "${composed}"`);
 }
 

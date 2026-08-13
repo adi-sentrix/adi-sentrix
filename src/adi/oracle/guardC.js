@@ -980,7 +980,7 @@ function _repetitionVerbatim(narration, recentNarrations) {
 //   1. es un requisito de FORMA/orden conversacional, no de FIDELIDAD factual — la tabla sigue siendo 100% fiel a
 //      cifras_autorizadas, solo está mal UBICADA. Las 8 categorías que sí bloquean (`violations`, más abajo) son
 //      todas de fidelidad (cifra/conteo/entidad/orden-de-datos/total/simulación/placeholder) — nunca de forma.
-//   2. bloquear (violations) arriesgaría agotar los 3 intentos de NARRAR y caer a `composeFromLedger`
+//   2. bloquear (violations) arriesgaría agotar los 3 intentos de NARRAR y caer a `componerPorForma`
 //      (answerViaOracle.js, reparación de full scope) — una tabla de cifras SIN NINGUNA prosa ejecutiva, un
 //      resultado estrictamente PEOR para un turno de decisión que una respuesta completa aunque abra con tabla.
 //   3. ningún gate existente certifica hoy "una tabla nunca abre mode=decision" (confirmado por grep del repo:
@@ -1719,7 +1719,7 @@ export function _derivadaDeSupuesto(fig, supFigs, figsMotor) {
  *
  * ── SEGUNDA PASADA (2026-08-11, mismo día) · POR QUÉ ESTE BLOQUE SE REESCRIBIÓ ─────────────────────────────────
  * La primera versión BLOQUEABA RESPUESTAS CORRECTAS. Un revisor adversarial midió cuatro falsos positivos y un
- * interruptor global, y en este repo un `ok:false` quema los 3 intentos del narrador y cae a `composeFromLedger`
+ * interruptor global, y en este repo un `ok:false` quema los 3 intentos del narrador y cae a `componerPorForma`
  * (la tabla pelada): romper un turno que funcionaba es peor que no atrapar el que falla. Los cinco están cerrados
  * y cada corrección lleva su comentario donde vive. `_extremo_y_total_sin_falsos_positivos_gate.mjs` los fija, con
  * una batería de 20 respuestas CORRECTAS —seis métricas de la familia menos-es-mejor, cuatro de más-es-mejor,

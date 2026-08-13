@@ -8,7 +8,7 @@
  * que descartar). "Para que 'no puede pasar' sea literalmente cierta":
  *   - data_only / results_only: GARANTÍA POR CONSTRUCCIÓN, SIN EXCEPCIÓN. answerViaOracle.js NUNCA invoca al
  *     narrador libre para estos dos alcances — cero superficie lingüística, compone SIEMPRE desde la boleta
- *     (composeFromLedger), y si la boleta viene vacía, composeNoDataMessage() cierra el último escape que existía
+ *     (componerPorForma), y si la boleta viene vacía, composeNoDataMessage() cierra el último escape que existía
  *     (owner, 3er residual: "nunca debe volver al narrador libre — si falta evidencia, responde determinísticamente
  *     que no existe información autorizada suficiente"). No hay bloque que parsear ni contenido que validar porque
  *     no hay prosa libre en absoluto, en NINGÚN caso.
@@ -16,7 +16,7 @@
  *     composer determinístico no puede razonar el mecanismo). Doble candado: (1) el renderer de bloques descarta
  *     cualquier bloque que no sea [[ACCION]] (v2, sin cambios); (2) hasForbiddenContent() valida el CONTENIDO
  *     mismo del bloque permitido — si coló lenguaje de causa/interpretación o de siguiente-paso, el intento se
- *     descarta ENTERO (nunca se repara quirúrgicamente) y se reintenta; agotados los intentos, composeFromLedger.
+ *     descarta ENTERO (nunca se repara quirúrgicamente) y se reintenta; agotados los intentos, componerPorForma.
  */
 export const BLOCK_KEYS = ["datos", "interpretacion", "accion", "siguiente_paso"];
 
@@ -121,9 +121,19 @@ export function hasForbiddenContent(text, contentScope) {
   return false;   // data_only/results_only: sin narración libre, sin contenido que validar (garantía por construcción)
 }
 
-// ── composeFromLedger(figs, contentScope) ── SIN LLM, sin invención: arma la respuesta DIRECTO de las cifras ya
-// autorizadas. Para data_only/results_only, YA NO es una reparación de último recurso — es la ÚNICA vía (ver
-// answerViaOracle.js). Para action_only, sigue siendo la reparación tras 3 intentos fallidos.
+/* ── LAS PIEZAS DE LA COMPOSICIÓN SIN LLM ─────────────────────────────────────────────────────────────────────────
+ * SIN LLM, sin invención: la respuesta se arma DIRECTO de las cifras ya autorizadas. Para data_only/results_only no
+ * es una reparación de último recurso — es la ÚNICA vía (ver answerViaOracle.js). Para action_only es la reparación
+ * tras 3 intentos fallidos del narrador. Las cuatro funciones de acá abajo son las que ELIGEN qué cifra manda y qué
+ * marco la acompaña; quien las usa hoy es `componerPorForma`.
+ *
+ * LA PODA (Fase 2A, 2026-08-14): acá vivía además `composeFromLedger(figs, contentScope)`, el compositor viejo —una
+ * tabla de doce filas para todo lo que no fuera `action_only`—. `componerPorForma` lo reemplazó cuando la reparación
+ * pasó a respetar la forma pedida (owner 2026-08-12, punto 3) y desde entonces no le quedó ni un caller en producción:
+ * verificado en src/, api/, server.js, la UI y el camino legado, incluidos imports dinámicos y referencias por string.
+ * Sus criterios NO se fueron con él: la elección de la fila que manda (`_isEntityAttributed` + `_bestByMagnitude`) y
+ * la línea de supuesto (`_findSupuestoContext` + `_formatSupuestoLine`) siguen acá abajo, ejecutándose desde
+ * `componerPorForma` — que es donde el motor las llama de verdad. */
 const _NON_ENTITY_SUFFIX_RE = /^(subtotal|total)$/i;
 // _isEntityAttributed: el ÚLTIMO segmento del label (tras el separador "·") es un nombre real, no "subtotal"/
 // "total" — evita que la "prioridad" de action_only termine siendo un total agregado (bug real cazado en este
@@ -165,23 +175,6 @@ function _findSupuestoContext(list) {
 function _formatSupuestoLine(context) {
   const cleaned = context.replace(/^supuesto\s*:?\s*/i, "");
   return `Supuesto: ${cleaned}.`;
-}
-
-export function composeFromLedger(figs, contentScope) {
-  const list = Array.isArray(figs) ? figs.filter((f) => f && typeof f.label === "string" && f.value != null) : [];
-  if (!list.length) return null;
-  if (contentScope === "action_only") {
-    const entityFigs = list.filter(_isEntityAttributed);
-    const top = _bestByMagnitude(entityFigs.length ? entityFigs : list);
-    return `La prioridad: ${top.label} (${top.value}).`;
-  }
-  const rows = list.slice(0, 12).map((f) => `| ${f.label} | ${f.value} |`);
-  let table = `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
-  if (contentScope === "data_only" || contentScope === "results_only") {
-    const supuesto = _findSupuestoContext(list);
-    if (supuesto) table += `\n\n${_formatSupuestoLine(supuesto)}`;
-  }
-  return table;
 }
 
 // ── composeFromTextualEvidence(results) ── LA EVIDENCIA AUTORIZADA QUE NO ES UNA CIFRA (owner 2026-08-11) ───────
