@@ -10,6 +10,11 @@
  * narrar en silencio con una voz genérica ajena al contrato vigente — gatewayCore SIEMPRE lo provee.
  */
 
+// La ÚNICA importación del adapter, y no es de producto: distinguir "el proveedor contestó sin tool_call" de
+// "esto ni siquiera es una respuesta del proveedor" (owner 2026-08-13, ver respuestaProveedor.js — un interceptor
+// que devolvía {ok:true} mandó a revisar este archivo, que estaba sano). Módulo puro, sin red, sin estado.
+import { sobreAjeno, errorDeRespuesta } from "../respuestaProveedor.js";
+
 const BASE = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/chat/completions";
 // TIMEOUT (owner 2026-07-29, rendimiento/multiempresa): sin esto, un proveedor colgado bloqueaba el request
@@ -118,7 +123,7 @@ export const openaiAdapter = {
     if (reasoning) body.reasoning_effort = "none";   // requisito de la API para tool_choice forzado en esta familia
     const data = await _call(body);
     const call = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.tool_calls && data.choices[0].message.tool_calls[0];
-    if (!call) throw new Error("sin tool_call en la respuesta");
+    if (!call) throw errorDeRespuesta(data, { proveedor: "openai", esperado: "tool_call" });
     let spec;
     try { spec = JSON.parse(call.function.arguments); }
     catch (e) { throw new Error("JSON inválido del tool_call: " + e.message); }
@@ -142,6 +147,12 @@ export const openaiAdapter = {
     };
     body[reasoning ? "max_completion_tokens" : "max_tokens"] = reasoning ? 2048 : 1024;
     const data = await _call(body);
+    // NARRAR NO PUEDE FINGIR ÉXITO (owner 2026-08-13). Acá el `|| ""` era peor que el error de parse: un objeto
+    // ajeno —el {ok:true} del interceptor— salía como una narración VACÍA con ok:true, y el turno se registraba
+    // como una llamada feliz. Sólo se corta cuando el objeto NO es del proveedor (o trae un error en el cuerpo):
+    // un contenido vacío de una respuesta REAL sigue devolviendo "" exactamente como siempre — eso no cambia.
+    const ajeno = sobreAjeno(data, "openai");
+    if (ajeno) throw ajeno;
     const txt = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
     return { text: txt, usage: _usage(data.usage), model: data.model || null };   // modelo EFECTIVO · ver parse()
   },

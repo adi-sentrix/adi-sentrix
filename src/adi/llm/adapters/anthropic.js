@@ -11,6 +11,10 @@
  * en vez de narrar en silencio con una voz genérica ajena al contrato vigente — gatewayCore SIEMPRE lo provee.
  */
 
+// Única importación, y no es de producto · misma que openai.js: distinguir "contestó sin tool_use" de "esto ni
+// siquiera es una respuesta del proveedor" (owner 2026-08-13). Módulo puro, sin red, sin estado.
+import { sobreAjeno, errorDeRespuesta } from "../respuestaProveedor.js";
+
 const BASE = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
 const ENDPOINT = BASE + "/v1/messages";
 const VERSION = "2023-06-01";
@@ -106,7 +110,9 @@ export const anthropicAdapter = {
       messages: [{ role: "user", content: text }],
     });
     const tu = (data.content || []).find((b) => b.type === "tool_use");
-    if (!tu) throw new Error("sin tool_use en la respuesta");
+    // MISMO TRATO QUE openai.js (owner 2026-08-13): el agujero era idéntico acá — un objeto que no viene del
+    // proveedor se reportaba como "sin tool_use", o sea señalando al adaptador. Ver respuestaProveedor.js.
+    if (!tu) throw errorDeRespuesta(data, { proveedor: "anthropic", esperado: "tool_use" });
     // MODELO EFECTIVO (owner 2026-08-10, cierre de la certificación live): el que se PIDE y el que RESPONDE no son
     // la misma cadena — el proveedor resuelve el alias a una versión concreta, y para medir costo importa el que
     // respondió. Se devolvía solo el pedido, así que las 11 llamadas de la corrida quedaron con el modelo en "?".
@@ -123,6 +129,10 @@ export const anthropicAdapter = {
       system: _systemBlocks(system),
       messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
     });
+    // narrar tampoco puede fingir éxito con un objeto ajeno · ver el bloque equivalente en openai.js: un
+    // contenido vacío de una respuesta REAL sigue devolviendo "" igual que siempre.
+    const ajeno = sobreAjeno(data, "anthropic");
+    if (ajeno) throw ajeno;
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
     return { text: txt, usage: _usage(data.usage), model: data.model || null };   // modelo EFECTIVO · ver parse()
   },
