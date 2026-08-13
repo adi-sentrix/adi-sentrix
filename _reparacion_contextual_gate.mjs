@@ -75,7 +75,10 @@ const FIGS_MOTOR = [_fig("Lider · Venta", "$17.8M"), _fig("Lider · Margen", "2
  * 1 · EL CONTRATO ES DATO VERSIONADO (§8.12 — la mitad que se puede probar sin proveedor)
  * ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 section("1 · el contrato versionado");
-ok("la versión del contrato subió a 1.2.0", CONTRACT_VERSION === "adi-conversational-contract@1.2.0", CONTRACT_VERSION);
+// 1.2.0 → 1.3.0 (D1, owner 2026-08-13 · Paso 3 «ADI pierde el hilo»): la apertura de clarify cambió — re-enseñar
+// sin contrapregunta, repregunta solo multi-tema. Este chequeo fija el FORMATO del versionado (que el contrato
+// versione sus cambios), no congela un número: se actualiza con cada revisión deliberada del contrato.
+ok("la versión del contrato es la vigente (1.3.0 — D1 versionado)", CONTRACT_VERSION === "adi-conversational-contract@1.3.0", CONTRACT_VERSION);
 ok("NO se agregó ningún modo conversacional (§7: siguen siendo los 7)", MODE_KEYS.length === 7 && !MODE_KEYS.some((k) => ["confirm", "compare", "close", "reparacion"].includes(k)), MODE_KEYS.join(","));
 ok("las 3 clases de mensaje están declaradas", REPAIR_KINDS.length === 3 && ["correccion", "desacuerdo", "dato_usuario"].every((k) => REPAIR_KINDS.includes(k)));
 ok("§2 · los 8 campos corregibles del contrato están declarados",
@@ -410,7 +413,12 @@ section("12 · crecimiento del prompt, medido");
  * cada llamada. MISMO CRITERIO que las subas de PLAN_TOOL documentadas abajo: el presupuesto existe para que el
  * costo se DECIDA, no para impedir la mejora — y este costo COMPRA el descuento, no lo pierde. La garantía del
  * chequeo no cambia: NARRAR sigue sin crecer POR TURNO (la doctrina de reparación sigue condicional, medida abajo). */
-const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 39524 };
+/* 39524 → 40152 (D1, owner 2026-08-13 · Paso 3 «ADI pierde el hilo»): la doctrina clarify gana la apertura
+ * «re-enseñar sin contrapregunta» + el criterio multi-tema (+628 car · ~157 tokens, UNA vez). Cae ENTERA del
+ * lado FIJO del corte (el chequeo de abajo lo verifica), así que el caché del proveedor la descuenta en cada
+ * llamada — mismo criterio que la suba del Paso 0 documentada arriba: el costo se DECIDE, no se impide. La
+ * garantía de este bloque no cambia: NARRAR sigue sin crecer POR TURNO (la reparación sigue condicional). */
+const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 40152 };
 const tok = (n) => Math.round(n / 4);
 const planSystem = buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false).length;
 const planTool = JSON.stringify(PLAN_TOOL).length;
