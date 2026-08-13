@@ -2696,16 +2696,35 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
      * resolvió veinte líneas más arriba. El resultado medido: el usuario que pidió prosa recibía tabla, y el
      * renderer de más abajo se la PODABA después, dejando la respuesta en nada. `formaSalida` y `pref.contentScope`
      * ya están resueltos; se pasan, no se vuelven a deducir. */
-    const composed = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas }) || composeNoDataMessage(results);
-    let c = ensurePeriodoDeclared(composed, periodos);
-    // requisitos SIMULACIÓN/CLARIFY (ver narratePromptC.js): la reparación cae acá cuando el narrador libre agotó
-    // los 3 intentos — el turno sigue siendo mode=simulacion/clarify, así que la garantía tiene que valer IGUAL.
-    // Solo en full: action_only tiene su PROPIO contrato estricto (nunca prosa fuera del bloque [[ACCION]]) y estas
-    // oraciones de resguardo violarían eso — no se aplican ahí.
-    if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
-    c = ensureTransferenciaDeclarada(c, results, q);
-    c = ensureUmbralDeclarado(c, results);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; }
+    /* LA REPARACIÓN ES UNA ESCALERA, NO UN SOLO CANDIDATO (hallazgo 1 del espejo Anthropic 2026-08-13, E4
+     * «dime qué podemos hacer para llegar a ese 25%» → NULL TOTAL — el usuario no recibió NADA tras 4 llamadas).
+     * EL DIAGNÓSTICO, reproducido offline: con plan diagnose+marginRead la prosa AUTO ancla en «Medida · cerrar
+     * brecha al piso marca $4.9M (venta comercial, anual)» — el marco de universo mete la palabra «venta» en la
+     * MISMA oración que una cifra cuyo dueño es CONTRIBUCIÓN, y el chequeo `metrica-mal-atribuida` la cobra CON
+     * RAZÓN (la etiqueta del ancla no trae vocabulario de métrica, así que «venta comercial» queda como la única
+     * señal de la ventana). El compositor y el muro se contradecían POR CONSTRUCCIÓN: 3 intentos del narrador
+     * vetados + la única reparación vetada = null. La abstención silenciosa existía.
+     * LA ESCALERA: (1) la forma pedida, como siempre; (2) la TABLA — la MISMA boleta en la forma que no yuxtapone
+     * universo y cifra en una oración (las filas «| label | value |» llevan cada cifra pegada a su dueño) — solo
+     * bajo full y solo si el usuario no prohibió la tabla; (3) el mensaje honesto de ausencia. El muro juzga cada
+     * peldaño igual que siempre: esto agrega candidatos, no excepciones. */
+    const _candidatosReparacion = [
+      componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas }),
+      (pref.contentScope === "full" && formaSalida !== "tabla" && !_formaProhibidaPorElUsuario)
+        ? componerPorForma({ figs, contentScope: pref.contentScope, forma: "tabla", metricaLabels: metricaLabelsPreguntadas }) : null,
+      composeNoDataMessage(results),
+    ].filter(Boolean);
+    for (const composed of _candidatosReparacion) {
+      let c = ensurePeriodoDeclared(composed, periodos);
+      // requisitos SIMULACIÓN/CLARIFY (ver narratePromptC.js): la reparación cae acá cuando el narrador libre agotó
+      // los 3 intentos — el turno sigue siendo mode=simulacion/clarify, así que la garantía tiene que valer IGUAL.
+      // Solo en full: action_only tiene su PROPIO contrato estricto (nunca prosa fuera del bloque [[ACCION]]) y estas
+      // oraciones de resguardo violarían eso — no se aplican ahí.
+      if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
+      c = ensureTransferenciaDeclarada(c, results, q);
+      c = ensureUmbralDeclarado(c, results);
+      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
+    }
   }
   /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la
    * garantía de forma a propósito: si fuera antes, el recorte de `solo_conclusion` podría llevarse justamente la
@@ -2729,7 +2748,28 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       narration = conCobertura; narrationRepaired = true;
     }
   }
-  if (!narration) return null;   // ni narrar ni reparar desde la boleta autorizada funcionó → C se abstiene (fallback a la ruta vieja)
+  /* ── GARANTÍA ANTI-NULL (hallazgo 1 del espejo Anthropic 2026-08-13, E4) ─────────────────────────────────────
+   * Acá vivía `if (!narration) return null` — «C se abstiene, fallback a la ruta vieja». Ese contrato era del
+   * seam original (flag ADI_ORACLE_ENABLED, con la ruta legacy esperando detrás); en producción real el oráculo
+   * ES la ruta, y un null acá significa que el usuario no recibe NADA: medido en vivo en el espejo (E4, 4
+   * llamadas pagadas → «sin texto»). LA REGLA NUEVA: todo turno que llegó a tener plan y resultados TERMINA en un
+   * texto. Primero el mensaje honesto de ausencia verificado por el muro; si hasta eso fuera vetado (los
+   * envoltorios de período/transferencia son texto y podrían, en teoría, chocar con un chequeo), el último
+   * recurso ABSOLUTO es el genérico PELADO de composeNoDataMessage(null): cero cifras, cero entidades, cero
+   * razones interpoladas — no existe chequeo del muro que tenga algo que cobrarle a una oración sin números, y
+   * por eso es el ÚNICO texto que puede adoptarse sin veredicto. guardC queda intacto: no se relaja ningún
+   * chequeo — se garantiza que el silencio total no es un resultado posible. Fijado por gate
+   * (_garantia_anti_null_gate.mjs: matriz de planes×modos×alcances con TODOS los intentos del narrador vetados). */
+  if (!narration) {
+    const honesto = composeNoDataMessage(results);
+    const c = ensurePeriodoDeclared(honesto, periodos);
+    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+      narration = c;
+    } else {
+      narration = composeNoDataMessage(null);   // el genérico pelado — la misma frase canónica, nunca una copia
+    }
+    narrationRepaired = true;
+  }
 
   // ── OFERTA DE SEGUIMIENTO + REPETICIÓN (Fase 3) — lastOffer SIEMPRE recalculada desde CERO (nunca heredada, ver
   // dialogueState.js): esto es lo que hace que cambio de tema/rechazo/ejecución invaliden la oferta anterior SIN
