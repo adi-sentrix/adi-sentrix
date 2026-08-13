@@ -257,12 +257,29 @@ function _sujeto(list) {
 const _periodo = (list) => { for (const f of list) { const p = f.tipo && f.tipo.periodo; if (p) return p; } return null; };
 const _universo = (list) => { for (const f of list) { const u = f.tipo && (f.tipo.universoEtiqueta || f.tipo.universo); if (u) return u; } return null; };
 // UNA oración con la cifra, su entidad y su período — el contrato de `data_only` según el owner.
-function _oracionDeCifra(list) {
-  const f = _bestByMagnitude(_figsValidas(list).filter(_isEntityAttributed).length ? list.filter(_isEntityAttributed) : list);
+// `lider` (Paso 3b): la fig que ENCABEZA ya viene decidida por componerPorForma (métrica preguntada > magnitud);
+// sin lider, el criterio local de siempre — byte-idéntico al comportamiento previo.
+function _oracionDeCifra(list, lider = null) {
+  const f = lider || _bestByMagnitude(_figsValidas(list).filter(_isEntityAttributed).length ? list.filter(_isEntityAttributed) : list);
   const per = f.tipo && f.tipo.periodo;
   const uni = f.tipo && f.tipo.universoEtiqueta;
   const marco = [uni, per].filter(Boolean).join(", ");
   return `${f.label}: ${f.value}${marco ? ` (${marco})` : ""}.`;
+}
+/* ── LA MÉTRICA PREGUNTADA ENCABEZA (owner 2026-08-13, Paso 3b · hallazgo 2 de la certificación en vivo) ─────────
+ * MEDIDO: bajo solo-datos, «margen de Sodimac» respondió «Sodimac · Ventas: $8.2M» — el margen (23.5%) estaba en
+ * la boleta del turno y no encabezó, porque el único criterio era la magnitud mayor y $8.2M le gana a 23.5 en
+ * valor absoluto siempre. LA REGLA: si la pregunta nombra una métrica que está en la boleta, ESA encabeza; la
+ * magnitud mayor queda como criterio SOLO cuando la pregunta no nombra métrica (o la nombrada no está).
+ * `metricaLabels` llega del caller (answerViaOracle) YA resuelto con el léxico determinístico que existe — la
+ * tabla texto→token de tensión y fieldLabel token→etiqueta del registro de columnas — nunca un matcher nuevo acá.
+ * El matcheo contra la fig exige que la etiqueta pedida sea un SEGMENTO «·» completo del label («Sodimac · Margen»
+ * matchea «Margen»; «Benchmark de margen» NO — es un solo segmento y no es la métrica, es su referencia). */
+function _figsDeMetricaPedida(list, metricaLabels) {
+  const labels = (Array.isArray(metricaLabels) ? metricaLabels : []).filter((l) => typeof l === "string" && l.trim());
+  if (!labels.length) return [];
+  const canon = labels.map((l) => l.trim().toLowerCase());
+  return list.filter((f) => String(f.label || "").split("·").map((s) => s.trim().toLowerCase()).some((seg) => canon.includes(seg)));
 }
 // las MISMAS figs, sin tabla y sin una palabra propia — la base de toda forma no tabular.
 const _enLinea = (list, tope = 12) => list.slice(0, tope).map((f) => `${f.label}: ${f.value}`).join(" · ");
@@ -271,13 +288,17 @@ function _tabla(list) {
   return `| Concepto | Valor |\n|---|---|\n${rows.join("\n")}`;
 }
 
-export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
+export function componerPorForma({ figs, contentScope, forma = "auto", metricaLabels = [] } = {}) {
   const list = _figsValidas(figs);
   if (!list.length) return null;
   // la fila que manda: entidad atribuida si la hay, y entre ésas la de mayor magnitud SELLADA en `raw` — nunca un
-  // orden calculado acá.
+  // orden calculado acá. Paso 3b: si la pregunta NOMBRA una métrica presente (ver _figsDeMetricaPedida), esa fig
+  // encabeza; `topMagnitud` se conserva aparte porque la lectura mínima de la tabla («la fila de mayor magnitud»)
+  // sigue siendo un hecho de magnitud, no de qué se preguntó.
   const conEntidad = list.filter(_isEntityAttributed);
-  const top = _bestByMagnitude(conEntidad.length ? conEntidad : list);
+  const topMagnitud = _bestByMagnitude(conEntidad.length ? conEntidad : list);
+  const pedidas = _figsDeMetricaPedida(conEntidad.length ? conEntidad : list, metricaLabels);
+  const top = pedidas.length ? _bestByMagnitude(pedidas) : topMagnitud;
 
   // el alcance manda sobre la forma: `action_only` tiene su propio contrato estricto y no admite prosa suelta.
   if (contentScope === "action_only") return `La prioridad: ${top.label} (${top.value}).`;
@@ -304,12 +325,13 @@ export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
     const t = _tabla(list);
     if (contentScope !== "full") return conSupuesto(t);
     // LECTURA MÍNIMA, no interpretación: nombra la fila de mayor magnitud —un hecho de orden que el propio ledger
-    // ya selló en `raw`— y nada más. No dice por qué, porque el ledger no trae la causa.
-    return conSupuesto(`${t}\n\nLa fila de mayor magnitud es ${top.label}, con ${top.value}.`);
+    // ya selló en `raw`— y nada más. No dice por qué, porque el ledger no trae la causa. Siempre `topMagnitud`:
+    // la frase afirma magnitud, así que no puede señalar la fig de la métrica preguntada si no es la mayor.
+    return conSupuesto(`${t}\n\nLa fila de mayor magnitud es ${topMagnitud.label}, con ${topMagnitud.value}.`);
   }
 
   // `data_only` — el owner lo fijó explícito: cifra, entidad y período en UNA oración breve. Ni tabla ni análisis.
-  if (contentScope === "data_only") return conSupuesto(_oracionDeCifra(list));
+  if (contentScope === "data_only") return conSupuesto(_oracionDeCifra(list, top));
   // `results_only` es «sólo los resultados» de una SIMULACIÓN: el efecto del supuesto, sin el consejo. La tabla es
   // la forma correcta ahí —son varias filas de resultado— y el supuesto viaja pegado, nunca oculto.
   if (contentScope === "results_only") return conSupuesto(_tabla(list));
@@ -357,7 +379,11 @@ export function componerPorForma({ figs, contentScope, forma = "auto" } = {}) {
     const pq = resto.length
       ? `El resto de lo autorizado en este turno: ${_enLinea(resto, 6)}. El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.`
       : "El dato disponible no aísla la causa — para cerrarla falta evidencia que este turno no trae.";
-    const qh = `Por dónde partir: ${top.label}, que es la magnitud mayor de las autorizadas.`;
+    // Paso 3b: la justificación de la prioridad tiene que decir la verdad del criterio usado — si encabezó la
+    // métrica preguntada, «magnitud mayor» sería falso (medido: «explícame ese margen» cerró señalando Ventas).
+    const qh = pedidas.length
+      ? `Por dónde partir: ${top.label}, que es la métrica por la que preguntaste.`
+      : `Por dónde partir: ${top.label}, que es la magnitud mayor de las autorizadas.`;
     return conSupuesto([qp, pq, qh].join("\n\n"));
   }
 }
@@ -456,4 +482,19 @@ export function composeSoloDatosConfusionMessage(results) {
   const declined = list.some((r) => r && r.coverage && r.coverage.supported === false && typeof r.coverage.reason === "string" && r.coverage.reason.trim());
   if (declined) return null;
   return "Tienes activa la preferencia de recibir solo los datos, y una explicación queda fuera de ese formato. Si quieres que te lo explique, pídeme el análisis completo; si prefieres mantener la preferencia, dime qué dato o concepto puntual necesitas y lo busco.";
+}
+
+// ── composeAckPreferenciaMessage(contentScope) ── hallazgo 3 (owner 2026-08-13, Paso 3b) ────────────────────────
+// EL CASO MEDIDO EN VIVO (hilo C turno 1): «de ahora en adelante dame solo los datos, sin explicaciones» →
+// intent=ack, calls vacío, la preferencia SE ACTIVÓ bien… y la respuesta fue el genérico de composeNoDataMessage
+// («No tengo información autorizada suficiente…»). Un turno de PURA CONFIGURACIÓN no pidió ningún dato: declarar
+// una ausencia ahí es contestar una pregunta que nadie hizo. Se CONFIRMA lo configurado — mensaje determinístico
+// corto, MISMA familia que sus vecinas (texto fijo, cero narrador, cero cifras) — y la invitación de vuelta usa
+// adrede «análisis completo», la frase que _PREF_RESET_RE ya reconoce como reset: ejecutable, no decorativa.
+// SOLO lo llama la rama de solo-datos cuando el turno es ack de preferencia SIN pedido de dato (si además pidió
+// un dato, el dato manda — precedencia en answerViaOracle). Sin «desde ahora» en el texto: la persistencia es un
+// eje aparte (_PREF_PERSIST_RE) y prometerla acá sería afirmar más de lo que este turno declaró.
+export function composeAckPreferenciaMessage(contentScope) {
+  const cosa = contentScope === "results_only" ? "solo los resultados" : "solo los datos";
+  return `Listo: te entrego ${cosa}, sin análisis ni recomendaciones. Cuando quieras volver al formato habitual, pídeme el análisis completo; y si necesitas un dato ahora, dime cuál y lo busco.`;
 }
