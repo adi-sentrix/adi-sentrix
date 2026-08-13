@@ -16,9 +16,22 @@
  * módulo se aparta y deja pasar a PLAN sin tocar nada — nunca reemplaza el juicio del LLM en el caso ambiguo,
  * SOLO fuerza el camino correcto cuando es inequívoco (mismo principio que _hasCompleteSimulateVars/pendingSimulation).
  *
- * RECONOCE CUALQUIER MODO GRAMATICAL (imperativo/interrogativo/condicional/infinitivo) — la ÚNICA exclusión real
- * es el TIEMPO PASADO ("el precio subió 8%", "las ventas bajaron 3%"): eso es una LECTURA del dato ya ocurrido,
- * nunca un supuesto a simular — se excluye ANTES de mirar campo/entidad, sin excepción.
+ * RECONOCE CUALQUIER MODO GRAMATICAL (imperativo/interrogativo/condicional/infinitivo) — DOS exclusiones reales:
+ *   · TIEMPO PASADO ("el precio subió 8%", "las ventas bajaron 3%"): una LECTURA del dato ya ocurrido, nunca un
+ *     supuesto a simular — se excluye ANTES de mirar campo/entidad, sin excepción.
+ *   · PREGUNTA CAUSAL ("¿por qué caen las ventas 8%?"): un "por qué" pide la EXPLICACIÓN de algo observado, no la
+ *     proyección de un supuesto — se aparta a PLAN, que es quien sabe leer causas (owner 2026-08-14, al enseñar
+ *     «ventas»: el vocabulario nuevo aparece seguido en preguntas causales en presente, que el filtro de pasado
+ *     no alcanza; el mismo criterio protege también a "precio"/"volumen", que tenían la misma grieta menos expuesta).
+ *
+ * «VENTAS» CUENTA COMO VOLUMEN (owner 2026-08-14, defecto verificado en vivo: la guía de inicio ofrece «Si subo
+ * ventas 4%, ¿qué cambia?», el detector devolvía "none" y el turno quedaba a merced de PLAN, que no corrió la
+ * simulación). "Subir ventas un N%" se interpreta como volumen (campo `unidades`) a precios constantes — la MISMA
+ * lectura que _VOCAB_FALTANTE.unidades (answerViaOracle.js) ya hace desde 2026-08-11 cuando el usuario CONTESTA
+ * la variable faltante con «las ventas caen 3%»: este cambio alinea el turno FRESCO con esa interpretación ya
+ * establecida. La regla XOR sigue intacta (precio Y ventas en la misma frase → null, PLAN decide), con UNA
+ * precisión: «ventas» como RESULTADO PREGUNTADO ("¿qué pasa con las ventas si subo el precio 5%?") no nombra la
+ * variable volumen — nombra lo que se quiere ver — y no puede costarle a "precio" el piso que ya tenía.
  */
 import { clientesMargen as _CLIENTES, marcasMargen as _MARCAS, sfamiliasMargen as _FAMILIAS, skuInventario as _SKUS } from "../../data/demoData.js";
 import { onTenantChange } from "../../data/tenantStore.js";
@@ -74,7 +87,9 @@ export function extractKnownEntity(text) {
 // precio y BAJO el volumen") — dos palabras reales y distintas que coinciden en todo menos el acento. Estas
 // terminaciones -AR (bajar/aumentar/disminuir/incrementar) exigen el ACENTO explícito para contar como pasado;
 // "subir"/"caer" no tienen esa colisión (su presente 1a persona es "subo"/"caigo", no "subio"/"cayo").
-const _PAST_3RD_RE = /\b(?:subi[oó]|subieron|baj(?:ó|aron)|aument(?:ó|aron)|disminuy(?:ó|eron)|redujo|redujeron|increment(?:ó|aron)|creci[oó]|crecieron|cay[oó]|cayeron)(?![a-záéíóúñ])/i;
+// vendi[oó]/vendieron (owner 2026-08-14, al enseñar «ventas»): "se vendió 8% menos" es una lectura del pasado —
+// hueco preexistente ("se vendieron 8% menos unidades" ya disparaba por "unidades"), cerrado al ampliar el campo.
+const _PAST_3RD_RE = /\b(?:subi[oó]|subieron|baj(?:ó|aron)|aument(?:ó|aron)|disminuy(?:ó|eron)|redujo|redujeron|increment(?:ó|aron)|creci[oó]|crecieron|cay[oó]|cayeron|vendi(?:[oó]|eron))(?![a-záéíóúñ])/i;
 // 1a persona en "-í" (subí/bajé) es AMBIGUA con el imperativo vos ("¡Subí el precio!", común en Chile/Argentina)
 // — solo cuenta como pasado si hay un marcador temporal explícito cerca (si no, el default más seguro es tratarlo
 // como orden/futuro: negarse a simular cuando SÍ lo pedían es peor que el caso inverso, poco frecuente).
@@ -97,6 +112,20 @@ const _DOWN_WORDS_RE = /\bbaj\w*|\bca[ey]\w*|\bdisminu\w*|\breduc\w*|\breduzc\w*
 const _UP_WORDS_RE = /\bsub\w*|\baument\w*|\bcrec\w*|\bincrement\w*|\bmayor\b|\bgan\w*/i;
 const _PRECIO_WORD_RE = /\bprecio\b/i;
 const _VOLUMEN_WORD_RE = /\bvolumen\b|\bunidades\b/i;
+// ── «VENTAS» COMO VOLUMEN (owner 2026-08-14 — ver el bloque de cabecera) ──────────────────────────────────────
+// _VENTAS_WORD_RE: "venta(s)" + los stems de VENDER en forma hipotética/presente ("vendo 4% menos", "si vendiera
+// 10% más"). EXCLUIDOS a propósito: "vendedor" (un sujeto, no la variable) y las formas de PASADO de vender
+// (vendí/vendió/vendimos/vendiste/vendieron — una lectura de lo ocurrido, no un supuesto; la 3a persona además ya
+// cae en _PAST_3RD_RE). Lookaheads con [a-záéíóúñ] y nunca \b tras vocal acentuada — mismo motivo que el OJO 1 de
+// _PAST_3RD_RE: el \b de JS no ve límites junto a "í"/"ó".
+const _VENTAS_WORD_RE = /\bventas?\b|\bvend(?!edor)(?!i(?:[oó]|eron|mos|ste)(?![a-záéíóúñ]))(?![ií](?![a-záéíóúñ]))[a-záéíóúñ]*/i;
+// _VENTAS_OUTCOME_RE: «ventas» como RESULTADO PREGUNTADO ("¿qué pasa con las ventas si…?", "¿cómo quedan las
+// ventas si…?", "¿cuánto cambian las ventas si…?") — nombra lo que se quiere VER, no la variable que se mueve.
+// Se PODA del texto antes de buscar el campo, para que una simulación de precio que pregunta por sus ventas no
+// pierda el piso que ya tenía (la regla XOR la haría null). SOLO cabezas interrogativas DIRECCIONALMENTE NEUTRAS
+// (pasa/queda/cambia): "¿cuánto caen las ventas si subo el precio?" NO se poda a propósito — su verbo direccional
+// ("caen") contaminaría la resolución de signo del % del precio, así que ese caso queda ambiguo → null → PLAN.
+const _VENTAS_OUTCOME_RE = /(?:qu[eé]\s+pasa[a-záéíóúñ]*\s+con|c[oó]mo\s+queda[a-záéíóúñ]*|cu[aá]nto\s+cambia[a-záéíóúñ]*)\s+(?:las?\s+|mis?\s+|nuestras?\s+|tus?\s+)?ventas?(?![a-záéíóúñ])/gi;
 export const SIM_DELTA_MAX = 50;   // mismo rango operable que simulateGeneral (_SIM_DELTA_MAX, toolRegistry.js)
 
 // extractSignedPct(text) → {delta_pct} | null — un número con "%" con signo/dirección YA resuelta. Sin signo
@@ -111,6 +140,12 @@ export function extractSignedPct(text) {
   if (!/^-/.test(m[1].trim())) {
     if (_DOWN_WORDS_RE.test(t)) n = -Math.abs(n);
     else if (_UP_WORDS_RE.test(t)) n = Math.abs(n);
+    // «N% más» POSTFIJO Y CERRANDO LA CLÁUSULA ("vendo 4% más", "vendo 4% más, ¿qué cambia?") → dirección arriba
+    // inequívoca (owner 2026-08-14, al enseñar los stems de vender). DELIBERADAMENTE ESTRECHO: solo si tras "más"
+    // viene puntuación o el final — "4% más alto que el benchmark" o "4% más que el año pasado" son COMPARACIONES
+    // (una lectura contra una referencia, no un supuesto) y siguen siendo ambiguas para este módulo → null.
+    // "menos" no necesita espejo: ya es palabra direccional global (_DOWN_WORDS_RE).
+    else if (/%\s*m[aá]s\s*(?=$|[,.;:!?¿¡)])/.test(t)) n = Math.abs(n);
     else return null;
   }
   if (Math.abs(n) > SIM_DELTA_MAX) return null;
@@ -122,12 +157,20 @@ export function extractSignedPct(text) {
 // por PLAN normal) o NINGUNO, devuelve null a propósito: ese caso no es de este módulo, sigue de largo a PLAN.
 export function extractScenarioVariable(text) {
   const t = String(text || "");
-  const hasPrecio = _PRECIO_WORD_RE.test(t), hasVolumen = _VOLUMEN_WORD_RE.test(t);
-  if (hasPrecio === hasVolumen) return null;   // ninguno o ambos → ambiguo para este módulo, PLAN decide
+  const hasPrecio = _PRECIO_WORD_RE.test(t);
+  // «ventas» como resultado preguntado se PODA antes de buscar el campo (ver _VENTAS_OUTCOME_RE). El replace con
+  // /g no arrastra lastIndex (a diferencia de .test con /g) — por eso acá se poda, nunca se testea esa regex.
+  const tCampos = t.replace(_VENTAS_OUTCOME_RE, " ");
+  const hasVolumenPropio = _VOLUMEN_WORD_RE.test(t);
+  const hasVolumen = hasVolumenPropio || _VENTAS_WORD_RE.test(tCampos);
+  if (hasPrecio === hasVolumen) return null;   // ninguno o ambos (incl. "subo precio y ventas 4%") → ambiguo para este módulo, PLAN decide
   const campo = hasPrecio ? "precioLista" : "unidades";
-  if (ZERO_EXPLICIT_RE.test(t)) return { campo, delta_pct: 0 };
+  // via:"ventas" — el volumen entró SOLO por el vocabulario de ventas/vender: el que consuma esta variable debe
+  // DECLARAR la interpretación (volumen a precios constantes) en su respuesta — ver los arms de answerViaOracle.
+  const via = campo === "unidades" && !hasVolumenPropio ? { via: "ventas" } : null;
+  if (ZERO_EXPLICIT_RE.test(t)) return { campo, delta_pct: 0, ...(via || {}) };
   const pct = extractSignedPct(t);
-  return pct ? { campo, ...pct } : null;
+  return pct ? { campo, ...pct, ...(via || {}) } : null;
 }
 
 // detectScenarioIntent(text, scopeCurrent) → clasifica el turno para el bypass determinístico de
@@ -153,9 +196,15 @@ export function extractScenarioVariable(text) {
 //                            ya estableció 3 SKU puntuales): la(s) entidad(es) las pone el scope estructurado,
 //                            NUNCA el LLM ni una re-lectura de prosa — ver conversationScope.js para la garantía de
 //                            fidelidad (solo boleta, nunca narración).
+// PREGUNTA CAUSAL — "¿por qué caen las ventas 8%?" pide la EXPLICACIÓN de algo observado (presente o pasado), no
+// una proyección. El filtro de pasado no la alcanza cuando el verbo viene en presente; sin esto, enseñar «ventas»
+// convertía una pregunta causal común en un arranque de simulación. Devuelve "none" (no "historical"): el módulo
+// se aparta y PLAN corre normal — mismo principio conservador que el resto ("ante la ambigüedad, nunca intervenir").
+const _CAUSAL_QUESTION_RE = /\bpor\s+qu[eé](?![a-záéíóúñ])/i;
 export function detectScenarioIntent(text, scopeCurrent) {
   const t = String(text || "");
   if (isHistoricalMention(t)) return { kind: "historical" };
+  if (_CAUSAL_QUESTION_RE.test(t)) return { kind: "none" };
   const variable = extractScenarioVariable(t);
   if (!variable) return { kind: "none" };
   const known = extractKnownEntity(t);

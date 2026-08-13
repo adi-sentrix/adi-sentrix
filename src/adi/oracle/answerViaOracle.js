@@ -1167,6 +1167,16 @@ const _ABANDONA_PENDIENTE_RE = /\bolvid[aá](?:lo|te\s+de\s+eso|emos)?\b|\bolvid
 function _preguntaPorFaltante(missingCampo) {
   return missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
 }
+// _avisoVentasComoVolumen(variable) → el prefijo que DECLARA la interpretación cuando el campo volumen entró por
+// el vocabulario de «ventas»/vender (scenarioIntent.js marca `via:"ventas"`, owner 2026-08-14). El usuario dijo
+// "ventas" y el motor va a simular VOLUMEN (unidades) — decirlo en el primer turno le da la chance de corregir si
+// quería otra cosa, y deja el supuesto declarado ANTES de que exista una cifra que defender. Sin cifras y sin
+// entidades, como todo texto de bypass (guardC corre igual sobre el mensaje compuesto).
+function _avisoVentasComoVolumen(variable) {
+  return variable && variable.via === "ventas"
+    ? "Ese cambio en las ventas lo tomo como cambio de volumen (unidades vendidas), con el precio declarado aparte. "
+    : "";
+}
 // _recordatorioPendiente(pending) — la respuesta a una aceptación ("dale") cuando NO hay oferta que ejecutar pero
 // SÍ hay una simulación esperando un supuesto. Cierra el turno AUTOCONTRADICTORIO que la certificación cazó: ADI
 // destruía el pendiente y en el mismo acto contestaba "no tengo un contexto previo para saber a qué te referís",
@@ -1459,7 +1469,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (scenarioIntent.kind === "no_entity") {
       const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || ["cliente", "sku", "marca", "familia"].includes(s.dimension)));
       if (!recoverable) {
-        const out = _composedBypassResult("¿Sobre qué cliente, SKU, marca o familia querés simular este escenario?", mem, recentNarrationsPrev, scenario);
+        const out = _composedBypassResult(`${_avisoVentasComoVolumen(scenarioIntent.variable)}¿Sobre qué cliente, SKU, marca o familia querés simular este escenario?`, mem, recentNarrationsPrev, scenario);
         if (out) return out;
       }
     }
@@ -1474,9 +1484,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // arriba y este bloque entero está gateado por él.
     if (scenarioIntent.kind === "future") {
       const { entity, dimension, variable } = scenarioIntent;
-      const nuevo = { dimension: dimension || "cliente", entity, entities: [entity], known: variable, missingCampo: variable.campo === "precioLista" ? "unidades" : "precioLista" };
+      const nuevo = { dimension: dimension || "cliente", entity, entities: [entity], known: { campo: variable.campo, delta_pct: variable.delta_pct }, missingCampo: variable.campo === "precioLista" ? "unidades" : "precioLista" };
       const fusionado = (fusionEscenario && fusionEscenario.pending) || nacePendingSimulation(nuevo);
-      const out = _composedBypassResult(`${_preguntaPorFaltante(fusionado.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+      const out = _composedBypassResult(`${_avisoVentasComoVolumen(variable)}${_preguntaPorFaltante(fusionado.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
       if (out) {
         out.mem = { ...out.mem, pendingSimulation: fusionado };
         return out;
@@ -1490,9 +1500,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     // entidad: "preguntar SOLO por el supuesto realmente faltante", pedido explícito del owner).
     if (scenarioIntent.kind === "future_multi") {
       const { entities, dimension, variable } = scenarioIntent;
-      const nuevo = { dimension: dimension || "cliente", entity: entities[0], entities, known: variable, missingCampo: variable.campo === "precioLista" ? "unidades" : "precioLista" };
+      const nuevo = { dimension: dimension || "cliente", entity: entities[0], entities, known: { campo: variable.campo, delta_pct: variable.delta_pct }, missingCampo: variable.campo === "precioLista" ? "unidades" : "precioLista" };
       const fusionado = (fusionEscenario && fusionEscenario.pending) || nacePendingSimulation(nuevo);
-      const out = _composedBypassResult(`${_preguntaPorFaltante(fusionado.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+      const out = _composedBypassResult(`${_avisoVentasComoVolumen(variable)}${_preguntaPorFaltante(fusionado.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
       if (out) {
         out.mem = { ...out.mem, pendingSimulation: fusionado };
         return out;
