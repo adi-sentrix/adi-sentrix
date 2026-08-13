@@ -458,7 +458,13 @@ function _isHypothesisFramed(text) {
 const _SIM_TOOL_RE = /^simulate/i;
 export function ensureHypothesisFraming(text, mode, results) {
   const s = String(text || "");
-  const usedSim = mode === "simulacion" || (Array.isArray(results) && results.some((r) => r && _SIM_TOOL_RE.test(r.tool || "")));
+  // LA CALCULADORA CON CIFRA DEL USUARIO ES UNA HIPÓTESIS (AMPLITUD F2, owner 2026-08-13): un `calcular` cuyo
+  // insumo lo aportó el usuario («25%, dice una noticia») produce un ESCENARIO, no un dato medido — el MISMO
+  // marco que el contrato SIMULACIÓN ya exige. La tool lo declara estructurado (facts.conCifraDeUsuario) para
+  // que esta garantía no dependa de que el PLAN haya clasificado bien el mode. Sin cifra del usuario, un
+  // `calcular` sobre datos del motor NO dispara: la cuenta es del dato, no un supuesto.
+  const usedSim = mode === "simulacion"
+    || (Array.isArray(results) && results.some((r) => r && (_SIM_TOOL_RE.test(r.tool || "") || (r.tool === "calcular" && r.facts && r.facts.conCifraDeUsuario === true))));
   if (!usedSim || !s.trim() || _isHypothesisFramed(s)) return s;
   return `${s.trim()}\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.`;
 }
