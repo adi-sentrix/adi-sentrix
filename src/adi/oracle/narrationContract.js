@@ -68,6 +68,7 @@ import { ANSWER_SHAPES, buildAnswerShapeInstruction } from "./progressiveDisclos
 // REPARACIÓN CONTEXTUAL (Contrato v1.2, owner 2026-08-10): el vocabulario cerrado sale del contrato versionado y
 // los supuestos vivos del estado canónico — el contrato de narración no inventa ninguno de los dos.
 import { normalizeReparacion } from "./conversationalContract.js";
+import { aplicarPresupuestoHilo, NARRAR_HILO_PRESUPUESTO_CHARS } from "./hiloBudget.js";   // Paso 1 "ADI pierde el hilo" (2026-08-13): UNA política de presupuesto para los dos embudos, ver hiloBudget.js
 import { supuestosUsuarioVivos } from "./conversationScope.js";
 import { parseFigures } from "../boleta.js";   // el MISMO parser que produce el canon de la boleta — nunca un segundo
 // EL TIPO DE LA CIFRA (owner 2026-08-09, decisiones 1 y 2): el sello y las reglas de verificabilidad son las MISMAS
@@ -656,9 +657,15 @@ export function buildNarrationContract({
     ...(r.coverage && r.coverage.supported === false ? { motivo: r.coverage.reason } : {}),
     facts: r.facts || null,
   }));
+  // EL HILO CON PRESUPUESTO (owner 2026-08-13, Paso 1 "ADI pierde el hilo" — antes: `.slice(0,220)` por turno):
+  // de la respuesta larga del turno anterior sobrevivían 220 chars y el deíctico ("explícame eso") no tenía a qué
+  // referirse. La política vive en hiloBudget.js (UNA sola, compartida con buildPlanUserMessage): el último turno
+  // de ADI SIEMPRE entero, hacia atrás turnos completos mientras quepa NARRAR_HILO_PRESUPUESTO_CHARS, el que no
+  // cabe se resume a su primera oración + "…". El slice(-4) NO se toca. Prioridad invertida a text||gist — el
+  // gist era la adaptación al corte de 220 y quedaría reintroduciéndolo; sigue de fallback para turnos sin text.
   const h = Array.isArray(history) ? history.slice(-4) : [];
-  const hiloReciente = h
-    .map((m) => ({ quien: m.role === "user" ? "usuario" : "ADI", dijo: String(m.gist || m.text || "").slice(0, 220) }))
+  const hiloReciente = aplicarPresupuestoHilo(h, NARRAR_HILO_PRESUPUESTO_CHARS)
+    .map((m) => ({ quien: m.role === "user" ? "usuario" : "ADI", dijo: m.dijo }))
     .filter((m) => m.dijo);
   return _deepFreeze({
     version: 1,

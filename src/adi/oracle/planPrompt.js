@@ -6,6 +6,9 @@
  */
 import { MODE_KEYS, buildModeDoctrine, buildRepairPlanDoctrine, REPAIR_KINDS, REPAIR_FIELD_KEYS } from "./conversationalContract.js";
 import { DETAIL_LEVELS, CONTENT_SCOPES, buildPrefDoctrine } from "./responsePreference.js";
+// EL HILO CON PRESUPUESTO (owner 2026-08-13, Paso 1 "ADI pierde el hilo"): la política de qué turno viaja entero
+// y cuál se resume es UNA sola, compartida con narrationContract.js — vive en hiloBudget.js, no se duplica acá.
+import { aplicarPresupuestoHilo, PLAN_HILO_PRESUPUESTO_CHARS } from "./hiloBudget.js";
 
 // CATÁLOGO que ve el LLM · una línea por tool: qué responde + qué args. Colapsa el `focus` (arg, no regex).
 export const TOOL_CATALOG = `queryMetric{metric,dimension,filters?,limit?} — ranking/lista de una métrica por un eje ENTERO (con filtro opcional de OTRO eje). métricas: ventas, margen, contribucion, costo, acciones, carga, capital, rotacion, doh. "acciones" = el MONTO $ de rebates/descuentos concedidos (la cifra que el KPI de la cara Comercial muestra como "Acciones comerciales"); "carga" = ese MISMO monto expresado como % de la venta — son la misma realidad en dos unidades, pedí "acciones" si preguntan por el $ y "carga" si preguntan por el %. Con dimension:"cliente", ventas/contribucion/acciones traen además LA CIFRA DE CABECERA del negocio (la venta total, la contribución total, el total de acciones comerciales): es la tool para "¿de dónde sale ese KPI?" — devuelve el total Y las filas que lo componen, con la fuente declarada. ejes(dimension): cliente, marca, familia, sku, bodega, canal — no todos los ejes sirven para toda métrica (acciones: cliente/sku · carga: cliente/sku/marca/familia · capital/rotacion/doh: sku/bodega); si pedís uno que no está declarado la tool DECLINA honesto y eso es lo correcto, no reintentes con otro eje. Ej: "ventas por cliente" → {metric:"ventas",dimension:"cliente"}. NUNCA la uses para UNA entidad puntual ya nombrada (ej. "unidades vendidas de X", "el margen de Y") aunque suene a "una métrica" — eso es entityRecord/entityProfile con esa entidad; queryMetric es solo para listar/rankear el eje completo, no trae la fila de una sola entidad.
@@ -218,11 +221,14 @@ ${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 }
 
 // buildPlanUserMessage(history, text) → el mensaje de usuario para la Pasada 1 (hilo reciente + turno actual).
-// TOPE POR TURNO (owner 2026-08-03, Fase 1 eficiencia de Mini): antes esto SOLO acotaba por CANTIDAD (slice(-8)),
-// sin tope de longitud por turno — a diferencia de narratePromptC.js/buildNarrateUserMessageC, que YA aplica
-// `.slice(0,220)` además del slice por cantidad (un turno verboso, o una narración larga de ADI en el hilo, podía
-// inflar el prompt de PLAN sin límite). MISMO mecanismo ya probado de NARRAR, copiado byte a byte — el slice(-8) NO
-// se toca (la ventana de turnos ya es correcta), solo se acota la LONGITUD de cada turno dentro de esa ventana.
+// PRESUPUESTO EN VEZ DE TIJERA (owner 2026-08-13, Paso 1 "ADI pierde el hilo" — antes: `.slice(0,220)` por turno,
+// el corte del "tope por turno" de 2026-08-03): de una respuesta real de ADI de 1.191 chars con la tabla de 8
+// clientes sobrevivían 220 — el 81,5% se descartaba y el seguimiento deíctico ("explícame eso") no tenía a qué
+// referirse. La política nueva vive en hiloBudget.js (UNA sola, compartida con el hiloReciente de NARRAR): el
+// último turno de ADI viaja SIEMPRE entero, hacia atrás entran turnos completos mientras quepa el presupuesto
+// (PLAN_HILO_PRESUPUESTO_CHARS), y el que no cabe se resume a su primera oración + "…" — nunca un corte a mitad
+// de cifra. El slice(-8) NO se toca (la ventana por cantidad es decisión del owner). La prioridad de campo se
+// invierte a text||gist — ver la nota de cabecera de hiloBudget.js.
 // CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix) — `vistaLinea` es UNA SOLA LÍNEA
 // de ≤240 caracteres, SIN cifras, producida por viewContext.js:projectViewContextForPlan a partir del ViewContext
 // sellado. Es TODO lo que el LLM ve de la pantalla: nunca viajan filas, series, tablas, la salida del builder ni el
@@ -232,7 +238,8 @@ ${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 // tiene que ser lo que el usuario acaba de escribir, que es lo que manda (ver la doctrina "CONTEXTO DE PANTALLA").
 export function buildPlanUserMessage(history, text, vistaLinea = null) {
   const h = Array.isArray(history) ? history.slice(-8) : [];
-  const hist = h.map((m) => `${m.role === "user" ? "Usuario" : "ADI"}: ${String(m.gist || m.text || "").slice(0, 220)}`).join("\n");
+  const hist = aplicarPresupuestoHilo(h, PLAN_HILO_PRESUPUESTO_CHARS)
+    .map((m) => `${m.role === "user" ? "Usuario" : "ADI"}: ${m.dijo}`).join("\n");
   const vista = typeof vistaLinea === "string" && vistaLinea.trim() ? `${vistaLinea.trim()}\n\n` : "";
   return `${hist ? `Hilo reciente:\n${hist}\n\n` : ""}${vista}Turno actual del usuario: «${text}»`;
 }
