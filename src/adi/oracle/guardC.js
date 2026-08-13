@@ -1280,7 +1280,7 @@ function _sealedOrderBroken(narration, sealedOrders) {
 
 // ── EL GUARD ────────────────────────────────────────────────────────────────────────────────────────────────────
 // guardC(narration, { ledger, results, trace }) → { ok, verdict, violations[] }
-// verdict: "fiel" | "cifra-no-autorizada" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
+// verdict: "fiel" | "cifra-no-autorizada" | "cifra-de-dato-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
 // CÁLCULO SOBRE EL DATO (owner 2026-07-28 "que calcule, como Claude con el Excel"): una cifra que es la SUMA o la
 // RESTA de dos cifras AUTORIZADAS (mismos operandos reales del motor) NO es invento — es el LLM calculando sobre el
 // dato (ej. brecha de margen = benchmark − margen, "juntos explican $X+$Y"). Se autoriza. Operandos reales → seguro.
@@ -2394,7 +2394,53 @@ function _alcancePromovido(narration, ledger) {
   return out;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null } = {}) {
+/* ── LA QUINTA FUENTE · LAS CIFRAS DE LA PROYECCIÓN DEL DATO, CON DUEÑO POR CERCANÍA (AMPLITUD F1, 2026-08-13) ──
+ * El narrador ahora ve EL DATO COMPLETO del negocio en su system (datoProyectado.js). Esas cifras son todas
+ * REALES —mismo origen que las tools— así que citar una no es inventar. PERO esta fuente lleva una condición que
+ * las otras cuatro no tienen, porque el riesgo ya se midió (la mis-atribución del $1.6M en la cert viva #2): la
+ * cifra solo vale CON SU DUEÑO en la MISMA oración. «Lider vendió $17.9M» pasa; «Falabella vendió $17.9M» (la
+ * cifra es de Lider) se veta; «las ventas alcanzan $17.9M» (sin dueño a la vista) también — con un kind PROPIO
+ * («cifra-de-dato-sin-dueno») para que el reintento sepa exactamente qué corregir: nombrar al dueño, no cambiar
+ * la cifra. Los dueños son tokens declarados por la proyección (la entidad de la fila; «negocio/total/cartera»
+ * para un agregado; «benchmark/referencia/piso» para la vara) — nunca una adivinanza de este guard.
+ * ADITIVA POR CONSTRUCCIÓN: solo se consulta cuando las cuatro fuentes de siempre YA rechazaron la cifra, así
+ * que ninguna narración que hoy pasa puede empezar a fallar; una que hoy caía como `cifra-no-autorizada` ahora
+ * puede pasar (dueño presente) o caer con el veredicto más preciso. Los chequeos 3-25 NI SE TOCAN: siguen
+ * juzgando solo las figs del turno. Default null → byte-idéntico a hoy. */
+function _indiceDelDato(datoProyectado) {
+  if (!datoProyectado || !Array.isArray(datoProyectado.figs) || !datoProyectado.figs.length) return null;
+  const porCanon = new Map();      // canon → Set(dueño display)
+  const porVerbatim = new Map();   // value sin espacios → Set(dueño display)
+  for (const f of datoProyectado.figs) {
+    if (!f || !f.canon) continue;
+    const duenos = Array.isArray(f.duenos) ? f.duenos.filter(Boolean) : [];
+    if (!duenos.length) continue;
+    if (!porCanon.has(f.canon)) porCanon.set(f.canon, new Set());
+    for (const d of duenos) porCanon.get(f.canon).add(d);
+    const v = _stripSpace(String(f.value == null ? "" : f.value));
+    if (v) { if (!porVerbatim.has(v)) porVerbatim.set(v, new Set()); for (const d of duenos) porVerbatim.get(v).add(d); }
+  }
+  return { porCanon, porVerbatim };
+}
+// ¿algún dueño del set aparece en la MISMA oración que la cifra? Ventana acotada a la oración (el MISMO
+// _localWindow de los chequeos de dueño, sobre el texto ENMASCARADO para que un decimal no corte en falso).
+function _duenoEnVentana(text, masked, fig, duenos) {
+  let idx = -1;
+  while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
+    const [lo] = _localWindow(masked, idx, 90);
+    const end = idx + fig.text.length;
+    const hi0 = Math.min(masked.length, end + 90);
+    const cut = masked.slice(end, hi0).search(_SENT_END);
+    const ventana = _norm(text.slice(lo, cut >= 0 ? end + cut : hi0));
+    for (const d of duenos) {
+      const dn = _norm(d);
+      if (dn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) return true;
+    }
+  }
+  return false;
+}
+
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null } = {}) {
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -2428,12 +2474,24 @@ export function guardC(narration, { ledger, results = [], trace = null, question
 
   // 1 · cifras CON unidad no autorizadas (mandatory-LITE) — se acepta la CITA directa (canon/verbatim), el ECO de la
   //     pregunta, un CÁLCULO nivel-1 (suma/resta de DOS figs autorizadas), o nivel-2 SCOPEADO a las entidades nombradas.
+  //     QUINTA FUENTE (AMPLITUD F1): si las cuatro de siempre rechazan, la cifra puede validarse contra la
+  //     proyección del dato — SOLO con su dueño en la misma oración (ver _indiceDelDato arriba). Aditiva: se
+  //     consulta al final, nunca cambia el veredicto de una cifra que ya pasaba.
+  const _dato = _indiceDelDato(datoProyectado);
+  const _maskedNarr = _dato ? _maskFigures(narration) : null;
   for (const f of parseFigures(narration)) {
     // `_derivadaDeSupuesto` cierra el caso del tercer universo: una cifra que sale de combinar el supuesto del
     // usuario con el dato del motor NO es inventada — es legítima y su problema es OTRO (cómo se presenta), que
     // juzga el chequeo 21. Rechazarla acá la bloquearía con el veredicto equivocado y el reintento buscaría
     // corregir algo que no estaba mal.
-    if (!authCanon.has(f.canon) && !authVerbatim.has(_stripSpace(f.text)) && !_isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities) && !_isCalc2(f.raw, f.unit, figs, mentionedEntities) && !_derivadaDeSupuesto(f, supFigs, figs)) violations.push({ kind: "cifra-no-autorizada", detail: f.text });
+    if (authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || _isCalc(f.raw, f.unit, figs, entityNames, mentionedEntities) || _isCalc2(f.raw, f.unit, figs, mentionedEntities) || _derivadaDeSupuesto(f, supFigs, figs)) continue;
+    const _duenos = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
+    if (_duenos && _duenos.size) {
+      if (_duenoEnVentana(narration, _maskedNarr, f, _duenos)) continue;   // cifra REAL del dato, con su dueño al lado
+      violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en la misma oración — nombralo al lado de la cifra, no la cambies` });
+      continue;
+    }
+    violations.push({ kind: "cifra-no-autorizada", detail: f.text });
   }
   // 2 · conteos sin signo no autorizados (+ los que el usuario nombró en la pregunta)
   const authCounts = _authorizedCounts(ledger, results);
@@ -2441,6 +2499,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // cuarta fuente, mitad de conteos (Paso 1b): un «8 clientes» que ADI ya mostró el turno anterior se puede
   // re-citar al explicarlo — mismos candados del caller que las figs, mismo estatus que el eco de la pregunta.
   if (boletaAnterior && Array.isArray(boletaAnterior.counts)) for (const c of boletaAnterior.counts) if (Number.isFinite(c)) authCounts.add(c);
+  // quinta fuente, mitad de conteos (AMPLITUD F1): los conteos DECLARADOS de la proyección («13 clientes»,
+  // «5 marcas» — el largo de cada universo proyectado). Sin condición de dueño: un conteo viaja pegado a su
+  // sustantivo («13 clientes») y la proyección solo declara los largos reales de sus secciones.
+  if (datoProyectado && Array.isArray(datoProyectado.counts)) for (const c of datoProyectado.counts) if (Number.isFinite(c)) authCounts.add(c);
   for (const c of parseCounts(narration)) {
     if (!authCounts.has(c.raw)) violations.push({ kind: "conteo-no-autorizado", detail: c.text });
   }
