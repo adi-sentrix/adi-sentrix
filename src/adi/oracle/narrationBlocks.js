@@ -31,7 +31,13 @@ export const KEEP_BLOCKS = {
 export const MANDATORY_BLOCK = { full: null, data_only: "datos", results_only: "datos", action_only: "accion" };
 
 const _MARK_RE = /\[\[(DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO)\]\]/g;
-const _MARK_STRIP_RE = /\[\[(?:DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO)\]\]\s*/g;
+// `CONTEXTO_GENERAL` va en el STRIP pero NO en `_MARK_RE` (ver el bloque grande al final del archivo): no es una
+// categoría del reparto de `contentScope` —esas cuatro PARTICIONAN la respuesta y KEEP_BLOCKS las poda—, es un
+// INSET dentro de la prosa. Meterlo en `_MARK_RE` le agregaría una quinta clave a `parseBlocks`, que consumen
+// `extractOffer` (dialogueState) y ~20 gates: eso es reestructurar el sistema de bloques, no agregarle un tipo.
+// En el strip SÍ, y es la red de último recurso: ninguna marca llega jamás al usuario, la haya rendereado alguien
+// o no (bajo data_only/results_only/action_only el renderer del bloque NO corre, y acá muere la marca).
+const _MARK_STRIP_RE = /\[\[(?:DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO|CONTEXTO_GENERAL)\]\]\s*/g;
 
 // stripAllMarks(text) → saca CUALQUIER marca [[...]] del texto VISIBLE (owner 2026-07-31, hallazgo en vivo,
 // certificación integral pre-#57): bajo contentScope="full" el narrador NUNCA recibe instruccion_formato (esa
@@ -497,4 +503,100 @@ export function composeSoloDatosConfusionMessage(results) {
 export function composeAckPreferenciaMessage(contentScope) {
   const cosa = contentScope === "results_only" ? "solo los resultados" : "solo los datos";
   return `Listo: te entrego ${cosa}, sin análisis ni recomendaciones. Cuando quieras volver al formato habitual, pídeme el análisis completo; y si necesitas un dato ahora, dime cuál y lo busco.`;
+}
+
+/* ── EL BLOQUE [[CONTEXTO_GENERAL]] · EL CONTRATO DE CONTEXTO GENERAL (owner 2026-08-13, D2 · AMPLITUD F3) ═══════
+ * EL PRINCIPIO, y es lo que hace que esto sea seguro: el conocimiento general del modelo es LO ÚNICO que el notario
+ * no puede verificar POR CONTENIDO — no existe boleta contra la cual contrastar «en la industria el margen suele
+ * moverse entre 18% y 25%». Así que el muro verifica EL CONTENEDOR. El contexto general vive en un bloque propio,
+ * con un marco fijo que pone ESTE renderer; dentro del bloque las cifras no autorizadas se toleran (es su función),
+ * pero el bloque carga tres prohibiciones que sí son verificables (guardC, chequeo 26): ninguna entidad del cliente
+ * adentro, ninguna cifra de su dato adentro, y AFUERA nada cambia — el chequeo 1 de siempre, sin una sola excepción.
+ * Por eso «¿cuánto vendió Falabella según la industria?» no tiene camino: nombrarla adentro se veta, y sacar la
+ * cifra afuera la devuelve al muro de siempre.
+ *
+ * EL MARCO LO PONE EL MOTOR, NUNCA EL MODELO. Si el marco fuera algo que el narrador escribe, sería algo que el
+ * narrador puede desfigurar («como contexto general aproximado…») y el usuario perdería la única señal que
+ * distingue lo verificado de lo que no lo es. Acá se BORRA cualquier copia literal que el modelo haya escrito y se
+ * inserta el marco exactamente una vez, propio. Misma doctrina que ensurePeriodoDeclared/ensureHypothesisFraming:
+ * una garantía que depende de la obediencia del LLM no es una garantía.
+ *
+ * DÓNDE VA: después de la lectura del dato y de la acción, ANTES de la pregunta de cierre — el contexto ilustra
+ * una respuesta que ya está completa, no la abre ni la reemplaza. Si el último párrafo es una pregunta (la oferta
+ * de seguimiento), el bloque se inserta antes; si no, cierra el texto (y las garantías que corren después —período,
+ * cierre de clarify— se suman detrás, como siempre).
+ *
+ * UNO SOLO POR RESPUESTA: el segundo y siguientes se DESCARTAN ENTEROS (marca + contenido), no se desmarcan. Dejar
+ * el contenido sin marca lo convertiría en prosa normal con cifras no autorizadas adentro — el muro lo vetaría y el
+ * turno se perdería. Descartarlo es la dirección segura y es lo que el contrato dice literalmente.
+ *
+ * QUIÉN LO LLAMA: SOLO la rama de narración libre bajo contentScope="full" (answerViaOracle). data_only/
+ * results_only NUNCA invocan al narrador —garantía por construcción, ver la cabecera de este archivo—, así que este
+ * renderer no corre ahí; y si un texto determinístico trajera la marca por eco (la razón de una tool que cita
+ * palabras del usuario), muere en stripAllMarks sin haberse convertido nunca en un bloque con marco. */
+export const MARCA_CONTEXTO_GENERAL = "[[CONTEXTO_GENERAL]]";
+// EL TEXTO EXACTO, y es contrato: registro formal LatAm, dice las dos cosas que el usuario necesita saber (no sale
+// de su dato · no se puede verificar con su información) y termina en dos puntos porque lo que sigue es el aporte.
+export const MARCO_CONTEXTO_GENERAL = "Como contexto general — esto no viene de tu dato y no puedo verificarlo con tu información:";
+const _CUALQUIER_MARCA_RE = /\[\[[A-Z_]+\]\]/g;
+
+// _finDelBloque(s, desde) → dónde termina el bloque que arranca en `desde`: en la próxima marca de CUALQUIER tipo,
+// en el próximo corte de párrafo, o al final del texto — lo que llegue primero. Un aporte de contexto general es
+// UN párrafo por doctrina; si el modelo escribió dos, el segundo queda como prosa normal y lo juzga el muro entero
+// (dirección segura: el bloque nunca se estira sobre texto que no declaró ser contexto general).
+function _finDelBloque(s, desde) {
+  _CUALQUIER_MARCA_RE.lastIndex = desde;
+  const m = _CUALQUIER_MARCA_RE.exec(s);
+  _CUALQUIER_MARCA_RE.lastIndex = 0;
+  const porMarca = m ? m.index : -1;
+  const porParrafo = s.indexOf("\n\n", desde);
+  const cands = [porMarca, porParrafo].filter((i) => i >= 0);
+  return cands.length ? Math.min(...cands) : s.length;
+}
+const _sinMarco = (s) => s.split(MARCO_CONTEXTO_GENERAL).join("").replace(/[ \t]{2,}/g, " ");
+const _limpiar = (s) => s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
+
+export function renderContextoGeneral(text) {
+  const s0 = String(text == null ? "" : text);
+  const tieneMarca = s0.includes(MARCA_CONTEXTO_GENERAL);
+  // sin marca no hay bloque; el marco suelto que el modelo haya escrito igual se borra (no puede quedar en pantalla
+  // una señal de «esto no lo puedo verificar» sobre texto que sí está verificado — sería mentir al revés).
+  if (!tieneMarca) return s0.includes(MARCO_CONTEXTO_GENERAL) ? _limpiar(_sinMarco(s0)) : s0;
+  const s = _sinMarco(s0);
+  // los tramos a extraer, en orden de aparición: el PRIMERO aporta el contenido, los demás se descartan.
+  const tramos = [];
+  let desde = 0, i;
+  while ((i = s.indexOf(MARCA_CONTEXTO_GENERAL, desde)) >= 0) {
+    const fin = _finDelBloque(s, i + MARCA_CONTEXTO_GENERAL.length);
+    tramos.push([i, fin]);
+    desde = fin;
+  }
+  const contenido = tramos.length
+    ? s.slice(tramos[0][0] + MARCA_CONTEXTO_GENERAL.length, tramos[0][1]).replace(/\s+/g, " ").trim()
+    : "";
+  // el cuerpo, sin ninguno de los tramos (de atrás hacia adelante, para no correr los índices de los anteriores).
+  let cuerpo = s;
+  for (let k = tramos.length - 1; k >= 0; k--) cuerpo = cuerpo.slice(0, tramos[k][0]) + cuerpo.slice(tramos[k][1]);
+  cuerpo = _limpiar(cuerpo);
+  if (!contenido) return cuerpo;   // marca vacía: se saca y no se inventa un bloque sin nada adentro
+  const bloque = `${MARCO_CONTEXTO_GENERAL} ${contenido}`;
+  const parrafos = cuerpo.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  if (!parrafos.length) return bloque;
+  // ANTES DE LA PREGUNTA DE CIERRE: si el último párrafo pregunta, el bloque se mete delante; si no, cierra.
+  const ultimo = parrafos[parrafos.length - 1];
+  if (/\?\s*$/.test(ultimo)) parrafos.splice(parrafos.length - 1, 0, bloque);
+  else parrafos.push(bloque);
+  return parrafos.join("\n\n");
+}
+
+// rangoContextoGeneral(text) → [ini, fin) del bloque YA RENDEREADO, o null. Lo consume guardC para enmascararlo
+// antes de sus chequeos de contenido y para juzgar el bloque por separado. Ancla en el MARCO (que solo pone el
+// renderer, ver arriba) y corre hasta el corte de párrafo: el bloque es un párrafo, por construcción del renderer.
+// Si por lo que fuera hubiera dos marcos, solo el PRIMERO queda exento — dirección segura, nunca al revés.
+export function rangoContextoGeneral(text) {
+  const s = String(text == null ? "" : text);
+  const i = s.indexOf(MARCO_CONTEXTO_GENERAL);
+  if (i < 0) return null;
+  const corte = s.indexOf("\n\n", i);
+  return [i, corte >= 0 ? corte : s.length];
 }
