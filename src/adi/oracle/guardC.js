@@ -15,6 +15,9 @@ import { reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";   
 // módulo puro que ejecuta la tool `calcular`, así el muro y la calculadora no pueden tolerar distinto. Solo se
 // consulta cuando _isCalc/_isCalc2/_derivadaDeSupuesto ya fallaron: extensión ADITIVA del chequeo 1.
 import { esCalculoDelCatalogo } from "./calculoCatalogo.js";
+// AMPLITUD F3 (owner 2026-08-13, D2): EL CONTRATO DE CONTEXTO GENERAL. El rango del bloque lo declara el MISMO
+// módulo que lo renderea — el muro y el renderer no pueden discrepar sobre dónde empieza y termina el contenedor.
+import { rangoContextoGeneral } from "./narrationBlocks.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -2444,7 +2447,42 @@ function _duenoEnVentana(text, masked, fig, duenos) {
   return false;
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null } = {}) {
+/* ── EL CONTENEDOR DEL CONTEXTO GENERAL (AMPLITUD F3, owner 2026-08-13, D2) ────────────────────────────────────
+ * El conocimiento general del modelo es LO ÚNICO que este muro no puede verificar POR CONTENIDO: no hay boleta
+ * contra la cual contrastar «en la industria el margen suele moverse entre 18% y 25%». La salida del contrato es
+ * verificar EL CONTENEDOR — el aporte general vive en un bloque con marco fijo (narrationBlocks.js), y ahí adentro
+ * las cifras no autorizadas se toleran, que es su función. A cambio, el bloque carga tres prohibiciones DURAS que
+ * sí son verificables, y las tres se cobran abajo (chequeo 26 + este enmascarado).
+ *
+ * POR QUÉ ENMASCARAR Y NO ABRIR UNA EXCEPCIÓN EN CADA CHEQUEO: el patrón ya existe en este archivo (_maskFigures
+ * reemplaza cada cifra por "#" de la MISMA longitud para que los límites de oración no se corran). Acá se aplica
+ * al bloque entero: los 25 chequeos siguen recibiendo el mismo argumento, con el mismo código, y simplemente no
+ * ven el contenedor. Reestructurar el chequeo 1 —el punto de freno del encargo— habría significado tocar la vía
+ * que valida TODAS las cifras del producto para atender un caso que ocurre en una minoría de turnos.
+ * Se enmascara para TODOS los chequeos, no solo el 1, y es deliberado: los 25 juzgan afirmaciones sobre el dato
+ * del cliente, y el bloque —por las prohibiciones (b) y (c) de abajo— NO PUEDE hablar del dato del cliente. Un
+ * chequeo de atribución, de binding de métrica o de período corriendo sobre prosa de industria solo puede producir
+ * falsos positivos sobre texto que por construcción no habla de nadie del negocio.
+ * Los saltos de línea se conservan (solo se enmascaran los caracteres visibles): las ventanas de oración/párrafo
+ * de los chequeos de dueño siguen cortando donde cortaban, así que el bloque no puede prestarle contexto —ni
+ * quitárselo— a una cifra de afuera.
+ *
+ * SOLO BAJO contentScope="full": data_only/results_only NUNCA invocan al narrador (garantía por construcción) y
+ * componen texto determinístico — un texto que puede citar la razón de una tool, y esas razones citan palabras del
+ * usuario (Paso 2). Sin esta condición, escribir «[[CONTEXTO_GENERAL]]» en la pregunta sería una forma de comprarse
+ * la exención. action_only tampoco: su renderer conserva SOLO el bloque [[ACCION]], así que un bloque general no
+ * sobrevive ahí y su texto queda bajo el muro entero, como cualquier prosa. */
+function _enmascararRango(texto, [ini, fin]) {
+  const dentro = texto.slice(ini, fin).replace(/[^\n]/g, "#");   // misma longitud · los \n se conservan
+  return texto.slice(0, ini) + dentro + texto.slice(fin);
+}
+
+export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null } = {}) {
+  // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
+  // el chequeo 26 lo juzgue por sus propias reglas. Sin bloque, `narration` no se toca: byte-idéntico a hoy.
+  const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
+  const _textoCG = _rangoCG ? String(narration).slice(_rangoCG[0], _rangoCG[1]) : null;
+  if (_rangoCG) narration = _enmascararRango(String(narration), _rangoCG);
   const figs = ledger && Array.isArray(ledger.figs) ? ledger.figs : [];
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
@@ -2661,6 +2699,38 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // formateador. Este muro era la red de seguridad encima, y una red que atrapa respuestas correctas no se pone.
   // La funcion queda para retomarla con una caracterizacion mejor; hoy no se invoca.
   for (const v of _contradiceLaReferencia(narration, ledger)) violations.push({ kind: "relacion-contradictoria", detail: v });
+  /* 26 · EL CONTENEDOR DEL CONTEXTO GENERAL (AMPLITUD F3) — las dos prohibiciones que hacen que la exención de
+   * arriba sea segura. Se cobran SOBRE EL TEXTO CRUDO DEL BLOQUE, que es lo único que este chequeo mira:
+   *   (b) NINGUNA ENTIDAD DEL CLIENTE. Es el anti-contrabando: «¿cuánto vendió Falabella según la industria?» no
+   *       puede tener camino. Nombrarla adentro se veta acá; sacar la cifra afuera la devuelve al chequeo 1.
+   *   (c) NINGUNA CIFRA DEL DATO DEL CLIENTE. Lavar una cifra del negocio como «conocimiento general» —o devolverle
+   *       al usuario su propia cifra con la autoridad de la industria, que es el caso canónico del gerente— también
+   *       queda cerrado. Se juzga por CANON exacto contra las MISMAS fuentes que autoriza el chequeo 1, más la
+   *       proyección del dato: un rango genérico («entre 20% y 30%») no colisiona salvo que el número caiga
+   *       exactamente sobre una cifra del turno, y en ese caso el bloque tiene que decirlo de otra forma.
+   * Los DOS son bloqueos, no avisos: la exención de arriba se paga con estas dos condiciones, y una condición que
+   * no bloquea no es una condición. Sin bloque (el 99% de los turnos) esto no corre. */
+  if (_textoCG) {
+    // el catálogo REAL del tenant (lo inyecta el caller) UNIDO a las entidades de las tools de este turno — nunca
+    // una lista de nombres escrita a mano. Sin catálogo inyectado el chequeo NO se apaga: cae a las del turno.
+    const _delBloque = new Set();
+    const _cgNorm = _norm(_textoCG);
+    for (const n of [...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []), ...entityNames]) {
+      const nn = _norm(n);
+      if (!nn || nn.length < 3 || _delBloque.has(nn)) continue;
+      _delBloque.add(nn);
+      if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(_cgNorm)) {
+        violations.push({ kind: "contexto-general-con-entidad", detail: `el bloque de contexto general nombra «${n}», que es una entidad de la cartera del cliente — el contexto general habla del mundo, jamás de sus entidades; sacá el nombre del bloque o dejá el dato de esa entidad AFUERA, con su cifra autorizada` });
+      }
+    }
+    const _canonDelDato = _dato ? _dato.porCanon : null;
+    for (const f of parseFigures(_textoCG)) {
+      const esDelCliente = authCanon.has(f.canon) || authVerbatim.has(_stripSpace(f.text)) || (_canonDelDato && _canonDelDato.has(f.canon));
+      if (esDelCliente) {
+        violations.push({ kind: "contexto-general-con-cifra-del-cliente", detail: `el bloque de contexto general escribe «${f.text}», que es una cifra del dato de este cliente (o del turno) — el contexto general no puede presentar una cifra suya como conocimiento de la industria; dejala AFUERA del bloque y dentro poné un rango propio` });
+      }
+    }
+  }
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
