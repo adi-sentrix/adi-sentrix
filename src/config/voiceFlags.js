@@ -307,6 +307,16 @@ export const ADI_CLAIMS_ONLY_ENABLED = P("ADI_CLAIMS_ONLY_ENABLED");
 // criterio que ADI_CLAIMS_ONLY_ENABLED: cambiar de dónde sale la respuesta no se declara cerrado sin esa medición.
 export const ADI_BYPASS_SIN_PAGO = P("ADI_BYPASS_SIN_PAGO");
 
+// ── CAMINO NATURAL COMO PRINCIPAL · detrás de flag · ON en demo/prod/dev (owner 2026-08-14, autorizado) ──
+// TRUE = en ChatADI el turno libre va por el camino natural (un solo cerebro + notario + ciclo de reparación —
+// ver caminoNatural.js): el flujo de la constitución, medido en `_corrida_doble.mjs` (28 turnos, 3 corridas).
+// Si el camino natural LANZA (gateway caído, error), el turno CAE al oráculo actual en el mismo turno — el
+// usuario nunca ve el error (red de resiliencia, condición 2 del owner).
+// FALSE = byte-idéntico a hoy: el turno va por answerViaOracle como siempre; el camino actual NO se tocó y sigue
+// entero. Apagarlo es UNA línea: sacar "ADI_CAMINO_NATURAL" de FEATURE en flagProfile.js.
+// El P&L guiado (detectPnlIntent) y «por qué esa cifra» (responderPorQueCifra) corren ANTES y no son de este flag.
+export const ADI_CAMINO_NATURAL = P("ADI_CAMINO_NATURAL");
+
 // ── CONTRATO v2 · GRADUACIÓN EPISTÉMICA VISIBLE detrás de flag · default FALSE (owner 2026-08-07) ──
 // SEPARA DOS COSAS QUE NO SON LO MISMO:
 //   · EL SELLO (estructural, SIEMPRE activo, no depende de este flag): cada claim lleva su `estatus`

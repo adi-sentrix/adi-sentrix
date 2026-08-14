@@ -18,7 +18,8 @@ import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el 
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
-import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado)
+import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
+import { answerViaNatural } from "../adi/oracle/caminoNatural.js";   // el camino natural: cerebro único + notario + ciclo de reparación (flag ADI_CAMINO_NATURAL)
 import { puedeResponderSinPagar } from "../adi/bypassConfianza.js";   // ¿el piso entiende esta pregunta lo bastante bien como para NO pagar? (owner 2026-08-12)
 import { getLastOffer } from "../adi/oracle/dialogueState.js";   // la oferta viva del turno anterior — cambia el sentido de "sí" o "el segundo"
 import { answerViaOracle } from "../adi/oracle/answerViaOracle.js";   // Arquitectura C · Fase 3 · seam PLAN→BATCH→NARRAR (fallback intacto)
@@ -277,6 +278,23 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
   return data.narration;
 }
 
+// ── CAMINO NATURAL (owner 2026-08-14) · el cerebro del ciclo notarial, por el MISMO endpoint /api/adi-narrate-c ──
+// `payload.modoNatural` + `payload.mensajes` (el hilo entero) → el gateway arma el system natural (persona +
+// carpeta + doctrina + contrato [[CALCULO]], ver naturalPrompt.js) y el adapter manda el hilo como messages.
+// La key sigue server-side; `datoNegocio` viaja igual que en el camino actual (misma proyección memoizada).
+// A DIFERENCIA de _fetchNarrateC, una narración VACÍA no lanza: el ciclo notarial la trata como veredicto propio
+// (narracion-vacia) y dispara la reparación/suplente — lanzar acá le robaría el caso al ciclo.
+async function _fetchNatural({ mensajes, mem, scenario, requestContext, attempt, motivoReintento }) {
+  const res = await fetch("/api/adi-narrate-c", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ payload: { modoNatural: true, mensajes }, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento, datoNegocio: proyectarDatoNegocio(scenario) }),
+  });
+  const data = await res.json();
+  if (_accessDenied(data)) throw new Error("acceso requerido");
+  if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin narración");
+  return typeof data.narration === "string" ? data.narration : "";
+}
+
 // FOLLOW-UP EJECUTIVO · "qué hacemos / qué recomendás / qué sigue / y ahora / cuál es la acción" → recomendación sobre la
 // última evidencia (NO se re-parsea como consulta nueva de eje/métrica). Solo dispara si hay una evidencia accionable previa.
 const _FOLLOWUP_RE = /\b(qu[eé]\s+hacemos|qu[eé]\s+hago|qu[eé]\s+hacer|qu[eé]\s+recomiend[ao]s|qu[eé]\s+recomend[aá]s|qu[eé]\s+sigue|y\s+ahora|cu[aá]l\s+es\s+la\s+acci[oó]n)\b/i;
@@ -389,6 +407,23 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
       // operación transporta explícitamente con qué tenant/conversación/snapshot está trabajando).
       const conversationId = (context && context.conversationId) || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).slice(2)}`);
       const requestContext = buildRequestContext({ conversationId, scenario, mem });
+      /* ── CAMINO NATURAL COMO PRINCIPAL (owner 2026-08-14 · flag ADI_CAMINO_NATURAL · ver caminoNatural.js) ────
+       * Flag ON → el turno va por el cerebro único + notario + ciclo de reparación, con el hilo entero. El P&L
+       * guiado y «por qué esa cifra» YA cedieron/reclamaron ARRIBA — son features con estado propio, no narración.
+       * RED DE RESILIENCIA (condición 2): si el camino natural LANZA (gateway caído, config faltante, error), el
+       * turno CAE al oráculo actual acá abajo, en el MISMO turno — el usuario nunca ve el error.
+       * Flag OFF → este bloque no existe: el turno sigue por answerViaOracle, byte-idéntico a hoy. */
+      if (ADI_CAMINO_NATURAL) {
+        try {
+          const o = await answerViaNatural({ text: q, history, mem, scenario,
+            callNatural: (args) => _fetchNatural({ ...args, mem, scenario, requestContext }) });
+          if (o && o.r) {
+            _ph(3);
+            const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
+            return _turnFromResult(q, rr, context, "natural");
+          }
+        } catch { /* red de resiliencia: el turno sigue por el oráculo actual, abajo — el camino actual está entero */ }
+      }
       // ROUTING TRACE (owner 2026-08-02 — ver modelRouter.js): closures frescas POR TURNO (nunca module-level, no
       // hay concurrencia entre turnos de un mismo hilo) que envuelven _fetchPlan/_fetchNarrateC solo para capturar
       // modelo/motivo/latencia/costo de cada intento REAL — el contrato callPlan/callNarrate que ve answerViaOracle

@@ -42,6 +42,10 @@ const FEATURE = [
   // intacto, esta lista no lo toca. El override por navegador (localStorage adi_oracle / ?oracle=0) sigue vivo para
   // comparar con la ruta vieja si hiciera falta.
   "ADI_ORACLE_ENABLED",
+  // CAMINO NATURAL COMO PRINCIPAL (owner 2026-08-14, autorizado con 6 condiciones — ver caminoNatural.js): el
+  // turno libre va por el cerebro único + notario + ciclo de reparación. `floor` (Node/gates) sigue en [] —
+  // byte-exacto intacto. APAGARLO EN TODAS PARTES = borrar esta línea (rollback de una línea, condición 2).
+  "ADI_CAMINO_NATURAL",
 ];
 
 // DEV-TOOLS · herramientas internas · SOLO dev (nunca demo/prod)

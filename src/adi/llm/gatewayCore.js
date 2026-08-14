@@ -22,6 +22,9 @@ import { verifyAccessCode, makeAccessCode, makeMintGrant, verifyMintGrant, const
 import { ADI_PERSONA, ADI_PERSONA_PLAN, renderInteractionMemory } from "../oracle/persona.js";
 import { buildPlanSystem, buildPlanSystemSegments, buildPlanUserMessage, PLAN_TOOL } from "../oracle/planPrompt.js";
 import { buildNarrateSystemSegments } from "../oracle/narratePromptC.js";
+// CAMINO NATURAL (owner 2026-08-14): el system del cerebro único (persona + carpeta + doctrina + contrato
+// [[CALCULO]]) — módulo puro, la doctrina es la TEXTUAL del arnés medido (`_corrida_doble.mjs`).
+import { buildNaturalSystemSegments } from "../oracle/naturalPrompt.js";
 
 // config del proveedor desde el env (en dev el .env se carga a process.env · en prod lo setea la plataforma).
 // `env` inyectable para runtimes que no exponen process.env global (ej. Cloudflare Workers) · default process.env.
@@ -417,6 +420,19 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     if (!payload || typeof payload !== "object") return _frenado({ ok: false, error: "sin payload" });
     if (!_checkRateLimit(tenantId, env)) return _frenado({ ok: false, error: "rate_limited", reason: "demasiadas solicitudes, esperá un momento" });
     if (falta) return _frenado({ ok: false, error: mensajeFaltaProveedor(falta), configFaltante: falta }, "config_missing");   // ver el bloque en handleSpec
+    // ── CAMINO NATURAL (owner 2026-08-14) · payload.modoNatural: el hilo ENTERO viaja como mensajes y el system
+    // es el del cerebro único (naturalPrompt.js). Los frenos van acá, ANTES de rutear —mismo criterio que el de
+    // config: no se gasta un milisegundo en un turno que no puede salir— y con error TIPADO: el cliente lo lee,
+    // lanza, y la red de resiliencia de ChatADI cae al camino actual en el mismo turno.
+    const esNatural = payload.modoNatural === true;
+    if (esNatural) {
+      const _msgs = Array.isArray(payload.mensajes) ? payload.mensajes.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()) : [];
+      if (!_msgs.length || _msgs[_msgs.length - 1].role !== "user")
+        return _frenado({ ok: false, error: "modo natural sin mensajes: payload.mensajes debe traer el hilo con el turno del usuario al final" });
+      // sin carpeta no hay camino natural: un cerebro sin dato inventa — se frena acá, nunca se llama a medias.
+      if (!(typeof datoNegocio === "string" && datoNegocio.trim()))
+        return _frenado({ ok: false, error: "modo natural sin datoNegocio: la carpeta del negocio es obligatoria" });
+    }
     // ROUTER: intento 0 = tier1 (idéntico a hoy). El turno vuelve a pasar por acá SOLO cuando answerViaOracle.js
     // reintentó tras un rechazo de guardC (ver el loop de 3 intentos ahí) — cada reintento escala de modelo antes de
     // repetir con el mismo que ya falló. `payload.modo` viaja solo para el texto de razón/telemetría, nunca decide.
@@ -441,8 +457,17 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
     // no repara nada no paga ni un token. El objeto viene SELLADO del contrato de narración, no del plan crudo.
     // datoNegocio (AMPLITUD F1) — 7º argumento: entra AL FINAL del fijo, así el prefijo de siempre no se parte
     // y el bloque (estable por tenant+escenario) queda bajo cache:true. String no vacío o nada.
-    const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null, (typeof datoNegocio === "string" && datoNegocio) || null);
-    const system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
+    // MODO NATURAL: el system es el del cerebro único — MISMO contrato de segmentos y MISMO corte de caché
+    // (fijo = persona+carpeta+doctrina+contrato, estable por tenant+escenario · variable = memoria de interacción).
+    // Sin modoNatural, el system es byte-idéntico al de siempre.
+    let system;
+    if (esNatural) {
+      const _segNat = buildNaturalSystemSegments(ADI_PERSONA, datoNegocio, renderInteractionMemory(mem));
+      system = [{ text: _segNat.fijo, cache: true }, { text: _segNat.variable, cache: false }];
+    } else {
+      const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null, (typeof datoNegocio === "string" && datoNegocio) || null);
+      system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
+    }
     let narration, usage, modeloEfectivo;
     try {
       _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec
