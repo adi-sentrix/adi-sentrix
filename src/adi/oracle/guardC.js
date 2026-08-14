@@ -2900,6 +2900,25 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         kind: "calculo-no-verificable",
         detail: `línea «${c.linea || c.id || "declarada"}» — campo «${campo}»: ${porque}`,
       });
+      /* UNA TASA DEL DATO SIGUE SIENDO LA MISMA CIFRA CUANDO SE USA COMO DELTA (owner 2026-08-14, medido en el
+       * examen 1, turno 2). El dato declara la carga comercial de Falabella como «4.5%». Al simular sacarla del
+       * todo, la forma correcta de decirlo es «+4.5pp» — el MISMO número del dato, en su papel de delta en vez de
+       * nivel. El canon del muro separa «pct:4.5» de «pp:4.5», así que el insumo moría por no estar autorizado y
+       * se llevaba puestas las líneas que dependían de él. Esto NO afloja nada: el número tiene que estar
+       * autorizado igual, la cuenta se recomputa igual, y la puerta que abre ya estaba abierta (nada impedía
+       * escribir el mismo insumo como «4.5%»). Solo deja de castigar el vocabulario correcto. */
+      const _otraFormaDeTasa = (s) => {
+        const t = String(s).trim();
+        if (/(?:pp|puntos?)$/i.test(t)) return t.replace(/\s*(?:pp|puntos?)$/i, "%");
+        if (/%$/.test(t)) return t.replace(/%$/, "pp");
+        return null;
+      };
+      const _insumoOk = (x) => { if (_baseOk(x)) return true; const alt = _otraFormaDeTasa(x); return !!alt && _baseOk(alt); };
+      const _esTasa = (u) => u === "pct" || u === "pp" || /puntos?/.test(u);
+      // el tope de viabilidad aplica SOLO a las operaciones que mueven un nivel; una BRECHA negativa
+      // («25.0% − 30.1% = −5.1pp») es legítima y no puede confundirse con un escenario imposible.
+      const _APLICA_DELTA = new Set(["puntos", "aplicar_pct", "variacion_aplicada"]);
+      const _idsDeclarados = new Set(_calculosDeclarados.map((c) => String(c.id || "").trim()).filter(Boolean));
       const _porId = new Map();
       for (const c of _calculosDeclarados) {
         const op = String(c.op || "").trim().toLowerCase();
@@ -2907,24 +2926,30 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const R = _num(c.resultado);
         // el signo lo declara la fórmula (o el propio input con signo): «$100.0M − 4%» es distinto de «+ 4%».
         const signo = /[−–-]\s*\d|\bbaj|\breduc|\bmenos\b/i.test(String(c.formula || "")) ? -1 : 1;
-        const uni = String(c.unidad || (_esPct(c.resultado) ? "pct" : "money")).toLowerCase();
+        const uniCruda = String(c.unidad || (_esPct(c.resultado) ? "pct" : "money")).toLowerCase();
+        const uni = _esTasa(uniCruda) ? "pct" : uniCruda;   // «pp» y «puntos» son la misma unidad para recomputar
         const insumos = (c.inputs || []).map((x) => (_porId.has(String(x).trim()) ? _porId.get(String(x).trim()) : _num(x)));
-        const insumosAutorizados = (c.inputs || []).every((x) => _porId.has(String(x).trim()) || _baseOk(String(x)));
+        const insumosAutorizados = (c.inputs || []).every((x) => _porId.has(String(x).trim()) || _insumoOk(String(x)));
         const esperado = (fn && insumos.length && insumos.every(Number.isFinite)) ? fn(insumos, uni, signo) : null;
         const cierra = Number.isFinite(esperado) && Number.isFinite(R) && _cierraFrm(esperado, R);
         if (!fn) {
           _vetosCalculo.push(_multa(c, "op", `la operación «${c.op}» no existe — usá una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos`));
         } else if (!Number.isFinite(esperado)) {
           const _malos = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !Number.isFinite(_num(x)));
-          _vetosCalculo.push(_multa(c, "inputs", (c.inputs || []).length
-            ? `no se puede recomputar porque ${_malos.length ? `${_malos.map((x) => `«${x}»`).join(" y ")} no ${_malos.length > 1 ? "son cifras" : "es una cifra"} ni el id de otro cálculo` : `los insumos («${(c.inputs || []).join("; ")}») no alcanzan para la operación «${op}»`}`
-            : `la línea no declara insumos, así que no hay nada que recomputar`));
+          // el DAÑO COLATERAL de la cascada se dice como lo que es: si el insumo es el id de una línea que ya
+          // falló, el reintento tiene que arreglar ESA, no esta. Callarlo mandaba la reparación al lugar equivocado.
+          const _caidos = _malos.filter((x) => _idsDeclarados.has(String(x).trim()));
+          _vetosCalculo.push(_multa(c, "inputs", _caidos.length
+            ? `${_caidos.map((x) => `«${x}»`).join(" y ")} ${_caidos.length > 1 ? "son líneas que fallaron" : "es una línea que falló"} antes, así que ${_caidos.length > 1 ? "sus resultados no quedaron" : "su resultado no quedó"} disponible: corregí ${_caidos.length > 1 ? "esas líneas" : "esa línea"} y esta se resuelve sola`
+            : (c.inputs || []).length
+              ? `no se puede recomputar porque ${_malos.length ? `${_malos.map((x) => `«${x}»`).join(" y ")} no ${_malos.length > 1 ? "son cifras" : "es una cifra"} ni el id de otro cálculo` : `los insumos («${(c.inputs || []).join("; ")}») no alcanzan para la operación «${op}»`}`
+              : `la línea no declara insumos, así que no hay nada que recomputar`));
         } else if (!cierra) {
           _vetosCalculo.push(_multa(c, "resultado", `${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos`));
         } else if (!insumosAutorizados) {
           const _sinDueno = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !_baseOk(String(x)));
           _vetosCalculo.push(_multa(c, "inputs", `${_sinDueno.map((x) => `«${x}»`).join(" y ")} no ${_sinDueno.length > 1 ? "están autorizadas" : "está autorizada"} — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado`));
-        } else if (uni === "pct" && Number.isFinite(esperado) && esperado < 0) {
+        } else if (_APLICA_DELTA.has(op) && uni === "pct" && Number.isFinite(esperado) && esperado < 0) {
           /* UNA TASA NO PUEDE QUEDAR NEGATIVA (viabilidad de escenario, owner 2026-08-14). «1.8% − 2pp = −0.2%»
            * es aritmética correcta y realidad imposible: no se puede recortar más carga de la que existe. Se veta
            * la DECLARACIÓN, con el tope real en la instrucción — así el reintento sabe qué corregir. */

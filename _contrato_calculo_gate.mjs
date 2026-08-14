@@ -131,5 +131,41 @@ const vSinRes = juzgar(`Las ventas del negocio subirían a $104.0M.\n\n${MARCA_C
 ok(!vSinRes.ok && /campo «resultado»/.test(String((vSinRes.violations[0] || {}).detail || "")), "…y la línea sin resultado se cobra en «resultado»");
 ok(extraerCalculos(`x\n\n${MARCA_CALCULO}\nUna frase suelta sin campos.`).malformadas.length === 0, "una frase suelta dentro del bloque NO se confunde con una línea rota");
 
+/* ── 8 · LA TASA DEL DATO USADA COMO DELTA (owner 2026-08-14, examen 1 · turno 2) ──────────────────────────────
+ * MEDIDO: el dato declara la carga comercial de Falabella como «4.5%». Al simular sacarla del todo, la forma
+ * correcta de decirlo es «+4.5pp» — el MISMO número del dato en su papel de delta. El canon separaba pct de pp,
+ * así que el insumo moría y se llevaba puestas las líneas que dependían de él (4 vetos de una sola causa).
+ * NO afloja nada: el número tiene que estar autorizado igual y la cuenta se recomputa igual. */
+console.log("\n── 8 · UNA TASA DEL DATO ES LA MISMA CIFRA COMO NIVEL O COMO DELTA ──");
+const CARGA = `Sacando por completo la carga comercial de Falabella, su margen llegaría a 26.5%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=22.0%; 4.5pp · formula=22.0% + 4.5pp · resultado=26.5% · unidad=pp`;
+ok(juzgar(CARGA).ok, "«4.5pp» se autoriza porque el dato declara esa carga como 4.5% — mismo número, otro papel");
+const dCarga = _detalle(`Sacando la carga comercial de Falabella, su margen llegaría a 30.0%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=22.0%; 4.5pp · formula=22.0% + 4.5pp · resultado=30.0% · unidad=pp`);
+ok(/campo «resultado»/.test(dCarga) && /26\.5%/.test(dCarga), `…pero la cuenta se recomputa igual: 22.0 + 4.5 = 26.5, no 30.0 (${dCarga.slice(0, 100)}…)`);
+ok(!juzgar(`El margen de Falabella llegaría a 29.7%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=22.0%; 7.7pp · formula=22.0% + 7.7pp · resultado=29.7% · unidad=pp`).ok,
+  "…y un número que NO está en el dato no se salva por escribirlo en puntos (7.7pp muere igual)");
+ok(/da 26\.5%/.test(dCarga) && !/\$/.test(dCarga.split("y declaraste")[0]), "…y la multa habla en % cuando la unidad es una tasa, no en $ (decía «da $31»)");
+
+console.log("\n── 8b · UNA BRECHA NEGATIVA NO ES UN ESCENARIO IMPOSIBLE ──");
+// el tope de viabilidad es para las operaciones que MUEVEN un nivel. Restar dos tasas para medir una distancia
+// puede dar negativo con todo derecho — vetarlo era castigar la aritmética correcta de una brecha.
+const BRECHA = `Ripley está 5.1 puntos por debajo del benchmark.\n\n${MARCA_CALCULO}\nid=c1 · op=restar · inputs=25.0%; 30.1% · formula=25.0% − 30.1% · resultado=-5.1pp · unidad=pct`;
+const vBrecha = juzgar(BRECHA);
+ok(vBrecha.ok, `la brecha negativa de una resta pasa (obtuvo ${vBrecha.ok ? "PASA" : vBrecha.verdict})`);
+// …y el tope SIGUE cazando lo que tiene que cazar: aplicar un delta mayor que el nivel disponible
+// (con la pregunta que declara el supuesto: sin los 2pp del usuario el insumo muere antes, por otra razón)
+const Q2PP = { question: "Reduce 2 puntos porcentuales las acciones comerciales de Mercado Libre.", supuestoPendiente: ["2pp"] };
+const vTope = juzgar(`La carga de Mercado Libre quedaría en -0.2%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=1.8%; 2pp · formula=1.8% − 2pp · resultado=-0.2% · unidad=pct`, Q2PP);
+ok(!vTope.ok && vTope.verdict === "escenario-inviable", `…y recortar 2pp de una carga de 1.8% sigue siendo inviable (${vTope.verdict})`);
+const vTopePP = juzgar(`La carga de Mercado Libre quedaría en -0.2%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=1.8%; 2pp · formula=1.8% − 2pp · resultado=-0.2pp · unidad=pp`, Q2PP);
+ok(!vTopePP.ok && vTopePP.verdict === "escenario-inviable", `…incluso declarado con unidad «pp», que antes se escapaba del tope (${vTopePP.verdict})`);
+
+console.log("\n── 8c · EL DAÑO COLATERAL DE LA CASCADA SE DICE COMO LO QUE ES ──");
+const dCasc = _detalle(`El margen de Falabella llegaría a 30.0% y la brecha sería 0.1pp.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=22.0%; 4.5pp · formula=22.0% + 4.5pp · resultado=30.0% · unidad=pp\nid=c2 · op=restar · inputs=30.1%; c1 · formula=30.1% − 30.0% · resultado=0.1pp · unidad=pp`);
+const vCasc = juzgar(`El margen de Falabella llegaría a 30.0% y la brecha sería 0.1pp.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=22.0%; 4.5pp · formula=22.0% + 4.5pp · resultado=30.0% · unidad=pp\nid=c2 · op=restar · inputs=30.1%; c1 · formula=30.1% − 30.0% · resultado=0.1pp · unidad=pp`);
+ok(/id=c1/.test(dCasc), "la multa acusa a c1, que es la línea que realmente falló");
+const dSegunda = String((vCasc.violations[1] || {}).detail || "");
+ok(/«c1» es una línea que falló antes/.test(dSegunda), `…y a c2 le dice que su insumo cayó, no que «c1 no es una cifra» (${dSegunda.slice(0, 110)}…)`);
+ok(/corregí esa línea y esta se resuelve sola/.test(dSegunda), "…y le dice al reintento dónde arreglar de verdad");
+
 console.log(`\n── _contrato_calculo_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

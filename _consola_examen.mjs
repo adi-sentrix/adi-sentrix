@@ -49,6 +49,10 @@ if (flag("--estado")) {
   process.exit(0);
 }
 const q = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--titulo");
+/* ⚠️ EL RESET TIENE QUE GUARDARSE (medido 2026-08-14 en la 2ª corrida del examen 1): `--reset` sin pregunta
+ * armaba el estado nuevo EN MEMORIA y salía por la puerta del «Uso:» sin escribir el archivo — así que el examen
+ * siguiente arrancaba con el hilo viejo adentro y el turno 1 se corría con cinco turnos de contexto ajeno. */
+if (!q && flag("--reset")) { fs.writeFileSync(ESTADO, JSON.stringify(S, null, 2)); console.log(`《 ${S.titulo} 》 estado en blanco: 0 turnos.`); process.exit(0); }
 if (!q) { console.log("Uso: node _consola_examen.mjs \"la pregunta\"  ·  --reset --titulo \"…\"  ·  --estado"); process.exit(1); }
 
 const DATO = proyectarDatoNegocio("actual");
@@ -59,13 +63,20 @@ const _precio = (u) => {
   return (inN * TARIFA[1].in + cr * TARIFA[1].in * 0.1 + cw * TARIFA[1].in * 1.25 + (u.output_tokens || 0) * TARIFA[1].out) / 1e6;
 };
 
+/* EL EXPEDIENTE DEL TURNO (2026-08-14): cuando un turno cae al suplente, el veredicto solo dice el NOMBRE del
+ * veto — y con eso no se puede reparar nada: hay que ver el borrador que el notario rechazó y la multa exacta
+ * que se le devolvió. Se captura acá, en el caller, sin tocar una línea del producto. */
+const EXPEDIENTE = () => `_examen_debug_t${S.turnos.length}.json`;   // uno por turno: el del turno 2 no pisa al del 1
 let costoTurno = 0, llamadasTurno = 0, crudoUltimo = "";
+const intentos = [];
 const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
   llamadasTurno++;
+  const ultimo = mensajes.length ? mensajes[mensajes.length - 1] : null;
   const nr = await handleNarrateC({ payload: { modoNatural: true, mensajes }, mem: S.mem, attempt, motivoReintento, datoNegocio: DATO });
   if (nr && nr.usage) costoTurno += _precio(nr.usage);
   if (!nr.ok) throw new Error(nr.error || "gateway sin narración");
   crudoUltimo = nr.narration || "";
+  intentos.push({ intento: llamadasTurno, motivoReintento: motivoReintento || null, multaRecibida: attempt > 0 && ultimo ? ultimo.content : null, borrador: crudoUltimo });
   return nr.narration;
 };
 
@@ -100,3 +111,17 @@ console.log(`│ [[CALCULO]]      : ${fugaCalc ? "🔴 FUGA — el bloque llegó
 console.log(`│ llamadas · costo : ${llamadasTurno} · US$${costoTurno.toFixed(4)}   ·   acumulado: ${S.llamadas} · US$${S.costoUSD.toFixed(4)}`);
 console.log(`│ tiempo           : ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`└──────────────────────────────────────────────────────────────────`);
+fs.writeFileSync(EXPEDIENTE(), JSON.stringify({ q, estado: nat.estado, vetos: nat.vetos, intentos }, null, 2), "utf8");
+// si el turno NO salió del cerebro, se muestra en pantalla POR QUÉ: el último borrador rechazado y la multa que
+// se le devolvió. Sin esto, un «suplente» es un callejón sin salida para quien tiene que arreglarlo.
+if (nat.suplenteDigno && intentos.length) {
+  const ult = intentos[intentos.length - 1];
+  console.log(`\n┌── EL BORRADOR QUE EL NOTARIO RECHAZÓ (intento ${ult.intento} de ${intentos.length}) ─────────`);
+  console.log(String(ult.borrador || "").split("\n").slice(-24).map((l) => "│ " + l).join("\n"));
+  if (ult.multaRecibida) {
+    const m = String(ult.multaRecibida).match(/\[[a-z-]+\][\s\S]*/);
+    console.log(`├── LA MULTA QUE SE LE DEVOLVIÓ ANTES DE ESE BORRADOR ─────────────`);
+    console.log(String(m ? m[0] : ult.multaRecibida).split("\n").slice(0, 8).map((l) => "│ " + l).join("\n"));
+  }
+  console.log(`└── expediente completo en ${EXPEDIENTE()} ──────────────────────`);
+}
