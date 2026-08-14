@@ -1,0 +1,329 @@
+{
+  "fecha": "2026-08-14",
+  "llamadas": 61,
+  "registro": [
+    {
+      "hilo": "H1·ventas (el hilo que rompió a ADI)",
+      "A": [
+        {
+          "q": "Si subo ventas 4%, ¿qué cambia?",
+          "calls": 0,
+          "texto": "Ese cambio en las ventas lo tomo como cambio de volumen (unidades vendidas), con el precio declarado aparte. ¿Sobre qué cliente, SKU, marca o familia quieres simular este escenario?",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "sobre las ventas",
+          "calls": 1,
+          "texto": "Dime qué parte está mal y la corrijo — ¿la pregunta que entendí, o el dato que traje?",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "simula sobre el total de ventas",
+          "calls": 0,
+          "texto": "Tomo el escenario sobre el total del negocio. ¿cuánto esperas que cambie el precio? No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "el precio queda igual",
+          "calls": 2,
+          "texto": "Con precio fijo, el +4% que corres es volumen puro sobre toda la cartera — así queda el impacto por cliente:\n\n| Cliente | Actual | Supuesto | Impacto |\n|---|---|---|---|\n| Falabella | $19.4M | $20.2M | $777K |\n| Lider | $17.9M | $18.6M | $714K |\n| Jumbo | $17.3M | $18.0M | $693K |\n| Sodimac | $8.2M | $8.5M | $328K |\n| Tottus | $6.8M | $7.1M | $273K |\n| Paris | $6.3M | $6.6M | $252K |\n| Mercado Libre | $5.5M | $5.7M | $218K |\n| Ripley | $4.7M | $4.9M | $189K |\n| Easy | $3.4M | $3.5M | $134K |\n| La Polar | $2.9M | $3.1M | $118K |\n| Hites | $2.7M | $2.8M | $109K |\n| ABC | $2.5M | $2.6M | $101K |\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar. (Datos del año cerrado.)",
+          "suplente": false,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "Si subo ventas 4%, ¿qué cambia?",
+          "calls": 2,
+          "texto": "Bajo ese supuesto (mismo mix, mismo margen), las ventas pasarían de $100.0M a $100.0M + 4% = $104.0M — un +4% son $4.0M adicionales.\n\n- Contribución proyectada: 25.1% de $104.0M ($100.0M + $4.0M) ≈ $26.1M (hoy $25.1M) → +$1.0M.\n- Lo que NO cambia: el margen sigue en 25.1%, todavía 5.0 puntos por debajo del benchmark de 30.1%.\n\nAhí está el punto: vender más al mismo margen agranda el negocio, pero no cierra la brecha que tienes contra tu referencia. Esa brecha vive en las cuentas grandes de margen bajo — Falabella ($19.4M, margen 22.0%) y Lider ($17.9M, margen 21.5%) juntas suman $19.4M + $17.9M = $37.3M de venta muy por debajo del benchmark.\n\nQué hacer primero: antes de empujar volumen, subí margen en esas dos cuentas (revisar carga comercial, hoy 4.5% y 4.2% vs meta 3.5%). Un punto de margen ahí vale más que el 4% de venta que estás simulando.",
+          "estado": "suplente",
+          "vetos": [
+            "cifra-no-autorizada",
+            "2º: cifra-no-autorizada"
+          ]
+        },
+        {
+          "q": "sobre las ventas",
+          "calls": 2,
+          "texto": "Con el +4% aplicado sobre las ventas totales del negocio ($100.0M), la venta total subiría a $104.0M (ventas totales del negocio $100.0M + $4.0M).\n\n- Vs. año anterior (ventas totales $92.9M): pasaría de +7.6% a +11.9% (ventas totales $104.0M vs $92.9M).\n- Vs. presupuesto (ventas totales $97.0M): pasaría de +3.1% a +7.2% (ventas totales $104.0M vs $97.0M).\n\nEs una mejora en el titular, pero es una cifra simulada — no hay en el dato cómo se repartiría entre clientes o SKU; eso lo defines tú.\n\nQué hacer primero: antes de fijar el 4% como meta pareja, decidí dónde cargarlo. Ponerlo en el cliente Mercado Libre (ventas $5.5M, margen 29.0%, carga comercial 1.8%) rinde más contribución por dólar vendido que ponerlo en el cliente Falabella (margen 22.0%, carga comercial 4.5%).",
+          "estado": "suplente",
+          "vetos": [
+            "cifra-de-dato-sin-dueno",
+            "2º: cifra-no-autorizada"
+          ]
+        },
+        {
+          "q": "simula sobre el total de ventas",
+          "calls": 1,
+          "texto": "Bajo el supuesto de +4% parejo sobre el total (sin cambio de mix ni de margen):\n\n- Ventas totales: $100.0M → $104.0M (+$4.0M)\n- Vs. año anterior ($92.9M): +11.9% (antes +7.6%)\n- Vs. presupuesto ($97.0M): +7.2% (antes +3.1%)\n- Contribución total: 25.1% de $104.0M ≈ $26.1M (hoy $25.1M) → +$1.0M\n- Margen de la cartera: se mantiene en 25.1% — el supuesto no toca el margen, solo escala la venta\n\nEsto es una proyección, no un hecho: el +4% no viene de ningún cliente o SKU específico del dato.\n\nQué hacer primero: el margen simulado (25.1%) sigue 5.0 puntos bajo el benchmark (30.1%). Antes de perseguir ese 4% de volumen, cerrar un punto de margen en Falabella ($19.4M, margen 22.0%) o Lider ($17.9M, margen 21.5%) aporta más contribución real que el crecimiento parejo.",
+          "estado": "verde",
+          "vetos": []
+        },
+        {
+          "q": "el precio queda igual",
+          "calls": 1,
+          "texto": "Con precio fijo, el +4% de ventas ($100.0M → $104.0M, +$4.0M) se explica todo por más unidades vendidas, no por mejor precio — el margen no tiene por qué moverse solo por volumen.\n\n- Margen de la cartera: se mantiene en 25.1% (sin cambio de precio ni de mix, el % no se mueve)\n- Contribución: 25.1% de $104.0M ≈ $26.1M (+$1.0M vs los $25.1M actuales)\n- Sigue 5.0 puntos bajo el benchmark de 30.1% — vender más al mismo precio no cierra esa brecha, solo la agranda en dólares absolutos\n\nOjo con esto: si el precio no cambia, ese 4% extra tiene que salir de algún cliente o SKU concreto — el dato no dice de dónde. Es una proyección sobre el total, no una meta repartida.\n\nQué hacer primero: antes de perseguir volumen a precio plano, mira el SKU LG-DRYER8KG (margen 11.1%, muy por debajo del benchmark) — ahí un ajuste de precio, no de volumen, rinde más que sumar unidades al 25.1% actual.",
+          "estado": "verde",
+          "vetos": []
+        }
+      ]
+    },
+    {
+      "hilo": "H2·el ejemplo soñado del owner",
+      "A": [
+        {
+          "q": "¿Qué clientes venden mucho pero dejan poco margen?",
+          "calls": 4,
+          "texto": "**Clientes de alto volumen con margen bajo tu benchmark de 30.1%** (año cerrado):\n\n| Cliente | Venta | Margen | Brecha |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | 8.1 pp |\n| Lider | $17.9M | 21.5% | 8.6 pp |\n| Jumbo | $17.3M | 24.0% | 6.1 pp |\n| Sodimac | $8.2M | 23.5% | 6.6 pp |\n\nEn los cuatro, el mecanismo que explica el margen bajo es el mismo: **carga comercial/rebate**, no un problema de costo estructural — son cuentas grandes donde las acciones comerciales (descuentos, rebates) están pesando más de lo que tu benchmark tolera.\n\nEmpieza por **Falabella**: no es la brecha más ancha (esa es Líder, 8.6 pp) pero es la mayor venta bajo el benchmark, y ahí tienes una cifra concreta — cerrar apenas 1 punto de margen libera $194K. Revisa primero sus acciones comerciales antes de tocar precio o costo.",
+          "suplente": false,
+          "vetos": [
+            "cifra-no-autorizada"
+          ]
+        },
+        {
+          "q": "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark",
+          "calls": 3,
+          "texto": "No tengo corrida exactamente esa hipótesis. El escenario que sí simulé es llevar la carga comercial de cada cliente a tu meta de 3.5% — y ahí las bajas no son parejas de 2 puntos: Falabella baja 1 pp, Sodimac 1.9 pp, Lider 0.7 pp, Jumbo 0.3 pp.\n\nAun con ese ajuste completo, ninguno cruza tu benchmark de margen de 30.1%. La razón: la carga comercial es solo una parte de la brecha — Falabella tiene 8.1 pp de brecha total contra un ajuste de carga de apenas 1 pp; en los cuatro pasa lo mismo, la reducción de carga cierra una fracción chica del margen faltante.\n\nLo que sí libera esa acción (año cerrado, estimado):\n\n1. **Falabella** — $194K recuperables llevando su carga a 3.5%; sigue lejos del benchmark.\n2. **Sodimac** — $156K recuperables; brecha de margen más ancha en proporción a su venta.\n3. **Lider** — $125K recuperables; es el que más lejos queda del benchmark (8.6 pp de brecha total).\n4. **Jumbo** — $52K recuperables; el más cerca de cerrar, pero tampoco cruza el piso.\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.",
+          "suplente": false,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "¿Qué clientes venden mucho pero dejan poco margen?",
+          "calls": 2,
+          "texto": "**Tres clientes concentran el problema: Falabella, Lider y Jumbo.**\n\nSon tus tres cuentas más grandes en ventas y las tres caen debajo del benchmark de margen (30.1%) y del promedio de cartera (25.1%):\n\n- Falabella — $19.4M en ventas, margen 22.0%, contribución $4.3M\n- Lider — $17.9M en ventas, margen 21.5%, contribución $3.8M\n- Jumbo — $17.3M en ventas, margen 24.0%, contribución $4.2M\n\nEntre las tres explican una parte grande de los $100.0M vendidos, pero jalan el margen de la cartera hacia abajo en vez de sostenerlo.\n\n**Por qué pasa:** en Falabella y Lider la carga comercial está por encima de la meta de 3.5% (4.5% y 4.2% respectivamente), es decir, se está pagando más acción comercial ($874K y $750K) para sostener un margen que ya es el más bajo de las 13 cuentas.\n\n**Qué hacer primero:** empieza por Falabella. Es la cuenta con mayor venta ($19.4M) y la mayor carga comercial de la cartera (4.5%). Bajarla a la meta de 3.5% libera ~$194K de gasto comercial sin tocar precio, y es el primer paso antes de tocar condiciones comerciales con Lider o Jumbo.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ]
+        },
+        {
+          "q": "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark",
+          "calls": 2,
+          "texto": "",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ]
+        }
+      ]
+    },
+    {
+      "hilo": "H3·capital",
+      "A": [
+        {
+          "q": "¿Cuánto capital tengo inmovilizado en inventario?",
+          "calls": 3,
+          "texto": "Valparaíso · Capital inmovilizado marca $25K (inventario, hoy).\n\nEl resto de la lectura: Capital inmovilizado · total: $33K · Valparaíso · % del total: 75% · Antofagasta · Capital inmovilizado: $8K · Antofagasta · % del total: 25% · Materiales de Construcción · Familia: $20K · Línea Blanca · Familia: $14K. El dato no registra la causa: para explicarla hace falta evidencia que esta lectura no trae.\n\nPor dónde partir: Valparaíso · Capital inmovilizado, con $25K.",
+          "suplente": true,
+          "vetos": [
+            "cifra-de-boleta-sin-dueno",
+            "metrica-mal-atribuida"
+          ]
+        },
+        {
+          "q": "¿y el que lleva más de 90 días parado?",
+          "calls": 3,
+          "texto": "De los dos universos de inventario, estos son los que superan el umbral de 90 días sin venta:\n\n| SKU | Capital en inventario | Días sin venta |\n|---|---|---|\n| LG-DRYER8KG | $14K | 94d |\n| MAK-COMP-AIR | $8K | 112d |\n\nJuntos suman $22K inmovilizados en esta foto de hoy — es el cálculo directo de esas dos filas, no el total de $33K que ya viste (ese incluye todo Valparaíso y Antofagasta, no solo lo parado).\n\nMAK-COMP-AIR lleva más tiempo sin rotar (112d), pero LG-DRYER8KG es el que más capital tiene atado ($14K). Empieza por LG-DRYER8KG: es el monto mayor de los dos y el que más libera si lo mueve — vía liquidación o traslado comercial, ya que este dato no explica por qué dejó de venderse.",
+          "suplente": false,
+          "vetos": [
+            "metrica-mal-atribuida"
+          ]
+        }
+      ],
+      "B": [
+        {
+          "q": "¿Cuánto capital tengo inmovilizado en inventario?",
+          "calls": 2,
+          "texto": "**Capital inmovilizado hoy (foto de inventario, dólares crudos): $135K.**\n\nEs la suma de los 13 SKU en las 4 bodegas:\n- Santiago: SAM-REF500L $19K + LG-WASH11KG $15K + SAM-TV55 $13K + PHI-SHAVER9 $11K + LG-AIR9000 $6K\n- Valparaíso: LG-DRYER8KG $14K + BOS-SANDER $11K + SAM-MICRO32L $8K + PHI-HAIR-PRO $6K\n- Concepción: PHI-IRON-PRO $10K + BOS-DRILL18V $10K\n- Antofagasta: MAK-COMP-AIR $8K + MAK-SAW18V $4K\n\nDe ese total, $33K (24%) está atrapado en tres SKU que ya rompieron el piso de rotación (2.0x) y el techo de días (120d):\n- LG-DRYER8KG — $14K, rotación 1.0x, 165 días, 94 días sin venta\n- BOS-SANDER — $11K, rotación 1.6x, 115 días, 68 días sin venta\n- MAK-COMP-AIR — $8K, rotación 0.8x, 190 días, 112 días sin venta\n\nEl resto ($102K) rota sano, con casos como SAM-TV55 (Santiago) en 3.6x y PHI-SHAVER9 (Santiago) en 11.2x.\n\nEmpieza por LG-DRYER8KG en Valparaíso: es el que más capital tiene atrapado ($14K) y el que más excede el techo de 120 días. Definí ahí una salida —liquidación o devolución a proveedor— antes de tocar los otros dos.\n\n(Este capital no se cruza con la venta anual del año cerrado: son dos universos con escalas distintas, no comparables entre sí.)",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-de-dato-sin-dueno"
+          ]
+        },
+        {
+          "q": "¿y el que lleva más de 90 días parado?",
+          "calls": 2,
+          "texto": "**Dos SKU llevan más de 90 días sin venta**, ambos ya por encima del techo de inventario del negocio (120 días):\n\n- **MAK-COMP-AIR** (Antofagasta) — 112 días sin venta · rotación 0.8x (vs. piso 2.0x) · $8K de capital · margen de inventario 8.0%\n- **LG-DRYER8KG** (Valparaíso) — 94 días sin venta · rotación 1.0x (vs. piso 2.0x) · $14K de capital · margen de inventario 11.0%\n\nMAK-COMP-AIR es el más parado en el tiempo, pero LG-DRYER8KG es el que más capital tiene atado y el de peor rotación relativa a su tamaño. Arranca por LG-DRYER8KG: liberas $14K y es el doble de capital que MAK-COMP-AIR por un problema casi igual de grave.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-de-dato-sin-dueno"
+          ]
+        }
+      ]
+    },
+    {
+      "hilo": "H4·premisa falsa",
+      "A": [
+        {
+          "q": "¿por qué Falabella tiene 30% de margen?",
+          "calls": 3,
+          "texto": "Ojo con la premisa: Falabella no tiene 30% de margen, cierra el año con **22%**. El 30.1% es tu benchmark — la referencia con la que mide el negocio, no el resultado de esta cuenta. Contra esa referencia, Falabella queda 8.1 puntos abajo.\n\nUna señal que aporta a esa brecha: su carga comercial es 4.5%, por encima de tu meta de 3.5% — el exceso ronda **$194K**, aunque esto no cierra toda la diferencia; el resto de la brecha queda abierto para otro análisis.\n\nEmpieza por revisar las acciones comerciales de Falabella (hoy $874K) antes de tocar precio o costo — es la acción que ya está comprobada. (Datos del año cerrado.)",
+          "suplente": false,
+          "vetos": [
+            "vocabulario-no-contractual"
+          ]
+        }
+      ],
+      "B": [
+        {
+          "q": "¿por qué Falabella tiene 30% de margen?",
+          "calls": 1,
+          "texto": "Falabella no tiene 30% de margen — tiene 22.0%.\n\nEs su cliente de mayor venta ($19.4M) pero el margen más bajo del top 3, casi 8.1 puntos debajo del benchmark del negocio (30.1%).\n\nLa causa está en la carga comercial: Falabella tiene 4.5%, muy por encima de la meta de 3.5%, con $874K en acciones comerciales — la más alta de toda la cartera en dólares. Ese peso de descuentos y acuerdos comerciales es lo que le come el margen a pesar del volumen.\n\nEmpieza por ahí: revisa los acuerdos comerciales de Falabella y lleva su carga de 4.5% a 3.5% — cada punto que bajes libera cerca de $194K de contribución directa sobre sus $19.4M de venta.",
+          "estado": "verde",
+          "vetos": []
+        }
+      ]
+    },
+    {
+      "hilo": "H5·hueco del dato",
+      "A": [
+        {
+          "q": "¿quiénes dejaron de comprar este año?",
+          "calls": 2,
+          "texto": "No tengo el historial de compras cliente por cliente, así que no puedo identificar quién dejó de comprar este año.\n\nLo que sí puedo mostrarte es la venta de cada cliente vs. su año anterior — ahí se ve quién cayó, aunque no haya dejado de comprar del todo. Ripley y La Polar son los dos que muestran venta por debajo del año anterior. ¿Quieres que revisemos esos dos primero?",
+          "suplente": false,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "¿quiénes dejaron de comprar este año?",
+          "calls": 1,
+          "texto": "No tengo esa información. El dato no registra historial de compra por cliente en el tiempo, así que \"quién dejó de comprar\" no es algo que pueda verificar.\n\nLo que sí puedo darte, y que apunta a lo mismo que te preocupa, es esto:\n\n- **Ripley** — ventas $4.7M, cayó vs año anterior ($5.1M) y quedó debajo de su propio presupuesto ($4.9M).\n- **La Polar** — ventas $2.9M, cayó vs año anterior ($3.4M) y también debajo de presupuesto ($3.0M).\n- **Easy** — ventas $3.4M, levemente debajo del año anterior ($3.5M), aunque en línea con presupuesto.\n\nDe estos tres, **Ripley es el que más pesa en dólares perdidos** ($400K por debajo del año anterior) y además tiene una carga comercial alta (4.8%) para lo que está rindiendo. Ahí arrancaría: revisar qué pasó con Ripley este año antes que con los otros dos.",
+          "estado": "verde",
+          "vetos": []
+        }
+      ]
+    },
+    {
+      "hilo": "H6·eje difuso",
+      "A": [
+        {
+          "q": "¿cuál es el costo medio de Bosch?",
+          "calls": 3,
+          "texto": "El costo medio por unidad de Bosch como marca no está en esta vista: esa métrica se mide a nivel de SKU, no agregada por marca.\n\nLo que sí tengo, en el año cerrado:\n\n- Costo total: $7.5M sobre $11.0M en ventas.\n- Margen: 26% — 4.1 puntos bajo tu benchmark de 30.1%.\n- Carga comercial: 5.4%, con un exceso indicado de $209K sobre tu meta de 3.5% (una parte comprobada de la brecha, no toda).\n\nPara bajar al costo por unidad necesitas mirar los SKU Bosch (BOS-DRILL18V, BOS-SANDER) por separado — ahí sí se mide el costo medio real.\n\n¿Quieres que abra el detalle por SKU de Bosch para ver el costo medio de cada uno?",
+          "suplente": false,
+          "vetos": [
+            "vocabulario-no-contractual"
+          ]
+        }
+      ],
+      "B": [
+        {
+          "q": "¿cuál es el costo medio de Bosch?",
+          "calls": 2,
+          "texto": "No existe un \"costo medio\" a nivel marca en el dato — ese atributo vive solo a nivel SKU. Bosch tiene dos:\n\n- BOS-DRILL18V: costo medio $116 por unidad (precio de lista $170 por unidad).\n- BOS-SANDER: costo medio $190 por unidad (precio de lista $247 por unidad).\n\nNo los promedio ni los combino: son dos SKU distintos, con dinámicas distintas, y mezclarlos en un \"costo medio Bosch\" sería una cifra que el dato no respalda.\n\nLa señal real está en BOS-SANDER: su margen es 18.0%, muy por debajo del benchmark de 30.1% y del 27.0% de BOS-DRILL18V. En inventario, BOS-SANDER (bodega Valparaíso) lleva 68 días sin venta y está clasificado en estado \"90d\" — no es solo un tema de costo, es un SKU que se está estancando. Ahí arrancaría antes de tocar precios o costos de toda la marca Bosch.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ]
+        }
+      ]
+    },
+    {
+      "hilo": "H7·G1 multi-entidad con typos",
+      "A": [
+        {
+          "q": "dame todo lo de falabela y lider y dime cual es peor y por qe",
+          "calls": 2,
+          "texto": "En el año cerrado, **Lider es la cuenta más débil de las dos**: su margen de 21.5% queda 8.6 puntos bajo tu benchmark de 30.1% — la brecha más amplia entre las dos, y de hecho el margen más rezagado de toda tu cartera de 13 clientes. Falabella vende más ($19.4M contra $17.9M de Lider) y también opera bajo el benchmark (22%, 8.1 puntos de brecha), pero su posición relativa es mejor: 2º desde abajo, no el último.\n\nLas dos cargan **acciones comerciales por encima de tu meta de 3.5%** — Falabella al 4.5% ($874K en acciones comerciales, $194K de exceso sobre la meta) y Lider al 4.2% ($750K en acciones comerciales, $125K de exceso). Es una señal de presión comprobada en ambas cuentas, pero no explica toda la brecha de margen en ninguna de las dos.\n\nEmpieza por **Lider**: revisa primero sus acciones comerciales — cerrar el exceso de $125K frente a tu meta de 3.5% es el paso comprobable sobre la cuenta con el margen más deteriorado del negocio, no la de mayor venta.\n\n¿Quieres que abra el detalle completo de cada cuenta en la Ficha de Sentrix?",
+          "suplente": false,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "dame todo lo de falabela y lider y dime cual es peor y por qe",
+          "calls": 1,
+          "texto": "**Falabella**\n- Ventas $19.4M (año anterior $17.9M · presupuesto $18.9M) · 1,040 unidades\n- Canal Retail · marca Samsung · familia Electrodomésticos\n- Margen 22.0% · Contribución $4.3M · Costo $15.2M\n- Carga comercial 4.5% (acciones comerciales $874K)\n\n**Lider**\n- Ventas $17.9M (año anterior $15.5M · presupuesto $17.2M) · 900 unidades\n- Canal Retail · marca LG · familia Línea Blanca\n- Margen 21.5% · Contribución $3.8M · Costo $14.0M\n- Carga comercial 4.2% (acciones comerciales $750K)\n\n**Lider es el peor de los dos.** Ambos están lejos del benchmark de margen (30.1%), pero Lider abre una brecha mayor: 21.5% vs 30.1% son 8.6 puntos, contra 8.1 puntos de Falabella. Además genera $3.8M de contribución con casi el mismo esfuerzo de carga comercial (4.2%, también sobre la meta de 3.5%) que Falabella con $4.3M — menos retorno por cada dólar de gasto comercial.\n\nFalabella tiene un problema distinto y más fácil de resolver: su carga comercial (4.5%) es la que más se aleja de la meta (3.5%), con $874K en acciones comerciales — el mayor gasto absoluto de los dos clientes.\n\nQué hacer primero: revisa los $874K de acciones comerciales de Falabella buscando bajar la carga de 4.5% a 3.5% sin tocar volumen — ahí liberas margen inmediato. Para Lider, el tema es estructural de margen (21.5%) y requiere revisar mezcla de producto o costo, no gasto comercial.",
+          "estado": "verde",
+          "vetos": []
+        }
+      ]
+    },
+    {
+      "hilo": "H8·criterio + la foto original",
+      "A": [
+        {
+          "q": "recuerda que mi margen mínimo aceptable es 26%",
+          "calls": 0,
+          "texto": "Listo — desde ahora tu margen mínimo es 26% (antes usaba 30.1%). Todas las lecturas, medidas y paneles miden contra TU referencia. Para volver al estándar: \"olvidá el margen mínimo\".",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "¿qué significa bajo benchmark?",
+          "calls": 3,
+          "texto": "Es simple: \"benchmark\" es la referencia con la que mides si un margen está bien o no.\n\nTú ya la cambiaste a 26%. Entonces un cliente \"bajo benchmark\" es cualquiera que gane menos de 26 centavos por cada dólar de venta — no rinde lo que le pediste al negocio.\n\nNo es un número de mercado ni de la industria: es tu propio piso, el que defines tú. Por eso al cambiarlo, todo lo que ADI mide se reacomoda contra ese 26%.\n\n¿Quieres que te muestre qué clientes quedan hoy por debajo de ese 26%?",
+          "suplente": false,
+          "vetos": [
+            "cifra-de-dato-sin-dueno"
+          ]
+        }
+      ],
+      "B": [
+        {
+          "q": "recuerda que mi margen mínimo aceptable es 26%",
+          "calls": 2,
+          "texto": "Anotado: tu piso es 26%, no el 30.1% de benchmark general — lo uso como filtro desde ahora.\n\nCon esa referencia, la cartera completa (25.1%) ya queda por debajo del piso. Y no es un problema parejo: se concentra en tus tres cuentas más grandes.\n\n- Falabella — $19.4M en ventas, margen 22.0% (4.0 puntos bajo tu piso)\n- Lider — $17.9M en ventas, margen 21.5% (4.5 puntos bajo tu piso)\n- Jumbo — $17.3M en ventas, margen 24.0% (2.0 puntos bajo tu piso)\n\nEntre los tres suman $19.4M + $17.9M + $17.3M en ventas, una parte grande de tu venta total de $100.0M, y ninguno llega a 26%.\n\nEmpieza por Falabella: es el que más factura de los tres y el que más lejos está del piso en términos de contribución perdida. Si llevaras su margen de 22.0% a tu piso de 26%, la contribución subiría de $4.3M a unos $5.0M sobre la misma venta — bajo el supuesto de que la venta se sostiene al renegociar condición o mezcla. Ahí está el primer punto de acción, no en Lider ni en Jumbo todavía.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ]
+        },
+        {
+          "q": "¿qué significa bajo benchmark?",
+          "calls": 1,
+          "texto": "Significa que el margen real quedó por debajo de la referencia que el propio negocio declaró como aceptable — y acá tienes dos varas, no una:\n\n- **Benchmark del negocio: 30.1%** — es la referencia general que fijaste para toda la cartera.\n- **Tu piso: 26%** — el mínimo que me acabas de marcar como aceptable, más exigente en el límite pero por debajo del benchmark.\n\nLa cartera cierra en 25.1% de margen. Eso significa que está **bajo las dos varas a la vez**: 5.0 puntos bajo el benchmark (30.1%) y 0.9 puntos bajo tu piso (26%).\n\nNo es un matiz semántico: \"bajo benchmark\" nunca se lee como neutro ni como \"aceptable con salvedades\" — es la señal de que ahí hay margen por recuperar, no una cifra a elogiar.\n\nDicho esto, la brecha no es pareja en toda la cartera. Sigue estando concentrada en Falabella (22.0%), Lider (21.5%) y Jumbo (24.0%) — los tres por debajo de tu piso de 26%, y los tres entre tus cuentas de mayor venta. Ahí es donde conviene mirar primero, empezando por Falabella por ser la de mayor contribución en juego.",
+          "estado": "verde",
+          "vetos": []
+        }
+      ]
+    },
+    {
+      "hilo": "H9·puntual con typos y 2 puntos",
+      "A": [
+        {
+          "q": "¿cómo viene Sodimac?",
+          "calls": 2,
+          "texto": "Sodimac vende $8.2M en el año cerrado, es tu cuarto cliente por venta, pero su margen de 23.5% queda 2.5 puntos bajo tu benchmark de 26%.\n\n- Ventas: $8.2M (4º de 13 clientes)\n- Margen: 23.5% vs benchmark 26% → brecha de 2.5 puntos\n- Carga comercial: 5.4%, por encima de tu meta de 3.5%\n- Contribución: $1.9M\n\nLa carga comercial de 5.4% es una señal que apunta a la brecha: sus acciones comerciales están $156K por encima de tu meta de 3.5%. No cierra toda la diferencia de margen, pero es la parte que ya puedes accionar.\n\nEmpieza por revisar las acciones comerciales de Sodimac — llevar la carga a tu meta de 3.5% libera esos $156K sin tocar precio ni costo.",
+          "suplente": false,
+          "vetos": []
+        },
+        {
+          "q": "baja 2 putnos su carga comercial y dime si queda sobre el benchmark",
+          "calls": 4,
+          "texto": "| Concepto | Valor |\n|---|---|\n| Target de carga | 3.5% |\n| Recuperable · total | $156K |\n| Sodimac · Recuperable | $156K |\n| Sodimac · Ventas | $8.2M |\n| Sodimac · Margen | 23.5% |\n| Sodimac · Contribución | $1.9M |\n| Sodimac · Costo | $6.3M |\n| Sodimac · Acciones comerciales | $442K |\n| Sodimac · Carga comercial | 5.4% |\n| Benchmark de margen | 26% |\n| Sodimac · brecha de margen | 2.5% |\n| Meta de carga comercial | 3.5% |\n\nLa fila de mayor magnitud es Sodimac · Ventas, con $8.2M.\n\nSupuesto: carga comercial → target (3.5%) sobre el dato real. (Datos del año cerrado.)\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.",
+          "suplente": true,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "¿cómo viene Sodimac?",
+          "calls": 2,
+          "texto": "**Sodimac crece en ventas pero no en rentabilidad.**\n\n- Ventas de Sodimac: $8.2M (vs año anterior de Sodimac $7.8M, +5.1% · vs presupuesto de Sodimac $7.8M, +5.1%)\n- Margen de Sodimac: 23.5% — 6.6 puntos por debajo del benchmark de cartera (30.1%)\n- Contribución de Sodimac: $1.9M · Costo de Sodimac $6.3M\n- Carga comercial de Sodimac: 5.4% — muy por encima de la meta (3.5%) y de la mejor práctica (3.0%), la segunda más alta de los 13 clientes\n\nLa causa está en la carga comercial: $442K en acciones comerciales de Sodimac sobre $8.2M de venta de Sodimac es la que le come margen frente al resto de la cartera.\n\nLleva esa carga de Sodimac de 5.4% a la meta de 3.5% —son $287K en vez de $442K, un ahorro de $155K— y el margen de Sodimac sube a ~25.4%. Sigue bajo benchmark, pero cierra buena parte de la brecha sin tocar precio ni volumen.",
+          "estado": "suplente",
+          "vetos": [
+            "cifra-de-dato-sin-dueno",
+            "2º: cifra-no-autorizada"
+          ]
+        },
+        {
+          "q": "baja 2 putnos su carga comercial y dime si queda sobre el benchmark",
+          "calls": 2,
+          "texto": "**No. Bajo este supuesto, el margen de Sodimac subiría pero seguiría por debajo del benchmark.**\n\n- Carga comercial proyectada de Sodimac: 5.4% − 2pp = 3.4% (ya por debajo de la meta de 3.5%, cerca de la mejor práctica de 3.0%)\n- Margen proyectado de Sodimac, bajo este supuesto: 23.5% + 2pp = 25.5%\n- Benchmark de cartera: 30.1% → seguiría 4.6 puntos abajo\n\nLa carga comercial ya no sería el problema principal en este escenario: el resto de la brecha (4.6 puntos) está en el costo de Sodimac ($6.3M sobre $8.2M de venta), no en gastos comerciales. Bajar 2 puntos de carga mejora, pero no cierra la brecha — el próximo paso es revisar costo o precio en los SKU que vende a Sodimac.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ]
+        }
+      ]
+    }
+  ]
+}

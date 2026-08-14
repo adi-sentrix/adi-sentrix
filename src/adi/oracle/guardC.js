@@ -2735,6 +2735,15 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     // LA FLECHA ES UNA CUENTA («$100.0M → $104.0M (+$4.0M)» / sin el delta): el antes→después con el factor del
     // usuario ES la fórmula a la vista en la forma en que el producto la escribe. Se verifica B = A×(1±p/100)
     // (p = un % declarado por el usuario) y, si el delta viene, B−A = delta. Solo entonces se adopta.
+    // «$100.0M + 4% = $104.0M» — la forma que la corrida doble midió (2026-08-14) y que el catálogo no
+    // reconocía: monto ± porcentaje del usuario = monto. Es la MISMA cuenta que el factor, escrita como la
+    // escribe un asesor. Se recomputa igual antes de autorizar.
+    const _rePctSobreMonto = /(\$[\d.,]+[KMB]?)\s*([+\-−–])\s*([\d.,]+)\s*%\s*=\s*(\$[\d.,]+[KMB]?)/g;
+    while ((em = _rePctSobreMonto.exec(narration))) {
+      const A = _dec(em[1]), p = parseFloat(em[3].replace(",", ".")), R = _dec(em[4]);
+      const signo = em[2] === "+" ? 1 : -1;
+      if (_pctUsuario.some((x) => Math.abs(x - p) <= 0.01) && _cierraFrm(A * (1 + signo * p / 100), R) && _baseOk(em[1])) _adoptar(em[0]);
+    }
     // (la tasa del factor puede venir del usuario O del dato: las dos son evidencia — categorías 1 y 3)
     const _pctsDatoFrm = _datoIdxFrm ? [..._datoIdxFrm.porCanon.keys()].map((c) => { const m = /^pct:([\d.]+)%$/.exec(String(c)); return m ? parseFloat(m[1]) : null; }).filter(Number.isFinite) : [];
     const _tasas = [..._pctUsuario, ..._pctsDatoFrm];
