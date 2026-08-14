@@ -34,7 +34,7 @@ import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { proyectarDatoNegocio, cifrasDelDato, suplenteDignoDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { ADI_PERSONA } from "./src/adi/oracle/persona.js";
 import { guardC, esNarracionVacia } from "./src/adi/oracle/guardC.js";
-import { responderConNotario } from "./src/adi/oracle/cicloNotarial.js";   // el ciclo de la constitución, compartido con el gate offline
+import { responderConNotario, alcanceHeredadoDe } from "./src/adi/oracle/cicloNotarial.js";   // el ciclo de la constitución, compartido con el gate offline
 import { HILOS } from "./_corrida_doble_casos.mjs";                        // el set probatorio, compartido con el gate offline
 import { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";
 import { parseFigures } from "./src/adi/boleta.js";
@@ -51,6 +51,15 @@ const CIFRAS = cifrasDelDato("actual");
 const KEY = process.env.ANTHROPIC_API_KEY;
 const _ejes = (a) => { const o = []; for (const e of a) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { } } return o.length ? o : null; };
 const ENT3 = _ejes(["cliente", "sku", "marca"]), ENT6 = _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]);
+// el catálogo POR EJE (no aplanado): `alcanceHeredadoDe` necesita saber a qué eje pertenece cada nombre para
+// elegir el dominante de la respuesta anterior y juzgar solo contra los candidatos de ESE eje.
+const CATALOGO_POR_EJE = (() => {
+  const o = {};
+  for (const eje of ["cliente", "sku", "marca", "familia", "bodega", "canal"]) {
+    try { const n = axisEntityNames(eje); if (n && n.length) o[eje] = n; } catch { /* sin índice: ese eje no participa */ }
+  }
+  return o;
+})();
 
 // el set probatorio vive en `_corrida_doble_casos.mjs`: lo comparte con el gate offline que fija la garantía
 // anti-vacío sobre EXACTAMENTE estos turnos (ver la cabecera de ese archivo).
@@ -109,11 +118,17 @@ async function armNatural(hilo) {
   const msgs = [];
   const turnos = [];
   const supuestosDelHilo = [];
+  let respuestaAnterior = null;   // la única huella de «de qué se habló» que tiene un cerebro sin boleta
   for (const q of hilo.turnos) {
     for (const pf of parseFigures(q)) supuestosDelHilo.push(pf.text);   // lo que el usuario declaró sigue vivo en el hilo
     msgs.push({ role: "user", content: q });
-    const t = { q, calls: 0, texto: null, estado: "verde", vetos: [], vacias: [], suplenteDigno: false };
-    const juzgar = (texto) => guardC(texto, { ledger: { figs: [] }, results: [], trace: null, question: q, supuestoPendiente: supuestosDelHilo, datoProyectado: CIFRAS, entidadesDelTenant: ENT3, duenosDelTenant: ENT6, contentScope: "full", tablePolicy: "auto" });
+    const t = { q, calls: 0, texto: null, estado: "verde", vetos: [], vacias: [], suplenteDigno: false, alcanceHeredado: null };
+    /* EL ALCANCE HEREDADO (corrida doble #2: el natural perdió a Sodimac de «esos clientes»). El notario ya sabía
+     * cazarlo; faltaba pasárselo. Se deriva de la respuesta ANTERIOR con `alcanceHeredadoDe` — el mismo detector
+     * deíctico del camino vigente — y solo viaja cuando de verdad hay un conjunto que heredar. */
+    const heredado = alcanceHeredadoDe({ pregunta: q, respuestaAnterior, catalogoPorEje: CATALOGO_POR_EJE });
+    if (heredado) t.alcanceHeredado = { eje: heredado.eje, entities: heredado.entities };
+    const juzgar = (texto) => guardC(texto, { ledger: { figs: [] }, results: [], trace: null, question: q, supuestoPendiente: supuestosDelHilo, alcanceHeredado: heredado, datoProyectado: CIFRAS, entidadesDelTenant: ENT3, duenosDelTenant: ENT6, contentScope: "full", tablePolicy: "auto" });
     try {
       /* EL CICLO NO VIVE ACÁ (2026-08-14): lo ejecuta `responderConNotario` (src/adi/oracle/cicloNotarial.js), el
        * MISMO código que el gate offline ejercita con un modelo mockeado que devuelve ""/espacios/null. Este arnés
@@ -135,7 +150,8 @@ async function armNatural(hilo) {
       // la reparación después la rescate — que es justo el caso que el balance escondía dentro de «reparado».
       t.calls = r.calls; t.texto = r.texto; t.estado = r.estado; t.vetos = r.vetos; t.vacias = r.vacias; t.suplenteDigno = r.suplenteDigno;
       msgs.push({ role: "assistant", content: r.texto });
-    } catch (e) { t.texto = `(ERROR: ${String(e && e.message).slice(0, 90)})`; t.estado = "error"; msgs.push({ role: "assistant", content: "(error)" }); }
+      respuestaAnterior = r.texto;   // el alcance del turno siguiente sale de acá
+    } catch (e) { t.texto = `(ERROR: ${String(e && e.message).slice(0, 90)})`; t.estado = "error"; msgs.push({ role: "assistant", content: "(error)" }); respuestaAnterior = null; }
     turnos.push(t);
   }
   return turnos;

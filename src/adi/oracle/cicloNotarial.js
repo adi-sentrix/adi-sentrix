@@ -23,6 +23,40 @@
  * volver a esconderlo dentro de «reparado». */
 import { esNarracionVacia } from "./guardC.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";
+import { DEICTIC_PLURAL_RE } from "./conversationScope.js";   // el MISMO detector de referencia plural del camino vigente
+
+/* ── EL ALCANCE HEREDADO DEL CAMINO NATURAL (corrida doble #2, 2026-08-14) ───────────────────────────────────────
+ * MEDIDO: ante «reduce en 2 puntos las acciones comerciales de ESOS clientes», el brazo natural respondió sobre
+ * TRES cuentas — perdió a Sodimac del conjunto que él mismo había nombrado el turno anterior. El notario ya sabe
+ * cazar eso (`alcanceHeredado` en guardC, veto `alcance-heredado-cambiado` con su instrucción de reparación),
+ * pero nadie se lo estaba pasando: la seguridad existía y el cable faltaba.
+ *
+ * DE DÓNDE SALE EL ALCANCE ACÁ. El camino vigente lo deriva de la BOLETA del turno (conversationScope). El camino
+ * natural no tiene boleta: su única huella de qué se habló es LO QUE ADI MISMA ESCRIBIÓ. Así que el alcance son
+ * las entidades del catálogo real que la respuesta anterior nombró — nunca una lista escrita a mano, nunca algo
+ * que el modelo declare sobre sí mismo.
+ *
+ * ANGOSTO POR TRES CANDADOS, para que no vete conversación legítima:
+ *   (1) solo si la pregunta trae una referencia deíctica PLURAL — el mismo `DEICTIC_PLURAL_RE` del camino vigente,
+ *       no una regla nueva. Sin «esos/estos/los mismos», no hay alcance que heredar y devuelve null;
+ *   (2) solo el eje DOMINANTE de la respuesta anterior (el que más entidades aportó), y solo si aportó 2+: con una
+ *       sola entidad no hay «conjunto» que sustituir, y mezclar ejes convertiría un SKU citado al pasar en parte
+ *       del alcance;
+ *   (3) los candidatos son los de ESE eje — nombrar una bodega o el benchmark sigue siendo legítimo.
+ * Sin catálogo o sin respuesta anterior: null, y el turno se juzga exactamente como antes. */
+export function alcanceHeredadoDe({ pregunta, respuestaAnterior, catalogoPorEje } = {}) {
+  const q = String(pregunta || "");
+  if (!DEICTIC_PLURAL_RE.test(q)) return null;
+  const prev = String(respuestaAnterior || "");
+  if (!prev.trim() || !catalogoPorEje || typeof catalogoPorEje !== "object") return null;
+  let mejor = null;
+  for (const [eje, nombres] of Object.entries(catalogoPorEje)) {
+    if (!Array.isArray(nombres) || !nombres.length) continue;
+    const nombradas = nombres.filter((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(prev));
+    if (nombradas.length >= 2 && (!mejor || nombradas.length > mejor.entities.length)) mejor = { eje, entities: nombradas, candidatos: nombres };
+  }
+  return mejor;
+}
 
 /**
  * responderConNotario({ pedir, juzgar, suplente, lavar }) → { texto, estado, vetos, vacias, suplenteDigno, calls }
