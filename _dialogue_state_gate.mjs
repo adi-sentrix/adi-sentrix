@@ -347,7 +347,11 @@ console.log("\n── 3 · ACEPTACIÓN HUÉRFANA — 'sí'/'dale' SIN lastOffer 
   ok(rA && rA.r && rA.r.route === "oracle", '"sí" sin lastOffer ni recentSubjects: IGUAL responde por C (nunca se abstiene)');
   ok(!planCalledA && !narrateCalledA, '"sí" huérfano: NUNCA invoca PLAN ni NARRAR — garantía por construcción, no depende del LLM');
   ok(rA && !/nunca deber[ií]a aparecer/i.test(rA.r.text), "el texto compuesto no tiene NADA que ver con lo que hubiera dicho el narrador (imposible que repita)");
-  ok(rA && /contame|qu[eé] quer[eé]s revisar/i.test(rA.r.text), 'sin ningún tema previo: pide precisión activamente, nunca un "no sé" seco');
+  // el registro pasó a tuteo neutro (owner 2026-08-14): «Contame qué querés revisar» → «Cuéntame qué quieres
+  // revisar». Se aceptan LAS DOS formas a propósito — lo que esta línea prueba es que PIDE PRECISIÓN, no cómo se
+  // conjuga; atarla a una sola redacción la volvería un test de ortografía y no del comportamiento.
+  ok(rA && /cu[eé]ntame|contame|qu[eé] quieres revisar|qu[eé] quer[eé]s revisar/i.test(rA.r.text),
+    'sin ningún tema previo: pide precisión activamente, nunca un "no sé" seco');
 
   const memConTemas = { recentSubjects: [{ entidad: "Falabella", dimension: "cliente" }, { entidad: "Sodimac", dimension: "cliente" }] };
   let narrateCalledB = false;

@@ -409,7 +409,7 @@ function ExplorarBar({ explorable, onCompare, metricOptions, currentMetric, onMe
           <span style={{ fontSize:12.5, color:C.textSub, flexShrink:0 }}>Comparar con</span>
           <select onChange={(e) => { if (e.target.value) onCompare(e.target.value); }} defaultValue=""
             style={{ flex:1, minWidth:130, background:C.surfaceAlt, color:C.text, border:`1px solid ${C.borderLight}`, borderRadius:6, padding:"7px 10px", fontSize:12.5, fontFamily:"'DM Sans', system-ui, sans-serif", cursor:"pointer", outline:"none" }}>
-            <option value="">elegí una entidad…</option>
+            <option value="">elige una entidad…</option>
             {peers.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
@@ -867,7 +867,7 @@ const MIRROR_LEGEND = "El punto celeste marca lo que ADI nombró en su respuesta
 const ASK_LEGEND = "Click en una fila para preguntarle a ADI por esa cuenta.";
 const AskRow = ({ onAsk, q, style, children }) => (
   <div style={{ ...style, ...(onAsk ? { cursor: "pointer", borderRadius: 6, margin: "0 -6px", padding: "3px 6px" } : {}) }}
-    title={onAsk ? `Preguntale a ADI: ${q}` : undefined}
+    title={onAsk ? `Pregúntale a ADI: ${q}` : undefined}
     onClick={onAsk ? () => onAsk(q) : undefined}
     onMouseEnter={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.07)"; } : undefined}
     onMouseLeave={onAsk ? (e) => { e.currentTarget.style.background = "transparent"; } : undefined}>
@@ -911,7 +911,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
                 </div>
                 <div style={{ fontFamily:MONO, fontSize:15, color:C.celeste, fontWeight:700, whiteSpace:"nowrap" }}>{c.valueFmt}</div>
                 {onAsk ? (
-                  <button onClick={() => onAsk(`Olvidá el ${c.label.toLowerCase()}`)} title={`Preguntale a ADI: Olvidá el ${c.label.toLowerCase()}`}
+                  <button onClick={() => onAsk(`Olvida el ${c.label.toLowerCase()}`)} title={`Pregúntale a ADI: Olvida el ${c.label.toLowerCase()}`}
                     style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:11, cursor:"pointer", flexShrink:0 }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = "#f87171"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>olvidar</button>
@@ -933,7 +933,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
                 </div>
                 <div style={{ fontFamily:MONO, fontSize:15, color:C.amber, fontWeight:700, whiteSpace:"nowrap" }}>{l.pct}%</div>
                 {onAsk ? (
-                  <button onClick={() => onAsk(`Saca ${l.nombre.toLowerCase()} del P&L`)} title={`Preguntale a ADI: Saca ${l.nombre.toLowerCase()} del P&L`}
+                  <button onClick={() => onAsk(`Saca ${l.nombre.toLowerCase()} del P&L`)} title={`Pregúntale a ADI: Saca ${l.nombre.toLowerCase()} del P&L`}
                     style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:11, cursor:"pointer", flexShrink:0 }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = "#f87171"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>sacar</button>
@@ -1284,7 +1284,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
               <React.Fragment key={i}>
                 <div style={{ gridColumn:"1 / -1", height:1, background:"rgba(255,255,255,0.05)" }}/>
                 <div style={{ padding:"8px 0", display:"flex", alignItems:"center", gap:6, minWidth:0, ...(onAsk ? { cursor:"pointer" } : {}) }}
-                  title={onAsk ? `Preguntale a ADI: Profundiza en ${s.sku}` : undefined}
+                  title={onAsk ? `Pregúntale a ADI: Profundiza en ${s.sku}` : undefined}
                   onClick={onAsk ? () => onAsk(`Profundiza en ${s.sku}`) : undefined}
                   onMouseEnter={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.07)"; } : undefined}
                   onMouseLeave={onAsk ? (e) => { e.currentTarget.style.background = "transparent"; } : undefined}>
@@ -1509,7 +1509,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <ResumenSostiene R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           <ResumenMovimiento num="02" title="Dónde se deteriora el margen"
-            def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregás en acciones comerciales (contra el promedio de tu cartera o contra tu meta) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
+            def={"Las dos cosas que mueven el margen, cada una contra su propia referencia: lo que entregas en acciones comerciales (contra el promedio de tu cartera o contra tu meta) y cómo se movió tu costo unitario contra tu precio entre el primer mes del período y el último."}>
             <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           <ResumenMovimiento num="03" title="Qué hacer primero"
@@ -1554,7 +1554,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           arriba; comprobado en vivo: el botón existía en el DOM pero el click nunca llegaba. ── */}
       {cara === "comercial" && askVistaComercial && (
         <button onClick={() => askVistaComercial("¿Qué es lo más importante que debería ver en la vista Comercial?")}
-          title="Preguntale a ADI sobre esta vista completa"
+          title="Pregúntale a ADI sobre esta vista completa"
           style={{ position:"absolute", right:16, bottom:16, display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:999,
             background:C.celeste, color:"#04262e", border:"none", fontSize:12, fontWeight:700, cursor:"pointer",
             fontFamily:"'DM Sans', system-ui, sans-serif", boxShadow:"0 8px 22px -4px rgba(47,184,218,0.5)", zIndex:5, transition:"transform 0.15s" }}
@@ -1686,7 +1686,7 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
             click y el título). Es la única pieza del bloque que declara DOS universos, y "¿por qué hay dos montos
             parecidos?" es la pregunta que más la busca — ahora viaja con el contexto de ESA tira, no del veredicto. */}
         <div style={{ fontSize: 11.5, color: C.textMuted, lineHeight: 1.5, marginTop: 4, ...(vRecon.ask ? { cursor: "pointer" } : {}) }}
-          title={vRecon.ask ? "Preguntale a ADI: ¿Cuál es la diferencia entre la cartera completa y el plano de decisión?" : undefined}
+          title={vRecon.ask ? "Pregúntale a ADI: ¿Cuál es la diferencia entre la cartera completa y el plano de decisión?" : undefined}
           onClick={vRecon.ask ? () => vRecon.ask("¿Cuál es la diferencia entre la cartera completa y el plano de decisión?") : undefined}>
           {R.tension.reconciliaCorta}
           <InfoDot def={"Dos universos con el MISMO criterio de materialidad y distinto alcance: la cartera completa (todo el negocio) y el plano de decisión (el grupo que explica el 80% de la venta). El primero dimensiona la oportunidad total; el segundo dice por dónde empezar. Cierran exacto: lo del plano más lo de la cola es lo de la cartera. Nunca vas a ver dos montos parecidos sin que diga de qué universo sale cada uno."} align="left"/>
@@ -1697,7 +1697,7 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 9 }}>
         {R.kpis.map((k) => { const ask = askDe(k.key); const emitir = askKpi[k.key] || vVeredicto.ask; const clic = !!(emitir && ask); return (
-          <button key={k.key} onClick={clic ? () => emitir(ask) : undefined} title={clic ? `Preguntale a ADI: ${ask}` : undefined}
+          <button key={k.key} onClick={clic ? () => emitir(ask) : undefined} title={clic ? `Pregúntale a ADI: ${ask}` : undefined}
             style={{ position: "relative", background: "rgba(255,255,255,0.02)", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", cursor: clic ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4, transition: "background 0.15s, border-color 0.15s" }}
             onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; if (clic) ev.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 1; }}
             onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; ev.currentTarget.style.borderColor = C.border; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 0; }}>
@@ -2379,7 +2379,7 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
       <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 4 }}>
         {/* el encabezado del cruce pasa a ser preguntable — mismo texto, mismo lugar: gana el click y el título */}
         <span style={vCruce.ask ? { cursor: "pointer" } : undefined}
-          title={vCruce.ask ? "Preguntale a ADI: ¿Por qué debo empezar por estas cuentas?" : undefined}
+          title={vCruce.ask ? "Pregúntale a ADI: ¿Por qué debo empezar por estas cuentas?" : undefined}
           onClick={vCruce.ask ? () => vCruce.ask("¿Por qué debo empezar por estas cuentas?") : undefined}>{P.encabezado}</span>
         <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
       </div>
@@ -2533,7 +2533,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
         <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:14.5, color:C.text, fontWeight:600 }}>{mr.empty.titulo}<InfoDot def={"La cara Resultado arma tu P&L comercial: la cascada ingreso → costo → margen bruto → carga → contribución → TUS líneas de gasto → resultado. Las líneas las defines tú conversando con ADI, como % sobre la venta (decisión v1 — drivers más finos llegan con la contabilidad real). Hasta la contribución todo es dato probado; tus gastos entran como supuestos declarados."} align="left"/></div>
         <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.65, maxWidth:520 }}>{mr.empty.texto}</div>
         {askPnl ? (
-          <button onClick={() => askPnl(mr.empty.prefill)} title={`Preguntale a ADI: ${mr.empty.prefill}`}
+          <button onClick={() => askPnl(mr.empty.prefill)} title={`Pregúntale a ADI: ${mr.empty.prefill}`}
             style={{ padding:"9px 18px", borderRadius:9, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
@@ -2558,7 +2558,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
       {/* ── ALCANCE DE LA CASCADA (pase 2): chip del foco + volver al negocio (el click informa, nunca dispara) ── */}
       {mr.alcance && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9 }}>
-          <button onClick={askPnl ? () => askPnl(mr.alcance.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.alcance.ask}` : undefined}
+          <button onClick={askPnl ? () => askPnl(mr.alcance.ask) : undefined} title={askPnl ? `Pregúntale a ADI: ${mr.alcance.ask}` : undefined}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:11.5, fontWeight:600, cursor: askPnl ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
             <span style={{ color:C.celeste, fontFamily:MONO, fontSize:10 }}>⌖</span> P&L de {mr.alcance.nombre} <span style={{ color:C.celeste }}>→</span>
           </button>
@@ -2644,7 +2644,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
       </div>
       {/* CORDURA HONESTA · resultado negativo declarado arriba (nunca silencioso) */}
       {mr.alerta && (
-        <button onClick={askPnl ? () => askPnl(mr.alerta.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.alerta.ask}` : undefined}
+        <button onClick={askPnl ? () => askPnl(mr.alerta.ask) : undefined} title={askPnl ? `Pregúntale a ADI: ${mr.alerta.ask}` : undefined}
           style={{ display:"flex", alignItems:"center", gap:9, width:"100%", marginTop:9, padding:"9px 12px", borderRadius:10,
             border:"1px solid rgba(248,113,113,0.4)", background:"rgba(248,113,113,0.05)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: askPnl ? "pointer" : "default" }}>
           <span style={{ width:7, height:7, borderRadius:"50%", background:C.red, boxShadow:`0 0 6px ${C.red}aa`, flexShrink:0 }}/>
@@ -2658,7 +2658,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
       <MovHead num="02" title="Por qué pasa" def={"La línea de gasto que más resultado consume, con su valor anual — del propio P&L que declaraste (una sola verdad con la respuesta de ADI). Toca el foco y ADI ordena todas tus líneas por peso."}/>
       {mr.foco ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:8 }}>
-          <button onClick={askPnl ? () => askPnl(mr.foco.ask) : undefined} title={askPnl ? `Preguntale a ADI: ${mr.foco.ask}` : undefined}
+          <button onClick={askPnl ? () => askPnl(mr.foco.ask) : undefined} title={askPnl ? `Pregúntale a ADI: ${mr.foco.ask}` : undefined}
             style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"9px 12px", borderRadius:10, border:`1px solid ${C.border}`, borderLeft:"2px solid rgba(47,184,218,0.6)", borderRight:"2px solid rgba(47,184,218,0.6)", background:C.surface, color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor: askPnl ? "pointer" : "default", transition:"background 0.15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = C.surface; }}>
@@ -2681,7 +2681,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
           </div>
           <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, marginBottom:10 }}>{mr.accion.detalle}</div>
           {askPnl && (
-            <button onClick={() => askPnl(mr.accion.ask)} title={`Preguntale a ADI: ${mr.accion.ask}`}
+            <button onClick={() => askPnl(mr.accion.ask)} title={`Pregúntale a ADI: ${mr.accion.ask}`}
               style={{ padding:"7px 14px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
@@ -2826,7 +2826,7 @@ function ResumenCapitalLista({ lista, tono, onAsk }) {
         </button>
       )}
       {onAsk && filas.length > 0 && (
-        <button onClick={() => onAsk(lista.ask)} title={`Preguntale a ADI: ${lista.ask}`}
+        <button onClick={() => onAsk(lista.ask)} title={`Pregúntale a ADI: ${lista.ask}`}
           style={{ alignSelf: "flex-start", marginTop: 2, padding: "5px 11px", borderRadius: 7, border: "1px solid rgba(47,184,218,0.5)", background: "rgba(47,184,218,0.08)", color: C.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", transition: "background 0.15s" }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; }}>
@@ -2886,7 +2886,7 @@ function CapitalBarras({ barras, onAsk }) {
               boxShadow: b.estado ? `0 0 6px ${_capCol(b.estadoColor)}88` : "none" }}/>
             <span style={{ flex: "0 0 108px", fontSize: 11, letterSpacing: "0.1px", fontWeight: b.agrupado ? 400 : 600, color: b.agrupado ? C.textMuted : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {b.ask && onAsk ? (
-                <button onClick={() => onAsk(b.ask)} title={`Preguntale a ADI: ${b.ask}${b.estadoLabel ? ` · ${b.estadoLabel}` : ""}`}
+                <button onClick={() => onAsk(b.ask)} title={`Pregúntale a ADI: ${b.ask}${b.estadoLabel ? ` · ${b.estadoLabel}` : ""}`}
                   style={{ background: "transparent", border: "none", padding: 0, color: "inherit", fontSize: 11, letterSpacing: "0.1px", fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{b.sku}</button>
               ) : b.sku}
             </span>
@@ -3020,7 +3020,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
                   {c.key === "sku" ? (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       {onAsk ? (
-                        <button onClick={() => onAsk(f.ask)} title={`Preguntale a ADI: ${f.ask}`}
+                        <button onClick={() => onAsk(f.ask)} title={`Pregúntale a ADI: ${f.ask}`}
                           style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{celda(f, c)}</button>
                       ) : celda(f, c)}
                       {/* A QUIÉN LE CALZA ESTE PRODUCTO · solo donde el módulo lo trae (los detenidos) */}
@@ -3159,7 +3159,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           PREGUNTA no se escribe acá: es la que el módulo ya emite para ese KPI — una sola verdad, y así el
           vocabulario del producto lo sigue fijando el módulo, no la vista. */}
       <div style={{ fontSize:12, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9, ...(vCapMapa.ask && _askMapa ? { cursor:"pointer" } : {}) }}
-        title={vCapMapa.ask && _askMapa ? `Preguntale a ADI: ${_askMapa}` : undefined}
+        title={vCapMapa.ask && _askMapa ? `Pregúntale a ADI: ${_askMapa}` : undefined}
         onClick={vCapMapa.ask && _askMapa ? () => vCapMapa.ask(_askMapa) : undefined}>
         <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{cap.mapa.lectura}
       </div>
@@ -3210,11 +3210,11 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
         también suma acá · una lista, dos caras) ── */}
     {wl.items.length > 0 && (
       <div>
-        <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento — la misma de la cara comercial (una sola lista): marcá la estrella en cualquier fila del cuadro y queda acá con su cifra clave y su estado. Toca un seguido y ADI lo abre al lado; la estrella lo saca de la lista."}/>
+        <MovHead title="Lo que yo sigo" def={"Tu lista de seguimiento — la misma de la cara comercial (una sola lista): marca la estrella en cualquier fila del cuadro y queda acá con su cifra clave y su estado. Toca un seguido y ADI lo abre al lado; la estrella lo saca de la lista."}/>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8 }}>
           {wl.items.map((it) => { const col = it.vara ? semCol[it.vara] : null; return (
             <button key={it.dim + "·" + it.nombre} onClick={onAsk && it.ask ? () => onAsk(it.ask) : undefined}
-              title={onAsk && it.ask ? `Preguntale a ADI: ${it.ask}` : undefined}
+              title={onAsk && it.ask ? `Pregúntale a ADI: ${it.ask}` : undefined}
               style={{ display:"flex", flexDirection:"column", alignItems:"stretch", gap:3, padding:"9px 11px", borderRadius:10, border:`1px solid ${C.border}`,
                 background:"rgba(255,255,255,0.02)", color:C.text, fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left",
                 cursor: onAsk && it.ask ? "pointer" : "default", transition:"background 0.15s" }}
@@ -3426,7 +3426,7 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
               {cols.map((c) => c.key === "accion" ? (
                 onAsk && r.accionAsk ? (
                   <span key={c.key}>
-                    <button onClick={(e) => { e.stopPropagation(); onAsk(r.accionAsk); }} title={`Preguntale a ADI: ${r.accionAsk}`}
+                    <button onClick={(e) => { e.stopPropagation(); onAsk(r.accionAsk); }} title={`Pregúntale a ADI: ${r.accionAsk}`}
                       style={{ padding:"2px 8px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:actionColor(r.accion), fontSize:10.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap", transition:"all 0.15s" }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; e.currentTarget.style.background = "rgba(47,184,218,0.06)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}>{r.accion}</button>
@@ -3834,7 +3834,7 @@ function DecisionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
             return body ? <div key={i} style={{ fontSize:12.5, color:C.textSub, lineHeight:1.55, marginTop: i > 0 ? 8 : 0 }}>{body}</div> : null;
           })}
           {action.askLabel && (
-            <button onClick={onAsk ? () => onAsk(action.askLabel) : undefined} title={onAsk ? `Preguntale a ADI: ${action.askLabel}` : undefined}
+            <button onClick={onAsk ? () => onAsk(action.askLabel) : undefined} title={onAsk ? `Pregúntale a ADI: ${action.askLabel}` : undefined}
               style={{ marginTop:14, padding:"8px 15px", borderRadius:8, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:12.5, fontWeight:600, cursor: onAsk ? "pointer" : "default", fontFamily:"'DM Sans', system-ui, sans-serif", transition:"background 0.15s" }}
               onMouseEnter={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.16)"; } : undefined}
               onMouseLeave={onAsk ? (e) => { e.currentTarget.style.background = "rgba(47,184,218,0.08)"; } : undefined}>
@@ -4049,7 +4049,7 @@ function ControlRing({ ring, rd }) {
 
       {/* ADI · ELEGÍ UN CAMINO · las palancas con $ honesto */}
       <div>
-        <Eyebrow>ADI · elegí un camino</Eyebrow>
+        <Eyebrow>ADI · elige un camino</Eyebrow>
         <div style={{ fontSize:12.5, color:C.textSub, lineHeight:1.5, marginBottom:10 }}>
           {ring.focus} {ring.framingVerb || "pierde por"} <span style={{ color:C.text, fontWeight:600 }}>{ring.leverLabel}</span>. Dos caminos, distinto esfuerzo:
         </div>
@@ -4060,7 +4060,7 @@ function ControlRing({ ring, rd }) {
                 <PathCard tag="Rápido" tagColor={C.green}
                   title="Liquidar el stock crítico"
                   value={`+${money(ring.quickWinK)}`}
-                  detail="lo marcado crítico (120d+ / sin venta) · liberás ese capital ahora"/>
+                  detail="lo marcado crítico (120d+ / sin venta) · liberas ese capital ahora"/>
               )}
               {/* LA TRANSFERENCIA SE OFRECE SÓLO SI EL DATO LA SOSTIENE (owner 2026-08-09, decisión 13 · hallazgo M).
                   Esta tarjeta recomendaba "transferir / mover lo lento a donde se vende" mientras la cara Capital
@@ -4304,7 +4304,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
                   {r.mov && <span title={r.mov === "entra" ? "Entró al bloque 80/20 de la venta (vs año anterior)" : "Salió del bloque 80/20 de la venta (vs año anterior)"}
                     style={{ width:5, height:5, borderRadius:"50%", background: r.mov === "entra" ? C.celeste : C.amber, flexShrink:0, opacity:0.9 }}/>}
                   {mesa && onAsk ? (
-                    <button onClick={(e) => { e.stopPropagation(); onAsk(`Profundiza en ${r.name}`); }} title={`Preguntale a ADI: Profundiza en ${r.name}`}
+                    <button onClick={(e) => { e.stopPropagation(); onAsk(`Profundiza en ${r.name}`); }} title={`Pregúntale a ADI: Profundiza en ${r.name}`}
                       style={{ padding:"1px 7px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:C.textMuted, fontSize:8.5, fontFamily:MONO, letterSpacing:"0.5px", cursor:"pointer", flexShrink:0, transition:"all 0.15s" }}
                       onMouseEnter={(e) => { e.currentTarget.style.color = C.celeste; e.currentTarget.style.borderColor = "rgba(47,184,218,0.45)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>ADI</button>
@@ -4323,7 +4323,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
                   // PASE 1 · la Acción como CHIP: click = la pregunta del detector a ADI (anti-BI: pregunta, nunca dispara)
                   mesa && onAsk && r.accionAsk ? (
                     <span key={c.key}>
-                      <button onClick={(e) => { e.stopPropagation(); onAsk(r.accionAsk); }} title={`Preguntale a ADI: ${r.accionAsk}`}
+                      <button onClick={(e) => { e.stopPropagation(); onAsk(r.accionAsk); }} title={`Pregúntale a ADI: ${r.accionAsk}`}
                         style={{ padding:"2px 8px", borderRadius:5, border:`1px solid ${C.border}`, background:"transparent", color:actionColor(r.accion), fontSize:10.5, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap", transition:"all 0.15s" }}
                         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; e.currentTarget.style.background = "rgba(47,184,218,0.06)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}>{r.accion}</button>
@@ -4546,7 +4546,7 @@ function BrechaFilm({ film }) {
         </>)}
       </svg>
       <div style={{ fontSize:11, color:C.textMuted, lineHeight:1.5, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
-        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; sumá <span style={{ color:C.teal }}>Costo</span> y <span style={{ color:C.lav }}>Carga</span> y vas a ver el componente dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
+        Ilustrativo — todavía no tengo el histórico mes a mes de <span style={{ color:C.textSub }}>{film.focus}</span> (el ERP lo enciende). El <span style={{ color:C.textSub }}>hoy</span> es el dato real; suma <span style={{ color:C.teal }}>Costo</span> y <span style={{ color:C.lav }}>Carga</span> y vas a ver el componente dominante (<span style={{ color:C.textSub }}>{film.thesis}</span>) trepar mientras el margen se erosiona.
       </div>
     </Card>
   );
@@ -5468,7 +5468,7 @@ function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
-        <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Elegí un cliente</div>
+        <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase", marginBottom: 8 }}>Elige un cliente</div>
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="buscar cliente…"
           style={{ width: "100%", maxWidth: 280, padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", color: C.text, fontSize: 12, fontFamily: "'DM Sans', system-ui, sans-serif", outline: "none", marginBottom: 9 }}/>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -5482,7 +5482,7 @@ function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
         </div>
       </div>
       {entity ? <FichaEjecutivaCliente name={entity} scenario={scenario} onAsk={askFicha || onAsk}/> : (
-        <div style={{ fontSize: 12, color: C.textMuted }}>Elegí un cliente arriba para ver su Ficha Ejecutiva.</div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>Elige un cliente arriba para ver su Ficha Ejecutiva.</div>
       )}
     </div>
   );

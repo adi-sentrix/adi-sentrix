@@ -90,13 +90,13 @@ export const defOf = (label) => METRIC_DEFS[label] || null;
 export const CONCEPT_DEFS = {
   no_capturada: {
     aka: "contribución no capturada",
-    def: "Es la brecha entre lo que un cliente aporta hoy y lo que aportaría si alcanzara el benchmark de margen. No es una pérdida contable —ese dinero no salió de la caja—: es contribución que quedás sin capturar por operar bajo el benchmark. Es recuperable subiendo el margen de esas cuentas.",
+    def: "Es la brecha entre lo que un cliente aporta hoy y lo que aportaría si alcanzara el benchmark de margen. No es una pérdida contable —ese dinero no salió de la caja—: es contribución que quedas sin capturar por operar bajo el benchmark. Es recuperable subiendo el margen de esas cuentas.",
     distingue: "No es un rebate ni un costo: es la contribución que dejas de ganar por el margen bajo. El rebate, en cambio, es parte de la **carga comercial** que ayuda a generar esa brecha.",
   },
   carga: {
     aka: "carga comercial",
     etiquetas: ["carga", "carga comercial", "carga comercial %"],
-    def: "Es la parte de la venta que se va en acciones comerciales —rebates, descuentos, condiciones— antes de llegar a la contribución. Se expresa como % de la venta. Cuanta más carga, menos margen retenés. Es una de las causas de que un cliente rinda por debajo de su potencial.",
+    def: "Es la parte de la venta que se va en acciones comerciales —rebates, descuentos, condiciones— antes de llegar a la contribución. Se expresa como % de la venta. Cuanta más carga, menos margen retienes. Es una de las causas de que un cliente rinda por debajo de su potencial.",
     distingue: "La carga comercial es la TASA (%); las **acciones comerciales** son el mismo hecho medido en dinero. Y ninguna de las dos es la **contribución no capturada**, que es el resultado —lo que dejas de ganar—, no la causa.",
   },
   acciones: {
@@ -108,7 +108,7 @@ export const CONCEPT_DEFS = {
   rebate: {
     aka: "rebate",
     etiquetas: ["rebate", "rebates"],
-    def: "Un rebate es un descuento o devolución que le concedés al cliente sobre la venta. Forma parte de las **acciones comerciales**: es dinero de la venta que no llega a la contribución.",
+    def: "Un rebate es un descuento o devolución que le concedes al cliente sobre la venta. Forma parte de las **acciones comerciales**: es dinero de la venta que no llega a la contribución.",
     distingue: "El rebate es un costo comercial concreto. La **contribución no capturada** es otra cosa: la brecha de margen que ese costo —y otros— te dejan.",
   },
   benchmark: {

@@ -197,6 +197,18 @@ const _VOSEO = [
   _v("ven[ií]s", "vienes"), _v("prefer[ií]s", "prefieres"), _v("eleg[ií]s", "eliges"),
   _v("segu[ií]s", "sigues"), _v("vend[eé]s", "vendes"), _v("deb[eé]s", "debes"),
   _v("sos", "eres"),
+  // LAS QUE FALTABAN, medidas (owner 2026-08-14, barrido de la clase completa): cada una salió a pantalla por un
+  // literal del camino vigente que este stripper NO habría lavado si lo hubiera escrito el narrador. Se agregan acá
+  // —y no solo en el literal— porque el detector del gate y este stripper tienen que cubrir el MISMO conjunto: una
+  // forma que el gate sabe nombrar y el runtime no sabe lavar es un hueco que se abre en cuanto el LLM la redacta.
+  // LA TILDE ES OBLIGATORIA en casi todas: sin ella «retenes» (plural de retén), «marcas», «entregas», «concedes»,
+  // «repones», «liberas» y «quedas» son palabras legítimas —sustantivo o tuteo correcto— y reescribirlas rompería
+  // prosa buena. Sólo «referís» y «corregís» la llevan opcional: sin tilde no son nada en español.
+  _v("refer[ií]s", "refieres"), _v("correg[ií]s", "corriges"), _v("emit[ií]s", "emites"),
+  _v("retenés", "retienes"), _v("concedés", "concedes"), _v("reponés", "repones"),
+  _v("quedás", "quedas"), _v("recuperás", "recuperas"), _v("liberás", "liberas"),
+  _v("entregás", "entregas"), _v("priorizás", "priorizas"), _v("declarás", "declaras"),
+  _v("marcás", "marcas"), _v("ejecutás", "ejecutas"), _v("confirmás", "confirmas"),
   // «vos» ES DOS PRONOMBRES DISTINTOS y no se traduce con una sola palabra: sujeto → «tú» («vos decidís»), pero
   // TRAS PREPOSICIÓN el tuteo usa la forma tónica «ti» («declarado por vos» → «por ti», nunca «por tú»). La regla
   // de preposición va PRIMERO: si corriera después, el genérico ya habría dejado un «por tú» agramatical.
@@ -277,6 +289,7 @@ const _VOSEO = [
     ["reponé", "repón"], ["vendé", "vende"], ["resolvé", "resuelve"], ["movés", "mueves"], ["atendé", "atiende"],
     ["corré", "corre"], ["aprendé", "aprende"], ["entendé", "entiende"], ["escogé", "escoge"], ["recorré", "recorre"],
     ["corregí", "corrige"], ["subí", "sube"], ["escribí", "escribe"], ["decidí", "decide"], ["abrí", "abre"],
+    ["elegí", "elige"],
     ["medí", "mide"], ["repartí", "reparte"], ["incluí", "incluye"], ["definí", "define"], ["permití", "permite"],
     ["revertí", "revierte"], ["convertí", "convierte"], ["dividí", "divide"], ["seguí", "sigue"], ["pedí", "pide"],
   ]),
@@ -314,6 +327,102 @@ export function stripLanguageLeaks(text) {
     if (out.trim()) s = out;
   }
   return s.trim() ? s : text;   // seguridad: nunca dejar vacío
+}
+
+/* ── EL DETECTOR DE VOSEO · UNA SOLA LISTA, PORQUE HABÍA TRES (owner 2026-08-14) ═══════════════════════════════
+ * EL HALLAZGO QUE LO PIDE. La captura del owner —«…¿Sobre qué cliente, SKU, marca o familia querés simular este
+ * escenario?»— salió a pantalla con DOS gates de registro en verde que YA miraban voseo: `_registro_gate` desde la
+ * certificación live y `_registro_boleta_gate` desde la Poda 2B. No fallaron por no mirar: fallaron porque cada uno
+ * llevaba SU PROPIA lista enumerada, y las dos estaban incompletas y desalineadas entre sí y con el `_VOSEO` de
+ * arriba. Tres listas de la misma cosa son tres oportunidades de que una quede corta — y «referís», «liberás»,
+ * «entregás», «recuperás», «quedás», «retenés» y «concedés» no estaban en ninguna de las tres.
+ *
+ * POR QUÉ VIVE ACÁ Y NO EN UN GATE. `voiceGuard` ya es la autoridad de voseo del repo: acá está el stripper que lo
+ * neutraliza en runtime. Que el DETECTOR (lo que el gate sabe nombrar) y el CORRECTOR (lo que el runtime sabe
+ * lavar) salgan del mismo archivo permite atarlos con una invariante verificable —«toda forma que el detector
+ * conoce, el stripper la neutraliza»—, que el gate comprueba forma por forma. Una que el gate caza pero el runtime
+ * no lava es un hueco que se abre en cuanto el narrador la redacta libre en vez de venir de un literal.
+ *
+ * DOS NIVELES, y la diferencia es la ambigüedad del español, no la severidad:
+ *   · NIVEL 1 · INEQUÍVOCO. Formas que no pueden ser otra cosa. LA TILDE ES OBLIGATORIA salvo donde la forma pelada
+ *     no existe en español («querés», «referís»): sin ese cuidado el detector marcaría «marcas», «entregas»,
+ *     «retenes» o «necesitas», que son prosa correcta — y un gate con falsos positivos se termina desactivando.
+ *   · NIVEL 2 · IMPERATIVO EN -í, SÓLO EN POSICIÓN DE ORDEN. «pedí», «elegí», «seguí», «abrí» son a la vez orden
+ *     voseante y pretérito de primera persona («yo pedí el dato»). La terminación sola no distingue, así que se
+ *     exige el complemento inmediatamente después Y ningún clítico ni sujeto de primera delante. Con eso «abrí la
+ *     Mesa de control» (orden, salió a pantalla) se caza y «me dejaste sin la tabla que te pedí» no.
+ *
+ * SIN LOOKBEHIND, como el resto de este archivo (Safari viejo de invitados mobile): la condición «qué hay delante»
+ * se resuelve en JS mirando el texto previo, no con `(?<!…)`. La apertura usa `\b` y no `(?<![\p{L}])` porque todas
+ * las formas EMPIEZAN con letra ASCII — la trampa del borde ASCII es sólo al CERRAR, tras vocal acentuada, y ahí sí
+ * va el lookahead Unicode.
+ * Ante la duda NO se marca: falso negativo antes que falso positivo, la doctrina de esta casa. */
+export const VOSEO_FORMAS = [
+  // presente de indicativo · -ás (tilde OBLIGATORIA: la forma sin tilde es tuteo correcto o un sustantivo)
+  "andás", "necesitás", "buscás", "usás", "dejás", "encontrás", "mostrás", "pensás", "llevás", "ganás", "esperás",
+  "declarás", "marcás", "ejecutás", "confirmás", "recordás", "liberás", "entregás", "quedás", "recuperás",
+  "priorizás", "manejás", "trabajás", "comprás", "pagás", "hablás", "tratás", "mirás", "armás", "sumás", "bajás",
+  "ajustás", "revisás", "considerás", "mandás", "liquidás", "rotás", "cerrás", "comenzás", "empezás", "probás",
+  "contás", "apoyás", "aconsejás", "adulás", "dramatizás", "interpretás", "inventás", "nombrás", "redactás",
+  "relacionás", "heredás", "citás", "completás", "cruzás", "calculás", "acabás", "llegás", "terminás",
+  "reaccionás", "recomendás", "agregás", "sacás", "cambiás", "fijás", "ordenás", "filtrás", "seleccionás",
+  "comparás", "guardás", "arrancás", "tocás", "pasás", "editás", "aumentás", "conservás", "avisás", "explicás",
+  "descartás", "olvidás", "aceptás", "llamás", "ayudás",
+  // presente de indicativo · -és / -ís · tilde OPCIONAL sólo donde la forma pelada no es palabra («queres», «referis»)
+  "quer[eé]s", "pod[eé]s", "ten[eé]s", "dec[ií]s", "ven[ií]s", "prefer[ií]s", "refer[ií]s", "eleg[ií]s",
+  "segu[ií]s", "perd[eé]s", "correg[ií]s", "emit[ií]s", "volv[eé]s", "resolv[eé]s", "entend[eé]s", "atend[eé]s",
+  "aprend[eé]s", "escog[eé]s", "recorr[eé]s", "mov[eé]s", "sal[ií]s", "sub[ií]s", "escrib[ií]s", "decid[ií]s",
+  "abr[ií]s", "med[ií]s", "repart[ií]s", "defin[ií]s", "permit[ií]s", "revert[ií]s", "convert[ií]s", "divid[ií]s",
+  "ped[ií]s", "sent[ií]s", "viv[ií]s", "repet[ií]s", "reduc[ií]s",
+  // tilde OBLIGATORIA: «sabes», «haces», «vendes», «pones», «retenes», «respondes» son tuteo o sustantivo
+  "sabés", "hacés", "vendés", "debés", "ponés", "corrés", "retenés", "concedés", "reponés", "prometés",
+  "proponés", "rehacés", "respondés", "sostenés", "obtenés", "contenés", "mantenés", "sos",
+  // imperativo voseante en -á / -é · SIEMPRE con tilde (sin ella son tercera persona o sustantivo)
+  "hacé", "tené", "poné", "andá", "entregá", "mirá", "dejá", "revisá", "considerá", "comenzá", "probá", "pensá",
+  "mandá", "empezá", "armá", "tomá", "cerrá", "tocá", "pasá", "editá", "recordá", "agregá", "sacá", "cambiá",
+  "fijá", "ordená", "filtrá", "seleccioná", "compará", "calculá", "guardá", "arrancá", "declará", "marcá",
+  "ejecutá", "confirmá", "liquidá", "rotá", "validá", "recalculá", "priorizá", "bajá", "sumá", "restá", "buscá",
+  "reponé", "vendé", "resolvé", "atendé", "corré", "aprendé", "entendé", "escogé", "recorré", "mejorá", "aumentá",
+  "mantené", "conservá", "avisá", "explicá", "contá", "mostrá", "descartá", "replanteá", "renegociá", "profundizá",
+  "anotá", "apuntá", "olvidá", "aceptá", "esperá", "llamá", "usá", "ayudá", "liberá", "quitá", "pará",
+  // enclíticos · la forma en que el voseo se cuela con más frecuencia en una oferta de seguimiento. El tuteo carga
+  // la tilde en OTRA sílaba («dime», «cuéntame», «muéstrame», «avísame», «fíjate», «pásame», «tráeme»), así que
+  // estas formas no colisionan con él: se acepta la tilde final o ninguna, jamás la esdrújula.
+  "dec[ií]me", "dec[ií]melo", "cont[aá]me", "mostr[aá]me", "avis[aá]me", "explic[aá]me", "habl[aá]me",
+  "arm[aá]me", "pas[aá]me", "dej[aá]me", "mand[aá]me", "tra[eé]me", "dec[ií]le", "ped[ií]le", "fij[aá]te",
+  "pregunt[aá]le", "cont[aá]le", "avis[aá]le", "explic[aá]le", "mand[aá]le", "mostr[aá]le",
+  "acord[aá]te", "qued[aá]te", "pon[eé]te", "and[aá]te", "mir[aá]te", "tom[aá]te", "acerc[aá]te", "olvid[aá]te",
+  "cont[aá]nos", "dec[ií]nos", "mostr[aá]nos",
+];
+const _VOSEO_CIERRE = "(?![\\p{L}])";
+export const VOSEO_RE = new RegExp(`\\b(?:${VOSEO_FORMAS.join("|")})${_VOSEO_CIERRE}`, "iu");
+
+/* NIVEL 2 · las dos condiciones son necesarias y ninguna alcanza sola:
+ *   · DELANTE no puede haber clítico ni sujeto de primera («te pedí», «yo pedí», «que escribí», «lo elegí»): ahí es
+ *     pretérito, y marcarlo mandaría a reescribir una frase que dice lo correcto.
+ *   · DETRÁS tiene que venir el complemento de la orden (determinante, pronombre, preposición o interrogativo). Un
+ *     «…la tabla que te pedí.» al final de la oración no lo trae, y por eso no se marca. */
+const _VOSEO_I = ["eleg", "segu", "ped", "escrib", "correg", "sub", "decid", "abr", "med", "defin", "permit",
+  "inclu", "divid", "convert", "revert", "repart", "reduc", "sal", "viv", "sent", "repet", "imprim", "cumpl",
+  "compart"];
+const _OBJETO = "(?:el|la|los|las|un|una|unos|unas|tu|tus|mi|mis|su|sus|lo|le|les|nos|me|te|se|ese|esa|esos|esas|" +
+  "este|esta|estos|estas|nom[aá]s|uno|dos|m[aá]s|menos|ac[aá]|all[aá]|aqu[ií]|con|por|para|en|de|desde|hasta|" +
+  "entre|sobre|cu[aá]l|cu[aá]les|qu[eé]|c[oó]mo|d[oó]nde|cuando|ahora|primero|siempre|tambi[eé]n)";
+const _VOSEO_I_RE = new RegExp(`\\b(?:${_VOSEO_I.join("|")})í${_VOSEO_CIERRE}\\s+${_OBJETO}${_VOSEO_CIERRE}`, "giu");
+const _ANTES_ES_PASADO = /\b(?:yo|ya|te|me|le|les|nos|se|lo|la|los|las|que|y|no|cuando|nunca)\s+$/i;
+
+/* detectVoseo(texto) → la forma encontrada (string) o null. Es la ÚNICA puerta que consumen los gates de registro,
+ * para que sumar una forma no exija acordarse de tocar dos archivos — que es exactamente cómo se abrió este hueco. */
+export function detectVoseo(text) {
+  if (typeof text !== "string" || !text) return null;
+  const m1 = text.match(VOSEO_RE);
+  if (m1) return m1[0];
+  _VOSEO_I_RE.lastIndex = 0;
+  let m2;
+  while ((m2 = _VOSEO_I_RE.exec(text)) !== null) {
+    if (!_ANTES_ES_PASADO.test(text.slice(0, m2.index))) return m2[0];
+  }
+  return null;
 }
 
 // ── OFERTA FUERA DE DATO (owner 2026-07-09: "asegurarnos que considere solo lo que le damos como disponible") ·

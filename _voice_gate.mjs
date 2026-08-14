@@ -90,8 +90,10 @@ const leakCases = [
     in: "Easy vende $3.4M con margen 32.0% — sobre tu piso de 30.1%.",
     out: "Easy vende $3.4M con margen 32.0% — sobre tu piso de 30.1%." },
   { n: "L6 · mayúscula inicial preservada ('If' → 'Si')",
+    // el esperado decía «recuperás»: la fixture afirmaba que el voseo SOBREVIVÍA al lavado, porque esa forma no
+    // estaba en `_VOSEO` (owner 2026-08-14, barrido de la clase completa). Ahora sí está, y el esperado es tuteo.
     in: "If la carga baja al target, recuperás $194K.",
-    out: "Si la carga baja al target, recuperás $194K." },
+    out: "Si la carga baja al target, recuperas $194K." },
   // + REGISTRO EJECUTIVO igualado al gate estático (owner 2026-07-26: "apretado" se coló NARRADO en vivo) · el stripper
   // cubría guita/palanca; faltaban apretar/dormido/plata. Formas enumeradas: preservan inflexión, género y mayúscula.
   { n: "L7 · 'apretado' (adjetivo) → 'ajustado'",

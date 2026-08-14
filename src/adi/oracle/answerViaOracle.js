@@ -874,7 +874,7 @@ function _silentZeroSupuestoFaltante(text, calls) {
   if (ZERO_EXPLICIT_RE.test(String(text || ""))) return null;   // el usuario SÍ dijo "0%"/"sin cambio" — respetalo, no es un faltante
   // OJO: sin ningún número acá — "0%" en el texto sería una cifra sin autorizar y guardC rechazaría la PROPIA
   // pregunta de aclaración (bug real cazado en el propio testing de este fix).
-  const pregunta = zeroVar.campo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
+  const pregunta = zeroVar.campo === "precioLista" ? "¿cuánto esperas que cambie el precio?" : "¿cuánto esperas que cambie el volumen o las unidades vendidas?";
   return [`${pregunta} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`];
 }
 
@@ -1169,7 +1169,7 @@ const _ABANDONA_PENDIENTE_RE = /\bolvid[aá](?:lo|te\s+de\s+eso|emos)?\b|\bolvid
 // mismo string son tres oportunidades de que diverjan, y el texto de esta pregunta es parte del contrato con el
 // usuario — es lo que el turno siguiente tiene que poder contestar.
 function _preguntaPorFaltante(missingCampo) {
-  return missingCampo === "precioLista" ? "¿cuánto esperás que cambie el precio?" : "¿cuánto esperás que cambie el volumen o las unidades vendidas?";
+  return missingCampo === "precioLista" ? "¿cuánto esperas que cambie el precio?" : "¿cuánto esperas que cambie el volumen o las unidades vendidas?";
 }
 // _avisoVentasComoVolumen(variable) → el prefijo que DECLARA la interpretación cuando el campo volumen entró por
 // el vocabulario de «ventas»/vender (scenarioIntent.js marca `via:"ventas"`, owner 2026-08-14). El usuario dijo
@@ -1633,7 +1633,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (scenarioIntent.kind === "no_entity") {
       const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || ["cliente", "sku", "marca", "familia"].includes(s.dimension)));
       if (!recoverable) {
-        const out = _composedBypassResult(`${_avisoVentasComoVolumen(scenarioIntent.variable)}¿Sobre qué cliente, SKU, marca o familia querés simular este escenario?`, mem, recentNarrationsPrev, scenario);
+        const out = _composedBypassResult(`${_avisoVentasComoVolumen(scenarioIntent.variable)}¿Sobre qué cliente, SKU, marca o familia quieres simular este escenario?`, mem, recentNarrationsPrev, scenario);
         if (out) {
           // EL PENDIENTE DE ALCANCE SE PERSISTE (owner 2026-08-14, hilo medido): este arm hacía la pregunta y no
           // guardaba NADA — el turno siguiente («simula sobre el total de ventas») caía a PLAN sin ningún estado
@@ -1818,11 +1818,11 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (divergentes) {
       const A = UNIVERSOS[divergentes[0]], B = UNIVERSOS[divergentes[1]];
       const marco = (u) => (u.periodo === "hoy" ? "un stock a una fecha" : "un flujo del período");
-      textoBypass = `No las sumo: «${A.etiqueta}» es ${marco(A)} y «${B.etiqueta}» es ${marco(B)}, así que un total entre las dos no significaría nada. Te las dejo por separado, que es como sí se leen. Si querés, te muestro cada una con su detalle.`;
+      textoBypass = `No las sumo: «${A.etiqueta}» es ${marco(A)} y «${B.etiqueta}» es ${marco(B)}, así que un total entre las dos no significaría nada. Te las dejo por separado, que es como sí se leen. Si quieres, te muestro cada una con su detalle.`;
     } else if (previos.length) {
       // CIERRA CON PREGUNTA DE VERDAD, no con un imperativo: es el mismo contrato que el repo ya le exige a
       // `mode=clarify` —una aclaración termina en «?»— y acá vale igual, porque lo que el turno hace ES preguntar.
-      textoBypass = "No tengo claro a cuáles dos cifras te referís. ¿Cuáles querés que compare, y te digo si se pueden sumar o por qué no?";
+      textoBypass = "No tengo claro a cuáles dos cifras te refieres. ¿Cuáles quieres que compare, y te digo si se pueden sumar o por qué no?";
     }
     if (textoBypass) {
       const bypass = _composedBypassResult(textoBypass, mem, recentNarrationsPrev, scenario, true);

@@ -297,8 +297,8 @@ export function buildOrientacionInstruction(reason, recentSubjects) {
 // la usa para un bypass determinístico, igual que composeNoDataMessage en narrationBlocks.js).
 export function composeOrphanAcceptance(recentSubjects) {
   const temas = (Array.isArray(recentSubjects) ? recentSubjects : []).map((s) => s && s.entidad).filter(Boolean);
-  if (temas.length) return `No tengo una oferta pendiente para ese "sí" — ¿te referís a ${temas.join(" o a ")}? Decime a cuál y sigo.`;
-  return `No tengo un contexto previo para saber a qué te referís con "sí". Contame qué querés revisar y lo armo.`;
+  if (temas.length) return `No tengo una oferta pendiente para ese "sí" — ¿te refieres a ${temas.join(" o a ")}? Dime a cuál y sigo.`;
+  return `No tengo un contexto previo para saber a qué te refieres con "sí". Cuéntame qué quieres revisar y lo armo.`;
 }
 
 // ── OFERTA VAGA ACEPTADA (owner 2026-08-01, hallazgo en vivo: "¿querés que exploremos más sobre las condiciones
@@ -317,8 +317,8 @@ export function isVagueOffer(offer) {
 }
 export function composeVagueOfferAcceptance(offer) {
   const entidad = offer && offer.entidad;
-  if (!entidad) return `No tengo una forma concreta de "explorar esas condiciones" con el dato que manejo — ¿querés que simule un cambio de precio o de volumen, o preferís el desglose completo del mecanismo que ya nombré?`;
-  return `No tengo un mecanismo para simular "condiciones de negociación" en abstracto — pero puedo simular un cambio concreto de precio o de volumen para ${entidad}, o mostrarte el desglose completo del mecanismo que ya nombré. ¿Cuál preferís?`;
+  if (!entidad) return `No tengo una forma concreta de "explorar esas condiciones" con el dato que manejo — ¿quieres que simule un cambio de precio o de volumen, o prefieres el desglose completo del mecanismo que ya nombré?`;
+  return `No tengo un mecanismo para simular "condiciones de negociación" en abstracto — pero puedo simular un cambio concreto de precio o de volumen para ${entidad}, o mostrarte el desglose completo del mecanismo que ya nombré. ¿Cuál prefieres?`;
 }
 
 // ── MECANISMO YA AGOTADO (owner 2026-08-01, hallazgo en vivo de 3er orden — el owner aceptó DOS veces seguidas la
@@ -382,7 +382,7 @@ export function resolveSubjectRecall(text, recentSubjects) {
 
 export function composeSubjectAmbiguity(options) {
   const temas = (Array.isArray(options) ? options : []).map((s) => s && s.entidad).filter(Boolean);
-  return `Tengo varios temas recientes: ${temas.join(", ")}. ¿A cuál te referís?`;
+  return `Tengo varios temas recientes: ${temas.join(", ")}. ¿A cuál te refieres?`;
 }
 
 /* ── POR QUÉ recentSubjects NO se deriva de conversationScope.history (Etapa 4, documentado a propósito, para que

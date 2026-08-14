@@ -779,7 +779,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       comprimenN: comprimen.length, perdida, perdidaFmt: _K(Math.abs(perdida)),
       ganancia, gananciaFmt: _K(ganancia),
       lectura: comprimen.length
-        ? `En ${comprimen.length} de ${filas.length} cuentas el costo subió más que el precio: ${_K(Math.abs(perdida))} de margen. Empezá por ${comprimen.slice(0, 2).map((f) => f.nombre).join(" y ")}.`
+        ? `En ${comprimen.length} de ${filas.length} cuentas el costo subió más que el precio: ${_K(Math.abs(perdida))} de margen. Empieza por ${comprimen.slice(0, 2).map((f) => f.nombre).join(" y ")}.`
         : `El costo cedió y el precio subió en las ${filas.length} cuentas. Por costo no estás perdiendo margen este período.`,
       nota: `Indicado: lo que vale es la variación de cada serie, no su nivel.`,
       estatus: "indicado",
@@ -849,7 +849,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
           // nombre, con el dominante resaltado; la frase solo dice CUÁL manda. El "falta separar precio de costo"
           // era idéntico en todas las filas: subió una sola vez a la nota del bloque.
           lectura: dominante === "acciones"
-            ? `Pesa lo que le entregás: ${_pct(carga)} de acciones comerciales contra ${_pct(cargaProm, 2)} de tu cartera.`
+            ? `Pesa lo que le entregas: ${_pct(carga)} de acciones comerciales contra ${_pct(cargaProm, 2)} de tu cartera.`
             : `Pesa su precio contra su costo, no el descuento.${contexto ? ` ${contexto}` : ""}`,
         };
       })
@@ -862,7 +862,7 @@ function _deterioro(scenario, rows, plano, tension, puente) {
       filas, n: filas.length,
       margenProm, margenPromFmt: _pct(margenProm), cargaPromFmt: _pct(cargaProm, 2),
       tickPromFmt: tickProm ? `$${tickProm.toFixed(2)}` : "—", costoUniPromFmt: costoUniProm ? `$${costoUniProm.toFixed(2)}` : "—",
-      lectura: `${filas.length} de ${plano.n} cuentas que sostienen la venta dejan menos margen que tu promedio (${_pct(margenProm)}), y por causas distintas: ${porAcciones.length ? `en ${porAcciones.map((f) => f.nombre).join(", ")} pesa lo que entregás` : ""}${porAcciones.length && porPrecio.length ? "; " : ""}${porPrecio.length ? `en ${porPrecio.map((f) => f.nombre).join(", ")}, su precio contra su costo` : ""}.`,
+      lectura: `${filas.length} de ${plano.n} cuentas que sostienen la venta dejan menos margen que tu promedio (${_pct(margenProm)}), y por causas distintas: ${porAcciones.length ? `en ${porAcciones.map((f) => f.nombre).join(", ")} pesa lo que entregas` : ""}${porAcciones.length && porPrecio.length ? "; " : ""}${porPrecio.length ? `en ${porPrecio.map((f) => f.nombre).join(", ")}, su precio contra su costo` : ""}.`,
       nota: `Falta separar cuánto es precio de venta y cuánto es costo de producto.`,
       estatus: "indicado",
     };
@@ -1070,7 +1070,7 @@ function _prioridades(rows, deterioro, insights) {
     encabezado: !vivos.length
       ? "Ninguna cuenta queda bajo su presupuesto ni cede margen material: no hay una prioridad que el dato justifique."
       : ambos.length
-        ? `Empezá por ${ambos.length === 1 ? ambos[0] : `las ${ambos.length} cuentas que están bajo presupuesto Y cediendo margen`}${ambos.length === 1 ? ": vende menos de lo planeado Y cede margen" : ""}. Empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
+        ? `Empieza por ${ambos.length === 1 ? ambos[0] : `las ${ambos.length} cuentas que están bajo presupuesto Y cediendo margen`}${ambos.length === 1 ? ": vende menos de lo planeado Y cede margen" : ""}. Empujar volumen ahí con descuento agranda la brecha en vez de cerrarla.`
         : "Las cuentas ordenadas por lo que está en juego, separadas por tipo de problema.",
     // el cruce sigue publicado aunque ya no tenga card propia: es lo que el encabezado afirma y el gate verifica
     ambos,
@@ -1101,7 +1101,7 @@ function _formacion(total) {
       { key: "contribucion", signo: "=", label: "Contribución", montoFmt: _M(contrib * 1000), pctFmt: p(contrib), estatus: "probado",
         nota: "Lo que queda después del costo y de las acciones comerciales. Es el margen del negocio." },
     ],
-    lectura: `De cada ${_pct(100)} que vendés, ${p(costo)} se va en costo, ${p(acciones)} en acciones comerciales y ${p(contrib)} queda como contribución.`,
+    lectura: `De cada ${_pct(100)} que vendes, ${p(costo)} se va en costo, ${p(acciones)} en acciones comerciales y ${p(contrib)} queda como contribución.`,
   };
 }
 

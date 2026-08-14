@@ -21,12 +21,12 @@ fs.writeFileSync(entry, [
   'export { buildDisponibleMenu } from "./src/adi/llm/capabilities.js";',
   'export { composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend } from "./src/adi/pnl.js";',
   'export { buildMesaResultado } from "./src/adi/sentrix/mesaResultado.js";',
-  'export { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";',
+  'export { stripLanguageLeaks, detectVoseo } from "./src/adi/llm/voiceGuard.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
-const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks } = M;
+const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks, detectVoseo } = M;
 
 const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
 
@@ -46,23 +46,34 @@ const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*)\b/i;   // + 
 // LA TILDE ES OBLIGATORIA donde la forma SIN tilde es tuteo correcto («necesitas», «sabes», «haces», «vendes»,
 // «debes») o tercera persona («hace», «pone», «entrega»). Sin ese cuidado el gate marca prosa correcta, que es
 // peor que no marcar nada: un gate que da falsos positivos se termina desactivando.
-const VOSEO = new RegExp(
-  "\\b(?:quer[eé]s|pod[eé]s|ten[eé]s|dec[ií]s|ven[ií]s|prefer[ií]s|eleg[ií]s|segu[ií]s|perd[eé]s" +
-  "|sabés|hacés|vendés|debés|necesitás|buscás|usás|dejás|encontrás|mostrás|pensás|llevás|ganás|esperás" +
-  "|sos|vos" +
-  "|hacé|tené|poné|andá|entregá|mirá|dejá|revisá|considerá|comenzá|probá|pensá|mandá|empezá|armá|tomá|cerrá" +
-  "|tocá|pasá|editá|recordá|agregá|sacá|cambiá|fijá|ordená|filtrá|seleccioná|compará|calculá|guardá|arrancá" +
-  "|declarás|marcás|ejecutás|confirmás|recordás" +
-  "|dec[ií]me|cont[aá]me|mostr[aá]me|dec[ií]le|ped[ií]le|fij[aá]te|acord[aá]te" +
-  ")(?![\\p{L}])", "iu");
+// ⚠ LA LISTA YA NO VIVE ACÁ (owner 2026-08-14). Estaba enumerada en este archivo, otra en `_registro_boleta_gate` y
+// una tercera en `voiceGuard._VOSEO` — tres copias del mismo vocabulario, las tres incompletas y ninguna con las
+// mismas entradas. Por ese desfase la captura del owner («…¿…familia querés simular este escenario?») salió a
+// producción con los dos gates en VERDE. Ahora la fuente es UNA, `detectVoseo` de `voiceGuard` (la autoridad de
+// voseo del repo, donde también vive el stripper de runtime), y sumar una forma es tocar un solo archivo.
+
+/* ── EL RESIDUAL DEL CAMINO LEGADO, DECLARADO Y CONTADO (owner 2026-08-14) ─────────────────────────────────────
+ * Al pasar este gate al detector completo apareció UN texto en voseo que NO se corrige en este pase: vive en
+ * `src/adi/contracts/contractCloser.js` y su único importador es `answerADIFromSpec.js`, o sea el seam LEGADO —
+ * el que se migra aparte, por decisión de producto (ver `_INFORME_PODA_2A/2B`). Corregirlo acá sería tocar el
+ * camino que el encargo excluye, y dejarlo sin declarar sería esconderlo.
+ * SE DECLARA POR SU TEXTO, no por archivo ni línea: así una redacción nueva no hereda la exención. Y el tamaño de
+ * la lista se verifica al cierre — si alguien suma un voseo legado más, este gate se pone rojo igual. */
+const LEGADO_VOSEO_DECLARADO = [
+  "recuperás margen sin resignar venta",   // contracts/contractCloser.js · palanca de carga · sólo answerADIFromSpec
+];
+let legadoVistos = 0;
 
 let pass = 0, fail = 0; const rotos = [];
 const check = (origen, texto) => {
   if (typeof texto !== "string" || !texto.trim()) return;
   const m = texto.match(BANNED);
-  const v = texto.match(VOSEO);
+  const v = m ? null : detectVoseo(texto);
   if (m) { fail++; rotos.push({ origen, palabra: m[0], gist: texto.replace(/\s+/g, " ").slice(Math.max(0, m.index - 40), m.index + 40) }); }
-  else if (v) { fail++; rotos.push({ origen: `${origen} · voseo`, palabra: v[0], gist: texto.replace(/\s+/g, " ").slice(Math.max(0, v.index - 40), v.index + 40) }); }
+  else if (v) {
+    if (LEGADO_VOSEO_DECLARADO.some((d) => texto.includes(d))) { legadoVistos++; pass++; return; }
+    const i = texto.indexOf(v); fail++; rotos.push({ origen: `${origen} · voseo`, palabra: v, gist: texto.replace(/\s+/g, " ").slice(Math.max(0, i - 40), i + 40) });
+  }
   else pass++;
 };
 // PISO SELLADO (paridad byte-exact del oráculo · triage [39]): las rutas RICAS del motor todavía dicen "palanca";
@@ -246,8 +257,12 @@ for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/Inline
   let m, re = new RegExp(BANNED.source, "gi"), n = 0;
   while ((m = re.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") }); }
   // el MISMO barrido para las formas verbales (owner 2026-08-10): la UI es donde el registro se lee primero.
-  let mv, rev = new RegExp(VOSEO.source, "giu");
-  while ((mv = rev.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f} · voseo`, palabra: mv[0], gist: src.slice(Math.max(0, mv.index - 50), mv.index + 40).replace(/\s+/g, " ") }); }
+  // Por `detectVoseo` (una sola lista, ver arriba) y no por un regex propio: se corta el archivo en oraciones para
+  // no perder la ubicación del hallazgo, que es lo único que el regex global daba de más.
+  for (const frag of src.split(/(?<=[.!?;:>}])\s+|\n+/)) {
+    const v = detectVoseo(frag);
+    if (v) { n++; fail++; rotos.push({ origen: `estático · ${f} · voseo`, palabra: v, gist: frag.replace(/\s+/g, " ").slice(0, 90) }); }
+  }
   if (!n) pass++;
 }
 
@@ -273,7 +288,7 @@ const NARRADAS = [
   "Esa plata se libera rebajando el stock crítico.",
   // VOSEO NARRADO (owner 2026-08-10): el narrador redacta libre y los prompts que lo guían están en voseo, así que
   // lo imita — «Comenzá revisando…» salió en vivo, en la corrida de certificación. Mismo trato que el registro:
-  // el prompt pide, `stripLanguageLeaks` garantiza. Se prueba contra el MISMO VOSEO de este gate (una fuente).
+  // el prompt pide, `stripLanguageLeaks` garantiza. Se prueba contra el MISMO detector que el resto (una fuente).
   "Si querés, decime qué necesitás y contame lo que buscás.",
   "Comenzá revisando el margen y considerá bajar la carga.",
   "Podés fijar tu benchmark cuando quieras; sos vos quien decide.",
@@ -283,8 +298,9 @@ const NARRADAS = [
 ];
 for (const t of NARRADAS) {
   const out1 = stripLanguageLeaks(t);
-  const m = out1.match(BANNED) || out1.match(VOSEO);
-  if (m) { fail++; rotos.push({ origen: "voiceGuard · narración viva", palabra: m[0], gist: `«${t}» → «${out1}»` }); }
+  const mb = out1.match(BANNED);
+  const m = mb ? mb[0] : detectVoseo(out1);
+  if (m) { fail++; rotos.push({ origen: "voiceGuard · narración viva", palabra: m, gist: `«${t}» → «${out1}»` }); }
   else pass++;
   const out2 = stripLanguageLeaks(out1);   // idempotencia: segunda pasada = igual
   if (out2 !== out1) { fail++; rotos.push({ origen: "voiceGuard · idempotencia", palabra: "≠", gist: `«${out1}» → «${out2}»` }); }
@@ -315,6 +331,16 @@ for (const t of LIMPIAS) {
   else pass++;
 }
 
+// LA EXENCIÓN DEL LEGADO NO PUEDE CRECER NI QUEDAR HUÉRFANA. Si el texto declarado ya no se emite (porque se
+// migró el seam), este check avisa que la entrada se puede borrar; si alguien agrega otro voseo al camino legado,
+// no entra por esta puerta — no está en la lista y cae como cualquier otro.
+if (legadoVistos === 0) {
+  fail++;
+  rotos.push({ origen: "exención del legado", palabra: "huérfana",
+    gist: `LEGADO_VOSEO_DECLARADO tiene ${LEGADO_VOSEO_DECLARADO.length} entrada(s) y ninguna se emitió: si el seam legado ya se migró, borrá la lista` });
+} else pass++;
+
 console.log(`── _registro_gate: ${pass} textos limpios · ${fail} con registro viejo ──`);
+if (legadoVistos) console.log(`   · ${legadoVistos} emisión(es) del residual de voseo DECLARADO del camino legado (contractCloser, migra con answerADIFromSpec)`);
 if (rotos.length) { console.log("✗ REGISTRO VIEJO EMITIDO:"); rotos.forEach((r) => console.log(`   [${r.origen}] «${r.palabra}» …${r.gist}…`)); }
 process.exit(fail ? 1 : 0);
