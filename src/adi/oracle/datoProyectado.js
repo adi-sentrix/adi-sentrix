@@ -114,6 +114,11 @@ function _construir(scenario) {
   const kpis = deriveKpis(scenario);
   const figs = [];
   const counts = new Set();
+  /* ESTADOS y RANKINGS (constitución 2026-08-14, chequeos 3 y 4 del notario): las clasificaciones y los
+   * órdenes que la carpeta DECLARA, como objetos verificables — el mismo recorrido y los mismos umbrales
+   * del texto (tenantPolicyDefault, la única verdad), nunca una segunda regla. El TEXTO no cambia un byte. */
+  const estados = [];
+  const rankings = { cliente: { ventas: [], margen: [], contribucion: [], carga: [] }, marca: { ventas: [], margen: [], contribucion: [], carga: [] } };
   // F(valor, duenos) → registra la autorización y devuelve el valor para interpolarlo en el texto.
   const F = (value, duenos) => {
     for (const pf of parseFigures(String(value))) figs.push({ canon: pf.canon, value: String(value), duenos });
@@ -132,12 +137,14 @@ function _construir(scenario) {
   // ── KPIs del negocio (deriveKpis — el mismo motor de la Mesa) ──
   const kv = kpis.ventas, km = kpis.margen, ki = kpis.inventario || {};
   L.push("KPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):");
-  L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (año anterior ${F(_moneyK(kv.totalAnterior), NEG)} · presupuesto ${F(_moneyK(kv.totalPresupuesto), NEG)} · ${F(_pct1(kv.vsAnterior), NEG)} vs año anterior · ${F(_pct1(kv.vsPresupuesto), NEG)} vs presupuesto).`);
+  // los dueños de CONCEPTO (matriz de calibración 2026-08-14): «vs presupuesto ($97.0M)» nombra a su dueño con
+  // la palabra «presupuesto», no con «negocio/total» — cada agregado del KPI lleva además su palabra propia.
+  L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (año anterior ${F(_moneyK(kv.totalAnterior), [...NEG, "anterior"])} · presupuesto ${F(_moneyK(kv.totalPresupuesto), [...NEG, "presupuesto"])} · ${F(_pct1(kv.vsAnterior), [...NEG, "anterior"])} vs año anterior · ${F(_pct1(kv.vsPresupuesto), [...NEG, "presupuesto"])} vs presupuesto).`);
   L.push(`- ${_L.margen} de la cartera: ${F(_pct1(km.pct), NEG)} · ${_L.contribucion} total ${F(_moneyK(km.totalUSD), NEG)}.`);
   if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), NEG)} · ${F(_dias(ki.doh), NEG)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), NEG)} (${F(_money(ki.inmovilizadoUSD), NEG)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
-  L.push(`- La vara la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), REF)}.`);
+  L.push(`- La vara la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"])}.`);
   L.push("");
 
   // ── UNIVERSO VENTA COMERCIAL (año cerrado · almacenado en miles · Σ cierra contra el total del negocio) ──
@@ -150,12 +157,22 @@ function _construir(scenario) {
     const D = [c.nombre];
     let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (año anterior ${F(_moneyK(c.anterior), D)} · presupuesto ${F(_moneyK(c.presupuesto), D)}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
     if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D)})`;
+    if (Number.isFinite(c.actual)) rankings.cliente.ventas.push({ entidad: c.nombre, valor: c.actual });
+    if (m) {
+      if (Number.isFinite(m.margen)) rankings.cliente.margen.push({ entidad: c.nombre, valor: m.margen });
+      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.push({ entidad: c.nombre, valor: m.contribucion });
+      if (Number.isFinite(m.pctRebate)) rankings.cliente.carga.push({ entidad: c.nombre, valor: m.pctRebate });
+    }
     L.push(linea + ".");
   }
   counts.add(f.marcasMargen.length);
   L.push(`MARCAS (${f.marcasMargen.length}):`);
   for (const m of f.marcasMargen) {
     const D = [m.nombre];
+    if (Number.isFinite(m.venta)) rankings.marca.ventas.push({ entidad: m.nombre, valor: m.venta });
+    if (Number.isFinite(m.margen)) rankings.marca.margen.push({ entidad: m.nombre, valor: m.margen });
+    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.push({ entidad: m.nombre, valor: m.contribucion });
+    if (Number.isFinite(m.pctRebate)) rankings.marca.carga.push({ entidad: m.nombre, valor: m.pctRebate });
     L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D)} · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
   }
   counts.add(f.sfamiliasMargen.length);
@@ -179,7 +196,15 @@ function _construir(scenario) {
   L.push(`UNIVERSO «${UNIVERSOS.inventario.etiqueta.toUpperCase()}» (foto de hoy · ${f.skuInventario.length} SKU en ${bodegas.length} bodegas: ${bodegas.join(", ")}):`);
   for (const s of f.skuInventario) {
     const D = [s.sku, s.bodega];
-    L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D)} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D)} · Días de inventario ${F(_dias(s.doh), D)} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D)} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D)} · estado ${s.estado} · marca ${s.marca} · familia ${s.sfamilia}.`);
+    // el MISMO predicado del detector de capital (specRetrieval:577 · POLICY, una verdad): frenado = rotación
+    // bajo el piso o días sobre el techo — la clasificación se DECLARA como objeto para que el notario la verifique.
+    if ((typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax)) {
+      estados.push({ entidad: s.sku, estado: "frenado", bodega: s.bodega });
+    }
+    // `estado ${F(s.estado, D)}`: el estado crudo («90d», «120d») ES texto de la carpeta — si el narrador lo cita
+    // fiel («estado 90d»), la cita tiene que estar registrada con su dueño (medido en la matriz: FP de P2). F()
+    // devuelve el valor intacto: el TEXTO de la proyección no cambia un byte.
+    L.push(`- ${s.sku} (bodega ${s.bodega}) — ${_L.capital} ${F(_money(s.stockUSD), D)} · ${s.stockUnd} unidades en stock · ${_L.rotacion} ${F(_ratio(s.rotacion), D)} · Días de inventario ${F(_dias(s.doh), D)} · ${s.diasSinVenta > 0 ? `${F(_dias(s.diasSinVenta), D)} sin venta` : "con venta al día"} · vendido en el mes ${s.vendidoMes} unidades · margen de inventario ${F(_pct1(s.margenPct), D)} · estado ${F(s.estado, D)} · marca ${s.marca} · familia ${s.sfamilia}.`);
   }
   L.push("");
 
@@ -198,7 +223,7 @@ function _construir(scenario) {
   L.push("LO QUE ESTE DATO NO TIENE (verificado — quien prometa responder esto, inventa):");
   for (const h of _HUECOS) L.push(`- ${h}`);
 
-  return { texto: L.join("\n"), figs, counts: [...counts] };
+  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings };
 }
 
 function _cacheado(scenario) {
@@ -216,5 +241,5 @@ export function proyectarDatoNegocio(scenario = "actual") {
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
 export function cifrasDelDato(scenario = "actual") {
   const c = _cacheado(String(scenario || "actual"));
-  return { figs: c.figs, counts: c.counts };
+  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings };
 }

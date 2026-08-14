@@ -2481,14 +2481,19 @@ function _indiceDelDato(datoProyectado) {
 function _duenoEnVentana(text, masked, fig, duenos) {
   let idx = -1;
   while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
-    const [lo] = _localWindow(masked, idx, 90);
+    // 150 y no 90 (matriz de calibración 2026-08-14): una fila de detalle real del inventario —
+    // «LG-DRYER8KG (Valparaíso): $14K en stock, rotación 1.0x, 165 días de inventario, 94 días sin venta» —
+    // pone al dueño a ~95 caracteres de su última cifra; con 90 el dueño quedaba AFUERA por 5 caracteres.
+    const [lo] = _localWindow(masked, idx, 150);
     const end = idx + fig.text.length;
     const hi0 = Math.min(masked.length, end + 90);
     const cut = masked.slice(end, hi0).search(_SENT_END);
     const ventana = _norm(text.slice(lo, cut >= 0 ? end + cut : hi0));
     for (const d of duenos) {
       const dn = _norm(d);
-      if (dn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) return true;
+      // MORFOLOGÍA DEL DUEÑO (matriz de calibración 2026-08-14, falso positivo medido): «ventas totales»
+      // no matcheaba al dueño «total» — el plural/flexión leve del MISMO token cuenta como el dueño nombrado.
+      if (dn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${dn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:e?s)?(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) return true;
     }
   }
   return false;
@@ -2670,6 +2675,68 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   }
   const authCanon = new Set([...figs.map((f) => f.canon), ...qFigs.map((f) => f.canon), ...supFigs.map((f) => f.canon), ...bolFigs.map((f) => f.canon)]);
   const authVerbatim = new Set([...figs.map((f) => _stripSpace(f.value)), ...qFigs.map((f) => _stripSpace(f.text)), ...supFigs.map((f) => _stripSpace(f.text)), ...bolFigs.map((f) => _stripSpace(f.text))]);
+  /* ── LAS CUENTAS A LA VISTA (constitución 2026-08-14 · categoría «cálculo derivado») ─────────────────────────
+   * Una derivada CON SU FÓRMULA EN EL TEXTO se verifica recomputando — y solo entonces se autoriza, con el
+   * estatus del eco. Tres formas cerradas: suma de montos («$54.6M = $19.4M + $17.9M + $17.3M»), factor sobre
+   * un monto («$100.0M × 1.06 = $106.0M») y puntos sobre una tasa («4.5% − 2.0pp = 2.5%»). Candados: la BASE
+   * tiene que estar ya autorizada (boleta · eco · usuario · 1b · dato); el FACTOR/los PUNTOS tienen que venir
+   * respaldados por una cifra que el usuario declaró (eco o supuesto) — sin ese respaldo, nada se autoriza y el
+   * veto de siempre sigue su curso. La lección del espejo se respeta: no hay recompute SILENCIOSO — solo lo que
+   * la narración misma muestra como cuenta. */
+  const _datoIdxFrm = _indiceDelDato(datoProyectado);
+  {
+    const _dec = (s) => {
+      const m = String(s).replace(/\s/g, "").match(/^\$?([\d.,]+)([KMB])?%?$/i);
+      if (!m) return null;
+      const n = parseFloat(m[1].replace(/,/g, ""));
+      return Number.isFinite(n) ? n * (m[2] ? ({ K: 1e3, M: 1e6, B: 1e9 })[m[2].toUpperCase()] : 1) : null;
+    };
+    const _cierraFrm = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= Math.max(Math.abs(b) * 0.02, 0.051);
+    const _baseOk = (frag) => parseFigures(frag).every((pf) => authCanon.has(pf.canon) || authVerbatim.has(_stripSpace(pf.text))
+      || (_datoIdxFrm && (_datoIdxFrm.porCanon.has(pf.canon) || _datoIdxFrm.porVerbatim.has(_stripSpace(pf.text)))));
+    const _pctUsuario = [...qFigs, ...supFigs].map((f) => Number(f.raw)).filter(Number.isFinite);
+    const _adoptar = (frase) => { for (const pf of parseFigures(frase)) { qFigs.push(pf); authCanon.add(pf.canon); authVerbatim.add(_stripSpace(pf.text)); } };
+    let em;
+    const _reSuma = /(\$[\d.,]+[KMB]?)\s*=\s*(\$[\d.,]+[KMB]?(?:\s*\+\s*\$[\d.,]+[KMB]?)+)/g;
+    while ((em = _reSuma.exec(narration))) {
+      const sum = em[2].split(/\+/).map(_dec);
+      if (sum.every(Number.isFinite) && _cierraFrm(sum.reduce((a, b) => a + b, 0), _dec(em[1])) && _baseOk(em[2])) _adoptar(em[0]);
+    }
+    const _reMult = /(\$[\d.,]+[KMB]?)\s*[×x*]\s*([\d.,]+)\s*=\s*(\$[\d.,]+[KMB]?)/gi;
+    while ((em = _reMult.exec(narration))) {
+      const base = _dec(em[1]), factor = parseFloat(em[2].replace(",", ".")), res = _dec(em[3]);
+      const factorDelUsuario = _pctUsuario.some((p) => Math.abs(factor - (1 + p / 100)) <= 0.005 || Math.abs(factor - (1 - p / 100)) <= 0.005);
+      if (Number.isFinite(factor) && factorDelUsuario && _cierraFrm(base * factor, res) && _baseOk(em[1])) _adoptar(em[0]);
+    }
+    const _rePP = /([\d.,]+)\s*%\s*([+\-−–])\s*([\d.,]+)\s*(?:pp\b|puntos?(?:\s+porcentuales)?)\s*=\s*([\d.,]+)\s*%/gi;
+    while ((em = _rePP.exec(narration))) {
+      const base = parseFloat(em[1].replace(",", ".")), pts = parseFloat(em[3].replace(",", ".")), res = parseFloat(em[4].replace(",", "."));
+      const signo = em[2] === "+" ? 1 : -1;
+      const puntosDelUsuario = _pctUsuario.some((p) => Math.abs(Math.abs(p) - pts) <= 0.01);
+      if (puntosDelUsuario && _cierraFrm(base + signo * pts, res) && _baseOk(`${em[1]}%`)) _adoptar(em[0]);
+    }
+    // LA FLECHA ES UNA CUENTA («$100.0M → $104.0M (+$4.0M)» / sin el delta): el antes→después con el factor del
+    // usuario ES la fórmula a la vista en la forma en que el producto la escribe. Se verifica B = A×(1±p/100)
+    // (p = un % declarado por el usuario) y, si el delta viene, B−A = delta. Solo entonces se adopta.
+    // (la tasa del factor puede venir del usuario O del dato: las dos son evidencia — categorías 1 y 3)
+    const _pctsDatoFrm = _datoIdxFrm ? [..._datoIdxFrm.porCanon.keys()].map((c) => { const m = /^pct:([\d.]+)%$/.exec(String(c)); return m ? parseFloat(m[1]) : null; }).filter(Number.isFinite) : [];
+    const _tasas = [..._pctUsuario, ..._pctsDatoFrm];
+    const _reFlecha = /(\$[\d.,]+[KMB]?)\*{0,2}\s*(?:→|->)\s*\*{0,2}(\$[\d.,]+[KMB]?)\*{0,2}(?:\s*\(([+\-−–])\s*\*{0,2}(\$[\d.,]+[KMB]?)\*{0,2}\))?/g;
+    while ((em = _reFlecha.exec(narration))) {
+      const A = _dec(em[1]), B = _dec(em[2]), D = em[4] ? _dec(em[4]) : null;
+      const p = _tasas.find((x) => _cierraFrm(A * (1 + x / 100), B) || _cierraFrm(A * (1 - x / 100), B));
+      const deltaOk = D == null || _cierraFrm(Math.abs(B - A), D);
+      if (p != null && deltaOk && _baseOk(em[1])) _adoptar(em[0]);
+    }
+    // EL PARÉNTESIS QUE MUESTRA LA CUENTA («$26.1M ($104.0M × 25.1%)»): resultado = monto × tasa, con la tasa
+    // venida del dato o del usuario y el monto ya autorizado (incluye lo adoptado por las formas de arriba).
+    const _reParen = /(\$[\d.,]+[KMB]?)\s*\((\$[\d.,]+[KMB]?)\s*[×x*]\s*([\d.,]+)\s*%\)/gi;
+    while ((em = _reParen.exec(narration))) {
+      const R = _dec(em[1]), M = _dec(em[2]), p = parseFloat(em[3].replace(",", "."));
+      const tasaConocida = _pctUsuario.some((x) => Math.abs(x - p) <= 0.01) || _pctsDatoFrm.some((x) => Math.abs(x - p) <= 0.01);
+      if (tasaConocida && _cierraFrm(M * (p / 100), R) && _baseOk(em[2])) _adoptar(em[0]);
+    }
+  }
   const violations = [];
   const entityNames = _entityNames(results);   // adelantado (antes vivía en el paso 3) — _isCalc2 lo necesita en el paso 1
   // entidades NOMBRADAS en ESTE texto (subconjunto de entityNames) — _isCalc2 se acota a estas, NUNCA a todo
@@ -2677,6 +2744,91 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // combinaría pares de entidades que la narración ni siquiera menciona, reabriendo el mismo riesgo de
   // combinatoria amplia que un "nivel 2 global" — el diseño exige EXACTAMENTE las 1-2 que el texto compara.
   const mentionedEntities = entityNames.filter((n) => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration));
+
+  /* ── LOS CHEQUEOS DE LA CONSTITUCIÓN (2026-08-14): estados · rankings · vocabulario · ambigüedad ──────────────
+   * «No solo las cifras requieren evidencia. También las clasificaciones, estados, rankings, comparaciones,
+   * etiquetas ejecutivas y vocabulario financiero.» Los cuatro corren SOLO cuando la carpeta declara sus objetos
+   * (estados/rankings de datoProyectado) o el patrón es inequívoco — sin esos insumos, byte-idéntico a antes. */
+  // ESTADOS (chequeo N3/N4 de la matriz): una clasificación solo existe si el motor la declara — y resiste
+  // sinónimos. El vocabulario de INMOVILIDAD de entidad (frenado/bloqueado/parado/estancado) exige que cada SKU
+  // nombrado en esa oración esté declarado frenado, y que un conteo «N SKU <estado>» sea exactamente el declarado.
+  // «inmovilizado»/«detenido» NO están acá: son el estado del CAPITAL (label del ledger), no una clasificación nueva.
+  if (datoProyectado && Array.isArray(datoProyectado.estados) && datoProyectado.estados.length) {
+    const _frenados = new Set(datoProyectado.estados.filter((e) => e && e.estado === "frenado").map((e) => e.entidad));
+    const _EST_RE = /\b(?:frenad[oa]s?|bloquead[oa]s?|parad[oa]s?|estancad[oa]s?)\b/i;
+    const _skusCatalogo = (Array.isArray(duenosDelTenant) ? duenosDelTenant : []).filter((n) => /^[A-Z]{2,4}-/.test(String(n)));
+    for (const o of narration.split(/[.!?\n]+/)) {
+      if (!_EST_RE.test(o)) continue;
+      for (const sku of _skusCatalogo) {
+        if (!new RegExp(`\\b${sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(o)) continue;
+        if (!_frenados.has(sku)) violations.push({ kind: "estado-no-declarado", detail: `«${sku}» no está frenado según el motor — los SKU frenados declarados son ${[..._frenados].join(", ")}; di el estado que la carpeta declara, no clasifiques por tu cuenta` });
+      }
+      const mc = o.match(/\b(un|dos|tres|cuatro|cinco|seis|siete|ocho|\d+)\s+SKU\b/i);
+      if (mc) {
+        const N = ({ un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 })[mc[1].toLowerCase()] ?? parseInt(mc[1], 10);
+        if (Number.isFinite(N) && N !== _frenados.size) violations.push({ kind: "estado-no-declarado", detail: `«${mc[0]}» con estado de inmovilidad: el motor declara ${_frenados.size} SKU frenados, no ${N}` });
+      }
+    }
+  }
+  // RANKINGS (chequeo N6): «tus N clientes de mayor X» se verifica REORDENANDO la carpeta — un orden afirmado
+  // que el dato no sostiene es tan grave como una cifra inventada (lección del «descendente» de 2026-07).
+  if (datoProyectado && datoProyectado.rankings) {
+    const _MET = { venta: "ventas", ventas: "ventas", margen: "margen", contribucion: "contribucion", carga: "carga" };
+    const _EJE = { cliente: "cliente", clientes: "cliente", marca: "marca", marcas: "marca" };
+    const _N = { dos: 2, tres: 3, cuatro: 4, cinco: 5 };
+    const _reRank = /\b(?:tus|los|las|sus)\s+(dos|tres|cuatro|cinco|\d+)\s+(clientes|marcas)\s+(?:de\s+|con\s+)?(mayor|menor|mejor|peor)(?:es)?\s+(ventas?|margen|contribuci[oó]n|carga)\b/gi;
+    let rm;
+    while ((rm = _reRank.exec(narration))) {
+      const N = _N[rm[1].toLowerCase()] ?? parseInt(rm[1], 10);
+      const eje = _EJE[rm[2].toLowerCase()];
+      const met = _MET[rm[4].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")];
+      const lista = eje && met && datoProyectado.rankings[eje] && datoProyectado.rankings[eje][met];
+      if (!Array.isArray(lista) || lista.length < 2 || !Number.isFinite(N)) continue;
+      const asc = /menor|peor/i.test(rm[3]);
+      const reales = [...lista].sort((a, b) => (asc ? a.valor - b.valor : b.valor - a.valor)).slice(0, N).map((x) => x.entidad);
+      const finOracion = (() => { const p = narration.indexOf(".", rm.index); return p === -1 ? narration.length : p; })();
+      const cola = narration.slice(rm.index, finOracion);
+      const nombradas = lista.map((x) => x.entidad).filter((n) => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(cola));
+      if (nombradas.length < 2) continue;   // sin lista concreta al lado, no hay ranking que juzgar
+      const setReal = new Set(reales);
+      const falsos = nombradas.filter((n) => !setReal.has(n));
+      if (falsos.length) violations.push({ kind: "ranking-no-sostenido", detail: `«${rm[0]}» no es el orden del dato — los reales son ${reales.join(", ")}; sobran ${falsos.join(", ")}` });
+    }
+  }
+  // VOCABULARIO CONTRACTUAL (chequeo N5): «meta» aplicada al MARGEN no existe en este dato (la meta la fija el
+  // cliente y no la fijó; la palabra del contrato es «benchmark»). «Meta de carga» SÍ existe (target declarado),
+  // y la CORRECCIÓN legítima («no es una meta, es tu benchmark») no se veta — es exactamente lo que ADI debe decir.
+  {
+    for (const o of narration.split(/[.!?\n]+/)) {
+      if (!/\bmetas?\b/i.test(o) || !/\bmargen\b/i.test(o)) continue;
+      if (/meta\s+de\s+carga/i.test(o)) continue;
+      if (/no\s+(?:es|existe|hay|tienes?)\s+(?:una\s+|esa\s+|tu\s+)?meta|metas?\s+(?:de\s+margen\s+)?no\s+(?:existe|hay)/i.test(o)) continue;
+      violations.push({ kind: "vocabulario-no-contractual", detail: `«meta» aplicada al margen: en este dato la meta NO existe — la palabra del contrato es «benchmark» (la declara el cliente); corrige la palabra, no la cifra` });
+      break;
+    }
+  }
+  // AMBIGÜEDAD MATERIAL (la regla del 2% de la constitución): un «N%» del usuario sobre una métrica-tasa
+  // aplicado como PUNTOS en silencio (sin declarar la lectura) se frena — la interpretación se dice o se pregunta.
+  {
+    const _mQ = /(?:baj|sub|reduc|aument|recort|cort)\w*\s+(?:un\s+|en\s+|el\s+|la\s+)*([\d.,]+)\s*%/i.exec(question || "");
+    const _metricaTasa = /\b(carga|margen|tasa|rebate|porcentaje)\b/i.test(question || "");
+    const _declara = /\bpp\b|puntos?\s+porcentuales|\bpuntos?\b|interpret\w+|relativo|las\s+dos\s+lecturas/i;
+    if (_mQ && _metricaTasa && !_declara.test(narration) && _datoIdxFrm) {
+      const nPct = parseFloat(_mQ[1].replace(",", "."));
+      const _pctsDato = [...(_datoIdxFrm.porCanon.keys() || [])].map((c) => { const m = /^pct:([\d.]+)%$/.exec(String(c)); return m ? parseFloat(m[1]) : null; }).filter(Number.isFinite);
+      const _pctsTexto = [...narration.matchAll(/([\d.,]+)\s*%/g)].map((x) => parseFloat(x[1].replace(",", "."))).filter(Number.isFinite);
+      outer: for (const R of _pctsTexto) {
+        for (const X of _pctsDato) {
+          const pp = Math.abs((X - nPct) - R) <= 0.051 || Math.abs((X + nPct) - R) <= 0.051;
+          const rel = Math.abs(X * (1 - nPct / 100) - R) <= 0.051 || Math.abs(X * (1 + nPct / 100) - R) <= 0.051;
+          if (R !== X && pp && !rel) {
+            violations.push({ kind: "ambiguedad-no-declarada", detail: `el «${_mQ[1]}%» del usuario se aplicó como ${_mQ[1]} puntos porcentuales (${X}% → ${R}%) sin declarar la lectura — di «interpreto ${_mQ[1]} puntos porcentuales» (o pregunta), porque la lectura relativa daría otro resultado` });
+            break outer;
+          }
+        }
+      }
+    }
+  }
 
   // 1 · cifras CON unidad no autorizadas (mandatory-LITE) — se acepta la CITA directa (canon/verbatim), el ECO de la
   //     pregunta, un CÁLCULO nivel-1 (suma/resta de DOS figs autorizadas), o nivel-2 SCOPEADO a las entidades nombradas.
@@ -2776,8 +2928,28 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // «5 marcas» — el largo de cada universo proyectado). Sin condición de dueño: un conteo viaja pegado a su
   // sustantivo («13 clientes») y la proyección solo declara los largos reales de sus secciones.
   if (datoProyectado && Array.isArray(datoProyectado.counts)) for (const c of datoProyectado.counts) if (Number.isFinite(c)) authCounts.add(c);
+  // el TAMAÑO de una clasificación declarada es un conteo declarado («3 SKU frenados» = frenados.length del
+  // motor — matriz 2026-08-14): la consistencia N↔estado la vigila el chequeo de estados; acá solo se autoriza.
+  if (datoProyectado && Array.isArray(datoProyectado.estados)) {
+    const _nFren = datoProyectado.estados.filter((e) => e && e.estado === "frenado").length;
+    if (_nFren) authCounts.add(_nFren);
+  }
+  // CONTEO AUTO-ENUMERADO (constitución 2026-08-14 · matriz P6): «tus tres principales…» seguido de EXACTAMENTE
+  // esas tres entidades nombradas — el conteo que la propia respuesta lista es su propia evidencia (misma idea
+  // que el backstop ensureCountAuthorized, elevada a autorización: enumerar ES mostrar el origen). Solo cuando
+  // el conteo coincide EXACTO con el total de entidades distintas del catálogo nombradas en la narración.
+  const _distintasNombradas = (() => {
+    let n = 0;
+    for (const e of (Array.isArray(duenosDelTenant) ? duenosDelTenant : [])) {
+      if (new RegExp(`\\b${String(e).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration)) n++;
+    }
+    return n;
+  })();
   for (const c of parseCounts(narration)) {
-    if (!authCounts.has(c.raw)) violations.push({ kind: "conteo-no-autorizado", detail: c.text });
+    // «top N» es un rótulo de presentación sobre una lista que la respuesta misma trae: se acepta si la
+    // narración nombra AL MENOS N entidades del catálogo (la lista respalda al rótulo).
+    const _topPresentado = /^top\b/i.test(String(c.text || "")) && _distintasNombradas >= c.raw;
+    if (!authCounts.has(c.raw) && c.raw !== _distintasNombradas && !_topPresentado) violations.push({ kind: "conteo-no-autorizado", detail: c.text });
   }
   // 3 · entidad garble ledger-derivada (nombre de entidad inventado = tan grave como una cifra inventada)
   const garb = _entityGarble(narration, entityNames);
