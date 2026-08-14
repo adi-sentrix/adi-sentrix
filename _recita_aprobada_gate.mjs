@@ -56,6 +56,21 @@ ok(rVerde.aprobado === true && rVerde.estado === "verde", "una respuesta verde q
 const rVetado = await responderConNotario({ pedir: async () => T1_VETADO, juzgar: (t) => juzgar(t), suplente: () => "Suplente digno." });
 ok(rVetado.aprobado === false && rVetado.estado === "suplente", "una respuesta que el muro rechazó NO queda aprobada");
 
+console.log("\n── 4b · REINCIDE → SUPLENTE DIGNO, TAMBIÉN CON TEXTO VETADO (verificado antes de conectar) ──");
+/* EL DEFECTO MEDIDO (2026-08-14, `_probe_suplente_vetado.mjs`): con DOS borradores vetados no vacíos, el ciclo
+ * devolvía el SEGUNDO BORRADOR VETADO — un texto que el notario acababa de rechazar por inventar cifras llegaba
+ * a la pantalla, con el estado diciendo «suplente» sin que ningún suplente se compusiera. Es exactamente lo que
+ * el producto existe para impedir. La constitución no distingue CÓMO falló el cerebro: «si falla dos veces,
+ * responde el suplente digno». Este bloque lo fija en las dos formas de falla. */
+const INVENTO = "El negocio cerró con $777.7M de venta y un margen de 99.9%, muy por encima del benchmark.";
+ok(!juzgar(INVENTO).ok, "el texto de control es un invento que el muro rechaza");
+const rVet = await responderConNotario({ pedir: async () => INVENTO, juzgar: (t) => juzgar(t), suplente: () => "Cifras verificadas del negocio." });
+ok(rVet.texto !== INVENTO, "🔴 el texto VETADO DOS VECES no puede salir a pantalla");
+ok(rVet.texto === "Cifras verificadas del negocio." && rVet.suplenteDigno === true, "sale el suplente digno, con su marca");
+ok(rVet.estado === "suplente" && rVet.aprobado === false, "el estado sigue siendo «suplente» (la métrica no se disfraza) y no presta cifras");
+const rVac = await responderConNotario({ pedir: async () => "", juzgar: (t) => juzgar(t), suplente: () => "Cifras verificadas del negocio." });
+ok(rVac.estado === "vacio" && rVac.suplenteDigno === true, "el vacío conserva su estado propio y también compone suplente");
+
 console.log("\n── 5 · LA MEMORIA SE ACUMULA, PERO CON TECHO ──");
 const acum = recitaAprobadaDe({ textoAprobado: "El margen de la cartera del negocio marca 25.1%.", catalogoEntidades: ENT6, previa: RECITA });
 ok(acum.figs.length > RECITA.figs.length, "un turno nuevo suma sus cifras a las anteriores");

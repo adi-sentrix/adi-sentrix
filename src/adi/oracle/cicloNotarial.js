@@ -138,7 +138,17 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
     // rechazó y la otra es una pantalla en blanco. Categorías distintas porque son fallas distintas.
     out.estado = (v && v.ok) ? "reparado" : (esNarracionVacia(texto) ? "vacio" : "suplente");
     out.aprobado = !!(v && v.ok);   // un texto que el muro rechazó NO puede prestar sus cifras al turno siguiente
-    if (esNarracionVacia(texto)) {
+    /* REINCIDE → SUPLENTE DIGNO, tanto si volvió vacío COMO si volvió vetado (owner 2026-08-14, verificado en
+     * `_probe_suplente_vetado.mjs` antes de conectar el camino natural).
+     * EL DEFECTO QUE CIERRA, medido: con dos borradores VETADOS no vacíos, esta función devolvía el SEGUNDO
+     * BORRADOR VETADO — o sea, un texto que el notario acababa de rechazar por inventar cifras llegaba a la
+     * pantalla («El negocio cerró con $777.7M de venta y un margen de 99.9%»). El estado decía «suplente» pero
+     * ningún suplente se componía: el rótulo mentía. La constitución dice, textual, «si el cerebro falla dos
+     * veces, responde el suplente digno con las cifras verdaderas» — sin distinguir CÓMO falló, porque las dos
+     * fallas terminan igual: no hay respuesta del cerebro que se pueda mostrar.
+     * El vacío conserva su estado propio (`vacio`) porque es una falla distinta y el balance la cuenta aparte;
+     * lo que se unifica es la SALIDA, no la métrica. */
+    if (!(v && v.ok)) {
       const s = typeof suplente === "function" ? suplente() : null;   // UNA sola invocación: componer el suplente puede no ser gratis
       texto = String(s == null ? "" : s);
       out.suplenteDigno = true;
