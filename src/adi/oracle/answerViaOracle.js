@@ -1079,7 +1079,10 @@ function _contestaElSupuestoFaltante(t, missingCampo, propias) {
 // `pending.entities` (Etapa 3) es la forma CANÓNICA — `pending.entity` sobrevive como alias singular (ver
 // _buildPendingSimulation arriba); acepta cualquiera de los dos para no romper un pendiente viejo persistido.
 function _resolvePendingSimulation(text, pending) {
-  const hasEntity = !!(pending && (pending.entity || (Array.isArray(pending.entities) && pending.entities.length)));
+  // alcance:"global" (owner 2026-08-14) cuenta como alcance resuelto: el usuario ya contestó "el total del
+  // negocio" y la pregunta abierta es el % de la variable faltante — la misma resolución de siempre, sin entidad.
+  // faltaAlcance NO: ahí la pregunta abierta es el alcance, y un % pelado no la contesta (ver _resuelveAlcancePendiente).
+  const hasEntity = !!(pending && (pending.entity || (Array.isArray(pending.entities) && pending.entities.length) || pending.alcance === "global"));
   if (!pending || !pending.missingCampo || !pending.known || !hasEntity) return null;
   const t = String(text || "");
   // SI EL TURNO NOMBRA OTRA ENTIDAD, NO ESTÁ CONTESTANDO: ESTÁ CORRIGIENDO (Contrato v1.2 §1, owner 2026-08-10).
@@ -1184,7 +1187,128 @@ function _avisoVentasComoVolumen(variable) {
 // un turno después de haber hecho ella misma la pregunta abierta. Sin cifras y sin nombrar entidades (mismo
 // criterio que el resto de los textos de bypass): lo único que aporta es volver a pedir lo que falta.
 function _recordatorioPendiente(pending) {
+  // pendiente esperando ALCANCE (arm "no_entity" persistido, owner 2026-08-14): lo que falta no es un %, es el
+  // "¿sobre qué?" — recordar la pregunta equivocada invitaría a contestar la variable que ya está declarada.
+  if (pending && pending.faltaAlcance === true) {
+    return "Sigo esperando el alcance para cerrar la simulación que empezamos: ¿la corro sobre un cliente, SKU, marca o familia puntual, o sobre el total del negocio?";
+  }
   return `Sigo esperando un supuesto para cerrar la simulación que empezamos: ${_preguntaPorFaltante(pending.missingCampo)}`;
+}
+
+/* ══ EL ALCANCE DEL PENDIENTE SE CONTESTA ACÁ, NUNCA EN PLAN (owner 2026-08-14, hilo medido del owner) ═══════════
+ * EL DEFECTO MEDIDO (transcript `_medir_sesion_owner.json`, producción): «Si subo ventas 4%» → ADI preguntó la
+ * entidad → «simula sobre el total de ventas» llegó a PLAN, y Haiku eligió simulateCosto — la respuesta simuló
+ * costo medio +4% sobre todos los SKU, un escenario que el usuario JAMÁS pidió, presentado como su supuesto.
+ * Dos causas, dos cierres: (1) el arm "no_entity" no persistía NINGÚN pendiente, así que el turno siguiente no
+ * tenía nada que resolver determinísticamente (cerrado en el arm, ver abajo); (2) «el total / todo el negocio /
+ * la cartera» no se reconocía como respuesta de ALCANCE (cerrado acá).
+ *
+ * LA MISMA PRUDENCIA FALLA-CERRADA DEL GUARD DE PERTINENCIA (el bloque grande de arriba): no alcanza con que el
+ * turno CONTENGA una palabra de total — se poda el vocabulario de total/eje/verbo-de-orden y el del nombre de la
+ * variable, y lo que queda tiene que pasar por la MISMA lista blanca cerrada (_esRespuestaPelada). Si sobra una
+ * sola palabra de contenido («el total de la competencia», «¿cuál es el total de ventas?» — una LECTURA), el turno
+ * NO es una respuesta de alcance y PLAN corre normal con el pendiente envejeciendo. Falso negativo antes que un
+ * escenario fabricado. La respuesta con entidad nombrada pasa por la misma vara: se podan los nombres y el resto
+ * tiene que quedar pelado («sobre Falabella» sí · «qué margen tiene Falabella» no). */
+const _ALCANCE_TOTAL_HIT_RE = /\btotal(?:es)?\b|\btod[oa]s?\b|\bglobal(?:mente)?\b|\bgeneral\b|\bcartera\b|\bnegocio\b|\bportafolios?\b|\bportfolio\b|\bempresa\b|\bcompania\b|\bcomplet[oa]s?\b|\benter[oa]s?\b|\bagregado\b|\bconjunto\b/;
+const _ALCANCE_TOTAL_PODA_RE = new RegExp(_ALCANCE_TOTAL_HIT_RE.source, "gi");
+// verbos de ORDEN con los que se contesta "¿sobre qué lo corro?" («simula», «correla», «hazlo») — vocabulario
+// vacío de contenido en este contexto, igual que los verbos de variación en _PELADA_OK.
+const _ALCANCE_VERBO_ORDEN_RE = /\bsimul\w*\b|\bcorre\w*\b|\bcorrer\b|\bproyect\w*\b|\bcalcul\w*\b|\bhazl[oa]\b|\bhacel[oa]\b|\bejecut\w*\b|\barma\w*\b/gi;
+// las palabras de EJE («todos los clientes», «todas las marcas») nombran el universo, no una entidad nueva.
+const _ALCANCE_EJE_PODA_RE = /\bclientes?\b|\bskus?\b|\bmarcas?\b|\bfamilias?\b|\bproductos?\b|\breferencias?\b/gi;
+const _sinDiacriticos = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const _escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// un resto VACÍO también es pelado («global» a secas: la poda consume el turno entero) — _esRespuestaPelada exige
+// 1+ tokens porque juzga textos completos; acá juzga lo que SOBRÓ de una poda.
+const _restoPelado = (r) => !String(r || "").trim() || _esRespuestaPelada(r);
+// _resuelveAlcancePendiente(text) → { alcance:"global" } | { entities, dimension } | null.
+function _resuelveAlcancePendiente(text) {
+  const s = _sinDiacriticos(text);
+  if (!s.trim()) return null;
+  // (1) entidades del catálogo REAL nombradas — y NADA más de contenido. Dos ejes distintos a la vez = ambiguo.
+  let entidades = null, eje = null;
+  try {
+    for (const dim of ["cliente", "sku", "marca", "familia"]) {
+      for (const nombre of axisEntityNames(dim)) {
+        const nn = _sinDiacriticos(nombre);
+        if (nn && new RegExp(`\\b${_escRe(nn)}\\b`, "i").test(s)) {
+          if (eje && eje !== dim) return null;
+          eje = dim;
+          (entidades = entidades || []).push({ nombre, nn });
+        }
+      }
+    }
+  } catch { entidades = null; /* sin índice disponible: no se juzga, igual que el resto de lecturas defensivas */ }
+  if (entidades && entidades.length) {
+    if (entidades.length > 6) return null;   // el fan-out de simulateGeneral tiene cupo 6 — más que eso no es una respuesta puntual
+    let resto = s;
+    for (const e of entidades) resto = resto.replace(new RegExp(`\\b${_escRe(e.nn)}\\b`, "gi"), " ");
+    resto = resto.replace(_ALCANCE_VERBO_ORDEN_RE, " ").replace(_ALCANCE_EJE_PODA_RE, " ");
+    return _restoPelado(resto) ? { entities: entidades.map((e) => e.nombre), dimension: eje } : null;
+  }
+  // (2) el total del negocio.
+  if (!_ALCANCE_TOTAL_HIT_RE.test(s)) return null;
+  const resto = s
+    .replace(_ALCANCE_TOTAL_PODA_RE, " ")
+    .replace(_ALCANCE_VERBO_ORDEN_RE, " ")
+    .replace(_ALCANCE_EJE_PODA_RE, " ")
+    // «el total de VENTAS» nombra la familia de la variable, no un sujeto nuevo — misma poda que la rama (a)
+    // del guard de pertinencia, para las DOS variables del escenario.
+    .replace(_VOCAB_FALTANTE_PODA.unidades, " ")
+    .replace(_VOCAB_FALTANTE_PODA.precioLista, " ");
+  return _restoPelado(resto) ? { alcance: "global" } : null;
+}
+// _candidatosPorMayorVolumen(scenario) → los 2 clientes con más unidades vendidas, del dato REAL del tenant —
+// para la declinación honesta de la simulación global de 2 variables (nunca una lista escrita a mano).
+function _candidatosPorMayorVolumen(scenario) {
+  try {
+    const conVolumen = [];
+    for (const nombre of axisEntityNames("cliente")) {
+      const r = rawRecordFor("cliente", nombre, scenario);
+      if (r && typeof r.unidades === "number") conVolumen.push({ nombre, unidades: r.unidades });
+    }
+    conVolumen.sort((a, b) => b.unidades - a.unidades);
+    return conVolumen.slice(0, 2).map((x) => x.nombre);
+  } catch { return []; }
+}
+// _cifrasDelSupuestoPendiente(pending) → el % que el USUARIO declaró y vive en el pendiente, como strings para
+// que guardC las parsee con SU parser (parseFigures, nunca un segundo). Con signo y en valor absoluto: la
+// narración escribe «4%» con la dirección en el verbo («baja 4%»), nunca «-4%». Ver el parámetro
+// `supuestoPendiente` de guardC — la autorización es QUIRÚRGICA: solo este valor+unidad, solo mientras el
+// pendiente vive.
+function _cifrasDelSupuestoPendiente(pending) {
+  if (!pending || !pending.known || typeof pending.known.delta_pct !== "number") return null;
+  const d = pending.known.delta_pct;
+  return [`${d}%`, `${Math.abs(d)}%`];
+}
+/* ══ FRENO ANTI-SIMULACIÓN-AJENA (owner 2026-08-14, la otra mitad del hilo medido) ═══════════════════════════════
+ * Con un pendiente de precio/volumen vivo, un plan de PLAN que trae una simulación de OTRA palanca
+ * (simulateCosto/simulateCarga/simulateCapital, o el `simulate` genérico sobre una métrica no nombrada) es
+ * sospechoso POR CONSTRUCCIÓN: la conversación está a mitad de un escenario declarado, y ejecutar otra palanca es
+ * fabricar un supuesto que el usuario no dio — exactamente lo que Haiku hizo con simulateCosto en el hilo medido.
+ * LA REGLA, y no rompe el caso legítimo: la call ajena se acepta SOLO si el texto de ESTE turno nombra la palanca
+ * de esa tool («y si además el costo sube 2%» nombra "costo" → simulateCosto es un pedido REAL). Si no la nombra,
+ * la call se descarta; si el plan queda vacío, se re-pregunta lo que falta en vez de adivinar. simulateGeneral
+ * nunca se frena: es la continuación natural del propio pendiente. */
+const _PALANCA_SIM_AJENA = {
+  simulateCosto: /\bcostos?\b/i,
+  simulateCarga: /\bcargas?\b|\bacciones\s+comerciales\b|\brebates?\b/i,
+  simulateCapital: /\bcapital\b|\binventari\w*|\bstock\b|\binmoviliz\w*/i,
+};
+const _PALANCA_SIMULATE_METRIC = {
+  ventas: /\bventas?\b|\bvend\w*\b/i,
+  contribucion: /\bcontribuci\w*\b/i,
+  capital: /\bcapital\b|\binventari\w*|\bstock\b|\binmoviliz\w*/i,
+};
+function _esSimulacionAjenaSinPedido(call, q) {
+  if (!call || typeof call.tool !== "string") return false;
+  if (_PALANCA_SIM_AJENA[call.tool]) return !_PALANCA_SIM_AJENA[call.tool].test(q);
+  if (call.tool === "simulate") {
+    const re = _PALANCA_SIMULATE_METRIC[(call.args && call.args.metric) || ""];
+    return re ? !re.test(q) : true;   // métrica desconocida con pendiente vivo → sospechosa, falla cerrada
+  }
+  return false;
 }
 
 // _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
@@ -1339,6 +1463,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     ? null   // el usuario lo descartó con todas las letras: se abandona acá, antes de que nadie más lo mire
     : pendingSimulationVigente(mem && mem.pendingSimulation);
   if (pendingSimulationPrev !== ((mem && mem.pendingSimulation) || null)) mem = { ...(mem || {}), pendingSimulation: pendingSimulationPrev };
+  // EL SUPUESTO DEL PENDIENTE ES CIFRA DEL USUARIO (owner 2026-08-14, hilo medido: en «sobre las ventas» el
+  // narrador ecoó el 4% QUE EL PROPIO USUARIO declaró y guardC lo vetó dos veces como cifra-de-dato-sin-dueno —
+  // el turno cayó al genérico). El % vive en pendingSimulation porque el usuario lo dijo en un turno anterior del
+  // MISMO flujo; mientras el pendiente viva, viaja a guardC con el estatus de eco de la pregunta (la fuente
+  // qFigs que ya existe). Quirúrgico: solo el valor+unidad del supuesto, solo estos turnos — ningún chequeo del
+  // muro se relaja para nada más.
+  const cifrasSupuestoPendiente = _cifrasDelSupuestoPendiente(pendingSimulationPrev);
   // EL TURNO QUE DECLARA SU PROPIO ESCENARIO NO ESTÁ CONTESTANDO EL PENDIENTE (owner 2026-08-11). "Sube 8% el
   // precio de Sodimac" trae campo+% Y entidad: es un escenario nuevo (o una corrección del mismo), no la respuesta
   // a "¿cuánto cambia el volumen?". Sin esta distinción, con el pendiente vivo, _resolvePendingSimulation le
@@ -1441,6 +1572,38 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     if (out) return out;
   }
 
+  // ── EL ALCANCE PENDIENTE SE RESUELVE ACÁ, NUNCA EN PLAN (owner 2026-08-14, ver _resuelveAlcancePendiente) ────
+  // Solo con un pendiente que ESPERA alcance (faltaAlcance, persistido por el arm "no_entity" de abajo), y solo si
+  // este turno no declaró su propio escenario ni resolvió la variable por otra vía. La respuesta «el total /
+  // todo el negocio» convierte el pendiente a alcance:"global" y pregunta la variable que falta — el MISMO paso
+  // que el arm "future" da con entidad. La respuesta con entidad(es) nombrada(s) lo convierte al pendiente
+  // puntual de siempre. Cualquier otra cosa → null → PLAN corre normal y el pendiente envejece (falla cerrada).
+  if (pendingSimulationPrev && pendingSimulationPrev.faltaAlcance === true && !declaraEscenarioPropio && !resolvedPendingSim) {
+    const alcanceContestado = _resuelveAlcancePendiente(q);
+    if (alcanceContestado && alcanceContestado.alcance === "global") {
+      const pendienteGlobal = nacePendingSimulation({ dimension: "cliente", entity: null, entities: [], alcance: "global",
+        known: { ...pendingSimulationPrev.known }, missingCampo: pendingSimulationPrev.missingCampo });
+      if (pendienteGlobal) {
+        const out = _composedBypassResult(`Tomo el escenario sobre el total del negocio. ${_preguntaPorFaltante(pendienteGlobal.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+        if (out) {
+          out.mem = { ...out.mem, pendingSimulation: pendienteGlobal };
+          return out;
+        }
+      }
+    } else if (alcanceContestado && Array.isArray(alcanceContestado.entities) && alcanceContestado.entities.length) {
+      const ents = alcanceContestado.entities;
+      const pendienteEntidad = nacePendingSimulation({ dimension: alcanceContestado.dimension || guessDimension(ents[0]) || "cliente",
+        entity: ents[0], entities: ents, known: { ...pendingSimulationPrev.known }, missingCampo: pendingSimulationPrev.missingCampo });
+      if (pendienteEntidad) {
+        const out = _composedBypassResult(`${_preguntaPorFaltante(pendienteEntidad.missingCampo)} No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.`, mem, recentNarrationsPrev, scenario);
+        if (out) {
+          out.mem = { ...out.mem, pendingSimulation: pendienteEntidad };
+          return out;
+        }
+      }
+    }
+  }
+
   // ── COERCIÓN DE INTENCIÓN DE ESCENARIO (owner 2026-07-31, certificación integral, 2 fallas reales de ENTRADA a
   // simulate v2) ── "Sube 8% el precio de Lider" (imperativo, sin "¿me conviene?") nunca llamaba a simulateGeneral
   // — PLAN lo leía como pedido de análisis/decisión y respondía con margen/benchmark, sin pedir el volumen. Y una
@@ -1471,7 +1634,21 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       const recoverable = recentSubjectsPrev.find((s) => s && s.entidad && (s.dimension == null || ["cliente", "sku", "marca", "familia"].includes(s.dimension)));
       if (!recoverable) {
         const out = _composedBypassResult(`${_avisoVentasComoVolumen(scenarioIntent.variable)}¿Sobre qué cliente, SKU, marca o familia querés simular este escenario?`, mem, recentNarrationsPrev, scenario);
-        if (out) return out;
+        if (out) {
+          // EL PENDIENTE DE ALCANCE SE PERSISTE (owner 2026-08-14, hilo medido): este arm hacía la pregunta y no
+          // guardaba NADA — el turno siguiente («simula sobre el total de ventas») caía a PLAN sin ningún estado
+          // que resolver, y PLAN fabricó un simulateCosto. Mismo principio que los arms "future"/"future_multi":
+          // la pregunta que ADI deja abierta vive como estado estructurado, nunca como esperanza de que PLAN
+          // reconstruya la ventana de historia. SOLO si no había ya un pendiente vivo: si lo había, este turno es
+          // un paréntesis y el pendiente viejo sobrevive envejecido (la conducta de siempre, sin pisarlo).
+          if (!pendingSimulationPrev) {
+            const pendienteAlcance = nacePendingSimulation({ dimension: null, entity: null, entities: [], faltaAlcance: true,
+              known: { campo: scenarioIntent.variable.campo, delta_pct: scenarioIntent.variable.delta_pct },
+              missingCampo: scenarioIntent.variable.campo === "precioLista" ? "unidades" : "precioLista" });
+            if (pendienteAlcance) out.mem = { ...out.mem, pendingSimulation: pendienteAlcance };
+          }
+          return out;
+        }
       }
     }
     // "future": campo+% inequívoco Y una entidad conocida — la falla #1 (nunca entraba a simulateGeneral) y la
@@ -1522,7 +1699,44 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   const pendingEntities = pendingSimulationPrev
     ? ((Array.isArray(pendingSimulationPrev.entities) && pendingSimulationPrev.entities.length) ? pendingSimulationPrev.entities : (pendingSimulationPrev.entity ? [pendingSimulationPrev.entity] : []))
     : [];
-  let plan = (priorOffer && priorOffer.tool && isAcceptance(q))
+  /* ── LA SIMULACIÓN GLOBAL RESUELTA · QUÉ SOPORTA EL MOTOR Y QUÉ NO (owner 2026-08-14) ─────────────────────────
+   * simulateGeneral (2 variables covariando) exige una entidad puntual: rawRecordFor sin entidad no tiene registro
+   * que leer — NO existe la versión global de 2 variables. Lo que SÍ existe: el `simulate` genérico
+   * (composeSpecSimulate, metric×eje, delta lineal) corre sobre el eje COMPLETO con total sellado y 80/20 del
+   * impacto. Y cuando UNA de las dos variables está confirmada en 0 por el usuario, la venta escala EXACTAMENTE
+   * lineal con la otra (venta = Σ precio×unidades: con precio quieto, +4% de volumen ES +4% de venta — y
+   * viceversa), así que el genérico responde el escenario SIN estimar nada. Con las DOS variables moviéndose no
+   * hay equivalencia lineal ni tool global: se DECLINA declarando el límite y ofreciendo los clientes con más
+   * volumen (del dato real, nunca una lista a mano). Con las dos en 0, no hay nada que proyectar y se dice.
+   * Siempre dimension="cliente": la venta oficial por cliente (D8) es la única fuente sancionada del total. */
+  let planPendienteGlobal = null;
+  if (resolvedPendingSim && pendingSimulationPrev && pendingSimulationPrev.alcance === "global" && !pendingEntities.length) {
+    const varsGlobal = [resolvedPendingSim.variableA, resolvedPendingSim.variableB].filter(Boolean);
+    const movidas = varsGlobal.filter((v) => typeof v.delta_pct === "number" && v.delta_pct !== 0);
+    if (movidas.length === 1) {
+      planPendienteGlobal = { intent: "answer", mode: "simulacion",
+        rationale: "simulación pendiente resuelta (alcance: total del negocio; la otra variable confirmada sin cambios → delta lineal de venta)",
+        scope: { level: "global" },
+        calls: [{ tool: "simulate", args: { metric: "ventas", dimension: "cliente", transform: { op: "delta", unit: "pct", value: movidas[0].delta_pct } } }] };
+    } else if (movidas.length === 0) {
+      const out = _composedBypassResult("Con el precio y el volumen confirmados sin cambios no hay escenario que proyectar: el total queda igual al dato real. Si quieres, plantea un cambio en alguna de las dos variables y lo corro.", mem, recentNarrationsPrev, scenario);
+      if (out) {
+        out.mem = { ...out.mem, pendingSimulation: null };
+        return out;
+      }
+    } else {
+      const candidatos = _candidatosPorMayorVolumen(scenario);
+      const oferta = candidatos.length === 2 ? ` Si te sirve, ${candidatos[0]} y ${candidatos[1]} son los clientes con más volumen y puedo correrla sobre cualquiera de los dos.` : "";
+      const out = _composedBypassResult(`Esa combinación —precio y volumen cambiando a la vez— la corro sobre una entidad puntual (un cliente, SKU, marca o familia), no sobre el total del negocio: es un límite del motor y prefiero declararlo antes que estimarlo.${oferta} ¿Sobre qué entidad la corro?`, mem, recentNarrationsPrev, scenario);
+      if (out) {
+        out.mem = { ...out.mem, pendingSimulation: null };
+        return out;
+      }
+    }
+  }
+  let plan = planPendienteGlobal
+    ? planPendienteGlobal
+    : (priorOffer && priorOffer.tool && isAcceptance(q))
     ? { intent: "answer", mode: "seguimiento", rationale: "oferta aceptada (ejecución estructurada)", scope: priorOffer.entidad ? { level: "entity", entities: [priorOffer.entidad] } : { level: "global" }, calls: [{ tool: priorOffer.tool, args: priorOffer.args || {} }] }
     : (subjectRecall && subjectRecall.kind === "resolved")
     ? { intent: "answer", mode: "seguimiento", rationale: "retorno a tema reciente (referencia posicional)", scope: { level: "entity", entities: [subjectRecall.subject.entidad] }, calls: [{ tool: "entityProfile", args: { dimension: subjectRecall.subject.dimension || "cliente", entity: subjectRecall.subject.entidad } }] }
@@ -1996,6 +2210,31 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // ver el bloque de supuestos_faltantes justo abajo. Nadie más lo reasigna.
   let calls = plan.calls;
 
+  // ── FRENO ANTI-SIMULACIÓN-AJENA (owner 2026-08-14, ver _esSimulacionAjenaSinPedido arriba) ────────────────────
+  // Solo sobre planes REALES de PLAN (un plan sintético lo armó el motor y no puede fabricar palancas) y solo con
+  // el pendiente vivo sin resolver: la ventana exacta en la que Haiku fabricó el simulateCosto medido. La call
+  // ajena se descarta y se declara en las coerciones; si el plan queda sin calls, se re-pregunta lo que falta —
+  // jamás se adivina un escenario con un pendiente vivo.
+  if (pendingSimulationPrev && !resolvedPendingSim && !planWasSynthetic && Array.isArray(calls) && calls.length) {
+    const ajenas = calls.filter((c) => _esSimulacionAjenaSinPedido(c, q));
+    if (ajenas.length) {
+      planCoerciones.push(`freno-sim-ajena(${[...new Set(ajenas.map((c) => c.tool))].join("+")})`);
+      const restantes = calls.filter((c) => !ajenas.includes(c));
+      if (restantes.length) {
+        plan = { ...plan, calls: restantes };
+        calls = restantes;
+      } else {
+        const out = _composedBypassResult(_recordatorioPendiente(pendingSimulationPrev), mem, recentNarrationsPrev, scenario);
+        if (out) {
+          if (planAttemptTrace.length || planCoerciones.length) {
+            out.r = { ...out.r, retryTrace: { plan: planAttemptTrace, narrate: [], ...(planCoerciones.length ? { coerciones: planCoerciones } : {}) } };
+          }
+          return out;
+        }
+      }
+    }
+  }
+
   // ── supuestos_faltantes → request_clarification (owner 2026-07-31, #56 "simulate v2") ── PLAN detectó un pedido
   // de simulación de 2 variables con UNA sola nombrada (ver planPrompt.js) — esto corta ANTES del batch, sin tocar
   // el dato, mismo principio de garantía-por-construcción que la aceptación huérfana/retorno ambiguo de arriba:
@@ -2356,7 +2595,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _fams = [...new Set((simple.campos || [simple]).map((c) => _famDe(c.periodo)))];
     const periodosSimple = _fams.every(Boolean) && _fams.length ? ["anual", "hoy"].filter((f) => _fams.includes(f)) : periodos;
     const det = ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(detRaw, periodosSimple), results, q), results);
-    if (guardC(det, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = det; deterministic = true; }
+    if (guardC(det, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = det; deterministic = true; }
   }
 
   // POLÍTICA DE PRESENTACIÓN DEL TURNO (owner 2026-08-07): TRES estados, no un booleano global.
@@ -2486,7 +2725,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       // justamente explica que no va a mostrar ninguno. Con calls vacías (el caso D2 previo) esto es un no-op:
       // `periodos` era [] y el envoltorio no agregaba nada — la conducta previa queda byte-idéntica.
       const c = (desdeTexto || desdeConfusion) ? candidato : ensureUmbralDeclarado(ensureTransferenciaDeclarada(ensurePeriodoDeclared(candidato, periodos), results, q), results);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
 
@@ -2626,7 +2865,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     n = ensureTransferenciaDeclarada(n, results, q);   // requisito C1: la decisión se contesta, y se dice qué falta (ver narratePromptC.js)
     n = ensureUmbralDeclarado(n, results);   // encargo «umbral del usuario»: el criterio no aplicado se declara, pase lo que pase con el narrador
     if (!n.trim()) { narrateAttemptTrace.push({ attempt, guardOk: null, reason: "narración vacía tras backstops", usage: null }); modelAttempt++; continue; }
-    const gVerdict = guardC(n, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes });
+    const gVerdict = guardC(n, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, recentNarrations: recentNarrationsPrev, mode: plan.mode, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes });
     // EL DETALLE DEL RECHAZO, EN MEMORIA (owner 2026-08-10, tras la auditoría de la 4ª corrida). El trace decía
     // QUÉ chequeo saltó pero no SOBRE QUÉ, así que de los cinco rechazos de esa corrida hubo uno que no se pudo
     // adjudicar: no se sabía si era un error real del modelo o un falso positivo del guard. Un rechazo que no se
@@ -2654,7 +2893,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         c = ensureClarifyClosingQuestion(c, plan.mode);
         c = ensureTransferenciaDeclarada(c, results, q);
         c = ensureUmbralDeclarado(c, results);
-        if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+        if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, tablePolicy, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
           narration = c; narrationRepaired = true;
           // UN INTENTO, UNA ENTRADA (owner 2026-08-10, certificación live · defecto A4). Antes esto EMPUJABA una
           // SEGUNDA entrada con el MISMO `attempt` y `guardOk:false`, así que el trace de un turno reparado al
@@ -2742,7 +2981,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (pref.contentScope === "full") { c = ensureHypothesisFraming(c, plan.mode, results); c = ensureClarifyClosingQuestion(c, plan.mode); }
       c = ensureTransferenciaDeclarada(c, results, q);
       c = ensureUmbralDeclarado(c, results);
-      if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
+      if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) { narration = c; narrationRepaired = true; break; }
     }
   }
   /* LO QUE FALTÓ SE DICE, PASE LO QUE PASE CON LA FORMA (owner 2026-08-12, defecto B2). Va DESPUÉS de la
@@ -2756,14 +2995,14 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (narration) {
     const conDeclinacion = ensureDeclinacionDeSuma(narration, figs, q);
     if (conDeclinacion !== narration
-      && guardC(conDeclinacion, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+      && guardC(conDeclinacion, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
       narration = conDeclinacion; narrationRepaired = true;
     }
   }
   if (narration) {
     const conCobertura = ensureCoberturaDeclarada(narration, results);
     if (conCobertura !== narration
-      && guardC(conCobertura, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+      && guardC(conCobertura, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
       narration = conCobertura; narrationRepaired = true;
     }
   }
@@ -2782,7 +3021,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   if (!narration) {
     const honesto = composeNoDataMessage(results);
     const c = ensurePeriodoDeclared(honesto, periodos);
-    if (guardC(c, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+    if (guardC(c, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
       narration = c;
     } else {
       narration = composeNoDataMessage(null);   // el genérico pelado — la misma frase canónica, nunca una copia
@@ -2847,7 +3086,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
         const cierre = truncateToBriefBudget(cuerpo[cuerpo.length - 1], _CONCLUSION_WORD_CAP);
         const candidato = [cierre, ...pie].join("\n\n");
         if (candidato !== narration
-          && guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+          && guardC(candidato, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
@@ -2869,7 +3108,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
       if (cuerpoNuevo) {
         const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
         const candidato = [cuerpoNuevo, ...pie].join("\n\n");
-        if (guardC(candidato, { ledger, results, trace, question: q, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
+        if (guardC(candidato, { ledger, results, trace, question: q, supuestoPendiente: cifrasSupuestoPendiente, mechanismMemory, sealedOrders, reparacion: reparacionSellada, contentScope: pref.contentScope, boletaAnterior: boletaAnteriorAutorizada, datoProyectado: datoProyectadoDelTurno, entidadesDelTenant: catalogoEntidadesTenant, duenosDelTenant: duenosTenantTodosLosEjes }).ok) {
           narration = candidato; narrationRepaired = true;
         }
       }
