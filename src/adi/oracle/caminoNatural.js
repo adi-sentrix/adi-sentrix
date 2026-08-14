@@ -183,6 +183,10 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
       suplenteDigno,
       reparaciones: Math.max(0, res.calls - 1),
       calculosDeclarados: ex.calculos.length,
+      // el owner pidió VER el alcance y la re-cita durante el examen (condición 5): se exponen los dos, que ya
+      // se calculan arriba y viajan al notario. Solo observación — nada de esto decide nada.
+      alcanceHeredado: heredado ? { eje: heredado.eje, entities: heredado.entities } : null,
+      recitaCifras: (recita && Array.isArray(recita.figs)) ? recita.figs.length : 0,
     },
   });
   return { r, mem: memOut };
