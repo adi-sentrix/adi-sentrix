@@ -1,0 +1,147 @@
+{
+  "fecha": "2026-08-14",
+  "llamadas": 5,
+  "datoChars": 13931,
+  "registro": [
+    {
+      "q": "¿Qué clientes venden mucho pero dejan poco margen?",
+      "texto": "Tres clientes grandes están vendiendo con margen por debajo del benchmark (30.1%):\n\n- **Falabella** — $19.4M en ventas (el mayor cliente), margen 22.0%. Brecha de 8.1 puntos vs benchmark.\n- **Lider** — $17.9M, margen 21.5%. Es el margen más bajo de toda la cartera.\n- **Jumbo** — $17.3M, margen 24.0%.\n\nJuntos representan $54.6M — más de la mitad de la venta total— y ninguno llega al benchmark.\n\nLa causa no es solo precio: Falabella y Lider también tienen la carga comercial más alta de la cartera (4.5% y 4.2% contra la meta de 3.5%), es decir, están pagando de más en acciones comerciales para sostener ese volumen.\n\nEmpezá por **Falabella**: es el cliente de mayor venta y el que más contribución en dólares aporta ($4.3M), pero también el que más margen deja en la mesa. Si lo llevás del 22.0% al benchmark 30.1%, la contribución subiría en más de $1.5M sin mover una sola unidad. Ahí está el primer punto de revisión: descuentos y costo de las acciones comerciales, antes de tocar Lider o Jumbo.",
+      "ms": 11086,
+      "auditoria": {
+        "total": 6,
+        "enDato": 5,
+        "fuera": [
+          "$54.6M"
+        ]
+      },
+      "usage": {
+        "input_tokens": 9327,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 826,
+        "output_tokens_details": {
+          "thinking_tokens": 388
+        },
+        "service_tier": "standard",
+        "inference_geo": "global"
+      }
+    },
+    {
+      "q": "¿Dónde tengo capital inmovilizado?",
+      "texto": "Tenés $33K de capital frenado en tres SKU que están por debajo del piso de rotación (2.0x) — el resto del inventario gira bien.\n\n- **LG-DRYER8KG** (Valparaíso): $14K en stock, rotación 1.0x, 165 días de inventario, 94 días sin venta, margen 11% (16 puntos bajo el benchmark). Es el más grave: capital alto y margen deteriorado a la vez.\n- **BOS-SANDER** (Valparaíso): $11K, rotación 1.6x, 115 días, 68 sin venta, margen 15%.\n- **MAK-COMP-AIR** (Antofagasta): $8K, rotación 0.8x, 190 días, 112 sin venta — la rotación más baja de todo el inventario, aunque el capital en juego es chico.\n\nEmpezá por LG-DRYER8KG: es el que más capital inmoviliza con peor margen. Sacalo de precio de lista y movelo con descuento agresivo o dalo de baja contable antes de que siga perdiendo valor — no tiene sentido sostenerlo al ritmo actual (94 días sin una sola venta).",
+      "ms": 17806,
+      "auditoria": {
+        "total": 12,
+        "enDato": 11,
+        "fuera": [
+          "$33K"
+        ]
+      },
+      "usage": {
+        "input_tokens": 9322,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1574,
+        "output_tokens_details": {
+          "thinking_tokens": 1179
+        },
+        "service_tier": "standard",
+        "inference_geo": "global"
+      }
+    },
+    {
+      "q": "Si subo ventas 4%, ¿qué cambia?",
+      "texto": "Un +4% en ventas suma contribución, pero no cierra tu problema de fondo: el margen.\n\n**Si el margen se mantiene en 25.1%:**\n- Ventas: $100.0M → $104.0M\n- Contribución: $25.1M → ~$26.1M (+$1.0M)\n- Brecha vs benchmark (30.1%): sigue en 5 puntos — y en dólares crece de $5.0M a $5.2M respecto a lo que rendiría esa venta al benchmark.\n\nPor qué pasa: crecer en volumen no corrige el mix de cuentas ni la carga comercial que hoy determinan ese margen bajo. Estás escalando el mismo problema, no resolviéndolo.\n\nQué hacer primero: antes de empujar el 4% parejo, corregí margen en Lider (21.5%) y Falabella (22.0%) — juntas ya son $37.3M de venta. Recuperar solo 2 puntos ahí aporta ~$746K de contribución adicional, casi lo mismo que el crecimiento total, pero sin diluir más el negocio ni ampliar la brecha contra el benchmark.",
+      "ms": 20891,
+      "auditoria": {
+        "total": 9,
+        "enDato": 5,
+        "fuera": [
+          "$104.0M",
+          "$26.1M",
+          "$37.3M",
+          "$746K"
+        ]
+      },
+      "usage": {
+        "input_tokens": 9324,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1826,
+        "output_tokens_details": {
+          "thinking_tokens": 1437
+        },
+        "service_tier": "standard",
+        "inference_geo": "global"
+      }
+    },
+    {
+      "q": "sobre las ventas",
+      "texto": "A nivel ventas puro, el +4% te deja así:\n\n- Ventas totales: $100.0M → $104.0M\n- vs presupuesto ($97.0M): pasarías de +3.1% a +7.2%\n- vs año anterior ($92.9M): pasarías de +7.6% a +12.0%\n\nPor qué importa: ese crecimiento acumulado luce bien en el titular, pero no dice nada de qué cliente o SKU lo empuja — y ahí es donde se decide si suma margen o solo volumen.\n\nQué hacer primero: antes de fijar el +4% como meta pareja, definí dónde ponerlo. Falabella y Jumbo ya vienen creciendo por encima de presupuesto (+2.6% y +3.6% respectivamente) y tienen margen aceptable — ahí un empujón extra es barato. Forzar ese mismo 4% en Lider, que ya viene fuerte en volumen pero con el margen más bajo de la cartera (21.5%), solo agranda una cuenta que hoy pesa contra el benchmark.",
+      "ms": 9013,
+      "auditoria": {
+        "total": 4,
+        "enDato": 3,
+        "fuera": [
+          "$104.0M"
+        ]
+      },
+      "usage": {
+        "input_tokens": 9721,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 577,
+        "output_tokens_details": {
+          "thinking_tokens": 215
+        },
+        "service_tier": "standard",
+        "inference_geo": "global"
+      }
+    },
+    {
+      "q": "simula sobre el total de ventas",
+      "texto": "Simulación sobre el total, manteniendo el resto de las variables constantes (margen 25.1%, benchmark 30.1%):\n\n- Ventas: $100.0M → **$104.0M** (+$4.0M)\n- Contribución: $25.1M → **$26.1M** (+$1.0M)\n- vs presupuesto ($97.0M): +3.1% → **+7.2%**\n- vs año anterior ($92.9M): +7.6% → **+12.0%**\n- Brecha de margen vs benchmark: se mantiene en 5.0 puntos — pero en dólares crece de $5.0M a **$5.2M** (30.1% de $104.0M sería $31.3M de contribución, contra los $26.1M reales).\n\nPor qué pasa: al ser una simulación de solo volumen, el margen no se mueve — y como está por debajo del benchmark, cada dólar nuevo de venta arrastra la misma ineficiencia, no la corrige.\n\nQué hacer primero: no persigas el 4% parejo. Ponelo donde el margen ya acompaña — Tottus (28.0%) y Mercado Libre (29.0%) tienen espacio real de crecimiento sin diluir cartera. Si ese mismo 4% se concentra en Lider o Falabella, el crecimiento es real pero la brecha de $5.2M no se mueve un centavo.",
+      "ms": 7855,
+      "auditoria": {
+        "total": 11,
+        "enDato": 8,
+        "fuera": [
+          "$104.0M",
+          "$26.1M",
+          "$31.3M"
+        ]
+      },
+      "usage": {
+        "input_tokens": 10095,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 531,
+        "output_tokens_details": {
+          "thinking_tokens": 69
+        },
+        "service_tier": "standard",
+        "inference_geo": "global"
+      }
+    }
+  ]
+}
