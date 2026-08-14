@@ -49,9 +49,19 @@ H("[1] EL RESPALDO COMPONE DIGNO (B1: eje completo → tabla · ancla del rankin
   const txt = String((a.r && a.r.text) || "");
   ok(a.r && a.r.narrationRepaired === true && /\|\s*Cliente\s*\|\s*Margen\s*\|/.test(txt),
     "la reparación de un eje completo compone TABLA con la métrica protagonista", txt.slice(0, 120));
-  ok(/Por dónde partir: Lider · Margen, que es la métrica por la que preguntaste\./.test(txt),
-    "el ancla es la peor brecha (primera del ranking sellado), con la justificación verdadera del 3b", txt);
+  /* ESTA ASERCIÓN SE MOVIÓ DE FORMATO A COMPORTAMIENTO (2026-08-14, respaldo digno). Fijaba la frase textual
+   * «Por dónde partir: Lider · Margen, que es la métrica por la que preguntaste.» — y esa frase se retiró de
+   * pantalla porque es el motor explicando su propio criterio de selección, vocabulario de máquina que el owner
+   * marcó como indigno («¿qué es eso de en este turno?» sobre la línea hermana). LO QUE EL GATE PROTEGÍA de
+   * verdad, y sigue protegiendo, es el COMPORTAMIENTO: que el ancla sea la PRIMERA fig del ranking sellado por la
+   * tool —Lider, la peor brecha— y no la magnitud mayor, que en margen es Ripley 25.0%, la cuenta MENOS urgente.
+   * Se verifica sobre la lectura de apertura, que es donde el ancla quedó, y se agrega el contrapositivo explícito
+   * (Ripley no encabeza) para que un cambio de redacción no pueda volver a tapar una regresión de criterio. */
+  ok(/^Lider encabeza la lectura/m.test(txt) && !/^Ripley encabeza/m.test(txt),
+    "el ancla es la peor brecha (primera del ranking sellado), no la magnitud mayor", txt);
   ok(!/magnitud mayor/.test(txt), "«la magnitud mayor» (el margen más alto = lo menos urgente) dejó de anclar", txt);
+  ok(/Por dónde partir: \w/.test(txt) && !/que es la métrica por la que preguntaste/.test(txt),
+    "el cierre sigue diciendo por dónde partir, ya sin explicar en pantalla el criterio del motor", txt);
   ok(resolveOutputForm({ plan: null, text: "resúmeme TODO en una sola frase" }) === "solo_conclusion",
     "G6: «en una sola frase» resuelve solo_conclusion");
 }

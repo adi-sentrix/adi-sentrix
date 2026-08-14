@@ -2381,6 +2381,13 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // Se lo consumen los compositores determinísticos (componerPorForma): si la pregunta nombra una métrica que está
   // en la boleta, ESA encabeza; sin métrica nombrada, el criterio de magnitud de siempre queda intacto.
   const metricaLabelsPreguntadas = _extractTensionMetrics(q).map((t) => fieldLabel(t.token)).filter(Boolean);
+  // LAS ENTIDADES QUE EL TURNO PUSO EN JUEGO (owner 2026-08-14, «los que no vienen al caso no van»). Mismo patrón
+  // que la línea de arriba: no se deduce nada nuevo acá, se pasa el alcance que el PLAN ya declaró. Lo consume la
+  // matriz del respaldo (narrationBlocks) para que una pregunta por UNA cuenta no devuelva la cartera entera con
+  // esa cuenta perdida adentro. Es una PISTA, no un filtro duro: el nombre lo escribe el LLM del plan y puede venir
+  // corrido de su forma canónica, así que el compositor lo ignora cuando no matchea ninguna fila (ver _matrizPorEje).
+  const entidadesPreguntadas = (plan && plan.scope && Array.isArray(plan.scope.entities))
+    ? plan.scope.entities.filter((e) => typeof e === "string" && e.trim()) : [];
   const _formaProhibidaPorElUsuario = formaSalida === "prosa" || formaSalida === "solo_conclusion"
     || resolveTablePolicy({ text: q, podado: [] }) === "forbidden"
     && !pidePresentacionTabular(q);
@@ -2711,9 +2718,9 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
      * bajo full y solo si el usuario no prohibió la tabla; (3) el mensaje honesto de ausencia. El muro juzga cada
      * peldaño igual que siempre: esto agrega candidatos, no excepciones. */
     const _candidatosReparacion = [
-      componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas }),
+      componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas, entidadesPedidas: entidadesPreguntadas }),
       (pref.contentScope === "full" && formaSalida !== "tabla" && !_formaProhibidaPorElUsuario)
-        ? componerPorForma({ figs, contentScope: pref.contentScope, forma: "tabla", metricaLabels: metricaLabelsPreguntadas }) : null,
+        ? componerPorForma({ figs, contentScope: pref.contentScope, forma: "tabla", metricaLabels: metricaLabelsPreguntadas, entidadesPedidas: entidadesPreguntadas }) : null,
       composeNoDataMessage(results),
     ].filter(Boolean);
     for (const composed of _candidatosReparacion) {
@@ -2848,7 +2855,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
     const _ES_PIE_DECL = /^\(?\s*(?:alcance|datos del|foto de inventario|supuesto)\b/i;
     const _sinCuerpo = (t) => !String(t || "").split(/\n{2,}/).map((s) => s.trim()).filter(Boolean).some((s) => !_ES_PIE_DECL.test(s));
     if (narration && _sinCuerpo(narration)) {
-      const cuerpoNuevo = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas });
+      const cuerpoNuevo = componerPorForma({ figs, contentScope: pref.contentScope, forma: formaSalida, metricaLabels: metricaLabelsPreguntadas, entidadesPedidas: entidadesPreguntadas });
       if (cuerpoNuevo) {
         const pie = narration.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
         const candidato = [cuerpoNuevo, ...pie].join("\n\n");
