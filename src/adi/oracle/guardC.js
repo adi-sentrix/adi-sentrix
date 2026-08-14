@@ -22,6 +22,29 @@ import { rangoContextoGeneral } from "./narrationBlocks.js";
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
 
+/* ── LA NARRACIÓN VACÍA · EL VEREDICTO QUE FALTABA (corrida doble 2026-08-14) ───────────────────────────────────
+ * EL HUECO MEDIDO: `guardC("")` devolvía `{ok:true, verdict:"fiel"}`. No por una decisión: por construcción — los
+ * 26 chequeos buscan afirmaciones que cobrar, y una cadena vacía no afirma nada, así que ninguno encuentra nada y
+ * `violations.length === 0` sale ok. Un muro que aprueba el vacío no puede garantizar NADA sobre lo que sale a
+ * pantalla: los 11 sitios que llaman a este guard leen `ok` como «adoptá este texto», y adoptar "" es el silencio
+ * total que la garantía anti-null (answerViaOracle + _garantia_anti_null_gate) existe para impedir.
+ * DÓNDE SE VIO: el brazo NATURAL de la corrida doble (`_corrida_doble.mjs`, turno «reduce en 2 puntos las acciones
+ * comerciales de esos clientes…») recibió "" del modelo, se lo pasó a este muro, salió `ok` y el arnés lo contó
+ * como «reparado». La métrica de esa corrida quedó inflada por esta puerta.
+ * EL CRITERIO, deliberadamente ANGOSTO: vacía = no hay UNA SOLA letra ni dígito. Cubre `null`, `undefined`, la
+ * cadena vacía, solo espacios/saltos, y el armazón pelado que el lavado puede dejar atrás (puntuación suelta,
+ * «**», «---», una tabla sin celdas). Cualquier respuesta real —hasta la más corta— tiene al menos una letra, así
+ * que este predicado no puede vetar prosa legítima: no juzga contenido, juzga que HAYA contenido.
+ * NO RELAJA NADA: es un veredicto NUEVO que solo puede convertir un `ok` en un bloqueo, nunca al revés. Los 26
+ * chequeos quedan intactos y siguen viendo exactamente el mismo texto que antes.
+ * EXPORTADO porque la garantía es de PRINCIPIO, no de este archivo: el arnés y los gates verifican el vacío con
+ * ESTE predicado, nunca con un `.trim()` propio que pueda divergir de lo que el muro considera vacío. */
+const _HAY_CONTENIDO = /[\p{L}\p{N}]/u;
+export function esNarracionVacia(texto) {
+  if (texto == null) return true;
+  return !_HAY_CONTENIDO.test(String(texto));
+}
+
 // ventana de proximidad ACOTADA A LA MISMA ORACIÓN (owner-audit 2026-07-28: un verbo/entidad de la oración SIGUIENTE
 // caía dentro de una ventana de ±N caracteres puramente lineal y se leía como si calificara la cifra de la oración
 // ANTERIOR — "...Antofagasta (25%). El SKU... que representa $14K..." marcaba el 25% como mal atribuido a un SKU que
@@ -1334,7 +1357,7 @@ function _sealedOrderBroken(narration, sealedOrders) {
 
 // ── EL GUARD ────────────────────────────────────────────────────────────────────────────────────────────────────
 // guardC(narration, { ledger, results, trace }) → { ok, verdict, violations[] }
-// verdict: "fiel" | "cifra-no-autorizada" | "cifra-de-dato-sin-dueno" | "cifra-de-boleta-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
+// verdict: "fiel" | "narracion-vacia" | "cifra-no-autorizada" | "cifra-de-dato-sin-dueno" | "cifra-de-boleta-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
 // CÁLCULO SOBRE EL DATO (owner 2026-07-28 "que calcule, como Claude con el Excel"): una cifra que es la SUMA o la
 // RESTA de dos cifras AUTORIZADAS (mismos operandos reales del motor) NO es invento — es el LLM calculando sobre el
 // dato (ej. brecha de margen = benchmark − margen, "juntos explican $X+$Y"). Se autoriza. Operandos reales → seguro.
@@ -2636,6 +2659,16 @@ function _enmascararRango(texto, [ini, fin]) {
 }
 
 export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
+  /* CHEQUEO 0 · UNA RESPUESTA VACÍA NO ES UNA RESPUESTA FIEL (ver esNarracionVacia arriba). Va PRIMERO y sale
+   * antes que nada: no hay texto que enmascarar, ni cifra que atribuir, ni cuenta que recomputar. El veredicto
+   * lleva kind propio para que el caller sepa QUÉ pasó — no es una cifra mal puesta, es que no hay respuesta —
+   * y para que el balance de una corrida pueda contarlo como su propia categoría en vez de esconderlo. */
+  if (esNarracionVacia(narration)) {
+    return {
+      ok: false, verdict: "narracion-vacia", advisories: [], degraded: false,
+      violations: [{ kind: "narracion-vacia", detail: "la respuesta no trae una sola letra ni dígito (vacía, solo espacios, o puro armazón de puntuación/markdown) — no hay nada que mostrar en pantalla; escribí la respuesta completa" }],
+    };
+  }
   // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
   // el chequeo 26 lo juzgue por sus propias reglas. Sin bloque, `narration` no se toca: byte-idéntico a hoy.
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;

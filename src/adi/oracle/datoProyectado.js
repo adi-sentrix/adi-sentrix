@@ -37,6 +37,7 @@ import { deriveKpis } from "../../engine/scenarios.js";
 import { tenantPolicyDefault } from "../../config/businessPolicy.js";
 import { getTenantId, getTenantData, onTenantChange } from "../../data/tenantStore.js";
 import { parseFigures } from "../boleta.js";
+import { composeNoDataMessage } from "./narrationBlocks.js";   // el último recurso ABSOLUTO del suplente digno — la MISMA frase canónica que usa la escalera anti-null, nunca una copia
 
 // ── EL FORMATEADOR DE LA BOLETA, SIN UN SEGUNDO FORMATEADOR ────────────────────────────────────────────────────
 // parseFigures canoniza toda cifra con el _fmtC privado de boleta.js (canon = `unit:_fmtC(raw,unit)`). Darle el
@@ -136,6 +137,7 @@ function _construir(scenario) {
 
   // ── KPIs del negocio (deriveKpis — el mismo motor de la Mesa) ──
   const kv = kpis.ventas, km = kpis.margen, ki = kpis.inventario || {};
+  const _iKpi = L.length;   // ← dónde empieza el bloque de KPIs: `kpis` (abajo) es ESTE MISMO tramo, no una copia
   L.push("KPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):");
   // los dueños de CONCEPTO (matriz de calibración 2026-08-14): «vs presupuesto ($97.0M)» nombra a su dueño con
   // la palabra «presupuesto», no con «negocio/total» — cada agregado del KPI lleva además su palabra propia.
@@ -145,6 +147,7 @@ function _construir(scenario) {
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
   L.push(`- La vara la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"])}.`);
+  const kpisLineas = L.slice(_iKpi);   // el bloque de KPIs TAL CUAL viaja en la proyección — cada cifra ya registrada por F() con su dueño
   L.push("");
 
   // ── UNIVERSO VENTA COMERCIAL (año cerrado · almacenado en miles · Σ cierra contra el total del negocio) ──
@@ -223,7 +226,7 @@ function _construir(scenario) {
   L.push("LO QUE ESTE DATO NO TIENE (verificado — quien prometa responder esto, inventa):");
   for (const h of _HUECOS) L.push(`- ${h}`);
 
-  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings };
+  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, kpisLineas };
 }
 
 function _cacheado(scenario) {
@@ -242,4 +245,44 @@ export function proyectarDatoNegocio(scenario = "actual") {
 export function cifrasDelDato(scenario = "actual") {
   const c = _cacheado(String(scenario || "actual"));
   return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings };
+}
+
+/** kpisDelNegocio(scenario) → las líneas de KPI de la proyección, VERBATIM (header + 3-4 líneas).
+ * Tercera vista del MISMO recorrido que ya producen `texto` y `figs`: no recalcula, no reformatea, no rotula.
+ * Cada cifra de estas líneas ya está registrada en `figs` con su dueño y aparece CON ese dueño en su propia
+ * oración — por eso citarlas verbatim es, por construcción, lo único que este módulo puede ofrecerle a un
+ * suplente sin que el muro tenga algo que cobrarle. */
+export function kpisDelNegocio(scenario = "actual") {
+  return _cacheado(String(scenario || "actual")).kpisLineas.slice();
+}
+
+/* ── EL SUPLENTE DIGNO PARA UN CEREBRO SIN BOLETA (corrida doble 2026-08-14) ────────────────────────────────────
+ * LA GARANTÍA ANTI-SILENCIO YA EXISTE, pero solo por el camino ACTUAL: `answerViaOracle` compone su suplente
+ * DESDE LA BOLETA DEL TURNO (componerPorForma → tabla → composeNoDataMessage), y el último recurso absoluto es
+ * `composeNoDataMessage(null)` — el genérico PELADO, cero cifras, el único texto que puede adoptarse sin
+ * veredicto porque no hay chequeo del muro que tenga algo que cobrarle a una oración sin números.
+ * EL CASO QUE NO CUBRÍA: un cerebro que responde SIN tools no tiene boleta del turno — no hay `figs` desde donde
+ * componer. Sus cifras verificadas son las de la proyección, y son las mismas que el muro autoriza como quinta
+ * fuente. Así que la escalera es LA MISMA, con el peldaño de arriba cambiado por lo único que ese camino tiene:
+ *   (1) los KPIs de la proyección, VERBATIM (cada cifra con su dueño en la misma oración) — verificados por el
+ *       muro antes de adoptarse, igual que cualquier otro peldaño;
+ *   (2) `composeNoDataMessage(null)`, el MISMO genérico pelado del recurso absoluto — nunca una segunda frase.
+ * NO ES UN CONTRATO PARALELO: es la escalera que ya existe, extendida al camino que nació sin ella. El muro no se
+ * relaja en ningún peldaño — `juzgar` es el guardC del caller, con el mismo veredicto de siempre.
+ * `juzgar` se INYECTA (no se importa guardC acá) para no cerrar un ciclo: guardC → narrationBlocks, y este módulo
+ * ya es una hoja del grafo. Sin `juzgar`, se adopta el peldaño 1 tal cual (el caller sin muro no tiene qué
+ * verificar) — nunca se devuelve vacío. */
+export function suplenteDignoDelDato({ scenario = "actual", juzgar = null } = {}) {
+  const kpis = kpisDelNegocio(scenario);
+  const candidato = [
+    "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:",
+    "",
+    ...kpis,
+    "",
+    "Dime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras.",
+  ].join("\n");
+  if (typeof juzgar !== "function") return candidato;
+  const v = juzgar(candidato);
+  if (v && v.ok) return candidato;
+  return composeNoDataMessage(null);   // el genérico pelado — la misma frase canónica, nunca una copia
 }
