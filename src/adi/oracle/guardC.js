@@ -2913,6 +2913,11 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} NO cierra: ${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos` });
         } else if (!insumosAutorizados) {
           _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} parte de una cifra que no está autorizada («${(c.inputs || []).join("; ")}») — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado` });
+        } else if (uni === "pct" && Number.isFinite(esperado) && esperado < 0) {
+          /* UNA TASA NO PUEDE QUEDAR NEGATIVA (viabilidad de escenario, owner 2026-08-14). «1.8% − 2pp = −0.2%»
+           * es aritmética correcta y realidad imposible: no se puede recortar más carga de la que existe. Se veta
+           * la DECLARACIÓN, con el tope real en la instrucción — así el reintento sabe qué corregir. */
+          _vetosCalculo.push({ kind: "escenario-inviable", detail: `el cálculo ${c.id || "declarado"} deja una tasa NEGATIVA (${esperado.toFixed(1)}%): no se puede recortar más de lo que hay. El máximo aplicable es el valor disponible — usá ese tope o declará que el supuesto no aplica completo` });
         } else {
           if (c.id) _porId.set(String(c.id).trim(), R);
           _adoptar(String(c.resultado));   // la cuenta cerró y sus insumos están autorizados: el resultado vale
@@ -3014,6 +3019,56 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const setReal = new Set(reales);
       const falsos = nombradas.filter((n) => !setReal.has(n));
       if (falsos.length) violations.push({ kind: "ranking-no-sostenido", detail: `«${rm[0]}» no es el orden del dato — los reales son ${reales.join(", ")}; sobran ${falsos.join(", ")}` });
+    }
+  }
+  /* VIABILIDAD DEL ESCENARIO (owner 2026-08-14, medido en el humo con Mercado Libre) ───────────────────────────
+   * LA REGLA, textual: «si una simulación reduce una tasa o carga por más de lo disponible, ADI no puede aplicar
+   * el efecto completo como si fuera posible. Carga actual 1.8%, reducción pedida 2.0pp: no puede quedar en
+   * −0.2%. El máximo aplicable es 1.8pp, o ADI debe decir que el supuesto no aplica completo.»
+   * EL CASO MEDIDO: la respuesta escribió «1.8% − 2pp = −0.2pp (no aplica, carga insuficiente)» —lo NOTÓ— y a
+   * renglón seguido calculó «29.0% + 2pp = 31.0%», concluyendo que Mercado Libre cruzaba el benchmark. La
+   * aritmética cerraba, así que ningún chequeo tenía qué objetar: lo que falla es la VIABILIDAD del supuesto,
+   * no la cuenta. Esto es lo que separa a un asesor de una calculadora.
+   * ANGOSTO POR CONSTRUCCIÓN — se necesitan las TRES cosas en la misma oración: (a) la entidad nombrada, (b) su
+   * carga declarada MENOR que el delta que el usuario pidió, y (c) el efecto del delta COMPLETO aplicado a su
+   * margen. Si la respuesta usa el tope real (margen + carga disponible), NO se veta: eso es exactamente lo que
+   * la regla pide. Sin delta del usuario o sin rankings, no corre. */
+  if (datoProyectado && datoProyectado.rankings && (question || supuestoPendiente)) {
+    const _fuentePp = `${question || ""} ${(Array.isArray(supuestoPendiente) ? supuestoPendiente : []).join(" ")}`;
+    const _mDelta = /(\d+(?:[.,]\d+)?)\s*(?:pp\b|puntos?)/i.exec(_fuentePp);
+    const delta = _mDelta ? parseFloat(_mDelta[1].replace(",", ".")) : null;
+    if (Number.isFinite(delta) && delta > 0) {
+      const porEje = datoProyectado.rankings;
+      const _cargaDe = new Map(), _margenDe = new Map();
+      for (const eje of Object.keys(porEje)) {
+        for (const x of (porEje[eje].carga || [])) _cargaDe.set(String(x.entidad), x.valor);
+        for (const x of (porEje[eje].margen || [])) _margenDe.set(String(x.entidad), x.valor);
+      }
+      /* La ventana es alrededor de la CIFRA INVIABLE, no la oración: en el caso medido la entidad venía en la
+       * frase anterior («Mercado Libre tiene margen 29.0% y carga 1.8%. Con la baja de 2 puntos sería 31.0%»),
+       * y en una tabla vienen en la misma fila. ±220 caracteres cubre las dos formas sin cruzar entidades: la
+       * cifra inviable es específica de cada una (margen propio + delta). */
+      for (const [ent, carga] of _cargaDe) {
+        if (!(carga < delta)) continue;   // la carga alcanza: el escenario es viable, nada que decir
+        const margen = _margenDe.get(ent);
+        if (!Number.isFinite(margen)) continue;
+        const conTope = Math.round((margen + carga) * 10) / 10;       // lo que SÍ es aplicable
+        const conDelta = Math.round((margen + delta) * 10) / 10;      // el efecto completo, inviable
+        if (Math.abs(conTope - conDelta) <= 0.051) continue;           // indistinguibles: no hay nada que juzgar
+        const reEnt = new RegExp(`\\b${ent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+        let m, hallado = false;
+        const reNum = /([\d.,]+)\s*%/g;
+        while (!hallado && (m = reNum.exec(narration))) {
+          const p = parseFloat(m[1].replace(",", "."));
+          if (!Number.isFinite(p) || Math.abs(p - conDelta) > 0.051) continue;
+          const ven = narration.slice(Math.max(0, m.index - 220), Math.min(narration.length, m.index + 220));
+          if (!reEnt.test(ven)) continue;
+          const usaTope = [...ven.matchAll(/([\d.,]+)\s*%/g)].some((x) => Math.abs(parseFloat(x[1].replace(",", ".")) - conTope) <= 0.051);
+          if (usaTope) continue;   // la respuesta YA usa el tope real: es exactamente lo que la regla pide
+          violations.push({ kind: "escenario-inviable", detail: `${ent} no puede bajar ${delta}pp: su carga es ${carga}%, así que el máximo aplicable es ${carga}pp. Con ese tope su margen llega a ${conTope}%, no a ${conDelta}% — di el tope real o declara que el supuesto no aplica completo` });
+          hallado = true;
+        }
+      }
     }
   }
   // VOCABULARIO CONTRACTUAL (chequeo N5): «meta» aplicada al MARGEN no existe en este dato (la meta la fija el
