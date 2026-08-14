@@ -51,6 +51,9 @@ const CASOS = [
   { id: "P8·política-del-2%·interpretación declarada", espera: "PASA", tipo: "ambigüedad declarada + cálculo",
     afirma: "la lectura elegida del «2%» dicha explícita, con la cuenta mostrada",
     q: "baja 2% la carga de Falabella", texto: "Interpreto ese 2% como 2 puntos porcentuales: la carga comercial de Falabella marca 4.5%, y 4.5% − 2.0pp = 2.5%. Si te referías a un 2% relativo, el resultado cambia — dime y lo recalculo." },
+  { id: "P9·typos·el narrador normaliza, el notario verifica lo normalizado", espera: "PASA", tipo: "supuesto del usuario con typo + entidad normalizada",
+    afirma: "regla del owner 2026-08-14: «falabela»→Falabella y «2 putnos»→2 puntos porcentuales — el número que el usuario tipeó respalda al supuesto YA normalizado",
+    q: "baja 2 putnos la carga de falabela", texto: "Interpreto 2 puntos porcentuales: la carga comercial de Falabella marca 4.5%, y 4.5% − 2.0pp = 2.5%." },
 
   // ── NEGATIVOS · deben morir POR SU chequeo (exigencia 1: la razón correcta) ──
   { id: "N1·cifra sin dueño", espera: "MUERE", tipo: "cifra", chequeoEsperado: /cifra-de-dato-sin-dueno|cifra-no-autorizada/, construido: true,

@@ -2656,6 +2656,23 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   if (Array.isArray(supuestoPendiente)) {
     for (const s of supuestoPendiente) for (const pf of parseFigures(String(s == null ? "" : s))) qFigs.push(pf);
   }
+  /* ── EL SUPUESTO NORMALIZADO (grieta de typos, owner 2026-08-14): «baja 2 putnos» — la unidad venía con typo,
+   * así que parseFigures no registraba NINGUNA cifra del usuario, y cuando el narrador respondía con el
+   * vocabulario corregido («2 puntos porcentuales» · «2%») el muro se lo vetaba: castigaba la normalización,
+   * que es exactamente lo que el narrador DEBE hacer. Regla: el narrador normaliza la intención, el notario
+   * verifica lo normalizado. ACOTADO para no abrir un hueco: solo números pegados a un VERBO DE CAMBIO en la
+   * pregunta (baja/sube/reduce/aumenta/recorta/aplica/pon…) — un «top 2» o un «los 3 de siempre» no autorizan
+   * nada —, y entran por EL MISMO parser de siempre en sus dos lecturas (%, pp): cuál aplicó lo vigilan los
+   * chequeos de siempre (la ambigüedad declarada, la fórmula recomputada). */
+  {
+    const _reSupuestoCrudo = /(?:baj|sub|reduc|aument|recort|cort|aplic|pon|dal)\w*[^.\d\n]{0,12}?([\d.,]+)/gi;
+    let ms;
+    while ((ms = _reSupuestoCrudo.exec(String(question || "")))) {
+      const n = ms[1].replace(",", ".");
+      if (!Number.isFinite(parseFloat(n))) continue;
+      for (const pf of parseFigures(`${n}% · ${n}pp · ${n} puntos porcentuales`)) qFigs.push(pf);
+    }
+  }
   // EL TERCER UNIVERSO (Contrato v1.2 §5.1, owner 2026-08-10): la cifra que aportó el usuario y sigue viva en la
   // conversación. Se AUTORIZA a escribirla —de otro modo el narrador no podría siquiera mostrar la discrepancia—
   // pero no queda libre: los chequeos 20 y 21 exigen que lleve su procedencia en cada lugar donde aparezca, que
