@@ -1,0 +1,150 @@
+{
+  "fecha": "2026-08-14",
+  "hilos": [
+    "H1·ventas (el hilo que rompió a ADI)",
+    "H2·el ejemplo soñado del owner"
+  ],
+  "llamadas": 20,
+  "registro": [
+    {
+      "hilo": "H1·ventas (el hilo que rompió a ADI)",
+      "A": [
+        {
+          "q": "Si subo ventas 4%, ¿qué cambia?",
+          "calls": 0,
+          "texto": "Ese cambio en las ventas lo tomo como cambio de volumen (unidades vendidas), con el precio declarado aparte. ¿Sobre qué cliente, SKU, marca o familia quieres simular este escenario?",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "sobre las ventas",
+          "calls": 2,
+          "texto": "Dime qué parte está mal y la corrijo — ¿la pregunta que entendí, o el dato que traje?",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "simula sobre el total de ventas",
+          "calls": 0,
+          "texto": "Tomo el escenario sobre el total del negocio. ¿cuánto esperas que cambie el precio? No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "el precio queda igual",
+          "calls": 3,
+          "texto": "Supuesto % marca +4% (tasa comercial, anual).\n\nEl resto de la lectura: Total · actual: $100.0M · Total · supuesto: $104.0M · Impacto absoluto: $4.0M · Impacto %: 4% · Concentración · bloque: 81% · Calidad · margen del bloque: 23.8%. El dato no registra la causa: para explicarla hace falta evidencia que esta lectura no trae.\n\nPor dónde partir: Supuesto %, que es el efecto del supuesto planteado.\n\nSupuesto: Ventas +4% sobre el dato real. (Datos del año cerrado.)\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.",
+          "suplente": true,
+          "vetos": [
+            "procedencia-no-autorizada"
+          ]
+        }
+      ],
+      "B": [
+        {
+          "q": "Si subo ventas 4%, ¿qué cambia?",
+          "calls": 2,
+          "texto": "Bajo este supuesto —mismo margen y mix actual—, subir ventas 4% sobre los $100.0M actuales generaría $100.0M × 1.04 = $104.0M proyectados, con contribución proyectada de $104.0M × 25.1% = $26.1M — $1.0M más que los $25.1M de contribución de hoy.\n\nLo que no cambia con solo subir volumen: el margen sigue en 25.1%, todavía 5 puntos por debajo del benchmark de 30.1%. Si ese crecimiento se reparte igual que hoy —con más peso en Falabella (22.0%) o Lider (21.5%)— estás agrandando el negocio sin cerrar la brecha de margen, y en dólares absolutos la ineficiencia crece con la venta.\n\nQué hacer primero: dirigí ese crecimiento hacia los clientes de mayor margen, no hacia los de mayor volumen. Mercado Libre (29.0%) y Tottus (28.0%) están cerca del benchmark; cada dólar adicional ahí aporta casi 4 puntos más de margen que el mismo dólar en Falabella o Lider. Si el crecimiento viene de ahí, no solo sumas ventas — empiezas a mover el margen de cartera hacia el 30.1%.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "sobre las ventas",
+          "calls": 2,
+          "texto": "Bajo este supuesto —crecimiento parejo del 4% sobre la venta actual—, ventas totales pasarían de $100.0M a una proyección de $100.0M × 1.04 = $104.0M.\n\nPara dimensionar esa proyección contra lo real de hoy:\n- Ya estás 3.1% arriba del presupuesto ($97.0M) y 7.6% arriba del año anterior ($92.9M), ambos datos reales del año cerrado.\n- La proyección de $104.0M quedaría 7.2% sobre presupuesto ($104.0M vs $97.0M) y crecería el margen sobre año anterior — pero ese diferencial exacto contra $92.9M no lo tengo cerrado con precisión suficiente para dártelo como cifra firme; lo relevante es que el ritmo se acelera, no que se mantiene.\n\nLa pregunta que importa no es el monto total, sino dónde cae ese $4.0M ($104.0M − $100.0M) de crecimiento. Si se reparte igual que la cartera actual, los tres primeros clientes (Falabella $19.4M, Lider $17.9M, Jumbo $17.3M) — que juntos son $54.6M de los $100.0M, o 54.6% de la cartera — absorberían más de la mitad de ese crecimiento por peso relativo. Y son justamente los de menor margen: 22.0%, 21.5% y 24.0%, todos por debajo del benchmark de 30.1%.\n\nQué hacer primero: fija de antemano en qué cliente o SKU quieres que caiga ese $4.0M extra. Si lo dejas \"flotando\" sobre el mix actual, crecés en ventas pero no en calidad de cartera.",
+          "estado": "suplente",
+          "vetos": [
+            "cifra-no-autorizada",
+            "2º: cifra-no-autorizada"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "simula sobre el total de ventas",
+          "calls": 2,
+          "texto": "Bajo este supuesto —+4% aplicado sobre el total de ventas del negocio, mix constante—, la proyección es:\n\n- Ventas totales del negocio: $100.0M × 1.04 = **$104.0M proyectados**\n- Margen de cartera: se mantiene en 25.1% (el supuesto no toca mix ni precio)\n- Contribución: $104.0M proyectados × 25.1% = **$26.1M**, +$1.0M vs los $25.1M de contribución total actuales\n- Costo implícito: $104.0M proyectados − $26.1M = **$77.9M**\n\nContra tus referencias del año cerrado:\n- vs presupuesto del negocio ($97.0M): los $104.0M proyectados quedan 7.2% arriba\n- vs año anterior del negocio ($92.9M): los $104.0M proyectados quedan 11.9% arriba\n\nEsto es aritmética sobre el total, no una mejora de fondo: el margen de cartera sigue 5 puntos bajo el benchmark de 30.1%, porque la simulación no cambia dónde ni cómo se vende, solo escala el número.\n\nQué hacer primero: antes de dar por buena esta proyección, decidí si ese crecimiento lo empuja la cartera actual (Falabella, Lider, Jumbo, con márgenes 22–24%) o clientes de margen alto como Mercado Libre (29.0%) o Tottus (28.0%). El mismo monto de crecimiento vale distinto según dónde caiga — con foco en margen alto, la contribución proyectada sube más que esos $26.1M.",
+          "estado": "suplente",
+          "vetos": [
+            "cifra-de-dato-sin-dueno",
+            "2º: cifra-no-autorizada"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "el precio queda igual",
+          "calls": 2,
+          "texto": "Bien — eso confirma el supuesto que ya usé: si el precio no se mueve, el +4% es 100% volumen, no mezcla de precio.\n\nBajo este supuesto —$100.0M × 1.04, mix y precio constantes—, la simulación arrojaría una venta proyectada de $104.0M. Es una proyección, no un hecho: depende de que el crecimiento se reparta igual que hoy.\n\nEso simplifica la lectura: ese crecimiento vendría de vender más unidades del mismo mix, no de vender más caro. Y ahí está el punto ciego — con precio fijo y mix igual, el margen de cartera se queda clavado en 25.1%, sin ninguna fuerza que lo acerque al benchmark de 30.1%. Estarías comprando volumen, no rentabilidad.\n\nMira el contraste a nivel SKU para que se entienda el mecanismo: SAM-TV55 tiene margen 18.5% con precio de lista $665 por unidad, mientras PHI-HAIR-PRO tiene margen 30.0% con precio de lista $68 por unidad. Si el 4% de volumen extra se reparte igual que hoy, gran parte cae en electrodomésticos de ticket alto y margen bajo — no en cuidado personal, que es donde el margen ya está a la altura del benchmark.\n\nQué hacer primero: si vas a forzar ese 4% de volumen con precio fijo, dirigilo a SKU y clientes de margen alto (Mercado Libre 29.0%, PHI-HAIR-PRO 30.0%) en vez de dejarlo caer parejo sobre la cartera actual. Ahí la misma unidad extra vendida aporta más contribución real, no solo más ventas en el papel.",
+          "estado": "suplente",
+          "vetos": [
+            "cifra-no-autorizada",
+            "2º: cifra-de-dato-sin-dueno"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        }
+      ]
+    },
+    {
+      "hilo": "H2·el ejemplo soñado del owner",
+      "A": [
+        {
+          "q": "¿Qué clientes venden mucho pero dejan poco margen?",
+          "calls": 2,
+          "texto": "En el año cerrado, tres clientes concentran el mayor volumen de venta y los tres operan bajo tu benchmark de margen (30.1%):\n\n| Cliente | Venta | Margen | Brecha |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | 8.1pp |\n| Lider | $17.9M | 21.5% | 8.6pp |\n| Jumbo | $17.3M | 24.0% | 6.1pp |\n| Sodimac | $8.2M | 23.5% | 6.6pp |\n\nLa causa en los cuatro es la misma: **carga comercial/rebate**, no un problema de costo estructural. Falabella es el de mayor peso en $ y con una de las brechas más grandes — ahí empieza, revisando sus acciones comerciales; cada punto de margen que recuperes en esa cuenta libera $194K.",
+          "suplente": false,
+          "vetos": []
+        },
+        {
+          "q": "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark",
+          "calls": 2,
+          "texto": "Con un recorte de 2 puntos en la carga comercial (uno estimado por el motor, no un hecho consumado), el margen mejora en los cuatro clientes, pero **ninguno cruza tu benchmark de 30.1%** — todos quedan por debajo.\n\n| Cliente | Margen actual | Margen simulado | Brecha restante |\n|---|---|---|---|\n| Falabella | 22.0% | 24.0% | 6.1pp |\n| Lider | 21.5% | 23.5% | 6.6pp |\n| Jumbo | 24.0% | 26.0% | 4.1pp |\n| Sodimac | 23.5% | 25.5% | 4.6pp |\n\nEl movimiento libera, según esta cuenta estimada, cerca de $1.3M en conjunto (Falabella aporta el mayor tramo individual, $389K), pero la brecha no se cierra en ninguno: el ajuste de 2pp no alcanza a compensar lo que la carga comercial venía absorbiendo.\n\nAcá el criterio cambia respecto al turno anterior: antes priorizaba por monto liberado (Falabella primero); si el objetivo es cruzar el benchmark, **Lider** es el que más lejos queda incluso después del ajuste (6.6pp), y necesitaría un recorte mayor a 2 puntos para acercarse.\n\n¿Quieres que simule cuánto habría que recortarle a Lider para que su margen alcance el benchmark?\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar. (Datos del año cerrado.)",
+          "suplente": false,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "¿Qué clientes venden mucho pero dejan poco margen?",
+          "calls": 2,
+          "texto": "Tres clientes concentran el problema: Falabella, Lider y Jumbo son los que más venden y los que menos margen dejan de toda la cartera.\n\n- Falabella — $19.4M ventas · margen 22.0% (8.1 puntos bajo el benchmark de 30.1%) · carga comercial 4.5% (1.0 punto sobre la meta de 3.5%)\n- Lider — $17.9M ventas · margen 21.5% (8.6 puntos bajo benchmark) · carga comercial 4.2%\n- Jumbo — $17.3M ventas · margen 24.0% (6.1 puntos bajo benchmark) · carga comercial 3.8%\n\nCompara con La Polar (ventas $2.9M, margen 34.0%) o Hites (ventas $2.7M, margen 33.0%): venden bastante menos pero dejan mejor margen que estos tres.\n\nPor qué pasa: no es solo precio. Falabella y Lider cargan además la comercialización más alta de la cartera ($874K y $750K en acciones comerciales), por encima de la meta de 3.5%. Están comprando volumen con margen y con gasto comercial a la vez.\n\nQué hacer primero: entra por Falabella. Es el cliente de mayor venta y el que más gasto comercial absorbe ($874K). Bajar su carga comercial de 4.5% a la meta de 3.5% libera cerca de $194K sin tocar precio ni volumen — es la acción más rápida antes de tocar condiciones comerciales con Lider o Jumbo.",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark",
+          "calls": 1,
+          "texto": "Bajo este supuesto (que el ahorro en carga comercial pase directo a margen), los tres quedan igual por debajo del benchmark de 30.1%:\n\n- Falabella: carga comercial 4.5% → 2.5% · margen proyectado 22.0% + 2.0 = 24.0% (aún 6.1 puntos bajo benchmark)\n- Lider: carga comercial 4.2% → 2.2% · margen proyectado 21.5% + 2.0 = 23.5% (aún 6.6 puntos bajo benchmark)\n- Jumbo: carga comercial 3.8% → 1.8% · margen proyectado 24.0% + 2.0 = 26.0% (aún 4.1 puntos bajo benchmark)\n\nOjo con el supuesto: en el dato, margen y carga comercial son dos métricas separadas — el margen se calcula de ventas menos costo, no descuenta la carga comercial. Esta proyección asume que todo el ahorro cae directo a contribución; en la práctica puede ser parcial.\n\nAun con el mejor escenario, ningún cliente cruza el benchmark solo bajando carga comercial — la brecha real está en el costo del producto, no en el gasto comercial. Jumbo es el más cerca (4.1 puntos): ahí conviene mirar primero condición de compra o mix de SKU antes que seguir ajustando gasto comercial.",
+          "estado": "verde",
+          "vetos": [],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": {
+            "eje": "cliente",
+            "entities": [
+              "Falabella",
+              "Lider",
+              "Jumbo",
+              "La Polar",
+              "Hites"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

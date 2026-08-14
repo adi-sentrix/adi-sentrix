@@ -159,7 +159,13 @@ async function armNatural(hilo) {
 
 /* ── LA CORRIDA ── */
 const registro = [];
-for (const hilo of HILOS) {
+/* FILTRO POR HILO (owner 2026-08-14, mini doble enfocada): `node _corrida_doble.mjs H1 H2` corre SOLO esos
+ * hilos. Es el MISMO código —arnés, ciclo, notario, balance—, nunca un arnés paralelo que pueda divergir: una
+ * medición enfocada tiene que ser comparable con la completa. Sin argumentos, corre los 9 hilos. */
+const _filtro = process.argv.slice(2).filter((a) => /^H\d+$/i.test(a)).map((a) => a.toUpperCase());
+const HILOS_A_CORRER = _filtro.length ? HILOS.filter((h) => _filtro.some((f) => h.id.toUpperCase().startsWith(f + "·"))) : HILOS;
+if (_filtro.length) console.log(`◆ MINI DOBLE ENFOCADA — hilos ${_filtro.join(", ")} (${HILOS_A_CORRER.length} de ${HILOS.length})\n`);
+for (const hilo of HILOS_A_CORRER) {
   console.log(`\n╔═══════════ ${hilo.id} ═══════════╗`);
   const A = await armActual(hilo);
   const B = await armNatural(hilo);
@@ -188,5 +194,7 @@ console.log(`         censo del vacío: ${_conVacia.length}/${tB.length} turnos 
 const _todosConTexto = tB.every((t) => !esNarracionVacia(t.texto));
 console.log(`         ${_todosConTexto ? `✓ los ${tB.length} turnos salieron con texto` : "✗ HAY TURNOS EN BLANCO — la garantía anti-vacío se rompió"}`);
 console.log(`llamadas totales: ${llamadas}/${CAP}`);
-fs.writeFileSync("_corrida_doble.json", JSON.stringify({ fecha: "2026-08-14", llamadas, registro }, null, 2), "utf8");
-console.log(`transcript completo en _corrida_doble.json`);
+// una corrida enfocada NO pisa el transcript de la completa: son mediciones distintas y las dos son evidencia.
+const _destino = _filtro.length ? `_corrida_doble_${_filtro.join("").toLowerCase()}.json` : "_corrida_doble.json";
+fs.writeFileSync(_destino, JSON.stringify({ fecha: "2026-08-14", hilos: HILOS_A_CORRER.map((h) => h.id), llamadas, registro }, null, 2), "utf8");
+console.log(`transcript completo en ${_destino}`);
