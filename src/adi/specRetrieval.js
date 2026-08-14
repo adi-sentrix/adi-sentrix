@@ -578,7 +578,13 @@ function _diagCapital(filters, scenario, entityScope) {
     if (!dormido) continue;
     items.push({ entidad: r[key], usd: cap, critico: r.alerta === "crit", bodega: r.bodega });   // stockUSD = $ crudo
   }
-  return items.length ? [_diagFoco("capital", "Capital detenido", items)] : [];
+  // EL TÍTULO DEL FOCO ES UN LABEL DE BOLETA, NO UN COMENTARIO (La Poda F2 · defecto medido en prod 2026-08-14).
+  // `_diagFoco().titulo` viaja a las figs («Capital detenido · subtotal», «Valparaíso · Capital detenido») y el
+  // respaldo determinístico del oráculo (componerPorForma → _tabla/_enLinea, narrationBlocks.js) las imprime
+  // VERBATIM — sin pasar por `stripLanguageLeaks`, que solo lava la narración VIVA. Por ahí salió a la pantalla
+  // del owner «Valparaíso · Capital detenido» pese a que CLAUDE.md §4 fija «inmovilizado». El registro se corrige
+  // EN EL ORIGEN (una sola verdad: el mismo string que autoriza la cifra es el que se lee) — ver `_ESTADO_LABEL`.
+  return items.length ? [_diagFoco("capital", "Capital inmovilizado", items)] : [];
 }
 
 // arma un foco: ordena sus items por $, subtotal, top-N (para el texto) e items completos (para Sentrix)
@@ -746,8 +752,8 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
     fig("Ventas del período", _money(ventasK * 1000), { unit: "money", raw: ventasK * 1000, mandatory: true, context: "resumen ejecutivo" }),
     fig("Contribución", _money(contribK * 1000), { unit: "money", raw: contribK * 1000, mandatory: true, context: "resumen ejecutivo" }),
     fig("Margen promedio", `${margenProm}%`, { unit: "pct", raw: margenProm, mandatory: true, context: "resumen ejecutivo" }),
-    fig("Piso de margen", `${bench}%`, { unit: "pct", raw: bench, mandatory: false, context: "la vara" }),
-    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la vara" }),
+    fig("Piso de margen", `${bench}%`, { unit: "pct", raw: bench, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
+    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, mandatory: false, context: "la referencia declarada" }),   // registro: «vara» está vetada en superficie y el context de la boleta viaja al prompt y a la evidencia
   ];
   if (varPct != null) bol.push(fig("Ventas vs año anterior", `${varPct >= 0 ? "+" : ""}${varPct}%`, { unit: "pct", raw: varPct, mandatory: false, context: "resumen ejecutivo" }));
   for (const r of topC) bol.push(fig(`${r.nombre} · Contribución`, _money(r.contribucion * 1000), { unit: "money", raw: r.contribucion * 1000, mandatory: false, context: "quién sostiene" }));
@@ -777,7 +783,19 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
  * Cada foco: lectura → por bodega/familia → por SKU → por qué (umbrales POLICY) → qué hacer → CONTRApunta honesta (la otra
  * punta material, "no es lo único"). Boleta rica: las 4 puntas siempre autorizadas. Data-driven de skuInventario; el
  * `focus`/`staleDays` los infiere el cliente del texto (safety-net) o el LLM. null → el seam degrada honesto. */
-const _ESTADO_LABEL = { capital_frenado: "capital detenido", riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" };
+// `_ESTADO_LABEL` ES LA VARA CON LA QUE SE AUTORIZA Y SE ATRIBUYE, ASÍ QUE ES TAMBIÉN LO QUE SE LEE (La Poda F2).
+// De acá salen los labels de boleta del inventario («Estado del inventario: …», «<bodega> · <Concepto>») y el
+// concepto que `narratePromptC._conceptoCapitalDeFigs` reconoce para imponer el encabezado literal de la tabla.
+// El respaldo determinístico imprime esos labels VERBATIM (narrationBlocks.js `_tabla`/`_enLinea`), y ahí es donde
+// «capital detenido» llegó a la pantalla del owner. CLAUDE.md §4: se dice **inmovilizado**, nunca «detenido».
+// POR QUÉ SE RENOMBRA EL CANÓNICO Y NO SE AGREGA UN LABEL DE PRESENTACIÓN: un label de pantalla distinto del label
+// de boleta parte en dos la única verdad — guardC liga la cifra a la ETIQUETA (ver el comentario largo de
+// `_CONCEPTO` más abajo) y `CAPITAL_COLUMNS_INSTRUCTION` le pide al narrador el encabezado LITERAL de esa misma
+// etiqueta; con dos strings, el narrador escribiría el vetado y el guard autorizaría contra el otro. Una sola
+// palabra, en el origen. Los consumidores que hacían match por texto aceptan AMBAS formas (narrationContract
+// `_PALANCAS`, progressiveDisclosure `composeProsaEjecutiva`, narratePromptC `_CONCEPTOS_INVENTARIO`), así que
+// ninguna boleta vieja —ni la del camino legado, que no se toca acá— deja de reconocerse.
+const _ESTADO_LABEL = { capital_frenado: "capital inmovilizado", riesgo_quiebre: "riesgo de quiebre", sobrestock: "sobrestock", capital_sano: "capital sano" };
 const _ESTADO_ORDEN = ["capital_frenado", "riesgo_quiebre", "sobrestock", "capital_sano"];
 const _FOCUS_ESTADO = { frenado: "capital_frenado", quiebre: "riesgo_quiebre", sobrestock: "sobrestock" };
 const _ESTADO_COLOR = { capital_frenado: "amber", riesgo_quiebre: "red", sobrestock: "cyan", capital_sano: "green" };
@@ -803,11 +821,11 @@ const _groupBy = (skus, field, total) => { const m = {}; for (const s of skus) m
 function _contrapunta(D, focusEst) {
   if (focusEst !== "riesgo_quiebre" && D.quiebreMaterial && D.dist.riesgo_quiebre && D.dist.riesgo_quiebre.usd > 0) {
     const dd = D.dist.riesgo_quiebre;
-    return { estado: "riesgo_quiebre", label: "riesgo de quiebre", usd: dd.usd, pct: dd.pct, count: dd.count, color: "red", familias: _groupBy(D.perSku.filter((s) => s.estado === "riesgo_quiebre").map((s) => ({ usd: s.capital, familia: s.sfamilia || s.familia })), "familia", dd.usd) };
+    return { estado: "riesgo_quiebre", label: _ESTADO_LABEL.riesgo_quiebre, usd: dd.usd, pct: dd.pct, count: dd.count, color: "red", familias: _groupBy(D.perSku.filter((s) => s.estado === "riesgo_quiebre").map((s) => ({ usd: s.capital, familia: s.sfamilia || s.familia })), "familia", dd.usd) };
   }
   if (focusEst !== "capital_frenado" && D.dist.capital_frenado && D.dist.capital_frenado.usd > 0) {
     const dd = D.dist.capital_frenado;
-    return { estado: "capital_frenado", label: "capital detenido", usd: dd.usd, pct: dd.pct, count: dd.count, color: "amber", familias: _groupBy(D.perSku.filter((s) => s.estado === "capital_frenado").map((s) => ({ usd: s.capital, familia: s.sfamilia || s.familia })), "familia", dd.usd) };
+    return { estado: "capital_frenado", label: _ESTADO_LABEL.capital_frenado, usd: dd.usd, pct: dd.pct, count: dd.count, color: "amber", familias: _groupBy(D.perSku.filter((s) => s.estado === "capital_frenado").map((s) => ({ usd: s.capital, familia: s.sfamilia || s.familia })), "familia", dd.usd) };
   }
   return null;
 }
@@ -876,7 +894,9 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   // 4 puntas del motor (suman exacto) → lo sano declarado → qué mirar primero. Misma verdad (D.dist · POLICY). ──
   if (focus === "estado") {
     const _ORDEN_E = ["capital_sano", "riesgo_quiebre", "sobrestock", "capital_frenado"];
-    const _LBL_E = { capital_sano: "rotando en rango", riesgo_quiebre: "en riesgo de quiebre", sobrestock: "en sobrestock", capital_frenado: "detenido" };
+    // «inmovilizado», no «detenido» (CLAUDE.md §4): este reparto se lee en la línea de apertura del estado del
+    // inventario y su misma palabra encabeza las figs de `_ESTADO_LABEL` de más abajo — una sola verdad.
+    const _LBL_E = { capital_sano: "rotando en rango", riesgo_quiebre: "en riesgo de quiebre", sobrestock: "en sobrestock", capital_frenado: "inmovilizado" };
     const dd = (e) => D.dist[e] || { usd: 0, count: 0, pct: 0 };
     const partes = _ORDEN_E.filter((e) => dd(e).usd > 0).map((e) => `${_money(dd(e).usd)} ${_LBL_E[e]} (${dd(e).count} SKU)`);
     const sano = dd("capital_sano"), fren = dd("capital_frenado"), quie = dd("riesgo_quiebre"), sobre = dd("sobrestock");
@@ -982,7 +1002,10 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       // los críticos si los hay (la razón se declara: rotación más baja y más días sin venta), si no los de más capital.
       const arranque = crit.length ? crit.slice(0, 2) : skus.slice(0, 2);
       B = {
-        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está detenido tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega", arranque,
+        // el `title` NO es decoración: encabeza la fig de total («Capital inmovilizado · total», por el split en
+        // " ·") y viaja en `evidence.inventory.title` al panel de Sentrix, que lo pinta tal cual (SentrixPanel.jsx).
+        // Por eso su segunda mitad también va en registro: «dónde está inmovilizado», nunca «detenido».
+        focusEst: est, color: "amber", title: "Capital inmovilizado · dónde está inmovilizado tu capital", ctx: "capital inmovilizado", total, skus, byBod, byFam, dim: "bodega", arranque,
         lines: [
           `Tienes ${_money(total)} de capital inmovilizado en ${skus.length} SKU sin rotar. Se concentra en ${topB.nombre} (${_money(topB.usd)}, ${topB.pct}%).`,
           `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.`,
@@ -1025,9 +1048,10 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
   // es FALSA y pasaba guardC entera — el canon `money:$30K` está autorizado y el binding semántico lee la
   // ETIQUETA, así que la etiqueta equivocada autorizaba la afirmación equivocada. El concepto sale ahora del
   // estado que el foco realmente está mirando (`_ESTADO_LABEL`, la MISMA fuente que ya nombra las 4 puntas —
-  // no un segundo diccionario). Para `frenado`/`stale` (focusEst "capital_frenado") el resultado es
-  // BYTE-IDÉNTICO al anterior: "Capital detenido".
-  const _CONCEPTO = _ESTADO_LABEL[B.focusEst] || "capital detenido";
+  // no un segundo diccionario). Para `frenado`/`stale` (focusEst "capital_frenado") el concepto es
+  // "Capital inmovilizado" desde La Poda F2 — antes decía "Capital detenido", la palabra que CLAUDE.md §4 veta y
+  // que el respaldo determinístico imprimió VERBATIM en la pantalla del owner (2026-08-14). Ver `_ESTADO_LABEL`.
+  const _CONCEPTO = _ESTADO_LABEL[B.focusEst] || _ESTADO_LABEL.capital_frenado;
   const _CONCEPTO_LBL = _CONCEPTO.charAt(0).toUpperCase() + _CONCEPTO.slice(1);
   const _bodMultiple = (B.byBod || []).length >= 2;
   for (const b of (B.byBod || [])) {
@@ -1073,7 +1097,11 @@ const _markup = (r) => (r && r.precioLista > 0 ? (r.precioLista - r.costoMedio) 
 const _costShare = (r) => (r && r.precioLista > 0 ? r.costoMedio / r.precioLista * 100 : null);                  // costo como % de la lista
 const _mVenta = (v) => _money(v * 1000);   // venta/contribucion en MILES -> $ real (escala del contrato · consistente con ventas y el resumen ejecutivo · NO para stockUSD, que es crudo)
 // panel de Sentrix para margen: cada entidad vs la línea de benchmark (la "calidad de la venta" de un vistazo) + descomposición precio/costo
-const _MFOCUS_TITLE = { bajo_benchmark: "Margen vs benchmark", alto_volumen_bajo_margen: "Volumen vs margen", causa_precio: "Margen · el precio no da", causa_costo: "Margen · el costo aprieta", subir_precio: "Candidatos a subir precio", alto_margen_subpenetrado: "Alto margen subpenetrado", palancas: "Consumo de margen" };
+// `causa_costo`: «el costo presiona», no «el costo aprieta» (La Poda F2). Estos títulos NO son internos — viajan
+// en `evidence.margin.title` al panel de Sentrix, que los pinta, y a `facts` del oráculo, que los manda al prompt.
+// «apretar» está vetada desde 2026-07-26 («poco ejecutivo», owner); la clave del objeto sigue siendo `causa_costo`,
+// así que ningún ruteo cambia. La clave `palancas` es un identificador de foco, no texto: no se toca.
+const _MFOCUS_TITLE = { bajo_benchmark: "Margen vs benchmark", alto_volumen_bajo_margen: "Volumen vs margen", causa_precio: "Margen · el precio no da", causa_costo: "Margen · el costo presiona", subir_precio: "Candidatos a subir precio", alto_margen_subpenetrado: "Alto margen subpenetrado", palancas: "Consumo de margen" };
 function _marginPanel(rows, bench, focus) {
   const rr = (rows || []).filter((r) => typeof r.margen === "number")
     .map((r) => {
@@ -2251,7 +2279,9 @@ export function composeSpecSimulateCarga({ filters = {}, scenario, entityScope =
   const limite = `**El límite:** que esa carga corre sobre tu target está probado por el dato, y el monto es cálculo directo. Lo que el dato NO predice es la reacción del volumen: renegociar condiciones puede presionar la venta — ese riesgo queda abierto y se decide cuenta por cuenta.`;
   const decision = `**La decisión:** ${cliente ? `¿lo bajamos a plan con ${cliente}?` : `¿armamos el plan cuenta por cuenta, empezando por ${t0.entidad}?`}`;
   const bol = [
-    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
+    // `formula` NO es un comentario: viaja al prompt como procedencia autorizada («se calcula como …») y a la
+    // evidencia del panel. «tu referencia declarada», no «tu vara» — la palabra está vetada en superficie.
+    fig("Target de carga", `${POLICY.targetCarga}%`, { unit: "pct", raw: POLICY.targetCarga, source: "actual", formula: "tu referencia declarada (POLICY · no inventado)", context: _ctx }),
     fig("Recuperable · total", _money(cg.subtotal_usd), { unit: "money", raw: cg.subtotal_usd, mandatory: true, source: "computed", formula: "(carga − target) × venta · suma de las cuentas sobre el target", context: _ctx }),
   ];
   for (const it of top) bol.push(fig(`${it.entidad} · Recuperable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `(carga de ${it.entidad} − target) × su venta`, context: _ctx }));
@@ -2273,7 +2303,8 @@ export function composeSpecSimulateCapital({ filters = {}, scenario, entityScope
   const cap = F.find((f) => f.detector === "capital");
   if (!cap || !cap.items.length) return null;   // sin capital detenido material → el seam declara el límite honesto
   const top = cap.items.slice(0, 3);
-  const _ctx = "supuesto: liberar el capital detenido (dato real)";
+  // el `context` de la boleta viaja al prompt como texto autorizado y a la evidencia de Sentrix: va en registro.
+  const _ctx = "supuesto: liberar el capital inmovilizado (dato real)";
   const bodega = filters.bodega || null;
   const supuesto = `**El supuesto:** liberar el capital detenido${bodega ? ` en ${bodega}` : ""}. Es una proyección sobre el dato real, no un dato observado.`;
   const efecto = `**El efecto directo:** vuelven ${_money(cap.subtotal_usd)} de caja — hoy están inmovilizados en ${cap.items.length} SKU que no rotan según tu vara (rotación bajo ${POLICY.rotacionMin}x o más de ${POLICY.dohMax} días).`;
@@ -2281,11 +2312,13 @@ export function composeSpecSimulateCapital({ filters = {}, scenario, entityScope
   const limite = `**El límite:** qué está detenido y cuánto vale está probado por el dato. Lo que el dato NO fija es el precio real de salida: mover o liquidar stock suele ser a descuento — ese margen queda abierto.`;
   const decision = "**La decisión:** ¿lo bajamos a lista — qué liquidar y qué reubicar primero?";
   const bol = [
-    fig("Liberable · total", _money(cap.subtotal_usd), { unit: "money", raw: cap.subtotal_usd, mandatory: true, source: "computed", formula: "suma del capital de los SKU bajo tu vara de rotación", context: _ctx }),
-    fig("Rotación mínima", `${POLICY.rotacionMin.toFixed(1)}x`, { unit: "ratio", raw: POLICY.rotacionMin, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
-    fig("Cobertura máxima", `${POLICY.dohMax}d`, { unit: "days", raw: POLICY.dohMax, source: "actual", formula: "tu vara (POLICY · no inventado)", context: _ctx }),
+    // las tres `formula` van en registro por la misma razón que en composeSpecSimulateCarga: son procedencia
+    // AUTORIZADA que entra al prompt y a la evidencia, no una nota interna.
+    fig("Liberable · total", _money(cap.subtotal_usd), { unit: "money", raw: cap.subtotal_usd, mandatory: true, source: "computed", formula: "suma del capital de los SKU bajo tu referencia de rotación", context: _ctx }),
+    fig("Rotación mínima", `${POLICY.rotacionMin.toFixed(1)}x`, { unit: "ratio", raw: POLICY.rotacionMin, source: "actual", formula: "tu referencia declarada (POLICY · no inventado)", context: _ctx }),
+    fig("Cobertura máxima", `${POLICY.dohMax}d`, { unit: "days", raw: POLICY.dohMax, source: "actual", formula: "tu referencia declarada (POLICY · no inventado)", context: _ctx }),
   ];
-  for (const it of top) bol.push(fig(`${it.entidad} · Liberable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital detenido de ${it.entidad}`, context: _ctx }));
+  for (const it of top) bol.push(fig(`${it.entidad} · Liberable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital inmovilizado de ${it.entidad}`, context: _ctx }));
   return {
     opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
     suggestions: ["El capital detenido en detalle"],
@@ -2530,7 +2563,10 @@ export function buildResumenEjecutivo(scenario) {
     const mg = by("margen"), cg = by("carga"), cap = by("capital"), parts = [];
     if (mg && mg.items[0]) { parts.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (arranca por ${mg.items[0].entidad})`); focos.push({ detector: "margen", usd: mg.subtotal_usd, usdFmt: _money(mg.subtotal_usd), label: "sobre la mesa en margen", entidad: mg.items[0].entidad }); }
     if (cg) { parts.push(`${_money(cg.subtotal_usd)} recuperable en carga comercial`); focos.push({ detector: "carga", usd: cg.subtotal_usd, usdFmt: _money(cg.subtotal_usd), label: "recuperable en carga", entidad: cg.items[0] && cg.items[0].entidad }); }
-    if (cap) { parts.push(`${_money(cap.subtotal_usd)} de capital detenido en ${cap.items.length} SKU`); focos.push({ detector: "capital", usd: cap.subtotal_usd, usdFmt: _money(cap.subtotal_usd), label: `detenido en ${cap.items.length} SKU`, entidad: null }); }
+    // ESTA LÍNEA ES LA MESA DE CONTROL, no un opener del camino legado: `buildResumenEjecutivo` lo consume
+    // SentrixPanel.jsx:1331 y `lectura` + `focos[].label` se pintan en la apertura del panel — la superficie más
+    // visible del producto. Por eso van en registro: «inmovilizado», nunca «detenido» (CLAUDE.md §4).
+    if (cap) { parts.push(`${_money(cap.subtotal_usd)} de capital inmovilizado en ${cap.items.length} SKU`); focos.push({ detector: "capital", usd: cap.subtotal_usd, usdFmt: _money(cap.subtotal_usd), label: `inmovilizado en ${cap.items.length} SKU`, entidad: null }); }
     lectura = `${F.length} ${F.length === 1 ? "foco" : "focos"} donde se pierde margen o se inmoviliza capital: ${parts.join(" · ")}. ¿Por cuál empezamos?`;
   }
   return { kpis, lectura, focos };

@@ -404,10 +404,13 @@ H("[9d3] EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07)"
   ok(b.n + a.referencias[0].n <= R.rows.length, "los dos lados no se superponen: o estás por encima o por debajo");
   ok(b.filas.every((f) => f.carga < a.promedio), "toda fila del otro lado entrega menos que el promedio");
   ok(b.filas.every((f, i) => i === 0 || b.filas[i - 1].holgura >= f.holgura), "ordenados por cuánta holgura tienen");
-  // ⚠️ LA TRAMPA QUE ESTO EVITA: llevarlos al promedio sería ENTREGARLES MÁS, no capturar plata.
+  // ⚠️ LA TRAMPA QUE ESTO EVITA: llevarlos al promedio sería ENTREGARLES MÁS, no capturar capital.
   ok(!("recuperable" in (b.filas[0] || {})) && !("totalFmt" in b),
     "NO se les calcula un 'recuperable': llevarlos al promedio sería darles más, no capturar");
-  ok(/No son plata a capturar/.test(b.lectura) && /entregarles más/.test(b.lectura),
+  // LITERAL ACTUALIZADO, CANDADO INTACTO (La Poda F2): lo que este check FIJA es el COMPORTAMIENTO —que la lectura
+  // declare explícito que ahí no hay nada que capturar—, y eso se sigue exigiendo igual. Lo único que cambia es la
+  // PALABRA: «plata» está vetada en superficie (CLAUDE.md §4) y esta lectura se pinta en la cara Comercial.
+  ok(/No son capital a capturar/.test(b.lectura) && /entregarles más/.test(b.lectura),
     `y la lectura lo dice explícito — "${b.lectura.slice(0, 90)}…"`);
   ok(/prueba/.test(b.lectura), "…y declara para qué SÍ sirven: son la prueba de que se puede vender entregando menos");
   ok(b.estatus === "abierto", `por qué operan más bajo queda ABIERTO — ${b.estatus}`);

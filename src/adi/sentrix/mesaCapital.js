@@ -392,7 +392,10 @@ export function buildMesaCapital(scenario) {
     },
     detenido: {
       key: "detenido", titulo: "Capital inmovilizado", objetivo: "Qué capital no está trabajando y desde cuándo.",
-      compradoresNota: "Quién compra hoy ese producto, por su peso en la venta del SKU. Es una ESTIMACIÓN por afinidad de marca y familia —no una transacción observada— y por eso va en participación, nunca en plata: la venta y el inventario no se miden en la misma unidad.",
+      // «nunca en dinero», no «nunca en plata»: la palabra está vetada en superficie (CLAUDE.md §4) y esta nota se
+      // pinta bajo la tabla de compradores de la cara Capital. El punto que hace la frase —que los dos universos no
+      // comparten unidad y por eso solo se muestra participación— queda idéntico.
+      compradoresNota: "Quién compra hoy ese producto, por su peso en la venta del SKU. Es una ESTIMACIÓN por afinidad de marca y familia —no una transacción observada— y por eso va en participación, nunca en dinero: la venta y el inventario no se miden en la misma unidad.",
       columnas: [_COL("sku", "SKU", "left"), _COL("diasSinVenta", "Días sin venta"), _COL("usd", "Valor inmovilizado"),
         // «Margen inv.» y no «Margen» (owner 2026-08-10): este campo es skuInventario.margenPct, del universo de la
         // foto de inventario, y NO es el margen comercial que ADI cita para el mismo SKU (skusMargen.margen).

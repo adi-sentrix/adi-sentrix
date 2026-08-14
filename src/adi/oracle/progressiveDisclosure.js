@@ -35,6 +35,11 @@ import { VISTA_LABEL } from "../sentrix/viewManifest.js";
 // son incompatibles con doce filas; "andá al grano: dame el top 10 de clientes" NO lo es —era `auto` y prohibirle
 // la tabla al narrador es negarle al usuario una forma que nadie prohibió—. Ver responsePreference.js.
 import { pideReduccionDeLargo } from "./responsePreference.js";
+// TERCERA dependencia · la GARANTÍA de registro sobre el texto que este archivo EMITE a pantalla (ver la nota de
+// `composeProsaEjecutiva`). `voiceGuard.js` ya viaja en el grafo del oráculo (answerViaOracle.js lo importa desde
+// el cierre de 2026-07-28), así que no suma módulo nuevo al bundle ni riesgo de ciclo: es una hoja de la capa LLM
+// que solo depende de `capabilities.js`, y ninguna de las dos importa nada de `oracle/`.
+import { stripLanguageLeaks } from "../llm/voiceGuard.js";
 
 // ── ¿PIDIÓ LA SERIE TEMPORAL? ──────────────────────────────────────────────────────────────────────────────────
 // No es una lista cerrada de frases: son las FAMILIAS de pedido temporal que el producto reconoce. Cubre la forma
@@ -529,7 +534,9 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
   const rank = _M(míos, /^ranking por venta$/i), brecha = _M(míos, /brecha de margen/i);
   const bench = _M(cs, /^benchmark de margen$/i);
   const palanca = míos.find((c) => c.coberturaCausal === "parcial" && c.explica);
-  const capital = míos.find((c) => /capital detenido/i.test(String(c.metrica || "")) && /subtotal/i.test(String(c.metrica || "")));
+  // las DOS formas del label (La Poda F2): el canónico pasó a «Capital inmovilizado» en specRetrieval
+  // `_ESTADO_LABEL`; la vieja se sigue reconociendo porque el camino legado todavía la emite.
+  const capital = míos.find((c) => /capital (?:detenido|inmovilizado)/i.test(String(c.metrica || "")) && /subtotal/i.test(String(c.metrica || "")));
 
   const p = [];
   // QUÉ PASA
@@ -552,10 +559,21 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
     const art = /^(brecha|carga|meta|contribuci)/.test(m) ? "la" : "el";
     p.push(`Una causa comprobada es ${art} ${m}: ${palanca.valor}.${resto}`);
   }
-  if (capital) p.push(`Además tienes ${capital.valor} de capital detenido en el inventario del mix que le vendes — es capital de tu negocio, no de ${dueño}.`);
+  if (capital) p.push(`Además tienes ${capital.valor} de capital inmovilizado en el inventario del mix que le vendes — es capital de tu negocio, no de ${dueño}.`);
   if (!p.length) return null;
   if (hayDetalleEnFicha) p.push(`El detalle está en la ficha de ${dueño} en Sentrix.`);
-  return p.join(" ");
+  /* ── LA GARANTÍA DE REGISTRO TAMBIÉN ACÁ (La Poda F2, 2026-08-14) ────────────────────────────────────────────
+   * Esta prosa es SALIDA A PANTALLA del camino vigente: `answerViaOracle` la usa como reparación determinística
+   * del veredicto `tabla-no-autorizada` y la sirve VERBATIM — el `stripLanguageLeaks` del turno corre sobre `n`
+   * (la narración del LLM) y nunca sobre esta rama. Es exactamente la lección ya documentada en
+   * [[adi-lenguaje-formal]]: cuando aparece una ruta de narración nueva, la garantía runtime hay que wirearla ahí
+   * TAMBIÉN, porque el texto determinístico no lo cubre ningún prompt.
+   * NO ALCANZA CON ARREGLAR EL LITERAL DE ARRIBA: la frase de la causa interpola `palanca.metrica` CRUDA, o sea
+   * un label de boleta que este archivo no controla — hoy «Capital inmovilizado», pero cualquier claim de una
+   * boleta vieja (o del camino legado, que sigue emitiendo «capital detenido») entraría con la palabra vetada.
+   * Lavar la salida cierra la CLASE, no el caso. `stripLanguageLeaks` es number-safe e idempotente: las cifras
+   * salen de los claims y ninguna se toca. */
+  return stripLanguageLeaks(p.join(" "));
 }
 
 export function buildDisclosureInstruction({ podado = [], entidad = null } = {}) {

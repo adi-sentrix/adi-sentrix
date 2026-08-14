@@ -338,15 +338,20 @@ export function isExhaustedMechanismOffer(offer) {
 // _MECHANISM_LABEL — un nombre corto por mecanismo (mismas claves que MECHANISM_TABLE arriba), SOLO para armar el
 // mensaje honesto de abajo. "carga" queda con la frase original (nombra la entidad, como siempre) por
 // compatibilidad con callers viejos que no pasan `mechanism` (ver REGRESIÓN sección 20 de _vague_offer_gate.mjs).
-const _MECHANISM_LABEL = { capital: "de liberar el capital detenido", costo: "de cambiar el costo medio" };
+// REGISTRO Y VOSEO, LOS DOS (La Poda F2, 2026-08-14). Este texto sale VERBATIM a pantalla por el bypass de
+// mecanismo agotado —`answerViaOracle` lo devuelve sin pasar por el narrador ni por `stripLanguageLeaks`— así que
+// nada lo lavaba después: era el propio motor el que emitía la palabra vetada. Dos correcciones sobre el mismo
+// texto: «detenido» → «inmovilizado» (CLAUDE.md §4) y «¿Querés…» → «¿Quieres…» en LAS DOS ramas (el registro es
+// formal LatAm, sin voseo — el barrido de `voiceGuard._VOSEO` cubre la voz viva, no un literal del código).
+const _MECHANISM_LABEL = { capital: "de liberar el capital inmovilizado", costo: "de cambiar el costo medio" };
 export function composeExhaustedMechanismAcceptance(offer) {
   const entidad = offer && offer.entidad;
   const label = offer && _MECHANISM_LABEL[offer.mechanism];
   if (label) {
-    return `Esa simulación ${label} ya la corrí — es un cálculo agregado, no tengo un desglose más fino por SKU/bodega de ESE mecanismo. ¿Querés ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
+    return `Esa simulación ${label} ya la corrí — es un cálculo agregado, no tengo un desglose más fino por SKU/bodega de ESE mecanismo. ¿Quieres ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
   }
   const quien = entidad ? ` de ${entidad}` : "";
-  return `Esa simulación de la carga comercial${quien} ya la corrí — no tengo un desglose más fino (por SKU) de ese mecanismo, el cálculo es a nivel de la cuenta completa. ¿Querés ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
+  return `Esa simulación de la carga comercial${quien} ya la corrí — no tengo un desglose más fino (por SKU) de ese mecanismo, el cálculo es a nivel de la cuenta completa. ¿Quieres ver el detalle completo en Sentrix, o simulamos otra cosa (un cambio de precio o de volumen)?`;
 }
 
 // ── RETORNO A TEMAS RECIENTES (owner 2026-07-31, cierre de #48) — referencia POSICIONAL a recentSubjects (una
