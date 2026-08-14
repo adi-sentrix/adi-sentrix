@@ -10,6 +10,16 @@
  * 1) DETERMINÍSTICO puro — scenarioIntent.js directo (sin LLM, sin answerViaOracle): las 7 categorías.
  * 2) end-to-end vía answerViaOracle (callPlan mockeado para PROBAR que nunca se invoca cuando el bypass
  *    intercepta, y que SÍ se invoca cuando el turno es genuinamente ambiguo) — reproduce los 2 bugs originales.
+ * 3) «VENTAS» CUENTA COMO VOLUMEN (owner 2026-08-14, defecto verificado en vivo): la guía de inicio ofrece
+ *    «Si subo ventas 4%, ¿qué cambia?», el detector devolvía "none" y el turno quedaba a merced de PLAN, que no
+ *    corrió la simulación. Sección 1h (detector) + sección e2e del defecto de la guía, con los negativos
+ *    exhaustivos que el diseño conservador exige (pasado, causal, comparaciones, XOR precio/ventas).
+ *
+ * @inyeccion-simulada — este gate le pasa a `answerViaOracle` sus DOS pasadas (PLAN y NARRAR) como funciones
+ * locales mockeadas en este mismo archivo. No importa el gateway ni un adapter, no importa nada de `src/ui/` y no
+ * contiene una salida cruda. Cumple las cuatro condiciones del escape declarado en scripts/gates-offline.mjs —
+ * hasta 2026-08-14 este gate quedaba EXCLUIDO en silencio de `gates:offline` por nombrar callPlan sin el marcador
+ * (la trampa documentada del clasificador): sus mocks eran ya una inyección simulada, solo faltaba declararla.
  */
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
@@ -119,6 +129,80 @@ console.log("\n  -- control: turno normal, sin ninguna intención de escenario -
   ok(r.kind === "none", `pregunta de lectura normal, sin % ni campo de escenario — obtuvo ${JSON.stringify(r)}`);
 }
 
+console.log("\n  -- 1h · «VENTAS» CUENTA COMO VOLUMEN (owner 2026-08-14) · positivos --");
+{
+  const r = detectScenarioIntent("Si subo ventas 4%, ¿qué cambia?");
+  ok(r.kind === "no_entity" && r.variable.campo === "unidades" && r.variable.delta_pct === 4 && r.variable.via === "ventas",
+    `la pregunta EXACTA de la guía de inicio — volumen +4, marcada via:"ventas" — obtuvo ${JSON.stringify(r)}`);
+
+  const r2 = detectScenarioIntent("Si subo las ventas 4% a Falabella, ¿me conviene?");
+  ok(r2.kind === "future" && r2.entity === "Falabella" && r2.variable.campo === "unidades" && r2.variable.delta_pct === 4,
+    `«ventas» con entidad nombrada → future, volumen +4 — obtuvo ${JSON.stringify(r2)}`);
+
+  const r3 = detectScenarioIntent("vendo 4% menos");
+  ok(r3.kind === "no_entity" && r3.variable.campo === "unidades" && r3.variable.delta_pct === -4,
+    `stem de vender + «menos» — obtuvo ${JSON.stringify(r3)}`);
+
+  const r4 = detectScenarioIntent("vendo 4% más, ¿qué cambia?");
+  ok(r4.kind === "no_entity" && r4.variable.campo === "unidades" && r4.variable.delta_pct === 4,
+    `«N% más» postfijo cerrando la cláusula → dirección arriba — obtuvo ${JSON.stringify(r4)}`);
+
+  const r5 = detectScenarioIntent("si vendiera 10% más, ¿me conviene?");
+  ok(r5.kind === "no_entity" && r5.variable.campo === "unidades" && r5.variable.delta_pct === 10,
+    `condicional de vender («vendiera») — obtuvo ${JSON.stringify(r5)}`);
+
+  const r6 = detectScenarioIntent("si subo la venta 4%");
+  ok(r6.kind === "no_entity" && r6.variable.campo === "unidades" && r6.variable.delta_pct === 4,
+    `singular «la venta» también cuenta — obtuvo ${JSON.stringify(r6)}`);
+}
+
+console.log("\n  -- 1h · «VENTAS» · negativos (el diseño conservador NO se relaja) --");
+{
+  const r = detectScenarioIntent("subo precio y ventas 4%");
+  ok(r.kind === "none", `XOR intacta: precio Y ventas en la misma frase → none, PLAN decide — obtuvo ${JSON.stringify(r)}`);
+
+  const r2 = detectScenarioIntent("¿por qué cayeron las ventas 8%?");
+  ok(r2.kind === "historical", `causal en PASADO → historical, JAMÁS simula — obtuvo ${JSON.stringify(r2)}`);
+
+  const r3 = detectScenarioIntent("las ventas subieron 4% este mes");
+  ok(r3.kind === "historical", `lectura del pasado con % — obtuvo ${JSON.stringify(r3)}`);
+
+  const r4 = detectScenarioIntent("¿por qué caen las ventas 8%?");
+  ok(r4.kind === "none", `causal en PRESENTE (el filtro de pasado no la ve) → none, PLAN explica — obtuvo ${JSON.stringify(r4)}`);
+
+  const r5 = detectScenarioIntent("se vendieron 4% menos unidades este mes");
+  ok(r5.kind === "historical", `«se vendieron» (pasado de vender, hueco preexistente cerrado) — obtuvo ${JSON.stringify(r5)}`);
+
+  const r6 = detectScenarioIntent("vendimos 8% menos");
+  ok(r6.kind === "none", `«vendimos» (pasado 1a plural) EXCLUIDO del stem: probable lectura, nunca se fuerza — obtuvo ${JSON.stringify(r6)}`);
+
+  const r7 = detectScenarioIntent("vendemos 3% más que el año pasado");
+  ok(r7.kind === "none", `«más que» es COMPARACIÓN, no dirección de supuesto → ambiguo, none — obtuvo ${JSON.stringify(r7)}`);
+
+  const r8 = detectScenarioIntent("la comisión del vendedor sube 1,5%");
+  ok(r8.kind === "none", `«vendedor» es un sujeto, no la variable — obtuvo ${JSON.stringify(r8)}`);
+
+  const r9 = detectScenarioIntent("ventas 4%");
+  ok(r9.kind === "none", `% sin dirección → nunca se adivina el signo — obtuvo ${JSON.stringify(r9)}`);
+
+  const r10 = detectScenarioIntent("¿qué clientes venden más del 5% de margen?");
+  ok(r10.kind === "none", `pregunta de ranking con «venden» y % → sin dirección de supuesto, none — obtuvo ${JSON.stringify(r10)}`);
+}
+
+console.log("\n  -- 1h · «ventas» como RESULTADO PREGUNTADO no le quita el piso a «precio» --");
+{
+  const r = detectScenarioIntent("¿qué pasa con las ventas si subo el precio 5% a Lider?");
+  ok(r.kind === "future" && r.entity === "Lider" && r.variable.campo === "precioLista" && r.variable.delta_pct === 5,
+    `"¿qué pasa con las ventas si…?" nombra el RESULTADO, no la variable: precio conserva su piso — obtuvo ${JSON.stringify(r)}`);
+
+  const r2 = detectScenarioIntent("¿cómo quedan las ventas si subo el precio 4%?");
+  ok(r2.kind === "no_entity" && r2.variable.campo === "precioLista" && r2.variable.delta_pct === 4,
+    `"¿cómo quedan las ventas si…?" — misma poda — obtuvo ${JSON.stringify(r2)}`);
+
+  const r3 = detectScenarioIntent("¿cuánto caen las ventas si subo el precio 5%?");
+  ok(r3.kind === "none", `"¿cuánto CAEN las ventas…?" NO se poda: su verbo direccional contaminaría el signo del precio → none — obtuvo ${JSON.stringify(r3)}`);
+}
+
 console.log("\n── 2 · END-TO-END vía answerViaOracle — reproducción de los 2 bugs originales, PRIMER intento ──");
 {
   // BUG #1 original: "Sube 8% el precio de Lider" (imperativo puro, sin "¿me conviene?") — PLAN (LLM) lo leía como
@@ -183,6 +267,61 @@ console.log("\n── 2 · END-TO-END vía answerViaOracle — reproducción de 
     callNarrate: async () => "El negocio se mantiene estable este período, sin sobresaltos que merezcan una alerta.",
   });
   ok(planCalled4, "control: mención histórica SÍ invoca a PLAN — nunca se interpreta como supuesto a simular");
+}
+
+console.log("\n── 3 · END-TO-END · el defecto de la guía (2026-08-14): «Si subo ventas 4%, ¿qué cambia?» ──");
+{
+  // El defecto verificado en vivo: la guía ofrece esta pregunta con un click, viaja como texto libre, el detector
+  // devolvía "none" y todo quedaba a merced de PLAN (Haiku no corrió la simulación → "No tengo corrida esa
+  // simulación"). Ahora el bypass determinístico la intercepta ANTES de PLAN, y además DECLARA la interpretación
+  // (ventas → volumen, unidades vendidas) para que el usuario pueda corregir si quería otra cosa.
+  let planCalledG = false;
+  const rG = await answerViaOracle({
+    text: "Si subo ventas 4%, ¿qué cambia?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => { planCalledG = true; return { intent: "answer", mode: "default", calls: [] }; },
+    callNarrate: async () => "nunca debería aparecer",
+  });
+  ok(!planCalledG, "la pregunta de la guía NUNCA llega a PLAN: el piso determinístico la reclama primero");
+  ok(rG && /volumen \(unidades vendidas\)/i.test(rG.r.text), `la respuesta DECLARA la interpretación (volumen, unidades vendidas) — obtuvo "${rG && rG.r.text}"`);
+  ok(rG && /¿Sobre qué cliente, SKU, marca o familia/.test(rG.r.text), "…y pregunta por la entidad, nunca asume cartera completa");
+
+  // Con entidad nombrada: pendiente correcto + declaración + pregunta SOLO por el precio faltante.
+  let planCalledG2 = false;
+  const rG2 = await answerViaOracle({
+    text: "Si subo las ventas 4% a Falabella, ¿me conviene?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => { planCalledG2 = true; return { intent: "answer", mode: "default", calls: [] }; },
+    callNarrate: async () => "nunca debería aparecer",
+  });
+  ok(!planCalledG2, "«ventas 4% a Falabella» tampoco llega a PLAN");
+  const psG = rG2 && rG2.mem && rG2.mem.pendingSimulation;
+  ok(psG && psG.entity === "Falabella" && psG.known.campo === "unidades" && psG.known.delta_pct === 4 && psG.missingCampo === "precioLista",
+    `pendiente correcto: Falabella · volumen +4 · falta el precio — obtuvo ${JSON.stringify(psG)}`);
+  ok(rG2 && /volumen \(unidades vendidas\)/i.test(rG2.r.text) && /cambie el precio/.test(rG2.r.text),
+    `declara la interpretación Y pregunta por el precio — obtuvo "${rG2 && rG2.r.text}"`);
+
+  // Turno 2: el usuario confirma precio sin cambios → simulateGeneral corre con precio 0 CONFIRMADO (nunca
+  // asumido) y volumen +4 — la boleta declara ambos supuestos como figs (Precio propuesto 0% · Volumen propuesto 4%).
+  let narrateArgsG = null;
+  await answerViaOracle({
+    text: "el precio queda igual", history: [], mem: rG2.mem, scenario: "actual",
+    callPlan: async () => { throw new Error("PLAN no debería llamarse — el pendiente resuelve solo"); },
+    callNarrate: async (a) => { narrateArgsG = a; return "Con ese supuesto, la venta de Falabella sube frente al escenario actual."; },
+  });
+  const callG = narrateArgsG && narrateArgsG.plan.calls[0] && narrateArgsG.plan.calls[0].args;
+  ok(callG && callG.entity === "Falabella" && callG.variableA.delta_pct === 0 && callG.variableB.campo === "unidades" && callG.variableB.delta_pct === 4,
+    `simulateGeneral corre con precio 0 (confirmado por el usuario) y volumen +4 — obtuvo ${JSON.stringify(callG)}`);
+  const bolG = (narrateArgsG && narrateArgsG.results && narrateArgsG.results[0] && narrateArgsG.results[0].boleta) || [];
+  ok(bolG.some((f) => /Precio propuesto/.test(f.label) && f.value === "0%") && bolG.some((f) => /Volumen propuesto/.test(f.label) && f.value === "4%"),
+    "la boleta declara AMBOS supuestos como figs autorizadas (precio 0% · volumen 4%) — el supuesto no viaja escondido");
+
+  // Control: la causal con «ventas» SÍ va a PLAN (es una lectura/explicación, nunca el bypass).
+  let planCalledG3 = false;
+  await answerViaOracle({
+    text: "¿por qué caen las ventas 8%?", history: [], mem: {}, scenario: "actual",
+    callPlan: async () => { planCalledG3 = true; return { intent: "answer", mode: "default", calls: [] }; },
+    callNarrate: async () => "La lectura general del período no cambia respecto de lo que veníamos conversando.",
+  });
+  ok(planCalledG3, "control: «¿por qué caen las ventas 8%?» SÍ invoca a PLAN — el vocabulario nuevo no secuestra las causales");
 }
 
 console.log(`\n── _scenario_intent_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
