@@ -123,7 +123,20 @@ section("6 · EL CATÁLOGO NO CRECIÓ MÁS DE LO DECLARADO");
  * llamada de PLAN), medido: 18.492. Todo cae del lado FIJO del caché — con caché al 90% son ~12 tokens efectivos.
  * Mismo criterio de siempre: el presupuesto existe para que el costo se DECIDA, no para que una capacidad quede
  * muda — y el tope se deja pegado a lo medido (58 car de holgura), no aflojado. */
-const TOPE_CAR = 18550;
+/* EL TOPE SUBE A 19.120 (encargo «alcance heredado + delta de carga», 2026-08-14) — MISMO ANÁLISIS
+ * GARANTÍA-VS-FORMATO que las subas anteriores, y por la misma clase autorizada (ENLACE DE CATÁLOGO MEDIDO):
+ * `simulateCarga` gana `delta_pp`, el movimiento de carga EN PUNTOS que declara el usuario, más el cierre contra
+ * el benchmark cuenta por cuenta. LA CAPACIDAD YA LA EJECUTA EL MOTOR (specRetrieval.js, con su gate
+ * `_carga_delta_alcance_gate`); sin la línea, el planificador no puede pedirla — y el defecto que este encargo
+ * cierra es exactamente ése: el hilo canónico del owner («reduce en 2 puntos las acciones comerciales de esos
+ * clientes y dime si quedan sobre el benchmark») se respondía SUSTITUYENDO el escenario del usuario por el del
+ * target, medido en vivo en la corrida doble. EL COSTO ES EXACTO: 620 caracteres (~155 tokens por llamada de
+ * PLAN), medido: 19.112. Todo cae del lado FIJO del caché — con caché al 90% son ~15 tokens efectivos por turno.
+ * Cero doctrina nueva: la línea describe la tool con el MISMO estilo que sus vecinas, y la única regla que
+ * enuncia («delta_pp SOLO si el usuario dio esa cifra») ADEMÁS está enforced determinísticamente
+ * (answerViaOracle.js, _coerceDeltaCargaDeclarado) — el prompt ahorra reintentos, no sostiene la garantía.
+ * El tope queda pegado a lo medido (8 car de holgura), no aflojado. */
+const TOPE_CAR = 19120;
 ok(`TOOL_CATALOG dentro del presupuesto (${TOOL_CATALOG.length} ≤ ${TOPE_CAR} car)`, TOOL_CATALOG.length <= TOPE_CAR,
   `${TOOL_CATALOG.length} car — si el crecimiento es deliberado, subí TOPE_CAR y dejá escrito por qué`);
 

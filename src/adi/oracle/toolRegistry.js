@@ -718,11 +718,19 @@ function simulate({ metric, dimension, filters = {}, transform } = {}) {
     "no puedo simular esa combinación métrica/eje/supuesto");
 }
 
-// simulateCarga · simulación específica de bajar la carga comercial al target.
+// simulateCarga · simulación sobre la carga comercial. DOS modos, uno solo por call:
+//   · sin `delta_pp` → el de siempre: llevar la carga al target de POLICY (el que corre en producción).
+//   · con `delta_pp` → el movimiento EN PUNTOS que el usuario declaró («reduce en 2 puntos» → -2), y el efecto
+//     sobre el margen de cada cuenta contra el benchmark. `delta_pp` NO se infiere ni se completa: si el usuario
+//     no lo dijo, no viaja (answerViaOracle.js lo despoja determinísticamente — ver _coerceDeltaCargaDeclarado).
 // entityScope (Etapa 2, owner 2026-08-04): forwarding mecánico a composeSpecSimulateCarga — mismo mecanismo que
 // simulateCosto (abajo), acota la simulación al subconjunto pedido en vez de correr sobre el eje comercial entero.
-function simulateCarga({ filters = {}, scenario, entityScope = null } = {}) {
-  return _pack(composeSpecSimulateCarga({ filters, scenario, entityScope }), "no hay carga recuperable para simular");
+function simulateCarga({ filters = {}, scenario, entityScope = null, delta_pp = null } = {}) {
+  const r = composeSpecSimulateCarga({ filters, scenario, entityScope, deltaPp: delta_pp });
+  // mismo patrón que simulateCosto: `unsupported` es un decline CON MOTIVO (el string va a pantalla y al prompt),
+  // distinto del null de "no hay dato" que _pack traduce con su razón genérica.
+  if (r && r.unsupported) return { facts: null, boleta: [], coverage: { supported: false, reason: r.unsupported } };
+  return _pack(r, "no hay carga recuperable para simular");
 }
 
 // simulateCapital · simulación específica de liberar capital detenido.

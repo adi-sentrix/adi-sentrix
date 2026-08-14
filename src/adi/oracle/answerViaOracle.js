@@ -1311,6 +1311,65 @@ function _esSimulacionAjenaSinPedido(call, q) {
   return false;
 }
 
+/* ══ EL DELTA DE CARGA SE DECLARA O NO EXISTE (owner 2026-08-14, la otra mitad del hilo canónico) ════════════════
+ * `simulateCarga{delta_pp}` (specRetrieval.js) simula el movimiento EN PUNTOS que el usuario pidió. Es la única
+ * palanca del catálogo cuyo VALOR sale enteramente de la conversación: si PLAN se lo inventa, ADI narra un
+ * escenario que nadie pidió con la marca de "tu supuesto" encima — la misma clase de falla que el freno
+ * anti-simulación-ajena de arriba cierra para la TOOL, acá cerrada para el ARGUMENTO.
+ * LA REGLA, determinística y de dos filos:
+ *   (a) si el turno NO nombra ninguna magnitud de movimiento, `delta_pp` se descarta → la call cae al modo target
+ *       de siempre, que es exactamente el comportamiento de hoy (nada se rompe, nada se inventa);
+ *   (b) si la nombra, `|delta_pp|` tiene que ser UNA DE ELLAS — un «2 puntos» que llega como delta_pp:-5 es una
+ *       cifra fabricada aunque el usuario haya hablado de puntos.
+ * Y un tercer filo, que NO es invención sino lectura del propio verbo del usuario: si el turno dice bajar/reducir
+ * y el delta llegó positivo (o al revés), se corrige el SIGNO — la magnitud es la que el usuario dio y la
+ * dirección la dice su verbo, así que no hay nada que adivinar. Sin esto, "reduce 2 puntos" con delta_pp:2
+ * simulaba un AUMENTO de carga: cifra del usuario, escenario invertido.
+ * ALCANCE DELIBERADO: se mira el texto de ESTE turno (mismo criterio que _esSimulacionAjenaSinPedido). Un delta
+ * declarado en un turno anterior no se hereda — y como el default es el modo target de siempre, el peor caso de
+ * esta prudencia es responder lo mismo que respondía ayer, nunca inventar. */
+const _NUM_PALABRA = { medio: 0.5, media: 0.5, un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+// una MAGNITUD DE MOVIMIENTO es un número pegado a una unidad de tasa (puntos/pp/%) — «top 2» o «los 3 grandes»
+// no autorizan nada, igual que en la normalización del supuesto de guardC.
+const _RE_MAGNITUD = /([\d]+(?:[.,][\d]+)?|medi[oa]|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:puntos?(?:\s+porcentuales)?|pp\b|%)/gi;
+function _magnitudesDelTurno(q) {
+  const out = [];
+  const t = String(q || "");
+  let m;
+  _RE_MAGNITUD.lastIndex = 0;
+  while ((m = _RE_MAGNITUD.exec(t))) {
+    const tok = m[1].toLowerCase();
+    const n = _NUM_PALABRA[tok] != null ? _NUM_PALABRA[tok] : parseFloat(tok.replace(",", "."));
+    if (Number.isFinite(n) && n > 0) out.push(n);
+  }
+  return out;
+}
+const _RE_BAJA = /\b(baj\w*|reduc\w*|recort\w*|disminu\w*|achic\w*|cort\w*|quit\w*|saca\w*|men[oó]s)\b/i;
+const _RE_SUBE = /\b(sub\w*|aument\w*|increment\w*|agreg\w*|sum\w*|m[aá]s)\b/i;
+function _coerceDeltaCargaDeclarado(q, calls) {
+  const arr = Array.isArray(calls) ? calls : [];
+  if (!arr.some((c) => c && c.tool === "simulateCarga" && c.args && c.args.delta_pp != null)) return { calls: arr, coerciones: [] };
+  const magnitudes = _magnitudesDelTurno(q);
+  const coerciones = [];
+  const next = arr.map((c) => {
+    if (!c || c.tool !== "simulateCarga" || !c.args || c.args.delta_pp == null) return c;
+    const raw = typeof c.args.delta_pp === "number" ? c.args.delta_pp : parseFloat(String(c.args.delta_pp).replace(",", "."));
+    const { delta_pp: _drop, ...sinDelta } = c.args;
+    if (!Number.isFinite(raw) || raw === 0 || !magnitudes.some((n) => Math.abs(Math.abs(raw) - n) <= 0.001)) {
+      coerciones.push(`delta-carga-no-declarado(${c.args.delta_pp})`);
+      return { ...c, args: sinDelta };   // → modo target: el comportamiento de siempre, nunca un supuesto fabricado
+    }
+    const baja = _RE_BAJA.test(String(q || "")), sube = _RE_SUBE.test(String(q || ""));
+    let v = raw;
+    if (baja && !sube && v > 0) v = -v;
+    else if (sube && !baja && v < 0) v = -v;
+    if (v === raw) return c;
+    coerciones.push(`delta-carga-signo(${raw}→${v})`);
+    return { ...c, args: { ...c.args, delta_pp: v } };
+  });
+  return { calls: next, coerciones };
+}
+
 // _composedBypassResult(text, mem, recentNarrationsPrev, scenario) → { r, mem } | null (null SOLO si guardC rechaza
 // el mensaje fijo — no debería pasar nunca con prosa sin cifras/entidades, pero nunca se asume). Empaquetado
 // compartido por los bypasses que NUNCA llegan a invocar PLAN/BATCH/NARRAR (owner 2026-07-31, cierre de #48:
@@ -2140,6 +2199,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // recogen después las dos etapas de entityScope que ya existen (N=1 y N>1) sin ningún mecanismo nuevo, y lo que
   // siembra en plan.calls entra al batch como cualquier otra call. Es inerte en todo turno sin panel abierto.
   if (!planWasSynthetic && vcProj) plan = _coerceViewScope(plan, vcProj, q, maxCalls, compRef);
+  // EL DELTA DE CARGA SE DECLARA O NO EXISTE (owner 2026-08-14) — ver _coerceDeltaCargaDeclarado arriba. Corre
+  // sobre planes REALES de PLAN: un plan sintético lo arma el motor y nunca emite `delta_pp`.
+  if (!planWasSynthetic) {
+    const _dc = _coerceDeltaCargaDeclarado(q, plan.calls);
+    if (_dc.coerciones.length) { planCoerciones.push(..._dc.coerciones); plan = { ...plan, calls: _dc.calls }; }
+  }
   // CONTINUIDAD CONVERSACIONAL UNIVERSAL · Etapa 3 (ver toolContracts.js:applySingleEntityScope) — corre DESPUÉS de
   // _coerceEntityScopedFilters (arriba, sin tocar) para cubrir las tools que ese mecanismo pre-Etapa-3 no alcanza
   // (entityProfile/entityRecord/trend/gridTable/tensionRead/inventoryStatus) cuando el scope ya trae EXACTAMENTE 1

@@ -2263,7 +2263,159 @@ export function composeSpecSimulate({ metric, dimension, filters = {}, transform
 // igual que el resto de las tools pre-Etapa-2). RIESGO DE COPY aceptado (documentado, no funcional): cuando la
 // única entidad llega vía entityScope (no vía filters.cliente), la frase "Dónde pega" cae a la variante de lista
 // en vez de nombrar la entidad — mismo dato correcto, prosa menos personalizada.
-export function composeSpecSimulateCarga({ filters = {}, scenario, entityScope = null } = {}) {
+/* ── EL DELTA DECLARADO SOBRE LA CARGA (owner 2026-08-14) ────────────────────────────────────────────────────
+ * Rango operable en PUNTOS PORCENTUALES, no en %. La carga comercial del dato real corre entre 1.8% y 5.5%: un
+ * delta de 20pp ya está fuera de cualquier escenario que el negocio pueda sostener, y más allá la cuenta deja de
+ * ser un supuesto para ser un absurdo (mismo criterio que el ±50% de simulateCosto/simulateGeneral, calibrado a
+ * la unidad de ESTA métrica). Fuera de rango se DECLINA declarando el motivo — nunca se recorta en silencio.       */
+const _CARGA_DELTA_MAX_PP = 20;
+// { declarado } separa "el usuario no pidió delta" (→ modo target de siempre) de "pidió uno que no se puede
+// correr" (→ decline con motivo). Sin esta distinción un delta inválido caería al modo target y volvería a
+// sustituir el escenario del usuario por otro: exactamente el defecto que este trabajo cierra.
+function _deltaCargaValido(deltaPp) {
+  if (deltaPp == null || deltaPp === "") return { declarado: false };
+  const v = typeof deltaPp === "number" ? deltaPp : parseFloat(String(deltaPp).replace(",", "."));
+  if (!Number.isFinite(v)) return { declarado: true, ok: false, razon: "no me quedó claro en cuántos puntos hay que mover la carga comercial — dime la cifra en puntos (por ejemplo, «bájala 2 puntos»)" };
+  if (v === 0) return { declarado: true, ok: false, razon: "un cambio de 0 puntos deja la carga comercial igual — no hay escenario que simular" };
+  if (Math.abs(v) > _CARGA_DELTA_MAX_PP) return { declarado: true, ok: false, razon: `${Math.abs(v)} puntos de carga comercial está fuera del rango operable (hasta ${_CARGA_DELTA_MAX_PP} puntos): tu carga corre en un dígito, un salto así no es un supuesto realista` };
+  return { declarado: true, ok: true, valor: +v.toFixed(2) };
+}
+
+/* ── _simulateCargaDelta · EL SEGUNDO MODO: el delta que el usuario declaró, y su efecto sobre el MARGEN ──────
+ * Responde las DOS mitades del pedido canónico: «reduce en 2 puntos … y dime si quedan sobre el benchmark».
+ *
+ * POR QUÉ NO REUSA EL DETECTOR DE CARGA (que es lo que hace el modo target). El detector filtra por DOS gates que
+ * son propiedad del escenario "llevar al target": carga > POLICY.targetCarga y recuperable ≥ $50K de materialidad.
+ * Ninguno de los dos es propiedad de un delta que el usuario declaró: si el alcance heredado trae una cuenta con
+ * carga 3.0% (bajo el target), reusar el detector la haría DESAPARECER de la respuesta en silencio — el mismo
+ * defecto de sustituir el alcance, una capa más abajo. Acá el universo son las cuentas DEL ALCANCE, sin más gate
+ * que tener carga en el dato. Es filtrado, nunca fan-out: un pase sobre el mismo eje, acotado.
+ *
+ * LA ARITMÉTICA, VERIFICADA CONTRA EL DATO (no asumida) — 13/13 filas de `clientesMargen`, medición del encargo:
+ *   contribucion = venta − costo − rebates   (exacto, 13/13)
+ *   margen%      = contribucion / venta      (exacto, 13/13)
+ *   carga%       = rebates / venta           (exacto salvo el redondeo a 1 decimal de 5 filas)
+ * Margen y carga son DOS RAZONES SOBRE LA MISMA VENTA, y los rebates entran en la contribución con coeficiente
+ * −1. De ahí que bajar la carga Xpp suba el margen EXACTAMENTE Xpp — no "aproximadamente": recomputando desde
+ * los campos crudos (rebates − X%×venta → contribución → margen) da el mismo número que `margen + X` en las 13
+ * filas, sin una sola excepción. Por eso el veredicto contra el benchmark se afirma, no se estima.
+ *
+ * LAS DOS BASES DE VENTA, DECLARADAS (no mezcladas). El $ liberado usa `clientesVentas.actual` — la venta oficial
+ * de la cuenta y el MISMO multiplicador que el detector de carga y el modo target usan desde siempre (una verdad,
+ * cifra byte-consistente con diagnose/mechanisms). El efecto en PUNTOS usa la identidad del libro de margen, que
+ * corre sobre `clientesMargen.venta`. Son dos bases distintas (~5% de diferencia en el dato demo), cada una con
+ * su fórmula a la vista, y NINGUNA cifra se deriva dividiendo una por la otra: hacerlo daría 2.101pp donde el
+ * dato sostiene 2.000pp — una aproximación presentada como resultado, que es justo lo que la constitución prohíbe.
+ *
+ * EL PISO EN CERO. Una carga no puede quedar negativa: si el delta pedido excede la carga de una cuenta, la
+ * reducción EFECTIVA es su carga entera y esa diferencia se declara como límite, nunca se calla.                */
+function _simulateCargaDelta({ filters = {}, scenario, entityScope = null, deltaPp }) {
+  const vSF = _sf("ventas", "cliente"), mSF = _sf("margen", "cliente"), gSF = _sf("carga", "cliente");
+  if (!vSF || !mSF || !gSF) return { unsupported: "el contrato de este negocio no declara carga comercial por cliente" };
+  const ventas = _load(vSF.source, scenario), margen = _scopeRows(_load(mSF.source, scenario), filters, entityScope);
+  if (!ventas.length || !margen.length) return { unsupported: "no encontré cuentas con carga comercial en ese alcance" };
+  const vKey = (SOURCES[vSF.source] && SOURCES[vSF.source].keyField) || "nombre";
+  const mKey = (SOURCES[mSF.source] && SOURCES[mSF.source].keyField) || "nombre";
+  const vBy = {}; for (const r of ventas) vBy[r[vKey]] = r;
+  const baja = deltaPp < 0;                                   // el signo lo declara el usuario (−2 = «reduce 2 puntos»)
+  const pedidoPp = +Math.abs(deltaPp).toFixed(2);
+  const rows = [], topados = [];
+  for (const r of margen) {
+    const v = vBy[r[mKey]]; if (!v) continue;
+    const ventaK = v[vSF.field]; if (typeof ventaK !== "number") continue;
+    const cargaA = r[gSF.field], margenA = r[mSF.field];
+    if (typeof cargaA !== "number" || typeof margenA !== "number") continue;
+    const cargaS = +Math.max(0, cargaA + deltaPp).toFixed(1);  // piso en 0: una carga negativa no existe
+    const movidoPp = +(cargaS - cargaA).toFixed(1);            // firmado: negativo = liberó carga
+    if (movidoPp === 0) continue;                              // la cuenta ya está en 0 y se pedía bajar → nada que mover
+    if (baja && Math.abs(movidoPp) + 0.001 < pedidoPp) topados.push({ entidad: r[mKey], cargaA, efectivoPp: Math.abs(movidoPp) });
+    const bmk = benchmarkOf(r);
+    // margen resultante = margen − movidoPp (movido negativo al bajar ⇒ el margen sube). Identidad del libro de
+    // margen, verificada campo por campo (ver cabecera) — NO se deriva del $ de arriba, que corre en otra base.
+    const margenS = +(margenA - movidoPp).toFixed(1);
+    rows.push({
+      entidad: r[mKey], cargaActual: cargaA, cargaSupuesta: cargaS, efectivoPp: Math.abs(movidoPp),
+      margenActual: margenA, margenSupuesto: margenS, benchmark: bmk,
+      sobreBenchmark: margenS >= bmk, brechaPp: +Math.abs(margenS - bmk).toFixed(1),
+      // el $ del movimiento SIEMPRE sale de la venta oficial (clientesVentas.actual), como el modo target
+      usd: Math.round((Math.abs(movidoPp) / 100) * ventaK * 1000),
+    });
+  }
+  if (!rows.length) return { unsupported: "no encontré cuentas con carga comercial en ese alcance" };
+  rows.sort((a, b) => b.usd - a.usd);
+  const subtotal = rows.reduce((s, it) => s + it.usd, 0);
+  const cruzan = rows.filter((it) => it.sobreBenchmark), noCruzan = rows.filter((it) => !it.sobreBenchmark);
+  const verbo = baja ? "reducir" : "subir";
+  const cliente = filters.cliente || null;
+  const _ctx = `supuesto del usuario: carga comercial ${baja ? "−" : "+"}${pedidoPp} puntos porcentuales sobre el dato real`;
+  const _pp = (n) => `${_p1(n)}pp`, _pc = (n) => `${_p1(n)}%`;   // MISMO formateador de tasas que el resto del motor (_p1): «22.0%», nunca «22%»
+  // LA INTERPRETACIÓN DECLARADA (constitución · la regla del 2%): la lectura elegida se dice SIEMPRE, incluso
+  // cuando el usuario dijo "puntos" y no hay ambigüedad — declararla es gratis y es lo que deja al notario
+  // verificar el chequeo `ambiguedad-no-declarada` en vez de tener que adivinar cuál lectura se aplicó.
+  // LA LECTURA DESCARTADA, calculada (constitución · «se declara la interpretación o se calculan las dos»): el
+  // caso canónico de la regla del 2% es exactamente éste — «reducir 2» sobre una tasa puede ser puntos
+  // porcentuales (4.5 − 2 = 2.5%) o relativo (4.5 × 0.98 = 4.41%), y los dos resultados son materialmente
+  // distintos. Se calcula sobre la PRIMERA cuenta del alcance y viaja autorizada en la boleta: así la declaración
+  // es completa (esta es la lectura, ésta la otra) sin depender de que el narrador se acuerde de la aritmética,
+  // y el chequeo `ambiguedad-no-declarada` del notario tiene con qué cumplirse venga el pedido en «puntos» o en «%».
+  const relPrimera = +(rows[0].cargaActual * (1 + (baja ? -1 : 1) * pedidoPp / 100)).toFixed(2);
+  const supuesto = `**El supuesto (tuyo):** ${verbo} la carga comercial${cliente ? ` de ${cliente}` : ""} en ${pedidoPp} puntos porcentuales. Interpreto ese movimiento como ${_pp(pedidoPp)} de carga (${rows[0].entidad}: ${_pc(rows[0].cargaActual)} → ${_pc(rows[0].cargaSupuesta)}), no como un ${baja ? "recorte" : "aumento"} relativo del ${pedidoPp}% (que dejaría esa carga en ${relPrimera}%). Es un resultado estimado bajo tu supuesto —una proyección, no un dato observado.`;
+  const efecto = `**El efecto directo:** bajo ese supuesto se ${baja ? "liberan" : "comprometen"} ${_money(subtotal)} al año — el cálculo es (carga actual − carga supuesta) × la venta de cada cuenta, cuenta por cuenta.`;
+  const cuenta = `**Contra el benchmark, cuenta por cuenta:** ${rows.map((it) => `${it.entidad} ${_pc(it.margenActual)} ${baja ? "+" : "−"} ${_pp(it.efectivoPp)} = ${_pc(it.margenSupuesto)} — ${it.sobreBenchmark ? `queda sobre el benchmark ${_pc(it.benchmark)} por ${_pp(it.brechaPp)}` : `sigue bajo el benchmark ${_pc(it.benchmark)} por ${_pp(it.brechaPp)}`}`).join(" · ")}.`;
+  const _topeT = topados.length ? ` Y en ${topados.map((t) => `${t.entidad} la baja efectiva es de ${_pp(t.efectivoPp)}, no ${pedidoPp}: su carga hoy es ${_pc(t.cargaA)} y no puede quedar negativa`).join("; ")}.` : "";
+  const limite = `**El límite:** el efecto sobre el margen es aritmética cerrada del dato —margen y carga se miden sobre la misma venta, así que un punto de carga es un punto de margen—, pero el supuesto es tuyo: el dato NO dice que esa reducción sea negociable ni predice la reacción del volumen. Eso se decide cuenta por cuenta.${_topeT}`;
+  const decision = `**La decisión:** ${noCruzan.length === rows.length ? `ninguna cruza el benchmark con esta palanca sola — ¿miramos qué más falta en ${rows[0].entidad}, la de mayor monto en juego?` : cruzan.length === rows.length ? `todas quedan sobre el benchmark — ¿lo llevamos a plan, empezando por ${rows[0].entidad}?` : `${cruzan.map((c) => c.entidad).join(", ")} ${cruzan.length === 1 ? "cruza" : "cruzan"} el benchmark y ${noCruzan.map((c) => c.entidad).join(", ")} no — ¿armamos el plan por cuenta?`}`;
+  const bol = [
+    // el supuesto DEL USUARIO, con su unidad explícita: es la cifra que la narración tiene que poder repetir para
+    // declarar la interpretación (categoría 3 de la constitución — se usa nombrándola como suya).
+    fig("Supuesto · movimiento de carga", _pp(pedidoPp), { unit: "pp", raw: pedidoPp, mandatory: true, source: "actual", formula: `puntos porcentuales que declaraste ${baja ? "bajar" : "subir"} — tu supuesto, no un dato del negocio`, context: _ctx }),
+    fig(baja ? "Liberado · total" : "Comprometido · total", _money(subtotal), { unit: "money", raw: subtotal, mandatory: true, source: "computed", formula: "(carga actual − carga supuesta) × venta oficial de la cuenta · suma del alcance", context: _ctx }),
+    fig("Benchmark de margen", _pc(rows[0].benchmark), { unit: "pct", raw: rows[0].benchmark, source: "actual", formula: "tu referencia declarada (POLICY · no inventado)", context: _ctx }),
+    // la lectura DESCARTADA, autorizada para que la declaración de interpretación pueda mostrarla (ver arriba)
+    fig(`Lectura relativa descartada · ${rows[0].entidad}`, `${relPrimera}%`, { unit: "pct", raw: relPrimera, source: "computed", formula: `${_pc(rows[0].cargaActual)} × ${baja ? 1 - pedidoPp / 100 : 1 + pedidoPp / 100} — la OTRA lectura de «${pedidoPp}», la relativa; no es la que se aplicó`, context: _ctx }),
+  ];
+  // ORDEN DE LA BOLETA · POR CONCEPTO, NO POR CUENTA (medido, no estético). Agrupada por cuenta, las 6 figs de
+  // cada una se comen el cupo: con 4 cuentas la tabla determinística (respuesta `results_only`, tope de 12 filas
+  // del renderer) mostraba el detalle de Falabella y medio Lider, y Jumbo y Sodimac —que el usuario NOMBRÓ— no
+  // llegaban a pantalla. Por concepto, esas 12 primeras filas son las 4 base + el margen resultante y la brecha
+  // de LAS CUATRO: exactamente la respuesta a «¿quedan sobre el benchmark?» para todo el alcance. Lo que se
+  // recorta es el desglose, nunca una cuenta del pedido.
+  const porConcepto = [
+    (it) => fig(`${it.entidad} · Margen supuesto`, _pc(it.margenSupuesto), { unit: "pct", raw: it.margenSupuesto, mandatory: true, source: "computed", formula: `${_pc(it.margenActual)} ${baja ? "+" : "−"} ${_pp(it.efectivoPp)} — margen y carga son razones sobre la MISMA venta del libro de margen, así que un punto de carga es exactamente un punto de margen`, context: _ctx }),
+    (it) => fig(`${it.entidad} · Brecha contra el benchmark`, _pp(it.brechaPp), { unit: "pp", raw: it.brechaPp, source: "computed", formula: `|${_pc(it.margenSupuesto)} − ${_pc(it.benchmark)}| — ${it.sobreBenchmark ? "sobre" : "bajo"} el benchmark`, context: _ctx }),
+    (it) => fig(`${it.entidad} · Margen actual`, _pc(it.margenActual), { unit: "pct", raw: it.margenActual, source: "actual", formula: "margen de la cuenta en el dato real", context: _ctx }),
+    (it) => fig(`${it.entidad} · Carga actual`, _pc(it.cargaActual), { unit: "pct", raw: it.cargaActual, source: "actual", formula: "carga comercial de la cuenta en el dato real", context: _ctx }),
+    (it) => fig(`${it.entidad} · Carga supuesta`, _pc(it.cargaSupuesta), { unit: "pct", raw: it.cargaSupuesta, source: "computed", formula: `${_pc(it.cargaActual)} ${baja ? "−" : "+"} ${_pp(it.efectivoPp)}`, context: _ctx }),
+    (it) => fig(`${it.entidad} · ${baja ? "Liberado" : "Comprometido"}`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `${_pp(it.efectivoPp)} × la venta oficial de ${it.entidad}`, context: _ctx }),
+  ];
+  for (const emitir of porConcepto) for (const it of rows) bol.push(emitir(it));
+  return {
+    opener: [supuesto, efecto, cuenta, limite, decision].join("\n\n"),
+    suggestions: [`Qué más falta para que ${rows[0].entidad} cruce el benchmark`],
+    sentrixAction: null,
+    evidence: { lens: "diagnostico", metrica: "carga", dimension: "cliente", boleta: bol,
+      // `findings` con la MISMA forma que el modo target (detector "carga"): el panel de Sentrix y todo lo que ya
+      // lee esa forma sigue funcionando sin conocer este modo.
+      findings: [{ detector: "carga", titulo: baja ? "Carga comercial · reducción declarada" : "Carga comercial · aumento declarado",
+        subtotal_usd: subtotal, items: rows.map((it) => ({ entidad: it.entidad, usd: it.usd })) }],
+      // el detalle fila-por-fila de la proyección, auditable, para la mesa
+      proyeccionCarga: rows,
+      simulate: { action: "carga_delta", deltaPp: baja ? -pedidoPp : pedidoPp, unidad: "pp", declaradoPor: "usuario",
+        topados: topados.map((t) => t.entidad), benchmark: rows[0].benchmark,
+        cruzanBenchmark: cruzan.map((c) => c.entidad), noCruzanBenchmark: noCruzan.map((c) => c.entidad) },
+      ...(cliente ? { entidad: cliente } : {}) },
+  };
+}
+
+// deltaPp (owner 2026-08-14, hilo canónico medido en la corrida doble): «reduce en 2 puntos las acciones
+// comerciales de esos clientes y dime si quedan sobre el benchmark». Hasta hoy la tool solo sabía UN escenario
+// —llevar la carga al target de POLICY— así que un delta declarado por el usuario NO TENÍA FORMA DE EXPRESARSE:
+// el motor respondía con el escenario del target y lo presentaba como si fuera el pedido. Sustituir el escenario
+// del usuario por otro parecido es peor que declinar (parece una respuesta). `deltaPp` abre el segundo modo; el
+// modo de siempre (deltaPp nulo) queda BYTE-IDÉNTICO abajo — es el que corre en producción y tiene gates.
+export function composeSpecSimulateCarga({ filters = {}, scenario, entityScope = null, deltaPp = null } = {}) {
+  const _d = _deltaCargaValido(deltaPp);
+  if (_d.declarado) return _d.ok ? _simulateCargaDelta({ filters, scenario, entityScope, deltaPp: _d.valor }) : { unsupported: _d.razon };
   const diag = composeSpecDiagnose({ filters, scenario, entityScope });
   const F = (diag && diag.evidence && diag.evidence.findings) || [];
   const cg = F.find((f) => f.detector === "carga");

@@ -506,7 +506,14 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
  * numérico explícito no es de inventoryStatus, que responde por estados). EL COSTO ES EXACTO: 496 caracteres
  * (~124 tokens por llamada de PLAN), medido: +3.957. Todo del lado FIJO del caché (~12 tok efectivos al 90%).
  * La GARANTÍA del gate no se movió: fijo+variable byte-idéntico y las reglas del contrato intactas. */
-ok("PLAN system crece menos de 3.990 caracteres", planSystem - BASE.planSystem < 3990, `+${planSystem - BASE.planSystem}`);
+/* EL TOPE SUBE A 4.580 (encargo «alcance heredado + delta de carga», 2026-08-14). MISMO ANÁLISIS y MISMA clase
+ * autorizada (enlace de catálogo medido): la línea de `simulateCarga` gana el segundo modo `delta_pp` — el
+ * movimiento de carga EN PUNTOS que declara el usuario — más el cierre contra el benchmark cuenta por cuenta,
+ * que es lo que el hilo canónico del owner pedía y ningún camino resolvía (corrida doble 2026-08-14: el motor
+ * sustituía ese escenario por el del target). EL COSTO ES EXACTO: 620 caracteres (~155 tokens por llamada de
+ * PLAN), medido: +4.577. Todo del lado FIJO del caché (~15 tok efectivos al 90%). La GARANTÍA del gate no se
+ * movió: fijo+variable byte-idéntico y las reglas del contrato intactas. */
+ok("PLAN system crece menos de 4.580 caracteres", planSystem - BASE.planSystem < 4580, `+${planSystem - BASE.planSystem}`);
 // TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
 // pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
 // -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma
@@ -536,8 +543,12 @@ ok("PLAN_TOOL crece menos de 1.210 caracteres", planTool - BASE.planTool < 1210,
 // incremental por turno con caché es ~0,1× de esos ~172 tokens.
 // y de 1.180 a 1.300 (encargo «umbral del usuario», 2026-08-13): los mismos 496 caracteres de `suma_filtrada`
 // (~124 tok), en tokens. Medido: 1.290. Del lado FIJO del caché, como toda la línea de `calcular`.
-ok("el crecimiento TOTAL de PLAN queda bajo 1.300 tokens aprox.",
-  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 1300, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
+// y de 1.300 a 1.450 (encargo «alcance heredado + delta de carga», 2026-08-14): los mismos 620 caracteres del
+// segundo modo de `simulateCarga` (~155 tok), en tokens. Medido: 1.445. Del lado FIJO del caché, como el resto
+// del catálogo. `PLAN_TOOL` NO se movió (el enum de tools no gana ninguna entrada: `delta_pp` viaja en `args`,
+// que ya es objeto abierto) — por eso el tope de arriba se queda en 1.210.
+ok("el crecimiento TOTAL de PLAN queda bajo 1.450 tokens aprox.",
+  tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool)) < 1450, `${tok((planSystem - BASE.planSystem) + (planTool - BASE.planTool))} tok`);
 // NINGUNA REGLA SE PERDIÓ EN LA COMPRESIÓN. Cada línea es una conducta que el contrato exige y que solo el prompt
 // puede pedir: si una futura pasada de economía la borra, este gate se pone rojo antes de que se note en vivo.
 {
