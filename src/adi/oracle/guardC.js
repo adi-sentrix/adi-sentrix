@@ -2635,7 +2635,7 @@ function _enmascararRango(texto, [ini, fin]) {
   return texto.slice(0, ini) + dentro + texto.slice(fin);
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
   // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
   // el chequeo 26 lo juzgue por sus propias reglas. Sin bloque, `narration` no se toca: byte-idéntico a hoy.
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
@@ -2744,6 +2744,16 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const signo = em[2] === "+" ? 1 : -1;
       if (_pctUsuario.some((x) => Math.abs(x - p) <= 0.01) && _cierraFrm(A * (1 + signo * p / 100), R) && _baseOk(em[1])) _adoptar(em[0]);
     }
+    // LA FLECHA EN TASAS («de 23.5% a 25.5%» · «22.0% → 24.0%»): el antes→después de un porcentaje cuando el
+    // salto es EXACTAMENTE los puntos que el usuario declaró. Es la forma en que un asesor escribe la cuenta de
+    // un supuesto en puntos; se verifica recomputando y solo entonces se adopta. Angosta por construcción: sin
+    // un delta declarado por el usuario no autoriza nada.
+    const _rePctFlecha = /\*{0,2}([\d.,]+)\s*%\*{0,2}\s*(?:→|->|\ba\b)\s*\*{0,2}([\d.,]+)\s*%/gi;
+    while ((em = _rePctFlecha.exec(narration))) {
+      const A = parseFloat(em[1].replace(",", ".")), B = parseFloat(em[2].replace(",", "."));
+      if (!Number.isFinite(A) || !Number.isFinite(B)) continue;
+      if (_pctUsuario.some((p) => Math.abs(Math.abs(B - A) - Math.abs(p)) <= 0.011) && _baseOk(`${em[1]}%`)) _adoptar(em[0]);
+    }
     // (la tasa del factor puede venir del usuario O del dato: las dos son evidencia — categorías 1 y 3)
     const _pctsDatoFrm = _datoIdxFrm ? [..._datoIdxFrm.porCanon.keys()].map((c) => { const m = /^pct:([\d.]+)%$/.exec(String(c)); return m ? parseFloat(m[1]) : null; }).filter(Number.isFinite) : [];
     const _tasas = [..._pctUsuario, ..._pctsDatoFrm];
@@ -2794,6 +2804,24 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const N = ({ un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 })[mc[1].toLowerCase()] ?? parseInt(mc[1], 10);
         if (Number.isFinite(N) && N !== _frenados.size) violations.push({ kind: "estado-no-declarado", detail: `«${mc[0]}» con estado de inmovilidad: el motor declara ${_frenados.size} SKU frenados, no ${N}` });
       }
+    }
+  }
+  /* ALCANCE HEREDADO (eslabón 5 del recorrido medido, owner 2026-08-14: «¿el notario verifica que se usaron
+   * exactamente los clientes del turno anterior?» — la respuesta era NO). Cuando el turno resolvió una
+   * referencia deíctica («esos clientes») contra el alcance del turno previo, la respuesta tiene que hablar de
+   * ESAS cuentas: sustituir el conjunto en silencio es cambiar la pregunta. Se juzga SOLO contra los candidatos
+   * del MISMO eje que el caller declara (nunca contra el catálogo entero: nombrar un SKU o el benchmark en una
+   * respuesta sobre clientes es legítimo). Sin `alcanceHeredado` —el 99% de los turnos— byte-idéntico. */
+  if (alcanceHeredado && Array.isArray(alcanceHeredado.entities) && alcanceHeredado.entities.length) {
+    const _delAlcance = new Set(alcanceHeredado.entities.map((e) => String(e).toLowerCase()));
+    const _intrusos = [];
+    for (const cand of (Array.isArray(alcanceHeredado.candidatos) ? alcanceHeredado.candidatos : [])) {
+      const c = String(cand);
+      if (_delAlcance.has(c.toLowerCase())) continue;
+      if (new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration)) _intrusos.push(c);
+    }
+    if (_intrusos.length) {
+      violations.push({ kind: "alcance-heredado-cambiado", detail: `la pregunta se refiere a ${alcanceHeredado.entities.join(", ")} (el alcance del turno anterior) y la respuesta habla de ${_intrusos.join(", ")} — responde sobre esas mismas cuentas, o di explícitamente que estás cambiando de conjunto` });
     }
   }
   // RANKINGS (chequeo N6): «tus N clientes de mayor X» se verifica REORDENANDO la carpeta — un orden afirmado

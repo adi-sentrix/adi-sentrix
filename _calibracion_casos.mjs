@@ -57,6 +57,25 @@ const CASOS = [
   { id: "N10·corrida doble·la misma forma con la cuenta MAL", espera: "MUERE", tipo: "cálculo derivado falso", chequeoEsperado: /cifra-no-autorizada/, construido: false,
     afirma: "la misma forma pero con el resultado que no cierra: recomputar tiene que cazarlo",
     q: "Si subo ventas 4%, ¿qué cambia?", texto: "Bajo ese supuesto, las ventas totales del negocio pasarían de $100.0M + 4% = $117.0M." },
+  // chequeoEsperado acepta las DOS de la familia «cifra»: según si el valor inventado coincide o no con alguna
+  // cifra del dato, muere por `cifra-no-autorizada` o por `cifra-de-dato-sin-dueno` (27.0% existe en la carpeta
+  // con otro dueño). Son el mismo veredicto de fondo — «esa cifra no está autorizada acá» —, no dos categorías.
+  { id: "N12·la flecha en tasas con un salto que el usuario NO declaró", espera: "MUERE", tipo: "cálculo derivado falso", chequeoEsperado: /cifra-no-autorizada|cifra-de-dato-sin-dueno/, construido: false,
+    afirma: "«de 22.0% a 27.0%» son 5 puntos cuando el usuario declaró 2 — la flecha no puede autorizar cualquier salto",
+    q: "reduce en 2 puntos las acciones comerciales de Falabella",
+    texto: "Con ese cambio, el margen de Falabella pasa de 22.0% a 27.0%." },
+  /* ESLABÓN 5 del recorrido medido: el alcance heredado. `ctx.alcanceHeredado` solo viaja cuando el turno
+   * resolvió una referencia deíctica contra el turno anterior — los candidatos son los del MISMO eje. */
+  { id: "P11·alcance heredado·responde sobre ESOS clientes", espera: "PASA", tipo: "alcance heredado",
+    afirma: "la respuesta habla de las cuentas del turno anterior (Falabella, Lider, Jumbo, Sodimac)",
+    ctx: { alcanceHeredado: { entities: ["Falabella", "Lider", "Jumbo", "Sodimac"], candidatos: ["Falabella", "Lider", "Jumbo", "Sodimac", "Ripley", "Paris", "Tottus", "Mercado Libre", "ABC", "Easy", "Unimarc", "Hites", "La Polar"] } },
+    q: "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark",
+    texto: "Con 2 puntos menos de carga en cada una: Falabella pasa de 22.0% a 24.0%, Lider de 21.5% a 23.5%, Jumbo de 24.0% a 26.0% y Sodimac de 23.5% a 25.5%. Ninguna cruza tu benchmark de 30.1% — es una proyección con tu supuesto, no un dato observado." },
+  { id: "N11·alcance heredado·cambia el conjunto en silencio", espera: "MUERE", tipo: "alcance heredado", chequeoEsperado: /alcance-heredado/, construido: false,
+    afirma: "responde sobre Paris y Tottus cuando la pregunta era sobre las cuatro cuentas del turno anterior",
+    ctx: { alcanceHeredado: { entities: ["Falabella", "Lider", "Jumbo", "Sodimac"], candidatos: ["Falabella", "Lider", "Jumbo", "Sodimac", "Ripley", "Paris", "Tottus", "Mercado Libre", "ABC", "Easy", "Unimarc", "Hites", "La Polar"] } },
+    q: "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark",
+    texto: "Con esa baja, Paris queda en 28.5% y Tottus en 30.0% — Paris sigue bajo tu benchmark de 30.1%." },
   { id: "P9·typos·el narrador normaliza, el notario verifica lo normalizado", espera: "PASA", tipo: "supuesto del usuario con typo + entidad normalizada",
     afirma: "regla del owner 2026-08-14: «falabela»→Falabella y «2 putnos»→2 puntos porcentuales — el número que el usuario tipeó respalda al supuesto YA normalizado",
     q: "baja 2 putnos la carga de falabela", texto: "Interpreto 2 puntos porcentuales: la carga comercial de Falabella marca 4.5%, y 4.5% − 2.0pp = 2.5%." },
@@ -98,6 +117,7 @@ function evaluar(caso) {
     ledger: { figs: [] }, results: [], trace: null, question: caso.q,
     datoProyectado: CIFRAS, entidadesDelTenant: ENTIDADES, duenosDelTenant: DUENOS,
     contentScope: "full", tablePolicy: "auto",
+    ...(caso.ctx || {}),   // extras del caso (p.ej. `alcanceHeredado`, que solo viaja cuando el turno heredó una referencia)
   });
   return { ok: v.ok, verdict: v.verdict, violations: (v.violations || []).map((x) => `${x.kind}:${String(x.detail || "").slice(0, 100)}`) };
 }
