@@ -143,7 +143,11 @@ function _construir(scenario) {
   // la palabra «presupuesto», no con «negocio/total» — cada agregado del KPI lleva además su palabra propia.
   L.push(`- ${_L.ventas} totales: ${F(_moneyK(kv.totalActual), NEG)} (año anterior ${F(_moneyK(kv.totalAnterior), [...NEG, "anterior"])} · presupuesto ${F(_moneyK(kv.totalPresupuesto), [...NEG, "presupuesto"])} · ${F(_pct1(kv.vsAnterior), [...NEG, "anterior"])} vs año anterior · ${F(_pct1(kv.vsPresupuesto), [...NEG, "presupuesto"])} vs presupuesto).`);
   L.push(`- ${_L.margen} de la cartera: ${F(_pct1(km.pct), NEG)} · ${_L.contribucion} total ${F(_moneyK(km.totalUSD), NEG)}.`);
-  if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), NEG)} · ${F(_dias(ki.doh), NEG)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), NEG)} (${F(_money(ki.inmovilizadoUSD), NEG)}).`);
+  // los KPI de INVENTARIO llevan además su palabra propia como dueño (medido 2026-08-14, falso positivo de la
+  // defensa del examen): «la foto de inventario suma $135K de capital» nombra al dueño con «inventario», no con
+  // «negocio» — sin esto, la frase LEGÍTIMA que separa los dos universos moría por falta de dueño.
+  const INV = [...NEG, "inventario", "capital", "stock", "foto"];
+  if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV)} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
   L.push(`- La vara la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"])}.`);

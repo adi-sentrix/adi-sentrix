@@ -3004,7 +3004,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       if (!Array.isArray(lista) || lista.length < 2 || !Number.isFinite(N)) continue;
       const asc = /menor|peor/i.test(rm[3]);
       const reales = [...lista].sort((a, b) => (asc ? a.valor - b.valor : b.valor - a.valor)).slice(0, N).map((x) => x.entidad);
-      const finOracion = (() => { const p = narration.indexOf(".", rm.index); return p === -1 ? narration.length : p; })();
+      // ⚠️ NUMBER-SAFE (medido 2026-08-14, defensa del examen): `indexOf(".")` cortaba la cola dentro de «$17.3M»
+      // y dejaba UNA sola entidad nombrada, así que el ranking falso NO se juzgaba. El corte exige que el punto
+      // cierre oración de verdad (espacio o fin), igual que el resto de los cortes number-safe del archivo.
+      const finOracion = (() => { const m = /[.!?](?:\s|$)/.exec(narration.slice(rm.index)); return m ? rm.index + m.index : narration.length; })();
       const cola = narration.slice(rm.index, finOracion);
       const nombradas = lista.map((x) => x.entidad).filter((n) => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(cola));
       if (nombradas.length < 2) continue;   // sin lista concreta al lado, no hay ranking que juzgar
