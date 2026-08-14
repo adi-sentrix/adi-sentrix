@@ -2854,7 +2854,7 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // fallas de OBEDIENCIA corregibles con palabras — el detalle del veto ya trae la corrección exacta («el motor
   // declara 3, no 4» · «los reales son Falabella, Lider, Jumbo» · «la palabra es benchmark» · «declara la
   // lectura»). Escalar de modelo por esto sería pagar 14× por el mismo problema de redacción.
-  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|cifra-de-dato-sin-dueno|cifra-de-boleta-sin-dueno|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada|estado-no-declarado|ranking-no-sostenido|vocabulario-no-contractual|ambiguedad-no-declarada|alcance-heredado-cambiado/;
+  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|cifra-de-dato-sin-dueno|cifra-de-boleta-sin-dueno|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada|estado-no-declarado|ranking-no-sostenido|vocabulario-no-contractual|ambiguedad-no-declarada|alcance-heredado-cambiado|alcance-heredado-incompleto/;
   let _rechazosDeRedaccion = 0;
   let repairSpec = null;   // el veredicto anterior, estructurado, para que el reintento sepa QUÉ corregir
   let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" (arriba, junto a _rateLimitBackoffMs) — NUNCA avanza ante un 429/error de infra

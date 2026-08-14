@@ -2745,14 +2745,37 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     const _baseOk = (frag) => parseFigures(frag).every((pf) => authCanon.has(pf.canon) || authVerbatim.has(_stripSpace(pf.text))
       || (_datoIdxFrm && (_datoIdxFrm.porCanon.has(pf.canon) || _datoIdxFrm.porVerbatim.has(_stripSpace(pf.text)))));
     const _pctUsuario = [...qFigs, ...supFigs].map((f) => Number(f.raw)).filter(Number.isFinite);
-    const _adoptar = (frase) => { for (const pf of parseFigures(frase)) { qFigs.push(pf); authCanon.add(pf.canon); authVerbatim.add(_stripSpace(pf.text)); } };
+    let _adoptadas = 0;
+    const _adoptar = (frase) => { for (const pf of parseFigures(frase)) { if (!authCanon.has(pf.canon)) _adoptadas++; qFigs.push(pf); authCanon.add(pf.canon); authVerbatim.add(_stripSpace(pf.text)); } };
+    /* PASADAS HASTA PUNTO FIJO (matriz 2026-08-14, caso P14): una cascada encadena cuentas —
+     * «$100.0M × 1.04 = $104.0M · $104.0M × 25.1% = $26.1M · $104.0M − $26.1M = $77.9M»— y el orden en que se
+     * escriben no tiene por qué ser el orden en que las reconoce el catálogo: la resta necesita el $26.1M que
+     * autoriza una regla POSTERIOR. Se repite el barrido hasta que no se adopte nada nuevo (tope 3: la cascada
+     * más profunda medida tiene 3 eslabones). No afloja nada — cada eslabón sigue exigiendo recomputar bien. */
     let em;
-    const _reSuma = /(\$[\d.,]+[KMB]?)\s*=\s*(\$[\d.,]+[KMB]?(?:\s*\+\s*\$[\d.,]+[KMB]?)+)/g;
+    for (let _pasada = 0; _pasada < 3; _pasada++) {
+    const _antes = _adoptadas;
+    /* EL HUECO DE PALABRAS (mini doble enfocada 2026-08-14): un asesor no escribe «$100.0M × 1.04», escribe
+     * «$100.0M proyectados × 1.04». Medido: el catálogo solo reconocía la forma LIMPIA y vetaba 4 de 5 formas
+     * naturales — castigaba la redacción, no la cuenta. `_G` admite hasta 2 palabras entre la cifra y el
+     * operador. NO afloja nada: lo que autoriza sigue siendo solo lo que RECOMPUTA bien. */
+    const _G = "(?:\\s+[\\p{L}]+){0,2}\\s*";
+    const _re = (patron, flags = "gu") => new RegExp(patron, flags);
+    const _M = "\\$[\\d.,]+[KMB]?";
+    const _reSuma = _re(`(${_M})\\s*=\\s*(${_M}(?:\\s*\\+\\s*${_M})+)`);
     while ((em = _reSuma.exec(narration))) {
       const sum = em[2].split(/\+/).map(_dec);
       if (sum.every(Number.isFinite) && _cierraFrm(sum.reduce((a, b) => a + b, 0), _dec(em[1])) && _baseOk(em[2])) _adoptar(em[0]);
     }
-    const _reMult = /(\$[\d.,]+[KMB]?)\s*[×x*]\s*([\d.,]+)\s*=\s*(\$[\d.,]+[KMB]?)/gi;
+    // suma y resta con el RESULTADO ÚLTIMO («$104.0M proyectados − $26.1M = $77.9M»), la forma en que se escribe
+    // una cascada. Los dos operandos ya autorizados; el resultado se adopta solo si la cuenta cierra.
+    const _reAritm = _re(`(${_M})${_G}([+\\-−–])\\s*(${_M})\\s*=\\s*(${_M})`);
+    while ((em = _reAritm.exec(narration))) {
+      const A = _dec(em[1]), B = _dec(em[3]), R = _dec(em[4]);
+      const esperado = em[2] === "+" ? A + B : A - B;
+      if (_cierraFrm(esperado, R) && _baseOk(em[1]) && _baseOk(em[3])) _adoptar(em[0]);
+    }
+    const _reMult = _re(`(${_M})${_G}[×x*]\\s*([\\d.,]+)\\s*=\\s*(${_M})`, "gui");
     while ((em = _reMult.exec(narration))) {
       const base = _dec(em[1]), factor = parseFloat(em[2].replace(",", ".")), res = _dec(em[3]);
       const factorDelUsuario = _pctUsuario.some((p) => Math.abs(factor - (1 + p / 100)) <= 0.005 || Math.abs(factor - (1 - p / 100)) <= 0.005);
@@ -2805,6 +2828,32 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const tasaConocida = _pctUsuario.some((x) => Math.abs(x - p) <= 0.01) || _pctsDatoFrm.some((x) => Math.abs(x - p) <= 0.01);
       if (tasaConocida && _cierraFrm(M * (p / 100), R) && _baseOk(em[2])) _adoptar(em[0]);
     }
+    // TASA SOBRE MONTO, RESULTADO ÚLTIMO («$104.0M proyectados × 25.1% = $26.1M»): la misma cuenta del paréntesis
+    // escrita al derecho. La tasa tiene que ser conocida (del usuario o del dato) y el monto ya autorizado.
+    const _reTasaUlt = _re(`(${_M})${_G}[×x*]\\s*([\\d.,]+)\\s*%\\s*=\\s*(${_M})`, "gui");
+    while ((em = _reTasaUlt.exec(narration))) {
+      const M0 = _dec(em[1]), p = parseFloat(em[2].replace(",", ".")), R = _dec(em[3]);
+      const tasaConocida = _pctUsuario.some((x) => Math.abs(x - p) <= 0.01) || _pctsDatoFrm.some((x) => Math.abs(x - p) <= 0.01);
+      if (tasaConocida && _cierraFrm(M0 * (p / 100), R) && _baseOk(em[1])) _adoptar(em[0]);
+    }
+    /* LA COMPARACIÓN ENTRE DOS MONTOS DE LA MISMA ORACIÓN («la proyección de $104.0M quedaría 7.2% sobre el
+     * presupuesto ($97.0M)»). El % es la variación entre dos montos que la propia oración nombra — la cuenta está
+     * a la vista aunque no lleve signo «=». ANGOSTA POR CONSTRUCCIÓN: solo si la oración trae EXACTAMENTE DOS
+     * montos (con más, la combinatoria elegiría el par que convenga) y los dos ya están autorizados. */
+    for (const o of narration.split(/[.!?\n]+/)) {
+      const montos = [...o.matchAll(/\$[\d.,]+[KMB]?/g)].map((x) => x[0]);
+      if (montos.length !== 2) continue;
+      const A = _dec(montos[0]), B = _dec(montos[1]);
+      if (!Number.isFinite(A) || !Number.isFinite(B) || !B || !A) continue;
+      if (!_baseOk(montos[0]) || !_baseOk(montos[1])) continue;
+      const varAB = Math.abs((A / B - 1) * 100), varBA = Math.abs((B / A - 1) * 100);
+      for (const pm of o.matchAll(/([\d.,]+)\s*%/g)) {
+        const p = parseFloat(pm[1].replace(",", "."));
+        if (Number.isFinite(p) && (Math.abs(p - varAB) <= 0.06 || Math.abs(p - varBA) <= 0.06)) _adoptar(pm[0]);
+      }
+    }
+    if (_adoptadas === _antes) break;   // punto fijo: ninguna pasada nueva aportó nada
+    }
   }
   const violations = [];
   const entityNames = _entityNames(results);   // adelantado (antes vivía en el paso 3) — _isCalc2 lo necesita en el paso 1
@@ -2855,6 +2904,22 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     }
     if (_intrusos.length) {
       violations.push({ kind: "alcance-heredado-cambiado", detail: `la pregunta se refiere a ${alcanceHeredado.entities.join(", ")} (el alcance del turno anterior) y la respuesta habla de ${_intrusos.join(", ")} — responde sobre esas mismas cuentas, o di explícitamente que estás cambiando de conjunto` });
+    }
+    /* LAS OMISIONES (decisión del owner 2026-08-14: «vetar no solo intrusos, sino también entidades faltantes,
+     * salvo que la respuesta declare explícitamente un filtro o cambio de conjunto»). Dejar una cuenta afuera en
+     * silencio es la otra mitad de cambiar la pregunta: el usuario pidió por N y recibe N−1 sin enterarse.
+     * LA SALIDA ES EXPLÍCITA, y la juzga el TEXTO, no la intención: si la respuesta declara que filtra, prioriza
+     * o se queda con un subconjunto («solo», «me concentro en», «dejo fuera», «el peor de esos», «los dos con
+     * mayor…»), o si la PREGUNTA misma pidió un subconjunto (un superlativo), no hay omisión que cobrar. */
+    const _FILTRO_DECLARADO = /\bs[oó]lo\b|\b[uú]nicamente\b|\bme\s+(?:concentro|enfoco|quedo)\b|\bdej[oa]\s+fuera\b|\bexcluy\w+|\bomit\w+|\bfiltr\w+|\bde\s+(?:es[oa]s|ell[oa]s)\b|\b(?:el|la|los|las)\s+(?:peor(?:es)?|mejor(?:es)?|m[aá]s|menos)\b|\b(?:dos|tres|cuatro|cinco)\s+(?:con|de)\b|\bsubconjunto\b|\bmayor(?:es)?\s+(?:venta|margen|brecha)\b/i;
+    const _PREGUNTA_SUBCONJUNTO = /\b(?:cu[aá]l|qui[eé]n)\b|\b(?:el|la)\s+(?:peor|mejor|m[aá]s|menos)\b|\bprimero\b|\bprioriz\w+/i;
+    if (!_FILTRO_DECLARADO.test(narration) && !_PREGUNTA_SUBCONJUNTO.test(String(question || ""))) {
+      const _faltantes = alcanceHeredado.entities.filter((e) => !new RegExp(`\\b${String(e).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration));
+      // si NINGUNA aparece, no es una omisión: es que la respuesta habla de otra cosa (lo cobra otro chequeo, o
+      // el turno no era sobre el alcance). El veto es para el subconjunto silencioso.
+      if (_faltantes.length && _faltantes.length < alcanceHeredado.entities.length) {
+        violations.push({ kind: "alcance-heredado-incompleto", detail: `la pregunta se refiere a ${alcanceHeredado.entities.join(", ")} (el alcance del turno anterior) y la respuesta deja fuera a ${_faltantes.join(", ")} — inclúyelas, o di explícitamente por qué te quedas con un subconjunto` });
+      }
     }
   }
   // RANKINGS (chequeo N6): «tus N clientes de mayor X» se verifica REORDENANDO la carpeta — un orden afirmado
