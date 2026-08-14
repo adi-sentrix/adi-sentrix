@@ -803,32 +803,54 @@ export function composeAckPreferenciaMessage(contentScope) {
  * el RESULTADO queda autorizado. Si NO cierra, es veto propio (`calculo-no-verificable`) — declarar una cuenta
  * falsa es peor que no declararla. El bloque no es un permiso: es una obligación de mostrar el trabajo. */
 export const MARCA_CALCULO = "[[CALCULO]]";
-const _CAMPOS_CALCULO = ["id", "op", "inputs", "formula", "resultado", "unidad"];
-/** extraerCalculos(text) → { calculos: [{id, op, inputs:[], formula, resultado, unidad, linea}], limpio } */
+/* SINÓNIMOS DE CAMPO (owner 2026-08-14, tras el examen 1): el bloque se rompía por FORMA, no por mala fe — con
+ * ocho entidades el modelo escribía «fórmula» con tilde, «operacion», o separaba con «|». La tolerancia es de
+ * FORMATO; la verificación NO se relaja: recomputar sigue siendo obligatorio (ver guardC). */
+const _ALIAS_CALCULO = {
+  id: "id", calc_id: "id", calcid: "id", n: "id",
+  op: "op", operacion: "op", operación: "op", operador: "op",
+  inputs: "inputs", input: "inputs", insumos: "inputs", entradas: "inputs", datos: "inputs",
+  formula: "formula", fórmula: "formula", cuenta: "formula",
+  resultado: "resultado", result: "resultado", valor: "resultado", res: "resultado",
+  unidad: "unidad", unit: "unidad", u: "unidad",
+};
+const _norml = (s) => String(s).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+/** extraerCalculos(text) → { calculos:[{id,op,inputs:[],formula,resultado,unidad,linea}], malformadas:[{linea,falta}], limpio } */
 export function extraerCalculos(text) {
   const s0 = String(text == null ? "" : text);
-  if (!s0.includes(MARCA_CALCULO)) return { calculos: [], limpio: s0 };
-  const calculos = [];
+  if (!s0.includes(MARCA_CALCULO)) return { calculos: [], malformadas: [], limpio: s0 };
+  const calculos = [], malformadas = [];
   let limpio = s0, i;
   while ((i = limpio.indexOf(MARCA_CALCULO)) >= 0) {
     const desde = i + MARCA_CALCULO.length;
     const fin = _finDelBloque(limpio, desde);
     for (const linea of limpio.slice(desde, fin).split("\n")) {
-      const l = linea.trim().replace(/^[-*·]\s*/, "");
-      if (!l || !/=/.test(l)) continue;
+      // se toleran viñetas, negritas, comillas de código y cercos ```; la línea vacía o de cerco se ignora.
+      const l = linea.replace(/`{1,3}/g, "").replace(/\*\*/g, "").trim().replace(/^[-*·•]\s*/, "").replace(/^\|/, "").replace(/\|$/, "").trim();
+      if (!l || /^\[\[/.test(l)) continue;
+      if (!/[=:]/.test(l)) continue;
       const c = { linea: l, inputs: [] };
-      for (const par of l.split("·")) {
-        const m = par.match(/^\s*([A-Za-zñÑ_]+)\s*=\s*(.*?)\s*$/);
+      // separadores de campo tolerados: «·», «|», «  ·  », y el punto y coma SOLO fuera de inputs (ver abajo).
+      for (const par of l.split(/\s*[·|]\s*/)) {
+        const m = par.match(/^\s*([A-Za-zñÑáéíóúÁÉÍÓÚ_]+)\s*[=:]\s*(.*?)\s*$/);
         if (!m) continue;
-        const k = m[1].toLowerCase();
-        if (!_CAMPOS_CALCULO.includes(k)) continue;
-        c[k] = k === "inputs" ? m[2].split(";").map((x) => x.trim()).filter(Boolean) : m[2];
+        const k = _ALIAS_CALCULO[_norml(m[1])];
+        if (!k) continue;
+        // la coma separa insumos SOLO si no está entre dígitos: «$1,234» es un número, no dos insumos.
+        c[k] = k === "inputs" ? m[2].split(/;|,(?!\d)/).map((x) => x.trim()).filter(Boolean) : m[2].trim();
       }
-      if (c.op && c.resultado) calculos.push(c);
+      /* UNA LÍNEA QUE QUISO SER UN CÁLCULO Y NO LLEGÓ NO SE IGNORA EN SILENCIO (owner 2026-08-14): antes se
+       * descartaba, la cifra quedaba sin autorizar y moría después como «cifra-no-autorizada» — un veredicto que
+       * no dice la verdad de lo que pasó. Ahora se reporta con la línea y el campo que falta, para que la
+       * reparación sepa exactamente qué corregir. */
+      if (c.op && c.resultado) { calculos.push(c); continue; }
+      if (Object.keys(c).some((k) => k !== "linea" && k !== "inputs" ? true : c.inputs.length > 0)) {
+        malformadas.push({ linea: l, falta: [!c.op && "op", !c.resultado && "resultado"].filter(Boolean).join(" y ") });
+      }
     }
     limpio = limpio.slice(0, i) + limpio.slice(fin);
   }
-  return { calculos, limpio: _limpiar(limpio) };
+  return { calculos, malformadas, limpio: _limpiar(limpio) };
 }
 
 export const MARCA_CONTEXTO_GENERAL = "[[CONTEXTO_GENERAL]]";

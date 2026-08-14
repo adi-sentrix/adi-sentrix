@@ -150,7 +150,8 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
         { role: "assistant", content: esNarracionVacia(anterior) ? "(respuesta vacía)" : anterior },
         { role: "user", content: _MENSAJE_NOTARIO(multa) },
       ]);
-      return callNatural({ mensajes: conMulta, attempt: 1, motivoReintento: _motivoDeMulta(multa) });
+      // `attempt` va con el número REAL de reintento (1 o 2): el ciclo concede un segundo solo si el veto cambió.
+      return callNatural({ mensajes: conMulta, attempt: intento - 1, motivoReintento: _motivoDeMulta(multa) });
     },
   });
 

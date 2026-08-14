@@ -2893,6 +2893,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         brecha_pp: (v) => Math.abs(v[0] - v[1]),
         variacion_pct: (v) => (v[1] ? ((v[0] - v[1]) / v[1]) * 100 : null),
       };
+      /* LA MULTA DICE QUÉ LÍNEA Y QUÉ CAMPO (owner 2026-08-14, tras el examen 1): «el cálculo C3 no cierra» no
+       * alcanza para reparar cuando el bloque trae doce líneas — el reintento reescribía a ciegas y repetía el
+       * mismo veto. Cada multa cita la línea textual y nombra el campo culpable. */
+      const _multa = (c, campo, porque) => ({
+        kind: "calculo-no-verificable",
+        detail: `línea «${c.linea || c.id || "declarada"}» — campo «${campo}»: ${porque}`,
+      });
       const _porId = new Map();
       for (const c of _calculosDeclarados) {
         const op = String(c.op || "").trim().toLowerCase();
@@ -2906,23 +2913,34 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const esperado = (fn && insumos.length && insumos.every(Number.isFinite)) ? fn(insumos, uni, signo) : null;
         const cierra = Number.isFinite(esperado) && Number.isFinite(R) && _cierraFrm(esperado, R);
         if (!fn) {
-          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} usa una operación que no existe («${c.op}») — usá una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos` });
+          _vetosCalculo.push(_multa(c, "op", `la operación «${c.op}» no existe — usá una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos`));
         } else if (!Number.isFinite(esperado)) {
-          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} no se puede recomputar: revisá sus insumos («${(c.inputs || []).join("; ")}»)` });
+          const _malos = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !Number.isFinite(_num(x)));
+          _vetosCalculo.push(_multa(c, "inputs", (c.inputs || []).length
+            ? `no se puede recomputar porque ${_malos.length ? `${_malos.map((x) => `«${x}»`).join(" y ")} no ${_malos.length > 1 ? "son cifras" : "es una cifra"} ni el id de otro cálculo` : `los insumos («${(c.inputs || []).join("; ")}») no alcanzan para la operación «${op}»`}`
+            : `la línea no declara insumos, así que no hay nada que recomputar`));
         } else if (!cierra) {
-          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} NO cierra: ${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos` });
+          _vetosCalculo.push(_multa(c, "resultado", `${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos`));
         } else if (!insumosAutorizados) {
-          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} parte de una cifra que no está autorizada («${(c.inputs || []).join("; ")}») — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado` });
+          const _sinDueno = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !_baseOk(String(x)));
+          _vetosCalculo.push(_multa(c, "inputs", `${_sinDueno.map((x) => `«${x}»`).join(" y ")} no ${_sinDueno.length > 1 ? "están autorizadas" : "está autorizada"} — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado`));
         } else if (uni === "pct" && Number.isFinite(esperado) && esperado < 0) {
           /* UNA TASA NO PUEDE QUEDAR NEGATIVA (viabilidad de escenario, owner 2026-08-14). «1.8% − 2pp = −0.2%»
            * es aritmética correcta y realidad imposible: no se puede recortar más carga de la que existe. Se veta
            * la DECLARACIÓN, con el tope real en la instrucción — así el reintento sabe qué corregir. */
-          _vetosCalculo.push({ kind: "escenario-inviable", detail: `el cálculo ${c.id || "declarado"} deja una tasa NEGATIVA (${esperado.toFixed(1)}%): no se puede recortar más de lo que hay. El máximo aplicable es el valor disponible — usá ese tope o declará que el supuesto no aplica completo` });
+          _vetosCalculo.push({ kind: "escenario-inviable", detail: `línea «${c.linea || c.id || "declarada"}» — campo «resultado»: deja una tasa NEGATIVA (${esperado.toFixed(1)}%). No se puede recortar más de lo que hay: el máximo aplicable es el valor disponible — usá ese tope o declará que el supuesto no aplica completo` });
         } else {
           if (c.id) _porId.set(String(c.id).trim(), R);
           _adoptar(String(c.resultado));   // la cuenta cerró y sus insumos están autorizados: el resultado vale
         }
       }
+    }
+    /* LA LÍNEA A MEDIO ESCRIBIR NO SE IGNORA (owner 2026-08-14): el parser toleró la forma, pero si falta `op` o
+     * `resultado` la cuenta no se puede recomputar — y callarlo dejaba la cifra sin autorizar para morir después
+     * como «cifra-no-autorizada», un veredicto que no dice la verdad de lo que pasó y que el reintento no sabía
+     * reparar. Se nombra la línea y el campo faltante. */
+    for (const m of (_decl.malformadas || [])) {
+      _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `línea «${m.linea}» — campo «${m.falta}»: la declaración está incompleta, así que la cuenta no se puede recomputar; completá ese campo o sacá la línea del bloque` });
     }
   }
   const violations = [];

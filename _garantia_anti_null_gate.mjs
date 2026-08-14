@@ -208,5 +208,50 @@ for (const [rot, sup] of [["suplente que devuelve ''", () => ""], ["suplente que
     `${rot} → cae al genérico PELADO, la misma frase canónica de la escalera anti-null`, JSON.stringify(r.texto).slice(0, 140));
 }
 
+/* ── [9] EL SEGUNDO REINTENTO Y SU CANDADO (owner 2026-08-14, tras el examen 1) ────────────────────────────────
+ * «Permite un segundo intento solo si el veto es distinto. Tope duro de 3 llamadas. Si repite el mismo veto,
+ * suplente.» Las tres mitades se fijan acá, con un cerebro mockeado que devuelve lo que cada caso necesita. */
+H("[9] EL SEGUNDO REINTENTO · solo si el veto CAMBIÓ, y nunca más de 3 llamadas");
+{
+  const Q = TURNOS[0].q, JUEZ = juezNatural(Q), SUP = suplenteDe(Q);
+  const BUENA = "El benchmark de margen del negocio es 30.1%.";
+  const MALA1 = "El negocio cerró con $777.7M de venta.";           // cifra inventada
+  const MALA2 = "";                                                  // vacío: OTRO veredicto
+  // (a) dos vetos DISTINTOS → se concede el tercer intento, y si ahí acierta, el turno se repara
+  {
+    const r = await responderConNotario({ pedir: async ({ intento }) => (intento === 1 ? MALA1 : intento === 2 ? MALA2 : BUENA), juzgar: JUEZ, suplente: SUP });
+    ok(r.calls === 3 && r.estado === "reparado" && r.texto === BUENA,
+      "veto distinto en el 2º → hay 3ª llamada, y la buena repara el turno", `calls=${r.calls} · ${r.estado}`);
+    ok(r.vetos.length === 2 && !r.suplenteDigno, "…con los dos vetos registrados y SIN suplente", JSON.stringify(r.vetos));
+  }
+  // (b) el MISMO veto dos veces → suplente de inmediato, sin gastar la tercera llamada
+  {
+    let vistas = 0;
+    const r = await responderConNotario({ pedir: async () => { vistas++; return MALA1; }, juzgar: JUEZ, suplente: SUP });
+    ok(vistas === 2 && r.calls === 2, "mismo veto repetido → NO se concede el 3º intento (se corta en 2 llamadas)", `llamadas=${vistas}`);
+    ok(r.estado === "suplente" && r.suplenteDigno && r.texto !== MALA1, "…y responde el suplente digno, nunca el borrador vetado");
+    ok(!r.aprobado, "…y el turno NO queda aprobado: un texto vetado no presta sus cifras al turno siguiente");
+  }
+  // (c) TOPE DURO: aunque los veredictos sigan cambiando, jamás hay una cuarta llamada
+  {
+    let vistas = 0;
+    const CAMBIANTE = ["El negocio cerró con $777.7M de venta.", "", "Falabella factura $999.9M en el año."];
+    const r = await responderConNotario({ pedir: async () => CAMBIANTE[Math.min(vistas++, 2)], juzgar: JUEZ, suplente: SUP });
+    ok(vistas === 3 && r.calls === 3, "tres veredictos distintos → se corta en 3 llamadas, el tope no depende de que dejen de cambiar", `llamadas=${vistas}`);
+    ok(r.estado === "suplente" && r.suplenteDigno, "…y termina en suplente digno");
+    ok(r.vetos.length === 3 && /^3º: /.test(r.vetos[2]), "…con los tres vetos anotados y numerados", JSON.stringify(r.vetos));
+  }
+  // (d) NO CAMBIA LO QUE YA FUNCIONABA: la reparación al primer intento sigue costando UNA llamada extra
+  {
+    const r = await responderConNotario({ pedir: async ({ intento }) => (intento === 1 ? MALA1 : BUENA), juzgar: JUEZ, suplente: SUP });
+    ok(r.calls === 2 && r.estado === "reparado" && !r.suplenteDigno, "el turno que se repara al 2º intento sigue costando exactamente 2 llamadas", `calls=${r.calls}`);
+  }
+  // (e) el verde no paga nada de esto
+  {
+    const r = await responderConNotario({ pedir: async () => BUENA, juzgar: JUEZ, suplente: SUP });
+    ok(r.calls === 1 && r.estado === "verde" && r.aprobado && !r.vetos.length, "el turno que pasa a la primera sigue costando UNA llamada");
+  }
+}
+
 console.log(`\n── GATE · garantía anti-null · ${PASS} PASS · ${FAIL} FAIL ──`);
 process.exitCode = FAIL ? 1 : 0;

@@ -109,9 +109,20 @@ export function recitaAprobadaDe({ textoAprobado, catalogoEntidades, previa = nu
  *  · suplente() → el texto de respaldo con las cifras verificadas (ver suplenteDignoDelDato en datoProyectado.js).
  *  · lavar(texto) → el lavado de registro del producto (opcional). Se aplica null-safe: si deja el texto en nada,
  *    eso cuenta como vacío igual que si el modelo no hubiera escrito nada — que es el caso que el arnés midió.
- * estado ∈ "verde" (pasó al primer intento) · "reparado" (pasó al segundo) · "suplente" (dos textos vetados) ·
- *          "vacio" (el cerebro volvió en blanco y respondió el suplente digno). Son EXCLUYENTES: suman el total.
+ * estado ∈ "verde" (pasó al primer intento) · "reparado" (pasó a un reintento) · "suplente" (se agotaron los
+ *          reintentos con texto vetado) · "vacio" (el cerebro volvió en blanco y respondió el suplente digno).
+ *          Son EXCLUYENTES: suman el total.
+ *
+ * ── EL SEGUNDO REINTENTO, Y POR QUÉ TIENE CANDADO (owner 2026-08-14, tras el examen 1) ────────────────────────
+ * MEDIDO: dos de cinco preguntas cayeron al suplente por `calculo-no-verificable` — no por inventar, sino porque
+ * con ocho entidades el bloque [[CALCULO]] se rompía de FORMA. Una sola devolución no alcanzaba para un texto
+ * largo con doce cuentas declaradas. Pero repetir la devolución sin condición es peor: cuando el cerebro vuelve
+ * con EL MISMO veto no está corrigiendo, está reformulando — y cada vuelta cuesta plata y tiempo real.
+ * REGLA: se concede un reintento más SOLO SI el veto nuevo es DISTINTO de todos los anteriores (señal de que la
+ * devolución sirvió y quedó otra cosa por arreglar). Mismo veto repetido → suplente digno de inmediato.
+ * TOPE DURO de 3 llamadas, pase lo que pase — el candado no depende de que los veredictos sigan cambiando.
  */
+const MAX_LLAMADAS = 3;
 export async function responderConNotario({ pedir, juzgar, suplente = null, lavar = null } = {}) {
   const _lav = (t) => {
     const crudo = String(t == null ? "" : t);
@@ -127,17 +138,27 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
   if (esNarracionVacia(texto)) out.vacias.push(1);
   let v = juzgar(texto);
 
-  if (!v || !v.ok) {
-    out.vetos.push(String(v && v.verdict));
+  const _verdictos = [];   // los veredictos PELADOS, sin el rótulo del intento: son los que se comparan entre sí
+  while (!(v && v.ok)) {
+    const verdicto = String(v && v.verdict);
+    _verdictos.push(verdicto);
+    out.vetos.push(_verdictos.length === 1 ? verdicto : `${_verdictos.length}º: ${verdicto}`);
+    // el candado de la regla: se sigue SOLO si este veto no se había visto antes, y nunca más allá del tope duro
+    if (_verdictos.slice(0, -1).includes(verdicto) || out.calls >= MAX_LLAMADAS) break;
     const multa = ((v && v.violations) || []).slice(0, 3).map((x) => `[${x.kind}] ${x.detail}`).join("\n");
-    texto = _lav(await pedir({ intento: 2, multa, anterior: texto })); out.calls++;
-    if (esNarracionVacia(texto)) out.vacias.push(2);
+    texto = _lav(await pedir({ intento: out.calls + 1, multa, anterior: texto })); out.calls++;
+    if (esNarracionVacia(texto)) out.vacias.push(out.calls);
     v = juzgar(texto);
-    if (!v || !v.ok) out.vetos.push(`2º: ${v && v.verdict}`);
+  }
+
+  if (v && v.ok) {
+    // «verde» es haber pasado SIN devolución; cualquier reintento que termine bien es «reparado».
+    out.estado = out.calls === 1 ? "verde" : "reparado";
+  } else {
     // «vacio» NO es «suplente»: las dos terminan sin la respuesta del cerebro, pero una es un texto que el notario
     // rechazó y la otra es una pantalla en blanco. Categorías distintas porque son fallas distintas.
-    out.estado = (v && v.ok) ? "reparado" : (esNarracionVacia(texto) ? "vacio" : "suplente");
-    out.aprobado = !!(v && v.ok);   // un texto que el muro rechazó NO puede prestar sus cifras al turno siguiente
+    out.estado = esNarracionVacia(texto) ? "vacio" : "suplente";
+    out.aprobado = false;   // un texto que el muro rechazó NO puede prestar sus cifras al turno siguiente
     /* REINCIDE → SUPLENTE DIGNO, tanto si volvió vacío COMO si volvió vetado (owner 2026-08-14, verificado en
      * `_probe_suplente_vetado.mjs` antes de conectar el camino natural).
      * EL DEFECTO QUE CIERRA, medido: con dos borradores VETADOS no vacíos, esta función devolvía el SEGUNDO
@@ -148,11 +169,9 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
      * fallas terminan igual: no hay respuesta del cerebro que se pueda mostrar.
      * El vacío conserva su estado propio (`vacio`) porque es una falla distinta y el balance la cuenta aparte;
      * lo que se unifica es la SALIDA, no la métrica. */
-    if (!(v && v.ok)) {
-      const s = typeof suplente === "function" ? suplente() : null;   // UNA sola invocación: componer el suplente puede no ser gratis
-      texto = String(s == null ? "" : s);
-      out.suplenteDigno = true;
-    }
+    const s = typeof suplente === "function" ? suplente() : null;   // UNA sola invocación: componer el suplente puede no ser gratis
+    texto = String(s == null ? "" : s);
+    out.suplenteDigno = true;
   }
   // EL PISO ABSOLUTO: pase lo que pase arriba —incluido un suplente que llegue vacío—, de acá no sale una pantalla
   // en blanco. Cero cifras, cero entidades: no hay chequeo del muro que tenga algo que cobrarle a esta oración.
