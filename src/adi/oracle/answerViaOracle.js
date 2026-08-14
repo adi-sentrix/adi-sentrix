@@ -2784,7 +2784,12 @@ export async function answerViaOracle({ text, history = [], mem = {}, scenario =
   // `cifra-de-boleta-sin-dueno` (encargo «dueño por fila» 2026-08-13) es hermana de la de F1 y de la misma
   // familia por la misma razón: la cifra es REAL (está en la boleta del turno) — lo que falta es NOMBRAR al
   // dueño en la misma oración, no cambiar el número. Reintento mismo tier con la instrucción del detalle.
-  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|cifra-de-dato-sin-dueno|cifra-de-boleta-sin-dueno|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada/;
+  // + los 4 de la constitución (2026-08-14, regla de producto del owner: «el narrador tiene UNA oportunidad de
+  // reparar; el suplente existe solo si la reparación falla»): estado, ranking, vocabulario y ambigüedad son
+  // fallas de OBEDIENCIA corregibles con palabras — el detalle del veto ya trae la corrección exacta («el motor
+  // declara 3, no 4» · «los reales son Falabella, Lider, Jumbo» · «la palabra es benchmark» · «declara la
+  // lectura»). Escalar de modelo por esto sería pagar 14× por el mismo problema de redacción.
+  const _VERDICTOS_DE_REDACCION = /cifra-no-autorizada|cifra-de-dato-sin-dueno|cifra-de-boleta-sin-dueno|metrica-mal-atribuida|procedencia-no-autorizada|causa-sobredimensionada|estado-no-declarado|ranking-no-sostenido|vocabulario-no-contractual|ambiguedad-no-declarada/;
   let _rechazosDeRedaccion = 0;
   let repairSpec = null;   // el veredicto anterior, estructurado, para que el reintento sepa QUÉ corregir
   let modelAttempt = 0;   // ver "CONTADOR DE MODELO ≠ CONTADOR DE BACKOFF" (arriba, junto a _rateLimitBackoffMs) — NUNCA avanza ante un 429/error de infra
