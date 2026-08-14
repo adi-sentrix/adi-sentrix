@@ -1,0 +1,134 @@
+{
+  "fecha": "2026-08-14",
+  "hilos": [
+    "H1·ventas (el hilo que rompió a ADI)",
+    "H9·puntual con typos y 2 puntos"
+  ],
+  "llamadas": 19,
+  "registro": [
+    {
+      "hilo": "H1·ventas (el hilo que rompió a ADI)",
+      "A": [
+        {
+          "q": "Si subo ventas 4%, ¿qué cambia?",
+          "calls": 0,
+          "texto": "Ese cambio en las ventas lo tomo como cambio de volumen (unidades vendidas), con el precio declarado aparte. ¿Sobre qué cliente, SKU, marca o familia quieres simular este escenario?",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "sobre las ventas",
+          "calls": 3,
+          "texto": "Dime qué parte está mal y la corrijo — ¿la pregunta que entendí, o el dato que traje?",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "simula sobre el total de ventas",
+          "calls": 0,
+          "texto": "Tomo el escenario sobre el total del negocio. ¿cuánto esperas que cambie el precio? No quiero asumir que se mantiene sin cambios, sin que me lo confirmes.",
+          "suplente": true,
+          "vetos": []
+        },
+        {
+          "q": "el precio queda igual",
+          "calls": 3,
+          "texto": "Supuesto % marca +4% (tasa comercial, anual).\n\nEl resto de la lectura: Total · actual: $100.0M · Total · supuesto: $104.0M · Impacto absoluto: $4.0M · Impacto %: 4% · Concentración · bloque: 81% · Calidad · margen del bloque: 23.8%. El dato no registra la causa: para explicarla hace falta evidencia que esta lectura no trae.\n\nPor dónde partir: Supuesto %, que es el efecto del supuesto planteado.\n\nSupuesto: Ventas +4% sobre el dato real. (Datos del año cerrado.)\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.",
+          "suplente": true,
+          "vetos": [
+            "procedencia-no-autorizada"
+          ]
+        }
+      ],
+      "B": [
+        {
+          "q": "Si subo ventas 4%, ¿qué cambia?",
+          "calls": 2,
+          "texto": "Bajo el supuesto de +4% con el margen actual sin cambios, la venta pasa de $100.0M a $104.0M y la contribución de $25.1M a $26.1M (+$1.0M).\n\nPero el margen de cartera sigue en 25.1%, 5.0 puntos por debajo del benchmark de 30.1%. Y ahí está el problema: crecer volumen sin tocar margen no cierra la brecha, la agranda en dólares.\n\n- Hoy: brecha vs benchmark = 30.1% − 25.1% = 5.0pp sobre $100.0M → $5.0M de contribución no capturada.\n- Con +4% en ventas y margen plano: la misma brecha de 5.0pp sobre $104.0M → $5.2M no capturados.\n\nPor qué pasa: la carga la explica el mix — margen tirado hacia abajo por SKU puntuales, no por el negocio entero. El caso más claro es **LG-DRYER8KG**: margen 11.1% contra el benchmark de 30.1%, con $5.6M en ventas y apenas $624K de contribución.\n\nQué hacer primero: antes de empujar el 4% de volumen, corregí el margen en LG-DRYER8KG. Cerrar la brecha completa contra el benchmark (30.1% − 11.1% = 19.0pp sobre $5.6M) representaría cerca de $1.06M adicionales de contribución — ahí está el impacto real, no en sumar volumen sobre un margen roto.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\nid=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money\nid=c3 · op=restar · inputs=c2; $25.1M · formula=$26.1M - $25.1M · resultado=$1.0M · unidad=money\nid=c4 · op=puntos · inputs=30.1%; 25.1% · formula=30.1% - 25.1% · resultado=5.0pp · unidad=pp\nid=c5 · op=pct_de · inputs=$100.0M; c4 · formula=5.0pp de $100.0M · resultado=$5.0M · unidad=money\nid=c6 · op=pct_de · inputs=c1; c4 · formula=5.0pp de $104.0M · resultado=$5.2M · unidad=money\nid=c7 · op=puntos · inputs=30.1%; 11.1% · formula=30.1% - 11.1% · resultado=19.0pp · unidad=pp\nid=c8 · op=pct_de · inputs=$5.6M; c7 · formula=19.0pp de $5.6M · resultado=$1.06M · unidad=money",
+          "estado": "reparado",
+          "vetos": [
+            "calculo-no-verificable"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "sobre las ventas",
+          "calls": 1,
+          "texto": "Sí, ese +4% lo apliqué sobre ventas totales: de $100.0M a $104.0M.\n\nEso ya viene bien encaminado: el año cerró con $100.0M, un 3.1% arriba del presupuesto de $97.0M y 7.6% arriba del año anterior ($92.9M). Un +4% adicional seguiría esa misma trayectoria de crecimiento.\n\nPero el crecimiento en ventas no resuelve el problema real, que está en el margen: 25.1% contra un benchmark de 30.1%, una brecha de 5.0 puntos que representa $5.0M de contribución no capturada hoy — y que sube a $5.2M si crecés ventas sin tocar margen.\n\nQué hacer primero: no muevas el 4% todavía. Corregí primero **LG-DRYER8KG**, el SKU con el margen más roto (11.1% vs 30.1% de benchmark, $5.6M en ventas). Cerrar esa brecha suma cerca de $1.06M de contribución — más que la mitad del impacto que buscas con el crecimiento, sin necesitar un dólar adicional de venta.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\nid=c2 · op=puntos · inputs=30.1%; 25.1% · formula=30.1% - 25.1% · resultado=5.0pp · unidad=pp\nid=c3 · op=pct_de · inputs=$100.0M; c2 · formula=5.0pp de $100.0M · resultado=$5.0M · unidad=money\nid=c4 · op=pct_de · inputs=c1; c2 · formula=5.0pp de $104.0M · resultado=$5.2M · unidad=money\nid=c5 · op=puntos · inputs=30.1%; 11.1% · formula=30.1% - 11.1% · resultado=19.0pp · unidad=pp\nid=c6 · op=pct_de · inputs=$5.6M; c5 · formula=19.0pp de $5.6M · resultado=$1.06M · unidad=money",
+          "estado": "verde",
+          "vetos": [],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "simula sobre el total de ventas",
+          "calls": 1,
+          "texto": "Bajo el supuesto de +4% aplicado al total de ventas, y manteniendo el margen actual sin cambios:\n\n- Ventas: $100.0M → $104.0M (+$4.0M)\n- Contribución: $25.1M → $26.1M (+$1.0M), aplicando el margen actual de 25.1% sobre el nuevo total\n\nEsto es una proyección bajo supuesto, no un hecho: asume que el margen de 25.1% se mantiene igual mientras crece el volumen — algo que hoy no está garantizado, porque ese margen ya está 5.0 puntos por debajo del benchmark de 30.1%.\n\nQué hacer primero: antes de perseguir el 4% de volumen, corregí el margen en **LG-DRYER8KG** (11.1% vs 30.1% de benchmark, $5.6M en ventas). Cerrar esa brecha aporta cerca de $1.06M de contribución — un impacto similar al de todo el crecimiento simulado, pero sin necesitar vender un dólar más.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\nid=c2 · op=restar · inputs=c1; $100.0M · formula=$104.0M - $100.0M · resultado=$4.0M · unidad=money\nid=c3 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money\nid=c4 · op=restar · inputs=c3; $25.1M · formula=$26.1M - $25.1M · resultado=$1.0M · unidad=money\nid=c5 · op=puntos · inputs=30.1%; 25.1% · formula=30.1% - 25.1% · resultado=5.0pp · unidad=pp\nid=c6 · op=puntos · inputs=30.1%; 11.1% · formula=30.1% - 11.1% · resultado=19.0pp · unidad=pp\nid=c7 · op=pct_de · inputs=$5.6M; c6 · formula=19.0pp de $5.6M · resultado=$1.06M · unidad=money",
+          "estado": "verde",
+          "vetos": [],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "el precio queda igual",
+          "calls": 2,
+          "texto": "Entendido — si el precio no se mueve, el +4% es todo volumen: más unidades vendidas al mismo margen de 25.1%. Eso no cambia el resultado que ya te di: contribución de $25.1M a $26.1M (+$1.0M), pero la brecha contra el benchmark (30.1%) sigue intacta, ahora sobre una base más grande.\n\n- Ventas: $100.0M → $104.0M (+$4.0M, solo por unidades)\n- Contribución: $25.1M → $26.1M (+$1.0M)\n- Brecha vs benchmark: 5.0pp, que sobre $104.0M representan $5.2M de contribución no capturada — más que los $5.0M de hoy, porque el volumen creció pero el margen no.\n\nEsto confirma el punto: vender más unidades sin corregir margen agranda el problema en dólares, no lo resuelve.\n\nQué hacer primero: corrige **LG-DRYER8KG** antes de empujar volumen. Con margen 11.1% vs benchmark 30.1% y $5.6M en ventas, cerrar esa brecha suma cerca de $1.06M de contribución — sin necesidad de vender una unidad más.\n\n[[CALCULO]]\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\nid=c2 · op=restar · inputs=c1; $100.0M · formula=$104.0M - $100.0M · resultado=$4.0M · unidad=money\nid=c3 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money\nid=c4 · op=restar · inputs=c3; $25.1M · formula=$26.1M - $25.1M · resultado=$1.0M · unidad=money\nid=c5 · op=puntos · inputs=30.1%; 25.1% · formula=30.1% - 25.1% · resultado=5.0pp · unidad=pp\nid=c6 · op=pct_de · inputs=c1; c5 · formula=5.0pp de $104.0M · resultado=$5.2M · unidad=money\nid=c7 · op=puntos · inputs=30.1%; 11.1% · formula=30.1% - 11.1% · resultado=19.0pp · unidad=pp\nid=c8 · op=pct_de · inputs=$5.6M; c7 · formula=19.0pp de $5.6M · resultado=$1.06M · unidad=money",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-no-autorizada"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        }
+      ]
+    },
+    {
+      "hilo": "H9·puntual con typos y 2 puntos",
+      "A": [
+        {
+          "q": "¿cómo viene Sodimac?",
+          "calls": 2,
+          "texto": "Sodimac vende $8.2M en el año cerrado, es el 4º cliente por venta de la cartera, pero su margen de 23.5% queda 6.6 puntos bajo tu benchmark de 30.1% — de hecho es el tercer margen más rezagado de los 13 clientes.\n\nUna señal que apunta a la causa: la carga comercial está en 5.4%, por encima de tu meta de 3.5%. Ese exceso ($156K en acciones comerciales) es una parte comprobada de la brecha, no toda — el resto de lo que separa a Sodimac de tu benchmark queda abierto.\n\nPor dónde arrancar: revisa las acciones comerciales de Sodimac (rebates, descuentos) — cerrar solo ese exceso hasta tu meta de 3.5% ya libera $156K.",
+          "suplente": false,
+          "vetos": []
+        },
+        {
+          "q": "baja 2 putnos su carga comercial y dime si queda sobre el benchmark",
+          "calls": 2,
+          "texto": "Bajar la carga comercial de Sodimac 2 puntos —de 5.4% a 3.4%, en el año cerrado— la dejaría apenas debajo de tu meta de carga de 3.5%, según esta simulación (no una medición ya cerrada).\n\nOjo con la referencia: eso resuelve la meta de carga, no el benchmark de margen.\n\nEsto es un estimado: si no se cumple el supuesto planteado tal cual, lo que recuperarías podría variar.",
+          "suplente": false,
+          "vetos": []
+        }
+      ],
+      "B": [
+        {
+          "q": "¿cómo viene Sodimac?",
+          "calls": 2,
+          "texto": "Sodimac crece pero pierde calidad en el camino.\n\n- Ventas $8.2M, +5.1% vs presupuesto ($7.8M) y +5.1% vs año anterior ($7.8M).\n- Margen de Sodimac 23.5%, 6.6 puntos por debajo del benchmark de cartera (30.1%).\n- Carga comercial 5.4%, muy por encima de la meta (3.5%) — es la segunda más alta de los 13 clientes, solo detrás de Easy.\n\nEl crecimiento se está pagando caro: para mover $8.2M, Sodimac usa $442K en acciones comerciales (5.4% de la venta), cuando la meta interna es 3.5%. Ese exceso de carga es lo que le está comiendo margen frente al resto de la cartera.\n\nQué hacer primero: llevar la carga comercial de Sodimac de 5.4% a la meta de 3.5%. Eso libera cerca de $155K que hoy se van en descuentos o acciones comerciales sin traducirse en margen. Empieza por revisar los acuerdos vigentes con Sodimac en Bosch/Materiales de Construcción antes de negociar el próximo período.\n\n[[CALCULO]]\nid=c1 · op=pct_de · inputs=$8.2M; 3.5% · formula=3.5% de $8.2M (Sodimac, meta de carga comercial) · resultado=$287K · unidad=money\nid=c2 · op=restar · inputs=$442K; c1 · formula=carga comercial actual Sodimac $442K - meta $287K · resultado=$155K · unidad=money\nid=c3 · op=restar · inputs=30.1%; 23.5% · formula=benchmark de margen 30.1% - margen Sodimac 23.5% · resultado=6.6pp · unidad=pp\nid=c4 · op=restar · inputs=5.4%; 3.5% · formula=carga comercial Sodimac 5.4% - meta 3.5% · resultado=1.9pp · unidad=pp",
+          "estado": "reparado",
+          "vetos": [
+            "cifra-de-dato-sin-dueno"
+          ],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        },
+        {
+          "q": "baja 2 putnos su carga comercial y dime si queda sobre el benchmark",
+          "calls": 1,
+          "texto": "Bajo este supuesto, la carga comercial de Sodimac pasaría de 5.4% a 3.4% — quedaría por debajo de la meta de 3.5%, no por encima.\n\n- Meta de carga comercial: 3.5%.\n- Mejor práctica interna: 3.0%.\n- Sodimac simulado: 3.4% — cruza la meta, pero todavía a 0.4pp de la mejor práctica.\n\nOjo: esto es una simulación de carga, no cambia el margen de Sodimac (23.5%), que sigue 6.6 puntos bajo el benchmark de cartera (30.1%). Bajar la carga es necesario pero no alcanza solo; falta ver si ese ahorro se traduce en margen o se destina a otro descuento.\n\nQué hacer primero: fijar el techo de carga comercial de Sodimac en 3.5% para el próximo período y monitorear que el margen suba en paralelo — si la carga baja pero el margen no se mueve, el problema no está en las acciones comerciales sino en el precio o el costo negociado con Bosch.\n\n[[CALCULO]]\nid=c1 · op=restar · inputs=5.4%; 2pp · formula=carga comercial actual Sodimac 5.4% - 2pp · resultado=3.4% · unidad=pp\nid=c2 · op=restar · inputs=3.5%; c1 · formula=meta de carga comercial 3.5% - carga simulada 3.4% · resultado=0.1pp · unidad=pp\nid=c3 · op=restar · inputs=c1; 3.0% · formula=carga simulada 3.4% - mejor práctica interna 3.0% · resultado=0.4pp · unidad=pp",
+          "estado": "verde",
+          "vetos": [],
+          "vacias": [],
+          "suplenteDigno": false,
+          "alcanceHeredado": null
+        }
+      ]
+    }
+  ]
+}
