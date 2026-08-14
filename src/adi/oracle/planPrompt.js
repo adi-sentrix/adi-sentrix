@@ -146,11 +146,35 @@ export const PLAN_TOOL = {
   },
 };
 
+/* ── LA DOCTRINA DEL DATO DEL NEGOCIO PARA EL PLAN (owner 2026-08-14, «el que DECIDE no ve nada») ───────────────
+ * POR QUÉ EXISTE: el planificador elegía tools y alcance viendo SOLO el hilo recortado + la pregunta + la línea de
+ * vista (buildPlanUserMessage). No sabía qué entidades existen, con qué nombre exacto, en qué eje viven, ni qué
+ * métricas tiene declarada cada eje — así que adivinaba el eje por el fraseo y pedía combinaciones que el dato no
+ * sirve. La medición del owner (5 llamadas, 2026-08-14) mostró que el MISMO dato que hoy recibe el narrador
+ * sostiene un hilo de tres turnos sin perder el alcance; la diferencia no está en quien narra, sino en que quien
+ * decide no ve el mapa.
+ * QUÉ ES Y QUÉ NO ES — la parte más importante del texto, con la misma dureza que su gemela de NARRAR
+ * (DOCTRINA_DATO_NEGOCIO, narratePromptC.js): acá el dato es para ELEGIR LA HERRAMIENTA Y EL ALCANCE, jamás para
+ * responder ni para copiar cifras al plan. PLAN emite JSON de tools con tool_choice forzado — nunca redacta— así
+ * que una cifra suya no llegaría a pantalla, pero sí puede envenenar un `args` (un filtro con un número) o un
+ * `rationale`, y por ahí se cuela una cifra sin autorizar aguas abajo. Se prohíbe explícito.
+ * VIAJA SOLO CON EL BLOQUE: sin `datoNegocio` este texto NO entra al system (mismo criterio condicional que la
+ * doctrina de pantalla) — el system de un caller viejo queda byte por byte como hoy. */
+export const DOCTRINA_DATO_PLAN = `EL DATO DEL NEGOCIO (el bloque que sigue): es el MAPA REAL de este negocio — qué entidades existen y con qué nombre exacto, a qué eje pertenece cada una, qué métricas tiene de verdad cada eje, y qué NO existe en el dato. Está acá para UNA sola cosa: que ELIJAS BIEN LA HERRAMIENTA Y EL ALCANCE. Cuatro reglas:
+1. NO RESPONDÉS CON ESTO. Vos emitís un PLAN en JSON (emitPlan) y nada más: jamás una respuesta, jamás una lectura, jamás una cifra narrada. La respuesta la escribe el narrador, con las cifras que las tools autoricen en ese turno.
+2. NO COPIES NI UNA CIFRA AL PLAN. Ningún número de este bloque va a "args", ni a "rationale", ni a ningún campo. En los args van nombres, ejes, focos y filtros — nunca montos, porcentajes ni valores. Una cifra copiada acá es una cifra sin autorizar aguas abajo.
+3. USALO PARA ACERTAR EL NOMBRE, EL EJE Y LA TOOL. El nombre de la entidad está acá en su forma exacta y en su eje real (cliente, marca, familia, SKU, bodega, canal) — es un HECHO del dato, no algo que se adivine por el fraseo. Y si una métrica no está declarada para ese eje, no pidas esa combinación: elegí la tool que sí la sirve. Ver el bloque también te dice cuántas entidades hay de verdad: no pidas una tool por entidad cuando UNA sola call cubre el eje entero o el par nombrado.
+4. NO PLANIFIQUES CONTRA UN HUECO. Lo que la sección «LO QUE ESTE DATO NO TIENE» declara ausente no lo consigue ninguna tool: no armes calls para llegar a eso por otra vía, y no cruces los dos universos («LOS DOS UNIVERSOS QUE NO RECONCILIAN» también es ley acá). Si la pregunta apunta a un hueco, el plan correcto es el mínimo que permita declinar honesto — no una batería de calls que igual no lo van a encontrar.
+Este bloque NO reemplaza a las tools: las cifras reales y autorizadas las trae el motor ejecutando tu plan. El mapa es para que el plan pida lo correcto la primera vez.`;
+
 // La doctrina de CONTEXTO DE PANTALLA, aparte porque es CONDICIONAL (ver `hayVista` abajo). Texto sin cambios.
 export const DOCTRINA_CONTEXTO_VISTA = `· CONTEXTO DE PANTALLA (owner 2026-08-09, Contrato de Concordancia ADI ↔ Sentrix): si el turno trae una línea "Contexto de pantalla", el usuario está mirando ESO mientras escribe. Resolvé contra esa vista los deícticos de PIEZA ("este gráfico", "esta tabla", "ese punto", "estos clientes", "esos SKU", "los de arriba", "acá"), y pedí a las tools la evidencia de ESA métrica, ESE eje y ESE período — el usuario espera la MISMA cifra que tiene delante, no otra lectura del mismo tema. La línea NO TRAE CIFRAS y NUNCA las inventes desde ella: dice QUÉ está mirando, no cuánto vale; las cifras siguen saliendo EXCLUSIVAMENTE de las tools. Y no manda sobre el turno: si el usuario nombra otra entidad, otro eje, otra métrica o "el negocio", eso PISA el contexto de pantalla — manda lo que dice AHORA, la pantalla es solo el telón de fondo.`;
 
 // buildPlanSystem(persona, memBlock, scenario) → system de la Pasada 1. La DOCTRINA vive acá: entendé libre, pero
 // solo PEDÍS datos por las tools; no inventás cifras (eso lo trae el motor y lo valida el guard).
+// `datoNegocio` (5º argumento, owner 2026-08-14) — la proyección curada del dato (datoProyectado.js), la MISMA que
+// recibe el narrador. Va con su doctrina (DOCTRINA_DATO_PLAN) JUSTO ANTES del escenario, que es el corte del caché:
+// así el bloque cae ENTERO del lado FIJO y queda al final de él. Sin el argumento no entra ni un byte.
 // `hayVista` (corrección 2026-08-09, pase de regresión): el bullet CONTEXTO DE PANTALLA entraba en el system de
 // TODOS los turnos —209 tokens, 2.9% del prompt de PLAN— para explicar cómo tratar una línea que el 100% de los
 // turnos sin Sentrix no recibe. Su gemelo de NARRAR (buildNarrateSystemC, `hayContextoVista`) ya se manda condicional
@@ -173,8 +197,12 @@ export const DOCTRINA_CONTEXTO_VISTA = `· CONTEXTO DE PANTALLA (owner 2026-08-0
 // la capacidad de interpretar — `fijo + variable` es BYTE POR BYTE el mismo string que devuelve `buildPlanSystem`,
 // y hay un gate que lo verifica. Lo único que cambia es CÓMO viaja: el adapter puede poner el corte del caché
 // donde de verdad termina lo estable. Con el sink de telemetría prendido, `tokens_in_cache` lo hace visible.
-export function buildPlanSystemSegments(persona, memBlock, scenario, hayVista = false) {
-  const completo = buildPlanSystem(persona, memBlock, scenario, hayVista);
+// `datoNegocio` (owner 2026-08-14, «el dato al PLAN») — quinto argumento OPCIONAL, con la MISMA disciplina que el
+// séptimo de buildNarrateSystemSegments: la proyección entra AL FINAL del segmento FIJO, así el fijo de siempre
+// queda como prefijo byte-idéntico y el bloque (estable por tenant+escenario) solo EXTIENDE el prefijo cacheable,
+// nunca lo parte. Sin el argumento, TODO caller viejo produce el mismo system de hoy, byte por byte.
+export function buildPlanSystemSegments(persona, memBlock, scenario, hayVista = false, datoNegocio = null) {
+  const completo = buildPlanSystem(persona, memBlock, scenario, hayVista, datoNegocio);
   // el corte es la primera línea que depende del turno. `hayVista` inserta su doctrina JUSTO antes del escenario,
   // así que buscar el escenario (que siempre está) deja la doctrina de pantalla del lado variable, donde va.
   const marca = hayVista ? DOCTRINA_CONTEXTO_VISTA : "· Escenario de datos actual:";
@@ -183,7 +211,7 @@ export function buildPlanSystemSegments(persona, memBlock, scenario, hayVista = 
   return { fijo: completo.slice(0, i), variable: completo.slice(i) };
 }
 
-export function buildPlanSystem(persona, memBlock, scenario, hayVista = false) {
+export function buildPlanSystem(persona, memBlock, scenario, hayVista = false, datoNegocio = null) {
   return `${persona}
 
 TU TAREA AHORA (planificación): leé el turno del usuario en el contexto del hilo y emití un PLAN de qué datos necesitás. NO redactás la respuesta todavía; NO inventás cifras. Solo decidís qué tools llamar y con qué alcance.
@@ -216,7 +244,7 @@ ${buildPrefDoctrine()}
 · TRATO/IDENTIDAD: si da una instrucción de cómo tratarlo → llená memoryUpdate. "llámame X" → nombre:X. "trátame de usted" → trato:usted; "de tú"/"tuteame" → trato:tu. "no uses tecnicismos" → tecnicismo:bajo. "no me muestres tablas" → tablas:false. "prioriza lo financiero/el impacto económico" → prioridad:financiero. Si SOLO da la instrucción → intent="ack", calls=[]. Si además pregunta algo → intent="answer" con sus calls. (Las correcciones de verbosidad/detalle — "háblame más directo", "sin rodeos", "explícame con más detalle" — NO van acá, son "pref", ver arriba.)
 · Elegí las tools mínimas que respondan de verdad. Una respuesta "overview"/"resumen"/"insight del negocio" puede pedir varias (ej. executiveSummary, o diagnose + queryMetric) — pero con el alcance correcto.
 · TEMPORAL: para "mes a mes", "mensual", "evolución", "cómo viene mes a mes", un trimestre/Q, un semestre, un mes puntual, un rango de meses, o "esto mismo mes a mes" → usá la tool 'trend' (metric + dimension o entity + period). El dato mensual REAL es VENTAS y CONTRIBUCIÓN (la propia tool declara honesto lo que no: resultado/P&L mensual, inventario mensual, canal mensual, margen en matriz por eje). CONSERVÁ EL ALCANCE DEL TURNO ANTERIOR: si venías hablando de un EJE (los SKU, los clientes, las marcas) y ahora piden "esto mismo mes a mes", pasá ese eje → dimension:"sku"/"cliente"/"marca" (NO el negocio global: cambiarle el alcance al usuario sin avisar es peor que no responder). Si venías de UNA entidad, pasá entity. Si en un seguimiento la métrica anterior no tiene mensual (ej. costo medio), pedí 'trend' de la que SÍ (ventas/contribución) sobre el MISMO eje — no la foto actual. FUTURO/pronóstico NO existe (no hay serie a futuro): eso sí, intent="answer" y el narrador aclara que no proyecta.
-${hayVista ? DOCTRINA_CONTEXTO_VISTA + "\n" : ""}· Escenario de datos actual: ${scenario}.
+${datoNegocio ? `\n${DOCTRINA_DATO_PLAN}\n\n${datoNegocio}\n\n` : ""}${hayVista ? DOCTRINA_CONTEXTO_VISTA + "\n" : ""}· Escenario de datos actual: ${scenario}.
 
 ${memBlock ? memBlock + "\n\n" : ""}Emití el plan con emitPlan.`;
 }
