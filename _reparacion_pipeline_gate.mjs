@@ -18,7 +18,10 @@
  */
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { renderInteractionMemory } from "./src/adi/oracle/persona.js";
-import { composeFromLedger } from "./src/adi/oracle/narrationBlocks.js";
+// La Poda Fase 2A: el narrador simulado de este arnés componía con `composeFromLedger` (ya borrado). Compone con
+// `componerPorForma`, que es la reparación REAL del motor desde 2026-08-12 — misma tabla, mismas cifras verbatim
+// del ledger del turno, con la forma pedida explícita en vez de implícita.
+import { componerPorForma } from "./src/adi/oracle/narrationBlocks.js";
 import { getLastOffer, getRecentSubjects } from "./src/adi/oracle/dialogueState.js";
 import { invalidateViewContext } from "./src/adi/oracle/viewContext.js";
 import { REPAIR_FIELD_KEYS, buildRepairNarrateDoctrine } from "./src/adi/oracle/conversationalContract.js";
@@ -45,7 +48,8 @@ const planCorreccion = (entidad) => ({ intent: "redirect", mode: "default", rati
 // pregunta la exige), y los turnos siguientes citan UNA cifra en prosa. Si todos compusieran la tabla, el
 // segundo repetiría un tramo verbatim del primero y guardC lo marcaría "degradado" — reintentaría tres veces por
 // un artefacto del arnés, no por conducta del producto.
-const narrarTablaConOferta = (oferta) => async ({ ledgerFigs }) => `${composeFromLedger(ledgerFigs || [], "full") || "Sin datos."}\n\n[[SIGUIENTE_PASO]]\n${oferta}`;
+const _tablaDelLedger = (figs) => componerPorForma({ figs: figs || [], contentScope: "full", forma: "tabla" });
+const narrarTablaConOferta = (oferta) => async ({ ledgerFigs }) => `${_tablaDelLedger(ledgerFigs) || "Sin datos."}\n\n[[SIGUIENTE_PASO]]\n${oferta}`;
 const unaCifra = (figs, entidad) => {
   const l = (figs || []);
   const f = l.find((x) => x && new RegExp(`^${entidad}\\s+·\\s+Margen`).test(String(x.label || ""))) || l[0];
@@ -110,14 +114,14 @@ let planN4 = 0;
 await answerViaOracle({
   text: "te pedí del negocio", history: [], mem: t1.mem, scenario: "actual",
   callPlan: async () => { planN4++; return { intent: "redirect", mode: "default", rationale: "sin calls y sin reparación", scope: { level: "global", entities: [] }, calls: [] }; },
-  callNarrate: async ({ ledgerFigs }) => composeFromLedger(ledgerFigs || [], "full") || "Sin datos disponibles para responder eso.",
+  callNarrate: async ({ ledgerFigs }) => _tablaDelLedger(ledgerFigs) || "Sin datos disponibles para responder eso.",
 });
 ok("un redirect RESUELTO sin calls sigue gastando sus 3 intentos (el defecto que el backstop mide sigue medido)", planN4 === 3, `plan=${planN4}`);
 let planN5 = 0;
 await answerViaOracle({
   text: "eso está mal", history: [], mem: t1.mem, scenario: "actual",
   callPlan: async () => { planN5++; return { intent: "redirect", mode: "default", rationale: "ambigua pero con corrige poblado", scope: { level: "entity", entities: [] }, calls: [], reparacion: { tipo: "correccion", ambigua: true, corrige: ["entidad"], pregunta: "¿cuál?" } }; },
-  callNarrate: async ({ ledgerFigs }) => composeFromLedger(ledgerFigs || [], "full") || "Sin datos.",
+  callNarrate: async ({ ledgerFigs }) => _tablaDelLedger(ledgerFigs) || "Sin datos.",
 });
 ok("una reparación que se declara ambigua PERO dice qué corrigió no se cuela como pregunta", planN5 === 3, `plan=${planN5}`);
 

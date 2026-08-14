@@ -49,7 +49,10 @@ import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { buildNarrationContract, sealScopeContract, isSealed } from "./src/adi/oracle/narrationContract.js";
 import { buildPlanUserMessage } from "./src/adi/oracle/planPrompt.js";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
-import { composeFromLedger } from "./src/adi/oracle/narrationBlocks.js";
+// La Poda Fase 2A: acá se importaba `composeFromLedger`, el compositor viejo de la rama restringida. El motor ya no
+// lo usa —bajo `data_only` compone con `componerPorForma`— así que el gate componía con una pieza que producción
+// había dejado de ejecutar: probaba una forma que ya nadie servía. Ahora usa la del motor.
+import { componerPorForma } from "./src/adi/oracle/narrationBlocks.js";
 import { guardC, periodosEsperados, ensurePeriodoDeclared } from "./src/adi/oracle/guardC.js";
 import { resolveEntityRef } from "./src/adi/oracle/entityIndex.js";
 import { guessDimension } from "./src/adi/oracle/entityRecord.js";
@@ -297,11 +300,11 @@ H("[5] «SOLO EL DATO» · dato + período + alcance, y nada más");
   const P = { mode: "default", intent: "answer", scope: { level: "entity", entities: ["Falabella"] }, calls: [{ tool: "entityRecord", args: { entity: "Falabella", field: "venta" } }] };
   const { results, ledger } = runPlan(P, { scenario: SCN });
   const pref = { contentScope: "data_only", detailLevel: "standard" };
-  const dato = composeFromLedger(ledger.figs, "data_only");
+  const dato = componerPorForma({ figs: ledger.figs, contentScope: "data_only" });
   const alcanceLinea = buildAlcanceLine(sealScopeContract({ plan: P, results, scenario: SCN, requestContext: RC, pref }));
   const respuesta = ensurePeriodoDeclared(`${dato}\n\n${alcanceLinea}`, periodosEsperados(results));
 
-  ok(!!dato && /Falabella/.test(dato) && /\$/.test(dato), "1/3 · EL DATO: la boleta compone las cifras autorizadas");
+  ok(!!dato && /Falabella/.test(dato) && /\$/.test(dato), "1/3 · EL DATO: la boleta compone la cifra autorizada, con su entidad");
   ok(/año cerrado|a la fecha de hoy|hoy/i.test(respuesta), "2/3 · EL PERÍODO: queda declarado en el texto");
   ok(/^Alcance:/m.test(respuesta) && /Falabella/.test(alcanceLinea), "3/3 · EL ALCANCE: sobre qué universo está medido");
   ok(!/\d/.test(alcanceLinea), "el alcance no introduce ninguna cifra que el guard deba autorizar");

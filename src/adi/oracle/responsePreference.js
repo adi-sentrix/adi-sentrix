@@ -171,7 +171,7 @@ Escribí SOLO los bloques que el alcance de abajo necesita — alcance="data_onl
 // blockInstructionFor(contentScope) → instrucción de marcado REFORZADA A NIVEL DE TURNO (viaja en el payload de la
 // Pasada 2 como "instruccion_formato", no solo en el system prompt) — owner-audit 2026-07-29: la instrucción del
 // system prompt SOLA (buildPrefDispatch, arriba) no bastó — medido en vivo, el narrador ignoraba las marcas 3/3
-// veces y cada turno restringido caía a la reparación determinística (composeFromLedger), perdiendo la narración
+// veces y cada turno restringido caía a la reparación determinística (entonces composeFromLedger, hoy componerPorForma), perdiendo la narración
 // rica. Repetir la instrucción, ESPECÍFICA para el alcance de ESTE turno, en el payload (lo que el modelo trata
 // como la tarea inmediata, no una regla general de fondo) recuperó el cumplimiento en la primera corrida de prueba.
 // null para contentScope="full" (no aplica ninguna restricción, no hace falta reforzar nada).

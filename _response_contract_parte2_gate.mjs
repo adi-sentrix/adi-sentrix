@@ -8,21 +8,24 @@
  *   GAP 2 — vocabulario PROBADO/INDICADO/ABIERTO ahora vive en LA ESTRUCTURA (narratePromptC.js), universal a
  *           cualquier modo (antes confinado al modo "evidencia") — chequeo ESTRUCTURAL del texto del prompt (no
  *           requiere LLM: es inspección de un string armado por una función pura).
- *   GAP 3 — composeFromLedger declara el supuesto de una simulación bajo data_only/results_only (antes lo
+ *   GAP 3 — el compositor de la boleta declara el supuesto de una simulación bajo data_only/results_only (antes lo
  *           descartaba por completo, violando "nunca ocultes el supuesto usado"). Incluye el caso ADVERSARIAL que
  *           probó que el fix ingenuo (solo tocar narrationBlocks.js) dependía de SUERTE combinatoria del guard en
  *           datasets ricos — el fix real agrega una fig "Supuesto %" dedicada en los composers de specRetrieval.js
  *           (mismo patrón que computeGoalAnchor, que ya lo hacía bien) para que sea GARANTÍA POR CONSTRUCCIÓN.
  *
- * Todo corre contra el pipeline REAL (answerViaOracle → runPlan real → guardC real → composeFromLedger real) —
+ * Todo corre contra el pipeline REAL (answerViaOracle → runPlan real → guardC real → componerPorForma real) —
  * SOLO callPlan/callNarrate están mockeados (los DOS puntos de inyección de LLM que answerViaOracle.js ya expone
- * para testing, ver su firma). runPlan/guardC/composeFromLedger corren de VERDAD, sobre datos reales del repo.
+ * para testing, ver su firma). runPlan/guardC/componerPorForma corren de VERDAD, sobre datos reales del repo.
  * NINGÚN _*_gate.mjs preexistente se ejecuta desde acá — este archivo es autosuficiente.
  */
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ""); }
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
-import { composeFromLedger } from "./src/adi/oracle/narrationBlocks.js";
+// La Poda Fase 2A: `composeFromLedger` (borrado) → `componerPorForma`. Bajo `results_only` los dos emiten la MISMA
+// tabla y la MISMA línea «Supuesto: …», porque comparten las dos funciones que la arman (`_findSupuestoContext` y
+// `_formatSupuestoLine`): el GAP 3 que este bloque certifica se sigue midiendo sobre el compositor vivo.
+import { componerPorForma } from "./src/adi/oracle/narrationBlocks.js";
 import { blockInstructionFor, BRIEF_INSTRUCTION } from "./src/adi/oracle/responsePreference.js";
 import { buildNarrateSystemC } from "./src/adi/oracle/narratePromptC.js";
 import { MODES } from "./src/adi/oracle/conversationalContract.js";
@@ -55,7 +58,7 @@ console.log("── GAP 1 · las 13 frases EXACTAS del owner activan contentScop
   ];
   for (const frase of FRASES_13) {
     const r = await answerViaOracle({ text: `dame un resumen ejecutivo, ${frase}`, history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN, callNarrate: NEVER });
-    ok(r && r.r && r.r.narrationRepaired === true, `"${frase}" → contentScope=data_only (composeFromLedger, narrador NUNCA invocado)`);
+    ok(r && r.r && r.r.narrationRepaired === true, `"${frase}" → contentScope=data_only (compuesto desde la boleta, narrador NUNCA invocado)`);
   }
 
   // control negativo: la MISMA estructura de pregunta SIN ninguna de las 13 frases sigue narrando libre (el fix no
@@ -102,7 +105,7 @@ console.log("\n── EJEMPLO EXACTO DEL OWNER — data_only en la ruta determin
 console.log("\n── GAP 3 · simulación bajo results_only DECLARA el supuesto (antes lo descartaba — bug de honestidad real) ──");
 {
   // "no me recomiendes" (una de las 13 frases, GAP 1) DENTRO de mode=simulacion → results_only (ver
-  // _PREF_RESULTS_ONLY_SIM_RE). simulateCosto trae datos reales del repo — composeFromLedger arma la tabla +
+  // _PREF_RESULTS_ONLY_SIM_RE). simulateCosto trae datos reales del repo — componerPorForma arma la tabla +
   // declara el supuesto ("Supuesto: costo medio -3%...") gracias a la fig "Supuesto %" dedicada (specRetrieval.js).
   const PLAN = { intent: "answer", mode: "simulacion", calls: [{ tool: "simulateCosto", args: { dimension: "sku", pct: -3, scope: "bajo_benchmark" } }] };
   const r = await answerViaOracle({ text: "¿y si bajo el costo medio de mis peores SKU un 3%? no me recomiendes nada", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN, callNarrate: NEVER });
@@ -137,7 +140,7 @@ console.log("\n── GAP 3 · ADVERSARIAL — el fix es GARANTÍA POR CONSTRUCC
     fig("Margen promedio · actual", "41.0%", { unit: "pct", raw: 41.0, context: _ctx, source: "actual" }),
     fig("Margen promedio · nuevo", "44.5%", { unit: "pct", raw: 44.5, context: _ctx, mandatory: true, source: "computed" }),
   ];
-  const composed = composeFromLedger(figsRicos, "results_only");
+  const composed = componerPorForma({ figs: figsRicos, contentScope: "results_only" });
   const verdict = guardC(composed, { ledger: { figs: figsRicos }, results: [], trace: null, question: "¿y si bajo el costo medio un 7%?" });
   ok(/^Supuesto: costo medio -7%/m.test(composed), "declara -7% en la línea de Supuesto");
   ok(verdict.ok === true, `guardC ACEPTA -7% con un pool de SOLO 2 figs pct que no puede reproducirlo por resta/suma — garantía real, no suerte — obtuvo ${JSON.stringify(verdict.violations)}`);
@@ -145,7 +148,7 @@ console.log("\n── GAP 3 · ADVERSARIAL — el fix es GARANTÍA POR CONSTRUCC
   // control negativo: SIN la fig "Supuesto %" dedicada (simulando el bug original), el mismo pool pobre SÍ falla —
   // prueba que el guard realmente estaba en riesgo, y que la fig dedicada es la que lo cierra (no un efecto lateral).
   const figsSinDedicada = figsRicos.slice(1);   // saca "Supuesto %"
-  const composed2 = composeFromLedger(figsSinDedicada, "results_only");
+  const composed2 = componerPorForma({ figs: figsSinDedicada, contentScope: "results_only" });
   const verdict2 = guardC(composed2, { ledger: { figs: figsSinDedicada }, results: [], trace: null, question: "¿y si bajo el costo medio un 7%?" });
   ok(verdict2.ok === false, `control: SIN la fig dedicada, el mismo pool pobre SÍ rechaza -7% (prueba que el riesgo era real, no un fantasma) — verdict=${verdict2.verdict}`);
 }

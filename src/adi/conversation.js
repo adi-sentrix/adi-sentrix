@@ -362,14 +362,11 @@ export function composeMeta(topic, last) {
   return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "meta", boleta: bol, transform: (last && last.transform) || null }, route: "meta_question" };
 }
 
-// ── composeCompareNotYet · (legacy V1) placeholder honesto · reemplazado por composeCompare (V2) · se conserva por compat ──
-export function composeCompareNotYet(spec, last) {   // eslint-disable-line no-unused-vars
-  const target = spec && ((spec.comparison && spec.comparison.entities && spec.comparison.entities.slice(-1)[0]) || spec.entity);
-  const text = target
-    ? `La comparación conversacional llega en el próximo paso. Dime que avance y la preparo contra ${target}; por ahora te dejo la lectura actual.`
-    : "Puedo comparar en el próximo paso, pero necesito contra qué entidad. ¿Contra cuál quieres cruzarlo?";
-  return { text, suggestions: null, sentrixAction: null, evidence: { followup: true, kind: "compare_pending", boleta: [] }, route: "followup_compare" };
-}
+/* EL PLACEHOLDER V1 SE FUE (La Poda Fase 2A, 2026-08-14). `composeCompareNotYet` prometía «la comparación llega en
+ * el próximo paso»: ese próximo paso es `composeCompare` (abajo), en producción desde 2026-07-06. Se conservaba
+ * «por compat» con un eslint-disable de no-unused-vars encima, que es la firma de una ruta muerta. Verificado
+ * antes de borrarlo: cero callers en src/, api/, server.js y arneses — el único rastro era su re-export en
+ * `_conversation_gate.mjs`, que lo destructuraba sin usarlo nunca. */
 
 // ── V2 · comparación conversacional REAL. El LLM aporta el TARGET (lo explícito del mensaje: "La Polar"); el SUJETO y el
 // EJE salen de la última evidencia (fuente de verdad, no la memoria del LLM). Construye el spec de compare y lo ejecuta

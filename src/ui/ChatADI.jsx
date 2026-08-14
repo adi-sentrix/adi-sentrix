@@ -784,47 +784,11 @@ function HeroInicio() {
   );
 }
 
-// El hero VIEJO queda acá abajo, sin montarse, hasta que el owner confirme la versión nueva en pantalla.
-function _HeroInicioLegacy({ onChip }) {
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:20, padding:"8px 0", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
-      <div>
-        <div style={{ fontSize:19, fontWeight:600, color:C.text, letterSpacing:"-0.01em", lineHeight:1.3 }}>Dónde, cómo y por qué ganas y pierdes dinero</div>
-        <div style={{ fontSize:12.5, color:C.textMuted, marginTop:4 }}>Asesorate con ADI · datos actuales</div>
-      </div>
-      {/* RESUMEN EJECUTIVO como BOTÓN (owner 2026-07-14: "agregaría el botón de resumen ejecutivo, eso irá
-          cambiando con los datos") — la historia de valor en 8 movimientos siempre VIVA: ADI la arma con el dato
-          del momento, no una foto estática. Mismo spec que el coerce de "hazme un resumen ejecutivo" (gate-proven). */}
-      <button onClick={() => onChip(_SPEC({ operation:"diagnose", focus:"resumen_ejecutivo", metric:"contribucion", dimension:"cliente" }), "Hazme un resumen ejecutivo")}
-        style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"13px 16px", borderRadius:12, border:"1px solid rgba(47,184,218,0.4)", background:"rgba(47,184,218,0.07)", fontFamily:"'DM Sans', system-ui, sans-serif", textAlign:"left", cursor:"pointer", transition:"background 0.15s, border-color 0.15s" }}
-        onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.12)"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
-        onMouseLeave={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.07)"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.4)"; }}>
-        <span>
-          <span style={{ fontSize:13.5, fontWeight:600, color:C.celeste }}>Resumen ejecutivo</span>
-          <span style={{ fontSize:12, color:C.textSub, display:"block", marginTop:2, lineHeight:1.4 }}>La foto completa de hoy: dónde estás ganando, dónde estás perdiendo y la primera acción.</span>
-        </span>
-        <span style={{ color:C.celeste, fontSize:16, flexShrink:0 }}>→</span>
-      </button>
-      {/* preguntas de plata (chips enlatados) */}
-      <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
-        <div style={{ fontSize:12, color:C.textMuted, marginBottom:11 }}>Preguntame algo puntual</div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:10 }}>
-          {HERO_CHIPS.map((c, i) => (
-            /* borde CELESTE en toda card de pregunta (owner 2026-07-14: "las preguntas o cada card que
-               tengamos deben tener los bordes celestes" — el toque de la landing) */
-            <button key={i} onClick={() => onChip(c.spec, c.q)}
-              style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 14px", borderRadius:11, border:"1px solid rgba(47,184,218,0.35)", background:C.card, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:13, fontWeight:500, textAlign:"left", cursor:"pointer", lineHeight:1.35, transition:"background 0.15s, border-color 0.15s" }}
-              onMouseEnter={e=>{ e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.background = C.card; e.currentTarget.style.borderColor = "rgba(47,184,218,0.35)"; }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:C.celeste, flexShrink:0 }}/>
-              {c.q}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+/* EL HERO VIEJO SE FUE (La Poda Fase 2A, 2026-08-14). `_HeroInicioLegacy` —título-promesa + botón «Resumen
+ * ejecutivo» + la grilla de HERO_CHIPS— quedaba acá sin montarse desde que el owner cortó el inicio a una sola
+ * pregunta (2026-08-12). Verificado antes de borrarlo: cero callers en todo el repo (definición única). Lo que
+ * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
+ * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
 export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]

@@ -27,7 +27,7 @@ console.log("── 1 · data_only con tilde: \"sólo la cifra\" (el caso EXACTO
   let called = false;
   const r = await answerViaOracle({ text: "Dame el margen de Sodimac, sólo la cifra.", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN, callNarrate: async () => { called = true; return SAFE_NARRATION; } });
   ok(!called, '"sólo la cifra" (con tilde) fuerza data_only SIN invocar al narrador libre (antes: el narrador se invocaba igual, ignorando la preferencia)');
-  ok(r && r.r && r.r.narrationRepaired === true, `la respuesta salió de composeFromLedger (data_only por construcción) — "${r && r.r && r.r.text.slice(0, 80)}..."`);
+  ok(r && r.r && r.r.narrationRepaired === true, `la respuesta salió de la reparación determinística (data_only por construcción) — "${r && r.r && r.r.text.slice(0, 80)}..."`);
 }
 
 console.log('\n── 2 · action_only con tilde: "dame sólo la acción, sin el diagnóstico" ──');
@@ -44,7 +44,7 @@ console.log('\n── 3 · results_only con tilde (simulación): "dame sólo los
   let called = false;
   const r = await answerViaOracle({ text: "¿y si bajo la carga al target? dame sólo los resultados, sin recomendación", history: [], mem: {}, scenario: "actual", callPlan: async () => PLAN, callNarrate: async () => { called = true; return SAFE_NARRATION; } });
   ok(!called, '"sólo los resultados" (con tilde), en simulación, resuelve results_only SIN invocar al narrador');
-  ok(r && r.r && r.r.narrationRepaired === true, "la respuesta salió de composeFromLedger");
+  ok(r && r.r && r.r.narrationRepaired === true, "la respuesta salió de la reparación determinística, no del narrador");
 }
 
 console.log('\n── 4 · "solo por esta vez" con tilde sigue ganando sobre un reset ──');
