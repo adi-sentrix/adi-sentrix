@@ -348,11 +348,11 @@ H("══ [2c] ESTÁTICO · todo literal de pantalla del camino vigente ══")
  * sin que nada mejore. Esto ata las formas que este barrido MIDIÓ en pantalla —cada una salió de un literal real
  * del camino vigente, no de una lista imaginada— y exige que el detector las siga cazando.
  *
- * LO QUE ESTA SECCIÓN NO AFIRMA, dicho explícito: que el stripper de runtime las neutralice. Medido hoy, de 316
- * variantes del detector el stripper conoce 150 y otras 10 sólo en posición de orden — las ~156 restantes las
- * caza el gate en un literal pero NO las lavaría si el narrador las escribiera libre. Eso es un hueco REAL y está
- * declarado en `_INFORME_VOSEO_VIGENTE.md`: cerrarlo cambia la narración viva de todos los turnos y es decisión
- * del arquitecto, no de este pase. Se deja medido, no disimulado. */
+ * LO QUE ESTA SECCIÓN NO AFIRMA, dicho explícito: que el stripper de runtime las neutralice. Eso lo mide y lo
+ * lockea `_voice_gate.mjs` §[V], que es donde vive la red morfológica. Estado al 2026-08-14: de 311 variantes del
+ * detector el stripper cubre 290 (280 en prosa neutra + 10 gateadas a posición de orden) y las 21 restantes están
+ * declaradas UNA POR UNA con su motivo en `NO_CUBIERTAS`. El hueco que este comentario declaraba abierto —150 de
+ * 316— se cerró; la diferencia que queda es deliberada, no un descuido, y está listada. */
 H("══ [2d] EL DETECTOR · las formas medidas en pantalla siguen cazándose ══");
 {
   const MEDIDAS_EN_PANTALLA = [
