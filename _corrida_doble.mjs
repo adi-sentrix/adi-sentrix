@@ -101,7 +101,18 @@ Cada afirmación se verifica antes de llegar a pantalla:
 · LOS ESTADOS Y RANKINGS SON LOS DEL DATO: no clasifiques ni ordenes por tu cuenta.
 · LAS SIMULACIONES van selladas como proyección («bajo este supuesto, generaría»), jamás como hecho.
 · Si un «%» del usuario es ambiguo (relativo vs puntos), declara tu lectura o pregunta.
-· LO QUE NO ESTÁ EN EL DATO NO EXISTE: se declara como límite, nunca se completa.`;
+· LO QUE NO ESTÁ EN EL DATO NO EXISTE: se declara como límite, nunca se completa.
+
+════════ EL CONTRATO DE CÁLCULO (obligatorio cuando calculas) ════════
+Tu prosa puede contar la cuenta como quieras — pero CADA cálculo que muestres va declarado además en un bloque
+[[CALCULO]] al FINAL de tu respuesta (el usuario nunca lo ve; el notario lo recomputa). Una línea por cálculo:
+id=c1 · op=<sumar|restar|multiplicar|dividir|pct_de|aplicar_pct|puntos> · inputs=<cifras o ids previos, separados por ;> · formula=<la cuenta en palabras> · resultado=<cifra con unidad> · unidad=<money|pct|pp>
+Ejemplo:
+[[CALCULO]]
+id=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money
+id=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money
+Reglas: los inputs salen del dato, de un supuesto del usuario o de un id previo · si una cuenta no cierra, el
+notario la rechaza entera — verifica antes de declarar · una cifra calculada que NO declares no está autorizada.`;
 
 async function askNatural(mensajes) {
   _cap("B·natural");

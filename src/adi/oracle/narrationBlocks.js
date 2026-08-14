@@ -37,7 +37,7 @@ const _MARK_RE = /\[\[(DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO)\]\]/g;
 // `extractOffer` (dialogueState) y ~20 gates: eso es reestructurar el sistema de bloques, no agregarle un tipo.
 // En el strip SÍ, y es la red de último recurso: ninguna marca llega jamás al usuario, la haya rendereado alguien
 // o no (bajo data_only/results_only/action_only el renderer del bloque NO corre, y acá muere la marca).
-const _MARK_STRIP_RE = /\[\[(?:DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO|CONTEXTO_GENERAL)\]\]\s*/g;
+const _MARK_STRIP_RE = /\[\[(?:DATOS|INTERPRETACION|ACCION|SIGUIENTE_PASO|CONTEXTO_GENERAL|CALCULO)\]\]\s*/g;
 
 // stripAllMarks(text) → saca CUALQUIER marca [[...]] del texto VISIBLE (owner 2026-07-31, hallazgo en vivo,
 // certificación integral pre-#57): bajo contentScope="full" el narrador NUNCA recibe instruccion_formato (esa
@@ -781,6 +781,56 @@ export function composeAckPreferenciaMessage(contentScope) {
  * results_only NUNCA invocan al narrador —garantía por construcción, ver la cabecera de este archivo—, así que este
  * renderer no corre ahí; y si un texto determinístico trajera la marca por eco (la razón de una tool que cita
  * palabras del usuario), muere en stripAllMarks sin haberse convertido nunca en un bloque con marco. */
+/* ══ EL BLOQUE [[CALCULO]] · EL CONTRATO ESTRUCTURADO DE VERIFICACIÓN (owner 2026-08-14, opción 3) ═════════════
+ * EL PROBLEMA QUE CIERRA, medido a lo largo de cinco corridas: el notario reconocía la cuenta a la vista por su
+ * FORMA de escritura, y cada corrida destapaba una forma nueva («$100.0M proyectados × 1.04», «A − B = C»,
+ * «$2.06M / $8.2M = 25.1%», «1.9 puntos × $8.2M»…). Perseguir formas naturales una por una no converge: el
+ * español para escribir una cuenta es infinito. Palabras del owner: «cada cálculo que el cerebro muestre tiene
+ * que tener también una representación fija y verificable para el notario: operación, inputs, fórmula,
+ * resultado, unidad y calc_id. La respuesta al usuario puede seguir siendo natural; el contrato de verificación
+ * debe ser estructurado.»
+ *
+ * EL BLOQUE NUNCA LLEGA A PANTALLA (va en `_MARK_STRIP_RE` y `extraerCalculos` lo saca del texto). El usuario lee
+ * la prosa; el notario lee la declaración.
+ *
+ * FORMATO — una línea por cálculo, campos separados por «·», tolerante a espacios y a mayúsculas:
+ *   [[CALCULO]]
+ *   id=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money
+ *   id=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money
+ * `inputs` admite el id de un cálculo anterior (c1) — así una cascada se declara sin repetir cifras.
+ *
+ * LO QUE EL NOTARIO HACE CON ESTO (ver guardC): recomputa cada línea; si cierra Y sus inputs están autorizados,
+ * el RESULTADO queda autorizado. Si NO cierra, es veto propio (`calculo-no-verificable`) — declarar una cuenta
+ * falsa es peor que no declararla. El bloque no es un permiso: es una obligación de mostrar el trabajo. */
+export const MARCA_CALCULO = "[[CALCULO]]";
+const _CAMPOS_CALCULO = ["id", "op", "inputs", "formula", "resultado", "unidad"];
+/** extraerCalculos(text) → { calculos: [{id, op, inputs:[], formula, resultado, unidad, linea}], limpio } */
+export function extraerCalculos(text) {
+  const s0 = String(text == null ? "" : text);
+  if (!s0.includes(MARCA_CALCULO)) return { calculos: [], limpio: s0 };
+  const calculos = [];
+  let limpio = s0, i;
+  while ((i = limpio.indexOf(MARCA_CALCULO)) >= 0) {
+    const desde = i + MARCA_CALCULO.length;
+    const fin = _finDelBloque(limpio, desde);
+    for (const linea of limpio.slice(desde, fin).split("\n")) {
+      const l = linea.trim().replace(/^[-*·]\s*/, "");
+      if (!l || !/=/.test(l)) continue;
+      const c = { linea: l, inputs: [] };
+      for (const par of l.split("·")) {
+        const m = par.match(/^\s*([A-Za-zñÑ_]+)\s*=\s*(.*?)\s*$/);
+        if (!m) continue;
+        const k = m[1].toLowerCase();
+        if (!_CAMPOS_CALCULO.includes(k)) continue;
+        c[k] = k === "inputs" ? m[2].split(";").map((x) => x.trim()).filter(Boolean) : m[2];
+      }
+      if (c.op && c.resultado) calculos.push(c);
+    }
+    limpio = limpio.slice(0, i) + limpio.slice(fin);
+  }
+  return { calculos, limpio: _limpiar(limpio) };
+}
+
 export const MARCA_CONTEXTO_GENERAL = "[[CONTEXTO_GENERAL]]";
 // EL TEXTO EXACTO, y es contrato: registro formal LatAm, dice las dos cosas que el usuario necesita saber (no sale
 // de su dato · no se puede verificar con su información) y termina en dos puntos porque lo que sigue es el aporte.

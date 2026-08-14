@@ -17,7 +17,7 @@ import { reconcilian, UNIVERSOS } from "../../config/contract/figureType.js";   
 import { esCalculoDelCatalogo } from "./calculoCatalogo.js";
 // AMPLITUD F3 (owner 2026-08-13, D2): EL CONTRATO DE CONTEXTO GENERAL. El rango del bloque lo declara el MISMO
 // módulo que lo renderea — el muro y el renderer no pueden discrepar sobre dónde empieza y termina el contenedor.
-import { rangoContextoGeneral } from "./narrationBlocks.js";
+import { rangoContextoGeneral, extraerCalculos } from "./narrationBlocks.js";
 
 const _norm = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _stripSpace = (s) => String(s).replace(/\s/g, "");
@@ -2671,6 +2671,12 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   }
   // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
   // el chequeo 26 lo juzgue por sus propias reglas. Sin bloque, `narration` no se toca: byte-idéntico a hoy.
+  /* EL BLOQUE [[CALCULO]] (owner 2026-08-14, opción 3) se saca del texto ANTES que nada: es una declaración para
+   * el notario, no prosa — no puede llegar a pantalla ni ser juzgada como afirmación. Ver narrationBlocks. */
+  const _decl = extraerCalculos(narration);
+  const _calculosDeclarados = _decl.calculos;
+  if (_calculosDeclarados.length) narration = _decl.limpio;
+  const _vetosCalculo = [];   // se llenan en el bloque de adopción (antes de que exista `violations`) y se vuelcan abajo
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
   const _textoCG = _rangoCG ? String(narration).slice(_rangoCG[0], _rangoCG[1]) : null;
   if (_rangoCG) narration = _enmascararRango(String(narration), _rangoCG);
@@ -2855,8 +2861,67 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     }
     if (_adoptadas === _antes) break;   // punto fijo: ninguna pasada nueva aportó nada
     }
+
+    /* ── EL CONTRATO ESTRUCTURADO DE CÁLCULO (owner 2026-08-14, opción 3) ──────────────────────────────────────
+     * Cada línea del bloque [[CALCULO]] se RECOMPUTA. Si cierra y sus insumos están autorizados, su resultado
+     * queda autorizado — sin importar CÓMO esté escrita la cuenta en la prosa, que es justo el problema que esto
+     * cierra. Si NO cierra, es veto propio: declarar una cuenta falsa es peor que no declararla.
+     * OPERACIONES CERRADAS (la aritmética de un asesor, no un intérprete de fórmulas): sumar · restar ·
+     * multiplicar · dividir · pct_de · aplicar_pct · puntos. Se aceptan además los nombres del catálogo de la
+     * calculadora (suma/resta/variacion_pct/participacion/brecha_pp/escalar) mapeados a los mismos. Cualquier
+     * otro nombre → no se verifica y el resultado no se autoriza (falla cerrada, nunca un pase por confianza). */
+    if (_calculosDeclarados.length) {
+      const _num = (s) => {
+        const t = String(s == null ? "" : s).trim();
+        const m = t.match(/^\$?\s*(-?[\d.,]+)\s*([KMB])?\s*(%|pp|puntos?)?/i);
+        if (!m) return null;
+        const n = parseFloat(m[1].replace(/,/g, ""));
+        if (!Number.isFinite(n)) return null;
+        return n * (m[2] ? ({ K: 1e3, M: 1e6, B: 1e9 })[m[2].toUpperCase()] : 1);
+      };
+      const _esPct = (s) => /%|pp|puntos?/i.test(String(s || ""));
+      const _OPS = {
+        sumar: (v) => v.reduce((a, b) => a + b, 0), suma: (v) => v.reduce((a, b) => a + b, 0),
+        restar: (v) => v.slice(1).reduce((a, b) => a - b, v[0]), resta: (v) => v.slice(1).reduce((a, b) => a - b, v[0]),
+        multiplicar: (v) => v.reduce((a, b) => a * b, 1), escalar: (v) => v.reduce((a, b) => a * b, 1),
+        dividir: (v, uni) => (v[1] ? (v[0] / v[1]) * (uni === "pct" ? 100 : 1) : null),
+        participacion: (v) => (v[1] ? (v[0] / v[1]) * 100 : null),
+        pct_de: (v) => (v[0] * v[1]) / 100,
+        aplicar_pct: (v, _u, signo) => v[0] * (1 + (signo < 0 ? -1 : 1) * (v[1] / 100)),
+        variacion_aplicada: (v, _u, signo) => v[0] * (1 + (signo < 0 ? -1 : 1) * (v[1] / 100)),
+        puntos: (v, _u, signo) => v[0] + (signo < 0 ? -1 : 1) * v[1],
+        brecha_pp: (v) => Math.abs(v[0] - v[1]),
+        variacion_pct: (v) => (v[1] ? ((v[0] - v[1]) / v[1]) * 100 : null),
+      };
+      const _porId = new Map();
+      for (const c of _calculosDeclarados) {
+        const op = String(c.op || "").trim().toLowerCase();
+        const fn = _OPS[op];
+        const R = _num(c.resultado);
+        // el signo lo declara la fórmula (o el propio input con signo): «$100.0M − 4%» es distinto de «+ 4%».
+        const signo = /[−–-]\s*\d|\bbaj|\breduc|\bmenos\b/i.test(String(c.formula || "")) ? -1 : 1;
+        const uni = String(c.unidad || (_esPct(c.resultado) ? "pct" : "money")).toLowerCase();
+        const insumos = (c.inputs || []).map((x) => (_porId.has(String(x).trim()) ? _porId.get(String(x).trim()) : _num(x)));
+        const insumosAutorizados = (c.inputs || []).every((x) => _porId.has(String(x).trim()) || _baseOk(String(x)));
+        const esperado = (fn && insumos.length && insumos.every(Number.isFinite)) ? fn(insumos, uni, signo) : null;
+        const cierra = Number.isFinite(esperado) && Number.isFinite(R) && _cierraFrm(esperado, R);
+        if (!fn) {
+          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} usa una operación que no existe («${c.op}») — usá una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos` });
+        } else if (!Number.isFinite(esperado)) {
+          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} no se puede recomputar: revisá sus insumos («${(c.inputs || []).join("; ")}»)` });
+        } else if (!cierra) {
+          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} NO cierra: ${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos` });
+        } else if (!insumosAutorizados) {
+          _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `el cálculo ${c.id || "declarado"} parte de una cifra que no está autorizada («${(c.inputs || []).join("; ")}») — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado` });
+        } else {
+          if (c.id) _porId.set(String(c.id).trim(), R);
+          _adoptar(String(c.resultado));   // la cuenta cerró y sus insumos están autorizados: el resultado vale
+        }
+      }
+    }
   }
   const violations = [];
+  for (const v of _vetosCalculo) violations.push(v);   // el contrato estructurado de cálculo (ver arriba)
   const entityNames = _entityNames(results);   // adelantado (antes vivía en el paso 3) — _isCalc2 lo necesita en el paso 1
   // entidades NOMBRADAS en ESTE texto (subconjunto de entityNames) — _isCalc2 se acota a estas, NUNCA a todo
   // entityNames del dataset (que puede traer 8+ entidades de una tool rica): sin este recorte, el nivel-2
