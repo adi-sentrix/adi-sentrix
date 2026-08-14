@@ -24,6 +24,7 @@
 import { esNarracionVacia } from "./guardC.js";
 import { composeNoDataMessage } from "./narrationBlocks.js";
 import { DEICTIC_PLURAL_RE } from "./conversationScope.js";   // el MISMO detector de referencia plural del camino vigente
+import { parseFigures } from "../boleta.js";                  // el MISMO parser del muro — el canon (con su unidad) sale de acá
 
 /* ── EL ALCANCE HEREDADO DEL CAMINO NATURAL (corrida doble #2, 2026-08-14) ───────────────────────────────────────
  * MEDIDO: ante «reduce en 2 puntos las acciones comerciales de ESOS clientes», el brazo natural respondió sobre
@@ -58,8 +59,51 @@ export function alcanceHeredadoDe({ pregunta, respuestaAnterior, catalogoPorEje 
   return mejor;
 }
 
+/* ── LA RE-CITA APROBADA (owner 2026-08-14, medido en la mini doble #2) ──────────────────────────────────────────
+ * «Puede re-citar cifras aprobadas por ADI en turnos anteriores; solo si coinciden entidad, métrica, unidad,
+ * periodo/concepto y alcance; si la cifra no fue aprobada antes, o cambia de dueño/concepto, sigue muriendo.»
+ *
+ * Acá se construye el insumo con la forma que `guardC` ya sabe verificar (la misma de la quinta fuente:
+ * `{figs:[{value, duenos}]}`), y los tres candados de la regla viven en dónde y cómo se construye:
+ *   · APROBADA — el caller SOLO debe pasarle textos que ya pasaron el muro (estado verde o reparado). Un
+ *     borrador vetado no entra: por eso `responderConNotario` devuelve `aprobado`, para que el caller no tenga
+ *     que decidirlo de memoria.
+ *   · MISMO DUEÑO/CONCEPTO — los dueños de cada cifra son los tokens que la acompañaban en SU oración original
+ *     (entidades reales del catálogo + el vocabulario de concepto del producto). `guardC` exige que uno de ellos
+ *     esté en la oración de la re-cita; si la cifra cambia de dueño, no autoriza.
+ *   · MISMA UNIDAD Y MISMO VALOR — van en el canon, que es la llave del índice ($104.0M ≠ 104%).
+ * El alcance/período se sostiene por el mismo camino: «proyectados», «presupuesto», «año anterior», «total» son
+ * parte del vocabulario de concepto, así que una cifra proyectada re-citada como si fuera real pierde su dueño. */
+const _CONCEPTOS_RECITA = ["negocio", "total", "totales", "cartera", "global", "presupuesto", "anterior", "proyectado", "proyectados", "proyección", "supuesto", "escenario", "benchmark", "referencia", "margen", "venta", "ventas", "contribución", "costo", "carga", "capital", "inventario", "rotación", "unidades", "acciones"];
+export function recitaAprobadaDe({ textoAprobado, catalogoEntidades, previa = null, cap = 24 } = {}) {
+  const t = String(textoAprobado || "");
+  const figs = Array.isArray(previa && previa.figs) ? [...previa.figs] : [];
+  if (t.trim()) {
+    const ents = Array.isArray(catalogoEntidades) ? catalogoEntidades : [];
+    // ⚠️ EL CORTE DE ORACIÓN TIENE QUE SER NUMBER-SAFE: partir por «.» a secas rompe «$104.0M» en «$104» + «0M»
+    // y la cifra desaparece. Se exige espacio (o fin de texto) después del signo — sin lookbehind (Safari viejo).
+    for (const oracion of t.split(/[.!?\n]+(?:\s+|$)/)) {
+      // el `\b` va SOLO tras las unidades que son letras: «25.1%» al final de una frase no tiene word-boundary
+      // después del «%» y se perdía (medido: el turno nuevo no sumaba nada a la memoria de re-cita).
+      const cifras = oracion.match(/\$[\d.,]+[KMB]?|[\d.,]+\s*(?:%|(?:pp|x|d)\b)/gi) || [];
+      if (!cifras.length) continue;
+      const duenos = [
+        ...ents.filter((e) => new RegExp(`\\b${String(e).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(oracion)),
+        ..._CONCEPTOS_RECITA.filter((c) => new RegExp(`\\b${c}\\b`, "i").test(oracion)),
+      ];
+      if (!duenos.length) continue;   // una cifra sin dueño en su propia oración no puede prestar el suyo
+      // el CANON lo pone `parseFigures` — el MISMO parser del muro, nunca un segundo. Ahí vive la unidad
+      // («money:$104.0M» ≠ «pct:104%»), que es lo que hace que el mismo número con otra unidad no se autorice.
+      for (const c of cifras) for (const pf of parseFigures(c.trim())) figs.push({ canon: pf.canon, value: pf.text, duenos });
+    }
+  }
+  // cap por el mismo criterio que la boleta anterior del camino vigente (1b): una memoria de cifras larga deja
+  // de ser una SEÑAL y pasa a ser un volcado. Se conservan las MÁS RECIENTES.
+  return figs.length ? { figs: figs.slice(-cap) } : null;
+}
+
 /**
- * responderConNotario({ pedir, juzgar, suplente, lavar }) → { texto, estado, vetos, vacias, suplenteDigno, calls }
+ * responderConNotario({ pedir, juzgar, suplente, lavar }) → { texto, estado, vetos, vacias, suplenteDigno, aprobado, calls }
  *  · pedir({ intento, multa, anterior }) → texto crudo del cerebro (async). El caller maneja el hilo de mensajes.
  *  · juzgar(texto) → veredicto de guardC ({ ok, verdict, violations }).
  *  · suplente() → el texto de respaldo con las cifras verificadas (ver suplenteDignoDelDato en datoProyectado.js).
@@ -75,7 +119,9 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
     const lavado = lavar(crudo);
     return String(lavado == null ? "" : lavado);
   };
-  const out = { texto: "", estado: "verde", vetos: [], vacias: [], suplenteDigno: false, calls: 0 };
+  // `aprobado`: si el texto que sale FUE avalado por el muro (verde o reparado). Es lo que decide si esa
+  // respuesta puede prestar sus cifras al turno siguiente — el caller no tiene que deducirlo de memoria.
+  const out = { texto: "", estado: "verde", vetos: [], vacias: [], suplenteDigno: false, aprobado: true, calls: 0 };
 
   let texto = _lav(await pedir({ intento: 1, multa: null, anterior: null })); out.calls++;
   if (esNarracionVacia(texto)) out.vacias.push(1);
@@ -91,6 +137,7 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
     // «vacio» NO es «suplente»: las dos terminan sin la respuesta del cerebro, pero una es un texto que el notario
     // rechazó y la otra es una pantalla en blanco. Categorías distintas porque son fallas distintas.
     out.estado = (v && v.ok) ? "reparado" : (esNarracionVacia(texto) ? "vacio" : "suplente");
+    out.aprobado = !!(v && v.ok);   // un texto que el muro rechazó NO puede prestar sus cifras al turno siguiente
     if (esNarracionVacia(texto)) {
       const s = typeof suplente === "function" ? suplente() : null;   // UNA sola invocación: componer el suplente puede no ser gratis
       texto = String(s == null ? "" : s);

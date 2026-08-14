@@ -2658,7 +2658,7 @@ function _enmascararRango(texto, [ini, fin]) {
   return texto.slice(0, ini) + dentro + texto.slice(fin);
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, alcanceHeredado = null, recitaAprobada = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
   /* CHEQUEO 0 · UNA RESPUESTA VACÍA NO ES UNA RESPUESTA FIEL (ver esNarracionVacia arriba). Va PRIMERO y sale
    * antes que nada: no hay texto que enmascarar, ni cifra que atribuir, ni cuenta que recomputar. El veredicto
    * lleva kind propio para que el caller sepa QUÉ pasó — no es una cifra mal puesta, es que no hay respuesta —
@@ -2840,7 +2840,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
      * presupuesto ($97.0M)»). El % es la variación entre dos montos que la propia oración nombra — la cuenta está
      * a la vista aunque no lleve signo «=». ANGOSTA POR CONSTRUCCIÓN: solo si la oración trae EXACTAMENTE DOS
      * montos (con más, la combinatoria elegiría el par que convenga) y los dos ya están autorizados. */
-    for (const o of narration.split(/[.!?\n]+/)) {
+    // ⚠️ number-safe (ver cicloNotarial): partir por «.» a secas rompería «$104.0M» y no habría par que comparar.
+    for (const o of narration.split(/[.!?\n]+(?:\s+|$)/)) {
       const montos = [...o.matchAll(/\$[\d.,]+[KMB]?/g)].map((x) => x[0]);
       if (montos.length !== 2) continue;
       const A = _dec(montos[0]), B = _dec(montos[1]);
@@ -2988,13 +2989,27 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   //     proyección del dato — SOLO con su dueño en la misma oración (ver _indiceDelDato arriba). Aditiva: se
   //     consulta al final, nunca cambia el veredicto de una cifra que ya pasaba.
   const _dato = _indiceDelDato(datoProyectado);
+  /* ── LA RE-CITA APROBADA (owner 2026-08-14, medido en la mini doble #2) ────────────────────────────────────────
+   * MEDIDO: el brazo natural derivó y MOSTRÓ «$100.0M × 1.04 = $104.0M» en el turno 1 —esa respuesta pasó el muro
+   * limpia— y en los turnos 2, 3 y 4 volvió a citar el $104.0M sin repetir la cuenta. Como cada turno se juzga
+   * aislado, el muro lo vetaba: castigaba una conversación normal. El camino vigente ya tiene el permiso (la
+   * CUARTA fuente, `boletaAnterior`, Paso 1b: «re-citar lo que ADI misma ya mostró no es inventar»); al camino
+   * natural nadie se lo pasaba.
+   * ACOTADA COMO EL OWNER LA PIDIÓ, y por eso NO reusa `boletaAnterior` (que autoriza por valor solo):
+   *   · solo cifras APROBADAS antes — el caller únicamente puede pasar las de respuestas que YA pasaron el muro;
+   *   · **mismo dueño/concepto**: se exige que un token dueño de la cita original esté en la MISMA oración de la
+   *     re-cita — el mismo mecanismo verificado de la quinta fuente (`_indiceDelDato` + `_duenoEnVentana`),
+   *     nunca una segunda regla. Cambia de dueño o de concepto → no autoriza y el veto sigue su curso;
+   *   · **misma unidad y mismo valor**: van en el canon (`money:$104.0M` ≠ `pct:104%`), que es la llave del índice.
+   * Sin `recitaAprobada` (todos los callers de hoy) es null y el muro es byte-idéntico. */
+  const _recita = _indiceDelDato(recitaAprobada);
   // DUEÑO POR FILA (encargo 2026-08-13): el índice de dueños de la boleta del turno — null en el caso común
   // (boleta mono-entidad, o sin labels de dueño), y entonces todo es byte-idéntico a hoy. Ver _duenosDeBoleta.
   // La referencia de dueños son los SEIS ejes (`duenosDelTenant`, del caller) — con fallback al catálogo de 3
   // ejes del chequeo 26: sin bodegas/familias reconocidas, un subtotal de bodega liberaría por colisión la
   // cifra del SKU que lo compone (medido con la boleta real de inventoryStatus).
   const _bolDuenos = _duenosDeBoleta(figs, entityNames, [...(Array.isArray(duenosDelTenant) ? duenosDelTenant : []), ...(Array.isArray(entidadesDelTenant) ? entidadesDelTenant : [])]);
-  const _maskedNarr = (_dato || _bolDuenos) ? _maskFigures(narration) : null;
+  const _maskedNarr = (_dato || _bolDuenos || _recita) ? _maskFigures(narration) : null;
   /* ── EL POOL DEL CATÁLOGO (AMPLITUD F2) — perezoso: solo se arma si alguna cifra llegó hasta esa vía ──────────
    * Una cifra narrada que no está en ninguna fuente se acepta SI Y SOLO SI es el resultado EXACTO (recomputado,
    * con la tolerancia que _isCalc ya usa) de una operación del catálogo sobre cifras AUTORIZADAS del turno. El
@@ -3062,6 +3077,12 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     // Corre DESPUÉS de los niveles 1-2 (subset intacto) y ANTES de la quinta fuente: una cuenta legítima del
     // catálogo que coincida con una cifra del dato no debe caer al veto de dueño.
     if (esCalculoDelCatalogo(f.raw, f.unit, _poolCatalogo())) continue;
+    // LA RE-CITA APROBADA (ver arriba): la misma cifra, la misma unidad y un dueño de la cita original en esta
+    // oración. Aditiva y previa a la quinta fuente: una cifra que ADI ya mostró y aprobó no es un hallazgo nuevo.
+    if (_recita) {
+      const _dueRe = _recita.porCanon.get(f.canon) || _recita.porVerbatim.get(_stripSpace(f.text)) || null;
+      if (_dueRe && _dueRe.size && _duenoEnVentana(narration, _maskedNarr, f, _dueRe)) continue;
+    }
     const _duenos = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
     if (_duenos && _duenos.size) {
       if (_duenoEnVentana(narration, _maskedNarr, f, _duenos)) continue;   // cifra REAL del dato, con su dueño al lado

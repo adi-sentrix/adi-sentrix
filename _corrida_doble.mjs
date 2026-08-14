@@ -34,7 +34,7 @@ import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
 import { proyectarDatoNegocio, cifrasDelDato, suplenteDignoDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { ADI_PERSONA } from "./src/adi/oracle/persona.js";
 import { guardC, esNarracionVacia } from "./src/adi/oracle/guardC.js";
-import { responderConNotario, alcanceHeredadoDe } from "./src/adi/oracle/cicloNotarial.js";   // el ciclo de la constitución, compartido con el gate offline
+import { responderConNotario, alcanceHeredadoDe, recitaAprobadaDe } from "./src/adi/oracle/cicloNotarial.js";   // el ciclo de la constitución, compartido con el gate offline
 import { HILOS } from "./_corrida_doble_casos.mjs";                        // el set probatorio, compartido con el gate offline
 import { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";
 import { parseFigures } from "./src/adi/boleta.js";
@@ -119,6 +119,7 @@ async function armNatural(hilo) {
   const turnos = [];
   const supuestosDelHilo = [];
   let respuestaAnterior = null;   // la única huella de «de qué se habló» que tiene un cerebro sin boleta
+  let recita = null;              // las cifras que ADI YA MOSTRÓ Y EL MURO APROBÓ, con su dueño (ver cicloNotarial)
   for (const q of hilo.turnos) {
     for (const pf of parseFigures(q)) supuestosDelHilo.push(pf.text);   // lo que el usuario declaró sigue vivo en el hilo
     msgs.push({ role: "user", content: q });
@@ -128,7 +129,7 @@ async function armNatural(hilo) {
      * deíctico del camino vigente — y solo viaja cuando de verdad hay un conjunto que heredar. */
     const heredado = alcanceHeredadoDe({ pregunta: q, respuestaAnterior, catalogoPorEje: CATALOGO_POR_EJE });
     if (heredado) t.alcanceHeredado = { eje: heredado.eje, entities: heredado.entities };
-    const juzgar = (texto) => guardC(texto, { ledger: { figs: [] }, results: [], trace: null, question: q, supuestoPendiente: supuestosDelHilo, alcanceHeredado: heredado, datoProyectado: CIFRAS, entidadesDelTenant: ENT3, duenosDelTenant: ENT6, contentScope: "full", tablePolicy: "auto" });
+    const juzgar = (texto) => guardC(texto, { ledger: { figs: [] }, results: [], trace: null, question: q, supuestoPendiente: supuestosDelHilo, alcanceHeredado: heredado, recitaAprobada: recita, datoProyectado: CIFRAS, entidadesDelTenant: ENT3, duenosDelTenant: ENT6, contentScope: "full", tablePolicy: "auto" });
     try {
       /* EL CICLO NO VIVE ACÁ (2026-08-14): lo ejecuta `responderConNotario` (src/adi/oracle/cicloNotarial.js), el
        * MISMO código que el gate offline ejercita con un modelo mockeado que devuelve ""/espacios/null. Este arnés
@@ -151,6 +152,8 @@ async function armNatural(hilo) {
       t.calls = r.calls; t.texto = r.texto; t.estado = r.estado; t.vetos = r.vetos; t.vacias = r.vacias; t.suplenteDigno = r.suplenteDigno;
       msgs.push({ role: "assistant", content: r.texto });
       respuestaAnterior = r.texto;   // el alcance del turno siguiente sale de acá
+      // SOLO si el muro la aprobó: un texto vetado no presta sus cifras (candado de la regla del owner).
+      if (r.aprobado) recita = recitaAprobadaDe({ textoAprobado: r.texto, catalogoEntidades: ENT6, previa: recita });
     } catch (e) { t.texto = `(ERROR: ${String(e && e.message).slice(0, 90)})`; t.estado = "error"; msgs.push({ role: "assistant", content: "(error)" }); respuestaAnterior = null; }
     turnos.push(t);
   }
