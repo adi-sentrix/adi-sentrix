@@ -2914,6 +2914,23 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         return null;
       };
       const _insumoOk = (x) => { if (_baseOk(x)) return true; const alt = _otraFormaDeTasa(x); return !!alt && _baseOk(alt); };
+      /* EL REDONDEO DE PRESENTACIÓN NO ES UN INVENTO (owner 2026-08-14, examen 1 · turno 3). La cuenta daba
+       * $4,700 y la respuesta mostraba «~$5K» — la forma en que un ejecutivo escribe esa cifra. La tolerancia del
+       * 2% la mataba. Pero AFLOJAR EL UMBRAL sería relajar la evidencia, así que no se afloja: se compara a la
+       * PRECISIÓN QUE LA PROPIA CIFRA DECLARA. «$5K» declara ceros decimales en miles, así que el recomputado se
+       * redondea igual y tiene que dar EXACTAMENTE eso. Un «$9K» sobre $4,700 sigue muriendo.
+       * Y un candado más, porque redondear a una unidad gruesa sí puede engañar: si el redondeo se lleva más del
+       * 10% del valor real («$1M» por $1.4M), no vale — esa cifra se escribe «$1.4M». */
+      const _cierraPorRedondeo = (esperado, texto) => {
+        const m = String(texto == null ? "" : texto).trim().match(/^\$?\s*(-?[\d.,]+)\s*([KMB])?/i);
+        if (!m || !Number.isFinite(esperado)) return false;
+        const decl = parseFloat(m[1].replace(/,/g, ""));
+        if (!Number.isFinite(decl)) return false;
+        const esc = m[2] ? ({ K: 1e3, M: 1e6, B: 1e9 })[m[2].toUpperCase()] : 1;
+        const dec = (m[1].split(".")[1] || "").length;
+        if (Number((esperado / esc).toFixed(dec)) !== decl) return false;
+        return Math.abs(esperado - decl * esc) <= Math.abs(esperado) * 0.10;
+      };
       const _esTasa = (u) => u === "pct" || u === "pp" || /puntos?/.test(u);
       // el tope de viabilidad aplica SOLO a las operaciones que mueven un nivel; una BRECHA negativa
       // («25.0% − 30.1% = −5.1pp») es legítima y no puede confundirse con un escenario imposible.
@@ -2931,7 +2948,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const insumos = (c.inputs || []).map((x) => (_porId.has(String(x).trim()) ? _porId.get(String(x).trim()) : _num(x)));
         const insumosAutorizados = (c.inputs || []).every((x) => _porId.has(String(x).trim()) || _insumoOk(String(x)));
         const esperado = (fn && insumos.length && insumos.every(Number.isFinite)) ? fn(insumos, uni, signo) : null;
-        const cierra = Number.isFinite(esperado) && Number.isFinite(R) && _cierraFrm(esperado, R);
+        const cierra = Number.isFinite(esperado) && Number.isFinite(R)
+          && (_cierraFrm(esperado, R) || _cierraPorRedondeo(esperado, c.resultado));
         if (!fn) {
           _vetosCalculo.push(_multa(c, "op", `la operación «${c.op}» no existe — usá una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos`));
         } else if (!Number.isFinite(esperado)) {

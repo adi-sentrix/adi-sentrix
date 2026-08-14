@@ -167,5 +167,24 @@ const dSegunda = String((vCasc.violations[1] || {}).detail || "");
 ok(/«c1» es una línea que falló antes/.test(dSegunda), `…y a c2 le dice que su insumo cayó, no que «c1 no es una cifra» (${dSegunda.slice(0, 110)}…)`);
 ok(/corregí esa línea y esta se resuelve sola/.test(dSegunda), "…y le dice al reintento dónde arreglar de verdad");
 
+/* ── 9 · EL REDONDEO DE PRESENTACIÓN (owner 2026-08-14, examen 1 · turno 3) ────────────────────────────────────
+ * La cuenta daba $4,700 y la respuesta mostraba «~$5K» — como lo escribe un ejecutivo. La tolerancia del 2% lo
+ * mataba. NO se afloja el umbral: se compara a la precisión que la propia cifra declara, y con tope del 10%. */
+console.log("\n── 9 · EL REDONDEO DE PRESENTACIÓN NO ES UN INVENTO ──");
+// (el 0.1 lo declara la pregunta: sin eso el insumo muere antes por otra razón, y el caso no probaría nada)
+const Q01 = { question: "¿Cuánto vale cerrar una brecha de 0.1 puntos en Ripley?", supuestoPendiente: ["0.1%"] };
+const R9 = (res, prosa) => juzgar(`${prosa}\n\n${MARCA_CALCULO}\nid=c1 · op=pct_de · inputs=0.1%; $4.7M · formula=0.1% de $4.7M · resultado=${res} · unidad=money`, Q01);
+ok(R9("$5K", "Cerrar la brecha de Ripley vale unos $5K.").ok, "«$5K» sobre una cuenta que da $4,700: el redondeo a miles se autoriza");
+ok(R9("$4.7K", "Cerrar la brecha de Ripley vale $4.7K.").ok, "…y la cifra exacta también, por supuesto");
+ok(!R9("$9K", "Cerrar la brecha de Ripley vale unos $9K.").ok, "…pero «$9K» sobre los mismos $4,700 muere: no es el redondeo, es otro número");
+ok(!R9("$6K", "Cerrar la brecha de Ripley vale unos $6K.").ok, "…y «$6K» tampoco: $4,700 redondea a 5, no a 6");
+// EL CANDADO DEL 10%: redondear a una unidad gruesa sí puede engañar. $1.4M escrito «$1M» se lleva el 29%.
+const Q14 = { question: "Si el negocio recupera 1.4% de la venta total, ¿cuánto es?", supuestoPendiente: ["1.4%"] };
+const GRUESO = (res) => juzgar(`El negocio recuperaría ${res}.\n\n${MARCA_CALCULO}\nid=c1 · op=pct_de · inputs=1.4%; $100.0M · formula=1.4% de $100.0M · resultado=${res} · unidad=money`, Q14);
+ok(!GRUESO("$1M").ok, "«$1M» por una cuenta que da $1.4M NO pasa: el redondeo se lleva el 29% del valor");
+ok(GRUESO("$1.4M").ok, "…y escrita como corresponde, «$1.4M», pasa");
+// y el redondeo de una TASA a su propio decimal
+ok(juzgar(`La brecha de Ripley es de 0.1 puntos.\n\n${MARCA_CALCULO}\nid=c1 · op=restar · inputs=25.1%; 25.0% · formula=25.1% − 25.0% · resultado=0.1pp · unidad=pp`).ok, "una tasa redondeada a su propio decimal también cierra");
+
 console.log(`\n── _contrato_calculo_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
