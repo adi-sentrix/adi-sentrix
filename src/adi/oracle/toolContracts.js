@@ -217,12 +217,16 @@ export const TOOL_CONTRACTS = {
   // specRetrieval.js): cuando la única entidad llega vía entityScope (no vía filters.cliente/filters.bodega), la
   // frase "Dónde pega" cae a la variante de lista en vez de nombrar la entidad — mismo dato correcto, prosa menos
   // personalizada. No se corrige en esta etapa salvo pedido explícito del owner.
+  // `delta_pp` (owner 2026-08-14) es OPCIONAL y no entra en `supuestosRequeridos` a propósito: sin él la tool
+  // corre el modo target de siempre y responde igual — no hay nada que preguntar. Es el único arg del catálogo
+  // que se DESPOJA determinísticamente cuando el turno no lo declara (answerViaOracle.js,
+  // _coerceDeltaCargaDeclarado): un delta inventado sería un supuesto del usuario que el usuario no dio.
   simulateCarga: {
     dimensionesSoportadas: ["cliente"],
     entidad: "none", aceptaEntidadPuntual: true, multiCardinality: null,
     inputsObligatorios: [], supuestosRequeridos: null, operacionValida: ["answer"],
     entityScopeNativo: true, escribeEntityList: true,
-    notas: "Etapa 2: entityScope generalizado (antes CONSCIENTEMENTE no generalizado — decline ante 2+ entidades).",
+    notas: "Etapa 2: entityScope generalizado (antes CONSCIENTEMENTE no generalizado — decline ante 2+ entidades). 2026-08-14: segundo modo `delta_pp` (el movimiento de carga EN PUNTOS que declaró el usuario) + el cierre contra el benchmark cuenta por cuenta; sin `delta_pp` el modo target queda byte-idéntico.",
   },
   simulateCapital: {
     dimensionesSoportadas: ["sku"],
