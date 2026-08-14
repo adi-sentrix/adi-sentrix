@@ -131,7 +131,12 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
     if (!h || typeof h.text !== "string" || !h.text.trim() || h.pending) continue;
     mensajes.push({ role: h.role === "user" ? "user" : "assistant", content: h.text });
   }
-  mensajes.push({ role: "user", content: q });
+  /* EL TURNO ACTUAL, UNA SOLA VEZ (medido en la app 2026-08-14): ChatADI empuja el mensaje del usuario a
+   * `messages` ANTES de llamar, así que el turno ya viene en `history` y agregarlo de nuevo lo mandaba
+   * DUPLICADO al cerebro («user · assistant · user · user»). El proveedor lo tolera, pero es ruido que confunde
+   * al modelo y paga tokens dos veces. Se agrega solo si el hilo no lo trae ya como último turno del usuario. */
+  const _ultimo = mensajes.length ? mensajes[mensajes.length - 1] : null;
+  if (!(_ultimo && _ultimo.role === "user" && _ultimo.content.trim() === q)) mensajes.push({ role: "user", content: q });
 
   // ── EL CICLO DE LA CONSTITUCIÓN · responderConNotario, con las piezas inyectadas (jamás reimplementado) ─────
   const res = await responderConNotario({

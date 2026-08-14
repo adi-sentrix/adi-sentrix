@@ -20,7 +20,13 @@ const ENDPOINT = BASE + "/v1/messages";
 const VERSION = "2023-06-01";
 // TIMEOUT (owner 2026-07-29, rendimiento/multiempresa): mismo criterio que el adapter de OpenAI — sin esto, un
 // proveedor colgado bloqueaba el request indefinidamente, agotando conexiones bajo carga multi-tenant.
-const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
+/* DEFAULT 90s, no 25s (owner 2026-08-14, tercera vez que este número muerde). MEDIDO: Sonnet narrando un turno
+ * rico tarda 20-27s y con reparación pasa de 50s; con 25s de tope, el turno moría y —peor— moría EN SILENCIO,
+ * cayendo al camino de respaldo sin que nadie viera por qué. Producción ya declara 90s por env, pero el DEFAULT
+ * era una trampa para todo entorno que no lo declare (el servidor de desarrollo, un gate, una corrida nueva):
+ * `process.env` se lee AL CARGAR el módulo, así que un `.env` que se cargue después no lo corrige.
+ * Es un TOPE, no una espera: una respuesta rápida sigue siendo rápida. */
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 90000;
 
 // LÍMITE DE SALIDA de narrate() (owner 2026-08-13, preparación Anthropic): una respuesta larga real de ADI mide
 // ~1.200 chars ≈ 300 tokens, pero un turno con tabla comparada queda pegado al techo de 1024 — y un corte del

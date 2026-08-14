@@ -20,7 +20,9 @@ const ENDPOINT = BASE + "/chat/completions";
 // TIMEOUT (owner 2026-07-29, rendimiento/multiempresa): sin esto, un proveedor colgado bloqueaba el request
 // indefinidamente — bajo carga con muchos tenants eso agota conexiones/workers. Default 25s (bajo el límite típico
 // de función serverless), configurable por env sin tocar código.
-const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
+// DEFAULT 90s, no 25s — mismo motivo y misma medición que en el adapter de Anthropic (ver su comentario): el
+// tope se lee al CARGAR el módulo, así que un `.env` posterior no lo corrige, y 25s mata turnos ricos en silencio.
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 90000;
 
 // _rateLimitError(status, bodyText, headers) → Error con `.code="rate_limited"` (+ `.retryAfterMs` si el proveedor
 // lo informó) cuando status===429 — owner 2026-08-03, investigación cruzada de los 5 gates de Arquitectura C:
