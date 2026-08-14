@@ -1,168 +1,298 @@
 {
   "fecha": "2026-08-14",
+  "version": 2,
   "filas": [
     {
-      "id": "P·¿Qué clientes venden mucho pero dejan poco",
+      "id": "P1·congelado·¿Qué clientes venden mucho pero de",
       "q": "¿Qué clientes venden mucho pero dejan poco margen?",
       "texto": "Los tres clientes de mayor venta están todos por debajo del benchmark de margen (30.1%) — no es un caso aislado, es el patrón de tu top 3.\n\n- **Falabella** — $19.4M en ventas, margen 22.0% (8.1 puntos bajo el benchmark).\n- **Lider** — $17.9M en ventas, margen 21.5% (8.6 puntos bajo el benchmark).\n- **Jumbo** — $17.3M en ventas, margen 24.0% (6.1 puntos bajo el benchmark).\n\nEsto pasa porque los tres concentran volumen en marcas de ticket alto y baja rotación de margen (Samsung y LG, con línea de Electrodomésticos y Línea Blanca corriendo varios puntos debajo de Philips y Bosch), y además cargan una carga comercial elevada: Falabella 4.5% y Lider 4.2%, ambas por encima de la meta de 3.5%.\n\nEmpieza por **Falabella**: es el que más pesa en venta ($19.4M) y el que más contribución dejas sobre la mesa — 8.1 puntos de brecha sobre $19.4M equivale a cerca de $1.6M de margen no capturado, la mayor brecha en dólares de los tres. Revisa ahí primero la carga comercial (los $874K en acciones comerciales) antes de tocar precio; si baja esa carga hacia la meta de 3.5%, movés margen sin arriesgar el volumen.",
       "espera": "PASA",
-      "ok": false,
-      "verdict": "conteo-no-autorizado",
-      "violations": [
-        "conteo-no-autorizado:top 3"
-      ],
-      "backstopCorrigio": false,
+      "tipo": "respuesta completa (cifras + comparación + recomendación)",
+      "afirma": "las cifras de la carpeta con dueño, cuentas con fórmula, juicio asesor sobre evidencia",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "conteo-no-autorizado",
+        "violations": [
+          "conteo-no-autorizado:top 3"
+        ]
+      },
       "estado": "❌ FALSO POSITIVO"
     },
     {
-      "id": "P·¿Dónde tengo capital inmovilizado?",
+      "id": "P2·congelado·¿Dónde tengo capital inmovilizado?",
       "q": "¿Dónde tengo capital inmovilizado?",
       "texto": "Capital parado, no capital total: la foto de hoy tiene **$43K de $135K en inventario (32%) frenados en 4 SKU** que superan el techo de 120 días o caen bajo el piso de rotación de 2.0x.\n\n- **LG-DRYER8KG** (Valparaíso) — $14K de capital · rotación 1.0x (la mitad del piso) · 165 días de inventario · 94 días sin venta · estado 120d.\n- **MAK-COMP-AIR** (Antofagasta) — $8K · rotación 0.8x · 190 días de inventario · 112 días sin venta · estado 120d.\n- **BOS-SANDER** (Valparaíso) — $11K · rotación 1.6x · 115 días · 68 días sin venta · estado 90d.\n- **PHI-IRON-PRO** (Concepción) — $10K · rotación 2.4x · 95 días · 35 días sin venta · estado 60d.\n\nLa causa no es la misma en los cuatro: LG-DRYER8KG y MAK-COMP-AIR ya cruzaron el techo de 120 días con rotación por debajo del piso — no es lentitud, es estancamiento. PHI-IRON-PRO y BOS-SANDER todavía rotan (2.4x y 1.6x) pero vienen frenando.\n\nArranca por **LG-DRYER8KG en Valparaíso**: es el mayor capital parado ($14K) con el peor cruce de rotación (1.0x) y días sin venta (94). Bajalo de precio o migralo a liquidación antes de que cruce los 180 días.",
       "espera": "PASA",
-      "ok": false,
-      "verdict": "cifra-de-dato-sin-dueno",
-      "violations": [
-        "cifra-de-dato-sin-dueno:«94 d» existe en el dato del negocio pero su dueño (LG-DRYER8KG/Valparaíso) no está nombrado en la misma oraci",
-        "cifra-no-autorizada:90d",
-        "cifra-no-autorizada:60d",
-        "cifra-no-autorizada:180 d"
-      ],
-      "backstopCorrigio": false,
+      "tipo": "respuesta completa (cifras + comparación + recomendación)",
+      "afirma": "las cifras de la carpeta con dueño, cuentas con fórmula, juicio asesor sobre evidencia",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«94 d» existe en el dato del negocio pero su dueño (LG-DRYER8KG/Valparaíso) no está nombrado en la m",
+          "cifra-no-autorizada:90d",
+          "cifra-no-autorizada:60d",
+          "cifra-no-autorizada:180 d"
+        ]
+      },
       "estado": "❌ FALSO POSITIVO"
     },
     {
-      "id": "P·Si subo ventas 4%, ¿qué cambia?",
+      "id": "P3·congelado·Si subo ventas 4%, ¿qué cambia?",
       "q": "Si subo ventas 4%, ¿qué cambia?",
       "texto": "Depende de dónde salga ese 4%, no del 4% en sí.\n\n**Qué cambia si el mix se mantiene igual:**\n- Ventas: $100.0M → $104.0M (+$4.0M).\n- Contribución: si el margen de cartera se sostiene en 25.1%, pasa de $25.1M a $26.1M ($104.0M × 25.1%).\n- El margen porcentual **no se mueve**: sigue en 25.1%, 5 puntos por debajo del benchmark de 30.1%.\n\n**Por qué pasa así:** ventas y margen son variables distintas. Crecer en volumen sin cambiar el mix de clientes o SKU solo escala la misma foto — no cierra la brecha contra el benchmark. Si ese 4% viene de Falabella (22.0% de margen) o Lider (21.5%), el margen de cartera puede incluso bajar en vez de subir.\n\n**Qué hacer primero:** dirigí ese crecimiento a los clientes de mayor margen, no a los de mayor volumen. Easy (32.0%), La Polar (34.0%) y Unimarc (32.5%) tienen margen muy por encima del benchmark pero ventas chicas ($3.4M, $2.9M y $2.3M respectivamente) — ahí un 4% adicional sí mueve el margen de cartera hacia arriba, no solo el tamaño de la torta.",
       "espera": "PASA",
-      "ok": false,
-      "verdict": "cifra-de-dato-sin-dueno",
-      "violations": [
-        "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mi",
-        "cifra-no-autorizada:$104.0M",
-        "cifra-no-autorizada:$104.0M"
-      ],
-      "backstopCorrigio": false,
+      "tipo": "respuesta completa (cifras + comparación + recomendación)",
+      "afirma": "las cifras de la carpeta con dueño, cuentas con fórmula, juicio asesor sobre evidencia",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-no-autorizada:$104.0M",
+          "cifra-no-autorizada:$104.0M"
+        ]
+      },
       "estado": "❌ FALSO POSITIVO"
     },
     {
-      "id": "P·sobre las ventas",
+      "id": "P4·congelado·sobre las ventas",
       "q": "sobre las ventas",
       "texto": "Entendido — 4% sobre ventas totales, sin tocar mix.\n\n- Ventas: $100.0M → $104.0M ($100.0M × 1.04 = $104.0M, +$4.0M).\n- Contra presupuesto ($97.0M): pasarías de 3.1% a 7.2% por encima.\n- Contra año anterior ($92.9M): de 7.6% a 11.9% de crecimiento.\n\n**Qué no cambia solo con este dato:** el margen. Si asumís que se mantiene en 25.1%, la contribución sube a $26.1M ($104.0M × 25.1%). Pero ese 25.1% ya está 5 puntos bajo el benchmark de 30.1% — subir ventas en volumen no corrige esa brecha, solo la escala.\n\n**Qué hacer primero:** antes de fijar el 4% como meta pareja, decidí en qué clientes cae. Si cae en Falabella o Lider (los de mayor peso y menor margen, 22.0% y 21.5%), el negocio crece pero se aleja más del benchmark. Empieza revisando el mix objetivo del 4%, no el total.",
       "espera": "PASA",
-      "ok": false,
-      "verdict": "cifra-de-dato-sin-dueno",
-      "violations": [
-        "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mi",
-        "cifra-no-autorizada:$104.0M",
-        "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mi",
-        "cifra-no-autorizada:$104.0M",
-        "cifra-de-dato-sin-dueno:«$97.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mis",
-        "cifra-de-dato-sin-dueno:«$92.9M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mis",
-        "cifra-no-autorizada:$104.0M",
-        "cifra-no-autorizada:7.2%",
-        "cifra-no-autorizada:11.9%"
-      ],
-      "backstopCorrigio": false,
+      "tipo": "respuesta completa (cifras + comparación + recomendación)",
+      "afirma": "las cifras de la carpeta con dueño, cuentas con fórmula, juicio asesor sobre evidencia",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-no-autorizada:$104.0M",
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-no-autorizada:$104.0M",
+          "cifra-de-dato-sin-dueno:«$97.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado",
+          "cifra-de-dato-sin-dueno:«$92.9M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado",
+          "cifra-no-autorizada:$104.0M",
+          "cifra-no-autorizada:7.2%",
+          "cifra-no-autorizada:11.9%"
+        ]
+      },
       "estado": "❌ FALSO POSITIVO"
     },
     {
-      "id": "P·simula sobre el total de ventas",
+      "id": "P5·congelado·simula sobre el total de ventas",
       "q": "simula sobre el total de ventas",
       "texto": "**Ventas totales +4%: $100.0M → $104.0M** ($100.0M × 1.04, +$4.0M de aumento).\n\n- Vs. año anterior ($92.9M): pasaría de +7.6% a +11.9%.\n- Vs. presupuesto ($97.0M): pasaría de +3.1% a +7.2%.\n- Contribución, manteniendo el margen actual de 25.1%: $104.0M × 25.1% = $26.1M (hoy $25.1M, +$1.0M).\n\n**Lo que este cálculo no resuelve:** el margen de cartera queda igual, en 25.1% — sigue 5 puntos por debajo del benchmark de 30.1%. Simular el total no dice si esos $4.0M extra vienen de clientes de buen margen (Easy 32.0%, La Polar 34.0%) o de los de bajo margen (Falabella 22.0%, Lider 21.5%), y esa diferencia es la que realmente mueve la aguja.\n\n**Qué hacer primero:** no fijes el 4% como meta pareja sobre el total. Definí en qué cuenta cae ese crecimiento — ahí está la decisión real, no en la cifra global.",
       "espera": "PASA",
-      "ok": false,
-      "verdict": "cifra-de-dato-sin-dueno",
-      "violations": [
-        "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mi",
-        "cifra-no-autorizada:$104.0M",
-        "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mi",
-        "cifra-de-dato-sin-dueno:«$92.9M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mis",
-        "cifra-de-dato-sin-dueno:«$97.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado en la mis",
-        "cifra-no-autorizada:$104.0M"
-      ],
-      "backstopCorrigio": false,
+      "tipo": "respuesta completa (cifras + comparación + recomendación)",
+      "afirma": "las cifras de la carpeta con dueño, cuentas con fórmula, juicio asesor sobre evidencia",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-no-autorizada:$104.0M",
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-de-dato-sin-dueno:«$92.9M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado",
+          "cifra-de-dato-sin-dueno:«$97.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrado",
+          "cifra-no-autorizada:$104.0M"
+        ]
+      },
       "estado": "❌ FALSO POSITIVO"
     },
     {
-      "id": "N·cifra-sin-dueño",
+      "id": "P6·paráfrasis·conteo «tres principales»",
+      "espera": "PASA",
+      "tipo": "conteo auto-enumerado",
+      "afirma": "un conteo que la propia respuesta enumera (3 dichos, 3 listados, todos reales)",
+      "q": "¿quiénes están peor?",
+      "texto": "Tus tres principales clientes bajo el benchmark de 30.1% son Lider con 21.5%, Falabella con 22.0% y Sodimac con 23.5%.",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": true,
+        "verdict": "fiel",
+        "violations": []
+      },
+      "estado": "✅ PASA"
+    },
+    {
+      "id": "P7·paráfrasis·supuesto «crece 6%» con fórmula",
+      "espera": "PASA",
+      "tipo": "cálculo derivado (simulación)",
+      "afirma": "una derivada con su fórmula a la vista sobre dato base + supuesto del usuario",
+      "q": "si crece 6% qué pasa",
+      "texto": "Tus ventas totales marcan $100.0M. Con tu supuesto de +6%: $100.0M × 1.06 = $106.0M. Bajo este supuesto, generaría $6.0M adicionales — es una proyección, no un dato observado.",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-de-dato-sin-dueno:«$100.0M» existe en el dato del negocio pero su dueño (negocio/total/cartera/global) no está nombrad",
+          "cifra-no-autorizada:$106.0M",
+          "cifra-no-autorizada:$6.0M"
+        ]
+      },
+      "estado": "❌ FALSO POSITIVO"
+    },
+    {
+      "id": "P8·política-del-2%·interpretación declarada",
+      "espera": "PASA",
+      "tipo": "ambigüedad declarada + cálculo",
+      "afirma": "la lectura elegida del «2%» dicha explícita, con la cuenta mostrada",
+      "q": "baja 2% la carga de Falabella",
+      "texto": "Interpreto ese 2% como 2 puntos porcentuales: la carga comercial de Falabella marca 4.5%, y 4.5% − 2.0pp = 2.5%. Si te referías a un 2% relativo, el resultado cambia — dime y lo recalculo.",
+      "chequeoEsperado": null,
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-no-autorizada",
+        "violations": [
+          "cifra-no-autorizada:2 puntos porcentuales",
+          "cifra-no-autorizada:2.0pp"
+        ]
+      },
+      "estado": "❌ FALSO POSITIVO"
+    },
+    {
+      "id": "N1·cifra sin dueño",
       "espera": "MUERE",
-      "cubierto": true,
+      "tipo": "cifra",
+      "chequeoEsperado": "/cifra-de-dato-sin-dueno|cifra-no-autorizada/",
+      "construido": true,
+      "afirma": "una cifra real de la carpeta sin su dueño en la oración",
       "q": "¿cómo viene el margen?",
       "texto": "El margen es 22.0% y no alcanza para el año.",
-      "ok": false,
-      "verdict": "cifra-de-dato-sin-dueno",
-      "violations": [
-        "cifra-de-dato-sin-dueno:«22.0%» existe en el dato del negocio pero su dueño (Falabella/PHI-IRON-PRO/SAM-REF500L/Santiago) no está nomb"
-      ],
-      "backstopCorrigio": false,
-      "estado": "✅ MUERE"
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«22.0%» existe en el dato del negocio pero su dueño (Falabella/PHI-IRON-PRO/SAM-REF500L/Santiago) no"
+        ]
+      },
+      "estado": "✅ MUERE por su chequeo"
     },
     {
-      "id": "N·cifra-inventada-sin-fórmula",
+      "id": "N2·cifra inventada sin fórmula",
       "espera": "MUERE",
-      "cubierto": true,
+      "tipo": "cifra",
+      "chequeoEsperado": "/cifra-no-autorizada/",
+      "construido": true,
+      "afirma": "una derivada sin origen mostrado",
       "q": "proyecta 6% más",
       "texto": "Con el 6% más, tus ventas llegarían a $106.0M el año próximo.",
-      "ok": false,
-      "verdict": "cifra-no-autorizada",
-      "violations": [
-        "cifra-no-autorizada:$106.0M"
-      ],
-      "backstopCorrigio": false,
-      "estado": "✅ MUERE"
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-no-autorizada",
+        "violations": [
+          "cifra-no-autorizada:$106.0M"
+        ]
+      },
+      "estado": "✅ MUERE por su chequeo"
     },
     {
-      "id": "N·estado-inventado (4 frenados, motor dice 3)",
+      "id": "N3·estado inventado (4 frenados, motor dice 3)",
       "espera": "MUERE",
-      "cubierto": false,
+      "tipo": "estado",
+      "chequeoEsperado": "/estado/",
+      "construido": false,
+      "afirma": "una clasificación que la carpeta no declara, con entidades reales",
       "q": "¿cuánto capital frenado hay?",
       "texto": "Tienes 4 SKU frenados en el inventario: LG-DRYER8KG, MAK-COMP-AIR, BOS-SANDER y PHI-IRON-PRO están frenados hoy.",
-      "ok": true,
-      "verdict": "fiel",
-      "violations": [],
-      "backstopCorrigio": false,
+      "resultado": {
+        "ok": true,
+        "verdict": "fiel",
+        "violations": []
+      },
       "estado": "🟡 SE ESCAPA (chequeo por construir)"
     },
     {
-      "id": "N·vocabulario (meta≠benchmark)",
+      "id": "N4·estado con sinónimo («bloqueados»)",
       "espera": "MUERE",
-      "cubierto": false,
-      "q": "¿cuál es el benchmark?",
-      "texto": "Tu meta de margen es 30.1% y la cartera está debajo de esa meta.",
-      "ok": false,
-      "verdict": "cifra-de-dato-sin-dueno",
-      "violations": [
-        "cifra-de-dato-sin-dueno:«30.1%» existe en el dato del negocio pero su dueño (benchmark/referencia/piso) no está nombrado en la misma o"
-      ],
-      "backstopCorrigio": false,
-      "estado": "✅ MUERE"
+      "tipo": "estado",
+      "chequeoEsperado": "/estado/",
+      "construido": false,
+      "afirma": "el mismo estado inventado dicho con otra palabra — el chequeo debe resistir sinónimos",
+      "q": "¿qué SKU están mal?",
+      "texto": "Tienes 4 SKU bloqueados: LG-DRYER8KG, MAK-COMP-AIR, BOS-SANDER y PHI-IRON-PRO no se mueven.",
+      "resultado": {
+        "ok": true,
+        "verdict": "fiel",
+        "violations": []
+      },
+      "estado": "🟡 SE ESCAPA (chequeo por construir)"
     },
     {
-      "id": "N·ranking-falso (orden que el dato no sostiene)",
+      "id": "N5·vocabulario (meta≠benchmark), dueño nombrado",
       "espera": "MUERE",
-      "cubierto": false,
+      "tipo": "vocabulario",
+      "chequeoEsperado": "/vocabulario|meta/",
+      "construido": false,
+      "afirma": "el benchmark del negocio llamado «meta» — con el dueño bien nombrado para que SOLO el vocabulario pueda matarlo",
+      "q": "¿cómo va la cartera?",
+      "texto": "El margen promedio de la cartera marca 25.1%, contra tu meta de margen de 30.1% — la cartera sigue bajo esa meta.",
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-de-dato-sin-dueno",
+        "violations": [
+          "cifra-de-dato-sin-dueno:«30.1%» existe en el dato del negocio pero su dueño (benchmark/referencia/piso) no está nombrado en "
+        ]
+      },
+      "estado": "🟠 MUERE POR LA RAZÓN EQUIVOCADA"
+    },
+    {
+      "id": "N6·ranking falso",
+      "espera": "MUERE",
+      "tipo": "ranking",
+      "chequeoEsperado": "/ranking|orden/",
+      "construido": false,
+      "afirma": "un orden que la carpeta no sostiene (los tres de mayor venta reales son Falabella, Lider, Jumbo)",
       "q": "¿quiénes venden más?",
       "texto": "Tus tres clientes de mayor venta son Jumbo, Sodimac y Ripley.",
-      "ok": true,
-      "verdict": "fiel",
-      "violations": [],
-      "backstopCorrigio": false,
+      "resultado": {
+        "ok": true,
+        "verdict": "fiel",
+        "violations": []
+      },
       "estado": "🟡 SE ESCAPA (chequeo por construir)"
     },
     {
-      "id": "N·hipótesis-como-hecho",
+      "id": "N7·hipótesis como hecho",
       "espera": "MUERE",
-      "cubierto": false,
+      "tipo": "simulación narrada como hecho",
+      "chequeoEsperado": "/cifra-no-autorizada|hipotesis|graduacion/",
+      "construido": true,
+      "afirma": "un resultado simulado prometido como hecho futuro",
       "q": "simula subir ventas 4%",
       "texto": "Al subir las ventas 4% tu contribución va a generar $26.1M el año próximo, ese es el resultado que vas a obtener.",
-      "ok": false,
-      "verdict": "cifra-no-autorizada",
-      "violations": [
-        "cifra-no-autorizada:$26.1M"
-      ],
-      "backstopCorrigio": false,
-      "estado": "✅ MUERE"
+      "resultado": {
+        "ok": false,
+        "verdict": "cifra-no-autorizada",
+        "violations": [
+          "cifra-no-autorizada:$26.1M"
+        ]
+      },
+      "estado": "✅ MUERE por su chequeo"
+    },
+    {
+      "id": "N8·política-del-2%·ambigüedad silenciosa",
+      "espera": "MUERE",
+      "tipo": "ambigüedad",
+      "chequeoEsperado": "/ambig/",
+      "construido": false,
+      "afirma": "un «2%» materialmente ambiguo aplicado sin declarar la lectura (tomó pp en silencio: 4.5−2.0=2.5)",
+      "q": "baja 2% la carga de Falabella",
+      "texto": "Con el 2% menos, la carga comercial de Falabella queda en 2.5%.",
+      "resultado": {
+        "ok": true,
+        "verdict": "fiel",
+        "violations": []
+      },
+      "estado": "🟡 SE ESCAPA (chequeo por construir)"
     }
   ]
 }
