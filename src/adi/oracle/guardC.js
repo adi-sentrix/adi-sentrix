@@ -2630,7 +2630,7 @@ function _enmascararRango(texto, [ini, fin]) {
   return texto.slice(0, ini) + dentro + texto.slice(fin);
 }
 
-export function guardC(narration, { ledger, results = [], trace = null, question = "", mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
+export function guardC(narration, { ledger, results = [], trace = null, question = "", supuestoPendiente = null, mechanismMemory = null, sealedOrders = null, recentNarrations = null, mode = null, tablePolicy = "auto", reparacion = null, contentScope = "full", boletaAnterior = null, datoProyectado = null, entidadesDelTenant = null, duenosDelTenant = null } = {}) {
   // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
   // el chequeo 26 lo juzgue por sus propias reglas. Sin bloque, `narration` no se toca: byte-idéntico a hoy.
   const _rangoCG = contentScope === "full" ? rangoContextoGeneral(narration) : null;
@@ -2640,6 +2640,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // ECO DEL USUARIO: repetir una cifra que la PERSONA nombró en su pregunta NO es inventar ("qué es eso de 2x" → ADI
   // dice "2x"). Autorizamos las cifras/conteos del texto de la pregunta además de las de la boleta.
   const qFigs = parseFigures(question || "");
+  // EL SUPUESTO DEL PENDIENTE VIVO (owner 2026-08-14, hilo medido: el narrador ecoó el «4%» que el PROPIO usuario
+  // había declarado dos turnos antes —vivo en mem.pendingSimulation— y este muro lo vetó dos veces como
+  // cifra-de-dato-sin-dueno; el turno cayó al genérico). En un flujo de simulación multi-turno la cifra del
+  // supuesto es DEL USUARIO aunque no esté en el texto de ESTE turno: el caller (answerViaOracle) la pasa acá
+  // SOLO mientras el pendiente vive, como strings del valor+unidad exactos, y entra con el MISMO estatus que el
+  // eco de la pregunta — mismo parser (parseFigures, nunca un segundo), misma membresía en cada chequeo que qFigs
+  // ya tiene. QUIRÚRGICO por construcción: no se toca ningún chequeo — solo se agregan 1-2 figuras a la fuente de
+  // eco que ya existía; sin el parámetro (el default de todos los demás callers) el muro es byte-idéntico.
+  if (Array.isArray(supuestoPendiente)) {
+    for (const s of supuestoPendiente) for (const pf of parseFigures(String(s == null ? "" : s))) qFigs.push(pf);
+  }
   // EL TERCER UNIVERSO (Contrato v1.2 §5.1, owner 2026-08-10): la cifra que aportó el usuario y sigue viva en la
   // conversación. Se AUTORIZA a escribirla —de otro modo el narrador no podría siquiera mostrar la discrepancia—
   // pero no queda libre: los chequeos 20 y 21 exigen que lleve su procedencia en cada lugar donde aparezca, que

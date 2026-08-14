@@ -248,11 +248,16 @@ function _mismasEntidades(pending, otras) {
   return true;
 }
 
-// _pendienteBienFormado(p) → un pendiente sin entidad, sin variable conocida o sin campo faltante no es un
-// pendiente: es basura persistida. Mismo criterio que _buildPendingSimulation ("mejor nada que un pendiente roto").
+// _pendienteBienFormado(p) → un pendiente sin variable conocida o sin campo faltante no es un pendiente: es basura
+// persistida. Mismo criterio que _buildPendingSimulation ("mejor nada que un pendiente roto").
+// EL ALCANCE TAMBIÉN PUEDE SER LO QUE FALTA (owner 2026-08-14, hilo medido del owner): el arm "no_entity" declara
+// la variable pero no tiene entidad — ese estado se persiste con `faltaAlcance:true` (la pregunta abierta es
+// "¿sobre qué?"), y cuando el usuario contesta "el total del negocio" el pendiente pasa a `alcance:"global"`
+// (sin entidad puntual, deliberadamente). Ambos estados son pendientes legítimos: sin ellos, el turno siguiente
+// caía a PLAN con un pendiente que PLAN no entiende — y PLAN fabricó un simulateCosto que nadie pidió.
 function _pendienteBienFormado(p) {
   if (!p || typeof p !== "object" || !p.missingCampo || !p.known || typeof p.known.delta_pct !== "number") return false;
-  return !!(p.entity || (Array.isArray(p.entities) && p.entities.length));
+  return !!(p.entity || (Array.isArray(p.entities) && p.entities.length) || p.faltaAlcance === true || p.alcance === "global");
 }
 
 // nacePendingSimulation(pending) → el pendiente RECIÉN armado, con su plazo estampado. Es el único punto que fija
@@ -298,7 +303,10 @@ export function repararPendingSimulation(pending, reparacion, plan) {
   const nuevas = (scope && Array.isArray(scope.entities)) ? scope.entities.filter(Boolean) : [];
   if (!nuevas.length || (scope && scope.level === "global")) return null;   // sin sujeto puntual que simular → el pendiente muere
   if (_mismasEntidades(p, nuevas)) return p;
-  return { ...p, entity: nuevas[0], entities: nuevas.slice(), dimension: guessDimension(nuevas[0]) || p.dimension || null };
+  // la corrección le puso entidad: si el pendiente estaba esperando el alcance, esa espera terminó acá mismo —
+  // dejar `faltaAlcance` vivo junto a una entidad haría que el motor volviera a preguntar lo que ya tiene.
+  const { faltaAlcance: _fa, alcance: _al, ...resto } = p;
+  return { ...resto, entity: nuevas[0], entities: nuevas.slice(), dimension: guessDimension(nuevas[0]) || p.dimension || null };
 }
 
 // fusionarPendientes(previo, nuevo) → LA REGLA DE PRECEDENCIA cuando este turno arma su propia simulación teniendo
