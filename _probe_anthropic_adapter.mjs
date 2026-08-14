@@ -92,5 +92,30 @@ console.log("\n── A2.d · parse()/narrate() usan ESTOS builders (fuente leí
     "max_tokens: 1024 aparece UNA sola vez en el archivo (el de parse) — el de narrar ya no está fijo");
 }
 
+console.log("\n── A2.e · MODO NATURAL (camino natural 2026-08-14): el hilo viaja como messages · sin el modo, byte-igual ──");
+{
+  const MENSAJES = [
+    { role: "user", content: "¿Qué clientes venden mucho pero dejan poco margen?" },
+    { role: "assistant", content: "Falabella, Lider, Jumbo y Sodimac — los cuatro bajo tu benchmark." },
+    { role: "user", content: "reduce en 2 puntos las acciones comerciales de esos clientes" },
+  ];
+  const body = buildNarrateBody({ modoNatural: true, mensajes: MENSAJES }, { model: "claude-sonnet-5", system: SYSTEM });
+  ok(J(body.messages) === J(MENSAJES), "con modoNatural, messages ES el hilo (roles y contenidos intactos)");
+  ok(body.max_tokens === 3072 && body.system[0].cache_control.type === "ephemeral", "mismo tope y mismo corte de caché que narrate() de siempre");
+  // el saneo: roles ajenos / contents vacíos no viajan, y sin turno de usuario al final NO hay modo natural
+  const sucio = buildNarrateBody({ modoNatural: true, mensajes: [{ role: "system", content: "no va" }, { role: "user", content: "  " }, ...MENSAJES] }, { model: "m", system: SYSTEM });
+  ok(J(sucio.messages) === J(MENSAJES), "roles ajenos y contents en blanco se filtran antes de viajar");
+  const sinUserFinal = buildNarrateBody({ modoNatural: true, mensajes: [{ role: "user", content: "hola" }, { role: "assistant", content: "hola" }] }, { model: "m", system: SYSTEM });
+  ok(sinUserFinal.messages.length === 1 && sinUserFinal.messages[0].content.includes("modoNatural"),
+    "sin turno de usuario al final, cae al contrato de siempre (el payload serializado) — nunca un request inválido");
+  // y el candado de no-regresión: cualquier payload SIN modoNatural produce el body de siempre, byte por byte
+  const normal = buildNarrateBody(PAYLOAD, { model: "claude-sonnet-5", system: SYSTEM });
+  ok(normal.messages.length === 1 && normal.messages[0].content === JSON.stringify(PAYLOAD),
+    "sin modoNatural el body es byte-igual al de siempre (el camino actual no cambió)");
+  const conMensajesSinModo = buildNarrateBody({ mensajes: MENSAJES }, { model: "m", system: SYSTEM });
+  ok(conMensajesSinModo.messages.length === 1 && conMensajesSinModo.messages[0].content === JSON.stringify({ mensajes: MENSAJES }),
+    "…y `mensajes` sin la declaración modoNatural NO activa nada (el modo se declara, no se adivina)");
+}
+
 console.log(`\n── _probe_anthropic_adapter: ${PASS} PASS · ${FAIL} FAIL ──`);
 process.exit(FAIL ? 1 : 0);

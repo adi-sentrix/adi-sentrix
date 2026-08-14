@@ -138,11 +138,20 @@ export const openaiAdapter = {
   async narrate(validatedOutput, { model, system }) {
     if (!system) throw new Error("narrate() sin system: el contrato debe venir armado del caller, el adapter no define uno propio");
     const reasoning = _isReasoningFamily(model);
+    // MODO NATURAL (owner 2026-08-14 · MISMO contrato que anthropic.js): con `modoNatural` + `mensajes`, el hilo
+    // {role, content} viaja como messages reales tras el system; cualquier otro caller queda byte-idéntico.
+    const _mensajes = (validatedOutput && validatedOutput.modoNatural === true && Array.isArray(validatedOutput.mensajes))
+      ? validatedOutput.mensajes
+          .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+          .map((m) => ({ role: m.role, content: m.content }))
+      : null;
     const body = {
       model,
       messages: [
         { role: "system", content: _systemText(system) },
-        { role: "user", content: JSON.stringify(validatedOutput) },
+        ...((_mensajes && _mensajes.length && _mensajes[_mensajes.length - 1].role === "user")
+          ? _mensajes
+          : [{ role: "user", content: JSON.stringify(validatedOutput) }]),
       ],
     };
     body[reasoning ? "max_completion_tokens" : "max_tokens"] = reasoning ? 2048 : 1024;

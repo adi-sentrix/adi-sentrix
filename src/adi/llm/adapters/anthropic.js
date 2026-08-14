@@ -100,11 +100,24 @@ export function buildParseBody(text, { system, tool, model }) {
     messages: [{ role: "user", content: text }],
   };
 }
+// _mensajesNaturales(validatedOutput) → los messages del MODO NATURAL, o null para todo lo demás (owner
+// 2026-08-14, camino natural): cuando el payload declara `modoNatural` con `mensajes` (el hilo {role, content}),
+// el hilo viaja como messages REALES del proveedor en vez del payload serializado en un único mensaje de usuario.
+// Solo roles user/assistant, solo content de texto no vacío (el proveedor rechaza un content en blanco) y el
+// último turno debe ser del usuario. Cualquier caller sin `modoNatural` queda BYTE-IDÉNTICO a siempre.
+function _mensajesNaturales(validatedOutput) {
+  if (!validatedOutput || validatedOutput.modoNatural !== true || !Array.isArray(validatedOutput.mensajes)) return null;
+  const msgs = validatedOutput.mensajes
+    .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .map((m) => ({ role: m.role, content: m.content }));
+  return msgs.length && msgs[msgs.length - 1].role === "user" ? msgs : null;
+}
 export function buildNarrateBody(validatedOutput, { model, system }) {
+  const mensajes = _mensajesNaturales(validatedOutput);
   return {
     model, max_tokens: _narrateMaxTokens(),
     system: _systemBlocks(system),
-    messages: [{ role: "user", content: JSON.stringify(validatedOutput) }],
+    messages: mensajes || [{ role: "user", content: JSON.stringify(validatedOutput) }],
   };
 }
 
