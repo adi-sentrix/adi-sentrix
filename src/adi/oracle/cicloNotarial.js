@@ -178,7 +178,9 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
      * El vacío conserva su estado propio (`vacio`) porque es una falla distinta y el balance la cuenta aparte;
      * lo que se unifica es la SALIDA, no la métrica. */
     const s = typeof suplente === "function" ? suplente() : null;   // UNA sola invocación: componer el suplente puede no ser gratis
-    texto = String(s == null ? "" : s);
+    // EL SUPLENTE TAMBIÉN SE LAVA (2026-08-14): sale a pantalla igual que el borrador del cerebro, así que pasa
+    // por el mismo lavado de registro. Se le medió una palabra prohibida encima («vara», heredada de la carpeta).
+    texto = _lav(s);
     out.suplenteDigno = true;
   }
   // EL PISO ABSOLUTO: pase lo que pase arriba —incluido un suplente que llegue vacío—, de acá no sale una pantalla

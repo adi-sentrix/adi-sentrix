@@ -380,6 +380,12 @@ for (const [inp, exp] of [
   ["Tu propia vara manda sobre la del sector.", "Tu referencia manda sobre la del sector."],
   ["La vara del negocio es 30.1%.", "La referencia del negocio es 30.1%."],
   ["Vara mínima: 30.1% de margen.", "Referencia mínima: 30.1% de margen."],
+  // MEDIDO en el examen 1 · turno 3 (camino natural): llegó a pantalla colgada de una preposición, sin
+  // determinante y sin adjetivo — las dos clases que estaban enumeradas.
+  ["Aclaración de vara primero: el target cambia.", "Aclaración de referencia primero: el target cambia."],
+  ["Sin vara declarada por el negocio no hay corte.", "Sin referencia declarada por el negocio no hay corte."],
+  ["Comparado contra vara, Falabella queda abajo.", "Comparado contra referencia, Falabella queda abajo."],
+  ["La vara la declara el negocio: benchmark 30.1%.", "La referencia la declara el negocio: benchmark 30.1%."],
 ]) {
   const g = SLL(inp);
   pOk(`V8 · «${inp.slice(0, 44)}…»${g === exp ? "" : `  →  «${g}»`}`, g === exp && SLL(g) === g && _nums(g) === _nums(inp));

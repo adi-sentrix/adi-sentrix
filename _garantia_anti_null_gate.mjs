@@ -43,6 +43,7 @@ import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { guardC, esNarracionVacia } from "./src/adi/oracle/guardC.js";
 import { cifrasDelDato, suplenteDignoDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { responderConNotario } from "./src/adi/oracle/cicloNotarial.js";
+import { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";   // el MISMO lavador que inyecta el camino natural
 import { composeNoDataMessage } from "./src/adi/oracle/narrationBlocks.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { TURNOS } from "./_corrida_doble_casos.mjs";
@@ -273,6 +274,24 @@ H("[9] EL SEGUNDO REINTENTO · solo si el veto CAMBIÓ, y nunca más de 3 llamad
     const r = await responderConNotario({ pedir: async () => BUENA, juzgar: JUEZ, suplente: SUP });
     ok(r.calls === 1 && r.estado === "verde" && r.aprobado && !r.vetos.length, "el turno que pasa a la primera sigue costando UNA llamada");
   }
+}
+
+/* ── [10] EL SUPLENTE TAMBIÉN PASA POR EL LAVADO DE REGISTRO (medido 2026-08-14, examen 1 · turno 3) ───────────
+ * El suplente sale a pantalla igual que el borrador del cerebro, y salía SIN lavar: se le midió encima una
+ * palabra prohibida heredada de la carpeta. La garantía es del módulo, no de quién compone el suplente. */
+H("[10] EL SUPLENTE DIGNO SE LAVA IGUAL QUE EL BORRADOR DEL CEREBRO");
+{
+  const r = await responderConNotario({
+    pedir: async () => "", juzgar: juezNatural(TURNOS[0].q),
+    suplente: () => "La vara la declara el negocio: benchmark de margen 30.1%.",
+    lavar: stripLanguageLeaks,
+  });
+  ok(!/\bvara\b/i.test(r.texto) && /referencia/i.test(r.texto),
+    "una palabra prohibida en el suplente NO llega a pantalla", JSON.stringify(r.texto).slice(0, 120));
+  ok(r.suplenteDigno === true && r.estado === "vacio", "…y el lavado no cambia el estado ni la marca del turno", `${r.estado}`);
+  // y el suplente REAL del producto sale limpio de punta a punta
+  const rr = await responderConNotario({ pedir: async () => "", juzgar: juezNatural(TURNOS[0].q), suplente: suplenteDe(TURNOS[0].q), lavar: stripLanguageLeaks });
+  ok(!/\bvara\b/i.test(rr.texto), "el suplente real del dato tampoco trae la palabra prohibida", (rr.texto.match(/.{0,30}vara.{0,20}/i) || ["limpio"])[0]);
 }
 
 console.log(`\n── GATE · garantía anti-null · ${PASS} PASS · ${FAIL} FAIL ──`);

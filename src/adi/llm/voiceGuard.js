@@ -166,6 +166,16 @@ const _LEAKS = [
   // decide la función: es el sustantivo el que abre la frase («Vara mínima: 30.1%» es un encabezado real).
   [/\bvara\s+(declarada|propia|alta|baja|m[ií]nima|m[aá]xima|actual|vigente|puesta|fijada|definida)(?![\p{L}])/giu,
     (m, adj) => `${/^[A-ZÁÉÍÓÚ]/.test(m) ? "Referencia" : "referencia"} ${adj}`],
+  /* ── Y ACÁ SE CIERRA DE VERDAD (medido 2026-08-14, examen 1 · turno 3, camino natural): «**Aclaración de vara
+   * primero:**» llegó ENTERA a pantalla — sin determinante y sin adjetivo, colgada de una PREPOSICIÓN. Enumerar
+   * ahora la clase de las preposiciones sería el TERCER parche del mismo agujero, y el propio comentario de
+   * arriba ya dice por qué no alcanza: «si «vara» está vetada, lo está con cualquiera».
+   * EL SINGULAR SE BARRE SUELTO. La razón por la que no se hacía es del PLURAL, no del singular: «Puerto Varas»
+   * es un topónimo chileno real, y por eso el plural sigue exigiendo determinante. En singular no hay colisión —
+   * «varado/varada» (SKU encallado) no matchea por el `\b` + el lookahead de letra.
+   * VA AL FINAL a propósito: las reglas de arriba preservan determinante y adjetivo con su concordancia, y esta
+   * solo recoge lo que quedó. Idempotente («referencia» no contiene «vara») y number-safe (cero dígitos). */
+  [/\bvara(?![\p{L}])/giu, (m) => (/^[A-ZÁÉÍÓÚ]/.test(m) ? "Referencia" : "referencia")],
 ];
 // ── VOSEO → TUTEO NEUTRO (owner 2026-08-10, certificación live · defecto 4) ────────────────────────────────────
 // EL HALLAZGO: el registro es "formal LatAm, sin chilenismos", y el `_registro_gate` lo verificaba desde 2026-07-14

@@ -150,7 +150,10 @@ function _construir(scenario) {
   if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV)} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
-  L.push(`- La vara la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"])}.`);
+  // «La REFERENCIA la declara el negocio», no «la vara» (medido 2026-08-14, examen 1 · turno 3): la carpeta es lo
+  // que el cerebro lee, así que una palabra prohibida acá se la está ENSEÑANDO — y de acá salía también al
+  // suplente digno, que va a pantalla. Se corrige en la fuente, además del lavado de salida.
+  L.push(`- La referencia la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"])}.`);
   const kpisLineas = L.slice(_iKpi);   // el bloque de KPIs TAL CUAL viaja en la proyección — cada cifra ya registrada por F() con su dueño
   L.push("");
 
