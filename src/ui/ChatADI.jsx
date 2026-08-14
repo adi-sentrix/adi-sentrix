@@ -226,11 +226,14 @@ function _claimsOnlyOn() {
 // `attempt`: un campo más del body, sin tocar la firma ni el valor de retorno de nadie. Si el llamador no lo
 // declara queda `undefined` y JSON.stringify lo OMITE — el body de un turno que no reintenta sale byte-idéntico al
 // de siempre. El borde vive en el gateway (_causaDeclarada): sólo sobrevive un código de lista cerrada, jamás texto.
+// `datoNegocio` (owner 2026-08-14, «el dato al PLAN»): la MISMA proyección que ya viaja a NARRAR (misma función,
+// mismo memo por tenant+escenario, mismo campo del body) — el que DECIDE qué tools pedir necesita ver el mapa del
+// negocio tanto como el que narra. Va como campo propio, y el gateway la coloca en el segmento FIJO/cacheable.
 async function _fetchPlan({ text, history, mem, scenario, requestContext, attempt, vistaLinea, motivoReintento, _onRouted }) {
   const t0 = Date.now();
   const res = await fetch("/api/adi-plan", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, vistaLinea, motivoReintento }),
+    body: JSON.stringify({ text, history, mem, scenario, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, vistaLinea, motivoReintento, datoNegocio: proyectarDatoNegocio(scenario) }),
   });
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");

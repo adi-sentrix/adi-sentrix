@@ -6,6 +6,11 @@
  * Va junto al MURO (no lo reemplaza): la persona define CÓMO habla; la boleta/guard define QUÉ cifras puede usar.
  */
 import { getLastOffer, getRecentSubjects } from "./dialogueState.js";   // Etapa 4 (owner 2026-08-04) — lastOffer/recentSubjects como vistas derivadas de conversationScope, ver esos getters para el detalle
+// EL PLAZO DEL PENDIENTE NO SE JUZGA ACÁ (owner 2026-08-14): el ciclo de vida vive en conversationScope.js y este
+// render lo CONSULTA. Escribir el `restan > 0` a mano sería una segunda fuente de verdad sobre qué pendiente está
+// vivo — exactamente lo que ese archivo existe para impedir. El orquestador ya lo juzga una vez por turno; esto es
+// el candado para cualquier otro caller (gates, wrappers) que renderice una memoria sin haber pasado por ahí.
+import { pendingSimulationVigente } from "./conversationScope.js";
 
 // ADI_PERSONA · el carácter, en instrucción operativa para el narrador. Registro ejecutivo neutro LatAm (sin
 // chilenismos · [[adi-lenguaje-formal]]). Encaja con el sello entender→explicar→actuar y "siempre interpreta".
@@ -91,6 +96,34 @@ Transmití cinco cosas a la vez, sin nombrarlas:
 // y muy por debajo del punto donde la lista deja de ser una SEÑAL y pasa a ser un volcado de dato.
 export const MEMORY_SCOPE_ENTITIES_MAX = 24;
 
+// ── LA SIMULACIÓN PENDIENTE, COMO SEÑAL (owner 2026-08-14, «el que DECIDE no ve nada») ────────────────────────
+// EL AGUJERO QUE CIERRA: `mem.pendingSimulation` es el ÚNICO estado conversacional estructurado que este render
+// NO surfaceaba. Identidad, preferencias, ánimo, objetivo, la última oferta, los temas recientes y el alcance
+// activo viajan al prompt desde hace meses; la simulación a medias —la entidad, el supuesto que el usuario YA
+// declaró y el que falta— existía solo dentro del motor. Resultado medido: el planificador llegaba al turno
+// siguiente sin saber que había una simulación abierta, y un turno que la contestaba («sobre las ventas», «que
+// no cambie») se leía como un pedido nuevo. La resolución determinística (answerViaOracle.js) sigue siendo LA
+// AUTORIDAD y no se toca: esto es la señal, exactamente el mismo rol que `lastOffer`.
+// EL VOCABULARIO ES EL DEL PRODUCTO, no uno nuevo: «el precio» / «el volumen (unidades vendidas)» son las mismas
+// palabras con que el motor pregunta por el supuesto faltante (_preguntaPorFaltante, answerViaOracle.js) y con
+// que declara la lectura de «ventas» como volumen. Acá se RINDEN esos dos campos en palabras; la pregunta al
+// usuario se sigue redactando en un solo lugar, allá.
+const _CAMPO_EN_PALABRAS = { precioLista: "el precio", unidades: "el volumen (unidades vendidas)" };
+const _deltaEnPalabras = (n) => `${n > 0 ? "+" : ""}${n}%`;
+// _lineaPendiente(p) → la línea de señal, o "" si el pendiente no está bien formado (mismo criterio que el motor:
+// sin variable conocida o sin campo faltante no es un pendiente, es basura persistida — y una señal a medias es
+// peor que ninguna, porque el LLM la completaría inventando).
+function _lineaPendiente(pending) {
+  const p = pendingSimulationVigente(pending);   // el plazo lo juzga su dueño, no este render
+  if (!p || !p.known || typeof p.known.delta_pct !== "number") return "";
+  const conocido = _CAMPO_EN_PALABRAS[p.known.campo], falta = _CAMPO_EN_PALABRAS[p.missingCampo];
+  if (!conocido || !falta) return "";
+  const ents = (Array.isArray(p.entities) && p.entities.length) ? p.entities : (p.entity ? [p.entity] : []);
+  if (!ents.length) return "";
+  const sobre = ents.length === 1 ? ents[0] : ents.join(" y ");
+  return `· Simulación EMPEZADA Y SIN CERRAR sobre ${sobre}${p.dimension ? ` (eje ${p.dimension})` : ""}: el usuario ya declaró ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)}, y FALTA ${falta} — es el supuesto que ADI le pidió. Si este turno contesta eso (un porcentaje, "que no cambie", "se mantiene", "sobre el total"), es A ESTA simulación que se refiere, no a un escenario nuevo: conservá ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)} y la misma entidad. Si el turno habla de otra cosa, la simulación sigue esperando: no la des por hecha, no la ejecutes a medias y no la traigas vos.`;
+}
+
 // renderInteractionMemory(mem) → bloque legible de la MEMORIA DE INTERACCIÓN para inyectar en el prompt. Las 4 capas
 // (identidad · preferencias · estado · contexto). Vacío → "" (sin ruido). Es la configuración ejecutiva del usuario.
 export function renderInteractionMemory(mem) {
@@ -123,6 +156,12 @@ export function renderInteractionMemory(mem) {
   if (lastOffer && lastOffer.texto) {
     L.push(`· Tu última oferta de seguimiento fue: "${lastOffer.texto}"${lastOffer.entidad ? ` (sobre ${lastOffer.entidad})` : ""} — si el usuario la acepta ahora ("sí", "dale", "de acuerdo"...), es A ESO que se refiere, no a otra cosa.`);
   }
+  // LA SIMULACIÓN PENDIENTE, JUSTO DESPUÉS DE LA OFERTA (ver el bloque _lineaPendiente arriba): las dos son SEÑAL
+  // de "a qué se refiere el turno que viene", y van juntas para que se lean como lo que son — contexto de
+  // desambiguación, nunca autoridad. Va DESPUÉS de lastOffer a propósito: cuando las dos están vivas, la
+  // simulación a medias es la más específica de las dos y lo último que se lee pesa más.
+  const lineaPendiente = _lineaPendiente(mem.pendingSimulation);
+  if (lineaPendiente) L.push(lineaPendiente);
   const recentSubjects = getRecentSubjects(mem);
   if (Array.isArray(recentSubjects) && recentSubjects.length) {
     L.push(`· Temas recientes de esta conversación (más reciente primero): ${recentSubjects.map((s) => s && s.entidad).filter(Boolean).join(", ")}.`);
