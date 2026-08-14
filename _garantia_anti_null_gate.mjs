@@ -241,6 +241,28 @@ H("[9] EL SEGUNDO REINTENTO · solo si el veto CAMBIÓ, y nunca más de 3 llamad
     ok(r.estado === "suplente" && r.suplenteDigno, "…y termina en suplente digno");
     ok(r.vetos.length === 3 && /^3º: /.test(r.vetos[2]), "…con los tres vetos anotados y numerados", JSON.stringify(r.vetos));
   }
+  /* (c2) EL MISMO NOMBRE DE VEREDICTO NO ES EL MISMO VETO (medido en el examen 1, turno 1): el intento 1 murió
+   * por una línea del bloque cortada y el 2 por usar la operación equivocada — dos defectos distintos bajo el
+   * mismo `calculo-no-verificable`. Si se comparara por nombre, el reintento no existiría justo donde hace falta. */
+  {
+    let n = 0;
+    const juezDosFallas = (t) => {
+      if (/BUENA/.test(t)) return { ok: true, verdict: "ok", violations: [] };
+      n++;
+      return n === 1
+        ? { ok: false, verdict: "calculo-no-verificable", violations: [{ kind: "calculo-no-verificable", detail: "línea «id=c4 · op=puntos» — campo «resultado»: la declaración está incompleta" }] }
+        : { ok: false, verdict: "calculo-no-verificable", violations: [{ kind: "calculo-no-verificable", detail: "línea «id=c12 · op=aplicar_pct» — campo «resultado»: la cuenta no cierra" }] };
+    };
+    const r = await responderConNotario({ pedir: async ({ intento }) => (intento === 3 ? "BUENA" : `borrador ${intento}`), juzgar: juezDosFallas, suplente: SUP });
+    ok(r.calls === 3 && r.estado === "reparado", "dos multas DISTINTAS con el mismo nombre de veredicto → sí hay 3er intento", `calls=${r.calls} · ${r.estado}`);
+  }
+  // (c3) …y la multa IDÉNTICA repetida sigue cortando en dos, aunque el nombre del veredicto no diga nada
+  {
+    const juezIgual = () => ({ ok: false, verdict: "calculo-no-verificable", violations: [{ kind: "calculo-no-verificable", detail: "línea «id=c1» — campo «op»: la operación no existe" }] });
+    let n = 0;
+    const r = await responderConNotario({ pedir: async () => { n++; return "borrador vetado"; }, juzgar: juezIgual, suplente: SUP });
+    ok(n === 2 && r.estado === "suplente", "la MISMA multa repetida corta en 2 llamadas y va al suplente", `llamadas=${n} · ${r.estado}`);
+  }
   // (d) NO CAMBIA LO QUE YA FUNCIONABA: la reparación al primer intento sigue costando UNA llamada extra
   {
     const r = await responderConNotario({ pedir: async ({ intento }) => (intento === 1 ? MALA1 : BUENA), juzgar: JUEZ, suplente: SUP });

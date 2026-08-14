@@ -114,7 +114,7 @@ ok(extraerCalculos(`x\n\n${MARCA_CALCULO}\nop=sumar · inputs=$1,234; $2,766 · 
  * «Si una línea falla, la multa debe decir exactamente qué línea y qué campo falló» (owner). Sin esto el
  * reintento reescribe a ciegas un bloque de doce líneas y vuelve con el mismo veto. */
 console.log("\n── 7 · LA MULTA NOMBRA LA LÍNEA Y EL CAMPO ──");
-const _detalle = (t) => String(((juzgar(t).violations || [])[0] || {}).detail || "");
+const _detalle = (t, extra = {}) => String(((juzgar(t, extra).violations || [])[0] || {}).detail || "");
 const dCierra = _detalle(`El negocio llegaría a $104.0M y la contribución a $30.4M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money\nid=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$30.4M · unidad=money`);
 ok(/línea «/.test(dCierra) && /id=c2/.test(dCierra), `la multa CITA la línea culpable, no el bloque entero (${dCierra.slice(0, 90)}…)`);
 ok(/campo «resultado»/.test(dCierra), "…y nombra el campo: el resultado es el que no cierra");
@@ -185,6 +185,28 @@ ok(!GRUESO("$1M").ok, "«$1M» por una cuenta que da $1.4M NO pasa: el redondeo 
 ok(GRUESO("$1.4M").ok, "…y escrita como corresponde, «$1.4M», pasa");
 // y el redondeo de una TASA a su propio decimal
 ok(juzgar(`La brecha de Ripley es de 0.1 puntos.\n\n${MARCA_CALCULO}\nid=c1 · op=restar · inputs=25.1%; 25.0% · formula=25.1% − 25.0% · resultado=0.1pp · unidad=pp`).ok, "una tasa redondeada a su propio decimal también cierra");
+
+/* ── 10 · EL ERROR REPETIDO ES DE VOCABULARIO, NO DE ARITMÉTICA (owner 2026-08-14, examen 1 · turnos 1 y 3) ────
+ * Dos veces el cerebro declaró «$19.4M × 8.1%» queriendo decir «el 8.1% de $19.4M». Multiplicarlos como números
+ * crudos da $157M: un valor que nadie quiso decir nunca. Como hay UNA sola lectura sensata, se lee así — y la
+ * cuenta se recomputa igual. Donde la lectura NO es única («aplicar_pct»), no se interpreta: se señala. */
+console.log("\n── 10 · «$19.4M × 8.1%» TIENE UNA SOLA LECTURA SENSATA ──");
+const Q81 = { question: "¿Cuánto suma cerrar la brecha de 8.1 puntos de Falabella?", supuestoPendiente: ["8.1%"] };
+ok(juzgar(`Cerrar la brecha de Falabella sumaría $1.57M.\n\n${MARCA_CALCULO}\nid=c1 · op=multiplicar · inputs=$19.4M; 8.1% · formula=$19.4M x 8.1% · resultado=$1.57M · unidad=money`, Q81).ok,
+  "«multiplicar» sobre un monto y un porcentaje se lee como «el X% de Y»");
+ok(!juzgar(`Cerrar la brecha de Falabella sumaría $157.1M.\n\n${MARCA_CALCULO}\nid=c1 · op=multiplicar · inputs=$19.4M; 8.1% · formula=$19.4M x 8.1% · resultado=$157.1M · unidad=money`, Q81).ok,
+  "…y el producto crudo ($157M), que es lo que nadie quiso decir, NO pasa");
+// ACOTADO: un escalar y dos tasas siguen siendo multiplicación de verdad
+ok(juzgar(`El negocio duplicado llegaría a $200.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=multiplicar · inputs=$100.0M; 2 · formula=$100.0M x 2 · resultado=$200.0M · unidad=money`, { question: "¿Y si duplico la venta (x2)?", supuestoPendiente: ["2"] }).ok,
+  "…pero «multiplicar $100.0M × 2» sigue siendo una multiplicación (el escalar no lleva marca de %)");
+
+console.log("\n── 10b · LA MULTA SEÑALA LA OPERACIÓN QUE SÍ CERRARÍA ──");
+const dPista = _detalle(`Cerrar la brecha de Falabella sumaría $1.57M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$19.4M; 8.1% · formula=$19.4M + 8.1% · resultado=$1.57M · unidad=money`, Q81);
+ok(/«pct_de»/.test(dPista), `con «aplicar_pct» la cuenta no cierra, y la multa nombra la que sí: pct_de (${dPista.slice(-120)})`);
+ok(/corregí la operación; si no, corregí la cifra/.test(dPista), "…y lo deja como pregunta, no como orden: puede ser la cifra la equivocada");
+// y NO se inventa una pista cuando no hay una sola candidata
+const dSin = _detalle(`Las ventas del negocio subirían a $121.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$121.0M · unidad=money`);
+ok(!/SÍ cierra si la operación/.test(dSin), "cuando ninguna otra operación cierra, la multa no inventa una pista");
 
 console.log(`\n── _contrato_calculo_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);

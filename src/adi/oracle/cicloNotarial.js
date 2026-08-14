@@ -121,6 +121,7 @@ export function recitaAprobadaDe({ textoAprobado, catalogoEntidades, previa = nu
  * REGLA: se concede un reintento más SOLO SI el veto nuevo es DISTINTO de todos los anteriores (señal de que la
  * devolución sirvió y quedó otra cosa por arreglar). Mismo veto repetido → suplente digno de inmediato.
  * TOPE DURO de 3 llamadas, pase lo que pase — el candado no depende de que los veredictos sigan cambiando.
+ * «El mismo veto» se mide por la MULTA, no por el nombre del veredicto (ver el comentario del bucle).
  */
 const MAX_LLAMADAS = 3;
 export async function responderConNotario({ pedir, juzgar, suplente = null, lavar = null } = {}) {
@@ -138,14 +139,21 @@ export async function responderConNotario({ pedir, juzgar, suplente = null, lava
   if (esNarracionVacia(texto)) out.vacias.push(1);
   let v = juzgar(texto);
 
-  const _verdictos = [];   // los veredictos PELADOS, sin el rótulo del intento: son los que se comparan entre sí
+  const _verdictos = [];   // los veredictos PELADOS, sin el rótulo del intento: van al registro del turno
+  /* QUÉ CUENTA COMO «EL MISMO VETO»: la MULTA, no el nombre del veredicto. Medido en el examen 1: el intento 1
+   * murió por una línea del bloque cortada a la mitad y el intento 2 por usar «aplicar_pct» donde iba «pct_de» —
+   * dos defectos completamente distintos que comparten el nombre `calculo-no-verificable`, que cubre ocho fallas
+   * diferentes. Comparando por nombre, el reintento que el owner pidió no llegaba nunca a existir justo en el
+   * caso para el que lo pidió. La multa ES el reclamo concreto: si vuelve idéntica, el cerebro no está
+   * corrigiendo sino reformulando, y ahí sí corresponde el suplente. El tope duro de 3 llamadas manda igual. */
+  const _multasVistas = [];
   while (!(v && v.ok)) {
     const verdicto = String(v && v.verdict);
     _verdictos.push(verdicto);
     out.vetos.push(_verdictos.length === 1 ? verdicto : `${_verdictos.length}º: ${verdicto}`);
-    // el candado de la regla: se sigue SOLO si este veto no se había visto antes, y nunca más allá del tope duro
-    if (_verdictos.slice(0, -1).includes(verdicto) || out.calls >= MAX_LLAMADAS) break;
     const multa = ((v && v.violations) || []).slice(0, 3).map((x) => `[${x.kind}] ${x.detail}`).join("\n");
+    if (_multasVistas.includes(multa) || out.calls >= MAX_LLAMADAS) break;
+    _multasVistas.push(multa);
     texto = _lav(await pedir({ intento: out.calls + 1, multa, anterior: texto })); out.calls++;
     if (esNarracionVacia(texto)) out.vacias.push(out.calls);
     v = juzgar(texto);

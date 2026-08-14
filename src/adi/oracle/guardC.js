@@ -2939,7 +2939,15 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const _porId = new Map();
       for (const c of _calculosDeclarados) {
         const op = String(c.op || "").trim().toLowerCase();
-        const fn = _OPS[op];
+        /* «$19.4M × 8.1%» SOLO PUEDE SIGNIFICAR «el 8.1% de $19.4M» (owner 2026-08-14, examen 1 · turnos 1 y 3).
+         * El cerebro declaró dos veces «multiplicar» sobre un monto y un porcentaje. Multiplicarlos como números
+         * crudos da $157M — un valor que nadie quiso decir nunca. Como hay UNA sola lectura sensata, se lee así y
+         * la cuenta se recomputa igual contra el resultado declarado: no autoriza nada por sí sola.
+         * ACOTADO: exactamente dos insumos y exactamente UNO con marca de porcentaje. «multiplicar 2 × $19.4M»
+         * (un escalar) y «multiplicar 50% × 20%» (dos tasas) no entran acá y siguen como estaban. */
+        const _pctSueltos = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && _esPct(x)).length;
+        const opEfectiva = ((op === "multiplicar" || op === "escalar") && (c.inputs || []).length === 2 && _pctSueltos === 1) ? "pct_de" : op;
+        const fn = _OPS[opEfectiva];
         const R = _num(c.resultado);
         // el signo lo declara la fórmula (o el propio input con signo): «$100.0M − 4%» es distinto de «+ 4%».
         const signo = /[−–-]\s*\d|\bbaj|\breduc|\bmenos\b/i.test(String(c.formula || "")) ? -1 : 1;
@@ -2963,7 +2971,19 @@ export function guardC(narration, { ledger, results = [], trace = null, question
               ? `no se puede recomputar porque ${_malos.length ? `${_malos.map((x) => `«${x}»`).join(" y ")} no ${_malos.length > 1 ? "son cifras" : "es una cifra"} ni el id de otro cálculo` : `los insumos («${(c.inputs || []).join("; ")}») no alcanzan para la operación «${op}»`}`
               : `la línea no declara insumos, así que no hay nada que recomputar`));
         } else if (!cierra) {
-          _vetosCalculo.push(_multa(c, "resultado", `${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos`));
+          /* LA MULTA SEÑALA LA OPERACIÓN QUE SÍ CERRARÍA (owner 2026-08-14, examen 1): el error repetido no es de
+           * aritmética sino de VOCABULARIO — «aplicar_pct» donde se quiso decir «pct_de». Si exactamente otra
+           * operación del contrato cierra con estos mismos insumos y este mismo resultado, se nombra. NO autoriza
+           * nada: la línea muere igual y el reintento tiene que declarar cuál de las dos era. */
+          // solo los nombres CANÓNICOS del contrato (sin alias: «suma» y «sumar» cerrarían las dos y taparían la pista)
+          const _otrasQueCierran = ["pct_de", "aplicar_pct", "multiplicar", "dividir", "sumar", "restar", "puntos"].filter((k) => {
+            if (k === opEfectiva) return false;
+            let alt; try { alt = _OPS[k](insumos, uni, signo); } catch { return false; }
+            return Number.isFinite(alt) && (_cierraFrm(alt, R) || _cierraPorRedondeo(alt, c.resultado));
+          });
+          const _pista = _otrasQueCierran.length === 1
+            ? ` (la cuenta SÍ cierra si la operación fuera «${_otrasQueCierran[0]}» — si era esa, corregí la operación; si no, corregí la cifra)` : "";
+          _vetosCalculo.push(_multa(c, "resultado", `${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos${_pista}`));
         } else if (!insumosAutorizados) {
           const _sinDueno = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !_baseOk(String(x)));
           _vetosCalculo.push(_multa(c, "inputs", `${_sinDueno.map((x) => `«${x}»`).join(" y ")} no ${_sinDueno.length > 1 ? "están autorizadas" : "está autorizada"} — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado`));
