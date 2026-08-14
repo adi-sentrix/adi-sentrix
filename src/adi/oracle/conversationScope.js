@@ -874,16 +874,16 @@ export function resolveConversationReference(text, plan, scopePrev, requestConte
 // qué cliente?" — siempre nombra las alternativas CONCRETAS que ya existen en el scope estructurado.
 export function composeReferenceAmbiguity(options) {
   const groups = (Array.isArray(options) ? options : []).filter((g) => g && Array.isArray(g.entities) && g.entities.length);
-  if (groups.length < 2) return `No tengo claro a qué te referís — decime la entidad o el grupo concreto y sigo.`;
+  if (groups.length < 2) return `No tengo claro a qué te refieres — dime la entidad o el grupo concreto y sigo.`;
   const partes = groups.map((g) => `${g.entities.join(", ")}${g.dimension ? ` (${g.dimension})` : ""}`);
-  return `Tengo más de un grupo reciente que podría ser: ${partes.join(" — o — ")}. ¿A cuál te referís?`;
+  return `Tengo más de un grupo reciente que podría ser: ${partes.join(" — o — ")}. ¿A cuál te refieres?`;
 }
 
 export function composeReferenceDecline(reason) {
   const r = String(reason || "").trim();
-  if (r === "otro_tenant") return `Esa referencia es de otra empresa/conversación — no puedo reusarla acá. Decime a qué entidad te referís.`;
-  if (r === "sin_referente") return `No tengo un grupo de entidades reciente al que eso pueda referirse — decime a cuáles te referís.`;
-  return `No puedo resolver esa referencia con lo que tengo — decime a qué entidad o grupo te referís.`;
+  if (r === "otro_tenant") return `Esa referencia es de otra empresa/conversación — no puedo reusarla acá. Dime a qué entidad te refieres.`;
+  if (r === "sin_referente") return `No tengo un grupo de entidades reciente al que eso pueda referirse — dime a cuáles te refieres.`;
+  return `No puedo resolver esa referencia con lo que tengo — dime a qué entidad o grupo te refieres.`;
 }
 
 /* ── CONSOLIDACIÓN — ESTADO AL CIERRE DE ETAPA 4 (2026-08-04, documentado a propósito, para que el próximo agente

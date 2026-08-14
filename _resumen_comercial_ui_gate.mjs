@@ -836,7 +836,9 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
   fireEvent.click(porTexto(container, "Resultado"));
   ok(/P&L|resultado después de gastos|Resultado/i.test(container.textContent), "la cara RESULTADO rinde");
   fireEvent.click(porTexto(container, "Ficha"));
-  ok(container.textContent.includes("Elegí un cliente"), "la cara FICHA rinde con su selector");
+  // «Elegí» → «Elige» (registro formal, owner 2026-08-14). Se aceptan las dos: lo que prueba esta línea es que la
+  // cara Ficha rinde SU SELECTOR, no cómo se conjuga el imperativo.
+  ok(/(?:Elegí|Elige) un cliente/.test(container.textContent), "la cara FICHA rinde con su selector");
   fireEvent.click(conTexto(container, R.primera.entidad));
   ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), "…y arma la Ficha Ejecutiva del cliente elegido");
   fireEvent.click(porTexto(container, "Comercial"));

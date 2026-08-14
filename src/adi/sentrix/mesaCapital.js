@@ -182,14 +182,14 @@ export function buildMesaCapital(scenario) {
   const simulaciones = [];
   if (frenado.usd) simulaciones.push({
     key: "liberar", delta: _money(frenado.usd),
-    texto: `Si liberás el capital inmovilizado, ${_money(frenado.usd)} de caja vuelven a trabajar.`,
+    texto: `Si liberas el capital inmovilizado, ${_money(frenado.usd)} de caja vuelven a trabajar.`,
     ask: "¿Qué pasa si libero el capital detenido?",
   });
   if (quiebre.count) simulaciones.push({
     key: "reponer", delta: _money(quiebre.usd),
     texto: quiebre.count === 1
-      ? `Si reponés a tiempo, el SKU con quiebre próximo (${_money(quiebre.usd)}) no corta su venta.`
-      : `Si reponés a tiempo, los ${quiebre.count} SKU con quiebre próximo (${_money(quiebre.usd)}) no cortan su venta.`,
+      ? `Si repones a tiempo, el SKU con quiebre próximo (${_money(quiebre.usd)}) no corta su venta.`
+      : `Si repones a tiempo, los ${quiebre.count} SKU con quiebre próximo (${_money(quiebre.usd)}) no cortan su venta.`,
     ask: "¿Qué reponer por quiebre?",
   });
 

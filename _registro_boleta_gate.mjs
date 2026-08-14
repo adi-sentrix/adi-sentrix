@@ -38,11 +38,17 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
-import { composeExhaustedMechanismAcceptance } from "./src/adi/oracle/dialogueState.js";
+import { composeExhaustedMechanismAcceptance, composeOrphanAcceptance, composeVagueOfferAcceptance,
+  composeSubjectAmbiguity } from "./src/adi/oracle/dialogueState.js";
+import { composeReferenceAmbiguity, composeReferenceDecline } from "./src/adi/oracle/conversationScope.js";
+import { composeVacioPorEje, composeVacioPorCardinalidad, composeMultiEntityUnsupported,
+  composeCardinalityExceeded, composeFanOutCapped, composeDimensionUnsupported,
+  getToolContract } from "./src/adi/oracle/toolContracts.js";
 import { composeProsaEjecutiva } from "./src/adi/oracle/progressiveDisclosure.js";
 import { buildClaims } from "./src/adi/oracle/narrationContract.js";
 import { CONCEPT_DEFS } from "./src/adi/sentrix/glossary.js";
 import { buildResumenEjecutivo } from "./src/adi/specRetrieval.js";
+import { detectVoseo, VOSEO_FORMAS } from "./src/adi/llm/voiceGuard.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 
@@ -58,27 +64,42 @@ const ROOT = join(fileURLToPath(new URL(".", import.meta.url)));
  * `voiceGuard` documenta la misma frontera). `varas?` no toca «varado» por el `\b`. */
 const VETADAS = /\b(plata|guita|palancas?|dormid[oa]s?|apr[ei]et\w*|varas?|detenid[oa]s?)\b/i;
 
-/* ── EL VOSEO ───────────────────────────────────────────────────────────────────────────────────────────────────
- * El registro es «formal LatAm, sin chilenismos»: eso es tuteo neutro. Mismo criterio que `_registro_gate` —
- * formas INEQUÍVOCAS solamente, con tilde obligatoria donde la forma sin tilde es tuteo correcto («necesitas») o
- * tercera persona («hace», «pone»). Cierre por lookahead Unicode: `\b` es ASCII y no cierra tras vocal acentuada. */
-const VOSEO = new RegExp(
-  "\\b(?:quer[eé]s|pod[eé]s|ten[eé]s|dec[ií]s|ven[ií]s|prefer[ií]s|eleg[ií]s|segu[ií]s|perd[eé]s|sos|vos" +
-  "|sabés|hacés|vendés|debés|necesitás|buscás|usás|dejás|encontrás|mostrás|pensás|llevás|liberás|priorizás" +
-  "|hacé|tené|poné|andá|entregá|mirá|dejá|revisá|considerá|comenzá|probá|pensá|liquidá|priorizá|reponé" +
-  ")(?![\\p{L}])", "iu");
+/* ── EL VOSEO · YA NO VIVE ACÁ, Y ESA ES LA CORRECCIÓN (owner 2026-08-14) ──────────────────────────────────────
+ * ESTE GATE TENÍA SU PROPIA LISTA de formas voseantes, y `_registro_gate` tenía OTRA, y `voiceGuard._VOSEO` una
+ * TERCERA. Las tres incompletas, y ninguna con las mismas entradas. Por eso la captura del owner —«…¿Sobre qué
+ * cliente, SKU, marca o familia querés simular este escenario?»— salió a pantalla con los dos gates en VERDE: no
+ * fallaron por no mirar voseo, fallaron porque la forma que se coló estaba en un texto que este gate no barría, y
+ * las formas vecinas («referís», «liberás», «entregás», «recuperás», «quedás», «retenés», «concedés») no estaban
+ * en ninguna de las tres listas. Tres copias de un vocabulario son tres oportunidades de que una quede corta.
+ * Ahora la lista es UNA y vive en `voiceGuard` —la autoridad de voseo del repo, donde ya está el stripper que lo
+ * neutraliza en runtime—, y los dos gates la consumen por `detectVoseo`. Sumar una forma es tocar un archivo. */
 
 let PASS = 0, FAIL = 0; const ROTOS = [];
 const H = (t) => console.log("\n" + t);
+const _fallo = (origen, texto, palabra) => {
+  FAIL++;
+  const i = texto.indexOf(palabra);
+  const gist = texto.replace(/\s+/g, " ").slice(Math.max(0, i - 45), i + 45);
+  ROTOS.push(`[${origen}] «${palabra}» …${gist}…`);
+  console.log(`  ✗ [${origen}] «${palabra}» …${gist}…`);
+};
+// vocabulario vetado + formas de voseo — el barrido de siempre, sobre labels, verbatim, glosario y Mesa.
 const check = (origen, texto) => {
   if (typeof texto !== "string" || !texto.trim()) return;
-  const m = texto.match(VETADAS) || texto.match(VOSEO);
-  if (m) {
-    FAIL++;
-    const gist = texto.replace(/\s+/g, " ").slice(Math.max(0, m.index - 45), m.index + 45);
-    ROTOS.push(`[${origen}] «${m[0]}» …${gist}…`);
-    console.log(`  ✗ [${origen}] «${m[0]}» …${gist}…`);
-  } else PASS++;
+  const mv = texto.match(VETADAS);
+  const palabra = mv ? mv[0] : detectVoseo(texto);
+  if (palabra) _fallo(origen, texto, palabra); else PASS++;
+};
+/* checkVoseo — SÓLO formas verbales, SIN el vocabulario `VETADAS`, y la diferencia no es un descuido. Lo usa el
+ * barrido estático [2c], que lee TODO literal del archivo: `specRetrieval` tiene ~16 literales con «detenido» y
+ * uno con «vara» que este gate nunca auditó. Son hallazgos REALES —quedan declarados en
+ * `_INFORME_VOSEO_VIGENTE.md`— pero pertenecen a la clase de la Poda 2B, donde el renombre de `vara` está FRENADO
+ * esperando decisión del owner. Meterlos acá sería abrir en silencio una decisión de producto ajena a este pase.
+ * Cuando esa decisión se tome, esta función se borra y [2c] pasa a usar `check`. */
+const checkVoseo = (origen, texto) => {
+  if (typeof texto !== "string" || !texto.trim()) return;
+  const palabra = detectVoseo(texto);
+  if (palabra) _fallo(origen, texto, palabra); else PASS++;
 };
 const ok = (cond, msg) => { if (cond) PASS++; else { FAIL++; ROTOS.push(msg); console.log("  ✗ " + msg); } };
 
@@ -197,6 +218,171 @@ for (const mech of ["capital", "costo", "carga", null]) {
   check("prosa ejecutiva · métrica interpolada con etiqueta vieja", composeProsaEjecutiva(buildClaims(conEtiquetaVieja), { entidad: "Falabella" }));
 }
 
+/* ══ [2b] LOS COMPOSITORES DE BYPASS ═══════════════════════════════════════════════════════════════════════════
+ * TODOS devuelven su string TAL CUAL a la pantalla: `answerViaOracle` los usa para cortar el turno sin pasar por
+ * el narrador, así que ningún prompt los gobierna y `stripLanguageLeaks` no siempre los toca. Son exactamente la
+ * familia a la que pertenece la frase de la captura, y hasta hoy sólo uno de ellos (mecanismo agotado) estaba
+ * auditado. Se los llama con la matriz de argumentos que dispara CADA rama: la rama sin entidad y la rama con
+ * entidad devuelven textos DISTINTOS, y una sola llamada dejaría la otra sin barrer. */
+H("══ [2b] BYPASS · los compositores que responden el turno sin narrador ══");
+{
+  const SUBJ = [{ entidad: "Falabella" }, { entidad: "Lider" }];
+  const casos = [
+    ["orphanAcceptance · con temas", composeOrphanAcceptance(SUBJ)],
+    ["orphanAcceptance · sin temas", composeOrphanAcceptance([])],
+    ["vagueOffer · con entidad", composeVagueOfferAcceptance({ entidad: "Falabella", texto: "las condiciones" })],
+    ["vagueOffer · sin entidad", composeVagueOfferAcceptance({ texto: "las condiciones" })],
+    ["subjectAmbiguity", composeSubjectAmbiguity(SUBJ)],
+    ["referenceAmbiguity · 1 grupo", composeReferenceAmbiguity([{ entities: ["Falabella"], dimension: "cliente" }])],
+    ["referenceAmbiguity · 2 grupos", composeReferenceAmbiguity([
+      { entities: ["Falabella", "Lider"], dimension: "cliente" }, { entities: ["Samsung"], dimension: "marca" }])],
+    ["referenceDecline · otro_tenant", composeReferenceDecline("otro_tenant")],
+    ["referenceDecline · sin_referente", composeReferenceDecline("sin_referente")],
+    ["referenceDecline · otro motivo", composeReferenceDecline("lo_que_sea")],
+    ["vacíoPorEje", composeVacioPorEje("marginRead", "cliente", ["Samsung"], "marca")],
+    ["vacíoPorEje · sin ausentes", composeVacioPorEje("marginRead", "cliente", [], "marca")],
+    ["vacíoPorCardinalidad", composeVacioPorCardinalidad("compareEntities", 2, ["Falabella", "Lider"], ["NoExiste"])],
+    ["multiEntityUnsupported", composeMultiEntityUnsupported("entityProfile", "cliente", ["Falabella", "Lider"])],
+    ["cardinalityExceeded", composeCardinalityExceeded("compareEntities", 2, ["Falabella", "Lider", "Jumbo"], "cliente")],
+    ["fanOutCapped", composeFanOutCapped("entityProfile", ["Falabella", "Lider", "Jumbo"], 2)],
+    ["dimensionUnsupported", composeDimensionUnsupported("clientesPorSku", getToolContract("clientesPorSku"), "bodega")],
+  ];
+  for (const [nombre, texto] of casos) {
+    ok(typeof texto === "string" && texto.trim().length > 0, `el compositor «${nombre}» devolvió vacío — la matriz de este gate quedó vieja y estaría barriendo aire`);
+    check(`bypass · ${nombre}`, texto);
+  }
+}
+
+/* ══ [2c] LOS LITERALES DEL CAMINO VIGENTE, LEÍDOS DEL ARCHIVO ═════════════════════════════════════════════════
+ * POR QUÉ ESTÁTICO ADEMÁS DE [1]/[2]/[2b], QUE EJECUTAN CÓDIGO REAL. La frase de la captura vive INLINE dentro de
+ * `answerViaOracle` —no la devuelve ningún compositor exportado—, y llamarla exigiría montar un turno completo con
+ * `mem`, plan y escenario. Un gate que sólo ejercita ramas audita lo que su matriz supo disparar; esto audita
+ * TODO literal del archivo, incluidas las ramas que hoy no corren. Es el mismo criterio de [4] (el estático del
+ * concepto), aplicado al texto en vez de a un diccionario.
+ *
+ * SE LEEN LITERALES, NO LÍNEAS: un mini-scanner saltea comentarios (donde el voseo es legítimo — son notas para
+ * quien programa, no pantalla) y literales de expresión regular (donde es DELIBERADO: el vocabulario de ENTRADA
+ * tiene que seguir entendiendo al usuario que escribe «decime» o «mostrame», misma regla que las `etiquetas` del
+ * glosario). Dentro de un template se saltea la interpolación `${…}` y se conserva el texto de alrededor. */
+function literalesDe(src) {
+  const out = []; let i = 0; const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    if (c === "/" && src[i + 1] === "/") { while (i < n && src[i] !== "\n") i++; continue; }
+    if (c === "/" && src[i + 1] === "*") { i += 2; while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++; i += 2; continue; }
+    if (c === "/") {   // ¿literal regex? sólo si lo precede un operador o `return` — si no, es una división
+      const prev = src.slice(Math.max(0, i - 8), i).replace(/\s+$/, "");
+      if (/[=(,:[!&|?{;]$|\breturn$/.test(prev)) {
+        i++; let esc = false, cls = false;
+        while (i < n) {
+          const d = src[i];
+          if (esc) esc = false; else if (d === "\\") esc = true; else if (d === "[") cls = true;
+          else if (d === "]") cls = false; else if (d === "/" && !cls) { i++; break; } else if (d === "\n") break;
+          i++;
+        }
+        continue;
+      }
+      i++; continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const q = c; i++; let buf = "", esc = false;
+      while (i < n) {
+        const d = src[i];
+        if (esc) { buf += d; esc = false; i++; continue; }
+        if (d === "\\") { esc = true; i++; continue; }
+        if (d === q) { i++; break; }
+        if (q === "`" && d === "$" && src[i + 1] === "{") { let dep = 1; i += 2; while (i < n && dep > 0) { if (src[i] === "{") dep++; else if (src[i] === "}") dep--; i++; } buf += " "; continue; }
+        if (q !== "`" && d === "\n") break;
+        buf += d; i++;
+      }
+      if (buf.trim()) out.push(buf);
+      continue;
+    }
+    i++;
+  }
+  return out;
+}
+/* LOS ARCHIVOS DEL CAMINO VIGENTE que emiten texto a pantalla. NO entra el camino LEGADO (answerADIFromSpec,
+ * composers/*, conversation.js, intentLayer) —se migra aparte y `_registro_gate` ya lo barre—, ni los PROMPTS
+ * (planPrompt, persona, narratePromptC, conversationalContract, progressiveDisclosure, responsePreference,
+ * datoProyectado): ese texto va PARA el modelo y está redactado en voseo a propósito. */
+const VIGENTES = [
+  "src/adi/oracle/answerViaOracle.js", "src/adi/oracle/dialogueState.js", "src/adi/oracle/conversationScope.js",
+  "src/adi/oracle/toolContracts.js", "src/adi/oracle/toolRegistry.js", "src/adi/oracle/narrationBlocks.js",
+  "src/adi/oracle/calculoCatalogo.js", "src/adi/oracle/entityRecord.js", "src/adi/porQueEstaCifra.js",
+  "src/adi/specRetrieval.js", "src/adi/sentrix/mesa.js", "src/adi/sentrix/mesaCapital.js",
+  "src/adi/sentrix/mesaResultado.js", "src/adi/sentrix/glossary.js", "src/adi/sentrix/resumenComercial.js",
+  "src/adi/sentrix/cuadro.js", "src/adi/sentrix/control.js", "src/adi/sentrix/headline.js",
+  "src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/AccessGate.jsx",
+];
+/* LA ÚNICA EXCEPCIÓN, NOMBRADA — mismo trato que `vara` en [3]. `buildOrientacionInstruction` (dialogueState.js)
+ * NO compone pantalla: arma la INSTRUCCIÓN que viaja en el payload de NARRAR («su único consumidor es el payload
+ * de NARRAR», answerViaOracle.js). Es texto PARA el modelo y va en voseo como el resto de los prompts. Se declara
+ * por su contenido, no por número de línea, para que no se desarme al mover el archivo. */
+const PROMPT_NO_PANTALLA = [
+  "cerrá proponiendo mirar el MISMO tema",
+  "Cerrá con 2 o 3 ángulos CONCRETOS",
+  "podés retomar alguno de estos temas recientes",
+];
+H("══ [2c] ESTÁTICO · todo literal de pantalla del camino vigente ══");
+{
+  let literales = 0, exentos = 0;
+  for (const rel of VIGENTES) {
+    let src;
+    try { src = readFileSync(join(ROOT, rel), "utf8"); }
+    catch { ok(false, `no se pudo leer «${rel}» — el inventario de este gate quedó viejo, arreglalo antes de seguir`); continue; }
+    for (const lit of literalesDe(src)) {
+      if (PROMPT_NO_PANTALLA.some((p) => lit.includes(p))) { exentos++; continue; }
+      literales++;
+      checkVoseo(`${rel} · literal`, lit);
+    }
+  }
+  ok(literales >= 3000, `el barrido estático tiene que ver un corpus de verdad — leyó ${literales} literales (mínimo 3000; si bajó, el scanner se rompió o el inventario quedó viejo y el gate se volvió decorativo)`);
+  ok(exentos === PROMPT_NO_PANTALLA.length,
+    `las exenciones declaradas son ${PROMPT_NO_PANTALLA.length} y se encontraron ${exentos}: si sobran, una quedó huérfana (se puede borrar); si faltan, alguien movió el texto y la exención dejó de aplicar donde creía`);
+  console.log(`  · ${literales} literales barridos en ${VIGENTES.length} archivos · ${exentos} exenciones declaradas (instrucción al narrador, no pantalla)`);
+}
+
+/* ══ [2d] EL DETECTOR NO PUEDE ENCOGERSE ═══════════════════════════════════════════════════════════════════════
+ * Las secciones de arriba sólo valen lo que vale `detectVoseo`: si alguien le saca una forma, todo se pone verde
+ * sin que nada mejore. Esto ata las formas que este barrido MIDIÓ en pantalla —cada una salió de un literal real
+ * del camino vigente, no de una lista imaginada— y exige que el detector las siga cazando.
+ *
+ * LO QUE ESTA SECCIÓN NO AFIRMA, dicho explícito: que el stripper de runtime las neutralice. Medido hoy, de 316
+ * variantes del detector el stripper conoce 150 y otras 10 sólo en posición de orden — las ~156 restantes las
+ * caza el gate en un literal pero NO las lavaría si el narrador las escribiera libre. Eso es un hueco REAL y está
+ * declarado en `_INFORME_VOSEO_VIGENTE.md`: cerrarlo cambia la narración viva de todos los turnos y es decisión
+ * del arquitecto, no de este pase. Se deja medido, no disimulado. */
+H("══ [2d] EL DETECTOR · las formas medidas en pantalla siguen cazándose ══");
+{
+  const MEDIDAS_EN_PANTALLA = [
+    "querés", "esperás", "referís", "preferís", "podés", "tenés", "vendés", "emitís", "corregís", "reponés",
+    "liberás", "entregás", "quedás", "retenés", "concedés", "recuperás",
+    "decime", "decímelo", "contame", "armame", "preguntale",
+    "priorizá", "probá", "revisá", "sumá", "bajá", "liquidá", "reponé", "empezá", "marcá", "olvidá",
+    "elegí una", "abrí la", "seguí el", "pedí una", "medí el",
+  ];
+  for (const forma of MEDIDAS_EN_PANTALLA) {
+    ok(!!detectVoseo(`Texto de prueba: ${forma} cosa.`),
+      `el detector dejó de cazar «${forma}» — es una forma que ESTE barrido encontró en un literal de pantalla del camino vigente; si sale de la lista, vuelve a producción sin que nada se ponga rojo`);
+  }
+  // y no puede volverse un detector-de-todo: la prosa correcta tiene que seguir pasando limpia.
+  const LEGITIMO = [
+    "Si recuperarías ese margen, la cuenta cierra.", "Vas a ver que el costo tendrá su efecto.",
+    "Falabella entregas más de lo que recibe.", "Las marcas del período están completas.",
+    "Necesitas revisar el benchmark: quizás además el costo subió.", "Pásame el número con su unidad.",
+    "Cuéntame qué quieres revisar y lo armo.", "Dime a cuál te refieres y sigo.",
+    "No me armes ninguna tabla, dime qué está pasando.", "Me dejaste sin la tabla que te pedí.",
+    "Yo pedí el dato ayer y no llegó.", "El informe que escribí la semana pasada ya está.",
+    "Estás bajo el benchmark en tres cuentas.", "Los retenes de stock no aplican acá.",
+  ];
+  for (const t of LEGITIMO) {
+    const v = detectVoseo(t);
+    ok(!v, `FALSO POSITIVO del detector: marcó «${v}» en prosa correcta — «${t}». Un gate que marca lo bueno se termina desactivando; la forma tiene que salir de VOSEO_FORMAS o pedir tilde.`);
+  }
+  console.log(`  · ${MEDIDAS_EN_PANTALLA.length} formas medidas en pantalla · ${LEGITIMO.length} controles de falso positivo · ${VOSEO_FORMAS.length} entradas en el detector`);
+}
+
 /* ══ [3] EL GLOSARIO CURADO ════════════════════════════════════════════════════════════════════════════════════
  * `CONCEPT_DEFS` se imprime VERBATIM por la tool `defineConcept`. `_registro_gate` solo barre `METRIC_DEFS`, así
  * que este diccionario nunca tuvo candado — y ahí vivía «más plata» en el `distingue` de `meta`. */
@@ -212,7 +398,7 @@ const EXCEPCION_DECLARADA = new Set(["vara"]);
 const conVetada = [];
 for (const [slug, c] of Object.entries(CONCEPT_DEFS)) {
   const texto = [c.aka, c.def, c.distingue].filter(Boolean).join(" · ");
-  const sucio = VETADAS.test(texto) || VOSEO.test(texto);
+  const sucio = VETADAS.test(texto) || !!detectVoseo(texto);
   if (sucio) conVetada.push(slug);
   if (EXCEPCION_DECLARADA.has(slug)) continue;   // se audita aparte, abajo
   check(`glosario · ${slug}`, texto);

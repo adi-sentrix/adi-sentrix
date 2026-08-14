@@ -786,7 +786,7 @@ function simulateGeneral({ dimension = "cliente", entity, variableA, variableB, 
   }
   for (const [label, v] of [["precio", precioVar], ["volumen", volumenVar]]) {
     if (Math.abs(v.pct) > _SIM_DELTA_MAX) {
-      return { facts: null, boleta: [], coverage: { supported: false, reason: `un ${v.pct > 0 ? "+" : ""}${v.pct}% de ${label} ya no es un supuesto operable — probá un rango realista (entre ±1% y ±${_SIM_DELTA_MAX}%) y lo corro sobre el dato real` } };
+      return { facts: null, boleta: [], coverage: { supported: false, reason: `un ${v.pct > 0 ? "+" : ""}${v.pct}% de ${label} ya no es un supuesto operable — prueba un rango realista (entre ±1% y ±${_SIM_DELTA_MAX}%) y lo corro sobre el dato real` } };
     }
   }
   let dim = dimension || "cliente";
@@ -1039,7 +1039,7 @@ function _resolverInsumoCalc(spec, scenario) {
     if (!f) return { ok: false, razon: `no encuentro una cifra en «${texto}» — pásame el número con su unidad (%, $, puntos)` };
     const procedencia = texto.replace(f.text, " ").replace(/\s+/g, " ").trim();
     if (procedencia.replace(/[^\p{L}\p{N}]/gu, "").length < 3) {
-      return { ok: false, razon: "una cifra tuya entra al cálculo solo con su procedencia — decime de dónde sale (una noticia, tu meta, un supuesto) y la uso como escenario" };
+      return { ok: false, razon: "una cifra tuya entra al cálculo solo con su procedencia — dime de dónde sale (una noticia, tu meta, un supuesto) y la uso como escenario" };
     }
     return { ok: true, insumo: { raw: f.raw, unit: f.unit, universo: null, label: `Cifra del usuario · ${f.text}`, value: formatearCanon(f.raw, f.unit), origen: "usuario", procedencia } };
   }

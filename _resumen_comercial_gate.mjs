@@ -435,7 +435,9 @@ H("[9d4] VENDEN MUCHO PERO DEJAN POCO · la brecha partida en sus dos términos 
   }
   // los dos diagnósticos son DISTINTOS y la vista los distingue
   ok(new Set(q.filas.map((f) => f.dominante)).size >= 1, `cada cuenta declara qué término pesa más — ${q.filas.map((f) => `${f.nombre}:${f.dominante}`).join(" · ")}`);
-  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /lo que le entregás/.test(f.lectura)),
+  // «entregás» → «entregas» (registro formal, owner 2026-08-14). Se aceptan las dos: lo que esta línea prueba es
+  // que la lectura NOMBRA lo que se entrega y su carga, no cómo se conjuga el verbo.
+  ok(q.filas.filter((f) => f.dominante === "acciones").every((f) => /lo que le entreg[aá]s/.test(f.lectura)),
     "cuando pesa el descuento, la lectura lo dice y da su carga contra la de la cartera");
   ok(q.filas.filter((f) => f.dominante === "precio/costo").every((f) => /no el descuento/i.test(f.lectura)),
     "cuando NO pesa el descuento, la lectura lo descarta explícitamente");

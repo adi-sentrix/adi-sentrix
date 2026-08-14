@@ -205,7 +205,7 @@ function CapQuePreguntar({ onEjecutar }) {
   return (
     <div data-testid="guia-paso" data-paso="3">
       <div style={_eyebrow}>Qué puedes preguntar</div>
-      <div style={_titulo}>Preguntale algo de tu negocio.</div>
+      <div style={_titulo}>Pregúntale algo de tu negocio.</div>
       <div style={_bajada}>Una por cada cosa que sabe hacer. Todas se responden con tus datos de hoy: toca una y arrancamos.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {GUIA_EJEMPLOS.map((ej, i) => (

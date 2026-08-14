@@ -43,7 +43,7 @@ export function buildAccionFrom(finding) {
   if (!finding) return null;
   const top = (finding.items && finding.items[0]) || {};
   const tpl = _ACCION[finding.detector] || _ACCION.margen;
-  return { ...tpl(finding, top), usdFmt: _money(finding.subtotal_usd), askLabel: "Armame el plan" };
+  return { ...tpl(finding, top), usdFmt: _money(finding.subtotal_usd), askLabel: "Ármame el plan" };
 }
 
 // ── LA ACCIÓN por detector (medida ejecutiva + su pregunta · la pregunta es una PROMESA gate-ada) ──
@@ -199,7 +199,7 @@ export function buildMesaEstado(scenario) {
   });
   if (cap) simulaciones.push({
     key: "capital", delta: _money(cap.subtotal_usd),
-    texto: `Si liberás el capital detenido, ${_money(cap.subtotal_usd)} de caja vuelven a trabajar.`,
+    texto: `Si liberas el capital detenido, ${_money(cap.subtotal_usd)} de caja vuelven a trabajar.`,
     ask: "¿Qué pasa si libero el capital detenido?",
   });
 

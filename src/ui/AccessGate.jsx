@@ -66,9 +66,9 @@ export function AccessGate({ onGranted, reason = null, expiresAt = null }) {
   const copiarMail = () => { try { navigator.clipboard.writeText(DEMO_CONTACT.email); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* selección manual */ } };
 
   const msgs = {
-    invalid: "Ese código no abre — revisá que esté completo (empieza con ADI-) o pedí uno nuevo.",
-    expired: `Tu demo venció${expiresAt ? ` el ${_fecha(expiresAt)}` : ""}. Pedí una extensión y te mandamos un código nuevo.`,
-    network: "No pude validar el código (sin conexión con el servidor). Probá de nuevo en un momento.",
+    invalid: "Ese código no abre — revisa que esté completo (empieza con ADI-) o pide uno nuevo.",
+    expired: `Tu demo venció${expiresAt ? ` el ${_fecha(expiresAt)}` : ""}. Pide una extensión y te mandamos un código nuevo.`,
+    network: "No pude validar el código (sin conexión con el servidor). Prueba de nuevo en un momento.",
   };
 
   return (
@@ -297,7 +297,7 @@ export function AdminAccess() {
         )}
       </div>
       <div style={{ marginTop:12, fontSize:10.5, color:C.textMuted, lineHeight:1.5 }}>
-        El código corre desde que lo emitís. Esta página no guarda nada en el servidor — el código lleva su vencimiento firmado adentro.
+        El código corre desde que lo emites. Esta página no guarda nada en el servidor — el código lleva su vencimiento firmado adentro.
       </div>
     </Shell>
   );

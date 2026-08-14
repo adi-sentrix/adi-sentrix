@@ -542,7 +542,7 @@ export function applySingleEntityScope(plan, calls) {
  * igual que hoy—. Lo único que cambia es QUÉ RAZÓN se declara. Reintentar recortando la lista a las dos primeras
  * sería contestar otra pregunta en silencio, que es justo lo que el resto de este módulo existe para impedir.
  *
- * QUÉ SE PUEDE PROMETER EN EL TEXTO. La salida que ofrece (A) —«decime con cuáles dos seguimos»— está MEDIDA:
+ * QUÉ SE PUEDE PROMETER EN EL TEXTO. La salida que ofrece (A) —«dime con cuáles seguimos»— está MEDIDA:
  * `compareEntities` con exactamente dos entidades reales devuelve `supported:true` en los SEIS ejes del índice
  * (sku, cliente, marca, familia, bodega, canal · gate sección 3). La de (B) es deliberadamente más floja («puedo
  * intentarlo por ese eje»): ahí no hay medición de que el reintento funcione, y prometer un resultado que no se
@@ -706,13 +706,13 @@ const _sinRegistro = (ausentes) => (ausentes.length ? ` De ${_nombres(ausentes)}
 // salida MEDIDA (dos entidades reales funcionan en los seis ejes del índice — gate sección 3).
 export function composeVacioPorCardinalidad(toolName, card, presentes, ausentes) {
   const cupo = _cupoEnPalabras(card);
-  return `${_dondeEstan(presentes)} ${_yLosTengo(presentes)}. Esta lectura corre ${cupo} y el pedido vino con otra cantidad: por eso volvió vacía — no porque el dato no esté.${_sinRegistro(ausentes)} Decime con cuáles seguimos y las comparo.`;
+  return `${_dondeEstan(presentes)} ${_yLosTengo(presentes)}. Esta lectura corre ${cupo} y el pedido vino con otra cantidad: por eso volvió vacía — no porque el dato no esté.${_sinRegistro(ausentes)} Dime con cuáles seguimos y las comparo.`;
 }
 
 // composeVacioPorEje · el índice desmiente el EJE del pedido, no el dato. NO promete que el reintento funcione:
 // que la entidad viva en otro eje no implica que esta tool sirva ese eje, y eso acá no se midió.
 export function composeVacioPorEje(toolName, otroEje, ausentes, ejePedido) {
-  return `${_dondeEstan(otroEje)}${ejePedido ? `, no en '${ejePedido}'` : ""}: esta lectura volvió vacía por el eje del pedido, no porque el dato no esté.${_sinRegistro(ausentes)} Si es por ahí que lo querés, decímelo y lo intento.`;
+  return `${_dondeEstan(otroEje)}${ejePedido ? `, no en '${ejePedido}'` : ""}: esta lectura volvió vacía por el eje del pedido, no porque el dato no esté.${_sinRegistro(ausentes)} Si es por ahí que lo quieres, dímelo y lo intento.`;
 }
 
 // ── diagnosticarVacio(toolName, args, coverage) → parche de `coverage`, o null si no hay nada que corregir ───────

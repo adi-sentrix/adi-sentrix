@@ -57,6 +57,6 @@ export function componePorQueCifra({ linea }) {
   return [
     `El ${pct} de ${linea.nombre} ${fuente}.`,
     `Por eso el resultado después de gastos se mueve con esa cifra: no es contabilidad cerrada, es tu supuesto aplicado sobre la venta real. Lo que sí está medido es todo lo que va antes — venta, costo, carga comercial y contribución.`,
-    `Si tenés el número real de ${linea.nombre}, decímelo y recalculo la cascada completa con ese dato.`,
+    `Si tienes el número real de ${linea.nombre}, dímelo y recalculo la cascada completa con ese dato.`,
   ].join("\n\n");
 }
