@@ -17,10 +17,35 @@
  * 100% OFFLINE: ejercita `answerViaOracle` ENTERO con las dos pasadas inyectadas por key computada — este archivo
  * no contiene los nombres de esas funciones ni ningún marcador de red, y no importa gateway ni adapters.
  * Cero red, cero LLM. `npm run gates:offline`
+ *
+ * ══ EXTENSIÓN 2026-08-14 · EL VACÍO ES UNA FALLA, POR LOS DOS CAMINOS (bloques 3 a 8) ═════════════════════════
+ * ES LA MISMA GARANTÍA, NO UNA NUEVA — por eso se extiende este gate en vez de abrir uno hermano. Lo que el
+ * bloque original fija («todo turno que llegó a tener plan y resultados TERMINA en un texto no vacío») dependía
+ * de un supuesto que resultó falso: que si algo llega vacío al muro, el muro lo frena. NO lo frenaba. `guardC("")`
+ * devolvía `{ok:true, verdict:"fiel"}` — no por decisión, por construcción: los 26 chequeos buscan afirmaciones
+ * que cobrar y una cadena vacía no afirma nada, así que salía limpia. Los 11 sitios que llaman al muro leen `ok`
+ * como «adoptá este texto», de modo que el vacío tenía un pase libre a pantalla por cualquiera de ellos.
+ * DÓNDE SE MIDIÓ: el brazo NATURAL de la corrida doble (2026-08-14, turno «reduce en 2 puntos las acciones
+ * comerciales de esos clientes…») recibió "" del modelo, el muro dijo ok, y el arnés lo contó como «reparado».
+ * LO QUE FIJAN LOS BLOQUES NUEVOS:
+ *   [3] el muro trata la narración vacía como VEREDICTO PROPIO (`narracion-vacia`), en sus seis formas: null,
+ *       undefined, "", solo espacios, solo puntuación, markdown pelado. Y el texto real se sigue juzgando igual.
+ *   [4] el camino ACTUAL: el narrador devolviendo cada una de esas formas → texto no vacío igual (la escalera).
+ *   [5] el camino NATURAL: LOS 16 TURNOS del set probatorio (`_corrida_doble_casos.mjs`, el MISMO que corre el
+ *       arnés) × cada forma de vacío → texto no vacío, con el suplente digno y sus cifras verificadas.
+ *   [6] el LAVADO que deja el texto en nada cuenta como vacío (el modelo escribió, el lavador barrió todo).
+ *   [7] un vacío RESCATADO por la reparación queda registrado igual — no puede volver a esconderse en «reparado».
+ *   [8] el PISO ABSOLUTO: aunque el suplente digno viniera vacío, sale el genérico pelado. Nunca una pantalla en blanco.
  */
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
+import { guardC, esNarracionVacia } from "./src/adi/oracle/guardC.js";
+import { cifrasDelDato, suplenteDignoDelDato } from "./src/adi/oracle/datoProyectado.js";
+import { responderConNotario } from "./src/adi/oracle/cicloNotarial.js";
+import { composeNoDataMessage } from "./src/adi/oracle/narrationBlocks.js";
+import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
+import { TURNOS } from "./_corrida_doble_casos.mjs";
 
 initTenant(TENANT_DEMO);
 
@@ -89,6 +114,98 @@ for (const [tag, texto, plan] of PLANES) {
         a.r ? JSON.stringify(txt).slice(0, 160) : "answerViaOracle devolvió null");
     }
   }
+}
+
+/* ══════════ EXTENSIÓN · EL VACÍO ES UNA FALLA (2026-08-14) ══════════════════════════════════════════════════ */
+
+// LAS SEIS FORMAS DEL VACÍO. Las tres primeras son lo que devuelve un proveedor que no escribió nada; las tres
+// últimas, lo que puede quedar después de un lavado o de un modelo que emitió solo armazón.
+const VACIOS = [
+  ["null", null],
+  ["undefined", undefined],
+  ["cadena vacía", ""],
+  ["solo espacios", "   \n\t  \r\n "],
+  ["solo puntuación", "... — · ¿? ¡! ,;:"],
+  ["markdown pelado", "**\n\n---\n\n|   |   |\n|---|---|\n\n> \n"],
+];
+const REAL = "Falabella marca 22.0% de margen sobre $19.4M de ventas, y su carga comercial es 4.5%.";
+
+H("[3] EL MURO · UNA NARRACIÓN VACÍA ES VEREDICTO PROPIO, NO UN APROBADO");
+for (const [rot, v] of VACIOS) {
+  const g = guardC(v, { ledger: { figs: [] } });
+  ok(esNarracionVacia(v) && g.ok === false && g.verdict === "narracion-vacia",
+    `${rot} → esNarracionVacia + guardC bloquea con kind propio`, `esNarracionVacia=${esNarracionVacia(v)} ok=${g.ok} verdict=${g.verdict}`);
+}
+{
+  // ADITIVIDAD: el texto REAL no cambia de trato — el chequeo 0 solo puede convertir un ok en bloqueo, jamás al revés.
+  ok(!esNarracionVacia(REAL) && guardC(REAL, { ledger: { figs: [] } }).verdict !== "narracion-vacia",
+    "…y un texto real sigue juzgándose por los 26 chequeos de siempre (el chequeo 0 no lo toca)");
+  ok(!esNarracionVacia("0") && !esNarracionVacia("a"),
+    "…el criterio es ANGOSTO: una sola letra o un solo dígito ya es contenido (no puede vetar prosa legítima)");
+}
+
+H("[4] EL CAMINO ACTUAL · el narrador devolviendo CADA forma de vacío → texto no vacío igual");
+{
+  const [, texto, plan] = PLANES[0];
+  for (const [rot, v] of VACIOS) {
+    const a = await turno({ texto, plan, narrar: v });
+    const txt = a.r && typeof a.r.text === "string" ? a.r.text : "";
+    ok(!!a.r && !esNarracionVacia(txt), `narrador ${rot} → la escalera responde igual`, a.r ? JSON.stringify(txt).slice(0, 140) : "answerViaOracle devolvió null");
+  }
+}
+
+/* ── EL CAMINO NATURAL · el mismo ciclo que corre el arnés, con el modelo MOCKEADO ────────────────────────────
+ * `responderConNotario` es EL MISMO código que ejecuta `_corrida_doble.mjs`: acá solo cambia quién responde
+ * (una función que devuelve la forma de vacío en vez del modelo real). Cero red por construcción — el mock es
+ * síncrono y este archivo no importa nada que hable con un proveedor. */
+const CIFRAS = cifrasDelDato("actual");
+const _ejes = (a) => { const o = []; for (const e of a) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { } } return o.length ? o : null; };
+const ENT3 = _ejes(["cliente", "sku", "marca"]), ENT6 = _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]);
+const juezNatural = (q) => (t) => guardC(t, { ledger: { figs: [] }, results: [], trace: null, question: q, datoProyectado: CIFRAS, entidadesDelTenant: ENT3, duenosDelTenant: ENT6, contentScope: "full", tablePolicy: "auto" });
+const suplenteDe = (q) => () => suplenteDignoDelDato({ scenario: "actual", juzgar: juezNatural(q) });
+
+H(`[5] EL CAMINO NATURAL · los ${TURNOS.length} turnos del set probatorio × las ${VACIOS.length} formas del vacío`);
+for (const [rot, v] of VACIOS) {
+  const rs = [];
+  for (const { q } of TURNOS) rs.push(await responderConNotario({ pedir: async () => v, juzgar: juezNatural(q), suplente: suplenteDe(q) }));
+  const sinTexto = rs.filter((r) => esNarracionVacia(r.texto));
+  ok(sinTexto.length === 0, `modelo ${rot} → los ${TURNOS.length} turnos salen con texto`, `${sinTexto.length} en blanco`);
+  ok(rs.every((r) => r.estado === "vacio"), `…y los ${TURNOS.length} quedan clasificados «vacio», NUNCA «reparado»`, [...new Set(rs.map((r) => r.estado))].join("/"));
+  ok(rs.every((r) => r.suplenteDigno === true && r.vacias.length === 2), "…con la marca del suplente digno y los DOS intentos vacíos registrados");
+}
+{
+  // el suplente no es un «no puedo»: trae las cifras VERIFICADAS del negocio, y las trae del muro, no de una copia.
+  const r = await responderConNotario({ pedir: async () => "", juzgar: juezNatural(TURNOS[0].q), suplente: suplenteDe(TURNOS[0].q) });
+  ok(/\$[\d.,]+M/.test(r.texto) && /benchmark/i.test(r.texto), "el suplente digno trae cifras verificadas del negocio, no un «no puedo»", r.texto.slice(0, 160));
+  ok(juezNatural(TURNOS[0].q)(r.texto).ok === true, "…y el suplente pasa el MISMO muro (no se adopta sin veredicto)", JSON.stringify(juezNatural(TURNOS[0].q)(r.texto)).slice(0, 200));
+}
+
+H("[6] EL LAVADO QUE DEJA EL TEXTO EN NADA cuenta como vacío (el modelo escribió; el lavador barrió todo)");
+{
+  const r = await responderConNotario({ pedir: async () => "relleno relleno relleno", lavar: () => "   ", juzgar: juezNatural(TURNOS[0].q), suplente: suplenteDe(TURNOS[0].q) });
+  ok(!esNarracionVacia(r.texto) && r.estado === "vacio" && r.vacias.length === 2,
+    "texto no vacío del modelo + lavado que lo deja en blanco → misma falla, mismo suplente", `${r.estado} · vacias=${r.vacias.length}`);
+  const rNull = await responderConNotario({ pedir: async () => "algo", lavar: () => null, juzgar: juezNatural(TURNOS[0].q), suplente: suplenteDe(TURNOS[0].q) });
+  ok(!esNarracionVacia(rNull.texto), "…y un lavador que devuelve null tampoco rompe ni deja la pantalla en blanco");
+}
+
+H("[7] UN VACÍO RESCATADO POR LA REPARACIÓN QUEDA REGISTRADO (no vuelve a esconderse en «reparado»)");
+{
+  const r = await responderConNotario({
+    pedir: async ({ intento }) => (intento === 1 ? "" : "El benchmark de margen del negocio es 30.1%."),
+    juzgar: juezNatural(TURNOS[0].q), suplente: suplenteDe(TURNOS[0].q),
+  });
+  ok(r.estado === "reparado", "el 2º intento válido repara el turno (el estado sigue siendo el que corresponde)", r.estado);
+  ok(r.vacias.length === 1 && r.vacias[0] === 1, "…pero el intento 1 queda anotado como vacío: el balance no puede taparlo", JSON.stringify(r.vacias));
+  ok(r.vetos[0] === "narracion-vacia", "…y el veto que lo disparó se nombra por lo que fue, no como una cifra mal puesta", JSON.stringify(r.vetos));
+  ok(r.suplenteDigno === false, "…sin suplente: el cerebro se corrigió solo, que es lo que la reparación busca");
+}
+
+H("[8] EL PISO ABSOLUTO · ni un suplente vacío puede dejar la pantalla en blanco");
+for (const [rot, sup] of [["suplente que devuelve ''", () => ""], ["suplente que devuelve null", () => null], ["sin suplente", null]]) {
+  const r = await responderConNotario({ pedir: async () => "", juzgar: juezNatural(TURNOS[0].q), suplente: sup });
+  ok(!esNarracionVacia(r.texto) && r.texto === composeNoDataMessage(null),
+    `${rot} → cae al genérico PELADO, la misma frase canónica de la escalera anti-null`, JSON.stringify(r.texto).slice(0, 140));
 }
 
 console.log(`\n── GATE · garantía anti-null · ${PASS} PASS · ${FAIL} FAIL ──`);

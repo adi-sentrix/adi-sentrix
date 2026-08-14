@@ -3,8 +3,22 @@
  *   ARM A «ACTUAL»  — el pipeline de producción (PLAN con dato → tools → NARRAR → muro → reparación/suplente).
  *   ARM B «NATURAL» — un solo cerebro (persona + carpeta, sin PLAN ni tools) + lavador + EL MISMO notario
  *                     calibrado + el ciclo de reparación acordado (una corrección quirúrgica, luego suplente).
- * Set probatorio: 9 hilos · 17 turnos — los casos donde ADI se rompió en vivo + los ejemplos canónicos del owner.
- * TOPE DURO 80 llamadas compartido. LLM_TIMEOUT_MS se setea en el SHELL. */
+ * Set probatorio: 9 hilos · 16 turnos — los casos donde ADI se rompió en vivo + los ejemplos canónicos del owner.
+ * («17 turnos» en la cabecera y el mensaje de commit del 2026-08-14 era un error de conteo: los hilos suman 16,
+ *  y el transcript de esa corrida trae 16 por brazo. Contados por el gate, no a mano.)
+ * TOPE DURO 80 llamadas compartido. LLM_TIMEOUT_MS se setea en el SHELL.
+ *
+ * ⚠️ LA GARANTÍA ANTI-VACÍO DEL BRAZO NATURAL (2026-08-14, tras auditar la propia corrida) ─────────────────────
+ * LO QUE ESTA CORRIDA MIDIÓ MAL: en «reduce en 2 puntos las acciones comerciales de esos clientes…» el modelo
+ * devolvió UNA CADENA VACÍA, y el arnés la contó como «reparado» — porque `guardC("")` no encontraba violaciones
+ * (una cadena vacía no afirma nada) y salía `ok`. El balance de la corrida quedó inflado por esa puerta: 7
+ * reparados de los que uno era una pantalla en blanco.
+ * LO QUE SE CERRÓ, en dos niveles:
+ *   · PRINCIPIO — `guardC` trata la narración vacía como veredicto propio (`narracion-vacia`, bloqueante). El
+ *     vacío ya no puede pasar por ningún camino, no solo por este arnés. Ver esNarracionVacia en guardC.js.
+ *   · ARNÉS — una respuesta vacía dispara el MISMO ciclo que un veto (reparación quirúrgica; si vuelve vacía,
+ *     suplente digno con las cifras verificadas de la proyección), se registra intento por intento en el
+ *     transcript y se reporta como CATEGORÍA PROPIA del balance — nunca escondida dentro de «reparado». */
 import fs from "fs";
 for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) {
   const m = ln.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
@@ -17,9 +31,11 @@ delete process.env.LLM_MODEL_NARRATE;
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 import { handlePlan, handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { buildNarrateUserMessageC } from "./src/adi/oracle/narratePromptC.js";
-import { proyectarDatoNegocio, cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
+import { proyectarDatoNegocio, cifrasDelDato, suplenteDignoDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { ADI_PERSONA } from "./src/adi/oracle/persona.js";
-import { guardC } from "./src/adi/oracle/guardC.js";
+import { guardC, esNarracionVacia } from "./src/adi/oracle/guardC.js";
+import { responderConNotario } from "./src/adi/oracle/cicloNotarial.js";   // el ciclo de la constitución, compartido con el gate offline
+import { HILOS } from "./_corrida_doble_casos.mjs";                        // el set probatorio, compartido con el gate offline
 import { stripLanguageLeaks } from "./src/adi/llm/voiceGuard.js";
 import { parseFigures } from "./src/adi/boleta.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
@@ -36,17 +52,8 @@ const KEY = process.env.ANTHROPIC_API_KEY;
 const _ejes = (a) => { const o = []; for (const e of a) { try { for (const n of axisEntityNames(e)) o.push(n); } catch { } } return o.length ? o : null; };
 const ENT3 = _ejes(["cliente", "sku", "marca"]), ENT6 = _ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]);
 
-const HILOS = [
-  { id: "H1·ventas (el hilo que rompió a ADI)", turnos: ["Si subo ventas 4%, ¿qué cambia?", "sobre las ventas", "simula sobre el total de ventas", "el precio queda igual"] },
-  { id: "H2·el ejemplo soñado del owner", turnos: ["¿Qué clientes venden mucho pero dejan poco margen?", "reduce en 2 puntos las acciones comerciales de esos clientes y dime si quedan sobre el benchmark"] },
-  { id: "H3·capital", turnos: ["¿Cuánto capital tengo inmovilizado en inventario?", "¿y el que lleva más de 90 días parado?"] },
-  { id: "H4·premisa falsa", turnos: ["¿por qué Falabella tiene 30% de margen?"] },
-  { id: "H5·hueco del dato", turnos: ["¿quiénes dejaron de comprar este año?"] },
-  { id: "H6·eje difuso", turnos: ["¿cuál es el costo medio de Bosch?"] },
-  { id: "H7·G1 multi-entidad con typos", turnos: ["dame todo lo de falabela y lider y dime cual es peor y por qe"] },
-  { id: "H8·criterio + la foto original", turnos: ["recuerda que mi margen mínimo aceptable es 26%", "¿qué significa bajo benchmark?"] },
-  { id: "H9·puntual con typos y 2 puntos", turnos: ["¿cómo viene Sodimac?", "baja 2 putnos su carga comercial y dime si queda sobre el benchmark"] },
-];
+// el set probatorio vive en `_corrida_doble_casos.mjs`: lo comparte con el gate offline que fija la garantía
+// anti-vacío sobre EXACTAMENTE estos turnos (ver la cabecera de ese archivo).
 
 /* ── ARM A · el pipeline actual ── */
 async function armActual(hilo) {
@@ -105,24 +112,29 @@ async function armNatural(hilo) {
   for (const q of hilo.turnos) {
     for (const pf of parseFigures(q)) supuestosDelHilo.push(pf.text);   // lo que el usuario declaró sigue vivo en el hilo
     msgs.push({ role: "user", content: q });
-    const t = { q, calls: 0, texto: null, estado: "verde", vetos: [] };
+    const t = { q, calls: 0, texto: null, estado: "verde", vetos: [], vacias: [], suplenteDigno: false };
     const juzgar = (texto) => guardC(texto, { ledger: { figs: [] }, results: [], trace: null, question: q, supuestoPendiente: supuestosDelHilo, datoProyectado: CIFRAS, entidadesDelTenant: ENT3, duenosDelTenant: ENT6, contentScope: "full", tablePolicy: "auto" });
     try {
-      let texto = stripLanguageLeaks(await askNatural(msgs)); t.calls++;
-      let v = juzgar(texto);
-      if (!v.ok) {
-        t.vetos.push(`${v.verdict}`);
-        const multa = (v.violations || []).slice(0, 3).map((x) => `[${x.kind}] ${x.detail}`).join("\n");
-        msgs.push({ role: "assistant", content: texto });
-        msgs.push({ role: "user", content: `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}\nReescribe tu respuesta COMPLETA corrigiendo solo lo observado, manteniendo tu calidad de asesor. No menciones esta corrección.` });
-        texto = stripLanguageLeaks(await askNatural(msgs)); t.calls++;
-        msgs.pop(); msgs.pop();
-        v = juzgar(texto);
-        t.estado = v.ok ? "reparado" : "suplente";
-        if (!v.ok) t.vetos.push(`2º: ${v.verdict}`);
-      }
-      t.texto = texto;
-      msgs.push({ role: "assistant", content: texto });
+      /* EL CICLO NO VIVE ACÁ (2026-08-14): lo ejecuta `responderConNotario` (src/adi/oracle/cicloNotarial.js), el
+       * MISMO código que el gate offline ejercita con un modelo mockeado que devuelve ""/espacios/null. Este arnés
+       * solo aporta lo que el gate no puede tener: el modelo real y el hilo de mensajes. */
+      const r = await responderConNotario({
+        juzgar,
+        lavar: stripLanguageLeaks,
+        suplente: () => suplenteDignoDelDato({ scenario: "actual", juzgar }),
+        pedir: async ({ intento, multa, anterior }) => {
+          if (intento === 1) return askNatural(msgs);
+          // el turno del asistente que se le devuelve al modelo NUNCA puede ir vacío (el proveedor rechaza un
+          // content en blanco): se nombra lo que pasó, que además es exactamente lo que hay que corregir.
+          msgs.push({ role: "assistant", content: esNarracionVacia(anterior) ? "(respuesta vacía)" : anterior });
+          msgs.push({ role: "user", content: `[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n${multa}\nReescribe tu respuesta COMPLETA corrigiendo solo lo observado, manteniendo tu calidad de asesor. No menciones esta corrección.` });
+          try { return await askNatural(msgs); } finally { msgs.pop(); msgs.pop(); }
+        },
+      });
+      // `vacias`: en QUÉ intentos el cerebro devolvió una pantalla en blanco (1 y/o 2). Viaja al transcript aunque
+      // la reparación después la rescate — que es justo el caso que el balance escondía dentro de «reparado».
+      t.calls = r.calls; t.texto = r.texto; t.estado = r.estado; t.vetos = r.vetos; t.vacias = r.vacias; t.suplenteDigno = r.suplenteDigno;
+      msgs.push({ role: "assistant", content: r.texto });
     } catch (e) { t.texto = `(ERROR: ${String(e && e.message).slice(0, 90)})`; t.estado = "error"; msgs.push({ role: "assistant", content: "(error)" }); }
     turnos.push(t);
   }
@@ -140,7 +152,8 @@ for (const hilo of HILOS) {
     console.log(`\n— «${hilo.turnos[i]}»`);
     console.log(`  ACTUAL  (${A[i].calls} llamadas${A[i].suplente ? " · SUPLENTE" : ""}${A[i].vetos.length ? " · vetos: " + A[i].vetos.join("|") : ""}):`);
     console.log(`    ${String(A[i].texto).replace(/\n/g, "\n    ").slice(0, 550)}`);
-    console.log(`  NATURAL (${B[i].calls} llamadas · ${B[i].estado}${B[i].vetos.length ? " · " + B[i].vetos.join(" · ") : ""}):`);
+    const _vac = (B[i].vacias || []).length ? ` · ⬛ VACÍA del modelo en el intento ${B[i].vacias.join(" y ")}${B[i].suplenteDigno ? " → suplente digno" : " → rescatada por la reparación"}` : "";
+    console.log(`  NATURAL (${B[i].calls} llamadas · ${B[i].estado}${B[i].vetos.length ? " · " + B[i].vetos.join(" · ") : ""}${_vac}):`);
     console.log(`    ${String(B[i].texto).replace(/\n/g, "\n    ").slice(0, 550)}`);
   }
 }
@@ -148,7 +161,16 @@ for (const hilo of HILOS) {
 const tA = registro.flatMap((r) => r.A), tB = registro.flatMap((r) => r.B);
 console.log(`\n\n╔════════ BALANCE ════════╗`);
 console.log(`ACTUAL : ${tA.reduce((a, t) => a + t.calls, 0)} llamadas · suplente en ${tA.filter((t) => t.suplente).length}/${tA.length} turnos · turnos con veto: ${tA.filter((t) => t.vetos.length).length}`);
-console.log(`NATURAL: ${tB.reduce((a, t) => a + t.calls, 0)} llamadas · verde 1er intento ${tB.filter((t) => t.estado === "verde").length}/${tB.length} · reparados ${tB.filter((t) => t.estado === "reparado").length} · suplente ${tB.filter((t) => t.estado === "suplente").length} · errores ${tB.filter((t) => t.estado === "error").length}`);
+/* LOS ESTADOS SON EXCLUYENTES y suman el total de turnos: verde + reparado + suplente + vacío + error. «vacío» es
+ * CATEGORÍA PROPIA — un turno que terminó en el suplente digno porque el modelo devolvió una pantalla en blanco.
+ * Y aparte se declara el CENSO del vacío: cuántos turnos vieron una respuesta en blanco en ALGÚN intento,
+ * incluidos los que la reparación después rescató. Sin esa segunda línea, un vacío rescatado vuelve a esconderse
+ * dentro de «reparado», que es exactamente el defecto que esta corrida destapó. */
+const _conVacia = tB.filter((t) => (t.vacias || []).length);
+console.log(`NATURAL: ${tB.reduce((a, t) => a + t.calls, 0)} llamadas · verde 1er intento ${tB.filter((t) => t.estado === "verde").length}/${tB.length} · reparados ${tB.filter((t) => t.estado === "reparado").length} · suplente ${tB.filter((t) => t.estado === "suplente").length} · VACÍAS ${tB.filter((t) => t.estado === "vacio").length} · errores ${tB.filter((t) => t.estado === "error").length}`);
+console.log(`         censo del vacío: ${_conVacia.length}/${tB.length} turnos con una respuesta en blanco del modelo (intentos vacíos: ${_conVacia.reduce((a, t) => a + t.vacias.length, 0)}) · rescatados por la reparación ${_conVacia.filter((t) => t.estado === "reparado").length} · terminados en suplente digno ${tB.filter((t) => t.suplenteDigno).length}`);
+const _todosConTexto = tB.every((t) => !esNarracionVacia(t.texto));
+console.log(`         ${_todosConTexto ? `✓ los ${tB.length} turnos salieron con texto` : "✗ HAY TURNOS EN BLANCO — la garantía anti-vacío se rompió"}`);
 console.log(`llamadas totales: ${llamadas}/${CAP}`);
 fs.writeFileSync("_corrida_doble.json", JSON.stringify({ fecha: "2026-08-14", llamadas, registro }, null, 2), "utf8");
 console.log(`transcript completo en _corrida_doble.json`);
