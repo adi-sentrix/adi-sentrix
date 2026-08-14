@@ -278,7 +278,12 @@ function _causaDelIntento(motivo, attempt) {
 // cifras, que declara qué está mirando el usuario en Sentrix (ver viewContext.js:projectViewContextForPlan). El
 // gateway no la interpreta ni la construye — la pasa tal cual a buildPlanUserMessage, que decide dónde va. Opcional:
 // un turno sin panel abierto manda undefined y el mensaje de PLAN queda byte-idéntico al de siempre.
-export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt, vistaLinea, motivoReintento } = {}, env) {
+// `datoNegocio` (owner 2026-08-14, «el dato al PLAN»): la MISMA proyección curada que ya recibe NARRAR y el MISMO
+// modelo de confianza — la arma el CLIENTE (datoProyectado.js, donde vive el tenant activo) y viaja como campo
+// propio del body, hermano de `text`/`history`. El gateway no la interpreta ni la valida: la coloca al final del
+// segmento FIJO del system (buildPlanSystemSegments, 5º argumento), que sigue siendo cache:true. Sin el campo
+// (callers viejos, gates, wrappers no actualizados): undefined → null → system byte-idéntico al de siempre.
+export async function handlePlan({ text, history, mem, scenario, access, tenantId, attempt, vistaLinea, motivoReintento, datoNegocio } = {}, env) {
   const { provider, model: tier1, falta } = _config(env);
   // TELEMETRÍA (owner 2026-08-10) · observación pura: mide, no decide. Con el sink apagado —el default— no
   // hace nada. Nunca lanza, así que no puede tumbar un turno. Ver telemetry.js para los 9 campos y el candado.
@@ -332,8 +337,11 @@ export async function handlePlan({ text, history, mem, scenario, access, tenantI
     // de la memoria de sesión y del escenario, así que cualquier sesión con un nombre guardado —o cualquier turno
     // que llegara desde Sentrix— perdía los 7.617 tokens fijos enteros, el 96% de la llamada. Ni una regla de
     // negocio se recorta: sólo viajan declarados por separado el 99,8% estable y el resto.
+    // datoNegocio (owner 2026-08-14) — 5º argumento: entra AL FINAL del fijo, así el prefijo de siempre no se parte
+    // y el bloque (estable por tenant+escenario) queda bajo cache:true. String no vacío o nada — mismo trato que
+    // el 7º argumento de la pasada de NARRAR, más abajo.
     const _seg = buildPlanSystemSegments(ADI_PERSONA_PLAN, renderInteractionMemory(mem), scenario || "actual",
-      !!(typeof vistaLinea === "string" && vistaLinea.trim()));
+      !!(typeof vistaLinea === "string" && vistaLinea.trim()), (typeof datoNegocio === "string" && datoNegocio) || null);
     const system = [{ text: _seg.fijo, cache: true }, { text: _seg.variable, cache: false }];
     const user = buildPlanUserMessage(history, text, typeof vistaLinea === "string" ? vistaLinea : null);
     let plan, usage, modeloEfectivo;
