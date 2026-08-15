@@ -634,7 +634,7 @@ export const VIEW_MANIFEST = {
     vista: "capital", seccion: "01", tipo: "lista", label: "Qué liquidar",
     campo: "liquidar", universoCampo: "liquidar.filas", metrica: "capital", eje: "sku",
     periodo: "foto de inventario a hoy",
-    universo: { kind: "estado", label: "los SKU con capital detenido", cierraCon: "diagnoseInventario" },
+    universo: { kind: "estado", label: "los SKU con capital inmovilizado", cierraCon: "diagnoseInventario" },
     comparacion: "estado", estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "inventoryStatus", args: {}, focus: "frenado" }],   // vocabulario del arg, no el estado
     sinTool: null,
@@ -646,7 +646,7 @@ export const VIEW_MANIFEST = {
     vista: "capital", seccion: "01", tipo: "lista", label: "¿Y si…? del capital",
     campo: "simulaciones", universoCampo: "simulaciones", metrica: "capital", eje: "sku",
     periodo: "foto de inventario a hoy",
-    universo: { kind: "estado", label: "supuestos declarados sobre el capital detenido", cierraCon: null },
+    universo: { kind: "estado", label: "supuestos declarados sobre el capital inmovilizado", cierraCon: null },
     _noMontado: "el «¿Y si…?» del capital salió de la cara el 2026-08-09; la entrada queda declarada para cuando vuelva",
     comparacion: null, estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "simulateCapital", args: {} }],

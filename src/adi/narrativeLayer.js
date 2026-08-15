@@ -1073,7 +1073,7 @@ function composeExecutiveActionNarrative(signals, posture, ctx) {
       }
     } else if (a.type === "sku_operational_exit") {
       const verbo = (a.entities && a.entities.length === 1) ? "mantiene" : "mantienen";
-      body = `${fmtList(a.entities)} ${verbo} ${a.avg_doh} días de cobertura y $${a.recoverable_K}K de capital detenido.`;
+      body = `${fmtList(a.entities)} ${verbo} ${a.avg_doh} días de cobertura y $${a.recoverable_K}K de capital inmovilizado.`;
       // inventario es riesgo bajo · sin jerarquía de razón (atado a señal · no se inventa urgencia)
     } else if (a.type === "tier2_diversification") {
       body = `${a.entities.slice(0, 3).join(" · ")} concentran ${a.concentration_pct}% del negocio · $${a.exposed_M}M de contribución expuesta.`;

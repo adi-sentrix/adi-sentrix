@@ -59,9 +59,9 @@ const _ACCION = {
     ask: `¿Cómo mejoro el margen?`,
   }),
   capital: (f) => ({
-    titulo: `Liberar el capital detenido`,
+    titulo: `Liberar el capital inmovilizado`,
     detalle: `${_money(f.subtotal_usd)} en ${f.items.length} SKU sin rotar — capital que puede volver a trabajar.`,
-    ask: `¿Dónde está detenido mi capital?`,
+    ask: `¿Dónde está inmovilizado mi capital?`,
   }),
 };
 
@@ -113,10 +113,10 @@ export function buildMesaEstado(scenario) {
   const criticos = cap ? cap.items.filter((it) => it.critico).length : 0;
   const capital = {
     estado: !cap ? "verde" : criticos ? "rojo" : "ambar",
-    linea: !cap ? "rotando sano — sin capital detenido material"
-      : criticos ? `${_money(cap.subtotal_usd)} detenido · ${criticos} SKU crítico${criticos > 1 ? "s" : ""}`
-      : `${_money(cap.subtotal_usd)} detenido en ${cap.items.length} SKU`,
-    ask: "¿Dónde está detenido mi capital?",
+    linea: !cap ? "rotando sano — sin capital inmovilizado material"
+      : criticos ? `${_money(cap.subtotal_usd)} inmovilizado · ${criticos} SKU crítico${criticos > 1 ? "s" : ""}`
+      : `${_money(cap.subtotal_usd)} inmovilizado en ${cap.items.length} SKU`,
+    ask: "¿Dónde está inmovilizado mi capital?",
   };
 
   // ── LA ACCIÓN priorizada · el foco top del diagnose (F ya viene ordenado por subtotal) ──
@@ -199,8 +199,8 @@ export function buildMesaEstado(scenario) {
   });
   if (cap) simulaciones.push({
     key: "capital", delta: _money(cap.subtotal_usd),
-    texto: `Si liberas el capital detenido, ${_money(cap.subtotal_usd)} de caja vuelven a trabajar.`,
-    ask: "¿Qué pasa si libero el capital detenido?",
+    texto: `Si liberas el capital inmovilizado, ${_money(cap.subtotal_usd)} de caja vuelven a trabajar.`,
+    ask: "¿Qué pasa si libero el capital inmovilizado?",
   });
 
   return { vara, estados: { ventas, margen, contribucion, capital }, accion, cambios, alertas, simulaciones: simulaciones.slice(0, 3) };

@@ -57,7 +57,7 @@ export const CAPITAL_ESTADOS = {
     def: "Rota rápido (" + POLICY.quiebreRotMin + "x o más) y le quedan " + POLICY.quiebreDohMax + " días de inventario o menos: el stock no alcanza hasta la próxima compra." },
   sobrestock:      { label: "sobrestock",      color: "cyan",  ask: "¿Dónde sobra inventario?",
     def: "Vende, pero le quedan entre " + POLICY.sobrestockDohMin + " y " + POLICY.dohMax + " días de inventario: capital inmovilizado de más." },
-  capital_frenado: { label: "inmovilizado",     color: "amber", ask: "¿Dónde está detenido mi capital?",
+  capital_frenado: { label: "inmovilizado",     color: "amber", ask: "¿Dónde está inmovilizado mi capital?",
     def: "Sin rotación según tu benchmark (rotación bajo " + POLICY.rotacionMin + "x o más de " + POLICY.dohMax + " días de inventario): capital que no trabaja." },
 };
 // LAS CUATRO ACCIONES PERMITIDAS, textuales del owner (2026-08-08, decisión 9) · una por estado y ninguna otra.
@@ -110,7 +110,7 @@ export function buildMesaCapital(scenario) {
     { key: "detenido", label: "Capital inmovilizado", value: _money(frenado.usd),
       estado: !frenado.usd ? "verde" : criticos ? "rojo" : "ambar",
       linea: frenado.usd ? `${frenado.count} SKU sin rotación${criticos ? ` · ${criticos} crítico${criticos > 1 ? "s" : ""}` : ""}` : "sin capital inmovilizado material",
-      ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario" },
+      ask: frenado.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario" },
     // ⚠️ EN LA MISMA UNIDAD QUE SUS HERMANAS (owner 2026-08-09). Antes el titular era "3 SKU" mientras las otras
     // tres decían plata: cuatro cards que se leen juntas y no se podían comparar — y la cifra más grande de la
     // pantalla ($36K en riesgo, MÁS que los $33K detenidos) quedaba escondida detrás de un conteo.
@@ -123,12 +123,12 @@ export function buildMesaCapital(scenario) {
     { key: "rotacion", label: "Rotación media", value: `${rotMedia.toFixed(1)}x`,
       estado: rotMedia >= POLICY.rotacionMin ? "verde" : "rojo",
       linea: `ponderada por capital · benchmark ${POLICY.rotacionMin}x — por debajo, el capital se considera inmovilizado`,
-      ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario" },
+      ask: frenado.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario" },
   ];
 
   // ── 02 · POR QUÉ PASA · los focos de capital con su $ (la dist del motor · solo los materiales) ──
   const focos = [];
-  if (frenado.usd) focos.push({ key: "detenido", usdFmt: _money(frenado.usd), label: `inmovilizado en ${frenado.count} SKU sin rotación`, ask: "Por qué el capital está detenido" });
+  if (frenado.usd) focos.push({ key: "detenido", usdFmt: _money(frenado.usd), label: `inmovilizado en ${frenado.count} SKU sin rotación`, ask: "Por qué el capital está inmovilizado" });
   if (quiebre.usd) focos.push({ key: "quiebre", usdFmt: _money(quiebre.usd), label: `en ${quiebre.count} SKU con quiebre próximo`, ask: "¿Qué reponer por quiebre?" });
   if (sobre.usd) focos.push({ key: "sobrestock", usdFmt: _money(sobre.usd), label: `en sobrestock · demasiados días de inventario`, ask: "¿Dónde sobra inventario?" });
 
@@ -183,7 +183,7 @@ export function buildMesaCapital(scenario) {
   if (frenado.usd) simulaciones.push({
     key: "liberar", delta: _money(frenado.usd),
     texto: `Si liberas el capital inmovilizado, ${_money(frenado.usd)} de caja vuelven a trabajar.`,
-    ask: "¿Qué pasa si libero el capital detenido?",
+    ask: "¿Qué pasa si libero el capital inmovilizado?",
   });
   if (quiebre.count) simulaciones.push({
     key: "reponer", delta: _money(quiebre.usd),
@@ -204,7 +204,7 @@ export function buildMesaCapital(scenario) {
     linea: criticos
       ? `${criticos} SKU crítico${criticos > 1 ? "s" : ""} · ${_money(frenado.usd)} de capital inmovilizado`
       : frenado.usd ? `${_money(frenado.usd)} de capital inmovilizado · sin SKU críticos` : "Capital rotando en rango — sin alertas de inventario.",
-    ask: frenado.usd ? "¿Dónde está detenido mi capital?" : "Ver todo el inventario",
+    ask: frenado.usd ? "¿Dónde está inmovilizado mi capital?" : "Ver todo el inventario",
   };
 
   /* ── 01 · EL VEREDICTO · la historia SELLADA por el owner (2026-08-08, decisión 8) ──────────────────────────
@@ -568,7 +568,7 @@ export function buildCuadroCapital(eje = "sku", scenario = "bonanza") {
         enJuego: detUsd || null, alert: crit > 0 || detUsd > 0,
         lectura: detUsd ? `${_money(detUsd)} inmovilizados en ${det.length} SKU sin rotación${crit ? ` · ${crit} crítico${crit > 1 ? "s" : ""}` : ""}` : null,
         accion: detUsd ? "evaluar salida comercial" : "sostener",
-        accionAsk: detUsd ? `¿Cómo libero el capital detenido en ${b}?` : `¿Cuánto capital tengo en ${b}?`,
+        accionAsk: detUsd ? `¿Cómo libero el capital inmovilizado en ${b}?` : `¿Cuánto capital tengo en ${b}?`,
       };
     });
   } else {

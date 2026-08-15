@@ -28,7 +28,13 @@ const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, buildResumenEjecutivo, buildMesaEstado, buildWatchlistEstado, buildCuadroMando, buildControlRing, METRIC_DEFS, buildDisponibleMenu, buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, composePnl, setPnlLines, clearPnl, resetPnlDraft, pnlExplain, pnlRecommend, buildMesaResultado, stripLanguageLeaks, detectVoseo } = M;
 
-const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*)\b/i;   // + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
+// + palanca (owner 2026-07-14: "esa palabra no se usa") · + apretar/aprieta (owner 2026-07-26: "poco ejecutivo")
+// + detenido/detenida (owner 2026-08-15, autorizando la pasada de registro): «No quiero que el producto sugiera
+//   "detenido" en ninguna superficie visible si ya definimos "inmovilizado" como término correcto». Hasta hoy la
+//   palabra estaba prohibida en CLAUDE.md §4 pero NO en este barrido, así que se filtró por 30 sitios —un chip
+//   llegó a pantalla— sin que ningún gate se pusiera rojo. El VERBO no entra («el SKU se detuvo hace 94 días» es
+//   legítimo y sigue en el corpus limpio): lo que se veta es el adjetivo/participio que nombra el capital.
+const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*|detenid[oa]s?)\b/i;
 
 // ── VOSEO · LA MITAD QUE ESTE GATE NO MIRABA (owner 2026-08-10, certificación live · defecto 4) ────────────────
 // EL HUECO, textual del owner: "el _registro_gate no lo cazó porque busca VOCABULARIO PROHIBIDO, no FORMAS
@@ -85,7 +91,7 @@ const checkResp = (origen, r) => {
   const sealed = SEALED_ROUTES.test(r.route || "");
   const t = r.text || r.opener || "";
   if (sealed) {
-    const hard = t.match(/\b(plata|dormid[oa]s?|guita)\b/i);
+    const hard = t.match(/\b(plata|dormid[oa]s?|guita|detenid[oa]s?)\b/i);
     if (hard) { fail++; rotos.push({ origen: `${origen} [${r.route}]`, palabra: hard[0], gist: t.replace(/\s+/g, " ").slice(Math.max(0, hard.index - 40), hard.index + 40) }); }
     else pass++;
   } else check(`${origen} [${r.route || "-"}]`, t);
@@ -253,7 +259,12 @@ const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|
 // GuiaInicio.jsx entra al barrido (owner 2026-08-07): la guía de inicio es de las PRIMERAS palabras que lee un
 // usuario nuevo — si el registro se rompe, se rompe en la peor pantalla posible.
 for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/InlineChart.jsx", "src/ui/GuiaInicio.jsx", "src/ui/App.jsx"]) {
-  const src = stripComments(fs.readFileSync(path.join(root, f), "utf8"));
+  // LA CLAVE INTERNA NO ES SUPERFICIE. El KPI del capital se llama `detenido` por dentro desde antes de que la
+  // palabra se prohibiera, y esa llave empareja el módulo con el componente del manifiesto: renombrarla es tocar
+  // LÓGICA, no texto, y el owner acotó esta pasada a lo visible (2026-08-15). El rótulo que sí se lee ya dice
+  // «Capital inmovilizado» y lo fija `_mesa_capital_gate`. Se exime la línea EXACTA del emparejamiento, nada más.
+  const src = stripComments(fs.readFileSync(path.join(root, f), "utf8"))
+    .replace(/\["detenido",\s*"capital\/01\/kpi-inmovilizado"\]/g, '["__clave_interna__", "capital/01/kpi-inmovilizado"]');
   let m, re = new RegExp(BANNED.source, "gi"), n = 0;
   while ((m = re.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") }); }
   // el MISMO barrido para las formas verbales (owner 2026-08-10): la UI es donde el registro se lee primero.

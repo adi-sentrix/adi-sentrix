@@ -98,8 +98,8 @@ const _LEAKS = [
   [/\bapretado\b/gi, "ajustado"], [/\bapretada\b/gi, "ajustada"],
   [/\bapretando\b/gi, "ajustando"], [/\bapretar\b/gi, "ajustar"],
   [/\baprietan\b/gi, "ajustan"], [/\baprieta\b/gi, "ajusta"],
-  [/\bdormidos\b/gi, "detenidos"], [/\bdormidas\b/gi, "detenidas"],
-  [/\bdormido\b/gi, "detenido"], [/\bdormida\b/gi, "detenida"],
+  [/\bdormidos\b/gi, "inmovilizados"], [/\bdormidas\b/gi, "inmovilizadas"],
+  [/\bdormido\b/gi, "inmovilizado"], [/\bdormida\b/gi, "inmovilizada"],
   [/\bplata\b/gi, "caja"],
   // ── «DETENIDO» APLICADO AL CAPITAL/INVENTARIO → «INMOVILIZADO» (cierre cert amplia 2026-08-13, hallazgo 4a) ──
   // CLAUDE.md §4: se dice «inmovilizado», no «detenido» — salió 4 veces en la certificación (D1 ×2, D4, H4).

@@ -247,7 +247,7 @@ function _asesor(dimension, s, rows) {
     for (const r of rows) {
       const it = cap.get(r.name);
       if (it) {
-        r.lectura = `${_money(it.usd)} detenido${it.bodega ? ` en ${it.bodega}` : ""} · rotación ${r.rotacion}x${it.critico ? " · crítico" : ""}`;
+        r.lectura = `${_money(it.usd)} inmovilizado${it.bodega ? ` en ${it.bodega}` : ""} · rotación ${r.rotacion}x${it.critico ? " · crítico" : ""}`;
         r.enJuego = it.usd;
       }
       r.accionAsk = it ? `¿Cómo libero el capital de ${r.name}?`
@@ -265,10 +265,10 @@ function _asesor(dimension, s, rows) {
     for (const r of rows) {
       const x = g.get(r.name);
       if (x) {
-        r.lectura = `${_money(x.usd)} detenido en ${x.n} SKU sin rotar${x.crit ? ` · ${x.crit} crítico${x.crit > 1 ? "s" : ""}` : ""}`;
+        r.lectura = `${_money(x.usd)} inmovilizado en ${x.n} SKU sin rotar${x.crit ? ` · ${x.crit} crítico${x.crit > 1 ? "s" : ""}` : ""}`;
         r.enJuego = x.usd;
       }
-      r.accionAsk = x ? `¿Cómo libero el capital detenido en ${r.name}?`
+      r.accionAsk = x ? `¿Cómo libero el capital inmovilizado en ${r.name}?`
         : r.accion === "acelerar rotación" ? `¿Cómo acelero la rotación de ${r.name}?`
         : `¿Cuánto capital tengo en ${r.name}?`;
     }
@@ -285,7 +285,7 @@ function _asesor(dimension, s, rows) {
     for (const r of rows) {
       const x = g.get(r.name);
       if (x) {
-        r.lectura = `${_money(x.usd)} detenido en ${x.n} de sus SKU`;
+        r.lectura = `${_money(x.usd)} inmovilizado en ${x.n} de sus SKU`;
         r.enJuego = x.usd;
       }
       r.accionAsk = r.accion === "revisar mix" ? `¿Cuáles son los SKU que más venden de ${r.name}?`

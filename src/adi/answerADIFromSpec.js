@@ -217,7 +217,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
   // ── #2 · métrica existe (dive NO la requiere: perfila la entidad entera) ──
   // simulate sin métrica reconocible → repregunta EDUCATIVA (enseña las dos formas del supuesto), no el menú de métricas.
   if (spec.operation === "simulate" && (!spec.metric || !METRICS[spec.metric]))
-    return _degrade("simulate-shape", `Dime el supuesto que quieres probar: un porcentaje sobre una métrica («¿qué pasa si las ventas suben 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
+    return _degrade("simulate-shape", `Dime el supuesto que quieres probar: un porcentaje sobre una métrica («¿qué pasa si las ventas suben 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital inmovilizado»), y lo proyecto sobre el dato real.`, [], ctx);
   if (spec.operation !== "dive" && spec.operation !== "why" && spec.operation !== "recommend" && spec.operation !== "temporal" && (!spec.metric || !METRICS[spec.metric]))
     return _degrade("unknown-metric", `¿Qué métrica quieres ver? Tengo: ${Object.keys(METRICS).map(_m).join(", ")}.`, [], ctx);   // temporal exento: "resultado/inventario mes a mes" DECLARAN su límite en su rama
 
@@ -330,7 +330,7 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       }
     }
     // SIMULATE S2 (owner 2026-07-14 "sí, continúa") · el supuesto sobre una ACCIÓN específica: el % ya se resolvió
-    // arriba (transform); acá llega «si llevo la carga al target» / «si libero el capital detenido» — el $ del
+    // arriba (transform); acá llega «si llevo la carga al target» / «si libero el capital inmovilizado» — el $ del
     // detector (probado por dato) presentado como proyección con la reacción del mercado declarada abierta.
     if (spec.operation === "simulate") {
       const act = spec.simAction || (spec.metric === "carga" ? "carga_target" : spec.metric === "capital" ? "liberar_capital" : null);
@@ -345,10 +345,10 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
       if (act === "liberar_capital") {
         const resp = composeSpecSimulateCapital({ filters: spec.filters || {}, scenario });
         if (!resp || !resp.opener)
-          return _degrade("simulate-empty", "No veo capital detenido material según tu vara — el inventario está rotando dentro de rango, así que ese supuesto no libera caja adicional. ¿Te muestro el estado del inventario completo?", [], ctx);
+          return _degrade("simulate-empty", "No veo capital inmovilizado material según tu benchmark — el inventario está rotando dentro de rango, así que ese supuesto no libera caja adicional. ¿Te muestro el estado del inventario completo?", [], ctx);
         return _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       }
-      return _degrade("simulate-shape", `Dime el supuesto que quieres probar sobre ${_m(spec.metric)}: un porcentaje («¿qué pasa si ${_m(spec.metric)} sube 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital detenido»), y lo proyecto sobre el dato real.`, [], ctx);
+      return _degrade("simulate-shape", `Dime el supuesto que quieres probar sobre ${_m(spec.metric)}: un porcentaje («¿qué pasa si ${_m(spec.metric)} sube 3%?») o una acción puntual («si llevo la carga al target» · «si libero el capital inmovilizado»), y lo proyecto sobre el dato real.`, [], ctx);
     }
     // TIEMPO/TRAYECTORIA (mejora 7 · owner 2026-07-26): mes a mes · Q1-Q4 · semestres · rangos — LA HISTORIA
     // primero + la tabla estructurada (tabla_matriz), misma serie del evolutivo de Sentrix (una verdad). Los
@@ -543,8 +543,8 @@ function _answerADIFromSpecImpl(spec, context = {}, state = {}) {   // eslint-di
         // SCOPE DECLARADO (invitado 2026-07-09: "stock inmovilizado en Concepción" respondía el GLOBAL en silencio):
         // con filtro de alcance, el vacío se responde SOBRE ESE ALCANCE — nunca se sustituye por el global sin avisar.
         const _sc = spec.filters && (spec.filters.bodega || spec.filters.familia || spec.filters.marca || spec.filters.cliente);
-        if (_sc) return _degrade("inventory-empty", `En ${_sc} no veo ${({ quiebre: "riesgo de quiebre material", sobrestock: "sobrestock material", stale: "SKU parados por ese plazo" })[spec.focus] || "capital detenido según tu vara (rotación bajo 2x o más de 120 días)"} — lo que hay ahí se está moviendo dentro de rango. ¿Te muestro el estado completo de ese alcance?`, [], ctx);
-        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital detenido material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
+        if (_sc) return _degrade("inventory-empty", `En ${_sc} no veo ${({ quiebre: "riesgo de quiebre material", sobrestock: "sobrestock material", stale: "SKU parados por ese plazo" })[spec.focus] || "capital inmovilizado según tu benchmark (rotación bajo 2x o más de 120 días)"} — lo que hay ahí se está moviendo dentro de rango. ¿Te muestro el estado completo de ese alcance?`, [], ctx);
+        return _degrade("inventory-empty", (_fMsg[spec.focus]) || `No veo capital inmovilizado material en este escenario — el inventario está rotando dentro de rango.`, [], ctx);
       }
       const r = _finBoleta(resp, resp, "qi_retrieval", "qi_retrieval", ctx, scenario);
       if (r && r.evidence && resp.evidence && resp.evidence.inventory) r.evidence = { ...r.evidence, inventory: resp.evidence.inventory, lens: "inventory", dimension: resp.evidence.dimension };

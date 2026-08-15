@@ -265,7 +265,7 @@ export function composeModuleOverview(scenarioId, moduloId) {
     // Lectura causal · diferenciada por scenario (R8)
     let m3 = "";
     if (scenarioId === "bonanza") {
-      m3 = `El stock detenido es manejable en magnitud pero está concentrado en SKUs específicos, ya que la rotación promedio del portafolio rotacional opera sobre 8x.`;
+      m3 = `El stock inmovilizado es manejable en magnitud pero está concentrado en SKUs específicos, ya que la rotación promedio del portafolio rotacional opera sobre 8x.`;
     } else if (scenarioId === "tension") {
       m3 = `La velocidad del deterioro pesa más que el monto absoluto, ya que SKUs que estaban activos hace meses cruzaron a estado lento sin reacción comercial.`;
     } else if (scenarioId === "crisis") {
@@ -507,7 +507,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     let b2, b3, b4, b5;
     if (scenarioId === "bonanza") {
       b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura promedio ${doh} días.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital detenido` : ""}.`;
+      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado` : ""}.`;
       // D2 ajuste LOCKED: B4 lectura ejecutiva · topCatName ya está en B3.
       b4 = `El problema es estructural en una sola línea de producto.`;
       b5 = topCatName
@@ -516,7 +516,7 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     } else if (scenarioId === "tension") {
       // D2-bis LOCKED: "velocidad de deterioro creciente" → "SKUs cruzando a estado lento"
       b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días · SKUs cruzando a estado lento.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital detenido · SKUs activos hace meses cruzaron a estado lento` : ""}.`;
+      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado · SKUs activos hace meses cruzaron a estado lento` : ""}.`;
       // D2 ajuste LOCKED: "pesa más que" → "está en velocidad de cambio · no en magnitud absoluta"
       b4 = `El problema está en velocidad de cambio · no en magnitud absoluta.`;
       b5 = topCatName
@@ -524,17 +524,17 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
         : `Atacaría primero los SKUs recién cruzados a lento · luego revisaría por familia.`;
     } else if (scenarioId === "crisis") {
       // D2-bis LOCKED: "comprometido duplicado vs base" → "sobre el doble del rango base"
-      b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días · capital detenido sobre el doble del rango base.`;
-      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital detenido` : ""}.`;
+      b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días · capital inmovilizado sobre el doble del rango base.`;
+      b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}${topCatName ? ` · ${topCatName} concentra ${topCatPct.toFixed(1)}% del capital inmovilizado` : ""}.`;
       // D2-bis LOCKED: "presiona" → "impacta el ciclo de caja"
-      b4 = `El capital detenido impacta el ciclo de caja.`;
+      b4 = `El capital inmovilizado impacta el ciclo de caja.`;
       b5 = topCatName
         ? `Liquidaría primero los SKUs de ${topCatName} · luego priorizaría categorías por cobertura.`
         : `Liquidaría primero los SKUs de la categoría más concentrada · luego priorizaría por cobertura.`;
     } else {
       b2 = `El ${inmovPct.toFixed(1)}% del inventario opera fuera de rango óptimo · cobertura ${doh} días.`;
       b3 = `Inmovilizado ${fmtK(inmovUSD)} · total ${fmtK(totalInvUSD)}.`;
-      b4 = `El stock detenido requiere lectura por familia.`;
+      b4 = `El stock inmovilizado requiere lectura por familia.`;
       b5 = `Revisaría rotación por familia.`;
     }
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");

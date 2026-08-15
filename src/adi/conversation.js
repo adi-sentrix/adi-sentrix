@@ -268,7 +268,7 @@ export function composeExplain(last, ctx = null, state = {}) {
   if (last.inventory && Array.isArray(last.inventory.bySku) && last.inventory.bySku.length) {
     const inv = last.inventory, _m = (v) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`);
     const top = inv.bySku.slice(0, 2).map((s) => s.sku).join(" y ");
-    const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más detenidos (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está detenido el capital, todavía no por qué dejó de venderse.`;
+    const text = `Lo digo porque esos SKU dejaron de rotar: quedaron con rotación por debajo del umbral y DOH alto, así que el stock no sale y esos ${_m(inv.total)} quedan atrapados en góndola. Los más inmovilizados (${top}) llevan meses sin salida. La causa de fondo — sobrestock, estacionalidad o precio de lista — hay que verla SKU por SKU: el dato te dice DÓNDE está inmovilizado el capital, todavía no por qué dejó de venderse.`;
     // boleta = total + capital POR SKU (money · para que el narrador pueda ser rico) · SIN DOH/rotación sueltas (evitan el
     // guard) · sin `inventory` pesado en la evidencia → la narración pasa el guard (NARRADO), no cae a tabla cruda.
     const bol = [fig("Capital inmovilizado · total", _m(inv.total), { unit: "money", raw: inv.total, mandatory: true, context: "capital inmovilizado" })];
@@ -327,7 +327,7 @@ export function composeMeta(topic, last) {
   if (t === "fuera_de_dato") {
     const ent = last && typeof last.entity === "string" && last.entity.trim() ? ` de ${last.entity}` : "";
     return {
-      text: `Campañas, marketing y publicidad no los tengo como dato — ese análisis no te lo voy a inventar. Lo que sí tengo para empujar la venta${ent}: la **carga comercial** (cuánto margen retiene y cómo se recupera) · la **causa del margen** (si cede por precio o por costo) · el espacio para **subir precio** · y el **capital detenido** en inventario para liberar y reinvertir. ¿Por cuál arranco?`,
+      text: `Campañas, marketing y publicidad no los tengo como dato — ese análisis no te lo voy a inventar. Lo que sí tengo para empujar la venta${ent}: la **carga comercial** (cuánto margen retiene y cómo se recupera) · la **causa del margen** (si cede por precio o por costo) · el espacio para **subir precio** · y el **capital inmovilizado** en inventario para liberar y reinvertir. ¿Por cuál arranco?`,
       suggestions: ["¿Cuánta carga comercial puedo recuperar?", "Cuáles ceden por precio", "Qué SKU libero primero"],
       sentrixAction: null,
       evidence: { followup: true, kind: "fuera_de_dato", boleta: [] },
@@ -354,7 +354,7 @@ export function composeMeta(topic, last) {
   } else if (/de d[oó]nde|fuente|sale|origen/.test(t)) {
     text = "Sale del dato real de tu cartera. No estimo ni traigo nada de afuera.";
   } else if (/qu[eé] pod[eé]s|capacidad|hacer|sirv/.test(t)) {
-    text = "Hoy proyecto ventas, contribución y capital con un +/-X% sobre el dato real («¿qué pasa si las ventas suben 3%?»), y también el supuesto de una acción: llevar la carga comercial al target o liberar el capital detenido. Siempre te ordeno la decisión: lectura, estructura, riesgo y acción.";
+    text = "Hoy proyecto ventas, contribución y capital con un +/-X% sobre el dato real («¿qué pasa si las ventas suben 3%?»), y también el supuesto de una acción: llevar la carga comercial al target o liberar el capital inmovilizado. Siempre te ordeno la decisión: lectura, estructura, riesgo y acción.";
   } else {
     text = "Trabajo sobre el dato real de tu cartera y te ordeno la decisión. Dime qué mirar (ventas, contribución o capital, por cliente/marca/familia/bodega) y arranco.";
   }

@@ -121,8 +121,8 @@ function _readCapital(signals) {
   const rec = (d.lento && d.transferible)
     ? "antes de comprar más, revisaría salida comercial y transferencia de stock"
     : d.lento
-      ? "antes de comprar más, revisaría la salida comercial de los SKUs detenidos donde están"
-      : "revisaría la salida comercial de los SKUs detenidos";
+      ? "antes de comprar más, revisaría la salida comercial de los SKUs inmovilizados donde están"
+      : "revisaría la salida comercial de los SKUs inmovilizados";
   return {
     kind: "capital_concentration",
     domain: "inventario", metric: "capital", subset: "inmovilizado (Def2)", focusType: "bodega",
@@ -131,7 +131,7 @@ function _readCapital(signals) {
     reframe: "el problema no es tener stock, es que está concentrado y lento",
     drivers: [
       { v: `${d.dohAvg}d`, label: `cobertura promedio vs ${d.dohBench}d benchmark interno` },
-      { v: `${d.rotAvg}x`, label: "rotación baja del capital detenido" },
+      { v: `${d.rotAvg}x`, label: "rotación baja del capital inmovilizado" },
       { v: `${im.ranking.length} SKU`, label: `concentran el ${_p1(d.pct)}% del capital inmovilizado` },
       { v: `${im.sensitiveDoh}d`, label: `${im.sensitive} es el caso más sensible` },
     ],

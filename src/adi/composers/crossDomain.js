@@ -161,7 +161,7 @@ function composePriorityRecommendationV2(scenarioId) {
     return {
       opener: "El detalle de priorización requiere identificación de la cuenta con mayor peso económico en el escenario activo.",
       // BRIEF N-bis · Tipo A puro · suggestions filtradas
-      suggestions: filterTextualSuggestions(["Ver por cuenta", "Ver capital detenido por categoría", "Comparar Tier 1"]),
+      suggestions: filterTextualSuggestions(["Ver por cuenta", "Ver capital inmovilizado por categoría", "Comparar Tier 1"]),
       sentrixAction: null,
     };
   }
@@ -204,7 +204,7 @@ function composePriorityRecommendationV2(scenarioId) {
   const suggestions = [
     `Ver ${cliente_nombre} en detalle`,
     "¿Qué pasa si bajo carga 1pp?",
-    "Ver capital detenido por categoría",
+    "Ver capital inmovilizado por categoría",
   ];
 
   // SentrixAction · mismo patrón legacy.
@@ -341,10 +341,10 @@ function composeM1Donde(archetype, domains, scenarioId) {
     if (typeof ADI_CAPITAL_DEF_CANONICA_ENABLED !== "undefined" && ADI_CAPITAL_DEF_CANONICA_ENABLED) {
       const _canon = _capitalInmovilizado(skuInventario);
       const _estrictoK = Math.round(_canon.estricto60d / 1000);
-      return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K detenidos en stock entre SKUs con alerta operativa; de eso, aproximadamente $${_estrictoK}K corresponde a stock sin venta por más de 60 días), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
+      return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K inmovilizados en stock entre SKUs con alerta operativa; de eso, aproximadamente $${_estrictoK}K corresponde a stock sin venta por más de 60 días), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
     }
 
-    return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K detenidos en stock entre SKUs con alerta operativa), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
+    return `La presión del negocio se concentra simultáneamente en dos lugares: capital inmovilizado en categorías de baja rotación (aproximadamente $${capitalFugadoK}K inmovilizados en stock entre SKUs con alerta operativa), y contribución bajo benchmark sobre cuentas Tier 1 con carga comercial sobre tu meta operativa de carga (${target_carga.toFixed(1)}%) (aproximadamente $${fugaK}K anuales recuperables).`;
   }
 
   if (archetype === "calidad_crecimiento") {

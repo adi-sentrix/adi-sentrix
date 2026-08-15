@@ -118,9 +118,10 @@ const leakCases = [
   { n: "L12 · 'capital dormido' → 'capital inmovilizado' (encadena dormido→detenido→bigrama · $33K intacto)",
     in: "Tienes $33K de capital dormido en Valparaíso.",
     out: "Tienes $33K de capital inmovilizado en Valparaíso." },
-  { n: "L13 · 'dormidos' (plural) → 'detenidos'",
+  // owner 2026-08-15: el barrido cambiaba una palabra prohibida por OTRA prohibida. Ahora sale directo a la buena.
+  { n: "L13 · 'dormidos' (plural) → 'inmovilizados'",
     in: "Varios SKU quedaron dormidos sin rotación.",
-    out: "Varios SKU quedaron detenidos sin rotación." },
+    out: "Varios SKU quedaron inmovilizados sin rotación." },
   { n: "L14 · 'la plata' → 'la caja' (femenino preservado · number-safe $4.9M intacto)",
     in: "La plata inmovilizada en inventario suma $4.9M.",
     out: "La caja inmovilizada en inventario suma $4.9M." },
@@ -165,7 +166,9 @@ pOk("P11 · GUÍA DE LECTURA (negritas ejecutivas sobre conceptos · 3-6 · owne
 pOk("P12 · DOS CAPAS (principios con libertad · invariantes duras — no pautear)", /PRINCIPIOS \(criterio, no guión\)/.test(NG) && /INVARIANTES \(no se negocian\)/.test(NG) && /libertad total de fraseo/.test(NG));
 
 pOk("P13 · REGISTRO EJECUTIVO (owner 2026-07-09: el usuario habla coloquial, ADI responde de directorio — capital, no plata · sin spanglish)", /REGISTRO EJECUTIVO/.test(NG) && /jam[aá]s slang ni spanglish/.test(NG));
-pOk("P13b · registro con PROHIBICIÓN explícita (owner 2026-07-14: 'nada de dormido, plata, palanca' — siempre como un ejecutivo)", /PROHIBIDO 'plata'/.test(NG) && /PROHIBIDO 'dormido'/.test(NG) && /capital detenido o inmovilizado/.test(NG) && /PROHIBIDO 'palanca'/.test(NG));
+// owner 2026-08-15: el prompt MANDABA decir «capital detenido o inmovilizado» — o sea, el narrador tenía permiso
+// escrito para emitir la palabra prohibida, y por ahí entraba a pantalla por la vía narrada. Ahora dice una sola.
+pOk("P13b · registro con PROHIBICIÓN explícita (owner 2026-07-14: 'nada de dormido, plata, palanca' — siempre como un ejecutivo)", /PROHIBIDO 'plata'/.test(NG) && /PROHIBIDO 'dormido'/.test(NG) && /decí capital inmovilizado/.test(NG) && !/capital detenido/.test(NG) && /PROHIBIDO 'palanca'/.test(NG));
 pOk("P14 · ORDEN NUMERADO (owner 2026-07-09: 3+ entidades → una por punto · apertura y cierre en prosa)", /ORDEN NUMERADO/.test(NG) && /punto numerado/.test(NG) && /FUERA de la lista/.test(NG));
 pOk("P15 · CIERRE dentro del universo (owner 2026-07-09: jamás ofrecer data inexistente — campañas/marketing)", /universo DISPONIBLE/.test(NG) && /campañas, marketing, publicidad/.test(NG) && /convert[ií] hacia el an[aá]lisis disponible/.test(NG));
 // el universo DISPONIBLE viaja en TODO prompt de narración (derivado del contrato · capabilities.js)

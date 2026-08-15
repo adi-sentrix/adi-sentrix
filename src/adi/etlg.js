@@ -20,9 +20,9 @@ const ETLG_THESIS_TEMPLATES = {
   // ── Tier ferrari · variantes scenario completas (D6) ────────────────────
   priority_recommendation: {
     requires_concepts: [], // matchea por intent_id directo
-    bonanza: () => "Las ventas están creciendo, pero el crecimiento no se está convirtiendo en la misma proporción en contribución y además tienes capital detenido en inventario.",
-    tension: () => "Las ventas se quedaron planas, el margen perdió tracción y tienes capital detenido en inventario · tres problemas activos al mismo tiempo.",
-    crisis:  () => "Las ventas cayeron, el margen cayó y tienes capital detenido en inventario · tres problemas activos al mismo tiempo en magnitud severa.",
+    bonanza: () => "Las ventas están creciendo, pero el crecimiento no se está convirtiendo en la misma proporción en contribución y además tienes capital inmovilizado en inventario.",
+    tension: () => "Las ventas se quedaron planas, el margen perdió tracción y tienes capital inmovilizado en inventario · tres problemas activos al mismo tiempo.",
+    crisis:  () => "Las ventas cayeron, el margen cayó y tienes capital inmovilizado en inventario · tres problemas activos al mismo tiempo en magnitud severa.",
   },
 
   // ── Tier ferrari · paramétricos runtime ─────────────────────────────────
@@ -198,9 +198,9 @@ const ETLG_THESIS_TEMPLATES = {
 
   module_overview_inventario: {
     requires_concepts: [],
-    bonanza: () => "Hay capital detenido en stock · la rotación opera bajo el promedio operativo en algunas familias.",
-    tension: () => "Hay capital detenido en stock · la velocidad de deterioro empezó a acelerarse en categorías específicas.",
-    crisis:  () => "Hay capital detenido en stock · el monto comprometido empezó a impactar el ciclo de caja del negocio.",
+    bonanza: () => "Hay capital inmovilizado en stock · la rotación opera bajo el promedio operativo en algunas familias.",
+    tension: () => "Hay capital inmovilizado en stock · la velocidad de deterioro empezó a acelerarse en categorías específicas.",
+    crisis:  () => "Hay capital inmovilizado en stock · el monto comprometido empezó a impactar el ciclo de caja del negocio.",
   },
 };
 

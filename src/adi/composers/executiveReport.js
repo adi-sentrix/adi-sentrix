@@ -1017,7 +1017,7 @@ function _renderCapitalText(section) {
     })
     .join("\n");
   const lectura = top_skus_lines
-    ? `Los 3 SKUs con más capital detenido:\n${top_skus_lines}`
+    ? `Los 3 SKUs con más capital inmovilizado:\n${top_skus_lines}`
     : "";
   const foco = `El stock no rota a la velocidad que el negocio necesita. Liberar capital permite reinvertir en SKUs rotacionales del portafolio.`;
   const parts = [`**Capital inmovilizado**`, evidence];

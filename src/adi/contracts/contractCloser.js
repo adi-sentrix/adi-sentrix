@@ -85,7 +85,7 @@ function _closeDiagnose(resp) {
   const dets = new Set(F.map((f) => f.detector));
   const pal = [];
   if (dets.has("carga"))   pal.push("la carga comercial es lo más accionable rápido: recuperás margen sin resignar venta");
-  if (dets.has("capital")) pal.push("el capital detenido se libera revisando esos SKU sin rotar");
+  if (dets.has("capital")) pal.push("el capital inmovilizado se libera revisando esos SKU sin rotar");
   if (dets.has("margen") && !dets.has("carga")) pal.push("el margen bajo benchmark pide mirar precio/costo o la carga por cliente");
   const palanca = "**Acción:** " + (pal.length ? pal.join("; ") + "." : "atacá primero el foco de mayor impacto.");
 
@@ -314,7 +314,7 @@ function _closeSimulate(resp) {
 const _CAMINO = {
   carga:   "llevar la carga comercial al target — probado por el dato",
   margen:  "recuperar el margen de las cuentas bajo tu vara — la brecha está probada; la causa raíz (precio, costo o mezcla) pide el detalle",
-  capital: "liberar el capital detenido y ponerlo a trabajar — probado por el dato",
+  capital: "liberar el capital inmovilizado y ponerlo a trabajar — probado por el dato",
 };
 function _closeRecommendGoal(resp, goal, F, focoLines) {
   // RUTAS NUMERADAS (owner 2026-07-15: "las rutas deberían ir primero en un texto, segundo en otro — eso da orden"):
@@ -374,7 +374,7 @@ function _closeRecommend(resp) {
   const topEntity = actionable.items && actionable.items[0] ? actionable.items[0].entidad : null;
   const recomendacion = isCarga
     ? `**Recomendación:** llevá la carga comercial hacia el target interno${topEntity ? `, empezando por ${topEntity}` : ""}.`
-    : `**Recomendación:** liberá el capital detenido de los SKU que no rotan${topEntity ? ` (arranca por ${topEntity})` : ""}.`;
+    : `**Recomendación:** liberá el capital inmovilizado de los SKU que no rotan${topEntity ? ` (arranca por ${topEntity})` : ""}.`;
   const fundamento = isCarga
     ? "**Fundamento:** la carga está sobre el target interno — es valor que hoy no llega al margen (probado por el dato)."
     : "**Fundamento:** son SKU que dejaron de rotar; su capital queda inmovilizado (probado por el dato).";

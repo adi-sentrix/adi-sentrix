@@ -713,14 +713,14 @@ export function composeSpecResumenEjecutivo({ scenario } = {}) {
   const fugas = [];
   if (mg) fugas.push(`${_money(mg.subtotal_usd)} de contribución no capturada vs benchmark (top: ${mg.items.slice(0, 3).map((i) => `${i.entidad} ${_money(i.usd)}`).join(", ")})`);
   if (cg) fugas.push(`${_money(cg.subtotal_usd)} de carga comercial sobre el target`);
-  if (cap) fugas.push(`${_money(cap.subtotal_usd)} de capital detenido en ${cap.items.length} SKU`);
+  if (cap) fugas.push(`${_money(cap.subtotal_usd)} de capital inmovilizado en ${cap.items.length} SKU`);
   const b5 = fugas.length
     ? `**Dónde estamos perdiendo:** ${fugas.join(" · ")}.`
     : `**Dónde estamos perdiendo:** sin fugas materiales en este corte — todo sobre benchmark y con el capital rotando.`;
   const causas = [];
   if (mg) causas.push("la contribución se escapa porque los grandes venden bajo el piso (precio/mix, no un costo puntual)");
   if (cg) causas.push(`la carga corre sobre el target de ${POLICY.targetCarga}% (rebates y descuentos${cgTopRow ? ` — ${cgTopRow.nombre} carga ${cgTopRow.pctRebate}%` : ""})`);
-  if (cap) causas.push("el capital está detenido en SKU que no rotan");
+  if (cap) causas.push("el capital está inmovilizado en SKU que no rotan");
   const b6 = causas.length ? `**Por qué está pasando:** ${causas.join("; ")}.` : "";
   const f1 = F[0], f2 = F[1];
   // (7) recuperación con IMPACTO CUANTIFICADO por acción (el ejemplo del owner: "bajar de 4.5% a 3.5% recupera ~$194K")
@@ -856,7 +856,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       if (iv.alerta !== "ok" || (iv.estado && iv.estado !== "Activo")) alertas.push({ sku: s.nombre, estado: iv.estado, doh: Math.round(iv.doh) });
     }
     const lectura = alertas.length
-      ? `Ojo acá: ${alertas.map((a) => `${a.sku} está ${a.estado} (${a.doh} días de inventario para lo que vende)`).join(" · ")} — cuando tu producto de mayor venta se frena, el capital queda detenido justo donde más pesa.`
+      ? `Ojo acá: ${alertas.map((a) => `${a.sku} está ${a.estado} (${a.doh} días de inventario para lo que vende)`).join(" · ")} — cuando tu producto de mayor venta se frena, el capital queda inmovilizado justo donde más pesa.`
       : `Los ${ventaRows.length} tienen stock sano para su ritmo de venta — sin quiebres ni frenos a la vista.`;
     return {
       opener: `Tus ${ventaRows.length} SKU que más venden, con su inventario disponible:\n\n${lines.join("\n")}\n\n${lectura}`,
@@ -904,10 +904,10 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     const lines = [
       `${scName ? `En ${scName} tienes` : "Tienes"} ${_money(D.total)} de capital en inventario (${rows.length} SKU): ${partes.join(" · ")}.`,
       sano.usd ? `**Lo que trabaja:** ${_money(sano.usd)} (${sano.pct}%) rota dentro de tu benchmark (rotación sobre ${P.rotacionMin}x y cobertura bajo ${P.dohMax} días).` : "",
-      fren.usd ? `**Lo primero:** ${_money(fren.usd)} detenidos en ${fren.count} SKU sin rotación — liberarlos devuelve ese capital a caja.` : "",
+      fren.usd ? `**Lo primero:** ${_money(fren.usd)} inmovilizados en ${fren.count} SKU sin rotación — liberarlos devuelve ese capital a caja.` : "",
       quie.usd ? `**Lo urgente:** ${_money(quie.usd)} en ${quie.count} SKU con riesgo de quiebre — rotan rápido y la cobertura no alcanza hasta la próxima compra; reponer antes del corte.` : "",
       sobre.usd ? `**Para ajustar:** ${_money(sobre.usd)} en sobrestock — venden, pero con más cobertura de la necesaria; frenar la próxima compra drena el exceso.` : "",
-      !fren.usd && !quie.usd ? `Sin capital detenido ni quiebres a la vista — el inventario corre sano.` : "",
+      !fren.usd && !quie.usd ? `Sin capital inmovilizado ni quiebres a la vista — el inventario corre sano.` : "",
     ];
     const bolE = [fig("Capital en inventario · total", _money(D.total), { unit: "money", raw: D.total, mandatory: true, context: "estado del inventario" })];
     for (const e of _ORDEN_E) if (dd(e).usd > 0) bolE.push(fig(`Estado del inventario: ${_ESTADO_LABEL[e]}`, _money(dd(e).usd), { unit: "money", raw: dd(e).usd, mandatory: false, context: "estado del inventario" }));
@@ -958,8 +958,8 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
         return {
           // redacción sin ambigüedad (auditoría de asks 2026-07-15: "nada detenido según tu vara (rotación bajo 2x…)"
           // se leía como si ESA fuera la razón — el narrador llegó a invertir el criterio) + benchmark, no vara.
-          opener: `En ${_scName} tienes ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada detenido: todo rota dentro de tu benchmark (detenido sería rotación bajo ${P.rotacionMin}x o cobertura sobre ${P.dohMax} días).` +
-            (puntas.length ? `\n\n**Ojo igual:** ${puntas.join(" · ")} — no es capital detenido, pero conviene mirarlo.` : `\n\nSin señales de quiebre ni sobrestock en ese alcance.`),
+          opener: `En ${_scName} tienes ${_money(totalCap)} de capital en inventario (${rows.length} SKU) y nada inmovilizado: todo rota dentro de tu benchmark (inmovilizado sería rotación bajo ${P.rotacionMin}x o cobertura sobre ${P.dohMax} días).` +
+            (puntas.length ? `\n\n**Ojo igual:** ${puntas.join(" · ")} — no es capital inmovilizado, pero conviene mirarlo.` : `\n\nSin señales de quiebre ni sobrestock en ese alcance.`),
           suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Ver todo el inventario"],
           sentrixAction: null,
           evidence: { lens: "inventory", metrica: "capital", dimension: filters.bodega ? "bodega" : "sku", entidad: _scName, boleta: bol2 },
@@ -979,7 +979,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           byBod.length > 1 ? `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.` : "",
           `Los SKU al límite: ${skuList}.`,
           `**Por qué:** rotación alta (≥${P.quiebreRotMin}x) con cobertura corta (DOH ≤ ${P.quiebreDohMax}d) — venden bien pero el stock no alcanza hasta la próxima compra.`,
-          `**Qué hacer:** repón ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} ya. Es venta que estás por perder por falta de producto, no capital detenido — el costo de no hacerlo es la venta que no ocurre.`,
+          `**Qué hacer:** repón ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} ya. Es venta que estás por perder por falta de producto, no capital inmovilizado — el costo de no hacerlo es la venta que no ocurre.`,
         ],
         suggestions: ["Qué SKU inmovilizados libero", "Ver todo el inventario"],
       };
@@ -990,7 +990,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           `Tienes ${_money(total)} en ${skus.length} SKU con sobrestock — venden, pero la cobertura es excesiva (DOH entre ${P.sobrestockDohMin} y ${P.dohMax}d)${topB ? `. Se concentra en ${topB.nombre} (${_money(topB.usd)})` : ""}.`,
           byBod.length > 1 ? `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.` : "",
           `Los SKU con más cobertura: ${skuList}.`,
-          `**Por qué:** rotan dentro de rango, pero tienes más meses de stock de los necesarios. Es capital inmovilizado de más — no está detenido como el que no rota, pero podría estar trabajando.`,
+          `**Por qué:** rotan dentro de rango, pero tienes más meses de stock de los necesarios. Es capital inmovilizado de más — no es el que dejó de rotar, pero podría estar trabajando.`,
           `**Qué hacer:** frená la próxima compra de ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} y deja que la venta drene el exceso. No hace falta liquidar; sí ajustar la reposición.`,
         ],
         suggestions: ["Qué SKU están inmovilizados", "Qué reponer por quiebre"],
@@ -1011,8 +1011,8 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           `Por bodega: ${byBod.map((b) => `${b.nombre} ${_money(b.usd)}`).join(" · ")}.`,
           byFam.length ? `Por familia lo carga ${byFam[0].nombre} (${_money(byFam[0].usd)})${byFam[1] ? ` y ${byFam[1].nombre} (${_money(byFam[1].usd)})` : ""}.` : "",
           `Los SKU que lo explican: ${skuList}.`,
-          `**Por qué:** dejaron de rotar — rotación bajo ${P.rotacionMin}x o DOH sobre ${P.dohMax}d. Es stock que no sale y deja el capital detenido.`,
-          `**Qué hacer:** arranca por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital detenido"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisa la reposición para no repetirlo.`,
+          `**Por qué:** dejaron de rotar — rotación bajo ${P.rotacionMin}x o DOH sobre ${P.dohMax}d. Es stock que no sale y deja el capital inmovilizado.`,
+          `**Qué hacer:** arranca por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital inmovilizado"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisa la reposición para no repetirlo.`,
         ],
         suggestions: ["Por qué el capital está inmovilizado", "Qué SKU libero primero"],
       };
@@ -2458,10 +2458,10 @@ export function composeSpecSimulateCapital({ filters = {}, scenario, entityScope
   // el `context` de la boleta viaja al prompt como texto autorizado y a la evidencia de Sentrix: va en registro.
   const _ctx = "supuesto: liberar el capital inmovilizado (dato real)";
   const bodega = filters.bodega || null;
-  const supuesto = `**El supuesto:** liberar el capital detenido${bodega ? ` en ${bodega}` : ""}. Es una proyección sobre el dato real, no un dato observado.`;
+  const supuesto = `**El supuesto:** liberar el capital inmovilizado${bodega ? ` en ${bodega}` : ""}. Es una proyección sobre el dato real, no un dato observado.`;
   const efecto = `**El efecto directo:** vuelven ${_money(cap.subtotal_usd)} de caja — hoy están inmovilizados en ${cap.items.length} SKU que no rotan según tu vara (rotación bajo ${POLICY.rotacionMin}x o más de ${POLICY.dohMax} días).`;
-  const dondePega = `**Dónde pega:** ${top.map((it) => `${it.entidad} ${_money(it.usd)}`).join(" · ")}${cap.items.length > top.length ? " — y el resto de los SKU detenidos completa el total" : ""}.`;
-  const limite = `**El límite:** qué está detenido y cuánto vale está probado por el dato. Lo que el dato NO fija es el precio real de salida: mover o liquidar stock suele ser a descuento — ese margen queda abierto.`;
+  const dondePega = `**Dónde pega:** ${top.map((it) => `${it.entidad} ${_money(it.usd)}`).join(" · ")}${cap.items.length > top.length ? " — y el resto de los SKU inmovilizados completa el total" : ""}.`;
+  const limite = `**El límite:** qué está inmovilizado y cuánto vale está probado por el dato. Lo que el dato NO fija es el precio real de salida: mover o liquidar stock suele ser a descuento — ese margen queda abierto.`;
   const decision = "**La decisión:** ¿lo bajamos a lista — qué liquidar y qué reubicar primero?";
   const bol = [
     // las tres `formula` van en registro por la misma razón que en composeSpecSimulateCarga: son procedencia

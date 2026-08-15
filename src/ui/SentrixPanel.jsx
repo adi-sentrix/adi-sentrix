@@ -5332,7 +5332,7 @@ function FichaEjecutivaCliente({ name, scenario, onAsk }) {
             {familias.length > 0 && _compTable(familias, "Familia", "Por familia")}
             {skus.length > 0 && _compTable(skus.slice(0, 10), "SKU", `Por SKU (top ${Math.min(10, skus.length)} de ${skus.length})`)}
             <div style={{ fontSize: 10.5, color: C.textMuted, marginTop: 8, lineHeight: 1.5 }}>
-              Unidades = reparto de las unidades del cliente según su venta (cierran con su total). Rotación = veces al año que rota el producto en tu inventario; <span style={{ color: C.red }}>en rojo</span> la que está bajo tu piso de {POLICY.rotacionMin}x — es la que después aparece detenida abajo.
+              Unidades = reparto de las unidades del cliente según su venta (cierran con su total). Rotación = veces al año que rota el producto en tu inventario; <span style={{ color: C.red }}>en rojo</span> la que está bajo tu piso de {POLICY.rotacionMin}x — es la que después aparece inmovilizada abajo.
             </div>
             {_btn(`Pídele a ADI que profundice en la composición de ${name} →`, `¿Cómo se compone ${name}?`)}
           </>

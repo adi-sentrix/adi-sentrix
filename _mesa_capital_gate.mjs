@@ -20,16 +20,18 @@ fs.writeFileSync(entry, [
   'export { buildControlRing, caminoEstructural } from "./src/adi/sentrix/control.js";',
   'export { buildCapitalSignals, buildReadingFromSignals } from "./src/adi/sentrix/reading.js";',
   'export { transferenciaCapability } from "./src/adi/sentrix/capability.js";',
+  // el coercer del piso · para probar que la palabra nueva de los `ask` SIGUE entrando al chat (owner 2026-08-15)
+  'export { coerceFloor } from "./src/adi/coerceChain.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { buildMesaCapital, buildCuadroCapital, CAPITAL_ESTADOS, diagnoseInventario, applyScenarioToSkuInventario, composeSpecDiagnose,
-        buildControlRing, caminoEstructural, buildCapitalSignals, buildReadingFromSignals, transferenciaCapability } = M;
+        buildControlRing, caminoEstructural, buildCapitalSignals, buildReadingFromSignals, transferenciaCapability, coerceFloor } = M;
 
 let pass = 0, fail = 0; const rotos = [];
 const ok = (cond, tag, detail) => { if (cond) pass++; else { fail++; rotos.push({ tag, detail: detail || "" }); } };
-const INFORMAL = /\b(vara|plata|dormid[oa]s?|guita|palancas?|flojo)\b/i;   // formal en superficie (benchmark, no vara — adi-lenguaje-formal)
+const INFORMAL = /\b(vara|plata|dormid[oa]s?|guita|palancas?|flojo|detenid[oa]s?)\b/i;   // formal en superficie (benchmark, no vara — adi-lenguaje-formal) · + detenido (owner 2026-08-15: la palabra es «inmovilizado»)
 
 for (const sc of ["bonanza", "tension", "crisis"]) {
   const mc = buildMesaCapital(sc);
@@ -445,19 +447,20 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
  * La cara decía "capital detenido" mientras la Ficha, el glosario y los propios composers de ADI ya decían
  * "capital inmovilizado" — y encima el filtro del gráfico nuevo también. Dos palabras para el mismo dinero en la
  * misma pantalla. Se unificó en INMOVILIZADO, que es la palabra que ya existía en el resto del producto.
- * ⚠️ LO QUE NO CAMBIÓ, A PROPÓSITO: las `ask` que Sentrix le manda a ADI. Ese texto es la ENTRADA de ADI, su
- * vocabulario es contrato suyo y tocarlo estaba fuera de alcance en este pase. Por eso el candado permite las
- * preguntas y prohíbe todo lo demás: si mañana alguien escribe un rótulo con la palabra vieja, salta acá.
+ * ⚠️ LAS `ask` TAMBIÉN CAMBIARON (owner 2026-08-15, autorización explícita). Hasta ese día quedaban exentas —eran
+ * la ENTRADA de ADI y su vocabulario es contrato suyo—, pero un `ask` SE VE: es la burbuja del usuario cuando
+ * alguien toca un KPI. Con la exención puesta, la pantalla seguía diciendo «¿Dónde está detenido mi capital?»
+ * mientras el KPI de arriba decía «Capital inmovilizado». Así que el candado ya no perdona a las preguntas: en
+ * este módulo solo sobrevive la clave interna `"detenido"`, que nadie lee. Que el motor SIGA entendiendo la forma
+ * nueva se prueba abajo, contra el coercer — cambiar la palabra sin probar la entrada sería romper el chat.
  * Se barre el CÓDIGO —no la ejecución— porque una rama de texto que hoy no se dispara igual va a producción. */
 {
   const src = fs.readFileSync(path.join(root, "src/adi/sentrix/mesaCapital.js"), "utf8");
   const sinComentarios = src.replace(/\/\*[^]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n");
   const lits = sinComentarios.match(/"[^"\n]*detenid[^"\n]*"|'[^'\n]*detenid[^'\n]*'|`[^`\n]*detenid[^`\n]*`/gi) || [];
-  // permitido: la clave interna `"detenido"` (no se lee en pantalla) y las preguntas que van a ADI
-  // ojo con `\b` después de una vocal acentuada: `é` no es `\w`, así que no hay borde y la prueba falla siempre
-  const esAsk = (s) => /^["'`]\s*(¿|Por qué\s)/.test(s);
+  // permitido: SOLO la clave interna `"detenido"` (no se lee en pantalla). Las preguntas ya no están exentas.
   const esClave = (s) => s === '"detenido"';
-  const colados = lits.filter((s) => !esAsk(s) && !esClave(s));
+  const colados = lits.filter((s) => !esClave(s));
   ok(colados.length === 0, "candado-inmovilizado-modulo", colados.join(" | ").slice(0, 180));
   // …y en los textos escritos a mano de la cara Capital, que el módulo no controla
   const panel = fs.readFileSync(path.join(root, "src/ui/SentrixPanel.jsx"), "utf8");
@@ -471,6 +474,39 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
   for (const sc of ["bonanza", "tension", "crisis"]) {
     const k = buildMesaCapital(sc).kpis.find((x) => x.key === "detenido");
     ok(k.label === "Capital inmovilizado", `candado-inmovilizado-kpi@${sc}`, k.label);
+  }
+}
+
+/* ── (20b) LA PALABRA NUEVA TIENE QUE SEGUIR ENTRANDO AL CHAT (owner 2026-08-15) ────────────────────────────────
+ * Un `ask` es SALIDA y ENTRADA a la vez. Cambiarle la palabra en pantalla es media tarea: si el motor deja de
+ * reconocer la forma nueva, la Mesa queda preguntando algo que ADI ya no entiende y el usuario se come un
+ * "no te sigo" en su primer click. Así que la forma NUEVA se compara con la VIEJA campo por campo — no basta con
+ * que "responda algo", tiene que resolver al MISMO pedido. La forma vieja sigue viva como vocabulario de ENTRADA
+ * (nadie deja de entender a un usuario que escribe «detenido»); lo que dejó de existir es en la superficie. */
+{
+  const EQUIVALENTES = [
+    ["¿Dónde está detenido mi capital?", "¿Dónde está inmovilizado mi capital?"],
+    ["Por qué el capital está detenido", "Por qué el capital está inmovilizado"],
+    ["¿Qué pasa si libero el capital detenido?", "¿Qué pasa si libero el capital inmovilizado?"],
+    ["¿Cómo libero el capital detenido en Valparaíso?", "¿Cómo libero el capital inmovilizado en Valparaíso?"],
+    ["Qué SKU están detenidos", "Qué SKU están inmovilizados"],
+  ];
+  for (const [viejo, nuevo] of EQUIVALENTES) {
+    const a = coerceFloor(viejo, false, null), b = coerceFloor(nuevo, false, null);
+    ok(!!b && !!b.operation, `ask-nueva-reclamada · «${nuevo}»`, JSON.stringify(b));
+    ok(JSON.stringify(a) === JSON.stringify(b), `ask-nueva-equivalente · «${nuevo}»`,
+      `vieja ${JSON.stringify(a)} · nueva ${JSON.stringify(b)}`);
+  }
+  // …y ninguna de las preguntas que la Mesa emite de verdad conserva la palabra vieja
+  for (const sc of ["bonanza", "tension", "crisis"]) {
+    const mc = buildMesaCapital(sc);
+    const asks = [...mc.mapa.tramos, ...mc.kpis, ...mc.focos, ...mc.simulaciones].map((x) => x.ask)
+      .concat([mc.reponer && mc.reponer.ask, mc.liquidar && mc.liquidar.ask])
+      .concat(buildCuadroCapital(sc, "sku").rows.map((r) => r.accionAsk))
+      .concat(buildCuadroCapital(sc, "bodega").rows.map((r) => r.accionAsk))
+      .filter((s) => typeof s === "string");
+    const sucias = asks.filter((s) => /detenid/i.test(s));
+    ok(sucias.length === 0, `ask-sin-palabra-vieja@${sc}`, sucias.join(" | ").slice(0, 160));
   }
 }
 
