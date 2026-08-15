@@ -3099,6 +3099,34 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const _duenoReal = (d) => !_entidadesTenant || _entidadesTenant.some((n) => _normD(n) === _normD(d));
       const _porId = new Map();          // id → valor recomputado
       const _duenoPorId = new Map();     // id → dueño declarado (para que una cascada herede a quién pertenece)
+      const _pfR0 = (c) => parseFigures(String(c.resultado))[0] || null;
+      /* _duenoInferible(c) → el dueño que los INSUMOS demuestran, o null si no hay uno solo posible.
+       * Tres fuentes, todas de evidencia dura, en orden de precisión. Si dos de ellas discrepan, o si aparecen
+       * dos entidades distintas, devuelve null y la línea muere pidiendo el dueño — inferir no es adivinar. */
+      const _duenoInferible = (c) => {
+        const ids = [], entidades = new Set();
+        let huboAgregado = false;
+        for (const x of (c.inputs || [])) {
+          const k = String(x).trim();
+          if (_duenoPorId.has(k)) { const d = _duenoPorId.get(k); if (_esAgregado(d)) huboAgregado = true; else ids.push(d); continue; }
+          const pf = parseFigures(k)[0];
+          const ds = pf && _datoIdxFrm ? (_datoIdxFrm.porCanon.get(pf.canon) || _datoIdxFrm.porVerbatim.get(_stripSpace(pf.text)) || null) : null;
+          if (!ds) continue;
+          const reales = [...ds].filter((d) => !_esAgregado(d) && _duenoReal(d));
+          /* UN INSUMO QUE APUNTA A TODAS PARTES NO APUNTA A NINGUNA (medido al calibrar, 2026-08-15): el «4%»
+           * del supuesto del usuario resulta ser también, en la carpeta, un valor de Paris, de SAM-MICRO32L y de
+           * MAK-SAW18V. Tratarlo como «ambiguo → no infiero nada» hacía que un supuesto cualquiera envenenara una
+           * inferencia por lo demás nítida. Se IGNORA como evidencia y deciden los demás insumos; si ninguno
+           * señala una entidad única, sigue sin haber inferencia. */
+          if (reales.length === 1) entidades.add(reales[0]);
+          else if (!reales.length && [...ds].some(_esAgregado)) huboAgregado = true;
+        }
+        for (const d of ids) entidades.add(d);
+        if (entidades.size === 1) return [...entidades][0];   // una sola entidad detrás de la cuenta
+        if (globalThis.__DBG__) console.log("[dbg] inputs=", JSON.stringify(c.inputs), "ent=", [...entidades], "agg=", huboAgregado);
+        if (entidades.size === 0 && huboAgregado) return "total";
+        return null;                                          // dos entidades, o ninguna evidencia: no se infiere
+      };
       const _uniPorId = new Map();       // id → unidad declarada (un insumo por id conserva si era tasa o dinero)
       for (const c of _calculosDeclarados) {
         const op = String(c.op || "").trim().toLowerCase();
@@ -3127,6 +3155,14 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const uni = _esTasa(uniCruda) ? "pct" : uniCruda;   // «pp» y «puntos» son la misma unidad para recomputar
         const insumos = (c.inputs || []).map((x) => (_porId.has(String(x).trim()) ? _porId.get(String(x).trim()) : _num(x)));
         const insumosAutorizados = (c.inputs || []).every((x) => _porId.has(String(x).trim()) || _insumoOk(String(x)));
+        /* ── EL DUEÑO SE INFIERE SOLO CUANDO LA EVIDENCIA ES INEQUÍVOCA (owner 2026-08-15) ────────────────────
+         * MEDIDO: en el examen 1 consolidado, DOS turnos cayeron al suplente porque el cerebro escribió seis
+         * líneas correctas y olvidó `dueno=` en UNA. No era deshonestidad: es un campo obligatorio que se
+         * escapa en bloques largos, y la respuesta entera moría por eso.
+         * NO SE AFLOJA LA ATRIBUCIÓN — se infiere solo con evidencia dura y de UNA sola lectura posible (ver
+         * _duenoInferible). Con dos entidades distintas, o sin dueño identificable, NO se infiere: muere como
+         * antes. Y un dueño DECLARADO que contradice a sus insumos sigue muriendo — inferir no es creer. */
+        const _duenoEfectivo = String(c.dueno || "").trim() || _duenoInferible(c) || "";
         const esperado = (fn && insumos.length && insumos.every(Number.isFinite)) ? fn(insumos, uni, signo) : null;
         const cierra = Number.isFinite(esperado) && Number.isFinite(R)
           && (_cierraFrm(esperado, R) || _cierraPorRedondeo(esperado, c.resultado));
@@ -3164,12 +3200,12 @@ export function guardC(narration, { ledger, results = [], trace = null, question
            * es aritmética correcta y realidad imposible: no se puede recortar más carga de la que existe. Se veta
            * la DECLARACIÓN, con el tope real en la instrucción — así el reintento sabe qué corregir. */
           _vetosCalculo.push({ kind: "escenario-inviable", detail: `línea «${c.linea || c.id || "declarada"}» — campo «resultado»: deja una tasa NEGATIVA (${esperado.toFixed(1)}%). No se puede recortar más de lo que hay: el máximo aplicable es el valor disponible — usá ese tope o declará que el supuesto no aplica completo` });
-        } else if (!String(c.dueno || "").trim()) {
+        } else if (!_duenoEfectivo) {
           /* SIN DUEÑO NO HAY AUTORIZACIÓN (owner 2026-08-14). La cuenta puede cerrar perfecta y aun así no
            * sabemos DE QUIÉN es el número — que es justo lo que dejó salir «Lider — $17.8M». */
           _vetosCalculo.push(_multa(c, "dueño", `la cuenta cierra, pero no declaraste de QUIÉN es el resultado. Agregá «dueno=<entidad>» si es de una entidad concreta, o «dueno=total» si es del conjunto`));
-        } else if (!_esAgregado(c.dueno) && !_duenoReal(c.dueno)) {
-          _vetosCalculo.push(_multa(c, "dueño", `«${c.dueno}» no es una entidad de este negocio. Usá el nombre exacto de la entidad, o «dueno=total» si el resultado es del conjunto`));
+        } else if (!_esAgregado(_duenoEfectivo) && !_duenoReal(_duenoEfectivo)) {
+          _vetosCalculo.push(_multa(c, "dueño", `«${_duenoEfectivo}» no es una entidad de este negocio. Usá el nombre exacto de la entidad, o «dueno=total» si el resultado es del conjunto`));
         } else {
           /* EL DUEÑO DEL RESULTADO SALE DE LOS INSUMOS, NO DEL VALOR. Este es el chequeo que cierra el caso
            * medido, y hubo que buscarle el criterio correcto: la primera versión comparaba el RESULTADO contra la
@@ -3191,21 +3227,21 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             const ds = pf && _datoIdxFrm ? (_datoIdxFrm.porCanon.get(pf.canon) || _datoIdxFrm.porVerbatim.get(_stripSpace(pf.text)) || null) : null;
             if (ds) for (const d of ds) if (!_esAgregado(d) && _duenoReal(d)) _duenosDeInsumos.add(d);
           }
-          const _ajeno = !_esAgregado(c.dueno) && _duenosDeInsumos.size
-            && ![..._duenosDeInsumos].some((d) => _normD(d) === _normD(c.dueno));
+          const _ajeno = !_esAgregado(_duenoEfectivo) && _duenosDeInsumos.size
+            && ![..._duenosDeInsumos].some((d) => _normD(d) === _normD(_duenoEfectivo));
           if (_ajeno) {
-            _vetosCalculo.push(_multa(c, "dueño", `la declaraste de «${c.dueno}», pero sus insumos son de ${[..._duenosDeInsumos].slice(0, 3).join("/")} — una cuenta hecha con cifras de otro no da una cifra tuya: revisá de quién es el número`));
+            _vetosCalculo.push(_multa(c, "dueño", `la declaraste de «${_duenoEfectivo}», pero sus insumos son de ${[..._duenosDeInsumos].slice(0, 3).join("/")} — una cuenta hecha con cifras de otro no da una cifra tuya: revisá de quién es el número`));
           } else {
             if (c.id) _porId.set(String(c.id).trim(), R);
             /* ADOPCIÓN CON DUEÑO: al índice propio (lo verifica el `_duenoEnVentana` de siempre) y a `calcBase`,
              * que solo sirve para que OTRA cuenta pueda apoyarse en esta. Ya NO va a `authCanon`: ahí adentro una
              * cifra queda autorizada como valor pelado y el chequeo de atribución deja de mirarla. */
-            if (c.id) { _duenoPorId.set(String(c.id).trim(), String(c.dueno).trim()); _uniPorId.set(String(c.id).trim(), uni); }   // la cascada hereda dueño y unidad
+            if (c.id) { _duenoPorId.set(String(c.id).trim(), _duenoEfectivo); _uniPorId.set(String(c.id).trim(), uni); }   // la cascada hereda dueño y unidad
             if (_pfR) {
-              const _reg = (mapa, llave) => { if (!mapa.has(llave)) mapa.set(llave, new Set()); mapa.get(llave).add(String(c.dueno).trim()); };
+              const _reg = (mapa, llave) => { if (!mapa.has(llave)) mapa.set(llave, new Set()); mapa.get(llave).add(_duenoEfectivo); };
               _reg(_calcIdx.porCanon, _pfR.canon);
               _reg(_calcIdx.porVerbatim, _stripSpace(_pfR.text));
-              if (_esAgregado(c.dueno)) _calcAgregadas.add(_pfR.canon);
+              if (_esAgregado(_duenoEfectivo)) _calcAgregadas.add(_pfR.canon);
               calcBase.canon.add(_pfR.canon); calcBase.verbatim.add(_stripSpace(_pfR.text));
               _adoptadas++;   // el punto fijo de las cascadas sigue contando: esta pasada aportó algo
             }

@@ -226,8 +226,12 @@ console.log("\n── 11 · EL CONTRATO EXIGE DUEÑO DEL RESULTADO ──");
 const _L = (linea, prosa = "Lider vendió $17.8M en el año.", extra = {}) => juzgar(`${prosa}\n\n${MARCA_CALCULO}\n${linea}`, extra);
 // los casos de simulación declaran los 2 puntos en la pregunta: sin eso el insumo muere antes, por otra razón
 const QSIM = { question: "Reduce 2 puntos porcentuales las acciones comerciales de esos clientes.", supuestoPendiente: ["2pp"] };
-const dSinD = _detalle(`Las ventas del negocio subirían a $104.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money`);
-ok(/campo «dueño»/.test(dSinD), `sin dueño la cuenta no autoriza nada, aunque cierre perfecta (${dSinD.slice(0, 90)}…)`);
+/* ⚠️ ACTUALIZADO (2026-08-15): desde que el dueño se INFIERE con evidencia inequívoca, una cuenta sobre
+ * agregados del negocio ya no muere — se le infiere «total», que es lo que el owner pidió. Para probar que SIN
+ * evidencia sigue muriendo hay que darle insumos que no señalen a nadie: «4%» figura en la carpeta como valor de
+ * TRES entidades distintas, así que no es evidencia de ninguna. */
+const dSinD = _detalle(`El ajuste combinado sería de 8%.\n\n${MARCA_CALCULO}\nid=c1 · op=sumar · inputs=4%; 4% · formula=4% + 4% · resultado=8% · unidad=pct`);
+ok(/campo «dueño»/.test(dSinD), `sin dueño Y sin evidencia para inferirlo, la cuenta no autoriza nada (${dSinD.slice(0, 90)}…)`);
 ok(/dueno=total/.test(dSinD), "…y la multa dice cómo arreglarlo: la entidad, o «total» si es del conjunto");
 const dInv = _detalle(`El negocio subiría a $104.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=Acme Corp`);
 ok(/campo «dueño»/.test(dInv) && /Acme Corp/.test(dInv), `un dueño INVENTADO no pasa — es tan grave como inventar la cifra (${dInv.slice(0, 80)}…)`);
@@ -260,6 +264,71 @@ ok(!vCuelga.ok && /cifra-calculada-mal-atribuida/.test(String(vCuelga.verdict)),
 ok(/Falabella/.test(String((vCuelga.violations[0] || {}).detail || "")), "…y la multa nombra de quién quedó colgado");
 ok(juzgar(`El negocio suma $54.6M entre sus tres mayores cuentas.\n\n${MARCA_CALCULO}\n${AGG}`).ok,
   "…y el mismo agregado sin entidad pegada pasa");
+
+/* ── 12 · EL DUEÑO SE INFIERE, PERO SOLO CON EVIDENCIA INEQUÍVOCA (owner 2026-08-15) ──────────────────────────
+ * MEDIDO: dos turnos del examen 1 cayeron al suplente porque el cerebro escribió seis líneas correctas y olvidó
+ * `dueno=` en UNA. La atribución NO se afloja: se infiere solo cuando hay una sola lectura posible, y muere
+ * cuando hay dos. Cada positivo lleva su gemelo ambiguo. */
+console.log("\n── 12 · EL DUEÑO INFERIDO DESDE LOS INSUMOS ──");
+const QINF = { question: "¿cuánto le falta a cada cliente para el benchmark?", supuestoPendiente: [] };
+// (a) desde el ID de otra línea: la cascada ya hereda la unidad; heredar el dueño es la misma lógica
+ok(juzgar(`El margen de Falabella llegaría a 24.0% y quedaría a 6.1pp del benchmark.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=22.0%; 2pp · formula=22.0% + 2pp · resultado=24.0% · unidad=pp · dueno=Falabella\nid=c2 · op=restar · inputs=30.1%; c1 · formula=30.1% − 24.0% · resultado=6.1pp · unidad=pp`, { ...QSIM }).ok,
+  "sin «dueno» pero con un insumo que ES otra línea de Falabella: se infiere de ella (era el caso real del examen)");
+/* (b) desde UNA sola entidad en los insumos. El caso se arma DESDE LA CARPETA, no con cifras a mano: hay que
+ * elegir una cifra cuyo dueño sea único, y eso depende del escenario (22.0%, por ejemplo, es a la vez el margen
+ * de Falabella y el margen de inventario de dos SKU — ahí el muro hace bien en NO inferir). */
+{
+  const figs = cifrasDelDato("actual").figs || [];
+  const clientes = ejes(["cliente"]);
+  const porCanon = new Map();
+  for (const f of figs) { if (!porCanon.has(f.canon)) porCanon.set(f.canon, new Set()); for (const d of (f.duenos || [])) porCanon.get(f.canon).add(d); }
+  const unico = figs.find((f) => /^\$/.test(String(f.value)) && [...(porCanon.get(f.canon) || [])].filter((d) => clientes.includes(d)).length === 1
+    && [...(porCanon.get(f.canon) || [])].length === 1);
+  const cli = unico ? [...porCanon.get(unico.canon)][0] : null;
+  if (unico && cli) {
+    const mitad = `$${(parseFloat(String(unico.value).replace(/[^\d.]/g, "")) / 2).toFixed(2)}M`;
+    const linea = `id=c1 · op=dividir · inputs=${unico.value}; 2 · formula=${unico.value} / 2 · resultado=${mitad} · unidad=money`;
+    ok(juzgar(`La mitad de la venta de ${cli} son ${mitad}.\n\n${MARCA_CALCULO}\n${linea}`, { question: "partí la venta en dos", supuestoPendiente: ["2"] }).ok,
+      `sin «dueno» pero con un insumo de UNA sola entidad (${unico.value} es de ${cli}): se infiere`);
+  } else ok(false, "no se encontró en la carpeta una cifra con dueño único para armar el caso");
+}
+// (c) desde agregados del negocio (el total de este escenario, leído de la carpeta)
+{
+  const figs = cifrasDelDato("actual").figs || [];
+  const tot = figs.find((f) => (f.duenos || []).includes("negocio") && /^\$\d+\.\d+M$/.test(String(f.value)));
+  const base = parseFloat(String(tot.value).replace(/[^\d.]/g, ""));
+  const proy = `$${(base * 1.04).toFixed(1)}M`;
+  ok(juzgar(`Las ventas del negocio subirían a ${proy}.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=${tot.value}; 4% · formula=${tot.value} + 4% · resultado=${proy} · unidad=money`, { question: "proyecta +4%", supuestoPendiente: ["4%"] }).ok,
+    `sin «dueno» pero con TODOS los insumos agregados (${tot.value}): el resultado es del conjunto`);
+}
+console.log("\n── 12b · LOS CONTROLES NEGATIVOS · inferir no es adivinar ──");
+// (d) DOS entidades distintas → ambiguo → muere
+{
+  /* el caso se arma con DOS cifras de dueño ÚNICO y DISTINTO, tomadas de la carpeta. Elegirlas a mano falla:
+   * «22.0%» parecía de Falabella y en el dato es TAMBIÉN de dos SKU, así que no es evidencia de nadie. */
+  const figs = cifrasDelDato("actual").figs || [];
+  const porCanon = new Map();
+  for (const f of figs) { if (!porCanon.has(f.canon)) porCanon.set(f.canon, new Set()); for (const d of (f.duenos || [])) porCanon.get(f.canon).add(d); }
+  const unicos = figs.filter((f) => /^\$/.test(String(f.value)) && (porCanon.get(f.canon) || new Set()).size === 1);
+  const a = unicos[0];
+  const b = a && unicos.find((f) => [...porCanon.get(f.canon)][0] !== [...porCanon.get(a.canon)][0]);
+  if (a && b) {
+    const dA = [...porCanon.get(a.canon)][0], dB = [...porCanon.get(b.canon)][0];
+    const n = (v) => parseFloat(String(v).replace(/[^\d.]/g, ""));
+    const suma = `$${(n(a.value) + n(b.value)).toFixed(1)}M`;
+    const dAmb = _detalle(`Entre los dos suman ${suma}.\n\n${MARCA_CALCULO}\nid=c1 · op=sumar · inputs=${a.value}; ${b.value} · formula=suma · resultado=${suma} · unidad=money`, QINF);
+    ok(/campo «dueño»/.test(dAmb), `con insumos de DOS entidades distintas (${dA} y ${dB}) no se infiere: muere pidiendo el dueño`);
+  } else ok(false, "no se hallaron dos cifras de dueño único y distinto para armar el caso");
+}
+// (e) sin dueño identificable en ningún insumo → muere
+ok(/campo «dueño»/.test(_detalle(`El ajuste sería de 2.0 puntos.\n\n${MARCA_CALCULO}\nid=c1 · op=sumar · inputs=1pp; 1pp · formula=1pp + 1pp · resultado=2pp · unidad=pp`, { question: "sube 1 punto y otro punto", supuestoPendiente: ["1pp"] })),
+  "sin ningún insumo con dueño identificable tampoco se infiere");
+// (f) un dueño DECLARADO que contradice a sus insumos sigue muriendo: inferir no debilita el chequeo de ajeno
+ok(!juzgar(`Lider está a 8.1 puntos del benchmark.\n\n${MARCA_CALCULO}\nid=c1 · op=restar · inputs=30.1%; 22.0% · formula=30.1% − 22.0% · resultado=8.1pp · unidad=pp · dueno=Lider`, QINF).ok,
+  "y declarar «dueno=Lider» sobre insumos de Falabella sigue muriendo — la inferencia no toca ese candado");
+// (g) el resultado inferido se verifica en la prosa igual que uno declarado
+ok(!juzgar(`El margen simulado quedaría a 8.1 puntos del benchmark.\n\n${MARCA_CALCULO}\nid=c1 · op=restar · inputs=30.1%; 22.0% · formula=30.1% − 22.0% · resultado=8.1pp · unidad=pp`, QINF).ok,
+  "…y si la prosa no nombra al dueño inferido, la cifra muere igual: se infiere el dueño, no el permiso");
 
 console.log(`\n── _contrato_calculo_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail ? 1 : 0);
