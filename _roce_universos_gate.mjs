@@ -67,6 +67,15 @@ ok(J("Los SKU frenados son MAK-COMP-AIR, LG-DRYER8KG y BOS-SANDER: son los que e
   "una respuesta FILTRADA no es un recorte — no anuncia orden y responde el conjunto completo de la pregunta");
 ok(J("Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x y LG-DRYER8KG 1.0x.").ok,
   "nombrar 2 no dispara nada: hace falta un listado (3+) para que se lea como el universo entero");
+/* PROMETER TODO Y ENTREGAR UNA PARTE (medido 2026-08-15, re-corrida del examen 2 · turno 4): la respuesta decía
+ * «Ranking COMPLETO por rotación… los 13 SKU de la foto de hoy» y la tabla traía CINCO filas. Y el chequeo quedó
+ * MUDO porque en otra frase aparecía «el resto» — el interruptor global otra vez, la trampa que este mismo
+ * archivo ya documenta. Ahora se compara lo que el texto AFIRMA contra lo que MUESTRA. */
+const PROMETE = "Ranking completo por rotación (peor a mejor), cruzado con margen de inventario — los 13 SKU de la foto de hoy: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, PHI-IRON-PRO 2.4x, SAM-TV55 3.6x. El resto de la cola compensa con mejor margen.";
+ok(V(PROMETE) === "ranking-sin-cola", `prometer «completo… los 13 SKU» y mostrar 5 muere (${V(PROMETE)})`);
+ok(/COMPLETO y mostrás 5 de 13/.test(String((J(PROMETE).violations[0] || {}).detail || "")), "…y la multa dice exactamente qué prometió y qué entregó");
+ok(V(RANK7 + " El resto de la cola compensa con mejor margen.") === "ranking-sin-cola",
+  "…y «el resto» en cualquier parte del texto YA NO apaga la regla entera (era un interruptor global)");
 
 /* ── 3b · LA FRASE REAL, VERBATIM DEL EXAMEN 2 · TURNO 4 ──────────────────────────────────────────────────────
  * Ni una paráfrasis: el texto que ADI puso en pantalla y que el muro de entonces dejó pasar en VERDE. Es el

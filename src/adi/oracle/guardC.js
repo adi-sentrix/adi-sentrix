@@ -3785,11 +3785,24 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * entidades se deriva sin ambigüedad (los dueños del universo de venta mezclan clientes, SKU y marcas, y
        * comparar contra esa suma daría falsos positivos). Y solo si la respuesta ANUNCIA un orden: una respuesta
        * FILTRADA («los que están en 90d o 120d») no es un recorte, es el conjunto completo de la pregunta. */
-      if (_ANUNCIA_RANKING.test(narration) && !_DECLARA_TOTAL_PARCIAL.test(narration)) {
+      if (_ANUNCIA_RANKING.test(narration)) {
         const todas = _entDeUniverso("inventario");
         const nombradas = todas.filter((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration));
         if (todas.length >= 4 && nombradas.length >= 3 && nombradas.length < todas.length) {
-          violations.push({ kind: "ranking-sin-cola", detail: `anunciás un orden y mostrás ${nombradas.length} de ${todas.length} — un ranking parcial que no dice dónde corta se lee como si fuera todo: declaralo («${nombradas.length} de ${todas.length}», «top ${nombradas.length}») o explicá por qué cortás ahí` });
+          /* ⚠️ NO SE USA `_DECLARA_TOTAL_PARCIAL` COMO INTERRUPTOR GLOBAL (medido 2026-08-15, y el propio archivo
+           * ya documenta esta trampa unas líneas más arriba, con tres apagones anteriores): la respuesta decía
+           * «Ranking COMPLETO por rotación… los 13 SKU» y mostraba CINCO — y el chequeo quedó mudo porque en otra
+           * frase aparecía «el resto». Una frase inocente en cualquier parte del texto apagaba la regla entera.
+           * Lo que se compara ahora es lo que el texto AFIRMA contra lo que MUESTRA. */
+          const _prometeTodo = /\bcompleto\b|\btodos?\s+(?:los|las)\b|\bel\s+universo\b|\bla\s+lista\s+entera\b/i.test(narration);
+          const _mDe = narration.match(/\b(\d{1,3})\s+de\s+(\d{1,3})\b/);
+          const _mTop = narration.match(/\btop\s*(\d{1,3})\b/i);
+          const _declara = (_mDe && Number(_mDe[1]) === nombradas.length) || (_mTop && Number(_mTop[1]) === nombradas.length);
+          if (_prometeTodo) {
+            violations.push({ kind: "ranking-sin-cola", detail: `decís que el ranking es COMPLETO y mostrás ${nombradas.length} de ${todas.length} — prometer el universo entero y entregar una parte es peor que recortar: o mostrás las ${todas.length}, o decís «${nombradas.length} de ${todas.length}»` });
+          } else if (!_declara) {
+            violations.push({ kind: "ranking-sin-cola", detail: `anunciás un orden y mostrás ${nombradas.length} de ${todas.length} — un ranking parcial que no dice dónde corta se lee como si fuera todo: declaralo («${nombradas.length} de ${todas.length}», «top ${nombradas.length}») o explicá por qué cortás ahí` });
+          }
         }
       }
     }
