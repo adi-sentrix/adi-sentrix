@@ -8,6 +8,7 @@
  * benchmark de 30.1% es del universo de VENTA. Ninguna cuenta cruzó los dos mundos: cruzó la COMPARACIÓN.
  * Cada positivo lleva su control negativo: lo legítimo tiene que seguir pasando. CERO red, CERO .env. */
 import { guardC } from "./src/adi/oracle/guardC.js";
+import { MARCA_CALCULO } from "./src/adi/oracle/narrationBlocks.js";
 import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { initTenant } from "./src/data/tenantStore.js";
@@ -161,6 +162,39 @@ ok(J("Para cortar la mayoría del capital parado necesitas mover SAM-TV55, BOS-S
   `«capital parado» sobre SKU inmovilizados pasa: es la palabra vaga de la categoría amplia (${V("Para cortar la mayoría del capital parado necesitas mover SAM-TV55, BOS-SANDER y PHI-IRON-PRO.")})`);
 ok(V("MAK-SAW18V está parado.") === "estado-no-declarado", "…pero llamar «parado» a un SKU Activo sigue muriendo");
 ok(V("Los SKU frenados son LG-DRYER8KG, BOS-SANDER y SAM-TV55.") === "estado-no-declarado", "…y meterlo dentro de la lista de frenados también");
+
+/* ── 3f · LA ANÁFORA MANTIENE AL DUEÑO, CON SUS CUATRO CANDADOS (owner 2026-08-15) ────────────────────────────
+ * MEDIDO en el examen 2 · Q3: «liberando ESE SKU completo cubres el 83.3%» — la cuenta cerraba, el dueño estaba
+ * declarado, y el nombre vivía en la oración anterior. Cayó al suplente por una regla que no leía español. */
+console.log("\n── 3f · «ESE SKU» HEREDA EL DUEÑO SOLO SI EL ANTECEDENTE ES ÚNICO E INMEDIATO ──");
+const BL = (l) => `\n\n${MARCA_CALCULO}\n${l}`;
+const CALC83 = "id=c1 · op=pct_de · inputs=$56K; 30% · formula=30% de $56K · resultado=$16.8K · unidad=money · dueno=total\nid=c2 · op=dividir · inputs=$14K; c1 · formula=$14K / $16.8K · resultado=83.3% · unidad=pct · dueno=LG-DRYER8KG";
+const Q30 = { question: "simula liberar el 30% del capital inmovilizado", supuestoPendiente: ["30%"] };
+ok(J("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+  `el caso REAL del examen pasa: el antecedente es único e inmediato (${V("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30)})`);
+// (2) DOS CANDIDATOS → NO HEREDA
+ok(!J("Los mayores son LG-DRYER8KG ($14K) y SAM-TV55 ($13K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+  "con DOS SKU en la oración anterior no hay a quién referirse: no hereda");
+// (3) CAMBIO DE EJE → NO HEREDA
+ok(!J("Concentralo en LG-DRYER8KG: es el de mayor capital ($14K). Liberando ese cliente completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+  "«ese cliente» no puede resolver a un SKU: cambiar de eje no hereda");
+// (1) EL ANTECEDENTE TIENE QUE SER INMEDIATO
+// LA CADENA DE DOS SALTOS, verbatim del examen: la oración del medio no nombra a nadie, así que no compite
+{ // el caso REAL de Q3: la anáfora sostiene el 83.3%. (El texto tiene ADEMÁS sujetos elididos — «Es el de
+  // mayor capital…» — que son otra construcción y NO los resuelve esta regla: se juzga solo lo que se probó.)
+  const vQ3 = J("Concentralo en LG-DRYER8KG. Es el de mayor capital ($14K) y peor rotación del grupo (1.0x, la mitad del piso de 2.0x), con 94 días sin venta. Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30);
+  ok(!(vQ3.violations || []).some((x) => x.kind === "cifra-calculada-mal-atribuida"),
+    "el antecedente a DOS oraciones, sin competidor en el medio, sostiene el dueño del cálculo (caso real de Q3)");
+}
+// …pero si en el medio aparece OTRA entidad del mismo eje, ya no es único: no hereda
+ok(!J("Concentralo en LG-DRYER8KG. SAM-TV55 es el segundo en capital ($13K). Liberando ese SKU completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+  "con otra entidad del eje en el medio, la referencia queda ambigua: no hereda");
+// (4) CAMBIO DE UNIVERSO → NO HEREDA
+ok(!J("LG-DRYER8KG aporta contribución en la venta comercial del año cerrado. Ese SKU tiene 83.3% de su capital en stock inmovilizado." + BL(CALC83), Q30).ok,
+  "si la oración previa habla de venta y la de la cifra de inventario, la referencia no cruza universos");
+// …y sin anáfora, el dueño nombrado sigue siendo el camino normal
+ok(J("Liberando LG-DRYER8KG completo cubres el 83.3% del objetivo de $16.8K." + BL(CALC83), Q30).ok,
+  "y nombrar al dueño en la misma oración sigue pasando, como siempre");
 
 console.log("\n── 4 · SIN UNIVERSOS DECLARADOS, EL MURO NO SE MUEVE ──");
 {

@@ -2560,6 +2560,53 @@ function _oracionEnTorno(text, masked, idx, len) {
   const cut = masked.slice(end).search(_SENT_END);
   return text.slice(lo, cut >= 0 ? end + cut : masked.length);
 }
+/* ── LA ANÁFORA MANTIENE AL DUEÑO, DENTRO DE UNA VENTANA ACOTADA (owner 2026-08-15) ───────────────────────────
+ * «Si ADI dice "LG-DRYER8KG" en una oración y luego "ese SKU" en la siguiente, el notario debería poder mantener
+ * el dueño.» MEDIDO en el examen 2 · Q3: la cuenta cerraba y el dueño estaba declarado, pero la frase decía
+ * «liberando ESE SKU completo cubres el 83.3%» — el nombre vivía en la oración anterior. El turno cayó al
+ * suplente por una regla que no sabe leer español, no por una cifra dudosa.
+ * CUATRO CANDADOS, los que puso el owner:
+ *   (1) ANTECEDENTE ÚNICO E INMEDIATO — solo la oración inmediatamente anterior, y solo si nombra UNA entidad.
+ *   (2) DOS CANDIDATOS, NO HEREDA — con dos SKU en la oración previa no hay a quién referirse sin adivinar.
+ *   (3) MISMO EJE — «ese SKU» exige un SKU; «ese cliente» exige un cliente. Cambiar de eje no hereda.
+ *   (4) MISMO UNIVERSO — si las dos oraciones hablan de mundos distintos (venta vs inventario), no hereda.
+ * Y por construcción: la ventana es SIEMPRE dentro de la MISMA narración que se está juzgando. Nunca mira
+ * `recentNarrations` ni el turno anterior — un antecedente que vivía en un texto vetado no existe para esto. */
+const _ANAFORA_SKU = /\b(?:ese|este|dicho|aquel|el\s+mismo)\s+(?:SKU|producto|art[íi]culo|[ií]tem)\b/i;
+const _ANAFORA_CLI = /\b(?:ese|este|dicho|aquel|el\s+mismo)\s+(?:cliente|cuenta)\b/i;
+const _ES_SKU = (n) => /^[A-Z]{2,4}-/.test(String(n));
+function _duenoPorAnafora(narration, masked, fig, dueno, entidades) {
+  if (!dueno || !Array.isArray(entidades) || !entidades.length) return false;
+  const oraciones = String(narration).split(/(?<=[.!?])\s+|\n+/);
+  const nombra = (txt, lista) => lista.filter((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(txt));
+  for (let i = 0; i < oraciones.length; i++) {
+    if (!oraciones[i].includes(fig.text)) continue;
+    const aqui = oraciones[i];
+    if (nombra(aqui, entidades).length) return false;      // hay entidad nombrada: no es un caso de anáfora
+    const esSku = _ANAFORA_SKU.test(aqui), esCli = _ANAFORA_CLI.test(aqui);
+    if (!esSku && !esCli) return false;                     // no hay referencia que resolver
+    if (i === 0) return false;                              // (1) sin oración anterior no hay antecedente
+    /* LA VENTANA SON DOS ORACIONES, y no es un aflojamiento del candado del owner («único e inmediato») sino su
+     * lectura fiel sobre la prosa real (medido en el examen 2 · Q3): «concentralo en LG-DRYER8KG. ES EL de mayor
+     * capital ($14K)… Liberando ESE SKU completo cubres el 83.3%». La oración del medio no nombra a nadie — es
+     * ella misma una referencia — así que el antecedente sigue siendo único y no hay competidor. Se camina hacia
+     * atrás hasta la PRIMERA oración que nombre alguna entidad del eje: si nombra una sola y es el dueño
+     * declarado, hereda; si nombra dos, o si la primera que aparece es OTRA entidad, no hereda. */
+    let previa = null;
+    for (let k = i - 1; k >= 0 && k >= i - 2; k--) {
+      if (nombra(oraciones[k], entidades).length) { previa = oraciones[k]; break; }
+    }
+    if (previa == null) return false;
+    // (3) el eje lo manda el sustantivo de la anáfora
+    const candidatos = nombra(previa, entidades).filter((n) => (esSku ? _ES_SKU(n) : !_ES_SKU(n)));
+    if (candidatos.length !== 1) return false;              // (1)+(2) único, o no hereda
+    if (_norm(candidatos[0]) !== _norm(dueno)) return false;
+    // (4) dos mundos distintos declarados: la referencia no cruza universos
+    if ((_VOZ_VENTA.test(previa) && _VOZ_INVENTARIO.test(aqui)) || (_VOZ_INVENTARIO.test(previa) && _VOZ_VENTA.test(aqui))) return false;
+    return true;
+  }
+  return false;
+}
 function _tokenEnOracion(text, masked, fig, tokens) {
   let idx = -1;
   while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
@@ -3528,6 +3575,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         continue;
       }
       if (_tokenEnOracion(narration, _maskedNarr, f, _dueCalc)) continue;
+      // …y si no está nombrado, la referencia de la oración anterior puede sostenerlo (ver _duenoPorAnafora)
+      if ([..._dueCalc].some((d) => _duenoPorAnafora(narration, _maskedNarr, f, d, entidadesDelTenant))) continue;
       violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» es el resultado que declaraste de ${[..._dueCalc].slice(0, 3).join("/")}, pero ese dueño no está nombrado en la misma oración — nombralo al lado de la cifra, no cambies la cifra` });
       continue;
     }
@@ -3544,6 +3593,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     if (_duenos && _duenos.size) {
       // la ORACIÓN entera, no 150 caracteres: es la regla que la doctrina le pide al cerebro («en la misma oración»)
       if (_duenoEnVentana(narration, _maskedNarr, f, _duenos) || _tokenEnOracion(narration, _maskedNarr, f, _duenos)) continue;
+      // la MISMA regla de anáfora que las cifras calculadas: sería arbitrario que «ese SKU» sostuviera un
+      // resultado declarado y no una cifra de la carpeta. Mismos cuatro candados (ver _duenoPorAnafora).
+      if ([..._duenos].some((d) => _duenoPorAnafora(narration, _maskedNarr, f, d, entidadesDelTenant))) continue;
       violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en la misma oración — nombralo al lado de la cifra, no la cambies` });
       continue;
     }
