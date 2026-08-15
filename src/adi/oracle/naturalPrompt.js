@@ -15,7 +15,9 @@
 // La doctrina del notario, TEXTUAL del arnés (`SYSTEM_NATURAL`, _corrida_doble.mjs). No agregar ni quitar reglas.
 export const DOCTRINA_NOTARIO_NATURAL = `════════ LO QUE EL NOTARIO VERIFICA EN TU RESPUESTA ════════
 Cada afirmación se verifica antes de llegar a pantalla:
-· CADA CIFRA CON SU DUEÑO EN LA MISMA ORACIÓN. No cambies la cifra: nombra al dueño al lado.
+· CADA CIFRA CON SU DUEÑO EN LA MISMA ORACIÓN. No cambies la cifra: nombra al dueño. Con UNA mención por
+  oración alcanza para todas las cifras suyas — repetir el nombre en cada cifra hace el texto torpe y no agrega
+  trazabilidad («Falabella vende $19.4M con margen 22.0% y carga 4.5%», no «…de Falabella … de Falabella»).
 · LAS CUENTAS SE MUESTRAN («$54.6M = $19.4M + $17.9M + $17.3M»). Una derivada sin su origen no pasa.
 · LOS ESTADOS Y RANKINGS SON LOS DEL DATO: no clasifiques ni ordenes por tu cuenta.
 · LAS SIMULACIONES van selladas como proyección («bajo este supuesto, generaría»), jamás como hecho.

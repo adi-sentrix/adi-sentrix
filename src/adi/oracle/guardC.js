@@ -3577,7 +3577,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       if (_tokenEnOracion(narration, _maskedNarr, f, _dueCalc)) continue;
       // …y si no está nombrado, la referencia de la oración anterior puede sostenerlo (ver _duenoPorAnafora)
       if ([..._dueCalc].some((d) => _duenoPorAnafora(narration, _maskedNarr, f, d, entidadesDelTenant))) continue;
-      violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» es el resultado que declaraste de ${[..._dueCalc].slice(0, 3).join("/")}, pero ese dueño no está nombrado en la misma oración — nombralo al lado de la cifra, no cambies la cifra` });
+      violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» es el resultado que declaraste de ${[..._dueCalc].slice(0, 3).join("/")}, pero ese dueño no está nombrado en esa oración — con nombrarlo UNA vez alcanza para todas las cifras suyas de la oración; no cambies la cifra` });
       continue;
     }
     let _duenos = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
@@ -3596,7 +3596,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       // la MISMA regla de anáfora que las cifras calculadas: sería arbitrario que «ese SKU» sostuviera un
       // resultado declarado y no una cifra de la carpeta. Mismos cuatro candados (ver _duenoPorAnafora).
       if ([..._duenos].some((d) => _duenoPorAnafora(narration, _maskedNarr, f, d, entidadesDelTenant))) continue;
-      violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en la misma oración — nombralo al lado de la cifra, no la cambies` });
+      violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en esa oración — con nombrarlo UNA vez en la oración alcanza (no hace falta repetirlo en cada cifra); no cambies la cifra` });
       continue;
     }
     violations.push({ kind: "cifra-no-autorizada", detail: f.text });

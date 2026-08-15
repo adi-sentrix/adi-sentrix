@@ -82,13 +82,22 @@ function _pnlScopeProjection(mem) {
  * lo había contestado el viejo — se vio porque las CIFRAS no coincidían con la carpeta, no porque el sistema lo
  * dijera. Esto NO es superficie de producto: no pinta nada en pantalla. Deja el rastro en la consola del
  * navegador y en `window.__ADI_RUTA__` (últimos 20 turnos) para poder leerlo al medir. */
-function _rastroDeRuta(q, r, source) {
+function _rastroDeRuta(q, r, source, escenario) {
   try {
     const nat = (r && r.natural) || null;
+    /* LAS CINCO COSAS QUE UNA MEDICIÓN DEBE DECLARAR (owner 2026-08-15): escenario · carpeta · ruta · versión ·
+     * rastro. La consola las imprime en su sello; acá van al rastro, para que medir en la app y medir en la
+     * consola NO puedan volver a describir negocios distintos sin que nada lo diga. La FIRMA de la carpeta es su
+     * total de ventas: si dos entornos muestran firmas distintas, están mirando otro negocio. */
+    const carpeta = (() => {
+      try { return (proyectarDatoNegocio(escenario).match(/Ventas totales: \$[\d.]+M/) || [])[0] || null; } catch { return null; }
+    })();
     const rastro = {
       pregunta: String(q || "").slice(0, 80),
       via: source,                                   // natural · deterministico · sin_pago · demo · oracle
       route: (r && r.route) || null,                 // lo que declara el propio motor
+      escenario: escenario || null,
+      carpeta,                                       // firma del fact pack que vio el cerebro
       estado: nat ? nat.estado : null,               // verde · reparado · suplente · vacio (solo camino natural)
       suplente: nat ? !!nat.suplenteDigno : null,
       vetos: nat && Array.isArray(nat.vetos) ? nat.vetos : null,
@@ -447,7 +456,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
           if (o && o.r) {
             _ph(3);
             const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
-            return _turnFromResult(q, rr, context, "natural");
+            return _turnFromResult(q, rr, context, "natural", scenario);
           }
         } catch (e) {
           /* RED DE RESILIENCIA · pero NUNCA MUDA (medido en la app 2026-08-14): el catch era `catch {}` a secas, así
@@ -487,7 +496,7 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
           return { ...entry, guardOk: verdict ? verdict.guardOk : null, guardReason: verdict ? verdict.reason : null };
         });
         const rr = { ...o.r, routing, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
-        return _turnFromResult(q, rr, context, "oracle");
+        return _turnFromResult(q, rr, context, "oracle", scenario);
       }
     } catch { /* el oráculo falló → seguimos a la ruta vieja (fallback intacto) */ }
   }
