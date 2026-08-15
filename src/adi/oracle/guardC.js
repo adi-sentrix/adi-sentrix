@@ -2523,6 +2523,17 @@ const _ES_VARA = /\bbenchmark\b|\breferencia\b|\bpiso\b|\btecho\b|\bmeta\b|\btar
 const _VOZ_INVENTARIO = /\bmargen\s+(?:de\s+)?inventario\b|\brotaci[oó]n\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+sin\s+venta\b|\bstock\b|\bcapital\s+(?:inmovilizado|frenado|total)?\b|\bbodegas?\b|\binmovilizad[oa]s?\b/i;
 const _VOZ_VENTA = /\bmargen\s+(?:de\s+)?ventas?\b|\bmargen\s+comercial\b|\bcontribuci[oó]n\b|\bcarga\s+comercial\b|\bacciones\s+comerciales\b|\bfacturaci[oó]n\b|\bvende\b|\bventa\s+(?:anual|total|del\s+a[nñ]o)\b/i;
 const _MARGEN_SIN_UNIVERSO = /\bmargen(?:es)?\b(?!\s+(?:de\s+)?(?:inventario|venta|ventas|comercial))/i;
+/* EL UNIVERSO SE PUEDE DECLARAR EN LA FRASE, NO SOLO EN LA ETIQUETA (calibración 2026-08-15 sobre los borradores
+ * guardados): «…y en la VENTA COMERCIAL DEL AÑO CERRADO tiene el margen más bajo de los 13 SKU (7.9%)» dice de
+ * qué mundo habla — el lector no puede confundirse, aunque la palabra «margen» vaya sola. Se exige el nombre
+ * completo solo cuando NADA en la cláusula sitúa la cifra. Lista ANGOSTA a propósito: son las frases que nombran
+ * el universo o su período, no vocabulario incidental («capital», «rotación») que aparece en cualquier lectura de
+ * inventario y volvería la regla inofensiva. */
+const _UNIVERSO_DECLARADO = /\ba[nñ]o\s+cerrado\b|\bfoto\s+de\s+hoy\b|\bventa\s+comercial\b|\buniverso\s+(?:de\s+)?(?:venta|inventario)\b/i;
+/* …y BASTA CON QUE LA CLÁUSULA LO NOMBRE UNA VEZ (misma calibración): «7.9% de margen — el MARGEN DE VENTA más
+ * bajo de toda la cartera» ya dijo de cuál habla. Exigirlo en cada mención de la palabra es pedir que se repita
+ * la etiqueta, no que se declare el universo — y eso vetaba prosa correcta. */
+const _MARGEN_CON_UNIVERSO = /\bmargen(?:es)?\s+(?:de\s+)?(?:inventario|venta|ventas|comercial)\b/i;
 const _ANUNCIA_RANKING = /\branking\b|\bordenad[oa]s?\s+(?:por|de)\b|\bde\s+peor\s+a\s+mejor\b|\bde\s+mejor\s+a\s+peor\b|\bel\s+orden\b/i;
 /* UNA TASA ES LA MISMA CIFRA COMO NIVEL («4.5%») O COMO DELTA («4.5pp») — la regla ya vigente para los insumos de
  * un cálculo, subida acá para que también la use la quinta fuente. Sin esto, «el máximo aplicable es 1.8pp» moría
@@ -3796,6 +3807,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       if (_conInventario.length) {
         for (const oracion of String(narration).split(/[.!?\n]+(?:\s+|$)/)) {
           if (!/\bmargen/i.test(oracion) || !_MARGEN_SIN_UNIVERSO.test(oracion)) continue;
+          // la frase ya sitúa la cifra —por el universo o por una mención con etiqueta completa—: no hay confusión
+          if (_UNIVERSO_DECLARADO.test(oracion) || _MARGEN_CON_UNIVERSO.test(oracion)) continue;
           if (!parseFigures(oracion).some((g) => g.unit === "pct")) continue;   // «margen» sin cifra no afirma nada
           const sku = _conInventario.find((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(oracion));
           if (!sku) continue;

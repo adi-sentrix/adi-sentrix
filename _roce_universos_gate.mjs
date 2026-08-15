@@ -57,6 +57,18 @@ ok(V("BOS-SANDER tiene margen 15.0% y capital $11K frenado.") === "etiqueta-ambi
 ok(J("BOS-SANDER tiene margen de inventario 15.0% y capital $11K frenado.").ok, "…y con el nombre completo pasa");
 ok(J("El margen de Falabella es 22.0%.").ok, "el margen de un CLIENTE no es ambiguo (no tiene margen de inventario): pasa");
 ok(J("BOS-SANDER tiene margen de venta 18.0%.").ok, "el margen de VENTA de un SKU, nombrado completo, pasa");
+/* ── LAS DOS EXCEPCIONES DE LA CALIBRACIÓN (2026-08-15, sobre los borradores guardados) ────────────────────────
+ * Los dos textos son VERBATIM del corpus y los dos eran correctos: el muro los vetaba por exigir la etiqueta en
+ * CADA mención, no por ambigüedad real. */
+ok(J("MAK-COMP-AIR generó $1.7M en ventas con $135K de contribución y 7.9% de margen — el margen de venta más bajo de toda la cartera.").ok,
+  "basta con que la cláusula lo nombre UNA vez: «7.9% de margen — el margen de venta más bajo» ya dijo de cuál habla");
+ok(J("MAK-COMP-AIR rota 0.8x con margen de inventario 8.0% en la foto de hoy, y en la venta comercial del año cerrado tiene el margen más bajo de los 13 SKU (7.9%).").ok,
+  "…y la frase que declara el universo en palabras («en la venta comercial del año cerrado») tampoco necesita repetir la etiqueta");
+// EL CONTROL: sin ninguna de las dos cosas, el veto sigue
+ok(V("BOS-SANDER tiene margen 15.0% y capital $11K.") === "etiqueta-ambigua",
+  "pero un «margen 15.0%» sin universo por ningún lado sigue muriendo: la excepción es para lo declarado, no para lo omitido");
+ok(V("| SKU | Rotación | Margen | Estado |\n| BOS-SANDER | 1.6x | 15.0% | 90d |") === "etiqueta-ambigua",
+  "…y un encabezado de tabla «Margen» a secas también (era el caso real del examen 2)");
 
 console.log("\n── 3 · RANKING SIN COLA ──");
 const RANK7 = "Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, PHI-IRON-PRO 2.4x, SAM-TV55 3.6x, MAK-SAW18V 5.2x, LG-AIR9000 5.8x.";
