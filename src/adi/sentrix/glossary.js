@@ -256,20 +256,18 @@ export const CONCEPT_DEFS = {
     def: "Es la distancia entre una cifra y su referencia declarada — el margen contra el benchmark, la carga contra la meta, la venta contra el presupuesto. Se expresa en puntos porcentuales cuando compara tasas y en $ cuando compara montos.",
     distingue: "La brecha es la distancia; la **contribución no capturada** es esa distancia ya convertida en dinero sobre la venta de la cuenta.",
   },
-  /* ⛔ FRENADO PARA DECISIÓN DEL OWNER (La Poda F2, 2026-08-14) — NO SE TOCÓ A PROPÓSITO.
-   * El problema es real: «vara» está vetada en superficie (CLAUDE.md §4) y esta entrada la usa en el `aka`, en la
-   * `def` y en el `distingue`, texto CURADO que `defineConcept` imprime VERBATIM. Pero acá el registro choca con
-   * otra regla de la casa: el glosario existe para DEFINIR LA PALABRA QUE EL USUARIO USÓ, y el usuario dice
-   * «vara». Borrarla de la definición deja al concepto sin poder nombrarse; renombrarlo cambia un slug que ya
-   * viaja en índices derivados (`_ETIQUETAS`, `conceptForLabel`) y en `criteria.js`, que parsea «vara» del INPUT.
-   * Las dos opciones que se le llevan al owner están en `_INFORME_PODA_2B.md` (§ "Frenado para el owner"); hasta
-   * que decida, `_registro_boleta_gate.mjs` declara esta entrada como EXCEPCIÓN NOMBRADA y verifica que siga
-   * siendo la ÚNICA — así el hueco queda medido y visible en vez de tapado. */
+  /* ✅ RESUELTO POR EL OWNER (2026-08-15), después de un mes frenado. La tensión era real: «vara» está vetada en
+   * superficie (CLAUDE.md §4), pero el glosario existe para DEFINIR LA PALABRA QUE EL USUARIO USÓ — y el usuario
+   * dice «vara». La decisión: **la palabra queda como ALIAS DE ENTRADA, no como concepto visible.** O sea, sigue
+   * entrando por `etiquetas` (incluida «la vara», que antes entraba por el `aka`) y desaparece de todo lo que se
+   * imprime: `aka`, `def` y `distingue`. El SLUG no se toca — es interno, viaja en `_ETIQUETAS`, `conceptForLabel`
+   * y `criteria.js` (que parsea la palabra del INPUT), y nadie lo lee en pantalla: mismo trato que la clave
+   * `detenido` del KPI de capital. Con esto `_registro_boleta_gate` se queda SIN excepciones declaradas. */
   vara: {
-    aka: "la vara",
-    etiquetas: ["vara", "vara_usuario", "tu vara", "vara declarada"],
+    aka: "tu referencia",
+    etiquetas: ["vara", "vara_usuario", "tu vara", "la vara", "vara declarada", "referencia declarada"],
     def: "Es la referencia que el usuario fija para juzgar una métrica: el margen mínimo aceptable, la meta de carga comercial, el umbral de días de inventario. Cuando está declarada, reemplaza a la referencia por defecto y ADI mide contra ella.",
-    distingue: "No es el **benchmark** por defecto del negocio: la vara es la referencia que tú declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
+    distingue: "No es el **benchmark** por defecto del negocio: es la referencia que tú declaraste para este análisis, y por eso toda cifra medida contra ella se sella INDICADO.",
   },
   meta: {
     aka: "meta",

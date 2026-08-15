@@ -387,10 +387,12 @@ H("══ [2d] EL DETECTOR · las formas medidas en pantalla siguen cazándose �
  * `CONCEPT_DEFS` se imprime VERBATIM por la tool `defineConcept`. `_registro_gate` solo barre `METRIC_DEFS`, así
  * que este diccionario nunca tuvo candado — y ahí vivía «más plata» en el `distingue` de `meta`. */
 H("══ [3] GLOSARIO · definiciones curadas que se imprimen verbatim ══");
-// LA ÚNICA EXCEPCIÓN, NOMBRADA. El concepto `vara` usa la palabra en su propia definición porque su trabajo es
-// definir la palabra que el USUARIO dijo. Renombrarlo es decisión de producto y está frenada para el owner (ver
-// `_INFORME_PODA_2B.md`). Se declara acá, no se disimula — y se verifica que sea la única.
-const EXCEPCION_DECLARADA = new Set(["vara"]);
+// ✅ YA NO HAY EXCEPCIONES (owner 2026-08-15). El concepto `vara` usaba la palabra vetada en su propio `aka` y en
+// su `distingue` porque su trabajo es definir la palabra que el USUARIO dijo; quedó declarado como excepción
+// mientras el owner decidía. Decidió: la palabra es ALIAS DE ENTRADA (vive en `etiquetas`, que este barrido no
+// mira a propósito) y el concepto visible pasa a llamarse «tu referencia». El conjunto queda VACÍO y el check de
+// abajo se invierte: si alguien vuelve a meter una excepción, hay que justificarla acá.
+const EXCEPCION_DECLARADA = new Set();
 // `etiquetas` QUEDA FUERA DEL BARRIDO, y no es un olvido: son el vocabulario de ENTRADA con el que el usuario
 // nombra el concepto («capital detenido», «capital frenado», «vara declarada»). La regla del owner es sobre lo que
 // ADI DICE, nunca sobre lo que ENTIENDE — barrerlas dejaría al glosario sordo justo a las palabras que la gente
@@ -405,11 +407,14 @@ for (const [slug, c] of Object.entries(CONCEPT_DEFS)) {
 }
 ok(conVetada.every((s) => EXCEPCION_DECLARADA.has(s)),
   `conceptos del glosario con palabra vetada FUERA de la excepción declarada: ${conVetada.filter((s) => !EXCEPCION_DECLARADA.has(s)).join(", ")}`);
-// la excepción tiene que seguir SIENDO una excepción: si el owner la resuelve, este check avisa que ya se puede
-// sacar de la lista; si alguien suma una entrada sucia nueva, cae el check de arriba.
-ok(EXCEPCION_DECLARADA.size === 1 && CONCEPT_DEFS.vara,
-  `la excepción declarada dejó de ser exactamente una (o el concepto 'vara' desapareció): revisá EXCEPCION_DECLARADA`);
-console.log(`  · ${Object.keys(CONCEPT_DEFS).length} conceptos · 1 excepción declarada (vara, frenada para el owner)`);
+// EL GLOSARIO YA NO TIENE DEUDA DE REGISTRO: ni una excepción, y el concepto que la sostenía sigue existiendo con
+// la palabra vetada SOLO como entrada. Las dos mitades se verifican: el `aka` visible ya no la dice, y `etiquetas`
+// —el vocabulario con el que la gente escribe— sí la conserva. Perder cualquiera de las dos es un defecto.
+ok(EXCEPCION_DECLARADA.size === 0, `el glosario volvió a declarar excepciones de registro: ${[...EXCEPCION_DECLARADA].join(", ")}`);
+ok(!!CONCEPT_DEFS.vara && !VETADAS.test(CONCEPT_DEFS.vara.aka), `el concepto que se muestra sigue diciendo la palabra vetada: «${CONCEPT_DEFS.vara && CONCEPT_DEFS.vara.aka}»`);
+ok(!!CONCEPT_DEFS.vara && (CONCEPT_DEFS.vara.etiquetas || []).some((e) => /\bvara\b/i.test(e)),
+  `«vara» dejó de entrar como alias: el usuario que la escriba se queda sin concepto`);
+console.log(`  · ${Object.keys(CONCEPT_DEFS).length} conceptos · 0 excepciones declaradas (la de «vara» la resolvió el owner el 2026-08-15)`);
 
 /* ══ [3b] LA APERTURA DE LA MESA DE CONTROL ════════════════════════════════════════════════════════════════════
  * `buildResumenEjecutivo` NO es del camino legado: lo consume `SentrixPanel.jsx` y su `lectura` + `focos[].label`

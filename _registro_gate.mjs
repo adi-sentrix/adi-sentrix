@@ -34,7 +34,11 @@ const { answerADIFromSpec: A, answerConversational: AC, composeSpecSimulate, bui
 //   palabra estaba prohibida en CLAUDE.md §4 pero NO en este barrido, así que se filtró por 30 sitios —un chip
 //   llegó a pantalla— sin que ningún gate se pusiera rojo. El VERBO no entra («el SKU se detuvo hace 94 días» es
 //   legítimo y sigue en el corpus limpio): lo que se veta es el adjetivo/participio que nombra el capital.
-const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*|detenid[oa]s?)\b/i;
+// + vara/varas (owner 2026-08-15, el pase siguiente): estaba en la lista de CLAUDE.md §4 desde el principio y
+//   tampoco la barría nadie más que `_mesa_capital_gate`, y solo en la cara Capital. Sobrevivió en 5 sitios
+//   visibles —el tip del chat entre ellos—. `\b` la separa de «varado»/«varios»; el stripper de voz ya la
+//   reescribe en lo narrado, así que este barrido cubre la otra mitad: el texto FIJO.
+const BANNED = /\b(plata|dormid[oa]s?|guita|palancas?|apr[ei]et\w*|detenid[oa]s?|varas?)\b/i;
 
 // ── VOSEO · LA MITAD QUE ESTE GATE NO MIRABA (owner 2026-08-10, certificación live · defecto 4) ────────────────
 // EL HUECO, textual del owner: "el _registro_gate no lo cazó porque busca VOCABULARIO PROHIBIDO, no FORMAS
@@ -91,7 +95,7 @@ const checkResp = (origen, r) => {
   const sealed = SEALED_ROUTES.test(r.route || "");
   const t = r.text || r.opener || "";
   if (sealed) {
-    const hard = t.match(/\b(plata|dormid[oa]s?|guita|detenid[oa]s?)\b/i);
+    const hard = t.match(/\b(plata|dormid[oa]s?|guita|detenid[oa]s?|varas?)\b/i);
     if (hard) { fail++; rotos.push({ origen: `${origen} [${r.route}]`, palabra: hard[0], gist: t.replace(/\s+/g, " ").slice(Math.max(0, hard.index - 40), hard.index + 40) }); }
     else pass++;
   } else check(`${origen} [${r.route || "-"}]`, t);
@@ -256,6 +260,23 @@ for (const [tipo, foco] of [["client", "Falabella"], ["sku", "SAM-TV55"], ["marc
 
 // ── (2) ESTÁTICO · UI .jsx (textos que React emite directo) sin comentarios ──
 const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/[^\n]*/g, "$1");
+
+/* UNA PALABRA DE CÓDIGO NO ES UNA PALABRA DE PANTALLA (owner 2026-08-15, al sumar «vara» al barrido).
+ * El barrido estático es un regex sobre el archivo entero, así que no distingue la prosa de un identificador —
+ * y la cara Capital tiene `it.vara`, `r.vara` y un `const varas = …` que son ESTADO, no texto: el semáforo de
+ * cada fila. Marcarlos sería un rojo falso, y un rojo falso manda a perseguir un fantasma.
+ * Se descartan SOLO las cuatro formas que en JavaScript no pueden ser prosa, y cada una está acotada para no
+ * tapar un texto de verdad — en particular, «vara:» se perdona únicamente cuando abre una clave de objeto
+ * (viene detrás de `{` o `,`), nunca cuando cierra una frase como «fija tu vara: …», que es justo el defecto
+ * que este barrido acaba de cazar. */
+function esIdentificador(src, m) {
+  const antes = src.slice(0, m.index), despues = src.slice(m.index + m[0].length);
+  if (antes.endsWith(".")) return true;                                  // it.vara · r.vara
+  if (/^\.[A-Za-z_$]/.test(despues)) return true;                        // varas.map · varas.length
+  if (/^\s*=[^=]/.test(despues) && /\b(const|let|var)\s+$/.test(antes)) return true;   // const varas = …
+  if (/^\s*:/.test(despues) && /[{,]\s*$/.test(antes)) return true;      // { vara: … }
+  return false;
+}
 // GuiaInicio.jsx entra al barrido (owner 2026-08-07): la guía de inicio es de las PRIMERAS palabras que lee un
 // usuario nuevo — si el registro se rompe, se rompe en la peor pantalla posible.
 for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/InlineChart.jsx", "src/ui/GuiaInicio.jsx", "src/ui/App.jsx"]) {
@@ -266,7 +287,10 @@ for (const f of ["src/ui/SentrixPanel.jsx", "src/ui/ChatADI.jsx", "src/ui/Inline
   const src = stripComments(fs.readFileSync(path.join(root, f), "utf8"))
     .replace(/\["detenido",\s*"capital\/01\/kpi-inmovilizado"\]/g, '["__clave_interna__", "capital/01/kpi-inmovilizado"]');
   let m, re = new RegExp(BANNED.source, "gi"), n = 0;
-  while ((m = re.exec(src))) { n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") }); }
+  while ((m = re.exec(src))) {
+    if (esIdentificador(src, m)) continue;
+    n++; fail++; rotos.push({ origen: `estático · ${f}`, palabra: m[0], gist: src.slice(Math.max(0, m.index - 50), m.index + 40).replace(/\s+/g, " ") });
+  }
   // el MISMO barrido para las formas verbales (owner 2026-08-10): la UI es donde el registro se lee primero.
   // Por `detectVoseo` (una sola lista, ver arriba) y no por un regex propio: se corta el archivo en oraciones para
   // no perder la ubicación del hallazgo, que es lo único que el regex global daba de más.

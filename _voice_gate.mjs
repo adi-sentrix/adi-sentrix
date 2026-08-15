@@ -414,10 +414,19 @@ pOk("V8b · «Puerto Varas» (topónimo chileno real) y «varado» (SKU encallad
     !/^\s*import[^\n]*voiceGuard/m.test(blocks));
   // Y se deja MEDIDO por qué importa: la entrada `vara` SÍ sería alterada si esa ruta lavara. No es una hipótesis.
   const vara = CD && CD.vara;
-  pOk("V9c · la entrada `vara` del glosario sigue existiendo con su definición curada (si desaparece, este candado quedó huérfano y hay que revisar la decisión frenada del owner)",
+  pOk("V9c · la entrada `vara` del glosario sigue existiendo con su definición curada (si desaparece, el usuario que escriba la palabra se queda sin concepto)",
     !!(vara && typeof vara.def === "string" && vara.def.length > 40 && typeof vara.distingue === "string"));
-  pOk("V9d · MEDIDO: el `distingue` de esa entrada SÍ cambiaría al pasar por el stripper — por eso V9a/V9b son el candado y no un comentario",
-    !!(vara && SLL(vara.distingue) !== vara.distingue));
+  /* V9d CAMBIÓ DE SENTIDO (owner 2026-08-15). Medía que el `distingue` de «vara» SÍ se ensuciaría al pasar por el
+   * stripper — o sea, que este candado estaba tapando una deuda real: una definición curada que decía la palabra
+   * vetada y sobrevivía solo porque su ruta no lava. El owner cerró esa deuda (la palabra quedó como alias de
+   * ENTRADA), así que ahora se mide lo contrario y es más fuerte: NINGUNA definición del glosario cambiaría al
+   * lavarse. El candado V9a/V9b ya no sostiene una excepción; sigue puesto para que mañana nadie lave un texto
+   * curado, que es un problema distinto. */
+  const sucios = Object.entries(CD || {})
+    .filter(([, c]) => [c.aka, c.def, c.distingue].filter(Boolean).some((t) => SLL(t) !== t))
+    .map(([k]) => k);
+  pOk(`V9d · MEDIDO: ninguna definición curada del glosario cambiaría al pasar por el stripper (deuda cerrada por el owner el 2026-08-15)${sucios.length ? ` — sucias: ${sucios.join(", ")}` : ""}`,
+    sucios.length === 0);
   console.log(`  · el ECO narrado de «vara» sí se lava, y es la decisión ya tomada en el cierre del espejo (el registro manda sobre el eco); lo que no se toca es la definición servida verbatim`);
 }
 

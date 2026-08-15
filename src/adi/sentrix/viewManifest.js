@@ -208,7 +208,7 @@ export const VIEW_MANIFEST = {
     // El margen ponderado del negocio SÍ lo devuelve `marginRead` desde la decisión 6 (cifra de cabecera). Lo que
     // sigue sin existir como una sola cifra es el PIE: la brecha en pp contra la vara del usuario.
     concordancia: { estado: "unsupported", campos: ["pie"],
-      razon: "el VALOR ya cierra: `marginRead{cliente}` devuelve el margen ponderado del negocio y concuerda exacto con la card en los tres escenarios. Lo que no existe como cifra en ninguna tool es el PIE: la BRECHA en pp contra la vara — marginRead emite el margen y el benchmark por separado, nunca su diferencia" },
+      razon: "el VALOR ya cierra: `marginRead{cliente}` devuelve el margen ponderado del negocio y concuerda exacto con la card en los tres escenarios. Lo que no existe como cifra en ninguna tool es el PIE: la BRECHA en pp contra el benchmark — marginRead emite el margen y el benchmark por separado, nunca su diferencia" },
   },
   "comercial/01/kpi-acciones-comerciales": {
     vista: "comercial", seccion: "01", tipo: "kpi", label: "Acciones comerciales del período",
@@ -430,9 +430,9 @@ export const VIEW_MANIFEST = {
     universo: { kind: "negocio", label: "todas las cuentas cuya carga supera el promedio PONDERADO de la cartera, sin piso de materialidad", cierraCon: "promedio ponderado = Σ acciones ÷ Σ venta (el simple no reconcilia con el total)" },
     comparacion: "promedio_cartera", estatusDefault: "probado", estatusCampo: null, controles: ["varaAcc"],
     evidencia: [],
-    sinTool: "simulateCarga y diagnose sólo conocen POLICY.targetCarga. El promedio ponderado de la cartera como VARA no existe en ninguna tool — y es la referencia que la vista muestra POR DEFECTO.",
+    sinTool: "simulateCarga y diagnose sólo conocen POLICY.targetCarga. El promedio ponderado de la cartera como REFERENCIA no existe en ninguna tool — y es la referencia que la vista muestra POR DEFECTO.",
     concordancia: { estado: "unsupported", campos: ["filas", "total"],
-      razon: "sin evidencia declarada: la VARA de esta lista es el promedio PONDERADO de la cartera y ninguna tool la conoce (simulateCarga y diagnose sólo comparan contra POLICY.targetCarga). Contrastarla con la lista contra la meta sería reconciliar dos varas distintas" },
+      razon: "sin evidencia declarada: la REFERENCIA de esta lista es el promedio PONDERADO de la cartera y ninguna tool la conoce (simulateCarga y diagnose sólo comparan contra POLICY.targetCarga). Contrastarla con la lista contra la meta sería reconciliar dos referencias distintas" },
   },
   "comercial/02/acciones-vs-meta": {
     vista: "comercial", seccion: "02", tipo: "lista", label: "Acciones comerciales contra tu meta",
@@ -482,7 +482,7 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "diagnose", args: {}, focus: "margen" }],
     sinTool: null,
     concordancia: { estado: "divergent", campos: ["grupos"], toolsQueNoReconcilian: ["diagnose"],
-      razon: "el orden y el agrupamiento son una regla de decisión del módulo y diagnose sólo aporta el enJuego por entidad, calculado contra OTRA vara y sin el piso de esta vista: para las mismas cuentas las dos puntas dan montos distintos (medido en bonanza: $82K en pantalla vs $194K en el ledger para la cuenta líder, $21K vs $125K para la siguiente). El conjunto de cuentas tampoco es el mismo — el ledger nombra SKU que esta lista no lista",
+      razon: "el orden y el agrupamiento son una regla de decisión del módulo y diagnose sólo aporta el enJuego por entidad, calculado contra OTRA referencia y sin el piso de esta vista: para las mismas cuentas las dos puntas dan montos distintos (medido en bonanza: $82K en pantalla vs $194K en el ledger para la cuenta líder, $21K vs $125K para la siguiente). El conjunto de cuentas tampoco es el mismo — el ledger nombra SKU que esta lista no lista",
     },
     _provisional: true,
   },

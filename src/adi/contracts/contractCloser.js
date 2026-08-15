@@ -313,7 +313,7 @@ function _closeSimulate(resp) {
 // no introduce cifras nuevas). Cierre: "¿Por cuál partimos?".
 const _CAMINO = {
   carga:   "llevar la carga comercial al target — probado por el dato",
-  margen:  "recuperar el margen de las cuentas bajo tu vara — la brecha está probada; la causa raíz (precio, costo o mezcla) pide el detalle",
+  margen:  "recuperar el margen de las cuentas bajo el benchmark — la brecha está probada; la causa raíz (precio, costo o mezcla) pide el detalle",
   capital: "liberar el capital inmovilizado y ponerlo a trabajar — probado por el dato",
 };
 function _closeRecommendGoal(resp, goal, F, focoLines) {
