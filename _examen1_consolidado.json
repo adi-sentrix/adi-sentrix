@@ -1,0 +1,325 @@
+{
+  "titulo": "EXAMEN 1 consolidado",
+  "history": [
+    {
+      "role": "user",
+      "text": "Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo."
+    },
+    {
+      "role": "adi",
+      "text": "**8 de 13 clientes** venden bajo el benchmark de margen (30.1%) — y son justamente los de mayor venta: concentran $86.0M de los $99.9M totales, el 86% de la cartera.\n\n| Cliente | Venta | Margen | Brecha vs 30.1% |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | -8.1pp |\n| Lider | $17.8M | 21.5% | -8.6pp |\n| Jumbo | $17.3M | 24.0% | -6.1pp |\n| Sodimac | $8.2M | 23.5% | -6.6pp |\n| Tottus | $6.8M | 28.0% | -2.1pp |\n| Paris | $6.3M | 26.5% | -3.6pp |\n| Mercado Libre | $5.5M | 29.0% | -1.1pp |\n| Ripley | $4.7M | 25.0% | -5.1pp |\n\n(Quedan fuera Easy, La Polar, Hites, ABC y Unimarc — los 5 restantes, todos por encima del benchmark.)\n\n**Por qué pasa:** Falabella y Lider, los dos mayores, tienen los márgenes más bajos de toda la cartera (22.0% y 21.5%). En Falabella una causa comprobada es la carga comercial: 4.5%, muy por encima de la meta de 3.5%.\n\n**Qué hacer primero:** empieza por Falabella. Si su margen subiera del 22.0% actual al benchmark 30.1%, la contribución pasaría de $4.3M a $5.84M — un salto de $1.54M solo en esta cuenta. Es el mayor cliente de la cartera y el de mayor brecha absoluta en $, así que ahí está el impacto más grande antes de tocar el resto."
+    },
+    {
+      "role": "user",
+      "text": "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark. Muéstrame la cuenta cliente por cliente."
+    },
+    {
+      "role": "adi",
+      "text": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    },
+    {
+      "role": "user",
+      "text": "Ahora dime cuánto tendría que mejorar cada uno para quedar en el margen medio de la cartera. Si falta algún dato, dilo explícitamente."
+    },
+    {
+      "role": "adi",
+      "text": "**5 de los 8 clientes** necesitan mejorar margen para alcanzar el 25.1% (margen medio de la cartera); los otros 3 —Tottus (28.0%), Paris (26.5%) y Mercado Libre (29.0%)— ya están por encima y no requieren ajuste para esta meta.\n\n| Cliente | Margen actual | Necesita | Contribución adicional estimada |\n|---|---|---|---|\n| Lider | 21.5% | +3.6pp | ~$641K |\n| Falabella | 22.0% | +3.1pp | ~$601K |\n| Jumbo | 24.0% | +1.1pp | ~$190K |\n| Sodimac | 23.5% | +1.6pp | ~$131K |\n| Ripley | 25.0% | +0.1pp | ~$4.7K |\n\n**Por qué pasa:** la brecha es más ancha en Lider y Falabella, los dos clientes con menor margen de toda la cartera — y son a la vez los de mayor venta, así que cada punto que falta pesa más en dólares.\n\n**Qué hacer primero:** empieza por Lider. Cerrar sus 3.6pp de brecha suma $641K de contribución adicional — el mayor impacto en $ de los cinco, apenas por encima de Falabella ($601K). Trabajarlos en paralelo tiene sentido porque juntos explican $1.24M de los $1.57M de contribución total que dejaría el ajuste completo.\n\nNo falta ningún dato para esta cuenta: uso el margen de cada cliente (dato de venta) contra el margen medio de cartera 25.1% (dato declarado), ambos del mismo universo comercial."
+    },
+    {
+      "role": "user",
+      "text": "De los clientes bajo benchmark, dime cuáles son prioridad 1, 2 y 3 para negociar. Separa dato duro de juicio asesor."
+    },
+    {
+      "role": "adi",
+      "text": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    },
+    {
+      "role": "user",
+      "text": "Falabella tenía margen 30%, ¿cierto? Con esa base, proyecta qué pasa si le subo ventas 6%."
+    },
+    {
+      "role": "adi",
+      "text": "No, Falabella cierra el año con margen 22.0%, no 30% — 8.1pp por debajo del benchmark de 30.1%. Ese 30% no está en el dato.\n\nCon la cifra real de Falabella ($19.4M en ventas), bajo el supuesto de +6% y manteniendo el margen actual, esto es lo que arrojaría:\n\n- Ventas proyectadas de Falabella: $19.4M × 1.06 = **$20.56M**\n- Contribución proyectada de Falabella: 22.0% de $20.56M = **$4.52M** (vs $4.3M actual, +$220K)\n\nEsta es una simulación, no un hecho: asume que el margen se mantiene igual mientras sube el volumen, lo cual en la práctica no está garantizado — más venta con la misma carga comercial de 4.5% no corrige la brecha de margen, solo la diluye en más dólares.\n\n**Qué hacer primero:** subir ventas sin tocar margen deja a Falabella igual de lejos del benchmark en términos relativos. Antes de proyectar volumen, la prioridad es cerrar la brecha de margen — cada punto ganado ahí vale más que el crecimiento en ventas, porque ataca la causa (carga comercial 4.5% vs meta 3.5%), no el síntoma."
+    }
+  ],
+  "mem": {
+    "recentNarrations": [
+      "No, Falabella cierra el año con margen 22.0%, no 30% — 8.1pp por debajo del benchmark de 30.1%. Ese 30% no está en el dato.\n\nCon la cifra real de Falabella ($19.4M en ventas), bajo el supuesto de +6% y manteniendo el margen actual, esto es lo que arrojaría:\n\n- Ventas proyectadas de Falabella: $19.4M × 1.06 = **$20.56M**\n- Contribución proyectada de Falabella: 22.0% de $20.56M = **$4.52M** (vs $4.3M actual, +$220K)\n\nEsta es una simulación, no un hecho: asume que el margen se mantiene igual mientras sube el volumen, lo cual en la práctica no está garantizado — más venta con la misma carga comercial de 4.5% no corrige la brecha de margen, solo la diluye en más dólares.\n\n**Qué hacer primero:** subir ventas sin tocar margen deja a Falabella igual de lejos del benchmark en términos relativos. Antes de proyectar volumen, la prioridad es cerrar la brecha de margen — cada punto ganado ahí vale más que el crecimiento en ventas, porque ataca la causa (carga comercial 4.5% vs meta 3.5%), no el síntoma.",
+      "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    ],
+    "recitaAprobada": {
+      "figs": [
+        {
+          "canon": "pp:0.1pp",
+          "value": "0.1pp",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "Sodimac",
+            "Ripley",
+            "margen",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$5K",
+          "value": "$4.7K",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "Sodimac",
+            "Ripley",
+            "margen",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "pp:3.6pp",
+          "value": "3.6pp",
+          "duenos": [
+            "Falabella",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$641K",
+          "value": "$641K",
+          "duenos": [
+            "Falabella",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$601K",
+          "value": "$601K",
+          "duenos": [
+            "Falabella",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$1.2M",
+          "value": "$1.24M",
+          "duenos": [
+            "total",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$1.6M",
+          "value": "$1.57M",
+          "duenos": [
+            "total",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "pct:25.1%",
+          "value": "25.1%",
+          "duenos": [
+            "cartera",
+            "margen",
+            "venta"
+          ]
+        },
+        {
+          "canon": "pct:22%",
+          "value": "22.0%",
+          "duenos": [
+            "Falabella",
+            "benchmark",
+            "margen"
+          ]
+        },
+        {
+          "canon": "pct:30%",
+          "value": "30%",
+          "duenos": [
+            "Falabella",
+            "benchmark",
+            "margen"
+          ]
+        },
+        {
+          "canon": "pp:8.1pp",
+          "value": "8.1pp",
+          "duenos": [
+            "Falabella",
+            "benchmark",
+            "margen"
+          ]
+        },
+        {
+          "canon": "pct:30.1%",
+          "value": "30.1%",
+          "duenos": [
+            "Falabella",
+            "benchmark",
+            "margen"
+          ]
+        },
+        {
+          "canon": "money:$19.4M",
+          "value": "$19.4M",
+          "duenos": [
+            "Falabella",
+            "supuesto",
+            "margen",
+            "ventas"
+          ]
+        },
+        {
+          "canon": "pct:6%",
+          "value": "6%",
+          "duenos": [
+            "Falabella",
+            "supuesto",
+            "margen",
+            "ventas"
+          ]
+        },
+        {
+          "canon": "money:$19.4M",
+          "value": "$19.4M",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$20.6M",
+          "value": "$20.56M",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "pct:22%",
+          "value": "22.0%",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$20.6M",
+          "value": "$20.56M",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$4.5M",
+          "value": "$4.52M",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$4.3M",
+          "value": "$4.3M",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "money:$220K",
+          "value": "$220K",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "margen",
+            "venta",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "margen",
+            "ventas",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "margen",
+            "ventas",
+            "carga"
+          ]
+        }
+      ]
+    }
+  },
+  "turnos": [
+    {
+      "q": "Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.08432025,
+      "visible": "**8 de 13 clientes** venden bajo el benchmark de margen (30.1%) — y son justamente los de mayor venta: concentran $86.0M de los $99.9M totales, el 86% de la cartera.\n\n| Cliente | Venta | Margen | Brecha vs 30.1% |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | -8.1pp |\n| Lider | $17.8M | 21.5% | -8.6pp |\n| Jumbo | $17.3M | 24.0% | -6.1pp |\n| Sodimac | $8.2M | 23.5% | -6.6pp |\n| Tottus | $6.8M | 28.0% | -2.1pp |\n| Paris | $6.3M | 26.5% | -3.6pp |\n| Mercado Libre | $5.5M | 29.0% | -1.1pp |\n| Ripley | $4.7M | 25.0% | -5.1pp |\n\n(Quedan fuera Easy, La Polar, Hites, ABC y Unimarc — los 5 restantes, todos por encima del benchmark.)\n\n**Por qué pasa:** Falabella y Lider, los dos mayores, tienen los márgenes más bajos de toda la cartera (22.0% y 21.5%). En Falabella una causa comprobada es la carga comercial: 4.5%, muy por encima de la meta de 3.5%.\n\n**Qué hacer primero:** empieza por Falabella. Si su margen subiera del 22.0% actual al benchmark 30.1%, la contribución pasaría de $4.3M a $5.84M — un salto de $1.54M solo en esta cuenta. Es el mayor cliente de la cartera y el de mayor brecha absoluta en $, así que ahí está el impacto más grande antes de tocar el resto."
+    },
+    {
+      "q": "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark. Muéstrame la cuenta cliente por cliente.",
+      "estado": "suplente",
+      "vetos": [
+        "narracion-vacia",
+        "2º: cifra-no-autorizada",
+        "3º: calculo-no-verificable"
+      ],
+      "costoUSD": 0.1563405,
+      "visible": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    },
+    {
+      "q": "Ahora dime cuánto tendría que mejorar cada uno para quedar en el margen medio de la cartera. Si falta algún dato, dilo explícitamente.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.0478545,
+      "visible": "**5 de los 8 clientes** necesitan mejorar margen para alcanzar el 25.1% (margen medio de la cartera); los otros 3 —Tottus (28.0%), Paris (26.5%) y Mercado Libre (29.0%)— ya están por encima y no requieren ajuste para esta meta.\n\n| Cliente | Margen actual | Necesita | Contribución adicional estimada |\n|---|---|---|---|\n| Lider | 21.5% | +3.6pp | ~$641K |\n| Falabella | 22.0% | +3.1pp | ~$601K |\n| Jumbo | 24.0% | +1.1pp | ~$190K |\n| Sodimac | 23.5% | +1.6pp | ~$131K |\n| Ripley | 25.0% | +0.1pp | ~$4.7K |\n\n**Por qué pasa:** la brecha es más ancha en Lider y Falabella, los dos clientes con menor margen de toda la cartera — y son a la vez los de mayor venta, así que cada punto que falta pesa más en dólares.\n\n**Qué hacer primero:** empieza por Lider. Cerrar sus 3.6pp de brecha suma $641K de contribución adicional — el mayor impacto en $ de los cinco, apenas por encima de Falabella ($601K). Trabajarlos en paralelo tiene sentido porque juntos explican $1.24M de los $1.57M de contribución total que dejaría el ajuste completo.\n\nNo falta ningún dato para esta cuenta: uso el margen de cada cliente (dato de venta) contra el margen medio de cartera 25.1% (dato declarado), ambos del mismo universo comercial."
+    },
+    {
+      "q": "De los clientes bajo benchmark, dime cuáles son prioridad 1, 2 y 3 para negociar. Separa dato duro de juicio asesor.",
+      "estado": "suplente",
+      "vetos": [
+        "calculo-no-verificable",
+        "2º: vocabulario-no-contractual",
+        "3º: calculo-no-verificable"
+      ],
+      "costoUSD": 0.16188450000000001,
+      "visible": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    },
+    {
+      "q": "Falabella tenía margen 30%, ¿cierto? Con esa base, proyecta qué pasa si le subo ventas 6%.",
+      "estado": "reparado",
+      "vetos": [
+        "cifra-de-dato-sin-dueno"
+      ],
+      "costoUSD": 0.05031,
+      "visible": "No, Falabella cierra el año con margen 22.0%, no 30% — 8.1pp por debajo del benchmark de 30.1%. Ese 30% no está en el dato.\n\nCon la cifra real de Falabella ($19.4M en ventas), bajo el supuesto de +6% y manteniendo el margen actual, esto es lo que arrojaría:\n\n- Ventas proyectadas de Falabella: $19.4M × 1.06 = **$20.56M**\n- Contribución proyectada de Falabella: 22.0% de $20.56M = **$4.52M** (vs $4.3M actual, +$220K)\n\nEsta es una simulación, no un hecho: asume que el margen se mantiene igual mientras sube el volumen, lo cual en la práctica no está garantizado — más venta con la misma carga comercial de 4.5% no corrige la brecha de margen, solo la diluye en más dólares.\n\n**Qué hacer primero:** subir ventas sin tocar margen deja a Falabella igual de lejos del benchmark en términos relativos. Antes de proyectar volumen, la prioridad es cerrar la brecha de margen — cada punto ganado ahí vale más que el crecimiento en ventas, porque ataca la causa (carga comercial 4.5% vs meta 3.5%), no el síntoma."
+    }
+  ],
+  "costoUSD": 0.50070975,
+  "llamadas": 10
+}

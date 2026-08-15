@@ -1,0 +1,499 @@
+{
+  "titulo": "EXAMEN 2 consolidado",
+  "history": [
+    {
+      "role": "user",
+      "text": "Identifica los SKU con capital inmovilizado o frenado. Dame cantidad de SKU, monto total y principales casos."
+    },
+    {
+      "role": "adi",
+      "text": "**Capital inmovilizado: $56K en 5 SKU · de ese total, $33K en 3 SKU están frenados (rotación bajo el piso de 2.0x o días sobre el techo de 120d).**\n\nLos 5 SKU no-Activos:\n\n- **LG-DRYER8KG** (Valparaíso) — Capital $14K · rotación 1.0x · 165d de inventario · 94d sin venta de LG-DRYER8KG · estado 120d → **frenado**\n- **SAM-TV55** (Santiago) — Capital $13K · rotación 3.6x · 58d de inventario · 12d sin venta · estado Lento → inmovilizado, no frenado\n- **BOS-SANDER** (Valparaíso) — Capital $11K · rotación 1.6x · 115d de inventario · 68d sin venta · estado 90d → **frenado**\n- **PHI-IRON-PRO** (Concepción) — Capital $10K · rotación 2.4x · 95d de inventario · 35d sin venta · estado 60d → inmovilizado, no frenado\n- **MAK-COMP-AIR** (Antofagasta) — Capital $8K · rotación 0.8x · 190d de inventario · 112d sin venta · estado 120d → **frenado**\n\nPor qué pasa: los 3 frenados (LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR) ya rompieron el piso de rotación de 2.0x — el más grave es MAK-COMP-AIR con 0.8x, menos de la mitad del piso. Los otros 2 (SAM-TV55, PHI-IRON-PRO) están perdiendo ritmo pero todavía no cruzan la línea crítica.\n\nQué hacer primero: arranca por **LG-DRYER8KG**, el frenado de mayor capital ($14K). Con rotación en 1.0x — la mitad del piso — es el que más dólares inmoviliza sin señal de reactivarse. Definí ahí mismo si liquidas con descuento o lo sacas de catálogo antes de mover los otros dos."
+    },
+    {
+      "role": "user",
+      "text": "Sobre esos SKU, dime cuáles explican el 80% del capital inmovilizado. Si no se puede calcular, dilo."
+    },
+    {
+      "role": "adi",
+      "text": "Sí se puede calcular. **4 de los 5 SKU explican el 85.7% del capital inmovilizado** ($48K de $56K) — es el primer corte que supera el 80%; con 3 SKU solo llegas a 67.9%.\n\nOrden por capital, acumulado:\n\n- LG-DRYER8KG — $14K → 25.0% acumulado\n- SAM-TV55 — $13K → 48.2% acumulado\n- BOS-SANDER — $11K → 67.9% acumulado\n- PHI-IRON-PRO — $10K → **85.7% acumulado** (cruza el 80%)\n- MAK-COMP-AIR — $8K → 100.0%\n\nDe estos 4, solo **LG-DRYER8KG y BOS-SANDER están frenados** (rotación bajo el piso de 2.0x); SAM-TV55 y PHI-IRON-PRO son inmovilizados pero no frenados todavía.\n\nQué hacer primero: con LG-DRYER8KG y BOS-SANDER sumas $25K de los $48K que concentran el 80% — y son los dos que ya rompieron el piso de rotación. Ahí está el foco antes de tocar los otros dos."
+    },
+    {
+      "role": "user",
+      "text": "Ahora simula liberar el 30% de ese capital inmovilizado. ¿Cuánto efectivo se recuperaría y qué SKU atacaría primero?"
+    },
+    {
+      "role": "adi",
+      "text": "Bajo este supuesto, liberar el 30% del capital inmovilizado significaría recuperar **$16.8K en efectivo** (30% de $56K).\n\nAtacaría primero **LG-DRYER8KG** ($14K): es el frenado de mayor capital y por sí solo cubre casi toda la meta de $16.8K. Con solo sumarle una porción de BOS-SANDER (capital $11K, también frenado) completas el objetivo sin tocar los SKU que todavía no cruzan el piso de rotación.\n\nPor qué este orden y no otro: LG-DRYER8KG tiene la peor combinación del grupo — 165d de inventario y 94d sin venta — así que es capital con menor probabilidad de recuperarse solo. Empezar ahí libera caja y corta la exposición antes de que siga acumulando días.\n\nQué hacer primero: define el mecanismo de salida para LG-DRYER8KG (liquidación con descuento o baja de catálogo) esta semana — es la decisión que sola te acerca más rápido a la meta de liberación."
+    },
+    {
+      "role": "user",
+      "text": "Dime el ranking de SKU por peor rotación y cruza eso con margen. ¿Cuáles son riesgo real y cuáles solo parecen malos?"
+    },
+    {
+      "role": "adi",
+      "text": "**Ranking por peor rotación (13 SKU de inventario) cruzado con margen de inventario — el piso es 2.0x:**\n\n- MAK-COMP-AIR — rotación 0.8x · margen de inventario 8.0%\n- LG-DRYER8KG — rotación 1.0x · margen de inventario 11.0%\n- BOS-SANDER — rotación 1.6x · margen de inventario 15.0%\n- PHI-IRON-PRO — rotación 2.4x · margen de inventario 21.0%\n- SAM-TV55 — rotación 3.6x · margen de inventario 19.0%\n- MAK-SAW18V — rotación 5.2x · margen de inventario 34.0%\n- LG-AIR9000 — rotación 5.8x · margen de inventario 22.0%\n- SAM-MICRO32L — rotación 7.4x · margen de inventario 25.0%\n- BOS-DRILL18V — rotación 8.1x · margen de inventario 27.0%\n- LG-WASH11KG — rotación 8.6x · margen de inventario 23.0%\n- SAM-REF500L — rotación 9.8x · margen de inventario 22.0%\n- PHI-HAIR-PRO — rotación 10.1x · margen de inventario 29.0%\n- PHI-SHAVER9 — rotación 11.2x · margen de inventario 28.0%\n\n**No hay casos de \"solo parece malo\".** Acá la rotación y el margen de inventario se mueven juntos: los 3 SKU bajo el piso de 2.0x (MAK-COMP-AIR, LG-DRYER8KG, BOS-SANDER) tienen además los 3 márgenes de inventario más bajos de toda la cartera, entre 8% y 15%. No hay un SKU con rotación pésima pero margen de inventario que compense — eso sería la señal de \"riesgo aparente, no real\", y no aparece.\n\nRiesgo real, en orden de gravedad: **MAK-COMP-AIR** (rotación 0.8x y margen de inventario 8.0%, el peor cruce de los 13), seguido de LG-DRYER8KG (rotación 1.0x, margen de inventario 11.0%) y BOS-SANDER (rotación 1.6x, margen de inventario 15.0%). PHI-IRON-PRO y SAM-TV55 están cerca del piso pero con margen de inventario algo mejor (21.0% y 19.0%) — zona de vigilancia, no de riesgo confirmado todavía.\n\nQué hacer primero: MAK-COMP-AIR es capital que no rota y encima no deja margen de inventario — es candidato a liquidación inmediata antes que los otros dos frenados, porque no tiene ángulo de recuperación por precio."
+    },
+    {
+      "role": "user",
+      "text": "Si saco del surtido el peor SKU, ¿qué datos faltan para estimar impacto comercial? No inventes venta perdida."
+    },
+    {
+      "role": "adi",
+      "text": "**No se puede estimar venta perdida con este dato — faltan piezas clave, y las nombro:**\n\n- **Pronóstico o serie a futuro**: no existe. Solo hay evolución hasta hoy, nunca proyección de qué pasaría después de sacar el SKU.\n- **Historial de compra cliente×SKU**: no existe. Lo único disponible es una afinidad ESTIMADA, no una venta registrada — no se puede decir qué cliente dejaría de comprar ni si migraría a otro SKU.\n- **Causa del freno**: el dato localiza dónde está frenado MAK-COMP-AIR (Antofagasta, rotación 0.8x), pero no dice por qué — sin causa, no se puede estimar si sacarlo del surtido resuelve algo o solo traslada el problema.\n- **Cruce inventario↔venta comercial**: MAK-COMP-AIR existe en los dos universos, pero las unidades no reconcilian (15 en stock hoy vs 3 vendidas/mes en inventario vs 4 unidades/año en venta comercial) — cualquier cálculo que mezcle esas cifras para proyectar impacto no es válido, es alarma, no hallazgo.\n\nLo único firme que sí tengo: en el universo comercial (año cerrado), **MAK-COMP-AIR generó $135K de contribución** con margen de venta 7.9% — el más bajo de los 13 SKU comerciales. Eso es lo que hoy aporta, no lo que se \"perdería\": si sale del surtido, ese volumen puede migrar a otro SKU de la misma familia (Materiales de Construcción) o desaparecer, y este dato no distingue cuál de los dos escenarios ocurre.\n\nQué hacer primero: antes de decidir la baja, pedí el dato que falta — historial real de compra por cliente para MAK-COMP-AIR — porque sin eso, sacarlo del surtido es una decisión a ciegas sobre a quién afecta."
+    }
+  ],
+  "mem": {
+    "recentNarrations": [
+      "**No se puede estimar venta perdida con este dato — faltan piezas clave, y las nombro:**\n\n- **Pronóstico o serie a futuro**: no existe. Solo hay evolución hasta hoy, nunca proyección de qué pasaría después de sacar el SKU.\n- **Historial de compra cliente×SKU**: no existe. Lo único disponible es una afinidad ESTIMADA, no una venta registrada — no se puede decir qué cliente dejaría de comprar ni si migraría a otro SKU.\n- **Causa del freno**: el dato localiza dónde está frenado MAK-COMP-AIR (Antofagasta, rotación 0.8x), pero no dice por qué — sin causa, no se puede estimar si sacarlo del surtido resuelve algo o solo traslada el problema.\n- **Cruce inventario↔venta comercial**: MAK-COMP-AIR existe en los dos universos, pero las unidades no reconcilian (15 en stock hoy vs 3 vendidas/mes en inventario vs 4 unidades/año en venta comercial) — cualquier cálculo que mezcle esas cifras para proyectar impacto no es válido, es alarma, no hallazgo.\n\nLo único firme que sí tengo: en el universo comercial (año cerrado), **MAK-COMP-AIR generó $135K de contribución** con margen de venta 7.9% — el más bajo de los 13 SKU comerciales. Eso es lo que hoy aporta, no lo que se \"perdería\": si sale del surtido, ese volumen puede migrar a otro SKU de la misma familia (Materiales de Construcción) o desaparecer, y este dato no distingue cuál de los dos escenarios ocurre.\n\nQué hacer primero: antes de decidir la baja, pedí el dato que falta — historial real de compra por cliente para MAK-COMP-AIR — porque sin eso, sacarlo del surtido es una decisión a ciegas sobre a quién afecta.",
+      "**Ranking por peor rotación (13 SKU de inventario) cruzado con margen de inventario — el piso es 2.0x:**\n\n- MAK-COMP-AIR — rotación 0.8x · margen de inventario 8.0%\n- LG-DRYER8KG — rotación 1.0x · margen de inventario 11.0%\n- BOS-SANDER — rotación 1.6x · margen de inventario 15.0%\n- PHI-IRON-PRO — rotación 2.4x · margen de inventario 21.0%\n- SAM-TV55 — rotación 3.6x · margen de inventario 19.0%\n- MAK-SAW18V — rotación 5.2x · margen de inventario 34.0%\n- LG-AIR9000 — rotación 5.8x · margen de inventario 22.0%\n- SAM-MICRO32L — rotación 7.4x · margen de inventario 25.0%\n- BOS-DRILL18V — rotación 8.1x · margen de inventario 27.0%\n- LG-WASH11KG — rotación 8.6x · margen de inventario 23.0%\n- SAM-REF500L — rotación 9.8x · margen de inventario 22.0%\n- PHI-HAIR-PRO — rotación 10.1x · margen de inventario 29.0%\n- PHI-SHAVER9 — rotación 11.2x · margen de inventario 28.0%\n\n**No hay casos de \"solo parece malo\".** Acá la rotación y el margen de inventario se mueven juntos: los 3 SKU bajo el piso de 2.0x (MAK-COMP-AIR, LG-DRYER8KG, BOS-SANDER) tienen además los 3 márgenes de inventario más bajos de toda la cartera, entre 8% y 15%. No hay un SKU con rotación pésima pero margen de inventario que compense — eso sería la señal de \"riesgo aparente, no real\", y no aparece.\n\nRiesgo real, en orden de gravedad: **MAK-COMP-AIR** (rotación 0.8x y margen de inventario 8.0%, el peor cruce de los 13), seguido de LG-DRYER8KG (rotación 1.0x, margen de inventario 11.0%) y BOS-SANDER (rotación 1.6x, margen de inventario 15.0%). PHI-IRON-PRO y SAM-TV55 están cerca del piso pero con margen de inventario algo mejor (21.0% y 19.0%) — zona de vigilancia, no de riesgo confirmado todavía.\n\nQué hacer primero: MAK-COMP-AIR es capital que no rota y encima no deja margen de inventario — es candidato a liquidación inmediata antes que los otros dos frenados, porque no tiene ángulo de recuperación por precio."
+    ],
+    "recitaAprobada": {
+      "figs": [
+        {
+          "canon": "ratio:8.1x",
+          "value": "8.1x",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:27%",
+          "value": "27.0%",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:8.6x",
+          "value": "8.6x",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:23%",
+          "value": "23.0%",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:9.8x",
+          "value": "9.8x",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:22%",
+          "value": "22.0%",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:10.1x",
+          "value": "10.1x",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:29%",
+          "value": "29.0%",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:11.2x",
+          "value": "11.2x",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:28%",
+          "value": "28.0%",
+          "duenos": [
+            "SAM-REF500L",
+            "LG-WASH11KG",
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "PHI-SHAVER9",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "BOS-DRILL18V",
+            "MAK-COMP-AIR",
+            "SAM-MICRO32L",
+            "PHI-HAIR-PRO",
+            "LG-AIR9000",
+            "MAK-SAW18V",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:2.0x",
+          "value": "2.0x",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "cartera",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:8%",
+          "value": "8%",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "cartera",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:15%",
+          "value": "15%",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "cartera",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:0.8x",
+          "value": "0.8x",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:8%",
+          "value": "8.0%",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:1.0x",
+          "value": "1.0x",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:11%",
+          "value": "11.0%",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:1.6x",
+          "value": "1.6x",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:15%",
+          "value": "15.0%",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "margen",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:21%",
+          "value": "21.0%",
+          "duenos": [
+            "SAM-TV55",
+            "PHI-IRON-PRO",
+            "margen",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "pct:19%",
+          "value": "19.0%",
+          "duenos": [
+            "SAM-TV55",
+            "PHI-IRON-PRO",
+            "margen",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "ratio:0.8x",
+          "value": "0.8x",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "Antofagasta",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "money:$135K",
+          "value": "$135K",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "margen",
+            "venta",
+            "contribución"
+          ]
+        },
+        {
+          "canon": "pct:7.9%",
+          "value": "7.9%",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "margen",
+            "venta",
+            "contribución"
+          ]
+        }
+      ]
+    }
+  },
+  "turnos": [
+    {
+      "q": "Identifica los SKU con capital inmovilizado o frenado. Dame cantidad de SKU, monto total y principales casos.",
+      "estado": "reparado",
+      "vetos": [
+        "cifra-de-dato-sin-dueno"
+      ],
+      "costoUSD": 0.053739,
+      "visible": "**Capital inmovilizado: $56K en 5 SKU · de ese total, $33K en 3 SKU están frenados (rotación bajo el piso de 2.0x o días sobre el techo de 120d).**\n\nLos 5 SKU no-Activos:\n\n- **LG-DRYER8KG** (Valparaíso) — Capital $14K · rotación 1.0x · 165d de inventario · 94d sin venta de LG-DRYER8KG · estado 120d → **frenado**\n- **SAM-TV55** (Santiago) — Capital $13K · rotación 3.6x · 58d de inventario · 12d sin venta · estado Lento → inmovilizado, no frenado\n- **BOS-SANDER** (Valparaíso) — Capital $11K · rotación 1.6x · 115d de inventario · 68d sin venta · estado 90d → **frenado**\n- **PHI-IRON-PRO** (Concepción) — Capital $10K · rotación 2.4x · 95d de inventario · 35d sin venta · estado 60d → inmovilizado, no frenado\n- **MAK-COMP-AIR** (Antofagasta) — Capital $8K · rotación 0.8x · 190d de inventario · 112d sin venta · estado 120d → **frenado**\n\nPor qué pasa: los 3 frenados (LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR) ya rompieron el piso de rotación de 2.0x — el más grave es MAK-COMP-AIR con 0.8x, menos de la mitad del piso. Los otros 2 (SAM-TV55, PHI-IRON-PRO) están perdiendo ritmo pero todavía no cruzan la línea crítica.\n\nQué hacer primero: arranca por **LG-DRYER8KG**, el frenado de mayor capital ($14K). Con rotación en 1.0x — la mitad del piso — es el que más dólares inmoviliza sin señal de reactivarse. Definí ahí mismo si liquidas con descuento o lo sacas de catálogo antes de mover los otros dos."
+    },
+    {
+      "q": "Sobre esos SKU, dime cuáles explican el 80% del capital inmovilizado. Si no se puede calcular, dilo.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.0234435,
+      "visible": "Sí se puede calcular. **4 de los 5 SKU explican el 85.7% del capital inmovilizado** ($48K de $56K) — es el primer corte que supera el 80%; con 3 SKU solo llegas a 67.9%.\n\nOrden por capital, acumulado:\n\n- LG-DRYER8KG — $14K → 25.0% acumulado\n- SAM-TV55 — $13K → 48.2% acumulado\n- BOS-SANDER — $11K → 67.9% acumulado\n- PHI-IRON-PRO — $10K → **85.7% acumulado** (cruza el 80%)\n- MAK-COMP-AIR — $8K → 100.0%\n\nDe estos 4, solo **LG-DRYER8KG y BOS-SANDER están frenados** (rotación bajo el piso de 2.0x); SAM-TV55 y PHI-IRON-PRO son inmovilizados pero no frenados todavía.\n\nQué hacer primero: con LG-DRYER8KG y BOS-SANDER sumas $25K de los $48K que concentran el 80% — y son los dos que ya rompieron el piso de rotación. Ahí está el foco antes de tocar los otros dos."
+    },
+    {
+      "q": "Ahora simula liberar el 30% de ese capital inmovilizado. ¿Cuánto efectivo se recuperaría y qué SKU atacaría primero?",
+      "estado": "reparado",
+      "vetos": [
+        "cifra-no-autorizada"
+      ],
+      "costoUSD": 0.033495,
+      "visible": "Bajo este supuesto, liberar el 30% del capital inmovilizado significaría recuperar **$16.8K en efectivo** (30% de $56K).\n\nAtacaría primero **LG-DRYER8KG** ($14K): es el frenado de mayor capital y por sí solo cubre casi toda la meta de $16.8K. Con solo sumarle una porción de BOS-SANDER (capital $11K, también frenado) completas el objetivo sin tocar los SKU que todavía no cruzan el piso de rotación.\n\nPor qué este orden y no otro: LG-DRYER8KG tiene la peor combinación del grupo — 165d de inventario y 94d sin venta — así que es capital con menor probabilidad de recuperarse solo. Empezar ahí libera caja y corta la exposición antes de que siga acumulando días.\n\nQué hacer primero: define el mecanismo de salida para LG-DRYER8KG (liquidación con descuento o baja de catálogo) esta semana — es la decisión que sola te acerca más rápido a la meta de liberación."
+    },
+    {
+      "q": "Dime el ranking de SKU por peor rotación y cruza eso con margen. ¿Cuáles son riesgo real y cuáles solo parecen malos?",
+      "estado": "reparado",
+      "vetos": [
+        "etiqueta-ambigua"
+      ],
+      "costoUSD": 0.08049600000000001,
+      "visible": "**Ranking por peor rotación (13 SKU de inventario) cruzado con margen de inventario — el piso es 2.0x:**\n\n- MAK-COMP-AIR — rotación 0.8x · margen de inventario 8.0%\n- LG-DRYER8KG — rotación 1.0x · margen de inventario 11.0%\n- BOS-SANDER — rotación 1.6x · margen de inventario 15.0%\n- PHI-IRON-PRO — rotación 2.4x · margen de inventario 21.0%\n- SAM-TV55 — rotación 3.6x · margen de inventario 19.0%\n- MAK-SAW18V — rotación 5.2x · margen de inventario 34.0%\n- LG-AIR9000 — rotación 5.8x · margen de inventario 22.0%\n- SAM-MICRO32L — rotación 7.4x · margen de inventario 25.0%\n- BOS-DRILL18V — rotación 8.1x · margen de inventario 27.0%\n- LG-WASH11KG — rotación 8.6x · margen de inventario 23.0%\n- SAM-REF500L — rotación 9.8x · margen de inventario 22.0%\n- PHI-HAIR-PRO — rotación 10.1x · margen de inventario 29.0%\n- PHI-SHAVER9 — rotación 11.2x · margen de inventario 28.0%\n\n**No hay casos de \"solo parece malo\".** Acá la rotación y el margen de inventario se mueven juntos: los 3 SKU bajo el piso de 2.0x (MAK-COMP-AIR, LG-DRYER8KG, BOS-SANDER) tienen además los 3 márgenes de inventario más bajos de toda la cartera, entre 8% y 15%. No hay un SKU con rotación pésima pero margen de inventario que compense — eso sería la señal de \"riesgo aparente, no real\", y no aparece.\n\nRiesgo real, en orden de gravedad: **MAK-COMP-AIR** (rotación 0.8x y margen de inventario 8.0%, el peor cruce de los 13), seguido de LG-DRYER8KG (rotación 1.0x, margen de inventario 11.0%) y BOS-SANDER (rotación 1.6x, margen de inventario 15.0%). PHI-IRON-PRO y SAM-TV55 están cerca del piso pero con margen de inventario algo mejor (21.0% y 19.0%) — zona de vigilancia, no de riesgo confirmado todavía.\n\nQué hacer primero: MAK-COMP-AIR es capital que no rota y encima no deja margen de inventario — es candidato a liquidación inmediata antes que los otros dos frenados, porque no tiene ángulo de recuperación por precio."
+    },
+    {
+      "q": "Si saco del surtido el peor SKU, ¿qué datos faltan para estimar impacto comercial? No inventes venta perdida.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.0353085,
+      "visible": "**No se puede estimar venta perdida con este dato — faltan piezas clave, y las nombro:**\n\n- **Pronóstico o serie a futuro**: no existe. Solo hay evolución hasta hoy, nunca proyección de qué pasaría después de sacar el SKU.\n- **Historial de compra cliente×SKU**: no existe. Lo único disponible es una afinidad ESTIMADA, no una venta registrada — no se puede decir qué cliente dejaría de comprar ni si migraría a otro SKU.\n- **Causa del freno**: el dato localiza dónde está frenado MAK-COMP-AIR (Antofagasta, rotación 0.8x), pero no dice por qué — sin causa, no se puede estimar si sacarlo del surtido resuelve algo o solo traslada el problema.\n- **Cruce inventario↔venta comercial**: MAK-COMP-AIR existe en los dos universos, pero las unidades no reconcilian (15 en stock hoy vs 3 vendidas/mes en inventario vs 4 unidades/año en venta comercial) — cualquier cálculo que mezcle esas cifras para proyectar impacto no es válido, es alarma, no hallazgo.\n\nLo único firme que sí tengo: en el universo comercial (año cerrado), **MAK-COMP-AIR generó $135K de contribución** con margen de venta 7.9% — el más bajo de los 13 SKU comerciales. Eso es lo que hoy aporta, no lo que se \"perdería\": si sale del surtido, ese volumen puede migrar a otro SKU de la misma familia (Materiales de Construcción) o desaparecer, y este dato no distingue cuál de los dos escenarios ocurre.\n\nQué hacer primero: antes de decidir la baja, pedí el dato que falta — historial real de compra por cliente para MAK-COMP-AIR — porque sin eso, sacarlo del surtido es una decisión a ciegas sobre a quién afecta."
+    }
+  ],
+  "costoUSD": 0.226482,
+  "llamadas": 8
+}

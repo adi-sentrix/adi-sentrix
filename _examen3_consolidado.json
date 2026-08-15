@@ -1,0 +1,314 @@
+{
+  "titulo": "EXAMEN 3 consolidado",
+  "history": [
+    {
+      "role": "user",
+      "text": "Compara Q1 vs Q2 en ventas, margen y contribución. Dame variación absoluta y porcentual. Si no está en la carpeta, dilo."
+    },
+    {
+      "role": "adi",
+      "text": "No tengo esa comparación disponible.\n\nEl dato con el que trabajo no trae ventas, margen ni contribución por trimestre. Todo lo que ves arriba —Falabella, Lider, Samsung, Electrodomésticos, etc.— está reportado como año cerrado completo (con año anterior y presupuesto como referencias), no partido en Q1/Q2. No hay corte trimestral en ningún universo, ni comercial ni inventario.\n\nLo que sí puedo darte con precisión:\n- Ventas totales del negocio, año cerrado vs año anterior: $99.9M vs $92.9M (+7.5%).\n- Ventas totales del negocio, año cerrado vs presupuesto: $99.9M vs $97.0M (+3.0%).\n- Margen de la cartera: 25.1% (contra benchmark 30.1%, sigue por debajo).\n\nQué hacer primero: si necesitas vista trimestral para decisiones de corto plazo, el punto de entrada más útil hoy es el margen contra benchmark —25.1% de la cartera vs 30.1%—, una brecha de 5 puntos que ya está identificada por cliente. Empieza por Lider (margen 21.5%) y Falabella (margen 22.0%), los dos con mayor venta y margen más lejos de la referencia."
+    },
+    {
+      "role": "user",
+      "text": "Entonces hazlo anual: compara año actual contra año anterior en ventas y margen."
+    },
+    {
+      "role": "adi",
+      "text": "No tengo margen del año anterior en este dato — para ventas sí puedo darte la comparación completa, pero el margen (25.1% de cartera) solo está reportado para el año cerrado actual, sin equivalente histórico. Te dejo lo que sí cierra.\n\n**Ventas, año actual vs año anterior:**\n- Total negocio: $99.9M vs $92.9M → +$7.0M (+7.5%)\n\nEsa suba no es pareja entre clientes. Los tres que más la explican:\n- Falabella: $19.4M vs $17.9M → +$1.5M (+8.4%)\n- Lider: $17.8M vs $15.5M → +$2.3M (+14.8%)\n- Jumbo: $17.3M vs $15.4M → +$1.9M (+12.3%)\n\nEntre estos tres suman +$5.7M de los +$7.0M totales — casi el 82% del crecimiento del negocio.\n\nEn contraste, dos clientes cayeron contra el año anterior:\n- Ripley: $4.7M vs $5.1M → -$400K (-7.8%)\n- La Polar: $2.9M vs $3.4M → -$500K (-14.7%)\n\n**Qué hacer primero:** el crecimiento está sano en volumen pero concentrado en cuentas con margen bajo el benchmark — Lider (21.5%) y Falabella (22.0%) crecen más rápido que el resto y ambas están por debajo de 30.1%. Antes de festejar el +7.5%, revisa la mezcla de descuento en esas dos cuentas: están empujando ventas a costa de margen."
+    },
+    {
+      "role": "user",
+      "text": "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional."
+    },
+    {
+      "role": "adi",
+      "text": "Bajo el supuesto de +4% sobre el total anual, la venta proyectada sería $103.9M — esto es una proyección, no un hecho del dato.\n\n- Base: $99.9M (año cerrado, total negocio)\n- Adicional generado: +$4.0M\n- Total proyectado: $103.9M\n\nEse adicional de $4.0M es una hipótesis tuya, no viene del histórico — el dato no trae pronóstico propio, así que esta cifra vive solo bajo el supuesto que planteaste.\n\n**Qué hacer primero:** antes de fijar el +4% como meta, mira si es realista por cliente. Lider ya creció 14.8% este año y Jumbo 12.3% — pedirles otro +4% parejo puede ser conservador para ellos pero agresivo para Ripley o La Polar, que vienen cayendo. Repartir el +4% de forma pareja entre los 13 clientes sería ignorar esa dispersión."
+    },
+    {
+      "role": "user",
+      "text": "Ranking de puntos de venta: dime los mejores y peores por venta y margen. No mezcles clientes con puntos de venta."
+    },
+    {
+      "role": "adi",
+      "text": "No tengo \"puntos de venta\" como entidad separada en este dato.\n\nLo que existe son dos dimensiones distintas, y no debo mezclarlas:\n- **Clientes** (13, universo comercial): Falabella, Lider, Jumbo, etc. — con venta, margen y contribución del año cerrado.\n- **Bodegas** (4, universo inventario): Santiago, Valparaíso, Concepción, Antofagasta — con capital y rotación de la foto de hoy, sin venta ni margen comercial asociado.\n\nNinguna de las dos es \"punto de venta\" en el sentido que probablemente buscas (sucursal o tienda física con venta y margen propios). Si preguntas por ranking de **clientes**, te lo doy completo y ordenado. Si preguntas por **bodegas**, solo tengo capital inmovilizado y rotación, no venta ni margen — inventar esa cifra sería mezclar los dos universos que el dato no permite cruzar.\n\n**Qué hacer primero:** dime cuál de las dos dimensiones necesitas — clientes o bodegas — y te armo el ranking correcto sin inventar una tercera categoría que no está en el dato."
+    },
+    {
+      "role": "user",
+      "text": "Baja 2% la carga comercial de falabela y lider, y dime el impacto. Si escribí algo ambiguo o mal, corrígelo antes de calcular."
+    },
+    {
+      "role": "adi",
+      "text": "Dos correcciones antes de calcular:\n\n1. **\"Falabela\" → Falabella** (así está en el dato).\n2. **\"Baja 2%\" es ambiguo** — puede ser 2 puntos porcentuales (4.5% → 2.5%) o una baja relativa del 2% sobre la carga actual (4.5% → 4.41%). Interpreto **2 puntos porcentuales**, porque es la lectura estándar cuando se habla de carga comercial y es la que tiene sentido de negocio aquí. Si querías la relativa, dímelo y te lo recalculo.\n\n**Impacto bajo este supuesto (simulación, no hecho):**\n\n- Falabella: carga comercial baja de 4.5% a 2.5% → libera $388K que hoy van a acciones comerciales ($874K), sobre ventas de $19.4M.\n- Lider: carga comercial baja de 4.2% a 2.2% → libera $356K que hoy van a acciones comerciales ($749K), sobre ventas de $17.8M.\n- Impacto combinado: $744K adicionales que dejarían de gastarse en acciones comerciales entre ambos clientes ($388K + $356K).\n\nEse ahorro no es contribución automática — es gasto comercial liberado; si no se reinvierte, pasaría a mejorar el resultado antes de otros costos.\n\n**Qué hacer primero:** antes de bajar la carga en firme, mira que ambas cuentas quedarían por debajo de la meta de 3.5% (Falabella en 2.5%, Lider en 2.2%). Bajar tan fuerte puede frenar el crecimiento que estas dos cuentas venían mostrando (+8.4% y +14.8% vs año anterior) — arranca con una baja de 1pp en Falabella primero y mira el efecto en venta del próximo cierre antes de tocar Lider."
+    }
+  ],
+  "mem": {
+    "recentNarrations": [
+      "Dos correcciones antes de calcular:\n\n1. **\"Falabela\" → Falabella** (así está en el dato).\n2. **\"Baja 2%\" es ambiguo** — puede ser 2 puntos porcentuales (4.5% → 2.5%) o una baja relativa del 2% sobre la carga actual (4.5% → 4.41%). Interpreto **2 puntos porcentuales**, porque es la lectura estándar cuando se habla de carga comercial y es la que tiene sentido de negocio aquí. Si querías la relativa, dímelo y te lo recalculo.\n\n**Impacto bajo este supuesto (simulación, no hecho):**\n\n- Falabella: carga comercial baja de 4.5% a 2.5% → libera $388K que hoy van a acciones comerciales ($874K), sobre ventas de $19.4M.\n- Lider: carga comercial baja de 4.2% a 2.2% → libera $356K que hoy van a acciones comerciales ($749K), sobre ventas de $17.8M.\n- Impacto combinado: $744K adicionales que dejarían de gastarse en acciones comerciales entre ambos clientes ($388K + $356K).\n\nEse ahorro no es contribución automática — es gasto comercial liberado; si no se reinvierte, pasaría a mejorar el resultado antes de otros costos.\n\n**Qué hacer primero:** antes de bajar la carga en firme, mira que ambas cuentas quedarían por debajo de la meta de 3.5% (Falabella en 2.5%, Lider en 2.2%). Bajar tan fuerte puede frenar el crecimiento que estas dos cuentas venían mostrando (+8.4% y +14.8% vs año anterior) — arranca con una baja de 1pp en Falabella primero y mira el efecto en venta del próximo cierre antes de tocar Lider.",
+      "No tengo \"puntos de venta\" como entidad separada en este dato.\n\nLo que existe son dos dimensiones distintas, y no debo mezclarlas:\n- **Clientes** (13, universo comercial): Falabella, Lider, Jumbo, etc. — con venta, margen y contribución del año cerrado.\n- **Bodegas** (4, universo inventario): Santiago, Valparaíso, Concepción, Antofagasta — con capital y rotación de la foto de hoy, sin venta ni margen comercial asociado.\n\nNinguna de las dos es \"punto de venta\" en el sentido que probablemente buscas (sucursal o tienda física con venta y margen propios). Si preguntas por ranking de **clientes**, te lo doy completo y ordenado. Si preguntas por **bodegas**, solo tengo capital inmovilizado y rotación, no venta ni margen — inventar esa cifra sería mezclar los dos universos que el dato no permite cruzar.\n\n**Qué hacer primero:** dime cuál de las dos dimensiones necesitas — clientes o bodegas — y te armo el ranking correcto sin inventar una tercera categoría que no está en el dato."
+    ],
+    "recitaAprobada": {
+      "figs": [
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:2.5%",
+          "value": "2.5%",
+          "duenos": [
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:2%",
+          "value": "2%",
+          "duenos": [
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:4.41%",
+          "value": "4.41%",
+          "duenos": [
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "pct:2.5%",
+          "value": "2.5%",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$388K",
+          "value": "$388K",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$874K",
+          "value": "$874K",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$19.4M",
+          "value": "$19.4M",
+          "duenos": [
+            "Falabella",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "pct:4.2%",
+          "value": "4.2%",
+          "duenos": [
+            "Lider",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "pct:2.2%",
+          "value": "2.2%",
+          "duenos": [
+            "Lider",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$356K",
+          "value": "$356K",
+          "duenos": [
+            "Lider",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$749K",
+          "value": "$749K",
+          "duenos": [
+            "Lider",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$17.8M",
+          "value": "$17.8M",
+          "duenos": [
+            "Lider",
+            "ventas",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$744K",
+          "value": "$744K",
+          "duenos": [
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$388K",
+          "value": "$388K",
+          "duenos": [
+            "acciones"
+          ]
+        },
+        {
+          "canon": "money:$356K",
+          "value": "$356K",
+          "duenos": [
+            "acciones"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:2.5%",
+          "value": "2.5%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:2.2%",
+          "value": "2.2%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:8.4%",
+          "value": "8.4%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "anterior",
+            "venta"
+          ]
+        },
+        {
+          "canon": "pct:14.8%",
+          "value": "14.8%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "anterior",
+            "venta"
+          ]
+        },
+        {
+          "canon": "pp:1pp",
+          "value": "1pp",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "anterior",
+            "venta"
+          ]
+        }
+      ]
+    }
+  },
+  "turnos": [
+    {
+      "q": "Compara Q1 vs Q2 en ventas, margen y contribución. Dame variación absoluta y porcentual. Si no está en la carpeta, dilo.",
+      "estado": "reparado",
+      "vetos": [
+        "cifra-de-dato-sin-dueno"
+      ],
+      "costoUSD": 0.022116,
+      "visible": "No tengo esa comparación disponible.\n\nEl dato con el que trabajo no trae ventas, margen ni contribución por trimestre. Todo lo que ves arriba —Falabella, Lider, Samsung, Electrodomésticos, etc.— está reportado como año cerrado completo (con año anterior y presupuesto como referencias), no partido en Q1/Q2. No hay corte trimestral en ningún universo, ni comercial ni inventario.\n\nLo que sí puedo darte con precisión:\n- Ventas totales del negocio, año cerrado vs año anterior: $99.9M vs $92.9M (+7.5%).\n- Ventas totales del negocio, año cerrado vs presupuesto: $99.9M vs $97.0M (+3.0%).\n- Margen de la cartera: 25.1% (contra benchmark 30.1%, sigue por debajo).\n\nQué hacer primero: si necesitas vista trimestral para decisiones de corto plazo, el punto de entrada más útil hoy es el margen contra benchmark —25.1% de la cartera vs 30.1%—, una brecha de 5 puntos que ya está identificada por cliente. Empieza por Lider (margen 21.5%) y Falabella (margen 22.0%), los dos con mayor venta y margen más lejos de la referencia."
+    },
+    {
+      "q": "Entonces hazlo anual: compara año actual contra año anterior en ventas y margen.",
+      "estado": "reparado",
+      "vetos": [
+        "calculo-no-verificable",
+        "2º: calculo-no-verificable"
+      ],
+      "costoUSD": 0.10126950000000001,
+      "visible": "No tengo margen del año anterior en este dato — para ventas sí puedo darte la comparación completa, pero el margen (25.1% de cartera) solo está reportado para el año cerrado actual, sin equivalente histórico. Te dejo lo que sí cierra.\n\n**Ventas, año actual vs año anterior:**\n- Total negocio: $99.9M vs $92.9M → +$7.0M (+7.5%)\n\nEsa suba no es pareja entre clientes. Los tres que más la explican:\n- Falabella: $19.4M vs $17.9M → +$1.5M (+8.4%)\n- Lider: $17.8M vs $15.5M → +$2.3M (+14.8%)\n- Jumbo: $17.3M vs $15.4M → +$1.9M (+12.3%)\n\nEntre estos tres suman +$5.7M de los +$7.0M totales — casi el 82% del crecimiento del negocio.\n\nEn contraste, dos clientes cayeron contra el año anterior:\n- Ripley: $4.7M vs $5.1M → -$400K (-7.8%)\n- La Polar: $2.9M vs $3.4M → -$500K (-14.7%)\n\n**Qué hacer primero:** el crecimiento está sano en volumen pero concentrado en cuentas con margen bajo el benchmark — Lider (21.5%) y Falabella (22.0%) crecen más rápido que el resto y ambas están por debajo de 30.1%. Antes de festejar el +7.5%, revisa la mezcla de descuento en esas dos cuentas: están empujando ventas a costa de margen."
+    },
+    {
+      "q": "Con ese total anual, proyecta 12 meses con +4% y dime cuánto genera adicional.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.0164505,
+      "visible": "Bajo el supuesto de +4% sobre el total anual, la venta proyectada sería $103.9M — esto es una proyección, no un hecho del dato.\n\n- Base: $99.9M (año cerrado, total negocio)\n- Adicional generado: +$4.0M\n- Total proyectado: $103.9M\n\nEse adicional de $4.0M es una hipótesis tuya, no viene del histórico — el dato no trae pronóstico propio, así que esta cifra vive solo bajo el supuesto que planteaste.\n\n**Qué hacer primero:** antes de fijar el +4% como meta, mira si es realista por cliente. Lider ya creció 14.8% este año y Jumbo 12.3% — pedirles otro +4% parejo puede ser conservador para ellos pero agresivo para Ripley o La Polar, que vienen cayendo. Repartir el +4% de forma pareja entre los 13 clientes sería ignorar esa dispersión."
+    },
+    {
+      "q": "Ranking de puntos de venta: dime los mejores y peores por venta y margen. No mezcles clientes con puntos de venta.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.0185985,
+      "visible": "No tengo \"puntos de venta\" como entidad separada en este dato.\n\nLo que existe son dos dimensiones distintas, y no debo mezclarlas:\n- **Clientes** (13, universo comercial): Falabella, Lider, Jumbo, etc. — con venta, margen y contribución del año cerrado.\n- **Bodegas** (4, universo inventario): Santiago, Valparaíso, Concepción, Antofagasta — con capital y rotación de la foto de hoy, sin venta ni margen comercial asociado.\n\nNinguna de las dos es \"punto de venta\" en el sentido que probablemente buscas (sucursal o tienda física con venta y margen propios). Si preguntas por ranking de **clientes**, te lo doy completo y ordenado. Si preguntas por **bodegas**, solo tengo capital inmovilizado y rotación, no venta ni margen — inventar esa cifra sería mezclar los dos universos que el dato no permite cruzar.\n\n**Qué hacer primero:** dime cuál de las dos dimensiones necesitas — clientes o bodegas — y te armo el ranking correcto sin inventar una tercera categoría que no está en el dato."
+    },
+    {
+      "q": "Baja 2% la carga comercial de falabela y lider, y dime el impacto. Si escribí algo ambiguo o mal, corrígelo antes de calcular.",
+      "estado": "reparado",
+      "vetos": [
+        "calculo-no-verificable"
+      ],
+      "costoUSD": 0.068778,
+      "visible": "Dos correcciones antes de calcular:\n\n1. **\"Falabela\" → Falabella** (así está en el dato).\n2. **\"Baja 2%\" es ambiguo** — puede ser 2 puntos porcentuales (4.5% → 2.5%) o una baja relativa del 2% sobre la carga actual (4.5% → 4.41%). Interpreto **2 puntos porcentuales**, porque es la lectura estándar cuando se habla de carga comercial y es la que tiene sentido de negocio aquí. Si querías la relativa, dímelo y te lo recalculo.\n\n**Impacto bajo este supuesto (simulación, no hecho):**\n\n- Falabella: carga comercial baja de 4.5% a 2.5% → libera $388K que hoy van a acciones comerciales ($874K), sobre ventas de $19.4M.\n- Lider: carga comercial baja de 4.2% a 2.2% → libera $356K que hoy van a acciones comerciales ($749K), sobre ventas de $17.8M.\n- Impacto combinado: $744K adicionales que dejarían de gastarse en acciones comerciales entre ambos clientes ($388K + $356K).\n\nEse ahorro no es contribución automática — es gasto comercial liberado; si no se reinvierte, pasaría a mejorar el resultado antes de otros costos.\n\n**Qué hacer primero:** antes de bajar la carga en firme, mira que ambas cuentas quedarían por debajo de la meta de 3.5% (Falabella en 2.5%, Lider en 2.2%). Bajar tan fuerte puede frenar el crecimiento que estas dos cuentas venían mostrando (+8.4% y +14.8% vs año anterior) — arranca con una baja de 1pp en Falabella primero y mira el efecto en venta del próximo cierre antes de tocar Lider."
+    }
+  ],
+  "costoUSD": 0.2272125,
+  "llamadas": 9
+}
