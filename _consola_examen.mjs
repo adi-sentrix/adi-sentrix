@@ -30,6 +30,7 @@ import { handleNarrateC } from "./src/adi/llm/gatewayCore.js";
 import { proyectarDatoNegocio } from "./src/adi/oracle/datoProyectado.js";
 import { MARCA_CALCULO } from "./src/adi/oracle/narrationBlocks.js";
 import { MODEL_PRICING } from "./src/adi/llm/modelPricing.js";
+import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";   // MISMO escenario que la app: medir en otro es medir otro negocio
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 initTenant(TENANT_DEMO);
@@ -56,7 +57,7 @@ function _sello() {
   })();
   const ejes = (a) => a.flatMap((e) => { try { return axisEntityNames(e); } catch { return []; } });
   const CTX = { ledger: { figs: [] }, results: [], trace: null, question: "clientes bajo benchmark",
-    datoProyectado: cifrasDelDato("actual"), entidadesDelTenant: ejes(["cliente", "sku", "marca"]),
+    datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: ejes(["cliente", "sku", "marca"]),
     duenosDelTenant: ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full", tablePolicy: "auto" };
   const M = "[[CALCULO]]";
   // (1) el contrato EXIGE dueño · (2) la cifra de otro dueño no se lava con un cálculo · (3) el prompt lo pide
@@ -98,7 +99,7 @@ if (!q && flag("--sello")) { console.log(_sello()); process.exit(0); }
 if (!q && flag("--reset")) { fs.writeFileSync(ESTADO, JSON.stringify(S, null, 2)); console.log(`${_sello()}\n《 ${S.titulo} 》 estado en blanco: 0 turnos.`); process.exit(0); }
 if (!q) { console.log("Uso: node _consola_examen.mjs \"la pregunta\"  ·  --reset --titulo \"…\"  ·  --estado"); process.exit(1); }
 
-const DATO = proyectarDatoNegocio("actual");
+const DATO = proyectarDatoNegocio(ESCENARIO_INICIAL);
 const TARIFA = Object.entries(MODEL_PRICING).find(([k]) => /sonnet/i.test(k));
 const _precio = (u) => {
   if (!u || !TARIFA) return 0;
@@ -125,7 +126,7 @@ const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
 
 const t0 = Date.now();
 let out;
-try { out = await answerViaNatural({ text: q, history: S.history, mem: S.mem, scenario: "actual", callNatural }); }
+try { out = await answerViaNatural({ text: q, history: S.history, mem: S.mem, scenario: ESCENARIO_INICIAL, callNatural }); }
 catch (e) { console.log(`\n🔴 EL CAMINO NATURAL LANZÓ: ${String(e && e.message).slice(0, 160)}\n   (en producción, este turno caería al camino actual sin que el usuario vea el error)`); process.exit(1); }
 
 const nat = (out.r && out.r.natural) || {};

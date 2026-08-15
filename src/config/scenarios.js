@@ -8,6 +8,14 @@ import { getTenantData, onTenantChange } from "../data/tenantStore.js";
 export let SCENARIO_TRANSFORMS = getTenantData().SCENARIO_TRANSFORMS;
 onTenantChange((d) => { SCENARIO_TRANSFORMS = d.SCENARIO_TRANSFORMS; });
 
+/* ── EL ESCENARIO INICIAL, DECLARADO UNA SOLA VEZ (owner 2026-08-15) ────────────────────────────────────────────
+ * EL DEFECTO QUE CIERRA, medido: la app arrancaba en `"bonanza"` (literal en App.jsx) y la consola del examen en
+ * `"actual"` (literal suyo) — y «actual» NO ES UN ESCENARIO DECLARADO: no tiene entrada en SCENARIO_TRANSFORMS,
+ * así que caía al dato crudo sin ajustar. Resultado: los dos entornos le daban al cerebro CARPETAS DISTINTAS
+ * (venta total $99.9M vs $100.0M, y el KPI de inventario existía en uno y en el otro no, porque sale de
+ * `SCENARIO_TRANSFORMS[id].kpis.inventario`). Todo lo medido en consola describía un negocio que la app no mostraba.
+ * Un escenario no declarado no debe poder elegirse por escribir mal un string: acá está la única fuente. */
+export const ESCENARIO_INICIAL = "bonanza";
 export const SCENARIOS = {
   bonanza: { id:"bonanza", label:"Bonanza", sublabel:"La trampa del éxito",   color:"#10b981", dotColor:"#34d399", icon:"🟢" },
   tension: { id:"tension", label:"Tensión", sublabel:"KPIs dejan de funcionar", color:"#f59e0b", dotColor:"#fbbf24", icon:"🟡" },

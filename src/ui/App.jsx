@@ -13,7 +13,8 @@ const SentrixPanel = React.lazy(() => import("./SentrixPanel.jsx"));
 import { GuiaInicio, guiaAbreSola } from "./GuiaInicio.jsx";   // guía de inicio (owner 2026-08-07) · la división del trabajo ADI/Sentrix, no un tour de features
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
-import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";   // Paso 5 · badge de modo + selector de escenarios (dev)
+import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";
+import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
 import { parseAddress, evidenceForAddress } from "../adi/sentrix/address.js";   // dirección canónica ADI↔Sentrix (owner 2026-08-09) · el CTA de una respuesta abre vista+sección+entidad+filtro exactos
@@ -48,7 +49,7 @@ const getCurrentDateString = () => {
 };
 
 export default function App({ animate = true }) {
-  const [scenario, setScenario] = useState("bonanza");
+  const [scenario, setScenario] = useState(ESCENARIO_INICIAL);
   // ── DEMO PRIVADA (owner 2026-07-08): con ADI_TOKEN_SECRET en el server la app pide código de 3 días. Sin secret
   // (dev/backcompat) el status dice required:false y no cambia nada. El server es LA verdad (el cliente solo pregunta).
   const [access, setAccess] = useState({ checked: false, required: false, granted: null, reason: null, expiresAt: null });
