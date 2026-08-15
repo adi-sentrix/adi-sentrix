@@ -3193,8 +3193,26 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     const _RE_INMOV = /\b(?:inmovilizad[oa]s?|detenid[oa]s?)\b/i;
     const _skusCatalogo = (Array.isArray(duenosDelTenant) ? duenosDelTenant : []).filter((n) => /^[A-Z]{2,4}-/.test(String(n)));
     const _num = { un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
-    for (const o of narration.split(/[.!?\n]+/)) {
-      const usaFren = _RE_FRENADO.test(o), usaInmov = _inmov.size ? _RE_INMOV.test(o) : false;
+    /* ⚠️ LA ATRIBUCIÓN OCURRE DENTRO DE LA CLÁUSULA, NO DE LA ORACIÓN ENTERA (falso positivo MEDIDO 2026-08-15,
+     * examen 2 · turno 2). El borrador decía, correctamente: «solo LG-DRYER8KG y BOS-SANDER cruzaron a frenado
+     * (…); SAM-TV55 y PHI-IRON-PRO todavía están en zona de alerta, no de crítico». Una sola oración, dos
+     * cláusulas, y este chequeo leía la segunda como si también atribuyera «frenado». Se corta también en «;».
+     * Y una palabra NEGADA no atribuye: «SAM-TV55 · inmovilizado, no frenado» está diciendo justo lo contrario. */
+    // «ni» arrastra la negación por coordinación: en «no está frenado NI inmovilizado», la segunda palabra
+    // también está negada aunque el «no» quede lejos. Sin esto, la mitad de una negación se leía como afirmación.
+    const _NEGA = /\b(?:no|sin|tampoco|nunca|a[uú]n\s+no|todav[ií]a\s+no)\s+(?:est[aá]\w*\s+|es\s+|son\s+|de\s+)?$|\bni\s+$/i;
+    const _atribuye = (txt, re) => {
+      const m = txt.match(new RegExp(re.source, "gi"));
+      if (!m) return false;
+      let idx = -1;
+      for (const w of m) {
+        idx = txt.indexOf(w, idx + 1);
+        if (!_NEGA.test(txt.slice(Math.max(0, idx - 22), idx))) return true;   // hay al menos UNA mención no negada
+      }
+      return false;
+    };
+    for (const o of narration.split(/[.!?\n;]+/)) {
+      const usaFren = _atribuye(o, _RE_FRENADO), usaInmov = _inmov.size ? _atribuye(o, _RE_INMOV) : false;
       if (!usaFren && !usaInmov) continue;
       // ENTIDADES: cada palabra exige su propio conjunto. Si la oración usa las dos, basta con pertenecer al
       // amplio — «MAK-COMP-AIR está frenado dentro del capital inmovilizado» es correcto y no se toca.

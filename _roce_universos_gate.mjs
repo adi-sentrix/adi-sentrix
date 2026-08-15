@@ -132,6 +132,19 @@ ok(J("Ranking de los 3 SKU frenados por rotación: MAK-COMP-AIR 0.8x, LG-DRYER8K
 ok(V("Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, SAM-MICRO32L 7.4x, LG-WASH11KG 8.6x.") === "ranking-sin-cola",
   "…pero un recorte ARBITRARIO de 5 que no es ningún conjunto declarado sigue muriendo");
 
+/* ── 3e · LA ATRIBUCIÓN ES POR CLÁUSULA, Y UNA PALABRA NEGADA NO ATRIBUYE ────────────────────────────────────
+ * Falsos positivos MEDIDOS en el examen 2 (borradores CORRECTOS que el muro rechazó). Van verbatim. */
+console.log("\n── 3e · CONTRASTE Y NEGACIÓN NO SON ATRIBUCIÓN ──");
+const CONTRASTE = "Y dentro de ese grupo, solo LG-DRYER8KG y BOS-SANDER cruzaron a frenado (rotación bajo 2.0x o días sobre 120d); SAM-TV55 y PHI-IRON-PRO todavía están en zona de alerta, no de crítico.";
+const _sinEstado = (t) => !(J(t).violations || []).some((x) => x.kind === "estado-no-declarado");
+ok(_sinEstado(CONTRASTE), `el CONTRASTE entre cláusulas no atribuye el estado a los de la segunda (${V(CONTRASTE)})`);
+const NEGADO = "- SAM-TV55 — $13K (23.2%) · inmovilizado, no frenado";
+ok(_sinEstado(NEGADO), `«inmovilizado, no frenado» dice justo lo contrario: no puede leerse como atribución (${V(NEGADO)})`);
+ok(_sinEstado("MAK-SAW18V no está frenado ni inmovilizado: rota 5.2x y su estado es Activo."), "…ni «no está frenado ni inmovilizado»");
+// …y la atribución DE VERDAD sigue muriendo: la excepción es para la negación, no para el error
+ok(V("SAM-TV55 está frenado.") === "estado-no-declarado", "pero afirmar «SAM-TV55 está frenado» sigue muriendo");
+ok(V("Los SKU frenados son LG-DRYER8KG, BOS-SANDER y SAM-TV55.") === "estado-no-declarado", "…y meterlo dentro de la lista de frenados también");
+
 console.log("\n── 4 · SIN UNIVERSOS DECLARADOS, EL MURO NO SE MUEVE ──");
 {
   const sinUni = { ...CTX, datoProyectado: { figs: (cifrasDelDato("actual").figs || []).map(({ universo, ...r }) => r) } };
