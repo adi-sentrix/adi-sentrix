@@ -1,5 +1,5 @@
 {
-  "titulo": "HUMO · 5 casos del owner",
+  "titulo": "EXAMEN 1 consolidado",
   "history": [
     {
       "role": "user",
@@ -7,70 +7,49 @@
     },
     {
       "role": "adi",
-      "text": "**8 de los 13 clientes están por debajo del benchmark de margen (30.1%)** — y ahí se concentra el grueso de la venta total.\n\n| Cliente | Venta | Margen | Brecha vs 30.1% |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | -8.1pp |\n| Lider | $17.9M | 21.5% | -8.6pp |\n| Jumbo | $17.3M | 24.0% | -6.1pp |\n| Sodimac | $8.2M | 23.5% | -6.6pp |\n| Tottus | $6.8M | 28.0% | -2.1pp |\n| Paris | $6.3M | 26.5% | -3.6pp |\n| Mercado Libre | $5.5M | 29.0% | -1.1pp |\n| Ripley | $4.7M | 25.0% | -5.1pp |\n\nLos tres primeros (Falabella, Lider, Jumbo) suman $54.6M — más de la mitad de la venta total del negocio ($100.0M) — con márgenes entre 8 y 9 puntos por debajo de la referencia.\n\n**Por qué pasa:** esos mismos tres clientes tienen la carga comercial más alta del portfolio (Falabella 4.5%, Lider 4.2%, Jumbo 3.8%), todas por encima de la meta de 3.5%. El volumen se está comprando con descuento, no con eficiencia.\n\n**Qué hacer primero:** Falabella. Es el cliente de mayor venta y mayor brecha en dólares: si su margen cerrara al benchmark de 30.1%, la contribución pasaría de $4.3M a $5.8M — $1.5M adicionales sin mover una sola unidad. Bajo este supuesto, el punto de entrada es su carga comercial: hoy $874K (4.5% de $19.4M); llevarla a la meta de 3.5% libera cerca de $194K de margen de inmediato, antes de tocar precio de lista."
+      "text": "**8 de 13 clientes** venden bajo el benchmark de margen (30.1%) — y son justamente los de mayor venta: concentran $86.0M de los $99.9M totales, el 86% de la cartera.\n\n| Cliente | Venta | Margen | Brecha vs 30.1% |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | -8.1pp |\n| Lider | $17.8M | 21.5% | -8.6pp |\n| Jumbo | $17.3M | 24.0% | -6.1pp |\n| Sodimac | $8.2M | 23.5% | -6.6pp |\n| Tottus | $6.8M | 28.0% | -2.1pp |\n| Paris | $6.3M | 26.5% | -3.6pp |\n| Mercado Libre | $5.5M | 29.0% | -1.1pp |\n| Ripley | $4.7M | 25.0% | -5.1pp |\n\n(Quedan fuera Easy, La Polar, Hites, ABC y Unimarc — los 5 restantes, todos por encima del benchmark.)\n\n**Por qué pasa:** Falabella y Lider, los dos mayores, tienen los márgenes más bajos de toda la cartera (22.0% y 21.5%). En Falabella una causa comprobada es la carga comercial: 4.5%, muy por encima de la meta de 3.5%.\n\n**Qué hacer primero:** empieza por Falabella. Si su margen subiera del 22.0% actual al benchmark 30.1%, la contribución pasaría de $4.3M a $5.84M — un salto de $1.54M solo en esta cuenta. Es el mayor cliente de la cartera y el de mayor brecha absoluta en $, así que ahí está el impacto más grande antes de tocar el resto."
     },
     {
       "role": "user",
-      "text": "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark. Muestrame la cuenta cliente por cliente."
+      "text": "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark. Muéstrame la cuenta cliente por cliente."
     },
     {
       "role": "adi",
-      "text": "Bajo este supuesto, **solo Mercado Libre cruza el benchmark** de margen (30.1%); los otros siete mejoran pero no llegan.\n\n| Cliente | Margen actual | Carga actual | Simulación (-2pp carga) | Margen proyectado | ¿Supera 30.1%? |\n|---|---|---|---|---|---|\n| Falabella | 22.0% | 4.5% | 4.5% - 2pp = 2.5% | 22.0% + 2pp = 24.0% | No (-6.1pp) |\n| Lider | 21.5% | 4.2% | 4.2% - 2pp = 2.2% | 21.5% + 2pp = 23.5% | No (-6.6pp) |\n| Jumbo | 24.0% | 3.8% | 3.8% - 2pp = 1.8% | 24.0% + 2pp = 26.0% | No (-4.1pp) |\n| Sodimac | 23.5% | 5.4% | 5.4% - 2pp = 3.4% | 23.5% + 2pp = 25.5% | No (-4.6pp) |\n| Tottus | 28.0% | 3.2% | 3.2% - 2pp = 1.2% | 28.0% + 2pp = 30.0% | No, por 0.1pp |\n| Paris | 26.5% | 4.0% | 4.0% - 2pp = 2.0% | 26.5% + 2pp = 28.5% | No (-1.6pp) |\n| Mercado Libre | 29.0% | 1.8% | 1.8% - 2pp = -0.2pp (no aplica, carga insuficiente) | 29.0% + 2pp = 31.0% | **Sí (+0.9pp)** |\n| Ripley | 25.0% | 4.8% | 4.8% - 2pp = 2.8% | 25.0% + 2pp = 27.0% | No (-3.1pp) |\n\n**Lectura:** bajarle 2 puntos de carga comercial a todo el bloque no resuelve la brecha estructural — siete de ocho siguen debajo del benchmark, con Tottus quedando a un pelo (0.1pp). El problema no es la carga por sí sola en clientes como Falabella o Lider: son 6 a 8 puntos de brecha, y 2 puntos de descuento en carga no alcanza a taparla.\n\n**Qué hacer primero:** en Mercado Libre la carga ya es baja (1.8%) — ahí el supuesto de \"-2pp\" no es un recorte real de gasto, es una proyección teórica que no tiene margen para bajar tanto. El caso accionable de verdad es Tottus: con solo 0.1pp de distancia, mové su carga comercial de 3.2% a 3.0% (la mejor práctica interna) en lugar de -2pp, y ya cruza el benchmark sin necesidad de un supuesto extremo."
+      "text": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
     },
     {
       "role": "user",
-      "text": "y si subo las ventas 4%, que pasa con el total del negocio?"
+      "text": "Ahora dime cuánto tendría que mejorar cada uno para quedar en el margen medio de la cartera. Si falta algún dato, dilo explícitamente."
     },
     {
       "role": "adi",
-      "text": "**Bajo el supuesto de +4% en ventas totales (manteniendo el margen actual de 25.1%):** la venta pasa de $100.0M a $104.0M y la contribución sube de $25.1M a $26.1M — **+$1.0M**.\n\n**Por qué no alcanza:** ese crecimiento es puro volumen. El margen de cartera se queda clavado en 25.1%, todavía **5 puntos por debajo del benchmark de 30.1%**. Vender más al mismo margen no cierra la brecha estructural — solo la multiplica: cuanto más grande el negocio, más dólares se están dejando en la mesa a esa tasa.\n\n**Comparación que importa:** corregir solo el margen de Falabella hasta el benchmark (sin vender un dólar más) genera $1.5M adicionales — más que este crecimiento del 4% en todo el negocio. La prioridad sigue siendo margen, no volumen: antes de empujar ventas, cierra la brecha en Falabella, Lider y Jumbo, que es donde vive el dinero real."
+      "text": "**5 de los 8 clientes** necesitan mejorar margen para alcanzar el 25.1% (margen medio de la cartera); los otros 3 —Tottus (28.0%), Paris (26.5%) y Mercado Libre (29.0%)— ya están por encima y no requieren ajuste para esta meta.\n\n| Cliente | Margen actual | Necesita | Contribución adicional estimada |\n|---|---|---|---|\n| Lider | 21.5% | +3.6pp | ~$641K |\n| Falabella | 22.0% | +3.1pp | ~$601K |\n| Jumbo | 24.0% | +1.1pp | ~$190K |\n| Sodimac | 23.5% | +1.6pp | ~$131K |\n| Ripley | 25.0% | +0.1pp | ~$4.7K |\n\n**Por qué pasa:** la brecha es más ancha en Lider y Falabella, los dos clientes con menor margen de toda la cartera — y son a la vez los de mayor venta, así que cada punto que falta pesa más en dólares.\n\n**Qué hacer primero:** empieza por Lider. Cerrar sus 3.6pp de brecha suma $641K de contribución adicional — el mayor impacto en $ de los cinco, apenas por encima de Falabella ($601K). Trabajarlos en paralelo tiene sentido porque juntos explican $1.24M de los $1.57M de contribución total que dejaría el ajuste completo.\n\nNo falta ningún dato para esta cuenta: uso el margen de cada cliente (dato de venta) contra el margen medio de cartera 25.1% (dato declarado), ambos del mismo universo comercial."
     },
     {
       "role": "user",
-      "text": "oye y falabela como viene con su carga comercal? baja 2 putnos y dime"
+      "text": "De los clientes bajo benchmark, dime cuáles son prioridad 1, 2 y 3 para negociar. Separa dato duro de juicio asesor."
     },
     {
       "role": "adi",
-      "text": "**Falabella: bajar su carga comercial 2 puntos (de 4.5% a 2.5%) sube el margen a 24.0% — sigue 6.1 puntos bajo el benchmark (30.1%).**\n\n- Carga actual de Falabella: 4.5% ($874K sobre las ventas de Falabella de $19.4M)\n- Carga simulada de Falabella: 4.5% - 2pp = **2.5%**\n- Margen actual de Falabella: 22.0%\n- Margen proyectado de Falabella: 22.0% + 2pp = **24.0%**\n- Contribución proyectada de Falabella: 24.0% de las ventas de Falabella ($19.4M) = **$4.66M** (vs $4.3M actual, +$360K)\n\n**Por qué no alcanza:** la carga comercial es solo una acción. Falabella tiene una brecha de 8.1 puntos contra el benchmark; recortar 2 puntos de carga cierra apenas una cuarta parte de esa distancia. El resto está en el costo o el precio de venta, no en el gasto comercial.\n\n**Qué hacer primero:** este recorte de 2pp no es gratis — es casi el doble de la meta interna (3.5%) llevado al piso, algo agresivo para sostener el volumen de Falabella. Más realista: bajar la carga de Falabella a la meta de 3.5% (un ajuste de 1pp, no 2pp) como primer movimiento, y trabajar el resto de la brecha directamente en la mezcla de SKU que le vendes a Falabella — ahí es donde se recupera el margen real, no en el gasto comercial."
-    },
-    {
-      "role": "user",
-      "text": "pero si Falabella tiene 30% de margen, por que me dices que esta bajo el benchmark?"
-    },
-    {
-      "role": "adi",
-      "text": "Falabella tiene **22.0% de margen**, no 30% — puede que estés viendo la carga comercial (4.5%) o alguna otra cifra y confundiéndola.\n\nPara que quede claro, así está Falabella hoy:\n\n- Margen: **22.0%**\n- Benchmark del negocio: **30.1%**\n- Brecha: 22.0% - 30.1% = **-8.1 puntos**\n\nEsa brecha de 8.1 puntos es la más grande de los tres clientes top del negocio (Falabella, Lider, Jumbo), y por eso aparece primero en cualquier lectura de dónde recuperar contribución.\n\n**Qué hacer primero:** si tienes otra fuente o reporte que te muestra 30% en Falabella, dime de dónde sale esa cifra — puede ser un margen de otra línea (SKU, período distinto) y vale la pena aclarar el origen antes de decidir sobre él. Con el dato que manejo acá, la acción sigue siendo cerrar esos 8.1 puntos, empezando por la mezcla de SKU que le vendes, no por el gasto comercial."
+      "text": "**Prioridad 1, 2 y 3 — por impacto en $ si cada cliente cerrara su brecha al benchmark (30.1%):**\n\n| Prioridad | Cliente | Venta | Margen actual | Brecha vs 30.1% | Impacto $ si cierra |\n|---|---|---|---|---|---|\n| 1 | Lider | $17.8M | 21.5% | -8.6pp | ~$1.56M |\n| 2 | Falabella | $19.4M | 22.0% | -8.1pp | ~$1.54M |\n| 3 | Jumbo | $17.3M | 24.0% | -6.1pp | ~$1.01M |\n\n**DATO DURO** (esto no se discute, sale directo del negocio):\n- Lider y Falabella son casi empatados en impacto ($1.56M vs $1.54M) — la diferencia la marca el volumen de Falabella ($19.4M) contra el margen más bajo de Lider (21.5%, el peor de la cartera).\n- Jumbo pesa menos en $ pero tiene la brecha más angosta de los tres (-6.1pp), lo que la hace más barata de cerrar.\n- Los otros 5 clientes bajo benchmark (Sodimac, Tottus, Paris, Mercado Libre, Ripley) suman entre todos ~$1.13M de impacto — menos que Lider solo.\n\n**JUICIO ASESOR** (mi lectura, no el dato):\n- Pondría a Falabella en el puesto 1, no Lider, aunque el $ sea casi idéntico: Falabella tiene la carga comercial más alta en dólares de toda la cartera ($874K en acciones comerciales, 4.5% vs meta 3.5%). Ahí hay una acción concreta y negociable — no depende solo de subir precio.\n- Lider tiene menos margen de maniobra en carga (4.2% vs meta 3.5%, una brecha menor), así que su mejora depende más de condiciones comerciales que de recorte de gasto.\n- Sodimac merece vigilancia aparte: no entra en el top 3 por $ (~$568K), pero tiene el mayor exceso de carga comercial de los ocho (5.4% vs meta 3.5%, +1.9pp) — si la negociación de Falabella y Lider avanza bien, Sodimac es el cuarto a mover, no Jumbo.\n\n**Qué hacer primero:** abrí la mesa con Falabella. La carga comercial da un argumento concreto de negociación (bajarla hacia la meta de 3.5% libera margen sin tocar precio), y el cliente tiene el mayor volumen de los tres — cualquier mejora ahí se multiplica."
     }
   ],
   "mem": {
     "recentNarrations": [
-      "Falabella tiene **22.0% de margen**, no 30% — puede que estés viendo la carga comercial (4.5%) o alguna otra cifra y confundiéndola.\n\nPara que quede claro, así está Falabella hoy:\n\n- Margen: **22.0%**\n- Benchmark del negocio: **30.1%**\n- Brecha: 22.0% - 30.1% = **-8.1 puntos**\n\nEsa brecha de 8.1 puntos es la más grande de los tres clientes top del negocio (Falabella, Lider, Jumbo), y por eso aparece primero en cualquier lectura de dónde recuperar contribución.\n\n**Qué hacer primero:** si tienes otra fuente o reporte que te muestra 30% en Falabella, dime de dónde sale esa cifra — puede ser un margen de otra línea (SKU, período distinto) y vale la pena aclarar el origen antes de decidir sobre él. Con el dato que manejo acá, la acción sigue siendo cerrar esos 8.1 puntos, empezando por la mezcla de SKU que le vendes, no por el gasto comercial.",
-      "**Falabella: bajar su carga comercial 2 puntos (de 4.5% a 2.5%) sube el margen a 24.0% — sigue 6.1 puntos bajo el benchmark (30.1%).**\n\n- Carga actual de Falabella: 4.5% ($874K sobre las ventas de Falabella de $19.4M)\n- Carga simulada de Falabella: 4.5% - 2pp = **2.5%**\n- Margen actual de Falabella: 22.0%\n- Margen proyectado de Falabella: 22.0% + 2pp = **24.0%**\n- Contribución proyectada de Falabella: 24.0% de las ventas de Falabella ($19.4M) = **$4.66M** (vs $4.3M actual, +$360K)\n\n**Por qué no alcanza:** la carga comercial es solo una acción. Falabella tiene una brecha de 8.1 puntos contra el benchmark; recortar 2 puntos de carga cierra apenas una cuarta parte de esa distancia. El resto está en el costo o el precio de venta, no en el gasto comercial.\n\n**Qué hacer primero:** este recorte de 2pp no es gratis — es casi el doble de la meta interna (3.5%) llevado al piso, algo agresivo para sostener el volumen de Falabella. Más realista: bajar la carga de Falabella a la meta de 3.5% (un ajuste de 1pp, no 2pp) como primer movimiento, y trabajar el resto de la brecha directamente en la mezcla de SKU que le vendes a Falabella — ahí es donde se recupera el margen real, no en el gasto comercial."
+      "**Prioridad 1, 2 y 3 — por impacto en $ si cada cliente cerrara su brecha al benchmark (30.1%):**\n\n| Prioridad | Cliente | Venta | Margen actual | Brecha vs 30.1% | Impacto $ si cierra |\n|---|---|---|---|---|---|\n| 1 | Lider | $17.8M | 21.5% | -8.6pp | ~$1.56M |\n| 2 | Falabella | $19.4M | 22.0% | -8.1pp | ~$1.54M |\n| 3 | Jumbo | $17.3M | 24.0% | -6.1pp | ~$1.01M |\n\n**DATO DURO** (esto no se discute, sale directo del negocio):\n- Lider y Falabella son casi empatados en impacto ($1.56M vs $1.54M) — la diferencia la marca el volumen de Falabella ($19.4M) contra el margen más bajo de Lider (21.5%, el peor de la cartera).\n- Jumbo pesa menos en $ pero tiene la brecha más angosta de los tres (-6.1pp), lo que la hace más barata de cerrar.\n- Los otros 5 clientes bajo benchmark (Sodimac, Tottus, Paris, Mercado Libre, Ripley) suman entre todos ~$1.13M de impacto — menos que Lider solo.\n\n**JUICIO ASESOR** (mi lectura, no el dato):\n- Pondría a Falabella en el puesto 1, no Lider, aunque el $ sea casi idéntico: Falabella tiene la carga comercial más alta en dólares de toda la cartera ($874K en acciones comerciales, 4.5% vs meta 3.5%). Ahí hay una acción concreta y negociable — no depende solo de subir precio.\n- Lider tiene menos margen de maniobra en carga (4.2% vs meta 3.5%, una brecha menor), así que su mejora depende más de condiciones comerciales que de recorte de gasto.\n- Sodimac merece vigilancia aparte: no entra en el top 3 por $ (~$568K), pero tiene el mayor exceso de carga comercial de los ocho (5.4% vs meta 3.5%, +1.9pp) — si la negociación de Falabella y Lider avanza bien, Sodimac es el cuarto a mover, no Jumbo.\n\n**Qué hacer primero:** abrí la mesa con Falabella. La carga comercial da un argumento concreto de negociación (bajarla hacia la meta de 3.5% libera margen sin tocar precio), y el cliente tiene el mayor volumen de los tres — cualquier mejora ahí se multiplica.",
+      "**5 de los 8 clientes** necesitan mejorar margen para alcanzar el 25.1% (margen medio de la cartera); los otros 3 —Tottus (28.0%), Paris (26.5%) y Mercado Libre (29.0%)— ya están por encima y no requieren ajuste para esta meta.\n\n| Cliente | Margen actual | Necesita | Contribución adicional estimada |\n|---|---|---|---|\n| Lider | 21.5% | +3.6pp | ~$641K |\n| Falabella | 22.0% | +3.1pp | ~$601K |\n| Jumbo | 24.0% | +1.1pp | ~$190K |\n| Sodimac | 23.5% | +1.6pp | ~$131K |\n| Ripley | 25.0% | +0.1pp | ~$4.7K |\n\n**Por qué pasa:** la brecha es más ancha en Lider y Falabella, los dos clientes con menor margen de toda la cartera — y son a la vez los de mayor venta, así que cada punto que falta pesa más en dólares.\n\n**Qué hacer primero:** empieza por Lider. Cerrar sus 3.6pp de brecha suma $641K de contribución adicional — el mayor impacto en $ de los cinco, apenas por encima de Falabella ($601K). Trabajarlos en paralelo tiene sentido porque juntos explican $1.24M de los $1.57M de contribución total que dejaría el ajuste completo.\n\nNo falta ningún dato para esta cuenta: uso el margen de cada cliente (dato de venta) contra el margen medio de cartera 25.1% (dato declarado), ambos del mismo universo comercial."
     ],
     "recitaAprobada": {
       "figs": [
         {
-          "canon": "pp:2pp",
-          "value": "2pp",
+          "canon": "money:$19.4M",
+          "value": "$19.4M",
           "duenos": [
             "Falabella",
-            "proyectado",
+            "Lider",
+            "Jumbo",
             "margen",
-            "ventas",
-            "contribución",
-            "carga"
-          ]
-        },
-        {
-          "canon": "pct:2.5%",
-          "value": "2.5%",
-          "duenos": [
-            "Falabella",
-            "proyectado",
-            "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "venta"
           ]
         },
         {
@@ -78,47 +57,43 @@
           "value": "22.0%",
           "duenos": [
             "Falabella",
-            "proyectado",
+            "Lider",
+            "Jumbo",
             "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "venta"
           ]
         },
         {
-          "canon": "pct:22%",
-          "value": "22.0%",
+          "canon": "pp:8.1pp",
+          "value": "8.1pp",
           "duenos": [
             "Falabella",
-            "proyectado",
+            "Lider",
+            "Jumbo",
             "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "venta"
           ]
         },
         {
-          "canon": "pp:2pp",
-          "value": "2pp",
+          "canon": "money:$1.5M",
+          "value": "$1.54M",
           "duenos": [
             "Falabella",
-            "proyectado",
+            "Lider",
+            "Jumbo",
             "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "venta"
           ]
         },
         {
-          "canon": "pct:24%",
-          "value": "24.0%",
+          "canon": "money:$17.3M",
+          "value": "$17.3M",
           "duenos": [
             "Falabella",
-            "proyectado",
+            "Lider",
+            "Jumbo",
             "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "venta"
           ]
         },
         {
@@ -126,11 +101,54 @@
           "value": "24.0%",
           "duenos": [
             "Falabella",
-            "proyectado",
+            "Lider",
+            "Jumbo",
             "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "venta"
+          ]
+        },
+        {
+          "canon": "pp:6.1pp",
+          "value": "6.1pp",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen",
+            "venta"
+          ]
+        },
+        {
+          "canon": "money:$1.0M",
+          "value": "$1.01M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen",
+            "venta"
+          ]
+        },
+        {
+          "canon": "money:$1.6M",
+          "value": "$1.56M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "negocio",
+            "cartera",
+            "margen"
+          ]
+        },
+        {
+          "canon": "money:$1.5M",
+          "value": "$1.54M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "negocio",
+            "cartera",
+            "margen"
           ]
         },
         {
@@ -138,106 +156,52 @@
           "value": "$19.4M",
           "duenos": [
             "Falabella",
-            "proyectado",
-            "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "Lider",
+            "negocio",
+            "cartera",
+            "margen"
           ]
         },
         {
-          "canon": "money:$4.7M",
-          "value": "$4.66M",
+          "canon": "pct:21.5%",
+          "value": "21.5%",
           "duenos": [
             "Falabella",
-            "proyectado",
-            "margen",
-            "ventas",
-            "contribución",
-            "carga"
+            "Lider",
+            "negocio",
+            "cartera",
+            "margen"
           ]
         },
         {
-          "canon": "money:$4.3M",
-          "value": "$4.3M",
+          "canon": "pp:6.1pp",
+          "value": "6.1pp",
+          "duenos": [
+            "Jumbo"
+          ]
+        },
+        {
+          "canon": "money:$1.1M",
+          "value": "$1.13M",
+          "duenos": [
+            "Lider",
+            "Sodimac",
+            "Tottus",
+            "Paris",
+            "Mercado Libre",
+            "Ripley",
+            "benchmark"
+          ]
+        },
+        {
+          "canon": "money:$874K",
+          "value": "$874K",
           "duenos": [
             "Falabella",
-            "proyectado",
-            "margen",
-            "ventas",
-            "contribución",
-            "carga"
-          ]
-        },
-        {
-          "canon": "money:$360K",
-          "value": "$360K",
-          "duenos": [
-            "Falabella",
-            "proyectado",
-            "margen",
-            "ventas",
-            "contribución",
-            "carga"
-          ]
-        },
-        {
-          "canon": "pp:2pp",
-          "value": "2pp",
-          "duenos": [
-            "Falabella"
-          ]
-        },
-        {
-          "canon": "pct:3.5%",
-          "value": "3.5%",
-          "duenos": [
-            "Falabella"
-          ]
-        },
-        {
-          "canon": "pct:3.5%",
-          "value": "3.5%",
-          "duenos": [
-            "Falabella",
-            "margen",
-            "carga"
-          ]
-        },
-        {
-          "canon": "pp:1pp",
-          "value": "1pp",
-          "duenos": [
-            "Falabella",
-            "margen",
-            "carga"
-          ]
-        },
-        {
-          "canon": "pp:2pp",
-          "value": "2pp",
-          "duenos": [
-            "Falabella",
-            "margen",
-            "carga"
-          ]
-        },
-        {
-          "canon": "pct:22%",
-          "value": "22.0%",
-          "duenos": [
-            "Falabella",
-            "margen",
-            "carga"
-          ]
-        },
-        {
-          "canon": "pct:30%",
-          "value": "30%",
-          "duenos": [
-            "Falabella",
-            "margen",
-            "carga"
+            "Lider",
+            "cartera",
+            "carga",
+            "acciones"
           ]
         },
         {
@@ -245,52 +209,91 @@
           "value": "4.5%",
           "duenos": [
             "Falabella",
+            "Lider",
+            "cartera",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "cartera",
+            "carga",
+            "acciones"
+          ]
+        },
+        {
+          "canon": "pct:4.2%",
+          "value": "4.2%",
+          "duenos": [
+            "Lider",
             "margen",
             "carga"
           ]
         },
         {
-          "canon": "pct:22%",
-          "value": "22.0%",
+          "canon": "pct:3.5%",
+          "value": "3.5%",
           "duenos": [
-            "negocio",
-            "benchmark",
-            "margen"
+            "Lider",
+            "margen",
+            "carga"
           ]
         },
         {
-          "canon": "pct:30.1%",
-          "value": "30.1%",
-          "duenos": [
-            "negocio",
-            "benchmark",
-            "margen"
-          ]
-        },
-        {
-          "canon": "pct:22%",
-          "value": "22.0%",
-          "duenos": [
-            "negocio",
-            "benchmark",
-            "margen"
-          ]
-        },
-        {
-          "canon": "pct:30.1%",
-          "value": "30.1%",
-          "duenos": [
-            "negocio",
-            "benchmark",
-            "margen"
-          ]
-        },
-        {
-          "canon": "pct:30%",
-          "value": "30%",
+          "canon": "money:$568K",
+          "value": "$568K",
           "duenos": [
             "Falabella",
-            "margen"
+            "Lider",
+            "Jumbo",
+            "Sodimac",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:5.4%",
+          "value": "5.4%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "Sodimac",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "Sodimac",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pp:1.9pp",
+          "value": "1.9pp",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "Sodimac",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "margen",
+            "carga"
           ]
         }
       ]
@@ -301,42 +304,37 @@
       "q": "Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo.",
       "estado": "verde",
       "vetos": [],
-      "costoUSD": 0.08090025,
-      "visible": "**8 de los 13 clientes están por debajo del benchmark de margen (30.1%)** — y ahí se concentra el grueso de la venta total.\n\n| Cliente | Venta | Margen | Brecha vs 30.1% |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | -8.1pp |\n| Lider | $17.9M | 21.5% | -8.6pp |\n| Jumbo | $17.3M | 24.0% | -6.1pp |\n| Sodimac | $8.2M | 23.5% | -6.6pp |\n| Tottus | $6.8M | 28.0% | -2.1pp |\n| Paris | $6.3M | 26.5% | -3.6pp |\n| Mercado Libre | $5.5M | 29.0% | -1.1pp |\n| Ripley | $4.7M | 25.0% | -5.1pp |\n\nLos tres primeros (Falabella, Lider, Jumbo) suman $54.6M — más de la mitad de la venta total del negocio ($100.0M) — con márgenes entre 8 y 9 puntos por debajo de la referencia.\n\n**Por qué pasa:** esos mismos tres clientes tienen la carga comercial más alta del portfolio (Falabella 4.5%, Lider 4.2%, Jumbo 3.8%), todas por encima de la meta de 3.5%. El volumen se está comprando con descuento, no con eficiencia.\n\n**Qué hacer primero:** Falabella. Es el cliente de mayor venta y mayor brecha en dólares: si su margen cerrara al benchmark de 30.1%, la contribución pasaría de $4.3M a $5.8M — $1.5M adicionales sin mover una sola unidad. Bajo este supuesto, el punto de entrada es su carga comercial: hoy $874K (4.5% de $19.4M); llevarla a la meta de 3.5% libera cerca de $194K de margen de inmediato, antes de tocar precio de lista."
+      "costoUSD": 0.08432025,
+      "visible": "**8 de 13 clientes** venden bajo el benchmark de margen (30.1%) — y son justamente los de mayor venta: concentran $86.0M de los $99.9M totales, el 86% de la cartera.\n\n| Cliente | Venta | Margen | Brecha vs 30.1% |\n|---|---|---|---|\n| Falabella | $19.4M | 22.0% | -8.1pp |\n| Lider | $17.8M | 21.5% | -8.6pp |\n| Jumbo | $17.3M | 24.0% | -6.1pp |\n| Sodimac | $8.2M | 23.5% | -6.6pp |\n| Tottus | $6.8M | 28.0% | -2.1pp |\n| Paris | $6.3M | 26.5% | -3.6pp |\n| Mercado Libre | $5.5M | 29.0% | -1.1pp |\n| Ripley | $4.7M | 25.0% | -5.1pp |\n\n(Quedan fuera Easy, La Polar, Hites, ABC y Unimarc — los 5 restantes, todos por encima del benchmark.)\n\n**Por qué pasa:** Falabella y Lider, los dos mayores, tienen los márgenes más bajos de toda la cartera (22.0% y 21.5%). En Falabella una causa comprobada es la carga comercial: 4.5%, muy por encima de la meta de 3.5%.\n\n**Qué hacer primero:** empieza por Falabella. Si su margen subiera del 22.0% actual al benchmark 30.1%, la contribución pasaría de $4.3M a $5.84M — un salto de $1.54M solo en esta cuenta. Es el mayor cliente de la cartera y el de mayor brecha absoluta en $, así que ahí está el impacto más grande antes de tocar el resto."
     },
     {
-      "q": "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark. Muestrame la cuenta cliente por cliente.",
-      "estado": "reparado",
+      "q": "Sobre esos clientes, simula reducir 2 puntos porcentuales las acciones comerciales y dime si alguno queda sobre el benchmark. Muéstrame la cuenta cliente por cliente.",
+      "estado": "suplente",
       "vetos": [
-        "narracion-vacia"
+        "narracion-vacia",
+        "2º: cifra-no-autorizada",
+        "3º: calculo-no-verificable"
       ],
-      "costoUSD": 0.09003119999999999,
-      "visible": "Bajo este supuesto, **solo Mercado Libre cruza el benchmark** de margen (30.1%); los otros siete mejoran pero no llegan.\n\n| Cliente | Margen actual | Carga actual | Simulación (-2pp carga) | Margen proyectado | ¿Supera 30.1%? |\n|---|---|---|---|---|---|\n| Falabella | 22.0% | 4.5% | 4.5% - 2pp = 2.5% | 22.0% + 2pp = 24.0% | No (-6.1pp) |\n| Lider | 21.5% | 4.2% | 4.2% - 2pp = 2.2% | 21.5% + 2pp = 23.5% | No (-6.6pp) |\n| Jumbo | 24.0% | 3.8% | 3.8% - 2pp = 1.8% | 24.0% + 2pp = 26.0% | No (-4.1pp) |\n| Sodimac | 23.5% | 5.4% | 5.4% - 2pp = 3.4% | 23.5% + 2pp = 25.5% | No (-4.6pp) |\n| Tottus | 28.0% | 3.2% | 3.2% - 2pp = 1.2% | 28.0% + 2pp = 30.0% | No, por 0.1pp |\n| Paris | 26.5% | 4.0% | 4.0% - 2pp = 2.0% | 26.5% + 2pp = 28.5% | No (-1.6pp) |\n| Mercado Libre | 29.0% | 1.8% | 1.8% - 2pp = -0.2pp (no aplica, carga insuficiente) | 29.0% + 2pp = 31.0% | **Sí (+0.9pp)** |\n| Ripley | 25.0% | 4.8% | 4.8% - 2pp = 2.8% | 25.0% + 2pp = 27.0% | No (-3.1pp) |\n\n**Lectura:** bajarle 2 puntos de carga comercial a todo el bloque no resuelve la brecha estructural — siete de ocho siguen debajo del benchmark, con Tottus quedando a un pelo (0.1pp). El problema no es la carga por sí sola en clientes como Falabella o Lider: son 6 a 8 puntos de brecha, y 2 puntos de descuento en carga no alcanza a taparla.\n\n**Qué hacer primero:** en Mercado Libre la carga ya es baja (1.8%) — ahí el supuesto de \"-2pp\" no es un recorte real de gasto, es una proyección teórica que no tiene margen para bajar tanto. El caso accionable de verdad es Tottus: con solo 0.1pp de distancia, mové su carga comercial de 3.2% a 3.0% (la mejor práctica interna) en lugar de -2pp, y ya cruza el benchmark sin necesidad de un supuesto extremo."
+      "costoUSD": 0.1563405,
+      "visible": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
     },
     {
-      "q": "y si subo las ventas 4%, que pasa con el total del negocio?",
+      "q": "Ahora dime cuánto tendría que mejorar cada uno para quedar en el margen medio de la cartera. Si falta algún dato, dilo explícitamente.",
       "estado": "verde",
       "vetos": [],
-      "costoUSD": 0.0292161,
-      "visible": "**Bajo el supuesto de +4% en ventas totales (manteniendo el margen actual de 25.1%):** la venta pasa de $100.0M a $104.0M y la contribución sube de $25.1M a $26.1M — **+$1.0M**.\n\n**Por qué no alcanza:** ese crecimiento es puro volumen. El margen de cartera se queda clavado en 25.1%, todavía **5 puntos por debajo del benchmark de 30.1%**. Vender más al mismo margen no cierra la brecha estructural — solo la multiplica: cuanto más grande el negocio, más dólares se están dejando en la mesa a esa tasa.\n\n**Comparación que importa:** corregir solo el margen de Falabella hasta el benchmark (sin vender un dólar más) genera $1.5M adicionales — más que este crecimiento del 4% en todo el negocio. La prioridad sigue siendo margen, no volumen: antes de empujar ventas, cierra la brecha en Falabella, Lider y Jumbo, que es donde vive el dinero real."
+      "costoUSD": 0.0478545,
+      "visible": "**5 de los 8 clientes** necesitan mejorar margen para alcanzar el 25.1% (margen medio de la cartera); los otros 3 —Tottus (28.0%), Paris (26.5%) y Mercado Libre (29.0%)— ya están por encima y no requieren ajuste para esta meta.\n\n| Cliente | Margen actual | Necesita | Contribución adicional estimada |\n|---|---|---|---|\n| Lider | 21.5% | +3.6pp | ~$641K |\n| Falabella | 22.0% | +3.1pp | ~$601K |\n| Jumbo | 24.0% | +1.1pp | ~$190K |\n| Sodimac | 23.5% | +1.6pp | ~$131K |\n| Ripley | 25.0% | +0.1pp | ~$4.7K |\n\n**Por qué pasa:** la brecha es más ancha en Lider y Falabella, los dos clientes con menor margen de toda la cartera — y son a la vez los de mayor venta, así que cada punto que falta pesa más en dólares.\n\n**Qué hacer primero:** empieza por Lider. Cerrar sus 3.6pp de brecha suma $641K de contribución adicional — el mayor impacto en $ de los cinco, apenas por encima de Falabella ($601K). Trabajarlos en paralelo tiene sentido porque juntos explican $1.24M de los $1.57M de contribución total que dejaría el ajuste completo.\n\nNo falta ningún dato para esta cuenta: uso el margen de cada cliente (dato de venta) contra el margen medio de cartera 25.1% (dato declarado), ambos del mismo universo comercial."
     },
     {
-      "q": "oye y falabela como viene con su carga comercal? baja 2 putnos y dime",
+      "q": "De los clientes bajo benchmark, dime cuáles son prioridad 1, 2 y 3 para negociar. Separa dato duro de juicio asesor.",
       "estado": "reparado",
       "vetos": [
-        "cifra-de-dato-sin-dueno"
+        "calculo-no-verificable"
       ],
-      "costoUSD": 0.0471672,
-      "visible": "**Falabella: bajar su carga comercial 2 puntos (de 4.5% a 2.5%) sube el margen a 24.0% — sigue 6.1 puntos bajo el benchmark (30.1%).**\n\n- Carga actual de Falabella: 4.5% ($874K sobre las ventas de Falabella de $19.4M)\n- Carga simulada de Falabella: 4.5% - 2pp = **2.5%**\n- Margen actual de Falabella: 22.0%\n- Margen proyectado de Falabella: 22.0% + 2pp = **24.0%**\n- Contribución proyectada de Falabella: 24.0% de las ventas de Falabella ($19.4M) = **$4.66M** (vs $4.3M actual, +$360K)\n\n**Por qué no alcanza:** la carga comercial es solo una acción. Falabella tiene una brecha de 8.1 puntos contra el benchmark; recortar 2 puntos de carga cierra apenas una cuarta parte de esa distancia. El resto está en el costo o el precio de venta, no en el gasto comercial.\n\n**Qué hacer primero:** este recorte de 2pp no es gratis — es casi el doble de la meta interna (3.5%) llevado al piso, algo agresivo para sostener el volumen de Falabella. Más realista: bajar la carga de Falabella a la meta de 3.5% (un ajuste de 1pp, no 2pp) como primer movimiento, y trabajar el resto de la brecha directamente en la mezcla de SKU que le vendes a Falabella — ahí es donde se recupera el margen real, no en el gasto comercial."
-    },
-    {
-      "q": "pero si Falabella tiene 30% de margen, por que me dices que esta bajo el benchmark?",
-      "estado": "verde",
-      "vetos": [],
-      "costoUSD": 0.0179241,
-      "visible": "Falabella tiene **22.0% de margen**, no 30% — puede que estés viendo la carga comercial (4.5%) o alguna otra cifra y confundiéndola.\n\nPara que quede claro, así está Falabella hoy:\n\n- Margen: **22.0%**\n- Benchmark del negocio: **30.1%**\n- Brecha: 22.0% - 30.1% = **-8.1 puntos**\n\nEsa brecha de 8.1 puntos es la más grande de los tres clientes top del negocio (Falabella, Lider, Jumbo), y por eso aparece primero en cualquier lectura de dónde recuperar contribución.\n\n**Qué hacer primero:** si tienes otra fuente o reporte que te muestra 30% en Falabella, dime de dónde sale esa cifra — puede ser un margen de otra línea (SKU, período distinto) y vale la pena aclarar el origen antes de decidir sobre él. Con el dato que manejo acá, la acción sigue siendo cerrar esos 8.1 puntos, empezando por la mezcla de SKU que le vendes, no por el gasto comercial."
+      "costoUSD": 0.094167,
+      "visible": "**Prioridad 1, 2 y 3 — por impacto en $ si cada cliente cerrara su brecha al benchmark (30.1%):**\n\n| Prioridad | Cliente | Venta | Margen actual | Brecha vs 30.1% | Impacto $ si cierra |\n|---|---|---|---|---|---|\n| 1 | Lider | $17.8M | 21.5% | -8.6pp | ~$1.56M |\n| 2 | Falabella | $19.4M | 22.0% | -8.1pp | ~$1.54M |\n| 3 | Jumbo | $17.3M | 24.0% | -6.1pp | ~$1.01M |\n\n**DATO DURO** (esto no se discute, sale directo del negocio):\n- Lider y Falabella son casi empatados en impacto ($1.56M vs $1.54M) — la diferencia la marca el volumen de Falabella ($19.4M) contra el margen más bajo de Lider (21.5%, el peor de la cartera).\n- Jumbo pesa menos en $ pero tiene la brecha más angosta de los tres (-6.1pp), lo que la hace más barata de cerrar.\n- Los otros 5 clientes bajo benchmark (Sodimac, Tottus, Paris, Mercado Libre, Ripley) suman entre todos ~$1.13M de impacto — menos que Lider solo.\n\n**JUICIO ASESOR** (mi lectura, no el dato):\n- Pondría a Falabella en el puesto 1, no Lider, aunque el $ sea casi idéntico: Falabella tiene la carga comercial más alta en dólares de toda la cartera ($874K en acciones comerciales, 4.5% vs meta 3.5%). Ahí hay una acción concreta y negociable — no depende solo de subir precio.\n- Lider tiene menos margen de maniobra en carga (4.2% vs meta 3.5%, una brecha menor), así que su mejora depende más de condiciones comerciales que de recorte de gasto.\n- Sodimac merece vigilancia aparte: no entra en el top 3 por $ (~$568K), pero tiene el mayor exceso de carga comercial de los ocho (5.4% vs meta 3.5%, +1.9pp) — si la negociación de Falabella y Lider avanza bien, Sodimac es el cuarto a mover, no Jumbo.\n\n**Qué hacer primero:** abrí la mesa con Falabella. La carga comercial da un argumento concreto de negociación (bajarla hacia la meta de 3.5% libera margen sin tocar precio), y el cliente tiene el mayor volumen de los tres — cualquier mejora ahí se multiplica."
     }
   ],
-  "costoUSD": 0.26523884999999997,
-  "llamadas": 7
+  "costoUSD": 0.59487675,
+  "llamadas": 12
 }
