@@ -60,17 +60,39 @@ function _sello() {
     datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: ejes(["cliente", "sku", "marca"]),
     duenosDelTenant: ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full", tablePolicy: "auto" };
   const M = "[[CALCULO]]";
-  // (1) el contrato EXIGE dueño · (2) la cifra de otro dueño no se lava con un cálculo · (3) el prompt lo pide
-  const sinDueno = guardC(`El negocio subiría a $104.0M.\n\n${M}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money`, CTX);
-  const ajena = guardC(`Lider vendió $17.8M en el año.\n\n${M}\nid=c1 · op=sumar · inputs=$19.4M; $17.8M · formula=suma · resultado=$37.2M · unidad=money · dueno=total`, CTX);
-  const conDueno = guardC(`El negocio subiría a $104.0M.\n\n${M}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=total`, CTX);
+  /* ⚠️ LAS PRUEBAS DEL SELLO SE ARMAN DESDE LA CARPETA ACTIVA, NO CON CIFRAS ESCRITAS A MANO (2026-08-15).
+   * La primera versión usaba $100.0M / $19.4M / $17.8M — literales del escenario «actual». Al unificar el
+   * escenario, el sello se puso ROJO entero: sus cifras no existían en la carpeta nueva, así que cada prueba
+   * fallaba por un motivo distinto al que decía medir. El instrumento tenía la misma enfermedad que fue creado
+   * para detectar. Ahora sale todo del dato vigente: el benchmark, un cliente y su margen, y la cifra de OTRO. */
+  const cif = cifrasDelDato(ESCENARIO_INICIAL);
+  const _dato = proyectarDatoNegocio(ESCENARIO_INICIAL);
+  const figs = cif.figs || [];
+  const clientes = ejes(["cliente"]);
+  const bench = figs.find((f) => (f.duenos || []).includes("benchmark") && /%$/.test(String(f.value)));
+  const margenCli = figs.find((f) => /%$/.test(String(f.value)) && (f.duenos || []).some((d) => clientes.includes(d)));
+  const cli = margenCli ? (margenCli.duenos || []).find((d) => clientes.includes(d)) : null;
+  const otro = clientes.find((c) => c !== cli);
+  const cifraDeOtro = figs.find((f) => (f.duenos || []).length === 1 && (f.duenos || [])[0] === otro && /^\$/.test(String(f.value)));
+  let sinDueno = null, conDueno = null, ajena = null, pp = null;
+  if (bench && margenCli && cli && cifraDeOtro) {
+    pp = (parseFloat(bench.value) - parseFloat(margenCli.value)).toFixed(1) + "pp";
+    const prosa = `${cli} está a ${pp} del benchmark de ${bench.value}.`;
+    const linea = (d) => `id=c1 · op=restar · inputs=${bench.value}; ${margenCli.value} · formula=${bench.value} − ${margenCli.value} · resultado=${pp} · unidad=pp${d ? " · dueno=" + d : ""}`;
+    sinDueno = guardC(`${prosa}\n\n${M}\n${linea(null)}`, CTX);
+    conDueno = guardC(`${prosa}\n\n${M}\n${linea(cli)}`, CTX);
+    // la cifra de OTRO cliente, puesta al lado de este: tiene que morir aunque un cálculo la use de insumo
+    ajena = guardC(`${cli} vendió ${cifraDeOtro.value} en el año.`, CTX);
+  }
   const P = (b) => (b ? "✅" : "🔴");
   return [
     `┌── SELLO DE VERSIÓN ──────────────────────────────────────────────`,
     `│ commit           : ${commit}${sucio ? "  ⚠️ con cambios sin commitear en el motor" : "  (motor limpio)"}`,
     `│ ruta             : camino natural REAL (answerViaNatural + gateway con modoNatural) — no hay otra en esta consola`,
-    `│ contrato · dueño : ${P(!sinDueno.ok && /campo «dueño»/.test(String((sinDueno.violations[0] || {}).detail || "")))} sin dueño la cuenta NO autoriza  ·  ${P(conDueno.ok)} con dueño sí`,
-    `│ atribución       : ${P(!ajena.ok)} la cifra de otro dueño NO se lava con un cálculo (obtuvo ${ajena.ok ? "PASÓ 🔴" : ajena.verdict})`,
+    `│ escenario        : ${ESCENARIO_INICIAL}  (el MISMO que arranca la app — declarado en config/scenarios.js)`,
+    `│ carpeta          : ${(_dato.match(/Ventas totales: \$[\d.]+M/) || ["?"])[0]}  ·  KPI de inventario ${/Inventario \(foto de hoy\)/.test(_dato) ? "presente ✅" : "AUSENTE 🔴"}`,
+    `│ contrato · dueño : ${P(sinDueno && !sinDueno.ok && /campo «dueño»/.test(String((sinDueno.violations[0] || {}).detail || "")))} sin dueño la cuenta NO autoriza  ·  ${P(conDueno && conDueno.ok)} con dueño sí  (probado con ${cli || "?"} a ${pp || "?"} del benchmark)`,
+    `│ atribución       : ${P(ajena && !ajena.ok)} la cifra de ${otro || "otro"} puesta en ${cli || "?"} NO pasa (obtuvo ${ajena ? (ajena.ok ? "PASÓ 🔴" : ajena.verdict) : "sin caso"})`,
     `│ prompt del cerebro: ${P(/dueno=<de QUIÉN/.test(CONTRATO_CALCULO_NATURAL))} el contrato que lee el modelo pide el dueño`,
     `│ rastro interno   : ✅ activo (estado · vetos · reparaciones · cálculos · [[CALCULO]] oculto, por turno)`,
     `└──────────────────────────────────────────────────────────────────`,
