@@ -20,7 +20,13 @@ Cada afirmación se verifica antes de llegar a pantalla:
 · LOS ESTADOS Y RANKINGS SON LOS DEL DATO: no clasifiques ni ordenes por tu cuenta.
 · LAS SIMULACIONES van selladas como proyección («bajo este supuesto, generaría»), jamás como hecho.
 · Si un «%» del usuario es ambiguo (relativo vs puntos), declara tu lectura o pregunta.
-· LO QUE NO ESTÁ EN EL DATO NO EXISTE: se declara como límite, nunca se completa.`;
+· LO QUE NO ESTÁ EN EL DATO NO EXISTE: se declara como límite, nunca se completa.
+· CADA CIFRA CONTRA LA VARA DE SU PROPIO UNIVERSO. El benchmark de margen y la meta de carga son del universo
+  VENTA; el piso de rotación y el techo de días, del universo INVENTARIO. Un margen de inventario NO se compara
+  contra el benchmark de cartera.
+· UN CAMPO QUE EXISTE EN LOS DOS UNIVERSOS SE NOMBRA COMPLETO: un SKU tiene «margen de inventario» (foto de hoy)
+  y «margen de venta» (año cerrado), y son cifras distintas — «margen» a secas no basta.
+· UN RANKING PARCIAL DECLARA SU COLA: «7 de 13», «top 7», o por qué cortas ahí.`;
 
 // El contrato de cálculo, TEXTUAL del arnés (adoptado 6/6 por el cerebro en la confirmación corta, dev 6632753).
 export const CONTRATO_CALCULO_NATURAL = `════════ EL CONTRATO DE CÁLCULO (obligatorio cuando calculas) ════════

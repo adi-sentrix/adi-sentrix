@@ -120,9 +120,16 @@ function _construir(scenario) {
    * del texto (tenantPolicyDefault, la única verdad), nunca una segunda regla. El TEXTO no cambia un byte. */
   const estados = [];
   const rankings = { cliente: { ventas: [], margen: [], contribucion: [], carga: [] }, marca: { ventas: [], margen: [], contribucion: [], carga: [] } };
-  // F(valor, duenos) → registra la autorización y devuelve el valor para interpolarlo en el texto.
-  const F = (value, duenos) => {
-    for (const pf of parseFigures(String(value))) figs.push({ canon: pf.canon, value: String(value), duenos });
+  /* EL UNIVERSO DE CADA CIFRA (owner 2026-08-15, fuga medida en el examen 2): ADI comparó el «margen de
+   * inventario 34%» de un SKU contra «el benchmark de cartera (30.1%)», que es del universo de VENTA. Ninguna
+   * cuenta cruzó los dos mundos — cruzó la COMPARACIÓN. Para que el notario pueda verlo hace falta que la carpeta
+   * diga de qué universo sale cada cifra: es ella la que lo sabe, no el muro. `_uni` marca el bloque en curso y
+   * el tercer argumento de F() lo pisa cuando una línea mezcla varas de los dos (la de la referencia). */
+  let _uni = "negocio";
+  // F(valor, duenos[, universo]) → registra la autorización y devuelve el valor para interpolarlo en el texto.
+  const F = (value, duenos, uni) => {
+    const universo = uni || _uni;
+    for (const pf of parseFigures(String(value))) figs.push({ canon: pf.canon, value: String(value), duenos, universo });
     return value;
   };
   const NEG = ["negocio", "total", "cartera", "global"];            // dueños de un agregado del negocio
@@ -147,17 +154,18 @@ function _construir(scenario) {
   // defensa del examen): «la foto de inventario suma $135K de capital» nombra al dueño con «inventario», no con
   // «negocio» — sin esto, la frase LEGÍTIMA que separa los dos universos moría por falta de dueño.
   const INV = [...NEG, "inventario", "capital", "stock", "foto"];
-  if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV)} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
+  if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV, "inventario")} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
   // «La REFERENCIA la declara el negocio», no «la vara» (medido 2026-08-14, examen 1 · turno 3): la carpeta es lo
   // que el cerebro lee, así que una palabra prohibida acá se la está ENSEÑANDO — y de acá salía también al
   // suplente digno, que va a pantalla. Se corrige en la fuente, además del lavado de salida.
-  L.push(`- La referencia la declara el negocio: benchmark de margen ${F(_pct1(bench), REF)}. Meta de carga comercial ${F(_pct1(target), META_CARGA)} (mejor práctica interna ${F(_pct1(best), META_CARGA)}). Piso de rotación ${F(_ratio(rotMin), REF)} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"])}.`);
+  L.push(`- La referencia la declara el negocio: benchmark de margen ${F(_pct1(bench), REF, "venta")}. Meta de carga comercial ${F(_pct1(target), META_CARGA, "venta")} (mejor práctica interna ${F(_pct1(best), META_CARGA, "venta")}). Piso de rotación ${F(_ratio(rotMin), REF, "inventario")} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"], "inventario")}.`);
   const kpisLineas = L.slice(_iKpi);   // el bloque de KPIs TAL CUAL viaja en la proyección — cada cifra ya registrada por F() con su dueño
   L.push("");
 
   // ── UNIVERSO VENTA COMERCIAL (año cerrado · almacenado en miles · Σ cierra contra el total del negocio) ──
+  _uni = "venta";   // desde acá, cada cifra que registre F() es del universo de VENTA COMERCIAL
   L.push(`UNIVERSO «${UNIVERSOS.venta_comercial.etiqueta.toUpperCase()}» (año cerrado):`);
   counts.add(f.clientesVentas.length);
   L.push(`CLIENTES (${f.clientesVentas.length}):`);
@@ -203,6 +211,7 @@ function _construir(scenario) {
   counts.add(f.skuInventario.length);
   const bodegas = [...new Set(f.skuInventario.map((s) => s.bodega))];
   counts.add(bodegas.length);
+  _uni = "inventario";   // …y desde acá, del universo INVENTARIO (foto de hoy)
   L.push(`UNIVERSO «${UNIVERSOS.inventario.etiqueta.toUpperCase()}» (foto de hoy · ${f.skuInventario.length} SKU en ${bodegas.length} bodegas: ${bodegas.join(", ")}):`);
   for (const s of f.skuInventario) {
     const D = [s.sku, s.bodega];

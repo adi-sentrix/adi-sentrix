@@ -2499,6 +2499,31 @@ function _indiceDelDato(datoProyectado) {
   }
   return { porCanon, porVerbatim };
 }
+/* ── LOS TRES CHEQUEOS DEL ROCE DE UNIVERSOS (owner 2026-08-15, medidos en el examen 2 · turno 4) ──────────────
+ * NO es el contrato de universos completo: es la fuga CONCRETA que apareció, y nada más.
+ *   (1) COMPARACIÓN CRUZADA — «su margen de inventario es 34%, por encima del benchmark de cartera (30.1%)».
+ *       El 34% es del universo inventario; el benchmark de 30.1% es del universo venta. Ninguna cuenta mezcló los
+ *       dos mundos: cruzó la COMPARACIÓN, y el lector se lleva que ese producto supera una vara que nunca se le
+ *       midió. Una cifra solo se compara contra una vara de SU universo.
+ *   (2) ETIQUETA COMPLETA — un SKU tiene margen en los DOS universos (BOS-SANDER: 15.0% de inventario y 18.0% de
+ *       venta). «margen 15%» a secas nombra dos campos distintos, que es lo que la casa prohíbe. Acotado A LOS
+ *       SKU: un cliente no tiene margen de inventario, así que ahí «margen» no es ambiguo y no se toca.
+ *   (3) TOP-N SIN COLA — un RANKING que muestra 7 de 13 sin decirlo. Acotado a rankings anunciados: una respuesta
+ *       FILTRADA («los que están en estado 90d o 120d») no es un recorte, es el conjunto completo de la pregunta.
+ * Los tres usan la ORACIÓN como ventana y el universo que la CARPETA declara — cero vocabulario inventado acá. */
+// ⚠️ «por encima DEL benchmark»: la contracción se comió el chequeo entero en la primera versión — `\bde\b` no
+// matchea «del», así que el caso medido pasaba limpio. Las preposiciones van con la contracción contemplada.
+const _COMPARA = /\bpor\s+(?:encima|debajo)\b|\bsobre\s+(?:el|la|ese|esa|su)\b|\bsupera\b|\bcruza\b|\bcontra\b|\bvs\.?\b|\bversus\b|\bfrente\s+a\b|\balcanza\b|\bllega\s+a\b|\bqueda\s+(?:sobre|bajo|por|a)\b|\bbajo\s+(?:el|la|ese|esa|su)\b|\bmejor\s+que\b|\bpeor\s+que\b/i;
+const _ES_VARA = /\bbenchmark\b|\breferencia\b|\bpiso\b|\btecho\b|\bmeta\b|\btarget\b/i;
+/* EL UNIVERSO SE LEE DE LA ETIQUETA, NO DEL NÚMERO (2026-08-15, al construir el chequeo): el margen de inventario
+ * de MAK-SAW18V es 34.0% y su margen de VENTA también — el mismo número en los dos mundos. Resolver el universo
+ * por el canon era imposible ahí, y además dio un falso positivo en la matriz («$135K» es a la vez el capital
+ * total del inventario y la contribución de un SKU). Lo que SÍ desambigua es la palabra, que es exactamente lo
+ * que el lector usa para entender de qué se le está hablando. */
+const _VOZ_INVENTARIO = /\bmargen\s+(?:de\s+)?inventario\b|\brotaci[oó]n\b|\bd[ií]as\s+(?:de\s+)?inventario\b|\bd[ií]as\s+sin\s+venta\b|\bstock\b|\bcapital\s+(?:inmovilizado|frenado|total)?\b|\bbodegas?\b|\binmovilizad[oa]s?\b/i;
+const _VOZ_VENTA = /\bmargen\s+(?:de\s+)?ventas?\b|\bmargen\s+comercial\b|\bcontribuci[oó]n\b|\bcarga\s+comercial\b|\bacciones\s+comerciales\b|\bfacturaci[oó]n\b|\bvende\b|\bventa\s+(?:anual|total|del\s+a[nñ]o)\b/i;
+const _MARGEN_SIN_UNIVERSO = /\bmargen(?:es)?\b(?!\s+(?:de\s+)?(?:inventario|venta|ventas|comercial))/i;
+const _ANUNCIA_RANKING = /\branking\b|\bordenad[oa]s?\s+(?:por|de)\b|\bde\s+peor\s+a\s+mejor\b|\bde\s+mejor\s+a\s+peor\b|\bel\s+orden\b/i;
 /* UNA TASA ES LA MISMA CIFRA COMO NIVEL («4.5%») O COMO DELTA («4.5pp») — la regla ya vigente para los insumos de
  * un cálculo, subida acá para que también la use la quinta fuente. Sin esto, «el máximo aplicable es 1.8pp» moría
  * como cifra inventada aunque la carpeta declare esa carga como 1.8% con su dueño. Devuelve null si no es tasa. */
@@ -3657,6 +3682,83 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   }
 
   // ── AVISOS (NO bloquean · owner 2026-07-28 "el muro solo corrobora que no invente una cifra y que sea del dato") ──
+  /* ── EL ROCE DE UNIVERSOS · los tres chequeos acotados (owner 2026-08-15) ────────────────────────────────────
+   * Corren SOLO si la carpeta declara universos (`fig.universo`). Sin ese insumo, byte-idénticos a antes. */
+  {
+    const _figsUni = (datoProyectado && Array.isArray(datoProyectado.figs)) ? datoProyectado.figs.filter((f) => f && f.universo) : [];
+    if (_figsUni.length) {
+      const _uniDe = new Map();       // canon → Set(universos) · si un canon vive en dos, es ambiguo y no se juzga
+      const _varaUni = new Map();     // canon de una VARA → su universo
+      for (const f of _figsUni) {
+        if (!_uniDe.has(f.canon)) _uniDe.set(f.canon, new Set());
+        _uniDe.get(f.canon).add(f.universo);
+        if ((f.duenos || []).some((d) => _ES_VARA.test(String(d)))) _varaUni.set(f.canon, f.universo);
+      }
+      const _uniUnico = (canon) => { const s = _uniDe.get(canon); return s && s.size === 1 ? [...s][0] : null; };
+      const _figsNarr = parseFigures(narration);
+
+      /* (1) COMPARACIÓN CRUZADA: una vara de un universo, comparada en la misma oración contra algo que la
+       * propia oración nombra como del OTRO universo. El lado comparado se identifica por su ETIQUETA (ver el
+       * comentario de _VOZ_INVENTARIO): es lo único que desambigua cuando el número vive en los dos mundos. */
+      for (const f of _figsNarr) {
+        const uniVara = _varaUni.get(f.canon);
+        if (uniVara !== "venta" && uniVara !== "inventario") continue;
+        let idx = -1;
+        while ((idx = narration.indexOf(f.text, idx + 1)) >= 0) {
+          const oracion = _oracionEnTorno(narration, _maskedNarr, idx, f.text.length);
+          if (!_COMPARA.test(oracion)) continue;
+          const vozOtro = uniVara === "venta" ? _VOZ_INVENTARIO : _VOZ_VENTA;
+          const vozPropia = uniVara === "venta" ? _VOZ_VENTA : _VOZ_INVENTARIO;
+          // si la oración habla TAMBIÉN del universo de la vara, no hay cruce que juzgar: es una lectura mixta
+          // legítima («su margen de venta es 22.0% y su rotación 5.2x, bajo el benchmark de 30.1%» compara lo suyo).
+          if (!vozOtro.test(oracion) || vozPropia.test(oracion)) continue;
+          const otro = uniVara === "venta" ? "inventario" : "venta";
+          violations.push({ kind: "comparacion-cruzada", detail: `en esa oración estás comparando una cifra de ${otro} contra «${f.text}», que es una vara del universo ${uniVara} — son dos mediciones distintas del mismo negocio (una es la foto de hoy, la otra el año cerrado) y no se comparan entre sí: usá la vara de su propio universo, o declará que para eso no hay vara` });
+          break;
+        }
+      }
+
+      /* LAS ENTIDADES DE CADA UNIVERSO SE DERIVAN DE LA CARPETA, no de un import nuevo: son los dueños de sus
+       * cifras que además son entidades reales del tenant (así «inventario», «capital» o «negocio», que también
+       * son dueños de la línea de KPI, quedan fuera solos). */
+      const _entTenant = Array.isArray(entidadesDelTenant) ? entidadesDelTenant : (Array.isArray(duenosDelTenant) ? duenosDelTenant : []);
+      const _esEntidad = (d) => _entTenant.some((n) => _norm(n) === _norm(d));
+      const _entDeUniverso = (u) => {
+        const o = new Set();
+        for (const f of _figsUni) if (f.universo === u) for (const d of (f.duenos || [])) if (_esEntidad(d)) o.add(d);
+        return [...o];
+      };
+
+      /* (2) ETIQUETA COMPLETA · la regla es sobre el CAMPO, no sobre el número: «margen» existe en los dos
+       * universos para un SKU (BOS-SANDER: 15.0% de inventario y 18.0% de venta), así que atribuirle «margen» a
+       * secas a un SKU nombra dos campos distintos. Un CLIENTE no tiene margen de inventario: ahí no es ambiguo
+       * y no se toca. Por eso el disparador es la ENTIDAD del universo inventario, no el canon de la cifra. */
+      const _conInventario = _entDeUniverso("inventario");
+      if (_conInventario.length) {
+        for (const oracion of String(narration).split(/[.!?\n]+(?:\s+|$)/)) {
+          if (!/\bmargen/i.test(oracion) || !_MARGEN_SIN_UNIVERSO.test(oracion)) continue;
+          if (!parseFigures(oracion).some((g) => g.unit === "pct")) continue;   // «margen» sin cifra no afirma nada
+          const sku = _conInventario.find((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(oracion));
+          if (!sku) continue;
+          violations.push({ kind: "etiqueta-ambigua", detail: `le atribuís un «margen» a ${sku} sin decir de cuál hablás: ese SKU tiene margen de INVENTARIO (la foto de hoy) y margen de VENTA (el año cerrado), y son cifras distintas — escribí «margen de inventario» o «margen de venta»` });
+          break;
+        }
+      }
+
+      /* (3) RANKING SIN COLA · ACOTADO al universo inventario, que es donde se midió y el único cuyo total de
+       * entidades se deriva sin ambigüedad (los dueños del universo de venta mezclan clientes, SKU y marcas, y
+       * comparar contra esa suma daría falsos positivos). Y solo si la respuesta ANUNCIA un orden: una respuesta
+       * FILTRADA («los que están en 90d o 120d») no es un recorte, es el conjunto completo de la pregunta. */
+      if (_ANUNCIA_RANKING.test(narration) && !_DECLARA_TOTAL_PARCIAL.test(narration)) {
+        const todas = _entDeUniverso("inventario");
+        const nombradas = todas.filter((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration));
+        if (todas.length >= 4 && nombradas.length >= 3 && nombradas.length < todas.length) {
+          violations.push({ kind: "ranking-sin-cola", detail: `anunciás un orden y mostrás ${nombradas.length} de ${todas.length} — un ranking parcial que no dice dónde corta se lee como si fuera todo: declaralo («${nombradas.length} de ${todas.length}», «top ${nombradas.length}») o explicá por qué cortás ahí` });
+        }
+      }
+    }
+  }
+
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
   // de entidad DEJÓ de ser aviso: subió a bloqueo en el chequeo 10 de arriba.
   const advisories = [];
