@@ -3189,8 +3189,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   if (datoProyectado && Array.isArray(datoProyectado.estados) && datoProyectado.estados.length) {
     const _frenados = new Set(datoProyectado.estados.filter((e) => e && e.estado === "frenado").map((e) => e.entidad));
     const _inmov = new Set(datoProyectado.estados.filter((e) => e && e.estado === "inmovilizado").map((e) => e.entidad));
-    const _RE_FRENADO = /\b(?:frenad[oa]s?|bloquead[oa]s?|parad[oa]s?|estancad[oa]s?)\b/i;
-    const _RE_INMOV = /\b(?:inmovilizad[oa]s?|detenid[oa]s?)\b/i;
+    /* «PARADO» ES LA PALABRA VAGA DE LA CATEGORÍA AMPLIA, NO DEL ESTADO CRÍTICO (medido 2026-08-15, examen 2 ·
+     * turno 2): el borrador escribió «para cortar la mayoría del capital parado» nombrando SKU inmovilizados pero
+     * no frenados, y esta lista —escrita antes de que las dos categorías existieran— la leía como el estado
+     * crítico. Ahora que «frenado» tiene definición propia, la palabra estricta es «frenado» (y bloqueado /
+     * estancado); «parado» pide lo MENOS exigente: pertenecer a la categoría amplia. */
+    const _RE_FRENADO = /\b(?:frenad[oa]s?|bloquead[oa]s?|estancad[oa]s?)\b/i;
+    const _RE_INMOV = /\b(?:inmovilizad[oa]s?|detenid[oa]s?|parad[oa]s?)\b/i;
     const _skusCatalogo = (Array.isArray(duenosDelTenant) ? duenosDelTenant : []).filter((n) => /^[A-Z]{2,4}-/.test(String(n)));
     const _num = { un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
     /* ⚠️ LA ATRIBUCIÓN OCURRE DENTRO DE LA CLÁUSULA, NO DE LA ORACIÓN ENTERA (falso positivo MEDIDO 2026-08-15,

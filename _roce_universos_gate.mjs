@@ -143,6 +143,11 @@ ok(_sinEstado(NEGADO), `«inmovilizado, no frenado» dice justo lo contrario: no
 ok(_sinEstado("MAK-SAW18V no está frenado ni inmovilizado: rota 5.2x y su estado es Activo."), "…ni «no está frenado ni inmovilizado»");
 // …y la atribución DE VERDAD sigue muriendo: la excepción es para la negación, no para el error
 ok(V("SAM-TV55 está frenado.") === "estado-no-declarado", "pero afirmar «SAM-TV55 está frenado» sigue muriendo");
+/* «PARADO» pide la categoría AMPLIA, no la crítica (medido en el examen 2 · turno 2): «para cortar la mayoría del
+ * capital parado, mueve SAM-TV55 y PHI-IRON-PRO» es correcto — esos SKU están inmovilizados. */
+ok(J("Para cortar la mayoría del capital parado necesitas mover SAM-TV55, BOS-SANDER y PHI-IRON-PRO.").ok,
+  `«capital parado» sobre SKU inmovilizados pasa: es la palabra vaga de la categoría amplia (${V("Para cortar la mayoría del capital parado necesitas mover SAM-TV55, BOS-SANDER y PHI-IRON-PRO.")})`);
+ok(V("MAK-SAW18V está parado.") === "estado-no-declarado", "…pero llamar «parado» a un SKU Activo sigue muriendo");
 ok(V("Los SKU frenados son LG-DRYER8KG, BOS-SANDER y SAM-TV55.") === "estado-no-declarado", "…y meterlo dentro de la lista de frenados también");
 
 console.log("\n── 4 · SIN UNIVERSOS DECLARADOS, EL MURO NO SE MUEVE ──");

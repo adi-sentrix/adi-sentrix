@@ -7,6 +7,7 @@ import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
 import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
 import { alcanceHeredadoDe } from "./src/adi/oracle/cicloNotarial.js";
 import { parseFigures } from "./src/adi/boleta.js";
+import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";   // el MISMO escenario que la app y la consola
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 initTenant(TENANT_DEMO);
@@ -27,7 +28,7 @@ for (const it of D.intentos) {
   const v = guardC(it.borrador, {
     ledger: { figs: [] }, results: [], trace: null, question: D.q,
     supuestoPendiente: sup, alcanceHeredado: her, recitaAprobada: rec,
-    datoProyectado: cifrasDelDato("actual"), entidadesDelTenant: ENT, duenosDelTenant: DUE,
+    datoProyectado: cifrasDelDato(ESCENARIO_INICIAL), entidadesDelTenant: ENT, duenosDelTenant: DUE,
     contentScope: "full", tablePolicy: "auto",
   });
   const ex = extraerCalculos(it.borrador);
