@@ -278,7 +278,8 @@ export default function App({ animate = true }) {
       {guiaAbierta && (
         <GuiaInicio
           onCerrar={() => setGuiaAbierta(false)}
-          onEjecutar={(spec, label) => { setGuiaAbierta(false); if (runRef.current) runRef.current(spec, label); }}/>
+          // la guía manda el PROMPT EXACTO al chat normal (owner 2026-08-15): sin spec, sin atajo, sin ruta demo
+          onEjecutar={(q) => { setGuiaAbierta(false); if (runRef.current) runRef.current(q); }}/>
       )}
 
       <style>{`

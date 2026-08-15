@@ -89,28 +89,36 @@ export function guiaAbreSola() { return !leerGuiaMarca(); }
  *     de lo que el producto sostiene.
  *
  * La glosa de cada uno describe lo que el motor DEVUELVE de verdad, sin prometer de más. */
+/* ⚠️ REESCRITO (owner 2026-08-15): «no deben usar una ruta demo, respuesta prearmada ni shortcut. Cuando el
+ * usuario toque una pregunta, debe enviarse el prompt exacto al mismo chat normal, con el mismo camino natural,
+ * notario, reparación, contrato [[CALCULO]] y rastro interno».
+ *
+ * QUÉ CAMBIÓ Y POR QUÉ. Hasta hoy cada ejemplo llevaba un SPEC enlatado (de HERO_CHIPS o del coercer) y el click
+ * ejecutaba ese spec por una puerta propia (`submitSpec`). Era una decisión defendible cuando el motor
+ * determinístico era el piso: garantizaba que el primer turno del usuario nunca fuera un decline. Pero hoy el
+ * producto ES el camino natural, y una puerta que lo esquiva muestra otra cosa que la que el usuario va a usar.
+ * Ahora cada ejemplo es SOLO UN TEXTO, y el click lo manda por `submit()` — la misma función que corre cuando
+ * escribís y apretás Enter. Sin spec, sin atajo, sin ruta demo.
+ *
+ * LAS PREGUNTAS SON LAS DE LOS EXÁMENES, verbatim. No se inventan acá: son las que se corrieron y verificaron
+ * contra la carpeta en los exámenes 1, 2 y 3, así que la guía promete exactamente lo que está medido.
+ * `titulo` es lo que se lee en el botón; `q` es el prompt EXACTO que viaja al chat. Los dos se muestran para que
+ * nadie tenga que adivinar qué se va a enviar. */
 const _TEMAS = [
-  { tema: "Comercial",  q: "¿Qué clientes venden mucho pero dejan poco margen?",
-    glosa: "Las cuentas grandes cuyo margen no acompaña, una por una." },
-  { tema: "Capital",    q: "¿Dónde tengo capital inmovilizado?",
-    glosa: "Dónde está el capital del inventario, bodega por bodega." },
-  { tema: "Resultado",  q: "¿Cuánto me queda después de gastos?",
-    // ⚠️ ESTE ABRE EL FLUJO GUIADO, y la glosa lo dice. Sin líneas de gasto declaradas el motor no puede afirmar
-    // un resultado, así que pide los datos en vez de inventarlos. Es la regla 3 en el primer turno.
-    glosa: "Arma tu P&L: primero te pide tus líneas de gasto, porque sin ellas no hay resultado que afirmar." },
-  { tema: "Simulación", q: "Si subo ventas 4%, ¿qué cambia?",
-    glosa: "El efecto de un supuesto tuyo, marcado como proyección y no como dato." },
+  { tema: "Comercial", titulo: "¿Qué clientes venden mucho pero están bajo benchmark?",
+    glosa: "Ordena las cuentas grandes por venta, margen y brecha.",
+    q: "Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo." },
+  { tema: "Inventario", titulo: "¿Dónde tengo capital inmovilizado o frenado?",
+    glosa: "Separa capital inmovilizado de SKU frenados y muestra los principales casos.",
+    q: "Identifica los SKU con capital inmovilizado o frenado. Dame cantidad de SKU, monto total y principales casos." },
+  { tema: "Períodos", titulo: "¿Cómo va el año contra el anterior?",
+    glosa: "Compara ventas y margen, y declara si falta algún dato.",
+    q: "Compara el año actual contra el año anterior en ventas y margen. Si algún dato no está en la carpeta, dilo explícitamente." },
+  { tema: "Simulación", titulo: "Si bajo 2% la carga comercial, ¿qué cambia?",
+    glosa: "Corrige la ambigüedad entre 2% y 2 puntos antes de calcular.",
+    q: "Baja 2% la carga comercial de Falabella y Lider, y dime el impacto. Si «2%» es ambiguo, corrígelo antes de calcular." },
 ];
-const _vacio = (o) => !o || typeof o !== "object" || Object.keys(o).length === 0;
-export const GUIA_EJEMPLOS = _TEMAS
-  .map((t) => {
-    const chip = HERO_CHIPS.find((c) => c.q === t.q);
-    if (chip) return { ...t, spec: chip.spec, fuente: "hero" };
-    let spec = null;
-    try { spec = coerceFloor(t.q, {}, {}); } catch { spec = null; }
-    return _vacio(spec) ? null : { ...t, spec, fuente: "coerce" };
-  })
-  .filter(Boolean);
+export const GUIA_EJEMPLOS = _TEMAS;
 
 // ── EL ÍNDICE · una sola fuente para el conteo, el orden y los rótulos. El gate lo importa en vez de repetir el
 // número: si mañana se agrega un capítulo, el gate recorre siete sin que nadie lo edite. ──
@@ -209,7 +217,7 @@ function CapQuePreguntar({ onEjecutar }) {
       <div style={_bajada}>Una por cada cosa que sabe hacer. Todas se responden con tus datos de hoy: toca una y arrancamos.</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {GUIA_EJEMPLOS.map((ej, i) => (
-          <button key={ej.q} data-testid={`guia-ejemplo-${i}`} onClick={() => onEjecutar(ej.spec, ej.q)}
+          <button key={ej.q} data-testid={`guia-ejemplo-${i}`} onClick={() => onEjecutar(ej.q)}
             style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "11px 13px", borderRadius: 10, border: "1px solid rgba(47,184,218,0.35)", background: C.card, fontFamily: "'DM Sans', system-ui, sans-serif", textAlign: "left", cursor: "pointer", transition: "background 0.15s, border-color 0.15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = C.surfaceHover; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = C.card; e.currentTarget.style.borderColor = "rgba(47,184,218,0.35)"; }}>
@@ -217,7 +225,7 @@ function CapQuePreguntar({ onEjecutar }) {
             <span style={{ minWidth: 0 }}>
               <span style={{ display: "flex", alignItems: "baseline", gap: 7, minWidth: 0 }}>
                 <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: "0.7px", textTransform: "uppercase", color: C.celeste, flexShrink: 0 }}>{ej.tema}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.35 }}>{ej.q}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.35 }}>{ej.titulo}</span>
               </span>
               <span style={{ display: "block", fontSize: 11.5, color: C.textMuted, lineHeight: 1.45, marginTop: 3 }}>{ej.glosa}</span>
             </span>
@@ -308,7 +316,7 @@ const _CAPS = [CapQuienHaceQue, CapComoTeResponde, CapQuePreguntar, CapQueRelaci
 
 /**
  * La guía. NO bloquea: sin overlay opaco detrás, la app sigue viva y clickeable.
- *   onEjecutar(spec, label) → ejecuta un ejemplo (el llamador cierra la guía y dispara la pregunta)
+ *   onEjecutar(q) → manda el PROMPT EXACTO al chat normal (el llamador cierra la guía y lo envía por submit)
  *   onCerrar()              → saltar / cerrar / terminar
  */
 export function GuiaInicio({ onEjecutar, onCerrar }) {
@@ -332,7 +340,7 @@ export function GuiaInicio({ onEjecutar, onCerrar }) {
 
   const ultimo = paso === GUIA_PASOS - 1;
   const avanzar = () => { if (ultimo) cerrar(); else setPaso((p) => p + 1); };
-  const ejecutar = (spec, label) => { cerrar(); if (onEjecutar) onEjecutar(spec, label); };
+  const ejecutar = (q) => { cerrar(); if (onEjecutar) onEjecutar(q); };
   const Cap = _CAPS[paso];
 
   // la casilla persiste EN EL ACTO (ver la nota de los dos valores arriba)

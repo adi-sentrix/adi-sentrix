@@ -1026,10 +1026,27 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   // handler se registra una sola vez ([registerRun]) pero submitSpec se re-crea en cada render cerrando sobre el
   // `context` de ESE render — sin el ref, reabrir la guía a mitad de una conversación ejecutaría el ejemplo con el
   // contexto del primer render (vacío), perdiendo el hilo. El ref se sincroniza en cada render.
+  /* ── LA GUÍA ENTRA POR LA PUERTA DE SIEMPRE (owner 2026-08-15) ───────────────────────────────────────────────
+   * «Cuando el usuario toque una pregunta, debe enviarse el prompt exacto al mismo chat normal, con el mismo
+   * camino natural, notario, reparación, contrato [[CALCULO]] y rastro interno. Quiero que responda exactamente
+   * igual que si yo escribiera la pregunta manualmente.»
+   * Por eso esto llama a `submit`, NO a `submitSpec`: submitSpec ejecuta un spec enlatado por una puerta propia
+   * —útil cuando el determinístico era el piso, engañoso ahora que el producto ES el camino natural—. Acá no hay
+   * spec, no hay atajo y no hay rama demo: es exactamente lo que pasa al escribir la pregunta y apretar Enter.
+   * ⚠️ A DIFERENCIA de `registerAsk` (que solo PRELLENA el input y espera confirmación, para no gastar por un
+   * misclick), esta puerta SÍ dispara. Es una decisión explícita del owner para estos cuatro ejemplos: valen el
+   * gasto porque su función es mostrar el producto real. */
+  const submitRef = useRef(null);
+  useEffect(() => { submitRef.current = submit; });
   const submitSpecRef = useRef(null);
   useEffect(() => { submitSpecRef.current = submitSpec; });
   useEffect(() => {
-    if (typeof registerRun === "function") registerRun((spec, label) => { if (submitSpecRef.current) submitSpecRef.current(spec, label); });
+    /* `registerRun` recibe ahora un TEXTO, no un spec: la guía manda el prompt exacto y esto lo entrega a
+     * `submit`, la puerta del input. Si algún llamador viejo pasara un objeto, se ignora — no hay ruta demo
+     * silenciosa: preferimos no responder antes que responder por un camino que el usuario no va a usar. */
+    if (typeof registerRun === "function") registerRun((q) => {
+      if (typeof q === "string" && q.trim() && submitRef.current) submitRef.current(q);
+    });
   }, [registerRun]);
 
   const lastAdiId = (() => {

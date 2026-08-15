@@ -9,14 +9,14 @@
  *      aria-modal="false" y el header sigue vivo detrás.
  *   3. "NO VOLVER A MOSTRAR" · persiste EN EL ACTO (no al cerrar) y suprime la apertura automática.
  *   4. EL BOTÓN DEL HEADER la reabre — con la marca puesta, y con cualquiera de los dos valores.
- *   5. CADA EJEMPLO DISPARA UNA PREGUNTA QUE EL MOTOR RESPONDE, NO UN DECLINE. Es el criterio más caro del turno:
- *      una guía que promete algo que ADI no contesta convierte el primer turno del usuario en un "no la tengo",
- *      peor que no haber guiado. Se prueba por las DOS puertas que el click puede tomar:
- *        · puerta A · oráculo ON  → submitSpec delega en submit(texto) → piso determinístico (buildAdiTurn)
- *        · puerta B · oráculo OFF → spec enlatado por answerConversational (lo que corre en producción hoy)
- *      Y además, en la App montada, que el click CIERRE la guía y deje el turno puesto en el transcript.
- *   6. LOS EJEMPLOS NO SON INVENTADOS · cada uno es, campo por campo, un chip de HERO_CHIPS. Si alguien renombra
- *      un chip, la guía degrada honesto (muestra uno menos) y este gate falla diciendo exactamente cuál se perdió.
+ *   5. EL CLICK NO TIENE PUERTA PROPIA (owner 2026-08-15). El contrato cambió: «no deben usar una ruta demo,
+ *      respuesta prearmada ni shortcut … debe responder exactamente igual que si yo escribiera la pregunta
+ *      manualmente». Se verifica el CABLEADO contra el código (la guía entrega el prompt → App lo pasa por
+ *      runRef → el chat lo entrega a `submit`, la MISMA función del formulario del input) y, en la App montada,
+ *      que el click cierre la guía y deje el PROMPT EXACTO puesto como turno del usuario, contestado una vez.
+ *   6. LOS EJEMPLOS NO SON INVENTADOS · son los prompts de los Exámenes 1, 2 y 3, ya medidos en vivo. Cuál es el
+ *      turno de origen de cada uno y con qué estado respondió lo fija `_guia_promesas_gate`; acá se cuida que
+ *      ninguno traiga spec —un spec sería el atajo que el owner sacó— y que todos sean autosuficientes.
  *
  * OFFLINE · CERO GASTO. Todo el camino que se ejercita es determinístico (ADI_LLM_ENABLED es false en Node: el
  * global de Vite no existe). El ÚNICO punto de la App que sale a la red es el chequeo de acceso del arranque, y
@@ -69,7 +69,7 @@ const ui = await import(pathToFileURL(bundlePath).href);
 const React = (await import("react")).default;
 const { render, fireEvent, cleanup, act } = await import("@testing-library/react");
 
-const { GUIA_EJEMPLOS, GUIA_KEY, GUIA_VISTA, GUIA_NUNCA, GUIA_CAPITULOS, GUIA_PASOS, HERO_CHIPS, buildAdiTurn, NOT_YET_TEXT, answerConversational, resetPnlDraft, coerceSpec, coerceFloor } = ui;
+const { GUIA_EJEMPLOS, GUIA_KEY, GUIA_VISTA, GUIA_NUNCA, GUIA_CAPITULOS, GUIA_PASOS, buildAdiTurn, NOT_YET_TEXT, resetPnlDraft } = ui;
 
 // ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // LIMPIAR ES VOLVER A SER UN USUARIO NUEVO, no solo vaciar localStorage. El flujo del P&L guarda un borrador en
@@ -81,7 +81,6 @@ const limpiar = () => {
   try { dom.window.localStorage.clear(); } catch { /* */ }
   try { resetPnlDraft(); } catch { /* */ }
 };
-const _vacioSpec = (o) => !o || typeof o !== "object" || Object.keys(o).length === 0;
 const $ = (c, id) => c.querySelector(`[data-testid="${id}"]`);
 const hayGuia = (c) => !!$(c, "guia-inicio");
 const pasoActual = (c) => { const p = $(c, "guia-paso"); return p ? Number(p.getAttribute("data-paso")) : null; };
@@ -133,77 +132,76 @@ console.log("═".repeat(100));
 }
 
 console.log("\n" + "═".repeat(100));
-console.log("2 · LOS EJEMPLOS NO SON INVENTADOS · un tema por ejemplo, y el spec DERIVADO, nunca escrito a mano");
+console.log("2 · LOS EJEMPLOS NO SON INVENTADOS · un tema por ejemplo, con el PROMPT EXACTO y SIN spec (owner 2026-08-15)");
 console.log("═".repeat(100));
 {
-  // El owner pidió un ejemplo por tema (2026-08-10). La invariante no cambió, el mecanismo se amplió: el spec sale
-  // de HERO_CHIPS si hay chip, y si no, del MISMO coercer determinístico del texto libre. Ninguno se escribe a mano.
-  ok(GUIA_EJEMPLOS.length === 4, `la guía ofrece 4 ejemplos por tema (obtuvo: ${GUIA_EJEMPLOS.length}) — si uno deja de producir spec, acá se pierde`);
+  // El owner pidió un ejemplo por tema (2026-08-10); eso no cambió. Lo que cambió es DE DÓNDE sale la pregunta: ya
+  // no es un chip curado con su spec, es el PROMPT EXACTO de un turno de examen y viaja tal cual al chat normal.
+  ok(GUIA_EJEMPLOS.length === 4, `la guía ofrece 4 ejemplos, uno por tema (obtuvo: ${GUIA_EJEMPLOS.length})`);
   const temas = GUIA_EJEMPLOS.map((e) => e.tema);
   ok(new Set(temas).size === temas.length, `un ejemplo por tema, sin repetir (${temas.join(" · ")})`);
   for (const ej of GUIA_EJEMPLOS) {
-    ok(typeof ej.tema === "string" && ej.tema.length > 2, `«${ej.q}» declara su tema`);
-    ok(!_vacioSpec(ej.spec), `«${ej.q}» trae spec (fuente: ${ej.fuente})`);
-    if (ej.fuente === "hero") {
-      const chip = HERO_CHIPS.find((c) => c.q === ej.q);
-      ok(!!chip && JSON.stringify(chip.spec) === JSON.stringify(ej.spec),
-        `«${ej.q}» usa el spec de HERO_CHIPS SIN modificar (una sola fuente de preguntas de entrada)`);
-    } else {
-      // el spec derivado tiene que seguir siendo EXACTAMENTE lo que el coercer devuelve para ESE texto: si alguien
-      // lo edita a mano, la guía deja de prometer lo que la app hace y este candado lo caza.
-      const derivado = coerceFloor(ej.q, {}, {});
-      ok(JSON.stringify(derivado) === JSON.stringify(ej.spec),
-        `«${ej.q}» usa el spec que el coercer deriva de su propio texto, sin retoques`);
-    }
-    ok(typeof ej.glosa === "string" && ej.glosa.length > 10, `«${ej.q}» trae su bajada de qué devuelve`);
+    ok(typeof ej.tema === "string" && ej.tema.length > 2, `«${ej.titulo}» declara su tema`);
+    /* ⚠️ EL CONTRATO CAMBIÓ (owner 2026-08-15): los ejemplos YA NO LLEVAN SPEC. Antes cada uno traía un spec
+     * enlatado y el click lo ejecutaba por una puerta propia; ahora el click manda el PROMPT EXACTO por la misma
+     * función del input. Lo que este gate fija ahora es lo contrario de antes: que NO haya spec —un spec sería el
+     * atajo que el owner pidió sacar— y que el prompt sea texto de verdad, distinto del rótulo visible. */
+    ok(ej.spec === undefined, `«${ej.titulo}» NO trae spec: el click manda el prompt, no un atajo`);
+    ok(typeof ej.q === "string" && ej.q.trim().length > 40, `«${ej.titulo}» trae el prompt exacto que se enviará (${(ej.q || "").length} car.)`);
+    ok(typeof ej.titulo === "string" && ej.titulo.length > 10 && ej.titulo !== ej.q,
+      "…y un texto visible propio, distinto del prompt (se lee uno, se envía el otro, los dos a la vista)");
+    ok(typeof ej.glosa === "string" && ej.glosa.length > 10, `«${ej.titulo}» trae su bajada de qué devuelve`);
   }
-  /* LAS DOS AUSENCIAS, MEDIDAS · el owner pidió seis temas y hay cuatro. Que falten no es un olvido: las dos que
-   * no están fueron probadas y no se pueden ofrecer hoy. El gate deja constancia para que, cuando el motor cambie,
-   * alguien las vuelva a probar en vez de asumir que siguen rotas. */
-  const ficha = "Explicame Falabella y qué debería revisar primero.";
-  ok(_vacioSpec(coerceFloor(ficha, {}, {})) && _vacioSpec(coerceSpec(ficha, {}, {})),
-    "FICHA sigue sin spec en los dos coercers · con el oráculo apagado el click daría «No recibí un pedido» — por eso no se ofrece");
-  const cruce = "¿Puedo sumar venta anual con capital inmovilizado?";
-  const rCruce = buildAdiTurn(cruce, {}, "actual").adiMsg;
-  const rCapital = buildAdiTurn("¿Dónde tengo capital inmovilizado?", {}, "actual").adiMsg;
-  ok(String(rCruce.text || "") === String(rCapital.text || ""),
-    "CRUCES sigue devolviendo la MISMA respuesta que «¿Dónde tengo capital inmovilizado?» · no contesta lo que se le pregunta, por eso no se ofrece");
-  ok(!GUIA_EJEMPLOS.some((e) => e.q === ficha || e.q === cruce), "…y ninguna de las dos está ofrecida en la guía");
+  /* AUTOSUFICIENTES · UN CLICK ES SIEMPRE UN PRIMER TURNO. Las preguntas salen de los exámenes, y ahí varias
+   * dependían de la anterior («Entonces hazlo anual…», «Sobre esos SKU…»): esa forma no sirve acá, porque sin
+   * turno previo la anáfora no tiene a qué apuntar y ADI tendría razón en preguntar de qué le hablan. El owner
+   * las reescribió standalone; esto lo fija para que nadie vuelva a pegar un prompt de examen tal cual. */
+  const ANAFORA = /^\s*(entonces|ahora|sobre (esos|esas|eso)|de (esos|esas)|con (eso|ese|esa)|y (ahora|entonces))\b/i;
+  for (const ej of GUIA_EJEMPLOS) {
+    ok(!ANAFORA.test(ej.q), `«${ej.titulo}» no arranca con una anáfora — un click es siempre el PRIMER turno`);
+  }
+  ok(new Set(GUIA_EJEMPLOS.map((e) => e.q)).size === GUIA_EJEMPLOS.length, "…y no hay dos ejemplos con el mismo prompt");
 }
 
 console.log("\n" + "═".repeat(100));
-console.log("3 · EL MOTOR RESPONDE CADA EJEMPLO · las DOS puertas que el click puede tomar · NUNCA un decline");
+console.log("3 · EL CLICK NO TIENE PUERTA PROPIA · el prompt viaja por la MISMA función que el input");
 console.log("═".repeat(100));
 {
-  /* LA EXCEPCIÓN DEL FLUJO GUIADO (owner 2026-08-10, al pedir un ejemplo por tema).
-   * "¿Cuánto me queda después de gastos?" NO devuelve cifras, y es correcto que no las devuelva: sin líneas de
-   * gasto declaradas no hay resultado que afirmar, así que el motor las PIDE en vez de inventarlas. Eso es la
-   * regla 3 ocurriendo en el primer turno, no un decline. Antes esta pregunta quedaba fuera de la guía por este
-   * mismo motivo; ahora entra porque es LA pregunta del tema Resultado, y su glosa avisa exactamente qué pasa.
-   * Lo que NO se relaja: la ruta tiene que ser una ruta de respuesta (no de no-cobertura) y el texto, sustancial. */
-  const FLUJO_GUIADO = new Set(["¿Cuánto me queda después de gastos?"]);
+  /* EL CONTRATO NUEVO (owner 2026-08-15). Antes el click ejecutaba un SPEC ENLATADO por una puerta propia
+   * (submitSpec → answerConversational), y este bloque probaba esa puerta. El owner la sacó: «no deben usar una
+   * ruta demo, respuesta prearmada ni shortcut … debe responder exactamente igual que si yo escribiera la
+   * pregunta manualmente». Quedan dos cosas por verificar, y son distintas entre sí:
+   *   · EL CABLEADO, contra el CÓDIGO · la guía entrega el texto, App lo pasa por runRef y el chat lo entrega a
+   *     `submit` —la misma función del formulario del input—, NUNCA a submitSpec. Se lee de los tres archivos
+   *     porque es una cadena de tres saltos: el bloque 4 prueba que el turno aparece, pero no POR DÓNDE entró.
+   *   · EL PISO, ejercitado · con el gateway caído el texto libre igual tiene que producir una respuesta, no un
+   *     decline de la UI. La vía VIVA (oráculo encendido = producción) no se puede ejercitar acá sin gastar: su
+   *     garantía es el expediente del examen, y la fija `_guia_promesas_gate`. */
+  const leer = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const guiaSrc = leer("src/ui/GuiaInicio.jsx"), appSrc = leer("src/ui/App.jsx"), chatSrc = leer("src/ui/ChatADI.jsx");
+  ok(/onClick=\{\(\)\s*=>\s*onEjecutar\(ej\.q\)\}/.test(guiaSrc), "GuiaInicio entrega el PROMPT (ej.q) al llamador — no un spec, no un id de demo");
+  const bloqueTemas = guiaSrc.slice(guiaSrc.indexOf("const _TEMAS = ["), guiaSrc.indexOf("export const GUIA_CAPITULOS"));
+  ok(bloqueTemas.length > 100 && !/\bspec\b/.test(bloqueTemas), "…y el bloque de ejemplos no nombra `spec` ni una vez");
+  ok(/onEjecutar=\{\(q\)\s*=>\s*\{[^}]*runRef\.current\(q\)/.test(appSrc), "App pasa ese texto al chat por runRef (el mismo puente que ya usaba el header)");
+  const mReg = chatSrc.match(/registerRun\(\(q\)\s*=>\s*\{[\s\S]{0,300}?\}\)/);
+  ok(!!mReg && /submitRef\.current\(q\)/.test(mReg[0]), "y el chat lo entrega a `submit`, la función del formulario del input");
+  ok(!!mReg && !/submitSpec/.test(mReg[0]), "…y NO a submitSpec: por ahí entraba el spec enlatado, que es el atajo que se sacó");
+
+  /* EL PISO, con cada ejemplo medido COMO PRIMER TURNO de alguien que recién llega (sin arrastrar el estado del
+   * anterior). Lo que se exige es lo que un usuario con el gateway caído tiene derecho a ver: una respuesta de
+   * verdad. Las CIFRAS no se exigen parejo — estas cuatro preguntas están escritas para el cerebro, y el piso
+   * contesta lo que su detector alcanza; cuál llega hasta la cifra y cuál no queda IMPRESO acá, no escondido. */
   for (const ej of GUIA_EJEMPLOS) {
-    const guiado = FLUJO_GUIADO.has(ej.q);
-    const juzgar = (r) => {
-      const razon = porQueEsDecline(r);
-      // al ejemplo del flujo guiado se le perdona SOLO la falta de cifras, nada más
-      if (guiado && razon && /sin una sola cifra/.test(razon)) return null;
-      return razon;
-    };
-    // cada ejemplo se mide COMO PRIMER TURNO de alguien que recién llega, no arrastrando el estado del anterior
     limpiar();
-    // puerta A · oráculo ON: submitSpec delega en submit(texto) → piso determinístico
-    const turnoA = buildAdiTurn(ej.q, {}, "bonanza");
-    const rA = { text: turnoA.adiMsg.text, route: turnoA.adiMsg.route, _degrade: turnoA.adiMsg._degrade };
-    const malA = juzgar(rA);
-    ok(!malA, `[A · texto libre] «${ej.q}» → responde (ruta ${rA.route}, ${rA.text ? rA.text.length : 0} car.${guiado ? " · flujo guiado" : ""})${malA ? " · " + malA : ""}`);
-    // puerta B · oráculo OFF (producción hoy): el spec enlatado por el seam conversacional
-    limpiar();
-    const rB = answerConversational(ej.spec, {}, { scenario: "bonanza" });
-    const malB = juzgar(rB);
-    ok(!malB, `[B · spec enlatado] «${ej.q}» → responde (ruta ${rB && rB.route}, ${rB && rB.text ? rB.text.length : 0} car.${guiado ? " · flujo guiado" : ""})${malB ? " · " + malB : ""}`);
-    // …y el que abre el flujo guiado tiene que DECIRLO en su glosa: el usuario no puede descubrirlo al hacer click
-    if (guiado) ok(/te pide|arma tu P&L/i.test(ej.glosa), `«${ej.q}» avisa en su bajada que abre el flujo guiado`);
+    const turno = buildAdiTurn(ej.q, {}, "bonanza");
+    const r = { text: turno.adiMsg.text, route: turno.adiMsg.route, _degrade: turno.adiMsg._degrade };
+    const cuerpo = String(r.text || "").replace(/\s+/g, " ").trim();
+    console.log(`  · [piso · gateway caído] «${ej.titulo}» → ruta ${r.route} · ${cuerpo.length} car.${/[$%]/.test(cuerpo) ? " · con cifras" : " · SIN cifras"}`);
+    console.log(`      ${JSON.stringify(cuerpo.slice(0, 150))}`);
+    const mal = porQueEsDecline(r);
+    // la falta de cifras se REPORTA arriba; lo que veta es el decline de verdad (nulo, degradado, no-cobertura, vacío)
+    const veta = mal && !/sin una sola cifra/.test(mal) ? mal : null;
+    ok(!veta, `[piso] «${ej.titulo}» responde con el gateway caído${veta ? " · " + veta : ""}`);
   }
 }
 
@@ -217,10 +215,13 @@ for (const modo of [{ nombre: "oráculo ON (dev)", oracle: null }, { nombre: "or
   await avanzar(container, 2);
   ok(pasoActual(container) === 3, `[${modo.nombre}] "Siguiente" lleva al capítulo 3 (los ejemplos)`);
   const btn = $(container, "guia-ejemplo-0");
-  ok(!!btn && btn.textContent.includes(GUIA_EJEMPLOS[0].q), `[${modo.nombre}] el ejemplo 0 se renderiza con su pregunta`);
+  // SE LEE UNO Y SE ENVÍA EL OTRO · en el botón va el rótulo corto; lo que viaja es el prompt largo del examen.
+  ok(!!btn && btn.textContent.includes(GUIA_EJEMPLOS[0].titulo), `[${modo.nombre}] el ejemplo 0 se renderiza con su rótulo visible`);
+  ok(!!btn && !btn.textContent.includes(GUIA_EJEMPLOS[0].q), `[${modo.nombre}] …y el prompt largo NO se pinta en el botón`);
   await clic(btn);
   ok(!hayGuia(container), `[${modo.nombre}] la guía se CIERRA al tocar el ejemplo`);
-  ok(container.textContent.includes(GUIA_EJEMPLOS[0].q), `[${modo.nombre}] la pregunta quedó puesta como turno del usuario`);
+  ok(container.textContent.includes(GUIA_EJEMPLOS[0].q),
+    `[${modo.nombre}] el PROMPT EXACTO quedó puesto como turno del usuario — es lo que se escribiría a mano, no un rótulo`);
   const burbujas = [...container.querySelectorAll('[data-testid="adi-bubble"]')];
   ok(burbujas.length === 1, `[${modo.nombre}] ADI contestó exactamente una vez (obtuvo: ${burbujas.length})`);
   const respuesta = burbujas.length ? burbujas[0].textContent : "";
@@ -228,6 +229,7 @@ for (const modo of [{ nombre: "oráculo ON (dev)", oracle: null }, { nombre: "or
   // LECTURA DE NEGOCIO, no un pedido de datos al usuario. El umbral y la cifra en $ no son decorativos: el flujo
   // guiado del P&L ("nombrame tus gastos") también es una respuesta válida del motor, pero como PRIMER turno de la
   // guía no muestra nada — pasa un `%` suelto y se queda en ~200 caracteres. Esta aserción distingue las dos.
+  console.log(`      [${modo.nombre}] respuesta de ${respuesta.length} car.${/\$\s?\d/.test(respuesta) ? " · con cifras en $" : " · SIN cifras en $"}`);
   ok(respuesta.length > 300 && /\$\s?\d/.test(respuesta),
     `[${modo.nombre}] la respuesta es una lectura con cifras en $, no un pedido de datos (${respuesta.length} car.)`);
   cleanup();

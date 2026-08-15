@@ -1,28 +1,27 @@
-/* === _guia_promesas_gate.mjs · EL CANDADO DE PROMESAS DE LA GUÍA (owner 2026-08-14) ===========================
+/* === _guia_promesas_gate.mjs · EL CANDADO DE PROMESAS DE LA GUÍA (owner 2026-08-14 · contrato nuevo 2026-08-15) ==
  * EL DEFECTO QUE LO HACE NACER, verificado en vivo (captura del owner): la guía de inicio ofrecía con un click
- * «Si subo ventas 4%, ¿qué cambia?». Con el oráculo encendido —que es producción hoy— TODO ejemplo de la guía
- * viaja como TEXTO LIBRE (submitSpec degrada a submit(q), ChatADI.jsx), así que el spec enlatado no protege nada
- * en esa vía: la pregunta quedó a merced de PLAN, el detector determinístico no la reconocía («ventas» no era
- * vocabulario de volumen) y ADI respondió "No tengo corrida esa simulación". La guía prometió; el motor no llegó.
+ * «Si subo ventas 4%, ¿qué cambia?» y ADI respondió "No tengo corrida esa simulación". La guía prometió; el motor
+ * no llegó. De ahí la regla permanente: NINGUNA pregunta entra a la guía sin una garantía DECLARADA de que el
+ * primer click no termina en un decline — la garantía se decide ANTES de prometer, no después del primer fallo.
  *
- * LA REGLA QUE ESTE GATE FIJA, pregunta por pregunta y PERMANENTE: cada pregunta que la guía ofrece tiene que
- * traer una GARANTÍA DECLARADA de que el primer click llega al flujo correcto — o un spec enlatado válido
- * (HERO_CHIPS, curado y verificado), o el reconocimiento del piso determinístico que corresponda (detector de
- * escenario, red del P&L, coerce del piso). Una pregunta NUEVA en la guía sin garantía declarada acá pone este
- * gate en ROJO: el candado obliga a decidir la garantía ANTES de prometer, no después del primer decline.
+ * QUÉ CAMBIÓ EL 2026-08-15. El owner sacó el atajo: «no deben usar una ruta demo, respuesta prearmada ni shortcut
+ * … debe responder exactamente igual que si yo escribiera la pregunta manualmente». Antes la garantía era un SPEC
+ * ENLATADO (un chip curado de HERO_CHIPS o el spec derivado del coercer) que se ejecutaba por una puerta propia.
+ * Ya no hay spec: el click manda el PROMPT EXACTO al chat normal, así que la garantía tiene que ser de otra clase.
  *
- * QUÉ GARANTIZA CADA GARANTÍA (y qué NO — el límite se declara, no se disimula):
- *   · "hero"     → el spec enlatado responde en la vía SIN oráculo (spec → answerConversational) y en el fallback.
- *                  NO cubre la vía oráculo viva (texto libre → PLAN) salvo que otra garantía la cubra.
- *   · "coerce"   → coerceFloor reclama el texto → la vía sin oráculo y el fallback con gateway caído responden.
- *                  MISMO límite: en la vía oráculo el turno lo decide PLAN.
- *   · "oraculo"  → un piso determinístico DEL ORÁCULO reconoce el texto ANTES de PLAN (detectScenarioIntent /
- *                  detectPnlIntent-cede-el-paso). Es la única garantía que cubre la vía viva de producción.
- * Las preguntas de lectura (Comercial · Capital) HOY no tienen garantía "oraculo": ese hueco está DECLARADO en el
- * informe del turno que creó este gate — el candado afirma lo que existe, nunca lo tapa.
+ * LA GARANTÍA NUEVA, y es más dura que la anterior: cada pregunta de la guía es el prompt de un TURNO REAL de los
+ * Exámenes 1, 2 y 3 — corridos en vivo, contra la carpeta real, con notario y ciclo de reparación — y ese turno
+ * quedó REGISTRADO con su estado. Este gate abre el expediente y comprueba que el turno de origen existe y que
+ * ADI lo respondió (`verde` o `reparado`). Un turno que cayó al SUPLENTE no puede ofrecerse con un click: sería
+ * prometer justo lo que ya se midió que falla.
  *
- * OFFLINE · CERO GASTO: solo detectores puros + el bundle de la guía. Nada de este archivo invoca al planificador
- * ni al gateway; el candado de runtime de gates:offline aplica igual.
+ * QUÉ NO GARANTIZA, dicho sin disimulo: que la respuesta de hoy sea idéntica a la del examen. El camino natural
+ * pasa por el cerebro y no es determinístico — la misma pregunta puede resolverse verde una vez y reparada la
+ * siguiente. Lo que el expediente prueba es que la pregunta ES RESPONDIBLE con esta carpeta y este muro, no que
+ * su salida esté congelada. Y la vía viva no se puede ejercitar acá: eso costaría llamadas (bloque 4).
+ *
+ * OFFLINE · CERO GASTO: expediente en disco + detectores puros + el bundle de la guía. Nada de este archivo
+ * invoca al planificador ni al gateway; el candado de runtime de gates:offline aplica igual.
  */
 import { JSDOM } from "jsdom";
 import esbuild from "esbuild";
@@ -56,8 +55,7 @@ await esbuild.build({
   logLevel: "silent",
 });
 const ui = await import(pathToFileURL(bundlePath).href);
-const { GUIA_EJEMPLOS, HERO_CHIPS, coerceFloor, detectScenarioIntent, detectPnlIntent } = ui;
-const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const { GUIA_EJEMPLOS, coerceFloor, detectScenarioIntent, detectPnlIntent } = ui;
 
 console.log("═".repeat(100));
 console.log("1 · NINGUNA PREGUNTA SE CAE EN SILENCIO · _TEMAS (fuente) ↔ GUIA_EJEMPLOS (lo ofrecido)");
@@ -68,93 +66,113 @@ const fuente = fs.readFileSync(path.join(root, "src/ui/GuiaInicio.jsx"), "utf8")
 const iTemas = fuente.indexOf("const _TEMAS = [");
 const fTemas = fuente.indexOf("];", iTemas);
 ok(iTemas > 0 && fTemas > iTemas, "el bloque _TEMAS existe en GuiaInicio.jsx");
-const temasSrc = [...fuente.slice(iTemas, fTemas).matchAll(/q:\s*"([^"]+)"/g)].map((m) => m[1]);
+const bloqueTemas = fuente.slice(iTemas, fTemas);
+const temasSrc = [...bloqueTemas.matchAll(/q:\s*"([^"]+)"/g)].map((m) => m[1]);
 ok(temasSrc.length >= 4, `_TEMAS declara ${temasSrc.length} preguntas (≥4)`);
 for (const q of temasSrc) {
-  ok(GUIA_EJEMPLOS.some((e) => e.q === q),
-    `«${q}» declarada en _TEMAS SIGUE ofrecida en GUIA_EJEMPLOS — si el coercer dejó de reclamarla, se cayó en silencio`);
+  ok(GUIA_EJEMPLOS.some((e) => e.q === q), `«${q.slice(0, 60)}…» declarada en _TEMAS SIGUE ofrecida en GUIA_EJEMPLOS`);
 }
 ok(GUIA_EJEMPLOS.every((e) => temasSrc.includes(e.q)), "…y la guía no ofrece nada que _TEMAS no declare");
+// EL ATAJO, CERRADO POR LOS DOS LADOS · en el objeto y en el fuente. Un spec acá sería la ruta prearmada que el
+// owner sacó: el click dejaría de ejercitar el camino natural y la guía volvería a ser una demo.
+ok(GUIA_EJEMPLOS.every((e) => e.spec === undefined), "ningún ejemplo trae spec (el click manda el prompt, no un atajo)");
+ok(!/\bspec\b/.test(bloqueTemas), "…y el bloque _TEMAS no nombra `spec` ni una vez en el fuente");
 
 console.log("\n" + "═".repeat(100));
-console.log("2 · LA GARANTÍA DECLARADA, PREGUNTA POR PREGUNTA");
+console.log("2 · LA GARANTÍA DECLARADA · cada pregunta es un TURNO REAL de examen, y ADI lo respondió");
 console.log("═".repeat(100));
-/* El mapa del candado. `garantias` documenta por qué el primer click no puede terminar en un decline; `check`
- * lo VERIFICA contra el motor real. Agregar una pregunta a la guía exige agregar su entrada acá — con la
- * garantía pensada, no con un "ya veremos". */
+/* El mapa del candado. Cada entrada dice de qué turno de qué examen sale la pregunta; `exacta` distingue las que
+ * se ofrecen palabra por palabra de las que el owner tuvo que reescribir, y en esos dos casos el POR QUÉ queda
+ * escrito. Agregar una pregunta a la guía exige agregar su entrada acá — con su turno de origen medido, no con
+ * un "ya veremos". Los estados salen del expediente en disco, no de la memoria de nadie. */
+const ESTADOS_OK = new Set(["verde", "reparado"]);
 const CANDADO = new Map([
-  ["¿Qué clientes venden mucho pero dejan poco margen?", {
-    garantias: ["coerce"],
-    check(ej) {
-      ok(ej.fuente === "coerce", `«${ej.q}» deriva del coercer del piso (fuente: ${ej.fuente})`);
-      const s = coerceFloor(ej.q, false, null);
-      ok(!!s && s.operation === "margin" && s.dimension === "cliente",
-        `coerceFloor la reclama como lectura de margen por cliente — obtuvo ${JSON.stringify(s && { operation: s.operation, dimension: s.dimension })}`);
-      ok(deepEq(ej.spec, s), "…y el spec ofrecido es EXACTAMENTE el derivado, sin retoques");
-    },
-  }],
-  ["¿Dónde tengo capital inmovilizado?", {
-    garantias: ["hero"],
-    check(ej) {
-      const chip = HERO_CHIPS.find((c) => c.q === ej.q);
-      ok(!!chip, `«${ej.q}» tiene su chip curado en HERO_CHIPS`);
-      ok(ej.fuente === "hero" && !!chip && deepEq(ej.spec, chip.spec), "…y la guía usa ESE spec byte a byte");
-    },
-  }],
-  ["¿Cuánto me queda después de gastos?", {
-    garantias: ["hero", "oraculo"],
-    check(ej) {
-      const chip = HERO_CHIPS.find((c) => c.q === ej.q);
-      ok(!!chip && ej.fuente === "hero" && deepEq(ej.spec, chip.spec), `«${ej.q}» usa el spec curado de HERO_CHIPS`);
-      // vía oráculo: detectPnlIntent reclama el turno y el oráculo LE CEDE EL PASO al flujo guiado del P&L
-      // (ChatADI.jsx: `_oracleOn() && !detectPnlIntent(q)`) — el primer click nunca queda a merced de PLAN.
-      const d = detectPnlIntent(ej.q);
-      ok(!!d, `detectPnlIntent la reclama (el oráculo cede al flujo guiado) — obtuvo ${JSON.stringify(d)}`);
-    },
-  }],
-  ["Si subo ventas 4%, ¿qué cambia?", {
-    garantias: ["coerce", "oraculo"],
-    check(ej) {
-      // vía oráculo (producción): el detector de escenario la reconoce ANTES de PLAN — el defecto que motivó
-      // todo este candado. Campo y delta EXACTOS: volumen (unidades) +4, interpretación marcada via:"ventas".
-      const r = detectScenarioIntent(ej.q);
-      ok(r.kind === "no_entity" && r.variable && r.variable.campo === "unidades" && r.variable.delta_pct === 4,
-        `detectScenarioIntent la reconoce (kind útil, volumen +4) — obtuvo ${JSON.stringify(r)}`);
-      ok(r.variable && r.variable.via === "ventas",
-        "…marcada via:\"ventas\" — la respuesta del bypass DECLARA la interpretación (volumen a precios por confirmar)");
-      // vía sin oráculo: el coercer del piso también la reclama (proyección determinística).
-      const s = coerceFloor(ej.q, false, null);
-      ok(!!s && s.operation === "simulate", `coerceFloor la reclama como simulación — obtuvo ${JSON.stringify(s && s.operation)}`);
-      ok(ej.fuente === "coerce" && deepEq(ej.spec, s), "…y el spec ofrecido es el derivado exacto");
-    },
-  }],
+  ["Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo.",
+    { origen: "_examen1_consolidado.json", turno: 0, exacta: true, redes: ["coerce:diagnose"] }],
+  ["Identifica los SKU con capital inmovilizado o frenado. Dame cantidad de SKU, monto total y principales casos.",
+    { origen: "_examen2_consolidado.json", turno: 0, exacta: true, redes: ["coerce:inventory"] }],
+  ["Compara el año actual contra el año anterior en ventas y margen. Si algún dato no está en la carpeta, dilo explícitamente.",
+    { origen: "_examen3_consolidado.json", turno: 1, exacta: false, redes: [],
+      razon: "el turno del examen abría con «Entonces hazlo anual…» — una anáfora que un primer click no tiene cómo resolver" }],
+  ["Baja 2% la carga comercial de Falabella y Lider, y dime el impacto. Si «2%» es ambiguo, corrígelo antes de calcular.",
+    { origen: "_examen3_consolidado.json", turno: 4, exacta: false, redes: ["coerce:overview"],
+      razon: "el turno del examen traía los nombres mal escritos a propósito («falabela», «lider») para medir la corrección; acá se ofrece la versión limpia" }],
 ]);
+
+// palabras con carga (≥5 letras, sin acento) — sirve para probar que el origen declarado es el MISMO tema, no uno
+// cualquiera. Es un piso deliberadamente bajo: lo que se verifica es que nadie declare un origen de adorno.
+const _carga = (s) => new Set(String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .split(/[^a-z0-9]+/).filter((w) => w.length >= 5));
 
 for (const ej of GUIA_EJEMPLOS) {
   const entrada = CANDADO.get(ej.q);
-  ok(!!entrada, `«${ej.q}» tiene garantía DECLARADA en este candado — una pregunta nueva sin garantía no entra a la guía`);
-  if (entrada) {
-    console.log(`  · «${ej.q}» — garantías: ${entrada.garantias.join(" + ")}`);
-    entrada.check(ej);
+  ok(!!entrada, `«${ej.titulo}» tiene garantía DECLARADA en este candado — una pregunta nueva sin garantía no entra a la guía`);
+  if (!entrada) continue;
+  const ruta = path.join(root, entrada.origen);
+  const hay = fs.existsSync(ruta);
+  ok(hay, `«${ej.titulo}» · el expediente ${entrada.origen} existe`);
+  if (!hay) continue;
+  let exp = null;
+  try { exp = JSON.parse(fs.readFileSync(ruta, "utf8")); } catch { /* ilegible → la aserción de abajo lo dice */ }
+  const turno = exp && Array.isArray(exp.turnos) ? exp.turnos[entrada.turno] : null;
+  ok(!!turno, `…y trae el turno ${entrada.turno} («${(exp && exp.titulo) || "?"}»)`);
+  if (!turno) continue;
+  console.log(`  · origen: ${entrada.origen} t${entrada.turno} [${turno.estado}] «${String(turno.q).slice(0, 78)}…»`);
+  ok(ESTADOS_OK.has(turno.estado),
+    `…y ADI LO RESPONDIÓ en vivo (estado «${turno.estado}») — un turno que cayó al suplente no se ofrece con un click`);
+  if (entrada.exacta) {
+    ok(String(turno.q).trim() === ej.q, "…con el prompt IDÉNTICO al que se ofrece (se mide una cosa y se ofrece la misma)");
+  } else {
+    ok(String(turno.q).trim() !== ej.q, `…reescrita respecto del turno original, como declara la entrada: ${entrada.razon}`);
+    const a = _carga(turno.q), b = _carga(ej.q);
+    const comunes = [...b].filter((w) => a.has(w));
+    ok(comunes.length >= 3,
+      `…y sigue siendo la MISMA pregunta que se midió (${comunes.length} palabras con carga en común: ${comunes.slice(0, 6).join(", ")})`);
   }
 }
 for (const q of CANDADO.keys()) {
-  ok(GUIA_EJEMPLOS.some((e) => e.q === q) || !temasSrc.includes(q),
-    `la garantía declarada para «${q}» no quedó huérfana (la pregunta sigue en la guía)`);
+  ok(GUIA_EJEMPLOS.some((e) => e.q === q), `la garantía declarada para «${q.slice(0, 50)}…» no quedó huérfana (la pregunta sigue en la guía)`);
 }
 
-// ── 3 · EL LÍMITE, A LA VISTA: las preguntas de LECTURA no tienen garantía en la vía oráculo ───────────────────
-// Comercial y Capital viajan como texto libre a PLAN cuando el oráculo está encendido (producción hoy): su
-// garantía cubre la vía spec y el fallback, NO la vía viva. Este bloque solo deja el hueco medible: si algún día
-// un piso determinístico del oráculo las reconoce, estas aserciones invertidas lo avisan para PROMOVER la
-// garantía a "oraculo" acá y en el informe — el candado nunca afirma de más ni de menos.
 console.log("\n" + "═".repeat(100));
-console.log("3 · EL HUECO DECLARADO · lectura (Comercial · Capital) sin piso de oráculo — reportado, no tapado");
+console.log("3 · UN CLICK ES UN PRIMER TURNO · el prompt se basta solo y nombra su propio sujeto");
 console.log("═".repeat(100));
-for (const q of ["¿Qué clientes venden mucho pero dejan poco margen?", "¿Dónde tengo capital inmovilizado?"]) {
-  const r = detectScenarioIntent(q);
-  ok(r.kind === "none", `«${q}» no es un escenario (detector: ${r.kind}) — su vía oráculo depende de PLAN, y eso está declarado`);
-  ok(!detectPnlIntent(q), "…ni un turno de P&L: ninguna red del oráculo la reclama hoy");
+/* Los exámenes son CONVERSACIONES: la mitad de sus turnos se apoya en el anterior. Un prompt así, disparado con
+ * un click sobre un chat vacío, deja a ADI sin antecedente y lo correcto sería que preguntara de qué le hablan —
+ * o sea, el primer turno del usuario nuevo se gasta en una repregunta. Por eso los prompts ofrecidos se revisan
+ * como lo que son: la PRIMERA cosa que ADI va a leer. */
+const ANAFORA = /^\s*(entonces|ahora|sobre (esos|esas|eso)|de (esos|esas)|con (eso|ese|esa)|y (ahora|entonces))\b/i;
+const PRONOMBRE = /\b(esos|esas|ese\s+sku|esa\s+cuenta|ahí|dicho\s+eso)\b/i;
+for (const ej of GUIA_EJEMPLOS) {
+  ok(!ANAFORA.test(ej.q), `«${ej.titulo}» no abre con una anáfora`);
+  ok(!PRONOMBRE.test(ej.q), "…ni apunta a un antecedente que en el primer turno no existe");
+}
+
+console.log("\n" + "═".repeat(100));
+console.log("4 · EL LÍMITE, A LA VISTA · lo que las redes determinísticas alcanzan, medido y no supuesto");
+console.log("═".repeat(100));
+/* HASTA DÓNDE LLEGA ESTE GATE. Con el oráculo encendido —producción hoy— las cuatro preguntas viajan como texto
+ * libre al cerebro: ninguna red determinística las "reserva", y su garantía es el expediente del bloque 2. Este
+ * bloque deja MEDIDO lo que el piso reclama cuando el gateway se cae, para dos cosas: (a) saber qué ve un usuario
+ * en ese caso, y (b) que si mañana una red empieza a reclamar una de estas preguntas, alguien lo note acá en vez
+ * de descubrirlo en pantalla.
+ *
+ * LO MEDIDO HOY, y las dos degradaciones se declaran en vez de taparse:
+ *   · Comercial → coerce:diagnose  · Inventario → coerce:inventory  (los dos contestan con cifras, 1.7K y 1.1K car.)
+ *   · Períodos  → NINGUNA red. Con el gateway caído devuelve 241 caracteres SIN cifras ("no pude armar la lectura
+ *     de ventas para ese corte"). Es una respuesta honesta, no un decline, pero no es la comparación prometida:
+ *     esta pregunta DEPENDE del cerebro.
+ *   · Simulación → coerce:overview, que es una lectura general, NO una simulación. Con el gateway caído el click
+ *     contesta algo correcto sobre el valor de la venta, pero no baja los 2 puntos que se pidieron. */
+for (const ej of GUIA_EJEMPLOS) {
+  const esc = detectScenarioIntent(ej.q), pnl = detectPnlIntent(ej.q), piso = coerceFloor(ej.q, false, null);
+  const redes = [esc && esc.kind && esc.kind !== "none" ? `escenario:${esc.kind}` : null, pnl ? "p&l" : null,
+    piso && piso.operation ? `coerce:${piso.operation}` : null].filter(Boolean);
+  console.log(`  · «${ej.titulo}» → ${redes.length ? redes.join(" · ") : "ninguna red del piso la reclama — viaja entera al cerebro"}`);
+  const esperado = (CANDADO.get(ej.q) || {}).redes;
+  ok(Array.isArray(esperado) && esperado.join("|") === redes.join("|"),
+    `«${ej.titulo}» · la cobertura determinística es la DECLARADA (${esperado ? esperado.join(" · ") || "ninguna" : "sin declarar"})`,
+    redes.join(" · ") || "ninguna");
 }
 
 try { fs.unlinkSync(bundlePath); } catch { /* el tmp no bloquea el veredicto */ }
