@@ -622,7 +622,7 @@ export function composeSpecDiagnose({ filters = {}, scenario, focus, entityScope
     const e = f.top[0] && f.top[0].entidad;
     if (f.detector === "carga")   return e ? `Cómo recupero la carga de ${e}` : null;
     if (f.detector === "margen")  return e ? `Por qué ${e} cede margen` : null;
-    if (f.detector === "capital") return "El capital detenido en detalle";
+    if (f.detector === "capital") return "Capital inmovilizado en detalle";
     return null;
   }).filter(Boolean);
   // BOLETA (primera clase): subtotales (obligatorios) + top-3 por foco · value == el _money del texto (una sola verdad)
@@ -860,7 +860,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
       : `Los ${ventaRows.length} tienen stock sano para su ritmo de venta — sin quiebres ni frenos a la vista.`;
     return {
       opener: `Tus ${ventaRows.length} SKU que más venden, con su inventario disponible:\n\n${lines.join("\n")}\n\n${lectura}`,
-      suggestions: ["¿Qué SKU está en riesgo de quiebre?", "El capital detenido en detalle", "Margen por SKU"],
+      suggestions: ["¿Qué SKU está en riesgo de quiebre?", "Capital inmovilizado en detalle", "Margen por SKU"],
       sentrixAction: null,
       evidence: { metrica: "ventas", dimension: "sku", boleta: bol },
     };
@@ -913,7 +913,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
     for (const e of _ORDEN_E) if (dd(e).usd > 0) bolE.push(fig(`Estado del inventario: ${_ESTADO_LABEL[e]}`, _money(dd(e).usd), { unit: "money", raw: dd(e).usd, mandatory: false, context: "estado del inventario" }));
     return {
       opener: lines.filter(Boolean).join("\n\n"),
-      suggestions: [fren.usd ? "¿Dónde está detenido mi capital?" : null, quie.usd ? "¿Qué reponer por quiebre?" : null, "Los SKU que más venden en el año"].filter(Boolean),
+      suggestions: [fren.usd ? "¿Dónde está inmovilizado mi capital?" : null, quie.usd ? "¿Qué reponer por quiebre?" : null, "Los SKU que más venden en el año"].filter(Boolean),
       sentrixAction: null,
       evidence: { lens: "inventory", metrica: "capital", dimension: "sku", boleta: bolE },
     };
@@ -981,7 +981,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           `**Por qué:** rotación alta (≥${P.quiebreRotMin}x) con cobertura corta (DOH ≤ ${P.quiebreDohMax}d) — venden bien pero el stock no alcanza hasta la próxima compra.`,
           `**Qué hacer:** repón ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} ya. Es venta que estás por perder por falta de producto, no capital detenido — el costo de no hacerlo es la venta que no ocurre.`,
         ],
-        suggestions: ["Qué SKU detenidos libero", "Ver todo el inventario"],
+        suggestions: ["Qué SKU inmovilizados libero", "Ver todo el inventario"],
       };
     } else if (est === "sobrestock") {   // exceso — cobertura excesiva, plata inmovilizada de más
       B = {
@@ -993,7 +993,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           `**Por qué:** rotan dentro de rango, pero tienes más meses de stock de los necesarios. Es capital inmovilizado de más — no está detenido como el que no rota, pero podría estar trabajando.`,
           `**Qué hacer:** frená la próxima compra de ${skus.slice(0, 2).map((s) => s.sku).join(" y ")} y deja que la venta drene el exceso. No hace falta liquidar; sí ajustar la reposición.`,
         ],
-        suggestions: ["Qué SKU están detenidos", "Qué reponer por quiebre"],
+        suggestions: ["Qué SKU están inmovilizados", "Qué reponer por quiebre"],
       };
     } else {   // frenado (default) — capital inmovilizado, plata atrapada
       // COHERENCIA (owner 2026-07-15): el "arrancá por" y el "cuánto vale" hablan del MISMO par de SKU — antes la
@@ -1014,7 +1014,7 @@ export function composeSpecInventory({ filters = {}, scenario, focus = "frenado"
           `**Por qué:** dejaron de rotar — rotación bajo ${P.rotacionMin}x o DOH sobre ${P.dohMax}d. Es stock que no sale y deja el capital detenido.`,
           `**Qué hacer:** arranca por ${arranque.map((r) => r.sku).join(" y ")} (${crit.length ? "los críticos: la rotación más baja y más días sin venta" : "los de más capital detenido"}) — liquidación o reasignación libera ese capital para SKU que sí rotan; después revisa la reposición para no repetirlo.`,
         ],
-        suggestions: ["Por qué el capital está detenido", "Qué SKU libero primero"],
+        suggestions: ["Por qué el capital está inmovilizado", "Qué SKU libero primero"],
       };
     }
   }
@@ -2473,7 +2473,7 @@ export function composeSpecSimulateCapital({ filters = {}, scenario, entityScope
   for (const it of top) bol.push(fig(`${it.entidad} · Liberable`, _money(it.usd), { unit: "money", raw: it.usd, source: "computed", formula: `capital inmovilizado de ${it.entidad}`, context: _ctx }));
   return {
     opener: [supuesto, efecto, dondePega, limite, decision].join("\n\n"),
-    suggestions: ["El capital detenido en detalle"],
+    suggestions: ["Capital inmovilizado en detalle"],
     sentrixAction: null,
     evidence: { lens: "diagnostico", metrica: "capital", dimension: "sku", boleta: bol, findings: [cap],
       simulate: { action: "liberar_capital" } },
