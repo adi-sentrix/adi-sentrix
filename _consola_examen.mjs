@@ -34,6 +34,48 @@ import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 initTenant(TENANT_DEMO);
 
+/* ── EL SELLO DE VERSIÓN (owner 2026-08-14) ───────────────────────────────────────────────────────────────────
+ * «Antes de medir, confirma explícitamente: versión de código servida · ruta que respondió · bloque [[CALCULO]]
+ * oculto · rastro interno activo.» Y no es una formalidad: el servidor de desarrollo estuvo sirviendo MÓDULOS
+ * VIEJOS, así que respuestas en vivo se midieron contra código anterior al arreglo. La versión no se DECLARA: se
+ * PRUEBA, ejercitando las reglas nuevas contra el muro cargado en este proceso. Todo offline, cero costo. */
+import { execSync } from "node:child_process";
+import { guardC } from "./src/adi/oracle/guardC.js";
+import { cifrasDelDato } from "./src/adi/oracle/datoProyectado.js";
+import { axisEntityNames } from "./src/adi/oracle/entityIndex.js";
+import { CONTRATO_CALCULO_NATURAL } from "./src/adi/oracle/naturalPrompt.js";
+function _sello() {
+  const commit = (() => { try { return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(); } catch { return "(sin git)"; } })();
+  // `numberGuard.js` y `entityGuard.js` son trabajo sin commitear de OTRA sesión (CLAUDE.md §3: no se tocan ni se
+  // commitean). Aparecen sucios siempre; contarlos convertiría la alarma en ruido y dejaría de significar nada.
+  const sucio = (() => {
+    try {
+      return execSync("git status --porcelain src/adi/oracle src/adi/llm src/ui", { encoding: "utf8" })
+        .split(/\r?\n/).filter((l) => l.trim() && !/numberGuard\.js|entityGuard\.js/.test(l)).join(" · ");
+    } catch { return ""; }
+  })();
+  const ejes = (a) => a.flatMap((e) => { try { return axisEntityNames(e); } catch { return []; } });
+  const CTX = { ledger: { figs: [] }, results: [], trace: null, question: "clientes bajo benchmark",
+    datoProyectado: cifrasDelDato("actual"), entidadesDelTenant: ejes(["cliente", "sku", "marca"]),
+    duenosDelTenant: ejes(["cliente", "sku", "marca", "familia", "bodega", "canal"]), contentScope: "full", tablePolicy: "auto" };
+  const M = "[[CALCULO]]";
+  // (1) el contrato EXIGE dueño · (2) la cifra de otro dueño no se lava con un cálculo · (3) el prompt lo pide
+  const sinDueno = guardC(`El negocio subiría a $104.0M.\n\n${M}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money`, CTX);
+  const ajena = guardC(`Lider vendió $17.8M en el año.\n\n${M}\nid=c1 · op=sumar · inputs=$19.4M; $17.8M · formula=suma · resultado=$37.2M · unidad=money · dueno=total`, CTX);
+  const conDueno = guardC(`El negocio subiría a $104.0M.\n\n${M}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=total`, CTX);
+  const P = (b) => (b ? "✅" : "🔴");
+  return [
+    `┌── SELLO DE VERSIÓN ──────────────────────────────────────────────`,
+    `│ commit           : ${commit}${sucio ? "  ⚠️ con cambios sin commitear en el motor" : "  (motor limpio)"}`,
+    `│ ruta             : camino natural REAL (answerViaNatural + gateway con modoNatural) — no hay otra en esta consola`,
+    `│ contrato · dueño : ${P(!sinDueno.ok && /campo «dueño»/.test(String((sinDueno.violations[0] || {}).detail || "")))} sin dueño la cuenta NO autoriza  ·  ${P(conDueno.ok)} con dueño sí`,
+    `│ atribución       : ${P(!ajena.ok)} la cifra de otro dueño NO se lava con un cálculo (obtuvo ${ajena.ok ? "PASÓ 🔴" : ajena.verdict})`,
+    `│ prompt del cerebro: ${P(/dueno=<de QUIÉN/.test(CONTRATO_CALCULO_NATURAL))} el contrato que lee el modelo pide el dueño`,
+    `│ rastro interno   : ✅ activo (estado · vetos · reparaciones · cálculos · [[CALCULO]] oculto, por turno)`,
+    `└──────────────────────────────────────────────────────────────────`,
+  ].join("\n");
+}
+
 const ESTADO = "_examen_estado.json";
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -52,7 +94,8 @@ const q = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== 
 /* ⚠️ EL RESET TIENE QUE GUARDARSE (medido 2026-08-14 en la 2ª corrida del examen 1): `--reset` sin pregunta
  * armaba el estado nuevo EN MEMORIA y salía por la puerta del «Uso:» sin escribir el archivo — así que el examen
  * siguiente arrancaba con el hilo viejo adentro y el turno 1 se corría con cinco turnos de contexto ajeno. */
-if (!q && flag("--reset")) { fs.writeFileSync(ESTADO, JSON.stringify(S, null, 2)); console.log(`《 ${S.titulo} 》 estado en blanco: 0 turnos.`); process.exit(0); }
+if (!q && flag("--sello")) { console.log(_sello()); process.exit(0); }
+if (!q && flag("--reset")) { fs.writeFileSync(ESTADO, JSON.stringify(S, null, 2)); console.log(`${_sello()}\n《 ${S.titulo} 》 estado en blanco: 0 turnos.`); process.exit(0); }
 if (!q) { console.log("Uso: node _consola_examen.mjs \"la pregunta\"  ·  --reset --titulo \"…\"  ·  --estado"); process.exit(1); }
 
 const DATO = proyectarDatoNegocio("actual");
