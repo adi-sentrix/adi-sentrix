@@ -200,6 +200,14 @@ ok(!juzgar(`Cerrar la brecha de Falabella sumaría $157.1M.\n\n${MARCA_CALCULO}\
 ok(juzgar(`El negocio duplicado llegaría a $200.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=multiplicar · inputs=$100.0M; 2 · formula=$100.0M x 2 · resultado=$200.0M · unidad=money · dueno=total`, { question: "¿Y si duplico la venta (x2)?", supuestoPendiente: ["2"] }).ok,
   "…pero «multiplicar $100.0M × 2» sigue siendo una multiplicación (el escalar no lleva marca de %)");
 
+/* EL PORCENTAJE QUE VIENE COMO ID (medido en el examen 1 · turno 4): la multa le pidió al cerebro usar el id de
+ * la línea previa en vez del literal «8.1%». Hizo exactamente eso — y la lectura «el X% de Y» dejó de aplicar,
+ * porque el insumo ya no traía la marca de porcentaje. Una trampa nuestra, no un error suyo. */
+ok(juzgar(`Cerrar la brecha de Falabella vale $1.57M.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=30.1%; 22.0% · formula=30.1% - 22.0% · resultado=8.1pp · unidad=pp · dueno=Falabella\nid=c2 · op=multiplicar · inputs=$19.4M; c1 · formula=$19.4M × 8.1pp · resultado=$1.57M · unidad=money · dueno=Falabella`).ok,
+  "«multiplicar $19.4M × c1» se lee igual que con el literal: la unidad la aporta la línea del id");
+ok(!juzgar(`Cerrar la brecha de Falabella vale $157.1M.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=30.1%; 22.0% · formula=30.1% - 22.0% · resultado=8.1pp · unidad=pp · dueno=Falabella\nid=c2 · op=multiplicar · inputs=$19.4M; c1 · formula=$19.4M × 8.1pp · resultado=$157.1M · unidad=money · dueno=Falabella`).ok,
+  "…y el producto crudo por la vía del id tampoco pasa");
+
 console.log("\n── 10b · LA MULTA SEÑALA LA OPERACIÓN QUE SÍ CERRARÍA ──");
 const dPista = _detalle(`Cerrar la brecha de Falabella sumaría $1.57M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$19.4M; 8.1% · formula=$19.4M + 8.1% · resultado=$1.57M · unidad=money · dueno=Falabella`, Q81);
 ok(/«pct_de»/.test(dPista), `con «aplicar_pct» la cuenta no cierra, y la multa nombra la que sí: pct_de (${dPista.slice(-120)})`);

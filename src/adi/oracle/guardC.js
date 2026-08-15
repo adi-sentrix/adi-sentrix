@@ -3016,6 +3016,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const _duenoReal = (d) => !_entidadesTenant || _entidadesTenant.some((n) => _normD(n) === _normD(d));
       const _porId = new Map();          // id → valor recomputado
       const _duenoPorId = new Map();     // id → dueño declarado (para que una cascada herede a quién pertenece)
+      const _uniPorId = new Map();       // id → unidad declarada (un insumo por id conserva si era tasa o dinero)
       for (const c of _calculosDeclarados) {
         const op = String(c.op || "").trim().toLowerCase();
         /* «$19.4M × 8.1%» SOLO PUEDE SIGNIFICAR «el 8.1% de $19.4M» (owner 2026-08-14, examen 1 · turnos 1 y 3).
@@ -3024,7 +3025,16 @@ export function guardC(narration, { ledger, results = [], trace = null, question
          * la cuenta se recomputa igual contra el resultado declarado: no autoriza nada por sí sola.
          * ACOTADO: exactamente dos insumos y exactamente UNO con marca de porcentaje. «multiplicar 2 × $19.4M»
          * (un escalar) y «multiplicar 50% × 20%» (dos tasas) no entran acá y siguen como estaban. */
-        const _pctSueltos = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && _esPct(x)).length;
+        /* EL PORCENTAJE PUEDE VENIR COMO ID, NO SOLO COMO LITERAL (medido en el examen 1, turno 4): la multa le
+         * pidió al cerebro usar el id de la línea previa en vez del literal «8.1%» — hizo exactamente eso, y al
+         * hacerlo la lectura «el X% de Y» dejó de aplicar porque el insumo ya no traía la marca de porcentaje.
+         * Una trampa nuestra, no un error suyo. La condición de porcentaje se resuelve por la UNIDAD del insumo:
+         * literal con marca, o id cuya línea se declaró en pct/pp. */
+        const _esPctInsumo = (x) => {
+          const k = String(x).trim();
+          return _uniPorId.has(k) ? _uniPorId.get(k) === "pct" : _esPct(k);
+        };
+        const _pctSueltos = (c.inputs || []).filter(_esPctInsumo).length;
         const opEfectiva = ((op === "multiplicar" || op === "escalar") && (c.inputs || []).length === 2 && _pctSueltos === 1) ? "pct_de" : op;
         const fn = _OPS[opEfectiva];
         const R = _num(c.resultado);
@@ -3107,7 +3117,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             /* ADOPCIÓN CON DUEÑO: al índice propio (lo verifica el `_duenoEnVentana` de siempre) y a `calcBase`,
              * que solo sirve para que OTRA cuenta pueda apoyarse en esta. Ya NO va a `authCanon`: ahí adentro una
              * cifra queda autorizada como valor pelado y el chequeo de atribución deja de mirarla. */
-            if (c.id) _duenoPorId.set(String(c.id).trim(), String(c.dueno).trim());   // la cascada hereda el dueño
+            if (c.id) { _duenoPorId.set(String(c.id).trim(), String(c.dueno).trim()); _uniPorId.set(String(c.id).trim(), uni); }   // la cascada hereda dueño y unidad
             if (_pfR) {
               const _reg = (mapa, llave) => { if (!mapa.has(llave)) mapa.set(llave, new Set()); mapa.get(llave).add(String(c.dueno).trim()); };
               _reg(_calcIdx.porCanon, _pfR.canon);
