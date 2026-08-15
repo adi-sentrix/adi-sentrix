@@ -173,7 +173,12 @@ console.log("\n── 6 · LA RED DE RESILIENCIA · el fallo del gateway LANZA y
   const iOra = ui.indexOf("await answerViaOracle({");
   ok(iFlag > 0 && iNat > iFlag && iOra > iNat, "en ChatADI, answerViaNatural vive SOLO dentro del flag y ANTES del oráculo actual (flag OFF = el código de hoy, intacto)");
   ok((ui.match(/answerViaNatural\(\{/g) || []).length === 1, "un único sitio de llamada del camino natural");
-  ok(/catch\s*\{[^}]*red de resiliencia/i.test(ui.slice(iFlag, iOra)), "el catch de la red de resiliencia envuelve al natural: el error nunca llega al usuario");
+  ok(/catch\s*(?:\([^)]*\))?\s*\{[^}]*red de resiliencia/i.test(ui.slice(iFlag, iOra)), "el catch de la red de resiliencia envuelve al natural: el error nunca llega al usuario");
+  /* …PERO LA RED NO PUEDE SER MUDA (medido en la app 2026-08-14): el catch era `catch {}` a secas y un turno cayó
+   * al oráculo sin que nadie se enterara — el usuario vio otra respuesta, con otras cifras, y nosotros creíamos
+   * que estábamos midiendo el camino nuevo. El fallback se conserva; lo que se exige acá es que deje rastro. */
+  ok(/catch\s*\([^)]+\)\s*\{/.test(ui.slice(iFlag, iOra)) && /console\.warn/.test(ui.slice(iFlag, iOra)),
+    "…y NO es muda: la caída al oráculo queda registrada, para que un fallo del camino natural no se vuelva invisible");
   ok(ui.indexOf("responderPorQueCifra(") < iFlag && ui.indexOf("!detectPnlIntent(q)") < iFlag,
     "los interceptores con estado propio (por-qué-cifra · cesión al P&L) siguen ANTES del camino, como estaban");
   ok(/modoNatural:\s*true/.test(ui), "el fetch natural declara modoNatural hacia el MISMO endpoint del narrador");

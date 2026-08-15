@@ -422,7 +422,14 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
             const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo
             return _turnFromResult(q, rr, context, "natural");
           }
-        } catch { /* red de resiliencia: el turno sigue por el oráculo actual, abajo — el camino actual está entero */ }
+        } catch (e) {
+          /* RED DE RESILIENCIA · pero NUNCA MUDA (medido en la app 2026-08-14): el catch era `catch {}` a secas, así
+           * que cuando el camino natural fallaba el turno caía al oráculo y NADIE se enteraba — ni el usuario, que
+           * veía una respuesta peor con cifras distintas, ni nosotros. Cinco turnos seguidos se respondieron por el
+           * camino viejo creyendo que era el nuevo. El fallback se conserva TAL CUAL (es la garantía de que el
+           * usuario nunca ve un error); lo único que cambia es que el fallo deja rastro. */
+          if (typeof console !== "undefined" && console.warn) console.warn("[ADI] el camino natural falló y el turno cayó al oráculo:", e);
+        }
       }
       // ROUTING TRACE (owner 2026-08-02 — ver modelRouter.js): closures frescas POR TURNO (nunca module-level, no
       // hay concurrencia entre turnos de un mismo hilo) que envuelven _fetchPlan/_fetchNarrateC solo para capturar
