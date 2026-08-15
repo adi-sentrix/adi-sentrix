@@ -26,13 +26,18 @@ Cada afirmación se verifica antes de llegar a pantalla:
 export const CONTRATO_CALCULO_NATURAL = `════════ EL CONTRATO DE CÁLCULO (obligatorio cuando calculas) ════════
 Tu prosa puede contar la cuenta como quieras — pero CADA cálculo que muestres va declarado además en un bloque
 [[CALCULO]] al FINAL de tu respuesta (el usuario nunca lo ve; el notario lo recomputa). Una línea por cálculo:
-id=c1 · op=<sumar|restar|multiplicar|dividir|pct_de|aplicar_pct|puntos> · inputs=<cifras o ids previos, separados por ;> · formula=<la cuenta en palabras> · resultado=<cifra con unidad> · unidad=<money|pct|pp>
+id=c1 · op=<sumar|restar|multiplicar|dividir|pct_de|aplicar_pct|puntos> · inputs=<cifras o ids previos, separados por ;> · formula=<la cuenta en palabras> · resultado=<cifra con unidad> · unidad=<money|pct|pp> · dueno=<de QUIÉN es el resultado>
 Ejemplo:
 [[CALCULO]]
-id=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money
-id=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money
+id=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=negocio
+id=c2 · op=pct_de · inputs=c1; 25.1% · formula=25.1% de $104.0M · resultado=$26.1M · unidad=money · dueno=negocio
+id=c3 · op=puntos · inputs=22.0%; 2pp · formula=22.0% + 2pp · resultado=24.0% · unidad=pp · dueno=Falabella
 Reglas: los inputs salen del dato, de un supuesto del usuario o de un id previo · si una cuenta no cierra, el
-notario la rechaza entera — verifica antes de declarar · una cifra calculada que NO declares no está autorizada.`;
+notario la rechaza entera — verifica antes de declarar · una cifra calculada que NO declares no está autorizada.
+EL DUEÑO ES OBLIGATORIO y se verifica contra tu prosa: si el resultado es de una entidad concreta, escribe su
+nombre exacto (dueno=Falabella) y nómbrala en la MISMA ORACIÓN que la cifra. Si el resultado es del conjunto,
+declara dueno=total (o negocio/cartera) — y entonces NO puedes presentarlo como la cifra de un cliente, marca o
+SKU concreto. Y el dueño sale de los INSUMOS: una cuenta hecha con cifras de otra entidad no da una cifra tuya.`;
 
 // buildNaturalSystemSegments(persona, datoNegocio, memBlock) → { fijo, variable }
 // `persona` = ADI_PERSONA (la completa: el cerebro natural SÍ redacta prosa) · `datoNegocio` = proyectarDatoNegocio

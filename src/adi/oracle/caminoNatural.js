@@ -125,6 +125,10 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
     contentScope: "full", tablePolicy: "auto",
   });
 
+  // SONDA TEMPORAL (2026-08-14): expone EL MISMO juez que usa este turno, con SU contexto, para poder llamarlo
+  // desde afuera con un texto exacto. Sin esto, medir en la app y medir en una sonda no son comparables.
+  if (typeof window !== "undefined") window.__ADI_JUEZ__ = juzgar;
+
   // ── EL HILO QUE VE EL CEREBRO · la conversación completa, con el turno del usuario al final ─────────────────
   const mensajes = [];
   for (const h of hilo) {

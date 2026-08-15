@@ -57,7 +57,7 @@ console.log("\n── 1 · EL SYSTEM NATURAL ES EL DEL ARNÉS, BYTE POR BYTE (co
   const nl = (s) => String(s).replace(/\r\n/g, "\n");
   const arnes = nl(readFileSync("./_corrida_doble.mjs", "utf8"));
   const iDoc = arnes.indexOf("════════ LO QUE EL NOTARIO VERIFICA");
-  const fin = "no está autorizada.";
+  const fin = "no da una cifra tuya.";   // el cierre del contrato (owner 2026-08-14: el bloque declara además el DUEÑO del resultado)
   const fDoc = arnes.indexOf(fin, iDoc) + fin.length;
   ok(iDoc > 0 && fDoc > iDoc, "el arnés trae la doctrina (ancla encontrada)");
   const doctrinaArnes = arnes.slice(iDoc, fDoc);
@@ -84,7 +84,7 @@ const CUATRO = "Ninguna de las cuatro cruza el benchmark de 30.1%: Falabella 22.
 console.log("\n── 2 · VERDE · el cerebro responde, el bloque [[CALCULO]] jamás llega a pantalla ──");
 {
   const Q4 = "Si subo ventas 4%, ¿qué cambia?";
-  const CONBLOQUE = `Las ventas del negocio subirían a $104.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money`;
+  const CONBLOQUE = `Las ventas del negocio subirían a $104.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=negocio`;
   const { r, mem } = await answerViaNatural({ text: Q4, history: [], mem: {}, scenario: "actual", callNatural: async () => CONBLOQUE });
   ok(r.route === "natural" && r.natural && r.natural.estado === "verde", `el turno sale verde por el camino natural (obtuvo ${r.natural && r.natural.estado})`);
   ok(sinBloque(r.text), "condición 1: ni la marca ni el contenido del bloque en pantalla", r.text.slice(0, 120));
@@ -136,7 +136,7 @@ console.log("\n── 4 · SUPLENTE Y VACÍO · el texto vetado no presta cifras
   ok(rVac.r.deterministic === true, "el suplente queda marcado deterministic para la telemetría existente");
 
   // el cerebro que escribe SOLO el bloque: la limpieza no puede dejar la pantalla en blanco (mismo piso absoluto).
-  const soloBloque = `${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money`;
+  const soloBloque = `${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$104.0M · unidad=money · dueno=negocio`;
   const rSolo = await answerViaNatural({ text: "Si subo ventas 4%, ¿qué cambia?", history: [], mem: {}, scenario: "actual", callNatural: async () => soloBloque });
   ok(!esNarracionVacia(rSolo.r.text) && sinBloque(rSolo.r.text) && rSolo.r.natural.suplenteDigno === true,
     "solo-bloque → nunca una pantalla en blanco, nunca el bloque", rSolo.r.text.slice(0, 100));

@@ -813,6 +813,10 @@ const _ALIAS_CALCULO = {
   formula: "formula", fórmula: "formula", cuenta: "formula",
   resultado: "resultado", result: "resultado", valor: "resultado", res: "resultado",
   unidad: "unidad", unit: "unidad", u: "unidad",
+  /* EL DUEÑO DEL RESULTADO (owner 2026-08-14, tras ver «Lider — $17.8M» en la app cuando Lider vende $17.9M y
+   * $17.8M es la venta de la MARCA LG): «una cifra calculada no puede quedar autorizada solo como valor; debe
+   * quedar autorizada con dueño, métrica, unidad y concepto, igual que una cifra de la carpeta». */
+  dueno: "dueno", dueño: "dueno", entidad: "dueno", sujeto: "dueno", de: "dueno", quien: "dueno", quién: "dueno",
 };
 const _norml = (s) => String(s).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 /** extraerCalculos(text) → { calculos:[{id,op,inputs:[],formula,resultado,unidad,linea}], malformadas:[{linea,falta}], limpio } */
@@ -847,6 +851,8 @@ export function extraerCalculos(text) {
       if (Object.keys(c).some((k) => k !== "linea" && k !== "inputs" ? true : c.inputs.length > 0)) {
         malformadas.push({ linea: l, falta: [!c.op && "op", !c.resultado && "resultado"].filter(Boolean).join(" y ") });
       }
+      // el `dueno` NO entra acá: su ausencia la cobra el muro con su propia multa (una línea sin dueño SÍ se puede
+      // recomputar, lo que no se puede es autorizar su resultado — son dos fallas distintas y se dicen distinto).
     }
     limpio = limpio.slice(0, i) + limpio.slice(fin);
   }

@@ -30,7 +30,7 @@ const CALC = (linea) => `\n\n${MARCA_CALCULO}\n${linea}`;
 console.log("── 1 · EL CASO MEDIDO: el efecto completo sobre una carga que no da ──");
 // Mercado Libre: carga 1.8%, margen 29.0%. Con −2pp completos el margen daría 31.0% y "cruzaría" el benchmark.
 const INVIABLE = "Mercado Libre tiene margen 29.0% y su carga comercial es 1.8%. Con la baja de 2 puntos su margen proyectado sería 31.0%, cruzando el benchmark de 30.1%."
-  + CALC("id=c1 · op=puntos · inputs=29.0%; 2 · formula=29.0% + 2pp · resultado=31.0% · unidad=pct");
+  + CALC("id=c1 · op=puntos · inputs=29.0%; 2 · formula=29.0% + 2pp · resultado=31.0% · unidad=pct · dueno=Mercado Libre");
 const v1 = J(INVIABLE);
 ok(!v1.ok && /escenario-inviable/.test(String(v1.verdict)), `el efecto completo sobre una carga insuficiente MUERE aunque la cuenta cierre (obtuvo ${v1.verdict})`);
 ok(String((v1.violations.find((x) => x.kind === "escenario-inviable") || {}).detail || "").includes("1.8pp"),
@@ -38,20 +38,20 @@ ok(String((v1.violations.find((x) => x.kind === "escenario-inviable") || {}).det
 
 console.log("\n── 2 · LO QUE SÍ DEBE PASAR (la regla pide el tope, no el silencio) ──");
 ok(J("Mercado Libre tiene margen 29.0% y su carga comercial es 1.8%: no puede bajar 2 puntos completos, el máximo aplicable es 1.8pp y con ese tope su margen llega a 30.8%."
-  + CALC("id=c1 · op=puntos · inputs=29.0%; 1.8 · formula=29.0% + 1.8pp · resultado=30.8% · unidad=pct")).ok,
+  + CALC("id=c1 · op=puntos · inputs=29.0%; 1.8 · formula=29.0% + 1.8pp · resultado=30.8% · unidad=pct · dueno=Mercado Libre")).ok,
   "usar el TOPE REAL (margen 29.0% + carga 1.8pp = 30.8%) pasa");
 ok(J("Falabella tiene margen 22.0% y carga comercial 4.5%. Con la baja de 2 puntos su margen proyectado sería 24.0%, todavía bajo el benchmark de 30.1%."
-  + CALC("id=c1 · op=puntos · inputs=22.0%; 2 · formula=22.0% + 2pp · resultado=24.0% · unidad=pct")).ok,
+  + CALC("id=c1 · op=puntos · inputs=22.0%; 2 · formula=22.0% + 2pp · resultado=24.0% · unidad=pct · dueno=Falabella")).ok,
   "una entidad con carga SUFICIENTE (4.5% ≥ 2pp) no se toca: el escenario es viable");
 ok(J("Jumbo tiene margen 24.0% y carga comercial 3.8%: con 2 puntos menos quedaría en 26.0%."
-  + CALC("id=c1 · op=puntos · inputs=24.0%; 2 · formula=24.0% + 2pp · resultado=26.0% · unidad=pct")).ok,
+  + CALC("id=c1 · op=puntos · inputs=24.0%; 2 · formula=24.0% + 2pp · resultado=26.0% · unidad=pct · dueno=Jumbo")).ok,
   "otra entidad viable tampoco se veta (no hay falso positivo por vecindad)");
 
 console.log("\n── 3 · LA TASA NEGATIVA EN EL CÁLCULO DECLARADO ──");
-const NEG = `Mercado Libre bajaría su carga comercial a −0.2%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=1.8%; 2 · formula=1.8% − 2pp · resultado=-0.2% · unidad=pct`;
+const NEG = `Mercado Libre bajaría su carga comercial a −0.2%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=1.8%; 2 · formula=1.8% − 2pp · resultado=-0.2% · unidad=pct · dueno=Mercado Libre`;
 const v3 = J(NEG);
 ok(!v3.ok && /escenario-inviable/.test(String(v3.verdict)), `una tasa que queda NEGATIVA muere aunque la aritmética cierre (obtuvo ${v3.verdict})`);
-const POS = `Falabella bajaría su carga comercial a 2.5%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=4.5%; 2 · formula=4.5% − 2pp · resultado=2.5% · unidad=pct`;
+const POS = `Falabella bajaría su carga comercial a 2.5%.\n\n${MARCA_CALCULO}\nid=c1 · op=puntos · inputs=4.5%; 2 · formula=4.5% − 2pp · resultado=2.5% · unidad=pct · dueno=Falabella`;
 ok(J(POS).ok, "la misma operación con resultado viable pasa");
 
 console.log("\n── 4 · SIN DELTA DEL USUARIO, EL CHEQUEO NO CORRE ──");

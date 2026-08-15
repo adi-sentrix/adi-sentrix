@@ -1357,7 +1357,7 @@ function _sealedOrderBroken(narration, sealedOrders) {
 
 // ── EL GUARD ────────────────────────────────────────────────────────────────────────────────────────────────────
 // guardC(narration, { ledger, results, trace }) → { ok, verdict, violations[] }
-// verdict: "fiel" | "narracion-vacia" | "cifra-no-autorizada" | "cifra-de-dato-sin-dueno" | "cifra-de-boleta-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
+// verdict: "fiel" | "narracion-vacia" | "cifra-no-autorizada" | "cifra-calculada-mal-atribuida" | "cifra-de-dato-sin-dueno" | "cifra-de-boleta-sin-dueno" | "atribucion" | "conteo-no-autorizado" | "graduacion" | "entidad-corrupta"
 // CÁLCULO SOBRE EL DATO (owner 2026-07-28 "que calcule, como Claude con el Excel"): una cifra que es la SUMA o la
 // RESTA de dos cifras AUTORIZADAS (mismos operandos reales del motor) NO es invento — es el LLM calculando sobre el
 // dato (ej. brecha de margen = benchmark − margen, "juntos explican $X+$Y"). Se autoriza. Operandos reales → seguro.
@@ -2499,6 +2499,59 @@ function _indiceDelDato(datoProyectado) {
   }
   return { porCanon, porVerbatim };
 }
+/* UNA TASA ES LA MISMA CIFRA COMO NIVEL («4.5%») O COMO DELTA («4.5pp») — la regla ya vigente para los insumos de
+ * un cálculo, subida acá para que también la use la quinta fuente. Sin esto, «el máximo aplicable es 1.8pp» moría
+ * como cifra inventada aunque la carpeta declare esa carga como 1.8% con su dueño. Devuelve null si no es tasa. */
+function _otraFormaDeTasa(s) {
+  const t = String(s == null ? "" : s).trim();
+  if (/(?:pp|puntos?)$/i.test(t)) return t.replace(/\s*(?:pp|puntos?)$/i, "%");
+  if (/%$/.test(t)) return t.replace(/%$/, "pp");
+  return null;
+}
+/* LA ORACIÓN COMPLETA que rodea a la cifra (owner 2026-08-14). Los chequeos de dueño de la carpeta usan una
+ * ventana de 150 caracteres hacia atrás, y está calibrada así — no se toca. Pero la doctrina que el cerebro lee
+ * dice «cada cifra con su dueño EN LA MISMA ORACIÓN», y una oración real puede pasar de 150: «Mercado Libre tiene
+ * margen 29.0% y su carga comercial es 1.8%: no puede bajar 2 puntos completos, el máximo aplicable es 1.8pp y con
+ * ese tope su margen llega a 30.8%» pone al dueño a ~185 del último número. Para las cifras CALCULADAS —que son
+ * las que este pase incorpora— se usa la oración entera, que es literalmente la regla que se le pidió cumplir.
+ * Number-safe: el corte exige espacio o fin después del signo, así que «$104.0M» no parte la oración en dos. */
+function _oracionEnTorno(text, masked, idx, len) {
+  let lo = 0;
+  const pre = masked.slice(0, idx);
+  const cortes = [...pre.matchAll(/[.!?\n](?=\s|$)/g)];
+  if (cortes.length) lo = cortes[cortes.length - 1].index + 1;
+  const end = idx + len;
+  const cut = masked.slice(end).search(_SENT_END);
+  return text.slice(lo, cut >= 0 ? end + cut : masked.length);
+}
+function _tokenEnOracion(text, masked, fig, tokens) {
+  let idx = -1;
+  while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
+    const ventana = _norm(_oracionEnTorno(text, masked, idx, fig.text.length));
+    for (const t of tokens) {
+      const tn = _norm(t);
+      if (tn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${tn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:e?s)?(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) return true;
+    }
+  }
+  return false;
+}
+/* ¿QUÉ ENTIDADES CONCRETAS acompañan a la cifra? (owner 2026-08-14) — la usa el chequeo del agregado: una cuenta
+ * declarada del CONJUNTO no puede quedar colgada de UN cliente/marca/SKU. Con dos o más nombres alrededor no hay
+ * problema: eso es el conjunto enumerado («entre Falabella, Lider y Jumbo suman $54.6M»), no una atribución.
+ * MISMA ventana y MISMA morfología que `_duenoEnVentana` — es su espejo, no un criterio nuevo. */
+function _entidadesEnVentana(text, masked, fig, nombres) {
+  if (!Array.isArray(nombres) || !nombres.length) return [];
+  const out = new Set();
+  let idx = -1;
+  while ((idx = text.indexOf(fig.text, idx + 1)) >= 0) {
+    const ventana = _norm(_oracionEnTorno(text, masked, idx, fig.text.length));
+    for (const n of nombres) {
+      const nn = _norm(n);
+      if (nn && new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(ventana)) out.add(n);
+    }
+  }
+  return [...out];
+}
 // ¿algún dueño del set aparece en la MISMA oración que la cifra? Ventana acotada a la oración (el MISMO
 // _localWindow de los chequeos de dueño, sobre el texto ENMASCARADO para que un decimal no corte en falso).
 function _duenoEnVentana(text, masked, fig, duenos) {
@@ -2740,6 +2793,20 @@ export function guardC(narration, { ledger, results = [], trace = null, question
    * veto de siempre sigue su curso. La lección del espejo se respeta: no hay recompute SILENCIOSO — solo lo que
    * la narración misma muestra como cuenta. */
   const _datoIdxFrm = _indiceDelDato(datoProyectado);
+  /* ── LA CIFRA CALCULADA ENTRA CON DUEÑO, NO COMO VALOR SUELTO (owner 2026-08-14) ─────────────────────────────
+   * MEDIDO EN LA APP: ADI mostró «Lider — $17.8M en ventas». Lider vende $17.9M; los $17.8M son la venta de la
+   * MARCA LG — una cifra REAL de la carpeta, de otro dueño. La frase suelta MORÍA por `cifra-de-dato-sin-dueno`;
+   * lo que la dejó pasar fue el contrato de cálculo: el resultado se adoptaba en `authCanon`, que es un conjunto
+   * de VALORES sin dueño, y a partir de ahí el chequeo de atribución dejaba de mirarlo.
+   * Palabra del owner: «una cifra calculada no puede quedar autorizada solo como valor; debe quedar autorizada
+   * con dueño, métrica, unidad y concepto, igual que una cifra de la carpeta».
+   * CÓMO: el resultado ya NO va a `authCanon`. Va a un índice propio con la MISMA forma que el de la carpeta
+   * (`porCanon`/`porVerbatim` → dueños), así que lo verifica el MISMO `_duenoEnVentana` de siempre — no hay
+   * maquinaria nueva. `calcBase` conserva el papel de INSUMO (un cálculo puede apoyarse en otro), que es una
+   * pregunta distinta de a quién pertenece la cifra en la prosa. */
+  const _calcIdx = { porCanon: new Map(), porVerbatim: new Map() };
+  const _calcAgregadas = new Set();   // canon de los resultados declarados como total/agregado
+  const calcBase = { canon: new Set(), verbatim: new Set() };   // solo para autorizar INSUMOS de otras cuentas
   {
     const _dec = (s) => {
       const m = String(s).replace(/\s/g, "").match(/^\$?([\d.,]+)([KMB])?%?$/i);
@@ -2749,6 +2816,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     };
     const _cierraFrm = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= Math.max(Math.abs(b) * 0.02, 0.051);
     const _baseOk = (frag) => parseFigures(frag).every((pf) => authCanon.has(pf.canon) || authVerbatim.has(_stripSpace(pf.text))
+      || calcBase.canon.has(pf.canon) || calcBase.verbatim.has(_stripSpace(pf.text))
       || (_datoIdxFrm && (_datoIdxFrm.porCanon.has(pf.canon) || _datoIdxFrm.porVerbatim.has(_stripSpace(pf.text)))));
     const _pctUsuario = [...qFigs, ...supFigs].map((f) => Number(f.raw)).filter(Number.isFinite);
     let _adoptadas = 0;
@@ -2936,7 +3004,18 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       // («25.0% − 30.1% = −5.1pp») es legítima y no puede confundirse con un escenario imposible.
       const _APLICA_DELTA = new Set(["puntos", "aplicar_pct", "variacion_aplicada"]);
       const _idsDeclarados = new Set(_calculosDeclarados.map((c) => String(c.id || "").trim()).filter(Boolean));
-      const _porId = new Map();
+      /* ── EL DUEÑO DEL RESULTADO ──────────────────────────────────────────────────────────────────────────────
+       * Los tokens de AGREGADO son los MISMOS que la carpeta usa para sus propios agregados («negocio», «total»,
+       * «cartera»…), no una lista nueva: así una cuenta del conjunto y una cifra del conjunto se verifican con el
+       * mismo vocabulario. Un dueño que no es agregado tiene que ser una entidad REAL del tenant — inventar el
+       * dueño es tan grave como inventar la cifra. */
+      const _AGREGADOS = new Set(["total", "totales", "agregado", "agregada", "negocio", "cartera", "global", "conjunto", "todos", "todas", "portafolio"]);
+      const _normD = (s) => _norm(String(s == null ? "" : s)).trim();
+      const _esAgregado = (d) => _AGREGADOS.has(_normD(d));
+      const _entidadesTenant = Array.isArray(duenosDelTenant) ? duenosDelTenant : (Array.isArray(entidadesDelTenant) ? entidadesDelTenant : null);
+      const _duenoReal = (d) => !_entidadesTenant || _entidadesTenant.some((n) => _normD(n) === _normD(d));
+      const _porId = new Map();          // id → valor recomputado
+      const _duenoPorId = new Map();     // id → dueño declarado (para que una cascada herede a quién pertenece)
       for (const c of _calculosDeclarados) {
         const op = String(c.op || "").trim().toLowerCase();
         /* «$19.4M × 8.1%» SOLO PUEDE SIGNIFICAR «el 8.1% de $19.4M» (owner 2026-08-14, examen 1 · turnos 1 y 3).
@@ -2992,9 +3071,52 @@ export function guardC(narration, { ledger, results = [], trace = null, question
            * es aritmética correcta y realidad imposible: no se puede recortar más carga de la que existe. Se veta
            * la DECLARACIÓN, con el tope real en la instrucción — así el reintento sabe qué corregir. */
           _vetosCalculo.push({ kind: "escenario-inviable", detail: `línea «${c.linea || c.id || "declarada"}» — campo «resultado»: deja una tasa NEGATIVA (${esperado.toFixed(1)}%). No se puede recortar más de lo que hay: el máximo aplicable es el valor disponible — usá ese tope o declará que el supuesto no aplica completo` });
+        } else if (!String(c.dueno || "").trim()) {
+          /* SIN DUEÑO NO HAY AUTORIZACIÓN (owner 2026-08-14). La cuenta puede cerrar perfecta y aun así no
+           * sabemos DE QUIÉN es el número — que es justo lo que dejó salir «Lider — $17.8M». */
+          _vetosCalculo.push(_multa(c, "dueño", `la cuenta cierra, pero no declaraste de QUIÉN es el resultado. Agregá «dueno=<entidad>» si es de una entidad concreta, o «dueno=total» si es del conjunto`));
+        } else if (!_esAgregado(c.dueno) && !_duenoReal(c.dueno)) {
+          _vetosCalculo.push(_multa(c, "dueño", `«${c.dueno}» no es una entidad de este negocio. Usá el nombre exacto de la entidad, o «dueno=total» si el resultado es del conjunto`));
         } else {
-          if (c.id) _porId.set(String(c.id).trim(), R);
-          _adoptar(String(c.resultado));   // la cuenta cerró y sus insumos están autorizados: el resultado vale
+          /* EL DUEÑO DEL RESULTADO SALE DE LOS INSUMOS, NO DEL VALOR. Este es el chequeo que cierra el caso
+           * medido, y hubo que buscarle el criterio correcto: la primera versión comparaba el RESULTADO contra la
+           * carpeta y vetaba una simulación legítima de Falabella que daba 24.0% solo porque 24.0% es el margen
+           * real de Jumbo — dos cifras iguales que no tienen nada que ver. Lo que distingue el fraude del
+           * parecido es DE DÓNDE SALE LA CUENTA: si los insumos son de Falabella, el resultado es de Falabella;
+           * si los insumos son de Jumbo y el resultado se declara de Lider, ahí está el número de otro.
+           * ACOTADO con cuidado, para no vetar lo legítimo:
+           *   · los insumos AGREGADOS no restringen nada — la parte de un total pertenece a la parte;
+           *   · los supuestos del usuario (2pp, 4%) no tienen dueño y no cuentan;
+           *   · un insumo que es el id de otra línea aporta EL DUEÑO DE ESA LÍNEA (así encadena una cascada);
+           *   · si ningún insumo tiene dueño identificable, no hay nada que comparar y no se veta. */
+          const _pfR = parseFigures(String(c.resultado))[0] || null;
+          const _duenosDeInsumos = new Set();
+          for (const x of (c.inputs || [])) {
+            const k = String(x).trim();
+            if (_duenoPorId.has(k)) { const d = _duenoPorId.get(k); if (!_esAgregado(d)) _duenosDeInsumos.add(d); continue; }
+            const pf = parseFigures(k)[0];
+            const ds = pf && _datoIdxFrm ? (_datoIdxFrm.porCanon.get(pf.canon) || _datoIdxFrm.porVerbatim.get(_stripSpace(pf.text)) || null) : null;
+            if (ds) for (const d of ds) if (!_esAgregado(d) && _duenoReal(d)) _duenosDeInsumos.add(d);
+          }
+          const _ajeno = !_esAgregado(c.dueno) && _duenosDeInsumos.size
+            && ![..._duenosDeInsumos].some((d) => _normD(d) === _normD(c.dueno));
+          if (_ajeno) {
+            _vetosCalculo.push(_multa(c, "dueño", `la declaraste de «${c.dueno}», pero sus insumos son de ${[..._duenosDeInsumos].slice(0, 3).join("/")} — una cuenta hecha con cifras de otro no da una cifra tuya: revisá de quién es el número`));
+          } else {
+            if (c.id) _porId.set(String(c.id).trim(), R);
+            /* ADOPCIÓN CON DUEÑO: al índice propio (lo verifica el `_duenoEnVentana` de siempre) y a `calcBase`,
+             * que solo sirve para que OTRA cuenta pueda apoyarse en esta. Ya NO va a `authCanon`: ahí adentro una
+             * cifra queda autorizada como valor pelado y el chequeo de atribución deja de mirarla. */
+            if (c.id) _duenoPorId.set(String(c.id).trim(), String(c.dueno).trim());   // la cascada hereda el dueño
+            if (_pfR) {
+              const _reg = (mapa, llave) => { if (!mapa.has(llave)) mapa.set(llave, new Set()); mapa.get(llave).add(String(c.dueno).trim()); };
+              _reg(_calcIdx.porCanon, _pfR.canon);
+              _reg(_calcIdx.porVerbatim, _stripSpace(_pfR.text));
+              if (_esAgregado(c.dueno)) _calcAgregadas.add(_pfR.canon);
+              calcBase.canon.add(_pfR.canon); calcBase.verbatim.add(_stripSpace(_pfR.text));
+              _adoptadas++;   // el punto fijo de las cascadas sigue contando: esta pasada aportó algo
+            }
+          }
         }
       }
     }
@@ -3287,9 +3409,36 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const _dueRe = _recita.porCanon.get(f.canon) || _recita.porVerbatim.get(_stripSpace(f.text)) || null;
       if (_dueRe && _dueRe.size && _duenoEnVentana(narration, _maskedNarr, f, _dueRe)) continue;
     }
-    const _duenos = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
+    /* LA CIFRA CALCULADA, CON SU DUEÑO (owner 2026-08-14 · ver el bloque del contrato de cálculo arriba). Antes
+     * llegaba acá ya autorizada como valor pelado y este chequeo ni la miraba; ahora se verifica igual que una
+     * cifra de la carpeta, con el MISMO `_duenoEnVentana`. */
+    const _dueCalc = _calcIdx.porCanon.get(f.canon) || _calcIdx.porVerbatim.get(_stripSpace(f.text)) || null;
+    if (_dueCalc && _dueCalc.size) {
+      if (_calcAgregadas.has(f.canon)) {
+        // agregado: no puede colgarse de UNA entidad. Dos o más alrededor es el conjunto enumerado, y es legítimo.
+        const _ents = _entidadesEnVentana(narration, _maskedNarr, f, entidadesDelTenant);
+        if (_ents.length === 1) {
+          violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» la declaraste como cifra del CONJUNTO (dueno=total) y en el texto queda colgada de ${_ents[0]} — un agregado no es la cifra de una entidad: o nombrás el conjunto, o declarás el cálculo con su dueño real` });
+        }
+        continue;
+      }
+      if (_tokenEnOracion(narration, _maskedNarr, f, _dueCalc)) continue;
+      violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» es el resultado que declaraste de ${[..._dueCalc].slice(0, 3).join("/")}, pero ese dueño no está nombrado en la misma oración — nombralo al lado de la cifra, no cambies la cifra` });
+      continue;
+    }
+    let _duenos = _dato ? (_dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null) : null;
+    /* LA MISMA TASA, ESCRITA COMO DELTA (owner 2026-08-14): «el máximo aplicable es 1.8pp» habla de la carga que
+     * la carpeta declara como 1.8% para Mercado Libre — misma cifra, otro papel. Sin esto moría como inventada.
+     * ADITIVO: solo se consulta cuando la forma literal NO estaba en la carpeta, así que nunca crea un veto que
+     * antes no existía; convierte un «cifra-no-autorizada» en un pase (con su dueño) o en un veto más preciso. */
+    if (!(_duenos && _duenos.size) && _dato) {
+      const _alt = _otraFormaDeTasa(f.text);
+      const _pfa = _alt ? parseFigures(_alt)[0] : null;
+      if (_pfa) _duenos = _dato.porCanon.get(_pfa.canon) || _dato.porVerbatim.get(_stripSpace(_pfa.text)) || null;
+    }
     if (_duenos && _duenos.size) {
-      if (_duenoEnVentana(narration, _maskedNarr, f, _duenos)) continue;   // cifra REAL del dato, con su dueño al lado
+      // la ORACIÓN entera, no 150 caracteres: es la regla que la doctrina le pide al cerebro («en la misma oración»)
+      if (_duenoEnVentana(narration, _maskedNarr, f, _duenos) || _tokenEnOracion(narration, _maskedNarr, f, _duenos)) continue;
       violations.push({ kind: "cifra-de-dato-sin-dueno", detail: `«${f.text}» existe en el dato del negocio pero su dueño (${[..._duenos].slice(0, 4).join("/")}) no está nombrado en la misma oración — nombralo al lado de la cifra, no la cambies` });
       continue;
     }

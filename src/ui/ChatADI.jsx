@@ -76,7 +76,34 @@ function _pnlScopeProjection(mem) {
 
 // ── Helper PURO · arma el turno que la UI agrega DESDE el resultado de ADI (answerADI o answerADIFromSpec).
 // La UI CONSUME el resultado, no recalcula (regla madre). Mismo shape para ambos caminos.
+/* ── EL RASTRO DE RUTA (owner 2026-08-14) ────────────────────────────────────────────────────────────────────
+ * «Cuando midamos en app, necesitamos saber si respondió natural, actual o respaldo. Sin eso la evaluación se
+ * contamina.» Y no es teórico: cinco turnos del examen 1 se midieron creyendo que salían del camino nuevo, y uno
+ * lo había contestado el viejo — se vio porque las CIFRAS no coincidían con la carpeta, no porque el sistema lo
+ * dijera. Esto NO es superficie de producto: no pinta nada en pantalla. Deja el rastro en la consola del
+ * navegador y en `window.__ADI_RUTA__` (últimos 20 turnos) para poder leerlo al medir. */
+function _rastroDeRuta(q, r, source) {
+  try {
+    const nat = (r && r.natural) || null;
+    const rastro = {
+      pregunta: String(q || "").slice(0, 80),
+      via: source,                                   // natural · deterministico · sin_pago · demo · oracle
+      route: (r && r.route) || null,                 // lo que declara el propio motor
+      estado: nat ? nat.estado : null,               // verde · reparado · suplente · vacio (solo camino natural)
+      suplente: nat ? !!nat.suplenteDigno : null,
+      vetos: nat && Array.isArray(nat.vetos) ? nat.vetos : null,
+      llamadas: nat ? nat.calls : null,
+    };
+    if (typeof window !== "undefined") {
+      window.__ADI_RUTA__ = [rastro, ...(window.__ADI_RUTA__ || [])].slice(0, 20);
+    }
+    if (typeof console !== "undefined" && console.info) {
+      console.info(`[ADI ruta] ${rastro.via}${rastro.estado ? " · " + rastro.estado : ""}${rastro.vetos && rastro.vetos.length ? " · vetos: " + rastro.vetos.join(" | ") : ""}`);
+    }
+  } catch { /* el rastro JAMÁS puede romper un turno: es un instrumento, no una garantía */ }
+}
 function _turnFromResult(q, r, context, source) {
+  _rastroDeRuta(q, r, source);
   const deferred = r.text == null;
   const baseContext = { ...(r.context || context || {}) };
   // MEMORIA CANÓNICA + VISTA DERIVADA (Contrato v2 · Fase 4, owner 2026-08-07): `conversationScope` es la memoria
