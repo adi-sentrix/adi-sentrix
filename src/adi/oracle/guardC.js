@@ -3180,20 +3180,56 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   // sinónimos. El vocabulario de INMOVILIDAD de entidad (frenado/bloqueado/parado/estancado) exige que cada SKU
   // nombrado en esa oración esté declarado frenado, y que un conteo «N SKU <estado>» sea exactamente el declarado.
   // «inmovilizado»/«detenido» NO están acá: son el estado del CAPITAL (label del ledger), no una clasificación nueva.
+  /* ── DOS ESTADOS, DOS PALABRAS (owner 2026-08-15) ────────────────────────────────────────────────────────────
+   * «capital inmovilizado = categoría amplia; frenado = estado crítico DENTRO de capital inmovilizado. El notario
+   * debe vetar si ADI usa "frenado" como sinónimo de "inmovilizado".»
+   * La carpeta declara los dos conjuntos, así que acá se exige la palabra EXACTA para cada uno. Antes «frenado»
+   * era el único estado declarado e «inmovilizado» quedaba fuera del chequeo a propósito (era el label del
+   * capital, no una clasificación); ahora los dos son clasificaciones declaradas y cada una tiene su palabra. */
   if (datoProyectado && Array.isArray(datoProyectado.estados) && datoProyectado.estados.length) {
     const _frenados = new Set(datoProyectado.estados.filter((e) => e && e.estado === "frenado").map((e) => e.entidad));
-    const _EST_RE = /\b(?:frenad[oa]s?|bloquead[oa]s?|parad[oa]s?|estancad[oa]s?)\b/i;
+    const _inmov = new Set(datoProyectado.estados.filter((e) => e && e.estado === "inmovilizado").map((e) => e.entidad));
+    const _RE_FRENADO = /\b(?:frenad[oa]s?|bloquead[oa]s?|parad[oa]s?|estancad[oa]s?)\b/i;
+    const _RE_INMOV = /\b(?:inmovilizad[oa]s?|detenid[oa]s?)\b/i;
     const _skusCatalogo = (Array.isArray(duenosDelTenant) ? duenosDelTenant : []).filter((n) => /^[A-Z]{2,4}-/.test(String(n)));
+    const _num = { un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
     for (const o of narration.split(/[.!?\n]+/)) {
-      if (!_EST_RE.test(o)) continue;
+      const usaFren = _RE_FRENADO.test(o), usaInmov = _inmov.size ? _RE_INMOV.test(o) : false;
+      if (!usaFren && !usaInmov) continue;
+      // ENTIDADES: cada palabra exige su propio conjunto. Si la oración usa las dos, basta con pertenecer al
+      // amplio — «MAK-COMP-AIR está frenado dentro del capital inmovilizado» es correcto y no se toca.
       for (const sku of _skusCatalogo) {
         if (!new RegExp(`\\b${sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(o)) continue;
-        if (!_frenados.has(sku)) violations.push({ kind: "estado-no-declarado", detail: `«${sku}» no está frenado según el motor — los SKU frenados declarados son ${[..._frenados].join(", ")}; di el estado que la carpeta declara, no clasifiques por tu cuenta` });
+        if (usaFren && !usaInmov && !_frenados.has(sku)) {
+          violations.push({ kind: "estado-no-declarado", detail: _inmov.has(sku)
+            ? `«${sku}» está INMOVILIZADO pero no FRENADO — frenado es el estado crítico (rotación bajo el piso o días sobre el techo) y es un subconjunto: los frenados declarados son ${[..._frenados].join(", ")}. Usá «inmovilizado» para este SKU`
+            : `«${sku}» no está frenado según el motor — los SKU frenados declarados son ${[..._frenados].join(", ")}; di el estado que la carpeta declara, no clasifiques por tu cuenta` });
+        } else if (usaInmov && !usaFren && _inmov.size && !_inmov.has(sku)) {
+          violations.push({ kind: "estado-no-declarado", detail: `«${sku}» no está inmovilizado según el motor — los declarados son ${[..._inmov].join(", ")}; di el estado que la carpeta declara` });
+        }
       }
-      const mc = o.match(/\b(un|dos|tres|cuatro|cinco|seis|siete|ocho|\d+)\s+SKU\b/i);
-      if (mc) {
-        const N = ({ un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 })[mc[1].toLowerCase()] ?? parseInt(mc[1], 10);
-        if (Number.isFinite(N) && N !== _frenados.size) violations.push({ kind: "estado-no-declarado", detail: `«${mc[0]}» con estado de inmovilidad: el motor declara ${_frenados.size} SKU frenados, no ${N}` });
+      /* CONTEOS · el número solo se juzga si la palabra del estado lo CALIFICA — pegada, dentro de su misma
+       * cláusula. Con una ventana de caracteres a secas se vetaba un conteo legítimo del universo entero: «de los
+       * 13 SKU en stock, cinco están inmovilizados» leía «inmovilizados» como calificativo del 13. El corte por
+       * coma/paréntesis/guion es lo que separa «13 SKU EN STOCK» de la cláusula siguiente. */
+      const re = /\b(un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\s+SKU\b/gi;
+      let mc;
+      while ((mc = re.exec(o))) {
+        const N = _num[mc[1].toLowerCase()] ?? parseInt(mc[1], 10);
+        if (!Number.isFinite(N)) continue;
+        const post = o.slice(mc.index + mc[0].length).split(/[,;:—–()]/)[0].slice(0, 34);
+        const pre = o.slice(Math.max(0, mc.index - 34), mc.index).split(/[,;:—–()]/).pop();
+        const cerca = `${pre} ${post}`;
+        const fCerca = _RE_FRENADO.test(cerca), iCerca = _inmov.size ? _RE_INMOV.test(cerca) : false;
+        if (fCerca && !iCerca && N !== _frenados.size) {
+          violations.push({ kind: "estado-no-declarado", detail: N === _inmov.size
+            ? `«${mc[0]} frenados» usa la palabra del estado CRÍTICO para el conteo de la categoría AMPLIA: ${N} es el número de SKU con capital INMOVILIZADO; frenados son ${_frenados.size}. No son sinónimos — todo frenado está inmovilizado, pero no al revés`
+            : `«${mc[0]}» con estado de inmovilidad: el motor declara ${_frenados.size} SKU frenados, no ${N}` });
+        } else if (iCerca && !fCerca && _inmov.size && N !== _inmov.size) {
+          violations.push({ kind: "estado-no-declarado", detail: N === _frenados.size
+            ? `«${mc[0]} inmovilizados» usa la palabra de la categoría AMPLIA para el conteo del estado CRÍTICO: ${N} es el número de SKU FRENADOS; inmovilizados son ${_inmov.size}`
+            : `«${mc[0]}» inmovilizados: el motor declara ${_inmov.size}, no ${N}` });
+        }
       }
     }
   }

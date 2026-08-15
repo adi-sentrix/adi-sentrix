@@ -157,6 +157,29 @@ function _construir(scenario) {
   if (ki && ki.totalUSD != null) L.push(`- Inventario (foto de hoy): ${_L.capital.toLowerCase()} total ${F(_money(ki.totalUSD), INV, "inventario")} · ${F(_dias(ki.doh), INV)} de inventario promedio · inmovilizado ${F(_pct1(ki.inmovilizadoPct), INV)} (${F(_money(ki.inmovilizadoUSD), INV)}).`);
   const bench = tenantPolicyDefault("benchmark"), target = tenantPolicyDefault("targetCarga"), best = tenantPolicyDefault("bestPracticeCarga");
   const dohMax = tenantPolicyDefault("dohMax"), rotMin = tenantPolicyDefault("rotacionMin");
+  /* ── LAS DOS MÉTRICAS DE INVENTARIO, DEFINIDAS POR EL OWNER (2026-08-15) ────────────────────────────────────
+   * «capital inmovilizado = categoría amplia; frenado = estado crítico DENTRO de capital inmovilizado.»
+   * POR QUÉ ESTABAN FALTANDO: `deriveKpis().inventario` devuelve null en este tenant, así que el cerebro veía
+   * las 13 filas de SKU y NINGÚN agregado — en el examen 2 sumó a mano y se inventó el criterio de corte, y el
+   * muro lo vetó con razón. La carpeta tiene que traer las dos, con NOMBRE, CRITERIO y MONTO, para que no haya
+   * nada que deducir. Se calculan del mismo recorrido de filas que ya existe; cero segunda verdad.
+   * Los estados se DECLARAN los dos (`inmovilizado` y `frenado`), así el notario puede exigir la palabra exacta. */
+  const _inv = Array.isArray(f.skuInventario) ? f.skuInventario : [];
+  const _esFrenado = (s) => (typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax);
+  const _esInmovilizado = (s) => String(s.estado || "").trim().toLowerCase() !== "activo";
+  const _sumaK = (arr) => arr.reduce((a, s) => a + (Number(s.stockUSD) || 0), 0);
+  const _fInmov = _inv.filter(_esInmovilizado), _fFren = _inv.filter(_esFrenado);
+  for (const s of _fInmov) estados.push({ entidad: s.sku, estado: "inmovilizado", bodega: s.bodega });
+  counts.add(_fInmov.length); counts.add(_fFren.length);   // los conteos de cada categoría son cifras del dato: se autorizan como tales
+  const CAP_INMOV = [...NEG, "inventario", "capital", "inmovilizado", "stock"];
+  const CAP_FREN = [...NEG, "inventario", "capital", "frenado", "stock"];
+  if (_fInmov.length) {
+    // el criterio se dice en palabras, NO enumerando los códigos de estado: «60d/90d/120d» son cifras que
+    // pertenecen a SKU concretos y citarlas acá, sin su dueño al lado, las deja huérfanas (medido: tumbaba el suplente).
+    L.push(`- Capital inmovilizado (categoría AMPLIA): ${F(_money(_sumaK(_fInmov)), CAP_INMOV, "inventario")} en ${_fInmov.length} SKU — todo el stock cuyo estado NO es Activo.`);
+    L.push(`- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): ${F(_money(_sumaK(_fFren)), CAP_FREN, "inventario")} en ${_fFren.length} SKU — rotación bajo el piso (${_ratio(rotMin)}) o días sobre el techo (${_dias(dohMax)}).`);
+    L.push(`  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usá la palabra que corresponde a la cifra que estés citando.`);
+  }
   // «La REFERENCIA la declara el negocio», no «la vara» (medido 2026-08-14, examen 1 · turno 3): la carpeta es lo
   // que el cerebro lee, así que una palabra prohibida acá se la está ENSEÑANDO — y de acá salía también al
   // suplente digno, que va a pantalla. Se corrige en la fuente, además del lavado de salida.

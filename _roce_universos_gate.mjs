@@ -81,6 +81,36 @@ ok((vReal.violations || []).some((x) => x.kind === "etiqueta-ambigua"), "…y ta
 ok(J("MAK-SAW18V rota 5.2x, sobre el piso de rotación de 2.0x, y su margen de inventario es 34.0% — el mejor de la lista. Está en estado Activo.").ok,
   "…y la misma lectura, escrita bien (vara propia + etiqueta completa), pasa");
 
+/* ── 3c · DOS ESTADOS, DOS PALABRAS (owner 2026-08-15) ────────────────────────────────────────────────────────
+ * «capital inmovilizado = categoría amplia; frenado = estado crítico DENTRO de capital inmovilizado. El notario
+ * debe vetar si ADI usa "frenado" como sinónimo de "inmovilizado".» La carpeta declara los dos, con nombre,
+ * criterio y monto — antes no traía ninguno (deriveKpis().inventario es null) y el cerebro sumaba a mano. */
+console.log("\n── 3c · «FRENADO» NO ES SINÓNIMO DE «INMOVILIZADO» ──");
+{
+  const c = cifrasDelDato("actual");
+  const est = c.estados || [];
+  const nF = est.filter((e) => e.estado === "frenado").length, nI = est.filter((e) => e.estado === "inmovilizado").length;
+  ok(nF === 3 && nI === 5, `la carpeta declara los DOS estados: ${nF} frenados (crítico) y ${nI} inmovilizados (amplio)`);
+  ok(est.filter((e) => e.estado === "frenado").every((e) => est.some((x) => x.estado === "inmovilizado" && x.entidad === e.entidad)),
+    "…y todo frenado está también declarado inmovilizado: es un SUBCONJUNTO, no otra lista");
+  const figs = c.figs || [];
+  ok(figs.some((f) => (f.duenos || []).includes("inmovilizado") && f.value === "$56K"), "el monto de la categoría amplia ($56K) viaja al cerebro con su dueño");
+  ok(figs.some((f) => (f.duenos || []).includes("frenado") && f.value === "$33K"), "…y el del estado crítico ($33K) también");
+}
+ok(V("Cinco SKU frenados concentran $56K de capital.") === "estado-no-declarado",
+  `usar «frenados» para el conteo de la categoría amplia muere (${V("Cinco SKU frenados concentran $56K de capital.")})`);
+ok(/no son sinónimos/i.test(String((J("Cinco SKU frenados concentran $56K de capital.").violations[0] || {}).detail || "")),
+  "…y la multa explica la diferencia, no solo la corrige");
+ok(V("SAM-TV55 está frenado.") === "estado-no-declarado", `un SKU inmovilizado pero NO crítico, llamado «frenado», muere (${V("SAM-TV55 está frenado.")})`);
+ok(/INMOVILIZADO pero no FRENADO/.test(String((J("SAM-TV55 está frenado.").violations[0] || {}).detail || "")), "…y la multa dice exactamente cuál de los dos es");
+// LOS CONTROLES NEGATIVOS · las dos palabras bien usadas tienen que pasar
+ok(J("Cinco SKU concentran $56K de capital inmovilizado.").ok, "la categoría amplia con su palabra y su cifra: pasa");
+ok(J("Tres SKU frenados concentran $33K.").ok, "el estado crítico con su palabra y su cifra: pasa");
+ok(J("SAM-TV55 tiene capital inmovilizado.").ok, "un SKU de la categoría amplia, llamado por su palabra: pasa");
+ok(J("MAK-COMP-AIR está frenado dentro del capital inmovilizado.").ok, "…y un SKU crítico, nombrado con las dos palabras a la vez: pasa");
+ok(J("De los 13 SKU en stock, cinco están inmovilizados.").ok,
+  "un conteo del universo ENTERO en la misma oración no se confunde con un conteo de estado (el 13 no es del estado)");
+
 console.log("\n── 4 · SIN UNIVERSOS DECLARADOS, EL MURO NO SE MUEVE ──");
 {
   const sinUni = { ...CTX, datoProyectado: { figs: (cifrasDelDato("actual").figs || []).map(({ universo, ...r }) => r) } };
