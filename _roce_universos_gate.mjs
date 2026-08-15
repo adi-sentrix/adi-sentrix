@@ -120,6 +120,18 @@ ok(J("MAK-COMP-AIR está frenado dentro del capital inmovilizado.").ok, "…y un
 ok(J("De los 13 SKU en stock, cinco están inmovilizados.").ok,
   "un conteo del universo ENTERO en la misma oración no se confunde con un conteo de estado (el 13 no es del estado)");
 
+/* ── 3d · EL UNIVERSO DE UN RANKING ES EL CONJUNTO DEL QUE SE HABLA (falso positivo MEDIDO en la app) ─────────
+ * A «sobre esos SKU, ¿cuáles explican el 80% del capital inmovilizado?» ADI rankeó los CINCO inmovilizados — el
+ * universo completo de esa pregunta — y el chequeo le exigía «5 de 13», comparando contra todos los SKU del
+ * inventario. Rankear un conjunto declarado ENTERO no es un recorte: es la respuesta completa. */
+console.log("\n── 3d · RANKEAR UN CONJUNTO DECLARADO ENTERO NO ES UN RECORTE ──");
+const RANK_INMOV = "Ranking de los 5 SKU inmovilizados, de mayor a menor capital: LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K.";
+ok(J(RANK_INMOV).ok, `rankear los 5 inmovilizados (el conjunto entero) pasa — antes moría por «5 de 13» (${V(RANK_INMOV)})`);
+ok(J("Ranking de los 3 SKU frenados por rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x.").ok,
+  "…y rankear los 3 frenados, que es el otro conjunto declarado, también");
+ok(V("Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, SAM-MICRO32L 7.4x, LG-WASH11KG 8.6x.") === "ranking-sin-cola",
+  "…pero un recorte ARBITRARIO de 5 que no es ningún conjunto declarado sigue muriendo");
+
 console.log("\n── 4 · SIN UNIVERSOS DECLARADOS, EL MURO NO SE MUEVE ──");
 {
   const sinUni = { ...CTX, datoProyectado: { figs: (cifrasDelDato("actual").figs || []).map(({ universo, ...r }) => r) } };

@@ -3788,6 +3788,17 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       if (_ANUNCIA_RANKING.test(narration)) {
         const todas = _entDeUniverso("inventario");
         const nombradas = todas.filter((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(narration));
+        /* ⚠️ EL UNIVERSO DE UN RANKING ES EL CONJUNTO DEL QUE SE HABLA, NO SIEMPRE EL EJE ENTERO (falso positivo
+         * MEDIDO en la app 2026-08-15): a «sobre esos SKU, ¿cuáles explican el 80%?» ADI rankeó los CINCO
+         * inmovilizados —el universo completo de esa pregunta— y este chequeo le exigía «5 de 13». Rankear un
+         * conjunto declarado ENTERO no es un recorte: es la respuesta completa. Cuentan como universo propio los
+         * conjuntos que la carpeta DECLARA (cada estado) y el alcance heredado del hilo. */
+        const _conjuntos = [];
+        for (const e of new Set((datoProyectado.estados || []).map((x) => x && x.estado).filter(Boolean))) {
+          _conjuntos.push(new Set((datoProyectado.estados || []).filter((x) => x.estado === e).map((x) => x.entidad)));
+        }
+        if (alcanceHeredado && Array.isArray(alcanceHeredado.entities)) _conjuntos.push(new Set(alcanceHeredado.entities));
+        const _esConjuntoEntero = _conjuntos.some((s) => s.size === nombradas.length && nombradas.every((n) => s.has(n)));
         if (todas.length >= 4 && nombradas.length >= 3 && nombradas.length < todas.length) {
           /* ⚠️ NO SE USA `_DECLARA_TOTAL_PARCIAL` COMO INTERRUPTOR GLOBAL (medido 2026-08-15, y el propio archivo
            * ya documenta esta trampa unas líneas más arriba, con tres apagones anteriores): la respuesta decía
@@ -3798,9 +3809,10 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           const _mDe = narration.match(/\b(\d{1,3})\s+de\s+(\d{1,3})\b/);
           const _mTop = narration.match(/\btop\s*(\d{1,3})\b/i);
           const _declara = (_mDe && Number(_mDe[1]) === nombradas.length) || (_mTop && Number(_mTop[1]) === nombradas.length);
+          // el que PROMETE todo no se salva por rankear un conjunto declarado: dijo el eje entero y mostró menos.
           if (_prometeTodo) {
-            violations.push({ kind: "ranking-sin-cola", detail: `decís que el ranking es COMPLETO y mostrás ${nombradas.length} de ${todas.length} — prometer el universo entero y entregar una parte es peor que recortar: o mostrás las ${todas.length}, o decís «${nombradas.length} de ${todas.length}»` });
-          } else if (!_declara) {
+            violations.push({ kind: "ranking-sin-cola", detail: `decís que el ranking es COMPLETO y mostrás ${nombradas.length} de ${todas.length} — prometer el universo entero y entregar una parte es peor que recortar: o mostrás las ${todas.length}, o decís de qué conjunto hablás («los ${nombradas.length} inmovilizados», «${nombradas.length} de ${todas.length}»)` });
+          } else if (!_esConjuntoEntero && !_declara) {
             violations.push({ kind: "ranking-sin-cola", detail: `anunciás un orden y mostrás ${nombradas.length} de ${todas.length} — un ranking parcial que no dice dónde corta se lee como si fuera todo: declaralo («${nombradas.length} de ${todas.length}», «top ${nombradas.length}») o explicá por qué cortás ahí` });
           }
         }
