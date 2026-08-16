@@ -30,7 +30,13 @@ const CTX = {
 };
 // LOS SEIS CHEQUEOS NUEVOS (2026-08-14/15). El resto del muro no se juzga acá: lleva meses calibrado.
 const NUEVOS = new Set(["comparacion-cruzada", "etiqueta-ambigua", "ranking-sin-cola", "estado-no-declarado",
-  "cifra-calculada-mal-atribuida", "calculo-no-verificable"]);
+  "cifra-calculada-mal-atribuida", "calculo-no-verificable",
+  // LOS TRES DEL EXAMEN 4 (owner 2026-08-16) · se calibran ANTES de gastar otra corrida.
+  // ⚠️ OJO AL LEER EL INFORME: para estos tres, un veto sobre una ACEPTADA no es automáticamente un falso
+  // positivo. Los textos del Examen 4 entraron al corpus CON el defecto adentro (el «peor margen» de Falabella
+  // salió a pantalla), así que ahí el veto es exactamente el objetivo. Lo que hay que mirar es si el veto cae
+  // sobre un texto de los exámenes 1-3, que son los que se dieron por buenos ANTES de que existiera la regla.
+  "superlativo-no-sostenido", "juicio-sin-marcar", "dias-etiqueta-incorrecta"]);
 
 const corpus = [];
 for (const f of fs.readdirSync(".")) {

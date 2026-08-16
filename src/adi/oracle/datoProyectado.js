@@ -120,6 +120,12 @@ function _construir(scenario) {
    * del texto (tenantPolicyDefault, la única verdad), nunca una segunda regla. El TEXTO no cambia un byte. */
   const estados = [];
   const rankings = { cliente: { ventas: [], margen: [], contribucion: [], carga: [] }, marca: { ventas: [], margen: [], contribucion: [], carga: [] } };
+  /* LOS DOS CAMPOS DE DÍAS, POR SEPARADO (owner 2026-08-16, deriva medida en el Examen 4). El texto ya los
+   * distingue —«Días de inventario 190d» y «112d sin venta»— pero como CIFRAS los dos llegan al notario con el
+   * mismo dueño y la misma unidad, así que no tenía cómo ver que el narrador le puso a uno el rótulo del otro
+   * («más de 120 días sin rotar» sobre un valor que era de inventario). Acá se declaran nombrados. `sinVenta`
+   * es null cuando el SKU está con venta al día: esa ausencia también es un dato, y el notario la exige. */
+  const dias = {};
   /* EL UNIVERSO DE CADA CIFRA (owner 2026-08-15, fuga medida en el examen 2): ADI comparó el «margen de
    * inventario 34%» de un SKU contra «el benchmark de cartera (30.1%)», que es del universo de VENTA. Ninguna
    * cuenta cruzó los dos mundos — cruzó la COMPARACIÓN. Para que el notario pueda verlo hace falta que la carpeta
@@ -243,6 +249,10 @@ function _construir(scenario) {
     if ((typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax)) {
       estados.push({ entidad: s.sku, estado: "frenado", bodega: s.bodega });
     }
+    dias[s.sku] = {
+      inventario: typeof s.doh === "number" ? Math.round(s.doh) : null,
+      sinVenta: typeof s.diasSinVenta === "number" && s.diasSinVenta > 0 ? Math.round(s.diasSinVenta) : null,
+    };
     // `estado ${F(s.estado, D)}`: el estado crudo («90d», «120d») ES texto de la carpeta — si el narrador lo cita
     // fiel («estado 90d»), la cita tiene que estar registrada con su dueño (medido en la matriz: FP de P2). F()
     // devuelve el valor intacto: el TEXTO de la proyección no cambia un byte.
@@ -265,7 +275,7 @@ function _construir(scenario) {
   L.push("LO QUE ESTE DATO NO TIENE (verificado — quien prometa responder esto, inventa):");
   for (const h of _HUECOS) L.push(`- ${h}`);
 
-  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, kpisLineas };
+  return { texto: L.join("\n"), figs, counts: [...counts], estados, rankings, dias, kpisLineas };
 }
 
 function _cacheado(scenario) {
@@ -283,7 +293,7 @@ export function proyectarDatoNegocio(scenario = "actual") {
  * cada cifra de la proyección con los tokens dueños que la validan por cercanía. MISMO recorrido que el texto. */
 export function cifrasDelDato(scenario = "actual") {
   const c = _cacheado(String(scenario || "actual"));
-  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings };
+  return { figs: c.figs, counts: c.counts, estados: c.estados, rankings: c.rankings, dias: c.dias };
 }
 
 /** kpisDelNegocio(scenario) → las líneas de KPI de la proyección, VERBATIM (header + 3-4 líneas).

@@ -3944,6 +3944,176 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     }
   }
 
+  /* ══ LOS DOS CIERRES DEL EXAMEN 4 · owner 2026-08-16 ═════════════════════════════════════════════════════════
+   * El Examen 4 dejó dos defectos medidos que ningún chequeo veía, y los dos son de la misma familia que el
+   * ranking: UNA CLASIFICACIÓN TAMBIÉN ES EVIDENCIA.
+   *   (4) SUPERLATIVOS · ADI dijo DOS VECES que Falabella tiene «el peor margen entre los tres grandes: 22.0%,
+   *       contra 21.5% de Lider» — la cifra que lo refuta estaba en la MISMA oración, y los dos turnos salieron
+   *       VERDES. Un «el peor / el mayor» es una afirmación sobre el ORDEN de un conjunto: se verifica igual que
+   *       un ranking, contra el conjunto y la métrica que la propia oración nombra.
+   *   (5) JUICIO ASESOR vs HECHO · «es la acción de mayor impacto» y «no hay margen para tratarlo como cuenta
+   *       sólida» son criterio, dichos con el mismo tono que una cifra verificada. El owner: «cuando ADI haga
+   *       recomendaciones o priorizaciones, debe marcar explícitamente qué es dato duro y qué es criterio
+   *       asesor, aunque el usuario no lo pida». El contrato vive en `naturalPrompt`; acá se verifica.
+   *   (6) LA ETIQUETA DE LOS DÍAS · «más de 120 días sin rotar» sobre un criterio que es de días de INVENTARIO.
+   *       Este dato tiene dos campos de días y no son el mismo; «sin rotar» no es ninguno de los dos. */
+  {
+    // ── (4) SUPERLATIVOS Y COMPARATIVOS DE ORDEN ──────────────────────────────────────────────────────────────
+    /* SE VERIFICA LO QUE SE PUEDE VERIFICAR, y el límite queda escrito: los rankings que la carpeta declara son
+     * por CLIENTE y por MARCA (ventas · margen · contribución · carga). Un superlativo sobre un SKU («el caso más
+     * pesado») o sobre una magnitud DERIVADA («el mayor gasto excedente») no tiene conjunto declarado contra el
+     * cual medirse, así que no se juzga — vetar por sospecha sería inventar una vara. */
+    const _rank = (datoProyectado && datoProyectado.rankings) ? datoProyectado.rankings : null;
+    if (_rank) {
+      // marcador → dirección sobre el VALOR. «peor» depende de la métrica: peor margen es el más BAJO, peor carga
+      // comercial es la más ALTA. Por eso la polaridad vive en la métrica y no en la palabra.
+      const _MARCAS_SUP = [
+        [/\bmayor(?:es)?\b|\bm[áa]s\s+alt[oa]s?\b|\bm[áa]xim[oa]s?\b|\bel\s+que\s+m[áa]s\b|\bm[áa]s\s+grandes?\b/i, "max"],
+        [/\bmenor(?:es)?\b|\bm[áa]s\s+baj[oa]s?\b|\bm[íi]nim[oa]s?\b|\bel\s+que\s+menos\b/i, "min"],
+        [/\bpeor(?:es)?\b/i, "peor"],
+        [/\bmejor(?:es)?\b/i, "mejor"],
+        [/\bprincipal(?:es)?\b|\bm[áa]s\s+cr[íi]tic[oa]s?\b/i, "peor"],
+      ];
+      // métrica → clave del ranking + hacia dónde está lo BUENO (para resolver «peor»/«mejor»)
+      const _METRICAS_SUP = [
+        [/\bm[áa]rgen(?:es)?\b/i, "margen", "alto"],   // ⚠️ `m[áa]rgenes?` NO es «margen»: es «margene»+s (cazado en la calibración)
+        [/\bcontribuci[óo]n\b/i, "contribucion", "alto"],
+        [/\bcarga\s+comercial\b/i, "carga", "bajo"],
+        [/\bventas?\b|\bfactura(?:ci[óo]n)?\b/i, "ventas", "alto"],
+      ];
+      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\s+(?:los|las|la)\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b/i;
+      const _reEnt = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "iu");
+      const _oraciones = String(narration).split(/(?<=[.!?])\s+|\n+/);
+      let _vetadoSup = false;
+      for (const [oi, oracion] of _oraciones.entries()) {
+        if (_vetadoSup) break;
+        for (const [reM, dir] of _MARCAS_SUP) {
+          const mm = oracion.match(reM);
+          if (!mm) continue;
+          /* ⚠️ SOLO EL SINGULAR (los 6 falsos positivos de la calibración, 2026-08-16). «Falabella y Lider, los
+           * dos MAYORES, tienen los márgenes más bajos» no le atribuye un extremo a nadie: describe un GRUPO. Un
+           * plural es una afirmación sobre varios, y preguntarle «¿es X el extremo?» a una frase que habla de dos
+           * o tres devuelve siempre que no — un rojo garantizado sobre texto correcto. */
+          if (/(?:es|as|os)$/i.test(mm[0].trim()) && /(?:mayores|menores|peores|mejores|principales|alt[ao]s|baj[ao]s|grandes|cr[íi]tic[ao]s|m[áa]xim[ao]s|m[íi]nim[ao]s)$/i.test(mm[0].trim())) continue;
+          const iM = oracion.indexOf(mm[0]);
+          /* LA MÉTRICA TIENE QUE ESTAR PEGADA AL MARCADOR, no «cerca» (falso positivo medido: «los dos mayores,
+           * tienen los márgenes más bajos» apareaba «mayores» con «margen» y juzgaba un tamaño como si fuera un
+           * margen). Se aceptan las dos formas del español —«mayor venta» y «margen más bajo»— y nada entre medio
+           * salvo un artículo o una preposición: una coma o un paréntesis ya son otra afirmación. */
+          let met = null;
+          for (const [reMet, clave, bueno] of _METRICAS_SUP) {
+            const mt = oracion.match(reMet);
+            if (!mt) continue;
+            const iMet = oracion.indexOf(mt[0]);
+            const entre = iMet > iM ? oracion.slice(iM + mm[0].length, iMet) : oracion.slice(iMet + mt[0].length, iM);
+            // PEGADAS DE VERDAD: «peor margen», «mayor venta», «carga comercial más alta». Con 12 caracteres de
+            // aire ya entraba «carga comercial produce el MAYOR efecto», que no habla de la carga (medido).
+            if (entre.length > 4 || /[,;:()—–]/.test(entre)) continue;
+            met = { clave, bueno };
+            break;
+          }
+          if (!met) continue;
+          const alto = dir === "max" || (dir === "peor" && met.bueno === "bajo") || (dir === "mejor" && met.bueno === "alto");
+          // el eje: el que tenga en su ranking a las entidades que la oración nombra
+          for (const eje of Object.keys(_rank)) {
+            const lista = _rank[eje] && _rank[eje][met.clave];
+            if (!Array.isArray(lista) || lista.length < 2) continue;
+            const nombradas = lista.filter((x) => _reEnt(x.entidad).test(oracion));
+            /* EL SUJETO PUEDE VIVIR ATRÁS («Es, de hecho, el margen más bajo…»: el sujeto es de dos oraciones
+             * antes, porque la del medio solo trae cifras). Se retrocede hasta DOS oraciones y se para en la
+             * primera que nombre alguna entidad del eje: si nombra UNA, es el sujeto; si nombra dos o más, no
+             * hay a quién atribuirle el extremo y no se juzga. Mismo criterio que la anáfora del dueño —
+             * antecedente único—, con la ventana de dos que el Examen 4 mostró que hace falta. */
+            let sujetoPrevio = null;
+            for (let k = oi - 1; k >= 0 && k >= oi - 2; k--) {
+              const prev = lista.filter((x) => _reEnt(x.entidad).test(_oraciones[k]));
+              if (!prev.length) continue;
+              if (prev.length === 1) sujetoPrevio = prev[0];
+              break;
+            }
+            const conjunto = _TODO_EL_CONJUNTO.test(oracion) ? lista.slice()
+              : [...nombradas, ...(sujetoPrevio && !nombradas.some((n) => n.entidad === sujetoPrevio.entidad) ? [sujetoPrevio] : [])];
+            if (conjunto.length < 2) continue;
+            /* QUIÉN RECLAMA EL EXTREMO: la entidad nombrada ANTES del marcador; si no hay ninguna, el sujeto de
+             * la oración anterior. Y tiene que ser UNA: con dos nombres delante del superlativo no se sabe a
+             * cuál se lo atribuye («la brecha es más ancha en Lider y Falabella, los dos con menor margen»), y
+             * elegir uno a ojo es adivinar. Es el mismo candado de la anáfora del dueño. */
+            const antes = oracion.slice(0, iM);
+            /* DOS FORMAS QUE PARECEN UN EXTREMO Y NO LO SON (las dos, medidas en la calibración):
+             *   · «la SEGUNDA peor carga» — un ordinal no reclama el extremo, reclama el puesto 2. Verificarlo
+             *     contra el primero es cobrarle algo que nadie dijo.
+             *   · «Son LOS DOS de mayor venta…» — sujeto plural: el extremo se le atribuye a un grupo, y
+             *     preguntar «¿es X el máximo?» sobre una frase que habla de dos devuelve siempre que no.
+             * El plural se busca SOLO delante del marcador: «el peor margen entre los tres grandes» lleva el
+             * «los tres» detrás, y ahí es el CONJUNTO contra el que se compara, no el sujeto. */
+            if (/\b(?:segund|tercer|cuart|quint|sext|s[ée]ptim|octav|noven|d[ée]cim)[oa]s?\s+$/i.test(antes.slice(-18))) continue;
+            if (/\b(?:los|las)\s+(?:dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b|\bambos\b|\bambas\b/i.test(antes)) continue;
+            /* LA MÁS CERCANA AL MARCADOR, no «la única»: en español el sujeto va pegado al predicado («Sodimac
+             * tiene la carga comercial más alta»), y exigir que no hubiera ningún otro nombre antes en la oración
+             * dejaba pasar defectos reales por tener un «Prioridad 2 — Jumbo y Sodimac» delante. Las frases donde
+             * el extremo es de un GRUPO ya quedaron afuera por el candado del plural, unas líneas más arriba. */
+            const delante = nombradas.filter((x) => _reEnt(x.entidad).test(antes))
+              .sort((a, b) => antes.toLowerCase().lastIndexOf(_norm(a.entidad)) - antes.toLowerCase().lastIndexOf(_norm(b.entidad)));
+            const reclamante = delante.length ? delante[delante.length - 1] : sujetoPrevio;
+            if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
+            const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
+            if (extremo.entidad === reclamante.entidad) continue;
+            const _v = (x) => (met.clave === "margen" || met.clave === "carga" ? `${x.valor}%` : String(x.valor));
+            violations.push({ kind: "superlativo-no-sostenido", detail: `decís que ${reclamante.entidad} es «${mm[0]}» en ${met.clave} y no lo es: en ese conjunto el extremo es ${extremo.entidad} (${_v(extremo)} contra ${_v(reclamante)} de ${reclamante.entidad}) — un «${mm[0]}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
+            _vetadoSup = true;
+            break;
+          }
+          if (_vetadoSup) break;
+        }
+      }
+    }
+
+    // ── (5) JUICIO ASESOR vs HECHO ────────────────────────────────────────────────────────────────────────────
+    /* NO SE EXIGE SOBRE CUALQUIER RESPUESTA: se exige cuando ADI RECOMIENDA o PRIORIZA, que es donde su criterio
+     * se puede confundir con una cifra verificada. Una lectura sin recomendación no tiene nada que separar. */
+    /* CUÁNDO SE EXIGE. Las formas en que ADI de verdad recomienda o prioriza — incluida «Prioridad 1 — …», que
+     * es la que más usa cuando ordena una cartera. Una lectura que solo describe no dispara nada: no hay criterio
+     * que separar si nadie propuso un orden de acción. */
+    /* ⚠️ EL ENCABEZADO, NO LA PALABRA EN NEGRITA (falso positivo medido: la definición curada de «carga
+     * comercial» escribe «las **acciones comerciales** son el mismo hecho medido en dinero» — una definición no
+     * recomienda nada, y el chequeo la mataba por llevar la palabra en negrita). Por eso el encabezado exige sus
+     * dos puntos: «**Acción:**» es un bloque de recomendación; «**acciones comerciales**» es un término. */
+    const _RECOMIENDA = /\*\*\s*acci[óo]n(?:es)?\s*(?:recomendadas?)?\s*:|\*\*\s*recomendaci[óo]n\s*:|\bacciones\s+recomendadas\b|\brecomiendo\b|\brecomendar[íi]a\b|\bpriorizar[íi]a\b|\bprioridad(?:es)?\s*\d?\s*[:—–-]|\bprioriz[áa]\b|\barrancar[íi]a\s+por\b|\bempezar[íi]a\s+por\b|\bla\s+acci[óo]n\s+de\s+mayor\s+impacto\b|\bqu[ée]\s+hacer\s*:/i;
+    const _MARCA_JUICIO = /\bjuicio\s+asesor\b|\bdato\s+duro\b|\bcriterio\s+(?:m[íi]o|propio|asesor|de\s+asesor)\b|\bes\s+mi\s+lectura\b|\bes\s+criterio\b|\bmi\s+criterio\b|\bno\s+sale\s+del\s+dato\b/i;
+    if (_RECOMIENDA.test(narration) && !_MARCA_JUICIO.test(narration)) {
+      violations.push({ kind: "juicio-sin-marcar", detail: `estás recomendando o priorizando sin decir qué es DATO DURO y qué es CRITERIO tuyo — una recomendación escrita con el mismo tono que una cifra verificada se lee como si el dato la ordenara, y el dato no ordena prioridades: marcá el criterio («esto es criterio mío, no una cifra del dato») y dejá el dato duro aparte` });
+    }
+
+    // ── (6) LA ETIQUETA DE LOS DÍAS ───────────────────────────────────────────────────────────────────────────
+    /* ESTE DATO TIENE DOS CAMPOS DE DÍAS Y NO SON EL MISMO: días de INVENTARIO (cuánto dura el stock al ritmo de
+     * venta) y días SIN VENTA (hace cuánto no sale). «Días sin rotar» no es ninguno de los dos — es una etiqueta
+     * que no existe, y en el Examen 4 le puso el nombre de uno al valor del otro. */
+    const _DIAS_INVENTADOS = /\b\d{1,4}\s*(?:d[íi]as?|d)\s+sin\s+(?:rotar|rotaci[óo]n|salida|movimiento|moverse|actividad)\b/i;
+    const _mDI = narration.match(_DIAS_INVENTADOS);
+    if (_mDI) {
+      violations.push({ kind: "dias-etiqueta-incorrecta", detail: `escribís «${_mDI[0].trim()}» y este dato no tiene «días sin rotar»: tiene DÍAS DE INVENTARIO (cuánto dura el stock al ritmo de venta — es el campo contra el que se mide el techo) y DÍAS SIN VENTA (hace cuánto no sale). Usá el nombre del campo que estás citando` });
+    }
+    const _diasIdx = (datoProyectado && datoProyectado.dias) ? datoProyectado.dias : null;
+    if (_diasIdx) {
+      const _reSku = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "iu");
+      for (const oracion of String(narration).split(/(?<=[.!?])\s+|\n+/)) {
+        const mv = oracion.match(/\b(\d{1,4})\s*(?:d[íi]as?|d)\s+sin\s+ven(?:ta|der)/i);
+        if (!mv) continue;
+        const sku = Object.keys(_diasIdx).find((n) => _reSku(n).test(oracion));
+        if (!sku) continue;
+        const d = _diasIdx[sku];
+        if (d.sinVenta == null) {
+          violations.push({ kind: "dias-etiqueta-incorrecta", detail: `le ponés «${mv[0].trim()}» a ${sku} y ese SKU está CON VENTA AL DÍA: no tiene días sin venta. Si lo que querés citar es cuánto dura su stock, son ${d.inventario}d de inventario` });
+          break;
+        }
+        if (Number(mv[1]) !== d.sinVenta && Number(mv[1]) === d.inventario) {
+          violations.push({ kind: "dias-etiqueta-incorrecta", detail: `${mv[1]}d es el DÍAS DE INVENTARIO de ${sku}, no sus días sin venta (esos son ${d.sinVenta}d) — son dos campos distintos y le pusiste a uno el nombre del otro` });
+          break;
+        }
+      }
+    }
+  }
+
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
   // de entidad DEJÓ de ser aviso: subió a bloqueo en el chequeo 10 de arriba.
   const advisories = [];
