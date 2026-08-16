@@ -1,0 +1,307 @@
+{
+  "titulo": "ADOPCIÓN · las 3 reglas nuevas (superlativos · criterio marcado · etiqueta de días)",
+  "history": [
+    {
+      "role": "user",
+      "text": "Dame un resumen para directorio con los 3 riesgos principales del negocio y las 3 acciones recomendadas."
+    },
+    {
+      "role": "adi",
+      "text": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    },
+    {
+      "role": "user",
+      "text": "De los clientes bajo benchmark, dime cuál tiene el peor margen y cuál tiene la mayor carga comercial. Muéstrame las cifras que sostienen cada superlativo."
+    },
+    {
+      "role": "adi",
+      "text": "8 de 13 clientes están bajo el benchmark de margen (30.1%). Dentro de ese grupo, Lider tiene el peor margen y Sodimac la mayor carga comercial — son dos problemas distintos, no el mismo cliente.\n\n**Peor margen bajo benchmark: Lider**\n- Margen 21.5% vs benchmark 30.1% → brecha de 8.6pp, la más profunda del grupo.\n- Lider vende $17.8M con contribución $3.8M y costo $14.0M.\n- Compara contra el resto bajo benchmark: Falabella 22.0%, Ripley 25.0%, Jumbo 24.0%, Sodimac 23.5%, Paris 26.5%, Tottus 28.0%, Mercado Libre 29.0% — todos por encima de Lider.\n\n**Mayor carga comercial bajo benchmark: Sodimac**\n- Carga 5.4% vs meta 3.5% → 1.9pp por encima de meta (y lejos de la mejor práctica interna de 3.0%).\n- Sodimac destina $442K en acciones comerciales sobre ventas de $8.2M.\n- El resto del grupo: Ripley 4.8%, Falabella 4.5%, Lider 4.2%, Paris 4.0%, Jumbo 3.8%, Tottus 3.2%, Mercado Libre 1.8% — todos por debajo de Sodimac.\n\nQué hacer primero: empieza por Lider. Es el cliente con mayor venta entre los de peor margen, así que 1pp de mejora ahí mueve más contribución en dólares que corregir a Sodimac. Revisa la estructura de costo de Lider ($14.0M) antes de tocar su carga comercial (4.2%, que no es el problema principal ahí)."
+    },
+    {
+      "role": "user",
+      "text": "Si no puedo tocar precio, ¿qué palanca priorizarías y cuánto impacto puedo decir con seguridad? Separa dato duro de juicio asesor."
+    },
+    {
+      "role": "adi",
+      "text": "**Acción: carga comercial, no el costo de mercadería.**\n\n**Dato duro:**\n- Lider tiene carga comercial 4.2% vs meta 3.5% → brecha de 0.7pp.\n- Esa brecha aplicada sobre las ventas de Lider, $17.8M, equivale a $124.6K de gasto comercial reducible sin tocar precio.\n- Esto es lo único cuantificable con seguridad: no cambia el margen de 21.5% (que se calcula sobre costo, no sobre carga comercial), pero libera $124.6K de rentabilidad real hacia el resultado.\n\n**Criterio mío (no es cifra del dato):**\nEl otro camino sería atacar el costo de Lider, $14.0M, la base que explica el margen bajo, pero el dato no trae el desglose de ese costo — no sé cuánto es materia prima, logística o condición comercial del proveedor. Ahí no puedo darte una cifra segura, solo la dirección: revisar la estructura de costo es la acción de mayor impacto potencial, pero no la puedo cuantificar hoy.\n\nPor eso prioriza la carga comercial primero: es la única acción con número verificado y accionable ya.\n\n**Qué hacer primero:** bajar la carga comercial de Lider de 4.2% a la meta de 3.5%, liberando $124.6K. En paralelo, pedí el desglose de costo de Lider antes de decidir algo sobre los $14.0M — sin eso, cualquier acción ahí es una apuesta, no una cifra."
+    },
+    {
+      "role": "user",
+      "text": "En inventario, dime qué SKU tiene peor rotación y cuáles tienen más días de inventario. No uses «días sin rotar» si no corresponde."
+    },
+    {
+      "role": "adi",
+      "text": "**Peor rotación: MAK-COMP-AIR con 0.8x** — está bajo el piso de 2.0x, la rotación más baja de los 13 SKU en inventario.\n\n**Días de inventario por encima del techo (120d):** solo dos SKU superan ese límite:\n- MAK-COMP-AIR — 190 días de inventario, estado 120d.\n- LG-DRYER8KG — 165 días de inventario, estado 120d.\n\nEl resto del inventario está por debajo del techo: BOS-SANDER se acerca con 115 días (estado 90d) pero no lo cruza.\n\nNota aparte: MAK-COMP-AIR lleva 112 días sin venta y LG-DRYER8KG 94 días sin venta — es un campo distinto a los días de inventario, no lo confundo con el mismo dato.\n\n**Por qué pasa:** ambos SKU combinan rotación bajo piso y días sobre techo — es la definición exacta de estado crítico en tu dato, no una lectura mía.\n\n**Qué hacer primero:** MAK-COMP-AIR es el caso más severo — rotación más baja (0.8x) y más días de inventario (190d) del conjunto. Es también el que tiene el margen de inventario más bajo, 8.0%. Empieza la liquidación o el ajuste de stock ahí antes que en LG-DRYER8KG."
+    },
+    {
+      "role": "user",
+      "text": "Si el directorio me pregunta «cuánto dinero hay en juego», dime qué número puedo defender y qué número sería solo supuesto."
+    },
+    {
+      "role": "adi",
+      "text": "**Defendible: $33K frenado en 3 SKU — foto de hoy, verificado en el dato.**\n\nEs el capital inmovilizado en estado crítico: rotación bajo el piso de 2.0x o días sobre el techo de 120d. Incluye a MAK-COMP-AIR y LG-DRYER8KG, los dos que ya identificamos, más un tercer SKU en la misma condición.\n\nSi el directorio quiere el número más amplio, también es defendible: **$56K inmovilizado en 5 SKU** — esa es la categoría completa (todo lo que no está en estado Activo), de la cual el $33K frenado es el subconjunto más grave.\n\n**Lo que sería solo supuesto — no lo digas como cifra:**\n- Cuánto de ese $33K se \"recupera\" si liquidas o repones — no hay dato de precio de liquidación ni de recompra.\n- Cuánto impacta al resultado del año (P&L) — el inventario es foto de hoy en dólares crudos, el resultado es del año cerrado en miles; no reconcilian, y cualquier número que los cruce es alarma, no hallazgo.\n- Cualquier proyección de ahorro a futuro — no hay pronóstico en este dato, solo la foto actual.\n\n**Qué decir en la reunión:** \"Hay $33K de capital frenado, foto de hoy, en 3 SKU con MAK-COMP-AIR como el más severo. Cuánto de eso se traduce en caja depende de la decisión de liquidación, que todavía no está tomada — ese número no lo tengo hoy, y no lo voy a inventar.\""
+    }
+  ],
+  "mem": {
+    "recentNarrations": [
+      "**Defendible: $33K frenado en 3 SKU — foto de hoy, verificado en el dato.**\n\nEs el capital inmovilizado en estado crítico: rotación bajo el piso de 2.0x o días sobre el techo de 120d. Incluye a MAK-COMP-AIR y LG-DRYER8KG, los dos que ya identificamos, más un tercer SKU en la misma condición.\n\nSi el directorio quiere el número más amplio, también es defendible: **$56K inmovilizado en 5 SKU** — esa es la categoría completa (todo lo que no está en estado Activo), de la cual el $33K frenado es el subconjunto más grave.\n\n**Lo que sería solo supuesto — no lo digas como cifra:**\n- Cuánto de ese $33K se \"recupera\" si liquidas o repones — no hay dato de precio de liquidación ni de recompra.\n- Cuánto impacta al resultado del año (P&L) — el inventario es foto de hoy en dólares crudos, el resultado es del año cerrado en miles; no reconcilian, y cualquier número que los cruce es alarma, no hallazgo.\n- Cualquier proyección de ahorro a futuro — no hay pronóstico en este dato, solo la foto actual.\n\n**Qué decir en la reunión:** \"Hay $33K de capital frenado, foto de hoy, en 3 SKU con MAK-COMP-AIR como el más severo. Cuánto de eso se traduce en caja depende de la decisión de liquidación, que todavía no está tomada — ese número no lo tengo hoy, y no lo voy a inventar.\"",
+      "**Peor rotación: MAK-COMP-AIR con 0.8x** — está bajo el piso de 2.0x, la rotación más baja de los 13 SKU en inventario.\n\n**Días de inventario por encima del techo (120d):** solo dos SKU superan ese límite:\n- MAK-COMP-AIR — 190 días de inventario, estado 120d.\n- LG-DRYER8KG — 165 días de inventario, estado 120d.\n\nEl resto del inventario está por debajo del techo: BOS-SANDER se acerca con 115 días (estado 90d) pero no lo cruza.\n\nNota aparte: MAK-COMP-AIR lleva 112 días sin venta y LG-DRYER8KG 94 días sin venta — es un campo distinto a los días de inventario, no lo confundo con el mismo dato.\n\n**Por qué pasa:** ambos SKU combinan rotación bajo piso y días sobre techo — es la definición exacta de estado crítico en tu dato, no una lectura mía.\n\n**Qué hacer primero:** MAK-COMP-AIR es el caso más severo — rotación más baja (0.8x) y más días de inventario (190d) del conjunto. Es también el que tiene el margen de inventario más bajo, 8.0%. Empieza la liquidación o el ajuste de stock ahí antes que en LG-DRYER8KG."
+    ],
+    "recitaAprobada": {
+      "figs": [
+        {
+          "canon": "money:$125K",
+          "value": "$124.6K",
+          "duenos": [
+            "margen",
+            "costo",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$14.0M",
+          "value": "$14.0M",
+          "duenos": [
+            "Lider",
+            "margen",
+            "costo"
+          ]
+        },
+        {
+          "canon": "pct:4.2%",
+          "value": "4.2%",
+          "duenos": [
+            "Lider",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "Lider",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$125K",
+          "value": "$124.6K",
+          "duenos": [
+            "Lider",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$14.0M",
+          "value": "$14.0M",
+          "duenos": [
+            "Lider",
+            "costo"
+          ]
+        },
+        {
+          "canon": "ratio:0.8x",
+          "value": "0.8x",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:2.0x",
+          "value": "2.0x",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "days:120d",
+          "value": "120d",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:190d",
+          "value": "190 d",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:120d",
+          "value": "120d",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:165d",
+          "value": "165 d",
+          "duenos": [
+            "LG-DRYER8KG",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:120d",
+          "value": "120d",
+          "duenos": [
+            "LG-DRYER8KG",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:115d",
+          "value": "115 d",
+          "duenos": [
+            "BOS-SANDER",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:90d",
+          "value": "90d",
+          "duenos": [
+            "BOS-SANDER",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:112d",
+          "value": "112 d",
+          "duenos": [
+            "LG-DRYER8KG",
+            "MAK-COMP-AIR",
+            "LG",
+            "venta",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "days:94d",
+          "value": "94 d",
+          "duenos": [
+            "LG-DRYER8KG",
+            "MAK-COMP-AIR",
+            "LG",
+            "venta",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "ratio:0.8x",
+          "value": "0.8x",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "days:190d",
+          "value": "190d",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:8%",
+          "value": "8.0%",
+          "duenos": [
+            "margen",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "ratio:2.0x",
+          "value": "2.0x",
+          "duenos": [
+            "capital",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "days:120d",
+          "value": "120d",
+          "duenos": [
+            "capital",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "money:$33K",
+          "value": "$33K",
+          "duenos": [
+            "supuesto"
+          ]
+        },
+        {
+          "canon": "money:$33K",
+          "value": "$33K",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "capital"
+          ]
+        }
+      ]
+    }
+  },
+  "turnos": [
+    {
+      "q": "Dame un resumen para directorio con los 3 riesgos principales del negocio y las 3 acciones recomendadas.",
+      "estado": "suplente",
+      "vetos": [
+        "narracion-vacia",
+        "2º: etiqueta-ambigua",
+        "3º: calculo-no-verificable"
+      ],
+      "costoUSD": 0.168576,
+      "visible": "No pude entregarte la lectura que pediste con la calidad que corresponde. Para que no te quedes sin nada, estas son las cifras verificadas de tu negocio:\n\nKPIs DEL NEGOCIO (año cerrado, salvo inventario = foto de hoy):\n- Ventas totales: $99.9M (año anterior $92.9M · presupuesto $97.0M · 7.5% vs año anterior · 3.0% vs presupuesto).\n- Margen de la cartera: 25.1% · Contribución total $25.0M.\n- Inventario (foto de hoy): capital total $135K · 48d de inventario promedio · inmovilizado 41.3% ($56K).\n- Capital inmovilizado (categoría AMPLIA): $56K en 5 SKU — todo el stock cuyo estado NO es Activo.\n- Frenado (estado CRÍTICO, subconjunto del capital inmovilizado): $33K en 3 SKU — rotación bajo el piso (2.0x) o días sobre el techo (120d).\n  «Frenado» NO es sinónimo de «inmovilizado»: todo frenado está inmovilizado, pero no todo inmovilizado está frenado. Usa la palabra que corresponde a la cifra que estés citando.\n- La referencia la declara el negocio: benchmark de margen 30.1%. Meta de carga comercial 3.5% (mejor práctica interna 3.0%). Piso de rotación 2.0x · techo de días de inventario 120d.\n\nDime qué parte de esto necesitas y lo trabajo sobre estas mismas cifras."
+    },
+    {
+      "q": "De los clientes bajo benchmark, dime cuál tiene el peor margen y cuál tiene la mayor carga comercial. Muéstrame las cifras que sostienen cada superlativo.",
+      "estado": "reparado",
+      "vetos": [
+        "cifra-de-dato-sin-dueno"
+      ],
+      "costoUSD": 0.049542,
+      "visible": "8 de 13 clientes están bajo el benchmark de margen (30.1%). Dentro de ese grupo, Lider tiene el peor margen y Sodimac la mayor carga comercial — son dos problemas distintos, no el mismo cliente.\n\n**Peor margen bajo benchmark: Lider**\n- Margen 21.5% vs benchmark 30.1% → brecha de 8.6pp, la más profunda del grupo.\n- Lider vende $17.8M con contribución $3.8M y costo $14.0M.\n- Compara contra el resto bajo benchmark: Falabella 22.0%, Ripley 25.0%, Jumbo 24.0%, Sodimac 23.5%, Paris 26.5%, Tottus 28.0%, Mercado Libre 29.0% — todos por encima de Lider.\n\n**Mayor carga comercial bajo benchmark: Sodimac**\n- Carga 5.4% vs meta 3.5% → 1.9pp por encima de meta (y lejos de la mejor práctica interna de 3.0%).\n- Sodimac destina $442K en acciones comerciales sobre ventas de $8.2M.\n- El resto del grupo: Ripley 4.8%, Falabella 4.5%, Lider 4.2%, Paris 4.0%, Jumbo 3.8%, Tottus 3.2%, Mercado Libre 1.8% — todos por debajo de Sodimac.\n\nQué hacer primero: empieza por Lider. Es el cliente con mayor venta entre los de peor margen, así que 1pp de mejora ahí mueve más contribución en dólares que corregir a Sodimac. Revisa la estructura de costo de Lider ($14.0M) antes de tocar su carga comercial (4.2%, que no es el problema principal ahí)."
+    },
+    {
+      "q": "Si no puedo tocar precio, ¿qué palanca priorizarías y cuánto impacto puedo decir con seguridad? Separa dato duro de juicio asesor.",
+      "estado": "reparado",
+      "vetos": [
+        "cifra-de-dato-sin-dueno"
+      ],
+      "costoUSD": 0.062016,
+      "visible": "**Acción: carga comercial, no el costo de mercadería.**\n\n**Dato duro:**\n- Lider tiene carga comercial 4.2% vs meta 3.5% → brecha de 0.7pp.\n- Esa brecha aplicada sobre las ventas de Lider, $17.8M, equivale a $124.6K de gasto comercial reducible sin tocar precio.\n- Esto es lo único cuantificable con seguridad: no cambia el margen de 21.5% (que se calcula sobre costo, no sobre carga comercial), pero libera $124.6K de rentabilidad real hacia el resultado.\n\n**Criterio mío (no es cifra del dato):**\nEl otro camino sería atacar el costo de Lider, $14.0M, la base que explica el margen bajo, pero el dato no trae el desglose de ese costo — no sé cuánto es materia prima, logística o condición comercial del proveedor. Ahí no puedo darte una cifra segura, solo la dirección: revisar la estructura de costo es la acción de mayor impacto potencial, pero no la puedo cuantificar hoy.\n\nPor eso prioriza la carga comercial primero: es la única acción con número verificado y accionable ya.\n\n**Qué hacer primero:** bajar la carga comercial de Lider de 4.2% a la meta de 3.5%, liberando $124.6K. En paralelo, pedí el desglose de costo de Lider antes de decidir algo sobre los $14.0M — sin eso, cualquier acción ahí es una apuesta, no una cifra."
+    },
+    {
+      "q": "En inventario, dime qué SKU tiene peor rotación y cuáles tienen más días de inventario. No uses «días sin rotar» si no corresponde.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.070911,
+      "visible": "**Peor rotación: MAK-COMP-AIR con 0.8x** — está bajo el piso de 2.0x, la rotación más baja de los 13 SKU en inventario.\n\n**Días de inventario por encima del techo (120d):** solo dos SKU superan ese límite:\n- MAK-COMP-AIR — 190 días de inventario, estado 120d.\n- LG-DRYER8KG — 165 días de inventario, estado 120d.\n\nEl resto del inventario está por debajo del techo: BOS-SANDER se acerca con 115 días (estado 90d) pero no lo cruza.\n\nNota aparte: MAK-COMP-AIR lleva 112 días sin venta y LG-DRYER8KG 94 días sin venta — es un campo distinto a los días de inventario, no lo confundo con el mismo dato.\n\n**Por qué pasa:** ambos SKU combinan rotación bajo piso y días sobre techo — es la definición exacta de estado crítico en tu dato, no una lectura mía.\n\n**Qué hacer primero:** MAK-COMP-AIR es el caso más severo — rotación más baja (0.8x) y más días de inventario (190d) del conjunto. Es también el que tiene el margen de inventario más bajo, 8.0%. Empieza la liquidación o el ajuste de stock ahí antes que en LG-DRYER8KG."
+    },
+    {
+      "q": "Si el directorio me pregunta «cuánto dinero hay en juego», dime qué número puedo defender y qué número sería solo supuesto.",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.031101,
+      "visible": "**Defendible: $33K frenado en 3 SKU — foto de hoy, verificado en el dato.**\n\nEs el capital inmovilizado en estado crítico: rotación bajo el piso de 2.0x o días sobre el techo de 120d. Incluye a MAK-COMP-AIR y LG-DRYER8KG, los dos que ya identificamos, más un tercer SKU en la misma condición.\n\nSi el directorio quiere el número más amplio, también es defendible: **$56K inmovilizado en 5 SKU** — esa es la categoría completa (todo lo que no está en estado Activo), de la cual el $33K frenado es el subconjunto más grave.\n\n**Lo que sería solo supuesto — no lo digas como cifra:**\n- Cuánto de ese $33K se \"recupera\" si liquidas o repones — no hay dato de precio de liquidación ni de recompra.\n- Cuánto impacta al resultado del año (P&L) — el inventario es foto de hoy en dólares crudos, el resultado es del año cerrado en miles; no reconcilian, y cualquier número que los cruce es alarma, no hallazgo.\n- Cualquier proyección de ahorro a futuro — no hay pronóstico en este dato, solo la foto actual.\n\n**Qué decir en la reunión:** \"Hay $33K de capital frenado, foto de hoy, en 3 SKU con MAK-COMP-AIR como el más severo. Cuánto de eso se traduce en caja depende de la decisión de liquidación, que todavía no está tomada — ese número no lo tengo hoy, y no lo voy a inventar.\""
+    }
+  ],
+  "costoUSD": 0.382146,
+  "llamadas": 9
+}
