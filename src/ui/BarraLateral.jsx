@@ -38,36 +38,25 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
       data-testid={testid} aria-pressed={activo ? "true" : "false"}
       style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:11, width:"100%",
         padding:"0 10px 0 13px", height:37, background:"transparent", border:"none", cursor:"pointer", font:"inherit" }}>
-      <span className="adi-rail-dash" style={{ flex:"none", width: activo ? 30 : 16, height:3, borderRadius:99,
+      {/* BARRITAS MÁS CHICAS (owner 2026-08-20: «haz las líneas un poco más pequeñas»): 12 px en reposo y 24 al
+          estar activa, con 2,5 de grosor. Antes eran 16/30×3 y pesaban demasiado para lo que son — una marca. */}
+      <span className="adi-rail-dash" style={{ flex:"none", width: activo ? 24 : 12, height:2.5, borderRadius:99,
         background: activo ? C.celeste : "#6b6f74",
-        boxShadow: activo ? "0 0 10px rgba(47,184,218,0.7)" : "none" }}/>
+        boxShadow: activo ? "0 0 9px rgba(47,184,218,0.7)" : "none" }}/>
+      {/* ⚠️ FONDO OPACO, SIEMPRE (owner 2026-08-20: «no debe ser transparente… es una opción, por lo tanto después
+          se quitará»). La activa usaba `rgba(47,184,218,0.10)`, que dejaba pasar el texto de abajo: un menú que
+          se lee encima del contenido tiene que TAPAR, si no se lee como un error de pintado. `#172a30` es ese
+          mismo celeste al 12% YA RESUELTO contra el fondo — el mismo color, sin el alfa. */}
       <span className="adi-rail-pill" style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:9,
         height:35, padding:"0 12px", borderRadius:10, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
         fontFamily:SANS, fontSize:12.5, fontWeight:600, letterSpacing:"-0.006em",
         border:`1px solid ${activo ? C.celeste : C.borderLight}`,
-        background: activo ? "rgba(47,184,218,0.10)" : C.surface,
+        background: activo ? "#172a30" : "#1a1a1d",
         color: activo ? C.text : C.textSub,
         boxShadow: activo ? "inset 0 0 0 1px rgba(47,184,218,0.35)" : "none" }}>
         {icono}{children}
       </span>
     </button>
-  );
-}
-
-/* Un indicador de estado. No se hace click: informa. Contraída se lee su COLOR; desplegada, su nombre. */
-function Estado({ color, titulo, children }) {
-  return (
-    <div className="adi-rail-st" title={titulo}
-      style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:11, width:"100%", padding:"0 10px 0 13px", height:29 }}>
-      <span className="adi-rail-dash" style={{ flex:"none", width:12, height:3, borderRadius:99, background:color }}/>
-      <span className="adi-rail-stpill" style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:7,
-        height:25, padding:"0 12px", borderRadius:99, whiteSpace:"nowrap", overflow:"hidden",
-        border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.02)",
-        fontFamily:SANS, fontSize:10.5, fontWeight:600, color:C.textMuted }}>
-        <span style={{ width:5, height:5, borderRadius:"50%", background:color, flexShrink:0 }}/>
-        {children}
-      </span>
-    </div>
   );
 }
 
@@ -85,7 +74,12 @@ function _modoBarra() {
   try { return new URLSearchParams(window.location.search).get("barra") || ""; } catch { return ""; }
 }
 
-export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, modoIA, demoDias, fecha,
+/* LOS CUATRO INDICADORES DE ESTADO SE FUERON (owner 2026-08-20: «la fecha no es necesaria, datos actuales
+ * tampoco y demo tampoco, quítalos»). Eran «Datos actuales», «Demo/IA», el vencimiento de la demo y
+ * «Live · fecha»: heredados del header blanco, informaban de la sesión, no del negocio. La barra queda solo
+ * con lo que se HACE. Nada de eso se perdió del producto — el modo y el acceso siguen en su lógica; lo que
+ * se quitó es su vitrina. */
+export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio,
   historialAbierto = false, onConversaciones = null }) {
   const modo = useMemo(_modoBarra, []);
   // «empuja» es el ÚNICO modo que necesita JavaScript: CSS no puede, desde el :hover de la barra, ensanchar el
@@ -182,20 +176,6 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         ¿Cómo funciona?
       </Fila>
 
-      {/* la separación entre acciones y estado es AIRE (ver la nota de arriba) */}
-      <div style={{ height:14, flexShrink:0 }} aria-hidden="true"/>
-
-      <Estado color={C.green} titulo="Estás viendo los datos actuales del negocio">Datos actuales</Estado>
-      <Estado color={modoIA ? C.celeste : "#5a5e63"}
-        titulo={modoIA ? "Modo IA · el LLM traduce tu pregunta a un spec; ADI calcula, valida y decide (no inventa cifras)" : "Modo demo · motor determinístico, sin LLM ni gasto"}>
-        {modoIA ? "IA" : "Demo"}
-      </Estado>
-      {demoDias != null && (
-        <Estado color="#5a5e63" titulo={`Tu demo vence en ${demoDias <= 1 ? "menos de un día" : `${demoDias} días`}`}>
-          {demoDias <= 1 ? "Demo · último día" : `Demo · quedan ${demoDias} días`}
-        </Estado>
-      )}
-      <Estado color={C.green} titulo="Datos en vivo">{`Live · ${fecha}`}</Estado>
     </div>
   );
 }

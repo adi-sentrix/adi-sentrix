@@ -20,7 +20,6 @@ const SentrixPanel = React.lazy(() => import("./SentrixPanel.jsx"));
 import { GuiaInicio, guiaAbreSola } from "./GuiaInicio.jsx";   // guía de inicio (owner 2026-08-07) · la división del trabajo ADI/Sentrix, no un tour de features
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
-import { ADI_LLM_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
@@ -46,14 +45,6 @@ function PanelSkeleton() {
     </div>
   );
 }
-
-const getCurrentDateString = () => {
-  const now = new Date();
-  const day   = String(now.getDate()).padStart(2, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const year  = now.getFullYear();
-  return `${day}-${month}-${year}`;
-};
 
 export default function App({ animate = true }) {
   const [scenario, setScenario] = useState(ESCENARIO_INICIAL);
@@ -182,10 +173,7 @@ export default function App({ animate = true }) {
           onConversaciones={historialVisible ? () => setHistColapsado((v) => !v) : null}
           guiaAbierta={guiaAbierta}
           onGuia={() => setGuiaAbierta((v) => !v)}
-          onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
-          modoIA={ADI_LLM_ENABLED}
-          demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}
-          fecha={getCurrentDateString()}/>
+          onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           {/* COLUMNA IZQUIERDA · propuesta en revisión (owner 2026-08-20), detrás de `?historial=1`. Sin el
               parámetro no se monta y la app queda igual: esto todavía no decidió nada. Ver PanelHistorial.jsx

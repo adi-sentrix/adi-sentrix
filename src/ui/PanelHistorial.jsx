@@ -49,8 +49,13 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, on
 
       <div style={{ flex:"none", padding:"14px 14px 10px", display:"flex", flexDirection:"column", gap:11 }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          {/* LA MARCA, ESCRITA COMO EN TODA LA CASA (owner 2026-08-20): «ADI» en sans, peso 700, y «Sentrix» en
+              mono, mayúsculas y con tracking. Acá decía «CONVERSACIONES», que nombraba la columna y no el
+              producto — el nombre de la sección ya lo dice la barrita encendida al lado. */}
           <span style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0, flex:1 }}>
-            <span style={{ fontSize:13, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:P.text3 }}>Conversaciones</span>
+            <span style={{ fontSize:14, fontWeight:700, letterSpacing:"-0.02em", color:P.text }}>ADI</span>
+            <span style={{ fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontSize:10, fontWeight:500,
+              color:P.text3, letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
           </span>
           <button onClick={onToggleColapso} title="Plegar el historial" aria-label="Plegar el historial"
             style={{ width:24, height:24, borderRadius:6, border:"none", background:"transparent", color:P.text4,
