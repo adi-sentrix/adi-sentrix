@@ -32,6 +32,15 @@ Lo acumulado en `dev` desde que se desplegó la 1.0. Sale a producción cuando e
   cifra clickeable hacia su pregunta. Las cifras las arma el motor (`pulsoInicio.js`), no la pantalla.
   Al implementarla se corrigieron tres palabras que el mockup traía y la casa no usa: «vara» → **benchmark**,
   «detenido» → **inmovilizado**, «margen consolidado» → **margen promedio**.
+- **La barra superior se eliminó** (diseño del owner, 2026-08-20). La marca, las dos acciones (Mesa de control
+  y ¿Cómo funciona?) y los cuatro indicadores de estado se mudaron a una **barra de barritas en el borde
+  derecho**: contraída mide 44 px y solo se ven las barritas; las opciones aparecen al pasar el cursor —o al
+  tabular con el teclado— y se van solas. La barrita de lo que está activo queda más larga y encendida.
+  No tiene fondo ni borde y va fuera del flujo, así que **el campo de hexágonos pasa por debajo hasta el
+  borde**: las barritas flotan sobre el lienzo, no en una franja aparte. El chat gana los 56 px del header y
+  desaparece el corte horizontal que partía la pantalla.
+  Nota: el selector de escenarios —apagado en todos los perfiles desde el 2026-08-07— se quedó sin punto de
+  montaje; el componente y el eje `scenario` siguen intactos.
 - **El versionado**: esto mismo.
 
 ---
