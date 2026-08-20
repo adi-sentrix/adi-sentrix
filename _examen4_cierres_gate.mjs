@@ -190,5 +190,30 @@ console.log("═".repeat(100));
   ok(!Object.values(R).some((ms) => Object.keys(ms).some((k) => /cobertura/i.test(k))),
     "…y NINGÚN ranking se llama «cobertura»: se dice días de inventario, y sale de `doh`");
 }
+
+console.log("\n" + "═".repeat(100));
+console.log("9 · UN TOTAL DEL CONJUNTO SE DECLARA · el defecto que llegó a pantalla en producción");
+console.log("═".repeat(100));
+/* EL CASO REAL (reproducción del 2026-08-16 sobre v1.0, expediente `_repro_resumen_v10*.json`): el titular de
+ * un resumen decía «Margen — brecha de $4.16M en la cartera». ADI sumó tres de los OCHO clientes bajo benchmark
+ * que él mismo acababa de contar, no declaró la suma, y el muro la dejó pasar. La brecha real de la cartera es
+ * $5.37M: el titular se comió $1.21M. */
+muere("**1. Margen — brecha de $4.16M en la cartera**", "total-sin-declarar",
+  "«brecha de $4.16M en la cartera» MUERE — es una suma propia, sin declarar, con alcance de conjunto");
+vive("**1. Margen — brecha de $4.16M en la cartera**\n\n[[CALCULO]]\nid=c1 · op=sumar · inputs=$1.57M; $1.53M; $1.06M · formula=$1.57M + $1.53M + $1.06M · resultado=$4.16M · unidad=money · dueno=total",
+  "total-sin-declarar", "…y la MISMA cifra declarada como cuenta, pasa: el chequeo pide declarar, no callar");
+vive("Vendiste $99.9M en toda la cartera, con $25.0M de contribución.", "total-sin-declarar",
+  "un total que SÍ es del conjunto en la carpeta pasa");
+vive("Tu capital inmovilizado en la cartera es $56K en 5 SKU.", "total-sin-declarar",
+  "…y un KPI del conjunto, también");
+/* LOS TRES FALSOS POSITIVOS MEDIDOS mientras se calibraba este chequeo. Cada uno es texto que YA salió a
+ * pantalla y que una versión anterior mataba: por eso el alcance se exige PEGADO y DETRÁS de la cifra. */
+vive("Es el cliente de mayor venta de la cartera —$19.4M— y el peor margen entre los tres grandes.",
+  "total-sin-declarar", "APOSICIÓN · «de la cartera» es el alcance del superlativo, no del monto de Falabella");
+vive("| Falabella | $19.4M | 22.0% | -8.1pp | 4.5% | $1.57M |", "total-sin-declarar",
+  "FILA DE TABLA · una celda no afirma ningún total");
+vive("MAK-COMP-AIR generó $1.7M en ventas con $135K de contribución y 7.9% de margen — el margen de venta más bajo de toda la cartera.",
+  "total-sin-declarar", "ALCANCE DEL SUPERLATIVO · el monto es del SKU, «de toda la cartera» califica al margen");
+ok(/UN TOTAL DEL CONJUNTO ES UNA CUENTA/.test(DOCTRINA_NOTARIO_NATURAL), "…y la doctrina se lo enseña al cerebro");
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

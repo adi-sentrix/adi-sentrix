@@ -39,7 +39,11 @@ Cada afirmación se verifica antes de llegar a pantalla:
   tono que una cifra verificada se lee como si el dato la ordenara, y el dato no ordena prioridades.
 · LOS DOS CAMPOS DE DÍAS NO SON EL MISMO: «días de inventario» (cuánto dura el stock al ritmo de venta — es el
   campo contra el que se mide el techo) y «días sin venta» (hace cuánto no sale). «Días sin rotar» NO EXISTE en
-  este dato. Y si un SKU está con venta al día, no tiene días sin venta: cita sus días de inventario.`;
+  este dato. Y si un SKU está con venta al día, no tiene días sin venta: cita sus días de inventario.
+· UN TOTAL DEL CONJUNTO ES UNA CUENTA, Y SE DECLARA. Si escribís «$X en la cartera», «del negocio» o «en
+  total», esa cifra o sale del dato con ese dueño, o va en el bloque [[CALCULO]] con sus insumos — y decí
+  sobre CUÁNTOS la sumaste. Sumar tres de ocho y llamarlo «la cartera» es un total falso aunque cada sumando
+  sea correcto.`;
 
 // El contrato de cálculo, TEXTUAL del arnés (adoptado 6/6 por el cerebro en la confirmación corta, dev 6632753).
 export const CONTRATO_CALCULO_NATURAL = `════════ EL CONTRATO DE CÁLCULO (obligatorio cuando calculas) ════════

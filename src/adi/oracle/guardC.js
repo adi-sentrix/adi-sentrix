@@ -4142,6 +4142,47 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         }
       }
     }
+
+    // ── (7) UN TOTAL DEL CONJUNTO ES UNA CUENTA, Y SE DECLARA ─────────────────────────────────────────────────
+    /* EL DEFECTO MEDIDO (reproducción del 2026-08-16, expediente `_repro_resumen_v10*.json`): el titular de un
+     * resumen decía «Margen — brecha de $4.16M en la cartera». Esa cifra la sumó ADI en ese mismo turno
+     * (1.57 + 1.53 + 1.06), NO la declaró en el bloque de cálculo, el muro la dejó pasar y llegó a pantalla.
+     * Y sumaba 3 de los 8 clientes bajo benchmark que la propia respuesta acababa de contar: la brecha real de
+     * la cartera es $5.37M — se comió $1.21M. Una cifra nueva, sin declarar, sin verificar, y rotulada con un
+     * alcance mayor del que tiene. Es el patrón del Examen 4 (parcial narrado como total), ahora en una SUMA.
+     * LA REGLA: si un MONTO se presenta como del conjunto («en la cartera», «del negocio», «en total»), o sale
+     * de la carpeta con un dueño colectivo, o está declarado como cálculo. La tercera vía —«la sumé yo y no lo
+     * digo»— es exactamente cómo un total parcial se disfraza de total.
+     * ACOTADO A PROPÓSITO: solo montos (el defecto medido lo es) y solo con la fórmula del conjunto en la
+     * oración. Una cifra de una entidad, dicha como suya, no la toca. */
+    const _ALCANCE_TOTAL = /\b(?:en|de|para)\s+(?:toda\s+)?la\s+cartera\b|\bdel\s+negocio\b|\ben\s+total\b|\bde\s+la\s+cartera\s+completa\b/i;
+    if (_dato) {
+      const _esEntidadDelTenant = (d) => (Array.isArray(entidadesDelTenant) ? entidadesDelTenant : []).some((n) => _norm(n) === _norm(d));
+      for (const oracion of String(narration).split(/(?<=[.!?])\s+|\n+/)) {
+        if (!_ALCANCE_TOTAL.test(oracion)) continue;
+        let _vetado = false;
+        for (const f of parseFigures(oracion)) {
+          if (_vetado) break;
+          if (f.unit !== "money") continue;
+          /* LA FÓRMULA DEL CONJUNTO VA PEGADA Y DETRÁS DE LA CIFRA («$4.16M en la cartera»). Las dos variantes
+           * sueltas dieron falsos positivos MEDIDOS sobre texto que ya había salido a pantalla:
+           *   · delante: «el cliente de mayor venta de la cartera —$19.4M—» — ahí «de la cartera» es el alcance
+           *     del superlativo, y el monto es de Falabella;
+           *   · en una fila de tabla: «| Falabella | $19.4M | … | $1.57M |» no afirma ningún total.
+           * QUEDA DECLARADO EL LÍMITE: «la brecha del negocio es $X», con la fórmula ANTES de la cifra, no se
+           * juzga. Se prefiere el falso negativo — un rojo falso cuesta como un defecto real. */
+          const _i = oracion.indexOf(f.text);
+          const _tras = oracion.slice(_i + f.text.length, _i + f.text.length + 30);
+          if (!/^\s{0,2}(?:(?:en|de|para)\s+(?:toda\s+)?la\s+cartera\b|del\s+negocio\b|en\s+total\b)/i.test(_tras)) continue;
+          if (_calcIdx.porCanon.has(f.canon) || _calcIdx.porVerbatim.has(_stripSpace(f.text))) continue;   // declarada como cuenta
+          const _due = _dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null;
+          if (!_due || !_due.size) continue;                     // no es del dato: otros chequeos ya la juzgan
+          if ([..._due].some((d) => !_esEntidadDelTenant(d))) continue;   // la carpeta le da un dueño COLECTIVO
+          violations.push({ kind: "total-sin-declarar", detail: `presentás «${f.text}» como cifra del conjunto y no lo es: en la carpeta pertenece a ${[..._due].slice(0, 3).join("/")}, y no la declaraste como cálculo. Un total del conjunto o sale de la carpeta con ese dueño, o va en el bloque de cálculo con sus insumos — si lo sumaste vos, decilo, y decí sobre CUÁNTOS lo sumaste` });
+          _vetado = true;
+        }
+      }
+    }
   }
 
   // La graduación de supuestos sigue siendo aviso (ver Fase 2 residual en la memoria del proyecto). La atribución
