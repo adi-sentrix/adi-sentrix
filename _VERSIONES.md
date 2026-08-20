@@ -41,6 +41,9 @@ Lo acumulado en `dev` desde que se desplegó la 1.0. Sale a producción cuando e
   desaparece el corte horizontal que partía la pantalla.
   Nota: el selector de escenarios —apagado en todos los perfiles desde el 2026-08-07— se quedó sin punto de
   montaje; el componente y el eje `scenario` siguen intactos.
+- **La Mesa abre al 50/50**, siempre, en cada apertura (antes: 460 px fijos). Las tablas de la cara Comercial
+  piden entre 620 y 640 px, así que con 460 un tercio de las columnas nacía fuera de la vista. Sigue siendo
+  arrastrable y «agrandar» sigue llevándola al 72%.
 - **El versionado**: esto mismo.
 
 ---

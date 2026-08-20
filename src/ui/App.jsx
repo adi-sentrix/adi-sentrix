@@ -91,7 +91,12 @@ export default function App({ animate = true }) {
   // Etapa 5 · Sentrix · estado del panel de evidencia (la "mesa de trabajo" estilo Code, a la derecha).
   const [openEv, setOpenEv]   = useState(null);   // la boleta abierta (con reading{}) · null = panel cerrado
   const [openId, setOpenId]   = useState(null);   // id del mensaje cuya evidencia está abierta (highlight del botón)
-  const [panelW, setPanelW]   = useState(460);    // ancho arrastrable
+  /* LA MESA ABRE SIEMPRE AL 50/50 (owner 2026-08-20). Antes abría en 460 px fijos, y ahí empezaba el problema
+   * que el propio owner cazó al recorrerla: las dos tablas de la cara Comercial piden entre 620 y 640 px, así
+   * que un tercio de las columnas nacía fuera de la vista y había que arrastrar antes de poder leer nada.
+   * Medio y medio es el reparto honesto entre la conversación y el dato — «el usuario verá cuál agranda más
+   * después, o la deja así». Sigue siendo arrastrable y el botón de agrandar sigue llevándola al 72%. */
+  const [panelW, setPanelW]   = useState(() => (typeof window !== "undefined" ? Math.round(window.innerWidth / 2) : 460));
   const [maxed, setMaxed]     = useState(false);  // agrandado
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
@@ -150,7 +155,11 @@ export default function App({ animate = true }) {
         {/* la barra flota SOBRE el lienzo, fuera del flujo: el campo de hexágonos pasa por debajo hasta el borde */}
         <BarraLateral
           mesaAbierta={!!(openEv && openEv.lens === "mesa")}
-          onMesa={() => { if (openEv && openEv.lens === "mesa") closePanel(); else { setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
+          onMesa={() => { if (openEv && openEv.lens === "mesa") closePanel(); else {
+            // «SIEMPRE» al 50/50: se repone en CADA apertura, no solo en la primera del arranque. Si el usuario
+            // la agrandó ayer y hoy abre en otra pantalla, arranca pareja igual — y desde ahí la mueve.
+            setPanelW(Math.round(window.innerWidth / 2)); setMaxed(false);
+            setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
           guiaAbierta={guiaAbierta}
           onGuia={() => setGuiaAbierta((v) => !v)}
           onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
