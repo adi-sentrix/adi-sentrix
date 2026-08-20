@@ -970,10 +970,15 @@ H("[11c] ENCABEZADOS EN CELESTE · uno solo, y el mismo, en toda la cara");
   // Un ENCABEZADO se identifica por su forma (mayúsculas + tracking), no por ser el elemento más corto que
   // contiene ese texto: "Acciones comerciales" también es la etiqueta de un KPI, y esa no es un encabezado.
   const esEncabezado = (e) => /text-transform:\s*uppercase/i.test(e.getAttribute("style") || "");
-  const sinCeleste = titulos.filter((t) => ![...container.querySelectorAll("div,span")]
+  /* LA REGLA SE DIO VUELTA (owner 2026-08-20): «los títulos deben ser todos en blanco, solo deja en celeste lo
+   * que queramos destacar, ejemplo "Que ADI lo explique"; si no, se molestan». Antes este chequeo exigía que
+   * los 9 encabezados fueran CELESTES; ahora exige lo contrario, y por el mismo motivo de fondo: que haya UN
+   * solo criterio en toda la cara. Con todo en celeste el acento dejaba de acentuar — competían nueve títulos
+   * con los enlaces que sí piden click. El candado no se aflojó: cambió de lado. */
+  const conCeleste = titulos.filter((t) => [...container.querySelectorAll("div,span")]
     .some((e) => e.textContent.trim().toUpperCase().startsWith(t.toUpperCase())
       && esEncabezado(e) && CELESTE.test(e.getAttribute("style") || "")));
-  ok(sinCeleste.length === 0, `los ${titulos.length} encabezados de la cara van en celeste`, sinCeleste.join(" | "));
+  ok(conCeleste.length === 0, `los ${titulos.length} encabezados de la cara van en BLANCO, no en celeste`, conCeleste.join(" | "));
   cleanup();
 }
 

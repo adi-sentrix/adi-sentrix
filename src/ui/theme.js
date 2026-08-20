@@ -20,7 +20,7 @@ export const C = {
   celeste: "#2fb8da",   // celeste · el acento de identidad (cifras · serie actual; la acumulada del Pareto pasó a lav — pase 1e)
   // Paleta PREMIUM de gráficos (owner 2026-06-30 · líneas y barras · 3 tiers/series): vibrante → ahumado → metálico.
   elec: "#3d74f5",      // azul eléctrico vibrante · tier alto / serie actual
-  teal: "#5b9ea0",      // turquesa ahumado · tier medio / serie año anterior
+  teal: "#7fc9c4",      // turquesa CLARO · tier medio / serie año anterior (owner 2026-08-20: «el verde que sea más claro» — el #5b9ea0 anterior se perdía contra el lienzo)
   lav:  "#a49bd0",      // lavanda metálico · tier bajo / serie presupuesto
 };
 

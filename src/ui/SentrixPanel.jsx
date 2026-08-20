@@ -804,7 +804,7 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
     ? (escala === calidad ? `${escala} gana en escala y en calidad de margen — domina en ambos frentes.` : `${escala} gana escala (más volumen); ${calidad} captura mejor margen. Ahí está la decisión: escala vs. calidad.`)
     : null;
   const cell = (val, side, pr) => { const w = winner(pr), on = w === side; return <span style={{ fontFamily:MONO, fontSize:13, fontVariantNumeric:"tabular-nums", color: w ? (on ? C.green : C.textMuted) : C.text, fontWeight: on ? 700 : 500 }}>{val}</span>; };
-  const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
+  const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.text, textTransform:"uppercase" };
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -885,7 +885,7 @@ const AskRow = ({ onAsk, q, style, children }) => (
 function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const list = (evidence && evidence.criteriaList) || [];
   const pnl = (evidence && evidence.pnlList) || [];   // P&L COMERCIAL · las líneas de gasto declaradas (misma memoria C.2)
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
@@ -955,7 +955,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
 function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const p = (evidence && evidence.contribucion && evidence.contribucion.panel) || {};
   const kind = p.kind, rows = p.rows || [];
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const maxV = Math.max(1, ...rows.map((r) => Math.abs(r.val != null ? r.val : (r.part || 0))));
   const nm = _named(evidence);   // espejo: lo que ADI nombró
@@ -1033,7 +1033,7 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = 
 function VentasPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) {
   const p = (evidence && evidence.ventas && evidence.ventas.panel) || {};
   const kind = p.kind, rows = p.rows || [];
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.val || 0)));
   const nm = _named(evidence);   // espejo: lo que ADI nombró
@@ -1127,7 +1127,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
   const rows = p.rows || [], bench = p.bench || 30.1;
   const scale = Math.max(40, ...rows.map((r) => r.margen || 0));   // eje 0..scale (%)
   const benchPct = Math.min(100, bench / scale * 100);
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const p1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const decomp = rows.filter((r) => typeof r.costShare === "number" && r.below).slice(0, 5);
   const nm = _named(evidence);   // espejo: lo que ADI nombró
@@ -1213,7 +1213,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   const isStale = inv.focus === "stale";
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   const maxB = Math.max(1, ...byBodega.map((b) => b.usd));
-  const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
+  const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.text, textTransform:"uppercase" };
   const nm = _named(evidence);   // espejo: lo que ADI nombró
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
@@ -1446,7 +1446,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // el flotante "Preguntar a ADI sobre esta vista" manda el contexto de la VISTA comercial completa, no el de la
   // última pieza tocada: es el catch-all de la pantalla, y su contexto tiene que decir eso mismo.
   const { ask: askVistaComercial } = useViewContext("comercial/otro/vista", resumenC, { scenario, onAsk });
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
   // header de MOVIMIENTO (el sello entender→explicar→actuar): número celeste + título ejecutivo + su "i"
   const MovHead = ({ num, title, def }) => (
@@ -1768,7 +1768,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
     <div style={_RC_CARD}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
         <span style={{ minWidth: 0, flex: "1 1 250px" }}>
-          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+          <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             El negocio, cliente por cliente
             <InfoDot def={`Tu cartera entera de una sola mirada, con la venta OFICIAL por cliente: la misma que suma el KPI de arriba, así que la participación y los dos gaps salen todos de esa cifra y no de otra tabla del dato. Las dos referencias no valen lo mismo y por eso van selladas distinto: el año anterior es dato cerrado y los escenarios nunca lo reescriben; el presupuesto es el plan que tú declaraste — suma exacto el total del período, pero es una intención, no una medición. Esta tabla dice CÓMO VIENE cada cuenta; dónde se diluye el margen se lee más abajo, contra tu benchmark.`} align="left"/>
@@ -1878,7 +1878,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
     <div style={_RC_CARD}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <span style={{ minWidth: 0 }}>
-          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+          <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Concentración comercial · 80/20
             <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva lavanda el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Ficha."} align="left"/>
@@ -1984,7 +1984,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
     <div style={_RC_CARD}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <span style={{ minWidth: 0 }}>
-          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+          <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             El año, mes a mes
             <InfoDot def={"Las tres series del período: este año, el año anterior y el presupuesto que declaraste. Las dos reales están ANCLADAS al total oficial de venta por cliente, así que el cierre del gráfico es el mismo número del KPI de arriba — no dos verdades al lado. El presupuesto no se ancla porque no existe presupuesto por cliente contra el cual conciliarlo, y eso se dice. Toca una serie de la leyenda para apagarla y pasa el cursor para ver mes por mes. Los puntos marcados son el mes más alto y el más bajo del año en foco."} align="left"/>
@@ -2008,9 +2008,23 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
       <div style={{ overflowX: "auto" }}>
         <div style={{ minWidth: 300, position: "relative", touchAction: "pan-y" }}>
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+            {/* SOMBREADO BAJO LA CURVA DEL AÑO EN FOCO (owner 2026-08-20: «el gráfico debe estar sombreado»).
+                Solo la serie actual lleva relleno: si lo llevaran las tres, tres velos superpuestos taparían
+                justamente las diferencias que el gráfico existe para mostrar. Se desvanece hacia abajo. */}
+            <defs>
+              <linearGradient id="rcAreaActual" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={C.elec} stopOpacity="0.30"/>
+                <stop offset="100%" stopColor={C.elec} stopOpacity="0"/>
+              </linearGradient>
+            </defs>
+            {!oculta.actual && serieActual && (
+              <path d={`${_mono(serieActual.valores.map((_, i) => xAt(i)), serieActual.valores.map((v) => yAt(v)))} L ${xAt(n - 1)},${H - padB} L ${xAt(0)},${H - padB} Z`}
+                fill="url(#rcAreaActual)" stroke="none"/>
+            )}
+            {/* LÍNEAS DE LA GRILLA MÁS CLARAS (owner: «no se ve bien así»): 0.06 era casi invisible sobre negro. */}
             {grid.map((g, i) => (
               <g key={i}>
-                <line x1={padL} x2={W - padR} y1={yAt(g)} y2={yAt(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                <line x1={padL} x2={W - padR} y1={yAt(g)} y2={yAt(g)} stroke="rgba(255,255,255,0.14)" strokeWidth="1"/>
                 <text x={padL - 6} y={yAt(g) + 3} textAnchor="end" fontFamily={MONO} fontSize="8.5" fill={C.textMuted}>{`$${(g / 1000).toFixed(1)}M`}</text>
               </g>
             ))}
@@ -2021,9 +2035,17 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
                 strokeDasharray={s.key === "actual" ? undefined : "5 4"} strokeLinejoin="round" opacity={s.key === "actual" ? 1 : 0.85}/>;
             })}
             {/* el mes más alto y el más bajo del año en foco — describe el movimiento, nunca su causa */}
+            {/* PARPADEAN (owner 2026-08-20). El latido es SMIL, nunca un filtro SVG: los filtros sobre paths
+                colgaron el compositor la última vez que se probaron acá. Los dos laten con el mismo ritmo y en
+                fase: son las dos puntas de la MISMA historia —el mejor mes y el más flojo—, y desincronizarlos
+                los convertiría en dos alarmas sueltas. `prefers-reduced-motion` los deja quietos. */}
             {!oculta.actual && serieActual && iMax >= 0 && (<>
-              <circle cx={xAt(iMax)} cy={yAt(serieActual.valores[iMax])} r="3.4" fill={C.green}/>
-              <circle cx={xAt(iMin)} cy={yAt(serieActual.valores[iMin])} r="3.4" fill={C.red}/>
+              <circle cx={xAt(iMax)} cy={yAt(serieActual.valores[iMax])} r="3.4" fill={C.green}>
+                <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx={xAt(iMin)} cy={yAt(serieActual.valores[iMin])} r="3.4" fill={C.red}>
+                <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite"/>
+              </circle>
             </>)}
             {hov != null && <line x1={xAt(hov)} x2={xAt(hov)} y1={padT} y2={H - padB} stroke="rgba(255,255,255,0.16)" strokeWidth="1"/>}
             {meses.map((m, i) => (
@@ -2087,7 +2109,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
     <div style={_RC_CARD}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
         <span style={{ minWidth: 0, flex: "1 1 250px" }}>
-          <span style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center" }}>
+          <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Quién sostiene el negocio
             <InfoDot def={`El sustento económico del negocio desde cuatro perspectivas del mismo dato: qué CLIENTES y qué FAMILIAS mueven la venta, y —cuando aportan— SKU y canales. Cada eje trae su propio grupo 80%, calculado con el mismo motor de concentración que el resto de la vista, no un top-N fijo. Cada eje declara además si cierra con la venta oficial por cliente: los que no cierran lo dicen, con su diferencia, y sus márgenes NO se reescalan para forzar el cuadre — son justo la cifra que vienes a mirar. ${S.limitacion}`} align="left"/>
@@ -2266,7 +2288,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             "Hay dos cosas que nos hacen perder margen: acciones comerciales y variación de costos, porque afecta
             el precio." Las dos se miden acá, cada una contra su propia referencia y con su monto. ── */}
         <div style={{}}>
-          <div style={{ ..._RC_HEAD, color: C.celeste, display: "flex", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center", marginBottom: 10 }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Qué mueve el margen
           </div>
@@ -2275,7 +2297,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             {acc && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 7 }}>
-                  <span style={{ ..._RC_HEAD, fontSize: 9, color: C.celeste, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ ..._RC_HEAD, fontSize: 9, color: C.text, display: "flex", alignItems: "center", gap: 4 }}>
                     Acciones comerciales{_chip("probado")}
                     <InfoDot def={`${acc.referencias[0].nota} ${acc.referencias[1].nota} Cambia la referencia y el monto se recalcula con las cuentas que quedan por encima de ella.`} align="left"/>
                   </span>
@@ -2320,7 +2342,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
             {/* B · COSTO CONTRA PRECIO · si el costo sube más que el precio, el margen por unidad se comprime */}
             {cp && (
               <div>
-                <div style={{ ..._RC_HEAD, fontSize: 9, color: C.celeste, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ ..._RC_HEAD, fontSize: 9, color: C.text, marginBottom: 7, display: "flex", alignItems: "center", gap: 4 }}>
                   Costo contra precio{_chip(cp.estatus)}
                   <InfoDot def={cp.nota} align="left"/>
                 </div>
@@ -2390,7 +2412,7 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
       {P.grupos.map((g) => (
         <div key={g.key} style={_RC_CARD}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ ..._RC_HEAD, color: C.celeste }}>{g.label}</span>
+            <span style={{ ..._RC_HEAD, color: C.text }}>{g.label}</span>
             <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.5px", color: C.textMuted, border: `1px solid ${C.border}`, borderRadius: 3, padding: "1px 5px" }}>{g.filas.length}</span>
           </div>
           <div style={{ fontSize: 11.5, color: C.textSub, lineHeight: 1.5, marginTop: 5 }}>
@@ -2523,7 +2545,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch { /* descarga bloqueada → sin efecto */ }
   };
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const MovHead = ({ num, title, def }) => (
     <div style={{ ...head, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
       {num ? <span style={{ color: C.celeste, opacity: 0.85 }}>{num}</span> : null}{title}<InfoDot def={def} align="left"/>
@@ -2862,7 +2884,7 @@ function CapitalBarras({ barras, onAsk }) {
   return (
     <div style={{ ..._RC_CARD, marginTop: 10 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <span style={{ ..._RC_HEAD, color: C.celeste }}>Capital por producto</span>
+        <span style={{ ..._RC_HEAD, color: C.text }}>Capital por producto</span>
         <span style={{ display: "flex", gap: 3 }}>
           {barras.vistas.map((x) => (
             <button key={x.key} onClick={() => setVista(x.key)} aria-pressed={v.key === x.key}
@@ -2996,7 +3018,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
   return (
     <div style={{ ..._RC_CARD, marginTop: 9 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-        <span style={{ ..._RC_HEAD, color: C.celeste }}>{tabla.titulo}</span>
+        <span style={{ ..._RC_HEAD, color: C.text }}>{tabla.titulo}</span>
         <Num>{tabla.totalFmt}</Num>
         <span style={{ fontSize: 11, color: C.textMuted }}>{tabla.n} {tabla.n === 1 ? "fila" : "filas"} · {tabla.objetivo}</span>
         <button onClick={onCerrar} style={{ marginLeft: "auto", background: "transparent", border: "none", padding: 0, color: C.celeste, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>Cerrar ▴</button>
@@ -3096,7 +3118,7 @@ const _CAP_KPI_COMPONENTES = [
   ["rotacion", "capital/01/kpi-rotacion"],
 ];
 function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, onWatch = null, wl = { items: [] } }) {
-  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
+  const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
   // el cuadro operable vive DENTRO de 01, cerrado (owner 2026-08-08, decisión 4) — Capital NO repite el error de
   // Comercial, donde eliminar el contenedor se llevó la operabilidad entera. Acá solo baja de plano.
