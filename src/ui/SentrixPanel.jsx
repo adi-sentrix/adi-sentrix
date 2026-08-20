@@ -8,16 +8,9 @@
 import React, { useState, useEffect } from "react";
 import { C } from "./theme.js";
 
-/* EL COLCHÓN DE LA BARRA LATERAL (owner 2026-08-20) · ancho de la franja donde flotan las barritas.
- * La barra (`BarraLateral.jsx`) está FUERA DEL FLUJO y se apoya sobre el borde derecho de la app: cuando la
- * Mesa está abierta, cae encima de ELLA. Sin este colchón los botones de cerrar y agrandar del encabezado
- * quedaban debajo de las barritas, intocables. Va en las 13 variantes del panel porque las 13 se montan en el
- * mismo slot — si aparece una decimocuarta, también lo necesita.
- * ⚠️ Es el mismo 44 que declara `BarraLateral` contraída. Si allá cambia, acá también. */
-const _RAIL_W = 44;
-/* Se lee como VARIABLE CSS y no como número para que la barra pueda ensancharlo sola en el modo de comparación
- * «empuja» (ver `BarraLateral.jsx`). Sin `?barra=`, el fallback es el mismo 44 de siempre. */
-const _RAIL_PAD = `var(--adi-rail-pad, ${_RAIL_W}px)`;
+/* LA MESA YA NO NECESITA COLCHÓN (owner 2026-08-20): la barra de barritas se mudó al borde IZQUIERDO de la
+ * app —«las líneas que están a la derecha, que estén a la izquierda»— así que dejó de caer encima de este
+ * panel. El colchón vive ahora del otro lado, en el historial y en el chat (ver `BarraLateral.jsx`). */
 import { MiniPareto } from "./InlineChart.jsx";   // el 80/20 de la Mesa = la MISMA pieza del chat (owner 2026-07-09) · su import inyecta los keyframes adi*
 import { skusMargen } from "../data/skusMargen.js";   // composición de marca/familia por sus SKU (cruce REAL · Pareto reflejo de la tabla 2026-07-10)
 import { composicionCliente, composicionClientePorFamilia, compradoresSku } from "../data/clienteSkuMatrix.js";   // matriz cliente×SKU (cierra exacto con el cuadro · gate de conexión)
@@ -487,7 +480,7 @@ function CuadroOnlyPanel({ evidence, onClose, onToggleMax, maximized }) {
   // variantes/sucursal (antes 'sucursal' caía silenciosamente al grid de clientes · bug latente que B2 cierra).
   const initialDim = ({ sku: "sku", marca: "marca", bodega: "bodega", sucursal: "bodega", client: "cliente", cliente: "cliente", clientes: "cliente", familia: "familia", sfamilia: "familia" })[String(evidence.entityType || evidence.dimension || "").toLowerCase()] || "cliente";
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -567,7 +560,7 @@ function SimulationPanel({ evidence, onClose, onToggleMax, maximized }) {
   // el chip aparece SOLO cuando hay bloque concentrado (= cuando la narración de ADI también dice el veredicto) → coherencia
   const _qvm = qv && qv.verdict !== "sin_benchmark" && con && con.concentrated ? _QVMAP[qv.verdict] : null;
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -682,7 +675,7 @@ function SimulationPanelOracle({ evidence, onClose, onToggleMax, maximized }) {
     ] : []),
   ].filter((r) => r.actual != null && r.nuevo != null);
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -738,7 +731,7 @@ function DiagnosePanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
   const nm = _named(evidence);   // espejo (B.1): lo que ADI nombró con cifra propia
   const _fm = (v) => { const a = Math.abs(v), s = v < 0 ? "-" : ""; if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`; return `${s}$${Math.round(a)}`; };
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -813,7 +806,7 @@ function ComparePanel({ evidence, onClose, onToggleMax, maximized }) {
   const cell = (val, side, pr) => { const w = winner(pr), on = w === side; return <span style={{ fontFamily:MONO, fontSize:13, fontVariantNumeric:"tabular-nums", color: w ? (on ? C.green : C.textMuted) : C.text, fontWeight: on ? 700 : 500 }}>{val}</span>; };
   const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -894,7 +887,7 @@ function CriteriaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
   const pnl = (evidence && evidence.pnlList) || [];   // P&L COMERCIAL · las líneas de gasto declaradas (misma memoria C.2)
   const head = { fontFamily: MONO, fontSize: 9.5, letterSpacing: "0.5px", color: C.textMuted, textTransform: "uppercase" };
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -967,7 +960,7 @@ function ContribucionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = 
   const maxV = Math.max(1, ...rows.map((r) => Math.abs(r.val != null ? r.val : (r.part || 0))));
   const nm = _named(evidence);   // espejo: lo que ADI nombró
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -1047,7 +1040,7 @@ function VentasPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
   const hl = p.headline || "";
   const hlColor = hl.startsWith("-") ? C.red : hl.startsWith("+") ? C.green : C.text;
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -1142,7 +1135,7 @@ function MarginPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }
   // misma fuente de verdad que el texto, cero recalculo. Sin palanca (huecos) → cae al conteo como antes.
   const lever = ((evidence && evidence.boleta) || []).find((f) => f && /^Medida · /.test(f.label));
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -1223,7 +1216,7 @@ function InventoryPanel({ evidence, onClose, onToggleMax, maximized, onAsk = nul
   const head = { fontFamily:MONO, fontSize:9.5, letterSpacing:"0.5px", color:C.textMuted, textTransform:"uppercase" };
   const nm = _named(evidence);   // espejo: lo que ADI nombró
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -1462,7 +1455,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
     </div>
   );
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       {/* encabezado OSCURO (owner 2026-07-14, tras probar el blanco: "dejalo en negro como estaba — a Sentrix no
           le queda bien el blanco") · el blanco es para la barra del app; Sentrix vive en negro */}
@@ -3622,7 +3615,7 @@ export function SentrixPanel({ evidence, onClose, onToggleMax, maximized = false
   const dominio = (rd.domain || evidence.domain || "").toString().toUpperCase();
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       {/* barrido de luz · reflejo premium que cruza el panel (izq→der · lento · elegante) */}
       <div className="sentrix-sweep"/>
       {/* ── header del panel ── */}
@@ -3809,7 +3802,7 @@ function DecisionPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null
   // ya formateado) · mismo patrón que ControlRing/EvidenciaRecibo para bodega (raw USD, no $K).
   const moneyUSD = (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : Math.abs(v) >= 1e3 ? "$" + (v / 1e3).toFixed(1) + "K" : "$" + Math.round(v));
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden", paddingRight:_RAIL_PAD }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0, background:"#000000", borderLeft:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
       <div className="sentrix-sweep"/>
       <div style={{ flexShrink:0, padding:"14px 18px", borderBottom:`1px solid ${C.border}`, background:"linear-gradient(180deg, rgba(255,255,255,0.03), transparent)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>

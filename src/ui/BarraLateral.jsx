@@ -36,8 +36,11 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
   return (
     <button className="adi-rail-item" onClick={onClick} title={titulo} aria-label={titulo}
       data-testid={testid} aria-pressed={activo ? "true" : "false"}
-      style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:11, width:"100%",
-        padding:"0 13px 0 10px", height:37, background:"transparent", border:"none", cursor:"pointer", font:"inherit" }}>
+      style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:11, width:"100%",
+        padding:"0 10px 0 13px", height:37, background:"transparent", border:"none", cursor:"pointer", font:"inherit" }}>
+      <span className="adi-rail-dash" style={{ flex:"none", width: activo ? 30 : 16, height:3, borderRadius:99,
+        background: activo ? C.celeste : "#6b6f74",
+        boxShadow: activo ? "0 0 10px rgba(47,184,218,0.7)" : "none" }}/>
       <span className="adi-rail-pill" style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:9,
         height:35, padding:"0 12px", borderRadius:10, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
         fontFamily:SANS, fontSize:12.5, fontWeight:600, letterSpacing:"-0.006em",
@@ -47,9 +50,6 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
         boxShadow: activo ? "inset 0 0 0 1px rgba(47,184,218,0.35)" : "none" }}>
         {icono}{children}
       </span>
-      <span className="adi-rail-dash" style={{ flex:"none", width: activo ? 30 : 16, height:3, borderRadius:99,
-        background: activo ? C.celeste : "#6b6f74",
-        boxShadow: activo ? "0 0 10px rgba(47,184,218,0.7)" : "none" }}/>
     </button>
   );
 }
@@ -58,7 +58,8 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
 function Estado({ color, titulo, children }) {
   return (
     <div className="adi-rail-st" title={titulo}
-      style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:11, width:"100%", padding:"0 13px 0 10px", height:29 }}>
+      style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:11, width:"100%", padding:"0 10px 0 13px", height:29 }}>
+      <span className="adi-rail-dash" style={{ flex:"none", width:12, height:3, borderRadius:99, background:color }}/>
       <span className="adi-rail-stpill" style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:7,
         height:25, padding:"0 12px", borderRadius:99, whiteSpace:"nowrap", overflow:"hidden",
         border:`1px solid ${C.border}`, background:"rgba(255,255,255,0.02)",
@@ -66,7 +67,6 @@ function Estado({ color, titulo, children }) {
         <span style={{ width:5, height:5, borderRadius:"50%", background:color, flexShrink:0 }}/>
         {children}
       </span>
-      <span className="adi-rail-dash" style={{ flex:"none", width:12, height:3, borderRadius:99, background:color }}/>
     </div>
   );
 }
@@ -85,7 +85,8 @@ function _modoBarra() {
   try { return new URLSearchParams(window.location.search).get("barra") || ""; } catch { return ""; }
 }
 
-export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, modoIA, demoDias, fecha }) {
+export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, modoIA, demoDias, fecha,
+  historialAbierto = false, onConversaciones = null }) {
   const modo = useMemo(_modoBarra, []);
   // «empuja» es el ÚNICO modo que necesita JavaScript: CSS no puede, desde el :hover de la barra, ensanchar el
   // colchón de un panel que es su hermano. Los otros dos son CSS puro.
@@ -97,8 +98,8 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
     <div className={`adi-rail${modo ? ` adi-rail--${modo}` : ""}`} aria-label="Barra de ADI"
       onMouseEnter={() => empujar(true)} onMouseLeave={() => empujar(false)}
       onFocus={() => empujar(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) empujar(false); }}
-      style={{ position:"absolute", top:0, right:0, bottom:0, width:44, zIndex:20, background:"transparent",
-        display:"flex", flexDirection:"column", alignItems:"flex-end", justifyContent:"center", gap:3, padding:"14px 0" }}>
+      style={{ position:"absolute", top:0, left:0, bottom:0, width:44, zIndex:20, background:"transparent",
+        display:"flex", flexDirection:"column", alignItems:"flex-start", justifyContent:"center", gap:3, padding:"14px 0" }}>
       {/* EL VELO · solo en ?barra=velo. Detrás de las pastillas, se disuelve hacia la izquierda: el dato de
           abajo no se va, se atenúa, y la superposición se lee como una capa a propósito y no como un choque. */}
       {modo === "velo" && <div className="adi-rail-velo" aria-hidden="true"/>}
@@ -106,12 +107,12 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         .adi-rail{ transition: width .2s ease; }
         .adi-rail:hover, .adi-rail:focus-within{ width:236px !important; }
         .adi-rail .adi-rail-pill, .adi-rail .adi-rail-stpill{
-          opacity:0; transform:translateX(10px); pointer-events:none;
+          opacity:0; transform:translateX(-10px); pointer-events:none;
           transition:opacity .18s ease, transform .18s ease, border-color .15s, color .15s, background .15s; }
         .adi-rail:hover .adi-rail-pill, .adi-rail:focus-within .adi-rail-pill,
         .adi-rail:hover .adi-rail-stpill, .adi-rail:focus-within .adi-rail-stpill{
           opacity:1; transform:none; pointer-events:auto; }
-        .adi-rail .adi-rail-marca-txt{ opacity:0; transform:translateX(10px); transition:opacity .18s ease, transform .18s ease; }
+        .adi-rail .adi-rail-marca-txt{ opacity:0; transform:translateX(-10px); transition:opacity .18s ease, transform .18s ease; }
         .adi-rail:hover .adi-rail-marca-txt, .adi-rail:focus-within .adi-rail-marca-txt{ opacity:1; transform:none; }
         .adi-rail .adi-rail-dash{ transition:width .18s ease, background .18s ease; }
         .adi-rail-item:hover .adi-rail-pill{ border-color:rgba(47,184,218,0.55) !important; color:${C.text} !important; }
@@ -119,23 +120,23 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         .adi-rail-item:focus-visible{ outline:2px solid ${C.celeste}; outline-offset:-2px; border-radius:10px; }
 
         /* ── A · VELO Y SOMBRA (?barra=velo) ── */
-        .adi-rail-velo{ position:absolute; top:0; right:0; bottom:0; width:236px; z-index:-1; pointer-events:none;
+        .adi-rail-velo{ position:absolute; top:0; left:0; bottom:0; width:236px; z-index:-1; pointer-events:none;
           opacity:0; transition:opacity .18s ease; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
-          background:linear-gradient(270deg, rgba(5,5,6,0.96) 0%, rgba(5,5,6,0.90) 46%, rgba(5,5,6,0.62) 76%, transparent 100%);
-          -webkit-mask-image:linear-gradient(270deg,#000 0%,#000 60%,transparent 100%);
-                  mask-image:linear-gradient(270deg,#000 0%,#000 60%,transparent 100%); }
+          background:linear-gradient(90deg, rgba(5,5,6,0.96) 0%, rgba(5,5,6,0.90) 46%, rgba(5,5,6,0.62) 76%, transparent 100%);
+          -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 60%,transparent 100%);
+                  mask-image:linear-gradient(90deg,#000 0%,#000 60%,transparent 100%); }
         .adi-rail--velo:hover .adi-rail-velo, .adi-rail--velo:focus-within .adi-rail-velo{ opacity:1; }
         .adi-rail--velo .adi-rail-pill, .adi-rail--velo .adi-rail-stpill{ box-shadow:0 8px 26px -8px rgba(0,0,0,0.9); }
 
         /* ── C · SOLO LA APUNTADA (?barra=apuntada) · la barra NO se abre entera ── */
         .adi-rail--apuntada:hover, .adi-rail--apuntada:focus-within{ width:44px !important; }
         .adi-rail--apuntada .adi-rail-pill, .adi-rail--apuntada .adi-rail-stpill,
-        .adi-rail--apuntada .adi-rail-marca-txt{ opacity:0 !important; transform:translateX(10px) !important; }
+        .adi-rail--apuntada .adi-rail-marca-txt{ opacity:0 !important; transform:translateX(-10px) !important; }
         .adi-rail--apuntada .adi-rail-item:hover .adi-rail-pill,
         .adi-rail--apuntada .adi-rail-item:focus-visible .adi-rail-pill,
         .adi-rail--apuntada .adi-rail-st:hover .adi-rail-stpill{
           opacity:1 !important; transform:none !important; pointer-events:auto;
-          position:absolute; right:34px; top:50%; margin-top:-17px; width:max-content; flex:none;
+          position:absolute; left:34px; top:50%; margin-top:-17px; width:max-content; flex:none;
           box-shadow:0 8px 26px -8px rgba(0,0,0,0.9); }
         .adi-rail--apuntada .adi-rail-st:hover .adi-rail-stpill{ margin-top:-12px; }
         .adi-rail--apuntada .adi-rail-item, .adi-rail--apuntada .adi-rail-st{ position:relative; }
@@ -145,16 +146,26 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
 
       {/* LA MARCA · es además el botón de volver al inicio, como era el cubo del header */}
       <button className="adi-rail-item" onClick={onInicio} title="Volver al inicio" aria-label="Volver al inicio"
-        style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:10, width:"100%",
-          padding:"0 13px 0 10px", height:34, marginBottom:6, background:"transparent", border:"none", cursor:"pointer", font:"inherit" }}>
+        style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:10, width:"100%",
+          padding:"0 10px 0 13px", height:34, marginBottom:6, background:"transparent", border:"none", cursor:"pointer", font:"inherit" }}>
+        <svg width="19" height="19" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="12" style={{ flexShrink:0 }} aria-hidden="true">
+          <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
+        </svg>
         <span className="adi-rail-marca-txt" style={{ flex:1, minWidth:0, display:"flex", alignItems:"baseline", gap:7, whiteSpace:"nowrap", overflow:"hidden" }}>
           <span style={{ fontFamily:SANS, fontSize:13, fontWeight:700, color:C.text, letterSpacing:"-0.01em" }}>ADI</span>
           <span style={{ fontFamily:MONO, fontSize:10, fontWeight:500, color:C.textMuted, letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
         </span>
-        <svg width="19" height="19" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="12" style={{ flexShrink:0 }} aria-hidden="true">
-          <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
-        </svg>
       </button>
+
+      {/* LA PRINCIPAL · abre y cierra el panel de conversaciones (orden del owner: «una de ellas, la principal,
+          permita abrir el panel izquierdo»). Va primera porque es la que gobierna la columna que tiene al lado. */}
+      {onConversaciones && (
+        <Fila activo={historialAbierto} onClick={onConversaciones}
+          titulo="Tus conversaciones con ADI"
+          icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4.2-.9L3 20.5l1.6-4.6A8.3 8.3 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.4-8.4 8.4 8.4 0 0 1 9 8.4z"/></svg>}>
+          Conversaciones
+        </Fila>
+      )}
 
       <Fila activo={mesaAbierta} onClick={onMesa}
         titulo="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"

@@ -34,59 +34,23 @@ const P = {
   line: "rgba(255,255,255,0.07)", cel: "#2fb8da",
 };
 const SANS = "'DM Sans', system-ui, sans-serif";
-
-const _Cubo = () => (
-  <svg width="17" height="17" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" aria-hidden="true">
-    <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
-    <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
-    <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-    <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
-  </svg>
-);
-
-export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, colapsado, onToggleColapso }) {
-  /* PLEGADO · orden del owner (2026-08-20): «si las tres columnas quedan muy apretadas, prefiero que el
-   * historial sea plegable antes que achicar el chat principal». Plegado NO desaparece: queda una tira de
-   * 52 px con el cubo (que lo despliega) y el «+» de conversación nueva. Esconderlo del todo dejaría la app
-   * sin manija para volver a abrirlo y sin forma de empezar un hilo nuevo. */
-  if (colapsado) {
-    return (
-      <aside style={{ flex:"none", width:52, display:"flex", flexDirection:"column", alignItems:"center",
-        minHeight:0, padding:"14px 0 10px", gap:10, background:P.bg1, borderRight:`1px solid ${P.line}`, fontFamily:SANS }}>
-        <button onClick={onToggleColapso} title="Mostrar el historial" aria-label="Mostrar el historial"
-          style={{ width:28, height:28, borderRadius:8, background:"#0b0b0c", border:`1px solid ${P.line}`, display:"grid",
-            placeItems:"center", cursor:"pointer", padding:0, flexShrink:0 }}>
-          <_Cubo/>
-        </button>
-        <button onClick={onNueva} title="Nueva conversación" aria-label="Nueva conversación"
-          style={{ width:30, height:30, borderRadius:9, cursor:"pointer", border:`1px solid ${P.line}`,
-            background:P.bg, color:P.text2, display:"grid", placeItems:"center", padding:0, flexShrink:0 }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = P.bg3; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = P.bg; }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-        </button>
-        <span style={{ marginTop:"auto", width:26, height:26, borderRadius:"50%", background:P.cel, color:"#0a0a0a",
-          display:"grid", placeItems:"center", fontSize:10.5, fontWeight:700, flexShrink:0 }}>
-          {(usuario || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
-        </span>
-      </aside>
-    );
-  }
-
+export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, onToggleColapso }) {
+  /* PLEGADO = NO MONTADO (owner 2026-08-20). Este componente ya no tiene variante angosta: cuando se pliega,
+   * simplemente no se renderiza, y quien lo trae de vuelta es la barrita «Conversaciones» de la barra del
+   * borde izquierdo. Antes había una tira propia de 52 px, pero con la barra mudada a ese mismo borde eran
+   * dos columnas angostas haciendo el mismo trabajo. Es el reparto de Code: barra · panel · centro.
+   *
+   * `paddingLeft` = la franja donde flotan las barritas. La barra está fuera del flujo y se apoya sobre el
+   * borde izquierdo de la app, así que cae encima de ESTE panel: sin el colchón, el cubo y el botón de plegar
+   * quedaban debajo de ellas. */
   return (
-    <aside style={{ flex:"none", width:250, display:"flex", flexDirection:"column", minHeight:0,
+    <aside style={{ flex:"none", width:250, display:"flex", flexDirection:"column", minHeight:0, paddingLeft:44,
       background:P.bg1, borderRight:`1px solid ${P.line}`, color:P.text, fontFamily:SANS }}>
 
       <div style={{ flex:"none", padding:"14px 14px 10px", display:"flex", flexDirection:"column", gap:11 }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-          <span style={{ width:28, height:28, borderRadius:8, background:"#0b0b0c", border:`1px solid ${P.line}`, display:"grid", placeItems:"center", flexShrink:0 }}>
-            <_Cubo/>
-          </span>
           <span style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0, flex:1 }}>
-            <span style={{ fontSize:14, fontWeight:700, letterSpacing:"-0.02em", color:P.text }}>ADI</span>
-            <span style={{ fontSize:10, fontWeight:500, color:P.text3, letterSpacing:"0.14em", textTransform:"uppercase" }}>Sentrix</span>
+            <span style={{ fontSize:13, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:P.text3 }}>Conversaciones</span>
           </span>
           <button onClick={onToggleColapso} title="Plegar el historial" aria-label="Plegar el historial"
             style={{ width:24, height:24, borderRadius:6, border:"none", background:"transparent", color:P.text4,

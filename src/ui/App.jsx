@@ -131,17 +131,14 @@ export default function App({ animate = true }) {
   const runRef = useRef(null);
   /* EL CHAT TIENE UN PISO, y el historial cede antes que él (owner 2026-08-20: «si las tres columnas quedan
    * muy apretadas, prefiero que el historial sea plegable antes que achicar el chat principal»).
-   * Cuando abrir Sentrix dejaría a la conversación por debajo de `_CHAT_MIN`, el historial se pliega solo.
-   * PLIEGA SOLO, NUNCA DESPLIEGA SOLO: si el usuario lo abre a mano en un espacio justo, es su decisión y no
-   * se la peleamos; y al cerrar Sentrix tampoco reaparece sin que lo pida. Auto-abrir sería mover la pantalla
-   * bajo los pies de alguien que ya eligió. */
+   *
+   * ⚠️ ESTO ERA UN EFECTO CONTINUO Y ESE FUE UN DEFECTO REAL, cazado por el owner: «si quiero abrir el panel
+   * izquierdo no lo abre». El efecto miraba el espacio en CADA render, así que apenas el usuario desplegaba el
+   * historial con Sentrix abierto, volvía a plegarlo en el mismo instante — el panel era imposible de abrir.
+   * Ahora es UN SOLO DISPARO, en el momento de abrir Sentrix: se pliega si al hacerlo el chat quedaría por
+   * debajo del piso, y después no se mete más. Si el usuario lo abre a mano en un espacio justo, es su decisión. */
   const _CHAT_MIN = 520;
-  useEffect(() => {
-    if (!historialVisible || histColapsado) return;
-    const anchoPanel = openEv ? (maxed ? window.innerWidth * 0.72 : panelW) : 0;
-    const libre = window.innerWidth - anchoPanel - 44 - 250;   // 44 = la barra de barritas · 250 = el historial
-    if (libre < _CHAT_MIN) setHistColapsado(true);
-  }, [historialVisible, histColapsado, openEv, panelW, maxed]);
+  const _hayQuePlegar = (anchoPanel) => (window.innerWidth - anchoPanel - 44 - 250) < _CHAT_MIN;
 
   const startResize = (e) => {
     e.preventDefault();
@@ -177,8 +174,12 @@ export default function App({ animate = true }) {
           onMesa={() => { if (openEv && openEv.lens === "mesa") closePanel(); else {
             // «SIEMPRE» al 50/50: se repone en CADA apertura, no solo en la primera del arranque. Si el usuario
             // la agrandó ayer y hoy abre en otra pantalla, arranca pareja igual — y desde ahí la mueve.
-            setPanelW(Math.round(window.innerWidth / 2)); setMaxed(false);
+            const w = Math.round(window.innerWidth / 2);
+            setPanelW(w); setMaxed(false);
+            if (historialVisible && !histColapsado && _hayQuePlegar(w)) setHistColapsado(true);   // un solo disparo
             setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
+          historialAbierto={historialVisible && !histColapsado}
+          onConversaciones={historialVisible ? () => setHistColapsado((v) => !v) : null}
           guiaAbierta={guiaAbierta}
           onGuia={() => setGuiaAbierta((v) => !v)}
           onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
@@ -189,17 +190,20 @@ export default function App({ animate = true }) {
           {/* COLUMNA IZQUIERDA · propuesta en revisión (owner 2026-08-20), detrás de `?historial=1`. Sin el
               parámetro no se monta y la app queda igual: esto todavía no decidió nada. Ver PanelHistorial.jsx
               para lo que falta antes de que el historial sea real (persistencia + memoria de ADI al saltar hilo). */}
-          {historialVisible && (
+          {/* PLEGADO = NO MONTADO. Con la barra en el borde izquierdo, ELLA es el estado plegado del panel —
+              su barrita «Conversaciones» lo trae de vuelta. Una tira propia de 52 px al lado de la barra serían
+              dos columnas angostas haciendo el mismo trabajo. Es el reparto de Code: barra · panel · centro. */}
+          {historialVisible && !histColapsado && (
             <PanelHistorial
               onNueva={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
               hayConversacion={hayConversacion}
-              colapsado={histColapsado}
-              onToggleColapso={() => setHistColapsado((v) => !v)}
+              onToggleColapso={() => setHistColapsado(true)}
               usuario={access.granted && access.granted.name}
               demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}/>
           )}
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
             <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
+              margenBarra={historialVisible && !histColapsado ? 0 : 44}
               onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
               onSentrixAction={openFromAddress}
               openEvidenceId={openId}

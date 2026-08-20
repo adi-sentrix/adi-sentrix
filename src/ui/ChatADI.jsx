@@ -1022,7 +1022,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
  * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
  * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null }) {
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null, margenBarra = 0 }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -1259,7 +1259,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
         {/* el colchón de la DERECHA deja libre la franja donde flotan las barritas de la barra lateral. Va acá
             adentro y no en el contenedor de arriba a propósito: si se lo pusiera al padre, el campo de hexágonos
             —que es hermano de este scroll— se cortaría antes del borde y volveríamos al defecto que el owner cazó. */}
-        <div style={{ maxWidth:messages.length === 0 ? 900 : 760, margin:"0 auto", padding:messages.length === 0 ? "0 58px 16px 24px" : "32px 58px 24px 24px", display:"flex", flexDirection:"column", gap:24 }}>
+        <div style={{ maxWidth:messages.length === 0 ? 900 : 760, margin:"0 auto", padding:messages.length === 0 ? `0 24px 16px ${24 + margenBarra}px` : `32px 24px 24px ${24 + margenBarra}px`, display:"flex", flexDirection:"column", gap:24 }}>
           {messages.length === 0 && (
             <HeroInicio scenario={scenario} campo={campoPregunta(true)} onPregunta={(q) => submit(q)} />
           )}
@@ -1365,7 +1365,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
           centro de la pantalla de inicio (owner 2026-08-20): es el MISMO `campoPregunta`, movido de lugar,
           no un segundo input. Dos inputs serían dos estados y el texto a medio escribir se perdería. */}
       {messages.length > 0 && (
-      <div style={{ position:"relative", zIndex:1, padding:"16px 58px 16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center" }}>
+      <div style={{ position:"relative", zIndex:1, padding:`16px 24px 16px ${24 + margenBarra}px`, borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center" }}>
         <div style={{ width:"100%", maxWidth:760 }}>{campoPregunta(false)}</div>
       </div>
       )}
