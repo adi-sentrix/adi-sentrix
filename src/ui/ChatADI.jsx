@@ -843,10 +843,30 @@ const _HEX_LIT = [
   { left:"88%", top:"52%", dur:"10s",  delay:"8.2s" }, { left:"4%",  top:"41%", dur:"14s", delay:"5.2s" },
 ];
 
+/* ⚠️ VA DE BORDE A BORDE DEL PANEL, NO DENTRO DE LA COLUMNA DE TEXTO — y esto no es un detalle de maquetado,
+ * es la diferencia entre que se vea y que no. Primer intento: se montó como hijo del hero, que vive en la
+ * columna centrada del transcript (`maxWidth:900`). El campo heredó ese ancho —852 px de 1440— y como la
+ * máscara VACÍA el centro a propósito, lo único que quedaba era una tira finísima a cada lado: el owner lo
+ * leyó, con razón, como que los hexágonos no estaban. Va como HERMANO del contenido, con el panel entero de
+ * referencia.
+ *
+ * ⚠️ NO SE APAGA AL PRIMER MENSAJE, y tampoco scrollea con el hilo. El centro se vacía justamente para que
+ * las burbujas de la conversación caigan sobre el HALO y nunca sobre la retícula: apagarlo con la portada
+ * rompía lo único que el diseño estaba resolviendo. Por eso vive fuera del contenedor que scrollea — si
+ * viviera adentro, el fondo se iría hacia arriba con los mensajes y el halo dejaría de estar centrado en el
+ * panel. Se centra en el PANEL, no en el hilo. */
 function CampoHexagonos() {
   return (
     <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", overflow:"hidden",
       WebkitMaskImage:_HEX_MASK_CAMPO, maskImage:_HEX_MASK_CAMPO }}>
+      <style>{`
+        @keyframes adiHeroGiro { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes adiHeroRespira { from { opacity:0.62; transform:scale(1); } to { opacity:1; transform:scale(1.09); } }
+        @keyframes adiHeroPrende { 0%{opacity:0} 9%{opacity:0.6} 55%{opacity:0.12} 100%{opacity:0} }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="adiHeroGiro"], [style*="adiHeroRespira"], [style*="adiHeroPrende"] { animation: none !important; }
+        }
+      `}</style>
       {/* EL HALO · dos capas. El núcleo se apoya detrás del hexágono; el respiro amplio sostiene la pantalla
           entera. Respira lento (17s de ida y 17s de vuelta): más rápido se lee como una alerta. */}
       <div style={{ position:"absolute", inset:"-10%", animation:"adiHeroRespira 17s ease-in-out infinite alternate",
@@ -916,15 +936,8 @@ function HeroInicio({ scenario, campo, onPregunta }) {
   return (
     <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center",
       padding:"3vh 4px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", minHeight:0 }}>
-      <CampoHexagonos/>
-      <style>{`
-        @keyframes adiHeroGiro { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes adiHeroRespira { from { opacity:0.62; transform:scale(1); } to { opacity:1; transform:scale(1.09); } }
-        @keyframes adiHeroPrende { 0%{opacity:0} 9%{opacity:0.6} 55%{opacity:0.12} 100%{opacity:0} }
-        @media (prefers-reduced-motion: reduce) {
-          [style*="adiHeroGiro"], [style*="adiHeroRespira"], [style*="adiHeroPrende"] { animation: none !important; }
-        }
-      `}</style>
+      {/* el campo de hexágonos NO se monta acá: vive en la raíz del chat, detrás de todo y para siempre.
+          Ver la nota de `CampoHexagonos` — montarlo acá adentro fue exactamente el defecto que hubo que corregir. */}
 
       {/* EL CUBO VIVO · el hexágono es la marca; lo que gira es el ANILLO interior, no la silueta. Rotar el
           logo entero lo convertiría en un spinner —"espera, estoy cargando"— y acá no se está esperando nada:
@@ -1231,9 +1244,12 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   );
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
+    <div style={{ position:"relative", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
+      {/* EL CAMPO, DETRÁS DE TODO Y SIEMPRE · hermano del transcript, no hijo: así cubre el panel entero y no
+          se va hacia arriba cuando el hilo scrollea. Todo lo que viene abajo lleva zIndex:1 para quedar encima. */}
+      <CampoHexagonos/>
       {/* ── TRANSCRIPT ── */}
-      <div ref={scrollRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
+      <div ref={scrollRef} style={{ position:"relative", zIndex:1, flex:1, overflowY:"auto", minHeight:0 }}>
         {/* SIN MENSAJES la portada manda: se le da más ancho (900) y se le saca el colchón de arriba, que en el
             chat separa la primera burbuja del header pero acá solo empuja el hexágono fuera de la pantalla. */}
         <div style={{ maxWidth:messages.length === 0 ? 900 : 760, margin:"0 auto", padding:messages.length === 0 ? "0 24px 16px" : "32px 24px 24px 24px", display:"flex", flexDirection:"column", gap:24 }}>
@@ -1342,7 +1358,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
           centro de la pantalla de inicio (owner 2026-08-20): es el MISMO `campoPregunta`, movido de lugar,
           no un segundo input. Dos inputs serían dos estados y el texto a medio escribir se perdería. */}
       {messages.length > 0 && (
-      <div style={{ padding:"16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center" }}>
+      <div style={{ position:"relative", zIndex:1, padding:"16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center" }}>
         <div style={{ width:"100%", maxWidth:760 }}>{campoPregunta(false)}</div>
       </div>
       )}
