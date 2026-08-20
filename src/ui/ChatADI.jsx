@@ -1022,7 +1022,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
  * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
  * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null }) {
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -1058,6 +1058,10 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     if (!messages.length) return;
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  // el panel del historial (columna izquierda) necesita saber si hay hilo vivo · solo un booleano, ningún texto:
+  // el contenido de la conversación no sale de este componente.
+  useEffect(() => { if (onHayConversacion) onHayConversacion(messages.length > 0); }, [messages.length, onHayConversacion]);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 

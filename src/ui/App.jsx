@@ -11,6 +11,7 @@ import { C } from "./theme.js";
  * 2026-08-07, así que hace meses que nadie lo veía. Queda anotado porque volver a encenderlo ahora pide, además
  * del flag, decidir dónde vive dentro de la barra — una barrita no puede colapsar un selector de tres estados. */
 import { BarraLateral } from "./BarraLateral.jsx";   // la barra de barritas del borde derecho · reemplaza al header blanco (owner 2026-08-20)
+import { PanelHistorial } from "./PanelHistorial.jsx";   // columna izquierda · historial · EN REVISIÓN, solo con ?historial=1
 import { ChatADI } from "./ChatADI.jsx";
 // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura). MEJORA 9 (2026-07-26): LAZY — el panel es la
 // pieza más pesada de la UI y no hace falta para el primer paint del chat; se parte del bundle principal y se
@@ -98,6 +99,9 @@ export default function App({ animate = true }) {
    * después, o la deja así». Sigue siendo arrastrable y el botón de agrandar sigue llevándola al 72%. */
   const [panelW, setPanelW]   = useState(() => (typeof window !== "undefined" ? Math.round(window.innerWidth / 2) : 460));
   const [maxed, setMaxed]     = useState(false);  // agrandado
+  // columna izquierda EN REVISIÓN · se monta solo con `?historial=1` (mismo patrón que ?oracle=1 / ?barra=…)
+  const [historialVisible] = useState(() => { try { return new URLSearchParams(window.location.search).get("historial") === "1"; } catch { return false; } });
+  const [hayConversacion, setHayConversacion] = useState(false);   // lo reporta ChatADI · solo un booleano
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
   /* ── EL CABLE QUE FALTABA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ──────────────────────────
@@ -167,8 +171,18 @@ export default function App({ animate = true }) {
           demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}
           fecha={getCurrentDateString()}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
+          {/* COLUMNA IZQUIERDA · propuesta en revisión (owner 2026-08-20), detrás de `?historial=1`. Sin el
+              parámetro no se monta y la app queda igual: esto todavía no decidió nada. Ver PanelHistorial.jsx
+              para lo que falta antes de que el historial sea real (persistencia + memoria de ADI al saltar hilo). */}
+          {historialVisible && (
+            <PanelHistorial
+              onNueva={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
+              hayConversacion={hayConversacion}
+              usuario={access.granted && access.granted.name}
+              demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}/>
+          )}
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
-            <ChatADI scenario={scenario} animate={animate}
+            <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
               onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
               onSentrixAction={openFromAddress}
               openEvidenceId={openId}
