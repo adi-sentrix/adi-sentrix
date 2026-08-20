@@ -43,17 +43,21 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
       <span className="adi-rail-dash" style={{ flex:"none", width: activo ? 24 : 12, height:2.5, borderRadius:99,
         background: activo ? C.celeste : "#6b6f74",
         boxShadow: activo ? "0 0 9px rgba(47,184,218,0.7)" : "none" }}/>
-      {/* ⚠️ FONDO OPACO, SIEMPRE (owner 2026-08-20: «no debe ser transparente… es una opción, por lo tanto después
-          se quitará»). La activa usaba `rgba(47,184,218,0.10)`, que dejaba pasar el texto de abajo: un menú que
-          se lee encima del contenido tiene que TAPAR, si no se lee como un error de pintado. `#172a30` es ese
-          mismo celeste al 12% YA RESUELTO contra el fondo — el mismo color, sin el alfa. */}
+      {/* ⚠️ CAJA NEGRA Y OPACA (owner 2026-08-20: «al mostrarlas deben estar en cuadro negro, notarse»; antes:
+          «no debe ser transparente… es una opción, por lo tanto después se quitará»). El fondo es negro —más
+          oscuro que el lienzo— y la sombra la despega: una opción que se abre sobre el contenido tiene que
+          TAPARLO y leerse como una pieza suelta, no como una mancha. La ACTIVA se distingue por el celeste en
+          el borde y en su resplandor, no por un fondo distinto: así el bloque se ve parejo y lo que canta es
+          el estado, no el relleno. */}
       <span className="adi-rail-pill" style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:9,
         height:35, padding:"0 12px", borderRadius:10, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
         fontFamily:SANS, fontSize:12.5, fontWeight:600, letterSpacing:"-0.006em",
-        border:`1px solid ${activo ? C.celeste : C.borderLight}`,
-        background: activo ? "#172a30" : "#1a1a1d",
+        border:`1px solid ${activo ? C.celeste : "rgba(255,255,255,0.16)"}`,
+        background:"#0b0b0d",
         color: activo ? C.text : C.textSub,
-        boxShadow: activo ? "inset 0 0 0 1px rgba(47,184,218,0.35)" : "none" }}>
+        boxShadow: activo
+          ? "0 0 0 1px rgba(47,184,218,0.45), 0 0 20px -2px rgba(47,184,218,0.55), 0 10px 26px -10px rgba(0,0,0,0.95)"
+          : "0 10px 26px -10px rgba(0,0,0,0.95)" }}>
         {icono}{children}
       </span>
     </button>
@@ -109,8 +113,12 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         .adi-rail .adi-rail-marca-txt{ opacity:0; transform:translateX(-10px); transition:opacity .18s ease, transform .18s ease; }
         .adi-rail:hover .adi-rail-marca-txt, .adi-rail:focus-within .adi-rail-marca-txt{ opacity:1; transform:none; }
         .adi-rail .adi-rail-dash{ transition:width .18s ease, background .18s ease; }
-        .adi-rail-item:hover .adi-rail-pill{ border-color:rgba(47,184,218,0.55) !important; color:${C.text} !important; }
-        .adi-rail-item:hover .adi-rail-dash{ background:#a7abb0; }
+        /* RESPLANDOR AL SITUARSE ENCIMA (owner 2026-08-20: «si nos situamos en una debe tener resplandor»).
+           El halo es del MISMO celeste del estado activo pero más tenue: al pasar el cursor la opción se
+           enciende, y al soltarla vuelve — el encendido fuerte queda reservado para la que está activa. */
+        .adi-rail-item:hover .adi-rail-pill{ border-color:${C.celeste} !important; color:${C.text} !important;
+          box-shadow:0 0 0 1px rgba(47,184,218,0.30), 0 0 18px -3px rgba(47,184,218,0.42), 0 10px 26px -10px rgba(0,0,0,0.95) !important; }
+        .adi-rail-item:hover .adi-rail-dash{ background:${C.celeste}; box-shadow:0 0 9px rgba(47,184,218,0.6); }
         .adi-rail-item:focus-visible{ outline:2px solid ${C.celeste}; outline-offset:-2px; border-radius:10px; }
 
         /* ── A · VELO Y SOMBRA (?barra=velo) ── */
