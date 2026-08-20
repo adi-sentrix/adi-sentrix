@@ -195,3 +195,13 @@ pedido.
    se guarda DENTRO del pack como texto, no como puntero a un archivo que puede no existir.
 5. **El orden de trabajo queda declarado**: vía 1 y vía 2 avanzan a la par; nada de dato real cruza antes de
    que la vía 1 cierre.
+
+---
+
+## 9 · El plan de ejecución
+
+Las cinco decisiones de arriba se convierten en trabajo en **`_FRENTE_DATOS_PLANO_VIAS.md`**: las dos vías
+(seguridad/tenant e ingesta), qué se toca en cada paso, los tres candados que las prueban sin gastar
+(`_bundle_sin_datos_gate`, `_tenant_gate`, `_ingesta_espejo_gate`) y el único punto donde hay gasto,
+con su monto. Ahí también está la **medición** que ordena la prioridad: la fuga del bundle no es teórica —
+se buscó en el paquete publicado y las filas de la segunda empresa están adentro.
