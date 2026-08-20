@@ -5,12 +5,14 @@
  *
  * LA IDEA: tres columnas — historial a la izquierda · ADI al centro · Sentrix a la derecha.
  *
- * EL TONO NO SE INVENTÓ. El owner pidió «un panel blanco pero no extremo, algo lindo con toque… transmitir
- * similitud con la página y los colores», así que los claros son LITERALMENTE los de la landing v2
- * (`landing-v2/src/styles/global.css`): lienzo #fafafa · tarjeta #f5f5f6 · hover #efeff1 · línea #e9e8ea ·
- * y el texto en #17181c, que a propósito NO es negro puro. El celeste se oscurece a #0f7290 porque el #2fb8da
- * de la app no contrasta sobre claro. Copiarlos a mano acá es deuda: si la landing mueve su escalera, esto
- * queda desincronizado — y por eso están todos juntos en un solo bloque, para portarlos de una sola vez.
+ * EL TONO · el claro de papel se PROBÓ Y SE DESCARTÓ. Primero se montó con la escalera clara de la landing
+ * (#fafafa · #f5f5f6 · #efeff1), que era lo que el owner había pedido; al verlo dijo que no: lo quiere
+ * **oscuro**, «como lo que te mostré, eso hará contraste». Así que va en GRAFITO — el negro de la app con un
+ * punto más de luz, para que se despegue del lienzo del centro sin encender la pantalla.
+ * ⚠️ El tono definitivo NO está cerrado: hay tres candidatos (grafito · violeta · tinta) y dos formas de que
+ * el color «vaya cambiando» (que respire, o que siga a la cara abierta de Sentrix) en el mockup
+ * `ADI_historial_oscuro.html`. Grafito es el que se deja mientras tanto porque es el único que no agrega un
+ * color nuevo al producto. Cambiarlo es tocar SOLO el bloque `P` de acá abajo.
  *
  * ⚠️ LO QUE ESTE PANEL TODAVÍA NO PUEDE HACER, y hay que decidirlo antes de prometerlo:
  * **las conversaciones no se guardan**. Hoy el hilo vive en memoria y al recargar se pierde. Un historial de
@@ -23,10 +25,13 @@
  */
 import React from "react";
 
-const P = {   // la escalera de papel de la landing · un solo bloque, a propósito
-  bg: "#ffffff", bg1: "#fafafa", bg2: "#f5f5f6", bg3: "#efeff1",
-  text: "#17181c", text2: "#3c4149", text3: "#6f6e77", text4: "#8c8b93",
-  line: "#e9e8ea", cel: "#0f7290",
+/* GRAFITO · un solo bloque, a propósito: cambiar el tono del panel es cambiar SOLO esto.
+ * `bg1` es el lienzo (#111113, apenas por encima del #0a0a0a del centro — ahí está el contraste, en el punto
+ * de luz, no en un color). `bg`/`bg3` son la tarjeta y el hover. El acento sigue siendo el celeste de la casa. */
+const P = {
+  bg: "#17171a", bg1: "#111113", bg2: "#17171a", bg3: "#1e1e22",
+  text: "#f5f5f5", text2: "#c9c9c9", text3: "#969696", text4: "#7c8085",
+  line: "rgba(255,255,255,0.07)", cel: "#2fb8da",
 };
 const SANS = "'DM Sans', system-ui, sans-serif";
 
@@ -49,7 +54,7 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, co
       <aside style={{ flex:"none", width:52, display:"flex", flexDirection:"column", alignItems:"center",
         minHeight:0, padding:"14px 0 10px", gap:10, background:P.bg1, borderRight:`1px solid ${P.line}`, fontFamily:SANS }}>
         <button onClick={onToggleColapso} title="Mostrar el historial" aria-label="Mostrar el historial"
-          style={{ width:28, height:28, borderRadius:8, background:"#131313", border:"none", display:"grid",
+          style={{ width:28, height:28, borderRadius:8, background:"#0b0b0c", border:`1px solid ${P.line}`, display:"grid",
             placeItems:"center", cursor:"pointer", padding:0, flexShrink:0 }}>
           <_Cubo/>
         </button>
@@ -62,7 +67,7 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, co
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
         </button>
-        <span style={{ marginTop:"auto", width:26, height:26, borderRadius:"50%", background:P.cel, color:"#fff",
+        <span style={{ marginTop:"auto", width:26, height:26, borderRadius:"50%", background:P.cel, color:"#0a0a0a",
           display:"grid", placeItems:"center", fontSize:10.5, fontWeight:700, flexShrink:0 }}>
           {(usuario || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
         </span>
@@ -76,7 +81,7 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, co
 
       <div style={{ flex:"none", padding:"14px 14px 10px", display:"flex", flexDirection:"column", gap:11 }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-          <span style={{ width:28, height:28, borderRadius:8, background:"#131313", display:"grid", placeItems:"center", flexShrink:0 }}>
+          <span style={{ width:28, height:28, borderRadius:8, background:"#0b0b0c", border:`1px solid ${P.line}`, display:"grid", placeItems:"center", flexShrink:0 }}>
             <_Cubo/>
           </span>
           <span style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0, flex:1 }}>
@@ -98,7 +103,7 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, co
           style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"9px 12px", borderRadius:10,
             cursor:"pointer", border:`1px solid ${P.line}`, background:P.bg, color:P.text, fontFamily:SANS,
             fontSize:12.5, fontWeight:600, boxShadow:"0 1px 2px rgba(0,0,0,0.04)", transition:"background 0.14s, border-color 0.14s" }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = P.bg3; e.currentTarget.style.borderColor = "#dcdbde"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = P.bg3; e.currentTarget.style.borderColor = P.cel; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = P.bg; e.currentTarget.style.borderColor = P.line; }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -131,7 +136,7 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, co
       </div>
 
       <div style={{ flex:"none", padding:"10px 12px", borderTop:`1px solid ${P.line}`, display:"flex", alignItems:"center", gap:9 }}>
-        <span style={{ width:26, height:26, borderRadius:"50%", background:P.cel, color:"#fff", display:"grid",
+        <span style={{ width:26, height:26, borderRadius:"50%", background:P.cel, color:"#0a0a0a", display:"grid",
           placeItems:"center", fontSize:10.5, fontWeight:700, flexShrink:0 }}>
           {(usuario || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
         </span>
