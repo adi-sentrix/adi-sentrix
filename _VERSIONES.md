@@ -24,6 +24,14 @@ Lo acumulado en `dev` desde que se desplegó la 1.0. Sale a producción cuando e
 - **La etiqueta de los días**: «días sin rotar» no existe en el dato — hay días de inventario y días sin venta.
 - **Cada ranking se declara entero**: universo · dirección · polaridad · regla de empate · campo fuente ·
   términos. Incluye el eje SKU, que antes no tenía contra qué verificarse.
+- **La pantalla de inicio nueva** (diseño del owner, variante A del mockup del 2026-08-20). La anterior estaba
+  vacía: título, una línea y el campo abajo del todo. Ahora el hexágono de la marca abre la pantalla sobre el
+  campo de hexágonos de la landing, **el campo de pregunta sube al centro** mientras no hay conversación y baja
+  a anclarse al primer mensaje, las cuatro preguntas quedan a la vista, y una banda muestra **el pulso del
+  negocio**: cuántos clientes, cuántos bajo el benchmark, el margen promedio y el capital inmovilizado, cada
+  cifra clickeable hacia su pregunta. Las cifras las arma el motor (`pulsoInicio.js`), no la pantalla.
+  Al implementarla se corrigieron tres palabras que el mockup traía y la casa no usa: «vara» → **benchmark**,
+  «detenido» → **inmovilizado**, «margen consolidado» → **margen promedio**.
 - **El versionado**: esto mismo.
 
 ---

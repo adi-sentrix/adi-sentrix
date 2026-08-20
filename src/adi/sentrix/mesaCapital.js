@@ -41,7 +41,10 @@ import { compradoresSku } from "../../data/clienteSkuMatrix.js";
 
 const _r1 = (n) => Math.round(n * 10) / 10;
 const _mean = (a, f) => (a.length ? a.reduce((s, x) => s + (typeof f(x) === "number" ? f(x) : 0), 0) / a.length : 0);
-const _money = (v) => {
+/* SE EXPORTA para que `pulsoInicio.js` no escriba una TERCERA copia de esta función (ya vive igual acá y en
+ * mesa.js). Dos formateadores con la misma cara y distinto redondeo son cómo el mismo capital termina publicado
+ * como $33K en una pantalla y $34K en la de al lado. */
+export const _money = (v) => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
   if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`;
   if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}K`;
