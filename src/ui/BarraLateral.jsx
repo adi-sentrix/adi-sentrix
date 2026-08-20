@@ -25,7 +25,7 @@
  * APAGADO en todos los perfiles por decisión del owner, así que la barra muestra el estado neutro «Datos
  * actuales». Si alguna vez se reenciende, necesita un lugar propio acá — no vuelve solo.
  */
-import React from "react";
+import React, { useMemo } from "react";
 import { C } from "./theme.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
@@ -71,11 +71,37 @@ function Estado({ color, titulo, children }) {
   );
 }
 
+/* ══ INTERRUPTOR DE COMPARACIÓN · TEMPORAL, SALE CUANDO EL OWNER ELIJA ══════════════════════════════════════
+ * El owner marcó el defecto (2026-08-20): «cuando pasas el cursor, las cosas que muestra se superponen a la
+ * Mesa central, es poco fino» — y pidió verlo EN LA APP, sobre el dato real, no sobre un mockup.
+ *   ?barra=velo      · velo oscuro con desenfoque detrás de las pastillas + sombra. Nada se mueve de lugar.
+ *   ?barra=empuja    · la Mesa se achica lo mismo que crece la barra. Cero superposición, pero el dato salta.
+ *   ?barra=apuntada  · la barra no se abre entera: al apuntar una barrita aparece SOLO su nombre.
+ *   sin parámetro    · el comportamiento de hoy, sin tocar. El default NO decide nada.
+ * Mismo patrón que los overrides de prueba que ya usa el repo (?oracle=1 / ?claims=1): vive en la dirección,
+ * no en el perfil, y no cambia lo que ve nadie que no lo escriba. Al elegir, quedan el modo ganador y se van
+ * el parámetro y los otros dos. */
+function _modoBarra() {
+  try { return new URLSearchParams(window.location.search).get("barra") || ""; } catch { return ""; }
+}
+
 export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio, modoIA, demoDias, fecha }) {
+  const modo = useMemo(_modoBarra, []);
+  // «empuja» es el ÚNICO modo que necesita JavaScript: CSS no puede, desde el :hover de la barra, ensanchar el
+  // colchón de un panel que es su hermano. Los otros dos son CSS puro.
+  const empujar = (on) => {
+    if (modo !== "empuja") return;
+    try { document.documentElement.style.setProperty("--adi-rail-pad", on ? "236px" : "44px"); } catch {}
+  };
   return (
-    <div className="adi-rail" aria-label="Barra de ADI"
+    <div className={`adi-rail${modo ? ` adi-rail--${modo}` : ""}`} aria-label="Barra de ADI"
+      onMouseEnter={() => empujar(true)} onMouseLeave={() => empujar(false)}
+      onFocus={() => empujar(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) empujar(false); }}
       style={{ position:"absolute", top:0, right:0, bottom:0, width:44, zIndex:20, background:"transparent",
         display:"flex", flexDirection:"column", alignItems:"flex-end", justifyContent:"center", gap:3, padding:"14px 0" }}>
+      {/* EL VELO · solo en ?barra=velo. Detrás de las pastillas, se disuelve hacia la izquierda: el dato de
+          abajo no se va, se atenúa, y la superposición se lee como una capa a propósito y no como un choque. */}
+      {modo === "velo" && <div className="adi-rail-velo" aria-hidden="true"/>}
       <style>{`
         .adi-rail{ transition: width .2s ease; }
         .adi-rail:hover, .adi-rail:focus-within{ width:236px !important; }
@@ -91,6 +117,29 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         .adi-rail-item:hover .adi-rail-pill{ border-color:rgba(47,184,218,0.55) !important; color:${C.text} !important; }
         .adi-rail-item:hover .adi-rail-dash{ background:#a7abb0; }
         .adi-rail-item:focus-visible{ outline:2px solid ${C.celeste}; outline-offset:-2px; border-radius:10px; }
+
+        /* ── A · VELO Y SOMBRA (?barra=velo) ── */
+        .adi-rail-velo{ position:absolute; top:0; right:0; bottom:0; width:236px; z-index:-1; pointer-events:none;
+          opacity:0; transition:opacity .18s ease; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+          background:linear-gradient(270deg, rgba(5,5,6,0.96) 0%, rgba(5,5,6,0.90) 46%, rgba(5,5,6,0.62) 76%, transparent 100%);
+          -webkit-mask-image:linear-gradient(270deg,#000 0%,#000 60%,transparent 100%);
+                  mask-image:linear-gradient(270deg,#000 0%,#000 60%,transparent 100%); }
+        .adi-rail--velo:hover .adi-rail-velo, .adi-rail--velo:focus-within .adi-rail-velo{ opacity:1; }
+        .adi-rail--velo .adi-rail-pill, .adi-rail--velo .adi-rail-stpill{ box-shadow:0 8px 26px -8px rgba(0,0,0,0.9); }
+
+        /* ── C · SOLO LA APUNTADA (?barra=apuntada) · la barra NO se abre entera ── */
+        .adi-rail--apuntada:hover, .adi-rail--apuntada:focus-within{ width:44px !important; }
+        .adi-rail--apuntada .adi-rail-pill, .adi-rail--apuntada .adi-rail-stpill,
+        .adi-rail--apuntada .adi-rail-marca-txt{ opacity:0 !important; transform:translateX(10px) !important; }
+        .adi-rail--apuntada .adi-rail-item:hover .adi-rail-pill,
+        .adi-rail--apuntada .adi-rail-item:focus-visible .adi-rail-pill,
+        .adi-rail--apuntada .adi-rail-st:hover .adi-rail-stpill{
+          opacity:1 !important; transform:none !important; pointer-events:auto;
+          position:absolute; right:34px; top:50%; margin-top:-17px; width:max-content; flex:none;
+          box-shadow:0 8px 26px -8px rgba(0,0,0,0.9); }
+        .adi-rail--apuntada .adi-rail-st:hover .adi-rail-stpill{ margin-top:-12px; }
+        .adi-rail--apuntada .adi-rail-item, .adi-rail--apuntada .adi-rail-st{ position:relative; }
+
         @media (prefers-reduced-motion: reduce){ .adi-rail, .adi-rail *{ transition:none !important; } }
       `}</style>
 
