@@ -1,0 +1,331 @@
+{
+  "titulo": "REPRODUCCION v1.0 · el resumen que cayo al suplente",
+  "history": [
+    {
+      "role": "user",
+      "text": "dime donde estoy perdiendo margen?"
+    },
+    {
+      "role": "adi",
+      "text": "Estás perdiendo margen en 8 de tus 13 clientes, todos por debajo del benchmark de cartera de 30.1%. El golpe más grande, en dólares, está concentrado en dos cuentas casi empatadas:\n\n- **Falabella**: margen 22.0% vs benchmark 30.1% → brecha de 8.1pp sobre $19.4M de venta = **~$1.57M de margen que no capturás**.\n- **Lider**: margen 21.5% vs benchmark 30.1% → brecha de 8.6pp sobre $17.8M = ~$1.53M.\n- Jumbo suma otro ~$1.06M de brecha (24.0% vs 30.1%).\n\nPor qué pasa: en Falabella el costo ($15.1M) absorbe casi toda la venta y la carga comercial es 4.5%, un punto por encima de la meta de 3.5%. Esa combinación —margen bajo y carga comercial cara— es la que perfora el resultado de la cuenta, no un problema de volumen (Falabella creció 8.4% vs año anterior).\n\nQué hacer primero: Falabella es tu mayor cuenta ($19.4M) y tiene la mayor brecha absoluta. Lleva su carga comercial de 4.5% a la meta de 3.5% antes de tocar precio — eso libera $194K de inmediato sin negociar margen bruto. Si después de ese ajuste el margen sigue bajo 25%, ahí recién se discute precio o mix de producto con la cuenta."
+    },
+    {
+      "role": "user",
+      "text": "y mi capital inmovilizado, donde esta y en cuanto esta valorizado?"
+    },
+    {
+      "role": "adi",
+      "text": "Tu capital inmovilizado está en $56K, repartido en 5 SKU, y de ahí $33K ya está frenado (rotación bajo el piso de 2.0x o días sobre el techo de 120d).\n\n**Dónde está (los 5 SKU, $56K total):**\n- LG-DRYER8KG (Valparaíso) — $14K · rotación 1.0x · 165d · 94 días sin venta → **frenado**\n- SAM-TV55 (Santiago) — $13K · rotación 3.6x · 58d · estado Lento\n- BOS-SANDER (Valparaíso) — $11K · rotación 1.6x · 115d · 68 días sin venta → **frenado**\n- PHI-IRON-PRO (Concepción) — $10K · rotación 2.4x · 95d · estado 60d\n- MAK-COMP-AIR (Antofagasta) — $8K · rotación 0.8x · 190d · 112 días sin venta → **frenado**\n\n$56K = $14K + $13K + $11K + $10K + $8K.\n\nPor qué pasa: los 3 SKU frenados (LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR = $33K) están todos por debajo del piso de rotación de 2.0x, con más de 90 días sin movimiento — no es un problema de precio, es stock que dejó de venderse.\n\nQué hacer primero: arranca por **MAK-COMP-AIR**, el peor de los tres — rotación 0.8x (menos de la mitad del piso), 112 días sin venta y margen de inventario de apenas 8.0%. Es el candidato claro a liquidar con descuento agresivo antes que a esperar reactivación; los otros dos ($14K y $11K) todavía tienen algo de venta reciente y pueden esperar una revisión de precio antes de liquidarse."
+    },
+    {
+      "role": "user",
+      "text": "hazme un resumen ejecutivo de las dos cosas que te he preguntado"
+    },
+    {
+      "role": "adi",
+      "text": "**Resumen ejecutivo**\n\nDos frentes abiertos, sin relación entre sí (venta del año cerrado vs. foto de inventario de hoy):\n\n**1. Margen — brecha de $4.16M en la cartera**\n8 de 13 clientes están por debajo del benchmark de 30.1%. Concentrado en:\n- Falabella: 22.0% margen, brecha 8.1pp sobre $19.4M → ~$1.57M\n- Lider: 21.5% margen, brecha 8.6pp sobre $17.8M → ~$1.53M\n- Jumbo: 24.0% margen, brecha sobre $17.3M → ~$1.06M\n\nCausa en Falabella: carga comercial 4.5% vs meta 3.5%, además del margen bajo.\n\n**2. Inventario — $56K inmovilizado, $33K frenado**\n5 SKU inmovilizados (LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K). De ellos, 3 están frenados por rotación bajo 2.0x o más de 120d: LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR = $33K.\n\n**Qué hacer primero (una sola acción, la de mayor impacto):**\nAjustar la carga comercial de Falabella de 4.5% a la meta de 3.5% — libera $194K de inmediato sobre $19.4M de venta, sin tocar precio ni negociar margen bruto. Es la acción de mayor $ y menor fricción de las dos agendas.\n\nComo segundo movimiento, no primero: liquidar MAK-COMP-AIR ($8K, rotación 0.8x, 112 días sin venta) para no seguir cargando capital en el SKU más deteriorado del inventario."
+    }
+  ],
+  "mem": {
+    "recentNarrations": [
+      "**Resumen ejecutivo**\n\nDos frentes abiertos, sin relación entre sí (venta del año cerrado vs. foto de inventario de hoy):\n\n**1. Margen — brecha de $4.16M en la cartera**\n8 de 13 clientes están por debajo del benchmark de 30.1%. Concentrado en:\n- Falabella: 22.0% margen, brecha 8.1pp sobre $19.4M → ~$1.57M\n- Lider: 21.5% margen, brecha 8.6pp sobre $17.8M → ~$1.53M\n- Jumbo: 24.0% margen, brecha sobre $17.3M → ~$1.06M\n\nCausa en Falabella: carga comercial 4.5% vs meta 3.5%, además del margen bajo.\n\n**2. Inventario — $56K inmovilizado, $33K frenado**\n5 SKU inmovilizados (LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K). De ellos, 3 están frenados por rotación bajo 2.0x o más de 120d: LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR = $33K.\n\n**Qué hacer primero (una sola acción, la de mayor impacto):**\nAjustar la carga comercial de Falabella de 4.5% a la meta de 3.5% — libera $194K de inmediato sobre $19.4M de venta, sin tocar precio ni negociar margen bruto. Es la acción de mayor $ y menor fricción de las dos agendas.\n\nComo segundo movimiento, no primero: liquidar MAK-COMP-AIR ($8K, rotación 0.8x, 112 días sin venta) para no seguir cargando capital en el SKU más deteriorado del inventario.",
+      "Tu capital inmovilizado está en $56K, repartido en 5 SKU, y de ahí $33K ya está frenado (rotación bajo el piso de 2.0x o días sobre el techo de 120d).\n\n**Dónde está (los 5 SKU, $56K total):**\n- LG-DRYER8KG (Valparaíso) — $14K · rotación 1.0x · 165d · 94 días sin venta → **frenado**\n- SAM-TV55 (Santiago) — $13K · rotación 3.6x · 58d · estado Lento\n- BOS-SANDER (Valparaíso) — $11K · rotación 1.6x · 115d · 68 días sin venta → **frenado**\n- PHI-IRON-PRO (Concepción) — $10K · rotación 2.4x · 95d · estado 60d\n- MAK-COMP-AIR (Antofagasta) — $8K · rotación 0.8x · 190d · 112 días sin venta → **frenado**\n\n$56K = $14K + $13K + $11K + $10K + $8K.\n\nPor qué pasa: los 3 SKU frenados (LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR = $33K) están todos por debajo del piso de rotación de 2.0x, con más de 90 días sin movimiento — no es un problema de precio, es stock que dejó de venderse.\n\nQué hacer primero: arranca por **MAK-COMP-AIR**, el peor de los tres — rotación 0.8x (menos de la mitad del piso), 112 días sin venta y margen de inventario de apenas 8.0%. Es el candidato claro a liquidar con descuento agresivo antes que a esperar reactivación; los otros dos ($14K y $11K) todavía tienen algo de venta reciente y pueden esperar una revisión de precio antes de liquidarse."
+    ],
+    "recitaAprobada": {
+      "figs": [
+        {
+          "canon": "money:$17.8M",
+          "value": "$17.8M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen"
+          ]
+        },
+        {
+          "canon": "money:$1.5M",
+          "value": "$1.53M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen"
+          ]
+        },
+        {
+          "canon": "pct:24%",
+          "value": "24.0%",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen"
+          ]
+        },
+        {
+          "canon": "money:$17.3M",
+          "value": "$17.3M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen"
+          ]
+        },
+        {
+          "canon": "money:$1.1M",
+          "value": "$1.06M",
+          "duenos": [
+            "Falabella",
+            "Lider",
+            "Jumbo",
+            "margen"
+          ]
+        },
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "Falabella",
+            "margen",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "Falabella",
+            "margen",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$56K",
+          "value": "$56K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "money:$33K",
+          "value": "$33K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "money:$14K",
+          "value": "$14K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "money:$13K",
+          "value": "$13K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "money:$11K",
+          "value": "$11K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "money:$10K",
+          "value": "$10K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "money:$8K",
+          "value": "$8K",
+          "duenos": [
+            "SAM-TV55",
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "PHI-IRON-PRO",
+            "MAK-COMP-AIR",
+            "LG",
+            "inventario"
+          ]
+        },
+        {
+          "canon": "ratio:2.0x",
+          "value": "2.0x",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "days:120d",
+          "value": "120d",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "money:$33K",
+          "value": "$33K",
+          "duenos": [
+            "LG-DRYER8KG",
+            "BOS-SANDER",
+            "MAK-COMP-AIR",
+            "LG",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "pct:4.5%",
+          "value": "4.5%",
+          "duenos": [
+            "Falabella",
+            "margen",
+            "venta",
+            "carga"
+          ]
+        },
+        {
+          "canon": "pct:3.5%",
+          "value": "3.5%",
+          "duenos": [
+            "Falabella",
+            "margen",
+            "venta",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$194K",
+          "value": "$194K",
+          "duenos": [
+            "Falabella",
+            "margen",
+            "venta",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$19.4M",
+          "value": "$19.4M",
+          "duenos": [
+            "Falabella",
+            "margen",
+            "venta",
+            "carga"
+          ]
+        },
+        {
+          "canon": "money:$8K",
+          "value": "$8K",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "venta",
+            "capital",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "ratio:0.8x",
+          "value": "0.8x",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "venta",
+            "capital",
+            "inventario",
+            "rotación"
+          ]
+        },
+        {
+          "canon": "days:112d",
+          "value": "112 d",
+          "duenos": [
+            "MAK-COMP-AIR",
+            "venta",
+            "capital",
+            "inventario",
+            "rotación"
+          ]
+        }
+      ]
+    }
+  },
+  "turnos": [
+    {
+      "q": "dime donde estoy perdiendo margen?",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.08294325,
+      "visible": "Estás perdiendo margen en 8 de tus 13 clientes, todos por debajo del benchmark de cartera de 30.1%. El golpe más grande, en dólares, está concentrado en dos cuentas casi empatadas:\n\n- **Falabella**: margen 22.0% vs benchmark 30.1% → brecha de 8.1pp sobre $19.4M de venta = **~$1.57M de margen que no capturás**.\n- **Lider**: margen 21.5% vs benchmark 30.1% → brecha de 8.6pp sobre $17.8M = ~$1.53M.\n- Jumbo suma otro ~$1.06M de brecha (24.0% vs 30.1%).\n\nPor qué pasa: en Falabella el costo ($15.1M) absorbe casi toda la venta y la carga comercial es 4.5%, un punto por encima de la meta de 3.5%. Esa combinación —margen bajo y carga comercial cara— es la que perfora el resultado de la cuenta, no un problema de volumen (Falabella creció 8.4% vs año anterior).\n\nQué hacer primero: Falabella es tu mayor cuenta ($19.4M) y tiene la mayor brecha absoluta. Lleva su carga comercial de 4.5% a la meta de 3.5% antes de tocar precio — eso libera $194K de inmediato sin negociar margen bruto. Si después de ese ajuste el margen sigue bajo 25%, ahí recién se discute precio o mix de producto con la cuenta."
+    },
+    {
+      "q": "y mi capital inmovilizado, donde esta y en cuanto esta valorizado?",
+      "estado": "verde",
+      "vetos": [],
+      "costoUSD": 0.0219735,
+      "visible": "Tu capital inmovilizado está en $56K, repartido en 5 SKU, y de ahí $33K ya está frenado (rotación bajo el piso de 2.0x o días sobre el techo de 120d).\n\n**Dónde está (los 5 SKU, $56K total):**\n- LG-DRYER8KG (Valparaíso) — $14K · rotación 1.0x · 165d · 94 días sin venta → **frenado**\n- SAM-TV55 (Santiago) — $13K · rotación 3.6x · 58d · estado Lento\n- BOS-SANDER (Valparaíso) — $11K · rotación 1.6x · 115d · 68 días sin venta → **frenado**\n- PHI-IRON-PRO (Concepción) — $10K · rotación 2.4x · 95d · estado 60d\n- MAK-COMP-AIR (Antofagasta) — $8K · rotación 0.8x · 190d · 112 días sin venta → **frenado**\n\n$56K = $14K + $13K + $11K + $10K + $8K.\n\nPor qué pasa: los 3 SKU frenados (LG-DRYER8KG, BOS-SANDER, MAK-COMP-AIR = $33K) están todos por debajo del piso de rotación de 2.0x, con más de 90 días sin movimiento — no es un problema de precio, es stock que dejó de venderse.\n\nQué hacer primero: arranca por **MAK-COMP-AIR**, el peor de los tres — rotación 0.8x (menos de la mitad del piso), 112 días sin venta y margen de inventario de apenas 8.0%. Es el candidato claro a liquidar con descuento agresivo antes que a esperar reactivación; los otros dos ($14K y $11K) todavía tienen algo de venta reciente y pueden esperar una revisión de precio antes de liquidarse."
+    },
+    {
+      "q": "hazme un resumen ejecutivo de las dos cosas que te he preguntado",
+      "estado": "reparado",
+      "vetos": [
+        "calculo-no-verificable"
+      ],
+      "costoUSD": 0.041249999999999995,
+      "visible": "**Resumen ejecutivo**\n\nDos frentes abiertos, sin relación entre sí (venta del año cerrado vs. foto de inventario de hoy):\n\n**1. Margen — brecha de $4.16M en la cartera**\n8 de 13 clientes están por debajo del benchmark de 30.1%. Concentrado en:\n- Falabella: 22.0% margen, brecha 8.1pp sobre $19.4M → ~$1.57M\n- Lider: 21.5% margen, brecha 8.6pp sobre $17.8M → ~$1.53M\n- Jumbo: 24.0% margen, brecha sobre $17.3M → ~$1.06M\n\nCausa en Falabella: carga comercial 4.5% vs meta 3.5%, además del margen bajo.\n\n**2. Inventario — $56K inmovilizado, $33K frenado**\n5 SKU inmovilizados (LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K). De ellos, 3 están frenados por rotación bajo 2.0x o más de 120d: LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR = $33K.\n\n**Qué hacer primero (una sola acción, la de mayor impacto):**\nAjustar la carga comercial de Falabella de 4.5% a la meta de 3.5% — libera $194K de inmediato sobre $19.4M de venta, sin tocar precio ni negociar margen bruto. Es la acción de mayor $ y menor fricción de las dos agendas.\n\nComo segundo movimiento, no primero: liquidar MAK-COMP-AIR ($8K, rotación 0.8x, 112 días sin venta) para no seguir cargando capital en el SKU más deteriorado del inventario."
+    }
+  ],
+  "costoUSD": 0.14616675,
+  "llamadas": 4
+}

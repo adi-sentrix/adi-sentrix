@@ -1,0 +1,21 @@
+{
+  "q": "hazme un resumen ejecutivo de las dos cosas que te he preguntado",
+  "estado": "reparado",
+  "vetos": [
+    "calculo-no-verificable"
+  ],
+  "intentos": [
+    {
+      "intento": 1,
+      "motivoReintento": null,
+      "multaRecibida": null,
+      "borrador": "**Resumen ejecutivo**\n\nDos frentes abiertos, sin relación entre sí (venta del año cerrado vs. foto de inventario de hoy):\n\n**1. Margen — brecha de $4.16M en la cartera**\n8 de 13 clientes están por debajo del benchmark de 30.1%. Concentrado en:\n- Falabella: 22.0% margen, brecha 8.1pp sobre $19.4M → ~$1.57M\n- Lider: 21.5% margen, brecha 8.6pp sobre $17.8M → ~$1.53M\n- Jumbo: 24.0% margen, brecha sobre $17.3M → ~$1.06M\n\nCausa en Falabella: carga comercial 4.5% vs meta 3.5%, además del margen bajo.\n\n**2. Inventario — $56K inmovilizado, $33K frenado**\n5 SKU inmovilizados (LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K). De ellos, 3 están frenados por rotación bajo 2.0x o más de 120d: LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR = $33K.\n\n**Qué hacer primero (una sola acción, la de mayor impacto):**\nAjustar la carga comercial de Falabella de 4.5% a la meta de 3.5% — libera $194K de inmediato sobre $19.4M de venta, sin tocar precio ni negociar margen bruto. Es la acción de mayor $ y menor fricción de las dos agendas.\n\nComo segundo movimiento, no primero: liquidar MAK-COMP-AIR ($8K, rotación 0.8x, 112 días sin venta) para no seguir cargando capital en el SKU más deteriorado del inventario.\n\n[[CALCULO]]\nid=c1 · op=pct_de · inputs=$19.4M; 1.0pp · formula=1.0% de $19.4M (diferencia entre carga actual 4.5% y meta 3.5%) · resultado=$194K · unidad=money · dueno=Falabella"
+    },
+    {
+      "intento": 2,
+      "motivoReintento": "calculo-no-verificable",
+      "multaRecibida": "[NOTARIO — no es el usuario] Tu respuesta no pasó la verificación:\n[calculo-no-verificable] línea «id=c1 · op=pct_de · inputs=$19.4M; 1.0pp · formula=1.0% de $19.4M (diferencia entre carga actual 4.5% y meta 3.5%) · resultado=$194K · unidad=money · dueno=Falabella» — campo «inputs»: «1.0pp» no está autorizada — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado\nReescribe tu respuesta COMPLETA corrigiendo solo lo observado, manteniendo tu calidad de asesor. No menciones esta corrección.",
+      "borrador": "**Resumen ejecutivo**\n\nDos frentes abiertos, sin relación entre sí (venta del año cerrado vs. foto de inventario de hoy):\n\n**1. Margen — brecha de $4.16M en la cartera**\n8 de 13 clientes están por debajo del benchmark de 30.1%. Concentrado en:\n- Falabella: 22.0% margen, brecha 8.1pp sobre $19.4M → ~$1.57M\n- Lider: 21.5% margen, brecha 8.6pp sobre $17.8M → ~$1.53M\n- Jumbo: 24.0% margen, brecha sobre $17.3M → ~$1.06M\n\nCausa en Falabella: carga comercial 4.5% vs meta 3.5%, además del margen bajo.\n\n**2. Inventario — $56K inmovilizado, $33K frenado**\n5 SKU inmovilizados (LG-DRYER8KG $14K, SAM-TV55 $13K, BOS-SANDER $11K, PHI-IRON-PRO $10K, MAK-COMP-AIR $8K). De ellos, 3 están frenados por rotación bajo 2.0x o más de 120d: LG-DRYER8KG, BOS-SANDER y MAK-COMP-AIR = $33K.\n\n**Qué hacer primero (una sola acción, la de mayor impacto):**\nAjustar la carga comercial de Falabella de 4.5% a la meta de 3.5% — libera $194K de inmediato sobre $19.4M de venta, sin tocar precio ni negociar margen bruto. Es la acción de mayor $ y menor fricción de las dos agendas.\n\nComo segundo movimiento, no primero: liquidar MAK-COMP-AIR ($8K, rotación 0.8x, 112 días sin venta) para no seguir cargando capital en el SKU más deteriorado del inventario.\n\n[[CALCULO]]\nid=c1 · op=puntos · inputs=4.5%; 3.5% · formula=4.5% - 3.5% · resultado=1.0pp · unidad=pp · dueno=Falabella\nid=c2 · op=pct_de · inputs=$19.4M; c1 · formula=1.0pp de $19.4M (diferencia entre carga actual y meta) · resultado=$194K · unidad=money · dueno=Falabella"
+    }
+  ]
+}
