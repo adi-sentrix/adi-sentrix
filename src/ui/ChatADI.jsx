@@ -17,6 +17,12 @@ import { resetPnlDraft, ensurePnlNarration, detectPnlIntent, pnlScope } from "..
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
 import { buildPulsoInicio } from "../adi/sentrix/pulsoInicio.js";   // la banda de cifras del inicio · el MOTOR la arma, esta vista solo la pinta (CLAUDE.md §2.3)
+
+/* LA COLUMNA DEL AVATAR · todo lo que ADI dice arranca corrido estos píxeles, porque a su izquierda va el
+ * hexágono de la firma. El campo de envío lo usa para quedar a plomo con el texto de las respuestas.
+ * Y el ancho de la barra de scroll del transcript, que corre su centrado ~4 px y hay que devolver del otro lado. */
+const _GUTTER_ADI = 44;
+const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
@@ -1364,9 +1370,18 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
           ⚠️ SOLO SE MONTA CON CONVERSACIÓN EMPEZADA. Mientras no hay mensajes el campo vive ARRIBA, en el
           centro de la pantalla de inicio (owner 2026-08-20): es el MISMO `campoPregunta`, movido de lugar,
           no un segundo input. Dos inputs serían dos estados y el texto a medio escribir se perdería. */}
+      {/* ALINEADO AL TEXTO DE ADI (owner 2026-08-20: «la barra de envío debe estar alineada al texto de ADI»).
+          El campo arrancaba 63 px a la izquierda del texto de las respuestas, y ese número son DOS cosas
+          sumadas: los 44 px de la columna del avatar —que indenta todo lo que ADI dice— y los ~4 px que corre
+          el centrado del transcript por su barra de scroll. Por eso el colchón izquierdo suma el avatar y el
+          derecho reserva el ancho de esa barra: sin las dos, el campo queda desalineado por un lado u otro. */}
       {messages.length > 0 && (
-      <div style={{ position:"relative", zIndex:1, padding:`16px 24px 16px ${24 + margenBarra}px`, borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center" }}>
-        <div style={{ width:"100%", maxWidth:760 }}>{campoPregunta(false)}</div>
+      <div style={{ position:"relative", zIndex:1, padding:`16px ${_SCROLLBAR}px 16px 0`, borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg }}>
+        {/* MISMA CAJA QUE EL TRANSCRIPT, no una parecida: `maxWidth:760` + `margin:0 auto` + los MISMOS colchones.
+            Antes el campo se centraba dentro de un div ya acolchado y el transcript dentro del ancho completo:
+            dos centrados distintos que nunca iban a coincidir. Sumado el colchón del avatar, queda a plomo. */}
+        <div style={{ width:"100%", maxWidth:760, margin:"0 auto",
+          paddingLeft: 24 + margenBarra + _GUTTER_ADI, paddingRight: 24 }}>{campoPregunta(false)}</div>
       </div>
       )}
     </div>
