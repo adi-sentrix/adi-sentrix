@@ -30,7 +30,46 @@ const P = {   // la escalera de papel de la landing · un solo bloque, a propós
 };
 const SANS = "'DM Sans', system-ui, sans-serif";
 
-export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias }) {
+const _Cubo = () => (
+  <svg width="17" height="17" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" aria-hidden="true">
+    <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
+    <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
+    <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
+    <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
+  </svg>
+);
+
+export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias, colapsado, onToggleColapso }) {
+  /* PLEGADO · orden del owner (2026-08-20): «si las tres columnas quedan muy apretadas, prefiero que el
+   * historial sea plegable antes que achicar el chat principal». Plegado NO desaparece: queda una tira de
+   * 52 px con el cubo (que lo despliega) y el «+» de conversación nueva. Esconderlo del todo dejaría la app
+   * sin manija para volver a abrirlo y sin forma de empezar un hilo nuevo. */
+  if (colapsado) {
+    return (
+      <aside style={{ flex:"none", width:52, display:"flex", flexDirection:"column", alignItems:"center",
+        minHeight:0, padding:"14px 0 10px", gap:10, background:P.bg1, borderRight:`1px solid ${P.line}`, fontFamily:SANS }}>
+        <button onClick={onToggleColapso} title="Mostrar el historial" aria-label="Mostrar el historial"
+          style={{ width:28, height:28, borderRadius:8, background:"#131313", border:"none", display:"grid",
+            placeItems:"center", cursor:"pointer", padding:0, flexShrink:0 }}>
+          <_Cubo/>
+        </button>
+        <button onClick={onNueva} title="Nueva conversación" aria-label="Nueva conversación"
+          style={{ width:30, height:30, borderRadius:9, cursor:"pointer", border:`1px solid ${P.line}`,
+            background:P.bg, color:P.text2, display:"grid", placeItems:"center", padding:0, flexShrink:0 }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = P.bg3; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = P.bg; }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <span style={{ marginTop:"auto", width:26, height:26, borderRadius:"50%", background:P.cel, color:"#fff",
+          display:"grid", placeItems:"center", fontSize:10.5, fontWeight:700, flexShrink:0 }}>
+          {(usuario || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
+        </span>
+      </aside>
+    );
+  }
+
   return (
     <aside style={{ flex:"none", width:250, display:"flex", flexDirection:"column", minHeight:0,
       background:P.bg1, borderRight:`1px solid ${P.line}`, color:P.text, fontFamily:SANS }}>
@@ -38,17 +77,21 @@ export function PanelHistorial({ onNueva, hayConversacion, usuario, demoDias }) 
       <div style={{ flex:"none", padding:"14px 14px 10px", display:"flex", flexDirection:"column", gap:11 }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
           <span style={{ width:28, height:28, borderRadius:8, background:"#131313", display:"grid", placeItems:"center", flexShrink:0 }}>
-            <svg width="17" height="17" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" aria-hidden="true">
-              <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
-              <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
-              <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-              <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
-            </svg>
+            <_Cubo/>
           </span>
-          <span style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0 }}>
+          <span style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0, flex:1 }}>
             <span style={{ fontSize:14, fontWeight:700, letterSpacing:"-0.02em", color:P.text }}>ADI</span>
             <span style={{ fontSize:10, fontWeight:500, color:P.text3, letterSpacing:"0.14em", textTransform:"uppercase" }}>Sentrix</span>
           </span>
+          <button onClick={onToggleColapso} title="Plegar el historial" aria-label="Plegar el historial"
+            style={{ width:24, height:24, borderRadius:6, border:"none", background:"transparent", color:P.text4,
+              cursor:"pointer", display:"grid", placeItems:"center", padding:0, flexShrink:0 }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = P.bg3; e.currentTarget.style.color = P.text2; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = P.text4; }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/>
+            </svg>
+          </button>
         </div>
 
         <button onClick={onNueva} title="Empezar una conversación nueva"

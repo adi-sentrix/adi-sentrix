@@ -102,6 +102,7 @@ export default function App({ animate = true }) {
   // columna izquierda EN REVISIÓN · se monta solo con `?historial=1` (mismo patrón que ?oracle=1 / ?barra=…)
   const [historialVisible] = useState(() => { try { return new URLSearchParams(window.location.search).get("historial") === "1"; } catch { return false; } });
   const [hayConversacion, setHayConversacion] = useState(false);   // lo reporta ChatADI · solo un booleano
+  const [histColapsado, setHistColapsado] = useState(false);
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
   /* ── EL CABLE QUE FALTABA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ──────────────────────────
@@ -128,6 +129,20 @@ export default function App({ animate = true }) {
   const [guiaAbierta, setGuiaAbierta] = useState(() => guiaAbreSola());
   // ejecuta un ejemplo de la guía por el MISMO camino que un chip del hero (ChatADI registra su submitSpec acá)
   const runRef = useRef(null);
+  /* EL CHAT TIENE UN PISO, y el historial cede antes que él (owner 2026-08-20: «si las tres columnas quedan
+   * muy apretadas, prefiero que el historial sea plegable antes que achicar el chat principal»).
+   * Cuando abrir Sentrix dejaría a la conversación por debajo de `_CHAT_MIN`, el historial se pliega solo.
+   * PLIEGA SOLO, NUNCA DESPLIEGA SOLO: si el usuario lo abre a mano en un espacio justo, es su decisión y no
+   * se la peleamos; y al cerrar Sentrix tampoco reaparece sin que lo pida. Auto-abrir sería mover la pantalla
+   * bajo los pies de alguien que ya eligió. */
+  const _CHAT_MIN = 520;
+  useEffect(() => {
+    if (!historialVisible || histColapsado) return;
+    const anchoPanel = openEv ? (maxed ? window.innerWidth * 0.72 : panelW) : 0;
+    const libre = window.innerWidth - anchoPanel - 44 - 250;   // 44 = la barra de barritas · 250 = el historial
+    if (libre < _CHAT_MIN) setHistColapsado(true);
+  }, [historialVisible, histColapsado, openEv, panelW, maxed]);
+
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
@@ -178,6 +193,8 @@ export default function App({ animate = true }) {
             <PanelHistorial
               onNueva={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
               hayConversacion={hayConversacion}
+              colapsado={histColapsado}
+              onToggleColapso={() => setHistColapsado((v) => !v)}
               usuario={access.granted && access.granted.name}
               demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}/>
           )}
