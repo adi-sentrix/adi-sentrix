@@ -27,7 +27,7 @@ const leer = async () => JSON.parse(await handler().text());
 H("[1] LA FORMA · los siete campos acordados, ni uno más");
 {
   const b = await leer();
-  const esperados = ["ok", "service", "commit", "branch", "env", "profile", "deploymentId"];
+  const esperados = ["ok", "service", "version", "commit", "branch", "env", "profile", "deploymentId"];
   for (const k of esperados) ok(k in b, `devuelve \`${k}\``);
   ok(Object.keys(b).length === esperados.length, `y NADA más — ${Object.keys(b).join(", ")}`);
   ok(b.ok === true && b.service === "adi", `ok=true · service="adi" — ${b.ok}/${b.service}`);
@@ -40,7 +40,20 @@ H("[2] NO PUEDE GASTAR · es estructural, no una promesa");
   ok(!/gatewayFetch|gatewayCore|handlePlan|handleNarrate/.test(SRC), "no importa nada del gateway");
   ok(!/\bfetch\s*\(|node:https?|axios|undici/.test(SRC), "no sale a la red por ningún camino");
   ok(!/openai|anthropic|adapter/i.test(SRC), "no conoce ningún proveedor");
-  ok(!/^\s*import\s/m.test(SRC), "no importa NADA: no hay import por el que se cuele una dependencia que gaste");
+  /* UN SOLO IMPORT PERMITIDO, y verificado hasta el fondo (owner 2026-08-16). La invariante real de este bloque
+   * es «por acá no se cuela nada que pueda gastar», no «cero imports». El número de versión tiene que salir de
+   * UNA fuente —dos literales divergen, es la regla de la casa— así que se permite importar
+   * `src/config/version.js` Y SE COMPRUEBA que ese módulo sea hoja pura: si algún día importa algo, este gate se
+   * pone rojo antes de que la dependencia llegue al endpoint. */
+  const imports = SRC.match(/^\s*import\s[^\n]*/gm) || [];
+  ok(imports.length <= 1, `a lo sumo UN import (${imports.length}): ${imports.join(" · ").slice(0, 120)}`);
+  ok(imports.every((l) => /from\s*"\.\.\/src\/config\/version\.js"/.test(l)),
+    "…y si lo hay, es SOLO la fuente única del número de versión");
+  if (imports.length) {
+    const verSrc = readFileSync(new URL("./src/config/version.js", import.meta.url), "utf8");
+    ok(!/^\s*(import|require)\s/m.test(verSrc),
+      "…y esa fuente no importa nada a su vez: la cadena termina ahí, no puede arrastrar al gateway");
+  }
 }
 
 H("[3] SIN DATOS DEL CLIENTE");

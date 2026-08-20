@@ -16,6 +16,8 @@
  *
  * Las cinco variables las inyecta Vercel sola: no hay que configurar nada.
  */
+import { ADI_VERSION } from "../src/config/version.js";   // el número humano · UNA fuente (ver src/config/version.js)
+
 export const config = { runtime: "edge" };
 
 const _env = (k) => {
@@ -27,6 +29,8 @@ export default function handler() {
   return new Response(JSON.stringify({
     ok: true,
     service: "adi",
+    // EL NÚMERO HUMANO primero: es lo que el owner pregunta. El commit queda abajo, para auditar.
+    version: ADI_VERSION,
     commit: sha ? String(sha).slice(0, 7) : null,
     branch: _env("VERCEL_GIT_COMMIT_REF"),
     env: _env("VERCEL_ENV"),
