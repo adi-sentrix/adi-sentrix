@@ -117,5 +117,78 @@ ok(/UN SUPERLATIVO ES UNA CLASIFICACI[ÓO]N/.test(DOCTRINA_NOTARIO_NATURAL), "la
 ok(/SEPARA EL DATO DURO DE TU CRITERIO/.test(DOCTRINA_NOTARIO_NATURAL), "…la de separar dato duro de criterio");
 ok(/LOS DOS CAMPOS DE D[ÍI]AS NO SON EL MISMO/.test(DOCTRINA_NOTARIO_NATURAL), "…y la de los dos campos de días");
 
+
+console.log("\n" + "═".repeat(100));
+console.log("6 · LOS DOS HUECOS DE LA CORRIDA DE ADOPCIÓN (owner 2026-08-16)");
+console.log("═".repeat(100));
+/* Los dos salieron MEDIDOS de la corrida de adopción, no de una sospecha: dos turnos recomendaron bajo
+ * «Qué hacer primero:» y pasaron verdes, y los superlativos del eje SKU salieron bien por mérito del cerebro
+ * —el muro no tenía contra qué medirlos—. */
+for (const [t, nota] of [
+  ["**Qué hacer primero:** bajar la carga comercial de Falabella a 3.5%.", "el encabezado exacto que se escapaba"],
+  ["Qué  hacer  primero : revisar el costo de Lider.", "…con espacios de más, igual"],
+  ["**Siguiente paso:** liquidar MAK-COMP-AIR.", "siguiente paso"],
+  ["SIGUIENTES PASOS: revisar la reposición.", "…en mayúsculas y plural"],
+  ["**Recomendación:** llevar la carga de Sodimac a la meta.", "recomendación"],
+  ["Acción sugerida: liquidar el stock de LG-DRYER8KG.", "acción sugerida"],
+]) muere(t, "juicio-sin-marcar", `[${nota}] «${t.slice(0, 46)}…» exige la marca`);
+vive("**Qué hacer primero:** bajar la carga de Falabella a 3.5%. Dato duro: son $194K. Criterio mío: arrancaría por ahí.",
+  "juicio-sin-marcar", "…y la MISMA recomendación, marcada, pasa — el chequeo pide separar, no prohíbe recomendar");
+vive("La carga comercial es la TASA (%); las **acciones comerciales** son el mismo hecho medido en dinero.",
+  "juicio-sin-marcar", "una DEFINICIÓN con la palabra en negrita no es un bloque de acción");
+
+console.log("\n" + "═".repeat(100));
+console.log("7 · SUPERLATIVOS DEL EJE SKU · con su ranking declarado, en las dos direcciones");
+console.log("═".repeat(100));
+for (const [esperado, t, nota] of [
+  ["muere", "LG-DRYER8KG es el SKU de peor rotación del inventario: 1.0x.", "MAK-COMP-AIR rota 0.8x"],
+  ["vive", "MAK-COMP-AIR es el SKU de peor rotación del inventario: 0.8x.", "es cierto"],
+  ["muere", "BOS-SANDER es el SKU con más días de inventario de todos: 115d.", "MAK-COMP-AIR tiene 190d"],
+  ["vive", "MAK-COMP-AIR es el SKU con más días de inventario de todos: 190d.", "es cierto"],
+  ["muere", "SAM-TV55 es el SKU con más días sin venta de todos: 12d.", "MAK-COMP-AIR lleva 112d"],
+  ["vive", "MAK-COMP-AIR es el SKU con más días sin venta de todos: 112d.", "es cierto"],
+  ["muere", "BOS-SANDER es el SKU con más capital inmovilizado del inventario: $11K.", "LG-DRYER8KG tiene $14K"],
+  ["vive", "LG-DRYER8KG es el SKU con más capital inmovilizado del inventario: $14K.", "es cierto"],
+  ["muere", "SAM-TV55 tiene el peor margen de inventario de todos: 19.0%.", "MAK-COMP-AIR está en 8.0%"],
+  ["vive", "MAK-COMP-AIR tiene el peor margen de inventario de todos: 8.0%.", "es cierto"],
+]) (esperado === "muere" ? muere : vive)(t, "superlativo-no-sostenido", `[SKU] «${t.slice(0, 52)}…» ${esperado === "muere" ? "MUERE" : "pasa"} — ${nota}`);
+/* UN RANKING SIN LADO MALO NO RESUELVE «EL PEOR». Más capital no es peor capital: SAM-REF500L es el SKU de más
+ * capital ($19K) y rota 9.8x. Por eso `capital` se declara con peorEs null y el capital con lado malo es otro
+ * ranking, sobre otro universo: los SKU cuyo estado no es Activo. */
+vive("SAM-REF500L es el SKU con mayor capital del inventario: $19K.", "superlativo-no-sostenido",
+  "«el de mayor capital» es cierto y pasa");
+vive("SAM-REF500L es el SKU con peor capital del inventario: $19K.", "superlativo-no-sostenido",
+  "…y «el peor capital» no se juzga: ese ranking no tiene lado malo declarado");
+
+console.log("\n" + "═".repeat(100));
+console.log("8 · CADA RANKING SE DECLARA ENTERO · universo · dirección · empate · campo fuente");
+console.log("═".repeat(100));
+{
+  const R = CTX.datoProyectado.rankings;
+  ok(!!R.sku, "el eje SKU tiene rankings declarados (era el hueco: sus superlativos no se verificaban contra nada)");
+  const esperados = ["capital", "capital_inmovilizado", "rotacion", "dias_inventario", "dias_sin_venta", "margen_inventario"];
+  for (const k of esperados) ok(!!(R.sku && R.sku[k]), `sku · ${k} declarado`);
+  let completos = 0, filas = 0;
+  for (const [eje, ms] of Object.entries(R)) {
+    for (const [k, d] of Object.entries(ms)) {
+      const bien = typeof d.universo === "string" && d.universo.length > 8
+        && (d.direccion === "mayor" || d.direccion === "menor")
+        && (d.peorEs === "mayor" || d.peorEs === "menor" || d.peorEs === null)
+        && typeof d.empate === "string" && d.empate.length > 20
+        && typeof d.campo === "string" && d.campo.includes(".")
+        && Array.isArray(d.terminos) && d.terminos.length
+        && Array.isArray(d.filas);
+      ok(bien, `${eje}·${k} declara universo · dirección · empate · campo fuente · términos`,
+        JSON.stringify({ universo: d.universo, direccion: d.direccion, peorEs: d.peorEs, campo: d.campo }));
+      if (bien) completos++;
+      filas += d.filas.length;
+    }
+  }
+  console.log(`  · ${completos} rankings declarados completos · ${filas} filas en total`);
+  // NO HAY RANKING DE «COBERTURA», y es deliberado: CLAUDE.md §4 la resolvió POR ELIMINACIÓN (duplicado
+  // redondeado de `doh`). Declararlo sería reponer el término que el owner sacó del producto.
+  ok(!Object.values(R).some((ms) => Object.keys(ms).some((k) => /cobertura/i.test(k))),
+    "…y NINGÚN ranking se llama «cobertura»: se dice días de inventario, y sale de `doh`");
+}
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

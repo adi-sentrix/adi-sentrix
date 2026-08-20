@@ -3396,7 +3396,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const N = _N[rm[1].toLowerCase()] ?? parseInt(rm[1], 10);
       const eje = _EJE[rm[2].toLowerCase()];
       const met = _MET[rm[4].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")];
-      const lista = eje && met && datoProyectado.rankings[eje] && datoProyectado.rankings[eje][met];
+      const _decl = eje && met && datoProyectado.rankings[eje] && datoProyectado.rankings[eje][met];
+      const lista = _decl && Array.isArray(_decl.filas) ? _decl.filas : null;
       if (!Array.isArray(lista) || lista.length < 2 || !Number.isFinite(N)) continue;
       const asc = /menor|peor/i.test(rm[3]);
       const reales = [...lista].sort((a, b) => (asc ? a.valor - b.valor : b.valor - a.valor)).slice(0, N).map((x) => x.entidad);
@@ -3432,8 +3433,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       const porEje = datoProyectado.rankings;
       const _cargaDe = new Map(), _margenDe = new Map();
       for (const eje of Object.keys(porEje)) {
-        for (const x of (porEje[eje].carga || [])) _cargaDe.set(String(x.entidad), x.valor);
-        for (const x of (porEje[eje].margen || [])) _margenDe.set(String(x.entidad), x.valor);
+        for (const x of ((porEje[eje].carga && porEje[eje].carga.filas) || [])) _cargaDe.set(String(x.entidad), x.valor);
+        for (const x of ((porEje[eje].margen && porEje[eje].margen.filas) || [])) _margenDe.set(String(x.entidad), x.valor);
       }
       /* La ventana es alrededor de la CIFRA INVIABLE, no la oración: en el caso medido la entidad venía en la
        * frase anterior («Mercado Libre tiene margen 29.0% y carga 1.8%. Con la baja de 2 puntos sería 31.0%»),
@@ -3968,20 +3969,31 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       // marcador → dirección sobre el VALOR. «peor» depende de la métrica: peor margen es el más BAJO, peor carga
       // comercial es la más ALTA. Por eso la polaridad vive en la métrica y no en la palabra.
       const _MARCAS_SUP = [
-        [/\bmayor(?:es)?\b|\bm[áa]s\s+alt[oa]s?\b|\bm[áa]xim[oa]s?\b|\bel\s+que\s+m[áa]s\b|\bm[áa]s\s+grandes?\b/i, "max"],
-        [/\bmenor(?:es)?\b|\bm[áa]s\s+baj[oa]s?\b|\bm[íi]nim[oa]s?\b|\bel\s+que\s+menos\b/i, "min"],
+        /* «el SKU CON MÁS días de inventario» — la forma que dejaba tres superlativos del eje SKU sin verificar
+         * (medido en la mini-verificación dirigida, owner 2026-08-16). Va acotada a «con más / con menos» a
+         * propósito: un «más» suelto convierte cualquier comparativo («produce más contribución en dólares») en
+         * un superlativo que nadie afirmó, y eso es un rojo sobre texto correcto. */
+        [/\bcon\s+m[áa]s\b|\bmayor(?:es)?\b|\bm[áa]s\s+alt[oa]s?\b|\bm[áa]xim[oa]s?\b|\bel\s+que\s+m[áa]s\b|\bm[áa]s\s+grandes?\b/i, "max"],
+        [/\bcon\s+menos\b|\bmenor(?:es)?\b|\bm[áa]s\s+baj[oa]s?\b|\bm[íi]nim[oa]s?\b|\bel\s+que\s+menos\b/i, "min"],
         [/\bpeor(?:es)?\b/i, "peor"],
         [/\bmejor(?:es)?\b/i, "mejor"],
         [/\bprincipal(?:es)?\b|\bm[áa]s\s+cr[íi]tic[oa]s?\b/i, "peor"],
       ];
-      // métrica → clave del ranking + hacia dónde está lo BUENO (para resolver «peor»/«mejor»)
-      const _METRICAS_SUP = [
-        [/\bm[áa]rgen(?:es)?\b/i, "margen", "alto"],   // ⚠️ `m[áa]rgenes?` NO es «margen»: es «margene»+s (cazado en la calibración)
-        [/\bcontribuci[óo]n\b/i, "contribucion", "alto"],
-        [/\bcarga\s+comercial\b/i, "carga", "bajo"],
-        [/\bventas?\b|\bfactura(?:ci[óo]n)?\b/i, "ventas", "alto"],
-      ];
-      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\s+(?:los|las|la)\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b/i;
+      /* EL VOCABULARIO Y LA POLARIDAD LOS DECLARA LA CARPETA, NO EL MURO (owner 2026-08-16). Antes esta tabla
+       * vivía acá: cuatro métricas escritas a mano, con su polaridad («la peor carga es la más ALTA») en un
+       * archivo que no es dueño del dato. Al declarar el eje SKU quedó a la vista el problema — «margen» es el
+       * de VENTA para un cliente y el de INVENTARIO para un SKU, y una tabla en el muro no puede saberlo.
+       * Ahora cada ranking trae sus términos y su polaridad, y esto solo los recorre. Un ranking SIN lado malo
+       * (peorEs null, como el capital de un SKU: más capital no es peor capital) acepta «mayor/menor» y NO
+       * acepta «el peor» — no hay extremo malo que verificar. */
+      const _metricasDe = (eje) => Object.entries(_rank[eje] || {})
+        .filter(([, d]) => d && Array.isArray(d.terminos) && Array.isArray(d.filas))
+        .map(([clave, d]) => [new RegExp(`\\b(?:${d.terminos.join("|")})\\b`, "i"), clave, d]);
+      /* «EL CONJUNTO ENTERO», dicho como lo dice la prosa. Sin una de estas fórmulas el universo son las
+       * entidades que la oración nombra, y con una sola nombrada no hay orden que verificar (por eso el eje SKU
+       * quedaba mudo: «MAK-COMP-AIR es el de peor rotación del inventario» nombra UNA). Las formas del universo
+       * inventario se agregaron con el eje SKU (owner 2026-08-16). */
+      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b|\bdel?\s+(?:todo\s+el\s+)?inventario\b|\bde\s+los\s+\d{1,3}\s+SKU\b/i;
       const _reEnt = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "iu");
       const _oraciones = String(narration).split(/(?<=[.!?])\s+|\n+/);
       let _vetadoSup = false;
@@ -3996,27 +4008,26 @@ export function guardC(narration, { ledger, results = [], trace = null, question
            * o tres devuelve siempre que no — un rojo garantizado sobre texto correcto. */
           if (/(?:es|as|os)$/i.test(mm[0].trim()) && /(?:mayores|menores|peores|mejores|principales|alt[ao]s|baj[ao]s|grandes|cr[íi]tic[ao]s|m[áa]xim[ao]s|m[íi]nim[ao]s)$/i.test(mm[0].trim())) continue;
           const iM = oracion.indexOf(mm[0]);
-          /* LA MÉTRICA TIENE QUE ESTAR PEGADA AL MARCADOR, no «cerca» (falso positivo medido: «los dos mayores,
-           * tienen los márgenes más bajos» apareaba «mayores» con «margen» y juzgaba un tamaño como si fuera un
-           * margen). Se aceptan las dos formas del español —«mayor venta» y «margen más bajo»— y nada entre medio
-           * salvo un artículo o una preposición: una coma o un paréntesis ya son otra afirmación. */
-          let met = null;
-          for (const [reMet, clave, bueno] of _METRICAS_SUP) {
-            const mt = oracion.match(reMet);
-            if (!mt) continue;
-            const iMet = oracion.indexOf(mt[0]);
-            const entre = iMet > iM ? oracion.slice(iM + mm[0].length, iMet) : oracion.slice(iMet + mt[0].length, iM);
-            // PEGADAS DE VERDAD: «peor margen», «mayor venta», «carga comercial más alta». Con 12 caracteres de
-            // aire ya entraba «carga comercial produce el MAYOR efecto», que no habla de la carga (medido).
-            if (entre.length > 4 || /[,;:()—–]/.test(entre)) continue;
-            met = { clave, bueno };
-            break;
-          }
-          if (!met) continue;
-          const alto = dir === "max" || (dir === "peor" && met.bueno === "bajo") || (dir === "mejor" && met.bueno === "alto");
-          // el eje: el que tenga en su ranking a las entidades que la oración nombra
+          // el eje: el que tenga en su ranking DECLARADO a las entidades que la oración nombra
           for (const eje of Object.keys(_rank)) {
-            const lista = _rank[eje] && _rank[eje][met.clave];
+            /* LA MÉTRICA TIENE QUE ESTAR PEGADA AL MARCADOR, no «cerca»: «peor margen», «mayor venta», «carga
+             * comercial más alta». Con 12 caracteres de aire ya entraba «carga comercial produce el MAYOR
+             * efecto», que no habla de la carga (falso positivo medido en la calibración). */
+            let met = null, decl = null;
+            for (const [reMet, clave, d] of _metricasDe(eje)) {
+              const mt = oracion.match(reMet);
+              if (!mt) continue;
+              const iMet = oracion.indexOf(mt[0]);
+              const entre = iMet > iM ? oracion.slice(iM + mm[0].length, iMet) : oracion.slice(iMet + mt[0].length, iM);
+              if (entre.length > 4 || /[,;:()—–]/.test(entre)) continue;
+              // EL TÉRMINO MÁS ESPECÍFICO GANA: «margen de inventario» antes que «margen», «capital
+              // inmovilizado» antes que «capital» — si no, el genérico se queda con la frase del preciso.
+              if (!met || mt[0].length > met.length) { met = mt[0]; decl = { clave, d }; }
+            }
+            if (!decl) continue;
+            if ((dir === "peor" || dir === "mejor") && !decl.d.peorEs) continue;   // sin lado malo no hay «peor»
+            const alto = dir === "max" || (dir === "peor" && decl.d.peorEs === "mayor") || (dir === "mejor" && decl.d.peorEs === "menor");
+            const lista = decl.d.filas;
             if (!Array.isArray(lista) || lista.length < 2) continue;
             const nombradas = lista.filter((x) => _reEnt(x.entidad).test(oracion));
             /* EL SUJETO PUEDE VIVIR ATRÁS («Es, de hecho, el margen más bajo…»: el sujeto es de dos oraciones
@@ -4058,8 +4069,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
             const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
             if (extremo.entidad === reclamante.entidad) continue;
-            const _v = (x) => (met.clave === "margen" || met.clave === "carga" ? `${x.valor}%` : String(x.valor));
-            violations.push({ kind: "superlativo-no-sostenido", detail: `decís que ${reclamante.entidad} es «${mm[0]}» en ${met.clave} y no lo es: en ese conjunto el extremo es ${extremo.entidad} (${_v(extremo)} contra ${_v(reclamante)} de ${reclamante.entidad}) — un «${mm[0]}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
+            const _v = (x) => (/margen|carga/.test(decl.clave) ? `${x.valor}%` : decl.clave === "rotacion" ? `${x.valor}x` : /dias/.test(decl.clave) ? `${x.valor}d` : String(x.valor));
+            violations.push({ kind: "superlativo-no-sostenido", detail: `decís que ${reclamante.entidad} es «${mm[0]}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo} el extremo es ${extremo.entidad} (${_v(extremo)} contra ${_v(reclamante)} de ${reclamante.entidad}) — un «${mm[0]}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
             _vetadoSup = true;
             break;
           }
@@ -4078,7 +4089,26 @@ export function guardC(narration, { ledger, results = [], trace = null, question
      * comercial» escribe «las **acciones comerciales** son el mismo hecho medido en dinero» — una definición no
      * recomienda nada, y el chequeo la mataba por llevar la palabra en negrita). Por eso el encabezado exige sus
      * dos puntos: «**Acción:**» es un bloque de recomendación; «**acciones comerciales**» es un término. */
-    const _RECOMIENDA = /\*\*\s*acci[óo]n(?:es)?\s*(?:recomendadas?)?\s*:|\*\*\s*recomendaci[óo]n\s*:|\bacciones\s+recomendadas\b|\brecomiendo\b|\brecomendar[íi]a\b|\bpriorizar[íi]a\b|\bprioridad(?:es)?\s*\d?\s*[:—–-]|\bprioriz[áa]\b|\barrancar[íi]a\s+por\b|\bempezar[íi]a\s+por\b|\bla\s+acci[óo]n\s+de\s+mayor\s+impacto\b|\bqu[ée]\s+hacer\s*:/i;
+    /* LOS ENCABEZADOS con los que ADI abre una recomendación. Los cuatro que faltaban salieron de la corrida de
+     * adopción (owner 2026-08-16): dos turnos recomendaron bajo «Qué hacer primero:» y pasaron VERDES porque el
+     * patrón exigía los dos puntos PEGADOS a «hacer». Ahora se acepta lo que haya en el medio —acotado a 24
+     * caracteres, para no tragarse media oración— y con o sin negritas. Cada junta lleva `\s*`, así que las
+     * variantes con espacios de más entran igual, y todo el patrón es case-insensitive. */
+    const _RECOMIENDA = new RegExp([
+      String.raw`\*{0,2}\s*qu[ée]\s+hacer\b[^:\n]{0,24}:`,                          // «Qué hacer:» · «Qué hacer primero:» · «**Qué hacer ahora:**»
+      String.raw`\*{0,2}\s*siguientes?\s+pasos?\s*:`,                               // «Siguiente paso:» · «Siguientes pasos:»
+      String.raw`\*{0,2}\s*pr[óo]ximos?\s+pasos?\s*:`,                              // «Próximo paso:»
+      String.raw`\*{0,2}\s*recomendaci[óo]n(?:es)?\s*:`,                            // «Recomendación:» — con o sin negritas
+      String.raw`\*{0,2}\s*acci[óo]n(?:es)?\s*(?:sugerida|recomendada)s?\s*:`,      // «Acción sugerida:»
+      String.raw`\*{0,2}\s*acci[óo]n(?:es)?\s*:`,                                   // «Acción:» — el ENCABEZADO, no la palabra en negrita
+      // …y las formas en prosa, sin encabezado
+      String.raw`\bacciones\s+recomendadas\b`,
+      String.raw`\brecomiendo\b`, String.raw`\brecomendar[íi]a\b`,
+      String.raw`\bpriorizar[íi]a\b`, String.raw`\bprioriz[áa]\b`,
+      String.raw`\bprioridad(?:es)?\s*\d?\s*[:—–-]`,
+      String.raw`\barrancar[íi]a\s+por\b`, String.raw`\bempezar[íi]a\s+por\b`,
+      String.raw`\bla\s+acci[óo]n\s+de\s+mayor\s+impacto\b`,
+    ].join("|"), "i");
     const _MARCA_JUICIO = /\bjuicio\s+asesor\b|\bdato\s+duro\b|\bcriterio\s+(?:m[íi]o|propio|asesor|de\s+asesor)\b|\bes\s+mi\s+lectura\b|\bes\s+criterio\b|\bmi\s+criterio\b|\bno\s+sale\s+del\s+dato\b/i;
     if (_RECOMIENDA.test(narration) && !_MARCA_JUICIO.test(narration)) {
       violations.push({ kind: "juicio-sin-marcar", detail: `estás recomendando o priorizando sin decir qué es DATO DURO y qué es CRITERIO tuyo — una recomendación escrita con el mismo tono que una cifra verificada se lee como si el dato la ordenara, y el dato no ordena prioridades: marcá el criterio («esto es criterio mío, no una cifra del dato») y dejá el dato duro aparte` });

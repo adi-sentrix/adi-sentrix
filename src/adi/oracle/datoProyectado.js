@@ -119,7 +119,51 @@ function _construir(scenario) {
    * órdenes que la carpeta DECLARA, como objetos verificables — el mismo recorrido y los mismos umbrales
    * del texto (tenantPolicyDefault, la única verdad), nunca una segunda regla. El TEXTO no cambia un byte. */
   const estados = [];
-  const rankings = { cliente: { ventas: [], margen: [], contribucion: [], carga: [] }, marca: { ventas: [], margen: [], contribucion: [], carga: [] } };
+  /* CADA RANKING SE DECLARA ENTERO (owner 2026-08-16): universo evaluado · dirección · regla de empate · campo
+   * fuente · y los términos con los que la prosa lo nombra. Antes eran listas peladas y el notario tenía que
+   * traer de su lado la polaridad de cada métrica —«la peor carga comercial» es la MÁS ALTA, «el peor margen» el
+   * MÁS BAJO— o sea una segunda regla viviendo lejos del dato. Ahora la trae la carpeta, que es quien la sabe.
+   *   · direccion : cómo se lee el orden (mayor = del más grande al más chico).
+   *   · peorEs    : en qué extremo está el PROBLEMA. Es lo que resuelve «el peor» sin que el muro adivine.
+   *   · empate    : qué pasa si dos comparten el extremo (ver EMPATE, abajo).
+   *   · campo     : el campo del dato del que sale, textual — para poder auditarlo sin leer este archivo.
+   *   · terminos  : cómo lo nombra la prosa. El muro no tiene vocabulario propio: usa el que declara la carpeta. */
+  const EMPATE = "todos los que comparten el valor extremo son extremo válido; entre ellos el orden es alfabético";
+  const _R = (universo, direccion, peorEs, campo, terminos) => ({ universo, direccion, peorEs, empate: EMPATE, campo, terminos, filas: [] });
+  const rankings = {
+    cliente: {
+      ventas:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesVentas.actual", ["ventas?", "factura(?:ci[óo]n)?"]),
+      margen:       _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.margen", ["m[áa]rgen(?:es)?"]),
+      contribucion: _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "menor", "clientesMargen.contribucion", ["contribuci[óo]n"]),
+      carga:        _R("los 13 clientes · venta comercial (año cerrado)", "mayor", "mayor", "clientesMargen.pctRebate", ["carga\\s+comercial"]),
+    },
+    marca: {
+      ventas:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.venta", ["ventas?", "factura(?:ci[óo]n)?"]),
+      margen:       _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.margen", ["m[áa]rgen(?:es)?"]),
+      contribucion: _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "menor", "marcas.contribucion", ["contribuci[óo]n"]),
+      carga:        _R("las 5 marcas · venta comercial (año cerrado)", "mayor", "mayor", "marcas.pctRebate", ["carga\s+comercial"]),
+    },
+    /* EL EJE SKU · el hueco que dejó la corrida de adopción: el cerebro acertó sus tres superlativos de SKU, pero
+     * por mérito suyo — el muro no tenía contra qué medirlos. Son los del universo INVENTARIO (foto de hoy).
+     * ⚠️ NO HAY RANKING DE «COBERTURA», y no es un olvido: el dato trae `doh` y `cobertura` como campos
+     * distintos (difieren en 8 de 13 SKU, hasta 28 días) y el owner resolvió la ambigüedad POR ELIMINACIÓN —
+     * `cobertura` es un duplicado redondeado que se declina. En pantalla se dice «días de inventario» y sale
+     * de `doh`. Declarar un ranking de cobertura sería reponer el término que se sacó.
+     * ⚠️ Y el margen del SKU es el de INVENTARIO, no el de venta: el mismo SKU tiene los dos y son cifras
+     * distintas. Por eso el término declarado exige la etiqueta completa. */
+    sku: {
+      /* «más capital» NO es «peor capital»: SAM-REF500L es el SKU de más capital ($19K) y rota 9.8x — está sano.
+       * Por eso este ranking va SIN polaridad (peorEs null) y el notario solo le verifica «mayor/menor», nunca
+       * «el peor». El capital que sí tiene lado malo es el INMOVILIZADO, y ese es su propio ranking, sobre su
+       * propio universo: los SKU cuyo estado no es Activo. Son dos conjuntos distintos y se declaran distintos. */
+      capital:            _R("los 13 SKU en inventario · foto de hoy", "mayor", null, "skuInventario.stockUSD", ["capital"]),
+      capital_inmovilizado: _R("los SKU cuyo estado NO es Activo · foto de hoy", "mayor", "mayor", "skuInventario.stockUSD (estado ≠ Activo)", ["capital\\s+inmovilizado", "capital\\s+frenado"]),
+      rotacion:         _R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.rotacion", ["rotaci[óo]n"]),
+      dias_inventario:  _R("los 13 SKU en inventario · foto de hoy", "mayor", "mayor", "skuInventario.doh", ["d[íi]as\\s+de\\s+inventario"]),
+      dias_sin_venta:   _R("los SKU con días sin venta registrados · foto de hoy", "mayor", "mayor", "skuInventario.diasSinVenta", ["d[íi]as\\s+sin\\s+venta"]),
+      margen_inventario:_R("los 13 SKU en inventario · foto de hoy", "mayor", "menor", "skuInventario.margenPct", ["m[áa]rgen\\s+de\\s+inventario"]),
+    },
+  };
   /* LOS DOS CAMPOS DE DÍAS, POR SEPARADO (owner 2026-08-16, deriva medida en el Examen 4). El texto ya los
    * distingue —«Días de inventario 190d» y «112d sin venta»— pero como CIFRAS los dos llegan al notario con el
    * mismo dueño y la misma unidad, así que no tenía cómo ver que el narrador le puso a uno el rótulo del otro
@@ -204,11 +248,11 @@ function _construir(scenario) {
     const D = [c.nombre];
     let linea = `- ${c.nombre} — ${_L.ventas} ${F(_moneyK(c.actual), D)} (año anterior ${F(_moneyK(c.anterior), D)} · presupuesto ${F(_moneyK(c.presupuesto), D)}) · ${c.unidades} unidades · canal ${c.canal} · marca ${c.marca} · familia ${c.sfamilia}`;
     if (m) linea += ` · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} (${_L.acciones.toLowerCase()} ${F(_moneyK(m.rebates), D)})`;
-    if (Number.isFinite(c.actual)) rankings.cliente.ventas.push({ entidad: c.nombre, valor: c.actual });
+    if (Number.isFinite(c.actual)) rankings.cliente.ventas.filas.push({ entidad: c.nombre, valor: c.actual });
     if (m) {
-      if (Number.isFinite(m.margen)) rankings.cliente.margen.push({ entidad: c.nombre, valor: m.margen });
-      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.push({ entidad: c.nombre, valor: m.contribucion });
-      if (Number.isFinite(m.pctRebate)) rankings.cliente.carga.push({ entidad: c.nombre, valor: m.pctRebate });
+      if (Number.isFinite(m.margen)) rankings.cliente.margen.filas.push({ entidad: c.nombre, valor: m.margen });
+      if (Number.isFinite(m.contribucion)) rankings.cliente.contribucion.filas.push({ entidad: c.nombre, valor: m.contribucion });
+      if (Number.isFinite(m.pctRebate)) rankings.cliente.carga.filas.push({ entidad: c.nombre, valor: m.pctRebate });
     }
     L.push(linea + ".");
   }
@@ -216,10 +260,10 @@ function _construir(scenario) {
   L.push(`MARCAS (${f.marcasMargen.length}):`);
   for (const m of f.marcasMargen) {
     const D = [m.nombre];
-    if (Number.isFinite(m.venta)) rankings.marca.ventas.push({ entidad: m.nombre, valor: m.venta });
-    if (Number.isFinite(m.margen)) rankings.marca.margen.push({ entidad: m.nombre, valor: m.margen });
-    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.push({ entidad: m.nombre, valor: m.contribucion });
-    if (Number.isFinite(m.pctRebate)) rankings.marca.carga.push({ entidad: m.nombre, valor: m.pctRebate });
+    if (Number.isFinite(m.venta)) rankings.marca.ventas.filas.push({ entidad: m.nombre, valor: m.venta });
+    if (Number.isFinite(m.margen)) rankings.marca.margen.filas.push({ entidad: m.nombre, valor: m.margen });
+    if (Number.isFinite(m.contribucion)) rankings.marca.contribucion.filas.push({ entidad: m.nombre, valor: m.contribucion });
+    if (Number.isFinite(m.pctRebate)) rankings.marca.carga.filas.push({ entidad: m.nombre, valor: m.pctRebate });
     L.push(`- ${m.nombre} — ${_L.ventas} ${F(_moneyK(m.venta), D)} · ${_L.margen} ${F(_pct1(m.margen), D)} · ${_L.contribucion} ${F(_moneyK(m.contribucion), D)} · ${_L.costo} ${F(_moneyK(m.costo), D)} · ${_L.carga} ${F(_pct1(m.pctRebate), D)} · ${m.unidades} unidades · familia ${m.sfamilia}.`);
   }
   counts.add(f.sfamiliasMargen.length);
@@ -249,6 +293,13 @@ function _construir(scenario) {
     if ((typeof s.rotacion === "number" && s.rotacion < rotMin) || (typeof s.doh === "number" && s.doh > dohMax)) {
       estados.push({ entidad: s.sku, estado: "frenado", bodega: s.bodega });
     }
+    // el eje SKU alimenta sus cinco rankings declarados (owner 2026-08-16) — mismo recorrido, cero recálculo
+    if (Number.isFinite(s.stockUSD)) rankings.sku.capital.filas.push({ entidad: s.sku, valor: s.stockUSD });
+    if (Number.isFinite(s.stockUSD) && s.estado !== "Activo") rankings.sku.capital_inmovilizado.filas.push({ entidad: s.sku, valor: s.stockUSD });
+    if (Number.isFinite(s.rotacion)) rankings.sku.rotacion.filas.push({ entidad: s.sku, valor: +(+s.rotacion).toFixed(1) });
+    if (Number.isFinite(s.doh)) rankings.sku.dias_inventario.filas.push({ entidad: s.sku, valor: Math.round(s.doh) });
+    if (Number.isFinite(s.diasSinVenta) && s.diasSinVenta > 0) rankings.sku.dias_sin_venta.filas.push({ entidad: s.sku, valor: Math.round(s.diasSinVenta) });
+    if (Number.isFinite(s.margenPct)) rankings.sku.margen_inventario.filas.push({ entidad: s.sku, valor: +(+s.margenPct).toFixed(1) });
     dias[s.sku] = {
       inventario: typeof s.doh === "number" ? Math.round(s.doh) : null,
       sinVenta: typeof s.diasSinVenta === "number" && s.diasSinVenta > 0 ? Math.round(s.diasSinVenta) : null,

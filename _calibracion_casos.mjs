@@ -39,6 +39,13 @@ const CASOS = [
     texto: i === 1 ? _p2Corregido : r.lavado, espera: "PASA",
     tipo: "respuesta completa (cifras + comparación + recomendación)",
     afirma: i === 1 ? "la misma respuesta con la clasificación DEL MOTOR (3 frenados, $33K)" : "las cifras de la carpeta con dueño, cuentas con fórmula, juicio asesor sobre evidencia",
+    /* ⚠️ UN TEXTO CONGELADO NO PUEDE CUMPLIR UN CONTRATO POSTERIOR A ÉL. Estos cinco son la salida REAL del
+     * modelo el 2026-08-14; el contrato de «dato duro vs criterio mío» es del 2026-08-16 (owner). Tres de
+     * ellos cierran con «**Qué hacer primero:**» sin marcar el criterio, así que el chequeo nuevo los veta —
+     * y tiene razón: hoy ese texto se repararía. No es un falso positivo del muro, es un corpus anterior a la
+     * regla. Se declara SOLO para este veto y SOLO para el corpus congelado: cualquier OTRO veto sobre ellos
+     * sigue siendo un falso positivo y pone el gate en rojo, que es para lo que existe. */
+    vetoPosterior: /^juicio-sin-marcar/,
   })),
 
   // ── PARÁFRASIS POSITIVAS (exigencia 3: lenguaje natural legítimo debe pasar) ──
@@ -158,7 +165,11 @@ function evaluar(caso) {
     contentScope: "full", tablePolicy: "auto",
     ...(caso.ctx || {}),   // extras del caso (p.ej. `alcanceHeredado`, que solo viaja cuando el turno heredó una referencia)
   });
-  return { ok: v.ok, verdict: v.verdict, violations: (v.violations || []).map((x) => `${x.kind}:${String(x.detail || "").slice(0, 100)}`) };
+  const vs = (v.violations || []).map((x) => `${x.kind}:${String(x.detail || "").slice(0, 100)}`);
+  // el veto de un contrato POSTERIOR al texto congelado no cuenta como falso positivo (ver la nota del corpus)
+  const restantes = caso.vetoPosterior ? vs.filter((x) => !caso.vetoPosterior.test(x)) : vs;
+  const _ok = caso.vetoPosterior ? restantes.length === 0 : v.ok;
+  return { ok: _ok, verdict: _ok ? null : v.verdict, violations: restantes, posteriores: vs.length - restantes.length };
 }
 
 export { CASOS, evaluar };
