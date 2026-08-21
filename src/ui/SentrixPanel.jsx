@@ -45,6 +45,7 @@ import { TOOLS } from "../adi/oracle/toolRegistry.js";   // FICHA EJECUTIVA (own
 const _isDev = ADI_PROFILE === "dev";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
+const SANS = "'DM Sans', system-ui, sans-serif";   // la MISMA de ADI · los rótulos van en sans, el mono queda solo para cifras que alinean en columna (owner 2026-08-20)
 
 // bordes celestes SOLO en los costados (izq+der) + glow lateral suave · top/bottom oscuros · toda card lo usa
 const CARD_SIDES = {
@@ -1607,7 +1608,7 @@ function useNarrowViewport(query = "(max-width: 760px)") {
   return narrow;
 }
 
-const _RC_HEAD = { fontFamily: MONO, fontSize: 11.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase" };
+const _RC_HEAD = { fontFamily: SANS, fontSize: 11.5, letterSpacing: "0.7px", color: C.textMuted, textTransform: "uppercase" };
 // EL SELLO DE LOS TRES MOVIMIENTOS (qué está pasando · por qué está pasando · qué hacer primero) — el MISMO que
 // ya usa la cara Capital. Que las caras compartan el esqueleto es lo que hace que el usuario aprenda a leer una
 // vez y le sirva en las cuatro; un BI, en cambio, te obliga a reaprender cada pantalla.
@@ -1872,7 +1873,12 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
     : b.tipo === "resto-cabeza" ? "rgba(47,184,218,0.24)" : "rgba(255,255,255,0.14)");
   const pill = (k, label) => (
     <button key={k} onClick={() => setMet(k)} aria-pressed={met === k}
-      style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${met === k ? "rgba(47,184,218,0.5)" : C.border}`, background: met === k ? "rgba(47,184,218,0.10)" : "transparent", color: met === k ? C.celeste : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</button>
+      /* LO SELECCIONADO VA EN NEUTRO, NO EN CELESTE (owner 2026-08-20: «cuando seleccionas "Ventas" no debe
+         estar en celeste, eso se interfiere con el "Que ADI lo explique"»). Es la misma regla que la de los
+         títulos: el celeste queda para lo que pide un click hacia ADI. Un conmutador ya dice cuál está elegido
+         con el contraste —relleno y borde más claros—; no necesita el acento, y usándolo se lo robaba al enlace
+         que sí lo necesita. Mismo tratamiento que el conmutador de ejes de más abajo. */
+      style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${met === k ? "rgba(255,255,255,0.35)" : C.border}`, background: met === k ? "rgba(255,255,255,0.10)" : "transparent", color: met === k ? C.text : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</button>
   );
   return (
     <div style={_RC_CARD}>
