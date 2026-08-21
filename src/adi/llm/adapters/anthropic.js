@@ -44,6 +44,32 @@ const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 90000;
 // para que el override por deploy no dependa del orden de carga del módulo.
 const _narrateMaxTokens = () => Number(process.env.LLM_NARRATE_MAX_TOKENS) || 3072;
 
+/* ── EL PRESUPUESTO DE RAZONAMIENTO SE DECLARA · NO SE HEREDA (owner 2026-08-21) ──────────────────────────────
+ * EL DEFECTO, medido con el instrumento nuevo en el arranque del Examen 5: el proveedor devolvió
+ * `stop_reason: max_tokens`, `output_tokens: 3072` —el tope ENTERO— y **un solo bloque, de tipo `thinking`**.
+ * Cero bloques de texto. O sea: el modelo gastó todo el presupuesto razonando y nunca llegó a escribir la
+ * respuesta. Para ADI eso se veía como «el cerebro no dijo nada» (`narracion-vacia`), el ciclo de reparación
+ * reintentaba con los MISMOS parámetros, y volvía a pasar lo mismo. **Se paga el 100% y se recibe 0%.**
+ *
+ * Ya había pasado CUATRO veces en distintas sesiones sin poder diagnosticarse, porque el cuerpo no declaraba
+ * nada sobre razonamiento: quedaba en manos del DEFAULT del proveedor decidir si ADI contestaba o no. Un default
+ * ajeno no puede decidir eso. Por eso ahora el campo viaja SIEMPRE, explícito.
+ *
+ * POR QUÉ APAGADO POR DEFECTO. La honestidad de ADI no sale del razonamiento privado del modelo: sale del
+ * NOTARIO, que recomputa cada cuenta contra la carpeta, y del ciclo de reparación. Los borradores que SÍ pasaron
+ * miden ~400 tokens de texto — con el tope en 3072 sobra aire. Encendido, un turno cuesta ~8 veces más y puede
+ * volver a quedarse sin espacio justo en las preguntas difíciles, que son las que importan.
+ * `LLM_NARRATE_THINKING=<tokens>` lo enciende con presupuesto explícito, y entonces el tope SUBE para que el
+ * texto conserve su propio espacio: el razonamiento nunca vuelve a comerse la respuesta.
+ * El de parse() no lleva el campo y no lo necesita: fuerza `tool_choice`, que ya excluye el razonamiento. */
+const _thinkingBudget = () => Math.max(0, Number(process.env.LLM_NARRATE_THINKING) || 0);
+export function narrateBudget() {
+  const b = _thinkingBudget();
+  return b > 0
+    ? { max_tokens: b + _narrateMaxTokens(), thinking: { type: "enabled", budget_tokens: b } }
+    : { max_tokens: _narrateMaxTokens(), thinking: { type: "disabled" } };
+}
+
 // _rateLimitError · MISMA convención que src/adi/llm/adapters/openai.js (owner 2026-08-03, investigación cruzada de
 // los 5 gates de Arquitectura C): `.code="rate_limited"` (+ `.retryAfterMs`) cuando status===429, para que
 // answerViaOracle.js pueda backoffear específicamente ante rate-limit real, sea cual sea el proveedor activo.
@@ -121,7 +147,7 @@ function _mensajesNaturales(validatedOutput) {
 export function buildNarrateBody(validatedOutput, { model, system }) {
   const mensajes = _mensajesNaturales(validatedOutput);
   return {
-    model, max_tokens: _narrateMaxTokens(),
+    model, ...narrateBudget(),   // tope Y razonamiento declarados juntos · nunca el default del proveedor
     system: _systemBlocks(system),
     messages: mensajes || [{ role: "user", content: JSON.stringify(validatedOutput) }],
   };
@@ -183,6 +209,8 @@ export const anthropicAdapter = {
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
     // `stop` es el MOTIVO DE CORTE del proveedor (owner 2026-08-21): con una respuesta vacía es lo único que
     // distingue un corte por límite de tokens de un fin de turno normal o de una negativa. Se copia tal cual.
-    return { text: txt, usage: _usage(data.usage), model: data.model || null, stop: data.stop_reason || null };   // modelo EFECTIVO · ver parse()
+    return { text: txt, usage: _usage(data.usage), model: data.model || null, stop: data.stop_reason || null,
+      // los TIPOS de bloque que vinieron (no su contenido): con texto en cero, es lo único que dice qué llegó
+      bloques: (data.content || []).map((b) => b && b.type).filter(Boolean) };   // modelo EFECTIVO · ver parse()
   },
 };
