@@ -252,6 +252,15 @@ console.log("═".repeat(100));
   const cn = fs.readFileSync(path.join(root, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
   ok(/_respaldoDeLoYaAprobado\(memIn, juzgar\) \|\| suplenteDignoDelDato\(/.test(cn),
     "en la escalera, el escalón nuevo va PRIMERO y la carpeta queda de respaldo — no se reemplaza nada");
+  /* ⚠️ EL DEFECTO QUE EL EXAMEN 5 CAZÓ EN ESTE MISMO ESCALÓN, a los veinte minutos de escribirlo: leía
+   * `recentNarrations`, donde también vive el RESPALDO del turno anterior. Resultado medido: el turno 2
+   * devolvió el respaldo del turno 1 anidado dentro del suyo, y encima lo presentó como «quedó verificado».
+   * Ahora lee `ultimaAprobada`, que el camino natural marca SOLO cuando el notario aprobó y NO fue respaldo. */
+  ok(/memIn.ultimaAprobada/.test(cn), "el escalón lee la última APROBADA, no la última MOSTRADA");
+  ok(!/memIn.recentNarrations/.test(cn.slice(cn.indexOf("_respaldoDeLoYaAprobado"), cn.indexOf("export async function"))),
+    "…y ya no mira `recentNarrations`: ahí también vive el respaldo, y ofrecerlo como verificado sería mentir");
+  ok(cn.includes("res.aprobado && !suplenteDigno) memOut.ultimaAprobada"),
+    "y `ultimaAprobada` se marca SOLO si el muro aprobó y el turno no fue respaldo");
   ok(/juzgar\(candidato\)/.test(cn), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
 }
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

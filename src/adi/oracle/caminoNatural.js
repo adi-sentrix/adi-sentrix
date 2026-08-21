@@ -83,14 +83,16 @@ const _motivoDeMulta = (multa) => {
  * viejo no pasa el muro de hoy (una regla nueva puede alcanzarlo), cae al peldaño siguiente sin ruido.
  * NO ES UN CONTRATO NUEVO: es la MISMA escalera de `suplenteDignoDelDato`, con un peldaño más arriba. */
 function _respaldoDeLoYaAprobado(memIn, juzgar) {
-  const previas = Array.isArray(memIn && memIn.recentNarrations)
-    ? memIn.recentNarrations.filter((t) => typeof t === "string" && t.trim().length > 40)
-    : [];
-  if (!previas.length) return null;
+  /* SOLO lo que el notario APROBÓ y no fue respaldo (ver `ultimaAprobada`, más abajo). Leer
+   * `recentNarrations` era el defecto: ahí también vive el respaldo del turno anterior, y ofrecerlo como
+   * «quedó verificado» es afirmar algo falso sobre un texto que justamente no pudo verificarse. */
+  const previa = typeof (memIn && memIn.ultimaAprobada) === "string" && memIn.ultimaAprobada.trim().length > 40
+    ? memIn.ultimaAprobada : null;
+  if (!previa) return null;
   const candidato = [
     "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
     "",
-    previas[0].trim(),
+    previa.trim(),
     "",
     "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
   ].join("\n");
@@ -198,6 +200,13 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
   // se acumula si el muro aprobó (candado del owner: un texto vetado no presta sus cifras), sobre lo que el
   // usuario VIO (el limpio), con el cap de 24 del propio recitaAprobadaDe.
   const memOut = { ...memIn, recentNarrations: [textoPantalla, ...recentNarrationsPrev].slice(0, 2) };
+  /* LA ÚLTIMA RESPUESTA DE VERDAD, marcada aparte (owner 2026-08-21, defecto medido en el Examen 5).
+   * `recentNarrations` guarda lo que el usuario VIO, sea una lectura o un respaldo — y está bien que así sea,
+   * porque la anáfora y el contexto se leen de ahí. Pero el escalón del suplente no puede ofrecer un RESPALDO
+   * como «lo que ya te respondí y quedó verificado»: en el turno 2 del Examen 5 devolvió el respaldo del turno 1
+   * anidado dentro del suyo, afirmando encima que estaba verificado. Se marca por separado lo que el notario
+   * aprobó Y no fue respaldo: es lo único que se puede volver a ofrecer sin mentir. */
+  if (res.aprobado && !suplenteDigno) memOut.ultimaAprobada = textoPantalla;
   if (res.aprobado) {
     const recitaNueva = recitaAprobadaDe({ textoAprobado: textoPantalla, catalogoEntidades: duenos || [], previa: recita });
     if (recitaNueva) memOut.recitaAprobada = recitaNueva;
