@@ -12,9 +12,9 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.1 — *sin desplegar* (en `dev`)
+## 1.1 — producción · tag `v1.1`
 
-Lo acumulado en `dev` desde que se desplegó la 1.0. Sale a producción cuando el owner diga «deployalo».
+Todo lo que `dev` acumuló desde la 1.0: el trabajo del notario y el de la interfaz, juntos.
 
 - **«Vara» fuera de pantalla**: los 4 textos de producto, el glosario (la palabra queda como alias de ENTRADA,
   el concepto visible pasa a «tu referencia») y 5 razones del manifiesto que terminaban en el prompt.
