@@ -142,7 +142,16 @@ const callNatural = async ({ mensajes, attempt, motivoReintento }) => {
   if (nr && nr.usage) costoTurno += _precio(nr.usage);
   if (!nr.ok) throw new Error(nr.error || "gateway sin narración");
   crudoUltimo = nr.narration || "";
-  intentos.push({ intento: llamadasTurno, motivoReintento: motivoReintento || null, multaRecibida: attempt > 0 && ultimo ? ultimo.content : null, borrador: crudoUltimo });
+  /* EL EXPEDIENTE GUARDA POR QUÉ (owner 2026-08-21). Cuatro veces el cerebro devolvió CADENA VACÍA y solo
+   * sabíamos contarlas: el expediente traía el borrador y nada más. Con el motivo de corte y los tokens, una
+   * vacía se diagnostica sola — corte por límite, fin de turno sin texto, o negativa — en vez de costar otra
+   * corrida. Se registra SIEMPRE, no solo cuando falla: comparar una vacía contra una buena es el diagnóstico. */
+  intentos.push({ intento: llamadasTurno, motivoReintento: motivoReintento || null, multaRecibida: attempt > 0 && ultimo ? ultimo.content : null, borrador: crudoUltimo,
+    stop: (nr && nr.stop) || null, usage: (nr && nr.usage) || null, modelo: (nr && nr.modelo) || null });
+  if (!String(crudoUltimo || "").trim()) {
+    const u = (nr && nr.usage) || {};
+    console.log(`   ⚠️ CADENA VACÍA · motivo de corte: ${(nr && nr.stop) || "(no declarado)"} · tokens de salida: ${u.output_tokens ?? "?"} · entrada: ${u.input_tokens ?? "?"} · modelo: ${(nr && nr.modelo) || "?"}`);
+  }
   return nr.narration;
 };
 

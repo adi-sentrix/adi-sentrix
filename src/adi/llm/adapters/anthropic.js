@@ -181,6 +181,8 @@ export const anthropicAdapter = {
     const ajeno = sobreAjeno(data, "anthropic");
     if (ajeno) throw ajeno;
     const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-    return { text: txt, usage: _usage(data.usage), model: data.model || null };   // modelo EFECTIVO · ver parse()
+    // `stop` es el MOTIVO DE CORTE del proveedor (owner 2026-08-21): con una respuesta vacía es lo único que
+    // distingue un corte por límite de tokens de un fin de turno normal o de una negativa. Se copia tal cual.
+    return { text: txt, usage: _usage(data.usage), model: data.model || null, stop: data.stop_reason || null };   // modelo EFECTIVO · ver parse()
   },
 };
