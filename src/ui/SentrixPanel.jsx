@@ -1787,7 +1787,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
               {c.label}
               {/* en angosto el sello baja a su propia línea: al lado del título se monta encima del de la columna
                   vecina, y un sello ilegible no sella nada */}
-              {null}   /* el sello del encabezado no se pinta (owner 2026-08-20) */
+              {/* el sello del encabezado ya no se pinta (owner 2026-08-20) — sigue declarado en el dato */}
             </th>
           ))}</tr></thead>
           <tbody>{filas.map((f) => (
@@ -2008,7 +2008,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
             <span style={{ width: 14, height: 0, borderTop: `${s.key === "actual" ? 2.5 : 2}px ${s.key === "actual" ? "solid" : "dashed"} ${col}`, flexShrink: 0 }}/>
             <span style={{ fontSize: 14, color: off ? C.textMuted : C.textSub }}>{s.label}</span>
             <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 600, color: off ? C.textMuted : col, fontVariantNumeric: "tabular-nums" }}>{s.totalFmt}</span>
-            {null}   /* el sello de la leyenda no se pinta (owner 2026-08-20) */
+            {/* el sello de la leyenda ya no se pinta (owner 2026-08-20) — sigue declarado en el dato */}
           </button>
         ); })}
       </div>
@@ -2281,9 +2281,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
   if (!d) return null;
   const acc = d.margen.acciones, cp = d.margen.costoPrecio, pq = d.margen.porQue;
   const ra = acc ? (acc.referencias.find((x) => x.key === varaAcc) || acc.referencias[0]) : null;
-  const _chip = (estatus, texto) => (
-    <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(estatus), border: `1px solid ${_rcEstatusCol(estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{texto || estatus}</span>
-  );
+  const _chip = () => null;   /* el sello no se pinta (owner 2026-08-20) — sigue declarado en el dato */
   return (
     <div style={_RC_CARD}>
       {/* SOLO LAS DOS CAUSAS DEL MARGEN (owner 2026-08-07: "dejá solo lo que está en la foto"). Salieron de

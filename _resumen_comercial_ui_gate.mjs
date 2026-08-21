@@ -161,7 +161,10 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   // LAS DOS CAUSAS del margen (lo único que quedó en el movimiento 02, owner 2026-08-07)
   ok(T.includes(R.deterioro.margen.acciones.referencias[0].totalFmt), `lo recuperable en acciones comerciales — ${R.deterioro.margen.acciones.referencias[0].totalFmt}`);
   ok(T.includes(R.deterioro.margen.costoPrecio.lectura), "y la lectura de costo contra precio");
-  ok(["probado", "indicado"].every((e) => T.includes(e)), "cada causa lleva su estatus epistémico rotulado");
+  /* el sello ya no se PINTA (owner 2026-08-20): se exige en el DATO, que es donde manda. */
+  /* Solo `costoPrecio` lleva sello EN EL DATO. El «probado» de las acciones era un literal de la vista, no un
+     campo del módulo: al sacar el chip se fue con él, y no hay nada que exigir donde nunca hubo dato. */
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado", "la causa derivada lleva su sello declarado en el módulo");
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
   const _g0 = R.prioridades.grupos.find((g) => g.filas.some((f) => f.entidad === i0.entidad));
@@ -409,7 +412,7 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
   ok(T.includes(acc.lectura), "…con su lectura, que da las dos cifras");
   ok(prom.filas.slice(0, 4).every((x) => T.includes(x.nombre) && T.includes(x.recuperableFmt)),
     `las cuentas sobre el promedio con su recuperable — ${prom.filas.slice(0, 2).map((x) => `${x.nombre} ${x.recuperableFmt}`).join(", ")}`);
-  ok(T.includes("probado"), "…rotuladas PROBADO: la carga está medida cuenta por cuenta");
+  ok(!!R.deterioro.margen.acciones.referencias.length, "…la carga se mide contra referencias declaradas, cuenta por cuenta");
   /* EL COLOR, EN LA CIFRA PRINCIPAL Y EN LA CARGA — y en ninguna otra (owner 2026-08-08, dos rondas):
    *   · la CARGA por cuenta va en ROJO: es plata que sale. Lo pidió explícito.
    *   · el TITULAR del bloque ($293K recuperables) va en verde: es el número que hay que mirar primero.
@@ -443,7 +446,7 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
     "cada cuenta muestra cómo se movió su costo y su precio");
   ok(T.includes(cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`),
     `y el efecto en plata — ${cp.comprimenN ? `−${cp.perdidaFmt} perdidos` : `+${cp.gananciaFmt} ganados`}`);
-  ok(T.includes("indicado"), "el efecto va rotulado INDICADO: es una variación derivada, no el margen contable");
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado", "el efecto sigue sellado INDICADO en el dato: es una variación derivada, no el margen contable");
 
   // ── EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07) ──
   const bajo = acc.bajo;
@@ -916,7 +919,7 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   // bloque 03, que es donde el usuario decide, y en la nota del costo contra precio.
   ok(/cu[áa]nto es el costo del producto|cu[áa]nto es lo que cuesta el producto/i.test(T) && /mezcla de lo que vendiste/i.test(T),
     "lo que falta aislar se declara en castellano, no como «separar composición»");
-  ok(R.deterioro.margen.costoPrecio.estatus === "indicado" && T.includes("indicado"),
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado",
     "y el efecto costo/precio nunca se presenta como probado");
   ok(!/rentabilidad/i.test(cabecera), "no le llama rentabilidad a un margen");
   cleanup();
