@@ -11,6 +11,18 @@ import { _capitalInmovilizado } from "./warehouse.js";
 import { ADI_CAPITAL_DEF_CANONICA_ENABLED } from "../../config/voiceFlags.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico · mismos valores)
 
+/* ── LA CUENTA PRIORITARIA · UNA SOLA DEFINICIÓN, DERIVADA (2026-08-21) ──────────────────────────────────────
+ * Este archivo nombraba «Falabella» en cinco lugares —dos lookups, la acción de Sentrix y dos sugerencias— y en
+ * uno de ellos ya existía, escrito debajo, el criterio real como "fall-back defensivo": la cuenta de mayor
+ * contribución que está BAJO la vara y CON carga sobre el target. Ese fallback era la regla; el nombre era el
+ * atajo. Acá queda el criterio, una sola vez, y el atajo se va.
+ * (Con el demo activo devuelve Falabella, que es justamente por qué nadie notó la diferencia hasta ahora.) */
+function _cuentaPrioritaria(margenes, benchmark, targetCarga) {
+  return (margenes || [])
+    .filter(c => c && c.tipo === "cliente" && c.margen < benchmark && c.pctRebate > targetCarga)
+    .sort((a, b) => (b.contribucion || 0) - (a.contribucion || 0))[0] || null;
+}
+
 // Sub-composers de otros archetypes · aún no extraídos (no se invocan para fuga_distribuida).
 const composeMechanismRanking = () => { throw new Error("composeMechanismRanking no extraído"); };
 // NOTA · composePriorityRecommendationV2 SÍ existe en el monolito (L4361-4434) y se copia
@@ -146,16 +158,11 @@ function composePriorityRecommendationV2(scenarioId) {
   const bestPractice = POLICY.bestPracticeCarga;
   const target_carga = POLICY.targetCarga;
 
-  // Cliente prioritario: Falabella · fall-back defensivo si no está en escenario.
-  let cliente_m = margenes.find(c => c.nombre === "Falabella");
-  let cliente_v = ventas.find(c => c.nombre === "Falabella");
-  if (!cliente_m) {
-    const tier1Pressure = margenes
-      .filter(c => c.margen < benchmark && c.pctRebate > target_carga)
-      .sort((a, b) => b.contribucion - a.contribucion);
-    cliente_m = tier1Pressure[0];
-    cliente_v = cliente_m ? ventas.find(c => c.nombre === cliente_m.nombre) : null;
-  }
+  // Cliente prioritario: la cuenta bajo la vara con más contribución en juego (ver _cuentaPrioritaria).
+  // Antes esto era `find(nombre === "Falabella")` con este mismo criterio escrito abajo como "fall-back
+  // defensivo por si no está en el escenario" — o sea, la regla ya existía y el nombre la tapaba.
+  const cliente_m = _cuentaPrioritaria(margenes, benchmark, target_carga);
+  const cliente_v = cliente_m ? ventas.find(c => c.nombre === cliente_m.nombre) : null;
   // Total fallback: cero cliente Tier 1 con presión en escenario.
   if (!cliente_m || !cliente_v) {
     return {
@@ -260,7 +267,9 @@ export function composeCrossDomainResponse(detection, scenarioId) {
     .filter(p => p && p.length > 0)
     .join("\n\n");
 
-  const suggestions = composeCrossDomainSuggestions(archetype, domains);
+  // La cuenta que las sugerencias y la acción de Sentrix nombran: la misma que el texto ya eligió por criterio.
+  const _cuenta = _cuentaPrioritaria(applyScenarioToClientesMargen(scenarioId), POLICY.benchmark, POLICY.targetCarga);
+  const suggestions = composeCrossDomainSuggestions(archetype, domains, _cuenta && _cuenta.nombre);
 
   // BRIEF #16 · acción Sentrix contextual para cross-domain
   // Solo priority_recommendation y fuga_distribuida en cobertura demo.
@@ -270,7 +279,7 @@ export function composeCrossDomainResponse(detection, scenarioId) {
 
   if (archetype === "priority_recommendation") {
     sentrixAction = composeSentrixAction("priority_recommendation", {
-      primaryClient: "Falabella",
+      primaryClient: _cuenta && _cuenta.nombre,
     });
   }
 
@@ -465,15 +474,24 @@ function composeM4QuePriorizar(archetype, domains, scenarioId) {
   const bestPractice = POLICY.bestPracticeCarga;
 
   if (archetype === "fuga_distribuida") {
-    const falabella = margenes.find(c => c.nombre === "Falabella");
-    if (!falabella) return `La palanca prioritaria requiere identificación de la cuenta de mayor materialidad activa.`;
-
     // BRIEF #15-ter · FIX 3b · alinear target con BRIEF #15 (3.5%, no 3.0%)
     const target_carga = POLICY.targetCarga;
-    const recuperable = ((falabella.pctRebate - target_carga) / 100) * falabella.venta;
+
+    /* LA CUENTA SE ELIGE, NO SE NOMBRA (2026-08-21). Acá había un `find(c => c.nombre === "Falabella")`: la
+     * palanca prioritaria de este arquetipo estaba amarrada por NOMBRE a una cuenta del demo. Con el archivo de
+     * un cliente real la cuenta no existe, el `find` da undefined y la respuesta cae al mensaje de "requiere
+     * identificación" — la palanca simplemente no se emitía nunca.
+     * Se usa `_cuentaPrioritaria`, LA MISMA que nombran la acción de Sentrix y las sugerencias de este archivo:
+     * si cada lugar eligiera con su propio criterio, el texto podría recomendar una cuenta y el botón de abajo
+     * llevar a otra. Su filtro además garantiza carga SOBRE el target, que es lo que la aritmética de acá da por
+     * sentado — sin eso `recuperable` sale negativo y la frase prometería recuperar plata subiendo la carga. */
+    const cuenta = _cuentaPrioritaria(margenes, benchmark, target_carga);
+    if (!cuenta) return `La palanca prioritaria requiere identificación de la cuenta de mayor materialidad activa.`;
+
+    const recuperable = ((cuenta.pctRebate - target_carga) / 100) * cuenta.venta;
     const recuperableK = Math.round(recuperable);
 
-    return `La palanca de mayor impacto inmediato está en carga comercial sobre Falabella, porque combina el mayor peso económico en la cartera ($${(falabella.contribucion/1000).toFixed(2)}M de contribución), el mayor control directo (es decisión comercial directa) y el efecto secundario de liberar margen para absorber inventario sin compromiso explícito de volumen. Una reducción gradual desde ${falabella.pctRebate}% hacia ${target_carga}% recuperaría aproximadamente $${recuperableK}K anuales en contribución.`;
+    return `La palanca de mayor impacto inmediato está en carga comercial sobre ${cuenta.nombre}, porque combina el mayor peso económico en la cartera ($${(cuenta.contribucion/1000).toFixed(2)}M de contribución), el mayor control directo (es decisión comercial directa) y el efecto secundario de liberar margen para absorber inventario sin compromiso explícito de volumen. Una reducción gradual desde ${cuenta.pctRebate}% hacia ${target_carga}% recuperaría aproximadamente $${recuperableK}K anuales en contribución.`;
   }
 
   if (archetype === "calidad_crecimiento") {
@@ -493,10 +511,13 @@ function composeM4QuePriorizar(archetype, domains, scenarioId) {
 
 // ─── SUGGESTIONS ────────────────────────────────────────
 
-function composeCrossDomainSuggestions(archetype, domains) {
+// `cuenta` = el nombre de la cuenta prioritaria del escenario, ya elegido por criterio en el llamador. Si el
+// negocio no tiene ninguna que califique, las sugerencias que la nombraban no se ofrecen: mejor tres menos que
+// tres que apuntan a una cuenta inexistente.
+function composeCrossDomainSuggestions(archetype, domains, cuenta) {
   if (archetype === "fuga_distribuida") {
     return [
-      "Cómo arranco la renegociación con Falabella",
+      ...(cuenta ? [`Cómo arranco la renegociación con ${cuenta}`] : []),
       "Cuál es el impacto exacto de bajar carga 1pp",
       "Profundizar en capital inmovilizado por categoría",
     ];
@@ -510,7 +531,7 @@ function composeCrossDomainSuggestions(archetype, domains) {
   }
   if (archetype === "priority_recommendation") {
     return [
-      "Profundizar en Falabella",
+      ...(cuenta ? [`Profundizar en ${cuenta}`] : []),
       "Qué pasa si bajo carga 1pp",
       "Cuáles son las otras palancas subsecuentes",
     ];

@@ -1,5 +1,5 @@
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
-import { filterTextualSuggestions } from "../helpers.js";
+import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 
 export function composeClientMetricFollowUp(clientName, metricKey, scenario, modulo) {
@@ -19,14 +19,14 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
   if (!c) {
     return {
       opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario.`,
-      suggestions: filterTextualSuggestions([
-        "Cuéntame de Falabella",
-        "Cuéntame de Lider",
-        "Cuéntame de Jumbo",
-      ]),
+      suggestions: filterTextualSuggestions(cuentasMasGrandes(dataset).map(n => `Cuéntame de ${n}`)),
       sentrixAction: null,
     };
   }
+
+  // La cuenta contra la que se ofrece comparar: la más grande que NO sea la que se está mirando. Antes eran
+  // "Jumbo" y "Lider" escritas a mano — dos cuentas del demo ofrecidas como vara a cualquier negocio.
+  const referencia = cuentasMasGrandes(dataset, 2).find(n => n !== c.nombre) || null;
 
   // PROMEDIO SIMPLE, Y SE LLAMA ASÍ (owner 2026-08-10). Estas dos cuentas son la media SIMPLE de las filas, y el
   // texto las nombraba «el promedio de la cartera» / «el promedio interno de la cartera» — que es como el glosario
@@ -113,7 +113,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
 
     suggestions = filterTextualSuggestions([
       `¿Por qué ${c.nombre} está bajo benchmark?`,
-      `Compara con Jumbo`,
+      ...(referencia ? [`Compara con ${referencia}`] : []),
       "Ver erosión de margen",
     ]);
     sentrixAction = {
@@ -151,7 +151,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
     suggestions = filterTextualSuggestions([
       `¿Qué pasaría si pierdo a ${c.nombre}?`,
       `Top contribuciones`,
-      `Compara con Lider`,
+      ...(referencia ? [`Compara con ${referencia}`] : []),
     ]);
     sentrixAction = {
       label: `↗ Ver ${c.nombre}`,
@@ -175,7 +175,7 @@ export function composeClientMetricFollowUp(clientName, metricKey, scenario, mod
 
     suggestions = filterTextualSuggestions([
       `¿Cuánto creció ${c.nombre} YoY?`,
-      `Compara con Jumbo`,
+      ...(referencia ? [`Compara con ${referencia}`] : []),
       "Top clientes por venta",
     ]);
     sentrixAction = {

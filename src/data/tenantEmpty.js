@@ -59,6 +59,11 @@ export const TENANT_VACIO = Object.freeze({
   SUCURSALES: [],
 
   SCENARIO_TRANSFORMS: {},
+
+  // Vocabulario de entrada declarado por el negocio (ver tenants/demo.js). Vacío = el router arranca sin una sola
+  // cuenta que reconocer, que es lo correcto mientras no hay empresa: reconocer nombres sería reconocer los de otro.
+  clientesAlias: {},
+  clientesAmbiguos: [],
 });
 
 /** ¿Este dataset es el hueco de arranque? Lo usa el store para responder `tenantCargado()`. */

@@ -349,7 +349,13 @@ export const VERIFICABILIDAD_POR_EJE = [
     re: /\bcontribuci[oó]n\b/i, ejes: ["cliente", "canal"], ejesSoloConEscenario: ["familia"],
     unidades: ["money"], universos: ["venta_comercial", "resultado_pnl"],
     clase: "derivada_no_reconciliada",
-    razon: "el motor RE-DERIVA la contribución del cliente como venta oficial × margen en TODOS los escenarios, incluido «actual» (applyScenarioToClientesMargen): difiere del literal almacenado en 13 de 13 filas — Falabella $4.3M servido contra $4.1M almacenado (5,0%)",
+    /* LA MEDICIÓN QUE ORIGINÓ ESTA REGLA (demo · 13 de 13 filas): Falabella $4.3M servido contra $4.1M almacenado,
+     * 5,0% de diferencia. Vivía DENTRO del texto que se sirve, y ese texto sale a pantalla como la razón por la
+     * que una cifra no lleva sello «probado» — o sea, le nombraba a cualquier negocio una cuenta del demo y una
+     * cifra que no es la suya, justo en una explicación sobre la confiabilidad de SU dato. La evidencia queda acá,
+     * en el comentario (que no viaja al bundle); la razón servida declara el MECANISMO, que es lo que aplica a
+     * cualquier empresa y no cambia con el dataset. */
+    razon: "el motor RE-DERIVA la contribución del cliente como venta oficial × margen en TODOS los escenarios, incluido «actual» (applyScenarioToClientesMargen): difiere del literal almacenado en todas las filas",
     razonEscenario: "en este escenario la contribución por familia se re-agrega desde los clientes ya re-derivados (applyScenarioToSfamiliasMargen): difiere del literal almacenado en 4 de 4 filas. En «actual» ese mismo campo se sirve literal y por eso ahí sí es probado",
   },
   {

@@ -47,6 +47,9 @@ import React, { useEffect, useState } from "react";
 import { C } from "./theme.js";
 import { HERO_CHIPS } from "./ChatADI.jsx";
 import { coerceFloor } from "../adi/coerceChain.js";   // el MISMO coercer determinístico del texto libre: los specs de la guía se derivan, nunca se escriben a mano
+import { cuentasMasGrandes } from "../adi/helpers.js";   // las cuentas que el ejemplo nombra salen del dato, no de una lista
+import { clientesMargen } from "../data/demoData.js";
+import { onTenantChange } from "../data/tenantStore.js";
 
 // ── PERSISTENCIA · mismo patrón que el resto de la app (adi_hint_v1 · adi_mesa_cara_v1 · adi_watchlist_v1) ──
 // DOS valores, no un booleano, porque son dos hechos distintos:
@@ -116,9 +119,22 @@ const _TEMAS = [
     q: "Compara el año actual contra el año anterior en ventas y margen. Si algún dato no está en la carpeta, dilo explícitamente." },
   { tema: "Simulación", titulo: "Si bajo 2% la carga comercial, ¿qué cambia?",
     glosa: "Corrige la ambigüedad entre 2% y 2 puntos antes de calcular.",
-    q: "Baja 2% la carga comercial de Falabella y Lider, y dime el impacto. Si «2%» es ambiguo, corrígelo antes de calcular." },
+    // El único ejemplo que nombra cuentas las recibe armadas (ver abajo): antes decía "Falabella y Lider".
+    q: (ctx) => `Baja 2% la carga comercial de ${ctx.dosCuentas}, y dime el impacto. Si «2%» es ambiguo, corrígelo antes de calcular.` },
 ];
-export const GUIA_EJEMPLOS = _TEMAS;
+
+/* GUIA_EJEMPLOS · los prompts, YA con las cuentas del negocio activo (2026-08-21).
+ * El ejemplo de simulación nombraba «Falabella y Lider» — dos cuentas del demo escritas a mano en la pantalla de
+ * bienvenida. Es el primer texto que ve alguien que abre la app: ofrecerle un click que simula sobre cuentas de
+ * otra empresa es prometerle una respuesta que ADI no puede dar. Las dos más grandes salen del dato, y como el
+ * dataset entra por `initTenant` (el store arranca vacío), esto se RE-ARMA ahí, como todo lo demás derivado. */
+const _construirEjemplos = () => {
+  const dos = cuentasMasGrandes(clientesMargen, 2);
+  const ctx = { dosCuentas: dos.length >= 2 ? `${dos[0]} y ${dos[1]}` : (dos[0] || "tus cuentas más grandes") };
+  return _TEMAS.map((t) => (typeof t.q === "function" ? { ...t, q: t.q(ctx) } : t));
+};
+export let GUIA_EJEMPLOS = _construirEjemplos();
+onTenantChange(() => { GUIA_EJEMPLOS = _construirEjemplos(); });
 
 // ── EL ÍNDICE · una sola fuente para el conteo, el orden y los rótulos. El gate lo importa en vez de repetir el
 // número: si mañana se agrega un capítulo, el gate recorre siete sin que nadie lo edite. ──

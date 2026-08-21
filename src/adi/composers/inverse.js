@@ -5,7 +5,7 @@ import { SUPERFAMILIAS } from "../../data/catalogs.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen } from "../../engine/scenarios.js";
 import { detectClientInText, detectSkuInText } from "../detectors.js";
-import { filterTextualSuggestions, normalizeText } from "../helpers.js";
+import { cuentasMasGrandes, filterTextualSuggestions, normalizeText } from "../helpers.js";
 
 export function _parseCurrencyK(raw) {
   if (!raw) return null;
@@ -104,7 +104,8 @@ export function composePortfolioInverse(inv, scenarioId) {
   if (incrementoContrib <= 0) {
     return {
       opener: `La cartera ya aporta ${fmtM(SC)} de contribución, por encima del objetivo de ${fmtM(target)}. No necesitás crecer para llegar ahí.`,
-      suggestions: filterTextualSuggestions(["Margen por cliente", "Cuánto debe vender Falabella para aportar $1M adicional"]),
+      // La cuenta del ejemplo sale del dato (la más grande), no de un nombre del demo escrito a mano.
+      suggestions: filterTextualSuggestions(["Margen por cliente", ...cuentasMasGrandes(cm, 1).map(n => `Cuánto debe vender ${n} para aportar $1M adicional`)]),
       sentrixAction: { label: "Ver márgenes", moduleChip: "Márgenes", payload: { modulo: "margenes", clientes: [], skus: [] } },
       derivedModule: "margenes",
     };
@@ -149,7 +150,12 @@ export function composeInverseProjection(payload, scenarioId) {
     if (FEATURE_PORTFOLIO_INVERSE) return composePortfolioInverse(inv, scenarioId);
     return {
       opener: `Sin elegir dónde crecer, hay múltiples soluciones: la venta requerida depende del margen de la entidad que empuje el crecimiento. Puedo calcularlo para un cliente, familia o SKU específico, o mostrarte el rango entre la entidad de menor y mayor margen.`,
-      suggestions: filterTextualSuggestions(["Cuánto debe vender Falabella para aportar $5M", "Cuánto debe vender Línea Blanca para aportar $500K adicional"]),
+      // Los dos ejemplos —una cuenta y una familia— salen del dato activo. Antes eran "Falabella" y "Línea
+      // Blanca": el nombre de una cuenta y el de una familia del demo, ofrecidos a cualquier negocio.
+      suggestions: filterTextualSuggestions([
+        ...cuentasMasGrandes(applyScenarioToClientesMargen(scenarioId), 1).map(n => `Cuánto debe vender ${n} para aportar $5M`),
+        ...SUPERFAMILIAS.slice(1, 2).map(f => `Cuánto debe vender ${f} para aportar $500K adicional`),
+      ]),
       sentrixAction: null,
       derivedModule: "margenes",
     };

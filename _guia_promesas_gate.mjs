@@ -55,6 +55,10 @@ await esbuild.build({
   logLevel: "silent",
 });
 const ui = await import(pathToFileURL(bundlePath).href);
+// vía 1 · declarar el tenant SOBRE ESTA instancia, y ANTES de leer GUIA_EJEMPLOS: la guía se re-arma en
+// initTenant (su ejemplo de simulación nombra las cuentas del dato), así que destructurar antes congelaría la
+// versión de la forma vacía — una pregunta que ningún usuario ve.
+ui.initTenant(ui.TENANT_DEMO);
 const { GUIA_EJEMPLOS, coerceFloor, detectScenarioIntent, detectPnlIntent } = ui;
 
 console.log("═".repeat(100));
@@ -67,12 +71,21 @@ const iTemas = fuente.indexOf("const _TEMAS = [");
 const fTemas = fuente.indexOf("];", iTemas);
 ok(iTemas > 0 && fTemas > iTemas, "el bloque _TEMAS existe en GuiaInicio.jsx");
 const bloqueTemas = fuente.slice(iTemas, fTemas);
-const temasSrc = [...bloqueTemas.matchAll(/q:\s*"([^"]+)"/g)].map((m) => m[1]);
+/* SE COTEJA POR TÍTULO, no por el texto del prompt (2026-08-21). El prompt dejó de ser siempre un literal: el
+ * ejemplo de simulación nombraba «Falabella y Lider» —dos cuentas del demo escritas a mano en la pantalla de
+ * bienvenida— y ahora recibe las dos cuentas más grandes DEL DATO. Cotejar por el texto del prompt ataría este
+ * candado al dataset que esté cargado; el TÍTULO es lo que el usuario lee en la tarjeta, es literal en el fuente
+ * y no nombra ninguna entidad. La correspondencia fuente↔ofrecido se sigue verificando por los dos lados. */
+const temasSrc = [...bloqueTemas.matchAll(/titulo:\s*"([^"]+)"/g)].map((m) => m[1]);
 ok(temasSrc.length >= 4, `_TEMAS declara ${temasSrc.length} preguntas (≥4)`);
-for (const q of temasSrc) {
-  ok(GUIA_EJEMPLOS.some((e) => e.q === q), `«${q.slice(0, 60)}…» declarada en _TEMAS SIGUE ofrecida en GUIA_EJEMPLOS`);
+for (const t of temasSrc) {
+  ok(GUIA_EJEMPLOS.some((e) => e.titulo === t), `«${t.slice(0, 60)}…» declarada en _TEMAS SIGUE ofrecida en GUIA_EJEMPLOS`);
 }
-ok(GUIA_EJEMPLOS.every((e) => temasSrc.includes(e.q)), "…y la guía no ofrece nada que _TEMAS no declare");
+ok(GUIA_EJEMPLOS.every((e) => temasSrc.includes(e.titulo)), "…y la guía no ofrece nada que _TEMAS no declare");
+// Y el prompt, sea literal o armado con el dato, tiene que llegar como TEXTO de verdad al usuario.
+ok(GUIA_EJEMPLOS.every((e) => typeof e.q === "string" && e.q.trim().length > 40),
+  "…y cada ejemplo llega con su prompt ya resuelto en texto (ninguno queda como plantilla sin armar)",
+  JSON.stringify(GUIA_EJEMPLOS.map((e) => typeof e.q)));
 // EL ATAJO, CERRADO POR LOS DOS LADOS · en el objeto y en el fuente. Un spec acá sería la ruta prearmada que el
 // owner sacó: el click dejaría de ejercitar el camino natural y la guía volvería a ser una demo.
 ok(GUIA_EJEMPLOS.every((e) => e.spec === undefined), "ningún ejemplo trae spec (el click manda el prompt, no un atajo)");
@@ -86,17 +99,19 @@ console.log("═".repeat(100));
  * escrito. Agregar una pregunta a la guía exige agregar su entrada acá — con su turno de origen medido, no con
  * un "ya veremos". Los estados salen del expediente en disco, no de la memoria de nadie. */
 const ESTADOS_OK = new Set(["verde", "reparado"]);
+// La llave es el TÍTULO (ver el bloque 1): es lo que el usuario lee, es literal en el fuente y no nombra
+// entidades, así que no se mueve cuando cambia el dataset cargado.
 const CANDADO = new Map([
-  ["Dime cuáles son los clientes que venden mucho pero están bajo el benchmark de margen. Ordénalos por mayor venta y dame un resumen ejecutivo.",
+  ["¿Qué clientes venden mucho pero están bajo benchmark?",
     { origen: "_examen1_consolidado.json", turno: 0, exacta: true, redes: ["coerce:diagnose"] }],
-  ["Identifica los SKU con capital inmovilizado o frenado. Dame cantidad de SKU, monto total y principales casos.",
+  ["¿Dónde tengo capital inmovilizado o frenado?",
     { origen: "_examen2_consolidado.json", turno: 0, exacta: true, redes: ["coerce:inventory"] }],
-  ["Compara el año actual contra el año anterior en ventas y margen. Si algún dato no está en la carpeta, dilo explícitamente.",
+  ["¿Cómo va el año contra el anterior?",
     { origen: "_examen3_consolidado.json", turno: 1, exacta: false, redes: [],
       razon: "el turno del examen abría con «Entonces hazlo anual…» — una anáfora que un primer click no tiene cómo resolver" }],
-  ["Baja 2% la carga comercial de Falabella y Lider, y dime el impacto. Si «2%» es ambiguo, corrígelo antes de calcular.",
+  ["Si bajo 2% la carga comercial, ¿qué cambia?",
     { origen: "_examen3_consolidado.json", turno: 4, exacta: false, redes: ["coerce:overview"],
-      razon: "el turno del examen traía los nombres mal escritos a propósito («falabela», «lider») para medir la corrección; acá se ofrece la versión limpia" }],
+      razon: "el turno del examen traía los nombres mal escritos a propósito («falabela», «lider») para medir la corrección; acá se ofrece la versión limpia, y las cuentas que nombra ya no están escritas a mano: salen del dato activo" }],
 ]);
 
 // palabras con carga (≥5 letras, sin acento) — sirve para probar que el origen declarado es el MISMO tema, no uno
@@ -105,7 +120,7 @@ const _carga = (s) => new Set(String(s).toLowerCase().normalize("NFD").replace(/
   .split(/[^a-z0-9]+/).filter((w) => w.length >= 5));
 
 for (const ej of GUIA_EJEMPLOS) {
-  const entrada = CANDADO.get(ej.q);
+  const entrada = CANDADO.get(ej.titulo);
   ok(!!entrada, `«${ej.titulo}» tiene garantía DECLARADA en este candado — una pregunta nueva sin garantía no entra a la guía`);
   if (!entrada) continue;
   const ruta = path.join(root, entrada.origen);
@@ -130,8 +145,8 @@ for (const ej of GUIA_EJEMPLOS) {
       `…y sigue siendo la MISMA pregunta que se midió (${comunes.length} palabras con carga en común: ${comunes.slice(0, 6).join(", ")})`);
   }
 }
-for (const q of CANDADO.keys()) {
-  ok(GUIA_EJEMPLOS.some((e) => e.q === q), `la garantía declarada para «${q.slice(0, 50)}…» no quedó huérfana (la pregunta sigue en la guía)`);
+for (const t of CANDADO.keys()) {
+  ok(GUIA_EJEMPLOS.some((e) => e.titulo === t), `la garantía declarada para «${t.slice(0, 50)}…» no quedó huérfana (la pregunta sigue en la guía)`);
 }
 
 console.log("\n" + "═".repeat(100));
@@ -169,7 +184,7 @@ for (const ej of GUIA_EJEMPLOS) {
   const redes = [esc && esc.kind && esc.kind !== "none" ? `escenario:${esc.kind}` : null, pnl ? "p&l" : null,
     piso && piso.operation ? `coerce:${piso.operation}` : null].filter(Boolean);
   console.log(`  · «${ej.titulo}» → ${redes.length ? redes.join(" · ") : "ninguna red del piso la reclama — viaja entera al cerebro"}`);
-  const esperado = (CANDADO.get(ej.q) || {}).redes;
+  const esperado = (CANDADO.get(ej.titulo) || {}).redes;
   ok(Array.isArray(esperado) && esperado.join("|") === redes.join("|"),
     `«${ej.titulo}» · la cobertura determinística es la DECLARADA (${esperado ? esperado.join(" · ") || "ninguna" : "sin declarar"})`,
     redes.join(" · ") || "ninguna");

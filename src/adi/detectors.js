@@ -3,16 +3,20 @@
  * Importa motor (engine/) + datos/config sellados. Cero cambio de cálculo. */
 import { FEATURE_BRAND_AS_ENTITY } from "../config/features.js";
 import { MARCAS_ALL } from "../data/catalogs.js";
-import { CLIENTES_STRATEGIC_PROFILE, skuInventario } from "../data/demoData.js";
+import { CLIENTES_STRATEGIC_PROFILE, clientesAlias, clientesAmbiguos, clientesVentas, skuInventario } from "../data/demoData.js";
+import { onTenantChange } from "../data/tenantStore.js";
 import { applyScenarioToClientesVentas } from "../engine/scenarios.js";
 import { normalizeText } from "./helpers.js";
 
 // \u2500\u2500 Piece 1 (hardening \u00b7 paso bloqueante) \u00b7 endurecimiento de keywords cortas/ambiguas \u2500\u2500
-// Las keywords "abc/easy/paris" son palabras comunes en espa\u00f1ol/ingl\u00e9s \u2192 falso positivo de
+// Hay nombres de cuenta que adem\u00e1s son palabras comunes en espa\u00f1ol/ingl\u00e9s \u2192 falso positivo de
 // filtro-cliente ("el abc del margen" \u2260 cliente ABC). En modo strict (solo lo usa el extractor
 // de filtros \u00b7 Fase 2) exigen un conector de cliente antes ("de/del/cliente/cuenta/para ABC").
 // SIN strict el regex es id\u00e9ntico al original (\bkey\b) \u2192 comportamiento del piso byte-exacto.
-export const _AMBIGUOUS_CLIENT_KW = new Set(["abc", "easy", "paris"]);
+// CU\u00c1LES son esos nombres NO se deriva del dato: ninguna regla por largo separa "easy"/"paris" de
+// "lider" sin cambiarle el trato a Lider. Los declara el negocio (`clientesAmbiguos` \u00b7 tenants/demo.js)
+// y se re-arman en initTenant, igual que el canon de m\u00e1s abajo.
+export let _AMBIGUOUS_CLIENT_KW = new Set((clientesAmbiguos || []).map((k) => k.toLowerCase()));
 const _CLIENT_FILTER_CONNECTOR = "(?:de|del|cliente|cuenta|para)";
 export function _clientKwRegex(key, strict) {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -108,26 +112,52 @@ export function getStrategicProfile(clientName) {
   return CLIENTES_STRATEGIC_PROFILE[clientName] || null;
 }
 
-export const CLIENT_KEYWORDS = [
-  "falabella", "lider", "jumbo", "sodimac", "tottus", "paris",
-  "mercado libre", "mercadolibre", "ripley", "easy",
-  "la polar", "lapolar", "hites", "abc", "unimarc",
-];
+/* ── EL CANON DE CLIENTES · DERIVADO DEL DATO ACTIVO (2026-08-21) ────────────────────────────────────────────
+ * Antes acá vivían dos listas escritas a mano con las 13 cuentas del demo y sus 15 alias. Eso no era un dataset
+ * de prueba: era vocabulario de ADI hardcodeado en código de producto, y con el archivo de un cliente real habría
+ * sido un defecto de correctitud — ADI reconociendo «Falabella» y NO las cuentas de quien paga.
+ *
+ * Ahora sale de `clientesVentas` (orden del dataset) + los alias que el negocio declara. Mismo patrón que
+ * `KNOWN_ENTITIES` en ui/theme.js: se arma acá y se RE-ARMA en `initTenant` — nunca más en import de módulo,
+ * porque desde la vía 1 el store arranca vacío y el import ya no ve dato.
+ *
+ * ORDEN · importa y no es cosmético: `detectClientInText` y la PRIORIDAD 1 del router devuelven el PRIMER match,
+ * así que el orden del arreglo es precedencia. Cada alias se emite JUSTO DESPUÉS del nombre del que sale, que es
+ * exactamente el orden que tenía la lista a mano. Con el demo activo, las dos estructuras salen byte-idénticas. */
+const _normKw = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-export const CLIENT_NAME_MAP = {
-  "falabella":     "Falabella",
-  "lider":         "Lider",
-  "jumbo":         "Jumbo",
-  "sodimac":       "Sodimac",
-  "tottus":        "Tottus",
-  "paris":         "Paris",
-  "mercado libre": "Mercado Libre",
-  "mercadolibre":  "Mercado Libre",
-  "ripley":        "Ripley",
-  "easy":          "Easy",
-  "la polar":      "La Polar",
-  "lapolar":       "La Polar",
-  "hites":         "Hites",
-  "abc":           "ABC",
-  "unimarc":       "Unimarc",
-};
+function _derivarCanonClientes() {
+  const keywords = [];
+  const map = {};
+  // alias declarados, agrupados por su canónico, para emitirlos pegados al nombre que los origina
+  const aliasPorCanonico = {};
+  for (const [alias, canonico] of Object.entries(clientesAlias || {})) {
+    if (!alias || !canonico) continue;
+    (aliasPorCanonico[canonico] = aliasPorCanonico[canonico] || []).push(alias);
+  }
+  const agregar = (key, canonico) => {
+    const k = _normKw(key);
+    if (!k || Object.prototype.hasOwnProperty.call(map, k)) return;
+    keywords.push(k);
+    map[k] = canonico;
+  };
+  const vistos = new Set();
+  for (const c of clientesVentas) {
+    if (!c || !c.nombre || vistos.has(c.nombre)) continue;
+    vistos.add(c.nombre);
+    agregar(c.nombre, c.nombre);
+    for (const alias of aliasPorCanonico[c.nombre] || []) agregar(alias, c.nombre);
+  }
+  return { keywords, map };
+}
+
+let _canon = _derivarCanonClientes();
+export let CLIENT_KEYWORDS = _canon.keywords;
+export let CLIENT_NAME_MAP = _canon.map;
+
+onTenantChange(() => {
+  _canon = _derivarCanonClientes();
+  CLIENT_KEYWORDS = _canon.keywords;
+  CLIENT_NAME_MAP = _canon.map;
+  _AMBIGUOUS_CLIENT_KW = new Set((clientesAmbiguos || []).map(_normKw));
+});

@@ -143,7 +143,13 @@ export function composeSpecTemporal({ metric, dimension = null, entity = null, p
 
   // ── POR EJE (matriz meses × entidades · top 4 + Resto + Total exactos) ──
   if (dimension && _EJE_NAMES[dimension] && !entity) {
-    if (met === "margen") return { reason: "declarada", texto: `El margen mes a mes te lo doy por entidad («margen de Falabella mes a mes») o del negocio — la matriz completa por ${_EJE_LBL[dimension]} mezclaría porcentajes que no se suman. ¿Te muestro la venta mes a mes por ${_EJE_LBL[dimension]}?`, sugerencias: [`Venta mes a mes por ${_EJE_LBL[dimension]}`] };
+    if (met === "margen") {
+      // El ejemplo entre comillas sale del EJE que se está pidiendo; antes decía «Falabella», fijo. Es texto que
+      // el usuario ve y puede copiar tal cual: nombrarle una entidad ajena lo manda derecho a una consulta vacía.
+      const _ej = (_EJE_NAMES[dimension]() || [])[0];
+      const _comoPedirlo = _ej ? ` («margen de ${_ej} mes a mes»)` : "";
+      return { reason: "declarada", texto: `El margen mes a mes te lo doy por entidad${_comoPedirlo} o del negocio — la matriz completa por ${_EJE_LBL[dimension]} mezclaría porcentajes que no se suman. ¿Te muestro la venta mes a mes por ${_EJE_LBL[dimension]}?`, sugerencias: [`Venta mes a mes por ${_EJE_LBL[dimension]}`] };
+    }
     const names = _EJE_NAMES[dimension]();
     const series = [];
     for (const nm of names) {

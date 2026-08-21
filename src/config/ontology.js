@@ -2,7 +2,23 @@
  * Extraído de 41cc33d8 · valores byte-idénticos · cero recálculo (Fase 2 del refactor).
  * La única diferencia con el monolito es DÓNDE vive el dato, nunca QUÉ vale. */
 
+import { clientesVentas } from "../data/demoData.js";
+import { onTenantChange } from "../data/tenantStore.js";
 import { ADI_COLOQUIAL_LOSS_LEXICON_ENABLED } from "./voiceFlags.js";
+
+/* ── «sin <cuenta>» · DERIVADO del dato activo (2026-08-21) ─────────────────────────────────────────────────
+ * `conditional_loss` traía tres patrones escritos a mano — "sin falabella", "sin lider", "sin jumbo" — que eran
+ * las tres cuentas más grandes DEL DEMO. Con el archivo de un cliente real, «¿qué pasa sin <su cuenta grande>?»
+ * no habría encendido nada, y «sin falabella» sí. Ahora salen de `clientesVentas`, para TODAS las cuentas del
+ * negocio activo, y se re-arman en initTenant. El resto de los marcadores no dependen del dato y quedan fijos. */
+const _CONDICIONAL_GENERICO = ["si pierdo", "si me voy", "si se va", "que pasa si", "si maniana", "si mañana"];
+const _condicionalPatterns = () => [
+  ..._CONDICIONAL_GENERICO,
+  ...(Array.isArray(clientesVentas) ? clientesVentas : [])
+    .map((c) => c && c.nombre)
+    .filter(Boolean)
+    .map((n) => "sin " + n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")),
+];
 
 export const CONCEPT_ONTOLOGY = {
   // ─── CONCEPTOS DE DIRECCIÓN ECONÓMICA ──────────────────
@@ -276,7 +292,7 @@ export const CONCEPT_ONTOLOGY = {
   conditional_loss: {
     description: "Condicional hipotético de pérdida (simulación contrafactual)",
     signals: [
-      { type: "conditional_marker", patterns: ["si pierdo", "si me voy", "si se va", "que pasa si", "si maniana", "si mañana", "sin falabella", "sin lider", "sin jumbo"], weight: 0.8 },
+      { type: "conditional_marker", patterns: _condicionalPatterns(), weight: 0.8 },
       { type: "absence_marker", patterns: ["sin tener", "sin la cuenta"], weight: 0.6 },
     ],
     activation_rule: {
@@ -1789,3 +1805,12 @@ export const SEMANTIC_FAMILIES = {
     conceptTargets: ["concept_commercial_action"],
   },
 };
+
+/* EL REBUILD · lo único que esta ontología deriva del dato son los «sin <cuenta>» de conditional_loss.
+ * `extractConcepts` recorre CONCEPT_ONTOLOGY en cada turno, así que re-escribir los patrones acá alcanza:
+ * no hay copia capturada en ningún lado. Se busca la señal por `type` y no por índice a propósito — un
+ * reordenamiento de las señales no puede convertir esto en un pisotón silencioso a otro marcador. */
+onTenantChange(() => {
+  const sig = CONCEPT_ONTOLOGY.conditional_loss.signals.find((s) => s.type === "conditional_marker");
+  if (sig) sig.patterns = _condicionalPatterns();
+});

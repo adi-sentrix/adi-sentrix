@@ -82,6 +82,20 @@ const literalesDe = (t) => {
     clientes: util((t.clientesVentas || []).map((r) => r.nombre)),
   };
 };
+/* LO QUE EL PISO DE 4 DEJA AFUERA, dicho en voz alta. El piso es correcto (ver arriba), pero vuelve el conteo
+ * ILEGIBLE si no se sabe contra cuántos se está midiendo: el demo tiene 13 cuentas y `ABC` mide 3 caracteres, así
+ * que el máximo que este candado puede llegar a medir son 12 — y mientras el techo de clientes fue 13, la
+ * comparación `medido ≤ 13` NO PODÍA fallar nunca. Un candado que no puede ponerse rojo se lee como uno verde.
+ * No se baja el piso (bajarlo trae falsas alarmas y eso es peor); se IMPRIME el descarte, para que el techo se
+ * fije siempre contra el máximo medible y no contra el total del dataset. */
+const descartadosDe = (t) => {
+  const corto = (arr) => (arr || []).filter((s) => typeof s === "string" && s.trim().length > 0 && s.trim().length < 4);
+  return {
+    skus: corto((t.skuInventario || []).map((r) => r.sku)),
+    marcas: corto(t.MARCAS_ALL || []),
+    clientes: corto((t.clientesVentas || []).map((r) => r.nombre)),
+  };
+};
 const presentes = (arr, texto) => arr.filter((s) => s && texto.includes(s));
 
 /* ── [B] FUGA ENTRE EMPRESAS · tolerancia cero ─────────────────────────────────────────────────────────────── */
@@ -100,16 +114,38 @@ for (const [id, t] of Object.entries(TENANTS)) {
 /* ── [C] RESIDUO DEL DEMO · declarado, con trinquete ───────────────────────────────────────────────────────── */
 H("[C] RESIDUO DEL DEMO · nombres que quedan por ejemplos y alias escritos a mano (no por el dataset)");
 
-/* EL INVENTARIO, medido el 2026-08-20 sobre el build real. No es una lista de excepciones: es un TRINQUETE.
- * Cada número tiene dueño conocido y es trabajo pendiente declarado, no una coincidencia:
- *   · clientes 13/13 → `CLIENT_NAMES` en `src/config/routerData.js`: los 13 clientes del demo escritos a mano en
- *     config del router. Con un cliente real, ADI reconocería los nombres del demo y no los suyos.
- *   · skus 1/13 → `SAM-REF500L` en el ejemplo de una pregunta de desambiguación ("¿De qué SKU…? p. ej. …").
- *   · marcas 0/5 → limpio.
- * Si alguno SUBE, es dato nuevo filtrándose y el gate se pone rojo. Cuando se des-hardcodeen, estos bajan a 0 y
- * hay que bajar el techo acá mismo: un trinquete que no se aprieta deja de ser un trinquete. */
-const TECHO_DEMO = { skus: 1, marcas: 0, clientes: 13 };
+/* EL INVENTARIO. No es una lista de excepciones: es un TRINQUETE. Cada número tiene dueño conocido y es trabajo
+ * pendiente declarado, no una coincidencia. Si alguno SUBE, es dato nuevo filtrándose y el gate se pone rojo.
+ *
+ * MEDIDO 2026-08-20 (cuando nació este candado): skus 1 · marcas 0 · clientes 13.
+ *   · clientes → `CLIENT_NAMES` (routerData) y el mapa de alias (detectors): las 13 cuentas del demo escritas a
+ *     mano en código de producto, más ~10 apariciones sueltas en composers, ejemplos y textos de pantalla.
+ *   · skus → `SAM-REF500L` en el ejemplo de una pregunta de desambiguación ("¿De qué SKU…? p. ej. …").
+ *
+ * APRETADO 2026-08-21 · autorización del owner (fases A+B+C, prompts fuera): skus 0 · marcas 0 · clientes 1.
+ * Se des-hardcodearon 15 archivos: el vocabulario de entrada del router sale del dato (`clientesVentas` + los
+ * alias y ambigüedades que el negocio declara en su dataset), y los composers/pantallas eligen las cuentas que
+ * nombran por CRITERIO (la más grande, la de más carga, la de más contribución bajo la vara) en vez de por
+ * nombre. Ver `_dehardcodeo_entidades_gate.mjs`, que prueba lo mismo desde el lado del comportamiento.
+ *
+ * EL 1 QUE QUEDA, con dueño: `Falabella` dentro de `src/adi/oracle/narratePromptC.js` — un hallazgo de producción
+ * citado textual en el PROMPT de narración. Los prompts de ADI son contrato del owner (CLAUDE.md §3: no se tocan
+ * sin autorización que los nombre) y quedaron explícitamente FUERA de esta autorización. Hay otros cuatro
+ * archivos de prompt con nombres del demo (`naturalPrompt`, `planPrompt`, `narratePrompt`,
+ * `conversationalContract`) que hoy NO son alcanzables desde el navegador: no cuentan acá, pero son el mismo
+ * pendiente. Bajar este 1 a 0 exige autorización aparte.
+ *
+ * Cuando eso pase, hay que bajar el techo acá mismo: un trinquete que no se aprieta deja de ser un trinquete. */
+const TECHO_DEMO = { skus: 0, marcas: 0, clientes: 1 };
 const Ld = literalesDe(TENANTS.demo);
+const Dd = descartadosDe(TENANTS.demo);
+for (const k of ["skus", "marcas", "clientes"]) {
+  const fuera = Dd[k];
+  console.log(`  · ${k}: se miden ${Ld[k].length}${fuera.length ? ` · ${fuera.length} fuera del piso de 4 (${fuera.join(", ")}) → el máximo medible es ${Ld[k].length}, y el techo se fija contra ESE número` : ""}`);
+  // Un techo por encima del máximo medible es un candado que no puede ponerse rojo: eso se atrapa acá.
+  ok(TECHO_DEMO[k] <= Ld[k].length, `[demo] el techo de ${k} (${TECHO_DEMO[k]}) es alcanzable — puede fallar si algo sube`,
+    TECHO_DEMO[k] > Ld[k].length ? `el techo ${TECHO_DEMO[k]} está por encima del máximo medible (${Ld[k].length}): la comparación de abajo NUNCA podría fallar. Bajalo.` : "");
+}
 for (const [fuente, texto] of FUENTES) {
   const medido = { skus: presentes(Ld.skus, texto).length, marcas: presentes(Ld.marcas, texto).length, clientes: presentes(Ld.clientes, texto).length };
   for (const k of ["skus", "marcas", "clientes"]) {
@@ -134,6 +170,12 @@ fs.writeFileSync(entry, [
   'export { POLICY, tenantPolicyDefault } from "./src/config/businessPolicy.js";',
   'export { KNOWN_ENTITIES } from "./src/ui/theme.js";',
   'export { composicionCliente } from "./src/data/clienteSkuMatrix.js";',   // su matriz se ARMA en import (IPF)
+  // EL VOCABULARIO DE ENTRADA DEL ROUTER (des-hardcodeo 2026-08-21) · también es estado derivado del dato, y por
+  // no estar en esta lista pasó desapercibido que `EntityRegistry` se armaba en tiempo de import: con la vía 1
+  // quedaba VACÍO para siempre, en silencio y sin error, y ADI dejaba de resolver ids de entidad a su nombre.
+  'export { CLIENT_NAMES, EntityRegistry } from "./src/config/routerData.js";',
+  'export { CLIENT_KEYWORDS, CLIENT_NAME_MAP, _AMBIGUOUS_CLIENT_KW } from "./src/adi/detectors.js";',
+  'export { CONCEPT_ONTOLOGY } from "./src/config/ontology.js";',
   'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
 ].join("\n"), "utf8");
 
@@ -149,11 +191,25 @@ if (M) {
   ok(Array.isArray(M.clientesVentas) && M.clientesVentas.length === 0, "las fachadas arrancan vacías, no con dato de nadie");
   ok(M.getTenantData().id === null, "el id del tenant de arranque es null (no se hace pasar por el demo)");
   ok(typeof M.tenantPolicyDefault("benchmark") === "number", "sin perfil, la vara cae limpio al config (no queda inventada)");
+  // SIN EMPRESA, ADI NO RECONOCE CUENTAS. Es lo correcto y no es un detalle: un vocabulario poblado en el arranque
+  // solo puede venir de una lista escrita a mano, o sea de las cuentas de OTRO negocio.
+  ok(Array.isArray(M.CLIENT_NAMES) && M.CLIENT_NAMES.length === 0, "el vocabulario de cliente del router arranca vacío (no reconoce cuentas de nadie)",
+    `arrancó con: ${JSON.stringify((M.CLIENT_NAMES || []).slice(0, 6))}`);
+  ok(Array.isArray(M.CLIENT_KEYWORDS) && M.CLIENT_KEYWORDS.length === 0, "el canon de keywords/alias arranca vacío");
+  ok(M.EntityRegistry && M.EntityRegistry.meta && M.EntityRegistry.meta.total_entities === 0, "el índice de entidades arranca vacío");
   // y ahora el camino real: entra el dato y todo se re-arma
   M.initTenant(M.TENANT_DEMO);
   ok(M.tenantCargado() === true, "después de initTenant, el store declara que hay dato");
   ok(M.clientesVentas.length > 0, `initTenant re-armó las fachadas (${M.clientesVentas.length} clientes)`);
   ok(Array.isArray(M.KNOWN_ENTITIES) && M.KNOWN_ENTITIES.length > 0, `los derivados se re-armaron (${(M.KNOWN_ENTITIES || []).length} entidades conocidas)`);
+  ok(M.CLIENT_NAMES.length === M.clientesVentas.length, `el vocabulario del router se re-armó y trae TODAS las cuentas (${M.CLIENT_NAMES.length})`,
+    `CLIENT_NAMES=${M.CLIENT_NAMES.length} vs clientesVentas=${M.clientesVentas.length} → alguna cuenta quedaría sin reconocer`);
+  ok(M.CLIENT_KEYWORDS.length >= M.clientesVentas.length, `el canon de keywords se re-armó (${M.CLIENT_KEYWORDS.length} formas para ${M.clientesVentas.length} cuentas)`);
+  ok(M.EntityRegistry.meta.total_entities > 0, `el índice de entidades se re-armó (${M.EntityRegistry.meta.total_entities} entidades)`);
+  // el «sin <cuenta>» de conditional_loss también sale del dato: una cuenta declarada, un patrón
+  const _sig = M.CONCEPT_ONTOLOGY.conditional_loss.signals.find((s) => s.type === "conditional_marker");
+  const _sinCuenta = (_sig ? _sig.patterns : []).filter((p) => p.startsWith("sin "));
+  ok(_sinCuenta.length === M.clientesVentas.length, `«sin <cuenta>» cubre las ${M.clientesVentas.length} cuentas del negocio, no tres elegidas a mano (${_sinCuenta.length})`);
 }
 try { fs.unlinkSync(entry); } catch { /* */ }
 try { fs.unlinkSync(out); } catch { /* */ }
