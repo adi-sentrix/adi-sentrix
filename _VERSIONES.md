@@ -24,7 +24,14 @@ Lo acumulado en `dev` desde que se desplegó la 1.0. Sale a producción cuando e
 - **La etiqueta de los días**: «días sin rotar» no existe en el dato — hay días de inventario y días sin venta.
 - **Cada ranking se declara entero**: universo · dirección · polaridad · regla de empate · campo fuente ·
   términos. Incluye el eje SKU, que antes no tenía contra qué verificarse.
+- **Un total del conjunto se declara**: «$X en la cartera» o sale del dato con ese dueño, o va declarado como
+  cuenta. Cierra el agujero por el que un titular dijo «brecha de $4.16M en la cartera» sumando 3 de 8 clientes
+  — la brecha real es $5.37M. Medido en producción y reproducido antes de arreglar.
 - **El versionado**: esto mismo.
+
+⚠️ **Y lo que venga del frente de UX entra acá también.** Esta versión no es «lo del notario» ni «lo de la
+interfaz»: es TODO lo que `dev` acumuló desde la 1.0. Antes de desplegar se corren los gates sobre el árbol
+COMBINADO, no sobre cada parte por su lado.
 
 ---
 
