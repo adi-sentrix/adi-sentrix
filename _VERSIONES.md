@@ -27,6 +27,29 @@ Lo acumulado en `dev` desde que se desplegó la 1.0. Sale a producción cuando e
 - **Un total del conjunto se declara**: «$X en la cartera» o sale del dato con ese dueño, o va declarado como
   cuenta. Cierra el agujero por el que un titular dijo «brecha de $4.16M en la cartera» sumando 3 de 8 clientes
   — la brecha real es $5.37M. Medido en producción y reproducido antes de arreglar.
+
+### Y la interfaz
+
+- **La pantalla de inicio nueva** (diseño del owner, variante A del mockup del 2026-08-20). La anterior estaba
+  vacía: título, una línea y el campo abajo del todo. Ahora el hexágono de la marca abre la pantalla sobre el
+  campo de hexágonos de la landing, **el campo de pregunta sube al centro** mientras no hay conversación y baja
+  a anclarse al primer mensaje, las cuatro preguntas quedan a la vista, y una banda muestra **el pulso del
+  negocio**: cuántos clientes, cuántos bajo el benchmark, el margen promedio y el capital inmovilizado, cada
+  cifra clickeable hacia su pregunta. Las cifras las arma el motor (`pulsoInicio.js`), no la pantalla.
+  Al implementarla se corrigieron tres palabras que el mockup traía y la casa no usa: «vara» → **benchmark**,
+  «detenido» → **inmovilizado**, «margen consolidado» → **margen promedio**.
+- **La barra superior se eliminó** (diseño del owner, 2026-08-20). La marca, las dos acciones (Mesa de control
+  y ¿Cómo funciona?) y los cuatro indicadores de estado se mudaron a una **barra de barritas en el borde
+  derecho**: contraída mide 44 px y solo se ven las barritas; las opciones aparecen al pasar el cursor —o al
+  tabular con el teclado— y se van solas. La barrita de lo que está activo queda más larga y encendida.
+  No tiene fondo ni borde y va fuera del flujo, así que **el campo de hexágonos pasa por debajo hasta el
+  borde**: las barritas flotan sobre el lienzo, no en una franja aparte. El chat gana los 56 px del header y
+  desaparece el corte horizontal que partía la pantalla.
+  Nota: el selector de escenarios —apagado en todos los perfiles desde el 2026-08-07— se quedó sin punto de
+  montaje; el componente y el eje `scenario` siguen intactos.
+- **La Mesa abre al 50/50**, siempre, en cada apertura (antes: 460 px fijos). Las tablas de la cara Comercial
+  piden entre 620 y 640 px, así que con 460 un tercio de las columnas nacía fuera de la vista. Sigue siendo
+  arrastrable y «agrandar» sigue llevándola al 72%.
 - **El versionado**: esto mismo.
 
 ⚠️ **Y lo que venga del frente de UX entra acá también.** Esta versión no es «lo del notario» ni «lo de la

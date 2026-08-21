@@ -5,7 +5,7 @@
  *   const turn = buildAdiTurn(q, context, scenario)  →  aplicar setMessages/setContext con turn.
  * Lo diferido del PanelADI monolítico (memoria org · prefs · proactive · persistencia de chats ·
  * hero magic-moment) NO entra acá: el HANDOFF §2 define el adelgazado como solo la cáscara. */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { answerADI } from "../adi/answerADI.js";
 import { answerADIFromSpec } from "../adi/answerADIFromSpec.js";   // Paso 5 · camino LLM (spec → ejecución local)
 import { answerConversational, buildConversationContext, updateMemoria, responderPorQueCifra } from "../adi/conversation.js";   // parse conversacional V1 · ruteo por turn_type + contexto + LA BOLETA DE MEMORIA (el "sí"/"compáralo"/"muéstrame más" la consumen)
@@ -16,6 +16,13 @@ import { getUISignals } from "../adi/uiSignals.js";   // memoria UI (owner 2026-
 import { resetPnlDraft, ensurePnlNarration, detectPnlIntent, pnlScope } from "../adi/pnl.js";   // P&L · reset del flujo a medio armar + F4: post-check de frases de la narración (graduación/sello asegurados en código) + la red que le CEDE el turno del P&L a la ruta vieja (C no tiene el flujo guiado) + pnlScope: Etapa 3 (owner 2026-08-04), proyección de entidad hacia conversationScope al SALIR de un turno de P&L
 import { getAccessCode } from "../adi/accessClient.js";   // demo privada · el código viaja en cada llamada al gateway
 import { chartForEvidence } from "../adi/sentrix/chartSpec.js";   // I1 gráfico en la respuesta (owner 2026-07-09) · despachador determinístico
+import { buildPulsoInicio } from "../adi/sentrix/pulsoInicio.js";   // la banda de cifras del inicio · el MOTOR la arma, esta vista solo la pinta (CLAUDE.md §2.3)
+
+/* LA COLUMNA DEL AVATAR · todo lo que ADI dice arranca corrido estos píxeles, porque a su izquierda va el
+ * hexágono de la firma. El campo de envío lo usa para quedar a plomo con el texto de las respuestas.
+ * Y el ancho de la barra de scroll del transcript, que corre su centrado ~4 px y hay que devolver del otro lado. */
+const _GUTTER_ADI = 44;
+const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
@@ -810,56 +817,206 @@ export const HERO_CHIPS = [
   { q: "¿Dónde tengo capital inmovilizado?",  spec: _SPEC({ operation: "overview", dimension: "bodega", metric: "capital" }) },
 ];
 
-// ── INICIO · el asesor abre la conversación: título-promesa + resumen ejecutivo + las preguntas de plata ──
-/* HERO DE INICIO · una pregunta y nada más (owner 2026-08-12).
+/* ── HISTORIA DE ESTA PANTALLA, en dos vueltas · leerla antes de volver a recortarla ────────────────────────
  *
- * Antes tenía título-promesa + botón de Resumen ejecutivo + seis chips de preguntas. El owner lo cortó a
- * la raíz: **los ejemplos de qué preguntar viven en la Guía de inicio, no acá.** Un inicio con vitrina de
- * preguntas se lee como una página web que vende el producto; lo que corresponde es una sola invitación a
- * hablar, como cualquier asistente serio. Todo lo que se sacó sigue existiendo — en la guía, que es su lugar.
+ * 2026-08-12 · el owner la cortó a la raíz: título, una línea y nada más. Antes tenía título-promesa, botón de
+ * Resumen ejecutivo y seis chips. Su razón sigue siendo válida y NO se revirtió: un inicio con vitrina de
+ * preguntas se lee como una página web que vende el producto, no como un asistente.
  *
- * ⚠️ `HERO_CHIPS` NO SE BORRA aunque acá ya no se pinte: `GuiaInicio.jsx` deriva sus ejemplos de esa constante
- * por TEXTO EXACTO (ver el comentario de su declaración). Borrarla dejaría la guía sin ejemplos, y la guía
- * acaba de salir a producción. Se quitó el render, no la fuente.
+ * 2026-08-20 · el owner diseñó y aprobó la pantalla que está abajo (variante A del mockup). Lo que cambió no
+ * es la razón, es el diagnóstico: cortada a la raíz la pantalla quedó VACÍA —~70% de aire— y el vacío tampoco
+ * se lee como un asistente serio, se lee como un producto sin terminar. La respuesta no fue devolver la
+ * vitrina: fue **subir el campo de pregunta al centro** y llenar el resto con lo único que no es promoción —
+ * las cifras reales del negocio de quien mira (el pulso) y las cuatro preguntas que el motor sí contesta.
  *
- * El logo es el mismo `AdiAvatar` de las burbujas, en grande: la marca del producto, no un ícono genérico.
- * Todo el bloque desaparece solo al primer mensaje — lo monta `messages.length === 0`, no un flag aparte.
+ * Las seis chips NO volvieron: son CUATRO, y son las de `HERO_CHIPS`, la misma fuente de la guía.
  */
-function HeroInicio() {
+/* ── EL CAMPO DE HEXÁGONOS · el fondo de la landing, traído a la app ────────────────────────────────────────
+ * No es adorno: es el plano sobre el que el instrumento mide, y es lo que hermana la app con adiai.cl.
+ * Geometría de la marca (pointy-top, R=52), la misma de `landing-v2/src/scripts/hex.js`.
+ *
+ * ⚠️ LA RETÍCULA ES UN ANILLO, NO UN FONDO PAREJO, y esto no es un gusto: la máscara se ABRE en el centro para
+ * que ahí mande el halo. Si se rellena el centro, el título queda leyéndose sobre una grilla y compite. Los
+ * hexágonos acompañan desde el borde — se notan, no se roban la película.
+ * `aria-hidden` porque no dice nada: quien navega con lector de pantalla no se pierde absolutamente nada. */
+const _HEX_MASK_CAMPO = "radial-gradient(78% 70% at 50% 40%, #000 30%, transparent 86%)";
+const _HEX_MASK_ANILLO = "radial-gradient(66% 60% at 50% 40%, transparent 0%, transparent 24%, rgba(0,0,0,0.5) 46%, #000 68%, transparent 100%)";
+// las celdas que se encienden solas: posiciones y tiempos fijos, nunca al azar — un fondo que parpadea distinto
+// en cada carga se percibe como un defecto de render, no como vida.
+const _HEX_LIT = [
+  { left:"9%",  top:"16%", dur:"11s",  delay:"0s"   }, { left:"78%", top:"23%", dur:"13s", delay:"2.4s" },
+  { left:"22%", top:"63%", dur:"9.5s", delay:"4.1s" }, { left:"66%", top:"72%", dur:"12s", delay:"6.3s" },
+  { left:"88%", top:"52%", dur:"10s",  delay:"8.2s" }, { left:"4%",  top:"41%", dur:"14s", delay:"5.2s" },
+];
+
+/* ⚠️ VA DE BORDE A BORDE DEL PANEL, NO DENTRO DE LA COLUMNA DE TEXTO — y esto no es un detalle de maquetado,
+ * es la diferencia entre que se vea y que no. Primer intento: se montó como hijo del hero, que vive en la
+ * columna centrada del transcript (`maxWidth:900`). El campo heredó ese ancho —852 px de 1440— y como la
+ * máscara VACÍA el centro a propósito, lo único que quedaba era una tira finísima a cada lado: el owner lo
+ * leyó, con razón, como que los hexágonos no estaban. Va como HERMANO del contenido, con el panel entero de
+ * referencia.
+ *
+ * ⚠️ NO SE APAGA AL PRIMER MENSAJE, y tampoco scrollea con el hilo. El centro se vacía justamente para que
+ * las burbujas de la conversación caigan sobre el HALO y nunca sobre la retícula: apagarlo con la portada
+ * rompía lo único que el diseño estaba resolviendo. Por eso vive fuera del contenedor que scrollea — si
+ * viviera adentro, el fondo se iría hacia arriba con los mensajes y el halo dejaría de estar centrado en el
+ * panel. Se centra en el PANEL, no en el hilo. */
+function CampoHexagonos() {
   return (
-    <div style={{
-      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-      gap:22, padding:"14vh 24px 24px 24px", fontFamily:"'DM Sans', system-ui, sans-serif",
-    }}>
-      {/* EL CUBO VIVO · el hexágono es la marca; lo que gira es el ANILLO interior, no la silueta. Rotar el
-          logo entero lo convertiría en un spinner —"esperá, estoy cargando"— y acá no se está esperando nada:
-          se está invitando a hablar. El anillo girando lento dice "atento", que es lo que ADI hace.
-          `prefers-reduced-motion` lo detiene: la animación es un gesto, nunca un requisito para entender. */}
-      <svg width="52" height="52" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3"
-        strokeLinecap="round" strokeLinejoin="round" style={{ opacity:0.92 }} aria-hidden="true">
-        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
-        <g style={{ transformOrigin:"100px 100px", animation:"adiHeroGiro 9s linear infinite" }}>
-          <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
-          <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-        </g>
-        <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none">
-          <animate attributeName="opacity" values="1;0.45;1" dur="3.4s" repeatCount="indefinite"/>
-        </circle>
-      </svg>
+    <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:0, pointerEvents:"none", overflow:"hidden",
+      WebkitMaskImage:_HEX_MASK_CAMPO, maskImage:_HEX_MASK_CAMPO }}>
       <style>{`
         @keyframes adiHeroGiro { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes adiHeroRespira { from { opacity:0.62; transform:scale(1); } to { opacity:1; transform:scale(1.09); } }
+        @keyframes adiHeroPrende { 0%{opacity:0} 9%{opacity:0.6} 55%{opacity:0.12} 100%{opacity:0} }
         @media (prefers-reduced-motion: reduce) {
-          [style*="adiHeroGiro"] { animation: none !important; }
+          [style*="adiHeroGiro"], [style*="adiHeroRespira"], [style*="adiHeroPrende"] { animation: none !important; }
         }
       `}</style>
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-        <h1 style={{
-          margin:0, fontSize:27, fontWeight:500, color:C.text, letterSpacing:"-0.02em",
-          lineHeight:1.25, textAlign:"center", textWrap:"balance",
-        }}>
+      {/* EL HALO · dos capas. El núcleo se apoya detrás del hexágono; el respiro amplio sostiene la pantalla
+          entera. Respira lento (17s de ida y 17s de vuelta): más rápido se lee como una alerta. */}
+      <div style={{ position:"absolute", inset:"-10%", animation:"adiHeroRespira 17s ease-in-out infinite alternate",
+        background:"radial-gradient(26% 24% at 50% 30%, rgba(47,184,218,0.13), transparent 74%), radial-gradient(58% 54% at 50% 38%, rgba(47,184,218,0.09), transparent 72%)" }}/>
+      <svg style={{ position:"absolute", inset:-60, width:"calc(100% + 120px)", height:"calc(100% + 120px)",
+        WebkitMaskImage:_HEX_MASK_ANILLO, maskImage:_HEX_MASK_ANILLO }}>
+        <defs>
+          <pattern id="adiHexCampo" width="90.07" height="156" patternUnits="userSpaceOnUse">
+            <g fill="none" stroke="rgba(255,255,255,0.036)" strokeWidth="1" vectorEffect="non-scaling-stroke">
+              <path d="M0,-52 L45.03,-26 L45.03,26 L0,52 L-45.03,26 L-45.03,-26 Z"/>
+              <path d="M90.07,-52 L135.1,-26 L135.1,26 L90.07,52 L45.04,26 L45.04,-26 Z"/>
+              <path d="M45.03,26 L90.06,52 L90.06,104 L45.03,130 L0,104 L0,52 Z"/>
+              <path d="M0,104 L45.03,130 L45.03,182 L0,208 L-45.03,182 L-45.03,104 Z"/>
+              <path d="M90.07,104 L135.1,130 L135.1,182 L90.07,208 L45.04,182 L45.04,104 Z"/>
+            </g>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#adiHexCampo)"/>
+      </svg>
+      {_HEX_LIT.map((h, i) => (
+        <svg key={i} viewBox="0 0 90.07 104" width="90" height="104"
+          style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
+            animation:`adiHeroPrende ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
+          <polygon points="45.03,0 90.07,26 90.07,78 45.03,104 0,78 0,26" fill="rgba(47,184,218,0.15)"/>
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+/* ── INICIO · la pantalla que abre la app ───────────────────────────────────────────────────────────────────
+ * ES LA PANTALLA QUE EL OWNER APROBÓ (variante A, 2026-08-20), llevada del mockup al producto tal cual, con
+ * UNA sola desviación deliberada, que él mismo ordenó al aprobarla: **las palabras que no usamos se corrigen**.
+ * El mockup decía «bajo la vara de 30,1%», «capital detenido» y «margen consolidado»; acá se dice benchmark,
+ * inmovilizado y margen promedio — las tres son las que el motor ya emite (ver `pulsoInicio.js`).
+ *
+ * EL DIAGNÓSTICO QUE LA ORDENÓ: la pantalla anterior no estaba mal de color, estaba VACÍA — un título, una
+ * línea y el campo abajo del todo, con ~70% de aire. Lo que la llena: el hexágono grande de protagonista, el
+ * campo de pregunta SUBIDO al centro mientras no hay conversación, las cuatro preguntas a la vista, y la banda
+ * con el pulso del negocio.
+ *
+ * ⚠️ EL CAMPO DE PREGUNTA LO RECIBE POR PROP (`campo`), no lo declara. Es el MISMO nodo que se ancla abajo
+ * cuando arranca la conversación: si esta pantalla dibujara su propio input, habría dos campos con dos estados
+ * y el texto a medio escribir se perdería al enviar el primer mensaje.
+ *
+ * ⚠️ `HERO_CHIPS` es la ÚNICA fuente de las cuatro preguntas — no se duplican acá. `GuiaInicio.jsx` deriva sus
+ * ejemplos de esa misma constante por TEXTO EXACTO, así que una pregunta escrita a mano en esta pantalla
+ * quedaría desincronizada de la guía en el primer cambio.
+ *
+ * El click MANDA EL TEXTO AL CHAT NORMAL (`submit`), no un spec enlatado: es la orden del owner del 2026-08-15
+ * para la guía, y vale igual acá — «debe responder exactamente igual que si yo escribiera la pregunta».
+ *
+ * Todo el bloque desaparece solo al primer mensaje — lo monta `messages.length === 0`, no un flag aparte. */
+const _CHIP_ICONOS = [
+  <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
+  <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>,
+  <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>,
+  <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></>,
+];
+
+function HeroInicio({ scenario, campo, onPregunta }) {
+  // EL PULSO LO ARMA EL MOTOR. Acá no se suma, no se divide y no se redondea nada: `buildPulsoInicio` devuelve
+  // la cifra y la frase ya hechas y esta vista las pinta. Si el módulo declina (sin cartera), la banda no va —
+  // no se rellena con ceros. useMemo porque el escenario no cambia entre renders del chat.
+  const pulso = useMemo(() => { try { return buildPulsoInicio(scenario); } catch { return null; } }, [scenario]);
+
+  return (
+    <div style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center",
+      padding:"3vh 4px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", minHeight:0 }}>
+      {/* el campo de hexágonos NO se monta acá: vive en la raíz del chat, detrás de todo y para siempre.
+          Ver la nota de `CampoHexagonos` — montarlo acá adentro fue exactamente el defecto que hubo que corregir. */}
+
+      {/* EL CUBO VIVO · el hexágono es la marca; lo que gira es el ANILLO interior, no la silueta. Rotar el
+          logo entero lo convertiría en un spinner —"espera, estoy cargando"— y acá no se está esperando nada:
+          se está invitando a hablar. El anillo girando lento dice "atento", que es lo que ADI hace. */}
+      <svg width="132" height="132" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.30)" strokeWidth="3"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ position:"relative", zIndex:1, marginBottom:20, flexShrink:0 }}>
+        <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
+        <g style={{ transformOrigin:"100px 100px", animation:"adiHeroGiro 22s linear infinite" }}>
+          <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.6"/>
+          <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.45"/>
+        </g>
+        <circle cx="100" cy="100" r="7" fill={C.celeste} stroke="none">
+          <animate attributeName="opacity" values="1;0.42;1" dur="3.4s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+
+      <div style={{ position:"relative", zIndex:1, width:"100%", display:"flex", flexDirection:"column", alignItems:"center" }}>
+        <h1 style={{ margin:0, fontSize:34, fontWeight:600, color:C.text, letterSpacing:"-0.021em",
+          lineHeight:1.18, textAlign:"center", textWrap:"balance" }}>
           ¿Qué quieres entender de tu negocio?
         </h1>
-        <div style={{ fontSize:13.5, color:C.textMuted, letterSpacing:"-0.01em" }}>Pregúntale a ADI</div>
+        <p style={{ margin:"10px 0 0", maxWidth:"52ch", fontSize:16.5, fontWeight:500, lineHeight:1.5,
+          color:C.textSub, letterSpacing:"-0.006em", textAlign:"center" }}>
+          Pregúntame por tus ventas, tus márgenes o tu inventario — te respondo con la cifra y con la cuenta que la respalda.
+        </p>
+
+        {/* el campo que baja y se ancla al primer mensaje · llega por prop, no se declara acá */}
+        <div style={{ width:"100%", maxWidth:660, marginTop:26 }}>{campo}</div>
+
+        {/* LAS CUATRO PREGUNTAS · derivadas de HERO_CHIPS, una sola fuente con la guía */}
+        <div style={{ width:"100%", maxWidth:760, marginTop:24, display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:10 }}>
+          {HERO_CHIPS.map((c, i) => (
+            <button key={c.q} onClick={() => onPregunta(c.q)}
+              style={{ display:"flex", alignItems:"center", gap:11, textAlign:"left", cursor:"pointer",
+                background:"rgba(255,255,255,0.035)", border:`1px solid ${C.borderLight}`, borderRadius:13, padding:"15px 16px",
+                color:C.text, fontFamily:"inherit", fontSize:16, fontWeight:600, letterSpacing:"-0.011em", lineHeight:1.3,
+                transition:"background 0.14s, border-color 0.14s, transform 0.14s" }}
+              onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.065)"; e.currentTarget.style.borderColor=C.celeste; e.currentTarget.style.transform="translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background="rgba(255,255,255,0.035)"; e.currentTarget.style.borderColor=C.borderLight; e.currentTarget.style.transform="none"; }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.celeste} strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, opacity:0.85 }} aria-hidden="true">
+                {_CHIP_ICONOS[i % _CHIP_ICONOS.length]}
+              </svg>
+              {c.q}
+            </button>
+          ))}
+        </div>
+
+        {/* EL PULSO · cifras del motor. Cada una es CLICKEABLE hacia su pregunta: la banda no es un dashboard
+            que se mira, es una fila de puertas a la conversación (anti-BI · misma regla que las filas de Sentrix). */}
+        {pulso && (
+          <div style={{ width:"100%", maxWidth:860, marginTop:34, paddingTop:24, borderTop:`1px solid ${C.border}` }}>
+            <p style={{ margin:"0 0 14px", textAlign:"center", fontSize:11.5, fontWeight:600,
+              letterSpacing:"0.15em", textTransform:"uppercase", color:C.textMuted }}>{pulso.rotulo}</p>
+            <div style={{ display:"grid", gridTemplateColumns:`repeat(auto-fit, minmax(150px, 1fr))`, gap:8 }}>
+              {pulso.cifras.map((c) => (
+                <button key={c.key} onClick={() => onPregunta(c.ask)} title={`Pregúntale a ADI: ${c.ask}`}
+                  style={{ textAlign:"center", padding:"6px 6px 8px", background:"transparent", border:"1px solid transparent",
+                    borderRadius:10, cursor:"pointer", fontFamily:"inherit", transition:"background 0.14s, border-color 0.14s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.035)"; e.currentTarget.style.borderColor=C.border; }}
+                  onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.borderColor="transparent"; }}>
+                  <span style={{ display:"block", fontSize:21, fontWeight:600, letterSpacing:"-0.02em", color:C.celeste,
+                    fontVariantNumeric:"tabular-nums lining-nums", lineHeight:1.1 }}>{c.valor}</span>
+                  <span style={{ display:"block", marginTop:5, fontSize:12.5, fontWeight:500, color:C.textMuted, lineHeight:1.35 }}>{c.etiqueta}</span>
+                </button>
+              ))}
+            </div>
+            <p style={{ margin:"18px auto 0", maxWidth:640, textAlign:"center", fontSize:15, fontWeight:500,
+              lineHeight:1.55, color:C.textSub, letterSpacing:"-0.006em" }}>
+              <b style={{ fontWeight:600, color:C.text }}>{pulso.lectura.destacado}</b> {pulso.lectura.cola}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -871,7 +1028,7 @@ function HeroInicio() {
  * pintaba sigue vivo donde corresponde: `HERO_CHIPS` (arriba) alimenta a `GuiaInicio.jsx`, y el resumen ejecutivo
  * se pide hablando —el coerce de «hazme un resumen ejecutivo» arma el mismo spec, gate-proven. */
 
-export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null }) {
+export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction = null, onOpenEvidence = null, animate = true, initialContext = null, openEvidenceId = null, registerAsk = null, registerReset = null, registerRun = null, onHayConversacion = null, margenBarra = 0 }) {
   const [messages, setMessages] = useState([]);     // [{ id, role, text, sentrixAction, suggestions }]
   const [input, setInput]       = useState("");
   const [showHint, setShowHint] = useState(() => { try { return typeof localStorage !== "undefined" && !localStorage.getItem("adi_hint_v1"); } catch { return false; } });   // hint de primer uso (una vez)
@@ -899,9 +1056,18 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   // el contexto de pantalla que dejó el último "Que ADI lo explique" · se consume (y se limpia) al enviar el turno
   const pendingVcRef = useRef(null);
 
+  // SEGUIR LA CONVERSACIÓN, NO LA PORTADA (owner 2026-08-20 · defecto cazado al implementar la pantalla nueva):
+  // este efecto pega el scroll abajo para que la última respuesta quede a la vista. Con el inicio de una sola
+  // línea daba igual —no había nada que scrollear—, pero la pantalla nueva es alta: al montar, "abajo del todo"
+  // dejaba el hexágono y el título FUERA DE PANTALLA y la app abría por la mitad. Sin mensajes no se scrollea.
   useEffect(() => {
+    if (!messages.length) return;
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  // el panel del historial (columna izquierda) necesita saber si hay hilo vivo · solo un booleano, ningún texto:
+  // el contenido de la conversación no sale de este componente.
+  useEffect(() => { if (onHayConversacion) onHayConversacion(messages.length > 0); }, [messages.length, onHayConversacion]);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
@@ -1054,13 +1220,54 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
     return null;
   })();
 
+  /* EL CAMPO DE PREGUNTA · UNO SOLO, montado en dos lugares según haya conversación o no (owner 2026-08-20).
+   * Sin conversación vive en el CENTRO de la pantalla de inicio; con el primer mensaje baja y se ancla abajo.
+   * Se declara acá, en el componente, porque necesita `input`/`submit`/`inputRef` — sacarlo afuera obligaría a
+   * pasarle cuatro props y no ganaría nada. `centrado` solo alinea la línea de la promesa: en el inicio va
+   * centrada bajo el campo (como el resto de la pantalla) y en el chat va a la izquierda, como estaba. */
+  const campoPregunta = (centrado) => (
+    <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:8 }}>
+      <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+        <textarea
+          ref={inputRef}
+          rows={1}
+          value={input} onChange={e=>setInput(e.target.value)}
+          onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
+          placeholder="Pregunta a ADI…"
+          style={{ flex:1, resize:"none", overflowY:"auto", maxHeight:160, minHeight:26, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:14, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:centrado?16.5:15, fontWeight:centrado?500:400, lineHeight:1.5, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+          onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
+          onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
+        />
+        <button onClick={()=>submit(input)} disabled={!input.trim()} aria-label="Enviar la pregunta"
+          style={{ width:44, height:44, borderRadius:14, border:"none", background:input.trim()?"linear-gradient(180deg,#3fc4e2,#1c8fae)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(47,184,218,0.55)":"0 1px 4px rgba(0,0,0,0.35)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"/>
+            <polyline points="5 12 12 5 19 12"/>
+          </svg>
+        </button>
+      </div>
+      <div style={{ fontSize:centrado?13:10, color:C.textMuted, display:"flex", alignItems:"center", justifyContent:centrado?"center":"flex-start", gap:6, letterSpacing:"0.3px" }}>
+        <kbd style={{ fontSize:centrado?11:9, padding:"1px 5px", borderRadius:3, background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontWeight:500 }}>↵</kbd>
+          <span>para enviar · ADI no inventa · cada cifra cierra con su cuenta</span>
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
+    <div style={{ position:"relative", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
+      {/* EL CAMPO, DETRÁS DE TODO Y SIEMPRE · hermano del transcript, no hijo: así cubre el panel entero y no
+          se va hacia arriba cuando el hilo scrollea. Todo lo que viene abajo lleva zIndex:1 para quedar encima. */}
+      <CampoHexagonos/>
       {/* ── TRANSCRIPT ── */}
-      <div ref={scrollRef} style={{ flex:1, overflowY:"auto", minHeight:0 }}>
-        <div style={{ maxWidth:760, margin:"0 auto", padding:"32px 24px 24px 24px", display:"flex", flexDirection:"column", gap:24 }}>
+      <div ref={scrollRef} style={{ position:"relative", zIndex:1, flex:1, overflowY:"auto", minHeight:0 }}>
+        {/* SIN MENSAJES la portada manda: se le da más ancho (900) y se le saca el colchón de arriba, que en el
+            chat separa la primera burbuja del header pero acá solo empuja el hexágono fuera de la pantalla. */}
+        {/* el colchón de la DERECHA deja libre la franja donde flotan las barritas de la barra lateral. Va acá
+            adentro y no en el contenedor de arriba a propósito: si se lo pusiera al padre, el campo de hexágonos
+            —que es hermano de este scroll— se cortaría antes del borde y volveríamos al defecto que el owner cazó. */}
+        <div style={{ maxWidth:messages.length === 0 ? 900 : 760, margin:"0 auto", padding:messages.length === 0 ? `0 24px 16px ${24 + margenBarra}px` : `32px 24px 24px ${24 + margenBarra}px`, display:"flex", flexDirection:"column", gap:24 }}>
           {messages.length === 0 && (
-            <HeroInicio />
+            <HeroInicio scenario={scenario} campo={campoPregunta(true)} onPregunta={(q) => submit(q)} />
           )}
 
           {messages.map((msg) => {
@@ -1159,34 +1366,24 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
       </div>
 
       {/* ── INPUT (sticky abajo) · centrado al mismo ancho que el transcript (maxWidth:760) — owner 2026-08-04:
-          antes ocupaba todo el ancho del panel, se veía desalineado contra las burbujas/cards de arriba ── */}
-      <div style={{ padding:"16px 24px", borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center" }}>
-        <div style={{ width:"100%", maxWidth:760, display:"flex", flexDirection:"column", gap:8 }}>
-          <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={input} onChange={e=>setInput(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
-              placeholder="Pregunta a ADI…"
-              style={{ flex:1, resize:"none", overflowY:"auto", maxHeight:160, minHeight:26, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:14, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:15, lineHeight:1.5, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-              onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
-              onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
-            />
-            <button onClick={()=>submit(input)} disabled={!input.trim()}
-              style={{ width:44, height:44, borderRadius:14, border:"none", background:input.trim()?"linear-gradient(180deg,#3fc4e2,#1c8fae)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(47,184,218,0.55)":"0 1px 4px rgba(0,0,0,0.35)" }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"/>
-                <polyline points="5 12 12 5 19 12"/>
-              </svg>
-            </button>
-          </div>
-          <div style={{ fontSize:10, color:C.textMuted, display:"flex", alignItems:"center", gap:6, letterSpacing:"0.3px" }}>
-            <kbd style={{ fontSize:9, padding:"1px 5px", borderRadius:3, background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontWeight:500 }}>↵</kbd>
-            <span>para enviar · ADI no inventa · cada cifra cierra con su cuenta</span>
-          </div>
-        </div>
+          antes ocupaba todo el ancho del panel, se veía desalineado contra las burbujas/cards de arriba ──
+          ⚠️ SOLO SE MONTA CON CONVERSACIÓN EMPEZADA. Mientras no hay mensajes el campo vive ARRIBA, en el
+          centro de la pantalla de inicio (owner 2026-08-20): es el MISMO `campoPregunta`, movido de lugar,
+          no un segundo input. Dos inputs serían dos estados y el texto a medio escribir se perdería. */}
+      {/* ALINEADO AL TEXTO DE ADI (owner 2026-08-20: «la barra de envío debe estar alineada al texto de ADI»).
+          El campo arrancaba 63 px a la izquierda del texto de las respuestas, y ese número son DOS cosas
+          sumadas: los 44 px de la columna del avatar —que indenta todo lo que ADI dice— y los ~4 px que corre
+          el centrado del transcript por su barra de scroll. Por eso el colchón izquierdo suma el avatar y el
+          derecho reserva el ancho de esa barra: sin las dos, el campo queda desalineado por un lado u otro. */}
+      {messages.length > 0 && (
+      <div style={{ position:"relative", zIndex:1, padding:`16px ${_SCROLLBAR}px 16px 0`, borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.bg }}>
+        {/* MISMA CAJA QUE EL TRANSCRIPT, no una parecida: `maxWidth:760` + `margin:0 auto` + los MISMOS colchones.
+            Antes el campo se centraba dentro de un div ya acolchado y el transcript dentro del ancho completo:
+            dos centrados distintos que nunca iban a coincidir. Sumado el colchón del avatar, queda a plomo. */}
+        <div style={{ width:"100%", maxWidth:760, margin:"0 auto",
+          paddingLeft: 24 + margenBarra + _GUTTER_ADI, paddingRight: 24 }}>{campoPregunta(false)}</div>
       </div>
+      )}
     </div>
   );
 }

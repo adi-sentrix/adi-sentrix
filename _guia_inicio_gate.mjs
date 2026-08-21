@@ -6,9 +6,9 @@
  *
  *   1. PRIMERA VISITA · sin marca en localStorage la guía se abre SOLA, en el paso 1, con la frase madre.
  *   2. SE PUEDE SALTAR · en CADA uno de los 3 pasos, por "Saltar", por el ✕ y por Escape. Y no bloquea:
- *      aria-modal="false" y el header sigue vivo detrás.
+ *      aria-modal="false" y la barra lateral sigue viva detrás.
  *   3. "NO VOLVER A MOSTRAR" · persiste EN EL ACTO (no al cerrar) y suprime la apertura automática.
- *   4. EL BOTÓN DEL HEADER la reabre — con la marca puesta, y con cualquiera de los dos valores.
+ *   4. EL BOTÓN DE LA BARRA LATERAL la reabre — con la marca puesta, y con cualquiera de los dos valores.
  *   5. EL CLICK NO TIENE PUERTA PROPIA (owner 2026-08-15). El contrato cambió: «no deben usar una ruta demo,
  *      respuesta prearmada ni shortcut … debe responder exactamente igual que si yo escribiera la pregunta
  *      manualmente». Se verifica el CABLEADO contra el código (la guía entrega el prompt → App lo pasa por
@@ -127,7 +127,7 @@ console.log("═".repeat(100));
   ok(container.textContent.includes("Cuando ADI nombra una cuenta, Sentrix la pinta") &&
      container.textContent.includes("Cuando tocas una fila del cuadro, se la puedes preguntar a ADI"),
     "el ida y vuelta está contado en las DOS direcciones (ADI→Sentrix y Sentrix→ADI)");
-  ok(!!$(container, "guia-abrir"), "el botón permanente \"¿Cómo funciona?\" está en el header");
+  ok(!!$(container, "guia-abrir"), "el botón permanente \"¿Cómo funciona?\" está en la barra lateral");
   cleanup();
 }
 
@@ -182,7 +182,7 @@ console.log("═".repeat(100));
   ok(/onClick=\{\(\)\s*=>\s*onEjecutar\(ej\.q\)\}/.test(guiaSrc), "GuiaInicio entrega el PROMPT (ej.q) al llamador — no un spec, no un id de demo");
   const bloqueTemas = guiaSrc.slice(guiaSrc.indexOf("const _TEMAS = ["), guiaSrc.indexOf("export const GUIA_CAPITULOS"));
   ok(bloqueTemas.length > 100 && !/\bspec\b/.test(bloqueTemas), "…y el bloque de ejemplos no nombra `spec` ni una vez");
-  ok(/onEjecutar=\{\(q\)\s*=>\s*\{[^}]*runRef\.current\(q\)/.test(appSrc), "App pasa ese texto al chat por runRef (el mismo puente que ya usaba el header)");
+  ok(/onEjecutar=\{\(q\)\s*=>\s*\{[^}]*runRef\.current\(q\)/.test(appSrc), "App pasa ese texto al chat por runRef (el mismo puente de siempre)");
   const mReg = chatSrc.match(/registerRun\(\(q\)\s*=>\s*\{[\s\S]{0,300}?\}\)/);
   ok(!!mReg && /submitRef\.current\(q\)/.test(mReg[0]), "y el chat lo entrega a `submit`, la función del formulario del input");
   ok(!!mReg && !/submitSpec/.test(mReg[0]), "…y NO a submitSpec: por ahí entraba el spec enlatado, que es el atajo que se sacó");
@@ -245,7 +245,7 @@ for (const p of [...Array(GUIA_PASOS).keys()]) {
   await irA(container, p);
   ok(pasoActual(container) === p + 1, `capítulo ${p + 1} («${GUIA_CAPITULOS[p]}») en pantalla`);
   ok(!!$(container, "guia-saltar") && !!$(container, "guia-cerrar"), `capítulo ${p + 1}: "Saltar" y ✕ disponibles`);
-  ok(!!$(container, "guia-abrir"), `capítulo ${p + 1}: el header sigue vivo detrás (no es un modal que bloquea)`);
+  ok(!!$(container, "guia-abrir"), `capítulo ${p + 1}: la barra lateral sigue viva detrás (no es un modal que bloquea)`);
   await clic($(container, "guia-saltar"));
   ok(!hayGuia(container), `capítulo ${p + 1}: "Saltar" la cierra`);
   cleanup();

@@ -247,6 +247,11 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
   const maxPart = Math.max(...rows.map((r) => r.part || 0), 1);
   const yBar = (p) => (H - padB) - (p / maxPart) * (H - padT - padB) * 0.82;
   const yCum = (p) => padT + (1 - p / 100) * (H - padT - padB);
+  /* LA ACUMULADA EN ROJO SUAVE Y PUNTEADA (owner 2026-08-20: «la línea del 80/20 debería roja más suave, y ahí
+   * sí podría como la del benchmark»). Antes era lavanda continua. El rojo la emparenta con lo que corta —el
+   * 80% es un umbral, igual que el benchmark— y el punteado dice que es una REFERENCIA trazada, no una serie
+   * medida. Suave a propósito: si fuera el rojo de alarma competiría con las cifras que sí lo usan. */
+  const _CUM_COL = "#e08a86";
   const dCum = monoPath(rows.map((_, i) => xc(i)), rows.map((r) => yCum(r.acum)));
   const kAmber = { fontFamily: MONO, fontWeight: 600, color: C.amber, fontVariantNumeric: "tabular-nums" };
   const iCut = Math.min(Math.max(panel.cutoff, 1), n) - 1;
@@ -274,8 +279,8 @@ export function MiniPareto({ panel, showTakeaway = true, onPick = null, highligh
               style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms ${EASE} ${i * 30}ms both` }}/>
           ))}
           {showCum && <>
-            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
-            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+            <path d={dCum} fill="none" stroke={_CUM_COL} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18" pathLength="1" strokeDasharray="1" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
+            <path d={dCum} fill="none" stroke={_CUM_COL} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95" strokeDasharray="5 3" style={{ animation: `adiDraw 600ms ${EASE} 200ms both` }}/>
           </>}
           <g style={{ animation: "adiFade 300ms 800ms both" }}>
             <circle cx={xc(iCut)} cy={yCum(rows[iCut].acum)} r="5.5" fill={C.amber} opacity="0.2"/>

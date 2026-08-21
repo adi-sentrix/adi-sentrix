@@ -4,7 +4,14 @@
  * Estado UI mínimo: escenario. La UI no calcula nada · el chat consume answerADI. */
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { C } from "./theme.js";
-import { ScenarioSelector } from "./ScenarioSelector.jsx";
+/* ⚠️ `ScenarioSelector` SE QUEDÓ SIN LUGAR EN LA PANTALLA (2026-08-20, al reemplazar el header por la barra
+ * lateral). No se borró nada: el componente sigue en `ScenarioSelector.jsx` y el eje `scenario` sigue vivo en el
+ * motor. Lo que desapareció es su único punto de montaje, que era el header blanco. En la práctica no cambia lo
+ * que se ve: `ADI_SCENARIO_SWITCHER_ENABLED` está APAGADO en todos los perfiles por decisión del owner del
+ * 2026-08-07, así que hace meses que nadie lo veía. Queda anotado porque volver a encenderlo ahora pide, además
+ * del flag, decidir dónde vive dentro de la barra — una barrita no puede colapsar un selector de tres estados. */
+import { BarraLateral } from "./BarraLateral.jsx";   // la barra de barritas del borde derecho · reemplaza al header blanco (owner 2026-08-20)
+import { PanelHistorial } from "./PanelHistorial.jsx";   // columna izquierda · historial · EN REVISIÓN, solo con ?historial=1
 import { ChatADI } from "./ChatADI.jsx";
 // Etapa 5 · Sentrix · panel de evidencia (se abre con la lectura). MEJORA 9 (2026-07-26): LAZY — el panel es la
 // pieza más pesada de la UI y no hace falta para el primer paint del chat; se parte del bundle principal y se
@@ -13,7 +20,6 @@ const SentrixPanel = React.lazy(() => import("./SentrixPanel.jsx"));
 import { GuiaInicio, guiaAbreSola } from "./GuiaInicio.jsx";   // guía de inicio (owner 2026-08-07) · la división del trabajo ADI/Sentrix, no un tour de features
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
-import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
@@ -39,14 +45,6 @@ function PanelSkeleton() {
     </div>
   );
 }
-
-const getCurrentDateString = () => {
-  const now = new Date();
-  const day   = String(now.getDate()).padStart(2, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const year  = now.getFullYear();
-  return `${day}-${month}-${year}`;
-};
 
 export default function App({ animate = true }) {
   const [scenario, setScenario] = useState(ESCENARIO_INICIAL);
@@ -85,8 +83,17 @@ export default function App({ animate = true }) {
   // Etapa 5 · Sentrix · estado del panel de evidencia (la "mesa de trabajo" estilo Code, a la derecha).
   const [openEv, setOpenEv]   = useState(null);   // la boleta abierta (con reading{}) · null = panel cerrado
   const [openId, setOpenId]   = useState(null);   // id del mensaje cuya evidencia está abierta (highlight del botón)
-  const [panelW, setPanelW]   = useState(460);    // ancho arrastrable
+  /* LA MESA ABRE SIEMPRE AL 50/50 (owner 2026-08-20). Antes abría en 460 px fijos, y ahí empezaba el problema
+   * que el propio owner cazó al recorrerla: las dos tablas de la cara Comercial piden entre 620 y 640 px, así
+   * que un tercio de las columnas nacía fuera de la vista y había que arrastrar antes de poder leer nada.
+   * Medio y medio es el reparto honesto entre la conversación y el dato — «el usuario verá cuál agranda más
+   * después, o la deja así». Sigue siendo arrastrable y el botón de agrandar sigue llevándola al 72%. */
+  const [panelW, setPanelW]   = useState(() => (typeof window !== "undefined" ? Math.round(window.innerWidth / 2) : 460));
   const [maxed, setMaxed]     = useState(false);  // agrandado
+  // columna izquierda EN REVISIÓN · se monta solo con `?historial=1` (mismo patrón que ?oracle=1 / ?barra=…)
+  const [historialVisible] = useState(() => { try { return new URLSearchParams(window.location.search).get("historial") === "1"; } catch { return false; } });
+  const [hayConversacion, setHayConversacion] = useState(false);   // lo reporta ChatADI · solo un booleano
+  const [histColapsado, setHistColapsado] = useState(false);
 
   const closePanel = () => { setOpenEv(null); setOpenId(null); setMaxed(false); };
   /* ── EL CABLE QUE FALTABA (owner 2026-08-09 · Contrato de Concordancia ADI ↔ Sentrix) ──────────────────────────
@@ -113,6 +120,17 @@ export default function App({ animate = true }) {
   const [guiaAbierta, setGuiaAbierta] = useState(() => guiaAbreSola());
   // ejecuta un ejemplo de la guía por el MISMO camino que un chip del hero (ChatADI registra su submitSpec acá)
   const runRef = useRef(null);
+  /* EL CHAT TIENE UN PISO, y el historial cede antes que él (owner 2026-08-20: «si las tres columnas quedan
+   * muy apretadas, prefiero que el historial sea plegable antes que achicar el chat principal»).
+   *
+   * ⚠️ ESTO ERA UN EFECTO CONTINUO Y ESE FUE UN DEFECTO REAL, cazado por el owner: «si quiero abrir el panel
+   * izquierdo no lo abre». El efecto miraba el espacio en CADA render, así que apenas el usuario desplegaba el
+   * historial con Sentrix abierto, volvía a plegarlo en el mismo instante — el panel era imposible de abrir.
+   * Ahora es UN SOLO DISPARO, en el momento de abrir Sentrix: se pliega si al hacerlo el chat quedaría por
+   * debajo del piso, y después no se mete más. Si el usuario lo abre a mano en un espacio justo, es su decisión. */
+  const _CHAT_MIN = 520;
+  const _hayQuePlegar = (anchoPanel) => (window.innerWidth - anchoPanel - 44 - 250) < _CHAT_MIN;
+
   const startResize = (e) => {
     e.preventDefault();
     const move = (ev) => {
@@ -134,111 +152,46 @@ export default function App({ animate = true }) {
   return (
     <div className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
-      {/* ── HEADER · BARRA BLANCA (owner 2026-07-10: "los colores de la página — la barra superior es blanca") ·
-          espejo de adiai.cl: blanco glass 0.94 · borde inferior rgba(17,17,17,0.09) · marca en negro · CTA celeste ── */}
-      <header style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", height:56, borderBottom:"1px solid rgba(17,17,17,0.09)", background:"rgba(255,255,255,0.96)", flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-          {/* el cubo = VOLVER AL HALO CENTRAL (owner 2026-07-14): click → cierra paneles + diálogo al inicio */}
-          <button onClick={() => { closePanel(); if (resetRef.current) resetRef.current(); }} title="Volver al inicio"
-            style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:"#131313", border:"1px solid rgba(17,17,17,0.15)", cursor:"pointer", padding:0, transition:"background 0.15s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#242424"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#131313"; }}>
-            {/* el cubo EXACTO de la landing (una sola elipse · punto r7 · trazo 3) */}
-            <svg width="20" height="20" viewBox="0 0 200 200" fill="none" stroke="#cfd5db" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
-              <circle cx="100" cy="100" r="55" strokeWidth="1.7" opacity="0.65"/>
-              <ellipse cx="100" cy="100" rx="55" ry="22" strokeWidth="1.5" opacity="0.5"/>
-              <circle cx="100" cy="100" r="7" fill="#2fb8da" stroke="none"/>
-            </svg>
-          </button>
-          <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
-            <span style={{ fontWeight:700, fontSize:14, letterSpacing:"-0.3px", color:"#131313" }}>ADI</span>
-            <span className="hdr-sub" style={{ fontWeight:500, fontSize:10.5, color:"#565656", fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1.2px", textTransform:"uppercase" }}>Sentrix</span>
-          </div>
-        </div>
-
-        <div className="hdr-acciones" style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
-          {/* ¿CÓMO FUNCIONA? · la puerta PERMANENTE a la guía de inicio (owner 2026-08-07). Discreto a propósito: es
-              una ayuda que se pide, no una acción del negocio — por eso ghost neutro y no el celeste sólido del CTA
-              de la Mesa. En pantallas angostas queda solo el "?" (la etiqueta se oculta como el resto del header). */}
-          <button data-testid="guia-abrir" onClick={() => setGuiaAbierta((v) => !v)}
-            title="Cómo se reparten el trabajo ADI y Sentrix, y qué le puedes preguntar"
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:9, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
-              border:`1px solid ${guiaAbierta ? "rgba(47,184,218,0.55)" : "rgba(17,17,17,0.12)"}`,
-              background: guiaAbierta ? "rgba(47,184,218,0.10)" : "#ffffff",
-              color: guiaAbierta ? "#1791b4" : "#565656", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, transition:"all 0.15s" }}
-            onMouseEnter={(e) => { if (!guiaAbierta) { e.currentTarget.style.background = "rgba(17,17,17,0.04)"; e.currentTarget.style.color = "#131313"; } }}
-            onMouseLeave={(e) => { if (!guiaAbierta) { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.color = "#565656"; } }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 2.4"/><line x1="12" y1="17" x2="12" y2="17"/>
-            </svg>
-            <span className="hdr-guia-label">¿Cómo funciona?</span>
-          </button>
-          {/* MESA DE CONTROL · Sentrix en operación (owner 2026-07-07): el modo "vivo mi negocio acá" — todas las cifras a
-              la mano (KPIs · focos con $ · el 80/20 · el cuadro operable) con ADI al lado. Toggle: abre/cierra el panel. */}
-          {/* CTA como en la landing: celeste sólido, texto blanco, radio 9 · activo = celeste más profundo */}
-          <button onClick={() => { if (openEv && openEv.lens === "mesa") closePanel(); else { setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
-            title="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"
-            style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 13px", borderRadius:9, cursor:"pointer", flexShrink:0, whiteSpace:"nowrap",
-              border:"none",
-              background: openEv && openEv.lens === "mesa" ? "#1e97b6" : "#2fb8da",
-              color:"#ffffff", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:11.5, fontWeight:600, transition:"all 0.15s" }}
-            onMouseEnter={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.background = "#28a9c9"; }}
-            onMouseLeave={(e) => { if (!(openEv && openEv.lens === "mesa")) e.currentTarget.style.background = "#2fb8da"; }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-            Mesa de control
-          </button>
-          {/* Escenarios (bonanza/tensión/crisis) SOLO en dev (ADI_SCENARIO_SWITCHER_ENABLED) · por defecto un chip neutro "Datos actuales" */}
-          {ADI_SCENARIO_SWITCHER_ENABLED ? (
-            <ScenarioSelector scenario={scenario} onChange={setScenario}/>
-          ) : (
-            <div title="Estás viendo los datos actuales del negocio" className="hdr-datos"
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:"1px solid rgba(17,17,17,0.12)", background:"#ffffff", flexShrink:0, whiteSpace:"nowrap" }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}/>
-              <span style={{ fontSize:11, fontWeight:600, color:"#454545", letterSpacing:"-0.005em" }}>Datos actuales</span>
-            </div>
-          )}
-          {/* Demo privada · saludo + vencimiento del código (solo cuando el acceso está activo) */}
-          {access.granted && access.granted.expiresAt && (() => {
-            const dias = Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000));
-            return (
-              <div title={`Hola ${access.granted.name} — tu demo vence el ${new Date(access.granted.expiresAt).toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`} className="hdr-demo"
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap", border:"1px solid rgba(17,17,17,0.12)", background:"rgba(17,17,17,0.03)" }}>
-                <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color:"#6f6f6f", textTransform:"uppercase" }}>
-                  Demo · {dias <= 1 ? "último día" : `quedan ${dias} días`}
-                </span>
-              </div>
-            );
-          })()}
-          {/* Modo demo vs IA · lee ADI_LLM_ENABLED (build-time) · nunca expone la key */}
-          <div title={ADI_LLM_ENABLED ? "Modo IA · el LLM traduce tu pregunta a un spec; ADI calcula, valida y decide (no inventa cifras)" : "Modo demo · motor determinístico, sin LLM ni gasto"}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 9px", borderRadius:20, flexShrink:0, whiteSpace:"nowrap",
-              border:`1px solid ${ADI_LLM_ENABLED ? "rgba(47,184,218,0.55)" : "rgba(17,17,17,0.15)"}`, background: ADI_LLM_ENABLED ? "rgba(47,184,218,0.10)" : "rgba(17,17,17,0.03)" }}>
-            <span style={{ width:5, height:5, borderRadius:"50%", background: ADI_LLM_ENABLED ? "#2fb8da" : "rgba(17,17,17,0.3)", flexShrink:0 }}/>
-            {/* celeste PROFUNDO para el texto sobre blanco (el #2fb8da puro no contrasta en fondo claro) */}
-            <span style={{ fontSize:9.5, fontWeight:600, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.8px", color: ADI_LLM_ENABLED ? "#1791b4" : "#6f6f6f", textTransform:"uppercase" }}>
-              {ADI_LLM_ENABLED ? "IA" : "Demo"}
-            </span>
-          </div>
-          <div className="hdr-live" style={{ display:"flex", alignItems:"center", gap:7, paddingLeft:14, borderLeft:"1px solid rgba(17,17,17,0.12)", flexShrink:0, whiteSpace:"nowrap" }}>
-            <span style={{ position:"relative", width:6, height:6, borderRadius:"50%", background:C.green, flexShrink:0 }}>
-              <span style={{ position:"absolute", inset:-3, borderRadius:"50%", border:"1px solid rgba(16,185,129,0.5)", animation:"livePulse 1.8s ease-out infinite" }}/>
-            </span>
-            <span className="hdr-live-text" style={{ fontSize:9.5, color:"#979797", fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"1px" }}>LIVE</span>
-            <span className="hdr-date" style={{ fontSize:10.5, color:"#131313", fontWeight:500, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.3px" }}>{getCurrentDateString()}</span>
-          </div>
-        </div>
-      </header>
-
-      {/* ── MAIN · ADI centro con atmósfera ── */}
+      {/* ── MAIN · ADI centro con atmósfera ──
+          LA BARRA BLANCA DE ARRIBA YA NO EXISTE (owner 2026-08-20): la marca, las dos acciones y los cuatro
+          indicadores de estado se mudaron a `BarraLateral`, al borde derecho. El lienzo empieza arriba de todo:
+          se recuperan los 56 px que ocupaba el header y desaparece el corte horizontal que partía la pantalla. */}
       <main style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", position:"relative", background:C.bg, overflow:"hidden" }}>
         {/* glow sutil ESTÁTICO (sin animación) · da vida a la esquina del chat · efecto tipo panel lateral de Code */}
         <div style={{ position:"absolute", left:0, bottom:0, width:"58%", height:"62%", zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse 75% 75% at 0% 100%, rgba(47,184,218,0.06), transparent 70%)" }}/>
+        {/* la barra flota SOBRE el lienzo, fuera del flujo: el campo de hexágonos pasa por debajo hasta el borde */}
+        <BarraLateral
+          mesaAbierta={!!(openEv && openEv.lens === "mesa")}
+          onMesa={() => { if (openEv && openEv.lens === "mesa") closePanel(); else {
+            // «SIEMPRE» al 50/50: se repone en CADA apertura, no solo en la primera del arranque. Si el usuario
+            // la agrandó ayer y hoy abre en otra pantalla, arranca pareja igual — y desde ahí la mueve.
+            const w = Math.round(window.innerWidth / 2);
+            setPanelW(w); setMaxed(false);
+            if (historialVisible && !histColapsado && _hayQuePlegar(w)) setHistColapsado(true);   // un solo disparo
+            setOpenEv({ lens: "mesa", periodo: scenario }); setOpenId("mesa"); } }}
+          historialAbierto={historialVisible && !histColapsado}
+          onConversaciones={historialVisible ? () => setHistColapsado((v) => !v) : null}
+          guiaAbierta={guiaAbierta}
+          onGuia={() => setGuiaAbierta((v) => !v)}
+          onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
+          {/* COLUMNA IZQUIERDA · propuesta en revisión (owner 2026-08-20), detrás de `?historial=1`. Sin el
+              parámetro no se monta y la app queda igual: esto todavía no decidió nada. Ver PanelHistorial.jsx
+              para lo que falta antes de que el historial sea real (persistencia + memoria de ADI al saltar hilo). */}
+          {/* PLEGADO = NO MONTADO. Con la barra en el borde izquierdo, ELLA es el estado plegado del panel —
+              su barrita «Conversaciones» lo trae de vuelta. Una tira propia de 52 px al lado de la barra serían
+              dos columnas angostas haciendo el mismo trabajo. Es el reparto de Code: barra · panel · centro. */}
+          {historialVisible && !histColapsado && (
+            <PanelHistorial
+              onNueva={() => { closePanel(); if (resetRef.current) resetRef.current(); }}
+              hayConversacion={hayConversacion}
+              onToggleColapso={() => setHistColapsado(true)}
+              usuario={access.granted && access.granted.name}
+              demoDias={access.granted && access.granted.expiresAt ? Math.max(0, Math.ceil((access.granted.expiresAt - Date.now()) / 86400000)) : null}/>
+          )}
           <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column" }}>
-            <ChatADI scenario={scenario} animate={animate}
+            <ChatADI scenario={scenario} animate={animate} onHayConversacion={setHayConversacion}
+              margenBarra={historialVisible && !histColapsado ? 0 : 44}
               onOpenEvidence={(ev, id) => { setOpenEv(ev && !ev.periodo ? { ...ev, periodo: scenario } : ev); setOpenId(id); }}   // periodo = el escenario vivo (la Mesa deep-linkeada desde una respuesta P&L lee el mismo dato que el chat)
               onSentrixAction={openFromAddress}
               openEvidenceId={openId}
