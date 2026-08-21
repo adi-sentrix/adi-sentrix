@@ -23,6 +23,11 @@ import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { DOCTRINA_NOTARIO_NATURAL } from "./src/adi/oracle/naturalPrompt.js";
+// el bloque 10 comprueba el CABLEADO de la escalera contra el código, no solo su salida
+import fs from "node:fs";
+import path from "path";
+import { fileURLToPath } from "url";
+const root = path.dirname(fileURLToPath(import.meta.url));
 initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
@@ -215,5 +220,39 @@ vive("| Falabella | $19.4M | 22.0% | -8.1pp | 4.5% | $1.57M |", "total-sin-decla
 vive("MAK-COMP-AIR generó $1.7M en ventas con $135K de contribución y 7.9% de margen — el margen de venta más bajo de toda la cartera.",
   "total-sin-declarar", "ALCANCE DEL SUPERLATIVO · el monto es del SKU, «de toda la cartera» califica al margen");
 ok(/UN TOTAL DEL CONJUNTO ES UNA CUENTA/.test(DOCTRINA_NOTARIO_NATURAL), "…y la doctrina se lo enseña al cerebro");
+
+console.log("\n" + "═".repeat(100));
+console.log("10 · EL ESCALÓN QUE FALTABA EN LA ESCALERA DEL SUPLENTE (owner 2026-08-21)");
+console.log("═".repeat(100));
+/* EL DEFECTO, visto por el owner en producción: pidió «hazme un resumen ejecutivo de las dos cosas que te he
+ * preguntado» después de DOS respuestas buenas, y el turno cayó al suplente — que le devolvió los KPIs
+ * generales del negocio. Arriba, en la misma conversación, había dos lecturas ya aprobadas, y el respaldo las
+ * tiró para empezar de cero desde la carpeta.
+ * EL ESCALÓN ofrece lo que ESA conversación ya validó, y lo ofrece VERBATIM: un texto que el muro aprobó vuelve
+ * a pasar por construcción, mientras que resumirlo sería reintentar justo lo que acaba de fallar. */
+{
+  const marco = (previa) => [
+    "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
+    "", previa.trim(), "",
+    "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
+  ].join("\n");
+  // una respuesta como las que ADI produce bajo las reglas vigentes
+  const VIGENTE = "Tu capital inmovilizado es $56K en 5 SKU, y de ahí $33K están frenados en 3 SKU: rotación bajo el piso de 2.0x o días de inventario sobre el techo de 120d.\n\nLG-DRYER8KG concentra $14K con rotación 1.0x y 165 días de inventario. MAK-COMP-AIR suma $8K con rotación 0.8x y 190 días de inventario.";
+  ok(guardC(VIGENTE, CTX).ok, "la respuesta anterior, sola, pasa el muro (es el punto de partida del escalón)");
+  ok(guardC(marco(VIGENTE), CTX).ok,
+    "…y envuelta en el marco del respaldo TAMBIÉN pasa: el escalón se puede ofrecer sin inventar nada");
+  // el marco no agrega cifras: es lo que lo hace seguro por construcción
+  const soloMarco = marco("").replace(/\n+/g, " ").trim();
+  ok(!/\d/.test(soloMarco.replace(/1\.1|2\.0/g, "")), "el marco NO trae ni una cifra propia: todo lo que afirma es la respuesta vieja");
+  // y si el texto viejo NO pasa el muro de hoy, el escalón cede — nunca fuerza una respuesta vetada a pantalla
+  const VIEJA_CON_DEFECTO = "Están frenados por rotación bajo 2.0x o más de 120 días sin rotar, en 3 SKU.";
+  ok(!guardC(marco(VIEJA_CON_DEFECTO), CTX).ok,
+    "una respuesta vieja que hoy tendría un defecto NO se ofrece: el escalón cede al peldaño siguiente");
+  // el cableado: el escalón va ANTES de la carpeta, no en vez de ella
+  const cn = fs.readFileSync(path.join(root, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
+  ok(/_respaldoDeLoYaAprobado\(memIn, juzgar\) \|\| suplenteDignoDelDato\(/.test(cn),
+    "en la escalera, el escalón nuevo va PRIMERO y la carpeta queda de respaldo — no se reemplaza nada");
+  ok(/juzgar\(candidato\)/.test(cn), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
+}
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

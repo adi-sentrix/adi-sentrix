@@ -72,6 +72,32 @@ const _motivoDeMulta = (multa) => {
  * Si el cerebro/gateway LANZA, esta función relanza: la red de resiliencia vive en el caller (ChatADI cae al
  * camino actual en el mismo turno). r.route="natural" · r.natural = el registro del turno (condición 5).
  */
+/* ── EL ESCALÓN QUE FALTABA EN LA ESCALERA DEL SUPLENTE (owner 2026-08-21) ────────────────────────────────────
+ * EL DEFECTO, visto por el owner en producción: pidió «hazme un resumen ejecutivo de las dos cosas que te he
+ * preguntado» después de DOS respuestas buenas, y el turno cayó al suplente — que le devolvió los KPIs
+ * generales del negocio. O sea: arriba, en la misma conversación, había dos lecturas ya aprobadas por el
+ * notario, y el respaldo las tiró a la basura para empezar de cero desde la carpeta.
+ * EL ESCALÓN: antes de caer al genérico, ofrecer lo que ESTA conversación ya validó. Y se ofrece VERBATIM, no
+ * reescrito: un texto que el muro ya aprobó vuelve a pasar por construcción, mientras que resumirlo sería
+ * volver a intentar exactamente lo que acaba de fallar. Se juzga igual que cualquier otro peldaño — si el texto
+ * viejo no pasa el muro de hoy (una regla nueva puede alcanzarlo), cae al peldaño siguiente sin ruido.
+ * NO ES UN CONTRATO NUEVO: es la MISMA escalera de `suplenteDignoDelDato`, con un peldaño más arriba. */
+function _respaldoDeLoYaAprobado(memIn, juzgar) {
+  const previas = Array.isArray(memIn && memIn.recentNarrations)
+    ? memIn.recentNarrations.filter((t) => typeof t === "string" && t.trim().length > 40)
+    : [];
+  if (!previas.length) return null;
+  const candidato = [
+    "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
+    "",
+    previas[0].trim(),
+    "",
+    "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
+  ].join("\n");
+  if (typeof juzgar !== "function") return candidato;
+  try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
+}
+
 export async function answerViaNatural({ text, history, mem, scenario = "actual", callNatural } = {}) {
   if (typeof callNatural !== "function") throw new TypeError("answerViaNatural sin callNatural: el cerebro lo pone el caller");
   const q = String(text || "").trim();
@@ -146,7 +172,7 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
   const res = await responderConNotario({
     juzgar,
     lavar: stripLanguageLeaks,
-    suplente: () => suplenteDignoDelDato({ scenario, juzgar }),
+    suplente: () => _respaldoDeLoYaAprobado(memIn, juzgar) || suplenteDignoDelDato({ scenario, juzgar }),
     pedir: async ({ intento, multa, anterior }) => {
       if (intento === 1) return callNatural({ mensajes, attempt: 0 });
       // el turno del asistente que se devuelve NUNCA puede ir vacío (el proveedor rechaza un content en blanco).
