@@ -3993,7 +3993,12 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * entidades que la oración nombra, y con una sola nombrada no hay orden que verificar (por eso el eje SKU
        * quedaba mudo: «MAK-COMP-AIR es el de peor rotación del inventario» nombra UNA). Las formas del universo
        * inventario se agregaron con el eje SKU (owner 2026-08-16). */
-      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b|\bdel?\s+(?:todo\s+el\s+)?inventario\b|\bde\s+los\s+\d{1,3}\s+SKU\b/i;
+      /* ⚠️ «DE INVENTARIO» NO DECLARA UN UNIVERSO · lo mide (Examen 5, turno 5, intento 1). La forma era `del?`,
+       * o sea aceptaba «de inventario» suelto — y «190 DÍAS DE INVENTARIO» es una etiqueta de métrica, no una
+       * frase que diga «entre los 13 SKU». Con eso, cualquier oración que mencionara la métrica se comparaba
+       * contra el inventario ENTERO, y un extremo verdadero dentro de su grupo moría contra un tercero que la
+       * oración jamás nombró. El universo se declara con «DEL inventario» («el peor del inventario»). */
+      const _TODO_EL_CONJUNTO = /\bde\s+(?:toda\s+)?la\s+cartera\b|\bde\s+tod[oa]s?\b|\bdel\s+negocio\b|\bde\s+(?:toda\s+)?la\s+lista\b|\bdel\s+inventario\b|\bde\s+todo\s+el\s+inventario\b|\bde\s+los\s+\d{1,3}\s+SKU\b/i;
       const _reEnt = (n) => new RegExp(`(?:^|[^\\p{L}\\p{N}])${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "iu");
       const _oraciones = String(narration).split(/(?<=[.!?])\s+|\n+/);
       let _vetadoSup = false;
@@ -4065,7 +4070,36 @@ export function guardC(narration, { ledger, results = [], trace = null, question
              * el extremo es de un GRUPO ya quedaron afuera por el candado del plural, unas líneas más arriba. */
             const delante = nombradas.filter((x) => _reEnt(x.entidad).test(antes))
               .sort((a, b) => antes.toLowerCase().lastIndexOf(_norm(a.entidad)) - antes.toLowerCase().lastIndexOf(_norm(b.entidad)));
-            const reclamante = delante.length ? delante[delante.length - 1] : sujetoPrevio;
+            /* EL SUJETO DETRÁS DEL VERBO · la construcción hendida (Examen 5, turno 5 · falso positivo MEDIDO:
+             * costó 3 llamadas y mandó al suplente una respuesta que era correcta). El borrador decía «El que más
+             * capital inmovilizado tiene entre los tres frenados ES LG-DRYER8KG» —y LG-DRYER8KG lo es—, pero el
+             * marcador ABRE la oración: no había nadie delante, así que la regla caía al sujeto de la oración
+             * anterior (MAK-COMP-AIR) y le cobraba a una entidad una frase que hablaba de otra.
+             * LA DISTINCIÓN NO ES «delante o detrás» — eso rompe el caso control del Examen 4, donde detrás
+             * también hay nombres («…el margen más bajo entre los tres grandes: Lider está en 21.5% y Jumbo en
+             * 24.0%») pero son LOS COMPARADOS, no el sujeto. Es EL VERBO el que marca al sujeto: solo cuenta la
+             * entidad que arranca JUSTO después de una cópula, y antes del corte donde empieza el detalle. Si no
+             * hay tal cosa, todo sigue exactamente como estaba. */
+            let sujetoDetras = null;
+            {
+              const _tras = oracion.slice(iM + mm[0].length);
+              const _corte = _tras.search(/[:;—–(]/);
+              const _zona = (_corte >= 0 ? _tras.slice(0, _corte) : _tras).toLowerCase();
+              for (const cop of [" es ", " son ", " fue ", " fueron ", " era ", " eran "]) {
+                for (let k = _zona.indexOf(cop); k >= 0 && !sujetoDetras; k = _zona.indexOf(cop, k + 1)) {
+                  // el nombre suele venir en NEGRITA («es **LG-DRYER8KG**»): el énfasis es del formato, no del nombre
+                  const _resto = _zona.slice(k + cop.length).replace(/^[*_«"']+/, "");
+                  const _cand = nombradas.filter((x) => _resto.startsWith(String(x.entidad).toLowerCase()));
+                  if (_cand.length === 1) sujetoDetras = _cand[0];   // una sola: con dos no se adivina
+                }
+                if (sujetoDetras) break;
+              }
+            }
+            /* Y LA CÓPULA MANDA SOBRE LO QUE HAYA DELANTE (intento 1 del mismo turno): «El más grave en severidad
+             * es MAK-COMP-AIR (…); el que más capital libera si se actúa es LG-DRYER8KG» son DOS cláusulas en una
+             * sola oración. Con MAK-COMP-AIR delante del segundo marcador, mirar hacia atrás vuelve a cobrarle la
+             * frase de otro. Cuando el verbo nombra al sujeto, no hay nada que deducir: ese es. */
+            const reclamante = sujetoDetras || (delante.length ? delante[delante.length - 1] : sujetoPrevio);
             if (!reclamante || !conjunto.some((x) => x.entidad === reclamante.entidad)) continue;
             const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
             if (extremo.entidad === reclamante.entidad) continue;

@@ -74,6 +74,27 @@ vive("Easy tiene la peor carga comercial de la cartera: 5.5%.", "superlativo-no-
 vive("Falabella es el cliente de mayor venta de toda la cartera: $19.4M.", "superlativo-no-sostenido",
   "«el de mayor venta de toda la cartera» es cierto y pasa");
 
+/* ── EL SUJETO DETRÁS DEL VERBO · los dos falsos positivos del EXAMEN 5, turno 5 ──────────────────────────────
+ * Costaron 3 llamadas y mandaron al suplente una respuesta que era CORRECTA. El notario leía «el que más X tiene
+ * es <ENTIDAD>» y le atribuía el extremo a la entidad de la frase ANTERIOR, en vez de a la que nombra el verbo.
+ * Los textos son los borradores REALES del examen, no una versión limpia. */
+vive("El que más capital inmovilizado tiene entre los tres frenados es **LG-DRYER8KG**: $14K de capital.",
+  "superlativo-no-sostenido", "«el que más X tiene ES <entidad>»: el sujeto va DETRÁS del verbo, y en negrita");
+vive("El peor caso es MAK-COMP-AIR: 190 dias, pero solo $8K. El que mas capital inmovilizado tiene entre los tres frenados es **LG-DRYER8KG**: $14K.",
+  "superlativo-no-sostenido", "…y no se le cobra a la entidad de la oración anterior");
+vive("El más grave en severidad es MAK-COMP-AIR (190 días de inventario, $8K); el que más capital libera si se actúa es **LG-DRYER8KG** ($14K, 165 días de inventario).",
+  "superlativo-no-sostenido", "…ni a la de la cláusula anterior: dos cláusulas en una oración siguen siendo dos sujetos");
+// y el chequeo SIGUE distinguiendo: la misma forma con la entidad equivocada muere
+muere("Entre LG-DRYER8KG y MAK-COMP-AIR, el que más capital inmovilizado tiene es **MAK-COMP-AIR**.",
+  "superlativo-no-sostenido", "la MISMA forma con el nombre equivocado muere (LG-DRYER8KG tiene $13.6K contra $8.4K)");
+/* ── «DE INVENTARIO» ES UNA MÉTRICA, «DEL INVENTARIO» ES UN UNIVERSO (mismo turno, intento 1) ─────────────────
+ * «190 DÍAS DE INVENTARIO» abría la comparación a los 13 SKU enteros, así que un extremo verdadero dentro de su
+ * grupo moría contra un tercero que la oración jamás nombró. */
+vive("LG-DRYER8KG tiene 165 días de inventario y es el que más capital inmovilizado tiene de los tres frenados: $14K.",
+  "superlativo-no-sostenido", "«días de inventario» NO declara el universo: es la etiqueta de la métrica");
+muere("LG-DRYER8KG es el de peor rotación del inventario: 1.0x.",
+  "superlativo-no-sostenido", "…y «DEL inventario» sí lo declara: se compara contra los 13 (MAK-COMP-AIR está en 0.8x)");
+
 console.log("\n" + "═".repeat(100));
 console.log("2 · SUPERLATIVOS · las formas que PARECEN un extremo y no lo son (los falsos positivos medidos)");
 console.log("═".repeat(100));
