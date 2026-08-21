@@ -208,7 +208,13 @@ H("[1a] EL NEGOCIO, CLIENTE POR CLIENTE · el top 10, la cartera completa y las 
   const ths = [...tabla.querySelectorAll("th")].map((t) => t.textContent);
   for (const c of K.columnas) ok(ths.some((t) => t.startsWith(c.label)), `columna "${c.label}" presente`);
   ok(ths.length === 7, `son exactamente las 7 que pidió el owner — ${ths.length}`);
-  ok(/probado/.test(ths[5]) && /indicado/.test(ths[6]), "las dos referencias van SELLADAS distinto en la cabecera: probado / indicado");
+  /* EL SELLO SALIÓ DE PANTALLA, NO DEL DATO (owner 2026-08-20, reafirmado: «te dije que quitaras el probado»).
+     El chip PROBADO/INDICADO confundía a quien lee. Lo que este chequeo protege ahora es lo que de verdad importa:
+     que el MÓDULO siga declarando el sello de cada referencia y que sigan siendo DISTINTOS entre sí — el año
+     anterior es dato cerrado y el presupuesto es un plan. Si algún día los dos vinieran sellados igual, sería un
+     defecto del motor y este gate lo caza, se pinte o no. */
+  ok(K.columnas[5].estatus === "probado" && K.columnas[6].estatus === "indicado",
+    "las dos referencias siguen SELLADAS distinto EN EL DATO: probado / indicado");
   // POR DEFECTO, EL TOP 10 · y la cola no está a la vista
   const cuerpo = tabla.querySelector("tbody");
   ok(cuerpo.querySelectorAll("tr").length === K.tope, `arranca mostrando las primeras ${K.tope}`);
@@ -299,7 +305,7 @@ H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
   for (const s of e.series) {
     ok(T.includes(s.label) && T.includes(s.totalFmt), `serie "${s.label}" con su total ${s.totalFmt}`);
     const b = botones(container).find((x) => x.textContent.includes(s.label) && x.textContent.includes(s.totalFmt));
-    ok(!!b && b.textContent.includes(s.estatus), `…rotulada ${s.estatus.toUpperCase()} y apagable desde la leyenda`);
+    ok(!!b && !!s.estatus, `…con su sello «${s.estatus}» declarado en el módulo y apagable desde la leyenda`);
   }
   ok(T.includes(e.totalActualFmt) && e.totalActualFmt === R.kpis[0].valor,
     `RECONCILIA a la vista: el cierre del gráfico y el KPI de ventas son el MISMO número — ${e.totalActualFmt}`);

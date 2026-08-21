@@ -1625,7 +1625,8 @@ function ResumenMovimiento({ num, title, def, children }) {
 // la GRADUACIÓN epistémica hecha color (el sello del contrato v2 · probado/indicado/abierto)
 const _rcEstatusCol = (e) => (e === "probado" ? C.green : e === "indicado" ? C.amber : C.textMuted);
 // el sello epistémico, en módulo: lo usan el bloque 02 y el desplegable de "venden mucho pero dejan poco"
-const _rcChip = (estatus, texto) => (
+const _rcChip = () => null;   /* SELLOS FUERA DE PANTALLA (owner 2026-08-20, reafirmado: «te dije que quitaras el probado»). Ver la nota del encabezado del archivo. */
+const _rcChipViejo = (estatus, texto) => (
   <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(estatus), border: `1px solid ${_rcEstatusCol(estatus)}55`, borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>{texto || estatus}</span>
 );
 const _rcTonoCol = (t) => (t === "ok" ? C.green : t === "alerta" ? C.red : t === "aviso" ? C.amber : C.textMuted);
@@ -1786,7 +1787,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
               {c.label}
               {/* en angosto el sello baja a su propia línea: al lado del título se monta encima del de la columna
                   vecina, y un sello ilegible no sella nada */}
-              {c.estatus ? <span style={{ display: angosto ? "block" : "inline", width: angosto ? "fit-content" : undefined, marginLeft: angosto ? "auto" : 4, marginTop: angosto ? 2 : 0, fontSize: 11, letterSpacing: "0.5px", color: _rcEstatusCol(c.estatus), border: `1px solid ${_rcEstatusCol(c.estatus)}55`, borderRadius: 3, padding: "1px 4px" }}>{c.estatus}</span> : null}
+              {null}   /* el sello del encabezado no se pinta (owner 2026-08-20) */
             </th>
           ))}</tr></thead>
           <tbody>{filas.map((f) => (
@@ -2007,7 +2008,7 @@ function ResumenEvolutivo({ ev, R = null, onAsk }) {
             <span style={{ width: 14, height: 0, borderTop: `${s.key === "actual" ? 2.5 : 2}px ${s.key === "actual" ? "solid" : "dashed"} ${col}`, flexShrink: 0 }}/>
             <span style={{ fontSize: 14, color: off ? C.textMuted : C.textSub }}>{s.label}</span>
             <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 600, color: off ? C.textMuted : col, fontVariantNumeric: "tabular-nums" }}>{s.totalFmt}</span>
-            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.5px", textTransform: "uppercase", color: _rcEstatusCol(s.estatus), border: `1px solid ${_rcEstatusCol(s.estatus)}55`, borderRadius: 3, padding: "1px 4px" }}>{s.estatus}</span>
+            {null}   /* el sello de la leyenda no se pinta (owner 2026-08-20) */
           </button>
         ); })}
       </div>
