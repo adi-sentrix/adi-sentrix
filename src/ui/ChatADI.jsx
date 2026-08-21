@@ -26,6 +26,7 @@ const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
+import { registrarTurno } from "../adi/telemetria.js";   // el renglón de salud del turno · sin dato de negocio (ver telemetria.js)
 import { answerViaNatural } from "../adi/oracle/caminoNatural.js";   // el camino natural: cerebro único + notario + ciclo de reparación (flag ADI_CAMINO_NATURAL)
 import { puedeResponderSinPagar } from "../adi/bypassConfianza.js";   // ¿el piso entiende esta pregunta lo bastante bien como para NO pagar? (owner 2026-08-12)
 import { getLastOffer } from "../adi/oracle/dialogueState.js";   // la oferta viva del turno anterior — cambia el sentido de "sí" o "el segundo"
@@ -89,6 +90,12 @@ function _pnlScopeProjection(mem) {
  * lo había contestado el viejo — se vio porque las CIFRAS no coincidían con la carpeta, no porque el sistema lo
  * dijera. Esto NO es superficie de producto: no pinta nada en pantalla. Deja el rastro en la consola del
  * navegador y en `window.__ADI_RUTA__` (últimos 20 turnos) para poder leerlo al medir. */
+/* EL RELOJ DEL TURNO. `telemetria.js` es puro y determinístico a propósito (los gates comparan salidas byte a
+ * byte), así que la marca de tiempo y la latencia las pone ESTE lado, que es el que sabe cuándo arrancó. */
+let _t0Turno = 0;
+const _marcarInicioDeTurno = () => { try { _t0Turno = Date.now(); } catch { _t0Turno = 0; } };
+const _ahora = () => { try { return Date.now(); } catch { return null; } };
+const _msDelTurno = () => { try { return _t0Turno ? Date.now() - _t0Turno : null; } catch { return null; } };
 function _rastroDeRuta(q, r, source, escenario) {
   try {
     const nat = (r && r.natural) || null;
@@ -113,13 +120,18 @@ function _rastroDeRuta(q, r, source, escenario) {
     if (typeof window !== "undefined") {
       window.__ADI_RUTA__ = [rastro, ...(window.__ADI_RUTA__ || [])].slice(0, 20);
     }
+    /* Y SE REGISTRA, no solo se imprime (owner 2026-08-21). `window.__ADI_RUTA__` se pierde al recargar y no
+     * suma: sirve para mirar UN turno, no para saber cómo se está portando. `registrarTurno` guarda el renglón
+     * de salud —sin dato de negocio, ver telemetria.js— y `resumenTelemetria()` responde la pregunta sin
+     * gastar una llamada. Nunca puede romper el turno: el try de afuera lo cubre. */
+    registrarTurno({ ...rastro, t: _ahora(), ms: _msDelTurno(), reparaciones: nat ? nat.reparaciones : null });
     if (typeof console !== "undefined" && console.info) {
       console.info(`[ADI ruta] ${rastro.via}${rastro.estado ? " · " + rastro.estado : ""}${rastro.vetos && rastro.vetos.length ? " · vetos: " + rastro.vetos.join(" | ") : ""}`);
     }
   } catch { /* el rastro JAMÁS puede romper un turno: es un instrumento, no una garantía */ }
 }
-function _turnFromResult(q, r, context, source) {
-  _rastroDeRuta(q, r, source);
+function _turnFromResult(q, r, context, source, escenario) {
+  _rastroDeRuta(q, r, source, escenario);
   const deferred = r.text == null;
   const baseContext = { ...(r.context || context || {}) };
   // MEMORIA CANÓNICA + VISTA DERIVADA (Contrato v2 · Fase 4, owner 2026-08-07): `conversationScope` es la memoria
@@ -1113,6 +1125,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
   const submit = (raw) => {
     const q = (raw || "").trim();
     if (!q) return;
+    _marcarInicioDeTurno();   // el reloj arranca ACÁ: la latencia que importa es la que espera el usuario
     // GUARDIA DE REENTRADA: un turno ya en vuelo (fetch async al gateway) bloquea a un segundo submit/submitSpec —
     // ver la nota junto a isSubmittingRef. El camino demo/piso (sync, más abajo) nunca prende esta guardia porque
     // corre y termina en el mismo tick: no hay ventana para reentrar.
