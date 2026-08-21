@@ -20,6 +20,9 @@ const SentrixPanel = React.lazy(() => import("./SentrixPanel.jsx"));
 import { GuiaInicio, guiaAbreSola } from "./GuiaInicio.jsx";   // guía de inicio (owner 2026-08-07) · la división del trabajo ADI/Sentrix, no un tour de features
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
+import { cargarTenant } from "../data/tenantClient.js";       // vía 1 · el dato llega por la red, no por el bundle
+import { tenantCargado } from "../data/tenantStore.js";
+import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
 import { initPnl } from "../adi/pnl.js";   // P&L COMERCIAL (owner 2026-07-15) · re-aplica las líneas de gasto declaradas al boot
@@ -80,6 +83,19 @@ export default function App({ animate = true }) {
     window.addEventListener("adi-access-denied", onDenied);
     return () => { alive = false; window.removeEventListener("adi-access-denied", onDenied); };
   }, []);
+  /* ── VÍA 1 (2026-08-20) · EL DATO DE ESTA EMPRESA, DESPUÉS DEL VEREDICTO DE ACCESO ────────────────────────────
+   * `main.jsx` ya intenta traerlo antes de montar, así que en el caso normal (código válido guardado) esto no
+   * hace nada: `tenantCargado()` ya es true en el primer render. Este efecto cubre el OTRO camino — el usuario
+   * acaba de escribir su código en la puerta: ahí recién existe una sesión, y el dato hay que pedirlo entonces.
+   * Sin esto, entrar por la puerta dejaba la app con la forma vacía (cero filas) hasta recargar. */
+  const [datosListos, setDatosListos] = useState(() => tenantCargado());
+  useEffect(() => {
+    if (datosListos || !access.checked) return;
+    if (access.required && !access.granted) return;   // todavía no hay sesión: no hay a quién pedirle dato
+    let alive = true;
+    cargarTenant().then((r) => { if (alive && r && r.ok) setDatosListos(true); }).catch(() => {});
+    return () => { alive = false; };
+  }, [access.checked, access.required, access.granted, datosListos]);
   // Etapa 5 · Sentrix · estado del panel de evidencia (la "mesa de trabajo" estilo Code, a la derecha).
   const [openEv, setOpenEv]   = useState(null);   // la boleta abierta (con reading{}) · null = panel cerrado
   const [openId, setOpenId]   = useState(null);   // id del mensaje cuya evidencia está abierta (highlight del botón)
@@ -148,6 +164,9 @@ export default function App({ animate = true }) {
   if (_hash === "#acceso" && !access.granted) return <AccessGate onGranted={(g) => { setAccess((a) => ({ ...a, checked: true, granted: g })); window.location.hash = ""; }} reason={access.reason} expiresAt={access.expiresAt}/>;   // vista previa de la puerta
   if (!access.checked) return <div style={{ height:"100vh", background:C.bg }}/>;   // sin flash del producto antes del veredicto
   if (access.required && !access.granted) return <AccessGate onGranted={(g) => setAccess((a) => ({ ...a, granted: g }))} reason={access.reason} expiresAt={access.expiresAt}/>;
+  // vía 1 · MISMA pantalla neutra que el pre-veredicto: el producto no se pinta sobre la forma vacía. En el camino
+  // normal esto no se ve (main.jsx ya trajo el dato); se ve el instante justo después de escribir el código.
+  if (!datosListos) return <div style={{ height:"100vh", background:C.bg }}/>;
 
   return (
     <div className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>

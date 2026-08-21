@@ -30,6 +30,13 @@ let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ FALLO: " + m + (extra ? "\n      " + extra : "")); } };
 const H = (t) => console.log("\n" + t + "\n" + "─".repeat(Math.min(100, t.length)));
 
+// vía 1 (2026-08-20): el dataset se DECLARA acá, y ANTES de los imports dinámicos de abajo. Ojo con el orden: esas
+// líneas DESESTRUCTURAN el namespace (`const { clientesVentas } = await import(…)`), o sea que capturan el VALOR del
+// momento — no un live binding. Declarar el tenant después dejaría a este gate mirando la forma vacía.
+const { initTenant } = await import("./src/data/tenantStore.js");
+const { TENANT_DEMO } = await import("./src/data/tenants/demo.js");
+initTenant(TENANT_DEMO);
+
 const { TOOLS } = await import("./src/adi/oracle/toolRegistry.js");
 const { clientCapitalRelacion, composeSpecClientCapital } = await import("./src/adi/specRetrieval.js");
 const { datasetCapability, entityExplorable } = await import("./src/adi/sentrix/capability.js");
@@ -137,6 +144,8 @@ H("[3] LA FICHA EJECUTIVA · declara la limitación en vez de rellenar con el in
     logLevel: "silent",
   });
   const ui = await import(pathToFileURL(bundlePath).href);
+  // vía 1 (2026-08-20): declarar el tenant SOBRE ESTA instancia — el bundle tiene su propia copia del store.
+  ui.initTenant(ui.TENANT_DEMO);
   const React = (await import("react")).default;
   const { render, cleanup } = await import("@testing-library/react");
 

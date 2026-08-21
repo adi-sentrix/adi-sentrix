@@ -7,9 +7,24 @@ import { clientesMargen } from "../../data/demoData.js";
 import { skusMargen } from "../../data/skusMargen.js";
 import { applyScenarioToClientesMargen, applyScenarioToSfamiliasMargen, deriveKpis } from "../../engine/scenarios.js";
 import { detectClientInText, detectSkuInText } from "../detectors.js";
-import { filterTextualSuggestions, normalizeText } from "../helpers.js";
+import { cuentasMasGrandes, filterTextualSuggestions, normalizeText } from "../helpers.js";
 import { deriveBusinessThesis, scanMechanisms } from "./thesis.js";
 import { buildNarrativeSignalsForExecutiveAction } from "./executiveAction.js";
+
+/* ── LOS EJEMPLOS DE LAS PREGUNTAS DE PRECISIÓN · DEL DATO, NO DEL DEMO (2026-08-21) ─────────────────────────
+ * Estas preguntas SALEN A PANTALLA: son lo que ADI responde cuando le falta el alcance de una simulación. Traían
+ * «SAM-REF500L · Falabella · Línea Blanca» —un SKU, una cuenta y una familia del demo— escritas a mano. Con el
+ * archivo de otra empresa, ADI pedía precisión ofreciendo tres ejemplos que en ese negocio no existen: el peor
+ * momento posible para nombrar mal, porque el usuario está por copiar el ejemplo para contestar.
+ * Se toma el más grande de cada eje (el más reconocible para quien mira su propio negocio). Si un eje viene
+ * vacío, ese ejemplo no se ofrece: la pregunta se hace igual, sin un paréntesis inventado. */
+const _ejemploCuenta  = () => cuentasMasGrandes(clientesMargen, 1)[0] || null;
+const _ejemploSku     = () => cuentasMasGrandes(skusMargen, 1)[0] || null;
+const _ejemploFamilia = () => SUPERFAMILIAS.slice(1)[0] || null;
+const _conEjemplos = (pregunta, ejemplos) => {
+  const e = (ejemplos || []).filter(Boolean);
+  return e.length ? `${pregunta} (p. ej. ${e.join(" · ")})` : pregunta;
+};
 
 export function extractMarginSimulation(text, scenarioId) {
   const raw = text || "";
@@ -44,7 +59,9 @@ export function extractMarginSimulation(text, scenarioId) {
   }
   if (!alcance || !alcance.length) {
     // c · sin alcance → transform INCOMPLETO → pedir precisión de ALCANCE (NO default · firmado)
-    return { needsPrecision: true, question: "¿En qué cuentas? Lider · el grupo erosionado · todas", options: ["una cuenta", "el grupo erosionado", "todas"] };
+    // El ejemplo de "una cuenta" era "Lider" a mano; ahora es la cuenta más grande del negocio activo.
+    const _c = _ejemploCuenta();
+    return { needsPrecision: true, question: `¿En qué cuentas? ${_c ? `${_c} · ` : ""}el grupo erosionado · todas`, options: ["una cuenta", "el grupo erosionado", "todas"] };
   }
   if (magnitud == null) {
     // alcance resuelto pero falta magnitud → precisión de magnitud
@@ -284,7 +301,7 @@ export function extractGrowthSimulation(text, scenarioId) {
       if (tokens.some(t => t && norm.includes(t))) { scope = fam; scopeType = "familia"; break; }
     }
   }
-  if (!scope) return { needsPrecision: true, question: "¿De qué cliente o familia? (p. ej. Falabella · Línea Blanca)", options: [] };
+  if (!scope) return { needsPrecision: true, question: _conEjemplos("¿De qué cliente o familia?", [_ejemploCuenta(), _ejemploFamilia()]), options: [] };
   if (pct == null) return { needsPrecision: true, question: "¿Cuánto " + (signo < 0 ? "cae" : "crece") + "? (p. ej. 2%)", options: [] };
   return { growth: { scope, scopeType, pct, signo } };
 }
@@ -401,7 +418,7 @@ export function extractPriceSimulation(text, scenarioId) {
       }
     }
   }
-  if (!scope) return { needsPrecision: true, question: "¿De qué SKU, cliente o familia? (p. ej. SAM-REF500L · Falabella · Línea Blanca)", options: [] };
+  if (!scope) return { needsPrecision: true, question: _conEjemplos("¿De qué SKU, cliente o familia?", [_ejemploSku(), _ejemploCuenta(), _ejemploFamilia()]), options: [] };
   if (pct == null) return { needsPrecision: true, question: "¿Cuánto " + (signo < 0 ? "baja" : "sube") + " el precio? (p. ej. 2%)", options: [] };
   return { price: { scope, scopeType, pct, signo } };
 }

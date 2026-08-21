@@ -42,6 +42,10 @@ const EPS = 1e-6;
 
 // ── [A] SENTINEL DEL DEMO · lo que el demo responde HOY, capturado antes de cualquier switch ──
 console.log("[A] SENTINEL del demo (pre-switch)");
+// vía 1 (2026-08-20): el sentinel se captura sobre un demo DECLARADO, no sobre el que traía el import por defecto.
+// `tenantStore` ya no importa ningún dataset (esos imports metían el dato de todas las empresas en el bundle
+// publicado), así que sin esta línea el sentinel se tomaría sobre la forma vacía y [C] compararía peras con nada.
+initTenant(TENANTS.demo);
 const SENTINEL_SPECS = [
   ["overview ventas@cliente", S({ operation: "overview", metric: "ventas", dimension: "cliente" })],
   ["rank contribucion@marca", S({ operation: "rank", metric: "contribucion", dimension: "marca", limit: 3 })],

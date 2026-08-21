@@ -435,6 +435,21 @@ export const PERFIL = {
   costModel: { tipo: "variable_total" },
 };
 
+/* ── VOCABULARIO DE ENTRADA · lo que el negocio declara sobre CÓMO SE ESCRIBEN sus cuentas (2026-08-21) ──────
+ * El router deriva su vocabulario de cliente del propio dato (`clientesVentas` · ver routerData/detectors), y esa
+ * derivación cubre el nombre canónico, su minúscula sin acentos y las palabras sueltas de un nombre compuesto.
+ * Quedan DOS cosas que el nombre no alcanza a decir y que solo el negocio sabe:
+ *   · ALIAS · formas que la gente escribe y que no salen de partir el nombre: «mercadolibre» pegado, «lapolar».
+ *     Antes vivían escritas a mano en `CLIENT_NAME_MAP`; sin declararlas acá, ADI entendería «mercado libre» pero
+ *     NO «mercadolibre» — un recorte real del vocabulario que hoy tiene.
+ *   · AMBIGUOS · nombres que además son palabras comunes («el abc del margen» ≠ el cliente ABC). Estos exigen un
+ *     conector antes («de/del/cliente/cuenta/para ABC») y SOLO en el extractor de filtros (modo strict). No se
+ *     deriva: ninguna regla por largo separa «easy»/«paris» de «lider» sin cambiarle el trato a Lider.
+ * Las dos van en MINÚSCULA SIN ACENTOS — así es como el router normaliza antes de buscar. Un tenant que no las
+ * declare queda con el vocabulario derivado del nombre y nada más: correcto, no degradado (ver empresa2). */
+export const clientesAlias = { mercadolibre: "Mercado Libre", lapolar: "La Polar" };
+export const clientesAmbiguos = ["abc", "easy", "paris"];
+
 export const TENANT_DEMO = {
   id: "demo",
   nombre: "ADI Demo",
@@ -444,4 +459,5 @@ export const TENANT_DEMO = {
   ventasKPI, margenKPI, invKPI, ventasMensuales,
   SUPERFAMILIAS, MARCAS_ALL, SUCURSALES,
   SCENARIO_TRANSFORMS,
+  clientesAlias, clientesAmbiguos,
 };

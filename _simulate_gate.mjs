@@ -4,6 +4,12 @@
 import { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";
 import { composeSpecSimulate, computeQualityVerdict } from "./src/adi/specRetrieval.js";
 import { guardAgainstBoleta } from "./src/adi/boleta.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };

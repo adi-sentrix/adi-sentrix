@@ -26,6 +26,12 @@ const H = (t) => console.log("\n" + t);
 import { MODE_KEYS } from "./src/adi/oracle/conversationalContract.js";
 import { isDefaultPref, blockInstructionFor, BRIEF_INSTRUCTION } from "./src/adi/oracle/responsePreference.js";
 import * as NP from "./src/adi/oracle/narratePromptC.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 // los detectores de forma no se exportan; se reusan indirectamente comparando el payload REAL contra sí mismo
 // bajo dos caminos (contrato vs. llamada directa). Para la equivalencia estructural alcanza con comparar el

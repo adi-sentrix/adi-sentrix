@@ -24,7 +24,11 @@ const { coerceFloor: CF, composePnl, pnlExplain, pnlRecommend, setPnlLines, clea
 // F1 multiempresa: ADI_TENANT=<id> corre el MISMO espejo sobre otro tenant (las frases que ADI emite con SUS
 // entidades deben reclamar igual). Sin la env var, camino demo BYTE-IDÉNTICO (literales de siempre).
 const TN = process.env.ADI_TENANT || "demo";
+// vía 1 (2026-08-20): el camino demo TAMBIÉN declara. Antes se apoyaba en el import por defecto de tenantStore,
+// que ya no existe (metía el dato de todas las empresas en el bundle publicado): sin este else, el espejo del demo
+// corría sobre la forma vacía y no reclamaba nada, que es la peor forma de pasar — pasar sin haber mirado.
 if (TN !== "demo") { if (!M.TENANTS[TN]) { console.error(`tenant desconocido: ${TN}`); process.exit(2); } M.initTenant(M.TENANTS[TN]); }
+else M.initTenant(M.TENANTS.demo);
 const _td = M.TENANTS[TN];
 const N = TN === "demo"
   ? { c1: "Falabella", deixis: ["Ripley", "La Polar"], fam: "Cuidado Personal", marcaSin: "Makita" }

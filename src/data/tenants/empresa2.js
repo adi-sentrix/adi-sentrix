@@ -358,6 +358,13 @@ export const PERFIL = {
   ],
 };
 
+/* ── VOCABULARIO DE ENTRADA · esta empresa NO declara nada, y eso es parte de la prueba (2026-08-21) ──────────
+ * `clientesAlias`/`clientesAmbiguos` son opcionales: ninguna cuenta de acá es una palabra común («Comercial
+ * Aconcagua» no colisiona con nada) ni se escribe pegada. Vacíos a propósito — si el producto necesitara que
+ * estuvieran poblados para funcionar, sería hardcodeo del demo disfrazado, y este fixture existe para atraparlo. */
+export const clientesAlias = {};
+export const clientesAmbiguos = [];
+
 // ── EL TENANT ARMADO · mismo shape que TENANT_DEMO ───────────────────────────────────────────────────────────
 export const TENANT_EMPRESA2 = {
   id: "empresa2",
@@ -368,4 +375,5 @@ export const TENANT_EMPRESA2 = {
   ventasKPI, margenKPI, invKPI, ventasMensuales,
   SUPERFAMILIAS, MARCAS_ALL, SUCURSALES,
   SCENARIO_TRANSFORMS,
+  clientesAlias, clientesAmbiguos,
 };

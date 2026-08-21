@@ -28,6 +28,12 @@ import esbuild from "esbuild";
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
 import fs from "fs";   // el bloque 9 comprueba contra el CÓDIGO que los cruces que la guía promete existen de verdad
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
 const ok = (cond, label) => { if (cond) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ FALLO: ${label}`); } };
@@ -66,6 +72,8 @@ await esbuild.build({
   logLevel: "silent",
 });
 const ui = await import(pathToFileURL(bundlePath).href);
+// vía 1 (2026-08-20): declarar el tenant SOBRE ESTA instancia — el bundle tiene su propia copia del store.
+ui.initTenant(ui.TENANT_DEMO);
 const React = (await import("react")).default;
 const { render, fireEvent, cleanup, act } = await import("@testing-library/react");
 

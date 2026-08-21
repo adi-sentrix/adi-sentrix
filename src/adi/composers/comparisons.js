@@ -1,5 +1,5 @@
 import { applyScenarioToClientesMargen } from "../../engine/scenarios.js";
-import { filterTextualSuggestions } from "../helpers.js";
+import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { _bFmt1, _bFmt2, _brandHasClientWorld, _brandRow } from "../router.js";
 import { _cmpRatio } from "./warehouse.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
@@ -26,11 +26,7 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
     const missing = !A ? clientA_name : clientB_name;
     return {
       opener: `No tengo a ${missing} en el detalle de la cartera de este escenario.`,
-      suggestions: filterTextualSuggestions([
-        "Cuéntame de Falabella",
-        "Cuéntame de Lider",
-        "Cuéntame de Jumbo",
-      ]),
+      suggestions: filterTextualSuggestions(cuentasMasGrandes(dataset).map(n => `Cuéntame de ${n}`)),
       sentrixAction: null,
     };
   }
@@ -137,10 +133,14 @@ function composeClientComparison(clientA_name, clientB_name, scenario, modulo) {
     }
   }
 
+  // La tercera cuenta que se ofrece para seguir comparando: la más grande que no sea ninguna de las dos que ya
+  // están en pantalla. Antes decía "Jumbo" — la tercera del demo, escrita a mano.
+  const tercera = cuentasMasGrandes(dataset, 3).find(n => n !== A.nombre && n !== B.nombre) || null;
+
   const suggestions = filterTextualSuggestions([
     `¿Por qué ${A.nombre} pierde margen?`,
     `¿Qué pasaría si pierdo a ${A.nombre}?`,
-    `Compara ${B.nombre} con Jumbo`,
+    ...(tercera ? [`Compara ${B.nombre} con ${tercera}`] : []),
   ]);
 
   // FASE 1.5.B-HOTFIX-3-PATCH-3 · Sentrix action apunta a Márgenes

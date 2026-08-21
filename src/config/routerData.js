@@ -3,6 +3,7 @@
 
 import { _buildEntityId, _generateAliases, _normalizeAlias } from "../adi/router.js";
 import { clientesVentas, skuInventario } from "../data/demoData.js";
+import { onTenantChange } from "../data/tenantStore.js";
 import { VOICE_ENTITY_REGISTRY_ENABLED } from "./voiceFlags.js";
 
 export const KEYWORDS_DICTIONARY = {
@@ -164,11 +165,14 @@ export const RANKING_INTENT_PATTERNS = [
   "los mas", "las mas", "mayor", "menor", "principales",
 ];
 
-export const CLIENT_NAMES = [
-  "Falabella", "Lider", "Jumbo", "Sodimac", "Tottus", "Paris",
-  "Mercado Libre", "Ripley", "Easy", "La Polar", "Hites",
-  "ABC", "Unimarc"
-];
+/* CLIENT_NAMES · DERIVADO del dato activo (2026-08-21). Antes eran los 13 nombres del demo escritos a mano en
+ * config del router: con el archivo de un cliente real, ADI habría reconocido las cuentas del demo y no las suyas.
+ * Sale de `clientesVentas` en el orden del dataset (el mismo que tenía la lista) y se RE-ARMA en initTenant —
+ * mismo patrón que KNOWN_ENTITIES en ui/theme.js. Lo consume `extractConcepts` para empujar client_entity. */
+const _clientNames = () => (Array.isArray(clientesVentas) ? clientesVentas : [])
+  .map((c) => c && c.nombre)
+  .filter((n, i, arr) => n && arr.indexOf(n) === i);
+export let CLIENT_NAMES = _clientNames();
 
 export const _DEICTIC_PLURAL_DEMONSTRATIVE = /\b(esos|estos|aquellos|esas|estas|aquellas)\b/i;
 
@@ -505,7 +509,15 @@ export const _storage = (function _detectStorage() {
   };
 })();
 
-export const EntityRegistry = (function _initEntityRegistry() {
+/* EntityRegistry · el índice de entidades del dato (nombre canónico + alias + kind), consumido por
+ * `getEntityById` y por `_d1fResolveEntityName` (deepThreading). Se ARMA acá y se RE-ARMA en initTenant.
+ *
+ * ⚠️ POR QUÉ EL REBUILD NO ES OPCIONAL (2026-08-21): hasta la vía 1 este índice se construía UNA vez, en tiempo
+ * de import, y alcanzaba porque el store arrancaba con el demo cargado. Desde que el store arranca VACÍO y el
+ * dataset entra por `initTenant`, un registro armado en import queda vacío para siempre — ADI dejaría de resolver
+ * cualquier id de entidad a su nombre, en silencio y sin error. El candado [D] del bundle no lo veía porque
+ * routerData no estaba en su lista de módulos derivados. */
+function _initEntityRegistry() {
   if (!VOICE_ENTITY_REGISTRY_ENABLED) {
     return { entities: {}, index: { by_canonical_name: {}, by_alias: {}, by_kind: {} }, meta: { storage_mode: _storage.mode, is_persistent: _storage.is_persistent } };
   }
@@ -593,4 +605,12 @@ export const EntityRegistry = (function _initEntityRegistry() {
       total_entities: Object.keys(entities).length,
     },
   };
-})();
+}
+
+export let EntityRegistry = _initEntityRegistry();
+
+// EL REBUILD · todo lo que este módulo deriva del dato se re-arma acá, en initTenant, y en ningún otro lado.
+onTenantChange(() => {
+  CLIENT_NAMES = _clientNames();
+  EntityRegistry = _initEntityRegistry();
+});

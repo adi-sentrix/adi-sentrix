@@ -12,6 +12,12 @@ import { ledgerBoleta } from "./src/adi/oracle/ledger.js";
 import { buildOracleEvidence } from "./src/adi/oracle/sentrixEvidence.js";
 import { figFor } from "./src/adi/boleta.js";
 import { setBenchmarkOverride } from "./src/config/businessPolicy.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 const SC = "actual";
 let pass = 0; const fails = [];

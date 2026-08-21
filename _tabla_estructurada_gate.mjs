@@ -10,6 +10,12 @@
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { buildOracleEvidence } from "./src/adi/oracle/sentrixEvidence.js";
 import { chartForEvidence } from "./src/adi/sentrix/chartSpec.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
 const ok = (cond, label) => { console.log(`  ${cond ? "✓" : "✗"} ${label}`); if (cond) pass++; else fail++; };

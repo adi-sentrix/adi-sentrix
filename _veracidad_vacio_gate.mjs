@@ -47,6 +47,12 @@ import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { TOOL_CONTRACTS, MOTIVO_TIPO, diagnosticarVacio, entidadesNombradas, ejeCanonico } from "./src/adi/oracle/toolContracts.js";
 import { resolveCanonical, axisCollisions } from "./src/adi/oracle/entityIndex.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 const SC = "base";
 let PASS = 0, FAIL = 0;

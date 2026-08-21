@@ -121,11 +121,14 @@ export function composeModuleOverview(scenarioId, moduloId) {
     const opener = [m1, m2, m3, m4].filter(Boolean).join("\n\n");
 
     const suggestionsByScenario = {
+      // Las cuentas que se nombran salen del dato: la que más crece (`fastest`) y la más grande (`sorted[0]`),
+      // que es exactamente el papel que cumplían "Mercado Libre" y "Falabella" escritas a mano. Si el escenario
+      // no tiene quien crezca, la sugerencia que la nombraba se cae sola en vez de inventar una cuenta.
       bonanza: [
-        "¿Por qué Mercado Libre crece tanto?",
-        "¿Qué pasa si pierdo a Falabella?",
+        fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
+        sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
         "¿Dónde están los clientes que caen?",
-      ],
+      ].filter(Boolean),
       tension: [
         "¿Qué clientes están en caída?",
         "¿La carga comercial está subiendo sin retorno?",
@@ -133,9 +136,9 @@ export function composeModuleOverview(scenarioId, moduloId) {
       ],
       crisis: [
         "¿Qué clientes están perdiendo más volumen?",
-        "¿Mercado Libre puede compensar?",
+        fastest ? `¿${fastest.nombre} puede compensar?` : null,
         "¿Dónde corto y dónde sostengo?",
-      ],
+      ].filter(Boolean),
     };
     const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
 
@@ -175,8 +178,17 @@ export function composeModuleOverview(scenarioId, moduloId) {
 
     // ── Runtime · outlier de carga comercial (cliente concentrador)
     const marg = clientesMargen;
-    const ml = marg.find(c => c.nombre === "Mercado Libre");
-    const topRebate = [...marg].sort((a, b) => b.rebates - a.rebates)[0];
+    /* EL CONTRAPUNTO SE CALCULA, NO SE NOMBRA (2026-08-21). Acá decía `find(c => c.nombre === "Mercado Libre")`:
+     * la cuenta que el texto usa como contraejemplo de `topRebate` estaba amarrada por NOMBRE a una del demo.
+     * Con otra empresa, `ml` quedaba undefined y la línea reventaba en `ml.nombre` (no era un texto raro: era un
+     * TypeError). El papel que cumple en la frase es "la que opera con la carga más baja de la cartera", que es
+     * justamente lo que la hace el contrapunto estructural del que más carga concentra. Eso sí sale del dato. */
+    const ml = [...marg].filter(c => c && c.tipo === "cliente").sort((a, b) => (a.pctRebate || 0) - (b.pctRebate || 0))[0];
+    const _porRebates = [...marg].sort((a, b) => b.rebates - a.rebates);
+    const topRebate = _porRebates[0];
+    const segundoRebate = _porRebates[1];   // la segunda palanca de carga · nombra una sugerencia, no una cifra
+    const masCaraDeSostener = [...marg].filter(c => c && c.tipo === "cliente")
+      .sort((a, b) => (b.pctRebate || 0) - (a.pctRebate || 0))[0];   // la de mayor carga EN % de su venta
 
     let m1, m2, m3;
 
@@ -203,11 +215,17 @@ export function composeModuleOverview(scenarioId, moduloId) {
     const opener = [m1, m2, m3, m4].join("\n\n");
 
     const suggestionsByScenario = {
+      /* Las cuentas se eligen por su PAPEL en la frase, con el criterio dicho, en vez de estar escritas a mano:
+       *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
+       *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
+       *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta, que es lo que la frase
+       *     pregunta. Con el demo esto ya no dice "Ripley" sino la cuenta que efectivamente más cuesta sostener
+       *     (5,5% de carga) — el nombre viejo no salía de ningún criterio, y no había forma de derivarlo. */
       bonanza: [
         "¿Cuánto margen perdemos por cliente?",
-        "¿Falabella está pagando lo que vale?",
-        "¿Qué pasa si bajo la carga comercial de Lider?",
-      ],
+        topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
+        segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
+      ].filter(Boolean),
       tension: [
         "¿Dónde se está yendo el margen?",
         "¿Qué cliente concentra la pérdida?",
@@ -215,9 +233,9 @@ export function composeModuleOverview(scenarioId, moduloId) {
       ],
       crisis: [
         "¿Qué clientes están en pérdida real?",
-        "¿Cuánto cuesta sostener a Ripley?",
+        masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
         "¿Qué pasa si subo precios a los Tier 2?",
-      ],
+      ].filter(Boolean),
     };
     const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
 
@@ -377,11 +395,14 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
 
     // Suggestions intactas (D5 mantener bitwise · legacy wording)
     const suggestionsByScenario = {
+      // Las cuentas que se nombran salen del dato: la que más crece (`fastest`) y la más grande (`sorted[0]`),
+      // que es exactamente el papel que cumplían "Mercado Libre" y "Falabella" escritas a mano. Si el escenario
+      // no tiene quien crezca, la sugerencia que la nombraba se cae sola en vez de inventar una cuenta.
       bonanza: [
-        "¿Por qué Mercado Libre crece tanto?",
-        "¿Qué pasa si pierdo a Falabella?",
+        fastest ? `¿Por qué ${fastest.nombre} crece tanto?` : null,
+        sorted[0] ? `¿Qué pasa si pierdo a ${sorted[0].nombre}?` : null,
         "¿Dónde están los clientes que caen?",
-      ],
+      ].filter(Boolean),
       tension: [
         "¿Qué clientes están en caída?",
         "¿La carga comercial está subiendo sin retorno?",
@@ -389,9 +410,9 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       ],
       crisis: [
         "¿Qué clientes están perdiendo más volumen?",
-        "¿Mercado Libre puede compensar?",
+        fastest ? `¿${fastest.nombre} puede compensar?` : null,
         "¿Dónde corto y dónde sostengo?",
-      ],
+      ].filter(Boolean),
     };
     const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
     // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas
@@ -420,8 +441,17 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const erosionContrib = ventaActual * (Math.abs(deltaPp) / 100);
 
     const marg = clientesMargen;
-    const ml = marg.find(c => c.nombre === "Mercado Libre");
-    const topRebate = [...marg].sort((a, b) => b.rebates - a.rebates)[0];
+    /* EL CONTRAPUNTO SE CALCULA, NO SE NOMBRA (2026-08-21). Acá decía `find(c => c.nombre === "Mercado Libre")`:
+     * la cuenta que el texto usa como contraejemplo de `topRebate` estaba amarrada por NOMBRE a una del demo.
+     * Con otra empresa, `ml` quedaba undefined y la línea reventaba en `ml.nombre` (no era un texto raro: era un
+     * TypeError). El papel que cumple en la frase es "la que opera con la carga más baja de la cartera", que es
+     * justamente lo que la hace el contrapunto estructural del que más carga concentra. Eso sí sale del dato. */
+    const ml = [...marg].filter(c => c && c.tipo === "cliente").sort((a, b) => (a.pctRebate || 0) - (b.pctRebate || 0))[0];
+    const _porRebates = [...marg].sort((a, b) => b.rebates - a.rebates);
+    const topRebate = _porRebates[0];
+    const segundoRebate = _porRebates[1];   // la segunda palanca de carga · nombra una sugerencia, no una cifra
+    const masCaraDeSostener = [...marg].filter(c => c && c.tipo === "cliente")
+      .sort((a, b) => (b.pctRebate || 0) - (a.pctRebate || 0))[0];   // la de mayor carga EN % de su venta
 
     let b2, b3, b4, b5;
     if (scenarioId === "bonanza") {
@@ -453,11 +483,17 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
     const opener = [b2, b3, b4, b5].filter(Boolean).join("\n\n");
 
     const suggestionsByScenario = {
+      /* Las cuentas se eligen por su PAPEL en la frase, con el criterio dicho, en vez de estar escritas a mano:
+       *   · "¿… está pagando lo que vale?" → la que más carga comercial concentra en $ (`topRebate`).
+       *   · "¿… si bajo la carga comercial de X?" → la que le sigue: la segunda palanca de la misma naturaleza.
+       *   · "¿Cuánto cuesta sostener a X?" → la de mayor carga en PORCENTAJE de su venta, que es lo que la frase
+       *     pregunta. Con el demo esto ya no dice "Ripley" sino la cuenta que efectivamente más cuesta sostener
+       *     (5,5% de carga) — el nombre viejo no salía de ningún criterio, y no había forma de derivarlo. */
       bonanza: [
         "¿Cuánto margen perdemos por cliente?",
-        "¿Falabella está pagando lo que vale?",
-        "¿Qué pasa si bajo la carga comercial de Lider?",
-      ],
+        topRebate ? `¿${topRebate.nombre} está pagando lo que vale?` : null,
+        segundoRebate ? `¿Qué pasa si bajo la carga comercial de ${segundoRebate.nombre}?` : null,
+      ].filter(Boolean),
       tension: [
         "¿Dónde se está yendo el margen?",
         "¿Qué cliente concentra la pérdida?",
@@ -465,9 +501,9 @@ export function composeModuleOverviewV2(scenarioId, moduloId) {
       ],
       crisis: [
         "¿Qué clientes están en pérdida real?",
-        "¿Cuánto cuesta sostener a Ripley?",
+        masCaraDeSostener ? `¿Cuánto cuesta sostener a ${masCaraDeSostener.nombre}?` : null,
         "¿Qué pasa si subo precios a los Tier 2?",
-      ],
+      ].filter(Boolean),
     };
     const suggestions = suggestionsByScenario[scenarioId] || suggestionsByScenario.bonanza;
     // BRIEF N-bis · Tipo A puro · suggestionsByScenario filtradas

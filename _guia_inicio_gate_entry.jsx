@@ -11,3 +11,8 @@ export { HERO_CHIPS, buildAdiTurn, NOT_YET_TEXT } from "./src/ui/ChatADI.jsx";
 export { answerConversational } from "./src/adi/conversation.js";
 export { resetPnlDraft } from "./src/adi/pnl.js";
 export { coerceSpec, coerceFloor } from "./src/adi/coerceChain.js";   // el gate comprueba que el spec derivado sea EXACTAMENTE el que el coercer produce
+// vía 1 (2026-08-20): el tenant se declara DENTRO del bundle. El store ya no importa ningún dataset (esos
+// imports metían el dato de todas las empresas en el bundle publicado), y esta instancia de esbuild tiene su PROPIA
+// copia del store: declararlo en el proceso del gate no la alcanza.
+export { initTenant } from "./src/data/tenantStore.js";
+export { TENANT_DEMO } from "./src/data/tenants/demo.js";

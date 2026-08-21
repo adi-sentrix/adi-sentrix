@@ -5,6 +5,7 @@
  * NO toca el motor · la key vive en el env del server. Errores → {ok:false} y el cliente degrada al piso.
  */
 import { GATEWAY_ROUTES } from "./gatewayCore.js";
+import { handleData } from "../../data/tenantService.server.js";
 import { ipAddress } from "@vercel/functions";
 import { instalarTelemetria } from "./telemetrySink.js";
 import { toolNames } from "../oracle/toolRegistry.js";
@@ -66,10 +67,17 @@ function _mintLimited(ip, now = Date.now()) {
 // castiga a todos bajo una misma clave "sin-ip", que sería un auto-DoS).
 const _clientIp = (request) => { try { return ipAddress(request) || null; } catch { return null; } };
 
+// ── LAS RUTAS QUE SIRVE ESTE HANDLER ──────────────────────────────────────────────────────────────────────────
+// `/api/adi-data` (vía 1 · 2026-08-20) se monta ACÁ y no en `GATEWAY_ROUTES` a propósito: ese mapa vive en
+// `gatewayCore.js`, y meterle el registro de tenants haría que todo módulo que importa el core arrastre el dato de
+// todas las empresas. `gatewayFetch` en cambio solo lo importan `api/*.js` y `server.js` — servidor puro. La regla
+// es la de siempre: el dato de tenant entra por el borde del servidor, nunca por el núcleo compartido.
+const ROUTES = { ...GATEWAY_ROUTES, "/api/adi-data": handleData };
+
 // gatewayFetch(request, env) → Response · `env` opcional (para runtimes tipo Cloudflare que pasan el env al handler)
 export async function gatewayFetch(request, env) {
   const url = new URL(request.url);
-  const handler = GATEWAY_ROUTES[url.pathname];
+  const handler = ROUTES[url.pathname];
   if (!handler) return _json({ ok: false, error: "ruta desconocida" }, 404);
   if (request.method !== "POST") return _json({ ok: false, error: "usá POST" }, 405);
   let body;

@@ -10,7 +10,7 @@ import { applyScenarioToClientesMargen, applyScenarioToClientesVentas } from "..
 import { buildReframe, buildSuggestedAction, calculateRecoverable, classifySeverity, detectInternalDriver } from "../../engine/signals.js";
 import { POLICY } from "../../config/businessPolicy.js";   // hardening · política de negocio · UNA fuente (byte-idéntico)
 import { getStrategicProfile, getSubstitutionMap } from "../detectors.js";
-import { filterTextualSuggestions } from "../helpers.js";
+import { cuentasMasGrandes, filterTextualSuggestions } from "../helpers.js";
 import { scanMechanisms } from "./thesis.js";
 
 export function getObservableRelations(entityType, entityId, scenario, dataset) {
@@ -98,14 +98,19 @@ export function getClientDeepDive(clientName, scenarioId, context = {}) {
 
   // Fallback (preserved from previous version)
   if (!v) {
+    /* ESTA FRASE SALE A PANTALLA, y decía «Las cuentas activas son Falabella, Lider, Jumbo y otras 10» con los
+     * tres nombres y el número 10 escritos a mano. Es el peor lugar para un literal del demo: es LA respuesta a
+     * "no encontré esa cuenta", o sea el momento exacto en que el usuario está pidiendo saber qué cuentas SÍ
+     * existen. Con otra empresa, ADI le habría contestado con tres cuentas ajenas y un conteo falso. */
+    const _activas = cuentasMasGrandes(ventas, 3);
+    const _resto = Math.max(0, ventas.length - _activas.length);
+    const _cuales = _activas.length
+      ? ` Las cuentas activas son ${_activas.join(", ")}${_resto ? ` y otras ${_resto}` : ""}. ¿Cuál quieres revisar?`
+      : "";
     return {
-      opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario. Las cuentas activas son Falabella, Lider, Jumbo y otras 10. ¿Cuál quieres revisar?`,
+      opener: `No tengo a ${clientName} en el detalle de la cartera de este escenario.${_cuales}`,
       // BRIEF N-bis · Tipo A puro · suggestions filtradas
-      suggestions: filterTextualSuggestions([
-        "Cuéntame de Falabella",
-        "Cuéntame de Mercado Libre",
-        "Cuéntame de Lider",
-      ]),
+      suggestions: filterTextualSuggestions(_activas.map(n => `Cuéntame de ${n}`)),
       // FIX_GREETING_RESET_RRE · query negocio aunque cliente no exista · igual resetea
       reasoningPattern: "client_deep_dive_unavailable",
     };
@@ -214,8 +219,11 @@ export function getClientDeepDive(clientName, scenarioId, context = {}) {
     if (profile && profile.tier === 1) {
       if (!suggestions.find(s => s.includes("benchmark"))) suggestions.push(`Cómo está su margen vs benchmark`);
       if (!suggestions.find(s => s.includes("Compara"))) {
-        const compareTarget = clientName === "Lider" ? "Falabella" : "Lider";
-        suggestions.push(`Compara a ${clientName} con ${compareTarget}`);
+        // Contra quién comparar: la cuenta más grande que no sea esta. Antes era un ternario entre dos nombres
+        // del demo ("Lider" ? "Falabella" : "Lider") — con cualquier otra empresa proponía comparar contra una
+        // cuenta inexistente, y la comparación siguiente no tenía cómo resolverse.
+        const compareTarget = cuentasMasGrandes(ventas, 2).find(n => n !== clientName);
+        if (compareTarget) suggestions.push(`Compara a ${clientName} con ${compareTarget}`);
       }
     } else if (profile && profile.tier === 2) {
       if (!suggestions.find(s => s.includes("evoluciona"))) suggestions.push(`Cómo evoluciona ${clientName} mes a mes`);

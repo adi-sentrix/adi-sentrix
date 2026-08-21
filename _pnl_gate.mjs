@@ -17,6 +17,8 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, `_plge.tmp${process.pid}.js`), out = path.join(root, `_plgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
+  'export { initTenant } from "./src/data/tenantStore.js";',
+  'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
   'export { answerConversational, updateMemoria } from "./src/adi/conversation.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
   'export { buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, detectPnlIntent, composePnl, pnlSimAsk, pnlDisponibilidad, pnlEjesDisponibles, detectPnlEllipsis, pnlScope, editPnlLine, removePnlLine, addPnlLine, pnlExplain, pnlRecommend, ensurePnlNarration } from "./src/adi/pnl.js";',
@@ -32,6 +34,9 @@ fs.writeFileSync(entry, [
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { answerConversational: AC, coerceFloor: CF, coerceSpec: CS, buildPnlCascade, activePnl, setPnlLines, clearPnl, resetPnlDraft, pnlDraft, composePnl, pnlSimAsk, buildMesaResultado, guardAgainstBoleta } = M;
 

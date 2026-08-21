@@ -6,6 +6,7 @@
  */
 import fs from "fs";
 import { handleSpec, handleNarrate, handleAccess, handlePlan, handleNarrateC } from "./gatewayCore.js";
+import { handleData } from "../../data/tenantService.server.js";   // vía 1 · el dato de UNA empresa (server-side)
 import { resolverProveedor } from "./providerConfig.js";
 
 // carga el .env local a process.env (server-side, SOLO dev) · la key vive acá, jamás en el cliente ni en logs.
@@ -42,6 +43,10 @@ export function adiGatewayPlugin() {
       mount("/api/adi-access", handleAccess);   // demo privada · status/check/mint (sin ADI_TOKEN_SECRET = abierto)
       mount("/api/adi-plan", handlePlan);       // Arquitectura C · Pasada 1 · PLAN (detrás del flag ADI_ORACLE_ENABLED)
       mount("/api/adi-narrate-c", handleNarrateC); // Arquitectura C · Pasada 2 · NARRAR con persona
+      // vía 1 (2026-08-20): el dato de UNA empresa, resuelto server-side. En dev conviene además exportar
+      // ADI_DEV_TENANT_SWITCH=true para que `?tenant=empresa2` siga sirviendo para validar a mano — en producción
+      // esa variable no existe y el parámetro del navegador no hace nada.
+      mount("/api/adi-data", handleData);
 
       // el log declara lo que HAY, no un default inventado (owner 2026-08-13): antes imprimía `provider=anthropic`
       // cuando la variable faltaba, y ese renglón confirmaba una configuración que no existía.

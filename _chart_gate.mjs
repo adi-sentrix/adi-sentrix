@@ -8,11 +8,16 @@ import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path 
 // función"). Era la causa de los fallos intermitentes de `gates:offline`. Un archivo por gate, sin excepción.
 const root = process.cwd(); const entry = path.join(root, `_chart_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_chart_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
+  'export { initTenant } from "./src/data/tenantStore.js";',
+  'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
   'export { chartForEvidence } from "./src/adi/sentrix/chartSpec.js";',
   'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { chartForEvidence: CH, answerADIFromSpec: A } = M;
 

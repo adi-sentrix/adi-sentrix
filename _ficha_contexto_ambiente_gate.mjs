@@ -42,6 +42,12 @@ import { isSealed } from "./src/adi/oracle/narrationContract.js";
 import { buildReadingFromSignals, buildClientContribSignals } from "./src/adi/sentrix/reading.js";
 import { buildCuadroMando } from "./src/adi/sentrix/cuadro.js";
 import { getTenantId } from "./src/data/tenantStore.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 let PASS = 0, FAIL = 0;

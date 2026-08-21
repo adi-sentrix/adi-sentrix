@@ -6,9 +6,21 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 // nombre PROPIO de este gate (ver la nota en _chart_gate.mjs).
 const root = process.cwd(), out = path.join(root, `_spec_gate_bundle.tmp${process.pid}.mjs`);
-await esbuild.build({ entryPoints: [path.join(root, "src/adi/answerADIFromSpec.js")], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
+/* vía 1 (2026-08-20): el dataset se DECLARA, ya no se hereda del import por defecto de tenantStore (ese import
+ * metía el dato de todas las empresas en el bundle publicado). OJO CON EL DETALLE QUE CUESTA UNA HORA: esbuild
+ * produce OTRA instancia del grafo, con su propio `tenantStore`. Declarar el tenant en el proceso del gate no la
+ * toca. Por eso el entry re-exporta también `initTenant`/`TENANT_DEMO`: hay que declarárselo AL BUNDLE. */
+const entry = path.join(root, `_spec_gate_entry.tmp${process.pid}.js`);
+fs.writeFileSync(entry, [
+  'export { answerADIFromSpec } from "./src/adi/answerADIFromSpec.js";',
+  'export { initTenant } from "./src/data/tenantStore.js";',
+  'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
+].join("\n"), "utf8");
+await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(out); } catch {}
+try { fs.unlinkSync(entry); } catch {}
 const A = M.answerADIFromSpec;
 
 const S = (o) => ({ schemaVersion: 1, scenario: "actual", filters: {}, ...o });   // spec base + overrides

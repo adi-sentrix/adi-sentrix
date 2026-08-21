@@ -140,14 +140,68 @@ Con esos dos campos nuevos, una cifra en pantalla se rastrea hasta **la celda de
 
 ---
 
-## 7 · Lo que decide el owner (no se asume)
+## 7 · Las cinco decisiones del owner — TOMADAS (2026-08-20)
 
-1. **¿La carga reemplaza el dato del tenant o convive como universo aparte?** El caso que él describió
-   (el Excel de precios del proveedor) es un universo APARTE sellado como escenario. Un ERP mensual es
-   reemplazo. Probablemente hagan falta los dos, y hay que nombrarlos distinto desde el principio.
-2. **¿Quién puede subir?** ¿Solo el administrador del tenant, o cualquier usuario?
-3. **¿Qué pasa con la conversación anterior cuando cambia la versión activa?** Una respuesta de ayer citó
-   cifras que hoy podrían no existir.
-4. **Retención**: ¿cuánto se guardan los archivos originales y las versiones viejas?
-5. **El orden**: ¿primero el aislamiento real (sacar los datos del bundle) o primero el pipeline sobre el
-   tenant demo? El aislamiento es más grande y más riesgoso, y es previo al primer piloto real.
+Se traían como opciones y quedaron resueltas. **No se re-discuten; se implementan.**
+
+**7.1 · La carga es de DOS tipos, con nombres distintos desde el principio.**
+
+| tipo | qué hace | caso del owner | quién lo sube |
+|---|---|---|---|
+| **dato del negocio** | REEMPLAZA la versión activa del tenant. Queda versionado y con rollback. | el ERP mensual | **solo el administrador** del tenant |
+| **archivo de referencia** | NUNCA reemplaza. Entra declarado como universo aparte y sirve para proyectar. | el Excel de precios del proveedor | **cualquier usuario** |
+
+⚠️ **Corrección al diseño base:** §7.1 del borrador decía que el universo aparte se sella «como escenario».
+**No.** El concepto de escenario se está eliminando de la superficie del producto (pendiente
+`adi-colapsar-escenarios`, disparado porque «bonanza» se filtró a la guía de inicio). El universo aparte se
+llama **archivo de referencia** y se sella con ese rótulo — no se reintroduce una palabra que se está sacando.
+
+**7.2 · Quién sube: separado por tipo** (ver la tabla de 7.1). La proyección sobre un archivo de referencia
+**no toca el dato de nadie más**: vive en la sesión de quien lo subió y no entra a la versión activa del tenant.
+Es lo que sostiene la visión del owner («muchos serán gerentes») sin darle a un usuario la capacidad de cambiar
+la base sobre la que ADI le responde a toda la empresa.
+
+**7.3 · Conversación anterior: congelada y marcada.** Al activarse una carga nueva, los hilos anteriores quedan
+**de solo lectura**, declaran en pantalla de qué carga son, y para continuar hay que volver a preguntar sobre la
+versión vigente. **Ni se borran ni se recalculan** — recalcular sería reescribir lo que ADI ya dijo, y el usuario
+ya decidió sobre eso.
+
+**7.4 · Retención: archivo original 12 meses · versiones del pack, siempre.** El original es lo que permite
+auditar una cifra hasta la celda; el pack pesa poco y no se descarta. Si un cliente se va, se borra todo a
+pedido.
+
+**7.5 · El orden: el canal primero, el mapeo en paralelo.**
+
+- **Vía 1 — el canal (lo grande).** El servidor entrega el dato de UNA empresa por fetch autenticado; el
+  navegador deja de recibir todos los tenants. Es el piso común del login, del aislamiento y de la carga.
+- **Vía 2 — en paralelo, NO depende de la vía 1.** Leer el archivo con código, validarlo, y proponer el mapeo
+  para confirmación humana. Es la parte novedosa del frente y la que conviene probar temprano; **no se rehace**
+  cuando llegue el canal.
+- **Lo que ESPERA al canal:** entregar el fact pack generado, la versión activa, y cualquier dato real de
+  cliente. Ningún archivo de un cliente real entra antes de que la vía 1 esté cerrada.
+
+---
+
+## 8 · Lo que estas cinco decisiones dejan fijado (consecuencias, no opciones)
+
+1. **Dos tipos de carga desde la primera migración.** `uploads.tipo ∈ {negocio, referencia}` nace con la tabla;
+   no se agrega después. Reemplazo y referencia tienen permisos, ciclo de vida y visibilidad distintos.
+2. **El archivo de referencia NO entra a `fact_pack_versions` activo.** Su proyección es por (tenant, usuario,
+   sesión). Un gerente proyectando precios de proveedor no puede mover lo que ADI le responde a su jefe.
+3. **Cada respuesta guardada lleva la versión que la produjo.** Es el campo «versión de carga» de §4, y es lo
+   que hace posible el 7.3: sin él, «congelada y marcada» no se puede ni dibujar.
+4. **El pack tiene que ser autosuficiente.** Como el archivo original se borra a los 12 meses y el pack vive
+   para siempre, **el pack no puede depender del original para responder** — la fuente (archivo · hoja · fila)
+   se guarda DENTRO del pack como texto, no como puntero a un archivo que puede no existir.
+5. **El orden de trabajo queda declarado**: vía 1 y vía 2 avanzan a la par; nada de dato real cruza antes de
+   que la vía 1 cierre.
+
+---
+
+## 9 · El plan de ejecución
+
+Las cinco decisiones de arriba se convierten en trabajo en **`_FRENTE_DATOS_PLANO_VIAS.md`**: las dos vías
+(seguridad/tenant e ingesta), qué se toca en cada paso, los tres candados que las prueban sin gastar
+(`_bundle_sin_datos_gate`, `_tenant_gate`, `_ingesta_espejo_gate`) y el único punto donde hay gasto,
+con su monto. Ahí también está la **medición** que ordena la prioridad: la fuga del bundle no es teórica —
+se buscó en el paquete publicado y las filas de la segunda empresa están adentro.
