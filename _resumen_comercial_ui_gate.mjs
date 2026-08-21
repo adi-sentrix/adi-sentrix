@@ -1036,9 +1036,13 @@ H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)"
   const bordeFuerte = [...container.querySelectorAll("div")]
     .filter((d) => /border:\s*1px solid rgba\(\s*47,\s*184,\s*218,\s*0?\.[4-9]/i.test(d.getAttribute("style") || "")).length;
   ok(bordeFuerte === 0, `ninguna card de contenido usa el celeste FUERTE (≥0.4): ese es el del control — ${bordeFuerte}`);
+  /* EL MARCO DE LAS TARJETAS PASA A BLANCO (owner 2026-08-20: «los bordes de las tablas, gráficos y cards deben
+     ser blancos y no celestes»). Lo que este chequeo protege NO cambió: que todos los bloques usen el MISMO
+     panel, uno solo para toda la cara. Cambió de qué color es ese panel. El celeste FUERTE sigue vetado arriba
+     y sigue reservado al control — por eso la aserción de al lado («el celeste marca lo interactivo») pasa. */
   const cardsPanel = [...container.querySelectorAll("div")]
-    .filter((d) => /border:\s*1px solid rgba\(\s*47,\s*184,\s*218,\s*0?\.25/i.test(d.getAttribute("style") || "")).length;
-  ok(cardsPanel > 0, `los bloques usan el MISMO panel que la Ficha (celeste 0.25 + degradado) — ${cardsPanel} tarjetas`);
+    .filter((d) => (d.getAttribute("style") || "").replace(/ /g, "").includes("border:1pxsolidrgba(255,255,255,0.22)")).length;
+  ok(cardsPanel > 0, `los bloques usan el MISMO panel, ahora de marco BLANCO — ${cardsPanel} tarjetas`);
   // pero el acento SIGUE vivo donde se interactúa: pills activas, accesos a Ficha, botones de ADI
   const controlesCeleste = botones(container).filter((b) => CELESTE.test(b.getAttribute("style") || "")).length;
   ok(controlesCeleste >= 5, `el celeste sigue marcando lo interactivo — ${controlesCeleste} controles`);

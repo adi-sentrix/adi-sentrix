@@ -1635,7 +1635,7 @@ const _rcTonoCol = (t) => (t === "ok" ? C.green : t === "alerta" ? C.red : t ===
 // Ahora el celeste queda para lo que se toca — pills activas, botones, la fila seleccionada — y el contenido
 // respira en gris.
 const _RC_CARD = {
-  padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(47,184,218,0.25)",
+  padding: "14px 16px 12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.22)",
   background: "radial-gradient(140% 90% at 50% 0%, rgba(47,184,218,0.05) 0%, rgba(47,184,218,0) 55%), #0b0b0b",
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
 };
