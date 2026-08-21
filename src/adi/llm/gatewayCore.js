@@ -468,21 +468,21 @@ export async function handleNarrateC({ payload, mem, access, tenantId, attempt, 
       const _segN = buildNarrateSystemSegments(ADI_PERSONA, renderInteractionMemory(mem), payload.modo, mem && mem.responsePref, !!payload.contexto_vista, payload.reparacion || null, (typeof datoNegocio === "string" && datoNegocio) || null);
       system = [{ text: _segN.fijo, cache: true }, { text: _segN.variable, cache: false }];
     }
-    let narration, usage, modeloEfectivo, motivoCorte;
+    let narration, usage, modeloEfectivo, motivoCorte, bloquesRecibidos;
     try {
       _salioAlProveedor = true;   // el cruce, antes del await · ver handleSpec
       const salida = await getAdapter(provider).narrate(payload, { model, system });
       // el desarmado DENTRO del try, por la misma razón que en la pasada de PLAN: una respuesta inutilizable llega
       // después de que la llamada ya se pagó, y tiene que contarse como fallo del proveedor, no evaporarse.
       if (!salida || typeof salida !== "object") throw new TypeError("el proveedor devolvió una respuesta vacía");
-      ({ text: narration, usage, model: modeloEfectivo, stop: motivoCorte } = salida);
+      ({ text: narration, usage, model: modeloEfectivo, stop: motivoCorte, bloques: bloquesRecibidos } = salida);
     } catch (e) {
       // se emite y se RELANZA intacta — el loop de reintentos del oráculo vive de esta excepción.
       _emitir({ ok: false, error: "el proveedor no respondió" }, aReasonCode((e && e.message) || "provider"));
       throw e;
     }
     const modeloReal = modeloEfectivo || model;
-    const _rn = { ok: true, narration, usage, stop: motivoCorte || null, modelUsed: model, modelo: modeloReal, modelFamilia: resolvePricingKey(modeloReal),
+    const _rn = { ok: true, narration, usage, stop: motivoCorte || null, bloques: bloquesRecibidos || null, modelUsed: model,
       costUSD: estimateCostUSD(modeloReal, usage), modelReason: routed ? routed.reason : "static:sin router" };
     _emitir(_rn);
     return _rn;
