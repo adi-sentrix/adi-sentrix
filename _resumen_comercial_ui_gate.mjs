@@ -26,6 +26,12 @@ import esbuild from "esbuild";
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
 import { rmSync } from "node:fs";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ " + m + (extra ? "\n      " + extra : "")); } };
@@ -55,12 +61,20 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const bundlePath = path.join(root, `_resumen_comercial_ui_gate_bundle.tmp${process.pid}.mjs`);
 // entry por STDIN: el gate es autosuficiente — no depende de ningún archivo suelto en la raíz para poder correr.
 await esbuild.build({
-  stdin: { contents: `export { SentrixPanel } from "./src/ui/SentrixPanel.jsx";`, resolveDir: root, loader: "jsx", sourcefile: "_resumen_comercial_ui_entry.jsx" },
+  // vía 1 (2026-08-20): el bundle declara SU tenant. El store ya no importa ningún dataset (esos imports metían el
+  // dato de todas las empresas en el bundle publicado) y esta instancia de esbuild tiene su propia copia del store.
+  stdin: { contents: [
+    `export { SentrixPanel } from "./src/ui/SentrixPanel.jsx";`,
+    `export { initTenant } from "./src/data/tenantStore.js";`,
+    `export { TENANT_DEMO } from "./src/data/tenants/demo.js";`,
+  ].join("\n"), resolveDir: root, loader: "jsx", sourcefile: "_resumen_comercial_ui_entry.jsx" },
   bundle: true, outfile: bundlePath, format: "esm", platform: "node", jsx: "automatic",
   external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
   logLevel: "silent",
 });
 const ui = await import(pathToFileURL(bundlePath).href);
+// vía 1 (2026-08-20): declarar el tenant SOBRE ESTA instancia — el bundle tiene su propia copia del store.
+ui.initTenant(ui.TENANT_DEMO);
 const React = (await import("react")).default;
 const { render, fireEvent, cleanup } = await import("@testing-library/react");
 const { runPlan } = await import("./src/adi/oracle/toolRunner.js");

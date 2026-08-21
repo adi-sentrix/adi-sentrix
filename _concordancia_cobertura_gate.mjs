@@ -64,6 +64,12 @@ import { ENTITIES } from "./src/config/contract/entityRegistry.js";
 import { TOOLS } from "./src/adi/oracle/toolRegistry.js";
 import { primeraEntidadDe } from "./src/adi/sentrix/viewBuilderRun.js";
 import { getTenantId } from "./src/data/tenantStore.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 const RAIZ = path.dirname(fileURLToPath(import.meta.url));
 let PASS = 0, FAIL = 0;

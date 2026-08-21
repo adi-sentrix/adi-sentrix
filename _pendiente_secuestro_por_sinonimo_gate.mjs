@@ -47,6 +47,12 @@
  * contiene una salida cruda. Cumple las cuatro condiciones del escape declarado en scripts/gates-offline.mjs.
  */
 import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detail) => {

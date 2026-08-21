@@ -25,6 +25,12 @@ for (const ln of fs.readFileSync(".env", "utf8").split(/\r?\n/)) { const m = ln.
 import { composeSpecInventory, composeSpecMargin, composeSpecVentas, composeSpecContribucion, composeSpecDiagnose } from "./src/adi/specRetrieval.js";
 import { clientesVentas, marcasVentas, sfamiliasVentas, skuInventario } from "./src/data/demoData.js";
 import { skusMargen } from "./src/data/skusMargen.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 const SC = "actual";
 let pass = 0, fail = 0;

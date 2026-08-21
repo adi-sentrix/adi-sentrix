@@ -17,12 +17,28 @@ async function _hmac(payloadB64u, secret) {
   return _b64u(sig);
 }
 
-// Emite un código: nombre + horas de vigencia (default 72 = 3 días) → `ADI-{payload}.{firma}`
-export async function makeAccessCode(name, hours = 72, secret, now = Date.now()) {
+// ── LA EMPRESA VIAJA FIRMADA (vía 1 · owner 2026-08-20) ───────────────────────────────────────────────────────
+// El código de acceso ya era el login; ahora es también **de qué empresa es** esa sesión. `t` es OPCIONAL y solo
+// se escribe cuando se pide una empresa distinta del demo: sin `t`, el payload queda BYTE-IDÉNTICO al de siempre
+// ({"n":…,"e":…}) y todos los códigos ya emitidos siguen verificando sin tocar nada.
+// POR QUÉ ADENTRO DE LA FIRMA y no como parámetro: un `?tenant=` del navegador es una lista de empresas para
+// probar a mano. Acá el navegador puede LEER de qué empresa es su código, pero no puede cambiarlo sin romper el
+// HMAC — y el que sirve el dato (`tenantService.js`) solo mira lo verificado, nunca lo que el cliente afirma.
+const _tenantLimpio = (t) => {
+  const s = String(t || "").trim().toLowerCase();
+  // el mismo alfabeto que un id de tenant del registro · sin esto, un id raro viajaría firmado y sin sentido
+  return /^[a-z0-9][a-z0-9_-]{0,31}$/.test(s) ? s : null;
+};
+
+// Emite un código: nombre + horas de vigencia (default 72 = 3 días) [+ empresa] → `ADI-{payload}.{firma}`
+export async function makeAccessCode(name, hours = 72, secret, now = Date.now(), tenant = null) {
   if (!secret) throw new Error("makeAccessCode: falta el secret");
-  const payload = _b64u(_te.encode(JSON.stringify({ n: String(name || "invitado").slice(0, 40), e: now + hours * 3600 * 1000 })));
+  const t = _tenantLimpio(tenant);
+  const claims = { n: String(name || "invitado").slice(0, 40), e: now + hours * 3600 * 1000 };
+  if (t && t !== "demo") claims.t = t;   // sin empresa declarada → payload byte-idéntico al histórico
+  const payload = _b64u(_te.encode(JSON.stringify(claims)));
   const sig = await _hmac(payload, secret);
-  return { code: `ADI-${payload}.${sig}`, expiresAt: now + hours * 3600 * 1000 };
+  return { code: `ADI-${payload}.${sig}`, expiresAt: now + hours * 3600 * 1000, tenant: t || "demo" };
 }
 
 // Parse SIN verificar (para UX del cliente: saludo + "vence el …"). Nunca alcanza para entrar: el server verifica.
@@ -32,7 +48,7 @@ export function parseAccessCode(code) {
     if (!m) return null;
     const p = JSON.parse(_b64uToStr(m[1]));
     if (!p || typeof p.e !== "number") return null;
-    return { name: String(p.n || "invitado"), expiresAt: p.e };
+    return { name: String(p.n || "invitado"), expiresAt: p.e, tenant: _tenantLimpio(p.t) || "demo" };
   } catch { return null; }
 }
 
@@ -46,7 +62,8 @@ export async function verifyAccessCode(code, secret, now = Date.now()) {
   const parsed = parseAccessCode(code);
   if (!parsed) return { ok: false, reason: "invalid" };
   if (now > parsed.expiresAt) return { ok: false, reason: "expired", name: parsed.name, expiresAt: parsed.expiresAt };
-  return { ok: true, name: parsed.name, expiresAt: parsed.expiresAt };
+  // `tenant` sale del payload YA VERIFICADO: es la única fuente autorizada de "de qué empresa es esta sesión".
+  return { ok: true, name: parsed.name, expiresAt: parsed.expiresAt, tenant: parsed.tenant };
 }
 
 // Comparación en TIEMPO CONSTANTE (cierra el LOW de timing del audit): no corta al primer byte distinto.

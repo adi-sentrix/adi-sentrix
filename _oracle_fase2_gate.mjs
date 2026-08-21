@@ -7,6 +7,12 @@ import fs from "fs";
 import { runPlan } from "./src/adi/oracle/toolRunner.js";
 import { ledgerBoleta } from "./src/adi/oracle/ledger.js";
 import { guardC, parseCounts } from "./src/adi/oracle/guardC.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 const SC = "actual";
 const _strip = (s) => String(s).replace(/\s/g, "");

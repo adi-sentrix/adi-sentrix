@@ -12,6 +12,8 @@
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd(); const entry = path.join(root, `_tge.tmp${process.pid}.js`), out = path.join(root, `_tgb.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
+  'export { initTenant } from "./src/data/tenantStore.js";',
+  'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
   'export { detectPeriodo, composeSpecTemporal } from "./src/adi/composers/temporalTable.js";',
   'export { coerceFloor, coerceSpec } from "./src/adi/coerceChain.js";',
   'export { answerConversational } from "./src/adi/conversation.js";',
@@ -26,6 +28,9 @@ fs.writeFileSync(entry, [
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(entry); } catch { /* */ } try { fs.unlinkSync(out); } catch { /* */ }
 const { detectPeriodo: DP, coerceFloor: CF, answerConversational: AC, chartForEvidence: CH, buildGlobalEvolution, buildEntityEvolutionComparado, guardAgainstBoleta, clearPnl, resetPnlDraft, clientesVentas, ventasKPI } = M;
 

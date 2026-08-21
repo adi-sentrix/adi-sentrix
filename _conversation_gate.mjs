@@ -7,6 +7,8 @@ import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path 
 // nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs).
 const root = process.cwd(); const entry = path.join(root, `_conversation_gate_entry.tmp${process.pid}.js`), out = path.join(root, `_conversation_gate_bundle.tmp${process.pid}.mjs`);
 fs.writeFileSync(entry, [
+  'export { initTenant } from "./src/data/tenantStore.js";',
+  'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
   // (La Poda Fase 2A: `composeCompareNotYet` salía en esta lista y se destructuraba abajo, pero ninguna aserción
   //  lo llamaba nunca — era un re-export huérfano del placeholder V1, ya borrado de conversation.js.)
   'export { answerConversational, resolveTurn, buildConversationContext, composeExplain, composeMeta, updateMemoria, extractOffer } from "./src/adi/conversation.js";',
@@ -19,6 +21,9 @@ fs.writeFileSync(entry, [
 ].join("\n"));
 await esbuild.build({ entryPoints: [entry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
 const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+M.initTenant(M.TENANT_DEMO);
 try { fs.unlinkSync(entry); } catch {} try { fs.unlinkSync(out); } catch {}
 const { answerConversational: AC, resolveTurn, buildConversationContext: BCC, composeExplain, composeMeta, composeSpecSimulate, guardAgainstBoleta, updateMemoria: UM, coerceSpec: CS } = M;
 const { buildParseUserMessage: BPUM, buildNarrateSystem: BNS, NARRATE_EXPLAIN, NARRATE_RECOMMENDATION, NARRATE_SIMULATION, NARRATE_GENERAL } = M;

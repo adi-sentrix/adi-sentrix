@@ -31,6 +31,12 @@ import { METRICS } from "./src/config/contract/metricRegistry.js";
 import { SOURCES } from "./src/config/contract/sourceManifest.js";
 import { skuInventario, clientesMargen, clientesVentas, marcasMargen, sfamiliasMargen } from "./src/data/demoData.js";
 import { skusMargen } from "./src/data/skusMargen.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let PASS = 0, FAIL = 0;
 const H = (t) => console.log(`\n${t}\n${"─".repeat(Math.min(112, t.length))}`);

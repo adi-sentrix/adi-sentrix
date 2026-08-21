@@ -7,11 +7,23 @@
  * Uso: node _struct_gate.mjs   (exit 1 si algún test falla · CI). Complementa _spec_gate (rutas) y _guard_gate (cifras). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 const root = process.cwd();
+/* vía 1 (2026-08-20): el dataset se DECLARA, ya no se hereda del import por defecto de tenantStore. Y hay que
+ * declarárselo A CADA BUNDLE: esbuild produce otra instancia del grafo, con su propio store — el tenant del
+ * proceso del gate no la alcanza. Por eso `bundle()` arma un entry que re-exporta el módulo pedido MÁS los dos
+ * símbolos del tenant, y llama a initTenant sobre la instancia recién importada. */
 async function bundle(entry, tag) {
   const out = path.join(root, `_stg_${tag}.mjs`);
-  await esbuild.build({ entryPoints: [path.join(root, entry)], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
+  const tmpEntry = path.join(root, `_stg_entry_${tag}.tmp${process.pid}.js`);
+  fs.writeFileSync(tmpEntry, [
+    `export * from "./${entry}";`,
+    'export { initTenant } from "./src/data/tenantStore.js";',
+    'export { TENANT_DEMO } from "./src/data/tenants/demo.js";',
+  ].join("\n"), "utf8");
+  await esbuild.build({ entryPoints: [tmpEntry], bundle: true, outfile: out, format: "esm", platform: "node", logLevel: "silent" });
   const M = await import(pathToFileURL(out).href + "?t=" + Math.random());
+  M.initTenant(M.TENANT_DEMO);
   try { fs.unlinkSync(out); } catch {}
+  try { fs.unlinkSync(tmpEntry); } catch {}
   return M;
 }
 const A = (await bundle("src/adi/answerADIFromSpec.js", "a")).answerADIFromSpec;

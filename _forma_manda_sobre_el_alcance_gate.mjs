@@ -54,6 +54,12 @@ import { answerViaOracle } from "./src/adi/oracle/answerViaOracle.js";
 // Detector puro, importado para que la sección 4-b afirme la CAUSA (`auto`) y no sólo el síntoma (sale tabla). Sin
 // esto, un cambio río arriba podría devolver la tabla por otro motivo y el chequeo seguiría verde sin darse cuenta.
 import { resolveTablePolicy, resolveOutputForm } from "./src/adi/oracle/progressiveDisclosure.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
 const ok = (cond, label, detail) => {

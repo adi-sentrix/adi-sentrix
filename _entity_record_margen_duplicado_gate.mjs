@@ -37,6 +37,12 @@ import fs from "fs";
 import { buildEntityRecord } from "./src/adi/oracle/entityRecord.js";
 import { skusMargen } from "./src/data/skusMargen.js";
 import { figFor } from "./src/adi/boleta.js";
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+
+// vía 1 (2026-08-20): el dataset se DECLARA acá. Antes se heredaba del import por defecto de tenantStore,
+// que ya no existe: el store arranca en la forma vacía y el dato entra por initTenant. Ver tenantEmpty.js.
+initTenant(TENANT_DEMO);
 
 let pass = 0; const fails = [];
 const ok = (cond, label, extra) => { if (cond) pass++; else fails.push({ label, extra }); console.log(`  ${cond ? "✓" : "✗"} ${label}`); };
