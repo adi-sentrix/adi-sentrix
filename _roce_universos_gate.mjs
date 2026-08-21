@@ -71,6 +71,19 @@ ok(V("BOS-SANDER tiene margen 15.0% y capital $11K.") === "etiqueta-ambigua",
 ok(V("| SKU | Rotación | Margen | Estado |\n| BOS-SANDER | 1.6x | 15.0% | 90d |") === "etiqueta-ambigua",
   "…y un encabezado de tabla «Margen» a secas también (era el caso real del examen 2)");
 
+/* ── UNA TABLA ES UNA UNIDAD; UN TÍTULO CON SU VIÑETA NO (Examen 5, turno 7) ──────────────────────────────────
+ * El corte de oración de este chequeo no cortaba cuando la línea siguiente empezaba sin espacio. Eso hacía que la
+ * tabla de arriba funcionara —por accidente— y que un título quedara pegado a la viñeta siguiente. Resultado: un
+ * «margen» del TÍTULO, un SKU nombrado ahí y un porcentaje que era de la CARTERA y vivía en otro renglón se leían
+ * como una sola atribución ambigua: tres intentos vetados y un resumen ejecutivo correcto mandado al suplente.
+ * Ahora la unidad se declara — la tabla entera, la prosa por oración — y los dos casos quedan probados juntos. */
+ok(J("**1. Margen: SAM-TV55 es la prioridad de correccion.**\n- Margen de cartera 25.1% vs benchmark de cartera 30.1%.").ok,
+  "un TÍTULO con «Margen» y un SKU no se pega a la viñeta de abajo: el 25.1% es de la cartera y está en otro renglón");
+ok(V("| SKU | Rotación | Margen | Estado |\n| BOS-SANDER | 1.6x | 15.0% | 90d |") === "etiqueta-ambigua",
+  "…y la TABLA sigue muriendo entera: su encabezado es lo que etiqueta la fila (el caso real del examen 2)");
+ok(V("**Resumen — margen e inventario**\nSAM-TV55 tiene un margen de 18.5%.") === "etiqueta-ambigua",
+  "y un «margen» a secas CON cifra sobre un SKU sigue muriendo aunque venga bajo un título: la excepción es del título, no del SKU");
+
 console.log("\n── 3 · RANKING SIN COLA ──");
 const RANK7 = "Ranking de SKU por peor rotación: MAK-COMP-AIR 0.8x, LG-DRYER8KG 1.0x, BOS-SANDER 1.6x, PHI-IRON-PRO 2.4x, SAM-TV55 3.6x, MAK-SAW18V 5.2x, LG-AIR9000 5.8x.";
 ok(V(RANK7) === "ranking-sin-cola", `un ranking de 7 sobre 13 que no dice dónde corta muere (${V(RANK7)})`);

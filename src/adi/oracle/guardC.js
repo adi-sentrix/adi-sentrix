@@ -3894,7 +3894,26 @@ export function guardC(narration, { ledger, results = [], trace = null, question
        * y no se toca. Por eso el disparador es la ENTIDAD del universo inventario, no el canon de la cifra. */
       const _conInventario = _entDeUniverso("inventario");
       if (_conInventario.length) {
-        for (const oracion of String(narration).split(/[.!?\n]+(?:\s+|$)/)) {
+        /* ⚠️ QUÉ ES UNA UNIDAD ACÁ · una TABLA entera, o una oración de prosa. Los dos casos son reales y
+         * opuestos, y el corte viejo los confundía porque no cortaba NUNCA que la línea siguiente empezara sin
+         * espacio (`[.!?\n]+(\s+|$)` exige espacio DESPUÉS del corte):
+         *   · LA TABLA tiene que quedar ENTERA: su encabezado «Margen» es lo que etiqueta la fila de abajo, y ese
+         *     era el caso real del Examen 2 — separarlas dejaría pasar la ambigüedad.
+         *   · EL TÍTULO NO: «**1. Margen: SAM-TV55…**» seguido de la viñeta «- Margen de cartera 25.1%…» quedaba
+         *     en la MISMA oración, y así un «margen» de un TÍTULO, un SKU nombrado ahí y un porcentaje que era de
+         *     la CARTERA y vivía en otro renglón se leían como una sola atribución ambigua. Medido en el Examen 5,
+         *     turno 7: tres intentos vetados y un resumen correcto al suplente. En una respuesta con viñetas —o
+         *     sea, casi todas— eso pasa en cada lista.
+         * Así que la unidad se arma explícitamente en vez de salir de un efecto colateral del separador. */
+        const _unidades = [];
+        let _tabla = null;
+        for (const _linea of String(narration).split(/\n/)) {
+          if (/^\s*\|/.test(_linea)) { _tabla = _tabla === null ? _linea : _tabla + "\n" + _linea; continue; }
+          if (_tabla !== null) { _unidades.push(_tabla); _tabla = null; }
+          for (const _s of _linea.split(/(?<=[.!?])\s+/)) if (_s.trim()) _unidades.push(_s);
+        }
+        if (_tabla !== null) _unidades.push(_tabla);
+        for (const oracion of _unidades) {
           if (!/\bmargen/i.test(oracion) || !_MARGEN_SIN_UNIVERSO.test(oracion)) continue;
           // la frase ya sitúa la cifra —por el universo o por una mención con etiqueta completa—: no hay confusión
           if (_UNIVERSO_DECLARADO.test(oracion) || _MARGEN_CON_UNIVERSO.test(oracion)) continue;
