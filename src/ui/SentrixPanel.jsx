@@ -1888,7 +1888,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Concentración comercial · 80/20
-            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva lavanda el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Ficha."} align="left"/>
+            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva roja punteada el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Ficha."} align="left"/>
           </span>
           {/* el "X clientes explican el Y%" NO se repite acá: ya lo dijo el veredicto (una sola lectura de
               alcance). Este bloque aporta lo que solo él puede aportar — el contraste entre volumen y valor. */}
@@ -1918,8 +1918,8 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
                 opacity={hov == null || hov === i ? 1 : 0.5}
                 style={{ transformBox: "fill-box", transformOrigin: "center bottom", animation: `adiRiseY 420ms cubic-bezier(.2,.7,.3,1) ${i * 28}ms both` }}/>
             ))}
-            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="4.5" strokeLinejoin="round" opacity="0.18"/>
-            <path d={dCum} fill="none" stroke={C.lav} strokeWidth="1.8" strokeLinejoin="round" opacity="0.95"/>
+            <path d={dCum} fill="none" stroke="#e08a86" strokeWidth="4.5" strokeLinejoin="round" opacity="0.18"/>
+            <path d={dCum} fill="none" stroke="#e08a86" strokeWidth="1.8" strokeLinejoin="round" opacity="0.95" strokeDasharray="5 3"/>
             <circle cx={xc(iCorte)} cy={yCum(barras[iCorte].acumuladoPct)} r="5.5" fill={C.amber} opacity="0.2"/>
             <circle cx={xc(iCorte)} cy={yCum(barras[iCorte].acumuladoPct)} r="2.8" fill={C.amber}/>
             <rect x="0" y="0" width={W} height={H} fill="transparent"
