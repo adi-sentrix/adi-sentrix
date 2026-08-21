@@ -2129,7 +2129,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
           <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
             {S.vistas.map((x) => (
               <button key={x.key} onClick={() => { setEje(x.key); setTodos(false); }} aria-pressed={v.key === x.key}
-                style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: v.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: v.key === x.key ? C.celeste : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+                style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(255,255,255,0.35)" : C.border}`, background: v.key === x.key ? "rgba(255,255,255,0.10)" : "transparent", color: v.key === x.key ? C.text : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
                 {x.label} ({x.grupoN})
               </button>
             ))}
@@ -2311,7 +2311,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                       // cambiar de vara INFORMA el contexto (nunca dispara): el turno siguiente sabe contra qué
                       // referencia está mirando el usuario, que es de dónde salen dos montos distintos y legítimos.
                       <button key={x.key} onClick={() => { setVaraAcc(x.key); const c = (x.key === "meta" ? vAccMeta.ctx : vAccProm.ctx); if (c) setUISignal({ viewContext: c }); }} aria-pressed={ra.key === x.key}
-                        style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${ra.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: ra.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: ra.key === x.key ? C.celeste : C.textMuted, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.refFmt}</button>
+                        style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${ra.key === x.key ? "rgba(255,255,255,0.35)" : C.border}`, background: ra.key === x.key ? "rgba(255,255,255,0.10)" : "transparent", color: ra.key === x.key ? C.text : C.textMuted, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>{x.refFmt}</button>
                     ))}
                   </span>
                 </div>
@@ -2785,7 +2785,7 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
                   {onFoco && (
                     <button onClick={(ev) => { ev.stopPropagation(); onFoco({ eje: mr.cuadro.eje, nombre: r.name }); }}
                       title={`Ver ${r.name} en la cascada de arriba (no dispara a ADI)`}
-                      style={{ border:"none", background:"transparent", color: mr.alcance && mr.alcance.nombre === r.name ? C.celeste : C.textMuted, cursor:"pointer", fontFamily:MONO, fontSize:14, padding:"0 2px", flexShrink:0 }}>⌖</button>
+                      style={{ border:"none", background:"transparent", color: mr.alcance && mr.alcance.nombre === r.name ? C.text : C.textMuted, cursor:"pointer", fontFamily:MONO, fontSize:14, padding:"0 2px", flexShrink:0 }}>⌖</button>
                   )}
                   <span style={{ fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
                 </span>
@@ -2893,7 +2893,7 @@ function CapitalBarras({ barras, onAsk }) {
         <span style={{ display: "flex", gap: 3 }}>
           {barras.vistas.map((x) => (
             <button key={x.key} onClick={() => setVista(x.key)} aria-pressed={v.key === x.key}
-              style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(47,184,218,0.5)" : C.border}`, background: v.key === x.key ? "rgba(47,184,218,0.10)" : "transparent", color: v.key === x.key ? C.celeste : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+              style={{ padding: "3px 11px", borderRadius: 6, border: `1px solid ${v.key === x.key ? "rgba(255,255,255,0.35)" : C.border}`, background: v.key === x.key ? "rgba(255,255,255,0.10)" : "transparent", color: v.key === x.key ? C.text : C.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
               {x.label} ({x.n})
             </button>
           ))}
@@ -3014,7 +3014,7 @@ function CapitalDrill({ tabla, ask, onAsk, onCerrar }) {
     <span style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
       {["todas", ...opciones].map((o) => (
         <button key={o} onClick={() => set(o)} aria-pressed={valor === o}
-          style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${valor === o ? "rgba(47,184,218,0.5)" : C.border}`, background: valor === o ? "rgba(47,184,218,0.10)" : "transparent", color: valor === o ? C.celeste : C.textMuted, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
+          style={{ padding: "2px 9px", borderRadius: 6, border: `1px solid ${valor === o ? "rgba(255,255,255,0.35)" : C.border}`, background: valor === o ? "rgba(255,255,255,0.10)" : "transparent", color: valor === o ? C.text : C.textMuted, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap" }}>
           {o === "todas" ? label : o}
         </button>
       ))}
@@ -3205,7 +3205,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
           // sabiendo qué card tiene abierta y no el total de la cara (dos universos, dos cifras legítimas).
           <button key={k.key} onClick={tabla ? () => { setDrill(abierta ? null : k.key); if (!abierta && vK && vK.ctx) setUISignal({ viewContext: vK.ctx }); } : undefined}
             aria-pressed={abierta} title={tabla ? `Ver ${tabla.titulo.toLowerCase()} (${tabla.n})` : undefined}
-            style={{ position:"relative", background: abierta ? "rgba(47,184,218,0.07)" : "rgba(255,255,255,0.02)", border:`1px solid ${abierta ? "rgba(47,184,218,0.5)" : C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: tabla ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s, border-color 0.15s" }}
+            style={{ position:"relative", background: abierta ? "rgba(47,184,218,0.07)" : "rgba(255,255,255,0.02)", border:`1px solid ${abierta ? "rgba(255,255,255,0.35)" : C.border}`, borderRadius:10, padding:"10px 12px", textAlign:"left", fontFamily:"'DM Sans', system-ui, sans-serif", cursor: tabla ? "pointer" : "default", display:"flex", flexDirection:"column", gap:4, transition:"background 0.15s, border-color 0.15s" }}
             onMouseEnter={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; }}
             onMouseLeave={(ev) => { if (!abierta) ev.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>
             {/* minHeight de dos líneas: "Capital inmovilizado" envuelve y sin esto los cuatro titulares quedaban
@@ -3284,7 +3284,7 @@ function MesaCapitalCara({ capital: cap, scenario, onAsk = null, watch = null, o
             {cap.cortes.vistas.map((v) => (
               // cambiar de corte cambia el EJE que el usuario mira (bodega / familia / edad): informa el contexto
               <button key={v.key} onClick={() => { setCorte(v.key); if (vCapCortes.ctx) setUISignal({ viewContext: vCapCortes.ctx }); }} aria-pressed={vistaCorte.key === v.key}
-                style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${vistaCorte.key === v.key ? "rgba(47,184,218,0.5)" : C.border}`, background: vistaCorte.key === v.key ? "rgba(47,184,218,0.10)" : "transparent", color: vistaCorte.key === v.key ? C.celeste : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
+                style={{ padding:"3px 11px", borderRadius:6, border:`1px solid ${vistaCorte.key === v.key ? "rgba(255,255,255,0.35)" : C.border}`, background: vistaCorte.key === v.key ? "rgba(255,255,255,0.10)" : "transparent", color: vistaCorte.key === v.key ? C.text : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
                 {v.label} ({v.n})
               </button>
             ))}
@@ -3425,7 +3425,7 @@ function CuadroCapital({ scenario, onAsk = null, watch = null, onWatch = null })
         {pill(mode === "alert", "En alerta", () => setMode("alert"), "al")}
         {cc.rows.length > 12 && (
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`buscar ${cc.plural}…`}
-            style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${busca ? "rgba(47,184,218,0.5)" : C.border}`, background:"transparent", color:C.text, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif", outline:"none", width:130 }}/>
+            style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${busca ? "rgba(255,255,255,0.35)" : C.border}`, background:"transparent", color:C.text, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif", outline:"none", width:130 }}/>
         )}
       </div>
       {/* la grilla */}
@@ -4289,7 +4289,7 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
         {pill(mode === "alert" && !onlySel, "En alerta", () => { setMode("alert"); setOnlySel(false); }, "al")}
         {cm.rows.length > 12 && (
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`buscar ${cm.plural}…`}
-            style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${busca ? "rgba(47,184,218,0.5)" : C.border}`, background:"transparent", color:C.text, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif", outline:"none", width:130 }}/>
+            style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${busca ? "rgba(255,255,255,0.35)" : C.border}`, background:"transparent", color:C.text, fontSize:14, fontFamily:"'DM Sans', system-ui, sans-serif", outline:"none", width:130 }}/>
         )}
         {sel.length > 0 && (
           <span style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, fontSize:14, color:C.celeste }}>
@@ -4757,7 +4757,7 @@ function StationPeriodo({ a, b }) {
       <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:7 }}>
         {[["12", "12 meses"], ["24", "24 meses"]].map(([k, l]) => (
           <button key={k} onClick={() => setPer(k)} style={{ padding:"3px 9px", borderRadius:6, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
-            border:`1px solid ${per === k ? "rgba(47,184,218,0.5)" : C.border}`, background: per === k ? "rgba(47,184,218,0.10)" : "transparent", color: per === k ? C.celeste : C.textMuted }}>{l}</button>
+            border:`1px solid ${per === k ? "rgba(255,255,255,0.35)" : C.border}`, background: per === k ? "rgba(255,255,255,0.10)" : "transparent", color: per === k ? C.text : C.textMuted }}>{l}</button>
         ))}
         <span style={{ marginLeft:"auto", fontFamily:MONO, fontSize:11.5, color:C.textMuted }}>mejor mes <span style={{ color:C.green }}>{ev.maxMes} {fmV(ev.max)}</span> · más bajo <span style={{ color:C.red }}>{ev.minMes} {fmV(ev.min)}</span></span>
       </div>
@@ -4901,7 +4901,7 @@ function MesaPareto({ dim, scenario, sel = null, onAsk = null }) {
   const titulo = modo === "composicion" ? `Cómo se compone ${sel}` : modo === "posicion" ? `Dónde pesa ${sel} en el 80/20` : "El 80/20 · cómo se compone";
   const pill = (k, label, active, onClick) => (
     <button key={k} onClick={onClick}
-      style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${active ? "rgba(47,184,218,0.5)" : C.border}`, background: active ? "rgba(47,184,218,0.10)" : "transparent", color: active ? C.celeste : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{label}</button>
+      style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${active ? "rgba(255,255,255,0.35)" : C.border}`, background: active ? "rgba(255,255,255,0.10)" : "transparent", color: active ? C.text : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{label}</button>
   );
   return (
     <div style={{ padding:"14px 16px 10px", borderRadius:12, border:"1px solid rgba(47,184,218,0.25)",
@@ -5126,7 +5126,7 @@ function ComparadoCard({ a = null, rowA = null, b = null, rowB = null, negocio =
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
             {_FICHA_ESTACIONES.map((e) => (
               <button key={e.key} onClick={() => { setEst(e.key); setHov(null); }}
-                style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${est === e.key ? "rgba(47,184,218,0.5)" : C.border}`, background: est === e.key ? "rgba(47,184,218,0.10)" : "transparent", color: est === e.key ? C.celeste : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{e.label}</button>
+                style={{ padding:"3px 9px", borderRadius:6, border:`1px solid ${est === e.key ? "rgba(255,255,255,0.35)" : C.border}`, background: est === e.key ? "rgba(255,255,255,0.10)" : "transparent", color: est === e.key ? C.text : C.textMuted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif" }}>{e.label}</button>
             ))}
           </div>
         </div>
@@ -5505,7 +5505,7 @@ function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {filtered.map((n) => (
             <button key={n} onClick={() => onSelect(n)}
-              style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${n === entity ? "rgba(47,184,218,0.5)" : C.border}`, background: n === entity ? "rgba(47,184,218,0.1)" : "transparent", color: n === entity ? C.celeste : C.textSub, fontSize: 14, fontWeight: n === entity ? 600 : 400, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${n === entity ? "rgba(255,255,255,0.35)" : C.border}`, background: n === entity ? "rgba(47,184,218,0.1)" : "transparent", color: n === entity ? C.celeste : C.textSub, fontSize: 14, fontWeight: n === entity ? 600 : 400, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               {n}
             </button>
           ))}
