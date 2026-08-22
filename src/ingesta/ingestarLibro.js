@@ -17,6 +17,7 @@
 import { leerLibro } from "./leerLibro.js";
 import { proponerMapeo, elegirEje } from "./mapeoDeterministico.js";
 import { normalizarEje, construirDataset } from "./normalizar.js";
+import { disponibilidadSentrix } from "./disponibilidad.js";
 
 /* ingestarLibro(archivo, { id, nombre, nombreArchivo, unidadesConfirmadas, ejePorHoja })
  *   · `unidadesConfirmadas` — el cerrojo: sin `true` no se normaliza un solo número.
@@ -92,46 +93,95 @@ export function ingestarLibro(archivo, { id, nombre, nombreArchivo = "", unidade
     ok: true,
     dataset: d,
     bloqueos: [],
-    preview: { archivo: nombreArchivo || "(sin nombre)", formato: libro.formato, hojas, ausentes: construido.ausentes, avisos, bloqueos: [], totales },
+    preview: {
+      archivo: nombreArchivo || "(sin nombre)", formato: libro.formato, hojas,
+      ausentes: construido.ausentes, avisos, bloqueos: [], totales,
+      // qué va a poder responder ADI con este archivo · derivado del contrato, no de una lista aparte
+      disponibilidad: disponibilidadSentrix(d),
+    },
   };
 }
 
-/** La preview en texto — para mirarla en consola sin armar pantalla. Misma información, sin adornos. */
+/* previewEnTexto(preview) → LA PREVIEW HUMANA, en las seis secciones que pidió el owner y en ese orden:
+ *   1 hojas detectadas · 2 eje por hoja · 3 columnas mapeadas · 4 campos ausentes · 5 errores que bloquean ·
+ *   6 qué partes de Sentrix quedan disponibles.
+ * Está pensada para que alguien la lea y DECIDA —cargar, corregir el archivo, o pedir la columna que falta—, no
+ * para depurar. Por eso los bloqueantes van antes de los totales: si el archivo no entra, el resto es ruido. */
 export function previewEnTexto(preview) {
   const L = [];
   const n = (x) => (typeof x === "number" ? x.toLocaleString("es-CL") : "—");
+  const sec = (t) => { L.push("", t, "─".repeat(Math.min(96, t.length))); };
+  const conEje = preview.hojas.filter((h) => h.eje);
+
   L.push(`ARCHIVO: ${preview.archivo}  ·  formato: ${preview.formato}`);
 
+  /* 1 + 2 · qué hojas hay y qué es cada una ─────────────────────────────────────────────────────────────── */
+  sec(`1 · HOJAS DETECTADAS (${preview.hojas.length}) y 2 · QUÉ ES CADA UNA`);
   for (const h of preview.hojas) {
-    L.push("");
-    if (!h.eje) {
-      L.push(`  HOJA "${h.hoja}" · SIN EJE — ${h.motivo}`);
-      L.push(`    columnas: ${h.encabezados.join(" · ")}`);
-      continue;
-    }
-    L.push(`  HOJA "${h.hoja}" → eje ${h.eje}${h.ejeForzado ? " (forzado)" : ""} · ${h.filasNormalizadas}/${h.filasLeidas} filas`);
-    for (const m of h.mapeo) L.push(`    ✓ ${m.campo.padEnd(14)} ← "${m.columna}"  (${m.via}${m.unidad ? ` · ${m.unidad}` : ""})`);
-    for (const a of h.ambiguas) L.push(`    ⚠ AMBIGUA · ${a.campo}: la reclaman ${a.columnas.map((c) => `"${c}"`).join(" y ")} — decide una persona`);
-    for (const f of h.faltantes) L.push(`    ✗ FALTA (obligatoria) · ${f.campo}${f.unidad ? ` (${f.unidad})` : ""}`);
-    if (h.sinResolver.length) L.push(`    · sin resolver (${h.sinResolver.length}): ${h.sinResolver.join(" · ")}`);
-    if (h.opcionalesAusentes.length) L.push(`    · opcionales ausentes (${h.opcionalesAusentes.length}): ${h.opcionalesAusentes.map((o) => o.campo).join(" · ")}`);
-    for (const a of h.avisos) L.push(`    · ${a.detalle}`);
+    if (!h.eje) { L.push(`  "${h.hoja}"  →  SIN ASIGNAR · ${h.motivo}`); L.push(`      columnas: ${h.encabezados.join(" · ")}`); continue; }
+    L.push(`  "${h.hoja}"  →  ${h.eje}${h.ejeForzado ? " (asignado a mano)" : ""} · ${h.filasNormalizadas} de ${h.filasLeidas} filas`);
   }
 
+  /* 3 · columnas mapeadas ───────────────────────────────────────────────────────────────────────────────── */
+  sec("3 · COLUMNAS MAPEADAS");
+  for (const h of conEje) {
+    L.push(`  ${h.hoja}:`);
+    for (const m of h.mapeo) L.push(`    ✓ "${m.columna}"`.padEnd(34) + `→ ${m.campo.padEnd(14)} ${m.unidad ? `(${m.unidad})` : ""}  · ${m.via}`);
+    for (const a of h.ambiguas) L.push(`    ⚠ AMBIGUA · ${a.campo}: la reclaman ${a.columnas.map((c) => `"${c}"`).join(" y ")} — no se elige ninguna, decide una persona`);
+    if (h.sinResolver.length) L.push(`    ? sin reconocer: ${h.sinResolver.map((c) => `"${c}"`).join(" · ")}`);
+  }
+
+  /* 4 · campos ausentes ─────────────────────────────────────────────────────────────────────────────────── */
+  sec("4 · CAMPOS AUSENTES");
+  let huboAusentes = false;
+  for (const h of conEje) {
+    const opt = h.opcionalesAusentes.map((o) => o.campo);
+    if (!h.faltantes.length && !opt.length) continue;
+    huboAusentes = true;
+    L.push(`  ${h.hoja}:`);
+    for (const f of h.faltantes) L.push(`    ✗ OBLIGATORIA · ${f.campo}${f.unidad ? ` (${f.unidad})` : ""} — sin esta columna el eje no existe`);
+    if (opt.length) L.push(`    · opcionales: ${opt.join(" · ")} — el eje carga igual, pero ADI declina esas métricas`);
+  }
+  for (const a of preview.avisos.filter((x) => x.tipo === "celdas-vacias")) L.push(`  · ${a.detalle}`);
+  if (!huboAusentes && !preview.avisos.some((x) => x.tipo === "celdas-vacias")) L.push("  (ninguno: todas las columnas del contrato vinieron completas)");
+
+  /* 5 · lo que bloquea ──────────────────────────────────────────────────────────────────────────────────── */
+  sec("5 · ERRORES QUE BLOQUEAN LA NORMALIZACIÓN");
   if (preview.bloqueos.length) {
-    L.push("", "  NO SE CARGÓ. Bloqueantes:");
-    for (const b of preview.bloqueos) L.push(`    ✗ [${b.tipo}] ${b.detalle}`);
+    for (const b of preview.bloqueos) L.push(`  ✗ ${b.detalle}${b.hoja ? `   [hoja "${b.hoja}"]` : ""}`);
+    L.push("", "  EL ARCHIVO NO SE CARGÓ. Corregí lo de arriba y volvé a subirlo.");
     return L.join("\n");
   }
+  L.push("  (ninguno: el archivo se puede normalizar)");
 
+  /* lo que entró, en números ────────────────────────────────────────────────────────────────────────────── */
   const t = preview.totales;
-  L.push("", "  LO QUE ENTRÓ:");
-  L.push(`    clientes ${n(t.clientes)}  ·  SKU inventario ${n(t.skusInventario)}  ·  SKU margen ${n(t.skusMargen)}`);
-  L.push(`    marcas ${n(t.marcas)}  ·  familias ${n(t.familias)}  ·  bodegas ${n(t.bodegas)}`);
-  if (t.ventaClientes !== null) L.push(`    venta sumada de clientes: ${n(t.ventaClientes)}`);
-  if (t.capitalInventario !== null) L.push(`    capital en inventario: ${n(t.capitalInventario)}`);
+  sec("LO QUE ENTRÓ");
+  L.push(`  clientes ${n(t.clientes)}  ·  SKU inventario ${n(t.skusInventario)}  ·  SKU margen ${n(t.skusMargen)}`);
+  L.push(`  marcas ${n(t.marcas)}  ·  familias ${n(t.familias)}  ·  bodegas ${n(t.bodegas)}`);
+  if (t.ventaClientes !== null) L.push(`  venta sumada de clientes: ${n(t.ventaClientes)}`);
+  if (t.capitalInventario !== null) L.push(`  capital en inventario: ${n(t.capitalInventario)}`);
 
-  L.push("", "  LO QUE NO TRAE ESTE ARCHIVO (y qué deja de poder responderse):");
-  for (const a of preview.ausentes) L.push(`    · ${a.que} → ${a.costo}`);
+  /* 6 · qué queda disponible ────────────────────────────────────────────────────────────────────────────── */
+  const d = preview.disponibilidad;
+  if (d) {
+    sec(`6 · QUÉ PARTES DE SENTRIX QUEDAN DISPONIBLES  (${d.resumen.carasDisponibles} de ${d.resumen.carasTotales} caras · ${d.resumen.metricasDisponibles} de ${d.resumen.metricasTotales} métricas)`);
+    for (const c of d.caras) {
+      const marca = c.completa ? "✓ COMPLETA " : c.disponible ? "◐ PARCIAL  " : "✗ NO ABRE  ";
+      L.push(`  ${marca} ${c.cara.padEnd(10)} ${c.que}`);
+      if (!c.completa) L.push(`               falta: ${c.falta.join(" · ")}`);
+    }
+    const no = d.metricas.filter((m) => !m.disponible);
+    if (no.length) {
+      L.push("", "  MÉTRICAS QUE NO SE VAN A PODER RESPONDER:");
+      const porMotivo = new Map();
+      for (const m of no) { const k = m.motivo; if (!porMotivo.has(k)) porMotivo.set(k, []); porMotivo.get(k).push(m.clave); }
+      for (const [motivo, claves] of porMotivo) L.push(`    · ${claves.join(" · ")}\n        ${motivo}`);
+    }
+  }
+
+  /* lo que el archivo no trae ───────────────────────────────────────────────────────────────────────────── */
+  sec("LO QUE ESTE ARCHIVO NO TRAE (y qué deja de poder responderse)");
+  for (const a of preview.ausentes) L.push(`  · ${a.que}\n      → ${a.costo}`);
   return L.join("\n");
 }

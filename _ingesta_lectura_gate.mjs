@@ -17,6 +17,7 @@
  *   [F] sin mezclar tenants · un dataset ingestado no trae una sola entidad del demo, y al activarlo ADI reconoce
  *       las cuentas de ESE archivo y ya no las del demo
  *   [G] forma de Sentrix · el dataset trae todas las llaves y entra por la puerta del dato sin romper nada
+ *   [H] la preview humana · las seis secciones que pidió el owner, y qué caras de la Mesa quedan disponibles
  *
  * Determinístico · sin red · sin credenciales · sin modelo · sin dependencias nuevas.
  */
@@ -24,6 +25,7 @@ import { leerLibro } from "./src/ingesta/leerLibro.js";
 import { proponerMapeo, elegirEje } from "./src/ingesta/mapeoDeterministico.js";
 import { normalizarEje } from "./src/ingesta/normalizar.js";
 import { ingestarLibro, previewEnTexto } from "./src/ingesta/ingestarLibro.js";
+import { disponibilidadSentrix } from "./src/ingesta/disponibilidad.js";
 import { LLAVES_DATASET } from "./src/ingesta/normalizar.js";
 import { excelDemoBuffer, hojasDelDemo, construirXlsx } from "./scripts/generar-excel-demo.mjs";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
@@ -230,7 +232,54 @@ H("[G] FORMA DE SENTRIX · el dataset tiene la forma que el store espera");
   initTenant(d);
   ok(tenantCargado() === true && getTenantId() === "espejo", "el dataset ingestado se activa sin romper la puerta del dato");
   const texto = previewEnTexto(espejo.preview);
-  ok(texto.includes("LO QUE ENTRÓ") && texto.includes("LO QUE NO TRAE ESTE ARCHIVO"), "la preview en texto separa lo que entró de lo que falta");
+  ok(texto.includes("LO QUE ENTRÓ") && texto.includes("LO QUE ESTE ARCHIVO NO TRAE"), "la preview en texto separa lo que entró de lo que falta");
+}
+
+/* ── [H] LA PREVIEW HUMANA ─────────────────────────────────────────────────────────────────────────────────
+ * Las seis cosas que pidió el owner, en orden, y la sexta —qué partes de Sentrix quedan disponibles— contrastada
+ * contra el dataset de referencia: con el tenant demo COMPLETO las cuatro caras tienen que abrir. Si alguna diera
+ * roja ahí, el mapa de caras está mal, no el archivo. */
+H("[H] LA PREVIEW HUMANA · las seis secciones, y la disponibilidad contrastada contra el demo");
+{
+  const texto = previewEnTexto(espejo.preview);
+  const secciones = ["1 · HOJAS DETECTADAS", "2 · QUÉ ES CADA UNA", "3 · COLUMNAS MAPEADAS", "4 · CAMPOS AUSENTES",
+    "5 · ERRORES QUE BLOQUEAN LA NORMALIZACIÓN", "6 · QUÉ PARTES DE SENTRIX QUEDAN DISPONIBLES"];
+  for (const s of secciones) ok(texto.includes(s), `la preview trae la sección «${s}»`);
+  ok(texto.indexOf("5 · ERRORES") < texto.indexOf("LO QUE ENTRÓ"), "los bloqueantes van ANTES de los totales (si no entra, el resto es ruido)");
+
+  // el dataset de referencia: el demo entero. Las cuatro caras, completas.
+  const dDemo = disponibilidadSentrix(TENANT_DEMO);
+  ok(dDemo.caras.every((c) => c.completa), "con el tenant demo COMPLETO las cuatro caras dan completa",
+    dDemo.caras.filter((c) => !c.completa).map((c) => `${c.cara}: falta ${c.falta.join(",")}`).join(" · "));
+  ok(dDemo.resumen.metricasDisponibles === dDemo.resumen.metricasTotales,
+    `y las ${dDemo.resumen.metricasTotales} métricas del contrato quedan disponibles (dio ${dDemo.resumen.metricasDisponibles})`);
+
+  // el archivo del espejo trae clientes y SKU pero NO los agregados por marca/familia: esas métricas deben caer
+  const dEsp = espejo.preview.disponibilidad;
+  ok(dEsp.metricas.some((m) => m.clave === "ventas@cliente" && m.disponible), "ventas@cliente disponible (el archivo trajo la tabla)");
+  ok(dEsp.metricas.some((m) => m.clave === "ventas@marca" && !m.disponible), "ventas@marca NO disponible (el archivo no trajo esa tabla)");
+  const marca = dEsp.metricas.find((m) => m.clave === "ventas@marca");
+  ok(/no trajo la tabla/.test(String(marca.motivo)), `…y el motivo lo dice con nombre: "${marca.motivo}"`);
+  ok(dEsp.caras.find((c) => c.cara === "Comercial").completa === true, "la cara Comercial abre completa con este archivo");
+  ok(dEsp.caras.find((c) => c.cara === "Capital").completa === true, "la cara Capital abre completa con este archivo");
+
+  // una columna presente pero VACÍA no habilita nada — parece que sí, y esa es la trampa
+  const conVacio = { ...TENANT_DEMO, skuInventario: TENANT_DEMO.skuInventario.map((r) => ({ ...r, stockUSD: null })) };
+  const dVacio = disponibilidadSentrix(conVacio);
+  const cap = dVacio.metricas.find((m) => m.clave === "capital@sku");
+  ok(cap && cap.disponible === false, "una columna que vino en blanco NO habilita la métrica (aunque la tabla tenga filas)");
+  ok(cap && /ninguna con/.test(String(cap.motivo)), `…y el motivo distingue «no vino la tabla» de «vino vacía»: "${cap.motivo}"`);
+
+  // un archivo mínimo: solo inventario → Capital abre, Comercial no
+  const soloInv = ingestarLibro(librosintetico([{ nombre: "Stock", filas: [
+    ["Código SKU", "Bodega", "Stock valorizado", "Rotación", "Días de inventario", "Estado"],
+    ["ZZ-1", "Central", 5000, 3, 40, "Activo"],
+  ] }]), { id: "soloinv", nombre: "Solo inventario", nombreArchivo: "inv.xlsx", unidadesConfirmadas: true });
+  ok(soloInv.ok === true, "un archivo de solo inventario carga");
+  const cInv = soloInv.preview.disponibilidad.caras;
+  ok(cInv.find((c) => c.cara === "Capital").disponible === true, "…y con él la cara Capital abre");
+  ok(cInv.find((c) => c.cara === "Comercial").disponible === false, "…y la cara Comercial NO abre: se dice antes de que el usuario pregunte");
+  ok(previewEnTexto(soloInv.preview).includes("✗ NO ABRE"), "la preview en texto lo muestra como «NO ABRE», no como un silencio");
 }
 
 initTenant(TENANT_DEMO);   // se deja el demo activo, como lo encontró
