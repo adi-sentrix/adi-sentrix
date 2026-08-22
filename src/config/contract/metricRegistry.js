@@ -107,8 +107,16 @@ export const METRICS = {
       bodega: { source: "skuInventario", field: "stockUSD", agg: "sum" },   // group-by bodega
     },
   },
+  /* ⚠️ `formula` SIGUE EN null A PROPÓSITO, y `formulaSiFalta` es otra cosa (owner 2026-08-22).
+   * `formula` significa acá «el valor ALMACENADO tiene que cerrar con esta cuenta», y el almacenado NO cierra:
+   * medido sobre los 13 SKU del dato de referencia, `365 ÷ doh` reproduce la rotación declarada en 0 de 13.
+   * Ponerla ahí sería declarar una verificación que el propio dato no pasa.
+   * `formulaSiFalta` declara la otra regla, la que el owner fijó: si el origen NO informa la métrica, ADI la
+   * calcula así. Informado manda, calculado rellena, y la procedencia se declara siempre.
+   * La implementación vive en `sentrix/diasYRotacion.js`, en un solo lugar. */
   rotacion: {
     label: "Rotación", unit: "ratio", polarity: "higherIsBetter", formula: null, domain: "inventario",
+    formulaSiFalta: "365 / dias_de_inventario",
     axes: ["sku", "bodega"], scenarioAware: { sku: true, bodega: true },
     sourceByAxis: {
       sku:    { source: "skuInventario", field: "rotacion" },
@@ -117,6 +125,9 @@ export const METRICS = {
   },
   doh: {  // days on hand / cobertura
     label: "Cobertura (DOH)", unit: "days", polarity: "lowerIsBetter", formula: null, domain: "inventario",
+    /* Ver la nota de `rotacion`: el almacenado tampoco cierra (stock ÷ venta diaria acierta 2 de 13), así que
+     * `formula` queda en null y la cuenta de relleno se declara aparte. */
+    formulaSiFalta: "stockUnd / (unidades_del_periodo / dias_del_periodo)",
     axes: ["sku", "bodega"], scenarioAware: { sku: true, bodega: true },
     sourceByAxis: {
       sku:    { source: "skuInventario", field: "doh" },
