@@ -609,7 +609,7 @@ function _afinidadComoCompra(narration, figs) {
     .filter((o) => _RECOMIENDA_RE.test(o) && !_ENMARCA_HIPOTESIS_RE.test(o))
     .map((o) => o.trim());
   if (sinMarco.length) {
-    out.push(`«${sinMarco[0].slice(0, 120)}» recomienda una acción comercial como si el dato la respaldara, y lo que la respalda es una AFINIDAD ESTIMADA. Enmarcá la acción en la MISMA oración —«posible salida», «cuenta candidata», «habría que validar»— o no la propongas`);
+    out.push(`«${sinMarco[0].slice(0, 120)}» recomienda una acción comercial como si el dato la respaldara, y lo que la respalda es una AFINIDAD ESTIMADA. Enmarca la acción en la MISMA oración —«posible salida», «cuenta candidata», «habría que validar»— o no la propongas`);
   }
   return out;
 }
@@ -2802,7 +2802,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
   if (esNarracionVacia(narration)) {
     return {
       ok: false, verdict: "narracion-vacia", advisories: [], degraded: false,
-      violations: [{ kind: "narracion-vacia", detail: "la respuesta no trae una sola letra ni dígito (vacía, solo espacios, o puro armazón de puntuación/markdown) — no hay nada que mostrar en pantalla; escribí la respuesta completa" }],
+      violations: [{ kind: "narracion-vacia", detail: "la respuesta no trae una sola letra ni dígito (vacía, solo espacios, o puro armazón de puntuación/markdown) — no hay nada que mostrar en pantalla; escribe la respuesta completa" }],
     };
   }
   // el bloque se saca de la vista de los 25 chequeos ANTES de que empiecen; su texto crudo queda aparte para que
@@ -3167,14 +3167,14 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         const cierra = Number.isFinite(esperado) && Number.isFinite(R)
           && (_cierraFrm(esperado, R) || _cierraPorRedondeo(esperado, c.resultado));
         if (!fn) {
-          _vetosCalculo.push(_multa(c, "op", `la operación «${c.op}» no existe — usá una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos`));
+          _vetosCalculo.push(_multa(c, "op", `la operación «${c.op}» no existe — usa una de: sumar, restar, multiplicar, dividir, pct_de, aplicar_pct, puntos`));
         } else if (!Number.isFinite(esperado)) {
           const _malos = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !Number.isFinite(_num(x)));
           // el DAÑO COLATERAL de la cascada se dice como lo que es: si el insumo es el id de una línea que ya
           // falló, el reintento tiene que arreglar ESA, no esta. Callarlo mandaba la reparación al lugar equivocado.
           const _caidos = _malos.filter((x) => _idsDeclarados.has(String(x).trim()));
           _vetosCalculo.push(_multa(c, "inputs", _caidos.length
-            ? `${_caidos.map((x) => `«${x}»`).join(" y ")} ${_caidos.length > 1 ? "son líneas que fallaron" : "es una línea que falló"} antes, así que ${_caidos.length > 1 ? "sus resultados no quedaron" : "su resultado no quedó"} disponible: corregí ${_caidos.length > 1 ? "esas líneas" : "esa línea"} y esta se resuelve sola`
+            ? `${_caidos.map((x) => `«${x}»`).join(" y ")} ${_caidos.length > 1 ? "son líneas que fallaron" : "es una línea que falló"} antes, así que ${_caidos.length > 1 ? "sus resultados no quedaron" : "su resultado no quedó"} disponible: corrige ${_caidos.length > 1 ? "esas líneas" : "esa línea"} y esta se resuelve sola`
             : (c.inputs || []).length
               ? `no se puede recomputar porque ${_malos.length ? `${_malos.map((x) => `«${x}»`).join(" y ")} no ${_malos.length > 1 ? "son cifras" : "es una cifra"} ni el id de otro cálculo` : `los insumos («${(c.inputs || []).join("; ")}») no alcanzan para la operación «${op}»`}`
               : `la línea no declara insumos, así que no hay nada que recomputar`));
@@ -3190,8 +3190,8 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             return Number.isFinite(alt) && (_cierraFrm(alt, R) || _cierraPorRedondeo(alt, c.resultado));
           });
           const _pista = _otrasQueCierran.length === 1
-            ? ` (la cuenta SÍ cierra si la operación fuera «${_otrasQueCierran[0]}» — si era esa, corregí la operación; si no, corregí la cifra)` : "";
-          _vetosCalculo.push(_multa(c, "resultado", `${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corregí la cuenta o la cifra, no las dos${_pista}`));
+            ? ` (la cuenta SÍ cierra si la operación fuera «${_otrasQueCierran[0]}» — si era esa, corrige la operación; si no, corrige la cifra)` : "";
+          _vetosCalculo.push(_multa(c, "resultado", `${c.formula || op} sobre «${(c.inputs || []).join("; ")}» da ${uni === "pct" ? esperado.toFixed(1) + "%" : "$" + Math.round(esperado).toLocaleString("en-US")}, y declaraste ${c.resultado} — corrige la cuenta o la cifra, no las dos${_pista}`));
         } else if (!insumosAutorizados) {
           const _sinDueno = (c.inputs || []).filter((x) => !_porId.has(String(x).trim()) && !_baseOk(String(x)));
           _vetosCalculo.push(_multa(c, "inputs", `${_sinDueno.map((x) => `«${x}»`).join(" y ")} no ${_sinDueno.length > 1 ? "están autorizadas" : "está autorizada"} — cada insumo tiene que venir del dato, de un supuesto tuyo o de otro cálculo declarado`));
@@ -3199,13 +3199,13 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           /* UNA TASA NO PUEDE QUEDAR NEGATIVA (viabilidad de escenario, owner 2026-08-14). «1.8% − 2pp = −0.2%»
            * es aritmética correcta y realidad imposible: no se puede recortar más carga de la que existe. Se veta
            * la DECLARACIÓN, con el tope real en la instrucción — así el reintento sabe qué corregir. */
-          _vetosCalculo.push({ kind: "escenario-inviable", detail: `línea «${c.linea || c.id || "declarada"}» — campo «resultado»: deja una tasa NEGATIVA (${esperado.toFixed(1)}%). No se puede recortar más de lo que hay: el máximo aplicable es el valor disponible — usá ese tope o declará que el supuesto no aplica completo` });
+          _vetosCalculo.push({ kind: "escenario-inviable", detail: `línea «${c.linea || c.id || "declarada"}» — campo «resultado»: deja una tasa NEGATIVA (${esperado.toFixed(1)}%). No se puede recortar más de lo que hay: el máximo aplicable es el valor disponible — usa ese tope o declara que el supuesto no aplica completo` });
         } else if (!_duenoEfectivo) {
           /* SIN DUEÑO NO HAY AUTORIZACIÓN (owner 2026-08-14). La cuenta puede cerrar perfecta y aun así no
            * sabemos DE QUIÉN es el número — que es justo lo que dejó salir «Lider — $17.8M». */
-          _vetosCalculo.push(_multa(c, "dueño", `la cuenta cierra, pero no declaraste de QUIÉN es el resultado. Agregá «dueno=<entidad>» si es de una entidad concreta, o «dueno=total» si es del conjunto`));
+          _vetosCalculo.push(_multa(c, "dueño", `la cuenta cierra, pero no declaraste de QUIÉN es el resultado. Agrega «dueno=<entidad>» si es de una entidad concreta, o «dueno=total» si es del conjunto`));
         } else if (!_esAgregado(_duenoEfectivo) && !_duenoReal(_duenoEfectivo)) {
-          _vetosCalculo.push(_multa(c, "dueño", `«${_duenoEfectivo}» no es una entidad de este negocio. Usá el nombre exacto de la entidad, o «dueno=total» si el resultado es del conjunto`));
+          _vetosCalculo.push(_multa(c, "dueño", `«${_duenoEfectivo}» no es una entidad de este negocio. Usa el nombre exacto de la entidad, o «dueno=total» si el resultado es del conjunto`));
         } else {
           /* EL DUEÑO DEL RESULTADO SALE DE LOS INSUMOS, NO DEL VALOR. Este es el chequeo que cierra el caso
            * medido, y hubo que buscarle el criterio correcto: la primera versión comparaba el RESULTADO contra la
@@ -3230,7 +3230,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           const _ajeno = !_esAgregado(_duenoEfectivo) && _duenosDeInsumos.size
             && ![..._duenosDeInsumos].some((d) => _normD(d) === _normD(_duenoEfectivo));
           if (_ajeno) {
-            _vetosCalculo.push(_multa(c, "dueño", `la declaraste de «${_duenoEfectivo}», pero sus insumos son de ${[..._duenosDeInsumos].slice(0, 3).join("/")} — una cuenta hecha con cifras de otro no da una cifra tuya: revisá de quién es el número`));
+            _vetosCalculo.push(_multa(c, "dueño", `la declaraste de «${_duenoEfectivo}», pero sus insumos son de ${[..._duenosDeInsumos].slice(0, 3).join("/")} — una cuenta hecha con cifras de otro no da una cifra tuya: revisa de quién es el número`));
           } else {
             if (c.id) _porId.set(String(c.id).trim(), R);
             /* ADOPCIÓN CON DUEÑO: al índice propio (lo verifica el `_duenoEnVentana` de siempre) y a `calcBase`,
@@ -3254,7 +3254,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
      * como «cifra-no-autorizada», un veredicto que no dice la verdad de lo que pasó y que el reintento no sabía
      * reparar. Se nombra la línea y el campo faltante. */
     for (const m of (_decl.malformadas || [])) {
-      _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `línea «${m.linea}» — campo «${m.falta}»: la declaración está incompleta, así que la cuenta no se puede recomputar; completá ese campo o sacá la línea del bloque` });
+      _vetosCalculo.push({ kind: "calculo-no-verificable", detail: `línea «${m.linea}» — campo «${m.falta}»: la declaración está incompleta, así que la cuenta no se puede recomputar; completa ese campo o saca la línea del bloque` });
     }
   }
   const violations = [];
@@ -3319,7 +3319,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         if (!new RegExp(`\\b${sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(o)) continue;
         if (usaFren && !usaInmov && !_frenados.has(sku)) {
           violations.push({ kind: "estado-no-declarado", detail: _inmov.has(sku)
-            ? `«${sku}» está INMOVILIZADO pero no FRENADO — frenado es el estado crítico (rotación bajo el piso o días sobre el techo) y es un subconjunto: los frenados declarados son ${[..._frenados].join(", ")}. Usá «inmovilizado» para este SKU`
+            ? `«${sku}» está INMOVILIZADO pero no FRENADO — frenado es el estado crítico (rotación bajo el piso o días sobre el techo) y es un subconjunto: los frenados declarados son ${[..._frenados].join(", ")}. Usa «inmovilizado» para este SKU`
             : `«${sku}» no está frenado según el motor — los SKU frenados declarados son ${[..._frenados].join(", ")}; di el estado que la carpeta declara, no clasifiques por tu cuenta` });
         } else if (usaInmov && !usaFren && _inmov.size && !_inmov.has(sku)) {
           violations.push({ kind: "estado-no-declarado", detail: `«${sku}» no está inmovilizado según el motor — los declarados son ${[..._inmov].join(", ")}; di el estado que la carpeta declara` });
@@ -3607,7 +3607,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         // agregado: no puede colgarse de UNA entidad. Dos o más alrededor es el conjunto enumerado, y es legítimo.
         const _ents = _entidadesEnVentana(narration, _maskedNarr, f, entidadesDelTenant);
         if (_ents.length === 1) {
-          violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» la declaraste como cifra del CONJUNTO (dueno=total) y en el texto queda colgada de ${_ents[0]} — un agregado no es la cifra de una entidad: o nombrás el conjunto, o declarás el cálculo con su dueño real` });
+          violations.push({ kind: "cifra-calculada-mal-atribuida", detail: `«${f.text}» la declaraste como cifra del CONJUNTO (dueno=total) y en el texto queda colgada de ${_ents[0]} — un agregado no es la cifra de una entidad: o nombras el conjunto, o declaras el cálculo con su dueño real` });
         }
         continue;
       }
@@ -3803,7 +3803,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
       if (!nn || nn.length < 3 || _delBloque.has(nn)) continue;
       _delBloque.add(nn);
       if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${nn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^\\p{L}\\p{N}]|$)`, "u").test(_cgNorm)) {
-        violations.push({ kind: "contexto-general-con-entidad", detail: `el bloque de contexto general nombra «${n}», que es una entidad de la cartera del cliente — el contexto general habla del mundo, jamás de sus entidades; sacá el nombre del bloque o dejá el dato de esa entidad AFUERA, con su cifra autorizada` });
+        violations.push({ kind: "contexto-general-con-entidad", detail: `el bloque de contexto general nombra «${n}», que es una entidad de la cartera del cliente — el contexto general habla del mundo, jamás de sus entidades; saca el nombre del bloque o deja el dato de esa entidad AFUERA, con su cifra autorizada` });
       }
     }
     /* QUÉ CUENTA COMO «CIFRA DEL CLIENTE», Y POR QUÉ NO ES «TODO EL DATO» ────────────────────────────────────────
@@ -3835,7 +3835,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     }
     for (const f of parseFigures(_textoCG)) {
       if (_delCliente.has(`${f.unit}:${f.raw}`)) {
-        violations.push({ kind: "contexto-general-con-cifra-del-cliente", detail: `el bloque de contexto general escribe «${f.text}», que es una cifra del dato de este cliente (o del turno) — el contexto general no puede presentar una cifra suya como conocimiento de la industria; dejala AFUERA del bloque y dentro poné un rango propio` });
+        violations.push({ kind: "contexto-general-con-cifra-del-cliente", detail: `el bloque de contexto general escribe «${f.text}», que es una cifra del dato de este cliente (o del turno) — el contexto general no puede presentar una cifra suya como conocimiento de la industria; dejala AFUERA del bloque y dentro pon un rango propio` });
       }
     }
   }
@@ -3872,7 +3872,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           // legítima («su margen de venta es 22.0% y su rotación 5.2x, bajo el benchmark de 30.1%» compara lo suyo).
           if (!vozOtro.test(oracion) || vozPropia.test(oracion)) continue;
           const otro = uniVara === "venta" ? "inventario" : "venta";
-          violations.push({ kind: "comparacion-cruzada", detail: `en esa oración estás comparando una cifra de ${otro} contra «${f.text}», que es una vara del universo ${uniVara} — son dos mediciones distintas del mismo negocio (una es la foto de hoy, la otra el año cerrado) y no se comparan entre sí: usá la vara de su propio universo, o declará que para eso no hay vara` });
+          violations.push({ kind: "comparacion-cruzada", detail: `en esa oración estás comparando una cifra de ${otro} contra «${f.text}», que es una vara del universo ${uniVara} — son dos mediciones distintas del mismo negocio (una es la foto de hoy, la otra el año cerrado) y no se comparan entre sí: usa la vara de su propio universo, o declara que para eso no hay vara` });
           break;
         }
       }
@@ -3920,7 +3920,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           if (!parseFigures(oracion).some((g) => g.unit === "pct")) continue;   // «margen» sin cifra no afirma nada
           const sku = _conInventario.find((n) => new RegExp(`\\b${String(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(oracion));
           if (!sku) continue;
-          violations.push({ kind: "etiqueta-ambigua", detail: `le atribuís un «margen» a ${sku} sin decir de cuál hablás: ese SKU tiene margen de INVENTARIO (la foto de hoy) y margen de VENTA (el año cerrado), y son cifras distintas — escribí «margen de inventario» o «margen de venta»` });
+          violations.push({ kind: "etiqueta-ambigua", detail: `le atribuyes un «margen» a ${sku} sin decir de cuál hablas: ese SKU tiene margen de INVENTARIO (la foto de hoy) y margen de VENTA (el año cerrado), y son cifras distintas — escribe «margen de inventario» o «margen de venta»` });
           break;
         }
       }
@@ -3955,9 +3955,9 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           const _declara = (_mDe && Number(_mDe[1]) === nombradas.length) || (_mTop && Number(_mTop[1]) === nombradas.length);
           // el que PROMETE todo no se salva por rankear un conjunto declarado: dijo el eje entero y mostró menos.
           if (_prometeTodo) {
-            violations.push({ kind: "ranking-sin-cola", detail: `decís que el ranking es COMPLETO y mostrás ${nombradas.length} de ${todas.length} — prometer el universo entero y entregar una parte es peor que recortar: o mostrás las ${todas.length}, o decís de qué conjunto hablás («los ${nombradas.length} inmovilizados», «${nombradas.length} de ${todas.length}»)` });
+            violations.push({ kind: "ranking-sin-cola", detail: `dices que el ranking es COMPLETO y muestras ${nombradas.length} de ${todas.length} — prometer el universo entero y entregar una parte es peor que recortar: o muestras las ${todas.length}, o dices de qué conjunto hablas («los ${nombradas.length} inmovilizados», «${nombradas.length} de ${todas.length}»)` });
           } else if (!_esConjuntoEntero && !_declara) {
-            violations.push({ kind: "ranking-sin-cola", detail: `anunciás un orden y mostrás ${nombradas.length} de ${todas.length} — un ranking parcial que no dice dónde corta se lee como si fuera todo: declaralo («${nombradas.length} de ${todas.length}», «top ${nombradas.length}») o explicá por qué cortás ahí` });
+            violations.push({ kind: "ranking-sin-cola", detail: `anuncias un orden y muestras ${nombradas.length} de ${todas.length} — un ranking parcial que no dice dónde corta se lee como si fuera todo: declaralo («${nombradas.length} de ${todas.length}», «top ${nombradas.length}») o explica por qué cortas ahí` });
           }
         }
       }
@@ -4123,7 +4123,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
             const extremo = conjunto.reduce((a, b) => (alto ? (b.valor > a.valor ? b : a) : (b.valor < a.valor ? b : a)));
             if (extremo.entidad === reclamante.entidad) continue;
             const _v = (x) => (/margen|carga/.test(decl.clave) ? `${x.valor}%` : decl.clave === "rotacion" ? `${x.valor}x` : /dias/.test(decl.clave) ? `${x.valor}d` : String(x.valor));
-            violations.push({ kind: "superlativo-no-sostenido", detail: `decís que ${reclamante.entidad} es «${mm[0]}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo} el extremo es ${extremo.entidad} (${_v(extremo)} contra ${_v(reclamante)} de ${reclamante.entidad}) — un «${mm[0]}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
+            violations.push({ kind: "superlativo-no-sostenido", detail: `dices que ${reclamante.entidad} es «${mm[0]}» en ${decl.clave.replace(/_/g, " ")} y no lo es: sobre ${decl.d.universo} el extremo es ${extremo.entidad} (${_v(extremo)} contra ${_v(reclamante)} de ${reclamante.entidad}) — un «${mm[0]}» es una afirmación sobre el ORDEN, y un orden se verifica contra el conjunto igual que un ranking` });
             _vetadoSup = true;
             break;
           }
@@ -4164,7 +4164,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     ].join("|"), "i");
     const _MARCA_JUICIO = /\bjuicio\s+asesor\b|\bdato\s+duro\b|\bcriterio\s+(?:m[íi]o|propio|asesor|de\s+asesor)\b|\bes\s+mi\s+lectura\b|\bes\s+criterio\b|\bmi\s+criterio\b|\bno\s+sale\s+del\s+dato\b/i;
     if (_RECOMIENDA.test(narration) && !_MARCA_JUICIO.test(narration)) {
-      violations.push({ kind: "juicio-sin-marcar", detail: `estás recomendando o priorizando sin decir qué es DATO DURO y qué es CRITERIO tuyo — una recomendación escrita con el mismo tono que una cifra verificada se lee como si el dato la ordenara, y el dato no ordena prioridades: marcá el criterio («esto es criterio mío, no una cifra del dato») y dejá el dato duro aparte` });
+      violations.push({ kind: "juicio-sin-marcar", detail: `estás recomendando o priorizando sin decir qué es DATO DURO y qué es CRITERIO tuyo — una recomendación escrita con el mismo tono que una cifra verificada se lee como si el dato la ordenara, y el dato no ordena prioridades: marca el criterio («esto es criterio mío, no una cifra del dato») y deja el dato duro aparte` });
     }
 
     // ── (6) LA ETIQUETA DE LOS DÍAS ───────────────────────────────────────────────────────────────────────────
@@ -4174,7 +4174,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
     const _DIAS_INVENTADOS = /\b\d{1,4}\s*(?:d[íi]as?|d)\s+sin\s+(?:rotar|rotaci[óo]n|salida|movimiento|moverse|actividad)\b/i;
     const _mDI = narration.match(_DIAS_INVENTADOS);
     if (_mDI) {
-      violations.push({ kind: "dias-etiqueta-incorrecta", detail: `escribís «${_mDI[0].trim()}» y este dato no tiene «días sin rotar»: tiene DÍAS DE INVENTARIO (cuánto dura el stock al ritmo de venta — es el campo contra el que se mide el techo) y DÍAS SIN VENTA (hace cuánto no sale). Usá el nombre del campo que estás citando` });
+      violations.push({ kind: "dias-etiqueta-incorrecta", detail: `escribes «${_mDI[0].trim()}» y este dato no tiene «días sin rotar»: tiene DÍAS DE INVENTARIO (cuánto dura el stock al ritmo de venta — es el campo contra el que se mide el techo) y DÍAS SIN VENTA (hace cuánto no sale). Usa el nombre del campo que estás citando` });
     }
     const _diasIdx = (datoProyectado && datoProyectado.dias) ? datoProyectado.dias : null;
     if (_diasIdx) {
@@ -4186,7 +4186,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
         if (!sku) continue;
         const d = _diasIdx[sku];
         if (d.sinVenta == null) {
-          violations.push({ kind: "dias-etiqueta-incorrecta", detail: `le ponés «${mv[0].trim()}» a ${sku} y ese SKU está CON VENTA AL DÍA: no tiene días sin venta. Si lo que querés citar es cuánto dura su stock, son ${d.inventario}d de inventario` });
+          violations.push({ kind: "dias-etiqueta-incorrecta", detail: `le pones «${mv[0].trim()}» a ${sku} y ese SKU está CON VENTA AL DÍA: no tiene días sin venta. Si lo que quieres citar es cuánto dura su stock, son ${d.inventario}d de inventario` });
           break;
         }
         if (Number(mv[1]) !== d.sinVenta && Number(mv[1]) === d.inventario) {
@@ -4231,7 +4231,7 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           const _due = _dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null;
           if (!_due || !_due.size) continue;                     // no es del dato: otros chequeos ya la juzgan
           if ([..._due].some((d) => !_esEntidadDelTenant(d))) continue;   // la carpeta le da un dueño COLECTIVO
-          violations.push({ kind: "total-sin-declarar", detail: `presentás «${f.text}» como cifra del conjunto y no lo es: en la carpeta pertenece a ${[..._due].slice(0, 3).join("/")}, y no la declaraste como cálculo. Un total del conjunto o sale de la carpeta con ese dueño, o va en el bloque de cálculo con sus insumos — si lo sumaste vos, decilo, y decí sobre CUÁNTOS lo sumaste` });
+          violations.push({ kind: "total-sin-declarar", detail: `presentas «${f.text}» como cifra del conjunto y no lo es: en la carpeta pertenece a ${[..._due].slice(0, 3).join("/")}, y no la declaraste como cálculo. Un total del conjunto o sale de la carpeta con ese dueño, o va en el bloque de cálculo con sus insumos — si lo sumaste vos, decilo, y di sobre CUÁNTOS lo sumaste` });
           _vetado = true;
         }
       }

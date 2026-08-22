@@ -55,7 +55,7 @@ H("[1] D1 · LA DOCTRINA: la apertura de clarify re-enseña, la contrapregunta q
   ok(doc.includes("RE-ENSEÑANDO de inmediato el mensaje central"), "…y exige re-enseñar de inmediato el mensaje central");
   ok(doc.includes("MULTI-TEMA REAL") && doc.includes("una respuesta larga de UN solo tema NO cuenta"),
     "…con la repregunta reservada a multi-tema real (y una respuesta larga de un solo tema NO cuenta)");
-  ok(doc.indexOf("NUNCA abras con una contrapregunta") < doc.indexOf("Cerrá SIEMPRE con una pregunta guía"),
+  ok(doc.indexOf("NUNCA abras con una contrapregunta") < doc.indexOf("Cierra SIEMPRE con una pregunta guía"),
     "la apertura se regula ANTES del cierre — la pregunta guía de cierre sigue intacta");
   ok(doc.includes("nivel_aclaracion\" es 1") && doc.includes("nivel_aclaracion\" es 2"), "la escalera de niveles 1/2 no se tocó");
   const system = buildNarrateSystemC(ADI_PERSONA, "");
