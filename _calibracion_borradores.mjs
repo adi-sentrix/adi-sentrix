@@ -37,6 +37,8 @@ const NUEVOS = new Set(["comparacion-cruzada", "etiqueta-ambigua", "ranking-sin-
   // salió a pantalla), así que ahí el veto es exactamente el objetivo. Lo que hay que mirar es si el veto cae
   // sobre un texto de los exámenes 1-3, que son los que se dieron por buenos ANTES de que existiera la regla.
   "superlativo-no-sostenido", "juicio-sin-marcar", "dias-etiqueta-incorrecta",
+  // EL DE LA REGLA 2 (owner 2026-08-21): la causalidad sin respaldo dejó de descansar solo en el prompt.
+  "causalidad-sin-respaldo",
   // el del resumen (owner 2026-08-16): un total del conjunto que ADI sumó y no declaró
   "total-sin-declarar"]);
 

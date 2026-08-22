@@ -588,7 +588,7 @@ function _afinidadComoCompra(narration, figs) {
   // encontraba el regex ni siquiera era la más grave.
   const frases = [...new Set((text.match(new RegExp(_COMPRA_OBSERVADA_RE.source, "gi")) || []).map((x) => x.toLowerCase()))];
   if (frases.length) {
-    out.push(`${frases.map((f) => `«${f}»`).join(", ")} afirma${frases.length > 1 ? "n" : ""} un historial de compra que el dato NO tiene: la relación cliente×SKU de este turno es una afinidad estimada. Decilo como candidatura o salida comercial posible, nunca como compra ya ocurrida`);
+    out.push(`${frases.map((f) => `«${f}»`).join(", ")} afirma${frases.length > 1 ? "n" : ""} un historial de compra que el dato NO tiene: la relación cliente×SKU de este turno es una afinidad estimada. Dilo como candidatura o salida comercial posible, nunca como compra ya ocurrida`);
   }
   /* (c) EL ACTO DE HABLA, NO LA FRASE DE NEGOCIO (owner 2026-08-12, tras la micro-certificación N).
    * LA LISTA DE (b) ES ESQUIVABLE Y SE COMPROBÓ: el patrón cubría «reforzar la relación comercial» y el narrador
@@ -4231,10 +4231,52 @@ export function guardC(narration, { ledger, results = [], trace = null, question
           const _due = _dato.porCanon.get(f.canon) || _dato.porVerbatim.get(_stripSpace(f.text)) || null;
           if (!_due || !_due.size) continue;                     // no es del dato: otros chequeos ya la juzgan
           if ([..._due].some((d) => !_esEntidadDelTenant(d))) continue;   // la carpeta le da un dueño COLECTIVO
-          violations.push({ kind: "total-sin-declarar", detail: `presentas «${f.text}» como cifra del conjunto y no lo es: en la carpeta pertenece a ${[..._due].slice(0, 3).join("/")}, y no la declaraste como cálculo. Un total del conjunto o sale de la carpeta con ese dueño, o va en el bloque de cálculo con sus insumos — si lo sumaste vos, decilo, y di sobre CUÁNTOS lo sumaste` });
+          violations.push({ kind: "total-sin-declarar", detail: `presentas «${f.text}» como cifra del conjunto y no lo es: en la carpeta pertenece a ${[..._due].slice(0, 3).join("/")}, y no la declaraste como cálculo. Un total del conjunto o sale de la carpeta con ese dueño, o va en el bloque de cálculo con sus insumos — si lo sumaste tú, dilo, y di sobre CUÁNTOS lo sumaste` });
           _vetado = true;
         }
       }
+    }
+  }
+
+
+  /* ── (7) CAUSALIDAD SIN RESPALDO · la regla 2 del proyecto, que hasta hoy nadie hacía cumplir ───────────────
+   * CLAUDE.md §2.2 dice «no hay causalidad sin respaldo», y §4 enumera lo que este dato NO tiene: causa de la
+   * detención, lead time de proveedor, orden de compra, entradas/recepciones, historial cliente×SKU. Aun así,
+   * MEDIDO el 2026-08-21 con el contexto exacto del camino natural, cuatro causas inventadas pasaban enteras:
+   * «porque el proveedor subió los costos», «porque el equipo dejó de visitar la cuenta», «se debe a un problema
+   * logístico», «porque prioriza a otro proveedor».
+   * POR QUÉ PASABAN: los cuatro chequeos de proporcionalidad se alimentan de la BOLETA, y el camino natural no
+   * trae boleta — su propio comentario lo dice, «si el turno no trae boleta, los cuatro salen vacíos solos». O sea
+   * que la regla madre del producto descansaba solo en el prompt. Una regla escrita no frena una afirmación.
+   * ESTE NO NECESITA BOLETA porque no le hace falta: el dato no tiene NINGUNA causa, así que alcanza con mirar si
+   * el mecanismo invocado es uno de los que la carpeta no puede sostener.
+   *
+   * ⚠️ LO QUE NO SE TOCA, y es la mitad del trabajo — ADI ya hace bien estas cuatro cosas y vetarlas sería peor
+   * que el defecto:
+   *   · DECLINAR («con este dato no puedo darte la causa raíz — no hay descuentos desagregados»): eso es la regla
+   *     cumpliéndose, no rompiéndose;
+   *   · HIPOTETIZAR marcado («puede ser mezcla de clientes, descuentos, o carga comercial»): el Examen 5 lo hizo y
+   *     estuvo bien — nombrar lo que NO se puede explicar es honestidad, no invento;
+   *   · LOCALIZAR («la brecha se concentra en 3 SKU»): localizar no es explicar, y no pretende serlo;
+   *   · EXPLICAR CON EL DATO («el costo medio se lleva 77% del precio»): eso sí tiene respaldo, es aritmética.
+   * Por eso el veto pide TRES cosas juntas: conector causal, mecanismo AUSENTE del dato, y que vaya afirmado —
+   * sin cobertura de hipótesis y sin negación. Falta una, no se juzga. */
+  {
+    const _CAUSAL = /\b(?:porque|por\s+culpa\s+de|se\s+debe\s+a|se\s+explica\s+por|a\s+ra[íi]z\s+de|debido\s+a|la\s+causa\s+(?:es|est[áa])|el\s+motivo\s+es)\b/i;
+    /* Los mecanismos que este dato NO tiene (CLAUDE.md §4, huecos verificados). «rebate» queda FUERA a propósito:
+     * sí existe en el dato de marca, así que citarlo tiene respaldo. */
+    const _AUSENTE = /\b(?:proveedor(?:es)?|abastecimiento|lead\s*time|plazo\s+de\s+entrega|[óo]rden(?:es)?\s+de\s+compra|orden(?:es)?\s+de\s+compra|recepci[óo]n(?:es)?|promoci[óo]n(?:es)?|descuento(?:s)?|competencia|competidor(?:es)?|vendedor(?:es)?|fuerza\s+de\s+venta(?:s)?|equipo\s+comercial|visita(?:s)?|log[íi]stic[ao]|transporte|flete(?:s)?|estacionalidad|temporada|publicidad|marketing|quiebre\s+de\s+stock)\b/i;
+    const _HIPOTESIS = /\b(?:puede|pueden|podr[íi]a(?:n)?|quiz[áa]s?|tal\s+vez|probablemente|posiblemente|hip[óo]tesis|habr[íi]a\s+que|no\s+(?:puedo|s[ée]|tengo|est[áa]\s+en)|sin\s+(?:respaldo|evidencia|dato))\b/i;
+    const _NIEGA = /\bno\s+(?:hay|tiene|trae|existe|existen|aparece|figura)\b|\bnada\s+indica\b|\beste\s+dato\s+no\b|\bel\s+dato\s+no\b/i;
+    for (const oracion of String(narration).split(/(?<=[.!?])\s+|\n+/)) {
+      const mc = oracion.match(_CAUSAL);
+      if (!mc) continue;
+      if (_HIPOTESIS.test(oracion) || _NIEGA.test(oracion)) continue;
+      // el mecanismo tiene que estar DEL LADO DE LA CAUSA: después del conector, no antes
+      const ma = oracion.slice(mc.index + mc[0].length).match(_AUSENTE);
+      if (!ma) continue;
+      violations.push({ kind: "causalidad-sin-respaldo", detail: `afirmas una causa que este dato no puede sostener: «${mc[0]} … ${ma[0]}». El dato no trae causa de la detención, ni lead time de proveedor, ni órdenes de compra, ni entradas, ni historial por cliente — así que «${ma[0]}» no sale de acá. Puedes LOCALIZAR dónde pasa (eso el dato sí lo sostiene) o nombrarlo como hipótesis a confirmar, pero no darlo por causa` });
+      break;
     }
   }
 

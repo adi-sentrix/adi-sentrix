@@ -121,7 +121,7 @@ function _lineaPendiente(pending) {
   const ents = (Array.isArray(p.entities) && p.entities.length) ? p.entities : (p.entity ? [p.entity] : []);
   if (!ents.length) return "";
   const sobre = ents.length === 1 ? ents[0] : ents.join(" y ");
-  return `· Simulación EMPEZADA Y SIN CERRAR sobre ${sobre}${p.dimension ? ` (eje ${p.dimension})` : ""}: el usuario ya declaró ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)}, y FALTA ${falta} — es el supuesto que ADI le pidió. Si este turno contesta eso (un porcentaje, "que no cambie", "se mantiene", "sobre el total"), es A ESTA simulación que se refiere, no a un escenario nuevo: conserva ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)} y la misma entidad. Si el turno habla de otra cosa, la simulación sigue esperando: no la des por hecha, no la ejecutes a medias y no la traigas vos.`;
+  return `· Simulación EMPEZADA Y SIN CERRAR sobre ${sobre}${p.dimension ? ` (eje ${p.dimension})` : ""}: el usuario ya declaró ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)}, y FALTA ${falta} — es el supuesto que ADI le pidió. Si este turno contesta eso (un porcentaje, "que no cambie", "se mantiene", "sobre el total"), es A ESTA simulación que se refiere, no a un escenario nuevo: conserva ${conocido} en ${_deltaEnPalabras(p.known.delta_pct)} y la misma entidad. Si el turno habla de otra cosa, la simulación sigue esperando: no la des por hecha, no la ejecutes a medias y no la traigas tú.`;
 }
 
 // renderInteractionMemory(mem) → bloque legible de la MEMORIA DE INTERACCIÓN para inyectar en el prompt. Las 4 capas
@@ -134,7 +134,7 @@ export function renderInteractionMemory(mem) {
   if (id.cargo) L.push(`· Cargo: ${id.cargo}.`);
   if (id.empresa) L.push(`· Empresa: ${id.empresa}${id.pais ? ` · ${id.pais}` : ""}${id.moneda ? ` · moneda ${id.moneda}` : ""}.`);
   const pr = mem.preferencias || {};
-  if (pr.trato) L.push(`· Trato: ${pr.trato === "usted" ? "de usted" : "cercano (tú/vos)"}.`);
+  if (pr.trato) L.push(`· Trato: ${pr.trato === "usted" ? "de usted" : "cercano (tú)"}.`);
   if (pr.tecnicismo === "bajo") L.push(`· Evita tecnicismos innecesarios.`);
   if (pr.tablas === false) L.push(`· No muestres tablas salvo que las pida.`);
   if (pr.prioridad) L.push(`· Prioriza primero lo ${pr.prioridad === "financiero" ? "financiero (impacto económico)" : "comercial"}.`);

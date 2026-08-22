@@ -74,6 +74,15 @@ function rangosDeCadena(s) {
 
 /* sospechosas(texto) → palabras que terminan en á/é/í (+s). Las que terminan en «ó» quedan fuera: son pretérito
  * de TERCERA persona («declaró», «pidió»), jamás voseo. */
+/* ⚠️ EL PUNTO CIEGO DE LA TERMINACIÓN: «vos» y los enclíticos «decilo/contame/mirame» NO llevan tilde, así que
+ * el criterio por vocal acentuada no los ve. Lo descubrí encontrando «si lo sumaste vos, decilo» dentro de una
+ * multa del notario DESPUÉS de dar el pase por terminado. Van enumerados: son pocos y cerrados. */
+const SIN_TILDE = ["vos", "decilo", "decime", "contame", "mirame", "fijate", "dale vos", "sos"];
+const sospechosasSinTilde = (txt) => {
+  const bajo = ` ${txt.toLowerCase().replace(/[^a-zà-ÿ]+/g, " ")} `;
+  return SIN_TILDE.filter((v) => bajo.includes(` ${v} `));
+};
+
 function sospechosas(txt) {
   const out = [];
   for (const w of txt.split(/[^A-Za-zÀ-ÿ]+/)) {
@@ -110,6 +119,7 @@ for (const rel of PROMPTS) {
     if (!txt.trim()) continue;
     cadenas++;
     for (const w of sospechosas(txt)) { enArchivo++; sucias.push(`${rel}: «${w}»`); }
+    for (const w of sospechosasSinTilde(txt)) { enArchivo++; sucias.push(`${rel}: «${w}» (sin tilde)`); }
   }
   ok(enArchivo === 0, `${rel} — sin voseo`, `${enArchivo} forma(s)`);
 }
