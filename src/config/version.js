@@ -15,7 +15,7 @@
  * exactamente la disciplina que faltó la vez pasada. */
 
 /** El número que está declarado en ESTA rama. Ver `_VERSIONES.md` para qué trae y si ya está desplegada. */
-export const ADI_VERSION = "1.2";
+export const ADI_VERSION = "1.3";
 
 /** La última versión que de verdad llegó a producción. Se actualiza EN EL MISMO commit del deploy. */
-export const ADI_VERSION_DESPLEGADA = "1.2";
+export const ADI_VERSION_DESPLEGADA = "1.3";

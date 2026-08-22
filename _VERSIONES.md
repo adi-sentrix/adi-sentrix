@@ -12,7 +12,42 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.2 — producción · tag `v1.2`
+## 1.3 — producción · tag `v1.3`
+
+La versión que endurece **la base del asesor** antes de conectarle archivos reales. Cuatro cosas, y tres de ellas
+cierran huecos donde una garantía existía en el papel pero no en el producto.
+
+- **El voseo, cortado de raíz.** El lavador corregía la SALIDA, pero los textos que le enseñan a ADI a hablar
+  estaban escritos en voseo — incluidas las MULTAS del notario, que se le mandan justo antes de pedirle que
+  reescriba. La red corría detrás de una fuente que nunca se apagó: 322 formas en los cinco archivos que guían al
+  modelo. Se respetaron los ejemplos de lo que escribe el USUARIO («dale, seguí»): ese vocabulario de entrada es
+  contrato suyo y ADI tiene que seguir reconociéndolo.
+- **Observabilidad que sirve.** El producto ya sabe POR QUÉ una respuesta vino vacía: el motivo de corte del
+  proveedor viaja hasta el registro del turno. Antes eso vivía solo en la consola del examen, y entender una
+  respuesta vacía costaba una corrida paga. Y el registro se puede LEER: antes se escribía y no lo abría nadie.
+- **Causalidad sin respaldo, con cerrojo.** La regla 2 del proyecto («no hay causalidad sin respaldo») descansaba
+  solo en el prompt: cuatro causas inventadas —«porque el proveedor subió los costos»— pasaban el muro enteras,
+  porque los chequeos que las cazan viven de la boleta y el camino natural no la trae. Ahora hay un chequeo que no
+  la necesita. **No veta declinar, ni hipotetizar marcado, ni localizar, ni explicar con el dato**: ADI ya hacía
+  bien esas cuatro cosas y vetarlas habría sido peor que el defecto.
+- **La Ficha se alcanza escribiendo.** «explicame falabela» —con el tipeo— ofrece «Ver la ficha de Falabella».
+  Antes el camino natural devolvía `sentrixAction: null` fijo: llegar a la Ficha exigía venir de un botón de la
+  Mesa. Sentrix es apoyo, no requisito. El botón OFRECE; no abre solo — el usuario decide.
+
+Verificado antes de subir: **170 PASS · 0 FAIL · 0 tocaron la red**, y cada pieza con su candado nuevo
+(`_prompts_sin_voseo_gate` · `_causalidad_gate` · `_ficha_texto_libre_gate` · 11 controles más de telemetría).
+
+⚠️ **Cuatro veces en esta versión un chequeo mío daba VERDE estando ciego** — un borde de palabra perdido, un
+inventario que no conocía la cola larga, un detector sin su punto ciego, una verificación demasiado floja que
+habría dejado pasar un botón que abría la Mesa en vez de la Ficha. Los cuatro candados nuevos se prueban a sí
+mismos contra una copia del defecto real antes de afirmar que hay cero.
+
+**No incluye carga de archivos ni Supabase vía 2** — eso sigue reservado para la 2.0.
+
+---
+
+
+## 1.2 — tag `v1.2` (estuvo en producción el 2026-08-21)
 
 La versión que saca de producción la **lotería de la respuesta vacía**. Cuatro veces, en sesiones distintas, el
 cerebro devolvió CERO texto: se pagaba la llamada entera y el usuario recibía el suplente. Es la falla que el owner
