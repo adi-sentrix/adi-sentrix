@@ -100,5 +100,39 @@ console.log("═".repeat(100));
   ok(/_marcarInicioDeTurno\(\)/.test(chat), "…y el reloj del turno arranca cuando el usuario envía, que es la latencia que él espera");
 }
 
+console.log("\n" + "=".repeat(100));
+console.log("6 · POR QUÉ VINO VACÍA · el hueco que costó cuatro fallas indiagnosticables");
+console.log("=".repeat(100));
+/* La causa de las cadenas vacías (el razonamiento comiéndose el tope de tokens) apareció recién cuando se
+ * instrumentó el MOTIVO DE CORTE… pero solo en la consola del examen. En el producto, un turno vacío decía
+ * «vacio» y nada más, así que entender uno costaba una corrida paga. Ahora el motivo viaja con el renglón. */
+borrarTelemetria();
+const vacio = registrarTurno({ estado: "vacio", via: "natural", llamadas: 2, ms: 9000, vetos: ["narracion-vacia"],
+  cortes: ["max_tokens", "max_tokens"], vacias: 2, pregunta: "dime donde estoy perdiendo margen" });
+ok(Array.isArray(vacio.cortes) && vacio.cortes.join() === "max_tokens,max_tokens",
+  "el renglón guarda POR QUÉ cortó el proveedor en cada llamada");
+ok(vacio.vacias === 2, "…y cuántas volvieron sin una sola letra");
+ok(CAMPOS_TELEMETRIA.includes("cortes") && CAMPOS_TELEMETRIA.includes("vacias"),
+  "los dos están DECLARADOS en el esquema: lo que no se declara, no se guarda");
+{
+  const r = resumenTelemetria();
+  ok(r.turnosSinTexto === 1, `el resumen los cuenta (${r.turnosSinTexto})`);
+  ok(/max_tokens/.test(r.texto) && /sin una sola letra/.test(r.texto),
+    "…y lo dice en una línea legible, que es la diferencia entre un misterio y un arreglo");
+}
+ok(registrarTurno({ estado: "verde", via: "natural", cortes: ["end_turn"], vacias: 0 }).cortes[0] === "end_turn",
+  "se registra SIEMPRE, no solo cuando falla: comparar una vacía contra una buena es el diagnóstico");
+
+console.log("\n" + "=".repeat(100));
+console.log("7 · SE PUEDE LEER · un registro que nadie abre no es observabilidad, es un archivo");
+console.log("=".repeat(100));
+{
+  const chat = fs.readFileSync(path.join(root, "src", "ui", "ChatADI.jsx"), "utf8");
+  ok(/window\.__ADI_SALUD__/.test(chat), "la app expone `__ADI_SALUD__()` para leer el resumen sin gastar una llamada");
+  ok(/filas: \(\) => exportarTelemetria\(\)/.test(chat), "…y `.filas()`, que son los renglones que Supabase va a heredar");
+  ok(/cortes: cortesDelTurno/.test(chat) && /cortes\.push\(String\(\(data && data\.stop\)/.test(chat),
+    "el motivo de corte se recoge del gateway en CADA llamada del turno, no se pierde en el camino");
+}
+
 console.log(`\n── _telemetria_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

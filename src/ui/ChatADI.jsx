@@ -26,7 +26,7 @@ const _SCROLLBAR = 8;
 import { InlineChart } from "./InlineChart.jsx";
 import { composeFollowupRecommendation } from "../adi/specRetrieval.js";   // follow-up (fallback regex del camino sin LLM)
 import { ADI_LLM_ENABLED, ADI_LLM_NARRATE_ENABLED, ADI_ORACLE_ENABLED, ADI_CLAIMS_ONLY_ENABLED, ADI_BYPASS_SIN_PAGO, ADI_CAMINO_NATURAL } from "../config/voiceFlags.js";   // Paso 5 · switch demo/LLM + sub-flag narración · Arquitectura C · oráculo verificado (Fase 3 · detrás de flag) · bypass sin pago (detrás de flag, hoy apagado) · camino natural como principal (owner 2026-08-14)
-import { registrarTurno } from "../adi/telemetria.js";   // el renglón de salud del turno · sin dato de negocio (ver telemetria.js)
+import { registrarTurno, resumenTelemetria, exportarTelemetria, borrarTelemetria } from "../adi/telemetria.js";   // el renglón de salud del turno · sin dato de negocio (ver telemetria.js)
 import { answerViaNatural } from "../adi/oracle/caminoNatural.js";   // el camino natural: cerebro único + notario + ciclo de reparación (flag ADI_CAMINO_NATURAL)
 import { puedeResponderSinPagar } from "../adi/bypassConfianza.js";   // ¿el piso entiende esta pregunta lo bastante bien como para NO pagar? (owner 2026-08-12)
 import { getLastOffer } from "../adi/oracle/dialogueState.js";   // la oferta viva del turno anterior — cambia el sentido de "sí" o "el segundo"
@@ -116,9 +116,20 @@ function _rastroDeRuta(q, r, source, escenario) {
       suplente: nat ? !!nat.suplenteDigno : null,
       vetos: nat && Array.isArray(nat.vetos) ? nat.vetos : null,
       llamadas: nat ? nat.calls : null,
+      cortes: nat && Array.isArray(nat.cortes) ? nat.cortes : null,   // POR QUÉ cortó el proveedor en cada llamada
+      vacias: nat ? nat.vacias : null,                                 // cuántas volvieron sin una sola letra
     };
     if (typeof window !== "undefined") {
       window.__ADI_RUTA__ = [rastro, ...(window.__ADI_RUTA__ || [])].slice(0, 20);
+      /* Y UNA FORMA DE LEERLO (owner 2026-08-21). La telemetría se escribía y NO LA LEÍA NADIE: un registro que
+       * nadie puede abrir no es observabilidad, es un archivo. `__ADI_SALUD__()` devuelve el resumen —cómo se está
+       * portando ADI, sin gastar una llamada— y `.filas()` los renglones crudos, que son los mismos que Supabase
+       * va a heredar. Es un asidero de diagnóstico, no una pantalla: la superficie visible la decide el owner. */
+      window.__ADI_SALUD__ = Object.assign(() => resumenTelemetria(), {
+        texto: () => resumenTelemetria().texto,
+        filas: () => exportarTelemetria(),
+        borrar: () => borrarTelemetria(),
+      });
     }
     /* Y SE REGISTRA, no solo se imprime (owner 2026-08-21). `window.__ADI_RUTA__` se pierde al recargar y no
      * suma: sirve para mirar UN turno, no para saber cómo se está portando. `registrarTurno` guarda el renglón
@@ -339,7 +350,7 @@ async function _fetchNarrateC({ text, plan, results, ledgerFigs, mem, history, r
 // La key sigue server-side; `datoNegocio` viaja igual que en el camino actual (misma proyección memoizada).
 // A DIFERENCIA de _fetchNarrateC, una narración VACÍA no lanza: el ciclo notarial la trata como veredicto propio
 // (narracion-vacia) y dispara la reparación/suplente — lanzar acá le robaría el caso al ciclo.
-async function _fetchNatural({ mensajes, mem, scenario, requestContext, attempt, motivoReintento }) {
+async function _fetchNatural({ mensajes, mem, scenario, requestContext, attempt, motivoReintento, cortes }) {
   const res = await fetch("/api/adi-narrate-c", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ payload: { modoNatural: true, mensajes }, mem, access: getAccessCode(), tenantId: requestContext && requestContext.tenantId, attempt, motivoReintento, datoNegocio: proyectarDatoNegocio(scenario) }),
@@ -347,6 +358,10 @@ async function _fetchNatural({ mensajes, mem, scenario, requestContext, attempt,
   const data = await res.json();
   if (_accessDenied(data)) throw new Error("acceso requerido");
   if (!data || !data.ok) throw new Error((data && data.error) || "gateway sin narración");
+  /* EL MOTIVO DE CORTE SE RECOGE ACÁ (owner 2026-08-21). El gateway ya lo manda; el producto lo tiraba, así que
+   * un turno vacío en producción decía «vacio» y nada más — exactamente el hueco que hizo indiagnosticables
+   * cuatro fallas y obligó a pagar una corrida para entenderlas. Es una razón de corte, no dato de nadie. */
+  if (Array.isArray(cortes)) cortes.push(String((data && data.stop) || "(no declarado)"));
   return typeof data.narration === "string" ? data.narration : "";
 }
 
@@ -470,8 +485,10 @@ export async function buildAdiTurnLLM(question, context, scenario, recentTurns, 
        * Flag OFF → este bloque no existe: el turno sigue por answerViaOracle, byte-idéntico a hoy. */
       if (ADI_CAMINO_NATURAL) {
         try {
+          const cortesDelTurno = [];   // un motivo de corte por llamada · viaja al registro de salud, no a pantalla
           const o = await answerViaNatural({ text: q, history, mem, scenario,
-            callNatural: (args) => _fetchNatural({ ...args, mem, scenario, requestContext }) });
+            callNatural: (args) => _fetchNatural({ ...args, mem, scenario, requestContext, cortes: cortesDelTurno }) });
+          if (o && o.r && o.r.natural) o.r.natural.cortes = cortesDelTurno;
           if (o && o.r) {
             _ph(3);
             const rr = { ...o.r, context: { ...(context || {}), memoriaInteraccion: o.mem, conversationId } };   // persiste memoria + conversationId en el hilo

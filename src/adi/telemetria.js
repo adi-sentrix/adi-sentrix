@@ -23,8 +23,14 @@ export const TELEMETRIA_KEY = "adi_telemetria_v1";
 const TOPE = 200;   // últimos N turnos · un anillo, no un archivo que crece sin fin
 
 /* EL ESQUEMA, DECLARADO. Lo que no está acá no se guarda — y el gate lo verifica campo por campo, para que
- * agregar un campo con dato de negocio sea imposible por descuido. */
-export const CAMPOS_TELEMETRIA = ["t", "via", "route", "estado", "vetos", "reparaciones", "llamadas", "ms", "pregunta"];
+ * agregar un campo con dato de negocio sea imposible por descuido.
+ * ⚠️ `cortes` y `vacias` entraron el 2026-08-21 y cierran el hueco más caro del año: CUATRO veces el cerebro
+ * devolvió cadena vacía y no se pudo diagnosticar. La causa (el razonamiento se comía el tope de tokens) apareció
+ * recién cuando se instrumentó el MOTIVO DE CORTE… pero solo en la consola del examen. En el producto, un turno
+ * vacío seguía diciendo «vacio» y nada más. Ahora el motivo viaja: con `estado:"vacio"` + `cortes:["max_tokens"]`
+ * el diagnóstico llega solo, desde un turno real y gratis, en vez de costar una corrida paga.
+ * Ninguno de los dos es dato de negocio: son la razón por la que el proveedor cortó y cuántas veces no hubo texto. */
+export const CAMPOS_TELEMETRIA = ["t", "via", "route", "estado", "vetos", "reparaciones", "llamadas", "ms", "cortes", "vacias", "pregunta"];
 
 let _memoria = [];   // respaldo cuando no hay localStorage (Node, gates, modo privado del navegador)
 
@@ -54,6 +60,9 @@ export function registrarTurno(rastro) {
       reparaciones: Number.isFinite(r.reparaciones) ? r.reparaciones : null,
       llamadas: Number.isFinite(r.llamadas) ? r.llamadas : null,
       ms: Number.isFinite(r.ms) ? Math.round(r.ms) : null,
+      // POR QUÉ cortó el proveedor en cada llamada del turno, y cuántas volvieron sin una sola letra.
+      cortes: Array.isArray(r.cortes) ? r.cortes.slice(0, 6) : [],
+      vacias: Number.isFinite(r.vacias) ? r.vacias : null,
       // LA PREGUNTA SOLO CUANDO ALGO SALIÓ MAL (ver la frontera del dato, arriba)
       pregunta: estado && estado !== "verde" ? String(r.pregunta || "").slice(0, 120) : null,
     };
@@ -69,17 +78,22 @@ export function resumenTelemetria() {
   if (!n) return { turnos: 0, texto: "Todavía no hay turnos registrados." };
   const porEstado = {};
   const porVeto = {};
+  const porCorte = {};
+  let sinTexto = 0;
   let llamadas = 0, conLlamadas = 0, ms = 0, conMs = 0, reparaciones = 0;
   for (const f of filas) {
     const e = f.estado || "sin estado";
     porEstado[e] = (porEstado[e] || 0) + 1;
     for (const v of (f.vetos || [])) porVeto[v] = (porVeto[v] || 0) + 1;
+    for (const c of (f.cortes || [])) porCorte[c] = (porCorte[c] || 0) + 1;
+    if (Number.isFinite(f.vacias) && f.vacias > 0) sinTexto++;
     if (Number.isFinite(f.llamadas)) { llamadas += f.llamadas; conLlamadas++; }
     if (Number.isFinite(f.ms)) { ms += f.ms; conMs++; }
     if (Number.isFinite(f.reparaciones)) reparaciones += f.reparaciones;
   }
   const pct = (k) => `${Math.round(((porEstado[k] || 0) / n) * 100)}%`;
   const vetos = Object.entries(porVeto).sort((a, b) => b[1] - a[1]);
+  const cortes = Object.entries(porCorte).sort((a, b) => b[1] - a[1]);
   return {
     turnos: n,
     porEstado,
@@ -88,11 +102,15 @@ export function resumenTelemetria() {
     llamadasPorTurno: conLlamadas ? +(llamadas / conLlamadas).toFixed(2) : null,
     msPromedio: conMs ? Math.round(ms / conMs) : null,
     vetosFrecuentes: vetos.slice(0, 5).map(([k, c]) => `${k} (${c})`),
+    // Y EL RESUMEN LO DICE EN UNA LÍNEA: un turno vacío sin motivo es un misterio; con el motivo es un arreglo.
+    cortesFrecuentes: cortes.slice(0, 3).map(([k, c]) => `${k} (${c})`),
+    turnosSinTexto: sinTexto,
     texto: [
       `${n} turnos · ${pct("verde")} verde · ${pct("reparado")} reparado · ${pct("suplente")} suplente`,
       conLlamadas ? `${(llamadas / conLlamadas).toFixed(2)} llamadas por turno · ${reparaciones} reparaciones en total` : null,
       conMs ? `${Math.round(ms / conMs)} ms de promedio` : null,
       vetos.length ? `vetos más frecuentes: ${vetos.slice(0, 3).map(([k, c]) => `${k} (${c})`).join(" · ")}` : "sin vetos registrados",
+      sinTexto ? `⚠️ ${sinTexto} turno(s) sin una sola letra del cerebro · motivos de corte: ${cortes.map(([k, c]) => `${k} (${c})`).join(" · ") || "(no declarados)"}` : null,
     ].filter(Boolean).join("\n"),
   };
 }
