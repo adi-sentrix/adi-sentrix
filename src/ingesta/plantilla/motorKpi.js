@@ -1,4 +1,4 @@
-/* === ingesta/plantilla/motorKpi.js · ADI CALCULA · SOLO CON FÓRMULAS DECLARADAS (v0 · 2026-08-22) =============
+/* === ingesta/plantilla/motorKpi.js · ADI CALCULA · SOLO CON FÓRMULAS DECLARADAS (v1 · 2026-08-22) =============
  *
  * «ADI calcula. El usuario informa hechos.» Este módulo toma los hechos de la plantilla y produce las tablas que
  * Sentrix lee. La regla que lo gobierna, textual del owner: **no inventar fórmulas. Si una fórmula no está
@@ -54,6 +54,8 @@ export const BLOQUEADOS = [
     paraAbrirlo: "declarar cuál de las dos es «la brecha» del KPI de cabecera" },
   { id: "escenarios", que: "los escenarios de simulación", porque: "SCENARIO_TRANSFORMS es un supuesto declarado por el negocio, no un hecho que se derive de las ventas",
     paraAbrirlo: "que el negocio los declare, o que se acuerde una forma de generarlos" },
+  { id: "presupuesto", que: "venta contra presupuesto", porque: "el presupuesto es por cuenta y período, no por fila de venta: como columna se repetiría en cada fila y se contradiría solo. Quedó fuera de la v1 al colapsar la plantilla a dos hojas (decisión del owner, 2026-08-22)",
+    paraAbrirlo: "agregar una tercera hoja chica (período · cuenta · presupuesto) en una v2, si alguien lo pide" },
 ];
 
 const _sum = (arr, f) => arr.reduce((s, r) => s + (typeof f(r) === "number" ? f(r) : 0), 0);
@@ -81,9 +83,6 @@ function bloqueMargen(filas, benchmark) {
 export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
   const avisos = [];
   const ventas = tablas.Ventas || [];
-  const productos = tablas.Productos || [];
-  const clientesCat = tablas.Clientes || [];
-  const presupuesto = tablas.Presupuesto || [];
   const inventario = tablas.Inventario || [];
 
   const benchmark = typeof parametros.benchmark === "number" ? parametros.benchmark : null;
@@ -96,18 +95,26 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
   if (periodoActual && actual !== periodoActual) avisos.push({ tipo: "periodo-declarado-sin-ventas", detalle: `«${periodoActual}» no tiene filas de venta; se usa «${actual}»` });
   if (!anterior) avisos.push({ tipo: "sin-periodo-anterior", detalle: "solo hay un período: no hay comparación contra el anterior ni variación" });
 
-  const dimSku = new Map(productos.map((p) => [p.sku, p]));
-  const dimCli = new Map(clientesCat.map((c) => [c.nombre, c]));
+  /* v1 · los maestros ya no son hojas: la marca, la familia, el precio de lista y el canal viajan como columnas
+   * de la fila de venta, y de ahí se reconstruyen. El validador ya garantizó que un mismo SKU no traiga dos
+   * marcas distintas (regla de COHERENCIA), así que acá la primera aparición ES la verdad, no una elección. */
+  const dimSku = new Map(), dimCli = new Map();
+  for (const v of ventas) {
+    if (!dimSku.has(v.sku)) dimSku.set(v.sku, { sku: v.sku, marca: v.marca ?? null, sfamilia: v.sfamilia ?? null, precioLista: v.precioLista ?? null });
+    else { const d = dimSku.get(v.sku); d.marca = d.marca ?? v.marca ?? null; d.sfamilia = d.sfamilia ?? v.sfamilia ?? null; d.precioLista = d.precioLista ?? v.precioLista ?? null; }
+    if (!dimCli.has(v.cliente)) dimCli.set(v.cliente, { nombre: v.cliente, canal: v.canal ?? null });
+    else if (dimCli.get(v.cliente).canal === null) dimCli.get(v.cliente).canal = v.canal ?? null;
+  }
+
   const delActual = ventas.filter((v) => v.periodo === actual);
   const delAnterior = anterior ? ventas.filter((v) => v.periodo === anterior) : [];
 
-  // SKU sin catálogo: se DECLARA, no se inventa marca ni familia
-  for (const s of new Set(delActual.map((v) => v.sku))) if (!dimSku.has(s)) avisos.push({ tipo: "sku-sin-catalogo", detalle: `el SKU "${s}" vende pero no está en la hoja Productos: queda sin marca ni familia` });
+  // un SKU que está en stock pero nunca se vendió no tiene marca ni familia: se DECLARA, no se inventa
+  for (const s of new Set(inventario.map((r) => r.sku))) if (!dimSku.has(s)) avisos.push({ tipo: "sku-solo-en-inventario", detalle: `el SKU "${s}" está en stock pero no tiene ninguna venta informada: queda sin marca ni familia` });
 
   const agrupar = (filas, clave) => { const m = new Map(); for (const f of filas) { const k = clave(f); if (k === null || k === undefined) continue; if (!m.has(k)) m.set(k, []); m.get(k).push(f); } return m; };
 
   /* ── clientes ─────────────────────────────────────────────────────────────────────────────────────────── */
-  const pptoPorCliente = new Map(presupuesto.filter((p) => p.periodo === actual).map((p) => [p.cliente, p.presupuesto]));
   const porCliAct = agrupar(delActual, (v) => v.cliente);
   const porCliAnt = agrupar(delAnterior, (v) => v.cliente);
   const clientesVentas = [], clientesMargen = [];
@@ -118,7 +125,7 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
     // la marca/familia dominante de la cuenta: la de mayor venta. Es una lectura del dato, no una atribución nueva.
     const dom = (campo) => { const m = agrupar(filas, (v) => (dimSku.get(v.sku) || {})[campo]); let mejor = null, max = -1; for (const [k, fs] of m) { const s = _sum(fs, (r) => r.venta); if (s > max) { max = s; mejor = k; } } return mejor; };
     clientesVentas.push({ nombre, tipo: "cliente", canal: cat.canal ?? null, marca: dom("marca"), sfamilia: dom("sfamilia"),
-      actual: b.venta, anterior: Math.round(_sum(ant, (r) => r.venta)), presupuesto: pptoPorCliente.has(nombre) ? Math.round(pptoPorCliente.get(nombre)) : null,
+      actual: b.venta, anterior: Math.round(_sum(ant, (r) => r.venta)), presupuesto: null,   // fuera de la v1 · ver BLOQUEADOS
       unidades: b.unidades, unidadesAnt: Math.round(_sum(ant, (r) => r.unidades)), pctRebate: b.pctRebate });
     clientesMargen.push({ nombre, tipo: "cliente", marca: dom("marca"), sfamilia: dom("sfamilia"), ...b, precioLista: null });
   }
@@ -157,20 +164,19 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
   });
 
   /* ── serie mensual · suma de hechos por período ───────────────────────────────────────────────────────── */
-  const pptoPorPeriodo = agrupar(presupuesto, (p) => p.periodo);
   const ventasMensuales = periodos.map((per) => {
     const mes = MESES[Number(per.slice(5, 7)) - 1] || per;
     const prev = periodos[periodos.indexOf(per) - 1];
     return { mes, periodo: per,
       actual: Math.round(_sum(ventas.filter((v) => v.periodo === per), (r) => r.venta)),
       anterior: prev ? Math.round(_sum(ventas.filter((v) => v.periodo === prev), (r) => r.venta)) : null,
-      presupuesto: Math.round(_sum(pptoPorPeriodo.get(per) || [], (r) => r.presupuesto)) || null };
+      presupuesto: null };   // fuera de la v1
   });
 
   /* ── KPI de cabecera · solo lo que es suma de hechos ──────────────────────────────────────────────────── */
   const totalActual = Math.round(_sum(delActual, (r) => r.venta));
   const totalAnterior = Math.round(_sum(delAnterior, (r) => r.venta));
-  const totalPpto = Math.round(_sum(presupuesto.filter((p) => p.periodo === actual), (r) => r.presupuesto)) || null;
+  const totalPpto = null;   // fuera de la v1 · ver BLOQUEADOS
   const totalCosto = _sum(delActual, (r) => r.costo), totalAcc = _sum(delActual, (r) => r.acciones);
   const margenGlobal = totalActual ? _r1(100 - (totalCosto / totalActual * 100) - (totalAcc / totalActual * 100)) : 0;
   const ventasKPI = { totalActual, totalAnterior: totalAnterior || null, totalPresupuesto: totalPpto,
@@ -183,8 +189,8 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
     : null;
 
   /* ── catálogos · la lista de lo que hay ───────────────────────────────────────────────────────────────── */
-  const marcas = [...new Set(productos.map((p) => p.marca).filter(Boolean))];
-  const familias = [...new Set(productos.map((p) => p.sfamilia).filter(Boolean))];
+  const marcas = [...new Set([...dimSku.values()].map((p) => p.marca).filter(Boolean))];
+  const familias = [...new Set([...dimSku.values()].map((p) => p.sfamilia).filter(Boolean))];
   const bodegas = [...new Set([...ventas, ...inventario].map((r) => r.bodega).filter(Boolean))];
 
   /* ── el perfil del negocio · los parámetros declarados, con su llave de POLICY ─────────────────────────── */

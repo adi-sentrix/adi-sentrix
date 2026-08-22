@@ -43,3 +43,4 @@ _ejemplo_ingesta_demo.xlsx
 
 # plantilla oficial · se GENERA (scripts/generar-plantilla.mjs), no se versiona
 Plantilla_ADI_*.xlsx
+~$*.xlsx

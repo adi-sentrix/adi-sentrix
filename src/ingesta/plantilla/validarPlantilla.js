@@ -1,80 +1,87 @@
-/* === ingesta/plantilla/validarPlantilla.js · EL PORTERO (v0 · 2026-08-22) =====================================
+/* === ingesta/plantilla/validarPlantilla.js · EL PORTERO (v1 · 2026-08-22) =====================================
  *
- * «La ingesta debe ser aburrida, estricta y contractual» (owner, 2026-08-22). Este módulo es la parte aburrida y
- * es la más importante: decide si un archivo entra, y cuando no entra, dice exactamente qué arreglar.
+ * «La ingesta debe ser aburrida, estricta y contractual» (owner). Este módulo decide si un archivo entra, y
+ * cuando no entra dice exactamente qué arreglar.
  *
- * NO ADIVINA NADA. No hay sinónimos, no hay parecidos, no hay elección de eje: los títulos son los del contrato o
- * no son. Esa rigidez es la que hace innecesario el modelo en el camino base — con la plantilla, mapear no es una
- * inferencia, es una comparación.
+ * NO ADIVINA NADA. No hay sinónimos ni parecidos: los títulos son los del contrato o no son. Esa rigidez es la que
+ * hace innecesario el modelo en el camino base — con la plantilla, mapear no es una inferencia, es una comparación.
  *
- * LAS SEIS COSAS QUE REVISA, en orden de gravedad:
- *   1. **formato oficial** · la marca y la versión en A1 de `Parametros`. Sin eso no es la plantilla: es un Excel
- *      cualquiera, y aceptarlo sería volver justo al enfoque que se descartó.
- *   2. **columnas calculadas** · si el archivo trae «Margen %» o «Rotación», el archivo se RECHAZA con el mensaje
- *      que dice qué mandar en su lugar. No se ignoran: una columna calculada que se ignora en silencio hace que
- *      el usuario crea que ADI está usando su número, y esa confusión no se descubre nunca.
- *   3. **unidades ambiguas** · un título sin su unidad («Venta» en vez de «Venta (USD)») se trata como
- *      ambigüedad, no como sinónimo. Es la lección de miles-vs-dólares: ante la duda, no se carga.
- *   4. **claves faltantes** · una fila sin cliente, sin SKU o sin período no es una fila incompleta: es una fila
- *      que no se puede atribuir a nadie.
- *   5. **duplicados contradictorios** · misma clave, distinto valor ⇒ bloqueante. Idénticos ⇒ se colapsa y se avisa.
- *   6. **vacíos** · se DECLARAN. Nunca se completan con cero, con el promedio ni con nada.
+ * LAS SIETE COSAS QUE REVISA, en orden de gravedad:
+ *   1. **formato oficial** · la marca y la versión en A1 de `Ventas`. Sin eso no es la plantilla.
+ *   2. **columnas calculadas** · «Margen %» o «Rotación» RECHAZAN el archivo, con el mensaje que dice qué mandar
+ *      en su lugar. Ignorarlas en silencio haría creer al usuario que ADI está usando su número.
+ *   3. **unidades ambiguas** · «Venta» sin su unidad no es un sinónimo de «Venta (USD)»: es una duda, y ante la
+ *      duda no se carga. Es la lección de miles-vs-dólares.
+ *   4. **claves faltantes** · una fila sin cuenta, sin SKU o sin período no es incompleta: es inatribuible.
+ *   5. **duplicados contradictorios** · misma clave, distinto valor ⇒ bloquea. Idénticos ⇒ colapsa y avisa.
+ *   6. **atributos incoherentes** · el precio de haber colapsado los maestros en columnas: el mismo SKU con dos
+ *      marcas distintas. No se elige una — se nombran las dos filas y se rechaza.
+ *   7. **vacíos** · se DECLARAN. Nunca se completan con cero, con el promedio ni con nada.
  */
 import { leerLibro } from "../leerLibro.js";
-import { FILA_ENCABEZADO, MARCA_PLANTILLA } from "./generarPlantilla.js";
-import { HOJAS, PARAMETROS, PLANTILLA_VERSION, columnaProhibida, hojaPorNombre, normalizarTitulo } from "../../config/contract/plantilla.js";
+import { HOJAS, PARAMETROS, COHERENCIA, PLANTILLA_VERSION, columnaProhibida, normalizarTitulo } from "../../config/contract/plantilla.js";
 
 const _txt = (v) => (v === null || v === undefined ? null : String(v).trim() || null);
 const _num = (v) => {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v).replace(/\s/g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : NaN;   // NaN ⇒ «venía algo y no era número», que no es lo mismo que vacío
+  return Number.isFinite(n) ? n : NaN;   // NaN ⇒ «venía algo y no era número», distinto de vacío
 };
 const ES_PERIODO = /^\d{4}-(0[1-9]|1[0-2])$/;
 const ES_FECHA = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
+/** La fila del encabezado: la primera cuya primera celda es el título de la primera columna. Se BUSCA, no se
+ *  cuenta — así agregar un parámetro a la cabecera mañana no corre nada ni rompe el validador. */
+function filaEncabezado(matriz, def) {
+  const buscado = normalizarTitulo(def.columnas[0].titulo);
+  for (let i = 0; i < matriz.length; i++) if (normalizarTitulo((matriz[i] || [])[0]) === buscado) return i;
+  return -1;
+}
+
 /* validarPlantilla(archivo, { nombreArchivo }) →
- *   { ok, version, parametros, tablas: { Ventas: [filas…] }, bloqueos[], avisos[], hojas[] }
- * Con `ok:false` NO se devuelve ni una fila: un archivo que no cumple el contrato no entrega datos a medias. */
+ *   { ok, version, parametros, tablas, hojas, bloqueos[], avisos[] }
+ * Con `ok:false` NO devuelve ni una fila: un archivo que no cumple el contrato no entrega datos a medias. */
 export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
   const bloqueos = [], avisos = [], hojasInfo = [];
   const B = (tipo, detalle, extra = {}) => bloqueos.push({ tipo, detalle, ...extra });
   const A = (tipo, detalle, extra = {}) => avisos.push({ tipo, detalle, ...extra });
+  const vacio = { ok: false, version: null, parametros: {}, tablas: {}, hojas: [], avisos, bloqueos };
 
   let libro;
   try { libro = leerLibro(archivo, { nombreArchivo }); }
-  catch (e) { return { ok: false, version: null, parametros: {}, tablas: {}, hojas: [], avisos, bloqueos: [{ tipo: "archivo-ilegible", detalle: (e && e.message) || "no se pudo abrir el archivo" }] }; }
+  catch (e) { return { ...vacio, bloqueos: [{ tipo: "archivo-ilegible", detalle: (e && e.message) || "no se pudo abrir el archivo" }] }; }
 
   const porNombre = new Map(libro.hojas.map((h) => [normalizarTitulo(h.nombre), h]));
+  const defVentas = HOJAS.find((h) => h.conCabecera);
 
   /* ── 1 · ¿es la plantilla oficial? ─────────────────────────────────────────────────────────────────────── */
-  const hParam = porNombre.get(normalizarTitulo("Parametros"));
-  if (!hParam) {
-    B("no-es-la-plantilla", "el archivo no trae la hoja «Parametros» — descargá la plantilla oficial y llenala; este flujo no acepta un Excel cualquiera");
-    return { ok: false, version: null, parametros: {}, tablas: {}, hojas: [], avisos, bloqueos };
+  const hVentas = porNombre.get(normalizarTitulo(defVentas.nombre));
+  if (!hVentas) {
+    B("no-es-la-plantilla", `el archivo no trae la hoja «${defVentas.nombre}» — descargá la plantilla oficial y llenala; este flujo no acepta un Excel cualquiera`);
+    return vacio;
   }
-  const a1 = _txt((hParam.matriz[0] || [])[0]);
+  const a1 = _txt((hVentas.matriz[0] || [])[0]);
   const version = a1 && a1.startsWith("PLANTILLA OFICIAL ADI/SENTRIX") ? a1.split("·").pop().trim() : null;
-  if (!version) B("no-es-la-plantilla", `la celda A1 de «Parametros» debería decir "${MARCA_PLANTILLA}" y dice ${a1 ? `"${a1}"` : "(vacía)"}`);
-  else if (version !== PLANTILLA_VERSION) B("version-distinta", `el archivo es de la plantilla ${version} y este motor espera ${PLANTILLA_VERSION} — bajá la plantilla vigente`);
+  if (!version) { B("no-es-la-plantilla", `la celda A1 de «${defVentas.nombre}» debería identificar la plantilla oficial y dice ${a1 ? `"${a1}"` : "(vacía)"} — descargá la plantilla vigente`); return vacio; }
+  if (version !== PLANTILLA_VERSION) { B("version-distinta", `el archivo es de la plantilla ${version} y este motor espera ${PLANTILLA_VERSION} — bajá la plantilla vigente y volvé a llenarla`); return { ...vacio, version }; }
 
-  /* ── hojas de más o de menos ───────────────────────────────────────────────────────────────────────────── */
   const esperadas = new Set(HOJAS.map((h) => normalizarTitulo(h.nombre)));
-  for (const h of libro.hojas) if (!esperadas.has(normalizarTitulo(h.nombre))) B("hoja-de-mas", `la hoja «${h.nombre}» no es parte de la plantilla — sacala o bajá la plantilla vigente`);
+  for (const h of libro.hojas) if (!esperadas.has(normalizarTitulo(h.nombre))) B("hoja-de-mas", `la hoja «${h.nombre}» no es parte de la plantilla — sacala`);
   for (const def of HOJAS) if (def.obligatoria && !porNombre.get(normalizarTitulo(def.nombre))) B("hoja-obligatoria-ausente", `falta la hoja «${def.nombre}»: ${def.que}`);
 
-  /* ── 2 · parámetros ────────────────────────────────────────────────────────────────────────────────────── */
+  /* ── 2 · la cabecera de Ventas ─────────────────────────────────────────────────────────────────────────── */
   const parametros = {};
   {
-    const filas = (hParam.matriz || []).slice(FILA_ENCABEZADO);   // salta la marca y el encabezado
+    const iEnc = filaEncabezado(hVentas.matriz, defVentas);
+    const hasta = iEnc < 0 ? hVentas.matriz.length : iEnc;
     const leidos = new Map();
-    for (const f of filas) { const k = _txt((f || [])[0]); if (k) leidos.set(k, (f || [])[1]); }
+    for (const f of hVentas.matriz.slice(0, hasta)) { const k = _txt((f || [])[0]); if (k) leidos.set(k, (f || [])[1]); }
     for (const p of PARAMETROS) {
       const bruto = leidos.has(p.clave) ? leidos.get(p.clave) : undefined;
       const v = bruto === undefined || bruto === null || bruto === "" ? null : bruto;
       if (v === null) {
-        if (p.obligatorio) B("parametro-obligatorio-ausente", `falta el parámetro «${p.clave}»: ${p.etiqueta}`);
-        else A("parametro-ausente", `«${p.clave}» sin declarar — ADI usa su valor general y lo declara en pantalla`, { clave: p.clave });
+        if (p.obligatorio) B("parametro-obligatorio-ausente", `falta el parámetro «${p.clave}» en la cabecera de Ventas: ${p.etiqueta}`);
+        else A("parametro-ausente", `«${p.clave}» sin declarar — ADI usa su valor general y lo dice en pantalla`, { clave: p.clave });
         continue;
       }
       if (p.tipo === "numero") {
@@ -90,56 +97,45 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
 
   /* ── 3 · las tablas ────────────────────────────────────────────────────────────────────────────────────── */
   const tablas = {};
-  for (const def of HOJAS.filter((h) => h.tipo === "tabla")) {
+  for (const def of HOJAS) {
     const hoja = porNombre.get(normalizarTitulo(def.nombre));
     if (!hoja) { hojasInfo.push({ hoja: def.nombre, presente: false, obligatoria: def.obligatoria, filas: 0 }); continue; }
 
-    const titulos = (hoja.matriz[FILA_ENCABEZADO - 1] || []).map((t) => _txt(t));
+    const iEnc = filaEncabezado(hoja.matriz, def);
+    if (iEnc < 0) {
+      B("encabezado-no-encontrado", `en «${def.nombre}» no se encuentra la fila de encabezados (debería empezar con "${def.columnas[0].titulo}") — no modifiques los títulos de la plantilla`, { hoja: def.nombre });
+      hojasInfo.push({ hoja: def.nombre, presente: true, obligatoria: def.obligatoria, filas: 0, titulos: [] });
+      continue;
+    }
+
+    const titulos = (hoja.matriz[iEnc] || []).map((t) => _txt(t));
     const info = { hoja: def.nombre, presente: true, obligatoria: def.obligatoria, titulos, columnas: [], prohibidas: [], ambiguas: [], filas: 0 };
 
-    // índice título oficial → posición
-    const posPorCampo = new Map();
-    const vistos = new Set();
+    const posPorCampo = new Map(); const vistos = new Set();
     titulos.forEach((t, i) => {
       if (!t) return;
       const prohibida = columnaProhibida(t);
-      if (prohibida) {
-        info.prohibidas.push(t);
-        B("columna-calculada", `«${def.nombre}» trae la columna "${t}": ${prohibida.porque}. Sacala y mandá ${prohibida.enSuLugar} — ADI la calcula.`, { hoja: def.nombre, columna: t });
-        return;
-      }
+      if (prohibida) { info.prohibidas.push(t); B("columna-calculada", `«${def.nombre}» trae la columna "${t}": ${prohibida.porque}. Sacala y mandá ${prohibida.enSuLugar} — ADI la calcula.`, { hoja: def.nombre, columna: t }); return; }
       const col = def.columnas.find((c) => c.titulo === t);
       if (col) {
         if (vistos.has(col.campo)) { B("columna-repetida", `«${def.nombre}» trae dos veces la columna "${t}"`, { hoja: def.nombre }); return; }
-        vistos.add(col.campo); posPorCampo.set(col.campo, i); info.columnas.push({ campo: col.campo, titulo: t, pos: i });
-        return;
+        vistos.add(col.campo); posPorCampo.set(col.campo, i); info.columnas.push({ campo: col.campo, titulo: t, pos: i }); return;
       }
-      // no es oficial ni prohibida: ¿es una oficial sin su unidad? entonces es AMBIGUA, no un sinónimo
       const casi = def.columnas.find((c) => normalizarTitulo(c.titulo).startsWith(normalizarTitulo(t)) || normalizarTitulo(t).startsWith(normalizarTitulo(c.titulo)));
-      if (casi) {
-        info.ambiguas.push({ vino: t, esperado: casi.titulo });
-        B("unidad-ambigua", `«${def.nombre}» trae "${t}" y la plantilla dice "${casi.titulo}". No se asume la unidad: copiá el encabezado tal cual.`, { hoja: def.nombre, columna: t });
-      } else {
-        info.prohibidas.push(t);
-        B("columna-de-mas", `«${def.nombre}» trae la columna "${t}", que no es parte de la plantilla`, { hoja: def.nombre, columna: t });
-      }
+      if (casi) { info.ambiguas.push({ vino: t, esperado: casi.titulo }); B("unidad-ambigua", `«${def.nombre}» trae "${t}" y la plantilla dice "${casi.titulo}". No se asume la unidad: copiá el encabezado tal cual.`, { hoja: def.nombre, columna: t }); }
+      else { info.prohibidas.push(t); B("columna-de-mas", `«${def.nombre}» trae la columna "${t}", que no es parte de la plantilla`, { hoja: def.nombre, columna: t }); }
     });
 
-    for (const c of def.columnas) if (c.obligatoria && !posPorCampo.has(c.campo)) {
-      B("columna-obligatoria-ausente", `«${def.nombre}» no trae la columna obligatoria "${c.titulo}"`, { hoja: def.nombre });
-    }
+    for (const c of def.columnas) if (c.obligatoria && !posPorCampo.has(c.campo)) B("columna-obligatoria-ausente", `«${def.nombre}» no trae la columna obligatoria "${c.titulo}"`, { hoja: def.nombre });
 
-    /* ── filas ──────────────────────────────────────────────────────────────────────────────────────────── */
+    /* filas */
     const claves = def.columnas.filter((c) => c.clave).map((c) => c.campo);
-    const porClave = new Map();
-    const filas = [];
-    const crudas = (hoja.matriz || []).slice(FILA_ENCABEZADO);
-    crudas.forEach((cruda, i) => {
-      const nFila = FILA_ENCABEZADO + i + 1;   // número de fila como lo ve el usuario en Excel
-      if (!(cruda || []).some((v) => v !== null && v !== undefined && String(v).trim() !== "")) return;   // fila vacía
+    const porClave = new Map(); const filas = [];
+    (hoja.matriz || []).slice(iEnc + 1).forEach((cruda, i) => {
+      const nFila = iEnc + i + 2;   // número de fila como lo ve el usuario en Excel
+      if (!(cruda || []).some((v) => v !== null && v !== undefined && String(v).trim() !== "")) return;
 
-      const fila = {};
-      let rota = false;
+      const fila = { _fila: nFila }; let rota = false;
       for (const [campo, pos] of posPorCampo) {
         const col = def.columnas.find((c) => c.campo === campo);
         const bruto = (cruda || [])[pos];
@@ -164,24 +160,19 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
       }
       if (rota) return;
 
-      // 4 · clave completa
       if (claves.some((k) => fila[k] === null || fila[k] === undefined)) {
         B("clave-incompleta", `«${def.nombre}» fila ${nFila}: la fila no se puede atribuir (falta parte de la clave ${claves.join(" + ")})`, { hoja: def.nombre, fila: nFila });
         return;
       }
-      // 5 · duplicados
       const k = claves.map((c) => fila[c]).join(" ⋅ ");
       const previa = porClave.get(k);
       if (previa) {
-        if (JSON.stringify(previa.fila) === JSON.stringify(fila)) {
-          A("fila-duplicada-identica", `«${def.nombre}» fila ${nFila}: repite la fila ${previa.n} con los mismos valores — se colapsa`, { hoja: def.nombre, fila: nFila });
-        } else {
-          B("duplicado-contradictorio", `«${def.nombre}»: las filas ${previa.n} y ${nFila} tienen la misma clave (${k}) y valores distintos — no hay forma de elegir sin inventar`, { hoja: def.nombre, fila: nFila });
-        }
+        const igual = JSON.stringify({ ...previa.fila, _fila: 0 }) === JSON.stringify({ ...fila, _fila: 0 });
+        if (igual) A("fila-duplicada-identica", `«${def.nombre}» fila ${nFila}: repite la fila ${previa.fila._fila} con los mismos valores — se colapsa`, { hoja: def.nombre, fila: nFila });
+        else B("duplicado-contradictorio", `«${def.nombre}»: las filas ${previa.fila._fila} y ${nFila} tienen la misma clave (${k}) y valores distintos — no hay forma de elegir sin inventar`, { hoja: def.nombre, fila: nFila });
         return;
       }
-      porClave.set(k, { fila, n: nFila });
-      filas.push(fila);
+      porClave.set(k, { fila }); filas.push(fila);
     });
 
     info.filas = filas.length;
@@ -189,6 +180,28 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
     tablas[def.nombre] = filas;
   }
 
+  /* ── 6 · coherencia de los atributos repetidos ─────────────────────────────────────────────────────────── */
+  for (const regla of COHERENCIA) {
+    const filas = tablas[regla.hoja] || [];
+    const visto = new Map();   // clave → { atributo → { valor, fila } }
+    for (const f of filas) {
+      const id = f[regla.clave];
+      if (id === null || id === undefined) continue;
+      if (!visto.has(id)) visto.set(id, {});
+      const acc = visto.get(id);
+      for (const attr of regla.atributos) {
+        const v = f[attr];
+        if (v === null || v === undefined) continue;
+        if (!(attr in acc)) { acc[attr] = { valor: v, fila: f._fila }; continue; }
+        if (String(acc[attr].valor) !== String(v)) {
+          B("atributo-incoherente", `«${regla.hoja}»: el ${regla.entidad} "${id}" tiene "${attr}" = ${JSON.stringify(acc[attr].valor)} en la fila ${acc[attr].fila} y ${JSON.stringify(v)} en la fila ${f._fila} — no se elige una: corregí el archivo`,
+            { hoja: regla.hoja, fila: f._fila });
+        }
+      }
+    }
+  }
+
   const ok = bloqueos.length === 0;
+  if (ok) for (const t of Object.values(tablas)) for (const f of t) delete f._fila;
   return { ok, version, parametros: ok ? parametros : {}, tablas: ok ? tablas : {}, hojas: hojasInfo, bloqueos, avisos };
 }
