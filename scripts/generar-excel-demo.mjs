@@ -14,88 +14,10 @@
  * Uso:  node scripts/generar-excel-demo.mjs [destino.xlsx]
  * Determinístico · sin red · sin modelo.
  */
-import { deflateRawSync } from "node:zlib";
 import { writeFileSync } from "node:fs";
+// el escritor de .xlsx vive en src/ (lo usa la plantilla oficial, que es código de producto): una sola copia.
+import { construirXlsx } from "../src/ingesta/escribirLibro.js";
 import { TENANT_DEMO } from "../src/data/tenants/demo.js";
-
-/* ── CRC32, el que exige el formato ZIP ───────────────────────────────────────────────────────────────────── */
-const TABLA_CRC = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
-  return t;
-})();
-const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = TABLA_CRC[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
-
-/* ── ZIP mínimo (deflate) ─────────────────────────────────────────────────────────────────────────────────── */
-function escribirZip(entradas) {
-  const locales = [], central = [];
-  let offset = 0;
-  for (const { nombre, contenido } of entradas) {
-    const cruda = Buffer.from(contenido, "utf8");
-    const comprimida = deflateRawSync(cruda);
-    const nom = Buffer.from(nombre, "utf8");
-    const crc = crc32(cruda);
-
-    const lh = Buffer.alloc(30);
-    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0, 6); lh.writeUInt16LE(8, 8);
-    lh.writeUInt16LE(0, 10); lh.writeUInt16LE(0, 12);                        // hora/fecha fijas → salida determinística
-    lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(comprimida.length, 18); lh.writeUInt32LE(cruda.length, 22);
-    lh.writeUInt16LE(nom.length, 26); lh.writeUInt16LE(0, 28);
-    locales.push(lh, nom, comprimida);
-
-    const ch = Buffer.alloc(46);
-    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0, 8);
-    ch.writeUInt16LE(8, 10); ch.writeUInt16LE(0, 12); ch.writeUInt16LE(0, 14);
-    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(comprimida.length, 20); ch.writeUInt32LE(cruda.length, 24);
-    ch.writeUInt16LE(nom.length, 28); ch.writeUInt16LE(0, 30); ch.writeUInt16LE(0, 32);
-    ch.writeUInt16LE(0, 34); ch.writeUInt16LE(0, 36); ch.writeUInt32LE(0, 38); ch.writeUInt32LE(offset, 42);
-    central.push(ch, nom);
-
-    offset += lh.length + nom.length + comprimida.length;
-  }
-  const cuerpoCentral = Buffer.concat(central);
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(entradas.length, 8); eocd.writeUInt16LE(entradas.length, 10);
-  eocd.writeUInt32LE(cuerpoCentral.length, 12); eocd.writeUInt32LE(offset, 16);
-  return Buffer.concat([...locales, cuerpoCentral, eocd]);
-}
-
-/* ── XLSX ─────────────────────────────────────────────────────────────────────────────────────────────────── */
-const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const letraCol = (i) => { let s = "", n = i + 1; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
-
-/** Arma un `.xlsx` a partir de `[{ nombre, filas: [[celda,…],…] }]`. Exportado para que un gate pueda fabricar
- *  libros sintéticos con las entidades que quiera, sin sacar dato de ningún tenant. */
-export function construirXlsx(hojas) {
-  const compartidos = [], idxCompartido = new Map();
-  const idDe = (s) => { if (!idxCompartido.has(s)) { idxCompartido.set(s, compartidos.length); compartidos.push(s); } return idxCompartido.get(s); };
-
-  const xmlHojas = hojas.map(({ filas }) => {
-    const cuerpo = filas.map((fila, iF) => {
-      const celdas = fila.map((v, iC) => {
-        const ref = `${letraCol(iC)}${iF + 1}`;
-        if (v === null || v === undefined || v === "") return "";
-        if (typeof v === "number") return `<c r="${ref}"><v>${v}</v></c>`;
-        return `<c r="${ref}" t="s"><v>${idDe(String(v))}</v></c>`;
-      }).join("");
-      return `<row r="${iF + 1}">${celdas}</row>`;
-    }).join("");
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${cuerpo}</sheetData></worksheet>`;
-  });
-
-  const sharedStrings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${compartidos.length}" uniqueCount="${compartidos.length}">${compartidos.map((s) => `<si><t xml:space="preserve">${esc(s)}</t></si>`).join("")}</sst>`;
-
-  const entradas = [
-    { nombre: "[Content_Types].xml", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${hojas.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>` },
-    { nombre: "_rels/.rels", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
-    { nombre: "xl/workbook.xml", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${hojas.map((h, i) => `<sheet name="${esc(h.nombre)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>` },
-    { nombre: "xl/_rels/workbook.xml.rels", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${hojas.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rIdSS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>` },
-    { nombre: "xl/sharedStrings.xml", contenido: sharedStrings },
-    ...xmlHojas.map((x, i) => ({ nombre: `xl/worksheets/sheet${i + 1}.xml`, contenido: x })),
-  ];
-  return escribirZip(entradas);
-}
 
 /* ── las tres hojas, con encabezados «de persona» ─────────────────────────────────────────────────────────── */
 export function hojasDelDemo(tenant = TENANT_DEMO) {

@@ -202,7 +202,9 @@ export function leerLibro(entrada, { nombreArchivo = "" } = {}) {
   const hojas = crudas.map((h) => {
     // el encabezado es la PRIMERA fila con contenido; las vacías de arriba se saltan y se declara cuántas.
     let iEnc = h.matriz.findIndex((f) => (f || []).some((v) => v !== null && v !== undefined && String(v).trim() !== ""));
-    if (iEnc < 0) return { nombre: h.nombre, encabezados: [], filas: [], filasCrudas: [], filasVaciasArriba: h.matriz.length };
+    // `matriz` va SIEMPRE: la plantilla oficial tiene una fila de ayuda arriba, así que quien la valida necesita
+    // las filas crudas para leer el encabezado en la fila que el CONTRATO declara, en vez de adivinar cuál es.
+    if (iEnc < 0) return { nombre: h.nombre, matriz: h.matriz, encabezados: [], filas: [], filasCrudas: [], filasVaciasArriba: h.matriz.length };
     const encabezados = (h.matriz[iEnc] || []).map((v, i) => (v === null || v === undefined || String(v).trim() === "" ? `columna_${i + 1}` : String(v).trim()));
     const filasCrudas = h.matriz.slice(iEnc + 1).filter((f) => (f || []).some((v) => v !== null && v !== undefined && String(v).trim() !== ""));
     const filas = filasCrudas.map((f) => {
@@ -214,7 +216,7 @@ export function leerLibro(entrada, { nombreArchivo = "" } = {}) {
       });
       return o;
     });
-    return { nombre: h.nombre, encabezados, filas, filasCrudas, filasVaciasArriba: iEnc };
+    return { nombre: h.nombre, matriz: h.matriz, encabezados, filas, filasCrudas, filasVaciasArriba: iEnc };
   });
 
   return { formato, hojas };

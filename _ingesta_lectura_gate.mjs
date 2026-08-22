@@ -27,7 +27,8 @@ import { normalizarEje } from "./src/ingesta/normalizar.js";
 import { ingestarLibro, previewEnTexto } from "./src/ingesta/ingestarLibro.js";
 import { disponibilidadSentrix } from "./src/ingesta/disponibilidad.js";
 import { LLAVES_DATASET } from "./src/ingesta/normalizar.js";
-import { excelDemoBuffer, hojasDelDemo, construirXlsx } from "./scripts/generar-excel-demo.mjs";
+import { excelDemoBuffer, hojasDelDemo } from "./scripts/generar-excel-demo.mjs";
+import { construirXlsx } from "./src/ingesta/escribirLibro.js";   // el escritor vive en src/: una sola copia
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { initTenant, getTenantId, tenantCargado } from "./src/data/tenantStore.js";
 import { detectClientInText } from "./src/adi/detectors.js";
