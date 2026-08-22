@@ -12,7 +12,41 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.1 — producción · tag `v1.1`
+## 1.2 — producción · tag `v1.2`
+
+La versión que saca de producción la **lotería de la respuesta vacía**. Cuatro veces, en sesiones distintas, el
+cerebro devolvió CERO texto: se pagaba la llamada entera y el usuario recibía el suplente. Es la falla que el owner
+fotografió. Se instrumentó primero y la causa apareció en el primer turno medido: el proveedor gastaba **el tope
+completo de tokens razonando** y no llegaba a escribir la respuesta, porque el pedido **no declaraba nada** sobre
+razonamiento y decidía el default del proveedor. Ahora el presupuesto se declara siempre, y si se enciende, el tope
+sube por encima: al texto le queda su espacio.
+
+- **Seguridad multiempresa (vía 1).** El navegador deja de recibir el dato de las demás empresas: el servidor
+  entrega el de UNA por pedido y la app arranca vacía hasta que llega. Medido en el bundle publicado:
+  `NevadaFoods` 9→0, los clientes de la segunda empresa 8/8→0. La empresa sale de la firma del código de acceso.
+- **Guard de nombres inventados, por fin en producción.** Cazaba «Falcon» por Falabella con las cifras correctas —
+  ningún control de cifras lo veía. Vivía sin publicar desde el 14 de julio: **la protección no existía**. Entra
+  adaptado al dato por empresa: arma su catálogo del tenant activo y juzga a la empresa que está mirando.
+- **Tres falsos positivos del notario, cerrados.** Mandaban al suplente respuestas que eran CORRECTAS: el sujeto
+  detrás del verbo («el que más capital tiene ES X»), «días de inventario» leído como si declarara el universo, y
+  un título de sección pegado a la viñeta siguiente.
+- **El suplente dejó de tirar lo que la conversación ya validó**, y su escalón intermedio ofrece la última
+  respuesta APROBADA — nunca un respaldo anterior disfrazado de respuesta verificada.
+- **Voseo fuera de pantalla.** «resolvé» llegó a producción: de las cinco posiciones donde se lava una orden, solo
+  dos funcionaban, y eran justo las dos que el gate probaba.
+- **Observabilidad.** ADI registra por turno cómo se portó —ruta, estado, vetos, reparaciones, llamadas, latencia—
+  sin guardar dato de negocio. Es la tabla que Supabase va a heredar.
+- **Candado nuevo**: nadie vuelve a derivar el dato de empresa en tiempo de import, el defecto que dejó MUDO al
+  guard de entidades. Se prueba a sí mismo con una copia del defecto real.
+
+**No incluye carga de archivos** — eso sigue reservado para la 2.0.
+
+Verificado antes de subir: **167 PASS · 0 FAIL · 0 tocaron la red**, en árbol limpio.
+
+---
+
+
+## 1.1 — tag `v1.1` (estuvo en producción del 2026-08-20 al 2026-08-21)
 
 Todo lo que `dev` acumuló desde la 1.0: el trabajo del notario y el de la interfaz, juntos.
 
@@ -58,7 +92,7 @@ COMBINADO, no sobre cada parte por su lado.
 
 ---
 
-## 1.0 — producción · commit `b9c552e` · tag `v1.0`
+## 1.0 — tag `v1.0` · commit `b9c552e` (estuvo en producción hasta el 2026-08-20)
 
 ADI privado con camino natural, notario calibrado, contrato `[[CALCULO]]`, reparación, suplente seguro, carpeta
 única, preguntas reales del «Cómo funciona» y controles anti-invento para cifras, estados, rankings, universos y
