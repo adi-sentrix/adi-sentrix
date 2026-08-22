@@ -115,7 +115,12 @@ function _rastroDeRuta(q, r, source, escenario) {
       estado: nat ? nat.estado : null,               // verde · reparado · suplente · vacio (solo camino natural)
       suplente: nat ? !!nat.suplenteDigno : null,
       vetos: nat && Array.isArray(nat.vetos) ? nat.vetos : null,
-      llamadas: nat ? nat.calls : null,
+      /* `llamadas` SALE DE `cortes`, que es la fuente verificable (owner 2026-08-21). Este campo venía en null
+       * desde siempre: leía `nat.calls`, y el camino natural nunca expuso ese contador — expone `reparaciones`,
+       * derivado de él. En vez de agregar un contador paralelo que después se desincroniza, se cuenta lo que ya
+       * viaja: el proveedor deja UN motivo de corte por llamada, así que `cortes.length` ES la cantidad de
+       * llamadas, y queda comprobable contra el propio arreglo en vez de ser un número suelto. */
+      llamadas: nat && Array.isArray(nat.cortes) ? nat.cortes.length : null,
       cortes: nat && Array.isArray(nat.cortes) ? nat.cortes : null,   // POR QUÉ cortó el proveedor en cada llamada
       vacias: nat ? nat.vacias : null,                                 // cuántas volvieron sin una sola letra
     };
