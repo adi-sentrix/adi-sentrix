@@ -4,6 +4,15 @@
  */
 import { numberGuard, pickNarratedText, shouldNarrate } from "./src/adi/llm/numberGuard.js";
 import { stripProactiveSuffix } from "./src/adi/llm/voiceGuard.js";
+/* ⚠️ EL TENANT SE DECLARA (owner 2026-08-21 · vía 1 de Supabase). Antes el dato era una CONSTANTE GLOBAL y este
+ * gate no tenía que decir nada: importaba y ahí estaba. La vía 1 lo cambió — la app arranca VACÍA y recién después
+ * pide al servidor el dato del tenant autorizado, para que no viajen datos de otras empresas al navegador. Un gate
+ * que no declara contra QUÉ empresa mide quedó midiendo contra nada, y el guard de entidades pasó a aprobar
+ * cualquier nombre porque no tenía catálogo. Se declara, como ya lo hacen los demás gates del repo. */
+import { initTenant } from "./src/data/tenantStore.js";
+import { TENANT_DEMO } from "./src/data/tenants/demo.js";
+import { TENANT_EMPRESA2 } from "./src/data/tenants/empresa2.js";
+initTenant(TENANT_DEMO);
 
 // output validado de ADI (ejemplo real · rank de contribución) · obligatorias = evidence.ranking_values
 const V = {
@@ -100,6 +109,23 @@ const T = [
   { n: "25 · saludo: pickNarratedText lo devuelve VERBATIM aunque llegue narración",
     run: () => pickNarratedText({ text: "¡Hola! Soy ADI, tu asesor.", evidence: { kind: "saludo", boleta: [] } }, "Hola! Encantado de saludarte, veo números interesantes."),
     ok: (r) => r.narrated === false && r.text === "¡Hola! Soy ADI, tu asesor." },
+  // ── guard de ENTIDADES (prueba en vivo 2026-07-09: "…retener a Falcon, Jumbo y Lider" — "Falcon" es garble
+  //    de Falabella, familia P8 · las cifras venían CORRECTAS → los guards de cifras no lo veían) ──
+  { n: "26 · entidad: 'Falcon' (garble de Falabella) con cifras correctas → descartada (entidad-corrupta)",
+    run: () => pickNarratedText(V, "Tu contribución la sostienen Falcon (4271), Jumbo (4153), Lider (3836), Sodimac (1923) y Tottus (1909); podemos analizar cómo retener a Falcon, Jumbo y Lider."),
+    ok: (r) => r.narrated === false && r.verdict === "entidad-corrupta" && r.text === V.text },
+  { n: "27 · entidad: typo a INICIO de oración ('Phillips'→Philips) también cae (regla estricta)",
+    run: () => pickNarratedText({ text: "Philips vende $28.0M.", evidence: {} }, "Phillips vende $28.0M."),
+    ok: (r) => r.narrated === false && r.verdict === "entidad-corrupta" },
+  { n: "28 · entidad: nombres EXACTOS con acento ('Líder', 'París' ≡ Lider, Paris) → narración pasa",
+    run: () => pickNarratedText({ text: "Lider y Paris concentran margen.", evidence: {} }, "Entre Líder y París se concentra el margen que estamos mirando."),
+    ok: (r) => r.narrated === true },
+  { n: "29 · entidad: español normal NO bloquea ('Falta' al inicio · 'Pareto' · 'Unidades' comparten prefijo con Falabella/Paris/Unimarc)",
+    run: () => pickNarratedText({ text: "Falabella concentra 4271.", evidence: {} }, "Falta poco: según el Pareto, Falabella concentra 4271; las Unidades acompañan."),
+    ok: (r) => r.narrated === true },
+  { n: "30 · entidad: bodega garbleada mid-sentence ('Santigo'→Santiago) → descartada",
+    run: () => pickNarratedText({ text: "El stock está en Santiago.", evidence: {} }, "El stock está concentrado en Santigo."),
+    ok: (r) => r.narrated === false && r.verdict === "entidad-corrupta" },
 ];
 
 let pass = 0, fail = 0; const lines = [];
@@ -109,6 +135,30 @@ for (const t of T) {
   if (good) pass++; else fail++;
   lines.push(`  ${good ? "✓" : "✗"} ${t.n}${good ? "" : `\n        → ${JSON.stringify(r)}`}`);
 }
-console.log(`── _guard_gate: PASS ${pass} · FAIL ${fail} (de ${T.length}) ──`);
+
+/* ── EL GUARD SIGUE AL TENANT ACTIVO · la prueba de que se adaptó al mundo nuevo ───────────────────────────────
+ * No alcanza con que los casos de arriba vuelvan a pasar: pasaban también cuando el catálogo se armaba una sola
+ * vez, al importar. Lo que hay que probar es que el guard juzga contra LA EMPRESA QUE ESTÁ MIRANDO — que cambia
+ * de catálogo al cambiar de tenant, y que no le queda nada de la anterior. Se corre el mismo guard dos veces. */
+initTenant(TENANT_EMPRESA2);
+const T2 = [
+  { n: "31 · empresa2: garble de un cliente SUYO cae (Supermercodos → Supermercados del Valle)",
+    run: () => pickNarratedText({ text: "El stock está en Supermercados del Valle.", evidence: {} }, "El stock está en Supermercodos del Valle."),
+    ok: (r) => r.narrated === false && r.verdict === "entidad-corrupta" },
+  { n: "32 · empresa2: sus nombres EXACTOS pasan (no se los confunde con garble)",
+    run: () => pickNarratedText({ text: "El stock está en Supermercados del Valle.", evidence: {} }, "El stock está en Supermercados del Valle."),
+    ok: (r) => r.narrated === true },
+  { n: "33 · NO HAY RESPALDO AL DEMO: con empresa2 activa, un garble de Falabella ya no se juzga (no es su cliente)",
+    run: () => pickNarratedText({ text: "El total es $28.0M.", evidence: {} }, "Falcon aporta $28.0M."),
+    ok: (r) => r.verdict !== "entidad-corrupta" },
+];
+for (const t of T2) {
+  const r = t.run();
+  const good = !!t.ok(r);
+  if (good) pass++; else fail++;
+  lines.push(`  ${good ? "✓" : "✗"} ${t.n}${good ? "" : `\n        → ${JSON.stringify(r)}`}`);
+}
+initTenant(TENANT_DEMO);   // se devuelve el tenant declarado: un gate no deja el proceso mirando otra empresa
+console.log(`── _guard_gate: PASS ${pass} · FAIL ${fail} (de ${T.length + T2.length}) ──`);
 console.log(lines.join("\n"));
 process.exit(fail ? 1 : 0);
