@@ -28,6 +28,7 @@ import { cifrasDelDato, suplenteDignoDelDato } from "./datoProyectado.js";
 import { axisEntityNames } from "./entityIndex.js";
 import { parseFigures } from "../boleta.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";
+import { detectFichaIntent } from "./fichaIntent.js";   // texto libre → la Ficha del cliente (piso determinístico)
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "./narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { detectCriteriaIntent } from "../criteria.js";     // el MISMO detector que answerViaOracle — una red, una verdad
@@ -214,13 +215,21 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
 
   // ── LA RESPUESTA · route="natural" + el registro del turno para la telemetría existente (condición 5: se
   // EXPONEN los campos, no se construye telemetría nueva). estados excluyentes: verde/reparado/suplente/vacio.
+  const _ficha = detectFichaIntent(q, { escenario: scenario });
   const r = normalizeResponse({
     text: textoPantalla,
     route: "natural",
     deterministic: !!suplenteDigno,
     claims: [],
     suggestions: null,
-    sentrixAction: null,
+    /* LA PUERTA A LA FICHA DESDE TEXTO LIBRE (owner 2026-08-12, deuda prioritaria · cerrada 2026-08-21).
+     * Acá había un `null` FIJO: el camino natural —el que corre en producción— no tenía NINGUNA ruta a la Ficha,
+     * así que llegar dependía de que el usuario viniera de un botón de la Mesa. El owner lo dijo al revés:
+     * «Sentrix es APOYO, NO REQUISITO». El detector es determinístico y tolera el tipeo; si no reconoce un
+     * cliente, devuelve null y todo queda como estaba — nunca ofrece un botón que abra la ficha de otro.
+     * SE OFRECE TAMBIÉN CUANDO EL TURNO CAYÓ AL SUPLENTE: si el cerebro no pudo con la lectura, el camino a la
+     * ficha es justamente lo que le queda al usuario, y ese camino no pasa por el modelo. */
+    sentrixAction: _ficha ? _ficha.sentrixAction : null,
     natural: {
       estado: res.estado,
       vetos: res.vetos,
