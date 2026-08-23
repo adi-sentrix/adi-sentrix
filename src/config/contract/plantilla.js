@@ -104,9 +104,9 @@ export const HOJAS = [
        * unidades vendidas que ya trae la hoja Ventas. En los dos casos la procedencia viaja con el valor.
        * Por eso NO están en COLUMNAS_PROHIBIDAS: no son un KPI que le pedimos calcular al usuario, son un dato
        * que su sistema puede tener — y si lo tiene, manda. */
-      { campo: "doh", titulo: "Días de inventario", tipo: "numero", obligatoria: false,
+      { campo: "doh", titulo: "Días de inventario", tipo: "numero", obligatoria: false, laCalculaAdi: true,
         nota: "Solo si tu sistema ya lo publica. Si no lo mandás, ADI lo calcula." },
-      { campo: "rotacion", titulo: "Rotación", tipo: "numero", obligatoria: false,
+      { campo: "rotacion", titulo: "Rotación", tipo: "numero", obligatoria: false, laCalculaAdi: true,
         nota: "Solo si tu sistema ya la publica. Si no la mandás, ADI la calcula desde los días." },
     ],
   },

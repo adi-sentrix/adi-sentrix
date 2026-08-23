@@ -144,7 +144,10 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
         const bruto = (cruda || [])[pos];
         if (bruto === null || bruto === undefined || String(bruto).trim() === "") {
           if (col.obligatoria) { B("celda-obligatoria-vacia", `«${def.nombre}» fila ${nFila}: falta "${col.titulo}"`, { hoja: def.nombre, fila: nFila }); rota = true; }
-          else A("celda-vacia", `«${def.nombre}» fila ${nFila}: "${col.titulo}" vino vacía — no se completa con nada`, { hoja: def.nombre, fila: nFila });
+          /* Columna opcional vacía. Si el contrato dice que ADI la calcula (días, rotación), NO es un aviso:
+           * es el camino normal de «informado manda, calculado rellena», y avisarlo una vez por fila entierra
+           * los avisos que sí importan. Solo se avisa cuando quedar vacía significa que el dato no existirá. */
+          else if (!col.laCalculaAdi) A("celda-vacia", `«${def.nombre}» fila ${nFila}: "${col.titulo}" vino vacía — no se completa con nada`, { hoja: def.nombre, fila: nFila });
           fila[campo] = null; continue;
         }
         if (col.tipo === "numero") {

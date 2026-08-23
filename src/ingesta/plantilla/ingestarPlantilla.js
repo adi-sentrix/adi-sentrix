@@ -21,12 +21,25 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "" } = {}) {
 
   const m = calcularDataset({ parametros: v.parametros, tablas: v.tablas });
   const d = m.dataset;
+  /* La procedencia de días y rotación, contada · es el concepto que pidió el owner («debe viajar con cada valor»)
+   * y si no se ve en la preview, el usuario no sabe cuáles cifras son de su sistema y cuáles calculó ADI. */
+  const inv = d.skuInventario || [];
+  const cuenta = (campo, cual) => inv.filter((s) => s.procedencia && s.procedencia[campo] === cual).length;
+  const procedencia = inv.length ? {
+    total: inv.length,
+    dias: { informado: cuenta("doh", "informado"), calculado: cuenta("doh", "calculado"), sinDato: cuenta("doh", "sin dato") },
+    rotacion: { informado: cuenta("rotacion", "informado"), calculado: cuenta("rotacion", "calculado"), sinDato: cuenta("rotacion", "sin dato") },
+  } : null;
+
   const totales = {
     clientes: d.clientesVentas.length, skus: d.skusMargen.length, marcas: d.MARCAS_ALL.length,
     familias: Math.max(0, d.SUPERFAMILIAS.length - 1), bodegas: d.SUCURSALES.length,
-    filasVenta: (v.tablas.Ventas || []).length, filasInventario: (v.tablas.Inventario || []).length,
+    filasVenta: (v.tablas.Ventas || []).length, filasInventario: inv.length,
     venta: d.ventasKPI ? d.ventasKPI.totalActual : null,
     capital: d.invKPI ? d.invKPI.totalUSD : null,
+    inmovilizado: d.invKPI ? d.invKPI.inmovilizadoUSD : null,
+    inmovilizadoPct: d.invKPI ? d.invKPI.inmovilizadoPct : null,
+    procedencia,
   };
 
   return {
@@ -74,6 +87,16 @@ export function previewPlantillaEnTexto(p) {
   L.push(`  ${n(t.filasVenta)} filas de venta → ${n(t.clientes)} cuentas · ${n(t.skus)} SKU · ${n(t.marcas)} marcas · ${n(t.familias)} familias · ${n(t.bodegas)} bodegas`);
   if (t.venta !== null) L.push(`  venta del período: ${n(t.venta)}`);
   if (t.capital !== null) L.push(`  capital en stock: ${n(t.capital)}  (${n(t.filasInventario)} filas de inventario)`);
+
+  /* Informado manda, calculado rellena · el usuario tiene que poder ver CUÁLES cifras son de su sistema y cuáles
+   * puso ADI. Si no se dice, un número calculado se lee como si viniera del ERP, y ahí empieza la desconfianza. */
+  if (t.procedencia) {
+    const q = (x) => [x.informado ? `${x.informado} informado${x.informado === 1 ? "" : "s"}` : null,
+                      x.calculado ? `${x.calculado} calculado${x.calculado === 1 ? "" : "s"} por ADI` : null,
+                      x.sinDato ? `${x.sinDato} sin dato` : null].filter(Boolean).join(" · ") || "—";
+    L.push(`  días de inventario: ${q(t.procedencia.dias)}`);
+    L.push(`  rotación:           ${q(t.procedencia.rotacion)}`);
+  }
 
   /* 3 · qué KPIs puede calcular ─────────────────────────────────────────────────────────────────────────── */
   sec("2 · QUÉ CALCULA ADI CON ESTO (y con qué autorización)");

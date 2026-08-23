@@ -267,6 +267,57 @@ H("[H] COHERENCIA · el mismo SKU con dos marcas no se resuelve eligiendo");
   ok(vv.bloqueos.every((x) => x.tipo !== "atributo-incoherente"), "una celda vacía NO es una contradicción: se toma el valor de la otra fila");
 }
 
+/* ── [I] LA PROCEDENCIA SE VE, Y LA HERRAMIENTA PARA PROBARLA EXISTE ───────────────────────────────────────
+ * «Informado manda, calculado rellena» solo sirve si el usuario puede VER cuál es cuál. Un valor calculado que
+ * se muestra igual que uno del ERP se lee como si viniera del ERP: la primera vez que difiera de su sistema, el
+ * usuario concluye que ADI se equivoca. Por eso el conteo va en la preview y se verifica acá. */
+H("[I] PROCEDENCIA VISIBLE · el usuario distingue lo suyo de lo que puso ADI");
+{
+  const pr = r.preview.totales.procedencia;
+  const inv = r.dataset.skuInventario;
+  ok(pr && pr.total === inv.length, `la preview cuenta las ${inv.length} filas de inventario`);
+  ok(pr.dias.informado === 2 && pr.dias.calculado === 4, `días: ${pr.dias.informado} informados · ${pr.dias.calculado} calculados`);
+  ok(pr.rotacion.informado === 1 && pr.rotacion.calculado === 5, `rotación: ${pr.rotacion.informado} informada · ${pr.rotacion.calculado} calculadas`);
+  // el conteo no puede ser un literal: tiene que salir del dataset
+  const dInf = inv.filter((x) => x.procedencia.doh === "informado").length;
+  ok(dInf === pr.dias.informado, "el conteo de la preview sale del dataset, no de un número escrito a mano");
+
+  const t = previewPlantillaEnTexto(r.preview);
+  ok(/días de inventario: .*informado/.test(t), "la preview en texto dice cuántos días vinieron informados");
+  ok(/rotación: *.*calculad/.test(t), "…y cuántas rotaciones puso ADI");
+
+  // una columna opcional que ADI SÍ calcula, vacía, no es un aviso: es el camino normal
+  ok(!/"Días de inventario" vino vacía/.test(t), "dejar vacía la columna de días NO genera aviso: ADI la calcula");
+  ok(!/"Rotación" vino vacía/.test(t), "dejar vacía la columna de rotación tampoco");
+
+  // …pero el silencio es dirigido, no general: una opcional que ADI no calcula sigue avisando
+  const sinFecha = ejemploCon((hs) => { const h = hoja(hs, "Inventario"); const i = iEnc(h); h.filas[i + 1][5] = null; });
+  const pv = ingestarPlantilla(sinFecha, { nombreArchivo: "sf.xlsx" }).preview;
+  ok(pv.avisos.some((a) => /última venta.*vino vacía/.test(a.detalle)),
+     "una opcional que ADI NO calcula sí sigue avisando: el silencio es dirigido, no general");
+}
+
+H("[I2] LA PLANTILLA SE PUEDE PROBAR SIN UI · scripts/leer-plantilla.mjs");
+{
+  const { spawnSync } = await import("node:child_process");
+  const { writeFileSync, mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(`${tmpdir()}/adi-plantilla-`);
+  const bueno = `${dir}/ok.xlsx`, malo = `${dir}/malo.xlsx`;
+  writeFileSync(bueno, EJEMPLO);
+  writeFileSync(malo, ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h)] = [...h.filas[iEnc(h)], "Margen %"]; }));
+
+  const corre = (f) => spawnSync(process.execPath, ["scripts/leer-plantilla.mjs", f], { encoding: "utf8" });
+  const a = corre(bueno);
+  ok(a.status === 0, "un archivo válido sale con código 0");
+  ok(/QUÉ PARTES DE SENTRIX/.test(a.stdout), "…y escribe la preview completa en pantalla");
+  const b = corre(malo);
+  ok(b.status === 1, "un archivo bloqueado sale con código 1, para poder encadenarlo");
+  ok(/EL ARCHIVO NO SE CARGÓ/.test(b.stdout), "…y dice por qué, sin cargar ninguna fila");
+  const c = spawnSync(process.execPath, ["scripts/leer-plantilla.mjs", `${dir}/no-existe.xlsx`], { encoding: "utf8" });
+  ok(c.status === 2 && /no existe/.test(c.stderr), "un archivo que no está se distingue de uno inválido (código 2)");
+}
+
 initTenant(r.dataset);
 ok(getTenantId() === "andes", "el dataset calculado se activa como tenant sin romper nada");
 initTenant(TENANT_DEMO);
