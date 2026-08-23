@@ -8,10 +8,13 @@
  *
  * LAS SIETE COSAS QUE REVISA, en orden de gravedad:
  *   1. **formato oficial** · la marca y la versión en A1 de `Ventas`. Sin eso no es la plantilla.
- *   2. **columnas calculadas** · «Margen %» o «Rotación» RECHAZAN el archivo, con el mensaje que dice qué mandar
- *      en su lugar. Ignorarlas en silencio haría creer al usuario que ADI está usando su número.
- *   3. **unidades ambiguas** · «Venta» sin su unidad no es un sinónimo de «Venta (USD)»: es una duda, y ante la
- *      duda no se carga. Es la lección de miles-vs-dólares.
+ *   2. **columnas calculadas** · «Margen %» o «Contribución» RECHAZAN el archivo, con el mensaje que dice qué
+ *      mandar en su lugar. Ignorarlas en silencio haría creer al usuario que ADI está usando su número.
+ *      ⚠️ «Rotación» y «Días de inventario» YA NO están en esa lista (owner 2026-08-22): pasaron a columnas
+ *      OPCIONALES, porque no son un KPI que le pedimos calcular al usuario sino un dato que su ERP puede tener —
+ *      y si lo tiene, manda. Ver la regla «informado manda, calculado rellena» en sentrix/diasYRotacion.js.
+ *   3. **títulos parecidos** · «Venta (miles)» no es «Venta», y un plural tampoco. No se aceptan como equivalentes:
+ *      adivinar cuál quiso decir es la lección de miles-contra-dólares.
  *   4. **claves faltantes** · una fila sin cuenta, sin SKU o sin período no es incompleta: es inatribuible.
  *   5. **duplicados contradictorios** · misma clave, distinto valor ⇒ bloquea. Idénticos ⇒ colapsa y avisa.
  *   6. **atributos incoherentes** · el precio de haber colapsado los maestros en columnas: el mismo SKU con dos
@@ -122,7 +125,7 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
         vistos.add(col.campo); posPorCampo.set(col.campo, i); info.columnas.push({ campo: col.campo, titulo: t, pos: i }); return;
       }
       const casi = def.columnas.find((c) => normalizarTitulo(c.titulo).startsWith(normalizarTitulo(t)) || normalizarTitulo(t).startsWith(normalizarTitulo(c.titulo)));
-      if (casi) { info.ambiguas.push({ vino: t, esperado: casi.titulo }); B("unidad-ambigua", `«${def.nombre}» trae "${t}" y la plantilla dice "${casi.titulo}". No se asume la unidad: copiá el encabezado tal cual.`, { hoja: def.nombre, columna: t }); }
+      if (casi) { info.ambiguas.push({ vino: t, esperado: casi.titulo }); B("unidad-ambigua", `«${def.nombre}» trae "${t}" y la plantilla dice "${casi.titulo}". Un título parecido NO se acepta como equivalente —"Venta (miles)" y "Venta" no son lo mismo— y adivinar cuál quiso decir es exactamente el error de miles-contra-dólares. Copiá el encabezado tal cual.`, { hoja: def.nombre, columna: t }); }
       else { info.prohibidas.push(t); B("columna-de-mas", `«${def.nombre}» trae la columna "${t}", que no es parte de la plantilla`, { hoja: def.nombre, columna: t }); }
     });
 

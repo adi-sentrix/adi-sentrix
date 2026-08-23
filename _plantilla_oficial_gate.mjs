@@ -19,7 +19,7 @@
  *   [C] EL PORTERO RECHAZA · columna calculada · unidad ambigua · duplicado contradictorio · clave faltante ·
  *       hoja de más · hoja obligatoria ausente · versión distinta · un Excel cualquiera
  *   [D] EL MOTOR · las fórmulas declaradas reproducen el dato de referencia, campo por campo
- *   [E] LO BLOQUEADO · rotación y días en null CON motivo, y nada relleno con un valor plausible
+ *   [E] DÍAS Y ROTACIÓN · informado manda, calculado rellena, procedencia con el valor, y el caso trampa
  *   [F] BENCHMARK · parámetro en la cabecera, jamás columna
  *   [G] LA PREVIEW · las secciones, y la disponibilidad de Sentrix
  *   [H] COHERENCIA · el mismo SKU con dos marcas distintas no se resuelve eligiendo: se rechaza nombrando las filas
@@ -112,13 +112,19 @@ H("[C] EL PORTERO · lo que NO entra, y el mensaje que da");
   ok(!!b1 && /Venta \(USD\) y Costo \(USD\)/.test(b1.detalle), "…y el mensaje dice qué mandar en su lugar");
   ok(Object.keys(v1.tablas).length === 0, "…y no devuelve ni una fila: un archivo que no cumple no entrega datos a medias");
 
-  for (const calc of ["Rotación", "Días de inventario", "Capital inmovilizado", "Contribución", "Carga comercial", "Benchmark", "Costo unitario", "Presupuesto"]) {
+  for (const calc of ["Capital inmovilizado", "Contribución", "Carga comercial", "Benchmark", "Costo unitario", "Presupuesto"]) {
     const b = val(ejemploCon((hs) => { const h = hoja(hs, "Inventario"); const i = iEnc(h); h.filas[i] = [...h.filas[i], calc]; h.filas.slice(i + 1).forEach((f) => f.push(1)); }));
     ok(b.bloqueos.some((x) => x.tipo === "columna-calculada"), `«${calc}» se rechaza como columna calculada`);
   }
 
-  const sinUnidad = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "Venta (USD)" ? "Venta" : t)); });
-  ok(val(sinUnidad).bloqueos.some((b) => b.tipo === "unidad-ambigua"), '"Venta" sin unidad se trata como AMBIGUA, no como sinónimo de "Venta (USD)"');
+  /* El título ya no lleva la moneda (owner: «si el usuario pone CLP también es válido»), pero la trampa que
+   * importa sigue viva y es la de la ESCALA: alguien que escribe "Venta (miles)" está diciendo otra cosa. Un
+   * título parecido no se acepta como equivalente — adivinar cuál quiso decir es miles-contra-dólares otra vez. */
+  const enMiles = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "Venta" ? "Venta (miles)" : t)); });
+  ok(val(enMiles).bloqueos.some((b) => b.tipo === "unidad-ambigua"), '"Venta (miles)" NO se acepta como equivalente de "Venta": la escala no se adivina');
+  const plural = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "Venta" ? "Ventas" : t)); });
+  ok(val(plural).bloqueos.some((b) => b.tipo === "unidad-ambigua"), '…y tampoco un plural: los títulos son los del contrato o no son');
+  ok(!/USD/.test(HOJAS.flatMap((h) => h.columnas.map((c) => c.titulo)).join(" ")), "ningún título impone la moneda: la declara el cliente en la cabecera");
 
   const dupDistinto = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); const f = [...h.filas[i + 1]]; f[8] = 99999; h.filas.push(f); });
   ok(val(dupDistinto).bloqueos.some((b) => b.tipo === "duplicado-contradictorio"), "misma clave con distinto valor → BLOQUEA");
@@ -170,22 +176,45 @@ H("[D] EL MOTOR · reproduce el dato de referencia con las fórmulas DECLARADAS"
 }
 
 /* ── [E] LO BLOQUEADO ──────────────────────────────────────────────────────────────────────────────────────── */
-H("[E] LO BLOQUEADO · en null, con motivo, y sin rellenar con nada plausible");
+H("[E] DÍAS Y ROTACIÓN · informado manda, calculado rellena, y la procedencia viaja con el valor");
 {
   const inv = r.dataset.skuInventario;
   ok(inv.length === 6, `el inventario entró como hechos (${inv.length} filas)`);
   ok(inv.every((s) => typeof s.stockUSD === "number" && typeof s.stockUnd === "number"), "stock valorizado y unidades son hechos: entran");
-  ok(inv.every((s) => s.rotacion === null && s.doh === null), "rotación y días quedan en NULL — no se inventan");
-  ok(inv.every((s) => s.estado === null && s.alerta === null), "el estado del SKU tampoco: sale de rotación y días, que están bloqueadas");
-  ok(inv.every((s) => s.marca && s.sfamilia), "el inventario hereda marca y familia de las filas de venta del mismo SKU");
-  const lento = inv.find((s) => s.sku === "SAN-LAV60");
-  ok(lento && lento.diasSinVenta > 100, `los días sin venta SÍ se calculan (resta de dos fechas informadas): ${lento && lento.diasSinVenta} días`);
-  ok(r.dataset.invKPI && r.dataset.invKPI.totalUSD > 0 && r.dataset.invKPI.inmovilizadoUSD === null, "el capital total sí; el inmovilizado no");
-  ok(r.dataset.clientesVentas.every((c) => c.presupuesto === null), "el presupuesto queda en null: salió de la v1 y está declarado como bloqueado");
-  for (const id of ["rotacion", "doh", "diagnosticoCapital", "presupuesto"]) {
+  ok(inv.every((s) => s.procedencia && s.procedencia.doh && s.procedencia.rotacion), "cada fila declara la procedencia de sus dos métricas");
+
+  // el ERP informó SUS días y no la rotación: la rotación tiene que salir de ESOS días, no de unos recalculados
+  const informado = inv.find((s) => s.sku === "SAN-LAV60");
+  ok(informado.doh === 185 && informado.procedencia.doh === "informado", `los días informados por el origen se RESPETAN (${informado.doh}, "${informado.procedencia.doh}")`);
+  ok(informado.procedencia.rotacion === "calculado", "…y la rotación ausente se calcula");
+  ok(Math.abs(informado.rotacion - 365 / 185) < 0.06, `…DE ESOS días (365÷185 = ${(365 / 185).toFixed(1)}, dio ${informado.rotacion}) — no de unos calculados aparte`);
+  const aparte = 365 / (informado.stockUnd / ((22) / 30));   // lo que habría dado recalcular los días por su cuenta
+  ok(Math.abs(informado.rotacion - aparte) > 1, "…y esa diferencia es real: recalcular aparte habría dado otro número para el mismo stock");
+
+  // el ERP informó las dos: se respetan las dos
+  const dos = inv.find((s) => s.sku === "ELE-TAB12");
+  ok(dos.doh === 14 && dos.rotacion === 26.1, "si el origen informa las dos, se respetan las dos tal como vinieron");
+  ok(dos.procedencia.doh === "informado" && dos.procedencia.rotacion === "informado", "…y las dos se declaran informadas");
+
+  // sin KPI del origen: ADI las calcula, con la fórmula declarada
+  const calc = inv.find((s) => s.sku === "TRM-800");
+  ok(calc.procedencia.doh === "calculado" && calc.procedencia.rotacion === "calculado", "sin KPI del origen, ADI calcula las dos");
+  ok(typeof calc.doh === "number" && typeof calc.rotacion === "number", `…y da números reales (${calc.doh} días · ${calc.rotacion}x)`);
+  ok(/stock en unidades/.test(String(calc.procedencia.formulaDoh)), "…y la fórmula usada viaja con el valor");
+
+  // el diagnóstico del producto, no una copia
+  ok(inv.every((s) => s.estado !== null), "cada SKU recibe su estado");
+  ok(inv.some((s) => s.estado === "capital_frenado"), "…y el inmovilizado aparece cuando el dato lo sostiene");
+  const k = r.dataset.invKPI;
+  ok(k.inmovilizadoUSD > 0 && k.inmovilizadoPct > 0, `el KPI de capital ya trae el inmovilizado (${k.inmovilizadoUSD} · ${k.inmovilizadoPct}%)`);
+  ok(typeof k.doh === "number", `…y los días promedio (${k.doh})`);
+
+  for (const id of ["gapMargen", "escenarios", "presupuesto"]) {
     const b = BLOQUEADOS.find((x) => x.id === id);
-    ok(!!b && !!b.porque && !!b.paraAbrirlo, `«${id}» está declarado bloqueado, con motivo y con qué haría falta para abrirlo`);
+    ok(!!b && !!b.porque && !!b.paraAbrirlo, `«${id}» sigue declarado bloqueado, con motivo y camino para abrirlo`);
   }
+  ok(!BLOQUEADOS.some((x) => x.id === "rotacion" || x.id === "doh"), "rotación y días YA NO están en la lista de bloqueados");
+  ok(r.dataset.clientesVentas.every((c) => c.presupuesto === null), "el presupuesto sigue en null: salió de la v1 y está declarado");
 }
 
 /* ── [F] EL BENCHMARK ES PARÁMETRO ─────────────────────────────────────────────────────────────────────────── */
@@ -213,8 +242,7 @@ H("[G] LA PREVIEW HUMANA");
 
   const d = r.preview.disponibilidad;
   ok(d.caras.find((c) => c.cara === "Comercial").completa === true, "con el ejemplo, la cara Comercial abre completa");
-  ok(d.caras.find((c) => c.cara === "Capital").completa === false, "…y Capital queda PARCIAL: el capital sí, el diagnóstico no");
-  ok(d.caras.find((c) => c.cara === "Capital").falta.join(" ").includes("rotacion"), "…y nombra rotación como lo que falta");
+  ok(d.caras.find((c) => c.cara === "Capital").completa === true, "…y Capital ahora abre COMPLETA: con la regla nueva, el diagnóstico se puede armar");
 
   const roto = previewPlantillaEnTexto(ingestarPlantilla(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h)] = [...h.filas[iEnc(h)], "Margen %"]; }), { nombreArchivo: "r.xlsx" }).preview);
   ok(/EL ARCHIVO NO SE CARGÓ/.test(roto), "cuando no entra, la preview lo dice arriba y no muestra totales de nada");

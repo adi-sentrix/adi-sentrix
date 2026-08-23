@@ -21,9 +21,16 @@
  * Van arriba de la misma hoja, y la tabla empieza en la fila cuyo primer título es el de la primera columna. Esa
  * regla —buscar el encabezado, no contar filas— es la que hace que agregar un parámetro mañana no rompa nada.
  *
- * ── LAS UNIDADES VIAJAN EN EL ENCABEZADO ─────────────────────────────────────────────────────────────────────
- * «Venta (USD)» dice su unidad en el título. No se infiere del rango —esa es la lección de miles-vs-dólares— ni se
- * le pregunta al usuario: está impresa en la plantilla que bajó.
+ * ── LA MONEDA LA DECLARA EL CLIENTE, UNA SOLA VEZ (owner, 2026-08-22) ────────────────────────────────────────
+ * Los títulos NO dicen «(USD)». Palabra del owner: «si el usuario coloca CLP también es válido, ese es problema
+ * nuestro». Imponer la moneda en cada encabezado obliga a convertir antes de subir —trabajo que no le toca— y es
+ * la clase de fricción que hace que una carga manual se abandone. La moneda va en la cabecera, una vez, y ADI
+ * rotula con ella. Lo que NO se negocia sigue igual: la moneda se DECLARA, nunca se infiere del rango de los
+ * valores; esa es la lección de miles-contra-dólares y no depende de en qué moneda esté.
+ *
+ * ── NADA DE TEXTO DE AYUDA EN LAS HOJAS (owner, 2026-08-22) ──────────────────────────────────────────────────
+ * «Eso marea; deja los campos solamente.» Las hojas llevan encabezados y nada más. Lo que cada columna significa
+ * vive acá, en el contrato, y sale a pantalla por la preview — no ocupando filas del archivo que hay que llenar.
  *
  * ── QUÉ ES UN HECHO Y QUÉ ES UN PARÁMETRO ────────────────────────────────────────────────────────────────────
  * Un HECHO pasó y el sistema lo registró: vendió 12 unidades a $340 con costo $240 en marzo. Un PARÁMETRO es una
@@ -70,11 +77,11 @@ export const HOJAS = [
       { campo: "sfamilia", titulo: "Familia", tipo: "texto", obligatoria: false, atributoDe: "sku" },
       { campo: "bodega", titulo: "Bodega", tipo: "texto", clave: true, obligatoria: false },
       { campo: "unidades", titulo: "Unidades", tipo: "numero", obligatoria: true },
-      { campo: "venta", titulo: "Venta (USD)", tipo: "numero", obligatoria: true },
-      { campo: "costo", titulo: "Costo (USD)", tipo: "numero", obligatoria: true },
-      { campo: "acciones", titulo: "Acciones comerciales (USD)", tipo: "numero", obligatoria: false,
+      { campo: "venta", titulo: "Venta", tipo: "numero", obligatoria: true },
+      { campo: "costo", titulo: "Costo", tipo: "numero", obligatoria: true },
+      { campo: "acciones", titulo: "Acciones comerciales", tipo: "numero", obligatoria: false,
         nota: "Rebates, descuentos y notas de crédito EN PLATA. El porcentaje sobre la venta lo calcula ADI." },
-      { campo: "precioLista", titulo: "Precio de lista (USD por unidad)", tipo: "numero", obligatoria: false, atributoDe: "sku",
+      { campo: "precioLista", titulo: "Precio de lista", tipo: "numero", obligatoria: false, atributoDe: "sku",
         nota: "El precio de la lista, que es un HECHO. El precio promedio realizado lo calcula ADI." },
     ],
   },
@@ -87,10 +94,20 @@ export const HOJAS = [
       { campo: "sku", titulo: "SKU", tipo: "texto", clave: true, obligatoria: true },
       { campo: "bodega", titulo: "Bodega", tipo: "texto", clave: true, obligatoria: true },
       { campo: "stockUnd", titulo: "Stock (unidades)", tipo: "numero", obligatoria: true },
-      { campo: "stockUSD", titulo: "Stock valorizado (USD)", tipo: "numero", obligatoria: true },
-      { campo: "ultimaVenta", titulo: "Fecha de la última venta (AAAA-MM-DD)", tipo: "fecha", obligatoria: false },
-      { campo: "vendidoMes", titulo: "Unidades vendidas en el mes", tipo: "numero", obligatoria: false },
-      { campo: "recepciones", titulo: "Unidades recibidas en el mes", tipo: "numero", obligatoria: false },
+      { campo: "stockUSD", titulo: "Stock valorizado", tipo: "numero", obligatoria: true },
+      { campo: "ultimaVenta", titulo: "Fecha de la última venta", tipo: "fecha", obligatoria: false,
+        nota: "La FECHA, no los días. Los días sin venta los cuenta ADI contra la fecha de corte." },
+      /* ── rotación y días: OPCIONALES (owner 2026-08-22) ────────────────────────────────────────────────────
+       * Dejaron de estar prohibidas. La regla que fijó el owner es «informado manda, calculado rellena»: si el
+       * ERP ya publica su rotación o sus días, ADI los respeta y no le discute el número a su sistema; si no
+       * vienen, los calcula con la fórmula declarada (`metricRegistry.formulaSiFalta`) usando el stock y las
+       * unidades vendidas que ya trae la hoja Ventas. En los dos casos la procedencia viaja con el valor.
+       * Por eso NO están en COLUMNAS_PROHIBIDAS: no son un KPI que le pedimos calcular al usuario, son un dato
+       * que su sistema puede tener — y si lo tiene, manda. */
+      { campo: "doh", titulo: "Días de inventario", tipo: "numero", obligatoria: false,
+        nota: "Solo si tu sistema ya lo publica. Si no lo mandás, ADI lo calcula." },
+      { campo: "rotacion", titulo: "Rotación", tipo: "numero", obligatoria: false,
+        nota: "Solo si tu sistema ya la publica. Si no la mandás, ADI la calcula desde los días." },
     ],
   },
 ];
@@ -114,8 +131,6 @@ export const COLUMNAS_PROHIBIDAS = [
   { formas: ["cargacomercial", "cargapct", "carga", "rebatepct", "pctrebate", "descuentopct"], porque: "el porcentaje sale de las acciones comerciales y la venta", enSuLugar: "Acciones comerciales (USD)" },
   { formas: ["brecha", "brechapct", "gap", "gappuntos"], porque: "la brecha es la distancia contra el benchmark, y el benchmark es un parámetro", enSuLugar: "el benchmark en la cabecera de Ventas" },
   { formas: ["benchmark", "referencia", "vara", "margenobjetivo"], porque: "es una política del negocio, no un dato por fila", enSuLugar: "el benchmark en la cabecera de Ventas" },
-  { formas: ["rotacion", "rotacioninventario", "turns", "turnover"], porque: "es un indicador calculado", enSuLugar: "Stock (unidades), Unidades vendidas en el mes y la fecha de la última venta" },
-  { formas: ["diasinventario", "diasdeinventario", "doh", "cobertura", "diascobertura", "daysonhand"], porque: "es un indicador calculado", enSuLugar: "Stock (unidades), Unidades vendidas en el mes y la fecha de la última venta" },
   { formas: ["capitalinmovilizado", "inmovilizado", "inmovilizadopct", "sobrestock", "riesgoquiebre"], porque: "es un diagnóstico que hace ADI con las varas del negocio", enSuLugar: "Stock valorizado (USD) y las varas de la cabecera" },
   { formas: ["estado", "estadosku", "semaforo", "alerta", "criticidad"], porque: "el estado lo asigna ADI con los umbrales declarados", enSuLugar: "nada — sale solo" },
   { formas: ["costomedio", "costounitario", "costopromedio"], porque: "el costo medio sale del costo y las unidades", enSuLugar: "Costo (USD) y Unidades" },

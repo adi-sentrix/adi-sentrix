@@ -17,24 +17,22 @@ import { HOJAS, PARAMETROS, MARCA_PLANTILLA } from "../../config/contract/planti
 
 const anchoDe = (t) => Math.min(40, Math.max(12, String(t).length + 3));
 
-/** Las filas de cabecera de `Ventas`: la marca, los parámetros y una línea en blanco antes de la tabla. */
+/* Las filas de cabecera de `Ventas`: la marca del archivo, los parámetros, y una línea en blanco.
+ * SIN columna de explicaciones (owner 2026-08-22: «eso marea, deja los campos solamente»). Lo que significa cada
+ * parámetro vive en el contrato y sale por la preview, no ocupando celdas del archivo que hay que llenar.
+ * La celda A1 no es texto de ayuda: es lo que identifica al archivo como plantilla oficial y su versión. */
 function filasCabecera(valores = null) {
   return [
-    [MARCA_PLANTILLA, "", "No borre esta celda: identifica el archivo y su versión."],
-    ["", "", ""],
-    ["Parámetro", "Valor", "Qué es"],
-    ...PARAMETROS.map((p) => [p.clave, valores ? (valores[p.clave] ?? null) : null,
-      `${p.etiqueta}${p.obligatorio ? " · OBLIGATORIO" : " · opcional"}${p.nota ? ` — ${p.nota}` : ""}`]),
-    ["", "", ""],
+    [MARCA_PLANTILLA],
+    [],
+    ...PARAMETROS.map((p) => [p.clave, valores ? (valores[p.clave] ?? null) : null]),
+    [],
   ];
 }
 
 function hojaDe(def, filasDatos = [], valoresCabecera = null) {
-  const obligatorias = def.columnas.filter((c) => c.obligatoria).map((c) => c.titulo);
-  const ayuda = `${def.que}. Obligatorias: ${obligatorias.join(" · ")}. No agregue columnas: el archivo se rechaza.`;
   const filas = [
     ...(def.conCabecera ? filasCabecera(valoresCabecera) : []),
-    [ayuda],
     def.columnas.map((c) => c.titulo),
     ...filasDatos.map((f) => def.columnas.map((c) => (f[c.campo] ?? null))),
   ];
@@ -86,13 +84,17 @@ export function datosEjemplo() {
     ventas.push({ periodo: "2026-08", ...base, unidades: und, venta, costo, acciones: acc });
   }
 
+  /* El inventario del ejemplo cubre los tres caminos de la regla «informado manda, calculado rellena»:
+   *   · TRM-800 y los demás: sin KPI → ADI calcula días y rotación con la fórmula declarada.
+   *   · SAN-LAV60: el ERP informa SUS días (185) → ADI los respeta y deriva la rotación de ESOS días.
+   *   · ELE-TAB12: el ERP informa las dos → se respetan las dos, tal como vinieron. */
   const inventario = [
-    { fechaCorte: "2026-08-31", sku: "TRM-800", bodega: "Central", stockUnd: 96, stockUSD: 5760, ultimaVenta: "2026-08-30", vendidoMes: 162, recepciones: 200 },
-    { fechaCorte: "2026-08-31", sku: "TRM-450", bodega: "Central", stockUnd: 210, stockUSD: 7770, ultimaVenta: "2026-08-29", vendidoMes: 270, recepciones: 240 },
-    { fechaCorte: "2026-08-31", sku: "SAN-LAV60", bodega: "Central", stockUnd: 48, stockUSD: 4656, ultimaVenta: "2026-04-12", vendidoMes: 22, recepciones: 0 },
-    { fechaCorte: "2026-08-31", sku: "SAN-GRI22", bodega: "Central", stockUnd: 320, stockUSD: 9280, ultimaVenta: "2026-08-31", vendidoMes: 155, recepciones: 120 },
-    { fechaCorte: "2026-08-31", sku: "ELE-CAB25", bodega: "Norte", stockUnd: 1400, stockUSD: 26600, ultimaVenta: "2026-08-31", vendidoMes: 550, recepciones: 600 },
-    { fechaCorte: "2026-08-31", sku: "ELE-TAB12", bodega: "Norte", stockUnd: 60, stockUSD: 4260, ultimaVenta: "2026-08-28", vendidoMes: 125, recepciones: 150 },
+    { fechaCorte: "2026-08-31", sku: "TRM-800", bodega: "Central", stockUnd: 96, stockUSD: 5760, ultimaVenta: "2026-08-30" },
+    { fechaCorte: "2026-08-31", sku: "TRM-450", bodega: "Central", stockUnd: 210, stockUSD: 7770, ultimaVenta: "2026-08-29" },
+    { fechaCorte: "2026-08-31", sku: "SAN-LAV60", bodega: "Central", stockUnd: 48, stockUSD: 4656, ultimaVenta: "2026-04-12", doh: 185 },
+    { fechaCorte: "2026-08-31", sku: "SAN-GRI22", bodega: "Central", stockUnd: 320, stockUSD: 9280, ultimaVenta: "2026-08-31" },
+    { fechaCorte: "2026-08-31", sku: "ELE-CAB25", bodega: "Norte", stockUnd: 1400, stockUSD: 26600, ultimaVenta: "2026-08-31" },
+    { fechaCorte: "2026-08-31", sku: "ELE-TAB12", bodega: "Norte", stockUnd: 60, stockUSD: 4260, ultimaVenta: "2026-08-28", doh: 14, rotacion: 26.1 },
   ];
 
   return { parametros, ventas, inventario };

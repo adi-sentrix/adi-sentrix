@@ -17,18 +17,22 @@
  *   · costo medio         = costo / unidades            ← desvío 0.005 (redondeo) en 13 SKU
  *   · marca y familia     = suma de sus SKU             ← ENTITIES.sku.parents + sourceManifest aggregate:true · desvío $0
  *
- * ── LO QUE QUEDA BLOQUEADO, y por qué ────────────────────────────────────────────────────────────────────────
- *   · **rotación** y **días de inventario**: `METRICS.rotacion.formula` y `METRICS.doh.formula` son `null` (dato
- *     primario), NINGÚN módulo del producto las calcula, y las dos fórmulas candidatas fallan contra el dato de
- *     referencia — `stockUnd / ventaDiaria` acierta 0 de 13 filas y `365 / doh` acierta 0 de 13. CLAUDE.md §4 ya
- *     lo dejaba escrito: «los días son un valor declarado, no una cuenta».
- *   · y por arrastre, todo lo que sale de ellas: **capital inmovilizado · riesgo de quiebre · sobrestock** y los
- *     estados del SKU, que `economicDiagnosis` decide comparando rotación y días contra los umbrales del negocio.
- * Eso deja la cara Capital ABIERTA para el capital por bodega y familia (que es suma de hechos) y CERRADA para el
- * diagnóstico. Es la respuesta honesta: con los hechos que hoy pide la plantilla no alcanza, y para abrirlo hay
- * que DECLARAR una fórmula — decisión del owner, porque cambia lo que significa el número.
+ * ── DÍAS Y ROTACIÓN · «INFORMADO MANDA, CALCULADO RELLENA» (regla del owner, 2026-08-22) ─────────────────────
+ * Estas dos eran el bloqueo del frente: el contrato las declaraba dato primario sin fórmula, ningún módulo las
+ * calculaba, y medido sobre el dato de referencia `stock ÷ venta diaria` acertaba 2 de 13 y `365 ÷ días` 0 de 13.
+ * El owner cerró la definición: si el origen las informa, ADI las respeta y no le discute el número a su sistema;
+ * si no vienen, las calcula con la fórmula declarada en `metricRegistry.formulaSiFalta`. En los dos casos la
+ * PROCEDENCIA viaja con el valor. La implementación vive en `sentrix/diasYRotacion.js` — acá no se recalcula nada.
+ * Con eso el diagnóstico de capital (inmovilizado · quiebre · sobrestock · estado del SKU) dejó de estar bloqueado
+ * y lo asigna `diagnoseInventarioSku`, la misma función que usa el producto.
+ *
+ * ── LO QUE SIGUE BLOQUEADO ───────────────────────────────────────────────────────────────────────────────────
+ * La brecha de margen de cabecera, los escenarios y el presupuesto — cada uno con su motivo y su camino para
+ * abrirse en `BLOQUEADOS`. Ninguno se rellena con un valor plausible.
  */
 import { PARAMETROS } from "../../config/contract/plantilla.js";
+import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
+import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
 
 /** El registro de lo que el motor sabe calcular, con su autorización. Es la lista auditable. */
 export const CALCULOS = [
@@ -39,17 +43,13 @@ export const CALCULOS = [
   { id: "rollup", que: "las tablas por marca y por familia", formula: "suma de los SKU de cada marca / familia", fuente: "entityRegistry · ENTITIES.sku.parents + sourceManifest · aggregate:true", medido: "desvío $0 contra las tablas declaradas del dato de referencia" },
   { id: "periodos", que: "venta del período, período anterior y variación", formula: "suma de las filas de cada período; variación = (actual ÷ anterior − 1) × 100", fuente: "suma de hechos informados, no una fórmula de negocio", medido: null },
   { id: "diasSinVenta", que: "días sin venta por SKU", formula: "fecha de corte − fecha de la última venta", fuente: "resta de dos fechas informadas", medido: null },
+  { id: "diasYRotacion", que: "días de inventario y rotación · INFORMADO MANDA, calculado rellena", formula: `si el origen los informa se respetan tal cual; si no: días = ${FORMULA_DIAS} · rotación = ${FORMULA_ROTACION}`, fuente: "metricRegistry · formulaSiFalta (regla del owner 2026-08-22) · implementada en sentrix/diasYRotacion.js", medido: "la procedencia viaja con cada valor: informado · calculado · sin dato" },
+  { id: "estadoSku", que: "el estado de cada SKU (inmovilizado · riesgo de quiebre · sobrestock · sano)", formula: "compara rotación y días contra los umbrales del negocio", fuente: "diagnosis/economicDiagnosis · diagnoseInventarioSku (la misma función del producto, no una copia)", medido: null },
   { id: "capital", que: "capital en stock por SKU, bodega y familia", formula: "suma del stock valorizado", fuente: "metricRegistry · METRICS.capital (dato primario, se agrega por suma)", medido: null },
 ];
 
 /** Lo que el motor NO calcula, con el motivo y qué haría falta para desbloquearlo. */
 export const BLOQUEADOS = [
-  { id: "rotacion", que: "rotación de inventario", porque: "METRICS.rotacion.formula es null (dato primario), ningún módulo del producto la calcula, y las fórmulas candidatas fallan: 365 ÷ días acierta 0 de 13 filas del dato de referencia",
-    paraAbrirlo: "declarar la fórmula en el contrato (por ejemplo «costo de lo vendido ÷ inventario promedio del período») — cambia lo que significa el número, así que lo decide el owner" },
-  { id: "doh", que: "días de inventario", porque: "METRICS.doh.formula es null, y stock ÷ venta diaria acierta 0 de 13 filas. CLAUDE.md §4: «los días son un valor declarado, no una cuenta»",
-    paraAbrirlo: "declarar la fórmula (por ejemplo «stock en unidades ÷ promedio diario de unidades vendidas del período»)" },
-  { id: "diagnosticoCapital", que: "capital inmovilizado · riesgo de quiebre · sobrestock · estado del SKU", porque: "economicDiagnosis los decide comparando rotación y días contra los umbrales del negocio, y esas dos están bloqueadas",
-    paraAbrirlo: "se abre solo en cuanto rotación y días tengan fórmula declarada" },
   { id: "gapMargen", que: "la brecha de margen de cabecera (gapPuntos)", porque: "en el dato de referencia coincide con la variación contra el período anterior (25.6 − 23.8 = 1.8), NO con la distancia al benchmark (30.1 − 25.6 = 4.5). Ninguna de las dos está declarada como la definición",
     paraAbrirlo: "declarar cuál de las dos es «la brecha» del KPI de cabecera" },
   { id: "escenarios", que: "los escenarios de simulación", porque: "SCENARIO_TRANSFORMS es un supuesto declarado por el negocio, no un hecho que se derive de las ventas",
@@ -98,6 +98,8 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
   /* v1 · los maestros ya no son hojas: la marca, la familia, el precio de lista y el canal viajan como columnas
    * de la fila de venta, y de ahí se reconstruyen. El validador ya garantizó que un mismo SKU no traiga dos
    * marcas distintas (regla de COHERENCIA), así que acá la primera aparición ES la verdad, no una elección. */
+  const perfilNum = (k) => { const p = PARAMETROS.find((x) => x.policyKey === k); const v = p ? parametros[p.clave] : undefined; return typeof v === "number" ? v : undefined; };
+
   const dimSku = new Map(), dimCli = new Map();
   for (const v of ventas) {
     if (!dimSku.has(v.sku)) dimSku.set(v.sku, { sku: v.sku, marca: v.marca ?? null, sfamilia: v.sfamilia ?? null, precioLista: v.precioLista ?? null });
@@ -154,13 +156,40 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
 
   /* ── inventario · hechos sí, diagnóstico NO ───────────────────────────────────────────────────────────── */
   const dias = (desde, hasta) => { if (!desde || !hasta) return null; const d = (Date.parse(hasta) - Date.parse(desde)) / 86400000; return Number.isFinite(d) ? Math.max(0, Math.round(d)) : null; };
+  /* DÍAS Y ROTACIÓN · «informado manda, calculado rellena» (owner 2026-08-22). La regla y su fórmula viven en
+   * `sentrix/diasYRotacion.js` y `metricRegistry.formulaSiFalta` — acá NO se recalcula nada por cuenta propia:
+   * se le pasa la fila y las unidades vendidas del período, y el módulo decide. Las unidades salen de la hoja
+   * Ventas por (SKU, bodega), que es por qué la bodega sigue siendo columna de Ventas: sin ella, el ritmo de
+   * venta de una bodega se mediría con el de todas. Con días y rotación resueltos, el estado del SKU lo asigna
+   * `diagnoseInventarioSku` con los umbrales del negocio — la misma función que usa el producto, no una copia. */
+  const undPorSkuBodega = new Map();
+  for (const v of delActual) {
+    const k = `${v.sku} ⋅ ${v.bodega ?? ""}`;
+    undPorSkuBodega.set(k, (undPorSkuBodega.get(k) || 0) + (v.unidades || 0));
+  }
+  const undPorSku = new Map();
+  for (const v of delActual) undPorSku.set(v.sku, (undPorSku.get(v.sku) || 0) + (v.unidades || 0));
+
+  const umbrales = { rotacionMin: perfilNum("rotacionMin"), dohMax: perfilNum("dohMax") };
   const skuInventario = inventario.map((r) => {
     const p = dimSku.get(r.sku) || {};
+    // si la venta del período no distingue bodega, se cae al total del SKU y se declara en los avisos
+    const porBodega = undPorSkuBodega.get(`${r.sku} ⋅ ${r.bodega ?? ""}`);
+    const und = porBodega !== undefined ? porBodega : (undPorSku.get(r.sku) ?? null);
+    if (porBodega === undefined && undPorSku.has(r.sku)) {
+      avisos.push({ tipo: "ritmo-por-sku-no-por-bodega", detalle: `"${r.sku}" en ${r.bodega}: la venta del período no viene separada por bodega, así que el ritmo se mide con el del SKU completo` });
+    }
+    const { dias: d, rotacion: rot } = resolverDiasYRotacion(r, { unidadesPeriodo: und });
+    const estado = (d.valor !== null || rot.valor !== null)
+      ? diagnoseInventarioSku({ rotacion: rot.valor, doh: d.valor }, umbrales)
+      : null;
     return { sku: r.sku, bodega: r.bodega, marca: p.marca ?? null, sfamilia: p.sfamilia ?? null,
-      stockUSD: r.stockUSD, stockUnd: r.stockUnd, vendidoMes: r.vendidoMes ?? null, recepciones: r.recepciones ?? null,
+      stockUSD: r.stockUSD, stockUnd: r.stockUnd,
       diasSinVenta: dias(r.ultimaVenta, r.fechaCorte),
-      // BLOQUEADOS a propósito · ver BLOQUEADOS[] — se dejan en null, jamás en un número plausible
-      rotacion: null, doh: null, cobertura: null, margenPct: null, estado: null, alerta: null };
+      doh: d.valor, rotacion: rot.valor, cobertura: null, margenPct: null,
+      estado, alerta: null,
+      // la procedencia viaja CON el valor, como pidió el owner: nadie tiene que ir a buscarla para mostrarla
+      procedencia: { doh: d.procedencia, rotacion: rot.procedencia, formulaDoh: d.formula, formulaRotacion: rot.formula } };
   });
 
   /* ── serie mensual · suma de hechos por período ───────────────────────────────────────────────────────── */
@@ -185,7 +214,16 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
     unidades: Math.round(_sum(delActual, (r) => r.unidades)), ticketProm: null };
   const margenKPI = { pct: margenGlobal, pctAnt: null, totalUSD: Math.round(totalActual * margenGlobal / 100), gapPuntos: null };
   const invKPI = skuInventario.length
-    ? { totalUSD: Math.round(_sum(skuInventario, (r) => r.stockUSD)), doh: null, inmovilizadoPct: null, inmovilizadoUSD: null, sobrestockPct: null, riesgoPct: null }
+    ? (() => {
+        const total = Math.round(_sum(skuInventario, (r) => r.stockUSD));
+        const cap = (est) => Math.round(_sum(skuInventario.filter((r) => r.estado === est), (x) => x.stockUSD));
+        const conDoh = skuInventario.filter((r) => typeof r.doh === "number");
+        return { totalUSD: total,
+          doh: conDoh.length ? _r1(_sum(conDoh, (r) => r.doh) / conDoh.length) : null,
+          inmovilizadoUSD: cap("capital_frenado"), inmovilizadoPct: total ? _r1(cap("capital_frenado") / total * 100) : null,
+          sobrestockPct: total ? _r1(cap("sobrestock") / total * 100) : null,
+          riesgoPct: total ? _r1(cap("riesgo_quiebre") / total * 100) : null };
+      })()
     : null;
 
   /* ── catálogos · la lista de lo que hay ───────────────────────────────────────────────────────────────── */
