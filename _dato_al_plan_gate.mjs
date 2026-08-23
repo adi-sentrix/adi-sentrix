@@ -107,7 +107,7 @@ ok(/Falabella/.test(bloqueP) && /eje cliente/.test(bloqueP), "…nombra la entid
 ok(/el precio en \+5%/.test(bloqueP), "…rinde la variable YA DECLARADA con su valor y su signo");
 ok(/FALTA el volumen \(unidades vendidas\)/.test(bloqueP), "…y declara QUÉ falta, con el vocabulario del producto");
 ok(/es A ESTA simulaci[oó]n que se refiere/.test(bloqueP), "…redactado como SEÑAL, igual que lastOffer («si contesta eso, es A ESTO»)");
-ok(/no la traigas vos/.test(bloqueP), "…con el freno que impide que la respuesta la mencione de oficio en un turno ajeno");
+ok(/no la traigas tú/.test(bloqueP), "…con el freno que impide que la respuesta la mencione de oficio en un turno ajeno");
 {
   const inverso = renderInteractionMemory({ pendingSimulation: { ...PEND, known: { campo: "unidades", delta_pct: -10 }, missingCampo: "precioLista" } });
   ok(/el volumen \(unidades vendidas\) en -10%/.test(inverso) && /FALTA el precio/.test(inverso),

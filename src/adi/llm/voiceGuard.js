@@ -211,11 +211,33 @@ const _FIN = "(?![\\p{L}])";
  * contexto: el imperativo ABRE la oración o va tras un conector de orden, y la oración no puede traer marca de
  * pasado ni sujeto de primera persona. Ante la duda no se toca: dejar pasar un voseo cuesta una palabra;
  * reescribir «corregí el dato ayer» cambia lo que la frase dice. */
-const _APERTURA = "((?:^|[.!?;:]\\s+|\\n\\s*|\\b(?:primero|despu[eé]s|luego|entonces|adem[aá]s)[,:]?\\s+))";
+/* ⚠️ LA COMA TAMBIÉN ABRE UNA ORDEN, y ese hueco dejó pasar «resolvé» A PANTALLA (Examen 5, re-medición del
+ * resumen ejecutivo, 2026-08-21): «Antes de tocar precios o de renegociar con proveedores en el resto de la
+ * cartera, RESOLVÉ qué hacer con estos dos SKU». La forma verbal ESTABA cubierta —«resolvé» es una de las diez
+ * gateadas a posición de orden— pero la posición no: después de una cláusula subordinada la orden llega tras una
+ * COMA, no tras un punto ni tras uno de los cinco conectores enumerados. Y esa construcción («Antes de X, hacé
+ * Y») es justamente como un asesor escribe una recomendación, así que no es un caso de borde: es el caso normal.
+ * NO SE AFLOJA NADA MÁS: la coma entra a la lista de POSICIONES, no a la de verbos. Los diez siguen exigiendo
+ * contexto de orden y `_NO_ES_PASADO` los sigue frenando ante cualquier marca de pasado o sujeto de primera
+ * persona, que es donde chocarían con el pretérito. Soltarlos a prosa neutra sería lo otro, y sería un error. */
+const _APERTURA = "((?:^|[.!?;:,]\\s+|\\n\\s*|\\b(?:primero|despu[eé]s|luego|entonces|adem[aá]s)[,:]?\\s+))";
 const _NO_ES_PASADO = "(?![^.!?\\n]*\\b(?:ayer|anoche|anteayer|pasad[oa]|hace\\s+\\w+|ya\\s+lo|yo)\\b)";
+/* ⚠️ Y EL PASADO PUEDE IR DETRÁS · lo cazó el control nuevo del `_registro_gate`, no una corrida paga.
+ * `_NO_ES_PASADO` es un lookahead: mira hacia ADELANTE desde el verbo. Con la apertura vieja daba igual, porque
+ * el candado de afuera ya mataba la coma. Ahora que la coma abre orden, «AYER, vendé las unidades que quedaban»
+ * pasaba a «Ayer, vende…»: la marca de pasado estaba ANTES del verbo, donde el lookahead no llega.
+ * Se cierra por los dos lados. Acotado a la oración (`[^.!?\n]`) y a 120 caracteres: más allá ya es otra frase. */
+const _NO_ES_PASADO_ATRAS = "(?<!\\b(?:ayer|anoche|anteayer|pasad[oa]|hace\\s+\\w+|ya\\s+lo|yo)\\b[^.!?\\n]{0,120})";
 const _voseoConContexto = (pares) => pares.map(([vos, tu]) => [
-  new RegExp(`(?<![\\p{L}])${_APERTURA}${vos}${_FIN}${_NO_ES_PASADO}`, "gimu"),
-  (m, pre) => `${pre}${/^[A-ZÁÉÍÓÚ]/.test(m.trim()) && m.trim().startsWith(vos.charAt(0).toUpperCase()) ? tu.charAt(0).toUpperCase() + tu.slice(1) : tu}`,
+  // sin candado de afuera: cada rama de `_APERTURA` ya trae su propio borde (ver el comentario de arriba)
+  new RegExp(`${_NO_ES_PASADO_ATRAS}${_APERTURA}${vos}${_FIN}${_NO_ES_PASADO}`, "gimu"),
+  /* LA MAYÚSCULA SE MIRA EN EL VERBO, NO EN TODO EL MATCH: ahora que la apertura puede ser «. » o «, », el match
+   * EMPIEZA por la puntuación, así que preguntar si arranca con mayúscula devolvía que no y «. Resolvé» quedaba
+   * como «. resuelve», en minúscula después de un punto. Se mide sobre la forma tal cual apareció. */
+  (m, pre) => {
+    const forma = m.slice(pre.length);   // el verbo solo · `_FIN` y `_NO_ES_PASADO` son lookaheads: no entran al match
+    return `${pre}${/^[A-ZÁÉÍÓÚ]/.test(forma) ? tu.charAt(0).toUpperCase() + tu.slice(1) : tu}`;
+  },
 ]);
 const _v = (patron, rep) => [new RegExp("\\b" + patron + _FIN, "giu"), rep];
 

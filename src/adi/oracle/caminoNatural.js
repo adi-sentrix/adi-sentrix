@@ -28,6 +28,7 @@ import { cifrasDelDato, suplenteDignoDelDato } from "./datoProyectado.js";
 import { axisEntityNames } from "./entityIndex.js";
 import { parseFigures } from "../boleta.js";
 import { stripLanguageLeaks } from "../llm/voiceGuard.js";
+import { detectFichaIntent } from "./fichaIntent.js";   // texto libre → la Ficha del cliente (piso determinístico)
 import { extraerCalculos, stripAllMarks, composeNoDataMessage } from "./narrationBlocks.js";
 import { normalizeResponse } from "../responseContract.js";
 import { detectCriteriaIntent } from "../criteria.js";     // el MISMO detector que answerViaOracle — una red, una verdad
@@ -72,6 +73,34 @@ const _motivoDeMulta = (multa) => {
  * Si el cerebro/gateway LANZA, esta función relanza: la red de resiliencia vive en el caller (ChatADI cae al
  * camino actual en el mismo turno). r.route="natural" · r.natural = el registro del turno (condición 5).
  */
+/* ── EL ESCALÓN QUE FALTABA EN LA ESCALERA DEL SUPLENTE (owner 2026-08-21) ────────────────────────────────────
+ * EL DEFECTO, visto por el owner en producción: pidió «hazme un resumen ejecutivo de las dos cosas que te he
+ * preguntado» después de DOS respuestas buenas, y el turno cayó al suplente — que le devolvió los KPIs
+ * generales del negocio. O sea: arriba, en la misma conversación, había dos lecturas ya aprobadas por el
+ * notario, y el respaldo las tiró a la basura para empezar de cero desde la carpeta.
+ * EL ESCALÓN: antes de caer al genérico, ofrecer lo que ESTA conversación ya validó. Y se ofrece VERBATIM, no
+ * reescrito: un texto que el muro ya aprobó vuelve a pasar por construcción, mientras que resumirlo sería
+ * volver a intentar exactamente lo que acaba de fallar. Se juzga igual que cualquier otro peldaño — si el texto
+ * viejo no pasa el muro de hoy (una regla nueva puede alcanzarlo), cae al peldaño siguiente sin ruido.
+ * NO ES UN CONTRATO NUEVO: es la MISMA escalera de `suplenteDignoDelDato`, con un peldaño más arriba. */
+function _respaldoDeLoYaAprobado(memIn, juzgar) {
+  /* SOLO lo que el notario APROBÓ y no fue respaldo (ver `ultimaAprobada`, más abajo). Leer
+   * `recentNarrations` era el defecto: ahí también vive el respaldo del turno anterior, y ofrecerlo como
+   * «quedó verificado» es afirmar algo falso sobre un texto que justamente no pudo verificarse. */
+  const previa = typeof (memIn && memIn.ultimaAprobada) === "string" && memIn.ultimaAprobada.trim().length > 40
+    ? memIn.ultimaAprobada : null;
+  if (!previa) return null;
+  const candidato = [
+    "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
+    "",
+    previa.trim(),
+    "",
+    "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
+  ].join("\n");
+  if (typeof juzgar !== "function") return candidato;
+  try { const v = juzgar(candidato); return v && v.ok ? candidato : null; } catch { return null; }
+}
+
 export async function answerViaNatural({ text, history, mem, scenario = "actual", callNatural } = {}) {
   if (typeof callNatural !== "function") throw new TypeError("answerViaNatural sin callNatural: el cerebro lo pone el caller");
   const q = String(text || "").trim();
@@ -146,7 +175,7 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
   const res = await responderConNotario({
     juzgar,
     lavar: stripLanguageLeaks,
-    suplente: () => suplenteDignoDelDato({ scenario, juzgar }),
+    suplente: () => _respaldoDeLoYaAprobado(memIn, juzgar) || suplenteDignoDelDato({ scenario, juzgar }),
     pedir: async ({ intento, multa, anterior }) => {
       if (intento === 1) return callNatural({ mensajes, attempt: 0 });
       // el turno del asistente que se devuelve NUNCA puede ir vacío (el proveedor rechaza un content en blanco).
@@ -172,6 +201,13 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
   // se acumula si el muro aprobó (candado del owner: un texto vetado no presta sus cifras), sobre lo que el
   // usuario VIO (el limpio), con el cap de 24 del propio recitaAprobadaDe.
   const memOut = { ...memIn, recentNarrations: [textoPantalla, ...recentNarrationsPrev].slice(0, 2) };
+  /* LA ÚLTIMA RESPUESTA DE VERDAD, marcada aparte (owner 2026-08-21, defecto medido en el Examen 5).
+   * `recentNarrations` guarda lo que el usuario VIO, sea una lectura o un respaldo — y está bien que así sea,
+   * porque la anáfora y el contexto se leen de ahí. Pero el escalón del suplente no puede ofrecer un RESPALDO
+   * como «lo que ya te respondí y quedó verificado»: en el turno 2 del Examen 5 devolvió el respaldo del turno 1
+   * anidado dentro del suyo, afirmando encima que estaba verificado. Se marca por separado lo que el notario
+   * aprobó Y no fue respaldo: es lo único que se puede volver a ofrecer sin mentir. */
+  if (res.aprobado && !suplenteDigno) memOut.ultimaAprobada = textoPantalla;
   if (res.aprobado) {
     const recitaNueva = recitaAprobadaDe({ textoAprobado: textoPantalla, catalogoEntidades: duenos || [], previa: recita });
     if (recitaNueva) memOut.recitaAprobada = recitaNueva;
@@ -179,13 +215,21 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
 
   // ── LA RESPUESTA · route="natural" + el registro del turno para la telemetría existente (condición 5: se
   // EXPONEN los campos, no se construye telemetría nueva). estados excluyentes: verde/reparado/suplente/vacio.
+  const _ficha = detectFichaIntent(q, { escenario: scenario });
   const r = normalizeResponse({
     text: textoPantalla,
     route: "natural",
     deterministic: !!suplenteDigno,
     claims: [],
     suggestions: null,
-    sentrixAction: null,
+    /* LA PUERTA A LA FICHA DESDE TEXTO LIBRE (owner 2026-08-12, deuda prioritaria · cerrada 2026-08-21).
+     * Acá había un `null` FIJO: el camino natural —el que corre en producción— no tenía NINGUNA ruta a la Ficha,
+     * así que llegar dependía de que el usuario viniera de un botón de la Mesa. El owner lo dijo al revés:
+     * «Sentrix es APOYO, NO REQUISITO». El detector es determinístico y tolera el tipeo; si no reconoce un
+     * cliente, devuelve null y todo queda como estaba — nunca ofrece un botón que abra la ficha de otro.
+     * SE OFRECE TAMBIÉN CUANDO EL TURNO CAYÓ AL SUPLENTE: si el cerebro no pudo con la lectura, el camino a la
+     * ficha es justamente lo que le queda al usuario, y ese camino no pasa por el modelo. */
+    sentrixAction: _ficha ? _ficha.sentrixAction : null,
     natural: {
       estado: res.estado,
       vetos: res.vetos,

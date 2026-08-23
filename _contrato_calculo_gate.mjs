@@ -165,7 +165,7 @@ const vCasc = juzgar(`El margen de Falabella llegaría a 30.0% y la brecha serí
 ok(/id=c1/.test(dCasc), "la multa acusa a c1, que es la línea que realmente falló");
 const dSegunda = String((vCasc.violations[1] || {}).detail || "");
 ok(/«c1» es una línea que falló antes/.test(dSegunda), `…y a c2 le dice que su insumo cayó, no que «c1 no es una cifra» (${dSegunda.slice(0, 110)}…)`);
-ok(/corregí esa línea y esta se resuelve sola/.test(dSegunda), "…y le dice al reintento dónde arreglar de verdad");
+ok(/corrige esa línea y esta se resuelve sola/.test(dSegunda), "…y le dice al reintento dónde arreglar de verdad");
 
 /* ── 9 · EL REDONDEO DE PRESENTACIÓN (owner 2026-08-14, examen 1 · turno 3) ────────────────────────────────────
  * La cuenta daba $4,700 y la respuesta mostraba «~$5K» — como lo escribe un ejecutivo. La tolerancia del 2% lo
@@ -211,7 +211,7 @@ ok(!juzgar(`Cerrar la brecha de Falabella vale $157.1M.\n\n${MARCA_CALCULO}\nid=
 console.log("\n── 10b · LA MULTA SEÑALA LA OPERACIÓN QUE SÍ CERRARÍA ──");
 const dPista = _detalle(`Cerrar la brecha de Falabella sumaría $1.57M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$19.4M; 8.1% · formula=$19.4M + 8.1% · resultado=$1.57M · unidad=money · dueno=Falabella`, Q81);
 ok(/«pct_de»/.test(dPista), `con «aplicar_pct» la cuenta no cierra, y la multa nombra la que sí: pct_de (${dPista.slice(-120)})`);
-ok(/corregí la operación; si no, corregí la cifra/.test(dPista), "…y lo deja como pregunta, no como orden: puede ser la cifra la equivocada");
+ok(/corrige la operación; si no, corrige la cifra/.test(dPista), "…y lo deja como pregunta, no como orden: puede ser la cifra la equivocada");
 // y NO se inventa una pista cuando no hay una sola candidata
 const dSin = _detalle(`Las ventas del negocio subirían a $121.0M.\n\n${MARCA_CALCULO}\nid=c1 · op=aplicar_pct · inputs=$100.0M; 4% · formula=$100.0M + 4% · resultado=$121.0M · unidad=money · dueno=total`);
 ok(!/SÍ cierra si la operación/.test(dSin), "cuando ninguna otra operación cierra, la multa no inventa una pista");

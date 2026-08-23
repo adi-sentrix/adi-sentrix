@@ -434,7 +434,13 @@ section("12 · crecimiento del prompt, medido");
  * llamada sin caché y ~US$0,00002 con caché al 90%. El número se escribe igual, medido, para que la próxima
  * doctrina que pida espacio tenga que justificarlo con la misma vara — el presupuesto existe para que el costo
  * se DECIDA, no para impedir la capacidad. */
-const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42357 };
+/* ⚠️ LA LÍNEA DE BASE SE MOVIÓ UNA VEZ, Y SE DECLARA POR QUÉ (2026-08-21, pase de voseo en los prompts).
+ * `narrarDefault` pasó de 42357 a 42371 en las pasadas del voseo: **+14 caracteres, ~4 tokens** (el tuteo es más largo en unas formas y más corto en otras: «decilo»→«dilo» descuenta). No entró doctrina nueva — el sistema dice
+ * exactamente lo mismo. Es que el tuteo es un carácter más largo que el voseo en las formas frecuentes («tenés»→
+ * «tienes», «podés»→«puedes», «querés»→«quieres»), y en este prompt había 32 «tenés» y 11 «podés».
+ * El trinquete sigue en pie con el número nuevo: si NARRAR vuelve a crecer, es doctrina que alguien agregó y hay
+ * que justificarla. Mover este número sin escribir el motivo al lado es exactamente lo que el trinquete impide. */
+const BASE = { planSystem: 30534, planTool: 3699, narrarDefault: 42371 };
 const tok = (n) => Math.round(n / 4);
 const planSystem = buildPlanSystem(ADI_PERSONA_PLAN, "", "actual", false).length;
 const planTool = JSON.stringify(PLAN_TOOL).length;
@@ -513,7 +519,12 @@ ok("NARRAR crece SOLO cuando el turno repara algo", narrarCorr > narrarBase && n
  * sustituía ese escenario por el del target). EL COSTO ES EXACTO: 620 caracteres (~155 tokens por llamada de
  * PLAN), medido: +4.577. Todo del lado FIJO del caché (~15 tok efectivos al 90%). La GARANTÍA del gate no se
  * movió: fijo+variable byte-idéntico y las reglas del contrato intactas. */
-ok("PLAN system crece menos de 4.580 caracteres", planSystem - BASE.planSystem < 4580, `+${planSystem - BASE.planSystem}`);
+/* EL TOPE SUBE A 4.590 (pase de voseo en los prompts, 2026-08-21) · +5 CARACTERES sobre el tope anterior, y no
+ * es doctrina nueva: `ADI_PERSONA_PLAN` dice exactamente lo mismo, en tuteo. El tuteo es un carácter más largo
+ * que el voseo en las formas frecuentes («Sos»→«Eres», «tenés»→«tienes»), y eso empujó el total 5 caracteres —
+ * ~1 token, del lado FIJO del caché. Se mueve el número CON el motivo al lado, que es la disciplina que este
+ * trinquete existe para imponer: si PLAN vuelve a crecer, es doctrina que alguien agregó y hay que justificarla. */
+ok("PLAN system crece menos de 4.590 caracteres", planSystem - BASE.planSystem < 4590, `+${planSystem - BASE.planSystem}`);
 // TECHO SUBIDO A 1.200 (owner 2026-08-11, defecto 8 de la certificación). El contrato ganó UN campo:
 // pref.outputForm (auto|tabla|prosa|solo_conclusion), la forma de salida turn-local. No es doctrina repetida
 // -esa vive en progressiveDisclosure.js- sino un campo que el PLAN tiene que poder declarar: sin él, la forma

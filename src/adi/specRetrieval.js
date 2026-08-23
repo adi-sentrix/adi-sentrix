@@ -1137,6 +1137,25 @@ function _marginRows(dim, scenario) {
   return (_load(sf.source, scenario) || []).filter(Boolean);
 }
 
+/* ── EL CORTE DE CARTERA CONTRA EL BENCHMARK · cuántos hay y cuántos ceden ──────────────────────────────────────
+ * "8 de 13 clientes están bajo el margen mínimo de 30.1%" es una frase que ya emite `composeSpecMargin`
+ * (foco `bajo_benchmark`). La banda de la pantalla de inicio necesita ESOS MISMOS TRES NÚMEROS sin la narración
+ * completa alrededor — y ahí está la trampa: recontarlos en otro lado es cómo nacen las dos verdades.
+ * Por eso esto NO recalcula nada. Reusa `_marginRows` (el mismo universo), el mismo filtro `margen < _benchOf(r)`
+ * y el mismo `_benchOf` (que respeta el criterio declarado por el usuario antes que el del dato y que POLICY).
+ *
+ * ⚠️ NO CONFUNDIR con `alertas` de la Mesa (sentrix/mesa.js), que cuenta OTRA cosa y da OTRO número: ahí solo
+ * entran las cuentas con brecha MATERIAL (≥ `margenBrechaMaterial` pp) y monto material — hoy 5, no 8. Las dos
+ * cifras son correctas y responden a preguntas distintas: esta es "cuántos ceden contra tu benchmark", aquella
+ * es "por cuántos vale la pena empezar". Quien las mezcle va a publicar un número que no cierra con el cuadro. */
+export function marginCarteraSnapshot(scenario, dimension = "cliente") {
+  const dim = _MLBL[dimension] ? dimension : "cliente";
+  const rows = _marginRows(dim, scenario).filter((r) => typeof r.margen === "number");
+  if (!rows.length) return null;
+  const below = rows.filter((r) => r.margen < _benchOf(r));
+  return { total: rows.length, bajo: below.length, benchmark: _benchOf(rows[0]), label: _MLBL[dim] };
+}
+
 /* ── PALANCA CUANTIFICADA (asesor · owner 2026-07-06 · Frente A): ponerle $ a cada consejo ────────────────────
  * UNA VERDAD: el "cuánto vale" reusa los DETECTORES del diagnóstico (_diagComercial · mismas cuentas y mismos gates de
  * materialidad ≥4pp / ≥piso $) — el mismo número del resumen ejecutivo y del diagnose, no una segunda fórmula.

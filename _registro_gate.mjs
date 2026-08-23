@@ -380,7 +380,29 @@ if (legadoVistos === 0) {
     gist: `LEGADO_VOSEO_DECLARADO tiene ${LEGADO_VOSEO_DECLARADO.length} entrada(s) y ninguna se emitió: si el seam legado ya se migró, borrá la lista` });
 } else pass++;
 
+// mismo contador que el resto del gate: un lavado que falla es «registro viejo emitido», no una categoría aparte
+const okv = (c, m, dado) => { if (c) { pass++; console.log(`  ✓ ${m}`); } else { fail++; rotos.push({ origen: "lavador de voseo", palabra: m, gist: String(dado || "") }); console.log(`  ✗ ${m}`); } };
+console.log("\n── LAS CINCO POSICIONES DE ORDEN, no solo la que probaba el gate ──");
+/* «resolvé» LLEGÓ A PANTALLA (Examen 5, re-medición del resumen ejecutivo, 2026-08-21): «Antes de tocar precios
+ * […], RESOLVÉ qué hacer con estos dos SKU». El verbo ESTABA cubierto —es uno de los diez gateados a posición de
+ * orden— pero la POSICIÓN no: un candado de afuera (`(?<![\p{L}])`) exigía que el carácter anterior a toda la
+ * apertura no fuera letra, y en una oración real la puntuación va PEGADA a la palabra de antes. Sobrevivían solo
+ * el arranque del texto y los cinco conectores enumerados — justo la forma que el gate ejercitaba, y por eso
+ * pasaba en verde mientras los diez quedaban sin lavar en la prosa de verdad. Se prueban LAS CINCO. */
+for (const [donde, texto, esperado] of [
+  ["arranque del texto",  "Resolvé el margen de venta.",                       "Resuelve el margen de venta."],
+  ["conector",            "Primero resolvé el margen de venta.",               "Primero resuelve el margen de venta."],
+  ["tras punto",          "El caso es claro. Resolvé el margen de venta.",     "El caso es claro. Resuelve el margen de venta."],
+  ["tras punto y coma",   "El caso es claro; resolvé el margen de venta.",     "El caso es claro; resuelve el margen de venta."],
+  ["tras COMA (el real)", "Antes de tocar precios, resolvé el margen de venta.", "Antes de tocar precios, resuelve el margen de venta."],
+]) okv(stripLanguageLeaks(texto) === esperado, `posición «${donde}»: el voseo se lava y la mayúscula se respeta`, stripLanguageLeaks(texto));
+/* Y NO SE AFLOJÓ NADA MÁS. La coma entró a las POSICIONES, no a los verbos: los diez siguen exigiendo contexto de
+ * orden, y `_NO_ES_PASADO` los sigue frenando ante una marca de pasado o un sujeto de primera persona — que es
+ * donde chocarían con el pretérito y romperían una oración correcta. */
+for (const sano of ["Yo resolví eso ayer.", "El motor resuelve la cuenta sola.", "Ayer, vendé las unidades que quedaban.", "Con eso resolvé el margen."])
+  okv(stripLanguageLeaks(sano) === sano, `no toca prosa correcta: «${sano}»`, stripLanguageLeaks(sano));
 console.log(`── _registro_gate: ${pass} textos limpios · ${fail} con registro viejo ──`);
 if (legadoVistos) console.log(`   · ${legadoVistos} emisión(es) del residual de voseo DECLARADO del camino legado (contractCloser, migra con answerADIFromSpec)`);
+
 if (rotos.length) { console.log("✗ REGISTRO VIEJO EMITIDO:"); rotos.forEach((r) => console.log(`   [${r.origen}] «${r.palabra}» …${r.gist}…`)); }
 process.exit(fail ? 1 : 0);

@@ -61,7 +61,7 @@ ok(MARCO_CONTEXTO_GENERAL === "Como contexto general — esto no viene de tu dat
   ok(dentro.split(MARCO_CONTEXTO_GENERAL).length - 1 === 1, "una copia DENTRO del bloque tampoco duplica el marco");
   const fijo = buildNarrateSystemSegments("P", "M", "decision", null, false, null, null).fijo;
   ok(!fijo.includes(MARCO_CONTEXTO_GENERAL), "el system NO le muestra el texto del marco: no puede copiar lo que no ve");
-  ok(/El encabezado del bloque lo pone el motor, no vos/.test(fijo), "y la doctrina se lo prohíbe explícitamente");
+  ok(/El encabezado del bloque lo pone el motor, no tú/.test(fijo), "y la doctrina se lo prohíbe explícitamente");
 }
 
 console.log("── 2 · EL CONTENEDOR SE COBRA (bidireccional) ──");

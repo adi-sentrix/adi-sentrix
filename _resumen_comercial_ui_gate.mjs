@@ -175,7 +175,10 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   // LAS DOS CAUSAS del margen (lo único que quedó en el movimiento 02, owner 2026-08-07)
   ok(T.includes(R.deterioro.margen.acciones.referencias[0].totalFmt), `lo recuperable en acciones comerciales — ${R.deterioro.margen.acciones.referencias[0].totalFmt}`);
   ok(T.includes(R.deterioro.margen.costoPrecio.lectura), "y la lectura de costo contra precio");
-  ok(["probado", "indicado"].every((e) => T.includes(e)), "cada causa lleva su estatus epistémico rotulado");
+  /* el sello ya no se PINTA (owner 2026-08-20): se exige en el DATO, que es donde manda. */
+  /* Solo `costoPrecio` lleva sello EN EL DATO. El «probado» de las acciones era un literal de la vista, no un
+     campo del módulo: al sacar el chip se fue con él, y no hay nada que exigir donde nunca hubo dato. */
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado", "la causa derivada lleva su sello declarado en el módulo");
   const i0 = R.insights[0];
   ok(T.includes(i0.entidad) && T.includes(i0.enJuegoFmt), `la primera decisión — ${i0.entidad} · ${i0.enJuegoFmt}`);
   const _g0 = R.prioridades.grupos.find((g) => g.filas.some((f) => f.entidad === i0.entidad));
@@ -222,7 +225,13 @@ H("[1a] EL NEGOCIO, CLIENTE POR CLIENTE · el top 10, la cartera completa y las 
   const ths = [...tabla.querySelectorAll("th")].map((t) => t.textContent);
   for (const c of K.columnas) ok(ths.some((t) => t.startsWith(c.label)), `columna "${c.label}" presente`);
   ok(ths.length === 7, `son exactamente las 7 que pidió el owner — ${ths.length}`);
-  ok(/probado/.test(ths[5]) && /indicado/.test(ths[6]), "las dos referencias van SELLADAS distinto en la cabecera: probado / indicado");
+  /* EL SELLO SALIÓ DE PANTALLA, NO DEL DATO (owner 2026-08-20, reafirmado: «te dije que quitaras el probado»).
+     El chip PROBADO/INDICADO confundía a quien lee. Lo que este chequeo protege ahora es lo que de verdad importa:
+     que el MÓDULO siga declarando el sello de cada referencia y que sigan siendo DISTINTOS entre sí — el año
+     anterior es dato cerrado y el presupuesto es un plan. Si algún día los dos vinieran sellados igual, sería un
+     defecto del motor y este gate lo caza, se pinte o no. */
+  ok(K.columnas[5].estatus === "probado" && K.columnas[6].estatus === "indicado",
+    "las dos referencias siguen SELLADAS distinto EN EL DATO: probado / indicado");
   // POR DEFECTO, EL TOP 10 · y la cola no está a la vista
   const cuerpo = tabla.querySelector("tbody");
   ok(cuerpo.querySelectorAll("tr").length === K.tope, `arranca mostrando las primeras ${K.tope}`);
@@ -313,7 +322,7 @@ H("[1b] EL EVOLUTIVO · tres líneas, y su total ES el del KPI");
   for (const s of e.series) {
     ok(T.includes(s.label) && T.includes(s.totalFmt), `serie "${s.label}" con su total ${s.totalFmt}`);
     const b = botones(container).find((x) => x.textContent.includes(s.label) && x.textContent.includes(s.totalFmt));
-    ok(!!b && b.textContent.includes(s.estatus), `…rotulada ${s.estatus.toUpperCase()} y apagable desde la leyenda`);
+    ok(!!b && !!s.estatus, `…con su sello «${s.estatus}» declarado en el módulo y apagable desde la leyenda`);
   }
   ok(T.includes(e.totalActualFmt) && e.totalActualFmt === R.kpis[0].valor,
     `RECONCILIA a la vista: el cierre del gráfico y el KPI de ventas son el MISMO número — ${e.totalActualFmt}`);
@@ -417,7 +426,7 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
   ok(T.includes(acc.lectura), "…con su lectura, que da las dos cifras");
   ok(prom.filas.slice(0, 4).every((x) => T.includes(x.nombre) && T.includes(x.recuperableFmt)),
     `las cuentas sobre el promedio con su recuperable — ${prom.filas.slice(0, 2).map((x) => `${x.nombre} ${x.recuperableFmt}`).join(", ")}`);
-  ok(T.includes("probado"), "…rotuladas PROBADO: la carga está medida cuenta por cuenta");
+  ok(!!R.deterioro.margen.acciones.referencias.length, "…la carga se mide contra referencias declaradas, cuenta por cuenta");
   /* EL COLOR, EN LA CIFRA PRINCIPAL Y EN LA CARGA — y en ninguna otra (owner 2026-08-08, dos rondas):
    *   · la CARGA por cuenta va en ROJO: es plata que sale. Lo pidió explícito.
    *   · el TITULAR del bloque ($293K recuperables) va en verde: es el número que hay que mirar primero.
@@ -451,7 +460,7 @@ H("[1d] DÓNDE SE DETERIORA EL MARGEN · las dos cosas que lo mueven");
     "cada cuenta muestra cómo se movió su costo y su precio");
   ok(T.includes(cp.comprimenN ? `−${cp.perdidaFmt}` : `+${cp.gananciaFmt}`),
     `y el efecto en plata — ${cp.comprimenN ? `−${cp.perdidaFmt} perdidos` : `+${cp.gananciaFmt} ganados`}`);
-  ok(T.includes("indicado"), "el efecto va rotulado INDICADO: es una variación derivada, no el margen contable");
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado", "el efecto sigue sellado INDICADO en el dato: es una variación derivada, no el margen contable");
 
   // ── EL OTRO LADO DEL PROMEDIO · los que entregan MENOS (owner 2026-08-07) ──
   const bajo = acc.bajo;
@@ -924,7 +933,7 @@ H("[9] PROPORCIONALIDAD SEMÁNTICA · la vista no afirma más de lo que la evide
   // bloque 03, que es donde el usuario decide, y en la nota del costo contra precio.
   ok(/cu[áa]nto es el costo del producto|cu[áa]nto es lo que cuesta el producto/i.test(T) && /mezcla de lo que vendiste/i.test(T),
     "lo que falta aislar se declara en castellano, no como «separar composición»");
-  ok(R.deterioro.margen.costoPrecio.estatus === "indicado" && T.includes("indicado"),
+  ok(R.deterioro.margen.costoPrecio.estatus === "indicado",
     "y el efecto costo/precio nunca se presenta como probado");
   ok(!/rentabilidad/i.test(cabecera), "no le llama rentabilidad a un margen");
   cleanup();
@@ -984,10 +993,15 @@ H("[11c] ENCABEZADOS EN CELESTE · uno solo, y el mismo, en toda la cara");
   // Un ENCABEZADO se identifica por su forma (mayúsculas + tracking), no por ser el elemento más corto que
   // contiene ese texto: "Acciones comerciales" también es la etiqueta de un KPI, y esa no es un encabezado.
   const esEncabezado = (e) => /text-transform:\s*uppercase/i.test(e.getAttribute("style") || "");
-  const sinCeleste = titulos.filter((t) => ![...container.querySelectorAll("div,span")]
+  /* LA REGLA SE DIO VUELTA (owner 2026-08-20): «los títulos deben ser todos en blanco, solo deja en celeste lo
+   * que queramos destacar, ejemplo "Que ADI lo explique"; si no, se molestan». Antes este chequeo exigía que
+   * los 9 encabezados fueran CELESTES; ahora exige lo contrario, y por el mismo motivo de fondo: que haya UN
+   * solo criterio en toda la cara. Con todo en celeste el acento dejaba de acentuar — competían nueve títulos
+   * con los enlaces que sí piden click. El candado no se aflojó: cambió de lado. */
+  const conCeleste = titulos.filter((t) => [...container.querySelectorAll("div,span")]
     .some((e) => e.textContent.trim().toUpperCase().startsWith(t.toUpperCase())
       && esEncabezado(e) && CELESTE.test(e.getAttribute("style") || "")));
-  ok(sinCeleste.length === 0, `los ${titulos.length} encabezados de la cara van en celeste`, sinCeleste.join(" | "));
+  ok(conCeleste.length === 0, `los ${titulos.length} encabezados de la cara van en BLANCO, no en celeste`, conCeleste.join(" | "));
   cleanup();
 }
 
@@ -1036,9 +1050,13 @@ H("[11] MENOS CELESTE · el acento queda para lo que se toca (owner 2026-08-07)"
   const bordeFuerte = [...container.querySelectorAll("div")]
     .filter((d) => /border:\s*1px solid rgba\(\s*47,\s*184,\s*218,\s*0?\.[4-9]/i.test(d.getAttribute("style") || "")).length;
   ok(bordeFuerte === 0, `ninguna card de contenido usa el celeste FUERTE (≥0.4): ese es el del control — ${bordeFuerte}`);
+  /* EL MARCO DE LAS TARJETAS PASA A BLANCO (owner 2026-08-20: «los bordes de las tablas, gráficos y cards deben
+     ser blancos y no celestes»). Lo que este chequeo protege NO cambió: que todos los bloques usen el MISMO
+     panel, uno solo para toda la cara. Cambió de qué color es ese panel. El celeste FUERTE sigue vetado arriba
+     y sigue reservado al control — por eso la aserción de al lado («el celeste marca lo interactivo») pasa. */
   const cardsPanel = [...container.querySelectorAll("div")]
-    .filter((d) => /border:\s*1px solid rgba\(\s*47,\s*184,\s*218,\s*0?\.25/i.test(d.getAttribute("style") || "")).length;
-  ok(cardsPanel > 0, `los bloques usan el MISMO panel que la Ficha (celeste 0.25 + degradado) — ${cardsPanel} tarjetas`);
+    .filter((d) => (d.getAttribute("style") || "").replace(/ /g, "").includes("border:1pxsolidrgba(255,255,255,0.22)")).length;
+  ok(cardsPanel > 0, `los bloques usan el MISMO panel, ahora de marco BLANCO — ${cardsPanel} tarjetas`);
   // pero el acento SIGUE vivo donde se interactúa: pills activas, accesos a Ficha, botones de ADI
   const controlesCeleste = botones(container).filter((b) => CELESTE.test(b.getAttribute("style") || "")).length;
   ok(controlesCeleste >= 5, `el celeste sigue marcando lo interactivo — ${controlesCeleste} controles`);

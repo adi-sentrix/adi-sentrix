@@ -23,6 +23,11 @@ import { ESCENARIO_INICIAL } from "./src/config/scenarios.js";
 import { initTenant } from "./src/data/tenantStore.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { DOCTRINA_NOTARIO_NATURAL } from "./src/adi/oracle/naturalPrompt.js";
+// el bloque 10 comprueba el CABLEADO de la escalera contra el código, no solo su salida
+import fs from "node:fs";
+import path from "path";
+import { fileURLToPath } from "url";
+const root = path.dirname(fileURLToPath(import.meta.url));
 initTenant(TENANT_DEMO);
 
 let pass = 0, fail = 0;
@@ -68,6 +73,27 @@ vive("Easy tiene la peor carga comercial de la cartera: 5.5%.", "superlativo-no-
 // un superlativo verdadero sobre el eje entero
 vive("Falabella es el cliente de mayor venta de toda la cartera: $19.4M.", "superlativo-no-sostenido",
   "«el de mayor venta de toda la cartera» es cierto y pasa");
+
+/* ── EL SUJETO DETRÁS DEL VERBO · los dos falsos positivos del EXAMEN 5, turno 5 ──────────────────────────────
+ * Costaron 3 llamadas y mandaron al suplente una respuesta que era CORRECTA. El notario leía «el que más X tiene
+ * es <ENTIDAD>» y le atribuía el extremo a la entidad de la frase ANTERIOR, en vez de a la que nombra el verbo.
+ * Los textos son los borradores REALES del examen, no una versión limpia. */
+vive("El que más capital inmovilizado tiene entre los tres frenados es **LG-DRYER8KG**: $14K de capital.",
+  "superlativo-no-sostenido", "«el que más X tiene ES <entidad>»: el sujeto va DETRÁS del verbo, y en negrita");
+vive("El peor caso es MAK-COMP-AIR: 190 dias, pero solo $8K. El que mas capital inmovilizado tiene entre los tres frenados es **LG-DRYER8KG**: $14K.",
+  "superlativo-no-sostenido", "…y no se le cobra a la entidad de la oración anterior");
+vive("El más grave en severidad es MAK-COMP-AIR (190 días de inventario, $8K); el que más capital libera si se actúa es **LG-DRYER8KG** ($14K, 165 días de inventario).",
+  "superlativo-no-sostenido", "…ni a la de la cláusula anterior: dos cláusulas en una oración siguen siendo dos sujetos");
+// y el chequeo SIGUE distinguiendo: la misma forma con la entidad equivocada muere
+muere("Entre LG-DRYER8KG y MAK-COMP-AIR, el que más capital inmovilizado tiene es **MAK-COMP-AIR**.",
+  "superlativo-no-sostenido", "la MISMA forma con el nombre equivocado muere (LG-DRYER8KG tiene $13.6K contra $8.4K)");
+/* ── «DE INVENTARIO» ES UNA MÉTRICA, «DEL INVENTARIO» ES UN UNIVERSO (mismo turno, intento 1) ─────────────────
+ * «190 DÍAS DE INVENTARIO» abría la comparación a los 13 SKU enteros, así que un extremo verdadero dentro de su
+ * grupo moría contra un tercero que la oración jamás nombró. */
+vive("LG-DRYER8KG tiene 165 días de inventario y es el que más capital inmovilizado tiene de los tres frenados: $14K.",
+  "superlativo-no-sostenido", "«días de inventario» NO declara el universo: es la etiqueta de la métrica");
+muere("LG-DRYER8KG es el de peor rotación del inventario: 1.0x.",
+  "superlativo-no-sostenido", "…y «DEL inventario» sí lo declara: se compara contra los 13 (MAK-COMP-AIR está en 0.8x)");
 
 console.log("\n" + "═".repeat(100));
 console.log("2 · SUPERLATIVOS · las formas que PARECEN un extremo y no lo son (los falsos positivos medidos)");
@@ -189,6 +215,74 @@ console.log("═".repeat(100));
   // redondeado de `doh`). Declararlo sería reponer el término que el owner sacó del producto.
   ok(!Object.values(R).some((ms) => Object.keys(ms).some((k) => /cobertura/i.test(k))),
     "…y NINGÚN ranking se llama «cobertura»: se dice días de inventario, y sale de `doh`");
+}
+
+console.log("\n" + "═".repeat(100));
+console.log("9 · UN TOTAL DEL CONJUNTO SE DECLARA · el defecto que llegó a pantalla en producción");
+console.log("═".repeat(100));
+/* EL CASO REAL (reproducción del 2026-08-16 sobre v1.0, expediente `_repro_resumen_v10*.json`): el titular de
+ * un resumen decía «Margen — brecha de $4.16M en la cartera». ADI sumó tres de los OCHO clientes bajo benchmark
+ * que él mismo acababa de contar, no declaró la suma, y el muro la dejó pasar. La brecha real de la cartera es
+ * $5.37M: el titular se comió $1.21M. */
+muere("**1. Margen — brecha de $4.16M en la cartera**", "total-sin-declarar",
+  "«brecha de $4.16M en la cartera» MUERE — es una suma propia, sin declarar, con alcance de conjunto");
+vive("**1. Margen — brecha de $4.16M en la cartera**\n\n[[CALCULO]]\nid=c1 · op=sumar · inputs=$1.57M; $1.53M; $1.06M · formula=$1.57M + $1.53M + $1.06M · resultado=$4.16M · unidad=money · dueno=total",
+  "total-sin-declarar", "…y la MISMA cifra declarada como cuenta, pasa: el chequeo pide declarar, no callar");
+vive("Vendiste $99.9M en toda la cartera, con $25.0M de contribución.", "total-sin-declarar",
+  "un total que SÍ es del conjunto en la carpeta pasa");
+vive("Tu capital inmovilizado en la cartera es $56K en 5 SKU.", "total-sin-declarar",
+  "…y un KPI del conjunto, también");
+/* LOS TRES FALSOS POSITIVOS MEDIDOS mientras se calibraba este chequeo. Cada uno es texto que YA salió a
+ * pantalla y que una versión anterior mataba: por eso el alcance se exige PEGADO y DETRÁS de la cifra. */
+vive("Es el cliente de mayor venta de la cartera —$19.4M— y el peor margen entre los tres grandes.",
+  "total-sin-declarar", "APOSICIÓN · «de la cartera» es el alcance del superlativo, no del monto de Falabella");
+vive("| Falabella | $19.4M | 22.0% | -8.1pp | 4.5% | $1.57M |", "total-sin-declarar",
+  "FILA DE TABLA · una celda no afirma ningún total");
+vive("MAK-COMP-AIR generó $1.7M en ventas con $135K de contribución y 7.9% de margen — el margen de venta más bajo de toda la cartera.",
+  "total-sin-declarar", "ALCANCE DEL SUPERLATIVO · el monto es del SKU, «de toda la cartera» califica al margen");
+ok(/UN TOTAL DEL CONJUNTO ES UNA CUENTA/.test(DOCTRINA_NOTARIO_NATURAL), "…y la doctrina se lo enseña al cerebro");
+
+console.log("\n" + "═".repeat(100));
+console.log("10 · EL ESCALÓN QUE FALTABA EN LA ESCALERA DEL SUPLENTE (owner 2026-08-21)");
+console.log("═".repeat(100));
+/* EL DEFECTO, visto por el owner en producción: pidió «hazme un resumen ejecutivo de las dos cosas que te he
+ * preguntado» después de DOS respuestas buenas, y el turno cayó al suplente — que le devolvió los KPIs
+ * generales del negocio. Arriba, en la misma conversación, había dos lecturas ya aprobadas, y el respaldo las
+ * tiró para empezar de cero desde la carpeta.
+ * EL ESCALÓN ofrece lo que ESA conversación ya validó, y lo ofrece VERBATIM: un texto que el muro aprobó vuelve
+ * a pasar por construcción, mientras que resumirlo sería reintentar justo lo que acaba de fallar. */
+{
+  const marco = (previa) => [
+    "No pude armar la lectura nueva con la calidad que corresponde. Lo que ya te respondí sobre esto quedó verificado y sigue en pie:",
+    "", previa.trim(), "",
+    "Dime qué parte de esto necesitas y lo trabajo sobre esas mismas cifras.",
+  ].join("\n");
+  // una respuesta como las que ADI produce bajo las reglas vigentes
+  const VIGENTE = "Tu capital inmovilizado es $56K en 5 SKU, y de ahí $33K están frenados en 3 SKU: rotación bajo el piso de 2.0x o días de inventario sobre el techo de 120d.\n\nLG-DRYER8KG concentra $14K con rotación 1.0x y 165 días de inventario. MAK-COMP-AIR suma $8K con rotación 0.8x y 190 días de inventario.";
+  ok(guardC(VIGENTE, CTX).ok, "la respuesta anterior, sola, pasa el muro (es el punto de partida del escalón)");
+  ok(guardC(marco(VIGENTE), CTX).ok,
+    "…y envuelta en el marco del respaldo TAMBIÉN pasa: el escalón se puede ofrecer sin inventar nada");
+  // el marco no agrega cifras: es lo que lo hace seguro por construcción
+  const soloMarco = marco("").replace(/\n+/g, " ").trim();
+  ok(!/\d/.test(soloMarco.replace(/1\.1|2\.0/g, "")), "el marco NO trae ni una cifra propia: todo lo que afirma es la respuesta vieja");
+  // y si el texto viejo NO pasa el muro de hoy, el escalón cede — nunca fuerza una respuesta vetada a pantalla
+  const VIEJA_CON_DEFECTO = "Están frenados por rotación bajo 2.0x o más de 120 días sin rotar, en 3 SKU.";
+  ok(!guardC(marco(VIEJA_CON_DEFECTO), CTX).ok,
+    "una respuesta vieja que hoy tendría un defecto NO se ofrece: el escalón cede al peldaño siguiente");
+  // el cableado: el escalón va ANTES de la carpeta, no en vez de ella
+  const cn = fs.readFileSync(path.join(root, "src", "adi", "oracle", "caminoNatural.js"), "utf8");
+  ok(/_respaldoDeLoYaAprobado\(memIn, juzgar\) \|\| suplenteDignoDelDato\(/.test(cn),
+    "en la escalera, el escalón nuevo va PRIMERO y la carpeta queda de respaldo — no se reemplaza nada");
+  /* ⚠️ EL DEFECTO QUE EL EXAMEN 5 CAZÓ EN ESTE MISMO ESCALÓN, a los veinte minutos de escribirlo: leía
+   * `recentNarrations`, donde también vive el RESPALDO del turno anterior. Resultado medido: el turno 2
+   * devolvió el respaldo del turno 1 anidado dentro del suyo, y encima lo presentó como «quedó verificado».
+   * Ahora lee `ultimaAprobada`, que el camino natural marca SOLO cuando el notario aprobó y NO fue respaldo. */
+  ok(/memIn.ultimaAprobada/.test(cn), "el escalón lee la última APROBADA, no la última MOSTRADA");
+  ok(!/memIn.recentNarrations/.test(cn.slice(cn.indexOf("_respaldoDeLoYaAprobado"), cn.indexOf("export async function"))),
+    "…y ya no mira `recentNarrations`: ahí también vive el respaldo, y ofrecerlo como verificado sería mentir");
+  ok(cn.includes("res.aprobado && !suplenteDigno) memOut.ultimaAprobada"),
+    "y `ultimaAprobada` se marca SOLO si el muro aprobó y el turno no fue respaldo");
+  ok(/juzgar\(candidato\)/.test(cn), "…y el escalón se JUZGA como cualquier otro peldaño, sin relajar el muro");
 }
 console.log(`\n── _examen4_cierres_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);
 process.exit(fail === 0 ? 0 : 1);

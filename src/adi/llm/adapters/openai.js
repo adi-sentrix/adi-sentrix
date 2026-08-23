@@ -165,6 +165,7 @@ export const openaiAdapter = {
     const ajeno = sobreAjeno(data, "openai");
     if (ajeno) throw ajeno;
     const txt = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
-    return { text: txt, usage: _usage(data.usage), model: data.model || null };   // modelo EFECTIVO · ver parse()
+    // mismo motivo de corte que en el adapter de Anthropic, con el nombre que usa este proveedor
+    return { text: txt, usage: _usage(data.usage), model: data.model || null, stop: (data.choices && data.choices[0] && data.choices[0].finish_reason) || null };
   },
 };

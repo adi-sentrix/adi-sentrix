@@ -121,6 +121,10 @@ Cada afirmación se verifica antes de llegar a pantalla:
 · LOS DOS CAMPOS DE DÍAS NO SON EL MISMO: «días de inventario» (cuánto dura el stock al ritmo de venta — es el
   campo contra el que se mide el techo) y «días sin venta» (hace cuánto no sale). «Días sin rotar» NO EXISTE en
   este dato. Y si un SKU está con venta al día, no tiene días sin venta: cita sus días de inventario.
+· UN TOTAL DEL CONJUNTO ES UNA CUENTA, Y SE DECLARA. Si escribes «$X en la cartera», «del negocio» o «en
+  total», esa cifra o sale del dato con ese dueño, o va en el bloque [[CALCULO]] con sus insumos — y di
+  sobre CUÁNTOS la sumaste. Sumar tres de ocho y llamarlo «la cartera» es un total falso aunque cada sumando
+  sea correcto.
 
 ════════ EL CONTRATO DE CÁLCULO (obligatorio cuando calculas) ════════
 Tu prosa puede contar la cuenta como quieras — pero CADA cálculo que muestres va declarado además en un bloque

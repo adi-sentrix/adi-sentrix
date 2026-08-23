@@ -7,6 +7,7 @@
  * Regla madre: el LLM narra, ADI decide la cifra. Este es el candado que lo garantiza.
  */
 import { guardAgainstBoleta } from "../boleta.js";   // guard v2 · valida la narración contra la BOLETA (unit-aware · verbatim)
+import { entityGuard } from "./entityGuard.js";     // guard de ENTIDADES (familia P8 · garble de nombres: "Falcon" por Falabella)
 
 // tokens numéricos de un texto (con separadores · el % y $ se sacan al normalizar)
 function _tokens(text) { return String(text == null ? "" : text).match(/\d[\d.,]*\d|\d/g) || []; }
@@ -191,6 +192,12 @@ export function pickNarratedText(validated, narration) {
   if (!sc.ok) return { text: det, narrated: false, verdict: "escala-alterada", reason: sc.reason };
   const lg = _labelGuard(narr, _bol);
   if (!lg.ok) return { text: det, narrated: false, verdict: "etiqueta-corrupta", reason: lg.reason };
+  // GUARD DE ENTIDADES (familia P8 · prueba en vivo 2026-07-09: "…retener a Falcon, Jumbo y Lider" — "Falcon" es
+  // garble de Falabella y las cifras venían CORRECTAS, así que ningún guard de cifras lo veía). Va acá, con los
+  // otros guards estructurales post-cifras y ANTES de "entidad-ausente": un nombre corrupto es corrupto, no ausente.
+  // La lógica vive entera en entityGuard.js (puro, sin red) — acá solo se cablea el veredicto.
+  const eg = entityGuard(narr);
+  if (!eg.ok) return { text: det, narrated: false, verdict: "entidad-corrupta", reason: eg.reason };
   // GARANTÍA DE ENTIDAD-SUJETO (revisión de la Mesa 2026-07-14: «¿Por qué Samsung cede margen?» se narró sin
   // nombrar a Samsung — la lectura era de otra cosa): si la respuesta de ADI declara su entidad-sujeto
   // (evidence.entidad) y la narración no la menciona, la narración se descarta (mismo patrón que El perfil /
