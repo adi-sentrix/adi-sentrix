@@ -77,13 +77,21 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
   {
     const iEnc = filaEncabezado(hVentas.matriz, defVentas);
     const hasta = iEnc < 0 ? hVentas.matriz.length : iEnc;
+    /* LA CABECERA SE LEE POR LA ETIQUETA QUE VE EL USUARIO, y también por la clave interna. En la hoja va el
+     * nombre en castellano —"Brecha de margen que se considera material (puntos)"— porque pedirle a un gerente
+     * comercial que llene una celda rotulada `margenBrechaMaterial` es pedirle que adivine. La clave sigue
+     * aceptándose para no romper los archivos que ya se hayan llenado. */
     const leidos = new Map();
-    for (const f of hVentas.matriz.slice(0, hasta)) { const k = _txt((f || [])[0]); if (k) leidos.set(k, (f || [])[1]); }
+    for (const f of hVentas.matriz.slice(0, hasta)) { const k = _txt((f || [])[0]); if (k) leidos.set(normalizarTitulo(k), (f || [])[1]); }
+    const buscar = (p) => {
+      for (const forma of [p.etiqueta, p.clave]) { const k = normalizarTitulo(forma); if (leidos.has(k)) return leidos.get(k); }
+      return undefined;
+    };
     for (const p of PARAMETROS) {
-      const bruto = leidos.has(p.clave) ? leidos.get(p.clave) : undefined;
+      const bruto = buscar(p);
       const v = bruto === undefined || bruto === null || bruto === "" ? null : bruto;
       if (v === null) {
-        if (p.obligatorio) B("parametro-obligatorio-ausente", `falta el parámetro «${p.clave}» en la cabecera de Ventas: ${p.etiqueta}`);
+        if (p.obligatorio) B("parametro-obligatorio-ausente", `falta «${p.etiqueta}» en la cabecera de Ventas`);
         else A("parametro-ausente", `«${p.clave}» sin declarar — ADI usa su valor general y lo dice en pantalla`, { clave: p.clave });
         continue;
       }

@@ -19,7 +19,7 @@ const anchoDe = (t) => Math.min(40, Math.max(12, String(t).length + 3));
 function hojaDe(def, filasDatos, valoresCabecera, campos = null) {
   const cols = campos ? def.columnas.filter((c) => campos.includes(c.campo)) : def.columnas;
   const cabecera = def.conCabecera
-    ? [[MARCA_PLANTILLA], [], ...PARAMETROS.map((p) => [p.clave, valoresCabecera ? (valoresCabecera[p.clave] ?? null) : null]), []]
+    ? [[MARCA_PLANTILLA], [], ...PARAMETROS.map((p) => [p.etiqueta, valoresCabecera ? (valoresCabecera[p.clave] ?? null) : null]), []]
     : [];
   return {
     nombre: def.nombre,

@@ -25,7 +25,7 @@ function filasCabecera(valores = null) {
   return [
     [MARCA_PLANTILLA],
     [],
-    ...PARAMETROS.map((p) => [p.clave, valores ? (valores[p.clave] ?? null) : null]),
+    ...PARAMETROS.map((p) => [p.etiqueta, valores ? (valores[p.clave] ?? null) : null]),
     [],
   ];
 }

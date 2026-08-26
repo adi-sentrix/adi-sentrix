@@ -32,6 +32,7 @@ import { calcularDataset, CALCULOS, BLOQUEADOS } from "./src/ingesta/plantilla/m
 import { ingestarPlantilla, previewPlantillaEnTexto } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { CASOS } from "./src/ingesta/plantilla/casosPrueba.js";
 import { construirXlsx } from "./src/ingesta/escribirLibro.js";
+import { leerLibro } from "./src/ingesta/leerLibro.js";
 import { HOJAS, PARAMETROS, PLANTILLA_VERSION, MARCA_PLANTILLA, COLUMNAS_PROHIBIDAS } from "./src/config/contract/plantilla.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { initTenant, getTenantId } from "./src/data/tenantStore.js";
@@ -375,6 +376,32 @@ H("[J] LOS TRES CASOS · uno completo, uno mínimo, uno malo");
     for (const t of nombra) ok(titulos.has(t), `«${r.enSuLugar}» nombra "${t}", que es un título real de la plantilla`);
     ok(!/\(USD\)/.test(r.enSuLugar), `«${r.enSuLugar.slice(0, 46)}» no manda a escribir una moneda en el título`);
   }
+}
+
+/* ── [K] LA CABECERA SE LEE EN CASTELLANO ──────────────────────────────────────────────────────────────────
+ * La hoja la llena un gerente comercial, no un programador. Una celda rotulada `margenBrechaMaterial` es una
+ * adivinanza. El contrato ya traía la etiqueta legible y la plantilla no la estaba usando: se veía recién al
+ * ABRIR el archivo, que es justamente lo que ninguna prueba hacía. La clave se sigue aceptando, para no romper
+ * un archivo que alguien ya haya llenado. */
+H("[K] LA CABECERA EN CASTELLANO · y la clave interna sigue valiendo");
+{
+  const filas = leerLibro(plantillaVacia(), { nombreArchivo: "v.xlsx" }).hojas.find((h) => h.nombre === "Ventas").matriz;
+  const enHoja = filas.slice(0, 12).map((f) => (f || [])[0]).filter(Boolean).map(String);
+  for (const p of PARAMETROS) ok(enHoja.includes(p.etiqueta), `la hoja pide "${p.etiqueta}"`);
+  ok(!enHoja.some((t) => /[a-z][A-Z]/.test(t)), "…y ninguna celda le muestra al usuario un nombre de programador");
+
+  const conEtiqueta = ingestarPlantilla(EJEMPLO, { nombreArchivo: "e.xlsx" });
+  ok(conEtiqueta.ok && conEtiqueta.preview.parametros.margenBrechaMaterial === 4,
+     "el archivo con la cabecera en castellano entra, y el parámetro llega al motor con su clave interna");
+
+  const conClave = ingestarPlantilla(ejemploCon(() => {}), { nombreArchivo: "c.xlsx" });
+  ok(conClave.ok === true && conClave.preview.parametros.margenBrechaMaterial === 4,
+     "un archivo rotulado con la clave interna sigue entrando: los ya llenados no se rompen");
+
+  const sinMoneda = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas = h.filas.filter((f) => (f || [])[0] !== "moneda"); });
+  const bm = validarPlantilla(sinMoneda, { nombreArchivo: "sm.xlsx" }).bloqueos.find((b) => b.tipo === "parametro-obligatorio-ausente");
+  ok(!!bm && /Moneda de todos los montos/.test(bm.detalle),
+     "cuando falta, el error nombra la etiqueta que el usuario ve en la hoja, no la clave interna");
 }
 
 initTenant(r.dataset);
