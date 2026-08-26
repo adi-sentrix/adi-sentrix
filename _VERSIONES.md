@@ -12,7 +12,37 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.4 — producción · tag `v1.4`
+## 1.5 — producción · tag `v1.5`
+
+**La plantilla deja de pedir cuentas hechas a mano.** La hoja Inventario pasa de ocho columnas a tres: **SKU**
+y **Stock (unidades)** obligatorias, **Bodega** opcional. El cliente entrega stock físico; capital, días de
+inventario y rotación los calcula ADI.
+
+- **Lo que salió, y por qué cada una.** *Fecha de corte*: era idéntica en todas las filas — eso es metadato, no
+  columna; la fecha relevante es la de carga y la pone ADI. *Stock valorizado*: es stock × costo unitario, y el
+  costo unitario sale de la hoja Ventas. *Fecha de la última venta*: ya está en Ventas, y se deriva con
+  precisión mensual, que es lo que esa hoja informa. *Días* y *Rotación*: son cuentas nuestras.
+- **Lo que ADI no puede, lo declara.** Un SKU con stock pero sin venta en el período no se valoriza: capital,
+  días y rotación quedan sin valor, la fila lo dice, y el SKU aparece nombrado en los avisos. Un cero ahí diría
+  «no tiene capital inmovilizado», que es lo contrario de «no lo sé».
+- **La bodega dejó de ser obligatoria.** Si viene, todo se calcula por SKU y bodega. Si no viene, por SKU total
+  — y eso se declara en pantalla en vez de disimularse. Un negocio de una sola bodega estaba llenando una
+  columna que no le decía nada.
+- **La pantalla declara de quién es cada cifra.** El capital que se muestra ahora dice que lo calculó ADI y con
+  qué cuenta; sin eso, un número derivado se lee como si viniera del sistema del usuario.
+
+⚠️ **Los archivos llenados con la plantilla anterior ya no validan**: su hoja Inventario empieza con «Fecha de
+corte» y ahora se espera «SKU». Se resuelve bajando la plantilla nueva desde la misma pantalla. Y las cifras de
+capital cambian un poco respecto de las tipeadas a mano — la diferencia es que ahora la cuenta cierra.
+
+Verificado antes de subir: **178 PASS · 0 FAIL · 0 tocaron la red**, con la corrida en vivo hecha con el gateway
+sin proveedor declarado (el gasto queda impedido por estructura, no por promesa).
+
+⚠️ **Un candado dependía de un archivo suelto en una carpeta de Descargas** y se puso rojo por un disco, no por
+código: al cambiar el contrato, aquel .xlsx dejó de validar. Ahora usa el ejemplo que genera el propio contrato
+y corre igual en cualquier máquina. Un gate que depende de un archivo que no está en el repo mide ese archivo.
+
+## 1.4 — tag `v1.4` (estuvo en producción el 2026-08-26)
 
 **La versión en que ADI deja de hablar solo del negocio de demostración.** El usuario sube su planilla, ve qué
 leyó ADI, decide, y desde ahí las respuestas son sobre sus datos. Es la primera vez que el producto acepta
