@@ -31,6 +31,7 @@
  *
  * PURO · sin I/O · no importa el gateway ni ningún adapter. */
 import { SOURCES } from "../../config/contract/sourceManifest.js";
+import { referenciaEsDelNegocio } from "../../config/businessPolicy.js";
 import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
 import { enLaCarpeta } from "../../ingesta/selloEnRespuesta.js";
 import { UNIVERSOS, DIVERGENCIAS } from "../../config/contract/figureType.js";
@@ -235,7 +236,13 @@ function _construir(scenario) {
   // «La REFERENCIA la declara el negocio», no «la vara» (medido 2026-08-14, examen 1 · turno 3): la carpeta es lo
   // que el cerebro lee, así que una palabra prohibida acá se la está ENSEÑANDO — y de acá salía también al
   // suplente digno, que va a pantalla. Se corrige en la fuente, además del lavado de salida.
-  L.push(`- La referencia la declara el negocio: benchmark de margen ${F(_pct1(bench), REF, "venta")}. Meta de carga comercial ${F(_pct1(target), META_CARGA, "venta")} (mejor práctica interna ${F(_pct1(best), META_CARGA, "venta")}). Piso de rotación ${F(_ratio(rotMin), REF, "inventario")} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"], "inventario")}.`);
+  /* ⚠️ DE QUIÉN ES LA VARA, dicho en la carpeta (owner 2026-08-26): «no quiero que la referencia general parezca
+   * una meta del cliente». Esta línea antes afirmaba SIEMPRE que la referencia la declaraba el negocio, y desde
+   * que la plantilla dejó de pedir el benchmark eso puede ser falso — le estaría enseñando al cerebro a
+   * atribuirle al usuario un objetivo que nunca fijó. La procedencia sale de `businessPolicy`, que es quien
+   * resuelve el valor: una sola verdad sobre la misma cifra. */
+  const _refPropia = referenciaEsDelNegocio();
+  L.push(`- ${_refPropia ? "La referencia la declara el negocio" : "La referencia es la GENERAL DE ADI (el negocio no declaró una propia; NO es su meta, y así hay que decirlo si se nombra)"}: benchmark de margen ${F(_pct1(bench), REF, "venta")}. Meta de carga comercial ${F(_pct1(target), META_CARGA, "venta")} (mejor práctica interna ${F(_pct1(best), META_CARGA, "venta")}). Piso de rotación ${F(_ratio(rotMin), REF, "inventario")} · techo de días de inventario ${F(_dias(dohMax), [...REF, "techo"], "inventario")}.`);
   const kpisLineas = L.slice(_iKpi);   // el bloque de KPIs TAL CUAL viaja en la proyección — cada cifra ya registrada por F() con su dueño
   L.push("");
 

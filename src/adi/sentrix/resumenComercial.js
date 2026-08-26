@@ -32,6 +32,7 @@
  * sectorial. Costo, precio y mix quedan como rutas ABIERTAS mientras el motor no los aísle.
  */
 import { buildCuadroMando } from "./cuadro.js";
+import { etiquetaDeLaReferencia } from "../../config/businessPolicy.js";   // de quién es la vara: del negocio o nuestra (owner 2026-08-26)
 import { concentracion } from "../diagnosis/economicDiagnosis.js";
 import { POLICY, benchmarkOf } from "../../config/businessPolicy.js";
 import { applyScenarioToSfamiliasMargen, applyScenarioToClientesVentas } from "../../engine/scenarios.js";   // el corte por familia y la venta/presupuesto por cliente, con el escenario aplicado
@@ -532,7 +533,7 @@ function _sostiene(scenario, rows, total) {
     // "1 canal sostienen la venta" es la clase de detalle que hace dudar de todo lo demás.
     const uno = grupo.length === 1, f = singular === "familia";
     const sostienen = `${_plural(grupo.length, singular)} sostien${uno ? "e" : "en"} la venta`;
-    const cierre = `bajo tu benchmark de ${_pct(mat.length ? mat[0].vara : 0)}.`;   // el "ahí se diluye el margen" lo dice la tabla
+    const cierre = `bajo ${etiquetaDeLaReferencia()} (${_pct(mat.length ? mat[0].vara : 0)}).`;   // el "ahí se diluye el margen" lo dice la tabla
     const lectura = mat.length
       ? (uno ? `${sostienen}, y queda ${rango} ${cierre}`
              : `${mat.length} de ${_plural(grupo.length, singular)} que sostienen la venta qued${mat.length > 1 ? "an" : "a"} ${rango} ${cierre}`)

@@ -44,6 +44,17 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = nu
     inmovilizado: d.invKPI ? d.invKPI.inmovilizadoUSD : null,
     inmovilizadoPct: d.invKPI ? d.invKPI.inmovilizadoPct : null,
     procedencia,
+    /* DE QUIÉN ES LA VARA · condición del owner para la v1.6: «deja muy claro en preview y en respuestas que ADI
+     * usa referencia general cuando el cliente no declara una propia. No quiero que la referencia general
+     * parezca una meta del cliente». Viaja como dato, no como frase, para que la pantalla y el texto digan lo
+     * mismo sin repetir la redacción. */
+    referencia: d.margenKPI ? { valor: d.margenKPI.benchmark, procedencia: d.margenKPI.benchmarkProcedencia } : null,
+    /* CAPTURADO PERO NO ANALIZADO (owner 2026-08-26): «que punto de venta quede declarado como dato disponible
+     * para futuro, no como métrica activa». Se declara acá para que el usuario no crea que puede preguntarlo. */
+    guardadoSinAnalizar: (() => {
+      const filas = (v.tablas.Ventas || []).filter((f) => f.puntoVenta);
+      return filas.length ? [{ campo: "punto de venta", filas: filas.length, distintos: new Set(filas.map((f) => f.puntoVenta)).size }] : [];
+    })(),
   };
 
   return {
@@ -101,6 +112,18 @@ export function previewPlantillaEnTexto(p) {
     L.push(`  capital en stock:   ${q(t.procedencia.capital)}`);
     L.push(`  días de inventario: ${q(t.procedencia.dias)}`);
     L.push(`  rotación:           ${q(t.procedencia.rotacion)}`);
+  }
+
+  /* ⚠️ DE QUIÉN ES LA VARA · condición del owner para la v1.6: «no quiero que la referencia general parezca una
+   * meta del cliente». Se dice acá, con todas las letras, y no en una nota al pie. */
+  if (t.referencia && typeof t.referencia.valor === "number") {
+    L.push(t.referencia.procedencia === "informado"
+      ? `  margen de referencia: ${t.referencia.valor}% — el que declaró tu negocio`
+      : `  margen de referencia: ${t.referencia.valor}% — REFERENCIA GENERAL DE ADI. Tu negocio no declaró una propia, así que no es tu meta: es la vara con la que ADI compara cuando no hay otra.`);
+  }
+  /* LO QUE SE GUARDA Y TODAVÍA NO SE ANALIZA. Decirlo evita la decepción de preguntar por algo que se llenó. */
+  for (const g of t.guardadoSinAnalizar || []) {
+    L.push(`  ${g.campo}: ${n(g.filas)} filas con ${n(g.distintos)} valores distintos — guardado, pero ADI todavía no analiza por ${g.campo}`);
   }
 
   /* 3 · qué KPIs puede calcular ─────────────────────────────────────────────────────────────────────────── */

@@ -124,6 +124,38 @@ export const benchmarkOf = (entity) => (_benchmarkOverride != null ? _benchmarkO
 // propios comentarios lo marcan `[DERIVADO n=6 SKU]` / `[ASUNCIÓN U.A]` — o sea, derivado del mismo dato demo.
 // Mientras eso siga así, "externa_sector" NO se puede producir y toda afirmación sectorial es no autorizada.
 // El día que exista una fuente externa real, se cambia ACÁ (una verdad) y el resto del sistema la respeta solo.
+/* ── ¿DE QUIÉN ES LA VARA? (owner 2026-08-26) ────────────────────────────────────────────────────────────────
+ * Hasta hoy esto era una CONSTANTE —`"interna_empresa"`— y era cierto: el benchmark se le pedía al cliente en la
+ * plantilla, así que las tres capas que resuelve `benchmarkOf` eran suyas. Al sacar las políticas de la plantilla
+ * v1.6 para reducir fricción, apareció una cuarta posibilidad: que la vara sea LA NUESTRA.
+ *
+ * ⚠️ LA ORDEN DEL OWNER, textual: «no quiero que la referencia general parezca una meta del cliente». Un negocio
+ * que nunca declaró un 30,1% no puede leer «estás 8 puntos bajo TU benchmark»: eso le atribuye un objetivo que no
+ * fijó, y encima lo hace sonar como un incumplimiento propio. Es la misma familia de defecto que la regla 1 del
+ * proyecto —afirmar más de lo que la evidencia autoriza—, aplicada a de quién es el criterio.
+ *
+ * POR ESO ES UNA FUNCIÓN Y NO UNA CONSTANTE: depende del tenant activo, y cambia cuando el usuario sube su
+ * archivo. Vive acá, al lado de `benchmarkOf`, porque quien resuelve el valor tiene que resolver también de dónde
+ * salió — si la procedencia se calculara en otro módulo, habría dos verdades sobre la misma cifra.
+ *
+ * EL CRITERIO DE CONVERSACIÓN CUENTA COMO PROPIO: si el usuario dijo «mi meta es 32%», esa vara es suya aunque no
+ * venga del archivo. */
+export const referenciaEsDelNegocio = () =>
+  _benchmarkOverride != null || _perfilVal("benchmark") !== undefined;
+
+/** "interna_empresa" cuando la vara la puso el negocio · "general_adi" cuando es la referencia nuestra. */
+export const procedenciaDeLaReferencia = () => (referenciaEsDelNegocio() ? "interna_empresa" : "general_adi");
+
+/** Cómo se NOMBRA la vara en pantalla y en la prosa. Una sola redacción para todas las superficies: si cada una
+ *  inventa la suya, la mitad va a seguir diciendo «tu benchmark» el día que deje de serlo. */
+export const etiquetaDeLaReferencia = () =>
+  (referenciaEsDelNegocio() ? "tu benchmark" : "la referencia general de ADI");
+
+/** La frase corta que declara el límite cuando la vara es nuestra, o "" cuando es del negocio. */
+export const notaDeLaReferencia = () =>
+  (referenciaEsDelNegocio() ? "" : "es la referencia general de ADI, no una meta que tu negocio haya declarado");
+
+/** @deprecated Se conserva por compatibilidad con `narrationContract`; usa `procedenciaDeLaReferencia()`. */
 export const REFERENCIA_PROCEDENCIA = "interna_empresa";   // "interna_empresa" | "externa_sector"
 
 // Etiquetas de MÉTRICA que son una REFERENCIA (no una medición del negocio). Se declaran acá, junto al único

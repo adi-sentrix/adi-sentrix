@@ -30,6 +30,7 @@
  * se cae, y la lectura lo dice. Un cero no se disfraza.
  */
 import { buildResumenEjecutivo, marginCarteraSnapshot } from "../specRetrieval.js";
+import { etiquetaDeLaReferencia } from "../../config/businessPolicy.js";   // de quién es la vara: del negocio o nuestra (owner 2026-08-26)
 import { buildMesaCapital, _money } from "./mesaCapital.js";
 
 /* buildPulsoInicio(scenario) → { rotulo, cifras:[{key,valor,etiqueta,ask}], lectura:{destacado,cola} } | null */
@@ -46,7 +47,7 @@ export function buildPulsoInicio(scenario) {
     { key: "clientes", valor: String(corte.total), etiqueta: `${corte.label.p} en tu cartera`,
       ask: "¿Quiénes son mis principales clientes por venta?" },
     // La referencia va EN LA ETIQUETA, no suelta: «8» sin decir contra qué no es una cifra, es un número.
-    { key: "bajoBenchmark", valor: String(corte.bajo), etiqueta: `bajo tu benchmark de ${corte.benchmark.toFixed(1)}%`,
+    { key: "bajoBenchmark", valor: String(corte.bajo), etiqueta: `bajo ${etiquetaDeLaReferencia()} (${corte.benchmark.toFixed(1)}%)`,
       ask: "¿Quiénes están bajo el margen mínimo?" },
   ];
 

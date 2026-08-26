@@ -37,6 +37,7 @@
  * P&L" · "¿y el de Ripley?") + evidencia ACCIONABLE en las lecturas (entidad/entityList threadean lastEvidence
  * y la memoria manteniendo el verbatim — kind criteria manda en pickNarratedText). */
 import { applyScenarioToClientesMargen } from "../engine/scenarios.js";
+import { etiquetaDeLaReferencia } from "../config/businessPolicy.js";   // de quién es la vara: del negocio o nuestra (owner 2026-08-26)
 import { clientesMargen } from "../data/demoData.js";
 import { getTenantData, getTenantId, onTenantChange } from "../data/tenantStore.js";   // F1/F2 multiempresa · derivadas + líneas por tenant en initTenant
 import { fig } from "./boleta.js";
@@ -1065,7 +1066,7 @@ function _accionCuenta(scenario, e, eje, c) {
   });
   if (itM && itM.usd > 0) out.push({
     key: "margen", usd: itM.usd,
-    texto: `está bajo tu benchmark de margen — ${_money(itM.usd)} de contribución no capturada según el detector (probado); el porqué de negocio se ve en la cuenta`,
+    texto: `está bajo ${etiquetaDeLaReferencia()} de margen — ${_money(itM.usd)} de contribución no capturada según el detector (probado); el porqué de negocio se ve en la cuenta`,
     corto: `el margen no capturado (${_money(itM.usd)})`,
     ask: `¿Por qué ${e.nombre} cede margen?`,
     figs: [_fMoney(`No capturada · ${e.nombre}`, itM.usd)],

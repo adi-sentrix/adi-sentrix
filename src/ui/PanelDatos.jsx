@@ -238,6 +238,36 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
               </div>
             )}
 
+            {/* ⚠️ DE QUIÉN ES LA VARA · condición del owner para la v1.6: «deja muy claro en preview y en
+                respuestas que ADI usa referencia general cuando el cliente no declara una propia. No quiero que
+                la referencia general parezca una meta del cliente». Va en un recuadro propio, no en la lista de
+                avisos: un límite del que depende cómo se leen TODAS las cifras de margen no puede quedar
+                mezclado entre notas menores. */}
+            {t && t.referencia && typeof t.referencia.valor === "number" && (
+              <div data-testid="datos-referencia" style={{ marginTop: 12, padding: "11px 13px", borderRadius: 8,
+                background: t.referencia.procedencia === "informado" ? C.surfaceAlt : "rgba(253,224,71,0.05)",
+                border: "1px solid " + (t.referencia.procedencia === "informado" ? C.border : "rgba(253,224,71,0.22)"),
+                fontFamily: SANS, fontSize: 11.8, color: C.textSub, lineHeight: 1.6 }}>
+                {t.referencia.procedencia === "informado"
+                  ? <>Margen de referencia: <b style={{ color: C.text }}>{t.referencia.valor}%</b> — el que declaró tu negocio.</>
+                  : <>Margen de referencia: <b style={{ color: C.text }}>{t.referencia.valor}%</b> — es la{" "}
+                      <b style={{ color: C.text }}>referencia general de ADI</b>. Tu negocio no declaró una propia,
+                      así que <b style={{ color: C.text }}>no es tu meta</b>: es la vara con la que ADI compara
+                      cuando no hay otra.</>}
+              </div>
+            )}
+
+            {/* Lo que se guarda y todavía NO se analiza. Decirlo evita que alguien llene una columna con cuidado
+                y después pregunte por ella sin obtener nada. */}
+            {t && (t.guardadoSinAnalizar || []).length > 0 && (
+              <div data-testid="datos-guardado" style={{ marginTop: 10, fontFamily: SANS, fontSize: 11.5,
+                color: C.textMuted, lineHeight: 1.6 }}>
+                {t.guardadoSinAnalizar.map((g) => (
+                  <div key={g.campo}>Guardé <b style={{ color: C.textSub }}>{g.campo}</b> ({g.distintos} valores en {g.filas} filas), pero todavía no analizo por {g.campo}.</div>
+                ))}
+              </div>
+            )}
+
             {/* los avisos de forma que no bloquean: parámetros ausentes, ventas sin bodega, etc. */}
             {(p.avisos || []).length > 0 && (
               <ul data-testid="datos-avisos" style={{ margin: "11px 0 0 16px", padding: 0 }}>
