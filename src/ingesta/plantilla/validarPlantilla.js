@@ -22,7 +22,7 @@
  *   7. **vacíos** · se DECLARAN. Nunca se completan con cero, con el promedio ni con nada.
  */
 import { leerLibro } from "../leerLibro.js";
-import { HOJAS, PARAMETROS, COHERENCIA, PLANTILLA_VERSION, columnaProhibida, normalizarTitulo } from "../../config/contract/plantilla.js";
+import { HOJAS, PARAMETROS, COHERENCIA, PLANTILLA_VERSION, columnaProhibida, normalizarTitulo, HOJA_EMPRESA, HOJA_EJEMPLO } from "../../config/contract/plantilla.js";
 
 const _txt = (v) => (v === null || v === undefined ? null : String(v).trim() || null);
 const _num = (v) => {
@@ -55,34 +55,39 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
   catch (e) { return { ...vacio, bloqueos: [{ tipo: "archivo-ilegible", detalle: (e && e.message) || "no se pudo abrir el archivo" }] }; }
 
   const porNombre = new Map(libro.hojas.map((h) => [normalizarTitulo(h.nombre), h]));
-  const defVentas = HOJAS.find((h) => h.conCabecera);
 
   /* ── 1 · ¿es la plantilla oficial? ─────────────────────────────────────────────────────────────────────── */
-  const hVentas = porNombre.get(normalizarTitulo(defVentas.nombre));
-  if (!hVentas) {
-    B("no-es-la-plantilla", `el archivo no trae la hoja «${defVentas.nombre}» — descargá la plantilla oficial y llenala; este flujo no acepta un Excel cualquiera`);
+  const hMarca = porNombre.get(normalizarTitulo(HOJA_EMPRESA));
+  if (!hMarca) {
+    B("no-es-la-plantilla", `el archivo no trae la hoja «${HOJA_EMPRESA}» — descargá la plantilla oficial y llenala; este flujo no acepta un Excel cualquiera`);
     return vacio;
   }
-  const a1 = _txt((hVentas.matriz[0] || [])[0]);
+  const a1 = _txt((hMarca.matriz[0] || [])[0]);
   const version = a1 && a1.startsWith("PLANTILLA OFICIAL ADI/SENTRIX") ? a1.split("·").pop().trim() : null;
-  if (!version) { B("no-es-la-plantilla", `la celda A1 de «${defVentas.nombre}» debería identificar la plantilla oficial y dice ${a1 ? `"${a1}"` : "(vacía)"} — descargá la plantilla vigente`); return vacio; }
+  if (!version) { B("no-es-la-plantilla", `la celda A1 de «${HOJA_EMPRESA}» debería identificar la plantilla oficial y dice ${a1 ? `"${a1}"` : "(vacía)"} — descargá la plantilla vigente`); return vacio; }
   if (version !== PLANTILLA_VERSION) { B("version-distinta", `el archivo es de la plantilla ${version} y este motor espera ${PLANTILLA_VERSION} — bajá la plantilla vigente y volvé a llenarla`); return { ...vacio, version }; }
 
-  const esperadas = new Set(HOJAS.map((h) => normalizarTitulo(h.nombre)));
+  /* Las hojas que el libro puede traer: las de datos, la de la empresa y la de ejemplo (que es solo para mirar
+   * y el validador NO lee). Cualquier otra se reporta: una hoja de más suele ser una copia vieja olvidada. */
+  const esperadas = new Set([...HOJAS.map((h) => normalizarTitulo(h.nombre)), normalizarTitulo(HOJA_EMPRESA), normalizarTitulo(HOJA_EJEMPLO)]);
   for (const h of libro.hojas) if (!esperadas.has(normalizarTitulo(h.nombre))) B("hoja-de-mas", `la hoja «${h.nombre}» no es parte de la plantilla — sacala`);
   for (const def of HOJAS) if (def.obligatoria && !porNombre.get(normalizarTitulo(def.nombre))) B("hoja-obligatoria-ausente", `falta la hoja «${def.nombre}»: ${def.que}`);
 
-  /* ── 2 · la cabecera de Ventas ─────────────────────────────────────────────────────────────────────────── */
+  /* ── 2 · los datos de la empresa · HOJA PROPIA ────────────────────────────────────────────────────────────
+   * Owner 2026-08-26: «si vas a pedir datos de la empresa déjalo en una pestaña sola, para que no se mezcle con
+   * la de datos ventas o inventario». Antes vivían arriba de la tabla de Ventas: el usuario abría el archivo y
+   * no sabía dónde terminaba la configuración y empezaban los datos.
+   *
+   * SE LEE POR LA ETIQUETA QUE VE EL USUARIO, y también por la clave interna. En la hoja va el nombre en
+   * castellano porque pedirle a un gerente que llene una celda rotulada `periodo_actual` es pedirle que adivine.
+   * La clave se sigue aceptando para no romper un archivo que alguien haya armado a mano. */
+  const hEmpresa = porNombre.get(normalizarTitulo(HOJA_EMPRESA));
   const parametros = {};
-  {
-    const iEnc = filaEncabezado(hVentas.matriz, defVentas);
-    const hasta = iEnc < 0 ? hVentas.matriz.length : iEnc;
-    /* LA CABECERA SE LEE POR LA ETIQUETA QUE VE EL USUARIO, y también por la clave interna. En la hoja va el
-     * nombre en castellano —"Brecha de margen que se considera material (puntos)"— porque pedirle a un gerente
-     * comercial que llene una celda rotulada `margenBrechaMaterial` es pedirle que adivine. La clave sigue
-     * aceptándose para no romper los archivos que ya se hayan llenado. */
+  if (!hEmpresa) {
+    B("hoja-empresa-ausente", `falta la hoja «${HOJA_EMPRESA}»: ahí van el nombre de tu empresa y el período que estás informando`, { hoja: HOJA_EMPRESA });
+  } else {
     const leidos = new Map();
-    for (const f of hVentas.matriz.slice(0, hasta)) { const k = _txt((f || [])[0]); if (k) leidos.set(normalizarTitulo(k), (f || [])[1]); }
+    for (const f of hEmpresa.matriz) { const k = _txt((f || [])[0]); if (k) leidos.set(normalizarTitulo(k), (f || [])[1]); }
     const buscar = (p) => {
       for (const forma of [p.etiqueta, p.clave]) { const k = normalizarTitulo(forma); if (leidos.has(k)) return leidos.get(k); }
       return undefined;
@@ -91,7 +96,7 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
       const bruto = buscar(p);
       const v = bruto === undefined || bruto === null || bruto === "" ? null : bruto;
       if (v === null) {
-        if (p.obligatorio) B("parametro-obligatorio-ausente", `falta «${p.etiqueta}» en la cabecera de Ventas`);
+        if (p.obligatorio) B("parametro-obligatorio-ausente", `falta «${p.etiqueta}» en la hoja ${HOJA_EMPRESA}`, { hoja: HOJA_EMPRESA });
         else A("parametro-ausente", `«${p.clave}» sin declarar — ADI usa su valor general y lo dice en pantalla`, { clave: p.clave });
         continue;
       }
@@ -99,13 +104,16 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
         const n = _num(v);
         if (n === null || Number.isNaN(n)) { B("parametro-no-numerico", `«${p.clave}» tiene "${v}" y se esperaba un número`); continue; }
         parametros[p.clave] = n;
+      } else if (p.tipo === "fecha") {
+        const s = String(v).trim();
+        if (!ES_FECHA.test(s)) { B("fecha-mal-escrita", `«${p.etiqueta}» tiene "${v}" y se esperaba AAAA-MM-DD (por ejemplo 2026-08-31)`, { hoja: HOJA_EMPRESA }); continue; }
+        parametros[p.clave] = s;
       } else if (p.tipo === "periodo") {
         if (!ES_PERIODO.test(String(v).trim())) { B("periodo-mal-escrito", `«${p.clave}» tiene "${v}" y se esperaba AAAA-MM (por ejemplo 2026-08)`); continue; }
         parametros[p.clave] = String(v).trim();
       } else parametros[p.clave] = _txt(v);
     }
   }
-
   /* ── 3 · las tablas ────────────────────────────────────────────────────────────────────────────────────── */
   const tablas = {};
   for (const def of HOJAS) {
@@ -152,7 +160,7 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
         A("clave-mas-gruesa", `«${def.nombre}» no trae "${c.titulo}": se puede cargar igual, pero todo queda agregado al total y no se puede abrir por ${c.titulo.toLowerCase()}`, { hoja: def.nombre, columna: c.titulo });
       }
     }
-    const porClave = new Map(); const filas = [];
+    const porClave = new Map(); const filas = []; const vaciasPorColumna = {};
     (hoja.matriz || []).slice(iEnc + 1).forEach((cruda, i) => {
       const nFila = iEnc + i + 2;   // número de fila como lo ve el usuario en Excel
       if (!(cruda || []).some((v) => v !== null && v !== undefined && String(v).trim() !== "")) return;
@@ -163,10 +171,11 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
         const bruto = (cruda || [])[pos];
         if (bruto === null || bruto === undefined || String(bruto).trim() === "") {
           if (col.obligatoria) { B("celda-obligatoria-vacia", `«${def.nombre}» fila ${nFila}: falta "${col.titulo}"`, { hoja: def.nombre, fila: nFila }); rota = true; }
-          /* Columna opcional vacía. Si el contrato dice que ADI la calcula (días, rotación), NO es un aviso:
-           * es el camino normal de «informado manda, calculado rellena», y avisarlo una vez por fila entierra
-           * los avisos que sí importan. Solo se avisa cuando quedar vacía significa que el dato no existirá. */
-          else if (!col.laCalculaAdi) A("celda-vacia", `«${def.nombre}» fila ${nFila}: "${col.titulo}" vino vacía — no se completa con nada`, { hoja: def.nombre, fila: nFila });
+          /* ⚠️ UNA COLUMNA OPCIONAL VACÍA NO SE AVISA POR FILA (2026-08-26). Antes salía un aviso por cada
+           * celda: con «punto de venta» opcional —que la mitad de los clientes deja vacío por definición— eso
+           * eran diez avisos idénticos que enterraban a los que sí importan. Se cuenta acá y se avisa UNA vez
+           * por columna al final, diciendo qué es lo que ADI no va a poder responder. */
+          else if (!col.laCalculaAdi) (vaciasPorColumna[campo] = (vaciasPorColumna[campo] || 0) + 1);
           fila[campo] = null; continue;
         }
         if (col.tipo === "numero") {
@@ -185,11 +194,23 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
       }
       if (rota) return;
 
-      if (claves.some((k) => fila[k] === null || fila[k] === undefined)) {
-        B("clave-incompleta", `«${def.nombre}» fila ${nFila}: la fila no se puede atribuir (falta parte de la clave ${claves.join(" + ")})`, { hoja: def.nombre, fila: nFila });
+      /* EL MES SE DERIVA DEL DÍA (owner 2026-08-26): la hoja pide la fecha completa —«no importa que no
+       * ocupemos [el día], pero debe estar por si lo necesitamos»— y todo lo que compara períodos trabaja por
+       * mes. Se deriva acá, en el borde, para que el motor siga agrupando por `periodo` sin enterarse: el día
+       * queda guardado en la fila para cuando haga falta. */
+      if (fila.fecha && fila.periodo === undefined) fila.periodo = String(fila.fecha).slice(0, 7);
+
+      /* ⚠️ UNA CLAVE OPCIONAL PUEDE VENIR VACÍA, y eso NO es una fila inatribuible (2026-08-26). Cuando el
+       * «punto de venta» pasó a ser columna opcional, exigirlo lleno rechazaba a todo cliente que no tiene
+       * sucursales — la mitad de los casos. Un vacío ahí significa «esta venta no se atribuye a ninguna
+       * sucursal», que es un valor legítimo y distinto de cualquier sucursal concreta. Lo que sigue siendo
+       * inatribuible es una fila sin su clave OBLIGATORIA: sin cliente o sin SKU no hay a quién sumarle. */
+      const clavesDuras = claves.filter((k) => (def.columnas.find((c) => c.campo === k) || {}).obligatoria);
+      if (clavesDuras.some((k) => fila[k] === null || fila[k] === undefined)) {
+        B("clave-incompleta", `«${def.nombre}» fila ${nFila}: la fila no se puede atribuir (falta ${clavesDuras.filter((k) => fila[k] === null || fila[k] === undefined).join(" y ")})`, { hoja: def.nombre, fila: nFila });
         return;
       }
-      const k = claves.map((c) => fila[c]).join(" ⋅ ");
+      const k = claves.map((c) => fila[c] ?? "").join(" ⋅ ");   // el vacío es un valor de clave, no un hueco
       const previa = porClave.get(k);
       if (previa) {
         const igual = JSON.stringify({ ...previa.fila, _fila: 0 }) === JSON.stringify({ ...fila, _fila: 0 });
@@ -199,6 +220,19 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
       }
       porClave.set(k, { fila }); filas.push(fila);
     });
+
+    /* EL TRATO CON LAS OPCIONALES, dicho una vez y con su consecuencia (owner 2026-08-26): «si el usuario no
+     * llena ese campo, ADI solo no responderá sobre eso». Se distingue la columna ENTERAMENTE vacía —que sí
+     * apaga una lectura— de la que viene a medias, donde el dato existe para unas filas y no para otras. */
+    for (const [campo, n] of Object.entries(vaciasPorColumna)) {
+      const col = def.columnas.find((c) => c.campo === campo);
+      if (!col) continue;
+      const todas = n >= filas.length && filas.length > 0;
+      A("columna-opcional-vacia", todas
+        ? `«${def.nombre}»: "${col.titulo}" quedó vacía en todas las filas — el archivo entra igual, pero ADI no va a poder responder sobre ${col.titulo.toLowerCase()}`
+        : `«${def.nombre}»: "${col.titulo}" viene vacía en ${n} de ${filas.length} filas — esas quedan sin ${col.titulo.toLowerCase()}, no se completan con nada`,
+        { hoja: def.nombre, columna: col.titulo, filas: n });
+    }
 
     info.filas = filas.length;
     hojasInfo.push(info);

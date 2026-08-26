@@ -133,8 +133,9 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
               Prueba ADI con la información de tu negocio
             </div>
             <div style={{ fontFamily: SANS, fontSize: 12.5, color: C.textSub, lineHeight: 1.55, marginTop: 7 }}>
-              Dos hojas: <b style={{ color: C.textSub }}>Ventas</b> e <b style={{ color: C.textSub }}>Inventario</b>. Solo hechos —
-              ADI hace las cuentas. Antes de activar nada te muestro qué leí.
+              Tres hojas para llenar: <b style={{ color: C.textSub }}>Empresa</b>, <b style={{ color: C.textSub }}>Ventas</b> e
+              {" "}<b style={{ color: C.textSub }}>Inventario</b>, más una de ejemplo para mirar. Los campos obligatorios
+              van en amarillo. Solo hechos — ADI hace las cuentas, y antes de activar nada te muestro qué leí.
             </div>
           </div>
           <button onClick={onCerrar} aria-label="Cerrar"
@@ -162,8 +163,10 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
                 onClick={() => fileRef.current && fileRef.current.click()}>
                 {estado === "leyendo" ? "Leyendo…" : "Subir mi planilla"}
               </Boton>
-              <Boton onClick={() => bajarPlantilla(false)} testid="datos-bajar-plantilla">Descargar la plantilla vacía</Boton>
-              <Boton onClick={() => bajarPlantilla(true)}>Con datos de ejemplo</Boton>
+              {/* UNA SOLA DESCARGA (owner 2026-08-26): «no creo que deban descargar una planilla de ejemplo,
+                  podrías colocar una pestaña hoja con ese ejemplo y listo». El archivo trae la pestaña Ejemplo
+                  adentro, así que dos botones eran dos caminos para lo mismo y una duda sobre cuál bajar. */}
+              <Boton onClick={() => bajarPlantilla(false)} testid="datos-bajar-plantilla">Descargar la plantilla</Boton>
             </div>
           </div>
         )}

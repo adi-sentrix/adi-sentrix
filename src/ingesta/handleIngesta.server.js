@@ -19,14 +19,20 @@
 import { ingestarPlantilla } from "./plantilla/ingestarPlantilla.js";
 import { leerPlausibilidad, textoDeApertura, selloDeLaLectura } from "./plausibilidad.js";
 import { plantillaVacia, plantillaEjemplo } from "./plantilla/generarPlantilla.js";
+import { POLICY_CONFIG } from "../config/businessPolicy.js";
 import { PLANTILLA_VERSION } from "../config/contract/plantilla.js";
 
-/** Los umbrales con los que se juzga la plausibilidad salen de lo que el NEGOCIO declaró en su cabecera —
- *  nunca de un número puesto acá. Sin umbral declarado, la señal que lo necesita simplemente no aplica. */
+/** Los umbrales con los que se juzga la plausibilidad.
+ *  ⚠️ CAEN A LA REFERENCIA GENERAL DE ADI (2026-08-26). Antes salían solo de lo que el negocio declaraba en su
+ *  cabecera, y cuando el owner sacó esos parámetros de la plantilla —«no tienes para qué colocar eso»— la
+ *  alarma principal («casi todo el inventario sobre el techo») se habría quedado sin techo y no podría sonar
+ *  nunca. Es la misma referencia con la que el diagnóstico asigna los estados, así que la vara es una sola. */
 function umbralesDe(dataset) {
   const p = (dataset && dataset.perfil) || {};
   const u = {};
-  for (const k of ["dohMax", "rotacionMin", "benchmark"]) if (typeof p[k] === "number") u[k] = p[k];
+  for (const k of ["dohMax", "rotacionMin", "benchmark"]) {
+    u[k] = typeof p[k] === "number" ? p[k] : POLICY_CONFIG[k];
+  }
   return u;
 }
 

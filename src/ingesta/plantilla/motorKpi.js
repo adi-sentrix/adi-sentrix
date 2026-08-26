@@ -34,6 +34,7 @@ import { PARAMETROS } from "../../config/contract/plantilla.js";
 import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
 import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
+import { POLICY_CONFIG } from "../../config/businessPolicy.js";
 
 /** La cuenta del capital en stock · vive en el contrato, no en este archivo (una sola fuente). */
 const FORMULA_CAPITAL = METRICS.capital.formulaSiFalta;
@@ -91,7 +92,10 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   const benchmark = typeof parametros.benchmark === "number" ? parametros.benchmark : null;
   if (benchmark === null) avisos.push({ tipo: "benchmark-sin-declarar", detalle: "el negocio no declaró su margen de referencia: ADI usa el general y lo dice en pantalla" });
 
-  const periodoActual = parametros.periodo_actual || null;
+  /* EL PERÍODO DECLARADO VIENE CON DÍA desde 2026-08-26 («fecha de cierre del período que informas»), y las
+   * filas se agrupan por MES. Se compara por mes: si no, un «2026-08-31» perfectamente correcto no coincidía
+   * con ningún período y el motor avisaba que el período declarado no tenía ventas. */
+  const periodoActual = parametros.periodo_actual ? String(parametros.periodo_actual).slice(0, 7) : null;
   const periodos = [...new Set(ventas.map((v) => v.periodo))].sort();
   /* CUÁNTAS FILAS TRAE CADA PERÍODO · un hecho del archivo, no una cuenta de negocio. Viaja en la preview porque
    * la lectura de plausibilidad lo necesita para detectar un período cargado a medias: sin este conteo esa señal
@@ -230,9 +234,6 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
     // si la venta del período no distingue bodega, se cae al total del SKU y se declara en los avisos
     const porBodega = undPorSkuBodega.get(`${r.sku} ⋅ ${r.bodega ?? ""}`);
     const und = porBodega !== undefined ? porBodega : (undPorSku.get(r.sku) ?? null);
-    if (porBodega === undefined && undPorSku.has(r.sku) && r.bodega) {
-      avisos.push({ tipo: "ritmo-por-sku-no-por-bodega", detalle: `"${r.sku}" en ${r.bodega}: la venta del período no viene separada por bodega, así que el ritmo se mide con el del SKU completo` });
-    }
     const { dias: d, rotacion: rot } = resolverDiasYRotacion(r, { unidadesPeriodo: und, diasPeriodo: _diasDelPeriodo });
 
     /* ⚠️ SI NO SE PUEDE, SE DECLARA. Orden textual del owner: «si un SKU tiene stock pero no tiene venta/costo
@@ -258,6 +259,13 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
   });
   if (sinValorizar.length) avisos.push({ tipo: "sku-sin-valorizar", detalle: `${sinValorizar.length} SKU con stock no se pueden valorizar: no vendieron unidades en el período, así que no hay costo unitario (${sinValorizar.slice(0, 5).join(", ")})` });
   if (sinRitmo.length) avisos.push({ tipo: "sku-sin-ritmo", detalle: `${sinRitmo.length} SKU con stock se quedan sin días ni rotación: sin venta en el período no hay ritmo con qué dividir (${sinRitmo.slice(0, 5).join(", ")})` });
+  /* EL RITMO SE MIDE POR SKU, no por bodega, y desde que la hoja Ventas dejó de pedir bodega (owner
+   * 2026-08-26) ese es el camino NORMAL, no una anomalía. Se declara UNA vez —antes salía un aviso por fila y
+   * enterraba a los que sí importan— y solo cuando hay bodegas en el inventario, que es cuando la diferencia
+   * entre «este depósito» y «el SKU completo» significa algo. */
+  if (inventario.some((r) => r.bodega)) {
+    avisos.push({ tipo: "ritmo-por-sku-no-por-bodega", detalle: "el stock viene por bodega y la venta no: los días y la rotación de cada bodega se miden con el ritmo del SKU completo" });
+  }
   if (inventario.length && !inventario.some((r) => r.bodega)) {
     avisos.push({ tipo: "inventario-sin-bodega", detalle: "el inventario no declara bodega: capital, días y rotación se calculan por SKU total" });
   }
@@ -292,11 +300,18 @@ export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = nul
    * `gapPuntos` guarda la TENDENCIA con nombre de brecha — confusión que ya causó un defecto real en pantalla
    * (#D-MARGEN-GAP-BENCHMARK-MIENTE en overview.js). Ahora las dos van con su nombre y su cuenta.
    * Sin benchmark declarado no hay brecha: null, nunca un cero que parezca «llegaste a la meta». */
-  const benchmarkDeclarado = perfilNum("benchmark");
+  /* ⚠️ EL BENCHMARK CAE A LA REFERENCIA GENERAL DE ADI (2026-08-26). Salió de la plantilla junto con el resto
+   * de las políticas —«deja solo datos de empresa y período»— y sin referencia la brecha de margen quedaba en
+   * null para siempre, apagando el KPI de cabecera. La regla que ya estaba escrita en el aviso es la que se
+   * aplica: si el negocio no lo declara, ADI usa el suyo y lo dice en pantalla. La procedencia viaja abajo. */
+  const benchmarkDelNegocio = perfilNum("benchmark");
+  const benchmarkDeclarado = benchmarkDelNegocio !== undefined ? benchmarkDelNegocio : POLICY_CONFIG.benchmark;
   const margenKPI = {
     pct: margenGlobal, pctAnt: margenAnterior,
     totalUSD: Math.round(totalActual * margenGlobal / 100),
     brechaPuntos: benchmarkDeclarado !== undefined ? _r1(benchmarkDeclarado - margenGlobal) : null,
+    benchmark: benchmarkDeclarado ?? null,
+    benchmarkProcedencia: benchmarkDelNegocio !== undefined ? "informado" : "referencia general de ADI",
     tendenciaPuntos: margenAnterior !== null ? _r1(margenGlobal - margenAnterior) : null,
     /* el campo histórico sigue existiendo con su significado de siempre —la tendencia— para no romper a los 18
      * consumidores que ya lo leen. Renombrarlo es un pase aparte. */

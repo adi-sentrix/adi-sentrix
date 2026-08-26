@@ -58,6 +58,40 @@ export function escribirZip(entradas) {
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const letraCol = (i) => { let s = "", n = i + 1; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
 
+/* ── LOS CUATRO ESTILOS DE LA PLANTILLA (2026-08-26) ──────────────────────────────────────────────────────────
+ * El owner pidió que el usuario abra el archivo y sepa qué hacer: «marca en amarillo los campos obligatorios» y
+ * «deja un comentario en cada campo». Ambas cosas necesitan estilos, que este escritor no tenía.
+ *
+ * ⚠️ LOS DOS PRIMEROS RELLENOS NO SE PUEDEN SALTAR: el formato exige que el índice 0 sea `none` y el 1 sea
+ * `gray125`. Si el amarillo se pone en el índice 0, Excel abre el archivo pidiendo repararlo — y una plantilla
+ * que arranca con un cartel de error es peor que una sin color. */
+export const ESTILO = { NORMAL: 0, OBLIGATORIA: 1, OPCIONAL: 2, AYUDA: 3, TITULO: 4 };
+
+const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+  `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+  `<fonts count="4">` +
+    `<font><sz val="11"/><name val="Calibri"/></font>` +
+    `<font><b/><sz val="11"/><name val="Calibri"/></font>` +
+    `<font><i/><sz val="9"/><color rgb="FF7F7F7F"/><name val="Calibri"/></font>` +
+    `<font><b/><sz val="12"/><name val="Calibri"/></font>` +
+  `</fonts>` +
+  `<fills count="3">` +
+    `<fill><patternFill patternType="none"/></fill>` +
+    `<fill><patternFill patternType="gray125"/></fill>` +
+    `<fill><patternFill patternType="solid"><fgColor rgb="FFFFE699"/><bgColor indexed="64"/></patternFill></fill>` +
+  `</fills>` +
+  `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
+  `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+  `<cellXfs count="5">` +
+    `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
+    `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>` +
+    `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+    `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>` +
+    `<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+  `</cellXfs>` +
+  `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
+  `</styleSheet>`;
+
 /* construirXlsx(hojas) → Buffer
  *   hojas: [{ nombre, filas: [[celda,…],…], anchos?: [n,…] }]
  * Los valores `number` van como número; el resto, como string compartido. `null`/`""` deja la celda vacía —
@@ -73,9 +107,14 @@ export function construirXlsx(hojas) {
     const cuerpo = filas.map((fila, iF) => {
       const celdas = (fila || []).map((v, iC) => {
         const ref = `${letraCol(iC)}${iF + 1}`;
-        if (v === null || v === undefined || v === "") return "";
-        if (typeof v === "number") return Number.isFinite(v) ? `<c r="${ref}"><v>${v}</v></c>` : "";
-        return `<c r="${ref}" t="s"><v>${idDe(String(v))}</v></c>`;
+        /* Una celda puede venir como valor pelado o como { v, s } con su estilo. El estilo es lo que permite
+         * pintar de amarillo los campos obligatorios — sin eso la plantilla no puede decirle al usuario qué
+         * tiene que llenar sin que lea un manual aparte (owner 2026-08-26). */
+        const val = (v && typeof v === "object" && "v" in v) ? v.v : v;
+        const est = (v && typeof v === "object" && v.s) ? ` s="${v.s}"` : "";
+        if (val === null || val === undefined || val === "") return est ? `<c r="${ref}"${est}/>` : "";
+        if (typeof val === "number") return Number.isFinite(val) ? `<c r="${ref}"${est}><v>${val}</v></c>` : "";
+        return `<c r="${ref}"${est} t="s"><v>${idDe(String(val))}</v></c>`;
       }).join("");
       return `<row r="${iF + 1}">${celdas}</row>`;
     }).join("");
@@ -85,11 +124,12 @@ export function construirXlsx(hojas) {
   const sharedStrings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${compartidos.length}" uniqueCount="${compartidos.length}">${compartidos.map((s) => `<si><t xml:space="preserve">${esc(s)}</t></si>`).join("")}</sst>`;
 
   const entradas = [
-    { nombre: "[Content_Types].xml", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${hojas.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>` },
+    { nombre: "[Content_Types].xml", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${hojas.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
     { nombre: "_rels/.rels", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
     { nombre: "xl/workbook.xml", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${hojas.map((h, i) => `<sheet name="${esc(h.nombre)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>` },
-    { nombre: "xl/_rels/workbook.xml.rels", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${hojas.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rIdSS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>` },
+    { nombre: "xl/_rels/workbook.xml.rels", contenido: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${hojas.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rIdSS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/><Relationship Id="rIdST" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
     { nombre: "xl/sharedStrings.xml", contenido: sharedStrings },
+    { nombre: "xl/styles.xml", contenido: STYLES_XML },
     ...xmlHojas.map((x, i) => ({ nombre: `xl/worksheets/sheet${i + 1}.xml`, contenido: x })),
   ];
   return escribirZip(entradas);

@@ -43,86 +43,96 @@
 export const PLANTILLA_VERSION = "v1";
 export const MARCA_PLANTILLA = `PLANTILLA OFICIAL ADI/SENTRIX · ${PLANTILLA_VERSION}`;
 
-/* ── LOS PARÁMETROS · la cabecera de `Ventas` ────────────────────────────────────────────────────────────────
- * `policyKey` ata cada uno a la llave que ya usa `businessPolicy`: no se inventa vocabulario nuevo.
- * Los opcionales que no vengan caen al config general y se DECLARA en pantalla — nunca se inventa una vara. */
+/* ── LAS HOJAS DEL LIBRO ──────────────────────────────────────────────────────────────────────────────────────
+ * Cuatro, y cada una tiene un trabajo distinto (owner 2026-08-26): «si vas a pedir datos de la empresa dejalo en
+ * una pestaña sola, para que no se mezcle con la de datos ventas o inventario». Antes los datos de la empresa
+ * vivían arriba de la tabla de Ventas y el usuario abría el archivo sin saber dónde empezaba qué. */
+export const HOJA_EMPRESA = "Empresa";
+export const HOJA_EJEMPLO = "Ejemplo";
+
+/* ── LO QUE SE PIDE DE LA EMPRESA ─────────────────────────────────────────────────────────────────────────────
+ * SOLO identidad y período. Orden textual del owner: «deja solo datos de empresa período; aún veo que dice
+ * rotación, margen, días de inventario, etc. — no tienes para qué colocar eso».
+ *
+ * ⚠️ QUÉ SE PIERDE Y CÓMO SE CUBRE, porque no es gratis: se fueron el margen de referencia, el techo de días, la
+ * rotación mínima, la mejor práctica y el objetivo de acciones comerciales, y la brecha material. Eran POLÍTICAS
+ * del negocio. Sin ellas ADI usa su REFERENCIA GENERAL (`POLICY_CONFIG`) y lo dice en pantalla — que es lo que
+ * ya hacía cuando el usuario las dejaba vacías. Ninguna cara se apaga; lo que cambia es contra qué vara se
+ * comparan las cifras, y esa vara pasa a ser nuestra y declarada en vez de suya y opcional. */
 export const PARAMETROS = [
-  { clave: "empresa_id", etiqueta: "Identificador de la empresa (minúsculas, sin espacios)", tipo: "texto", obligatorio: true, ejemplo: "andes" },
-  { clave: "empresa_nombre", etiqueta: "Nombre de la empresa", tipo: "texto", obligatorio: true, ejemplo: "Andes Distribución S.A." },
-  { clave: "periodo_actual", etiqueta: "Período que se está informando (AAAA-MM)", tipo: "periodo", obligatorio: true, ejemplo: "2026-08" },
-  { clave: "moneda", etiqueta: "Moneda de todos los montos", tipo: "texto", obligatorio: true, ejemplo: "USD" },
-  { clave: "benchmark", etiqueta: "Margen de referencia del negocio (%)", tipo: "numero", obligatorio: false, policyKey: "benchmark", ejemplo: 28.0,
-    nota: "Es una POLÍTICA del negocio, no un resultado. Si no se declara, ADI usa su referencia general y lo dice." },
-  { clave: "dias_inventario_max", etiqueta: "Días de inventario desde los que el stock se considera excesivo", tipo: "numero", obligatorio: false, policyKey: "dohMax", ejemplo: 90,
-    nota: "Es una POLÍTICA del negocio, no un resultado. Si no se declara, ADI usa su referencia general y lo dice en pantalla — igual que con el benchmark." },
-  { clave: "rotacion_minima", etiqueta: "Rotación anual mínima aceptable (veces al año)", tipo: "numero", obligatorio: false, policyKey: "rotacionMin", ejemplo: 4 },
-  { clave: "bestPracticeCarga", etiqueta: "Mejor práctica de acciones comerciales (% sobre venta)", tipo: "numero", obligatorio: false, policyKey: "bestPracticeCarga", ejemplo: 2.5 },
-  { clave: "targetCarga", etiqueta: "Objetivo de acciones comerciales (% sobre venta)", tipo: "numero", obligatorio: false, policyKey: "targetCarga", ejemplo: 3.0 },
-  { clave: "margenBrechaMaterial", etiqueta: "Brecha de margen que se considera material (puntos)", tipo: "numero", obligatorio: false, policyKey: "margenBrechaMaterial", ejemplo: 4 },
+  { clave: "empresa_id", etiqueta: "identificador de tu empresa", tipo: "texto", obligatorio: true, ejemplo: "andes",
+    ayuda: "un nombre corto, en minúscula y sin espacios. solo sirve para identificar tu carga." },
+  { clave: "empresa_nombre", etiqueta: "nombre de tu empresa", tipo: "texto", obligatorio: true, ejemplo: "Andes Distribución S.A.",
+    ayuda: "el nombre como quieres verlo en pantalla." },
+  { clave: "periodo_actual", etiqueta: "fecha de cierre del período que informas (aaaa-mm-dd)", tipo: "fecha", obligatorio: true, ejemplo: "2026-08-31",
+    ayuda: "el último día del mes que estás informando. escríbelo así: 2026-08-31." },
 ];
 
-/* ── LAS DOS HOJAS ───────────────────────────────────────────────────────────────────────────────────────────
+/* ── LAS DOS HOJAS DE DATOS ───────────────────────────────────────────────────────────────────────────────────
  * `clave: true` marca las columnas que identifican la fila (para detectar duplicados contradictorios).
- * `atributoDe` marca las columnas que describen una ENTIDAD y no el hecho: se repiten en cada fila y por eso
- * tienen que ser coherentes entre sí (ver COHERENCIA). */
+ * `ayuda` es la explicación que se imprime ARRIBA de cada título, en minúscula, para que el usuario no tenga que
+ * adivinar qué va en la celda. Va arriba y no como comentario de Excel a propósito: un comentario hay que
+ * descubrirlo pasando el mouse, y el owner pidió justamente que «el usuario no vea la planilla y no sepa qué
+ * hacer». Lo que se ve, se lee. */
 export const HOJAS = [
   {
     nombre: "Ventas",
     obligatoria: true,
-    conCabecera: true,
-    que: "LO QUE PASÓ: una fila por período, cuenta, producto y bodega. De acá sale casi todo lo que muestra Sentrix",
+    que: "una fila por venta: qué se vendió, a quién, cuándo y con qué costo",
     columnas: [
-      { campo: "periodo", titulo: "Período (AAAA-MM)", tipo: "periodo", clave: true, obligatoria: true },
-      { campo: "cliente", titulo: "Cliente", tipo: "texto", clave: true, obligatoria: true },
-      { campo: "canal", titulo: "Canal", tipo: "texto", obligatoria: false, atributoDe: "cliente" },
-      { campo: "sku", titulo: "SKU", tipo: "texto", clave: true, obligatoria: true },
-      { campo: "marca", titulo: "Marca", tipo: "texto", obligatoria: false, atributoDe: "sku" },
-      { campo: "sfamilia", titulo: "Familia", tipo: "texto", obligatoria: false, atributoDe: "sku" },
-      { campo: "bodega", titulo: "Bodega", tipo: "texto", clave: true, obligatoria: false },
-      { campo: "unidades", titulo: "Unidades", tipo: "numero", obligatoria: true },
-      { campo: "venta", titulo: "Venta", tipo: "numero", obligatoria: true },
-      { campo: "costo", titulo: "Costo", tipo: "numero", obligatoria: true },
-      { campo: "acciones", titulo: "Acciones comerciales", tipo: "numero", obligatoria: false,
-        nota: "Rebates, descuentos y notas de crédito EN PLATA. El porcentaje sobre la venta lo calcula ADI." },
-      { campo: "precioLista", titulo: "Precio de lista", tipo: "numero", obligatoria: false, atributoDe: "sku",
-        nota: "El precio de la lista, que es un HECHO. El precio promedio realizado lo calcula ADI." },
+      { campo: "fecha", titulo: "fecha (aaaa-mm-dd)", tipo: "fecha", clave: true, obligatoria: true,
+        ayuda: "el día de la venta. si solo tienes el mes, pon cualquier día de ese mes." },
+      { campo: "cliente", titulo: "cliente", tipo: "texto", clave: true, obligatoria: true,
+        ayuda: "a quién le vendiste. escríbelo siempre igual." },
+      /* PUNTO DE VENTA (owner 2026-08-26): «muchos clientes tienen varias sucursales, es opcional pero debe
+       * estar». Se guarda con la venta desde ya. ADI todavía NO analiza por punto de venta —lo declara en la
+       * preview— pero el dato queda capturado para cuando lo haga, igual que el día de la fecha. */
+      { campo: "puntoVenta", titulo: "punto de venta", tipo: "texto", clave: true, obligatoria: false,
+        ayuda: "la sucursal o local del cliente, si vendes a varias. si no, déjalo vacío." },
+      { campo: "canal", titulo: "canal", tipo: "texto", obligatoria: false, atributoDe: "cliente",
+        ayuda: "cómo llega la venta: mayorista, retail, online. sirve para comparar canales." },
+      { campo: "sku", titulo: "sku", tipo: "texto", clave: true, obligatoria: true,
+        ayuda: "el código del producto. tiene que coincidir con el de la hoja inventario." },
+      { campo: "marca", titulo: "marca", tipo: "texto", obligatoria: false, atributoDe: "sku",
+        ayuda: "la marca del producto. sirve para comparar marcas entre sí." },
+      { campo: "sfamilia", titulo: "familia", tipo: "texto", obligatoria: false, atributoDe: "sku",
+        ayuda: "la categoría o línea del producto. sirve para agrupar." },
+      { campo: "unidades", titulo: "unidades", tipo: "numero", obligatoria: true,
+        ayuda: "cuántas unidades vendiste. solo el número." },
+      { campo: "venta", titulo: "venta", tipo: "numero", obligatoria: true,
+        ayuda: "cuánto facturaste, sin impuestos. solo el número, sin signo peso." },
+      { campo: "costo", titulo: "costo", tipo: "numero", obligatoria: true,
+        ayuda: "cuánto te costó lo que vendiste. con esto adi calcula tu margen." },
+      { campo: "acciones", titulo: "acciones comerciales", tipo: "numero", obligatoria: false,
+        ayuda: "descuentos, rebates o aportes que le diste al cliente. en dinero, no en %." },
+      { campo: "precioLista", titulo: "precio de lista", tipo: "numero", obligatoria: false, atributoDe: "sku",
+        ayuda: "tu precio sin descuento. sirve para ver cuánto estás cediendo." },
     ],
   },
   {
     nombre: "Inventario",
     obligatoria: false,
-    que: "el stock ACTUAL: cuánto hay de cada SKU y, si aplica, en qué bodega",
-    /* ⚠️ DOS COLUMNAS. Es el contrato v1 que fijó el owner (2026-08-26) después de mirar la plantilla llena:
-     * «la plantilla debe pedir hechos, no KPIs ni valorizaciones manuales. El cliente entrega stock físico; ADI
-     * calcula capital, días y rotación».
-     *
-     * QUÉ SE FUE Y POR QUÉ, porque cada una se cayó por su propio motivo:
-     *   · «Fecha de corte» — era idéntica en todas las filas: eso es metadato, no columna. La fecha relevante
-     *     es la de CARGA del archivo, y la pone ADI (ver `fechaCarga` en el dataset). El usuario no la llena.
-     *   · «Stock valorizado» — es stock × costo unitario, y el costo unitario sale de la hoja Ventas
-     *     (costo ÷ unidades vendidas). Pedirlo era pedir una valorización hecha a mano.
-     *   · «Fecha de la última venta» — ya está en Ventas. Pedir dos veces el mismo hecho invita a que difieran.
-     *   · «Días de inventario» y «Rotación» — son cuentas nuestras. Estuvieron como opcionales bajo «informado
-     *     manda»; el owner las sacó de la plantilla v1 para que la hoja pida SOLO hechos. La regla no se pierde:
-     *     `resolverDiasYRotacion` sigue respetando un valor informado si algún día llega por otra vía (ERP).
-     *
-     * LA BODEGA ES OPCIONAL, y no por comodidad: en Ventas también lo es, y a un negocio de una sola bodega se
-     * le estaba exigiendo una columna que no le dice nada. Si viene, todo se calcula por SKU+Bodega; si no
-     * viene, por SKU total — y eso se DECLARA en los avisos, no se disimula. */
+    que: "el stock actual: cuánto hay de cada producto y, si aplica, en qué bodega",
+    /* ⚠️ TRES COLUMNAS. Contrato v1 del owner: «la plantilla debe pedir hechos, no KPIs ni valorizaciones
+     * manuales. El cliente entrega stock físico; ADI calcula capital, días y rotación». Se fueron la fecha de
+     * corte (era idéntica en todas las filas: metadato, no columna), el stock valorizado (es stock × costo
+     * unitario, y el costo está en Ventas), la fecha de última venta (ya está en Ventas) y los dos KPI. */
     columnas: [
-      { campo: "sku", titulo: "SKU", tipo: "texto", clave: true, obligatoria: true },
-      { campo: "bodega", titulo: "Bodega", tipo: "texto", clave: true, obligatoria: false,
-        nota: "Solo si manejas más de una. Si la mandás, el cálculo es por SKU y bodega." },
-      { campo: "stockUnd", titulo: "Stock (unidades)", tipo: "numero", obligatoria: true,
-        nota: "El stock ACTUAL de tu sistema al momento de exportar el archivo. Unidades físicas, no valorizado." },
+      { campo: "sku", titulo: "sku", tipo: "texto", clave: true, obligatoria: true,
+        ayuda: "el código del producto, igual que en la hoja ventas." },
+      { campo: "bodega", titulo: "bodega", tipo: "texto", clave: true, obligatoria: false,
+        ayuda: "dónde está el stock. si tienes una sola bodega, déjalo vacío." },
+      { campo: "stockUnd", titulo: "stock (unidades)", tipo: "numero", obligatoria: true,
+        ayuda: "cuántas unidades tienes hoy. físicas, no valorizadas: adi calcula el dinero." },
     ],
   },
 ];
 
-/* ── COHERENCIA · el precio de haber colapsado los maestros ──────────────────────────────────────────────────
- * Sin hoja de Productos, la marca de un SKU se repite en cada fila donde ese SKU aparece. Si dos filas no
- * coinciden, NO se elige una: se rechaza el archivo nombrando las dos. Elegir «la primera» o «la más frecuente»
- * sería exactamente el tipo de resolución silenciosa que este producto no hace. */
+/** La frase que explica el trato con las columnas opcionales · va escrita en la hoja, no solo en la documentación. */
+export const AVISO_OPCIONALES =
+  "las columnas en amarillo son obligatorias. las demás son opcionales: si las dejas vacías el archivo entra igual, " +
+  "pero adi no va a poder responderte sobre eso (por ejemplo, sin marca no hay comparación entre marcas).";
+
 export const COHERENCIA = [
   { entidad: "sku", clave: "sku", atributos: ["marca", "sfamilia", "precioLista"], hoja: "Ventas" },
   { entidad: "cliente", clave: "cliente", atributos: ["canal"], hoja: "Ventas" },

@@ -12,36 +12,90 @@
  * columna. Contar filas sería frágil —agregar un parámetro correría todo— y adivinar «la primera fila con varias
  * celdas» rompe el día que alguien escriba una nota. El contrato dice cuál es el título; eso alcanza.
  */
-import { construirXlsx } from "../escribirLibro.js";
-import { HOJAS, PARAMETROS, MARCA_PLANTILLA } from "../../config/contract/plantilla.js";
+import { construirXlsx, ESTILO } from "../escribirLibro.js";
+import { HOJAS, PARAMETROS, MARCA_PLANTILLA, HOJA_EMPRESA, HOJA_EJEMPLO, AVISO_OPCIONALES } from "../../config/contract/plantilla.js";
 
-const anchoDe = (t) => Math.min(40, Math.max(12, String(t).length + 3));
+const anchoDe = (t) => Math.min(46, Math.max(14, String(t).length + 3));
 
-/* Las filas de cabecera de `Ventas`: la marca del archivo, los parámetros, y una línea en blanco.
- * SIN columna de explicaciones (owner 2026-08-22: «eso marea, deja los campos solamente»). Lo que significa cada
- * parámetro vive en el contrato y sale por la preview, no ocupando celdas del archivo que hay que llenar.
- * La celda A1 no es texto de ayuda: es lo que identifica al archivo como plantilla oficial y su versión. */
-function filasCabecera(valores = null) {
-  return [
-    [MARCA_PLANTILLA],
+/* ── LA HOJA «EMPRESA» · sola, para que no se mezcle con los datos ────────────────────────────────────────────
+ * Orden del owner (2026-08-26): «si vas a pedir datos de la empresa déjalo en una pestaña sola, para que no se
+ * mezcle con la de datos ventas o inventario». Antes estos campos vivían arriba de la tabla de Ventas y el
+ * usuario abría el archivo sin saber dónde terminaba una cosa y empezaba la otra.
+ * La celda A1 identifica al archivo como plantilla oficial y su versión: no es decoración, el validador la lee. */
+function hojaEmpresa(valores = null) {
+  const filas = [
+    [{ v: MARCA_PLANTILLA, s: ESTILO.TITULO }],
     [],
-    ...PARAMETROS.map((p) => [p.etiqueta, valores ? (valores[p.clave] ?? null) : null]),
+    [{ v: "completa estos tres campos. las celdas en amarillo son obligatorias.", s: ESTILO.AYUDA }],
     [],
+    ...PARAMETROS.flatMap((p) => [
+      [{ v: p.etiqueta, s: p.obligatorio ? ESTILO.OBLIGATORIA : ESTILO.OPCIONAL },
+       valores ? (valores[p.clave] ?? null) : { v: null, s: ESTILO.NORMAL }],
+      [{ v: p.ayuda, s: ESTILO.AYUDA }],
+      [],
+    ]),
   ];
+  return { nombre: HOJA_EMPRESA, filas, anchos: [52, 30] };
 }
 
-function hojaDe(def, filasDatos = [], valoresCabecera = null) {
+/* ── UNA HOJA DE DATOS ────────────────────────────────────────────────────────────────────────────────────────
+ * Tres bloques, en este orden: qué es la hoja · el aviso de obligatorias/opcionales · la AYUDA de cada columna,
+ * y recién debajo el título y las filas.
+ *
+ * ⚠️ LA AYUDA VA ARRIBA DEL TÍTULO, no como comentario de Excel. El owner pidió «un comentario en cada campo» y
+ * «que el usuario no vea la planilla y no sepa qué hacer»: un comentario de Excel hay que descubrirlo pasando el
+ * mouse por una esquinita roja, así que resuelve mal justamente lo que él quería resolver. Puesta arriba se lee
+ * sola. Y va ARRIBA y no abajo por una razón técnica además de visual: el validador localiza la fila de títulos
+ * buscándola por su primera celda, así que todo lo que esté por encima lo ignora — una fila de ayuda DEBAJO del
+ * título entraría como si fuera un dato. */
+function hojaDe(def, filasDatos = []) {
   const filas = [
-    ...(def.conCabecera ? filasCabecera(valoresCabecera) : []),
-    def.columnas.map((c) => c.titulo),
+    [{ v: def.que, s: ESTILO.AYUDA }],
+    [{ v: AVISO_OPCIONALES, s: ESTILO.AYUDA }],
+    [],
+    def.columnas.map((c) => ({ v: c.ayuda, s: ESTILO.AYUDA })),
+    def.columnas.map((c) => ({ v: c.titulo, s: c.obligatoria ? ESTILO.OBLIGATORIA : ESTILO.OPCIONAL })),
     ...filasDatos.map((f) => def.columnas.map((c) => (f[c.campo] ?? null))),
   ];
   return { nombre: def.nombre, filas, anchos: def.columnas.map((c) => anchoDe(c.titulo)) };
 }
 
-/** La plantilla VACÍA — lo que baja el cliente. */
+/* ── LA HOJA «EJEMPLO» · el archivo de muestra deja de ser una descarga aparte ────────────────────────────────
+ * Owner 2026-08-26: «no creo que deban descargar una planilla de ejemplo, podrías colocar una pestaña hoja con
+ * ese ejemplo y listo, mucho más sencillo». Ahora hay UN solo archivo: se baja, se mira la pestaña Ejemplo para
+ * ver cómo se ve lleno, y se llenan las dos hojas de datos. Una descarga menos y ninguna duda sobre cuál es cuál.
+ *
+ * Se muestran unas pocas filas de Ventas, que es donde la gente duda. No es una hoja que el validador lea. */
+function hojaEjemplo() {
+  const d = datosEjemplo();
+  const ventas = HOJAS.find((h) => h.nombre === "Ventas");
+  const inv = HOJAS.find((h) => h.nombre === "Inventario");
+  const bloque = (def, filas) => [
+    [{ v: `así se ve la hoja ${def.nombre.toLowerCase()} con datos`, s: ESTILO.TITULO }],
+    def.columnas.map((c) => ({ v: c.titulo, s: c.obligatoria ? ESTILO.OBLIGATORIA : ESTILO.OPCIONAL })),
+    ...filas.map((f) => def.columnas.map((c) => (f[c.campo] ?? null))),
+    [],
+  ];
+  const filas = [
+    [{ v: "esta hoja es solo para mirar. no la llenes: adi no la lee.", s: ESTILO.AYUDA }],
+    [],
+    ...bloque(ventas, d.ventas.slice(0, 6)),
+    ...bloque(inv, d.inventario.slice(0, 4)),
+  ];
+  return { nombre: HOJA_EJEMPLO, filas, anchos: ventas.columnas.map((c) => anchoDe(c.titulo)) };
+}
+
+/** Las hojas de la plantilla, ANTES de serializarse — con sus estilos a la vista.
+ *  Se exporta para que un gate pueda comprobar el amarillo sobre lo que el generador produce de verdad, y no
+ *  sobre una reconstrucción de lo que debería producir. Un chequeo que se arma su propia respuesta se aprueba
+ *  a sí mismo. */
+export function hojasDeLaPlantilla() {
+  return [hojaEmpresa(null), ...HOJAS.map((h) => hojaDe(h, [])), hojaEjemplo()];
+}
+
+/** La plantilla que baja el cliente: Empresa · Ventas · Inventario · Ejemplo. Una sola, con todo adentro. */
 export function plantillaVacia() {
-  return construirXlsx(HOJAS.map((h) => hojaDe(h, [], null)));
+  return construirXlsx(hojasDeLaPlantilla());
 }
 
 /* ── DATOS SINTÉTICOS · un negocio inventado que ejercita todos los casos ────────────────────────────────────
@@ -50,8 +104,7 @@ export function plantillaVacia() {
  * bodegas, un SKU que no se vende hace meses y otro que rota fuerte. */
 export function datosEjemplo() {
   const parametros = {
-    empresa_id: "andes", empresa_nombre: "Andes Distribución S.A.", periodo_actual: "2026-08", moneda: "USD",
-    benchmark: 28.0, bestPracticeCarga: 2.5, targetCarga: 3.0, margenBrechaMaterial: 4,
+    empresa_id: "andes", empresa_nombre: "Andes Distribución S.A.", periodo_actual: "2026-08-31",
   };
 
   // sku → marca · familia · precio de lista · (se repiten en cada fila: así lo pidió el diseño de dos hojas)
@@ -61,6 +114,10 @@ export function datosEjemplo() {
     "ELE-CAB25": ["Vulcano", "Eléctrico", 26.5], "ELE-TAB12": ["Vulcano", "Eléctrico", 96.0],
   };
   const canal = { "Ferretería Aurora": "Retail", "Depósito Riachuelo": "Mayorista", "Casa Belgrano": "Retail", "Obras del Sur": "Mayorista" };
+  /* PUNTO DE VENTA (owner 2026-08-26): dos clientes con varias sucursales y dos sin ninguna — el ejemplo tiene
+   * que mostrar las dos formas, porque la columna es opcional y quien tiene un solo local no debe sentir que
+   * le falta algo. */
+  const sucursal = { "Ferretería Aurora": "Sucursal Centro", "Obras del Sur": "Sucursal Norte" };
 
   const mezcla = [
     ["Ferretería Aurora", "TRM-800", "Central", 42, 3528, 2400, 88, 0.92],
@@ -79,9 +136,9 @@ export function datosEjemplo() {
   const ventas = [];
   for (const [cliente, sku, bodega, und, venta, costo, acc, f] of mezcla) {
     const [marca, sfamilia, precioLista] = cat[sku];
-    const base = { cliente, canal: canal[cliente], sku, marca, sfamilia, bodega, precioLista };
-    ventas.push({ periodo: "2026-07", ...base, unidades: r0(und * f), venta: r0(venta * f), costo: r0(costo * f), acciones: r0(acc * f) });
-    ventas.push({ periodo: "2026-08", ...base, unidades: und, venta, costo, acciones: acc });
+    const base = { cliente, puntoVenta: sucursal[cliente] ?? null, canal: canal[cliente], sku, marca, sfamilia, precioLista };
+    ventas.push({ fecha: "2026-07-18", ...base, unidades: r0(und * f), venta: r0(venta * f), costo: r0(costo * f), acciones: r0(acc * f) });
+    ventas.push({ fecha: "2026-08-14", ...base, unidades: und, venta, costo, acciones: acc });
   }
 
   /* EL INVENTARIO DEL EJEMPLO SON HECHOS Y NADA MÁS (owner 2026-08-26): SKU, bodega y stock físico. Ni fecha de
@@ -105,5 +162,5 @@ export function datosEjemplo() {
 /** La plantilla LLENA con el ejemplo sintético. */
 export function plantillaEjemplo(datos = datosEjemplo()) {
   const porHoja = { Ventas: datos.ventas, Inventario: datos.inventario };
-  return construirXlsx(HOJAS.map((h) => hojaDe(h, porHoja[h.nombre] || [], datos.parametros)));
+  return construirXlsx([hojaEmpresa(datos.parametros), ...HOJAS.map((h) => hojaDe(h, porHoja[h.nombre] || []))]);
 }

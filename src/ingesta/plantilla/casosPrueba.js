@@ -9,7 +9,7 @@
  * TODO ES SINTÉTICO. Entidades inventadas, ningún dato de ningún cliente real (restricción vigente del owner).
  */
 import { construirXlsx } from "../escribirLibro.js";
-import { HOJAS, PARAMETROS, MARCA_PLANTILLA } from "../../config/contract/plantilla.js";
+import { HOJAS, PARAMETROS, MARCA_PLANTILLA, HOJA_EMPRESA } from "../../config/contract/plantilla.js";
 import { datosEjemplo } from "./generarPlantilla.js";
 
 const anchoDe = (t) => Math.min(40, Math.max(12, String(t).length + 3));
@@ -28,9 +28,17 @@ function hojaDe(def, filasDatos, valoresCabecera, campos = null) {
   };
 }
 
-const libro = (datos, campos = {}) => construirXlsx(
-  HOJAS.filter((h) => datos[h.nombre] !== undefined)
-       .map((h) => hojaDe(h, datos[h.nombre], datos.parametros, campos[h.nombre] || null)));
+/* La hoja «Empresa» va SIEMPRE, y primero: desde 2026-08-26 ahí vive la marca del archivo y los datos del
+ * negocio, así que un libro sin ella no es la plantilla y el validador lo rechaza antes de mirar nada más. */
+const hojaEmpresaDe = (parametros) => ({
+  nombre: HOJA_EMPRESA,
+  filas: [[MARCA_PLANTILLA], [], ...PARAMETROS.map((p) => [p.etiqueta, (parametros || {})[p.clave] ?? null])],
+});
+const libro = (datos, campos = {}) => construirXlsx([
+  hojaEmpresaDe(datos.parametros),
+  ...HOJAS.filter((h) => datos[h.nombre] !== undefined)
+          .map((h) => hojaDe(h, datos[h.nombre], datos.parametros, campos[h.nombre] || null)),
+]);
 
 /* ── 1 · COMPLETO ────────────────────────────────────────────────────────────────────────────────────────────
  * Todas las columnas que la plantilla ofrece, incluidas las opcionales. Desde el contrato v1 de Inventario
@@ -51,11 +59,11 @@ function completo() {
  * SKU total — y el motor lo DECLARA en los avisos en vez de disimularlo. */
 function minimo() {
   const d = datosEjemplo();
-  const ventas = d.ventas.map(({ periodo, cliente, sku, unidades, venta, costo }) => ({ periodo, cliente, sku, unidades, venta, costo }));
+  const ventas = d.ventas.map(({ fecha, cliente, sku, unidades, venta, costo }) => ({ fecha, cliente, sku, unidades, venta, costo }));
   const inventario = d.inventario.map(({ sku, stockUnd }) => ({ sku, stockUnd }));
   return libro(
     { parametros: { ...d.parametros, empresa_id: "minimo", empresa_nombre: "Caso Mínimo S.A." }, Ventas: ventas, Inventario: inventario },
-    { Ventas: ["periodo", "cliente", "sku", "unidades", "venta", "costo"], Inventario: ["sku", "stockUnd"] },
+    { Ventas: ["fecha", "cliente", "sku", "unidades", "venta", "costo"], Inventario: ["sku", "stockUnd"] },
   );
 }
 
@@ -67,7 +75,7 @@ function malo() {
   const d = datosEjemplo();
   const ventas = d.ventas.map((v, i) => {
     const f = { ...v };
-    if (i === 0) f.periodo = "ago-2026";      // período mal escrito
+    if (i === 0) f.fecha = "ago-2026";         // fecha mal escrita (desde 2026-08-26 la columna es aaaa-mm-dd)
     if (i === 3) f.unidades = null;           // celda obligatoria vacía (en Unidades, no en Venta:
                                               // a Venta se le rompe el encabezado más abajo y la columna deja de existir)
     if (i === 5) f.marca = "MarcaFantasma";   // el mismo SKU con dos marcas
@@ -81,17 +89,17 @@ function malo() {
 function maloCompleto() {
   const d = datosEjemplo();
   const ventas = malo().ventas;
-  const hojas = HOJAS.filter((h) => h.nombre === "Ventas" || h.nombre === "Inventario").map((h) => {
+  const hojas = [hojaEmpresaDe(d.parametros), ...HOJAS.filter((h) => h.nombre === "Ventas" || h.nombre === "Inventario").map((h) => {
     const datos = h.nombre === "Ventas" ? ventas : d.inventario;
     const hj = hojaDe(h, datos, d.parametros);
     if (h.nombre === "Ventas") {
       const iEnc = hj.filas.findIndex((f) => f[0] === h.columnas[0].titulo);
-      hj.filas[iEnc] = hj.filas[iEnc].map((t) => (t === "Venta" ? "Venta (miles)" : t));   // unidad ambigua
+      hj.filas[iEnc] = hj.filas[iEnc].map((t) => (t === "venta" ? "venta (miles)" : t));     // unidad ambigua
       hj.filas[iEnc] = [...hj.filas[iEnc], "Margen %"];                                     // KPI ya calculado
       hj.anchos = [...hj.anchos, 12];
     }
     return hj;
-  });
+  })];
   return construirXlsx(hojas);
 }
 
@@ -107,8 +115,8 @@ export const CASOS = [
     espera: { ok: true, diasInformados: 0, diasCalculados: 6, rotacionInformadas: 0, conBodega: false } },
 
   { clave: "malo", archivo: "Caso_3_malo.xlsx", titulo: "MALO · cinco problemas a la vez",
-    que: "KPI ya calculado · unidad ambigua · período mal escrito · celda obligatoria vacía · SKU con dos marcas (6 bloqueos: romper el título de Venta la deja además ausente)",
+    que: "KPI ya calculado · unidad ambigua · fecha mal escrita · celda obligatoria vacía · SKU con dos marcas (6 bloqueos: romper el título de Venta la deja además ausente)",
     construir: maloCompleto,
     espera: { ok: false, tipos: ["columna-calculada", "unidad-ambigua", "columna-obligatoria-ausente",
-                                 "periodo-mal-escrito", "celda-obligatoria-vacia", "atributo-incoherente"] } },
+                                 "fecha-mal-escrita", "celda-obligatoria-vacia", "atributo-incoherente"] } },
 ];

@@ -192,19 +192,27 @@ console.log("=".repeat(100));
 }
 
 console.log("\n" + "=".repeat(100));
-console.log("10 · LOS DOS PARÁMETROS NUEVOS · el techo lo declara el negocio, no lo inventa ADI");
+console.log("10 · LA PLANTILLA PIDE HECHOS, NO POLÍTICAS · y lo que no le pide, lo declara");
 console.log("=".repeat(100));
 {
-  const doh = PARAMETROS.find((p) => p.policyKey === "dohMax");
-  const rot = PARAMETROS.find((p) => p.policyKey === "rotacionMin");
-  ok(!!doh, "la plantilla deja declarar el techo de días de inventario");
-  ok(!!rot, "…y la rotación mínima aceptable");
-  ok(!!doh && doh.obligatorio === false && !!rot && rot.obligatorio === false,
-    "los dos OPCIONALES: un archivo llenado antes de que existieran sigue siendo válido");
-  /* La prueba de que no rompen nada: el archivo de ejemplo del contrato NO los trae y entra igual. */
+  /* ⚠️ ESTA SECCIÓN SE DIO VUELTA EL 2026-08-26. El día anterior yo había AGREGADO el techo de días y la rotación
+   * mínima a la cabecera, porque sin ellos la alarma de inventario no podía dispararse nunca. El owner los sacó
+   * junto con el resto de las políticas: «deja solo datos de empresa y período; no tienes para qué colocar eso».
+   * La alarma no murió: los umbrales caen a la REFERENCIA GENERAL de ADI, la misma con la que el diagnóstico
+   * asigna los estados. Lo que se prueba acá es que la plantilla no las pida Y que la vara siga existiendo. */
+  const politicas = ["dohMax", "rotacionMin", "benchmark", "bestPracticeCarga", "targetCarga", "margenBrechaMaterial"];
+  const pedidas = politicas.filter((k) => PARAMETROS.some((p) => p.policyKey === k || p.clave === k));
+  ok(pedidas.length === 0, "la plantilla no le pide NINGUNA política al usuario", pedidas.join(", "));
+  ok(PARAMETROS.length === 3, `solo quedan tres campos de empresa: ${PARAMETROS.map((p) => p.etiqueta).join(" · ")}`);
+
   const conEj = await handleIngesta({ op: "plantilla", conEjemplo: true });
-  const r = await handleIngesta({ archivo: conEj.archivo, nombre: "sin-los-nuevos.xlsx" });
-  ok(r.ok, "y un archivo sin declararlos se procesa sin problema");
+  const r2 = await handleIngesta({ archivo: conEj.archivo, nombre: "sin-politicas.xlsx" });
+  ok(r2.ok, "y un archivo sin ninguna política declarada se procesa igual");
+  const k = (r2.dataset && r2.dataset.margenKPI) || {};
+  ok(typeof k.benchmark === "number" && k.benchmarkProcedencia === "referencia general de ADI",
+    `la vara existe y dice de dónde sale: ${k.benchmark}% · ${k.benchmarkProcedencia}`);
+  ok(typeof k.brechaPuntos === "number", `…así que la brecha de margen se sigue pudiendo calcular (${k.brechaPuntos} pp)`);
+  ok(r2.dataset.skuInventario.every((s) => s.estado), "…y cada SKU sigue recibiendo su estado: la vara del inventario tampoco se apagó");
 }
 
 console.log(`\n── _pantalla_carga_gate: ${pass} PASS · ${fail} FAIL (de ${pass + fail}) ──`);

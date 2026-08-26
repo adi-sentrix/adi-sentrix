@@ -26,14 +26,14 @@
  *
  * Determinístico · sin red · sin credenciales · sin modelo · sin dependencias nuevas.
  */
-import { plantillaVacia, plantillaEjemplo, datosEjemplo } from "./src/ingesta/plantilla/generarPlantilla.js";
+import { plantillaVacia, plantillaEjemplo, datosEjemplo, hojasDeLaPlantilla } from "./src/ingesta/plantilla/generarPlantilla.js";
 import { validarPlantilla } from "./src/ingesta/plantilla/validarPlantilla.js";
 import { calcularDataset, CALCULOS, BLOQUEADOS } from "./src/ingesta/plantilla/motorKpi.js";
 import { ingestarPlantilla, previewPlantillaEnTexto } from "./src/ingesta/plantilla/ingestarPlantilla.js";
 import { CASOS } from "./src/ingesta/plantilla/casosPrueba.js";
-import { construirXlsx } from "./src/ingesta/escribirLibro.js";
+import { construirXlsx, ESTILO } from "./src/ingesta/escribirLibro.js";
 import { leerLibro } from "./src/ingesta/leerLibro.js";
-import { HOJAS, PARAMETROS, PLANTILLA_VERSION, MARCA_PLANTILLA, COLUMNAS_PROHIBIDAS } from "./src/config/contract/plantilla.js";
+import { HOJAS, PARAMETROS, PLANTILLA_VERSION, MARCA_PLANTILLA, COLUMNAS_PROHIBIDAS, HOJA_EMPRESA, HOJA_EJEMPLO } from "./src/config/contract/plantilla.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { initTenant, getTenantId } from "./src/data/tenantStore.js";
 import { LLAVES_DATASET } from "./src/ingesta/normalizar.js";
@@ -42,24 +42,34 @@ let PASS = 0, FAIL = 0;
 const ok = (c, m, extra = "") => { if (c) { PASS++; console.log("  ✓ " + m); } else { FAIL++; console.log("  ✗ FALLO: " + m + (extra ? "\n      " + extra : "")); } };
 const H = (t) => console.log("\n" + t + "\n" + "─".repeat(Math.min(100, t.length)));
 
+import { readFileSync } from "node:fs";
+/** Las filas REALES que el generador produce para una hoja — no una reconstrucción. Es la diferencia entre
+ *  comprobar el archivo y comprobar la idea que uno tiene del archivo. */
+const hojaDeGate = (def) => (hojasDeLaPlantilla().find((h) => h.nombre === def.nombre) || {}).filas || [];
+
 const EJEMPLO = plantillaEjemplo();
 const val = (buf) => validarPlantilla(buf, { nombreArchivo: "x.xlsx" });
 
 /** rehace el .xlsx del ejemplo con las hojas mutadas — para fabricar archivos rotos a propósito */
 function ejemploCon(mutar) {
   const d = datosEjemplo();
+  /* Fabrica el libro a mano para poder ROMPERLO en un punto concreto. Desde 2026-08-26 los datos de la empresa
+   * viven en su propia hoja, así que acá también: si el gate siguiera armando la cabecera dentro de Ventas
+   * estaría probando una estructura que la plantilla ya no genera. */
+  const empresa = { nombre: HOJA_EMPRESA, filas: [[MARCA_PLANTILLA], [], ...PARAMETROS.map((p) => [p.etiqueta, d.parametros[p.clave] ?? null])] };
   const hojas = HOJAS.map((def) => {
     const datos = ({ Ventas: d.ventas, Inventario: d.inventario })[def.nombre] || [];
-    const cabecera = def.conCabecera
-      ? [[MARCA_PLANTILLA, "", ""], ["", "", ""], ["Parámetro", "Valor", "Qué es"],
-         ...PARAMETROS.map((p) => [p.clave, d.parametros[p.clave] ?? null, ""]), ["", "", ""]]
-      : [];
-    return { nombre: def.nombre, filas: [...cabecera, [def.que], def.columnas.map((c) => c.titulo), ...datos.map((f) => def.columnas.map((c) => f[c.campo] ?? null))] };
+    return { nombre: def.nombre, filas: [[def.que], def.columnas.map((c) => c.ayuda), def.columnas.map((c) => c.titulo),
+      ...datos.map((f) => def.columnas.map((c) => f[c.campo] ?? null))] };
   });
-  mutar(hojas);
-  return construirXlsx(hojas);
+  const todas = [empresa, ...hojas];
+  if (mutar) mutar(todas);
+  return construirXlsx(todas);
 }
 const hoja = (hojas, n) => hojas.find((h) => h.nombre === n);
+/** El índice de una columna por su CAMPO. Antes estos tests escribían el número a mano y cada vez que el
+ *  contrato movía una columna se rompían diez asserts que no tenían nada que ver con el cambio. */
+const col = (nombreHoja, campo) => HOJAS.find((d) => d.nombre === nombreHoja).columnas.findIndex((c) => c.campo === campo);
 /** el índice de la fila de encabezados dentro de las filas fabricadas por `ejemploCon` */
 const iEnc = (h) => h.filas.findIndex((f) => (f || [])[0] === HOJAS.find((d) => d.nombre === h.nombre).columnas[0].titulo);
 
@@ -71,7 +81,6 @@ H("[A] LA PLANTILLA SE GENERA DEL CONTRATO · dos hojas para llenar");
   ok(Buffer.compare(plantillaVacia(), vacia) === 0, "generarla dos veces da los MISMOS bytes (determinística)");
   ok(Buffer.compare(plantillaEjemplo(), EJEMPLO) === 0, "el ejemplo también es determinístico");
   ok(HOJAS.length === 2 && HOJAS[0].nombre === "Ventas" && HOJAS[1].nombre === "Inventario", "el contrato declara DOS hojas: Ventas e Inventario");
-  ok(HOJAS[0].conCabecera === true && !HOJAS[1].conCabecera, "la cabecera del negocio vive dentro de Ventas, no en una pestaña aparte");
 
   const v = val(vacia);
   ok(v.version === PLANTILLA_VERSION, `la vacía se identifica como plantilla ${v.version}`);
@@ -99,7 +108,7 @@ ok(r.ok === true, `carga sin bloqueos${r.ok ? "" : " — " + r.preview.bloqueos.
   ok(d.clientesVentas.every((c) => c.canal), "el canal de cada cuenta sale de su columna, sin hoja de clientes");
   ok(d.skusMargen.every((s) => s.marca && s.sfamilia), "la marca y la familia de cada SKU salen de sus columnas, sin hoja de productos");
   ok(LLAVES_DATASET.every((k) => k in d), "trae todas las llaves de un tenant");
-  const suma = e.ventas.filter((v) => v.periodo === "2026-08").reduce((s, v) => s + v.venta, 0);
+  const suma = e.ventas.filter((v) => String(v.fecha).startsWith("2026-08")).reduce((s, v) => s + v.venta, 0);
   ok(d.ventasKPI.totalActual === suma, `la venta del período es la suma de sus filas (${d.ventasKPI.totalActual})`);
   ok(d.ventasMensuales.length === 2, "la serie mensual sale de los períodos informados");
 }
@@ -126,9 +135,9 @@ H("[C] EL PORTERO · lo que NO entra, y el mensaje que da");
   /* El título ya no lleva la moneda (owner: «si el usuario pone CLP también es válido»), pero la trampa que
    * importa sigue viva y es la de la ESCALA: alguien que escribe "Venta (miles)" está diciendo otra cosa. Un
    * título parecido no se acepta como equivalente — adivinar cuál quiso decir es miles-contra-dólares otra vez. */
-  const enMiles = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "Venta" ? "Venta (miles)" : t)); });
+  const enMiles = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "venta" ? "venta (miles)" : t)); });
   ok(val(enMiles).bloqueos.some((b) => b.tipo === "unidad-ambigua"), '"Venta (miles)" NO se acepta como equivalente de "Venta": la escala no se adivina');
-  const plural = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "Venta" ? "Ventas" : t)); });
+  const plural = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = h.filas[i].map((t) => (t === "venta" ? "ventas" : t)); });
   ok(val(plural).bloqueos.some((b) => b.tipo === "unidad-ambigua"), '…y tampoco un plural: los títulos son los del contrato o no son');
   ok(!/USD/.test(HOJAS.flatMap((h) => h.columnas.map((c) => c.titulo)).join(" ")), "ningún título impone la moneda: la declara el cliente en la cabecera");
 
@@ -138,18 +147,18 @@ H("[C] EL PORTERO · lo que NO entra, y el mensaje que da");
   const v3 = val(dupIgual);
   ok(v3.ok === true && v3.avisos.some((a) => a.tipo === "fila-duplicada-identica"), "misma clave con el mismo valor → se colapsa y se avisa");
 
-  ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h) + 1][1] = null; })).bloqueos.some((b) => b.tipo === "celda-obligatoria-vacia"), "una fila sin cliente no se puede atribuir: bloquea");
+  ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h) + 1][col("Ventas", "cliente")] = null; })).bloqueos.some((b) => b.tipo === "celda-obligatoria-vacia"), "una fila sin cliente no se puede atribuir: bloquea");
   ok(val(ejemploCon((hs) => hs.push({ nombre: "Mis notas", filas: [["a"]] }))).bloqueos.some((b) => b.tipo === "hoja-de-mas"), "una hoja de más rechaza el archivo");
-  ok(val(ejemploCon((hs) => { hs.splice(hs.findIndex((h) => h.nombre === "Ventas"), 1); })).bloqueos.some((b) => b.tipo === "no-es-la-plantilla"), "sin la hoja Ventas no hay plantilla que validar");
-  ok(val(ejemploCon((hs) => { hoja(hs, "Ventas").filas[0][0] = "PLANTILLA OFICIAL ADI/SENTRIX · v0"; })).bloqueos.some((b) => b.tipo === "version-distinta"), "una plantilla de otra versión se rechaza nombrando las dos");
+  ok(val(ejemploCon((hs) => { hs.splice(hs.findIndex((h) => h.nombre === HOJA_EMPRESA), 1); })).bloqueos.some((b) => b.tipo === "no-es-la-plantilla"), `sin la hoja «${HOJA_EMPRESA}» no hay plantilla que validar: ahí vive la marca del archivo`);
+  ok(val(ejemploCon((hs) => { hoja(hs, HOJA_EMPRESA).filas[0][0] = "PLANTILLA OFICIAL ADI/SENTRIX · v0"; })).bloqueos.some((b) => b.tipo === "version-distinta"), "una plantilla de otra versión se rechaza nombrando las dos");
 
   const cualquiera = construirXlsx([{ nombre: "Hoja1", filas: [["Cliente", "Venta"], ["Uno", 100]] }]);
   const v4 = val(cualquiera);
   ok(v4.ok === false && v4.bloqueos.some((b) => b.tipo === "no-es-la-plantilla"), "un Excel cualquiera NO entra");
   ok(/descargá la plantilla oficial/.test(v4.bloqueos[0].detalle), "…y le dice al usuario qué hacer, en vez de un «formato inválido»");
 
-  ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h) + 1][7] = "muchas"; })).bloqueos.some((b) => b.tipo === "valor-no-numerico"), "un texto donde va un número bloquea, con la fila nombrada");
-  ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h) + 1][0] = "agosto"; })).bloqueos.some((b) => b.tipo === "periodo-mal-escrito"), "un período mal escrito bloquea, y dice el formato esperado");
+  ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h) + 1][col("Ventas", "unidades")] = "muchas"; })).bloqueos.some((b) => b.tipo === "valor-no-numerico"), "un texto donde va un número bloquea, con la fila nombrada");
+  ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas[iEnc(h) + 1][col("Ventas", "fecha")] = "agosto"; })).bloqueos.some((b) => b.tipo === "fecha-mal-escrita"), "una fecha mal escrita bloquea, y dice el formato esperado (aaaa-mm-dd)");
   ok(val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i][0] = "Periodo"; })).bloqueos.some((b) => b.tipo === "encabezado-no-encontrado"), "si alguien reescribe el título de la primera columna, se dice que no se encuentra el encabezado");
 }
 
@@ -209,7 +218,9 @@ H("[E] LA PLANTILLA PIDE HECHOS · ADI valoriza, calcula días y rotación, y de
   /* CAPITAL = STOCK × COSTO UNITARIO, y el costo unitario sale de Ventas (costo ÷ unidades vendidas). Se
    * reproduce la cuenta acá con los datos crudos: si el motor cambiara de fórmula por dentro, esto se cae. */
   const uno = inv.find((s) => s.sku === "TRM-800");
-  const filasDelSku = datosEjemplo().ventas.filter((v) => v.sku === "TRM-800" && v.periodo === "2026-08" && v.bodega === uno.bodega);
+  /* La hoja Ventas ya no trae bodega (owner 2026-08-26), así que el costo unitario se acumula por SKU sobre el
+   * período actual — que es exactamente lo que hace el motor cuando no puede separar por bodega. */
+  const filasDelSku = datosEjemplo().ventas.filter((v) => v.sku === "TRM-800" && String(v.fecha).startsWith("2026-08"));
   const costo = filasDelSku.reduce((a, v) => a + v.costo, 0);
   const und = filasDelSku.reduce((a, v) => a + v.unidades, 0);
   const esperado = Math.round(uno.stockUnd * (costo / und));
@@ -239,20 +250,23 @@ H("[E] LA PLANTILLA PIDE HECHOS · ADI valoriza, calcula días y rotación, y de
 }
 
 /* ── [F] EL BENCHMARK ES PARÁMETRO ─────────────────────────────────────────────────────────────────────────── */
-H("[F] EL BENCHMARK · parámetro de la cabecera, jamás columna");
+H("[F] EL BENCHMARK · lo pone ADI y lo declara, y jamás es una columna");
 {
-  ok(r.dataset.perfil.benchmark === 28.0, `el benchmark declarado viaja al perfil del negocio (${r.dataset.perfil.benchmark})`);
-  ok(r.dataset.clientesMargen.every((c) => c.benchmark === 28.0), "…y cada fila lo lleva desde ahí");
-  const conCol = val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = [...h.filas[i], "Benchmark"]; h.filas.slice(i + 1).forEach((f) => f.push(30)); }));
-  ok(conCol.bloqueos.some((b) => b.tipo === "columna-calculada" && /cabecera/.test(b.detalle)), "como columna se rechaza, y remite a la cabecera");
+  /* ⚠️ EL BENCHMARK DEJÓ DE PEDIRSE (owner 2026-08-26): salió de la plantilla con el resto de las políticas
+   * —«deja solo datos de empresa y período»— y ADI usa su REFERENCIA GENERAL. Lo que no cambió, y es lo que este
+   * bloque protege, son las dos garantías de siempre: que la referencia se DECLARE en vez de pasar por dato del
+   * cliente, y que como COLUMNA se rechace. Un benchmark que llega por columna es una vara distinta por fila. */
+  const k = r.dataset.margenKPI;
+  ok(typeof k.benchmark === "number", `hay una referencia con la que comparar el margen (${k.benchmark}%)`);
+  ok(k.benchmarkProcedencia === "referencia general de ADI",
+    `…y se declara de dónde sale: «${k.benchmarkProcedencia}» — no se hace pasar por dato del negocio`);
+  ok(typeof k.brechaPuntos === "number", `la brecha de margen se puede calcular igual (${k.brechaPuntos} pp)`);
+  ok(!PARAMETROS.some((p) => p.clave === "benchmark"), "y la plantilla ya no se lo pide al usuario");
 
-  const sinBench = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas = h.filas.filter((f) => f[0] !== "benchmark"); });
-  const v = ingestarPlantilla(sinBench, { nombreArchivo: "s.xlsx" });
-  ok(v.ok === true, "sin benchmark declarado el archivo IGUAL carga (es opcional)");
-  ok(v.preview.avisos.some((a) => a.tipo === "benchmark-sin-declarar"), "…y se avisa que ADI usa su referencia general, en vez de inventarle una vara");
+  const conCol = val(ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i] = [...h.filas[i], "Benchmark"]; h.filas.slice(i + 1).forEach((f) => f.push(30)); }));
+  ok(conCol.bloqueos.some((b) => b.tipo === "columna-calculada"), "como columna se rechaza: una vara por fila no es una vara");
 }
 
-/* ── [G] LA PREVIEW ────────────────────────────────────────────────────────────────────────────────────────── */
 H("[G] LA PREVIEW HUMANA");
 {
   const t = previewPlantillaEnTexto(r.preview);
@@ -272,14 +286,14 @@ H("[G] LA PREVIEW HUMANA");
 /* ── [H] COHERENCIA · el precio de colapsar los maestros ───────────────────────────────────────────────────── */
 H("[H] COHERENCIA · el mismo SKU con dos marcas no se resuelve eligiendo");
 {
-  const dosMarcas = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i + 2][4] = "OtraMarca"; });
+  const dosMarcas = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i + 2][col("Ventas", "marca")] = "OtraMarca"; });
   const v = val(dosMarcas);
   ok(v.ok === false && v.bloqueos.some((b) => b.tipo === "atributo-incoherente"), "el mismo SKU con dos marcas distintas RECHAZA el archivo");
   const b = v.bloqueos.find((x) => x.tipo === "atributo-incoherente");
   ok(/fila \d+/.test(b.detalle) && /OtraMarca/.test(b.detalle), `…y nombra las dos filas que se contradicen: "${b.detalle.slice(0, 130)}…"`);
   ok(/no se elige una/.test(b.detalle), "…y dice explícitamente que no elige una: lo corrige el usuario");
 
-  const dosCanales = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i + 2][2] = "Mayorista"; });
+  const dosCanales = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); const i = iEnc(h); h.filas[i + 2][col("Ventas", "canal")] = "Mayorista"; });
   ok(val(dosCanales).bloqueos.some((x) => x.tipo === "atributo-incoherente"), "el mismo cliente con dos canales distintos también se rechaza");
 
   // el caso legítimo: un atributo vacío en una fila y presente en otra NO es una contradicción
@@ -322,9 +336,9 @@ H("[I] PROCEDENCIA VISIBLE · el usuario distingue lo suyo de lo que puso ADI");
     h.filas[i + 1][col] = null;
   });
   const pv = ingestarPlantilla(sinPrecio, { nombreArchivo: "sp.xlsx" }).preview;
-  ok(pv.avisos.some((a) => /Precio de lista.*vino vacía/.test(a.detalle)),
-     "una opcional que ADI NO calcula sí avisa al quedar vacía");
-  ok(!/vino vacía/.test(previewPlantillaEnTexto(r.preview)),
+  ok(pv.avisos.some((a) => a.tipo === 'columna-opcional-vacia' && /precio de lista/i.test(a.detalle)),
+     'una opcional que ADI NO calcula sí avisa al quedar vacía — y UNA vez por columna, no una por fila');
+  ok(!/precio de lista/i.test(previewPlantillaEnTexto(r.preview) || ''),
      "…y el archivo completo no arrastra ningún aviso de ese tipo");
 }
 
@@ -420,30 +434,105 @@ H("[J] LOS TRES CASOS · uno completo, uno mínimo, uno malo");
  * adivinanza. El contrato ya traía la etiqueta legible y la plantilla no la estaba usando: se veía recién al
  * ABRIR el archivo, que es justamente lo que ninguna prueba hacía. La clave se sigue aceptando, para no romper
  * un archivo que alguien ya haya llenado. */
-H("[K] LA CABECERA EN CASTELLANO · y la clave interna sigue valiendo");
+H("[K] LA HOJA EMPRESA EN CASTELLANO · y la clave interna sigue valiendo");
 {
-  const filas = leerLibro(plantillaVacia(), { nombreArchivo: "v.xlsx" }).hojas.find((h) => h.nombre === "Ventas").matriz;
-  const enHoja = filas.slice(0, 12).map((f) => (f || [])[0]).filter(Boolean).map(String);
-  for (const p of PARAMETROS) ok(enHoja.includes(p.etiqueta), `la hoja pide "${p.etiqueta}"`);
+  /* La cabecera se mudó a su propia pestaña (owner 2026-08-26) y quedó en TRES campos: identidad y período.
+   * Lo que se prueba es lo de siempre — que el rótulo esté en castellano legible, que ninguna celda le muestre
+   * al usuario un nombre de programador, y que un archivo rotulado con la clave interna se siga aceptando. */
+  const filas = leerLibro(plantillaVacia(), { nombreArchivo: "v.xlsx" }).hojas.find((h) => h.nombre === HOJA_EMPRESA).matriz;
+  const enHoja = filas.map((f) => (f || [])[0]).filter(Boolean).map(String);
+  for (const p of PARAMETROS) ok(enHoja.includes(p.etiqueta), `la hoja «${HOJA_EMPRESA}» pide "${p.etiqueta}"`);
   ok(!enHoja.some((t) => /[a-z][A-Z]/.test(t)), "…y ninguna celda le muestra al usuario un nombre de programador");
+  ok(PARAMETROS.every((p) => p.ayuda && p.ayuda === p.ayuda.toLowerCase()),
+    "cada campo trae su explicación, en minúscula como pidió el owner");
+  for (const p of PARAMETROS) ok(enHoja.includes(p.ayuda), `…y la explicación de "${p.etiqueta}" está escrita en la hoja, no solo en el contrato`);
 
   const conEtiqueta = ingestarPlantilla(EJEMPLO, { nombreArchivo: "e.xlsx" });
-  ok(conEtiqueta.ok && conEtiqueta.preview.parametros.margenBrechaMaterial === 4,
+  ok(conEtiqueta.ok && conEtiqueta.preview.parametros.empresa_id === "andes",
      "el archivo con la cabecera en castellano entra, y el parámetro llega al motor con su clave interna");
 
   const conClave = ingestarPlantilla(ejemploCon(() => {}), { nombreArchivo: "c.xlsx" });
-  ok(conClave.ok === true && conClave.preview.parametros.margenBrechaMaterial === 4,
-     "un archivo rotulado con la clave interna sigue entrando: los ya llenados no se rompen");
+  ok(conClave.ok === true && conClave.preview.parametros.empresa_id === "andes",
+     "un archivo rotulado con la etiqueta o con la clave sigue entrando: los ya llenados no se rompen");
 
-  const sinMoneda = ejemploCon((hs) => { const h = hoja(hs, "Ventas"); h.filas = h.filas.filter((f) => (f || [])[0] !== "moneda"); });
-  const bm = validarPlantilla(sinMoneda, { nombreArchivo: "sm.xlsx" }).bloqueos.find((b) => b.tipo === "parametro-obligatorio-ausente");
-  ok(!!bm && /Moneda de todos los montos/.test(bm.detalle),
+  const sinNombre = ejemploCon((hs) => {
+    const h = hoja(hs, HOJA_EMPRESA);
+    const et = PARAMETROS.find((p) => p.clave === "empresa_nombre").etiqueta;
+    h.filas = h.filas.filter((f) => (f || [])[0] !== et);
+  });
+  const bm = validarPlantilla(sinNombre, { nombreArchivo: "sn.xlsx" }).bloqueos.find((b) => b.tipo === "parametro-obligatorio-ausente");
+  ok(!!bm && /nombre de tu empresa/.test(bm.detalle),
      "cuando falta, el error nombra la etiqueta que el usuario ve en la hoja, no la clave interna");
+  ok(!!bm && new RegExp(HOJA_EMPRESA).test(bm.detalle), "…y dice en qué pestaña buscarla");
 }
 
-initTenant(r.dataset);
-ok(getTenantId() === "andes", "el dataset calculado se activa como tenant sin romper nada");
-initTenant(TENANT_DEMO);
+/* ── [L] QUE EL USUARIO SEPA QUÉ HACER ─────────────────────────────────────────────────────────────────────── */
+H("[L] EL USUARIO ABRE EL ARCHIVO Y SABE QUÉ HACER · amarillo, explicación y ejemplo adentro");
+{
+  /* LA FRASE QUE ORDENA ESTA SECCIÓN, del owner (2026-08-26): «lo que no debe pasar es que el usuario vea la
+   * planilla y no sepa qué hacer». Todo lo de acá existe por eso, y ninguna de las cuatro piezas se puede probar
+   * mirando el contrato: hay que mirar el ARCHIVO que se genera, que es lo que la persona abre. */
+  const vacia = plantillaVacia();
+
+  // 1 · el amarillo · pidió «marca en amarillo los campos obligatorios»
+  ok(vacia.includes("xl/styles.xml"), "el libro trae hoja de estilos: sin eso no hay color posible");
+  ok(ESTILO.OBLIGATORIA !== ESTILO.NORMAL && ESTILO.OBLIGATORIA !== ESTILO.OPCIONAL,
+    "obligatoria, opcional y normal son tres estilos distintos");
+  for (const def of HOJAS) {
+    const filas = hojaDeGate(def);
+    const titulos = filas.find((f) => Array.isArray(f) && f.some((c) => c && c.v === def.columnas[0].titulo));
+    const conEstilo = (t) => (titulos || []).find((c) => c && c.v === t.titulo);
+    const obligatorias = def.columnas.filter((c) => c.obligatoria);
+    ok(obligatorias.every((c) => (conEstilo(c) || {}).s === ESTILO.OBLIGATORIA),
+      `«${def.nombre}»: las ${obligatorias.length} obligatorias van en amarillo`);
+    ok(def.columnas.filter((c) => !c.obligatoria).every((c) => (conEstilo(c) || {}).s === ESTILO.OPCIONAL),
+      `«${def.nombre}»: las opcionales NO — si todo se pinta, el color deja de decir algo`);
+  }
+
+  // 2 · la explicación de cada campo · «un comentario en cada campo, todo en minúscula»
+  for (const def of HOJAS) {
+    ok(def.columnas.every((c) => c.ayuda && c.ayuda.length > 10), `«${def.nombre}»: cada columna trae su explicación`);
+    ok(def.columnas.every((c) => c.ayuda === c.ayuda.toLowerCase()), `«${def.nombre}»: y todas en minúscula, como pidió`);
+    ok(def.columnas.every((c) => c.titulo === c.titulo.toLowerCase()), `«${def.nombre}»: los títulos también`);
+  }
+  {
+    const m = leerLibro(vacia, { nombreArchivo: "v.xlsx" }).hojas.find((h) => h.nombre === "Ventas").matriz;
+    const iTit = m.findIndex((f) => (f || [])[0] === HOJAS[0].columnas[0].titulo);
+    ok(iTit > 0, "la fila de títulos no es la primera: arriba hay contexto");
+    ok((m[iTit - 1] || [])[0] === HOJAS[0].columnas[0].ayuda,
+      "…y la explicación de cada columna está JUSTO ARRIBA de su título, no escondida en un comentario");
+    ok(m.slice(0, iTit).some((f) => /amarillo son obligatorias/.test(String((f || [])[0] || ""))),
+      "la hoja dice, escrito, qué significa el amarillo");
+    ok(m.slice(0, iTit).some((f) => /adi no va a poder responderte|no va a poder responder/.test(String((f || [])[0] || ""))),
+      "…y qué pasa si dejás una opcional vacía: «ADI solo no responderá sobre eso»");
+  }
+
+  // 3 · el ejemplo vive adentro · «coloca una pestaña hoja con ese ejemplo y listo»
+  {
+    const nombres = leerLibro(vacia, { nombreArchivo: "v.xlsx" }).hojas.map((h) => h.nombre);
+    ok(nombres.includes(HOJA_EJEMPLO), `la pestaña «${HOJA_EJEMPLO}» viaja dentro del mismo archivo`);
+    const ej = leerLibro(vacia, { nombreArchivo: "v.xlsx" }).hojas.find((h) => h.nombre === HOJA_EJEMPLO).matriz;
+    ok(ej.length > 8, `…y trae filas de muestra (${ej.length} líneas)`);
+    ok(ej.some((f) => /solo para mirar/.test(String((f || [])[0] || ""))), "…y avisa que no hay que llenarla");
+    const panel = readFileSync("./src/ui/PanelDatos.jsx", "utf8");
+    ok(!/Con datos de ejemplo/.test(panel), "y la pantalla dejó de ofrecer una segunda descarga: un archivo, un botón");
+  }
+
+  // 4 · lo que el owner pidió agregar y quitar
+  {
+    const ventas = HOJAS.find((h) => h.nombre === "Ventas");
+    const pv = ventas.columnas.find((c) => c.campo === "puntoVenta");
+    ok(!!pv && !pv.obligatoria, "«punto de venta» existe y es opcional: hay clientes con varias sucursales y clientes con una");
+    ok(pv.clave === true, "…y es parte de la clave: dos sucursales del mismo cliente el mismo día no son la misma fila");
+    ok(!ventas.columnas.some((c) => c.campo === "bodega"), "«bodega» salió de Ventas: ya se pide en Inventario");
+    const fecha = ventas.columnas.find((c) => c.campo === "fecha");
+    ok(!!fecha && fecha.tipo === "fecha" && /aaaa-mm-dd/.test(fecha.titulo),
+      `el período pasó a ser fecha completa: «${fecha.titulo}»`);
+    const d = ingestarPlantilla(EJEMPLO, { nombreArchivo: "f.xlsx" });
+    ok(d.ok && d.preview.periodos.todos.every((p) => /^\d{4}-\d{2}$/.test(p)),
+      `…y el mes se deriva del día para agrupar (${d.preview.periodos.todos.join(" · ")})`);
+  }
+}
 
 console.log(`\n${FAIL === 0 ? "✅" : "❌"} _plantilla_oficial_gate · ${PASS} ok · ${FAIL} fallas`);
 process.exit(FAIL === 0 ? 0 : 1);
