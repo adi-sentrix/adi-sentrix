@@ -58,15 +58,39 @@ ok(tenantsEnGrafo.length === 0, "ningún dataset de tenant es alcanzable desde e
 ok(serverEnGrafo.length === 0, "ningún módulo *.server.* es alcanzable desde el navegador",
   serverEnGrafo.length ? `alcanzables: ${serverEnGrafo.join(" · ")}\n      → tenantService.server.js importa el registro COMPLETO: si entra al grafo, entran todas las empresas.` : "");
 
-/* ── el texto sobre el que se buscan literales: el bundle de esbuild siempre, y el `dist/` real si existe ──── */
+/* ── el texto sobre el que se buscan literales ──────────────────────────────────────────────────────────────
+ * LA PRUEBA AUTORITATIVA ES EL GRAFO QUE ESTE GATE CONSTRUYE RECIÉN, no un archivo que quedó en el disco. El
+ * `dist/` publicado se suma como evidencia ADICIONAL solo si está AL DÍA.
+ *
+ * ⚠️ POR QUÉ SE MIRA LA FECHA (owner 2026-08-22). Antes se leía `dist/` «si existe», sin preguntar de cuándo era.
+ * Eso ya dio un ROJO FALSO —un `dist/` de nueve días atrás mostró una fuga que el arreglo ya había cerrado— y
+ * costó un diagnóstico equivocado. Pero el peligro serio es el otro: si alguien construyó `dist/` ANTES de
+ * introducir una fuga, el gate lee el artefacto viejo, no encuentra nada y **pasa en VERDE**. Un candado de
+ * seguridad que puede dar verde leyendo evidencia caducada es peor que no tenerlo, porque enseña a confiar.
+ * Regla del owner, textual: «no quiero verdes basados en artefactos viejos».
+ * Caducado NO es un fallo del gate —no construir antes de correr la suite es normal— pero se DICE, y el
+ * artefacto se descarta: la evidencia se ignora, nunca se degrada en silencio. */
 const textoEsbuild = build.outputFiles.map((f) => f.text).join("\n");
 const distDir = path.join(ROOT, "dist", "assets");
-const hayDist = fs.existsSync(distDir);
+const _masNuevo = (dir) => {
+  let max = 0;
+  const rec = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) rec(p); else { const m = fs.statSync(p).mtimeMs; if (m > max) max = m; } } };
+  try { rec(dir); } catch { return 0; }
+  return max;
+};
+const existeDist = fs.existsSync(distDir);
+const edadDist = existeDist ? _masNuevo(distDir) : 0;
+const edadSrc = _masNuevo(path.join(ROOT, "src"));
+const distCaducado = existeDist && edadDist < edadSrc;
+const hayDist = existeDist && !distCaducado;
 const textoDist = hayDist
   ? fs.readdirSync(distDir).filter((f) => f.endsWith(".js")).map((f) => fs.readFileSync(path.join(distDir, f), "utf8")).join("\n")
   : "";
-const FUENTES = [["grafo esbuild", textoEsbuild], ...(hayDist ? [["dist/ publicado", textoDist]] : [])];
-if (!hayDist) console.log("  · nota: no hay dist/ — se revisa solo el bundle de esbuild. Con `npm run build` antes, se revisan los dos.");
+const FUENTES = [["grafo esbuild (recién construido)", textoEsbuild], ...(hayDist ? [["dist/ publicado", textoDist]] : [])];
+if (!existeDist) console.log("  · nota: no hay dist/ — se revisa el grafo fresco, que es la prueba autoritativa. Con `npm run build` antes, se revisan los dos.");
+else if (distCaducado) console.log(`  · ⚠️ EVIDENCIA CADUCADA: dist/ es MAS VIEJO que src/ (${new Date(edadDist).toISOString().slice(0, 16).replace("T", " ")} contra ${new Date(edadSrc).toISOString().slice(0, 16).replace("T", " ")}) — se DESCARTA. Un verde apoyado en un artefacto viejo no prueba nada. Corre "npm run build" para volver a sumarlo.`);
 
 /* Los literales de un tenant, sacados del propio dataset (nada de listas escritas a mano acá).
  * PISO DE 4 CARACTERES, y no es una comodidad: buscar por subcadena en código MINIFICADO convierte cualquier
