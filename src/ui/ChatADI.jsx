@@ -36,7 +36,7 @@ import { buildNarrateUserMessageC } from "../adi/oracle/narratePromptC.js";
 import { proyectarDatoNegocio } from "../adi/oracle/datoProyectado.js";   // AMPLITUD F1: el dato completo del negocio al segmento fijo de NARRAR
 import { deriveMemoriaLegacy } from "../adi/responseContract.js";   // Contrato v2 · Fase 4: la memoria legacy pasa a ser una VISTA del canónico (conversationScope), no una segunda verdad
 import { estimateCostUSD } from "../adi/llm/modelPricing.js";   // router de modelo (owner 2026-08-02) · costo real por intento, observable por turno
-import { C } from "./theme.js";
+import { C, T, esPapel } from "./theme.js";
 import { renderMarkdownLite, isTabularText, parseMarkdownTable } from "./markdown.jsx";
 import { TypewriterText } from "./TypewriterText.jsx";
 
@@ -1028,26 +1028,36 @@ function HeroInicio({ scenario, campo, onPregunta }) {
 
         {/* EL PULSO · cifras del motor. Cada una es CLICKEABLE hacia su pregunta: la banda no es un dashboard
             que se mira, es una fila de puertas a la conversación (anti-BI · misma regla que las filas de Sentrix). */}
+        {/* ⚠️ SOBRE PAPEL EL PULSO ES UN INSTRUMENTO, NO UNA BANDA (owner 2026-08-26, al elegir «con pulso»).
+              Sale de la regla del propio rediseño —«todo lo que MIDE viene en oscuro»— y resuelve de paso la
+              objeción de que el hero repitiera lo que la Mesa ya muestra: deja de ser una fila de cifras sueltas
+              y pasa a ser una tarjeta apoyada sobre la hoja, del mismo material que Sentrix.
+              Las cifras siguen siendo BOTONES que mandan su pregunta al chat: eso no se toca, es lo que las hace
+              puertas de entrada y no datos repetidos. En el tablero, todo queda exactamente como estaba. */}
         {pulso && (
-          <div style={{ width:"100%", maxWidth:860, marginTop:34, paddingTop:24, borderTop:`1px solid ${C.border}` }}>
+          <div style={{ width:"100%", maxWidth:860, marginTop:34,
+            ...(esPapel()
+              ? { background:T.bg, borderRadius:13, padding:"16px 18px 15px",
+                  boxShadow:"0 16px 40px -14px rgba(10,10,10,0.40), 0 3px 10px -3px rgba(10,10,10,0.16)" }
+              : { paddingTop:24, borderTop:`1px solid ${C.border}` }) }}>
             <p style={{ margin:"0 0 14px", textAlign:"center", fontSize:11.5, fontWeight:600,
-              letterSpacing:"0.15em", textTransform:"uppercase", color:C.textMuted }}>{pulso.rotulo}</p>
+              letterSpacing:"0.15em", textTransform:"uppercase", color:T.textMuted }}>{pulso.rotulo}</p>
             <div style={{ display:"grid", gridTemplateColumns:`repeat(auto-fit, minmax(150px, 1fr))`, gap:8 }}>
               {pulso.cifras.map((c) => (
                 <button key={c.key} onClick={() => onPregunta(c.ask)} title={`Pregúntale a ADI: ${c.ask}`}
                   style={{ textAlign:"center", padding:"6px 6px 8px", background:"transparent", border:"1px solid transparent",
                     borderRadius:10, cursor:"pointer", fontFamily:"inherit", transition:"background 0.14s, border-color 0.14s" }}
-                  onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.035)"; e.currentTarget.style.borderColor=C.border; }}
+                  onMouseEnter={e => { e.currentTarget.style.background=T.hoverSuave; e.currentTarget.style.borderColor=T.border; }}
                   onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.borderColor="transparent"; }}>
-                  <span style={{ display:"block", fontSize:21, fontWeight:600, letterSpacing:"-0.02em", color:C.celeste,
+                  <span style={{ display:"block", fontSize:21, fontWeight:600, letterSpacing:"-0.02em", color:T.celeste,
                     fontVariantNumeric:"tabular-nums lining-nums", lineHeight:1.1 }}>{c.valor}</span>
-                  <span style={{ display:"block", marginTop:5, fontSize:12.5, fontWeight:500, color:C.textMuted, lineHeight:1.35 }}>{c.etiqueta}</span>
+                  <span style={{ display:"block", marginTop:5, fontSize:12.5, fontWeight:500, color:T.textMuted, lineHeight:1.35 }}>{c.etiqueta}</span>
                 </button>
               ))}
             </div>
             <p style={{ margin:"18px auto 0", maxWidth:640, textAlign:"center", fontSize:15, fontWeight:500,
-              lineHeight:1.55, color:C.textSub, letterSpacing:"-0.006em" }}>
-              <b style={{ fontWeight:600, color:C.text }}>{pulso.lectura.destacado}</b> {pulso.lectura.cola}
+              lineHeight:1.55, color:T.textSub, letterSpacing:"-0.006em" }}>
+              <b style={{ fontWeight:600, color:T.text }}>{pulso.lectura.destacado}</b> {pulso.lectura.cola}
             </p>
           </div>
         )}
@@ -1327,14 +1337,21 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
               <div key={msg.id} style={{ display:"flex", flexDirection:"column", gap:6, width:"100%" }}>
                 <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
                   <AdiAvatar spark={isTyping || isPending}/>
+                  {/* ⚠️ SOBRE PAPEL, ADI NO TIENE BURBUJA (frente UX · owner 2026-08-26): «las burbujas tuyas son
+                      papel gris; las de ADI no tienen burbuja — solo el hexágono al costado y el texto sobre la
+                      hoja. Eso hace que la respuesta se sienta escrita, no encajonada». En el tablero la burbuja
+                      se conserva TAL CUAL estaba: mismo fondo, mismo borde celeste, misma sombra interior. */}
                   <div data-testid="adi-bubble" style={{
-                    flex:1, minWidth:0, background:C.card, padding:"16px 20px",
-                    // el borde con TOQUE (owner 2026-07-10, referencia de la landing): celeste sutil en las burbujas
-                    // de ADI — la misma familia de las cards de gráficos; la del usuario queda neutra.
-                    borderRadius:10, border:"1px solid rgba(47,184,218,0.22)",
+                    flex:1, minWidth:0,
+                    ...(esPapel()
+                      ? { background:"transparent", padding:"2px 0 0", border:"none", borderRadius:0, boxShadow:"none" }
+                      : { background:C.card, padding:"16px 20px", borderRadius:10,
+                          // el borde con TOQUE (owner 2026-07-10, referencia de la landing): celeste sutil en las
+                          // burbujas de ADI — la misma familia de las cards de gráficos; la del usuario queda neutra.
+                          border:"1px solid rgba(47,184,218,0.22)",
+                          boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)" }),
                     fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:14, lineHeight:1.65,
-                    letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line",
-                    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)"
+                    letterSpacing:"-0.01em", color:C.text, fontWeight:400, whiteSpace:"pre-line"
                   }}>
                     {isPending ? (
                       <ThinkingIndicator phase={thinkPhase}/>

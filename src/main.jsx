@@ -17,6 +17,17 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./ui/App.jsx";
 import { cargarTenant } from "./data/tenantClient.js";
+import { aplicarTema } from "./ui/theme.js";
+
+/* ── «PAPEL Y TABLERO» · detrás de un interruptor (owner 2026-08-26) ──────────────────────────────────────────
+ * El rediseño entero vive detrás de `?papel=1`, el mismo patrón que `?historial=1` y `?barra=…`. Sin el
+ * parámetro la app queda EXACTAMENTE como está hoy: el tema arranca en tablero y ningún token cambia — hay un
+ * gate que lo comprueba comparando la paleta contra la versión anterior, token por token.
+ * Se aplica ACÁ, antes de montar React, para que el primer render ya salga con la superficie correcta y no se
+ * vea un parpadeo de negro a papel. */
+try {
+  if (new URLSearchParams(window.location.search).get("papel") === "1") aplicarTema("papel");
+} catch { /* sin window (SSR o prueba): queda el tablero, que es el estado por defecto */ }
 
 const root = createRoot(document.getElementById("root"));
 

@@ -12,7 +12,11 @@
  *   · Color semántico pleno SOLO en la cifra; la barra susurra en gradiente. Ámbar = plata y corte 80/20 (no rojo).
  *   · Cifras verbatim de la única verdad (r.fmt / valFmt) — acá jamás se re-formatea. */
 import React, { useState, useId } from "react";
-import { C } from "./theme.js";
+/* ⚠️ ESTE ARCHIVO MIDE, ASÍ QUE VIVE EN EL TABLERO SIEMPRE (owner 2026-08-26): «todo lo que mide viene en
+ * oscuro; el papel es donde se conversa». Por eso importa `T` —la paleta oscura, congelada— bajo el nombre `C`:
+ * las referencias de abajo no cambian una letra y el archivo queda inmune al interruptor `?papel=1`.
+ * Es lo que hace que NO haya que recalibrar ni una serie, ni un semáforo, ni un sello: siguen sobre negro. */
+import { T as C } from "./theme.js";
 import { buildGlobalEvolution } from "../adi/sentrix/temporal.js";
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
