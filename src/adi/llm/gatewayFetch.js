@@ -6,6 +6,7 @@
  */
 import { GATEWAY_ROUTES } from "./gatewayCore.js";
 import { handleData } from "../../data/tenantService.server.js";
+import { handleIngesta } from "../../ingesta/handleIngesta.server.js";
 import { ipAddress } from "@vercel/functions";
 import { instalarTelemetria } from "./telemetrySink.js";
 import { toolNames } from "../oracle/toolRegistry.js";
@@ -72,7 +73,10 @@ const _clientIp = (request) => { try { return ipAddress(request) || null; } catc
 // `gatewayCore.js`, y meterle el registro de tenants haría que todo módulo que importa el core arrastre el dato de
 // todas las empresas. `gatewayFetch` en cambio solo lo importan `api/*.js` y `server.js` — servidor puro. La regla
 // es la de siempre: el dato de tenant entra por el borde del servidor, nunca por el núcleo compartido.
-const ROUTES = { ...GATEWAY_ROUTES, "/api/adi-data": handleData };
+/* `/api/adi-ingesta` (v1.4) se monta acá por la MISMA razón que adi-data: importa el motor de ingesta, que a
+ * su vez importa `node:zlib`. Si viviera en `GATEWAY_ROUTES` (gatewayCore), todo módulo que toca el core —el
+ * navegador incluido— arrastraría una dependencia de Node que ahí no existe. Servidor puro, como corresponde. */
+const ROUTES = { ...GATEWAY_ROUTES, "/api/adi-data": handleData, "/api/adi-ingesta": handleIngesta };
 
 // gatewayFetch(request, env) → Response · `env` opcional (para runtimes tipo Cloudflare que pasan el env al handler)
 export async function gatewayFetch(request, env) {

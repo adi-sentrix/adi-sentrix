@@ -84,7 +84,7 @@ function _modoBarra() {
  * con lo que se HACE. Nada de eso se perdió del producto — el modo y el acceso siguen en su lógica; lo que
  * se quitó es su vitrina. */
 export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInicio,
-  historialAbierto = false, onConversaciones = null }) {
+  historialAbierto = false, onConversaciones = null, datosAbiertos = false, onDatos = null }) {
   const modo = useMemo(_modoBarra, []);
   // «empuja» es el ÚNICO modo que necesita JavaScript: CSS no puede, desde el :hover de la barra, ensanchar el
   // colchón de un panel que es su hermano. Los otros dos son CSS puro.
@@ -173,6 +173,16 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
         titulo="Tu negocio en vivo: cifras, focos y el 80/20 a la mano, con ADI al lado"
         icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>}>
         Mesa de control
+      </Fila>
+
+      {/* TUS DATOS (v1.4) · la cuarta puerta. Es PERMANENTE y no un paso de arranque a propósito: probar con
+          datos propios no es algo que se hace una vez: se sube un archivo, se mira, se corrige y se vuelve a
+          subir. Una puerta que solo aparece al principio obligaría a recargar la app para reintentar.
+          `datos-abrir` es el ancla del gate. */}
+      <Fila activo={datosAbiertos} onClick={onDatos} testid="datos-abrir"
+        titulo="Sube la planilla de tu negocio y prueba ADI con tus propios datos"
+        icono={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 15v3.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V15"/><polyline points="7.5 8.5 12 4 16.5 8.5"/><line x1="12" y1="4" x2="12" y2="15"/></svg>}>
+        Tus datos
       </Fila>
 
       {/* `guia-abrir` es el ancla de `_guia_inicio_gate`: prueba que la puerta PERMANENTE a la guía existe y

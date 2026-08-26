@@ -21,7 +21,8 @@ import { GuiaInicio, guiaAbreSola } from "./GuiaInicio.jsx";   // guía de inici
 import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada · puerta + emisión de códigos (owner 2026-07-08)
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { cargarTenant } from "../data/tenantClient.js";       // vía 1 · el dato llega por la red, no por el bundle
-import { tenantCargado } from "../data/tenantStore.js";
+import { tenantCargado, initTenant, getTenantData } from "../data/tenantStore.js";
+import { PanelDatos } from "./PanelDatos.jsx";   // v1.4 · la pantalla de carga: subir la planilla, verla, confirmar y activarla
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
 import { initCriteria } from "../adi/criteria.js";   // C.2 · memoria de criterio · re-aplica lo persistido (localStorage) al boot
@@ -96,6 +97,30 @@ export default function App({ animate = true }) {
     cargarTenant().then((r) => { if (alive && r && r.ok) setDatosListos(true); }).catch(() => {});
     return () => { alive = false; };
   }, [access.checked, access.required, access.granted, datosListos]);
+  /* ── TUS DATOS (v1.4) · el archivo del usuario reemplaza al demo ─────────────────────────────────────────
+   * `cargaActiva` es null mientras corre el negocio de demostración. `demoOriginal` guarda el dataset que
+   * estaba puesto ANTES de activar el archivo, que es lo único que permite volver atrás sin recargar.
+   * `datosVersion` fuerza el remontaje del árbol: `initTenant` re-arma los módulos, pero React seguiría
+   * pintando lo que ya tenía derivado en estado. Sin este remonte, media pantalla quedaría con la empresa
+   * anterior — que es exactamente la clase de mezcla que este producto no puede permitirse. */
+  const [datosAbiertos, setDatosAbiertos] = useState(false);
+  const [cargaActiva, setCargaActiva]     = useState(null);
+  const [datosVersion, setDatosVersion]   = useState(0);
+  const demoOriginal = useRef(null);
+  const activarDatos = (dataset, sello, quien) => {
+    if (!demoOriginal.current) demoOriginal.current = getTenantData();
+    initTenant(dataset);
+    /* el sello de la lectura queda a mano para el cableado conversacional (pase declarado aparte): la
+     * observación que el usuario confirmó tiene que acompañar a las cifras, no morir en el momento del clic. */
+    try { window.__ADI_SELLO_CARGA__ = sello || null; } catch { /* sin window */ }
+    setCargaActiva(quien); setDatosAbiertos(false); setDatosVersion((v) => v + 1);
+  };
+  const volverAlDemo = () => {
+    if (demoOriginal.current) initTenant(demoOriginal.current);
+    try { window.__ADI_SELLO_CARGA__ = null; } catch { /* sin window */ }
+    setCargaActiva(null); setDatosAbiertos(false); setDatosVersion((v) => v + 1);
+  };
+
   // Etapa 5 · Sentrix · estado del panel de evidencia (la "mesa de trabajo" estilo Code, a la derecha).
   const [openEv, setOpenEv]   = useState(null);   // la boleta abierta (con reading{}) · null = panel cerrado
   const [openId, setOpenId]   = useState(null);   // id del mensaje cuya evidencia está abierta (highlight del botón)
@@ -169,7 +194,7 @@ export default function App({ animate = true }) {
   if (!datosListos) return <div style={{ height:"100vh", background:C.bg }}/>;
 
   return (
-    <div className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+    <div key={datosVersion} className="app-root" style={{ height:"100vh", background:C.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif", color:C.text, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
       {/* ── MAIN · ADI centro con atmósfera ──
           LA BARRA BLANCA DE ARRIBA YA NO EXISTE (owner 2026-08-20): la marca, las dos acciones y los cuatro
@@ -192,6 +217,8 @@ export default function App({ animate = true }) {
           onConversaciones={historialVisible ? () => setHistColapsado((v) => !v) : null}
           guiaAbierta={guiaAbierta}
           onGuia={() => setGuiaAbierta((v) => !v)}
+          datosAbiertos={datosAbiertos}
+          onDatos={() => setDatosAbiertos((v) => !v)}
           onInicio={() => { closePanel(); if (resetRef.current) resetRef.current(); }}/>
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"row", flex:1, minHeight:0 }}>
           {/* COLUMNA IZQUIERDA · propuesta en revisión (owner 2026-08-20), detrás de `?historial=1`. Sin el
@@ -252,6 +279,16 @@ export default function App({ animate = true }) {
           onCerrar={() => setGuiaAbierta(false)}
           // la guía manda el PROMPT EXACTO al chat normal (owner 2026-08-15): sin spec, sin atajo, sin ruta demo
           onEjecutar={(q) => { setGuiaAbierta(false); if (runRef.current) runRef.current(q); }}/>
+      )}
+
+      {/* TUS DATOS · fuera del <main> por lo mismo que la guía: es `position:fixed` sobre toda la app y no
+          debe heredar el `overflow:hidden` del layout. */}
+      {datosAbiertos && (
+        <PanelDatos
+          activo={cargaActiva}
+          onCerrar={() => setDatosAbiertos(false)}
+          onActivar={activarDatos}
+          onVolverAlDemo={volverAlDemo}/>
       )}
 
       <style>{`

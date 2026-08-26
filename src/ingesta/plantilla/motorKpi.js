@@ -89,6 +89,10 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
 
   const periodoActual = parametros.periodo_actual || null;
   const periodos = [...new Set(ventas.map((v) => v.periodo))].sort();
+  /* CUÁNTAS FILAS TRAE CADA PERÍODO · un hecho del archivo, no una cuenta de negocio. Viaja en la preview porque
+   * la lectura de plausibilidad lo necesita para detectar un período cargado a medias: sin este conteo esa señal
+   * no puede disparar nunca (ya nació muerta una vez por leer un campo que no existía). */
+  const filasPorPeriodo = {}; for (const v of ventas) filasPorPeriodo[v.periodo] = (filasPorPeriodo[v.periodo] || 0) + 1;
   const actual = periodoActual && periodos.includes(periodoActual) ? periodoActual : periodos[periodos.length - 1] || null;
   const anterior = periodos[periodos.indexOf(actual) - 1] || null;
   if (periodoActual && actual !== periodoActual) avisos.push({ tipo: "periodo-declarado-sin-ventas", detalle: `«${periodoActual}» no tiene filas de venta; se usa «${actual}»` });
@@ -272,5 +276,5 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
     clientesAlias: {}, clientesAmbiguos: [],
   };
 
-  return { dataset, calculado: CALCULOS, bloqueado: BLOQUEADOS, avisos, periodos: { actual, anterior, todos: periodos } };
+  return { dataset, calculado: CALCULOS, bloqueado: BLOQUEADOS, avisos, periodos: { actual, anterior, todos: periodos, filas: filasPorPeriodo } };
 }
