@@ -12,7 +12,43 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.6 — producción · tag `v1.6`
+## 1.7 — producción · tag `v1.7`
+
+**Nada cambia de aspecto al entrar.** Esta versión sube dos cosas que están apagadas o que no se ven: el
+rediseño «papel y tablero» detrás de un interruptor, y un candado que protege la estructura de la plantilla.
+Es una versión de andamio, y vale la pena que quede dicho así.
+
+- **«Papel y tablero», completo pero apagado.** El rediseño de la interfaz —ADI en papel claro, Sentrix en
+  negro, y una sombra como única costura entre los dos— viaja entero detrás de **`?papel=1`**. Sin ese
+  parámetro en la dirección, la app queda **exactamente** como estaba: mismo negro, misma tipografía, mismos
+  colores. Se puede mirar en vivo agregando el parámetro, y se apaga sacándolo.
+- **La regla que lo hace barato:** *todo lo que mide viene en oscuro; el papel es donde se conversa*. Sentrix,
+  los gráficos que ADI dibuja dentro de sus respuestas y el pulso del inicio viven en un juego de tokens
+  aparte que el interruptor no toca. Por eso no hubo que recalibrar ni una serie, ni un semáforo, ni un sello:
+  siguen sobre negro, que es donde ya funcionaban.
+- **El pulso del inicio se queda**, por decisión del owner, y sobre papel pasa a ser una tarjeta oscura
+  apoyada sobre la hoja. Sus cuatro cifras siguen siendo **botones** que mandan una pregunta ya verificada al
+  chat: son puertas de entrada a la conversación, no datos repetidos de la Mesa.
+- **La estructura de la plantilla queda congelada.** Un candado nuevo compara el contrato vivo contra un sello
+  con la estructura aprobada: agregar una columna opcional al final pasa; quitar, renombrar, reordenar o volver
+  obligatoria una columna se pone rojo y exige subir la versión de la plantilla con su razón escrita. No impide
+  romper la compatibilidad — impide romperla **en silencio**, que es lo que hizo falta después de que la
+  estructura cambiara dos veces en dos versiones.
+
+Verificado antes de subir: **181 PASS · 0 FAIL · 0 tocaron la red**, con dos candados nuevos
+(`_plantilla_congelada_gate` y `_papel_y_tablero_gate`). El segundo existe para sostener la promesa de arriba:
+compara la paleta apagada contra un sello con los valores anteriores, token por token, y se pone rojo si
+alguien mueve uno creyendo que «solo afecta al modo papel».
+
+⚠️ **Un defecto que solo apareció mirando la pantalla:** el hexágono de la marca, en la barra lateral, tenía su
+trazo en blanco escrito a mano. Sobre el negro se ve; sobre papel desaparecía. Se cazó con un barrido de
+contraste sobre la app corriendo —buscar todo elemento casi blanco que esté sobre una superficie clara— y no
+leyendo el código. De nueve coincidencias, ocho eran correctas y esa no.
+
+**Sin decidir todavía**, y ninguna bloquea: el tono del panel de historial y los tres modos de la barra lateral.
+Los dos son andamios que en algún momento hay que cerrar.
+
+## 1.6 — tag `v1.6` (estuvo en producción el 2026-08-26)
 
 **La plantilla se explica sola, y la vara dice de quién es.** El usuario abre el archivo y sabe qué llenar sin
 leer un manual; y cuando ADI compara su margen contra una referencia, dice si esa referencia la puso él o la
