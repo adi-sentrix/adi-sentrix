@@ -125,9 +125,17 @@ export function previewPlantillaEnTexto(p) {
     }
   }
 
+  /* Los avisos se agrupan por tipo. Uno por SKU es correcto en el dataset y una catástrofe en pantalla: con
+   * 5.000 SKU, un aviso legítimo repetido 5.000 veces sepulta a los otros cuatro que había que leer. Se muestran
+   * dos y se dice cuántos más hay del mismo tipo — la lista completa sigue entera en p.avisos para quien la use. */
   if (p.avisos.length) {
     sec("5 · AVISOS (no impiden cargar, pero conviene saberlos)");
-    for (const a of p.avisos) L.push(`  · ${a.detalle}`);
+    const porTipo = new Map();
+    for (const a of p.avisos) { if (!porTipo.has(a.tipo)) porTipo.set(a.tipo, []); porTipo.get(a.tipo).push(a); }
+    for (const grupo of porTipo.values()) {
+      for (const a of grupo.slice(0, 2)) L.push(`  · ${a.detalle}`);
+      if (grupo.length > 2) L.push(`    …y ${grupo.length - 2} más del mismo tipo`);
+    }
   }
   return L.join("\n");
 }

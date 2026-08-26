@@ -132,7 +132,18 @@ export function validarPlantilla(archivo, { nombreArchivo = "" } = {}) {
     for (const c of def.columnas) if (c.obligatoria && !posPorCampo.has(c.campo)) B("columna-obligatoria-ausente", `«${def.nombre}» no trae la columna obligatoria "${c.titulo}"`, { hoja: def.nombre });
 
     /* filas */
-    const claves = def.columnas.filter((c) => c.clave).map((c) => c.campo);
+    /* LA CLAVE SE ARMA CON LAS COLUMNAS QUE EL ARCHIVO TRAE, no con las que el contrato podría tener.
+     * «Bodega» es clave y a la vez opcional: el que la manda obtiene la lectura fina (el ritmo de venta se mide
+     * por SKU y bodega), y el que no la manda debe poder cargar igual, agregado al total del SKU. Exigirla para
+     * armar la clave rechazaba TODAS las filas de un archivo por lo demás correcto — el caso mínimo, que es
+     * justamente el cliente que llena lo justo. Se declara el efecto en un aviso: caer al total es una decisión
+     * que el usuario tiene que ver, no un silencio. */
+    const claves = def.columnas.filter((c) => c.clave && posPorCampo.has(c.campo)).map((c) => c.campo);
+    for (const c of def.columnas) {
+      if (c.clave && !c.obligatoria && !posPorCampo.has(c.campo)) {
+        A("clave-mas-gruesa", `«${def.nombre}» no trae "${c.titulo}": se puede cargar igual, pero todo queda agregado al total y no se puede abrir por ${c.titulo.toLowerCase()}`, { hoja: def.nombre, columna: c.titulo });
+      }
+    }
     const porClave = new Map(); const filas = [];
     (hoja.matriz || []).slice(iEnc + 1).forEach((cruda, i) => {
       const nFila = iEnc + i + 2;   // número de fila como lo ve el usuario en Excel

@@ -126,14 +126,14 @@ export const COHERENCIA = [
  * partir de ahí hay DOS verdades para la misma cifra. Por eso una columna calculada RECHAZA el archivo, y el
  * mensaje dice qué mandar en su lugar — rechazar sin explicar convierte la plantilla en un obstáculo. */
 export const COLUMNAS_PROHIBIDAS = [
-  { formas: ["margen", "margenpct", "margenporcentaje", "margenbruto"], porque: "el margen sale de la venta y el costo", enSuLugar: "Venta (USD) y Costo (USD)" },
-  { formas: ["contribucion", "contribucionbruta", "utilidadbruta", "utilidad"], porque: "la contribución sale de la venta y el margen", enSuLugar: "Venta (USD) y Costo (USD)" },
-  { formas: ["cargacomercial", "cargapct", "carga", "rebatepct", "pctrebate", "descuentopct"], porque: "el porcentaje sale de las acciones comerciales y la venta", enSuLugar: "Acciones comerciales (USD)" },
+  { formas: ["margen", "margenpct", "margenporcentaje", "margenbruto"], porque: "el margen sale de la venta y el costo", enSuLugar: "Venta y Costo" },
+  { formas: ["contribucion", "contribucionbruta", "utilidadbruta", "utilidad"], porque: "la contribución sale de la venta y el margen", enSuLugar: "Venta y Costo" },
+  { formas: ["cargacomercial", "cargapct", "carga", "rebatepct", "pctrebate", "descuentopct"], porque: "el porcentaje sale de las acciones comerciales y la venta", enSuLugar: "Acciones comerciales" },
   { formas: ["brecha", "brechapct", "gap", "gappuntos"], porque: "la brecha es la distancia contra el benchmark, y el benchmark es un parámetro", enSuLugar: "el benchmark en la cabecera de Ventas" },
   { formas: ["benchmark", "referencia", "vara", "margenobjetivo"], porque: "es una política del negocio, no un dato por fila", enSuLugar: "el benchmark en la cabecera de Ventas" },
-  { formas: ["capitalinmovilizado", "inmovilizado", "inmovilizadopct", "sobrestock", "riesgoquiebre"], porque: "es un diagnóstico que hace ADI con las varas del negocio", enSuLugar: "Stock valorizado (USD) y las varas de la cabecera" },
+  { formas: ["capitalinmovilizado", "inmovilizado", "inmovilizadopct", "sobrestock", "riesgoquiebre"], porque: "es un diagnóstico que hace ADI con las varas del negocio", enSuLugar: "Stock valorizado y las varas de la cabecera" },
   { formas: ["estado", "estadosku", "semaforo", "alerta", "criticidad"], porque: "el estado lo asigna ADI con los umbrales declarados", enSuLugar: "nada — sale solo" },
-  { formas: ["costomedio", "costounitario", "costopromedio"], porque: "el costo medio sale del costo y las unidades", enSuLugar: "Costo (USD) y Unidades" },
+  { formas: ["costomedio", "costounitario", "costopromedio"], porque: "el costo medio sale del costo y las unidades", enSuLugar: "Costo y Unidades" },
   { formas: ["participacion", "pctinv", "pctventa", "share"], porque: "toda participación es una división que hace ADI", enSuLugar: "los montos, sin dividir" },
   { formas: ["presupuesto", "ppto", "budget", "meta", "objetivo"], porque: "el presupuesto es por cuenta y período, no por fila de venta: repetirlo acá se contradice solo", enSuLugar: "nada por ahora — «venta contra presupuesto» queda fuera de la v1 y se declara" },
 ];

@@ -30,8 +30,9 @@ import { plantillaVacia, plantillaEjemplo, datosEjemplo } from "./src/ingesta/pl
 import { validarPlantilla } from "./src/ingesta/plantilla/validarPlantilla.js";
 import { calcularDataset, CALCULOS, BLOQUEADOS } from "./src/ingesta/plantilla/motorKpi.js";
 import { ingestarPlantilla, previewPlantillaEnTexto } from "./src/ingesta/plantilla/ingestarPlantilla.js";
+import { CASOS } from "./src/ingesta/plantilla/casosPrueba.js";
 import { construirXlsx } from "./src/ingesta/escribirLibro.js";
-import { HOJAS, PARAMETROS, PLANTILLA_VERSION, MARCA_PLANTILLA } from "./src/config/contract/plantilla.js";
+import { HOJAS, PARAMETROS, PLANTILLA_VERSION, MARCA_PLANTILLA, COLUMNAS_PROHIBIDAS } from "./src/config/contract/plantilla.js";
 import { TENANT_DEMO } from "./src/data/tenants/demo.js";
 import { initTenant, getTenantId } from "./src/data/tenantStore.js";
 import { LLAVES_DATASET } from "./src/ingesta/normalizar.js";
@@ -109,7 +110,11 @@ H("[C] EL PORTERO · lo que NO entra, y el mensaje que da");
   const v1 = val(conMargen);
   ok(v1.ok === false, "una columna «Margen %» RECHAZA el archivo (no se ignora)");
   const b1 = v1.bloqueos.find((b) => b.tipo === "columna-calculada");
-  ok(!!b1 && /Venta \(USD\) y Costo \(USD\)/.test(b1.detalle), "…y el mensaje dice qué mandar en su lugar");
+  /* El mensaje tiene que nombrar títulos que el validador ACEPTE. Clavar el texto acá fue lo que mantuvo vivo
+   * "Venta (USD)" después de que los títulos perdieran la moneda: el usuario corregía como se le indicaba y
+   * volvía a fallar por unidad ambigua. Ahora se exige el título real, no una cadena cualquiera. */
+  ok(!!b1 && /Venta y Costo/.test(b1.detalle), "…y el mensaje dice qué mandar en su lugar");
+  ok(!!b1 && !/\(USD\)/.test(b1.detalle), "…con un encabezado que la plantilla acepta, no uno que ella misma rechaza");
   ok(Object.keys(v1.tablas).length === 0, "…y no devuelve ni una fila: un archivo que no cumple no entrega datos a medias");
 
   for (const calc of ["Capital inmovilizado", "Contribución", "Carga comercial", "Benchmark", "Costo unitario", "Presupuesto"]) {
@@ -316,6 +321,60 @@ H("[I2] LA PLANTILLA SE PUEDE PROBAR SIN UI · scripts/leer-plantilla.mjs");
   ok(/EL ARCHIVO NO SE CARGÓ/.test(b.stdout), "…y dice por qué, sin cargar ninguna fila");
   const c = spawnSync(process.execPath, ["scripts/leer-plantilla.mjs", `${dir}/no-existe.xlsx`], { encoding: "utf8" });
   ok(c.status === 2 && /no existe/.test(c.stderr), "un archivo que no está se distingue de uno inválido (código 2)");
+}
+
+/* ── [J] LOS TRES CASOS DEL OWNER · completo · mínimo · malo ────────────────────────────────────────────────
+ * Cada caso declara qué debe probar (`espera`) y acá se verifica. Un archivo de prueba sin esa afirmación es un
+ * archivo, no una prueba: el día que el resultado cambie, nadie sabría si mejoró o se rompió. */
+H("[J] LOS TRES CASOS · uno completo, uno mínimo, uno malo");
+{
+  const por = Object.fromEntries(CASOS.map((c) => [c.clave, ingestarPlantilla(c.construir(), { nombreArchivo: c.archivo })]));
+
+  // 1 · COMPLETO — el ERP publica sus propios KPI y ADI no le discute ninguno
+  const c1 = por.completo, e1 = CASOS[0].espera;
+  ok(c1.ok === true, "COMPLETO: entra");
+  const p1 = c1.preview.totales.procedencia;
+  ok(p1.dias.informado === e1.diasInformados && p1.dias.calculado === 0,
+     `COMPLETO: los ${p1.dias.informado} días son del ERP y ADI no calculó ninguno`);
+  ok(p1.rotacion.informado === e1.rotacionInformadas, "COMPLETO: las 6 rotaciones también se respetan tal cual");
+  ok(c1.dataset.skuInventario.find((s) => s.sku === "SAN-LAV60").doh === 185,
+     "COMPLETO: el valor informado llega intacto al dataset, sin recalcularse");
+  ok(c1.preview.disponibilidad.caras.filter((x) => x.completa).length === e1.carasCompletas,
+     "COMPLETO: las 4 caras de Sentrix abren completas");
+
+  // 2 · MÍNIMO — solo lo obligatorio; ADI calcula, y DICE qué se pierde
+  const c2 = por.minimo, e2 = CASOS[1].espera;
+  ok(c2.ok === true, "MÍNIMO: entra aunque falten canal, marca, familia, bodega, acciones y precio de lista");
+  const p2 = c2.preview.totales.procedencia;
+  ok(p2.dias.calculado === e2.diasCalculados && p2.dias.informado === 0,
+     `MÍNIMO: ADI calculó los ${p2.dias.calculado} días, ninguno vino informado`);
+  ok(p2.rotacion.calculado === e2.diasCalculados, "MÍNIMO: y las 6 rotaciones");
+  ok(c2.preview.avisos.some((a) => a.tipo === "clave-mas-gruesa"),
+     "MÍNIMO: se declara que sin Bodega en Ventas todo queda agregado — caer al total es una decisión visible");
+  const falta2 = c2.preview.disponibilidad.caras.flatMap((x) => x.falta);
+  ok(falta2.includes("ventas@marca") && falta2.includes("ventas@familia"),
+     "MÍNIMO: se nombra exactamente qué métricas se pierden, en vez de decir «faltan datos»");
+  ok(c2.preview.disponibilidad.resumen.metricasDisponibles < c1.preview.disponibilidad.resumen.metricasDisponibles,
+     `MÍNIMO: rinde menos que el completo (${c2.preview.disponibilidad.resumen.metricasDisponibles} contra ${c1.preview.disponibilidad.resumen.metricasDisponibles} métricas), y se ve`);
+
+  // 3 · MALO — los seis problemas juntos, no el primero
+  const c3 = por.malo, e3 = CASOS[2].espera;
+  ok(c3.ok === false && c3.dataset === null, "MALO: no entra y no carga ninguna fila");
+  for (const t of e3.tipos) ok(c3.preview.bloqueos.some((b) => b.tipo === t), `MALO: detecta «${t}»`);
+  ok(c3.preview.bloqueos.length >= e3.tipos.length,
+     `MALO: los reporta TODOS juntos (${c3.preview.bloqueos.length}), no se detiene en el primero — si no, el usuario sube el archivo seis veces`);
+  ok(c3.preview.bloqueos.filter((b) => b.fila).every((b) => /fila \d+/.test(b.detalle)),
+     "MALO: cada problema de fila dice en qué fila está");
+
+  /* El mensaje de «sacá esta columna» tiene que mandar a escribir un encabezado que el validador ACEPTE. Decía
+   * "Venta (USD)" —de cuando los títulos llevaban moneda— y ese título hoy se rechaza por unidad ambigua: el
+   * usuario corregía como se le indicaba y volvía a fallar. */
+  const titulos = new Set(HOJAS.flatMap((h) => h.columnas.map((c) => c.titulo)));
+  for (const r of COLUMNAS_PROHIBIDAS) {
+    const nombra = [...titulos].filter((t) => r.enSuLugar.includes(t));
+    for (const t of nombra) ok(titulos.has(t), `«${r.enSuLugar}» nombra "${t}", que es un título real de la plantilla`);
+    ok(!/\(USD\)/.test(r.enSuLugar), `«${r.enSuLugar.slice(0, 46)}» no manda a escribir una moneda en el título`);
+  }
 }
 
 initTenant(r.dataset);
