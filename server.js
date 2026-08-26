@@ -9,6 +9,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { gatewayFetch } from "./src/adi/llm/gatewayFetch.js";
+import { handleIngesta } from "./src/ingesta/handleIngesta.server.js";   // node puro · fuera del router por node:zlib (ver el comentario abajo)
 import { resolverProveedor } from "./src/adi/llm/providerConfig.js";
 import fsSync from "node:fs";
 import { instalarTelemetria } from "./src/adi/llm/telemetrySink.js";
@@ -39,6 +40,17 @@ const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);   // en TODA respuesta (api · estático · 403/404/500)
   try {
     // ── API · el gateway LLM (envolvemos el req de node en un Request web-estándar) ──
+    /* LA INGESTA VA APARTE, igual que en Vercel: NO pasa por gatewayFetch porque ese archivo lo importan los
+     * cinco endpoints EDGE, y la ingesta arrastra node:zlib. Mezclarlos rompió el build tres veces. Acá se
+     * replica el mismo reparto para que local y producción sirvan la misma ruta por el mismo camino. */
+    if (req.url.startsWith("/api/adi-ingesta")) {
+      let body = ""; for await (const c of req) body += c;
+      const out = await handleIngesta(JSON.parse(body || "{}"));
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json; charset=utf-8");
+      res.end(JSON.stringify(out));
+      return;
+    }
     if (req.url.startsWith("/api/")) {
       let body = ""; for await (const c of req) body += c;
       const request = new Request("http://local" + req.url, {

@@ -47,16 +47,25 @@ console.log("=".repeat(100));
 }
 
 console.log("\n" + "=".repeat(100));
-console.log("2 · LA RUTA ESTÁ MONTADA · en el borde del servidor, no en el núcleo compartido");
+console.log("2 · LA RUTA VIVE APARTE DEL ROUTER · y esa separación es la que mantiene vivo el deploy");
 console.log("=".repeat(100));
 {
-  ok(/["']\/api\/adi-ingesta["']\s*:/.test(RUTAS), "la ruta existe en el mapa que sirve el servidor");
-  ok(/handleIngesta/.test(RUTAS), "…y apunta al handler de ingesta");
-  /* La misma regla que la vía 1: el registro no puede vivir en `gatewayCore`, porque todo módulo que importa el
-   * core —el navegador incluido— arrastraría una dependencia de Node que allá no existe. */
-  const core = leer("./src/adi/llm/gatewayCore.js");
-  ok(!/handleIngesta|adi-ingesta/.test(core),
-    "y NO está en el núcleo compartido: el core no arrastra la ingesta al navegador");
+  /* ⚠️ ACÁ HUBO UN DEFECTO CARO (2026-08-26). La primera versión montó esta ruta en `gatewayFetch`, imitando a
+   * la vía 1. Pero a `gatewayFetch` lo importan los CINCO endpoints que corren en EDGE, y la ingesta arrastra
+   * `node:zlib`: Vercel falló el build entero en tres commits y producción se quedó atrás — con los 177 gates
+   * en verde, porque ninguno empaquetaba para edge. El reparto correcto es este, y quien lo vigila de verdad
+   * es `_edge_bundle_gate`, que empaqueta cada endpoint edge como lo hace la plataforma. */
+  /* Se miran los IMPORTS, no las menciones: un chequeo que busca la palabra se pone rojo con el comentario que
+   * explica por qué esa palabra no se usa. Pasó en la primera versión de este mismo gate. */
+  const ep = leer("./api/adi-ingesta.js");
+  ok(/import\s*\{[^}]*handleIngesta[^}]*\}/.test(ep), "el endpoint importa el handler de ingesta");
+  ok(!/^\s*import[^\n]*from\s*["'][^"']*gatewayFetch\.js["']/m.test(ep),
+    "…y NO importa el router compartido: llama al handler directo");
+  ok(!/^\s*import[^\n]*handleIngesta/m.test(RUTAS),
+    "y el router no la importa: así ningún endpoint edge arrastra un módulo de Node");
+  const srv = leer("./server.js");
+  ok(/adi-ingesta/.test(srv) && /handleIngesta/.test(srv),
+    "el servidor local sirve la misma ruta por el mismo camino — si divergen, probar local deja de probar producción");
 }
 
 console.log("\n" + "=".repeat(100));

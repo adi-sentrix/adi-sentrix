@@ -6,7 +6,6 @@
  */
 import { GATEWAY_ROUTES } from "./gatewayCore.js";
 import { handleData } from "../../data/tenantService.server.js";
-import { handleIngesta } from "../../ingesta/handleIngesta.server.js";
 import { ipAddress } from "@vercel/functions";
 import { instalarTelemetria } from "./telemetrySink.js";
 import { toolNames } from "../oracle/toolRegistry.js";
@@ -73,10 +72,14 @@ const _clientIp = (request) => { try { return ipAddress(request) || null; } catc
 // `gatewayCore.js`, y meterle el registro de tenants haría que todo módulo que importa el core arrastre el dato de
 // todas las empresas. `gatewayFetch` en cambio solo lo importan `api/*.js` y `server.js` — servidor puro. La regla
 // es la de siempre: el dato de tenant entra por el borde del servidor, nunca por el núcleo compartido.
-/* `/api/adi-ingesta` (v1.4) se monta acá por la MISMA razón que adi-data: importa el motor de ingesta, que a
- * su vez importa `node:zlib`. Si viviera en `GATEWAY_ROUTES` (gatewayCore), todo módulo que toca el core —el
- * navegador incluido— arrastraría una dependencia de Node que ahí no existe. Servidor puro, como corresponde. */
-const ROUTES = { ...GATEWAY_ROUTES, "/api/adi-data": handleData, "/api/adi-ingesta": handleIngesta };
+/* ⚠️ `/api/adi-ingesta` NO SE MONTA ACÁ, y el motivo se pagó con tres builds rotos (2026-08-26): la ingesta
+ * importa `node:zlib` para descomprimir el .xlsx, y CINCO endpoints de este repo corren en runtime EDGE
+ * (adi-data, adi-access, adi-narrate, adi-plan, adi-spec) — todos importan este archivo. Colgarle la ingesta
+ * al router hizo que los cinco arrastraran una dependencia de Node que el edge no puede empaquetar, y Vercel
+ * falló el build entero. Producción se quedó en la versión anterior sin que ningún gate se pusiera rojo.
+ * El endpoint de ingesta llama a su handler DIRECTO (ver api/adi-ingesta.js): es node puro y no necesita
+ * router. La regla que queda: nada que importe un módulo de Node entra a este archivo. */
+const ROUTES = { ...GATEWAY_ROUTES, "/api/adi-data": handleData };
 
 // gatewayFetch(request, env) → Response · `env` opcional (para runtimes tipo Cloudflare que pasan el env al handler)
 export async function gatewayFetch(request, env) {
