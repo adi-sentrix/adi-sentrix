@@ -150,7 +150,7 @@ export function BarraLateral({ mesaAbierta, onMesa, guiaAbierta, onGuia, onInici
       <button className="adi-rail-item" onClick={onInicio} title="Volver al inicio" aria-label="Volver al inicio"
         style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:10, width:"100%",
           padding:"0 10px 0 13px", height:34, marginBottom:6, background:"transparent", border:"none", cursor:"pointer", font:"inherit" }}>
-        <svg width="19" height="19" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="12" style={{ flexShrink:0 }} aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 200 200" fill="none" stroke={C.logoTrazo} strokeWidth="12" style={{ flexShrink:0 }} aria-hidden="true">
           <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
         </svg>
         <span className="adi-rail-marca-txt" style={{ flex:1, minWidth:0, display:"flex", alignItems:"baseline", gap:7, whiteSpace:"nowrap", overflow:"hidden" }}>
