@@ -115,6 +115,11 @@ export const METRICS = {
   capital: {  // capital inmovilizado = stockUSD (inventario)
     label: "Capital", unit: "money", scale: { sku: "raw", bodega: "raw" },
     polarity: "lowerIsBetter", formula: null, domain: "inventario",
+    /* La cuenta con que ADI lo produce cuando el origen NO trae el stock ya valorizado (owner 2026-08-26):
+     * la plantilla pide stock FÍSICO, y el costo unitario sale de la hoja Ventas. Misma distinción que en
+     * días y rotación: `formula` sigue en null porque el valor almacenado del demo no cierra con esta cuenta;
+     * `formulaSiFalta` es la que se aplica cuando hay que producirlo. */
+    formulaSiFalta: "stock_actual * (costo_del_periodo / unidades_vendidas_del_periodo)",
     axes: ["sku", "bodega"], scenarioAware: { sku: true, bodega: true },
     sourceByAxis: {
       sku:    { source: "skuInventario", field: "stockUSD" },

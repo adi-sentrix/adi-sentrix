@@ -84,17 +84,19 @@ export function datosEjemplo() {
     ventas.push({ periodo: "2026-08", ...base, unidades: und, venta, costo, acciones: acc });
   }
 
-  /* El inventario del ejemplo cubre los tres caminos de la regla «informado manda, calculado rellena»:
-   *   · TRM-800 y los demás: sin KPI → ADI calcula días y rotación con la fórmula declarada.
-   *   · SAN-LAV60: el ERP informa SUS días (185) → ADI los respeta y deriva la rotación de ESOS días.
-   *   · ELE-TAB12: el ERP informa las dos → se respetan las dos, tal como vinieron. */
+  /* EL INVENTARIO DEL EJEMPLO SON HECHOS Y NADA MÁS (owner 2026-08-26): SKU, bodega y stock físico. Ni fecha de
+   * corte, ni valorización, ni días, ni rotación — todo eso lo calcula ADI desde acá y desde la hoja Ventas.
+   *
+   * ⚠️ EL EJEMPLO ENSEÑA, así que no puede traer columnas a medio llenar. La versión anterior mostraba «Días de
+   * inventario» con valor en 2 de 6 filas para ilustrar que era opcional, y lo que comunicaba era que se nos
+   * había olvidado completarlas. Un archivo de ejemplo con huecos se copia con huecos. */
   const inventario = [
-    { fechaCorte: "2026-08-31", sku: "TRM-800", bodega: "Central", stockUnd: 96, stockUSD: 5760, ultimaVenta: "2026-08-30" },
-    { fechaCorte: "2026-08-31", sku: "TRM-450", bodega: "Central", stockUnd: 210, stockUSD: 7770, ultimaVenta: "2026-08-29" },
-    { fechaCorte: "2026-08-31", sku: "SAN-LAV60", bodega: "Central", stockUnd: 48, stockUSD: 4656, ultimaVenta: "2026-04-12", doh: 185 },
-    { fechaCorte: "2026-08-31", sku: "SAN-GRI22", bodega: "Central", stockUnd: 320, stockUSD: 9280, ultimaVenta: "2026-08-31" },
-    { fechaCorte: "2026-08-31", sku: "ELE-CAB25", bodega: "Norte", stockUnd: 1400, stockUSD: 26600, ultimaVenta: "2026-08-31" },
-    { fechaCorte: "2026-08-31", sku: "ELE-TAB12", bodega: "Norte", stockUnd: 60, stockUSD: 4260, ultimaVenta: "2026-08-28", doh: 14, rotacion: 26.1 },
+    { sku: "TRM-800", bodega: "Central", stockUnd: 96 },
+    { sku: "TRM-450", bodega: "Central", stockUnd: 210 },
+    { sku: "SAN-LAV60", bodega: "Central", stockUnd: 48 },
+    { sku: "SAN-GRI22", bodega: "Central", stockUnd: 320 },
+    { sku: "ELE-CAB25", bodega: "Norte", stockUnd: 1400 },
+    { sku: "ELE-TAB12", bodega: "Norte", stockUnd: 60 },
   ];
 
   return { parametros, ventas, inventario };

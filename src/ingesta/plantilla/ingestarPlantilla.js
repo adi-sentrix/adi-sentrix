@@ -13,13 +13,13 @@ import { calcularDataset } from "./motorKpi.js";
 import { disponibilidadSentrix } from "../disponibilidad.js";
 
 /* ingestarPlantilla(archivo, { nombreArchivo }) → { ok, dataset, preview } */
-export function ingestarPlantilla(archivo, { nombreArchivo = "" } = {}) {
+export function ingestarPlantilla(archivo, { nombreArchivo = "", fechaCarga = null } = {}) {
   const v = validarPlantilla(archivo, { nombreArchivo });
   const base = { archivo: nombreArchivo || "(sin nombre)", version: v.version, hojas: v.hojas, bloqueos: v.bloqueos, avisos: v.avisos };
 
   if (!v.ok) return { ok: false, dataset: null, preview: { ...base, parametros: {}, calculado: [], bloqueado: [], disponibilidad: null, totales: null, periodos: null } };
 
-  const m = calcularDataset({ parametros: v.parametros, tablas: v.tablas });
+  const m = calcularDataset({ parametros: v.parametros, tablas: v.tablas, fechaCarga });
   const d = m.dataset;
   /* La procedencia de días y rotación, contada · es el concepto que pidió el owner («debe viajar con cada valor»)
    * y si no se ve en la preview, el usuario no sabe cuáles cifras son de su sistema y cuáles calculó ADI. */
@@ -29,6 +29,10 @@ export function ingestarPlantilla(archivo, { nombreArchivo = "" } = {}) {
     total: inv.length,
     dias: { informado: cuenta("doh", "informado"), calculado: cuenta("doh", "calculado"), sinDato: cuenta("doh", "sin dato") },
     rotacion: { informado: cuenta("rotacion", "informado"), calculado: cuenta("rotacion", "calculado"), sinDato: cuenta("rotacion", "sin dato") },
+    /* EL CAPITAL TAMBIÉN SE CUENTA (owner 2026-08-26): desde que la plantilla pide stock FÍSICO y no
+     * valorizado, el capital es una cuenta de ADI y el usuario tiene derecho a ver cuántas filas pudo
+     * valorizar y cuántas no. «sin dato» acá son los SKU con stock que no vendieron en el período. */
+    capital: { informado: cuenta("capital", "informado"), calculado: cuenta("capital", "calculado"), sinDato: cuenta("capital", "sin dato") },
   } : null;
 
   const totales = {
@@ -94,6 +98,7 @@ export function previewPlantillaEnTexto(p) {
     const q = (x) => [x.informado ? `${x.informado} informado${x.informado === 1 ? "" : "s"}` : null,
                       x.calculado ? `${x.calculado} calculado${x.calculado === 1 ? "" : "s"} por ADI` : null,
                       x.sinDato ? `${x.sinDato} sin dato` : null].filter(Boolean).join(" · ") || "—";
+    L.push(`  capital en stock:   ${q(t.procedencia.capital)}`);
     L.push(`  días de inventario: ${q(t.procedencia.dias)}`);
     L.push(`  rotación:           ${q(t.procedencia.rotacion)}`);
   }

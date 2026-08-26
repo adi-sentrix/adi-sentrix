@@ -33,6 +33,10 @@
 import { PARAMETROS } from "../../config/contract/plantilla.js";
 import { resolverDiasYRotacion, FORMULA_DIAS, FORMULA_ROTACION } from "../../adi/sentrix/diasYRotacion.js";
 import { diagnoseInventarioSku } from "../../adi/diagnosis/economicDiagnosis.js";
+import { METRICS } from "../../config/contract/metricRegistry.js";
+
+/** La cuenta del capital en stock · vive en el contrato, no en este archivo (una sola fuente). */
+const FORMULA_CAPITAL = METRICS.capital.formulaSiFalta;
 
 /** El registro de lo que el motor sabe calcular, con su autorización. Es la lista auditable. */
 export const CALCULOS = [
@@ -79,7 +83,7 @@ function bloqueMargen(filas, benchmark) {
 /* calcularDataset({ parametros, tablas }) → { dataset, calculado, bloqueado, avisos }
  * `dataset` tiene la forma de un tenant. Lo que no se puede calcular queda en null/[] y sale nombrado en
  * `bloqueado` — nunca relleno con un valor plausible. */
-export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
+export function calcularDataset({ parametros = {}, tablas = {}, fechaCarga = null } = {}) {
   const avisos = [];
   const ventas = tablas.Ventas || [];
   const inventario = tablas.Inventario || [];
@@ -173,27 +177,90 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
   const undPorSku = new Map();
   for (const v of delActual) undPorSku.set(v.sku, (undPorSku.get(v.sku) || 0) + (v.unidades || 0));
 
+  /* ── EL COSTO UNITARIO SALE DE VENTAS, NO DE LA PLANTILLA DE INVENTARIO (owner 2026-08-26) ─────────────────
+   * «Costo unitario = Costo / Unidades vendidas. Capital en stock = Stock actual × costo unitario.» Por eso la
+   * hoja Inventario dejó de pedir «stock valorizado»: era pedirle al usuario una valorización a mano teniendo
+   * los dos insumos en la otra hoja. Se acumulan costo y unidades del período ACTUAL, por (SKU, bodega) y por
+   * SKU, para poder caer al total cuando la venta no viene separada por bodega. */
+  const costoPorSkuBodega = new Map(), costoPorSku = new Map();
+  for (const v of delActual) {
+    const k = `${v.sku} ⋅ ${v.bodega ?? ""}`;
+    const a = costoPorSkuBodega.get(k) || { costo: 0, und: 0 };
+    a.costo += v.costo || 0; a.und += v.unidades || 0;
+    costoPorSkuBodega.set(k, a);
+    const b = costoPorSku.get(v.sku) || { costo: 0, und: 0 };
+    b.costo += v.costo || 0; b.und += v.unidades || 0;
+    costoPorSku.set(v.sku, b);
+  }
+  /** costo unitario, o null si no hay unidades vendidas con qué dividir — jamás un cero de relleno. */
+  const costoUnitarioDe = (sku, bodega) => {
+    const a = costoPorSkuBodega.get(`${sku} ⋅ ${bodega ?? ""}`) || costoPorSku.get(sku);
+    if (!a || !a.und) return null;
+    return a.costo / a.und;
+  };
+
+  /* ÚLTIMA VENTA · derivada de Ventas, no pedida al usuario. La precisión es MENSUAL porque la hoja informa el
+   * período (AAAA-MM), no el día: se cuenta contra el fin del último mes en que el SKU vendió. Se declara así en
+   * la procedencia para que nadie lea esos días como si fueran exactos al día. */
+  const ultimoPeriodoConVenta = new Map();
+  for (const v of ventas) {
+    if (!(v.unidades > 0)) continue;
+    const prev = ultimoPeriodoConVenta.get(v.sku);
+    if (!prev || v.periodo > prev) ultimoPeriodoConVenta.set(v.sku, v.periodo);
+  }
+  const _finDeMes = (per) => { const [a, m] = String(per).split("-").map(Number); return new Date(Date.UTC(a, m, 0)); };
+  /* La fecha contra la que se cuenta: la de CARGA si el llamador la declaró (es la que pidió el owner), y si no,
+   * el fin del período informado — un hecho del archivo, para que esto sea reproducible sin reloj. */
+  const _referencia = fechaCarga ? new Date(`${fechaCarga}T00:00:00Z`) : (actual ? _finDeMes(actual) : null);
+  const diasSinVentaDe = (sku) => {
+    const per = ultimoPeriodoConVenta.get(sku);
+    if (!per || !_referencia) return null;
+    const d = Math.round((_referencia - _finDeMes(per)) / 86400000);
+    return d < 0 ? 0 : d;
+  };
+
+  /* DÍAS DEL PERÍODO · los reales del mes informado, que es lo que dice la fórmula del owner («unidades del
+   * período / días del período»). Usar 30 fijo desviaría en febrero y en los meses de 31. */
+  const _diasDelPeriodo = actual ? _finDeMes(actual).getUTCDate() : undefined;
+
   const umbrales = { rotacionMin: perfilNum("rotacionMin"), dohMax: perfilNum("dohMax") };
+  const sinValorizar = [], sinRitmo = [];
   const skuInventario = inventario.map((r) => {
     const p = dimSku.get(r.sku) || {};
     // si la venta del período no distingue bodega, se cae al total del SKU y se declara en los avisos
     const porBodega = undPorSkuBodega.get(`${r.sku} ⋅ ${r.bodega ?? ""}`);
     const und = porBodega !== undefined ? porBodega : (undPorSku.get(r.sku) ?? null);
-    if (porBodega === undefined && undPorSku.has(r.sku)) {
+    if (porBodega === undefined && undPorSku.has(r.sku) && r.bodega) {
       avisos.push({ tipo: "ritmo-por-sku-no-por-bodega", detalle: `"${r.sku}" en ${r.bodega}: la venta del período no viene separada por bodega, así que el ritmo se mide con el del SKU completo` });
     }
-    const { dias: d, rotacion: rot } = resolverDiasYRotacion(r, { unidadesPeriodo: und });
+    const { dias: d, rotacion: rot } = resolverDiasYRotacion(r, { unidadesPeriodo: und, diasPeriodo: _diasDelPeriodo });
+
+    /* ⚠️ SI NO SE PUEDE, SE DECLARA. Orden textual del owner: «si un SKU tiene stock pero no tiene venta/costo
+     * suficiente en el período, ADI no inventa: declara que no puede valorizar o calcular rotación/días para
+     * ese SKU». Un cero acá diría «no tiene capital inmovilizado», que es lo contrario de «no lo sé». */
+    const cu = costoUnitarioDe(r.sku, r.bodega);
+    const stockUSD = cu !== null && typeof r.stockUnd === "number" ? Math.round(r.stockUnd * cu) : null;
+    if (stockUSD === null) sinValorizar.push(r.sku);
+    if (d.valor === null) sinRitmo.push(r.sku);
+
     const estado = (d.valor !== null || rot.valor !== null)
       ? diagnoseInventarioSku({ rotacion: rot.valor, doh: d.valor }, umbrales)
       : null;
-    return { sku: r.sku, bodega: r.bodega, marca: p.marca ?? null, sfamilia: p.sfamilia ?? null,
-      stockUSD: r.stockUSD, stockUnd: r.stockUnd,
-      diasSinVenta: dias(r.ultimaVenta, r.fechaCorte),
+    return { sku: r.sku, bodega: r.bodega ?? null, marca: p.marca ?? null, sfamilia: p.sfamilia ?? null,
+      stockUSD, stockUnd: r.stockUnd,
+      diasSinVenta: diasSinVentaDe(r.sku),
       doh: d.valor, rotacion: rot.valor, cobertura: null, margenPct: null,
       estado, alerta: null,
       // la procedencia viaja CON el valor, como pidió el owner: nadie tiene que ir a buscarla para mostrarla
-      procedencia: { doh: d.procedencia, rotacion: rot.procedencia, formulaDoh: d.formula, formulaRotacion: rot.formula } };
+      procedencia: { doh: d.procedencia, rotacion: rot.procedencia, formulaDoh: d.formula, formulaRotacion: rot.formula,
+        capital: stockUSD === null ? "sin dato" : "calculado", formulaCapital: FORMULA_CAPITAL,
+        diasSinVenta: "calculado · precisión mensual (el período se informa por mes, no por día)" } };
   });
+  if (sinValorizar.length) avisos.push({ tipo: "sku-sin-valorizar", detalle: `${sinValorizar.length} SKU con stock no se pueden valorizar: no vendieron unidades en el período, así que no hay costo unitario (${sinValorizar.slice(0, 5).join(", ")})` });
+  if (sinRitmo.length) avisos.push({ tipo: "sku-sin-ritmo", detalle: `${sinRitmo.length} SKU con stock se quedan sin días ni rotación: sin venta en el período no hay ritmo con qué dividir (${sinRitmo.slice(0, 5).join(", ")})` });
+  if (inventario.length && !inventario.some((r) => r.bodega)) {
+    avisos.push({ tipo: "inventario-sin-bodega", detalle: "el inventario no declara bodega: capital, días y rotación se calculan por SKU total" });
+  }
 
   /* ── serie mensual · suma de hechos por período ───────────────────────────────────────────────────────── */
   const ventasMensuales = periodos.map((per) => {

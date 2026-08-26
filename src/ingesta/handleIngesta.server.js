@@ -55,7 +55,13 @@ export async function handleIngesta(body = {}) {
   if (buf.length > 12 * 1024 * 1024) return { ok: false, motivo: "el archivo pesa más de 12 MB: ¿es la plantilla?" };
 
   let r;
-  try { r = ingestarPlantilla(buf, { nombreArchivo }); }
+  /* LA FECHA RELEVANTE ES LA DE CARGA, y la pone ADI (owner 2026-08-26): «no la llena el usuario». El stock es
+   * una foto del momento en que se exportó el archivo, así que la referencia para contar días sin venta es
+   * cuándo llegó, no una fecha que el usuario tenga que tipear —y que en la plantilla anterior era idéntica en
+   * todas las filas, señal de que nunca fue una columna. Se stampa acá, en el borde: el motor la recibe como
+   * dato, de modo que los gates puedan pasarle una fija y seguir siendo reproducibles. */
+  const fechaCarga = new Date().toISOString().slice(0, 10);
+  try { r = ingestarPlantilla(buf, { nombreArchivo, fechaCarga }); }
   catch (e) { return { ok: false, motivo: `no se pudo leer el archivo: ${(e && e.message) || "formato inesperado"}` }; }
 
   /* EL RECHAZO TAMBIÉN ES UNA RESPUESTA ÚTIL: viaja la preview con sus bloqueos, porque rechazar sin decir qué

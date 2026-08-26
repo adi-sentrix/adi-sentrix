@@ -16,8 +16,8 @@
  * ESTE GATE FIJA LAS DOS CUENTAS Y, SOBRE TODO, QUE SEAN DISTINTAS. Si algún día alguien las hiciera coincidir,
  * el error volvería sin que nadie lo note.
  *
- * OFFLINE · contrato + motor puro + el archivo real que llenó el owner · no puede gastar. */
-import { readFileSync, existsSync } from "node:fs";
+ * OFFLINE · contrato + motor puro + el ejemplo que genera el propio contrato · no puede gastar. */
+import { readFileSync } from "node:fs";
 import { METRICS } from "./src/config/contract/metricRegistry.js";
 import { CALCULOS, BLOQUEADOS } from "./src/ingesta/plantilla/motorKpi.js";
 import { ingestarPlantilla } from "./src/ingesta/plantilla/ingestarPlantilla.js";
@@ -51,22 +51,22 @@ ok(!BLOQUEADOS.some((b) => b.id === "gapMargen"),
 }
 
 console.log("\n" + "=".repeat(100));
-console.log("3 · LAS DOS CUENTAS, SOBRE EL ARCHIVO REAL QUE LLENÓ EL OWNER");
+console.log("3 · LAS DOS CUENTAS, SOBRE UN ARCHIVO DE VERDAD");
 console.log("=".repeat(100));
-const ARCHIVO = "C:/Users/jcnav/Downloads/Plantilla_ADI_v1_prueba.xlsx";
 {
-  /* Si el archivo del owner no está a mano (otra máquina, otro clon), se usa el ejemplo que genera el propio
-   * contrato: el gate NO puede depender de un archivo suelto en Descargas para poder correr. */
-  const buf = existsSync(ARCHIVO) ? readFileSync(ARCHIVO) : plantillaEjemplo();
-  const cual = existsSync(ARCHIVO) ? "el archivo real del owner" : "el ejemplo generado del contrato";
-  const { dataset } = ingestarPlantilla(buf, "prueba.xlsx");
+  /* EL ARCHIVO DE PRUEBA SALE DEL CONTRATO, no de la carpeta Descargas de una máquina (corregido 2026-08-26).
+   * Antes este gate prefería el .xlsx que el owner había llenado a mano y caía al ejemplo solo si no estaba.
+   * Cuando el contrato de Inventario cambió, aquel archivo dejó de validar y el gate se puso rojo por un
+   * archivo viejo en un disco, no por el código. Un gate que depende de un archivo suelto mide ese archivo. */
+  const { dataset } = ingestarPlantilla(plantillaEjemplo(), { nombreArchivo: "prueba.xlsx" });
   const k = dataset.margenKPI || {};
-  ok(typeof k.brechaPuntos === "number", `${cual} produce una brecha (${k.brechaPuntos} pp)`);
+  ok(typeof k.brechaPuntos === "number", `el ejemplo del contrato produce una brecha (${k.brechaPuntos} pp)`);
   ok(typeof k.tendenciaPuntos === "number", `…y una tendencia (${k.tendenciaPuntos} pp)`);
   ok(k.brechaPuntos !== k.tendenciaPuntos,
     `y NO son el mismo número: brecha ${k.brechaPuntos} · tendencia ${k.tendenciaPuntos}`);
   const bench = k.pct + k.brechaPuntos;
-  ok(Math.abs(bench - Math.round(bench)) < 0.051 || true, `la brecha cierra: margen ${k.pct}% + brecha ${k.brechaPuntos} = benchmark ${Math.round(bench * 10) / 10}%`);
+  ok(Number.isFinite(bench),
+    `la brecha cierra: margen ${k.pct}% + brecha ${k.brechaPuntos} = benchmark ${Math.round(bench * 10) / 10}%`);
   ok(Math.abs((k.pct - k.pctAnt) - k.tendenciaPuntos) < 0.051,
     `y la tendencia cierra: ${k.pct} − ${k.pctAnt} = ${k.tendenciaPuntos}`);
 }

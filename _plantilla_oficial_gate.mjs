@@ -182,49 +182,60 @@ H("[D] EL MOTOR · reproduce el dato de referencia con las fórmulas DECLARADAS"
 }
 
 /* ── [E] LO BLOQUEADO ──────────────────────────────────────────────────────────────────────────────────────── */
-H("[E] DÍAS Y ROTACIÓN · informado manda, calculado rellena, y la procedencia viaja con el valor");
+H("[E] LA PLANTILLA PIDE HECHOS · ADI valoriza, calcula días y rotación, y declara lo que no puede");
 {
+  /* EL CONTRATO v1 DE INVENTARIO (owner 2026-08-26), textual: «la plantilla debe pedir hechos, no KPIs ni
+   * valorizaciones manuales. El cliente entrega stock físico; ADI calcula capital, días y rotación». La hoja
+   * quedó en SKU + Bodega (opcional) + Stock. Todo lo demás sale de acá y de la hoja Ventas.
+   *
+   * ⚠️ LA REGLA «informado manda» NO MURIÓ: sigue viva en `resolverDiasYRotacion` y la prueba
+   * `_dias_rotacion_gate`, para cuando el dato llegue por un ERP. Lo que cambió es que la PLANTILLA ya no
+   * ofrece esas columnas — pedirle al usuario un KPI era pedirle que hiciera nuestra cuenta. */
+  const hojaInv = HOJAS.find((h) => h.nombre === "Inventario");
+  ok(hojaInv.columnas.length === 3, `la hoja pide 3 columnas: ${hojaInv.columnas.map((c) => c.titulo).join(" · ")}`);
+  const pedidas = hojaInv.columnas.map((c) => c.campo);
+  for (const fuera of ["fechaCorte", "stockUSD", "ultimaVenta", "doh", "rotacion"]) {
+    ok(!pedidas.includes(fuera), `«${fuera}» ya NO se le pide al usuario: la calcula o la deduce ADI`);
+  }
+  ok(hojaInv.columnas.filter((c) => c.obligatoria).map((c) => c.campo).join(",") === "sku,stockUnd",
+    "y las obligatorias son exactamente SKU y stock: la bodega es opcional");
+
   const inv = r.dataset.skuInventario;
   ok(inv.length === 6, `el inventario entró como hechos (${inv.length} filas)`);
-  ok(inv.every((s) => typeof s.stockUSD === "number" && typeof s.stockUnd === "number"), "stock valorizado y unidades son hechos: entran");
-  ok(inv.every((s) => s.procedencia && s.procedencia.doh && s.procedencia.rotacion), "cada fila declara la procedencia de sus dos métricas");
+  ok(inv.every((s) => typeof s.stockUnd === "number"), "el stock físico es el hecho que entra");
+  ok(inv.every((s) => s.procedencia && s.procedencia.doh && s.procedencia.rotacion && s.procedencia.capital),
+    "cada fila declara la procedencia de sus tres métricas derivadas");
 
-  // el ERP informó SUS días y no la rotación: la rotación tiene que salir de ESOS días, no de unos recalculados
-  const informado = inv.find((s) => s.sku === "SAN-LAV60");
-  ok(informado.doh === 185 && informado.procedencia.doh === "informado", `los días informados por el origen se RESPETAN (${informado.doh}, "${informado.procedencia.doh}")`);
-  ok(informado.procedencia.rotacion === "calculado", "…y la rotación ausente se calcula");
-  ok(Math.abs(informado.rotacion - 365 / 185) < 0.06, `…DE ESOS días (365÷185 = ${(365 / 185).toFixed(1)}, dio ${informado.rotacion}) — no de unos calculados aparte`);
-  const aparte = 365 / (informado.stockUnd / ((22) / 30));   // lo que habría dado recalcular los días por su cuenta
-  ok(Math.abs(informado.rotacion - aparte) > 1, "…y esa diferencia es real: recalcular aparte habría dado otro número para el mismo stock");
+  /* CAPITAL = STOCK × COSTO UNITARIO, y el costo unitario sale de Ventas (costo ÷ unidades vendidas). Se
+   * reproduce la cuenta acá con los datos crudos: si el motor cambiara de fórmula por dentro, esto se cae. */
+  const uno = inv.find((s) => s.sku === "TRM-800");
+  const filasDelSku = datosEjemplo().ventas.filter((v) => v.sku === "TRM-800" && v.periodo === "2026-08" && v.bodega === uno.bodega);
+  const costo = filasDelSku.reduce((a, v) => a + v.costo, 0);
+  const und = filasDelSku.reduce((a, v) => a + v.unidades, 0);
+  const esperado = Math.round(uno.stockUnd * (costo / und));
+  ok(uno.stockUSD === esperado, `capital de ${uno.sku} = ${uno.stockUnd} × (${costo} ÷ ${und}) = ${esperado} (dio ${uno.stockUSD})`);
+  ok(uno.procedencia.capital === "calculado" && /costo/.test(uno.procedencia.formulaCapital || ""),
+    `…marcado calculado y con su fórmula: «${uno.procedencia.formulaCapital}»`);
+  ok(inv.every((s) => s.procedencia.doh === "calculado"), "los días los calcula ADI: ninguno vino informado");
+  ok(inv.every((s) => s.procedencia.rotacion === "calculado"), "…y la rotación también");
+  ok(typeof uno.doh === "number" && typeof uno.rotacion === "number",
+    `…y dan números reales (${uno.doh} días · ${uno.rotacion}x)`);
 
-  // el ERP informó las dos: se respetan las dos
-  const dos = inv.find((s) => s.sku === "ELE-TAB12");
-  ok(dos.doh === 14 && dos.rotacion === 26.1, "si el origen informa las dos, se respetan las dos tal como vinieron");
-  ok(dos.procedencia.doh === "informado" && dos.procedencia.rotacion === "informado", "…y las dos se declaran informadas");
-
-  // sin KPI del origen: ADI las calcula, con la fórmula declarada
-  const calc = inv.find((s) => s.sku === "TRM-800");
-  ok(calc.procedencia.doh === "calculado" && calc.procedencia.rotacion === "calculado", "sin KPI del origen, ADI calcula las dos");
-  ok(typeof calc.doh === "number" && typeof calc.rotacion === "number", `…y da números reales (${calc.doh} días · ${calc.rotacion}x)`);
-  ok(/stock en unidades/.test(String(calc.procedencia.formulaDoh)), "…y la fórmula usada viaja con el valor");
-
-  // el diagnóstico del producto, no una copia
-  ok(inv.every((s) => s.estado !== null), "cada SKU recibe su estado");
-  ok(inv.some((s) => s.estado === "capital_frenado"), "…y el inmovilizado aparece cuando el dato lo sostiene");
-  const k = r.dataset.invKPI;
-  ok(k.inmovilizadoUSD > 0 && k.inmovilizadoPct > 0, `el KPI de capital ya trae el inmovilizado (${k.inmovilizadoUSD} · ${k.inmovilizadoPct}%)`);
-  ok(typeof k.doh === "number", `…y los días promedio (${k.doh})`);
-
-  /* ⚠️ `gapMargen` SALIÓ DE ESTA LISTA el 2026-08-23: el owner declaró la definición que faltaba —«brecha de
-   * margen = benchmark − margen actual; la variación contra el mes anterior es TENDENCIA, no brecha»— y con eso
-   * el KPI de cabecera pasó a calculable. Lo fija `_brecha_tendencia_gate`, que además prueba que las dos cuentas
-   * den números DISTINTOS: si volvieran a coincidir, el defecto #D-MARGEN-GAP-BENCHMARK-MIENTE regresaría mudo. */
-  for (const id of ["escenarios", "presupuesto"]) {
-    const b = BLOQUEADOS.find((x) => x.id === id);
-    ok(!!b && !!b.porque && !!b.paraAbrirlo, `«${id}» sigue declarado bloqueado, con motivo y camino para abrirlo`);
-  }
-  ok(!BLOQUEADOS.some((x) => x.id === "rotacion" || x.id === "doh"), "rotación y días YA NO están en la lista de bloqueados");
-  ok(r.dataset.clientesVentas.every((c) => c.presupuesto === null), "el presupuesto sigue en null: salió de la v1 y está declarado");
+  /* ⚠️ EL CASO QUE EL OWNER PIDIÓ POR ESCRITO: «si un SKU tiene stock pero no tiene venta/costo suficiente en el
+   * período, ADI no inventa: declara que no puede valorizar o calcular rotación/días para ese SKU». Un cero acá
+   * diría «no tiene capital inmovilizado», que es lo contrario de «no lo sé». */
+  const d = datosEjemplo();
+  const conFantasma = ingestarPlantilla(
+    plantillaEjemplo({ ...d, inventario: [...d.inventario, { sku: "SIN-VENTA-1", bodega: "Central", stockUnd: 500 }] }),
+    { nombreArchivo: "fantasma.xlsx" });
+  const f = conFantasma.dataset.skuInventario.find((s) => s.sku === "SIN-VENTA-1");
+  ok(f.stockUSD === null, "un SKU con stock y sin venta NO se valoriza: null, nunca cero");
+  ok(f.doh === null && f.rotacion === null, "…ni se le inventan días ni rotación");
+  ok(f.procedencia.capital === "sin dato" && f.procedencia.doh === "sin dato", "…y la fila lo declara: «sin dato»");
+  ok(f.estado === null, "…y se queda sin estado: diagnosticarlo sería diagnosticar un hueco");
+  const av = conFantasma.preview.avisos.map((a) => a.tipo);
+  ok(av.includes("sku-sin-valorizar") && av.includes("sku-sin-ritmo"),
+    `…y sube a los avisos, con el SKU nombrado (${av.filter((x) => /^sku-sin/.test(x)).join(" · ")})`);
 }
 
 /* ── [F] EL BENCHMARK ES PARÁMETRO ─────────────────────────────────────────────────────────────────────────── */
@@ -283,28 +294,38 @@ H("[H] COHERENCIA · el mismo SKU con dos marcas no se resuelve eligiendo");
  * usuario concluye que ADI se equivoca. Por eso el conteo va en la preview y se verifica acá. */
 H("[I] PROCEDENCIA VISIBLE · el usuario distingue lo suyo de lo que puso ADI");
 {
+  /* Desde el contrato v1 de Inventario (owner 2026-08-26) la plantilla pide HECHOS, así que las tres métricas
+   * derivadas —capital, días y rotación— salen SIEMPRE calculadas. Que se cuenten igual no es redundante: es lo
+   * que le permite al usuario ver que ninguna de esas cifras vino de su archivo, y cuántas ADI no pudo producir. */
   const pr = r.preview.totales.procedencia;
   const inv = r.dataset.skuInventario;
   ok(pr && pr.total === inv.length, `la preview cuenta las ${inv.length} filas de inventario`);
-  ok(pr.dias.informado === 2 && pr.dias.calculado === 4, `días: ${pr.dias.informado} informados · ${pr.dias.calculado} calculados`);
-  ok(pr.rotacion.informado === 1 && pr.rotacion.calculado === 5, `rotación: ${pr.rotacion.informado} informada · ${pr.rotacion.calculado} calculadas`);
+  ok(pr.dias.informado === 0 && pr.dias.calculado === 6, `días: ${pr.dias.informado} informados · ${pr.dias.calculado} calculados por ADI`);
+  ok(pr.rotacion.informado === 0 && pr.rotacion.calculado === 6, `rotación: ${pr.rotacion.informado} informadas · ${pr.rotacion.calculado} calculadas`);
+  ok(pr.capital.calculado === 6 && pr.capital.sinDato === 0, `capital: ${pr.capital.calculado} valorizados por ADI · ${pr.capital.sinDato} sin dato`);
   // el conteo no puede ser un literal: tiene que salir del dataset
-  const dInf = inv.filter((x) => x.procedencia.doh === "informado").length;
-  ok(dInf === pr.dias.informado, "el conteo de la preview sale del dataset, no de un número escrito a mano");
+  const dCalc = inv.filter((x) => x.procedencia.doh === "calculado").length;
+  ok(dCalc === pr.dias.calculado, "el conteo de la preview sale del dataset, no de un número escrito a mano");
 
   const t = previewPlantillaEnTexto(r.preview);
-  ok(/días de inventario: .*informado/.test(t), "la preview en texto dice cuántos días vinieron informados");
-  ok(/rotación: *.*calculad/.test(t), "…y cuántas rotaciones puso ADI");
+  ok(/capital en stock: .*calculados por ADI/.test(t), "la preview en texto declara que el capital lo calculó ADI");
+  ok(/días de inventario: .*calculados por ADI/.test(t), "…y los días también");
+  ok(/rotación: *.*calculad/.test(t), "…y la rotación");
 
-  // una columna opcional que ADI SÍ calcula, vacía, no es un aviso: es el camino normal
-  ok(!/"Días de inventario" vino vacía/.test(t), "dejar vacía la columna de días NO genera aviso: ADI la calcula");
-  ok(!/"Rotación" vino vacía/.test(t), "dejar vacía la columna de rotación tampoco");
-
-  // …pero el silencio es dirigido, no general: una opcional que ADI no calcula sigue avisando
-  const sinFecha = ejemploCon((hs) => { const h = hoja(hs, "Inventario"); const i = iEnc(h); h.filas[i + 1][5] = null; });
-  const pv = ingestarPlantilla(sinFecha, { nombreArchivo: "sf.xlsx" }).preview;
-  ok(pv.avisos.some((a) => /última venta.*vino vacía/.test(a.detalle)),
-     "una opcional que ADI NO calcula sí sigue avisando: el silencio es dirigido, no general");
+  /* EL SILENCIO ES DIRIGIDO, NO GENERAL · una opcional que ADI SÍ deriva no genera aviso al quedar vacía (sería
+   * un aviso por fila que entierra los que importan), pero una que ADI NO puede completar sigue avisando. Con
+   * días y rotación fuera de la plantilla, el caso que queda vivo es «Precio de lista»: es opcional, es un hecho
+   * del negocio, y si no viene, no existe. */
+  const sinPrecio = ejemploCon((hs) => {
+    const h = hoja(hs, "Ventas"); const i = iEnc(h);
+    const col = h.filas[i].findIndex((c) => /Precio de lista/i.test(String(c || "")));
+    h.filas[i + 1][col] = null;
+  });
+  const pv = ingestarPlantilla(sinPrecio, { nombreArchivo: "sp.xlsx" }).preview;
+  ok(pv.avisos.some((a) => /Precio de lista.*vino vacía/.test(a.detalle)),
+     "una opcional que ADI NO calcula sí avisa al quedar vacía");
+  ok(!/vino vacía/.test(previewPlantillaEnTexto(r.preview)),
+     "…y el archivo completo no arrastra ningún aviso de ese tipo");
 }
 
 H("[I2] LA PLANTILLA SE PUEDE PROBAR SIN UI · scripts/leer-plantilla.mjs");
@@ -339,11 +360,14 @@ H("[J] LOS TRES CASOS · uno completo, uno mínimo, uno malo");
   const c1 = por.completo, e1 = CASOS[0].espera;
   ok(c1.ok === true, "COMPLETO: entra");
   const p1 = c1.preview.totales.procedencia;
-  ok(p1.dias.informado === e1.diasInformados && p1.dias.calculado === 0,
-     `COMPLETO: los ${p1.dias.informado} días son del ERP y ADI no calculó ninguno`);
-  ok(p1.rotacion.informado === e1.rotacionInformadas, "COMPLETO: las 6 rotaciones también se respetan tal cual");
-  ok(c1.dataset.skuInventario.find((s) => s.sku === "SAN-LAV60").doh === 185,
-     "COMPLETO: el valor informado llega intacto al dataset, sin recalcularse");
+  /* «COMPLETO» ya no significa «el ERP publica sus KPI»: desde el contrato v1 de Inventario significa que el
+   * archivo trae TODAS las columnas que la plantilla ofrece, incluida la bodega. Días, rotación y capital los
+   * produce ADI en los dos casos — lo que cambia entre COMPLETO y MÍNIMO es el GRANO del cálculo. */
+  ok(p1.dias.calculado === e1.diasCalculados && p1.dias.informado === 0,
+     `COMPLETO: ADI calculó los ${p1.dias.calculado} días — la plantilla ya no pide KPIs`);
+  ok(p1.rotacion.calculado === e1.diasCalculados, "COMPLETO: y las 6 rotaciones también salen de esos días");
+  ok(c1.dataset.skuInventario.every((s) => s.bodega),
+     "COMPLETO: trae bodega, así que capital, días y rotación van por SKU+bodega");
   ok(c1.preview.disponibilidad.caras.filter((x) => x.completa).length === e1.carasCompletas,
      "COMPLETO: las 4 caras de Sentrix abren completas");
 
@@ -356,6 +380,15 @@ H("[J] LOS TRES CASOS · uno completo, uno mínimo, uno malo");
   ok(p2.rotacion.calculado === e2.diasCalculados, "MÍNIMO: y las 6 rotaciones");
   ok(c2.preview.avisos.some((a) => a.tipo === "clave-mas-gruesa"),
      "MÍNIMO: se declara que sin Bodega en Ventas todo queda agregado — caer al total es una decisión visible");
+  /* ⚠️ REGLA TEXTUAL DEL OWNER (2026-08-26): «si no viene Bodega, se calcula por SKU total y se declara». La
+   * segunda mitad es la que importa: agregar por SKU total es una respuesta legítima; hacerlo en silencio deja
+   * al usuario creyendo que mira un número por bodega. */
+  ok(c2.dataset.skuInventario.every((s) => s.bodega === null),
+     "MÍNIMO: el inventario entra sin bodega — dejó de ser obligatoria");
+  ok(c2.preview.avisos.some((a) => a.tipo === "inventario-sin-bodega"),
+     "MÍNIMO: y se DECLARA que capital, días y rotación van por SKU total");
+  ok(c2.dataset.skuInventario.every((s) => typeof s.stockUSD === "number"),
+     "MÍNIMO: con solo SKU y stock, ADI igual valoriza el inventario completo");
   const falta2 = c2.preview.disponibilidad.caras.flatMap((x) => x.falta);
   ok(falta2.includes("ventas@marca") && falta2.includes("ventas@familia"),
      "MÍNIMO: se nombra exactamente qué métricas se pierden, en vez de decir «faltan datos»");

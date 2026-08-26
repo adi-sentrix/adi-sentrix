@@ -223,6 +223,15 @@ export function PanelDatos({ onCerrar, onActivar, onVolverAlDemo, activo }) {
                 <b style={{ color: C.textSub }}>{proc.dias.calculado}</b> calculados por ADI
                 {proc.dias.sinDato > 0 && <> · <b style={{ color: C.amber }}>{proc.dias.sinDato}</b> sin dato suficiente</>}
                 {" "}(de {proc.total} SKU).
+                {/* EL CAPITAL TAMBIÉN ES CUENTA NUESTRA desde el contrato v1 de Inventario (owner 2026-08-26): la
+                    plantilla pide stock FÍSICO y ADI lo valoriza con el costo de la hoja Ventas. Si la pantalla
+                    no lo dice, esa cifra se lee como si viniera del sistema del usuario. */}
+                {proc.capital && (
+                  <><br/>Capital en stock: <b style={{ color: C.textSub }}>{proc.capital.calculado}</b> valorizados por ADI
+                    {" "}(stock × costo unitario de tus ventas)
+                    {proc.capital.sinDato > 0 && <> · <b style={{ color: C.amber }}>{proc.capital.sinDato}</b> sin venta en el período, no se pueden valorizar</>}.
+                  </>
+                )}
               </div>
             )}
 

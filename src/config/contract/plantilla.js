@@ -91,26 +91,30 @@ export const HOJAS = [
   {
     nombre: "Inventario",
     obligatoria: false,
-    que: "la FOTO del stock a una fecha: cuánto hay, dónde, y cuándo se vendió por última vez",
+    que: "el stock ACTUAL: cuánto hay de cada SKU y, si aplica, en qué bodega",
+    /* ⚠️ DOS COLUMNAS. Es el contrato v1 que fijó el owner (2026-08-26) después de mirar la plantilla llena:
+     * «la plantilla debe pedir hechos, no KPIs ni valorizaciones manuales. El cliente entrega stock físico; ADI
+     * calcula capital, días y rotación».
+     *
+     * QUÉ SE FUE Y POR QUÉ, porque cada una se cayó por su propio motivo:
+     *   · «Fecha de corte» — era idéntica en todas las filas: eso es metadato, no columna. La fecha relevante
+     *     es la de CARGA del archivo, y la pone ADI (ver `fechaCarga` en el dataset). El usuario no la llena.
+     *   · «Stock valorizado» — es stock × costo unitario, y el costo unitario sale de la hoja Ventas
+     *     (costo ÷ unidades vendidas). Pedirlo era pedir una valorización hecha a mano.
+     *   · «Fecha de la última venta» — ya está en Ventas. Pedir dos veces el mismo hecho invita a que difieran.
+     *   · «Días de inventario» y «Rotación» — son cuentas nuestras. Estuvieron como opcionales bajo «informado
+     *     manda»; el owner las sacó de la plantilla v1 para que la hoja pida SOLO hechos. La regla no se pierde:
+     *     `resolverDiasYRotacion` sigue respetando un valor informado si algún día llega por otra vía (ERP).
+     *
+     * LA BODEGA ES OPCIONAL, y no por comodidad: en Ventas también lo es, y a un negocio de una sola bodega se
+     * le estaba exigiendo una columna que no le dice nada. Si viene, todo se calcula por SKU+Bodega; si no
+     * viene, por SKU total — y eso se DECLARA en los avisos, no se disimula. */
     columnas: [
-      { campo: "fechaCorte", titulo: "Fecha de corte (AAAA-MM-DD)", tipo: "fecha", obligatoria: true },
       { campo: "sku", titulo: "SKU", tipo: "texto", clave: true, obligatoria: true },
-      { campo: "bodega", titulo: "Bodega", tipo: "texto", clave: true, obligatoria: true },
-      { campo: "stockUnd", titulo: "Stock (unidades)", tipo: "numero", obligatoria: true },
-      { campo: "stockUSD", titulo: "Stock valorizado", tipo: "numero", obligatoria: true },
-      { campo: "ultimaVenta", titulo: "Fecha de la última venta", tipo: "fecha", obligatoria: false,
-        nota: "La FECHA, no los días. Los días sin venta los cuenta ADI contra la fecha de corte." },
-      /* ── rotación y días: OPCIONALES (owner 2026-08-22) ────────────────────────────────────────────────────
-       * Dejaron de estar prohibidas. La regla que fijó el owner es «informado manda, calculado rellena»: si el
-       * ERP ya publica su rotación o sus días, ADI los respeta y no le discute el número a su sistema; si no
-       * vienen, los calcula con la fórmula declarada (`metricRegistry.formulaSiFalta`) usando el stock y las
-       * unidades vendidas que ya trae la hoja Ventas. En los dos casos la procedencia viaja con el valor.
-       * Por eso NO están en COLUMNAS_PROHIBIDAS: no son un KPI que le pedimos calcular al usuario, son un dato
-       * que su sistema puede tener — y si lo tiene, manda. */
-      { campo: "doh", titulo: "Días de inventario", tipo: "numero", obligatoria: false, laCalculaAdi: true,
-        nota: "Solo si tu sistema ya lo publica. Si no lo mandás, ADI lo calcula." },
-      { campo: "rotacion", titulo: "Rotación", tipo: "numero", obligatoria: false, laCalculaAdi: true,
-        nota: "Solo si tu sistema ya la publica. Si no la mandás, ADI la calcula desde los días." },
+      { campo: "bodega", titulo: "Bodega", tipo: "texto", clave: true, obligatoria: false,
+        nota: "Solo si manejas más de una. Si la mandás, el cálculo es por SKU y bodega." },
+      { campo: "stockUnd", titulo: "Stock (unidades)", tipo: "numero", obligatoria: true,
+        nota: "El stock ACTUAL de tu sistema al momento de exportar el archivo. Unidades físicas, no valorizado." },
     ],
   },
 ];

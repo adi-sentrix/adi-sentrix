@@ -33,30 +33,29 @@ const libro = (datos, campos = {}) => construirXlsx(
        .map((h) => hojaDe(h, datos[h.nombre], datos.parametros, campos[h.nombre] || null)));
 
 /* ── 1 · COMPLETO ────────────────────────────────────────────────────────────────────────────────────────────
- * Todas las columnas llenas y un ERP que publica sus propios días y rotación para TODOS los SKU. Prueba que
- * cuando el sistema del cliente ya tiene los KPI, ADI no le discute ninguno. */
+ * Todas las columnas que la plantilla ofrece, incluidas las opcionales. Desde el contrato v1 de Inventario
+ * (owner 2026-08-26) eso ya NO incluye días ni rotación: la hoja pide hechos, no KPIs. La única opcional que le
+ * queda a Inventario es la bodega, y este caso la trae — así el cálculo va por SKU+bodega. */
 function completo() {
   const d = datosEjemplo();
-  const dohPorSku = { "TRM-800": 42, "TRM-450": 61, "SAN-LAV60": 185, "SAN-GRI22": 33, "ELE-CAB25": 118, "ELE-TAB12": 14 };
-  const inventario = d.inventario.map((i) => ({
-    ...i, doh: dohPorSku[i.sku], rotacion: Math.round((365 / dohPorSku[i.sku]) * 10) / 10,
-  }));
-  return libro({ parametros: d.parametros, Ventas: d.ventas, Inventario: inventario });
+  return libro({ parametros: d.parametros, Ventas: d.ventas, Inventario: d.inventario });
 }
 
 /* ── 2 · MÍNIMO ──────────────────────────────────────────────────────────────────────────────────────────────
- * Solo las columnas obligatorias: ni canal, ni marca, ni familia, ni bodega, ni acciones, ni precio de lista, y
- * un inventario sin fecha de última venta ni KPI. Es el archivo del cliente que llena lo justo, y es el caso que
- * de verdad importa: ADI tiene que calcular días y rotación, y DECIR qué partes de Sentrix se quedan cortas. */
+ * Solo las columnas obligatorias: ni canal, ni marca, ni familia, ni bodega, ni acciones, ni precio de lista —
+ * y un inventario de DOS columnas, SKU y stock. Es el archivo del cliente que llena lo justo, y es el caso que
+ * de verdad importa: ADI tiene que valorizar el stock, calcular días y rotación, y DECIR qué se queda corto.
+ *
+ * ⚠️ ACÁ LA BODEGA NO VA, y es deliberado desde 2026-08-26: dejó de ser obligatoria en Inventario. Un negocio
+ * de una sola bodega estaba obligado a llenar una columna que no le dice nada. Sin bodega, todo se calcula por
+ * SKU total — y el motor lo DECLARA en los avisos en vez de disimularlo. */
 function minimo() {
   const d = datosEjemplo();
   const ventas = d.ventas.map(({ periodo, cliente, sku, unidades, venta, costo }) => ({ periodo, cliente, sku, unidades, venta, costo }));
-  /* Inventario SÍ lleva bodega: ahí es obligatoria, porque sin ella dos bodegas del mismo SKU son la misma
-   * fila y el stock se pisa. En Ventas es opcional, y este caso la omite a propósito. */
-  const inventario = d.inventario.map(({ fechaCorte, sku, bodega, stockUnd, stockUSD }) => ({ fechaCorte, sku, bodega, stockUnd, stockUSD }));
+  const inventario = d.inventario.map(({ sku, stockUnd }) => ({ sku, stockUnd }));
   return libro(
     { parametros: { ...d.parametros, empresa_id: "minimo", empresa_nombre: "Caso Mínimo S.A." }, Ventas: ventas, Inventario: inventario },
-    { Ventas: ["periodo", "cliente", "sku", "unidades", "venta", "costo"], Inventario: ["fechaCorte", "sku", "bodega", "stockUnd", "stockUSD"] },
+    { Ventas: ["periodo", "cliente", "sku", "unidades", "venta", "costo"], Inventario: ["sku", "stockUnd"] },
   );
 }
 
@@ -98,14 +97,14 @@ function maloCompleto() {
 
 export const CASOS = [
   { clave: "completo", archivo: "Caso_1_completo.xlsx", titulo: "COMPLETO · el ERP publica todo",
-    que: "todas las columnas llenas y días/rotación informados para los 6 SKU",
+    que: "todas las columnas que ofrece la plantilla, incluida la bodega: el cálculo va por SKU+bodega",
     construir: completo,
-    espera: { ok: true, diasInformados: 6, rotacionInformadas: 6, diasCalculados: 0, carasCompletas: 4 } },
+    espera: { ok: true, diasInformados: 0, rotacionInformadas: 0, diasCalculados: 6, carasCompletas: 4, conBodega: true } },
 
   { clave: "minimo", archivo: "Caso_2_minimo.xlsx", titulo: "MÍNIMO · solo lo obligatorio",
-    que: "sin canal, marca, familia, bodega, acciones ni precio de lista; ADI calcula días y rotación",
+    que: "inventario de dos columnas (SKU y stock); ADI valoriza, calcula días y rotación, y declara que va por SKU total",
     construir: minimo,
-    espera: { ok: true, diasInformados: 0, diasCalculados: 6, rotacionInformadas: 0 } },
+    espera: { ok: true, diasInformados: 0, diasCalculados: 6, rotacionInformadas: 0, conBodega: false } },
 
   { clave: "malo", archivo: "Caso_3_malo.xlsx", titulo: "MALO · cinco problemas a la vez",
     que: "KPI ya calculado · unidad ambigua · período mal escrito · celda obligatoria vacía · SKU con dos marcas (6 bloqueos: romper el título de Venta la deja además ausente)",
