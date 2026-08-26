@@ -39,6 +39,18 @@ const TEMA_TABLERO = {
   hoverMedio: "rgba(255,255,255,0.06)",
   velo: "rgba(255,255,255,0.10)",
   entidad: "#ffffff",
+  /* EL CAMPO DE HEXÁGONOS Y SU LATIDO · lo único del rediseño que no se resuelve cambiando un color, sino
+   * INVIRTIÉNDOLO: sobre negro la retícula es luz tenue, sobre papel es tinta tenue. Mismo gesto, al revés. */
+  hexTrazo: "rgba(255,255,255,0.036)",
+  hexLit: "rgba(47,184,218,0.15)",
+  logoTrazo: "rgba(255,255,255,0.30)",
+  haloNucleo: "rgba(47,184,218,0.13)",
+  haloAmplio: "rgba(47,184,218,0.09)",
+  dashInactivo: "#6b6f74",
+  /* LA SOMBRA DEL CAMPO DE PREGUNTA · en el tablero es un pozo negro con un filete de luz arriba; sobre papel
+   * ese mismo pozo ensucia la hoja. Va como token porque es una SOMBRA, no un color: se reemplaza entera. */
+  sombraCampo: "0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)",
+  sombraCampoFoco: "0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)",
   esPapel: false,
 };
 
@@ -57,6 +69,20 @@ const TEMA_PAPEL = {
   hoverMedio: "rgba(23,24,28,0.06)",
   velo: "rgba(23,24,28,0.10)",
   entidad: "#17181c",
+  /* MEDIDOS SOBRE EL PAPEL, no derivados: el 0.036 del tablero invertido a tinta desaparece —el ojo perdona
+   * mucha menos luz sobre claro que sombra sobre negro—, así que la retícula sube a 0.085 y el latido se hace
+   * celeste profundo. El owner lo dijo mirándolo: «los hexágonos quiero que se noten más, al igual que el
+   * efecto que tienen, se nota muy poco». */
+  hexTrazo: "rgba(23,24,28,0.085)",
+  hexLit: "rgba(15,114,144,0.13)",
+  logoTrazo: "rgba(23,24,28,0.38)",
+  haloNucleo: "rgba(15,114,144,0.14)",
+  haloAmplio: "rgba(15,114,144,0.085)",
+  dashInactivo: "rgba(23,24,28,0.32)",
+  /* sobre papel el campo se APOYA en vez de hundirse: un filete y una sombra corta y baja, como la tarjeta de
+   * la landing. Sin luz interior — sobre blanco no hay nada que iluminar. */
+  sombraCampo: "0 1px 2px rgba(23,24,28,0.05), 0 8px 24px -14px rgba(23,24,28,0.20)",
+  sombraCampoFoco: "0 0 0 3px rgba(15,114,144,0.14), 0 1px 2px rgba(23,24,28,0.05)",
   esPapel: true,
 };
 

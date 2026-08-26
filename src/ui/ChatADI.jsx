@@ -643,7 +643,7 @@ export function AdiMessageBody({ text }) {
         <div key={`block-${blockIdx}`} style={{
           display:"flex", alignItems:"flex-start", gap:9,
           paddingTop:14, marginTop:6,
-          borderTop:"1px solid rgba(255,255,255,0.06)",
+          borderTop:`1px solid ${C.hoverMedio}`,
           fontSize:12.5, color:C.textMuted, fontStyle:"italic",
           lineHeight:1.6, letterSpacing:"0.005em"
         }}>
@@ -661,7 +661,7 @@ export function AdiMessageBody({ text }) {
         <div key={`block-${blockIdx}`} style={{
           display:"flex", alignItems:"center", gap:9,
           marginTop:10, marginBottom:14,
-          paddingTop:14, borderTop:"1px solid rgba(255,255,255,0.1)"
+          paddingTop:14, borderTop:`1px solid ${C.velo}`
         }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.textSub} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -711,18 +711,18 @@ function SentrixButton({ sentrixAction, onSentrixAction, msgId = null }) {
         onClick={() => onSentrixAction(sentrixAction.payload, msgId)}
         style={{
           display:"flex", alignItems:"center", gap:6, padding:"7px 14px",
-          background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.14)",
+          background:C.hoverSuave, border:`1px solid ${C.cardBorder}`,
           borderRadius:6, color:C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif",
           fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}>
+        onMouseEnter={e => { e.currentTarget.style.background = C.velo; }}
+        onMouseLeave={e => { e.currentTarget.style.background = C.hoverSuave; }}>
         <span>↗</span>
         <span>{sentrixAction.label}</span>
       </button>
       {sentrixAction.moduleChip && (
         <span style={{
-          padding:"4px 9px", background:"rgba(255,255,255,0.06)", border:`1px solid ${C.border}`,
+          padding:"4px 9px", background:C.hoverMedio, border:`1px solid ${C.border}`,
           borderRadius:4, fontSize:10.5, fontWeight:600, color:C.textSub, letterSpacing:"0.2px"
         }}>
           {sentrixAction.moduleChip}
@@ -783,13 +783,13 @@ function EvidenceButton({ evidence, onOpenEvidence, active }) {
           onClick={() => onOpenEvidence(x.ev)}
           style={{
             display:"flex", alignItems:"center", gap:7, padding:"7px 14px",
-            background: active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)",
-            border:`1px solid ${active ? "rgba(47,184,218,0.6)" : "rgba(255,255,255,0.14)"}`,
+            background: active ? "rgba(47,184,218,0.16)" : C.hoverSuave,
+            border:`1px solid ${active ? "rgba(47,184,218,0.6)" : C.cardBorder}`,
             borderRadius:6, color: active ? C.celeste : C.textSub, fontFamily:"'DM Sans', system-ui, sans-serif",
             fontSize:12, fontWeight:600, cursor:"pointer", transition:"all 0.15s"
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.2)" : "rgba(255,255,255,0.08)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.16)" : "rgba(255,255,255,0.04)"; }}>
+          onMouseEnter={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.2)" : C.velo; }}
+          onMouseLeave={e => { e.currentTarget.style.background = active ? "rgba(47,184,218,0.16)" : C.hoverSuave; }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="14" y1="9" x2="14" y2="21"/>
           </svg>
@@ -828,7 +828,7 @@ function SourceBadge({ source }) {
   return (
     <div style={{ marginLeft:44, marginTop:1, display:"flex", alignItems:"center", gap:6, opacity:0.72 }}
       title={isAI ? "Redactado por el LLM sobre cifras validadas por ADI (nunca inventa cifras)" : "Respuesta calculada directamente por ADI, sin redacción de IA"}>
-      <span style={{ width:5, height:5, borderRadius:"50%", background: isAI ? C.celeste : "rgba(255,255,255,0.3)", flexShrink:0 }}/>
+      <span style={{ width:5, height:5, borderRadius:"50%", background: isAI ? C.celeste : C.textMuted, flexShrink:0 }}/>
       <span style={{ fontSize:9.5, fontFamily:"'JetBrains Mono', ui-monospace, monospace", letterSpacing:"0.6px", color:C.textMuted, textTransform:"uppercase" }}>
         {isAI ? "narrado · IA" : "cálculo directo"}
       </span>
@@ -910,12 +910,12 @@ function CampoHexagonos() {
       {/* EL HALO · dos capas. El núcleo se apoya detrás del hexágono; el respiro amplio sostiene la pantalla
           entera. Respira lento (17s de ida y 17s de vuelta): más rápido se lee como una alerta. */}
       <div style={{ position:"absolute", inset:"-10%", animation:"adiHeroRespira 17s ease-in-out infinite alternate",
-        background:"radial-gradient(26% 24% at 50% 30%, rgba(47,184,218,0.13), transparent 74%), radial-gradient(58% 54% at 50% 38%, rgba(47,184,218,0.09), transparent 72%)" }}/>
+        background:`radial-gradient(26% 24% at 50% 30%, ${C.haloNucleo}, transparent 74%), radial-gradient(58% 54% at 50% 38%, ${C.haloAmplio}, transparent 72%)` }}/>
       <svg style={{ position:"absolute", inset:-60, width:"calc(100% + 120px)", height:"calc(100% + 120px)",
         WebkitMaskImage:_HEX_MASK_ANILLO, maskImage:_HEX_MASK_ANILLO }}>
         <defs>
           <pattern id="adiHexCampo" width="90.07" height="156" patternUnits="userSpaceOnUse">
-            <g fill="none" stroke="rgba(255,255,255,0.036)" strokeWidth="1" vectorEffect="non-scaling-stroke">
+            <g fill="none" stroke={C.hexTrazo} strokeWidth="1" vectorEffect="non-scaling-stroke">
               <path d="M0,-52 L45.03,-26 L45.03,26 L0,52 L-45.03,26 L-45.03,-26 Z"/>
               <path d="M90.07,-52 L135.1,-26 L135.1,26 L90.07,52 L45.04,26 L45.04,-26 Z"/>
               <path d="M45.03,26 L90.06,52 L90.06,104 L45.03,130 L0,104 L0,52 Z"/>
@@ -930,7 +930,7 @@ function CampoHexagonos() {
         <svg key={i} viewBox="0 0 90.07 104" width="90" height="104"
           style={{ position:"absolute", left:h.left, top:h.top, opacity:0,
             animation:`adiHeroPrende ${h.dur} ease-out infinite`, animationDelay:h.delay }}>
-          <polygon points="45.03,0 90.07,26 90.07,78 45.03,104 0,78 0,26" fill="rgba(47,184,218,0.15)"/>
+          <polygon points="45.03,0 90.07,26 90.07,78 45.03,104 0,78 0,26" fill={C.hexLit}/>
         </svg>
       ))}
     </div>
@@ -982,7 +982,7 @@ function HeroInicio({ scenario, campo, onPregunta }) {
       {/* EL CUBO VIVO · el hexágono es la marca; lo que gira es el ANILLO interior, no la silueta. Rotar el
           logo entero lo convertiría en un spinner —"espera, estoy cargando"— y acá no se está esperando nada:
           se está invitando a hablar. El anillo girando lento dice "atento", que es lo que ADI hace. */}
-      <svg width="132" height="132" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.30)" strokeWidth="3"
+      <svg width="132" height="132" viewBox="0 0 200 200" fill="none" stroke={C.logoTrazo} strokeWidth="3"
         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ position:"relative", zIndex:1, marginBottom:20, flexShrink:0 }}>
         <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5"/>
         <g style={{ transformOrigin:"100px 100px", animation:"adiHeroGiro 22s linear infinite" }}>
@@ -1012,11 +1012,11 @@ function HeroInicio({ scenario, campo, onPregunta }) {
           {HERO_CHIPS.map((c, i) => (
             <button key={c.q} onClick={() => onPregunta(c.q)}
               style={{ display:"flex", alignItems:"center", gap:11, textAlign:"left", cursor:"pointer",
-                background:"rgba(255,255,255,0.035)", border:`1px solid ${C.borderLight}`, borderRadius:13, padding:"15px 16px",
+                background:C.hoverSuave, border:`1px solid ${C.borderLight}`, borderRadius:13, padding:"15px 16px",
                 color:C.text, fontFamily:"inherit", fontSize:16, fontWeight:600, letterSpacing:"-0.011em", lineHeight:1.3,
                 transition:"background 0.14s, border-color 0.14s, transform 0.14s" }}
-              onMouseEnter={e => { e.currentTarget.style.background="rgba(255,255,255,0.065)"; e.currentTarget.style.borderColor=C.celeste; e.currentTarget.style.transform="translateY(-1px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background="rgba(255,255,255,0.035)"; e.currentTarget.style.borderColor=C.borderLight; e.currentTarget.style.transform="none"; }}>
+              onMouseEnter={e => { e.currentTarget.style.background=C.hoverMedio; e.currentTarget.style.borderColor=C.celeste; e.currentTarget.style.transform="translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background=C.hoverSuave; e.currentTarget.style.borderColor=C.borderLight; e.currentTarget.style.transform="none"; }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.celeste} strokeWidth="2"
                 strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, opacity:0.85 }} aria-hidden="true">
                 {_CHIP_ICONOS[i % _CHIP_ICONOS.length]}
@@ -1279,9 +1279,9 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
           value={input} onChange={e=>setInput(e.target.value)}
           onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); submit(input); } }}
           placeholder="Pregunta a ADI…"
-          style={{ flex:1, resize:"none", overflowY:"auto", maxHeight:160, minHeight:26, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:14, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:centrado?16.5:15, fontWeight:centrado?500:400, lineHeight:1.5, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:"0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-          onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow="0 0 0 3px rgba(47,184,218,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"; }}
-          onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow="0 2px 10px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.03)"; }}
+          style={{ flex:1, resize:"none", overflowY:"auto", maxHeight:160, minHeight:26, background:C.surfaceAlt, border:`1px solid ${C.borderLight}`, borderRadius:14, padding:"12px 16px", fontFamily:"'DM Sans', system-ui, sans-serif", fontSize:centrado?16.5:15, fontWeight:centrado?500:400, lineHeight:1.5, color:C.text, outline:"none", caretColor:C.celeste, minWidth:0, transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s", boxShadow:C.sombraCampo }}
+          onFocus={e=>{ e.target.style.borderColor=C.celeste; e.target.style.background=C.surfaceHover; e.target.style.boxShadow=C.sombraCampoFoco; }}
+          onBlur={e=>{ e.target.style.borderColor=C.borderLight; e.target.style.background=C.surfaceAlt; e.target.style.boxShadow=C.sombraCampo; }}
         />
         <button onClick={()=>submit(input)} disabled={!input.trim()} aria-label="Enviar la pregunta"
           style={{ width:44, height:44, borderRadius:14, border:"none", background:input.trim()?"linear-gradient(180deg,#3fc4e2,#1c8fae)":C.surfaceHover, color:input.trim()?"#fff":C.textSub, cursor:input.trim()?"pointer":"default", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.18s", boxShadow:input.trim()?"0 4px 14px -3px rgba(47,184,218,0.55)":"0 1px 4px rgba(0,0,0,0.35)" }}>
@@ -1292,7 +1292,7 @@ export function ChatADI({ scenario = "bonanza", modulo = null, onSentrixAction =
         </button>
       </div>
       <div style={{ fontSize:centrado?13:10, color:C.textMuted, display:"flex", alignItems:"center", justifyContent:centrado?"center":"flex-start", gap:6, letterSpacing:"0.3px" }}>
-        <kbd style={{ fontSize:centrado?11:9, padding:"1px 5px", borderRadius:3, background:"rgba(255,255,255,0.04)", border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontWeight:500 }}>↵</kbd>
+        <kbd style={{ fontSize:centrado?11:9, padding:"1px 5px", borderRadius:3, background:C.hoverSuave, border:`1px solid ${C.border}`, color:C.textSub, fontFamily:"'JetBrains Mono', ui-monospace, monospace", fontWeight:500 }}>↵</kbd>
           <span>para enviar · ADI no inventa · cada cifra cierra con su cuenta</span>
       </div>
     </div>

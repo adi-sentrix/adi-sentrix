@@ -41,7 +41,7 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
       {/* BARRITAS MÁS CHICAS (owner 2026-08-20: «haz las líneas un poco más pequeñas»): 12 px en reposo y 24 al
           estar activa, con 2,5 de grosor. Antes eran 16/30×3 y pesaban demasiado para lo que son — una marca. */}
       <span className="adi-rail-dash" style={{ flex:"none", width: activo ? 24 : 12, height:2.5, borderRadius:99,
-        background: activo ? C.celeste : "#6b6f74",
+        background: activo ? C.celeste : C.dashInactivo,
         boxShadow: activo ? "0 0 9px rgba(47,184,218,0.7)" : "none" }}/>
       {/* ⚠️ CAJA NEGRA Y OPACA (owner 2026-08-20: «al mostrarlas deben estar en cuadro negro, notarse»; antes:
           «no debe ser transparente… es una opción, por lo tanto después se quitará»). El fondo es negro —más
@@ -52,12 +52,12 @@ function Fila({ activo, titulo, onClick, icono, testid, children }) {
       <span className="adi-rail-pill" style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:9,
         height:35, padding:"0 12px", borderRadius:10, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
         fontFamily:SANS, fontSize:12.5, fontWeight:600, letterSpacing:"-0.006em",
-        border:`1px solid ${activo ? C.celeste : "rgba(255,255,255,0.16)"}`,
-        background:"#0b0b0d",
+        border:`1px solid ${activo ? C.celeste : C.borderLight}`,
+        background: C.esPapel ? C.surface : "#0b0b0d",
         color: activo ? C.text : C.textSub,
         boxShadow: activo
           ? "0 0 0 1px rgba(47,184,218,0.45), 0 0 20px -2px rgba(47,184,218,0.55), 0 10px 26px -10px rgba(0,0,0,0.95)"
-          : "0 10px 26px -10px rgba(0,0,0,0.95)" }}>
+          : (C.esPapel ? "0 10px 26px -12px rgba(23,24,28,0.28)" : "0 10px 26px -10px rgba(0,0,0,0.95)") }}>
         {icono}{children}
       </span>
     </button>

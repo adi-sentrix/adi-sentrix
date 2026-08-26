@@ -38,7 +38,7 @@ initPnl();        // ídem: la cara Resultado de la Mesa ya arranca con el P&L d
 // aparece como estructura estable en vez de un hueco en blanco. Sin texto: nada que prometa contenido.
 function PanelSkeleton() {
   const blk = (h, w) => (
-    <div style={{ height: h, width: w, borderRadius: 8, background: "rgba(255,255,255,0.05)", animation: "auroraBreathe 1.6s ease-in-out infinite" }}/>
+    <div style={{ height: h, width: w, borderRadius: 8, background: C.hoverMedio, animation: "auroraBreathe 1.6s ease-in-out infinite" }}/>
   );
   return (
     <div style={{ height: "100%", background: C.bg, borderLeft: `1px solid ${C.border}`, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -262,7 +262,13 @@ export default function App({ animate = true }) {
                 style={{ width:6, flexShrink:0, cursor:"col-resize", background:"transparent", borderLeft:`1px solid ${C.border}`, transition:"background 0.15s" }}
                 onMouseEnter={e=>{ e.currentTarget.style.background = "rgba(47,184,218,0.25)"; }}
                 onMouseLeave={e=>{ e.currentTarget.style.background = "transparent"; }}/>
-              <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0 }}>
+              {/* LA COSTURA · el owner eligió la SOMBRA (2026-08-26), de tres opciones. En papel el tablero se
+                  APOYA sobre la hoja y proyecta sombra hacia la izquierda: hay profundidad, no un tajo — se lee
+                  como un instrumento puesto encima, que es exactamente lo que Sentrix es. Sobre negro no habría
+                  nada que proyectar, así que ahí no va (y el filete blanco de siempre sigue haciendo su trabajo,
+                  el que dentro del panel dibuja su propio `borderLeft`). */}
+              <div style={{ width: maxed ? "72%" : panelW, flexShrink:0, minWidth:0, minHeight:0,
+                ...(C.esPapel ? { boxShadow:"-18px 0 40px -12px rgba(15,23,32,0.30), -1px 0 0 rgba(23,24,28,0.10)", position:"relative", zIndex:2 } : null) }}>
                 <Suspense fallback={<PanelSkeleton/>}>
                   <SentrixPanel evidence={openEv} onClose={closePanel} onToggleMax={() => setMaxed(m=>!m)} maximized={maxed} onAsk={(q, vc) => { if (askRef.current) askRef.current(q, vc); }}/>
                 </Suspense>
@@ -297,9 +303,9 @@ export default function App({ animate = true }) {
         * { box-sizing:border-box; margin:0; padding:0; }
         ::-webkit-scrollbar { width:8px; height:8px; }
         ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.06); border-radius:4px; }
-        ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.12); }
-        * { scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.06) transparent; }
+        ::-webkit-scrollbar-thumb { background:${C.velo}; border-radius:4px; }
+        ::-webkit-scrollbar-thumb:hover { background:${C.textMuted}; }
+        * { scrollbar-width:thin; scrollbar-color:${C.velo} transparent; }
         button:focus { outline:none; }
         input::placeholder { color:#9a9a9a; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
@@ -356,12 +362,12 @@ export default function App({ animate = true }) {
         }
         .sentrix-sweep { position:absolute; top:0; left:0; height:100%; width:170px; z-index:6; pointer-events:none; background:linear-gradient(100deg, transparent, rgba(60,200,235,0.09), transparent); mix-blend-mode:screen; animation: sentrixSweep 8s ease-in-out infinite; }
         /* "i" de ayuda en cada card · lee el catálogo de definiciones (determinístico, cero tokens) · tooltip en hover */
-        .adi-i { position:absolute; top:7px; right:8px; width:14px; height:14px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.4); font-size:9px; font-style:italic; line-height:12px; text-align:center; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; transition:color .15s, border-color .15s; z-index:4; }
+        .adi-i { position:absolute; top:7px; right:8px; width:14px; height:14px; border-radius:50%; border:1px solid ${C.borderLight}; color:${C.textMuted}; font-size:9px; font-style:italic; line-height:12px; text-align:center; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; transition:color .15s, border-color .15s; z-index:4; }
         .adi-i:hover { color:#2fb8da; border-color:rgba(47,184,218,0.6); }
         .adi-tip { position:absolute; bottom:calc(100% + 7px); right:-3px; width:198px; background:#0b0b0d; border:1px solid rgba(47,184,218,0.4); border-radius:8px; padding:8px 11px; font-size:11px; line-height:1.5; color:#c4c2bd; opacity:0; transform:translateY(3px); pointer-events:none; transition:opacity .15s, transform .15s; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,0.55); text-align:left; font-style:normal; font-weight:400; letter-spacing:0; }
         .adi-i:hover .adi-tip { opacity:1; transform:translateY(0); }
         /* "i" inline · misma ayuda determinística, para headers de tabla/columna (ring) · no absolute */
-        .adi-i2 { position:relative; display:inline-flex; align-items:center; justify-content:center; width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.4); font-size:8px; font-style:italic; line-height:1; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; vertical-align:middle; margin-left:4px; text-transform:none; transition:color .15s, border-color .15s; }
+        .adi-i2 { position:relative; display:inline-flex; align-items:center; justify-content:center; width:12px; height:12px; border-radius:50%; border:1px solid ${C.borderLight}; color:${C.textMuted}; font-size:8px; font-style:italic; line-height:1; cursor:help; font-family:Georgia,'Times New Roman',serif; user-select:none; vertical-align:middle; margin-left:4px; text-transform:none; transition:color .15s, border-color .15s; }
         .adi-i2:hover { color:#2fb8da; border-color:rgba(47,184,218,0.6); }
         /* header del ring al TOPE → tooltip abre HACIA ABAJO · alineación horizontal SEGÚN la columna para que encuadre
            en TODAS (cliente e inventario): centro = centrado en el "i" · derecha = abre a la izquierda (no se sale) */
