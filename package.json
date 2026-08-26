@@ -9,7 +9,9 @@
     "start": "node server.js",
     "serve": "npm run build && node server.js",
     "gates": "node scripts/run-gates.mjs",
-    "gates:offline": "node scripts/gates-offline.mjs"
+    "gates:offline": "node scripts/gates-offline.mjs",
+    "plantilla": "node scripts/generar-plantilla.mjs",
+    "plantilla:leer": "node scripts/leer-plantilla.mjs"
   },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",

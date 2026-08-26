@@ -37,3 +37,10 @@ _matrix_gate.*.json
 
 # telemetria de corridas locales (no es fuente)
 telemetria-*.jsonl
+
+# ingesta · el Excel de ejemplo se GENERA (scripts/generar-excel-demo.mjs), no se versiona
+_ejemplo_ingesta_demo.xlsx
+
+# plantilla oficial · se GENERA (scripts/generar-plantilla.mjs), no se versiona
+Plantilla_ADI_*.xlsx
+~$*.xlsx
