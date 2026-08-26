@@ -27,6 +27,20 @@ export const METRICS = {
   margen: {
     label: "Margen", unit: "pct", polarity: "higherIsBetter", formula: null,   // dato del ERP
     benchmark: { field: "benchmark", policyFallback: "benchmark" },            // por-fila · fallback POLICY (hardening item 1)
+    /* ⚠️ BRECHA Y TENDENCIA SON DOS COSAS, Y HASTA HOY NO ESTABAN DECLARADAS (owner 2026-08-23).
+     * Su definición, textual: «brecha de margen = benchmark de margen − margen actual. La variación contra mes
+     * anterior debe quedar como TENDENCIA de margen, no como brecha.»
+     *   · BRECHA   = cuánto falta para llegar al benchmark.  Positiva = por debajo.
+     *   · TENDENCIA = cómo cambió contra el período anterior. Positiva = mejoró.
+     * POR QUÉ HACÍA FALTA ESCRIBIRLO: el campo histórico `margenKPI.gapPuntos` guarda 1.8, que es la TENDENCIA
+     * (25.6 − 23.8), no la brecha (30.1 − 25.6 = 4.5). El nombre dice una cosa y el valor es otra, y eso ya
+     * produjo un defecto real —está documentado en overview.js como #D-MARGEN-GAP-BENCHMARK-MIENTE— donde la
+     * pantalla presentaba la variación interanual como si fuera la distancia al benchmark. El código ya lo
+     * resuelve caso por caso; lo que faltaba era LA DEFINICIÓN, y sin ella la ingesta no podía calcular el KPI.
+     * ⚠️ El campo `gapPuntos` NO se toca acá: 18 referencias en 6 archivos, incluido el dato de los tenants.
+     * Renombrarlo a `tendenciaPuntos` es un pase aparte, declarado como pendiente. */
+    brechaFormula: "benchmark − margen_actual",
+    tendenciaFormula: "margen_actual − margen_periodo_anterior",
     axes: ["cliente", "sku", "marca", "familia"],
     scenarioAware: { cliente: true, sku: false, marca: false, familia: true }, // ← sku/marca base-only → surfaceContract bloquea honesto
     sourceByAxis: {

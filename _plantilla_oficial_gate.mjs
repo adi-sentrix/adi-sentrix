@@ -215,7 +215,11 @@ H("[E] DÍAS Y ROTACIÓN · informado manda, calculado rellena, y la procedencia
   ok(k.inmovilizadoUSD > 0 && k.inmovilizadoPct > 0, `el KPI de capital ya trae el inmovilizado (${k.inmovilizadoUSD} · ${k.inmovilizadoPct}%)`);
   ok(typeof k.doh === "number", `…y los días promedio (${k.doh})`);
 
-  for (const id of ["gapMargen", "escenarios", "presupuesto"]) {
+  /* ⚠️ `gapMargen` SALIÓ DE ESTA LISTA el 2026-08-23: el owner declaró la definición que faltaba —«brecha de
+   * margen = benchmark − margen actual; la variación contra el mes anterior es TENDENCIA, no brecha»— y con eso
+   * el KPI de cabecera pasó a calculable. Lo fija `_brecha_tendencia_gate`, que además prueba que las dos cuentas
+   * den números DISTINTOS: si volvieran a coincidir, el defecto #D-MARGEN-GAP-BENCHMARK-MIENTE regresaría mudo. */
+  for (const id of ["escenarios", "presupuesto"]) {
     const b = BLOQUEADOS.find((x) => x.id === id);
     ok(!!b && !!b.porque && !!b.paraAbrirlo, `«${id}» sigue declarado bloqueado, con motivo y camino para abrirlo`);
   }

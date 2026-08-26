@@ -44,14 +44,13 @@ export const CALCULOS = [
   { id: "periodos", que: "venta del período, período anterior y variación", formula: "suma de las filas de cada período; variación = (actual ÷ anterior − 1) × 100", fuente: "suma de hechos informados, no una fórmula de negocio", medido: null },
   { id: "diasSinVenta", que: "días sin venta por SKU", formula: "fecha de corte − fecha de la última venta", fuente: "resta de dos fechas informadas", medido: null },
   { id: "diasYRotacion", que: "días de inventario y rotación · INFORMADO MANDA, calculado rellena", formula: `si el origen los informa se respetan tal cual; si no: días = ${FORMULA_DIAS} · rotación = ${FORMULA_ROTACION}`, fuente: "metricRegistry · formulaSiFalta (regla del owner 2026-08-22) · implementada en sentrix/diasYRotacion.js", medido: "la procedencia viaja con cada valor: informado · calculado · sin dato" },
+  { id: "brechaYTendencia", que: "brecha de margen y tendencia de margen (cabecera)", formula: "brecha = benchmark − margen actual · tendencia = margen actual − margen del período anterior", fuente: "definición del owner 2026-08-23, declarada en metricRegistry.margen (brechaFormula · tendenciaFormula)", medido: "sin benchmark declarado la brecha es null, nunca un cero que parezca meta cumplida" },
   { id: "estadoSku", que: "el estado de cada SKU (inmovilizado · riesgo de quiebre · sobrestock · sano)", formula: "compara rotación y días contra los umbrales del negocio", fuente: "diagnosis/economicDiagnosis · diagnoseInventarioSku (la misma función del producto, no una copia)", medido: null },
   { id: "capital", que: "capital en stock por SKU, bodega y familia", formula: "suma del stock valorizado", fuente: "metricRegistry · METRICS.capital (dato primario, se agrega por suma)", medido: null },
 ];
 
 /** Lo que el motor NO calcula, con el motivo y qué haría falta para desbloquearlo. */
 export const BLOQUEADOS = [
-  { id: "gapMargen", que: "la brecha de margen de cabecera (gapPuntos)", porque: "en el dato de referencia coincide con la variación contra el período anterior (25.6 − 23.8 = 1.8), NO con la distancia al benchmark (30.1 − 25.6 = 4.5). Ninguna de las dos está declarada como la definición",
-    paraAbrirlo: "declarar cuál de las dos es «la brecha» del KPI de cabecera" },
   { id: "escenarios", que: "los escenarios de simulación", porque: "SCENARIO_TRANSFORMS es un supuesto declarado por el negocio, no un hecho que se derive de las ventas",
     paraAbrirlo: "que el negocio los declare, o que se acuerde una forma de generarlos" },
   { id: "presupuesto", que: "venta contra presupuesto", porque: "el presupuesto es por cuenta y período, no por fila de venta: como columna se repetiría en cada fila y se contradiría solo. Quedó fuera de la v1 al colapsar la plantilla a dos hojas (decisión del owner, 2026-08-22)",
@@ -212,7 +211,26 @@ export function calcularDataset({ parametros = {}, tablas = {} } = {}) {
     vsAnterior: totalAnterior ? _r1((totalActual / totalAnterior - 1) * 100) : null,
     vsPresupuesto: totalPpto ? _r1((totalActual / totalPpto - 1) * 100) : null,
     unidades: Math.round(_sum(delActual, (r) => r.unidades)), ticketProm: null };
-  const margenKPI = { pct: margenGlobal, pctAnt: null, totalUSD: Math.round(totalActual * margenGlobal / 100), gapPuntos: null };
+  /* EL MARGEN DEL PERÍODO ANTERIOR sale de las mismas filas, con la misma cuenta: sin él no hay tendencia. */
+  const totalCostoAnt = _sum(delAnterior, (r) => r.costo), totalAccAnt = _sum(delAnterior, (r) => r.acciones);
+  const margenAnterior = totalAnterior ? _r1(100 - (totalCostoAnt / totalAnterior * 100) - (totalAccAnt / totalAnterior * 100)) : null;
+  /* ⚠️ BRECHA Y TENDENCIA SON DOS COSAS DISTINTAS (owner 2026-08-23, definición suya):
+   *   · BRECHA   = benchmark − margen actual → cuánto falta para llegar al benchmark. Positiva = por debajo.
+   *   · TENDENCIA = margen actual − margen anterior → cómo cambió contra el período pasado.
+   * Estaba BLOQUEADO porque ninguna de las dos estaba declarada como «la brecha», y el campo histórico
+   * `gapPuntos` guarda la TENDENCIA con nombre de brecha — confusión que ya causó un defecto real en pantalla
+   * (#D-MARGEN-GAP-BENCHMARK-MIENTE en overview.js). Ahora las dos van con su nombre y su cuenta.
+   * Sin benchmark declarado no hay brecha: null, nunca un cero que parezca «llegaste a la meta». */
+  const benchmarkDeclarado = perfilNum("benchmark");
+  const margenKPI = {
+    pct: margenGlobal, pctAnt: margenAnterior,
+    totalUSD: Math.round(totalActual * margenGlobal / 100),
+    brechaPuntos: benchmarkDeclarado !== undefined ? _r1(benchmarkDeclarado - margenGlobal) : null,
+    tendenciaPuntos: margenAnterior !== null ? _r1(margenGlobal - margenAnterior) : null,
+    /* el campo histórico sigue existiendo con su significado de siempre —la tendencia— para no romper a los 18
+     * consumidores que ya lo leen. Renombrarlo es un pase aparte. */
+    gapPuntos: margenAnterior !== null ? _r1(margenGlobal - margenAnterior) : null,
+  };
   const invKPI = skuInventario.length
     ? (() => {
         const total = Math.round(_sum(skuInventario, (r) => r.stockUSD));
