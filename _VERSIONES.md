@@ -12,7 +12,48 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.3 — producción · tag `v1.3`
+## 1.4 — producción · tag `v1.4`
+
+**La versión en que ADI deja de hablar solo del negocio de demostración.** El usuario sube su planilla, ve qué
+leyó ADI, decide, y desde ahí las respuestas son sobre sus datos. Es la primera vez que el producto acepta
+información de afuera.
+
+- **La pantalla de carga.** Cuarta puerta permanente en la barra: **Tus datos**. Se descarga la plantilla, se
+  sube el archivo, ADI muestra qué entendió —empresa, período, venta, capital, cuántos clientes y SKU— y recién
+  ahí el usuario activa. Reemplaza al demo, con vuelta atrás en un clic. Es permanente y no un paso de arranque
+  a propósito: probar con datos propios es subir, mirar, corregir y volver a subir.
+- **ADI lee el archivo como asesor, no como lector.** Antes de cualquier análisis, si algo no cuadra lo dice y
+  **pregunta**: *«Acabo de leer tu archivo. Antes de analizarlo, hay algo que me llama la atención: un período
+  trae 3 filas de venta y el otro 12…»*. No bloquea — los errores del cliente son del cliente; la
+  interpretación es nuestra. Si el usuario decide seguir igual, se sigue.
+- **Y la observación no se olvida.** Cuando una respuesta usa una métrica que esa observación toca, ADI lo
+  nombra una vez y sigue normal. Solo la intersección: un archivo con tres observaciones y una lectura de
+  inventario nombra la de inventario y nada más. **No suena en saludos, menús, declinaciones ni preguntas de
+  vuelta** — un aviso que suena siempre es un aviso que se ignora.
+- **Dos parámetros nuevos en la plantilla**, opcionales: el techo de días de inventario y la rotación mínima. Un
+  archivo llenado antes sigue siendo válido.
+
+**El archivo se procesa en el servidor**, y no es una preferencia de arquitectura: leer un `.xlsx` exige
+descomprimir (`node:zlib`), y ni el navegador ni el runtime edge lo tienen. Endpoint nuevo `/api/adi-ingesta` en
+runtime node. Todo el camino es determinístico: **la carga no gasta ni una llamada al modelo**.
+
+Verificado antes de subir: **177 PASS · 0 FAIL · 0 tocaron la red**, con dos candados nuevos
+(`_pantalla_carga_gate` · `_sello_en_respuesta_gate`). La corrida en vivo se hizo con el gateway **sin proveedor
+declarado**: el gasto quedó impedido por estructura, no por promesa.
+
+⚠️ **Cuatro defectos propios cazados al cablear, y los cuatro eran silencios, no errores.** Dos alarmas **nacían
+muertas**: la de «período cargado a medias» no podía dispararse nunca porque le faltaba un conteo que el motor no
+emitía, y la principal —«todo el inventario sobre 90 días», el ejemplo del propio owner— era inalcanzable porque
+la plantilla no dejaba declarar ese techo. Y dos falsos positivos en el sello: *nombrar* una métrica no es
+*usarla* (el menú de bienvenida disparaba el aviso), y una tabla es **una** unidad de lectura, no varias frases
+sueltas —el rótulo vive en la cabecera y la cifra en otra fila—, así que la forma más común de usar una métrica
+era justo la que no se sellaba. Ninguno de los cuatro habría dado error: habrían dado silencio.
+
+**Lo que queda declarado y no medido:** que el modelo redacte la mención del sello con sus propias palabras. El
+cerrojo determinístico garantiza que aparezca igual; probar la prosa exigía una corrida paga y el owner decidió
+que la garantía determinística alcanza.
+
+## 1.3 — tag `v1.3` (estuvo en producción del 2026-08-22 al 2026-08-26)
 
 La versión que endurece **la base del asesor** antes de conectarle archivos reales. Cuatro cosas, y tres de ellas
 cierran huecos donde una garantía existía en el papel pero no en el producto.
