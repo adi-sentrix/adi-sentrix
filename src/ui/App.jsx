@@ -22,6 +22,7 @@ import { AccessGate, AdminAccess } from "./AccessGate.jsx";   // demo privada ·
 import { getAccessCode, clearAccessCode } from "../adi/accessClient.js";
 import { cargarTenant } from "../data/tenantClient.js";       // vía 1 · el dato llega por la red, no por el bundle
 import { tenantCargado, initTenant, getTenantData } from "../data/tenantStore.js";
+import { setCargaActiva as registrarCarga, limpiarCarga } from "../ingesta/estadoCarga.js";   // el sello vive en un módulo, no en un global del navegador
 import { PanelDatos } from "./PanelDatos.jsx";   // v1.4 · la pantalla de carga: subir la planilla, verla, confirmar y activarla
 import { ADI_LLM_ENABLED, ADI_SCENARIO_SWITCHER_ENABLED } from "../config/voiceFlags.js";
 import { ESCENARIO_INICIAL } from "../config/scenarios.js";   // el escenario inicial se DECLARA una vez (ver el comentario allá): la app y la consola del examen tienen que arrancar en el mismo   // Paso 5 · badge de modo + selector de escenarios (dev)
@@ -110,14 +111,14 @@ export default function App({ animate = true }) {
   const activarDatos = (dataset, sello, quien) => {
     if (!demoOriginal.current) demoOriginal.current = getTenantData();
     initTenant(dataset);
-    /* el sello de la lectura queda a mano para el cableado conversacional (pase declarado aparte): la
-     * observación que el usuario confirmó tiene que acompañar a las cifras, no morir en el momento del clic. */
-    try { window.__ADI_SELLO_CARGA__ = sello || null; } catch { /* sin window */ }
+    /* EL SELLO QUEDA REGISTRADO, y desde acá gobierna lo que ADI dice: la carpeta que ve el cerebro lo lleva,
+     * y el camino natural lo antepone cuando la respuesta usa una lectura afectada. Ver selloEnRespuesta.js. */
+    registrarCarga(sello, quien);
     setCargaActiva(quien); setDatosAbiertos(false); setDatosVersion((v) => v + 1);
   };
   const volverAlDemo = () => {
     if (demoOriginal.current) initTenant(demoOriginal.current);
-    try { window.__ADI_SELLO_CARGA__ = null; } catch { /* sin window */ }
+    limpiarCarga();   // volver al demo borra la observación: arrastrarla hablaría de un archivo que ya no está
     setCargaActiva(null); setDatosAbiertos(false); setDatosVersion((v) => v + 1);
   };
 

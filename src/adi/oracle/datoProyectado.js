@@ -31,6 +31,8 @@
  *
  * PURO · sin I/O · no importa el gateway ni ningún adapter. */
 import { SOURCES } from "../../config/contract/sourceManifest.js";
+import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
+import { enLaCarpeta } from "../../ingesta/selloEnRespuesta.js";
 import { UNIVERSOS, DIVERGENCIAS } from "../../config/contract/figureType.js";
 import { METRICS } from "../../config/contract/metricRegistry.js";
 import { deriveKpis } from "../../engine/scenarios.js";
@@ -337,7 +339,13 @@ function _cacheado(scenario) {
 
 /** proyectarDatoNegocio(scenario) → el TEXTO de la proyección (determinístico por tenant+escenario). */
 export function proyectarDatoNegocio(scenario = "actual") {
-  return _cacheado(String(scenario || "actual")).texto;
+  const base = _cacheado(String(scenario || "actual")).texto;
+  /* EL SELLO DE LA CARGA SE SUMA FUERA DEL CACHÉ (owner 2026-08-25), y tiene que ser así: el caché está armado
+   * por tenant+escenario, mientras que el sello cambia cuando el usuario activa o descarta un archivo. Dentro
+   * del caché serviría la observación de un archivo que ya no está activo — peor que no avisar. Es un hecho de
+   * ESTE dato, así que va en la carpeta y no en el prompt fijo: cambia cuando cambian las cifras que acompaña. */
+  const bloque = enLaCarpeta(getSelloDeCarga());
+  return bloque ? [base, bloque].join(String.fromCharCode(10)) : base;
 }
 
 /** cifrasDelDato(scenario) → { figs: [{canon, value, duenos}], counts: [n...] } — la QUINTA fuente de guardC:

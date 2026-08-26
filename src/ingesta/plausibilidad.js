@@ -150,13 +150,56 @@ export function textoDeApertura(lectura, { archivo = null } = {}) {
  * una advertencia en una cifra confiada — que es exactamente lo que la proporcionalidad semántica prohíbe. El
  * sello viaja igual que `procedencia` en días y rotación: pegado al número, no en una nota que alguien recuerda.
  */
+/* ── QUÉ CONTAMINA CADA OBSERVACIÓN (owner 2026-08-25) ────────────────────────────────────────────────────────
+ * La regla del owner: «no debe hablar como si el dato estuviera limpio; debe mencionar el sello cuando la
+ * respuesta use una métrica afectada por esa observación». Eso obliga a declarar, señal por señal, QUÉ lecturas
+ * quedan tocadas — porque mencionarlo en toda respuesta sería ruido, y no mencionarlo nunca sería mentir.
+ *
+ * ⚠️ EL ALCANCE ES ESTRECHO A PROPÓSITO, y es la mitad del diseño. «Un período cargado a medias» NO ensucia la
+ * venta del mes: esa cifra es la suma de las filas que el archivo trae, y es un hecho. Lo que queda tocado es la
+ * COMPARACIÓN contra el otro período — que es exactamente lo que dice la alarma. Estirar el alcance a todo lo
+ * que huela a venta haría sonar el sello en cada turno, y un aviso que suena siempre es un aviso que se ignora.
+ *
+ * `enUnaLinea` es la frase que ADI dice en voz alta. Vive acá, junto a la señal que la origina, para que no haya
+ * dos redacciones del mismo hallazgo. Un tipo nuevo sin entrada acá lo caza `_sello_en_respuesta_gate`. */
+export const DOMINIOS_POR_ALARMA = {
+  "inventario-casi-todo-sobre-el-techo": {
+    dominios: ["inventario"],
+    enUnaLinea: "casi todo el inventario supera el techo de días que declaraste",
+  },
+  "stock-sin-ninguna-venta": {
+    dominios: ["inventario"],
+    enUnaLinea: "casi todos los SKU tienen stock pero ninguna venta en el período",
+  },
+  "venta-de-skus-que-no-estan-en-inventario": {
+    dominios: ["inventario"],
+    enUnaLinea: "hay SKU que vendieron y no aparecen en la hoja de inventario",
+  },
+  "cifras-imposibles": {
+    dominios: ["margen"],
+    enUnaLinea: "hay filas con costo mayor que la venta, o con el margen fuera de rango",
+  },
+  "periodo-cargado-a-medias": {
+    dominios: ["comparacion"],
+    enUnaLinea: "el período anterior tiene menos filas cargadas",
+  },
+};
+
 export function selloDeLaLectura(lectura, { confirmado = false } = {}) {
   if (!lectura || !lectura.hayAlarmas) return null;
   const tipos = lectura.alarmas.map((a) => a.tipo);
+  /* CADA OBSERVACIÓN VIAJA CON SU ALCANCE Y SU FRASE. Sin esto, quien tenga que decidir si mencionar el sello
+   * tendría que volver a mapear los tipos por su cuenta — y ahí nacen las dos verdades. Un tipo sin entrada en
+   * el mapa viaja igual, con dominios vacíos: se declara el hueco en vez de inventarle un alcance. */
+  const observaciones = lectura.alarmas.map((a) => {
+    const d = DOMINIOS_POR_ALARMA[a.tipo] || null;
+    return { tipo: a.tipo, dominios: d ? d.dominios : [], enUnaLinea: d ? d.enUnaLinea : null };
+  });
   return {
     conAlarmas: true,
     confirmadoPorElUsuario: !!confirmado,
     tipos,
+    observaciones,
     nota: confirmado
       ? `sobre datos que confirmaste, con ${tipos.length === 1 ? "una observación abierta" : `${tipos.length} observaciones abiertas`}`
       : `hay ${tipos.length === 1 ? "una observación" : `${tipos.length} observaciones`} sin resolver sobre este archivo`,

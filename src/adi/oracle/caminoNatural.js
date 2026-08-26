@@ -23,6 +23,8 @@
  * (MEDIDO que declina bien). La serie mensual, el P&L guiado y «por qué esa cifra» siguen siendo de los
  * interceptores/camino actual, que corren ANTES en ChatADI. */
 import { responderConNotario, alcanceHeredadoDe, recitaAprobadaDe } from "./cicloNotarial.js";
+import { getSelloDeCarga } from "../../ingesta/estadoCarga.js";
+import { anteponerSello } from "../../ingesta/selloEnRespuesta.js";
 import { guardC, esNarracionVacia } from "./guardC.js";
 import { cifrasDelDato, suplenteDignoDelDato } from "./datoProyectado.js";
 import { axisEntityNames } from "./entityIndex.js";
@@ -196,6 +198,16 @@ export async function answerViaNatural({ text, history, mem, scenario = "actual"
   let textoPantalla = stripAllMarks(ex.limpio);
   let suplenteDigno = res.suplenteDigno;
   if (esNarracionVacia(textoPantalla)) { textoPantalla = composeNoDataMessage(null); suplenteDigno = true; }
+
+  /* ── EL SELLO DE LA CARGA, NOMBRADO CUANDO CORRESPONDE (owner 2026-08-25) ──────────────────────────────────
+   * «Si el usuario confirmó una observación, ADI puede responder, pero no debe hablar como si el dato estuviera
+   * limpio.» El cerebro ya recibió el sello en la carpeta y suele decirlo solo; esto es el CERROJO, porque en
+   * este repo está medido que la doctrina sola no alcanza (refuerzo de serie temporal).
+   * VA DESPUÉS DEL MURO a propósito: la frase no lleva cifras ni atribuye nada a nadie, así que no hay qué
+   * verificar — y ponerla antes obligaría al notario a juzgar una oración que el cerebro no escribió.
+   * Se le pasan los CÁLCULOS declarados además del texto: nombran la métrica mejor que la prosa cuando la
+   * cifra viajó en una tabla. Si nada de lo que se afirmó está tocado, devuelve el texto igual. */
+  textoPantalla = anteponerSello(textoPantalla, getSelloDeCarga(), { calculos: ex.calculos });
 
   // ── MEMORIA · el texto LIMPIO a recentNarrations (misma ventana de 2 que el camino actual); la re-cita SOLO
   // se acumula si el muro aprobó (candado del owner: un texto vetado no presta sus cifras), sobre lo que el
