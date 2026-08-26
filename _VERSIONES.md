@@ -12,7 +12,50 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.5 — producción · tag `v1.5`
+## 1.6 — producción · tag `v1.6`
+
+**La plantilla se explica sola, y la vara dice de quién es.** El usuario abre el archivo y sabe qué llenar sin
+leer un manual; y cuando ADI compara su margen contra una referencia, dice si esa referencia la puso él o la
+pone ADI.
+
+- **Cuatro pestañas, no dos.** `Empresa` (identidad y período, sola, sin mezclarse con los datos) · `Ventas` ·
+  `Inventario` · `Ejemplo`, que viaja **dentro del mismo archivo**: se acabó la descarga aparte. Un archivo, un
+  botón.
+- **Los campos obligatorios van en amarillo**, y arriba de cada columna está su explicación en minúscula: qué es
+  ese dato y cómo se llena. Se puso a la vista y no como comentario de Excel a propósito — un comentario hay que
+  descubrirlo pasando el mouse por una esquinita, así que resuelve mal justo lo que había que resolver.
+- **La hoja dice, escrito, qué pasa si dejas una columna opcional vacía**: el archivo entra igual, pero ADI no va
+  a poder responder sobre eso.
+- **La fecha reemplaza al período.** Se pide día completo (aaaa-mm-dd) aunque hoy se agrupe por mes: el día queda
+  guardado para cuando haga falta.
+- **Entra «punto de venta»**, opcional, para los clientes con varias sucursales. Se guarda desde ya y queda
+  **declarado como dato disponible, no como métrica**: la preview dice cuántas sucursales se guardaron y que ADI
+  todavía no analiza por ahí. Declarar que se guarda no es prometer que se puede preguntar.
+- **Sale «bodega» de Ventas**: ya se pide en Inventario, y pedir dos veces el mismo hecho invita a que difieran.
+
+**LA VARA DICE DE QUIÉN ES.** Al sacar el benchmark de la plantilla para reducir fricción apareció un riesgo que
+estaba en seis lugares del producto: todos decían «tu benchmark», y con razón mientras el campo se pedía. Sin él,
+esa frase le atribuye al usuario un objetivo que nunca fijó. Ahora la procedencia se resuelve junto al valor, y:
+
+- un negocio que declara su referencia lee **«bajo tu benchmark (30,1%)»** — igual que siempre;
+- uno que no la declara lee **«bajo la referencia general de ADI (30,1%)»**, y la preview lo dice con todas las
+  letras: *no es tu meta, es la vara con la que ADI compara cuando no hay otra*.
+
+El negocio de demostración declara la suya, así que en producción no cambia ni una palabra: el cambio solo
+aparece cuando alguien sube un archivo sin benchmark propio.
+
+Verificado antes de subir: **179 PASS · 0 FAIL · 0 tocaron la red**, con dos candados nuevos
+(`_referencia_de_quien_gate`, 36 chequeos con carnada · y el bloque que prueba el amarillo sobre el archivo real
+que el generador produce, no sobre una reconstrucción).
+
+⚠️ **Los archivos llenados con la plantilla anterior ya no validan.** Se resuelve bajando la nueva desde la misma
+pantalla. Es la segunda vez en dos versiones: la estructura de la plantilla quedó fijada acá.
+
+⚠️ **Dos defectos propios en el camino, los dos de la misma familia**: «punto de venta» como clave opcional
+rechazaba toda fila de un cliente sin sucursales —un vacío en una clave opcional es un valor legítimo—, y el
+aviso de columna vacía salía por fila, enterrando con diez líneas idénticas a los avisos que sí importan.
+
+## 1.5 — tag `v1.5` (estuvo en producción el 2026-08-26)
 
 **La plantilla deja de pedir cuentas hechas a mano.** La hoja Inventario pasa de ocho columnas a tres: **SKU**
 y **Stock (unidades)** obligatorias, **Bodega** opcional. El cliente entrega stock físico; capital, días de
