@@ -147,27 +147,11 @@ export const VIEW_MANIFEST = {
     concordancia: { estado: "unsupported", campos: ["veredicto"],
       razon: "el contexto ambiente de la vista no autoriza ninguna cifra (`unidad: texto`): el cruce builder↔ledger no produce un solo par comparable en los tres escenarios, así que no hay nada que reconciliar. Identifica la pantalla; las cifras las demuestran sus piezas" },
   },
-  "comercial/01/veredicto": {
-    vista: "comercial", seccion: "01", tipo: "veredicto", label: "El veredicto del negocio",
-    campo: "veredicto", metrica: "margen", eje: "cliente",
-    periodo: "año cerrado", universo: U_NEGOCIO, comparacion: "benchmark",
-    // la ELECCIÓN de rama es una regla de decisión del módulo, no un dato directo → indicado, siempre.
-    estatusDefault: "indicado", estatusCampo: null, controles: [],
-    evidencia: [{ tool: "executiveSummary", args: {} }],
-    sinTool: null,
-    concordancia: { estado: "unsupported", campos: ["titular", "tension.n"],
-      razon: "executiveSummary comparte la foto y la fuente, pero NO produce el titular ni la cuenta de cuentas con brecha material dentro del plano 80%: esa afirmación no existe como cifra en ninguna tool, es propia de esta pieza. El veredicto es texto, así que el cruce no encuentra ningún par que comparar" },
-  },
-  "comercial/01/reconciliacion-universos": {
-    vista: "comercial", seccion: "01", tipo: "tira", label: "Cartera completa vs plano de decisión",
-    campo: "tension", universoCampo: "tension.lista", metrica: "contribucion", eje: "cliente",
-    periodo: "año cerrado", universo: { kind: "cola", label: "la cartera con brecha material, partida en plano 80% y cola", cierraCon: "plano + cola = cartera, por construcción" },
-    comparacion: "benchmark", estatusDefault: "indicado", estatusCampo: null, controles: [],
-    evidencia: [{ tool: "diagnose", args: {}, focus: "margen" }],
-    sinTool: null,
-    concordancia: { estado: "divergent", campos: ["concentraPct", "cartera"], toolsQueNoReconcilian: ["diagnose"],
-      razon: "diagnose produce el mismo enJuego POR ENTIDAD, pero su subtotal no es el de esta tira: diagnose totaliza toda la cartera con brecha material y la tira sólo el plano 80%, y diagnose NO parte el universo en plano vs cola — esa reconciliación sólo existe en Sentrix. Medido en el total: $4.7M en pantalla vs $4.9M en el ledger (bonanza), $6.8M vs $7.2M (tensión), $8.3M vs $9.5M (crisis)" },
-  },
+  /* ⚠️ ACÁ VIVÍAN "comercial/01/veredicto" y "comercial/01/reconciliacion-universos". Se fueron el 2026-08-27
+     junto con las piezas que describían: el manifiesto declara lo que SE PINTA y se puede señalar, así que una
+     entrada sin pieza en pantalla sería una promesa vacía — y la cobertura es biyectiva a propósito, para que
+     eso no pueda pasar sin que un gate lo grite. El veredicto sigue vivo en buildResumenComercial; lo que ya
+     no existe es su tarjeta. Ver la nota en SentrixPanel.jsx. */
   "comercial/01/kpi-ventas": {
     vista: "comercial", seccion: "01", tipo: "kpi", label: "Ventas del período",
     campo: "kpis[key='ventas']", metrica: "ventas", eje: "cliente",

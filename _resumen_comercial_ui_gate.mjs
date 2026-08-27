@@ -133,7 +133,10 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(T.includes("MESA DE CONTROL"), "abre la Mesa de Control");
   const bloques = [
     ["Qué está pasando", "01 · movimiento QUÉ ESTÁ PASANDO"],
-    ["Lectura ejecutiva · negocio completo", "1 · veredicto + alcance + KPIs"],
+    /* ⚠️ EL BLOQUE 1 YA NO ABRE CON UNA CONCLUSIÓN (owner 2026-08-27): «no es hacer cosas nuevas sino quitarle
+       conclusiones — si dejamos botones que expliquen lo que está en Sentrix y ADI lo hará, es duplicar cosas».
+       Se ancla en el primer KPI, que es lo que ahora abre la cara: una cifra, no un veredicto. */
+    [R.kpis[0].label, "1 · los cuatro KPI (el veredicto se quitó de la pantalla)"],
     ["El negocio, cliente por cliente", "2 · la cartera de una sola mirada, ANTES de los gráficos"],
     ["El año, mes a mes", "3 · evolutivo (este año · año anterior · presupuesto)"],
     ["Concentración comercial · 80/20", "4 · gráfico de concentración (el mapa)"],
@@ -152,12 +155,23 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   ok(!T.includes("Plano de decisión:"), "la banda \"Plano de decisión\" ya NO existe (su contenido subió al veredicto)");
   ok(!T.includes(R.plano.frase), "…ni queda su frase suelta en ningún lado");
   ok(!T.includes(R.tension.reconcilia), "la banda ALCANCE larga tampoco: quedó la versión compacta");
-  const vecesPlano = (T.match(new RegExp(`${R.plano.n} clientes explican el ${R.plano.pct.toString().replace(".", "\\.")}%`, "g")) || []).length;
-  ok(vecesPlano === 1, `"X clientes explican el Y%" aparece UNA sola vez en la vista — ${vecesPlano}`);
+  /* ⚠️ AFIRMACIÓN MOVIDA, NO BORRADA. Antes exigía «aparece UNA sola vez»: el 80/20 en prosa vivía en el soporte
+     del veredicto, que es justo la conclusión que se quitó. Ahora tiene que aparecer CERO veces — la
+     concentración se MUESTRA en su gráfico y en su tabla, y quien quiera la frase se la pide a ADI. Si alguien
+     la vuelve a imprimir en el tablero, esto se pone rojo. */
+  const vecesPlano = T.split(R.plano.n + " clientes explican el ").length - 1;
+  ok(vecesPlano === 0, "el 80/20 ya NO se narra en la vista: se muestra — " + vecesPlano + " apariciones");
 
   // EL VEREDICTO: texto del módulo, verbatim
-  ok(T.includes(R.veredicto.titular), `el titular es el del módulo — "${R.veredicto.titular}"`);
-  ok(T.includes(R.veredicto.soporte), "el soporte que LOCALIZA la tensión es el del módulo, sin prosa nueva");
+  /* ⚠️ EL VEREDICTO SALE DE LA PANTALLA Y PASA A PROBARSE EN EL DATO. Antes se exigía verbatim en el DOM; ahora
+     se exige que NO esté impreso y que el módulo LO SIGA EMITIENDO — porque es de donde ADI lo toma para
+     responder. Borrar la afirmación habría dejado al motor sin red: podría dejar de emitirlo y nadie se entera. */
+  ok(!T.includes(R.veredicto.titular), "el titular del veredicto ya NO se imprime: Sentrix muestra, ADI concluye");
+  ok(!T.includes(R.veredicto.soporte), "…ni su soporte, que era la otra mitad de la conclusión");
+  ok(typeof R.veredicto.titular === "string" && R.veredicto.titular.length > 10,
+    "…pero el módulo lo sigue emitiendo, intacto — " + R.veredicto.titular);
+  ok(typeof R.veredicto.soporte === "string" && R.veredicto.soporte.includes("%"),
+    "…y su soporte también, con su cifra: ADI tiene con qué contestar");
   // ⚠️ LA "LECTURA DE RESPALDO" SE ELIMINÓ (owner 2026-08-08 · "hay mucho texto"): decía las MISMAS cuatro cifras
   // de los cuatro KPI que van justo abajo, con sus mismos pies. Se verifica que no haya vuelto en otra forma.
   ok(!R.veredicto.lectura, "la lectura de respaldo ya no existe en el módulo");
@@ -170,8 +184,9 @@ H("[1] LA SECUENCIA COMPLETA · tres movimientos, en el orden que fijó el owner
   }
   ok(R.kpis.length === 4, `son exactamente 4 KPI — ${R.kpis.length}`);
   // EL PLANO, EL PUENTE, LOS INSIGHTS: cifras del módulo
-  ok(T.includes(R.veredicto.soporte), "el alcance se declara UNA vez, en el veredicto (X clientes · Y% · N concentran $Z)");
-  ok(T.includes(R.tension.reconciliaCorta), "…con la reconciliación compacta de cabeza y cola debajo");
+  ok(!T.includes(R.tension.reconciliaCorta), "la reconciliación cabeza/cola tampoco se imprime: era conclusión");
+  ok(typeof R.tension.reconciliaCorta === "string" && R.tension.reconciliaCorta.length > 10,
+    "…y el módulo la sigue armando, para cuando ADI la cuente — " + R.tension.reconciliaCorta);
   // LAS DOS CAUSAS del margen (lo único que quedó en el movimiento 02, owner 2026-08-07)
   ok(T.includes(R.deterioro.margen.acciones.referencias[0].totalFmt), `lo recuperable en acciones comerciales — ${R.deterioro.margen.acciones.referencias[0].totalFmt}`);
   ok(T.includes(R.deterioro.margen.costoPrecio.lectura), "y la lectura de costo contra precio");
@@ -565,8 +580,11 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
 {
   // A · entrada limpia (tendencia global)
   const a = abrir(evTemporal());
-  const marcaA = [R.veredicto.titular, R.veredicto.soporte, ...R.kpis.map((k) => k.valor + k.pie)].join("¶");
-  ok(a.container.textContent.includes(R.veredicto.soporte), "entrada limpia: la lectura es del negocio completo");
+  /* LA MARCA DE CABECERA YA NO LLEVA EL VEREDICTO: se quitó de la pantalla. Los cuatro KPI con su pie son ahora
+     la cabecera entera, y prueban igual de bien lo que esta sección cuida — que una selección previa no tiña. */
+  const marcaA = R.kpis.map((k) => k.valor + k.pie).join("¶");
+  ok(a.container.textContent.includes(R.kpis[0].valor + R.kpis[0].pie),
+    "entrada limpia: la cabecera es la del negocio completo");
   cleanup();
 
   // B · entrada por el deep-link de UN cliente → abre la Ficha de ese cliente → saltar a Comercial
@@ -577,11 +595,10 @@ H("[2] ALCANCE GLOBAL · una selección previa NO puede teñir la cara Comercial
   ok(!!tabComercial, "la cara Comercial es alcanzable desde la Ficha");
   fireEvent.click(tabComercial);
   const T = b.container.textContent;
-  ok(T.includes(R.veredicto.titular) && T.includes(R.veredicto.soporte),
-    "el veredicto es el MISMO del negocio completo — la entidad del deep-link no lo tiñe");
+  ok(!T.includes(R.veredicto.titular), "por deep-link tampoco aparece el veredicto: se quitó de las dos entradas");
   for (const k of R.kpis) ok(T.includes(k.valor) && T.includes(k.pie), `KPI "${k.label}" idéntico al de la entrada limpia (${k.valor})`);
   ok(marcaA.split("¶").every((frag) => T.includes(frag)), "TODAS las cifras de cabecera coinciden byte a byte con la entrada limpia");
-  ok(T.includes(`${R.plano.n} clientes explican el ${R.plano.pct}%`), `el gráfico sigue siendo del negocio — ${R.plano.n} clientes / ${R.plano.pct}%`);
+  ok(T.includes("Concentración comercial · 80/20"), "el gráfico de concentración sigue siendo el del negocio");
   // …y NADA queda preseleccionado: sin la tabla legacy ya no hay dónde arrastrar una selección previa, pero la
   // ausencia se verifica igual — es la garantía la que importa, no el mecanismo que la sostenía.
   ok(!/\d+ seleccionados?/.test(T), "no hay selección previa en ninguna parte de la cara (el deep-link no la tiñe)");
@@ -683,11 +700,16 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   const c = R.tension.cartera;
   // UNA SOLA LECTURA (owner 2026-08-07): la banda ALCANCE se disolvió; su contenido es ahora la segunda línea
   // del veredicto, en versión compacta — pero sigue nombrando los dos universos, que es lo que no se negocia.
-  ok(T.includes(R.tension.reconciliaCorta), `la reconciliación compacta se muestra entera — "${R.tension.reconciliaCorta}"`);
+  ok(!T.includes(R.tension.reconciliaCorta), "la reconciliación compacta ya NO se imprime: era una conclusión");
   ok(!T.includes(R.tension.reconcilia), "…y NO conviven la versión larga y la corta diciendo lo mismo");
   // los dos montos parecidos conviven, pero SIEMPRE con su universo pegado
-  ok(T.includes(c.enJuegoFmt) && T.includes(R.tension.enJuegoFmt), `los dos montos están a la vista — cartera ${c.enJuegoFmt} · plano ${R.tension.enJuegoFmt}`);
-  ok(T.includes(R.tension.concentraPctFmt), `el % que el plano concentra de la oportunidad total se muestra y es dinámico — ${R.tension.concentraPctFmt}`);
+  /* ⚠️ LA REGLA NO SE PIERDE, CAMBIA DE PLANO. La promesa era «nunca dos montos parecidos sueltos». Con la
+     reconciliación fuera de la pantalla esos montos ya no conviven en prosa, así que la promesa se prueba donde
+     ahora vive: en el DATO, comprobando que la frase del módulo sigue nombrando los dos universos. */
+  ok(R.tension.reconciliaCorta.includes(c.enJuegoFmt) && R.tension.reconciliaCorta.includes(R.tension.concentraPctFmt),
+    "en el dato los dos universos siguen nombrados y cerrando — " + R.tension.reconciliaCorta);
+  ok(typeof R.tension.concentraPctFmt === "string" && R.tension.concentraPctFmt.includes("%"),
+    "el % que el plano concentra lo sigue calculando el módulo — " + R.tension.concentraPctFmt);
   // REGLA DURA: cada aparición de la cifra de CARTERA viene con "toda la cartera" cerca; cada una de la del PLANO,
   // con "plano"/"que explican el X%". Se chequea sobre el texto real, no sobre la intención.
   //
@@ -701,11 +723,13 @@ H("[4b] LOS DOS UNIVERSOS · reconciliados a la vista, nunca dos montos parecido
   const P = sinTablas.textContent;
   const ventanas = (txt, aguja) => { const out = []; let i = txt.indexOf(aguja); while (i >= 0) { out.push(txt.slice(Math.max(0, i - 220), i + 220)); i = txt.indexOf(aguja, i + 1); } return out; };
   const vCartera = ventanas(P, c.enJuegoFmt);
-  ok(vCartera.length > 0 && vCartera.every((w) => /cartera completa|toda la cartera|cartera material|con brecha material/i.test(w)),
-    `las ${vCartera.length} apariciones en PROSA de ${c.enJuegoFmt} declaran su universo (toda la cartera)`);
+  /* ⚠️ DE «TIENE QUE APARECER Y DECLARAR» A «SI APARECE, DECLARA». La prosa que rendía estos montos era la
+     reconciliación, y se fue. La regla dura sigue en pie para el día que alguna prosa los vuelva a nombrar. */
+  ok(vCartera.every((w) => /cartera completa|toda la cartera|cartera material|con brecha material/i.test(w)),
+    "si " + c.enJuegoFmt + " aparece en prosa, declara su universo — " + vCartera.length + " apariciones");
   const vPlano = ventanas(P, R.tension.enJuegoFmt);
-  ok(vPlano.length > 0 && vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|el plano concentra|que explican el|Dentro de ellos/i.test(w)),
-    `las ${vPlano.length} apariciones en PROSA de ${R.tension.enJuegoFmt} declaran el suyo (el plano de decisión)`);
+  ok(vPlano.every((w) => /plano de decisi[óo]n|clientes del plano|el plano concentra|que explican el|Dentro de ellos/i.test(w)),
+    "y si " + R.tension.enJuegoFmt + " aparece, declara el suyo — " + vPlano.length + " apariciones");
   // Y LAS TABLAS, con el criterio que les corresponde: toda celda que rinda uno de esos montos tiene que estar en
   // una fila con nombre y bajo una columna con título. Si alguna vez una cifra cae en una tabla sin encabezado o
   // sin fila identificable, esto lo caza igual que la ventana caza la prosa.
@@ -843,7 +867,7 @@ H("[7] EL TOPE DEL GRÁFICO sigue la pantalla · 10 entidades en desktop, 6 en m
   const mBarras = buildResumenComercial(SCENARIO, { maxEntidades: 6 }).pareto.ventas.barras;
   ok(mBarras.length <= 8, `móvil ≤ 8 barras — ${mBarras.length}`);
   ok(mBarras.every((b) => m.container.textContent.includes(b.nombre)), "móvil: la vista dibuja el set acotado del módulo (6 entidades + resto + cola)");
-  ok(m.container.textContent.includes(R.veredicto.titular), "y el veredicto es el mismo: el tope es dibujo, no aritmética");
+  ok(m.container.textContent.includes(R.kpis[0].valor), "y la cabecera es la misma: el tope es dibujo, no aritmética");
   cleanup();
   _MQ_MATCHES = false;
 }
@@ -865,7 +889,8 @@ H("[8] CERO REGRESIONES · las caras Ficha, Capital y Resultado siguen rindiendo
   fireEvent.click(conTexto(container, R.primera.entidad));
   ok(container.textContent.includes(`Importancia de ${R.primera.entidad} en tu cartera`), "…y arma la Ficha Ejecutiva del cliente elegido");
   fireEvent.click(porTexto(container, "Comercial"));
-  ok(container.textContent.includes(R.veredicto.titular), "y volver a Comercial devuelve el resumen del negocio, sin arrastrar la entidad de la Ficha");
+  ok(container.textContent.includes(R.kpis[0].valor),
+    "y volver a Comercial devuelve el resumen del negocio, sin arrastrar la entidad de la Ficha");
   cleanup();
 }
 
@@ -947,8 +972,8 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
   const veces = (aguja) => (aguja ? cabecera.split(aguja).length - 1 : 0);
   // NO REPETIR CIFRAS NI CONCEPTOS · cada afirmación tiene UN solo hogar en la primera lectura
   for (const [aguja, que] of [
-    [R.veredicto.soporte, "la lectura de alcance"],
-    [R.tension.reconciliaCorta, "la reconciliación cabeza/cola"],
+    /* la lectura de alcance y la reconciliación salieron de esta lista al quitarse del tablero: ya no pueden
+       aparecer «una sola vez» porque no aparecen ninguna. Se comprueban abajo, exigiendo CERO. */
     [R.evolutivo.lectura, "la lectura del año"],
     [R.deterioro.margen.acciones.lectura, "la lectura de acciones comerciales"],
     [R.deterioro.margen.costoPrecio.lectura, "la lectura de costo contra precio"],
@@ -957,20 +982,28 @@ H("[10] SÍNTESIS · nada se dice dos veces, y nada queda tapado (owner 2026-08-
   ]) ok(veces(aguja) === 1, `"${que}" aparece UNA sola vez — ${veces(aguja)}`);
   // el % del plano sobre la oportunidad total vive en la reconciliación Y en el tramo indicado (son dos
   // afirmaciones distintas sobre el mismo hecho); lo que NO puede pasar es que el ALCANCE se repita textual.
-  ok(veces(`${R.plano.n} clientes explican`) === 1, "el 80/20 se declara una vez, no en cada bloque");
+  ok(veces(R.plano.n + " clientes explican") === 0, "el 80/20 no se narra en ningún bloque: se muestra");
+  ok(veces(R.veredicto.soporte) === 0, "la lectura de alcance no vuelve por ninguna puerta");
+  ok(veces(R.tension.reconciliaCorta) === 0, "…ni la reconciliación cabeza/cola");
   // TOOLTIPS para lo explicativo: los InfoDot llevan las definiciones largas, no el cuerpo de la vista
   const tips = [...container.querySelectorAll(".adi-tip")].map((x) => x.textContent);
   ok(tips.length >= 8, `las definiciones y el modo de uso viven en tooltips — ${tips.length} en la vista`);
   ok(tips.some((t) => t.length > 200), "…y son las piezas largas (lo extenso no está en el cuerpo)");
   // EL BOTÓN FLOTANTE NO PUEDE TAPAR CONTENIDO
   const flot = conTexto(container, "Preguntar a ADI sobre esta vista");
-  ok(!!flot, "el botón flotante de ADI está");
+  /* ⚠️ AFIRMACIÓN INVERTIDA (owner 2026-08-27). El botón era un segundo camino para lo que cada pieza ya
+     ofrece: cada KPI, cada fila y cada tira se preguntan solas, y con el contexto de ESA pieza, que apunta
+     mejor que «la vista entera». Lo que sigue vivo es el contexto AMBIENTE, que no es un botón. */
+  ok(!flot, "el botón flotante de ADI ya NO está: cada pieza se pregunta sola");
   // se mide el padding COMPUTADO, no el string del atributo: jsdom colapsa `padding` + `paddingBottom` en el
   // shorthand `padding: 18px 18px 74px`, así que buscar "padding-bottom" en el texto nunca acertaría.
   const scroller = [...container.querySelectorAll("div")].find((d) => /overflow-y:\s*auto/i.test(d.getAttribute("style") || ""));
   ok(!!scroller, "el contenedor con scroll de la Mesa está");
+  /* ⚠️ AFIRMACIÓN INVERTIDA · antes exigía >= 60px de colchón para que el botón flotante no se posara sobre la
+     última línea. Sin botón, ese colchón era espacio muerto: ahora se exige que el padding sea PAREJO. Si
+     alguien devuelve el botón, tendrá que devolver el colchón — y esta línea se lo va a recordar. */
   const pb = scroller ? parseInt(getComputedStyle(scroller).paddingBottom || "0", 10) : 0;
-  ok(pb >= 60, `reserva colchón abajo para que el botón flotante no se pose sobre el contenido — ${pb}px`);
+  ok(pb <= 24, "sin botón flotante, el padding de abajo vuelve a ser parejo: no queda colchón muerto — " + pb + "px");
   cleanup();
 }
 

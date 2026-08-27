@@ -1448,9 +1448,6 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
   // la cara Ficha publica su propio ambiente DENTRO de MesaFichaCara: es la única que necesita la lectura del
   // módulo para nombrar su sujeto, y esa lectura vive ahí (acá tendríamos que escribirlo a mano, que es justo lo
   // que la mejora B prohíbe).
-  // el flotante "Preguntar a ADI sobre esta vista" manda el contexto de la VISTA comercial completa, no el de la
-  // última pieza tocada: es el catch-all de la pantalla, y su contexto tiene que decir eso mismo.
-  const { ask: askVistaComercial } = useViewContext("comercial/otro/vista", resumenC, { scenario, onAsk });
   const head = { fontFamily: MONO, fontSize: 11.5, letterSpacing: "0.5px", color: C.text, textTransform: "uppercase" };
   const semCol = { verde: C.green, ambar: C.amber, rojo: C.red };
   // header de MOVIMIENTO (el sello entender→explicar→actuar): número celeste + título ejecutivo + su "i"
@@ -1489,10 +1486,10 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </div>
         <EvidenceClaimHeader evidenceSpec={evidence.evidenceSpec}/>
       </div>
-      {/* paddingBottom extra cuando el botón flotante de ADI está: SIN esto el botón tapa la última línea de la
-          vista y el contenido queda inalcanzable abajo (owner 2026-08-07: "el botón flotante no puede cubrir
-          contenido"). El colchón es del alto del botón más su margen. */}
-      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, paddingBottom: cara === "comercial" && onAsk ? 74 : 18, display:"flex", flexDirection:"column", gap:18 }}>
+      {/* ⚠️ ACÁ SE RESERVABAN 74px ABAJO para que el botón flotante «Preguntar a ADI sobre esta vista» no se
+          posara sobre la última línea. El botón se quitó el 2026-08-27, así que el colchón se fue con él: era
+          espacio muerto sostenido por una pieza que ya no existe. Vuelve al padding parejo de 18. */}
+      <div style={{ flex:1, overflowY:"auto", minHeight:0, padding:18, display:"flex", flexDirection:"column", gap:18 }}>
         {/* CARA CAPITAL / CARA RESULTADO · el mismo sello sobre el inventario o sobre el P&L — la cara
             comercial vive INTACTA en la rama de abajo (regla de oro del owner). */}
         {cara === "ficha" ? (
@@ -1510,7 +1507,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             completa queda de evidencia opcional, más abajo. TODO sale de `resumenC` — cero cálculo acá. ── */}
         {resumenC ? (<>
           <ResumenMovimiento num="01" title="Qué está pasando"
-            def={"El estado del negocio completo: el veredicto con sus cuatro cifras de cabecera, cómo se movió el año contra el anterior y contra tu presupuesto, en quiénes se concentra la venta y cómo se compone la cartera cliente por cliente. Todo con alcance global — ninguna selección previa lo tiñe."}>
+            def={"El estado del negocio completo: sus cuatro cifras de cabecera, cómo se movió el año contra el anterior y contra tu presupuesto, en quiénes se concentra la venta y cómo se compone la cartera cliente por cliente. Todo con alcance global — ninguna selección previa lo tiñe."}>
             <ResumenVeredictoKPIs R={resumenC} mesa={mesa} onAsk={onAsk}/>
             <ResumenCartera R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
             <ResumenEvolutivo ev={resumenC.evolutivo} R={resumenC} onAsk={onAsk}/>
@@ -1556,22 +1553,14 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
         </>)}
         <EvidenceConfidenceFooter evidenceSpec={evidence.evidenceSpec}/>
       </div>
-      {/* ── BOTÓN GLOBAL FIJO · "Preguntar a ADI sobre esta vista" (owner 2026-08-06) — el catch-all cuando lo
-          que quieres entender no es un KPI/fila/alerta puntual sino la vista completa. FUERA del scroll (hermano,
-          no descendiente, del contenedor overflow:auto de arriba) — un position:absolute adentro de un
-          overflow:auto queda clippeado a su caja de scroll aunque el offset se calcule contra un ancestro más
-          arriba; comprobado en vivo: el botón existía en el DOM pero el click nunca llegaba. ── */}
-      {cara === "comercial" && askVistaComercial && (
-        <button onClick={() => askVistaComercial("¿Qué es lo más importante que debería ver en la vista Comercial?")}
-          title="Pregúntale a ADI sobre esta vista completa"
-          style={{ position:"absolute", right:16, bottom:16, display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:999,
-            background:C.celeste, color:"#04262e", border:"none", fontSize:14, fontWeight:700, cursor:"pointer",
-            fontFamily:"'DM Sans', system-ui, sans-serif", boxShadow:"0 8px 22px -4px rgba(47,184,218,0.5)", zIndex:5, transition:"transform 0.15s" }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}>
-          Preguntar a ADI sobre esta vista
-        </button>
-      )}
+      {/* ⚠️ ACÁ IBA EL BOTÓN FLOTANTE «Preguntar a ADI sobre esta vista». SE QUITÓ EL 2026-08-27, en la misma
+          orden que sacó la lectura ejecutiva y por el mismo motivo: era un segundo camino para lo que cada
+          pieza ya ofrece. Cada KPI, cada fila y cada tira de esta cara YA se preguntan solas —con el contexto
+          de ESA pieza, que es más preciso que el de «la vista entera»—, así que el flotante duplicaba el
+          gesto y encima con peor puntería.
+          ⚠️ EL CONTEXTO DE LA VISTA NO SE PERDIÓ: `useVistaContext("comercial", …)` lo sigue publicando como
+          AMBIENTE unas líneas más arriba, que es el requisito del owner de que ADI sepa qué pantalla estás
+          mirando aunque escribas directo en el chat sin tocar ningún botón. Lo que se fue es el botón. */}
     </div>
   );
 }
@@ -1654,8 +1643,6 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
   // salida viva de buildResumenComercial) cruzada con el manifiesto. Lo único que la UI aporta es qué componente
   // es cada botón — que es justamente lo que la UI sabe y el módulo no.
   const _o = { scenario: R.scenario, onAsk };
-  const vVeredicto = useViewContext("comercial/01/veredicto", R, _o);
-  const vRecon = useViewContext("comercial/01/reconciliacion-universos", R, _o);
   const vKpiVentas = useViewContext("comercial/01/kpi-ventas", R, _o);
   const vKpiContrib = useViewContext("comercial/01/kpi-contribucion", R, _o);
   const vKpiMargen = useViewContext("comercial/01/kpi-margen", R, _o);
@@ -1673,40 +1660,21 @@ function ResumenVeredictoKPIs({ R, mesa, onAsk }) {
     if (key === "acciones") { const s = (mesa && mesa.simulaciones || []).find((x) => x.key === "carga"); return s ? s.ask : null; }
     return null;
   };
-  const v = R.veredicto;
   return (
     <div>
-      <div style={{ ..._RC_HEAD, marginBottom: 9, display: "flex", alignItems: "center", gap: 4 }}>
-        Lectura ejecutiva · negocio completo
-        <InfoDot def={"La señal del negocio entero, no de una entidad: se construye sobre todos tus clientes del período y ninguna selección previa la tiñe. El titular LOCALIZA dónde está la tensión y hasta ahí llega: que N cuentas concentren una brecha es una afirmación que el dato sostiene; POR QUÉ la concentran es lo que hay que ir a demostrar, cuenta por cuenta, en su Ficha. La referencia siempre es TU benchmark — el que tú fijaste."} align="left"/>
-      </div>
-      <div style={{ padding: "13px 16px", borderRadius: 12, borderLeft: `3px solid ${v.tipo === "senal" ? C.celeste : C.borderLight}`,
-        border: `1px solid ${C.border}`, borderLeftWidth: 3, borderLeftColor: v.tipo === "senal" ? C.celeste : C.borderLight,
-        background: "linear-gradient(90deg, rgba(47,184,218,0.06), rgba(47,184,218,0.01) 55%, transparent)", marginBottom: 10 }}>
-        <div style={{ fontSize: 17, fontWeight: 600, color: C.text, lineHeight: 1.35, letterSpacing: "-0.1px" }}>{v.titular}</div>
-        {/* UNA SOLA LECTURA DE ALCANCE (owner 2026-08-07: "hoy el universo 80/20 se explica varias veces").
-            Antes esto vivía repartido en tres lugares — este soporte, una banda ALCANCE y una banda "Plano de
-            decisión" — diciendo lo mismo con distintas palabras. Ahora: la declaración del plano, y debajo una
-            línea que reconcilia cabeza y cola nombrando sus universos (esa parte no se negocia por brevedad). */}
-        <div style={{ fontSize: 14, color: C.textSub, lineHeight: 1.55, marginTop: 6 }}>
-          {v.soporte}
-          <InfoDot def={`El grupo mínimo cuya venta acumulada alcanza el 80% — el mismo cálculo del diagnóstico y del cuadro, no un top-N fijo. Dentro de él, "brecha material" no es "bajo tu benchmark": son las cuentas que ceden ${POLICY.margenBrechaMaterial} pp o más, porque una diferencia chica no mueve una decisión. Los clientes de la cola no entran a esta lectura inicial; aparecen al expandir la cartera completa, al final.`} align="left"/>
-        </div>
-        {/* la línea de reconciliación pasa a ser PREGUNTABLE (no cambia su tipografía ni su lugar: solo gana el
-            click y el título). Es la única pieza del bloque que declara DOS universos, y "¿por qué hay dos montos
-            parecidos?" es la pregunta que más la busca — ahora viaja con el contexto de ESA tira, no del veredicto. */}
-        <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.5, marginTop: 4, ...(vRecon.ask ? { cursor: "pointer" } : {}) }}
-          title={vRecon.ask ? "Pregúntale a ADI: ¿Cuál es la diferencia entre la cartera completa y el plano de decisión?" : undefined}
-          onClick={vRecon.ask ? () => vRecon.ask("¿Cuál es la diferencia entre la cartera completa y el plano de decisión?") : undefined}>
-          {R.tension.reconciliaCorta}
-          <InfoDot def={"Dos universos con el MISMO criterio de materialidad y distinto alcance: la cartera completa (todo el negocio) y el plano de decisión (el grupo que explica el 80% de la venta). El primero dimensiona la oportunidad total; el segundo dice por dónde empezar. Cierran exacto: lo del plano más lo de la cola es lo de la cartera. Nunca vas a ver dos montos parecidos sin que diga de qué universo sale cada uno."} align="left"/>
-        </div>
-        {v.lectura ? (
-          <div style={{ fontFamily: MONO, fontSize: 14, color: C.textMuted, lineHeight: 1.5, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`, fontVariantNumeric: "tabular-nums" }}>{v.lectura}</div>
-        ) : null}
-      </div>
+      {/* ⚠️ ACÁ IBA LA «LECTURA EJECUTIVA» · el titular del veredicto, su soporte y la línea que reconciliaba
+          cartera y plano. SE QUITÓ EL 2026-08-27 por orden del owner, y la razón es de diseño de producto, no
+          de espacio: «no es hacer cosas nuevas, sino quitarle conclusiones — si dejamos botones que expliquen
+          lo que está en Sentrix y ADI lo hará, es duplicar cosas».
+          LA REGLA QUE QUEDA, y que conviene no perder: SENTRIX MUESTRA, ADI CONCLUYE. Una frase como «el
+          volumen crece pero el margen no acompaña» es una conclusión, y hay un camino mejor para ella — el
+          usuario le pregunta a ADI y la recibe con su cuenta detrás, no impresa sobre el tablero.
+          ⚠️ EL VEREDICTO NO SE BORRÓ DEL MOTOR. `buildResumenComercial` lo sigue emitiendo (titular, soporte,
+          lectura) y su gate lo sigue probando: es lo que ADI usa para responder. Lo que se fue es su IMPRESIÓN
+          en pantalla. Si mañana hiciera falta, se vuelve a pintar sin recalcular nada.
+          Los cuatro KPI de abajo SE QUEDAN: son cifras, no conclusiones. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 9 }}>
-        {R.kpis.map((k) => { const ask = askDe(k.key); const emitir = askKpi[k.key] || vVeredicto.ask; const clic = !!(emitir && ask); return (
+        {R.kpis.map((k) => { const ask = askDe(k.key); const emitir = askKpi[k.key]; const clic = !!(emitir && ask); return (
           <button key={k.key} onClick={clic ? () => emitir(ask) : undefined} title={clic ? `Pregúntale a ADI: ${ask}` : undefined}
             style={{ position: "relative", background: "rgba(255,255,255,0.02)", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", textAlign: "left", fontFamily: "'DM Sans', system-ui, sans-serif", cursor: clic ? "pointer" : "default", display: "flex", flexDirection: "column", gap: 4, transition: "background 0.15s, border-color 0.15s" }}
             onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(47,184,218,0.05)"; if (clic) ev.currentTarget.style.borderColor = "rgba(47,184,218,0.5)"; const t = ev.currentTarget.querySelector(".kpi-explain"); if (t) t.style.opacity = 1; }}
