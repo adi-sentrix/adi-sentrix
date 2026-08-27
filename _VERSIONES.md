@@ -12,6 +12,29 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
+## 1.9 — producción · tag `v1.9`
+
+**El inicio se saca lo que sobraba.** Tres correcciones del owner sobre el papel ya encendido, las tres
+mirando la pantalla y no el código.
+
+- **El titular se acorta a «¿Por dónde empezamos?»** y la bajada larga se va con él. El texto anterior servía
+  para explicar el producto la primera vez; a la décima mañana cansa — palabras del owner: *«eso es muy robot,
+  hay que pensar en el día a día»*. Y la bajada sobraba por una razón simple: las cuatro preguntas de abajo
+  **son** la respuesta a «por dónde», así que contarlo además era decir dos veces lo mismo.
+- **El pulso del inicio sale de la pantalla, y esto REVIERTE lo que dijo la 1.8.** Ahí quedó escrito que se
+  quedaba; el owner lo miró montado y sostuvo lo que ya había pedido antes: *«son datos que tiene Sentrix, es
+  repetirlo»*. Repetir en el hero de ADI lo que la Mesa ya muestra es el olor a BI que la estructura por
+  función salió a matar. ⚠️ `pulsoInicio.js` **no se borra**: sigue siendo la forma correcta de que la vista no
+  calcule, y la app oscura (`?papel=0`) lo sigue mostrando.
+- **El latido de los hexágonos ahora se ve.** El owner reportó que estaban quietos; **corría de verdad** —seis
+  animaciones activas— pero era invisible: medido, el pico movía el pixel **18 unidades** durante menos de un
+  segundo. Sobre negro ese salto se nota; sobre papel el ojo no lo registra. Dos arreglos medidos: el color del
+  encendido sube (**el pico pasa de 18 a 70 unidades**) y el papel estrena su propio ritmo, que **enciende y se
+  queda** en vez de parpadear. El halo sube por la misma física.
+
+La lección que deja: *«corre» y «se ve» no son lo mismo*, y sobre claro esa diferencia es enorme. Ningún
+cambio de este tipo se da por bueno sin medir el pixel.
+
 ## 1.8 — producción · tag `v1.8`
 
 **La app cambia de cara.** ADI pasa a papel claro; Sentrix se queda en negro. El corte del medio deja de ser un
