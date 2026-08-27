@@ -12,7 +12,25 @@ el repo. Que los tres digan lo mismo lo verifica `_version_gate.mjs`.
 
 ---
 
-## 1.9 — producción · tag `v1.9`
+## 1.10 — producción · tag `v1.10`
+
+**El centro queda para el halo.** Sobre papel los hexágonos se van al costado, que es la regla del anillo de
+siempre — sólo que el anillo del tablero no alcanzaba acá.
+
+Medido a 1440: despejaba hasta **228 px** del centro y la columna de conversación llega a **356**, así que
+entre medio la retícula quedaba **debajo del texto**. Sobre negro nunca se notó (el trazo es luz al 3,6% y el
+ojo no la registra bajo una palabra); sobre papel es tinta al 8,5% y compite con lo que se está leyendo.
+
+- El hueco limpio pasa de 228 a **446 px**: el texto entra entero y los hexágonos arrancan donde la
+  conversación termina.
+- Los seis hexágonos que se encienden se mudan a los bordes. Los del tablero caían dentro de la columna.
+- `?papel=0` conserva el anillo y las posiciones de siempre.
+
+⚠️ **La 1.9 nunca llegó a producción**: se etiquetó pero no se empujó a GitHub, que es de donde se publica. La
+1.10 sale con las dos cosas juntas. La lección queda escrita en [[adi-entornos]]: **mover `main` en local no es
+publicar** — falta el `push`, y hasta que ese paso no ocurre el sitio sigue en la versión anterior.
+
+## 1.9 — *incluida en la 1.10* · tag `v1.9`
 
 **El inicio se saca lo que sobraba.** Tres correcciones del owner sobre el papel ya encendido, las tres
 mirando la pantalla y no el código.
