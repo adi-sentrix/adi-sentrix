@@ -561,7 +561,7 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
   }
   if (capital) p.push(`Además tienes ${capital.valor} de capital inmovilizado en el inventario del mix que le vendes — es capital de tu negocio, no de ${dueño}.`);
   if (!p.length) return null;
-  if (hayDetalleEnFicha) p.push(`El detalle está en la ficha de ${dueño} en Sentrix.`);
+  if (hayDetalleEnFicha) p.push(`El detalle está en el Perfil Ejecutivo de ${dueño} en Sentrix.`);
   /* ── LA GARANTÍA DE REGISTRO TAMBIÉN ACÁ (La Poda F2, 2026-08-14) ────────────────────────────────────────────
    * Esta prosa es SALIDA A PANTALLA del camino vigente: `answerViaOracle` la usa como reparación determinística
    * del veredicto `tabla-no-autorizada` y la sirve VERBATIM — el `stripLanguageLeaks` del turno corre sobre `n`
@@ -579,7 +579,7 @@ export function composeProsaEjecutiva(claims, { entidad = null, hayDetalleEnFich
 export function buildDisclosureInstruction({ podado = [], entidad = null } = {}) {
   if (!podado.length) return "";
   const quien = entidad ? `de ${entidad}` : "de esta entidad";
-  return `DIVULGACIÓN PROGRESIVA — esta es una consulta GENERAL ${quien}: respondé QUÉ PASA, POR QUÉ y QUÉ HACER PRIMERO, en prosa ejecutiva. NO armes ninguna tabla: no tenés autorizado el detalle (${podado.join(" · ")}) porque el usuario no lo pidió, y ese detalle vive en la Ficha de Sentrix. La prioridad SÍ se nombra concreta y con su monto (eso es una frase, no una tabla). Cerrá ofreciendo la Ficha —"Ver ficha en Sentrix"— para el detalle, nunca prometiendo que "podés profundizar" sin decir dónde. Si el usuario después pide la evolución, el mes a mes o la composición, ahí sí se la traés.`;
+  return `DIVULGACIÓN PROGRESIVA — esta es una consulta GENERAL ${quien}: respondé QUÉ PASA, POR QUÉ y QUÉ HACER PRIMERO, en prosa ejecutiva. NO armes ninguna tabla: no tenés autorizado el detalle (${podado.join(" · ")}) porque el usuario no lo pidió, y ese detalle vive en el Perfil Ejecutivo de Sentrix. La prioridad SÍ se nombra concreta y con su monto (eso es una frase, no una tabla). Cerrá ofreciendo el Perfil Ejecutivo —"Ver Perfil Ejecutivo en Sentrix"— para el detalle, nunca prometiendo que "podés profundizar" sin decir dónde. Si el usuario después pide la evolución, el mes a mes o la composición, ahí sí se la traés.`;
 }
 
 /* ══ CONTRATO DE RESPUESTA PROPORCIONAL (owner · Contrato de Concordancia ADI ↔ Sentrix) ═══════════════════════════

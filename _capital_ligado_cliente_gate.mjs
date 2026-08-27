@@ -8,7 +8,7 @@
  * firma para 13 clientes. Causa raíz: el "mix" del cliente sale de `clienteSkuMatrix` (IPF de afinidad
  * MODELADA, no transacciones), y todos sus pesos son > 0, así que el surtido de cualquier cliente abarca los 13
  * SKU con inventario. Intersecar el inventario contra ese surtido devuelve el inventario COMPLETO del negocio.
- * La Ficha Ejecutiva lo mostraba como "Inventario de baja rotación en productos que compra <cliente>" y el chat
+ * El Perfil Ejecutivo lo mostraba como "Inventario de baja rotación en productos que compra <cliente>" y el chat
  * como "capital detenido en SKU que compra <cliente>" — la mitad de esa afirmación es falsa.
  *
  * Y contradecía una declaración que el propio producto ya hacía: `sentrix/capability.js` declara
@@ -162,7 +162,7 @@ H("[3] LA FICHA EJECUTIVA · declara la limitación en vez de rellenar con el in
   }));
   const t = container.textContent;
 
-  ok(t.includes(`Importancia de ${entity} en tu cartera`), "la Ficha Ejecutiva se renderiza (no es un falso verde por panel vacío)");
+  ok(t.includes(`Importancia de ${entity} en tu cartera`), "el Perfil Ejecutivo se renderiza (no es un falso verde por panel vacío)");
   ok(t.includes(`Inventario inmovilizado y ${entity}`), "la tarjeta se titula por lo que el dato sostiene, no por una relación inexistente");
   ok(/no registra qué SKU/.test(t), "muestra la razón medida");
   ok(/cara Capital/.test(t), "remite a donde ese inventario SÍ tiene dueño (el negocio)");

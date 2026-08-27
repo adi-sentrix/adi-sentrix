@@ -449,7 +449,7 @@ for (const sc of ["bonanza", "tension", "crisis"]) {
 }
 
 /* ── (20) CANDADO "INMOVILIZADO" · una palabra para una cosa (owner 2026-08-09) ────────────────────────────────
- * La cara decía "capital detenido" mientras la Ficha, el glosario y los propios composers de ADI ya decían
+ * La cara decía "capital detenido" mientras el Perfil Ejecutivo, el glosario y los propios composers de ADI ya decían
  * "capital inmovilizado" — y encima el filtro del gráfico nuevo también. Dos palabras para el mismo dinero en la
  * misma pantalla. Se unificó en INMOVILIZADO, que es la palabra que ya existía en el resto del producto.
  * ⚠️ LAS `ask` TAMBIÉN CAMBIARON (owner 2026-08-15, autorización explícita). Hasta ese día quedaban exentas —eran

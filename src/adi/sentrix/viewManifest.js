@@ -70,14 +70,14 @@ export const UNIDADES = ["money", "pct", "ratio", "days", "conteo", "texto"];
  * comprueba. Es el texto que ADI le va a decir al usuario cuando esa cifra no cierre. */
 export const CONCORDANCIA_ESTADOS = ["reconciled", "divergent", "unsupported"];
 
-export const VISTA_LABEL = { comercial: "Comercial", capital: "Capital", resultado: "Resultado", ficha: "Ficha" };
+export const VISTA_LABEL = { comercial: "Comercial", capital: "Capital", resultado: "Resultado", ficha: "Perfil Ejecutivo" };
 export const SECCION_LABEL = {
   "comercial/01": "Qué está pasando",
   "comercial/02": "Dónde se deteriora el margen",
   "comercial/03": "Qué hacer primero",
   "capital/01": "El capital, de una mirada",
   "resultado/01": "El resultado del negocio",
-  "ficha/otro": "Ficha ejecutiva",
+  "ficha/otro": "Perfil Ejecutivo",
   // NIVEL 2 · lo que ADI abre cuando responde. Comparten sección "otro" con el contexto ambiente de su cara porque
   // no pertenecen a ningún movimiento numerado: no son un paso del razonamiento de la cara, son la superficie que
   // demuestra una respuesta.
@@ -697,7 +697,7 @@ export const VIEW_MANIFEST = {
 
   // ══ FICHA ════════════════════════════════════════════════════════════════════════════════════════════════
   "ficha/otro/vista": {
-    vista: "ficha", seccion: "otro", tipo: "vista", label: "La Ficha Ejecutiva",
+    vista: "ficha", seccion: "otro", tipo: "vista", label: "El Perfil Ejecutivo",
     campo: "focus", entidadCampo: "focus", metrica: "contribucion", eje: "cliente", periodo: "año cerrado",
     universo: { kind: "seleccion", label: "una entidad puntual contra su cartera", cierraCon: "clientesVentas/clientesMargen del escenario" },
     // la Ficha es una cara de UNA entidad: su contexto ambiente y el de su pieza son el mismo (misma vista, misma
@@ -707,18 +707,18 @@ export const VIEW_MANIFEST = {
     evidencia: [{ tool: "entityProfile", args: {} }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["focus"],
-      razon: "el `campo` de esta entrada es el SUJETO de la Ficha (el nombre de la entidad), no una medida: el cruce builder↔ledger no encuentra ninguna cifra que comparar. Las cifras de la Ficha las emiten sus piezas y `entityProfile` las autoriza; esta entrada sólo identifica de quién habla la pantalla" },
+      razon: "el `campo` de esta entrada es el SUJETO del Perfil Ejecutivo (el nombre de la entidad), no una medida: el cruce builder↔ledger no encuentra ninguna cifra que comparar. Las cifras del Perfil Ejecutivo las emiten sus piezas y `entityProfile` las autoriza; esta entrada sólo identifica de quién habla la pantalla" },
     _provisional: true,
   },
   "ficha/otro/ficha-cliente": {
-    vista: "ficha", seccion: "otro", tipo: "veredicto", label: "Ficha Ejecutiva del cliente",
+    vista: "ficha", seccion: "otro", tipo: "veredicto", label: "Perfil Ejecutivo del cliente",
     campo: "focus", entidadCampo: "focus", metrica: "contribucion", eje: "cliente", periodo: "año cerrado",
     universo: { kind: "seleccion", label: "una entidad puntual contra el promedio de la cartera", cierraCon: "clientesMargen del escenario" },
     comparacion: "promedio_cartera", estatusDefault: "indicado", estatusCampo: null, controles: [],
     evidencia: [{ tool: "entityProfile", args: {} }],
     sinTool: null,
     concordancia: { estado: "unsupported", campos: ["focus"],
-      razon: "igual que su vista: el `campo` es el sujeto, no la medida, y el cruce no produce ningún par comparable. Y hay un límite que la Ficha tiene que arrastrar: el capital que se le asocia a un cliente NO es capital del cliente — la matriz cliente×SKU se construye por AFINIDAD de marca y familia, no por transacciones observadas, así que esa asociación sale sellada `indicado` y el sujeto de la cifra sigue siendo el negocio" },
+      razon: "igual que su vista: el `campo` es el sujeto, no la medida, y el cruce no produce ningún par comparable. Y hay un límite que el Perfil Ejecutivo tiene que arrastrar: el capital que se le asocia a un cliente NO es capital del cliente — la matriz cliente×SKU se construye por AFINIDAD de marca y familia, no por transacciones observadas, así que esa asociación sale sellada `indicado` y el sujeto de la cifra sigue siendo el negocio" },
     _provisional: true,
   },
 

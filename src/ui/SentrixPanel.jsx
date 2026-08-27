@@ -1477,7 +1477,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
           <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${C.border}`, borderRadius:7, overflow:"hidden", flexShrink:0 }}>
             {[["comercial", "Comercial"], ["capital", "Capital"], ["resultado", "Resultado"], ["ficha", "Perfil Ejecutivo"]].map(([k, lbl]) => (
               <button key={k} onClick={() => setCara(k)}
-                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "La Ficha Ejecutiva de un cliente: perfil, brecha, evolución, composición y posición en la cartera"}
+                title={k === "comercial" ? "La cara comercial: ventas, márgenes y contribución" : k === "capital" ? "La cara Capital: tu inventario — qué trabaja, qué se frena, qué reponer" : k === "resultado" ? "La cara Resultado: tu P&L comercial — la cascada hasta el resultado después de gastos" : "El Perfil Ejecutivo de un cliente: su perfil, brecha, evolución, composición y posición en la cartera"}
                 style={{ padding:"4px 12px", fontSize:14, fontWeight: cara === k ? 600 : 400, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif",
                   background: cara === k ? "rgba(255,255,255,0.1)" : "transparent", border:"none",
                   color: cara === k ? C.text : C.textMuted, transition:"all 0.15s" }}>{lbl}</button>
@@ -1519,7 +1519,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             <ResumenDeterioro R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
           <ResumenMovimiento num="03" title="Qué hacer primero"
-            def={"Las cuentas cruzadas por los dos deterioros medidos. De ese cruce sale la prioridad — y el grupo que va primero es el peligroso: donde empujar volumen con descuento agrandaría la brecha en vez de cerrarla. Cada fila lleva a su Ficha Ejecutiva, que es donde la explicación se demuestra."}>
+            def={"Las cuentas cruzadas por los dos deterioros medidos. De ese cruce sale la prioridad — y el grupo que va primero es el peligroso: donde empujar volumen con descuento agrandaría la brecha en vez de cerrarla. Cada fila lleva a su Perfil Ejecutivo, que es donde la explicación se demuestra."}>
             <ResumenPrioridades R={resumenC} onFicha={irAFicha} onAsk={onAsk}/>
           </ResumenMovimiento>
         </>) : (
@@ -1535,7 +1535,7 @@ function MesaPanel({ evidence, onClose, onToggleMax, maximized, onAsk = null }) 
             mismo, encima de una línea que repetía el alcance que el veredicto ya declara arriba.
             SE VA CON ÉL el CuadroMando de esta cara: selección para comparar, comparado multi-entidad, filtros,
             orden, buscador y watchlist. El owner lo decidió con esa consecuencia sobre la mesa. Lo que la cara
-            conserva de todo eso: la cartera completa (bloque 1) y "Ver Ficha" por fila, que es el camino real —
+            conserva de todo eso: la cartera completa (bloque 1) y "Ver Perfil Ejecutivo" por fila, que es el camino real —
             Comercial DETECTA, la Ficha EXPLICA. El cuadro sigue vivo e intacto en las otras caras. ── */}
         {/* Las tiras legacy "Margen en riesgo" y "Capital detenido" SE ELIMINARON de esta cara (owner
             2026-08-07). La primera repetía, con OTRO universo y sin decirlo, la cifra que el veredicto ya da:
@@ -1768,7 +1768,7 @@ function ResumenCartera({ R, onFicha, onAsk }) {
                   quepa "Mercado Libre" en una sola línea dejaría truncada la venta, que es peor */}
               <td style={{ padding: "5px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: angosto ? "normal" : "nowrap" }}>
                 {onFicha ? (
-                  <button onClick={() => onFicha(f.nombre)} title={`Abrir la Ficha de ${f.nombre}`}
+                  <button onClick={() => onFicha(f.nombre)} title={`Abrir el Perfil Ejecutivo de ${f.nombre}`}
                     style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{f.nombre}</button>
                 ) : <span style={{ color: C.text, fontWeight: 600 }}>{f.nombre}</span>}
               </td>
@@ -1860,7 +1860,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
           <span style={{ ..._RC_HEAD, color: C.text, display: "flex", alignItems: "center" }}>
             <span style={{ width: 5, height: 5, borderRadius: 3, background: C.celeste, flexShrink: 0, marginRight: 6, display: "inline-block" }}/>
             Concentración comercial · 80/20
-            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva roja punteada el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Ficha."} align="left"/>
+            <InfoDot def={"Las barras son la venta (o la contribución) de cada cliente y la curva roja punteada el porcentaje acumulado; la punteada marca el umbral del 80% y el punto ámbar, dónde se cruza de verdad. Las barras están acotadas para que se lean, pero la curva y el cruce se calculan con TODOS tus clientes: agrupar es dibujo, nunca aritmética — por eso las barras (con el resto de la cabeza y la cola incluidos) suman exacto el total. Cambia a Contribución para ver dónde una venta grande deja poco valor. Toca la barra de un cliente y se abre su Perfil Ejecutivo."} align="left"/>
           </span>
           {/* el "X clientes explican el Y%" NO se repite acá: ya lo dijo el veredicto (una sola lectura de
               alcance). Este bloque aporta lo que solo él puede aportar — el contraste entre volumen y valor. */}
@@ -1911,7 +1911,7 @@ function ResumenConcentracion({ R, onFicha, onAsk }) {
               const clicable = b.tipo === "entidad" && !!onFicha;
               return (
                 <button key={b.nombre} onClick={clicable ? () => onFicha(b.nombre) : undefined} disabled={!clicable}
-                  title={clicable ? `Abrir la Ficha de ${b.nombre}` : b.tipo === "cola" ? "Los clientes fuera del plano de decisión · se ven al expandir la cartera completa" : "Los clientes de la cabeza que no entran en el gráfico · se ven al expandir la cartera completa"}
+                  title={clicable ? `Abrir el Perfil Ejecutivo de ${b.nombre}` : b.tipo === "cola" ? "Los clientes fuera del plano de decisión · se ven al expandir la cartera completa" : "Los clientes de la cabeza que no entran en el gráfico · se ven al expandir la cartera completa"}
                   style={{ background: "transparent", border: "none", padding: 0, textAlign: "center", overflow: "hidden", cursor: clicable ? "pointer" : "default", fontFamily: MONO }}>
                   <span style={{ display: "block", fontSize: 11.5, color: b.tipo === "entidad" ? C.textSub : C.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.nombre}</span>
                   <span style={{ display: "block", fontSize: 11.5, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>{b.fmt}</span>
@@ -2117,7 +2117,7 @@ function ResumenSostiene({ R, onFicha, onAsk }) {
             <tr key={f.nombre}>
               <td style={{ padding: "5px 6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {navegable ? (
-                  <button onClick={() => onFicha(f.nombre)} title={`Abrir la Ficha de ${f.nombre}`}
+                  <button onClick={() => onFicha(f.nombre)} title={`Abrir el Perfil Ejecutivo de ${f.nombre}`}
                     style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{f.nombre}</button>
                 ) : <span style={{ color: C.text, fontWeight: 600 }}>{f.nombre}</span>}
                 {todos && f.enGrupo ? <span title="Está dentro del grupo que explica el 80% de la venta" style={{ marginLeft: 5, fontFamily: MONO, fontSize: 11, color: C.celeste, border: "1px solid rgba(47,184,218,0.4)", borderRadius: 3, padding: "0 3px" }}>80%</span> : null}
@@ -2195,7 +2195,7 @@ function ResumenPorQue({ pq, R = null, onFicha, onAsk = null }) {
               <div key={x.nombre} style={{ padding: "10px 13px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.018)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ flex: "0 1 132px", minWidth: 104 }}>
-                    {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{x.nombre}</span>}
+                    {onFicha ? <button onClick={() => onFicha(x.nombre)} title={`Abrir el Perfil Ejecutivo de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{x.nombre}</span>}
                     <span style={{ display: "block", fontFamily: MONO, fontSize: 11.5, color: C.textMuted, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{x.ventaFmt} · {x.participacionFmt} de la venta</span>
                   </span>
                   {/* la cifra de la fila va en blanco: el color de este bloque lo lleva el término dominante,
@@ -2296,7 +2296,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                     {ra.filas.slice(0, 4).map((x) => (
                       <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
                         <span style={{ flex: "0 1 110px", minWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {onFicha ? <button onClick={() => { if (ctxAcc) setUISignal({ viewContext: ctxAcc }); onFicha(x.nombre); }} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{x.nombre}</span>}
+                          {onFicha ? <button onClick={() => { if (ctxAcc) setUISignal({ viewContext: ctxAcc }); onFicha(x.nombre); }} title={`Abrir el Perfil Ejecutivo de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{x.nombre}</span>}
                         </span>
                         {/* ROJO, no ámbar (owner 2026-08-08): esta cifra es lo que la cuenta ENTREGA por encima
                             del promedio de la cartera — plata que sale. El exceso en pp y el recuperable en verde
@@ -2331,7 +2331,7 @@ function ResumenDeterioro({ R, onFicha, onAsk }) {
                   {cp.filas.slice(0, 4).map((x) => (
                     <div key={x.nombre} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.015)" }}>
                       <span style={{ flex: "0 1 106px", minWidth: 84, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {onFicha ? <button onClick={() => { if (vCostoPrecio.ctx) setUISignal({ viewContext: vCostoPrecio.ctx }); onFicha(x.nombre); }} title={`Abrir la Ficha de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{x.nombre}</span>}
+                        {onFicha ? <button onClick={() => { if (vCostoPrecio.ctx) setUISignal({ viewContext: vCostoPrecio.ctx }); onFicha(x.nombre); }} title={`Abrir el Perfil Ejecutivo de ${x.nombre}`} style={{ background: "transparent", border: "none", padding: 0, color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", borderBottom: "1px solid rgba(47,184,218,0.35)" }}>{x.nombre}</button> : <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{x.nombre}</span>}
                       </span>
                       <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.textSub, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`costo unitario ${x.costoA} → ${x.costoZ}`}>costo {x.dCostoFmt}</span>
                       <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.textSub, fontVariantNumeric: "tabular-nums", flexShrink: 0 }} title={`precio por unidad ${x.precioA} → ${x.precioZ}`}>precio {x.dPrecioFmt}</span>
@@ -2384,7 +2384,7 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
         <span style={vCruce.ask ? { cursor: "pointer" } : undefined}
           title={vCruce.ask ? "Pregúntale a ADI: ¿Por qué debo empezar por estas cuentas?" : undefined}
           onClick={vCruce.ask ? () => vCruce.ask("¿Por qué debo empezar por estas cuentas?") : undefined}>{P.encabezado}</span>
-        <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre la Ficha Ejecutiva de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
+        <InfoDot def={"Las cuentas cruzadas por los DOS deterioros que ya están medidos: si están bajo su referencia de venta y si ceden margen material contra tu benchmark. De ese cruce sale la prioridad, y no de una recomendación inventada. El grupo que va primero es el peligroso: cuentas que están bajo presupuesto Y cediendo margen, donde empujar volumen con descuento agranda la brecha en vez de cerrarla. Cada fila abre el Perfil Ejecutivo de esa cuenta, que es donde la explicación se demuestra."} align="left"/>
       </div>
       {P.grupos.map((g) => (
         <div key={g.key} style={_RC_CARD}>
@@ -2422,11 +2422,11 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
                 </span>
                 {onFicha ? (
                   // el click informa el contexto del GRUPO de prioridad y después abre la Ficha (nunca dispara)
-                  <button onClick={() => { if (vGrupos.ctx) setUISignal({ viewContext: vGrupos.ctx }); onFicha(x.entidad); }} title={`Abrir la Ficha de ${x.entidad}`}
+                  <button onClick={() => { if (vGrupos.ctx) setUISignal({ viewContext: vGrupos.ctx }); onFicha(x.entidad); }} title={`Abrir el Perfil Ejecutivo de ${x.entidad}`}
                     style={{ flexShrink: 0, padding: "6px 13px", borderRadius: 8, border: "1px solid rgba(47,184,218,0.45)", background: "transparent", color: C.text, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif", whiteSpace: "nowrap", transition: "background 0.15s" }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.14)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                    Abrir Ficha <span style={{ color: C.celeste }}>→</span>
+                    Abrir Perfil Ejecutivo <span style={{ color: C.celeste }}>→</span>
                   </button>
                 ) : null}
               </div>
@@ -2440,7 +2440,7 @@ function ResumenPrioridades({ R, onFicha, onAsk }) {
         </div>
       ))}
       {/* El enlace "O que ADI cuente el caso <entidad>" se ELIMINÓ (owner 2026-08-08): cada fila ya trae su
-          "Abrir Ficha →", y ofrecer un segundo camino a la MISMA cuenta —la primera de la lista— competía con
+          "Abrir Perfil Ejecutivo →", y ofrecer un segundo camino a la MISMA cuenta —la primera de la lista— competía con
           esa acción en vez de sumarle. Preguntarle a ADI sigue a un clic, con el botón fijo de la vista. */}
     </div>
   );
@@ -2573,9 +2573,10 @@ function MesaResultadoCara({ resultado: mr, scenario = null, onAsk = null, onEje
           )}
         </div>
       )}
-      <div style={{ fontSize:14, color:C.textSub, lineHeight:1.55, padding:"10px 12px", border:`1px solid ${C.border}`, borderRadius:10, background:"rgba(47,184,218,0.03)", marginBottom:9 }}>
-        <span style={{ color:C.celeste, fontWeight:600 }}>ADI · </span>{mr.lectura}
-      </div>
+      {/* ⚠️ ACÁ IBA «ADI · De $X de ingreso… quedan $Y de resultado comercial». Fuera el 2026-08-27, y por
+          pedido expreso de consistencia: es la gemela de la línea que salió de Capital el mismo día —
+          cuenta en prosa exactamente lo que la cascada de abajo muestra línea por línea. La cuenta sigue
+          viva en `mesaResultado.js` (`mr.lectura`); lo que se fue es que el tablero la narrara. */}
       <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
         {mr.cascada.map((r) => (
           <AskRow key={r.key} onAsk={askPnl} q={r.ask} style={{ display:"flex", alignItems:"center", gap:9, padding: r.kind === "resultado" ? "10px 12px" : "7px 12px", borderRadius:9, ...rowStyle(r) }}>
@@ -4164,9 +4165,9 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
         if (resumen && selRows.length === 1) {
           return (
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", fontSize:14, color:C.textMuted, lineHeight:1.5, padding:"9px 12px", border:`1px dashed ${C.border}`, borderRadius:10 }}>
-              <span><b style={{ color:C.text }}>{aRow.name}</b> seleccionado. Su evolución, composición y brecha viven en la Ficha; selecciona una segunda fila para compararlas acá.</span>
+              <span><b style={{ color:C.text }}>{aRow.name}</b> seleccionado. Su evolución, composición y brecha viven en el Perfil Ejecutivo; selecciona una segunda fila para compararlas acá.</span>
               {onFicha && dim === "cliente" ? (
-                <button onClick={() => onFicha(aRow.name)} title={`Abrir la Ficha de ${aRow.name}`}
+                <button onClick={() => onFicha(aRow.name)} title={`Abrir el Perfil Ejecutivo de ${aRow.name}`}
                   style={{ marginLeft:"auto", padding:"4px 11px", borderRadius:7, border:"1px solid rgba(47,184,218,0.5)", background:"rgba(47,184,218,0.08)", color:C.text, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', system-ui, sans-serif", whiteSpace:"nowrap" }}>
                   Ver Ficha de {aRow.name} <span style={{ color:C.celeste }}>→</span>
                 </button>
@@ -4261,11 +4262,11 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
                       onMouseEnter={(e) => { e.currentTarget.style.color = C.celeste; e.currentTarget.style.borderColor = "rgba(47,184,218,0.45)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.borderColor = C.border; }}>ADI</button>
                   ) : null}
-                  {/* VER FICHA por fila (owner 2026-08-07): seleccionar = comparar dentro de Comercial · "Ver Ficha"
+                  {/* VER FICHA por fila (owner 2026-08-07): seleccionar = comparar dentro de Comercial · "Ver Perfil Ejecutivo"
                       = profundizar. Navega, nunca dispara a ADI. Solo en el eje cliente: la Ficha Ejecutiva es de
                       cliente y prometer una que no existe sería peor que no ofrecerla. */}
                   {onFicha && dim === "cliente" ? (
-                    <button onClick={(e) => { e.stopPropagation(); onFicha(r.name); }} title={`Abrir la Ficha de ${r.name}`}
+                    <button onClick={(e) => { e.stopPropagation(); onFicha(r.name); }} title={`Abrir el Perfil Ejecutivo de ${r.name}`}
                       style={{ padding:"1px 7px", borderRadius:5, border:"1px solid rgba(47,184,218,0.3)", background:"transparent", color:C.celeste, fontSize:11, fontFamily:MONO, letterSpacing:"0.5px", cursor:"pointer", flexShrink:0, transition:"all 0.15s" }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(47,184,218,0.1)"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.6)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(47,184,218,0.3)"; }}>VER FICHA</button>
@@ -4324,14 +4325,14 @@ function CuadroMando({ scenario, initialDim, initialSort, initialSel = null, mes
           se ELIMINÓ — con DOS seleccionadas la comparación es el comparado temporal de ARRIBA (dual); en la lente
           Control (sin Mesa) sigue el dumbbell original de clientes. */}
       {/* RESUMEN COMERCIAL (owner 2026-08-07): el bloque inline "perfil vs promedio" SALE de la cara Comercial —
-          esa historia vive completa en la Ficha, a la que llevan el "Ver Ficha" de cada fila y el aviso de arriba.
+          esa historia vive completa en la Ficha, a la que llevan el "Ver Perfil Ejecutivo" de cada fila y el aviso de arriba.
           El resto de las lentes lo conservan intacto. */}
       {sel.length === 1 && mesa && !resumen && (
         <MesaFicha name={sel[0]} row={cm.rows.find((r) => r.name === sel[0])} columns={cm.columns} allRows={cm.rows} dim={dim} dimLabel={cm.label} onAsk={onAsk}/>
       )}
       {sel.length === 2 && !mesa && dim === "cliente" ? <ComparacionChart a={sel[0]} b={sel[1]} scenario={scenario}/> : null}
       <div style={{ fontSize:14, color:C.textMuted, lineHeight:1.5 }}>
-        Toca una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Ficha\" abre su Ficha Ejecutiva" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordena por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:11.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
+        Toca una fila para seleccionar{resumen ? " y comparar (2 → el comparado de arriba las muestra lado a lado) · \"Ver Perfil Ejecutivo\" abre su Perfil Ejecutivo" : mesa ? " (1 → su perfil vs promedio · 2 → el comparado de arriba las muestra lado a lado)" : dim === "cliente" ? " y comparar (2 → gráfico)" : " y comparar"} · ordena por cualquier columna{cols.some((c) => c.key === "margen") ? <> · el chevron del margen marca tu benchmark (verde en línea · ámbar cerca · rojo {POLICY.margenBrechaMaterial}+ pp bajo{mesa && onAsk ? " · click = preguntarle a ADI" : ""})</> : null} · el "En juego $" es la lectura del detector (solo cuando hay señal) · en <span style={{ color:C.textSub }}>En alerta</span> cada fila trae su microlectura · el comparado de arriba sigue tu selección (sin selección = tu negocio · una fila = vs año anterior · dos = lado a lado){mesa && onAsk ? <> · la Acción es un chip: tocalo y ADI te dice cómo ejecutarla · el botón <span style={{ fontFamily:MONO, fontSize:11.5, color:C.textSub }}>ADI</span> le pregunta por esa fila</> : null}{mesa && onWatch ? <> · la ★ la sigue en "Lo que yo sigo"</> : null} · <span style={{ color:C.textSub }}>{cm.n} {cm.plural}</span> · escenario {scenario}.
       </div>
     </div>
   );
@@ -5434,7 +5435,7 @@ function MesaFichaCara({ entity, scenario, onAsk, onSelect }) {
         </div>
       </div>
       {entity ? <FichaEjecutivaCliente name={entity} scenario={scenario} onAsk={askFicha || onAsk}/> : (
-        <div style={{ fontSize: 14, color: C.textMuted }}>Elige un cliente arriba para ver su Ficha Ejecutiva.</div>
+        <div style={{ fontSize: 14, color: C.textMuted }}>Elige un cliente arriba para ver su Perfil Ejecutivo.</div>
       )}
     </div>
   );
@@ -5450,7 +5451,7 @@ function MesaFicha({ name, row, columns, allRows, dim, dimLabel, onAsk }) {
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
         <div style={{ fontFamily:MONO, fontSize:11.5, letterSpacing:"0.8px", color:C.text, textTransform:"uppercase" }}>
-          <span style={{ color:C.celeste }}>Ficha</span> · {name} <span style={{ color:C.textMuted }}>({dimLabel})</span>
+          <span style={{ color:C.celeste }}>Perfil Ejecutivo</span> · {name} <span style={{ color:C.textMuted }}>({dimLabel})</span>
         </div>
         {onAsk ? (
           <button onClick={() => onAsk(`Profundiza en ${name}`)} style={{ background:"transparent", border:"none", color:C.celeste, fontSize:14, fontWeight:600, cursor:"pointer", padding:0, fontFamily:"'DM Sans', system-ui, sans-serif" }}>

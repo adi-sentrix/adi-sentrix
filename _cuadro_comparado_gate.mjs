@@ -4,7 +4,7 @@
  *       suma EXACTO ese total — una verdad con los movers y el 80/20 (nunca el ÷1.081 uniforme del historial);
  *   (2) HONESTIDAD: sin total declarado NO se fabrica — contribución y margen sin ghost, SKUs sin ghost (skusMargen
  *       no trae `anterior`), bodega sin serie;
- *   (3) EL ACTUAL INTACTO: la serie de este año del comparado es byte-igual a buildEntityEvolution (la de la Ficha);
+ *   (3) EL ACTUAL INTACTO: la serie de este año del comparado es byte-igual a buildEntityEvolution (la del Perfil Ejecutivo);
  *   (4) LA HISTORIA REAL SE CONSERVA: Ripley cayó vs el año anterior → su ghost queda ARRIBA del actual (el ÷1.081
  *       uniforme lo habría dibujado abajo — la mentira que este gate caza). */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
@@ -50,7 +50,7 @@ const skuConCurva = M.skusMargen.filter((s) => { const c = M.buildEntityEvolutio
 ok(`SKU: curva actual sí (${skuConCurva.length}/${M.skusMargen.length}) · ghost no (skusMargen no declara anterior)`, skuConCurva.length === M.skusMargen.length && skuGhosts.length === 0);
 ok("bodega: sin serie mensual → sin gráfico (como hoy)", M.buildEntityEvolutionComparado("Santiago", "venta") == null);
 
-console.log("── (3) el actual del comparado = la serie de la Ficha, byte-igual ──");
+console.log("── (3) el actual del comparado = la serie del Perfil Ejecutivo, byte-igual ──");
 let mism = 0, comparadas = 0;
 for (const nombre of ["Falabella", "Ripley", "Samsung", "SAM-TV55"]) {
   for (const met of ["venta", "contribucion", "margen"]) {

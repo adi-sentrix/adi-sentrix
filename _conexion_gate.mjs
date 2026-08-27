@@ -1,9 +1,9 @@
 /* === _conexion_gate.mjs · GATE DE CONEXIÓN (owner 2026-07-10: "deben quedar todos conectados — fijate bien") ===
  * Toda cifra visible debe cerrar con las demás vistas de la misma entidad. Lockea:
- *   (1) las SERIES mensuales de la Ficha cierran EXACTO con el dato del período (venta · contribución · acciones)
+ *   (1) las SERIES mensuales del Perfil Ejecutivo cierran EXACTO con el dato del período (venta · contribución · acciones)
  *       y el margen derivado (c÷v) pondera al margen del período;
  *   (2) la MATRIZ cliente×SKU cierra EXACTO por cliente (venta y contribución del cuadro, al peso) — la composición
- *       que muestra el Pareto de la Ficha ES la del cuadro. */
+ *       que muestra el Pareto del Perfil Ejecutivo ES la del cuadro. */
 import esbuild from "esbuild"; import { pathToFileURL } from "url"; import path from "path"; import fs from "fs";
 // nombres PROPIOS de este gate (ver la nota en _chart_gate.mjs): compartir el archivo de bundle entre gates los
 // hace pisarse cuando corren a la vez, y `gates:offline` fallaba de forma intermitente por eso.
@@ -27,7 +27,7 @@ let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n); } };
 const sum = (a) => a.reduce((x, y) => x + y, 0);
 
-console.log("── (1) series de la Ficha ancladas al período ──");
+console.log("── (1) series del Perfil Ejecutivo ancladas al período ──");
 const period = new Map();
 for (const c of M.clientesMargen) { const cv = M.clientesVentas.find((x) => x.nombre === c.nombre); period.set(c.nombre, { venta: cv ? cv.actual : c.venta, contrib: c.contribucion, margen: c.margen, acciones: c.rebates }); }
 for (const x of M.marcasMargen) period.set(x.nombre, { venta: x.venta, contrib: x.contribucion, margen: x.margen, acciones: x.rebates });
@@ -48,7 +48,7 @@ for (const [nombre, p] of period) {
 }
 ok(`las 4 series de ${series} entidades cierran con el período (venta/contrib/acciones exactas · margen <0.15pp)`, series > 20 && seriesBad === 0);
 
-console.log("── (2) matriz cliente×SKU · el Pareto de la Ficha ES el cuadro ──");
+console.log("── (2) matriz cliente×SKU · el Pareto del Perfil Ejecutivo ES el cuadro ──");
 const marg = M._matrixMarginals();
 ok("por CLIENTE cierra EXACTO en venta (13/13)", marg.every((m) => m.ventaM === m.venta));
 ok("por CLIENTE cierra EXACTO en contribución (13/13)", marg.every((m) => m.contribM === m.contribucion));

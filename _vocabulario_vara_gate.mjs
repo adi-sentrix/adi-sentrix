@@ -364,7 +364,7 @@ H("[2] LA EJECUCIÓN · las superficies reales en los tres escenarios");
   for (const eje of ["sku", "bodega"]) reg(`cuadro capital · ${eje}`, (sc) => MCAP.buildCuadroCapital(eje, sc));
   reg("capital · señales", (sc) => RD.buildReadingFromSignals(RD.buildCapitalSignals(sc)));
 
-  // por entidad: la Ficha, el recibo frío, el anillo de control y el dive — donde vive la mitad de la prosa
+  // por entidad: el Perfil Ejecutivo, el recibo frío, el anillo de control y el dive — donde vive la mitad de la prosa
   const nombres = (applyScenarioToClientesMargen("bonanza") || []).map((r) => r.nombre);
   for (const nombre of nombres) {
     reg(`ficha · ${nombre}`, (sc) => CD.getClientDeepDive(nombre, sc));

@@ -277,8 +277,8 @@ ok(margenInvMalRotulado.length === 0, "ninguna columna alimentada por `margenPct
   margenInvMalRotulado.map((c) => c.label).join(" | "));
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * [6] LA MISMA CIFRA POR DOS SUPERFICIES · la Ficha contra el Pareto y contra el motor
- * Origen: la Ficha del SKU leía miles como dólares crudos ($13.3K vs $13.3M) y hacía CERRAR dos universos que
+ * [6] LA MISMA CIFRA POR DOS SUPERFICIES · el Perfil Ejecutivo contra el Pareto y contra el motor
+ * Origen: el Perfil Ejecutivo del SKU leía miles como dólares crudos ($13.3K vs $13.3M) y hacía CERRAR dos universos que
  * no reconcilian: 9 de 13 SKU se leían como «inmoviliza más capital del que vende en un año».
  * ──────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 head("[6] la misma cifra por dos superficies");
@@ -291,7 +291,7 @@ for (const s of skusMargen) {
   const esperado = "$" + (parBy.get(s.nombre) / 1000).toFixed(1) + "M";
   if (v !== esperado) escalaMala.push(`${s.nombre}: Ficha ${v} · Pareto ${esperado}`);
 }
-ok(escalaMala.length === 0, `la venta de un SKU se lee IGUAL en la Ficha y en el Pareto (${skusMargen.length} SKU)`, escalaMala.slice(0, 4).join(" | "));
+ok(escalaMala.length === 0, `la venta de un SKU se lee IGUAL en el Perfil Ejecutivo y en el Pareto (${skusMargen.length} SKU)`, escalaMala.slice(0, 4).join(" | "));
 // LA ALARMA del owner: si el capital de un SKU quedara por encima de su venta anual, los dos universos habrían "cerrado"
 let cierreFalso = [];
 for (const s of skusMargen) {

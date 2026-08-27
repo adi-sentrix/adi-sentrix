@@ -68,7 +68,7 @@ H("[2] EL PROMPT no se contradice con el guard");
   ok(pay.politica_tabla === "forbidden", "el payload declara politica_tabla:forbidden");
   ok(!("instruccion_tabla" in pay), "…y NO manda ninguna instrucción de tabla (pedir lo que el guard bloquea sería contradecirse)");
   ok(typeof pay.instruccion_sin_tabla === "string" && /listado tabular/i.test(pay.instruccion_sin_tabla), "…y sí manda la prohibición explícita, nombrando también el listado tabular");
-  ok(/ficha de Sentrix/i.test(pay.instruccion_sin_tabla), "…apuntando a la Ficha como el lugar del detalle");
+  ok(/ficha de Sentrix/i.test(pay.instruccion_sin_tabla), "…apuntando al Perfil Ejecutivo como el lugar del detalle");
   const libre = buildNarrateUserMessageC({ text: "Falabella mes a mes", plan: T_TMP.gen.plan, results: T_TMP.results, ledgerFigs: T_TMP.figs, mem: {}, history: [], pref: null, scenario: "actual", tablePolicy: "required" });
   ok(libre.politica_tabla !== "forbidden" && !("instruccion_sin_tabla" in libre), "con la tabla permitida, el payload no paga ninguna de las dos claves");
 }
@@ -110,7 +110,7 @@ H("[5] LA SALIDA DETERMINÍSTICA · prosa desde los claims, sin otra llamada");
   ok(/permanece abierto/.test(prosa), "…y declara que es una parte, no la explicación completa (Proporcionalidad Semántica)");
   ok(/tu benchmark/.test(prosa) && !/sector|industria|mercado/i.test(prosa), "…narra 'tu benchmark', nunca sectorial");
   ok(!/rentable/i.test(prosa), "…y no afirma rentabilidad");
-  ok(/ficha de Falabella en Sentrix/i.test(prosa), "cierra con la Ficha, que es donde vive el detalle");
+  ok(/Perfil Ejecutivo de Falabella en Sentrix/i.test(prosa), "cierra con el Perfil Ejecutivo, que es donde vive el detalle");
   ok(!/\|/.test(prosa) && prosa.split("\n").length === 1, "y NO es una tabla ni un listado: una sola tirada de prosa");
   ok(composeProsaEjecutiva([], { entidad: "Falabella" }) === null && composeProsaEjecutiva(buildClaims(T.figs), {}) !== null,
     "sin claims devuelve null (el caller cae a su camino normal); sin entidad explícita la deduce de los claims");

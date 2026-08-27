@@ -151,7 +151,7 @@ function sondaDe(id, m) {
   }
   // `entityType` NO es decoración de la sonda: `_profileRequest` lo dejan por igual el perfil de CLIENTE y el de
   // SKU (sentrixEvidence.js:_entityReading construye reading para los dos ejes), así que la rama 1 sólo puede
-  // resolver la Ficha si sabe el eje REAL de la entidad. La sonda lo pasa desde el propio manifiesto —que es lo
+  // resolver el Perfil Ejecutivo si sabe el eje REAL de la entidad. La sonda lo pasa desde el propio manifiesto —que es lo
   // que hace el pipeline real, donde el eje llega en los facts y en evidenceSpec.scope—; omitirlo hacía que el
   // gate probara una forma de evidencia que la producción nunca emite.
   if (ap === "perfil") return { ap, addr: addressFromEvidence({ _profileRequest: true, entidad: UNA_ENTIDAD, entityType: m.eje, periodo: SCN }, { scenario: SCN }) };

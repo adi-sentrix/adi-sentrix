@@ -4,7 +4,7 @@
  * que solo entiende la pregunta cuando venís de un botón obliga al usuario a aprender la interfaz antes de poder
  * preguntar.»
  *
- * LO QUE HABÍA. La nota de 2026-08-12 decía que el piso determinístico no tenía ruta a la Ficha y que llegar
+ * LO QUE HABÍA. La nota de 2026-08-12 decía que el piso determinístico no tenía ruta al Perfil Ejecutivo y que llegar
  * dependía de que el planificador acertara. Verificado hoy: `router.js` y `coerceChain.js` siguen sin mencionarla
  * — pero el hueco real es peor, porque el CAMINO NATURAL pasó a ser el principal y ahí `answerViaNatural`
  * devolvía `sentrixAction: null` FIJO. Desde texto libre no había ruta ninguna.
@@ -45,7 +45,7 @@ console.log("2 · EL BOTÓN ABRE DE VERDAD · un CTA que no lleva a ningún lado
 console.log("=".repeat(100));
 /* Se recorre la cadena ENTERA, la misma que corre la app: dirección → parseAddress → resolveAddress → lo que la
  * Mesa lee para decidir qué cara abrir. La primera versión de este trabajo verificaba solo que la dirección se
- * pudiera construir, y con eso habría pasado un botón que abría la Mesa en vez de la Ficha. */
+ * pudiera construir, y con eso habría pasado un botón que abría la Mesa en vez del Perfil Ejecutivo. */
 {
   const r = detectFichaIntent("explicame falabela", { escenario: ESCENARIO_INICIAL });
   const sa = r && r.sentrixAction;
@@ -76,7 +76,7 @@ ok(!detectFichaIntent("explicame Acme Corp", { escenario: ESCENARIO_INICIAL }),
   "un cliente que NO existe no abre nada — ni el más parecido");
 ok(!detectFichaIntent("explicame", { escenario: ESCENARIO_INICIAL }), "sin entidad, nada");
 ok(!detectFichaIntent("explicame SAM-TV55", { escenario: ESCENARIO_INICIAL }),
-  "un SKU tampoco: la Ficha que existe es la del CLIENTE, ofrecerla para otra cosa sería una promesa falsa");
+  "un SKU tampoco: el Perfil Ejecutivo que existe es la del CLIENTE, ofrecerla para otra cosa sería una promesa falsa");
 {
   // el nombre de dos palabras le gana al de una que esté adentro
   const r = detectFichaIntent("contame de La Polar", { escenario: ESCENARIO_INICIAL });

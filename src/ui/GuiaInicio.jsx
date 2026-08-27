@@ -296,10 +296,10 @@ function CapDondeEstaLaEvidencia() {
       <div style={_bajada}>ADI no te pide que le creas. Todo lo que afirma se puede abrir y revisar, por tres puertas.</div>
       <Lista>
         <Item n="1">Debajo de cada respuesta aparece un botón que abre <b style={{ color: C.text, fontWeight: 600 }}>Sentrix</b> con la evidencia de esa respuesta.</Item>
-        <Item n="2">En el cuadro, toca una fila y se abre su <b style={{ color: C.text, fontWeight: 600 }}>Ficha</b>: ahí vive el detalle de esa entidad.</Item>
+        <Item n="2">En el cuadro, toca una fila y se abre su <b style={{ color: C.text, fontWeight: 600 }}>Perfil Ejecutivo</b>: ahí vive el detalle de esa entidad.</Item>
         <Item n="3">El botón <b style={{ color: C.text, fontWeight: 600 }}>Mesa de control</b>, arriba, abre todas tus cifras a la vez.</Item>
       </Lista>
-      <div style={_pie}>La Mesa tiene cuatro caras: Comercial, Capital, Resultado y la Ficha de una cuenta.</div>
+      <div style={_pie}>La Mesa tiene cuatro caras: Comercial, Capital, Resultado y el Perfil Ejecutivo de una cuenta.</div>
     </div>
   );
 }

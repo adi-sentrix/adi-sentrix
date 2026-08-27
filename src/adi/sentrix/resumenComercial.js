@@ -253,13 +253,13 @@ function _insights(plano, rows) {
         estatusCausa: tieneAccion ? "probado" : "abierto",
         // POR QUÉ vale la pena profundizar — localiza, nunca atribuye.
         razon: tieneAccion
-          ? `Parte de la brecha ya está comprobada: opera ${_pp(excesoPP)} sobre tu meta de acciones comerciales, que equivalen a ${_K(probado)}. El resto necesita aislarse en la Ficha.`
+          ? `Parte de la brecha ya está comprobada: opera ${_pp(excesoPP)} sobre tu meta de acciones comerciales, que equivalen a ${_K(probado)}. El resto necesita aislarse en el Perfil Ejecutivo.`
           : `El monto es material, pero la causa todavía no está aislada: hay que separar costo, precio y composición de la venta.`,
         // FILA DE DECISIÓN (owner 2026-08-07): la acción concreta y qué falta, cada una en una línea corta — la
         // tarjeta larga se lee como informe; esto se lee como una decisión.
         accionCorta: tieneAccion
           ? `Revisar acciones comerciales: entrega ${_pp(excesoPP)} de más.`
-          : `Abrir la Ficha y aislar la causa cuenta por cuenta.`,
+          : `Abrir el Perfil Ejecutivo y aislar la causa cuenta por cuenta.`,
         // ⚠️ EN CASTELLANO, NO EN JERGA (owner 2026-08-08: "«falta separar costo precio», ¿qué es eso? No se
         // entiende"). Decía en tres palabras técnicas lo que hay que decir en una frase: del resto de la brecha
         // todavía no sabemos cuánto pesa lo que cuesta el producto, cuánto el precio al que se vende y cuánto la
@@ -985,7 +985,7 @@ function _prioridades(rows, deterioro, insights) {
        * números del MISMO concepto en la misma fila — el defecto exacto que costó la confianza el 2026-08-07. */
       accionCorta: alPromedio.has(r.name)
         ? `Revisar acciones comerciales: entrega ${alPromedio.get(r.name).excesoFmt} de más.`
-        : (i ? i.accionCorta : "Abrir la Ficha y aislar la causa cuenta por cuenta."),
+        : (i ? i.accionCorta : "Abrir el Perfil Ejecutivo y aislar la causa cuenta por cuenta."),
       faltaCorta: i ? i.faltaCorta : "Lo que las acciones comerciales no explican todavía no está separado: cuánto es el costo del producto, cuánto el precio de venta y cuánto la mezcla de lo que vendiste.",
       // ⚠️ LOS DOS DATOS QUE DISTINGUEN A UNA FILA DE OTRA, sueltos y no dentro de una frase (owner 2026-08-08:
       // "todas dicen lo mismo… es mejor un título, dejar los clientes y con el pp que operan y lo que se
@@ -1035,12 +1035,12 @@ function _prioridades(rows, deterioro, insights) {
       if (f._v) c.push({ valor: `−${f._v.faltaFmt}`, etiqueta: "menos de lo que planeaste", tono: "neutro" });
       f.cifras = c;
       // la acción de la fila sigue a lo que la fila realmente tiene, no al grupo
-      if (g.key !== "recuperarVenta" && !f._sobrePromedio) f.accionCorta = "Abrir la Ficha y aislar la causa cuenta por cuenta.";
+      if (g.key !== "recuperarVenta" && !f._sobrePromedio) f.accionCorta = "Abrir el Perfil Ejecutivo y aislar la causa cuenta por cuenta.";
       if (g.key === "recuperarVenta") {
         // El problema de este grupo es de VOLUMEN y su margen no cede: la acción es la misma para todas, y el
         // pendiente de margen no aplica —no hay brecha que descomponer—. Lo que sí falta es otra cosa: contra el
         // presupuesto no se puede separar precio de volumen, porque el plan declara monto y no unidades.
-        f.accionCorta = "Abrir la Ficha y aislar la causa cuenta por cuenta.";
+        f.accionCorta = "Abrir el Perfil Ejecutivo y aislar la causa cuenta por cuenta.";
         f.faltaCorta = "Contra el presupuesto no se puede separar cuánto es precio y cuánto es volumen: el plan declara monto, no unidades.";
       }
       delete f._k; delete f._m; delete f._v; delete f._sobrePromedio;

@@ -96,7 +96,7 @@ console.log("═".repeat(90));
   ok(container.textContent.includes("MESA DE CONTROL"), "abre LA MESA (MesaPanel), no el shell Diagnóstico/Evidencia/Control");
   // FICHA EN SU PROPIA PESTAÑA (owner 2026-08-07, "no debe ir mezclada con lo que ya teníamos, debe ir sola, una
   // nueva pestaña"): el perfil ya NO abre la cara Comercial con MesaFicha/MesaPerfil ("Perfil vs promedio") — abre
-  // la cara FICHA con la Ficha Ejecutiva del cliente. La aserción sigue el comportamiento nuevo, que es el correcto.
+  // la cara PERFIL EJECUTIVO con el Perfil Ejecutivo del cliente. La aserción sigue el comportamiento nuevo, que es el correcto.
   ok(container.textContent.includes(`Importancia de ${"Falabella"} en tu cartera`), "abre la FICHA EJECUTIVA en su propia pestaña (bloque de importancia en la cartera)");
   ok(!container.textContent.includes("Perfil vs promedio"), "y NO mezcla la vista vieja de la cara Comercial (el desorden que el owner reportó)");
   ok(container.textContent.includes("Falabella"), "\"Falabella\" nombrado en el DOM");

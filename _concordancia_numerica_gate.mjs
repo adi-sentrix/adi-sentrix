@@ -424,7 +424,7 @@ function salidasDe(scenario) {
   return { porComponente, porClave };
 }
 
-// Las tool-calls que el componente DECLARA, con el alcance que el ViewContext ya resolvió (la entidad de la Ficha
+// Las tool-calls que el componente DECLARA, con el alcance que el ViewContext ya resolvió (la entidad del Perfil Ejecutivo
 // sale de la selección, igual que haría el motor — no de un nombre escrito a mano en el gate).
 function callsDe(m, vc) {
   return (m.evidencia || []).map((ev) => {
@@ -618,7 +618,7 @@ H("[2] CONCORDANCIA POR COMPONENTE · la misma cifra, en los tres escenarios");
   ok(!silenciosos.length,
     `ningún desacuerdo numérico queda SIN DECLARAR (${declarados.length} declarados · ${limpios.length} concuerdan exacto)`,
     silenciosos.map((x) => `${x.id}: ${x.desac.length} cifras (${x.visibles} visibles al usuario) y el manifiesto no declara divergencia`).join("\n      "));
-  // DOS PROBLEMAS DISTINTOS bajo el mismo síntoma. Una pieza que en pantalla es TEXTO (un veredicto, la Ficha) no
+  // DOS PROBLEMAS DISTINTOS bajo el mismo síntoma. Una pieza que en pantalla es TEXTO (un veredicto, el Perfil Ejecutivo) no
   // tiene cifra que reconciliar: eso es una pregunta del manifiesto (¿debería declarar `sinTool`, o apuntar el
   // `campo` a la medida?), no un desacuerdo numérico — se informa. Una pieza que SÍ muestra una cifra y aun así no
   // consigue contrastarla contra su propia evidencia declarada es un defecto real del contrato: la tool que dice
@@ -761,7 +761,7 @@ H("[7] COBERTURA · el silencio declarado y las tools que no responden");
 H("[8] ESTADO DE CONCORDANCIA · el estado DECLARADO tiene que ser el estado MEDIDO  (decisión 11)");
 {
   // POR QUÉ ESTA SECCIÓN EXISTE. Hasta hoy el manifiesto declaraba `divergencia: null` en 16 de 43 componentes —
-  // toda la cara Capital y la Ficha entera— sin que nadie lo hubiera comprobado, y el motor lee ese null como
+  // toda la cara Capital y el Perfil Ejecutivo entera— sin que nadie lo hubiera comprobado, y el motor lee ese null como
   // «la cifra de la tool es la de la pantalla». Ahora cada componente declara `reconciled | divergent |
   // unsupported`, y acá esa declaración se vuelve FALSIFICABLE contra el cruce que este mismo gate ya midió:
   //   · `reconciled` obliga a haber cruzado AL MENOS un par y a que NINGUNO discrepe. Es la única afirmación

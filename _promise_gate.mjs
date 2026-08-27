@@ -70,7 +70,7 @@ try {
   if (rMeta && Array.isArray(rMeta.suggestions))
     for (const s of rMeta.suggestions) if (typeof s === "string" && s.trim() && !promesas.has(s)) promesas.set(s, { lastEv: null, emisor: "meta:fuera_de_dato" });
 } catch { /* */ }
-// + PROMESAS DE LA UI (owner 2026-07-10: cada gráfico de la Ficha lleva su botón "que ADI lo explique" — esas
+// + PROMESAS DE LA UI (owner 2026-07-10: cada gráfico del Perfil Ejecutivo lleva su botón "que ADI lo explique" — esas
 // preguntas TAMBIÉN son promesas: deben contar la historia de contratos, jamás degradar). Instanciadas con
 // entidades reales de cada eje (cliente · marca · SKU) — si un botón deja de responder, este gate lo caza.
 for (const s of [

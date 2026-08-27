@@ -1,14 +1,14 @@
 /* === _divulgacion_progresiva_gate.mjs · REGLA TRANSVERSAL (owner 2026-08-07) =========================
  * Consulta GENERAL de entidad → qué pasa / por qué / qué hacer primero, SIN tablas de detalle.
- * El detalle vive en la Ficha de Sentrix. Las tablas temporales solo si se piden explícitamente.
+ * El detalle vive en el Perfil Ejecutivo de Sentrix. Las tablas temporales solo si se piden explícitamente.
  *   [1] DETECTOR temporal: dispara con las formas reales de pedir tiempo, y NO con una consulta general.
  *   [2] DETECTOR de desglose: composición/SKU/familia solo si se pide.
  *   [3] PODA ANTES DEL BATCH: la tool no se ejecuta. Es lo que hace que ahorre de verdad.
  *   [4] AHORRO MEDIDO: el turno real de perfil pasa de 134 cifras a 18.
  *   [5] LOS CUATRO EJES: cliente, familia, marca y SKU — el criterio es la forma de la consulta, no el eje.
  *   [6] NO SE PIERDE LA LECTURA: qué pasa, por qué y la prioridad cuantificada siguen autorizados.
- *   [7] EL NARRADOR LO SABE: la instrucción viaja y nombra la Ficha; sin poda no se paga.
- *   [8] EL ENLACE: el botón dice "Ver ficha en Sentrix" y abre la cara Ficha.
+ *   [7] EL NARRADOR LO SABE: la instrucción viaja y nombral Perfil Ejecutivo; sin poda no se paga.
+ *   [8] EL ENLACE: el botón dice "Ver Perfil Ejecutivo en Sentrix" y abre la cara Perfil Ejecutivo.
  *   [9] NO REGRESIÓN: un pedido explícito trae TODO lo que traía antes.
  * Cero red, cero LLM. `node _divulgacion_progresiva_gate.mjs`
  */
@@ -127,7 +127,7 @@ H("[7] EL NARRADOR LO SABE · y no paga cuando no hay nada que decir");
 {
   const gen = podarPlanProgresivo(planCompleto("Falabella"), "perfil de Falabella");
   const inst = buildDisclosureInstruction({ podado: gen.podado, entidad: gen.entidad });
-  ok(/Ficha de Sentrix/.test(inst) && /Ver ficha en Sentrix/.test(inst), "la instrucción nombra la Ficha como destino del detalle");
+  ok(/Perfil Ejecutivo de Sentrix/.test(inst) && /Ver Perfil Ejecutivo en Sentrix/.test(inst), "la instrucción nombral Perfil Ejecutivo como destino del detalle");
   ok(/NO armes ninguna tabla/i.test(inst), "…y prohíbe explícitamente armar la tabla");
   ok(/prioridad/i.test(inst), "…pero deja la prioridad concreta con su monto");
   ok(buildDisclosureInstruction({ podado: [], entidad: "Falabella" }) === "", "sin poda NO se paga la instrucción (economía de tokens)");
@@ -135,7 +135,7 @@ H("[7] EL NARRADOR LO SABE · y no paga cuando no hay nada que decir");
   const r = runPlan({ intent: "answer", calls: gen.plan.calls }, { scenario: "actual" });
   const pay = buildNarrateUserMessageC({ text: "perfil de Falabella", plan: gen.plan, results: r.results, ledgerFigs: r.ledger.figs,
     mem: {}, history: [], pref: null, scenario: "actual", instruccionDisclosure: inst });
-  ok(typeof pay.instruccion_divulgacion === "string" && /Ficha de Sentrix/.test(pay.instruccion_divulgacion), "y viaja en el payload de NARRAR");
+  ok(typeof pay.instruccion_divulgacion === "string" && /Perfil Ejecutivo de Sentrix/.test(pay.instruccion_divulgacion), "y viaja en el payload de NARRAR");
   const sin = buildNarrateUserMessageC({ text: "perfil de Falabella", plan: gen.plan, results: r.results, ledgerFigs: r.ledger.figs, mem: {}, history: [], pref: null, scenario: "actual" });
   ok(!sin.instruccion_divulgacion, "sin instrucción, la clave ni aparece");
 }
@@ -143,8 +143,8 @@ H("[7] EL NARRADOR LO SABE · y no paga cuando no hay nada que decir");
 H("[8] EL ENLACE · el botón dice Ficha, no un panel genérico");
 {
   const src = (await import("node:fs")).readFileSync("src/ui/ChatADI.jsx", "utf8");
-  ok(/Ver ficha de \$\{evidence\.entidad\} en Sentrix/.test(src) || /Ver ficha de/.test(src), "_evLabel devuelve \"Ver ficha … en Sentrix\" para un perfil");
-  ok(/evidence\._profileRequest/.test(src), "…disparado por `_profileRequest`, la MISMA marca que abre la cara Ficha del panel");
+  ok(src.includes("Ver el Perfil Ejecutivo de ${evidence.entidad} en Sentrix"), "_evLabel devuelve el nombre nuevo del detalle para un perfil");
+  ok(/evidence\._profileRequest/.test(src), "…disparado por `_profileRequest`, la MISMA marca que abre la cara Perfil Ejecutivo del panel");
 }
 
 H("[9] NO REGRESIÓN · el pedido explícito trae TODO lo que traía antes");
